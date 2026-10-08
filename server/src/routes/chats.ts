@@ -89,14 +89,14 @@ chats.get("/chats/:id/messages", (c) => {
 /** Send a message (optional) and start the reply. Generation continues server-side (ARCH-02). */
 chats.post("/chats/:id/send", async (c) => {
   const chatId = c.req.param("id");
-  const input = await body(c, z.object({ content: z.string().max(100_000).optional(), generate: z.boolean().default(true), profileId: z.string().nullable().optional() }));
+  const input = await body(c, z.object({ content: z.string().max(100_000).optional(), generate: z.boolean().default(true), profileId: z.string().nullable().optional(), director: z.boolean().optional() }));
   mustChat(chatId);
   if (activeGenerations(chatId).length) throw badRequest("Wait for the current reply to finish");
   let userMessageId: string | null = null;
   if (input.content?.trim()) {
     const chat = getChat(chatId)!;
     const persona = getPersona(chat.personaId) ?? getDefaultPersona();
-    userMessageId = addMessage(chatId, "user", input.content.trim(), { name: persona?.name ?? "You" });
+    userMessageId = addMessage(chatId, "user", input.content.trim(), { name: persona?.name ?? "You", meta: input.director ? { director: true } : undefined });
   }
   if (!input.generate) return c.json({ userMessage: userMessageId && getMessage(userMessageId) });
   try {

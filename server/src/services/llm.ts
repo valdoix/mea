@@ -9,7 +9,7 @@ import { Deferred } from "./jobs";
 import { QuotaExhausted, assertQuota } from "./quota";
 import { finishRequest, startRequest } from "./requests";
 
-export type HelperTask = "summarizer" | "helper";
+export type HelperTask = "summarizer" | "helper" | "tracker" | "world";
 
 export interface JsonCall<T extends z.ZodType> {
   task: HelperTask;
@@ -140,6 +140,57 @@ export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<
       }
       lastError = new Error(`The model's reply didn't match the expected format: ${problem}`);
       messages.splice(2, messages.length, { role: "assistant", content: res.text.slice(0, 6000) }, { role: "user", content: `That reply wasn't valid: ${problem}\nReply again with only the corrected JSON object.` });
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+export interface TextCall {
+  task: HelperTask;
+  kind: string;
+  chatId?: string | null;
+  jobId?: string | null;
+  system: string;
+  user: string;
+  maxTokens?: number;
+  signal?: AbortSignal;
+  /** Returns a problem to send back once ("the reply had no ledger lines"), or null when it's usable. */
+  validate?: (text: string) => string | null;
+}
+
+/** A plain-text helper call (tracker ledgers): the task's chain, quota deferral, one corrective retry. */
+export async function callText(call: TextCall): Promise<{ text: string; generationId: string; usage?: Usage; model: string; inputTokens: number }> {
+  const chain = resolveTaskChain(call.task);
+  let lastError: unknown = null;
+  const asJson = { ...call, name: "text", schema: z.any() } as JsonCall<z.ZodType>;
+  for (const r of chain) {
+    try {
+      assertQuota(r.billing);
+    } catch (e) {
+      if (e instanceof QuotaExhausted) throw new Deferred("Waiting for the quota to reset", e.resetAt ? Math.max(60_000, e.resetAt - now()) : 30 * 60_000);
+      throw e;
+    }
+    const messages: ChatMessage[] = [
+      { role: "system", content: call.system },
+      { role: "user", content: call.user },
+    ];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let res: Awaited<ReturnType<typeof once>>;
+      try {
+        res = await once(r, asJson, messages, false);
+      } catch (e) {
+        lastError = e;
+        if (call.signal?.aborted) throw e;
+        if (e instanceof ProviderError) {
+          if (e.kind === "quota") throw new Deferred("The provider reports the quota is used up", 30 * 60_000);
+          if (e.retryable || e.kind === "auth" || e.kind === "refused") break;
+        }
+        throw e;
+      }
+      const problem = call.validate?.(res.text) ?? null;
+      if (!problem) return { text: res.text, generationId: res.id, usage: res.usage, model: r.modelId, inputTokens: res.usage?.promptTokens ?? res.est };
+      lastError = new Error(problem);
+      messages.splice(2, messages.length, { role: "assistant", content: res.text.slice(0, 4000) }, { role: "user", content: `${problem}\nReply again with only the corrected lines.` });
     }
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));

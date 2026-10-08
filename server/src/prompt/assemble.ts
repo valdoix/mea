@@ -49,6 +49,22 @@ export interface AssembleInput {
   tokenRatio?: number;
   /** Strip markup and reasoning from messages older than this depth (CTX-07). 0 = off. */
   filterDepth?: number;
+  /**
+   * Extra blocks from chat tools and trackers (TRK-06, CHAT-09…13): the story-state note, story
+   * settings, OOC notes, cues, guidance. `prefix` blocks join the stable cached prefix; the rest
+   * go in at a depth.
+   */
+  extras?: PromptExtra[];
+}
+
+export interface PromptExtra {
+  id: string;
+  name: string;
+  content: string;
+  /** Messages from the end (0 = after the last message). Ignored for prefix blocks. */
+  depth?: number;
+  role?: Role;
+  prefix?: boolean;
 }
 
 export interface BlockTrace {
@@ -245,6 +261,21 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
       inline.push({ kind: "msg", msg: { role: block.role, content } });
     }
   });
+
+  for (const [i, e] of (input.extras ?? []).entries()) {
+    const content = e.content.trim();
+    const trace: BlockTrace = { id: `extra:${e.id}`, name: e.name, kind: "extra", role: e.role ?? "system", tokens: content ? tok(content) : 0, included: Boolean(content) };
+    blocks.push(trace);
+    if (!content) continue;
+    if (e.prefix) {
+      // Stable blocks go just before the history so the cached prefix stays unchanged turn to turn.
+      const at = inline.findIndex((x) => x.kind === "history");
+      inline.splice(at < 0 ? inline.length : at, 0, { kind: "msg", msg: { role: e.role ?? "system", content } });
+    } else {
+      trace.depth = e.depth ?? 1;
+      depthItems.push({ depth: e.depth ?? 1, role: e.role ?? "system", content, order: 500 + i });
+    }
+  }
 
   for (const d of lore?.depth ?? []) {
     depthItems.push({ depth: d.depth, role: d.role, content: d.content, order: 1000 + d.order });

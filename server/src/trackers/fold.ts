@@ -380,7 +380,7 @@ export class Folder {
         const common = before.findIndex((x, i) => norm(x) !== norm(path[i] ?? ""));
         if (before.length && (common < 0 ? before.length !== path.length : common < Math.max(1, path.length - 1))) this.newScene(seq);
         for (const c of Object.values(st.chars)) if (c.tier === "spot" || c.tier === "peri") c.place = path.join(" › ");
-        this.push(ctx, { kind: "place", text: before.length ? `${before.at(-1)} → ${path.at(-1)}` : path.join(" › "), path: "place", from: before.join(" › "), to: path.join(" › "), memory: true });
+        this.push(ctx, { kind: "place", text: before.length ? `${before.at(-1)} → ${path.at(-1)}` : path.join(" › "), path: "place", from: before.join(" › "), to: path.join(" › ") });
         return;
       }
       case "scene": {

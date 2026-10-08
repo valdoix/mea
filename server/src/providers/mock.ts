@@ -57,6 +57,8 @@ function helperJson(name: string, user: string): unknown {
     }
     case "scene_boundary":
       return { newScene: !/MOCK_SAME_SCENE/.test(user), reason: "mock" };
+    case "tracker_gate":
+      return { changed: !/MOCK_NO_CHANGE/.test(user) };
     default:
       return {};
   }
@@ -80,6 +82,13 @@ export class MockProvider implements Provider {
   async stream(req: StreamRequest, onDelta: (d: StreamDelta) => void): Promise<StreamResult> {
     const schemaName = (req.responseFormat?.json_schema as { name?: string } | undefined)?.name;
     const system = req.messages.find((m) => m.role === "system")?.content ?? "";
+    const userText = req.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
+    // Tracker ledgers (plain lines) for the tracker helper calls.
+    if (/LEDGER TRACKER: write the ledger lines now|STARTING STATE: write the ledger lines now/.test(userText)) {
+      const text = /STARTING STATE/.test(userText) ? mockInit(userText) : mockLedger(`${system}\n${userText}`);
+      onDelta({ text });
+      return { finishReason: "stop", usage: { promptTokens: Math.round(JSON.stringify(req.messages).length / 4), completionTokens: Math.round(text.length / 4) }, sentBody: { model: req.model, messages: req.messages } };
+    }
     const helper = schemaName ?? (/Reply with one JSON object only|Reply with JSON only/.test(system) ? guessSchema(system) : undefined);
     if (helper) {
       const user = req.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
@@ -97,7 +106,7 @@ export class MockProvider implements Provider {
           ? 'I set my bag down by the door and let out a long breath. "It\'s good to see you again," I say, and I mean it.'
           : /single word OK/.test(tail)
             ? "OK"
-            : `${LINES.join("\n\n")}\n\n(You said: "${last.slice(0, 80)}")`;
+            : `${LINES.join("\n\n")}\n\n(You said: "${last.slice(0, 80)}")${req.messages.some((m) => m.content.includes("add a <ledger> block")) ? `\n\n<ledger>\nclock: +6m\nmood Mira: thoughtful — he came back\n</ledger>` : ""}`;
     onDelta({ reasoning: "Mock reasoning: keep continuity with the lighthouse scene." });
     const words = text.split(/(\s+)/);
     for (const w of words) {
@@ -134,8 +143,42 @@ export class MockProvider implements Provider {
 
 function guessSchema(system: string) {
   if (system.includes('"memories"')) return "scene_memory";
+  if (system.includes('"changed"')) return "tracker_gate";
   if (system.includes('"verdict"')) return "summary_check";
   if (system.includes('"newScene"')) return "scene_boundary";
   if (system.includes('"openThreads"')) return "summary_rollup";
   return undefined;
+}
+
+const MOODS = ["wistful", "wary-curious", "amused", "guarded", "warm", "thoughtful"];
+
+/** A deterministic ledger for the newest messages, so trackers can be exercised without a model. */
+function mockLedger(user: string): string {
+  const msgs = user.split("NEW MESSAGES:")[1] ?? "";
+  const main = user.match(/keep the story ledger for a roleplay between .+? and (.+?)\./)?.[1] ?? "Mira";
+  const userName = user.match(/roleplay between (.+?) \(the user's character\)/)?.[1];
+  const n = msgs.length;
+  const lines = ["clock: +8m", `cast: ${main}@spot`, `mood ${main}: ${MOODS[n % MOODS.length]}`];
+  if (!/^clock: (?:Day|\d)/m.test(user)) lines.unshift("clock: Day 1 20:30");
+  const toUser = userName ?? "{{user}}";
+  if (/\b(thank|gave|back|kind|promise)\w*/i.test(msgs)) lines.push(`bond ${main}>${toUser}: trust +1 — kept their word`);
+  if (/\blocket\b/i.test(msgs)) lines.push("thread Lost locket: advance — the locket came up again");
+  if (/\btea\b/i.test(msgs)) lines.push(`body ${main}: thirst -1`);
+  if (/\bstorm|rain\b/i.test(msgs)) lines.push("wx: rain");
+  return lines.join("\n");
+}
+
+function mockInit(user: string): string {
+  const main = user.match(/CARD \((.+?)\):/)?.[1] ?? "Mira";
+  return [
+    "clock: Day 1 20:00",
+    "wx: wind off the sea",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "scene: The storm",
+    `cast: ${main}@spot(by the logbook)`,
+    `mood ${main}: relieved`,
+    `look ${main}: wool sweater, sleeves pushed up`,
+    `drive ${main}: want: company through the long night; fear: being forgotten out here`,
+    "thread The keeper's logbook: new — a page is missing",
+  ].join("\n");
 }

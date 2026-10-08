@@ -442,4 +442,58 @@ ALTER TABLE models ADD COLUMN calibration REAL;
 ALTER TABLE models ADD COLUMN cache_probe TEXT;
 `,
   },
+  {
+    id: 3,
+    name: "trackers and world",
+    sql: /* sql */ `
+-- Tracker ledger events (TRK-02, TRK-04): one op per row, anchored to a message and swipe.
+-- swipe_idx -1 rides every swipe of its message (your edits, the world off the page);
+-- message_id NULL is the base state from the card (TRK-09).
+CREATE TABLE tracker_events (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT,
+  swipe_idx INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL,
+  ord INTEGER NOT NULL,
+  op TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX tracker_events_chat ON tracker_events(chat_id, message_id, swipe_idx, ord);
+
+-- Custom tracker templates (TRK-01, TRK-32).
+CREATE TABLE tracker_templates (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  schema TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
+);
+CREATE UNIQUE INDEX tracker_templates_key ON tracker_templates(key) WHERE deleted_at IS NULL;
+
+-- Per-chat notes about people (CHAT-26/27): portrait, description, voice, pin, stamina, standing.
+CREATE TABLE cast_profiles (
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  name_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (chat_id, name_key)
+);
+
+-- Drafts that follow you between devices (CHAT-17).
+CREATE TABLE drafts (
+  chat_id TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+  text TEXT NOT NULL DEFAULT '',
+  device TEXT,
+  updated_at INTEGER NOT NULL
+);
+
+-- Per-character tracker defaults (TRK-32): templates, sections, romance pace.
+ALTER TABLE characters ADD COLUMN trackers TEXT NOT NULL DEFAULT '{}';
+`,
+  },
 ];

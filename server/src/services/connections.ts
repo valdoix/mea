@@ -387,9 +387,14 @@ export function cacheModeFor(conn: Pick<ConnectionRow, "kind" | "extra" | "billi
 export type ResolvedProfile = ReturnType<typeof resolveProfile>;
 
 /** Resolves everything needed to call a model for a profile. */
-export function resolveProfile(profileId?: string | null) {
-  const profile = getProfile(profileId ?? getSetting("routing.story")) ?? listProfiles()[0];
-  if (!profile) throw badRequest("No model is set up yet. Add a connection and a profile in Settings → Models.");
+/**
+ * A profile ready to use. `override` (CONN-07, the header's quick switcher) swaps the model and
+ * connection while keeping the profile's tuning.
+ */
+export function resolveProfile(profileId?: string | null, override?: { connectionId: string; modelId: string } | null) {
+  const base = getProfile(profileId ?? getSetting("routing.story")) ?? listProfiles()[0];
+  if (!base) throw badRequest("No model is set up yet. Add a connection and a profile in Settings → Models.");
+  const profile = override && getConnectionRow(override.connectionId) ? { ...base, connectionId: override.connectionId, modelId: override.modelId } : base;
   if (!profile.connectionId || !profile.modelId) throw badRequest(`Profile "${profile.name}" has no model selected.`);
   const conn = getConnectionRow(profile.connectionId);
   if (!conn) throw badRequest(`Profile "${profile.name}" points to a deleted connection.`);
@@ -416,7 +421,10 @@ export function resolveProfile(profileId?: string | null) {
   };
 }
 
-export type Task = "story" | "summarizer" | "helper";
+export type Task = "story" | "summarizer" | "helper" | "tracker" | "world";
+
+/** Unset helper tasks borrow another task's profile: trackers the helper's, the world the summarizer's. */
+const BORROWS: Partial<Record<Task, "summarizer" | "helper">> = { tracker: "helper", world: "summarizer" };
 
 /**
  * The profiles to try for a task, in order (CONN-03, CONN-05). Helpers fall back to the story
@@ -425,10 +433,11 @@ export type Task = "story" | "summarizer" | "helper";
 export function resolveTaskChain(task: Task, primaryId?: string | null): ResolvedProfile[] {
   const routing = getSetting("routing.tasks");
   const fallbacks = getSetting("routing.fallbacks");
-  const first = primaryId ?? (task === "story" ? getSetting("routing.story") : (routing[task] ?? getSetting("routing.story")));
+  const story = getSetting("routing.story");
+  const first = primaryId ?? (task === "story" ? story : (routing[task] ?? (BORROWS[task] ? routing[BORROWS[task]!] : null) ?? story));
   const out: ResolvedProfile[] = [resolveProfile(first)];
   const seen = new Set([out[0]!.profile.id]);
-  for (const id of fallbacks[task] ?? []) {
+  for (const id of fallbacks[task] ?? (BORROWS[task] ? fallbacks[BORROWS[task]!] : []) ?? []) {
     let r: ResolvedProfile;
     try {
       r = resolveProfile(id);

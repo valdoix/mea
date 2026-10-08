@@ -34,6 +34,10 @@ import { isChatWatched } from "./presence";
 import { resolvePreset } from "./presets";
 import { sendPush } from "./push";
 import { assertQuota } from "./quota";
+import { applyBanned, chatExtras, consumeOnce, looksLikeRefusal, trimUnfinished } from "./chattools";
+import { evalCondition } from "../trackers/condition";
+import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
+import type { PromptExtra } from "../prompt/assemble";
 import { finishRequest, getRequest, startRequest } from "./requests";
 
 interface ActiveGeneration {
@@ -74,6 +78,13 @@ interface Prepared {
   assembled: AssembleResult;
   lore: ActivationResult;
   cache?: CacheHint;
+  trackers: { tokens: number; lanes: { name: string; tokens: number; dropped?: boolean }[]; inline: boolean } | null;
+}
+
+/** The world simulation adds what reaches the scene from off the page (sim/crossings). */
+let elsewhereLane: ((chatId: string) => string | undefined) | null = null;
+export function setElsewhereLane(fn: (chatId: string) => string | undefined) {
+  elsewhereLane = fn;
 }
 
 export interface PrepareOptions {
@@ -97,14 +108,27 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const userName = persona?.name ?? "You";
   const settings = parseJson<ChatSettings>(chat.settings, {});
   const preset = resolvePreset(settings.presetId);
-  const resolved = resolveProfile(opts.profileId ?? settings.profileId);
+  const resolved = resolveProfile(opts.profileId ?? settings.profileId, opts.profileId ? null : settings.modelOverride);
   const history = historyForPrompt(chatId, { excludeMessageId: opts.excludeMessageId });
   const cfg = memoryConfig();
 
   const substitute = (s: string) => expandMacros(s, { char: card.name, user: userName, vars: {}, mode: chat.mode });
   const loreDefaults = getSetting("lore.defaults");
+  // Trackers (TRK-06): the story state as of the message being written.
+  let tp: ReturnType<typeof trackerPrompt> | null = null;
+  try {
+    tp = trackerPrompt(chatId, { excludeMessageId: opts.excludeMessageId, kind, elsewhere: elsewhereLane?.(chatId) });
+  } catch (e) {
+    console.error("[mea] trackers unavailable for this prompt:", e);
+  }
+  // TRK-12: lorebook entries with a tracker condition switch on when it holds, and only then.
+  const entries = scanEntriesFor({ characterId: chat.character_id, personaId: persona?.id ?? null, chatId }).flatMap((e) => {
+    const when = (e.extra as { trackerWhen?: string } | undefined)?.trackerWhen?.trim();
+    if (!when) return [e];
+    return tp && evalCondition(tp.state, when) ? [{ ...e, constant: true }] : [];
+  });
   const lore = activateLore({
-    entries: scanEntriesFor({ characterId: chat.character_id, personaId: persona?.id ?? null, chatId }),
+    entries,
     history: history.map((m) => `${m.role === "user" ? userName : m.role === "assistant" ? card.name : "Note"}: ${m.content}`),
     messageCount: messageCountOf(chatId),
     state: loadLoreState(chatId),
@@ -137,6 +161,11 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     feedback: opts.feedback,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
+    extras: [
+      ...(tp?.note ? [{ id: "trackers", name: "Story state (trackers)", content: tp.note.text, depth: 1 } satisfies PromptExtra] : []),
+      ...(tp?.inline ? [{ id: "ledger", name: "Ledger instructions", content: tp.inline, depth: 0 } satisfies PromptExtra] : []),
+      ...chatExtras(chatId, kind, tp?.state ?? null),
+    ],
     memory: (available) =>
       buildMemoryContext({
         chatId,
@@ -154,7 +183,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const cache: CacheHint | undefined = resolved.cacheMode
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
-  return { card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache };
+  const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
+  return { card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -166,7 +196,7 @@ function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swip
     task: "story",
     resolved: p.resolved,
     request: { model: p.resolved.modelId, messages: p.assembled.messages, params: p.samplers, cache: p.cache ?? null },
-    trace: { ...p.assembled.trace, cacheMarks: p.assembled.cacheMarks, cacheMode: p.cache?.mode ?? null, profile: p.resolved.profile.name },
+    trace: { ...p.assembled.trace, cacheMarks: p.assembled.cacheMarks, cacheMode: p.cache?.mode ?? null, profile: p.resolved.profile.name, trackers: p.trackers },
     estPromptTokens: p.assembled.estPromptTokens,
   });
 }
@@ -185,7 +215,7 @@ function recordMemoryUsage(generationId: string, chatId: string, p: Prepared) {
 export type StoryAction = "new" | "swipe" | "continue";
 
 /** Starts a story generation and returns once it's running; tokens arrive over the event stream (ARCH-02, ARCH-06). */
-export async function startStory(chatId: string, action: StoryAction, opts: { messageId?: string; feedback?: string; profileId?: string | null } = {}) {
+export async function startStory(chatId: string, action: StoryAction, opts: { messageId?: string; feedback?: string; profileId?: string | null; auto?: string } = {}) {
   if (activeGenerations(chatId).length) throw new HttpError(409, "A reply is already being written in this chat");
   const last = lastMessage(chatId);
   if (action !== "new" && (!last || last.id !== opts.messageId || last.role !== "assistant")) throw new HttpError(400, "Only the latest reply can be swiped or continued");
@@ -222,11 +252,11 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
   const gen: ActiveGeneration = { id: generationId, chatId, messageId, swipeIdx, abort: new AbortController(), text: baseText, reasoning: "" };
   active.set(generationId, gen);
   publish({ type: "gen.start", chatId, messageId, swipeIdx, generationId });
-  void runStory(gen, prepared, action, baseText, opts.feedback);
+  void runStory(gen, prepared, action, baseText, opts.feedback, opts.auto);
   return { generationId, messageId, swipeIdx };
 }
 
-async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAction, baseText: string, feedback?: string) {
+async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAction, baseText: string, feedback?: string, auto?: string) {
   const startedAt = now();
   let p = first;
   let firstTokenAt: number | null = null;
@@ -256,6 +286,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     }
   })();
   let overflowRetried = false;
+  let smartRetried = false;
+  let backedOff = false;
   const notes: string[] = [];
 
   try {
@@ -298,6 +330,23 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         usage = result.usage;
         finishReason = result.finishReason;
         sentBody = result.sentBody;
+        // CONN-09: an empty reply or a refusal gets one more try (the next model in the chain if there is one).
+        const written = gen.text.slice(baseText.length);
+        const retry = getSetting("chat.retry");
+        const why = !written.trim() && retry.empty ? "empty reply" : retry.refusal && looksLikeRefusal(written) ? "refusal" : null;
+        if (why && !smartRetried && !gen.abort.signal.aborted) {
+          smartRetried = true;
+          finishRequest(requestId, { status: "error", error: `retried: ${why}`, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+          const next = chain.shift();
+          if (next) p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: next.profile.id });
+          notes.push(`retried after ${why}${next ? ` with ${next.profile.name}` : ""}`);
+          gen.text = baseText;
+          first_ = true;
+          firstTokenAt = null;
+          publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reset: true });
+          requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
+          continue;
+        }
         break;
       } catch (e) {
         if (gen.abort.signal.aborted) throw e;
@@ -317,6 +366,16 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
             targetScale: limit ? undefined : 0.75,
           });
           notes.push("prompt shrunk after a length error");
+          requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
+          continue;
+        }
+        // CONN-09: a server error gets one quick retry on the same model before moving down the chain.
+        if (err.retryable && !backedOff && getSetting("chat.retry").serverErrors) {
+          backedOff = true;
+          finishRequest(requestId, { status: "error", error: err.message });
+          await Bun.sleep(1500);
+          if (gen.abort.signal.aborted) throw err;
+          notes.push(`retried after: ${err.message.slice(0, 60)}`);
           requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
           continue;
         }
@@ -349,7 +408,24 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     for (const [k, g] of active) if (g === gen) active.delete(k);
   }
 
-  const text = gen.text.trimEnd();
+  let text = gen.text.trimEnd();
+  // Inline trackers: the <ledger> block comes out of the reply before it's saved.
+  let ledgerRaw: string | null = null;
+  const inline = p.trackers?.inline && status !== "error";
+  if (inline) {
+    const at = text.search(/<ledger\b/i);
+    if (at >= 0) {
+      ledgerRaw = text.slice(at);
+      text = text.slice(0, at).trimEnd();
+    }
+  }
+  // CHAT-14: a reply cut off by the length limit is trimmed to its last sentence, or continued.
+  const cutoff = getSetting("chat.cutoff");
+  const cutOff = status === "done" && finishReason === "length";
+  if (cutOff && cutoff === "trim") text = trimUnfinished(text);
+  // CHAT-19: banned phrases.
+  const banned = status !== "error" ? applyBanned(text) : { text, hits: [], replaced: 0 };
+  text = banned.text;
   const finalStatus = status === "error" && action === "continue" ? "done" : status === "error" && text ? "stopped" : status;
   updateSwipe(gen.messageId, gen.swipeIdx, {
     content: text,
@@ -374,6 +450,9 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       finishReason: finishReason ?? null,
       ...(notes.length ? { notes } : {}),
       ...(feedback ? { feedback } : {}),
+      ...(banned.hits.length ? { banned: banned.hits } : {}),
+      ...(ledgerRaw ? { ledger: ledgerRaw.slice(0, 6000) } : {}),
+      ...(cutOff ? { cutOff: true } : {}),
     },
   });
   finishRequest(requestId, { status, error, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
@@ -381,6 +460,13 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   publish({ type: "message.changed", chatId: gen.chatId, messageId: gen.messageId });
 
   if (status !== "error") {
+    try {
+      consumeOnce(gen.chatId);
+      if (inline) fileInlineLedger(gen.chatId, gen.messageId, gen.swipeIdx, ledgerRaw);
+      else if (status === "done") scheduleTrackers(gen.chatId, gen.messageId, gen.swipeIdx);
+    } catch (e) {
+      console.error("[mea] after-reply step failed:", e);
+    }
     saveLoreState(gen.chatId, p.lore.stateUpdates);
     setChatVars(gen.chatId, p.assembled.vars);
     recordMemoryUsage(requestId, gen.chatId, p);
@@ -391,6 +477,12 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   if (p.resolved.billing === "subscription") enqueue("quota.refresh", {}, { dedupeKey: "quota.refresh", delayMs: 3000 });
   // A finished turn may have settled older messages: let memory catch up in the background (SUM-07).
   scheduleMemory(gen.chatId);
+  // CHAT-14 / CHAT-19: follow-ups that start a new generation once this one is saved.
+  if (status === "done" && cutOff && cutoff === "continue" && auto !== "continue") {
+    setTimeout(() => void startStory(gen.chatId, "continue", { messageId: gen.messageId, auto: "continue" }).catch(() => {}), 50);
+  } else if (status === "done" && banned.hits.length && getSetting("chat.banned").action === "regenerate" && !auto) {
+    setTimeout(() => void startStory(gen.chatId, "swipe", { messageId: gen.messageId, auto: "banned" }).catch(() => {}), 50);
+  }
   if (status === "done" && !isChatWatched(gen.chatId)) {
     void sendPush({ title: p.card.name, body: text.replace(/\s+/g, " ").slice(0, 140), url: `/chat/${gen.chatId}`, tag: gen.chatId }).catch(() => {});
   }

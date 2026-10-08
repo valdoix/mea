@@ -12,6 +12,7 @@ import { onLedgerEdit } from "./services/chats";
 import { embedChat } from "./memory/embed";
 import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
+import { runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
 
 /** Replies that were streaming when Mea stopped are marked so the user can retry them. */
 function recoverInterrupted() {
@@ -50,6 +51,10 @@ export function startup(opts: { jobs?: boolean; dbFile?: string } = {}) {
   registerJob("memory.segment", async (p, job) => segmentChat(String(p.chatId), job));
   registerJob("memory.build", async (p, job) => runBuildJob(p as { chatId: string; summaryId: string; instruction?: string; propose?: boolean }, job));
   registerJob("memory.embed", async (p, job) => embedChat(String(p.chatId), job));
+  // Trackers (Phase 2): read after each reply, never in the way (TRK-03).
+  onLedgerEdit(trackerLedgerHook);
+  registerJob("tracker.update", async (p, job) => runTrackerUpdate(p as { chatId: string; messageId: string; swipeIdx: number }, job));
+  registerJob("tracker.init", async (p, job) => runTrackerInit(p as { chatId: string }, job));
   registerJob("cache.probe", async (p) => {
     if (p.connectionId && p.modelId) await probeCache(String(p.connectionId), String(p.modelId));
     else await runDueProbes();

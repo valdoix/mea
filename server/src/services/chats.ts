@@ -9,10 +9,67 @@ import { type ChatMode, getCard, getCharacterRow, touchCharacter } from "./chara
 import { detectMode } from "./mode";
 import { getDefaultPersona, getPersona } from "./personas";
 
+const short = (n = 200) => z.string().trim().max(n);
+
+/** Trackers for this chat (TRK-06, TRK-08). Missing fields fall back to the character's and the global defaults. */
+export const trackerConfigSchema = z.object({
+  mode: z.enum(["helper", "inline", "off"]).optional(),
+  cadence: z.enum(["every", "everyN", "scene", "manual"]).optional(),
+  everyN: z.number().int().min(2).max(20).optional(),
+  gate: z.boolean().optional(),
+  sections: z.record(z.string(), z.boolean()).optional(),
+  templates: z.array(z.string()).max(20).optional(),
+  romance: z.enum(["off", "slow", "measured", "fast", "established"]).optional(),
+  sealed: z.boolean().optional(),
+  strictness: z.enum(["strict", "lenient"]).optional(),
+  limits: z.boolean().optional(),
+  budget: z.number().int().min(100).max(4000).optional(),
+  quietAfter: z.number().int().min(5).max(500).optional(),
+  nudges: z.boolean().optional(),
+});
+export type TrackerConfig = z.infer<typeof trackerConfigSchema>;
+
+/** The world off the page (sim/). */
+export const worldConfigSchema = z.object({
+  mode: z.enum(["off", "quiet", "living", "restless"]).optional(),
+  director: z.enum(["steady", "rising", "chaotic", "gentle"]).optional(),
+  telling: z.enum(["model", "engine"]).optional(),
+  seeding: z.enum(["auto", "ask", "off"]).optional(),
+  fates: z.enum(["page", "ask", "allow"]).optional(),
+  view: z.enum(["director", "surprise"]).optional(),
+  climate: short(80).optional(),
+  latitude: short(40).optional(),
+  tech: z.enum(["modern", "historic", "fantasy", "future"]).optional(),
+  genres: z.array(short(30)).max(6).optional(),
+  step: z.number().int().min(30).max(1440).optional(),
+});
+export type WorldConfig = z.infer<typeof worldConfigSchema>;
+
 export const chatSettingsSchema = z.object({
   authorsNote: z.object({ content: z.string(), depth: z.number().int().min(0).max(100), role: z.enum(["system", "user", "assistant"]) }).optional(),
   profileId: z.string().nullable().optional(),
   presetId: z.string().nullable().optional(),
+  trackers: trackerConfigSchema.optional(),
+  world: worldConfigSchema.optional(),
+  /** CHAT-13: story settings compiled into the prompt. */
+  story: z
+    .object({ genre: short(60), tone: short(60), pov: short(40), tense: short(20), style: short(200), intensity: short(40), language: short(30) })
+    .partial()
+    .optional(),
+  /** CHAT-12: quick switches. */
+  length: z.enum(["short", "normal", "long"]).nullable().optional(),
+  pacing: z.enum(["slow", "normal", "fast"]).nullable().optional(),
+  /** CHAT-10: standing out-of-character notes, and a one-time cue for the next reply. */
+  ooc: z.array(z.object({ id: z.string(), text: short(600) })).max(20).optional(),
+  cue: short(1000).nullable().optional(),
+  /** CHAT-11: guidance chips switched on for this chat (persistent), and ones used once. */
+  guidance: z.object({ active: z.array(z.string()).max(40), once: z.array(z.string()).max(40) }).partial().optional(),
+  /** CHAT-09: your messages are stage directions. */
+  director: z.boolean().optional(),
+  /** CONN-07: a model picked in the header, with this chat's profile settings. */
+  modelOverride: z.object({ connectionId: z.string(), modelId: z.string() }).nullable().optional(),
+  /** Story truths: your rules for this story, sent every turn. */
+  truths: z.array(short(300)).max(30).optional(),
 });
 export type ChatSettings = z.infer<typeof chatSettingsSchema>;
 
@@ -409,15 +466,21 @@ export function restoreMessage(id: string) {
 
 /** Messages that go into the prompt: not deleted, not hidden, non-empty, oldest first. */
 export function historyForPrompt(chatId: string, opts: { excludeMessageId?: string; uptoSeq?: number } = {}): HistoryMessage[] {
-  return all<{ id: string; role: Role; content: string; seq: number }>(
-    `SELECT m.id, m.role, s.content, m.seq FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+  return all<{ id: string; role: Role; content: string; seq: number; meta: string }>(
+    `SELECT m.id, m.role, s.content, m.seq, s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
      WHERE m.chat_id = ? AND m.deleted_at IS NULL AND m.hidden = 0 AND s.status != 'error' AND TRIM(s.content) != ''
      ${opts.uptoSeq != null ? "AND m.seq <= ?" : ""}
      ORDER BY m.seq`,
     ...(opts.uptoSeq != null ? [chatId, opts.uptoSeq] : [chatId]),
   )
     .filter((m) => m.id !== opts.excludeMessageId)
-    .map(({ id, role, content, seq }) => ({ id, role, content, seq }));
+    .map(({ id, role, content, seq, meta }) => ({
+      id,
+      role,
+      // CHAT-09: a stage direction never reads as the user's character speaking.
+      content: role === "user" && meta.includes('"director":true') ? `[Stage direction from the user, not their character's words or actions: ${content.trim()}]` : content,
+      seq,
+    }));
 }
 
 export function messageCountOf(chatId: string) {
