@@ -84,6 +84,43 @@ function helperJson(name: string, user: string): unknown {
       const prev = user.match(/JOURNAL SO FAR:\n([\s\S]*?)\n\n/)?.[1] ?? "";
       return { journal: `${prev ? `${prev} ` : ""}I, ${who}, remember ${titles.join(" Then ")}`.slice(0, 1800) };
     }
+    case "continuity_check": {
+      if (!/MOCK_CONTRADICTION/.test(user)) return { issues: [] };
+      const ref = user.match(/^\[([TML]\d+)\]/m)?.[1] ?? "T1";
+      return { issues: [{ kind: "fact", severity: "major", claim: "MOCK_CONTRADICTION", conflict: "The facts say otherwise.", cites: [ref], fix: "Follow the established facts." }] };
+    }
+    case "archivist_answer": {
+      const first = user.match(/^\[1\] \([^)]*\) (.*)$/m)?.[1];
+      return first ? { answer: `According to the archive [1], ${firstSentence(first)}`, cites: [1], confidence: "sure" } : { answer: "The story hasn't established that.", cites: [], confidence: "unknown" };
+    }
+    case "quiz_questions": {
+      const facts = [...user.matchAll(/^(\d+)\. (.*)$/gm)];
+      return {
+        questions: facts.slice(0, 8).map((m) => {
+          const words = m[2]!.replace(/[.!?]$/, "").split(" ");
+          return { q: `Fill in the blank: ${words.slice(0, -1).join(" ")} ___`, a: words.at(-1)!, fact: Number(m[1]) };
+        }),
+      };
+    }
+    case "quiz_answer": {
+      const q = (user.split("QUESTION:")[1] ?? "").toLowerCase();
+      const qw = new Set(q.match(/[a-z]{3,}/g) ?? []);
+      const notes = (user.split("QUESTION:")[0] ?? "").split("\n").filter((l) => /^[-•]/.test(l.trim()));
+      let best = "";
+      let bestN = 0;
+      for (const l of notes) {
+        const n = (l.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((w) => qw.has(w)).length;
+        if (n > bestN) {
+          bestN = n;
+          best = l;
+        }
+      }
+      return { answer: best ? best.replace(/^[-•]\s*/, "") : "unknown" };
+    }
+    case "memory_digest":
+      return { digest: (user.match(/^- (.*)$/gm) ?? []).map((l) => l.slice(2).replace(/[.!?]$/, "")).join("; ") + "." };
+    case "entity_profile":
+      return { description: firstSentence((user.split("NOTES:")[1] ?? "").replace(/^\s*- /m, "")) };
     default:
       return {};
   }
@@ -176,6 +213,11 @@ function guessSchema(system: string) {
   if (system.includes('"query"')) return "recall_query";
   if (system.includes('"keep"')) return "librarian";
   if (system.includes('"journal"')) return "journal_update";
+  if (system.includes('"issues"')) return "continuity_check";
+  if (system.includes('"confidence"')) return "archivist_answer";
+  if (system.includes('"questions"')) return "quiz_questions";
+  if (system.includes('"digest"')) return "memory_digest";
+  if (system.includes('"description"')) return "entity_profile";
   return undefined;
 }
 

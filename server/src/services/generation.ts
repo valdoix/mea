@@ -475,6 +475,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     saveLoreState(gen.chatId, p.lore.stateUpdates);
     setChatVars(gen.chatId, p.assembled.vars);
     recordMemoryUsage(requestId, gen.chatId, p);
+    // CON-02 / CON-06: check the reply against the story's facts, in the background.
+    if (status === "done" && memoryConfig().continuity) enqueue("accuracy.check", { chatId: gen.chatId, messageId: gen.messageId, swipeIdx: gen.swipeIdx }, { delayMs: 2500, chatId: gen.chatId, dedupeKey: `accuracy.check:${gen.messageId}:${gen.swipeIdx}` });
     // MEM-19: the memories this reply drew on gain weight.
     if (status === "done" && memoryConfig().reinforcement) {
       try {

@@ -12,6 +12,7 @@ export type MeaEvent =
   | { type: "jobs.activity"; running: number; queued: number }
   | { type: "quota.changed" }
   | { type: "memory.changed"; chatId: string }
+  | { type: "continuity.changed"; chatId: string; messageId: string }
   | { type: "trackers.changed"; chatId: string; running?: boolean }
   | { type: "draft.changed"; chatId: string; device: string | null }
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" };

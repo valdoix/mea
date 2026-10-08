@@ -90,6 +90,16 @@ describe("fold rules", () => {
     expect(Object.values(r.verdicts)[2]!.ok).toBe(false);
   });
 
+  test("deaths: the grammar's own \"dead Name — cause\" form works, and the user's fate is theirs", () => {
+    expect(parseLine("dead Old Tom — lost in the storm")).toMatchObject({ op: "dead", subject: "Old Tom", cause: "lost in the storm" });
+    const r = foldEvents(events([["cast: Mira@spot · Old Tom@spot"], ["dead Old Tom — lost in the storm", "dead Alex — x"]]), cfg());
+    const tom = Object.values(r.state.chars).find((c) => c.name === "Old Tom")!;
+    expect(tom.dead).toBe(true);
+    expect(tom.tier).toBe("off");
+    expect(r.state.chars.user!.dead).toBeFalsy();
+    expect(r.state.milestones.some((m) => m.text.startsWith("Old Tom died"))).toBe(true);
+  });
+
   test("sealed persona: the model can't write the user's feelings", () => {
     const r = foldEvents(events([["mood Alex: nervous"], ["bond Alex>Mira: trust +1 — x"]]), cfg());
     expect(Object.values(r.verdicts).every((v) => !v.ok)).toBe(true);

@@ -54,7 +54,11 @@ describe("chat tools API", () => {
   });
 
   test("/ask and /recap (CHAT-15)", async () => {
-    expect((await api("POST", `/api/chats/${chatId}/ask`, { question: "Where are we?" })).json.answer).toContain("lighthouse");
+    // The Archivist (CON-07) answers from the chat itself, with citations that jump to messages.
+    const ask = (await api("POST", `/api/chats/${chatId}/ask`, { question: "Which brass lantern number came last?" })).json;
+    expect(ask.answer).toContain("[1]");
+    expect(ask.answer.toLowerCase()).toContain("lantern");
+    expect(ask.citations[0].messageId).toBeTruthy();
     expect((await api("POST", `/api/chats/${chatId}/recap`)).json.recap).toContain("Previously");
   });
 });

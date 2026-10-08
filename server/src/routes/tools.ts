@@ -6,6 +6,7 @@ import { badRequest, body, must } from "../lib/http";
 import { storyRow } from "../memory/store";
 import { cleanText } from "../memory/text";
 import { getMessageRow, getMessage, historyForPrompt, mustChat } from "../services/chats";
+import { quickAnswer } from "../accuracy/archivist";
 import { callJson } from "../services/llm";
 import { trackerPrompt } from "../trackers/service";
 
@@ -112,22 +113,12 @@ function storyContext(chatId: string) {
   return [story?.content ? `STORY SO FAR:\n${story.content}` : "", state, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
 }
 
-/** Ask the narrator something out of character; the answer isn't added to the story. */
+/** Ask the Archivist something out of character (CON-07); the answer isn't added to the story. */
 tools.post("/chats/:id/ask", async (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
   const input = await body(c, z.object({ question: z.string().trim().min(2).max(2000) }));
-  const res = await callJson({
-    task: "helper",
-    kind: "ask",
-    chatId,
-    name: "ask_answer",
-    schema: z.object({ answer: z.string() }),
-    system: 'You answer the user\'s out-of-character question about their roleplay, using only what the story so far, the story state and the recent messages establish. If the story hasn\'t established it, say so plainly. Be brief and concrete. Reply with JSON only: {"answer": "…"}',
-    user: `${storyContext(chatId)}\n\nQUESTION: ${input.question}`,
-    maxTokens: 700,
-  });
-  return c.json({ answer: res.data.answer });
+  return c.json(await quickAnswer(chatId, input.question));
 });
 
 /** A recap of the story so far, to read before picking it back up. */

@@ -252,6 +252,8 @@ export function parseLine(raw: string): Op | null {
       break;
     case "dead":
       a.text = body;
+      // "dead Old Tom — lost in the storm" (the grammar's own form) has no colon: the body is the name.
+      if (!out.subject && body.trim()) out.subject = body.trim().replace(/^["“]|["”]$/g, "");
       break;
     case "bond":
       Object.assign(a, bondArgs(body));
