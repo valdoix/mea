@@ -165,7 +165,8 @@ trackers.get("/chats/:id/trackers/timeline", (c) => {
   for (const [mid, list] of Object.entries(fold.changes)) for (const ch of list) entries.push({ ...ch, messageId: mid, seq: seqs.get(mid) ?? 0 });
   entries.sort((a, b) => a.seq - b.seq);
   const st = fold.state;
-  const nm = (id: string) => (st.chars[id]?.isUser ? "You" : (st.chars[id]?.name ?? id));
+  const userName = foldConfigFor(chatId).userName ?? "You";
+  const nm = (id: string) => (st.chars[id]?.isUser ? userName : (st.chars[id]?.name ?? id));
   const series: { key: string; label: string; min: number; max: number; points: { seq: number; v: number }[] }[] = [];
   for (const b of Object.values(st.bonds)) {
     const axes = new Set(b.history.map((h) => h.axis));

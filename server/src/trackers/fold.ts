@@ -378,16 +378,19 @@ export class Folder {
         p.lastSeq = seq;
         // A move to a different building or further starts a new scene.
         const common = before.findIndex((x, i) => norm(x) !== norm(path[i] ?? ""));
-        if (before.length && (common < 0 ? before.length !== path.length : common < Math.max(1, path.length - 1))) this.newScene(seq);
+        const moved = before.length > 0 && (common < 0 ? before.length !== path.length : common < Math.max(1, path.length - 1));
+        if (moved) this.newScene(seq);
         for (const c of Object.values(st.chars)) if (c.tier === "spot" || c.tier === "peri") c.place = path.join(" › ");
-        this.push(ctx, { kind: "place", text: before.length ? `${before.at(-1)} → ${path.at(-1)}` : path.join(" › "), path: "place", from: before.join(" › "), to: path.join(" › ") });
+        this.push(ctx, { kind: "place", text: before.length ? `${before.at(-1)} → ${path.at(-1)}` : path.join(" › "), path: "place", from: before.join(" › "), to: path.join(" › "), ...(moved ? { newScene: true } : {}) });
         return;
       }
       case "scene": {
         if (a.to && norm(a.to) !== norm(st.sceneTitle ?? "")) {
-          if (st.sceneTitle) this.newScene(seq);
+          const fresh = Boolean(st.sceneTitle);
+          if (fresh) this.newScene(seq);
           st.sceneTitle = clip(a.to, 80);
-          this.push(ctx, { kind: "scene", text: `Scene: ${st.sceneTitle}`, path: "scene" });
+          // newScene marks a real change of scene (not the first title), which memory treats as a break.
+          this.push(ctx, { kind: "scene", text: `Scene: ${st.sceneTitle}`, path: "scene", ...(fresh ? { newScene: true } : {}) });
         }
         return;
       }
@@ -447,7 +450,8 @@ export class Folder {
           const next = clamp(m.set ?? (prev ?? (k === "health" || k === "composure" ? 5 : 0)) + (m.delta ?? 0), 0, 5)!;
           if (prev === next) continue;
           c.meters[k] = next;
-          this.push(ctx, { kind: "body", text: `${c.name}: ${k} ${prev ?? "–"} → ${next}`, subject: c.name, path: `chars.${c.id}.meters.${k}`, from: prev, to: next, tone: (k === "health" || k === "composure") === next > (prev ?? next) ? "up" : "down" });
+          // Meters drift in fractions between replies; the chip shows the whole steps people read.
+          this.push(ctx, { kind: "body", text: `${c.name}: ${k} ${prev == null ? "–" : Math.round(prev)} → ${Math.round(next)}`, subject: c.name, path: `chars.${c.id}.meters.${k}`, from: prev, to: next, tone: (k === "health" || k === "composure") === next > (prev ?? next) ? "up" : "down" });
         }
         for (const inj of a.injuries as { where: string; severity?: string; treated?: boolean; heal?: boolean }[]) {
           const where = clip(inj.where, 60);

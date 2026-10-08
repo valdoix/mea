@@ -21,6 +21,7 @@ import { registerJob } from "../src/services/jobs";
 import { decryptBackup, encryptBackup } from "../src/services/mirror";
 import { assertQuota, calibrate, quotaPlanner, quotaState, shouldShed } from "../src/services/quota";
 import { onLedgerChange } from "../src/memory/scheduler";
+import { linesToOps, writeEvents } from "../src/trackers/store";
 import { freshDb } from "./helpers";
 
 describe("scene-break heuristics (MEM-03)", () => {
@@ -311,5 +312,25 @@ describe("memory pipeline with the mock provider", () => {
     expect(o.coverage.some((c) => c.level === "story")).toBe(true);
     expect(o.stats.atoms).toBeGreaterThan(0);
     expect(o.embeddings.enabled).toBe(true);
+  });
+});
+
+describe("memory scenes follow the scene tracker", () => {
+  test("a new scene the tracker recorded opens a memory scene", async () => {
+    freshDb();
+    for (const kind of ["memory.segment", "memory.build", "memory.embed", "quota.refresh", "cache.probe"]) registerJob(kind, async () => {});
+    setSetting("memory.config", { ...defaultMemoryConfig, sceneTokenCap: 100_000, boundaryCheck: false, lag: 1 });
+    const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", description: "Keeper.", first_mes: "Hello." } });
+    const chatId = createChat({ characterId: createCharacter(data) }).id;
+    const ids: string[] = [];
+    for (let i = 0; i < 8; i++) ids.push(addMessage(chatId, i % 2 ? "assistant" : "user", `Line ${i}. The lamp hums and the sea is calm.`, { name: i % 2 ? "Mira" : "You" }));
+    // The first title isn't a break; the change at message 4 is.
+    writeEvents(chatId, { messageId: ids[1]!, swipeIdx: -1 }, linesToOps(["scene: Tea in the lamp room"]).ops, "model");
+    writeEvents(chatId, { messageId: ids[4]!, swipeIdx: -1 }, linesToOps(["scene: Down at the harbor"]).ops, "model");
+    await segmentChat(chatId);
+    const scenes = levelRows(chatId, "scene");
+    expect(scenes.length).toBe(2);
+    expect(scenes[1]!.boundary).toContain("tracker");
+    expect(scenes[1]!.boundary).toContain("harbor");
   });
 });

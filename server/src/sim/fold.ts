@@ -29,7 +29,8 @@ export function applySim(sim: SimState, op: SimOp, seq: number) {
     }
     case "arc.tell": {
       const arc = sim.arcs[op.id];
-      const beat = arc?.beats.find((b) => b.at === op.at);
+      // Several beats can share a minute (forced steps): tell the earliest one still untold.
+      const beat = arc?.beats.find((b) => b.at === op.at && b.told !== "model") ?? arc?.beats.findLast((b) => b.at === op.at);
       if (beat) {
         beat.text = op.text;
         beat.told = "model";

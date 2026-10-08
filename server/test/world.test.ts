@@ -109,6 +109,26 @@ describe("storyteller", () => {
     expect(st.sim.tension.length).toBeGreaterThan(5);
   });
 
+  test("forced steps in the same story hour roll fresh dice; onstage leads wait", () => {
+    let st = world(base);
+    st = advance(st, tick(input(st, { forced: true })));
+    const rolls: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const res = tick(input(st, { forced: true }));
+      for (const op of res.sim) if (op.type === "arc.beat") rolls.push(op.beat.roll.join(""));
+      st = advance(st, res);
+    }
+    expect(rolls.length).toBeGreaterThan(1);
+    expect(new Set(rolls).size).toBeGreaterThan(1);
+    // Mira is in the scene: a subplot she leads doesn't move off the page.
+    const mira = world([...base, "thread Mira's lens: new — Mira wants to fix the lens"]);
+    const r = input(mira, { forced: true });
+    const arcId = "pursuit:mira:test";
+    mira.sim.arcs[arcId] = { ...Object.values(st.sim.arcs)[0]!, id: arcId, lead: "mira", leadName: "Mira", push: true, nextAt: 0, status: "running", beats: [], clock: { cur: 0, max: 4 } };
+    const res = tick(r);
+    expect(res.sim.some((op) => op.type === "arc.beat" && op.id === arcId)).toBe(false);
+  });
+
   test("seeding 'ask' writes proposals, not subplots", () => {
     const st = world(base);
     const res = tick(input(st, { seeding: "ask", forced: true }));

@@ -314,6 +314,8 @@ export interface Change {
   to?: unknown;
   /** A note for the detail view: "capped from +3", "flashback". */
   flag?: string;
+  /** This change opened a new scene (memory treats it as a scene break). */
+  newScene?: boolean;
   memory?: boolean;
   source: EventSource;
 }

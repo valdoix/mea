@@ -2,7 +2,7 @@
  * Scene-break heuristics (MEM-03). Pure functions so they are easy to test.
  * Strong signals close a scene on their own; weak ones may be confirmed by a helper model.
  */
-export type BoundaryKind = "marker" | "chapter" | "timeskip" | "pause" | "cap" | "manual";
+export type BoundaryKind = "marker" | "chapter" | "timeskip" | "pause" | "cap" | "manual" | "tracker";
 
 export interface BoundarySignal {
   kind: BoundaryKind;

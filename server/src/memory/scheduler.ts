@@ -8,7 +8,8 @@ import { shouldShed } from "../services/quota";
 import { markAtomsStaleForMessage } from "./atoms";
 import { buildSummary, chatNames, confirmBoundary, storyNeedsRebuild } from "./build";
 import { embeddingsEnabled } from "./embed";
-import { detectBoundary } from "./segment";
+import { currentFold } from "../trackers/store";
+import { detectBoundary, type BoundarySignal } from "./segment";
 import {
   childrenOf,
   ensureRoots,
@@ -59,6 +60,21 @@ export async function segmentChat(chatId: string, job?: JobContext) {
     let sceneRows: LedgerRow[] = [];
     let sceneTokens = 0;
     let prev: LedgerRow | null = ledger(chatId, 0, fresh[0]!.seq - 1).at(-1) ?? null;
+    // The scene tracker (Phase 2) knows when the story moved: a new scene it recorded is a
+    // break; a change of place is a likely one that the boundary check confirms.
+    let tracked: Record<string, { kind: string; text: string; newScene?: boolean }[]> = {};
+    try {
+      tracked = currentFold(chatId).result.changes;
+    } catch {
+      tracked = {};
+    }
+    const fromTracker = (id: string): BoundarySignal | null => {
+      const list = tracked[id] ?? [];
+      const scene = list.find((c) => c.kind === "scene" && c.newScene);
+      if (scene) return { kind: "tracker", strength: "strong", detail: scene.text };
+      const place = list.find((c) => c.kind === "place" && c.newScene);
+      return place ? { kind: "tracker", strength: "weak", detail: `moved: ${place.text}` } : null;
+    };
 
     for (const m of fresh) {
       const tokens = countTokens(m.content);
@@ -70,7 +86,10 @@ export async function segmentChat(chatId: string, job?: JobContext) {
         sceneTokens = sceneRows.reduce((n, r) => n + countTokens(r.content), 0);
       }
       if (m.seq > scene.start_seq && prev) {
-        const signal = detectBoundary({ seq: prev.seq, content: prev.content, createdAt: prev.created_at }, { seq: m.seq, content: m.content, createdAt: m.created_at }, { pauseHours: cfg.pauseHours });
+        const text = detectBoundary({ seq: prev.seq, content: prev.content, createdAt: prev.created_at }, { seq: m.seq, content: m.content, createdAt: m.created_at }, { pauseHours: cfg.pauseHours });
+        const trk = fromTracker(m.id);
+        // Strongest first; the text's own signal wins a tie.
+        const signal = [text, trk].filter((x): x is BoundarySignal => !!x).sort((a, b) => Number(b.strength === "strong") - Number(a.strength === "strong"))[0] ?? null;
         let cut: string | null = null;
         let chapter = false;
         if (signal?.strength === "strong") {

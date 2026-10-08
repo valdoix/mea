@@ -403,7 +403,7 @@
     <button class="btn ghost icon tool steer-btn" class:on={steerOpen || steerCount > 0} onclick={() => (steerOpen = !steerOpen)} aria-label="Steer the next reply" title="Length, pace, guidance, cues">
       <SlidersHorizontal size={18} />{#if steerCount}<span class="badge">{steerCount}</span>{/if}
     </button>
-    <button class="btn ghost icon tool" class:on={director} onclick={() => saveSettings({ director: !director })} aria-label="Director mode" title={director ? "Director mode: your messages are stage directions (click to turn off)" : "Director mode: write stage directions instead of your character's lines"}>
+    <button class="btn ghost icon tool director-btn" class:on={director} onclick={() => saveSettings({ director: !director })} aria-label="Director mode" title={director ? "Director mode: your messages are stage directions (click to turn off)" : "Director mode: write stage directions instead of your character's lines"}>
       <Clapperboard size={18} />
     </button>
     <textarea
@@ -538,6 +538,7 @@
   }
   textarea {
     flex: 1;
+    min-width: 0;
     border: 0;
     background: none;
     resize: none;
@@ -552,6 +553,20 @@
   }
   .tool {
     color: var(--thought);
+    flex: none;
+  }
+  @media (max-width: 480px) {
+    .composer {
+      gap: 0.1rem;
+    }
+    .tool {
+      width: 2.1rem;
+      padding-inline: 0;
+    }
+    /* Director mode stays one tap away in /director; it shows here once it's on. */
+    .tool.director-btn:not(.on) {
+      display: none;
+    }
   }
   .send {
     border-radius: 50%;

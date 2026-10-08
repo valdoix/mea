@@ -89,7 +89,8 @@ export function tick(inp: TickInput): TickResult {
   const sim = st.sim;
   const M = MODES[inp.mode];
   const window = Math.floor(inp.now / 60);
-  const R = (salt: string) => rng(`${inp.chatId}:${salt}:${window}`);
+  // The tick count joins the seed: a step forced twice in the same story hour rolls fresh dice.
+  const R = (salt: string) => rng(`${inp.chatId}:${salt}:${window}:${sim.ticks}`);
   const hours = inp.from == null ? 0 : Math.max(0, (inp.now - inp.from) / HOUR);
   const mod = inp.now % 1440;
 
@@ -133,6 +134,8 @@ export function tick(inp: TickInput): TickResult {
       continue;
     }
     if (lead?.flag === "hold") continue;
+    // Someone on the page acts on the page: their subplot waits until they leave the scene.
+    if (lead?.ring === "onstage") continue;
     if (!arc.push && inp.now < arc.nextAt) continue;
     if (!isFaction && lead && !awakeIds.has(lead.id) && !arc.push && !inp.forced) continue;
     const r = R(`arc:${arc.id}`);
@@ -173,7 +176,7 @@ export function tick(inp: TickInput): TickResult {
 
   // A forced step with nothing moved: the most overdue subplot moves anyway.
   if (inp.forced && !moved.length) {
-    const overdue = running.filter((a) => canAct(inp.roster.actors.get(a.lead) ?? ({ dead: true } as RActor)) || a.lead.startsWith("faction:")).sort((a, b) => a.nextAt - b.nextAt)[0];
+    const overdue = running.filter((a) => a.lead.startsWith("faction:") || ((l) => !!l && canAct(l) && l.ring !== "onstage")(inp.roster.actors.get(a.lead))).sort((a, b) => a.nextAt - b.nextAt)[0];
     if (overdue) {
       const r = R(`force:${overdue.id}`);
       const lead = inp.roster.actors.get(overdue.lead);

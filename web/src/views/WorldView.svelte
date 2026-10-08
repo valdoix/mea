@@ -243,13 +243,13 @@
               <div class="pp">
                 <div class="small"><b>{p.name}</b> {#if p.standing !== "here"}<span class="chip tiny">{p.standing}</span>{/if}{#if p.flag}<span class="chip tiny">{p.flag}</span>{/if}</div>
                 <div class="tiny muted">{p.where ?? ""}{p.travel != null && p.ring !== "onstage" ? ` · ${p.travel < 60 ? `${p.travel} min` : `${Math.round(p.travel / 60)} h`} away` : ""}{p.arcs.length ? ` · ${p.arcs.length} subplot${p.arcs.length > 1 ? "s" : ""}` : ""}</div>
-                {#if director && p.ties.length}<div class="tiny faint">Tied to {p.ties.map((t) => `${t.name}${"·".repeat(t.strength)}`).join(", ")}</div>{/if}
+                {#if director && p.ties.length}<div class="tiny faint">Tied to {p.ties.map((t) => `${t.name} (${["", "slight", "some", "close", "strong", "deep"][Math.min(5, Math.max(0, Math.round(t.strength)))] || "slight"})`).join(", ")}</div>{/if}
                 {#if p.ring !== "onstage"}
                   <div class="row">
-                    <select class="select tiny" value={p.standing} onchange={(e) => setPerson(p.name, { standing: e.currentTarget.value })} aria-label="Standing">
+                    <select class="select tiny pick" value={p.standing} onchange={(e) => setPerson(p.name, { standing: e.currentTarget.value })} aria-label="Standing">
                       <option value="here">around</option><option value="away">away</option><option value="captive">captive</option><option value="changed">can't act</option><option value="dead">dead</option><option value="companion">companion</option><option value="construct">construct</option>
                     </select>
-                    <select class="select tiny" value={p.flag ?? ""} onchange={(e) => setPerson(p.name, { flag: e.currentTarget.value || null })} aria-label="Simulation">
+                    <select class="select tiny pick" value={p.flag ?? ""} onchange={(e) => setPerson(p.name, { flag: e.currentTarget.value || null })} aria-label="Simulation">
                       <option value="">simulate as usual</option><option value="wake">keep awake</option><option value="hold">no new moves</option><option value="out">leave out</option>
                     </select>
                   </div>
@@ -311,6 +311,11 @@
 </Modal>
 
 <style>
+  .pick {
+    width: auto;
+    padding: 0.2rem 1.7rem 0.2rem 0.5rem;
+    background-position: right 0.4rem center;
+  }
   .page {
     max-width: 64rem;
     margin: 0 auto;
