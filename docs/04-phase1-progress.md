@@ -2,7 +2,7 @@
 
 > Living document: updated as work lands so a new session can pick up from here.
 > IDs refer to [02-mea-ideas.md](02-mea-ideas.md). Phase 0 is in [03-phase0-status.md](03-phase0-status.md).
-> **Nothing from Phase 1 is committed yet.** All work is in the working tree on `main` (last commit: `0b7437c Phase 0`).
+> Work is on branch **`phase-1-memory-6g4jph`** (pushed to origin, PR into `main`). `main` still holds Phase 0 (`0b7437c`). Server part and the first web UI slice are committed.
 
 ## State at a glance
 
@@ -11,7 +11,7 @@
 | Server: schema, providers, memory engine, routes | **Done: type-checks, 70/70 tests pass** (`bun run test`) |
 | Server: tests for the new memory code | **Done:** `server/test/memory.test.ts` (25 tests: heuristics, eviction, Anthropic conversion, quota shed/calibration/planner, mirror crypto, full mock pipeline incl. MEM-10 rebuild, proposals, merge, manual breaks) |
 | Mock provider: canned JSON for helper calls + fake embeddings | **Done** (`providers/mock.ts`; also lists a `mock/embed` model) |
-| Web UI (Memory Inspector, dividers, receipts, settings) | Not started |
+| Web UI (Memory Inspector, dividers, receipts, settings) | **In progress:** Memory Inspector view, Memory panel (coverage map, summary cards, atoms), chat dividers + message memory items, types/router/icons done; type-check + build clean. Settings tabs, receipts, prefetch, `quota_exhausted` handling still to do |
 | Single-file `mea.exe` build (ARCH-14) | Not started |
 | Docs: phase 1 status, README | This file only |
 

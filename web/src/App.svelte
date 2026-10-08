@@ -12,6 +12,7 @@
   import { app, loadSettings, toast } from "./lib/state.svelte";
   import CharacterEditor from "./views/CharacterEditor.svelte";
   import ChatView from "./views/ChatView.svelte";
+  import MemoryInspector from "./views/MemoryInspector.svelte";
   import Home from "./views/Home.svelte";
   import LorebookEditor from "./views/LorebookEditor.svelte";
   import Lorebooks from "./views/Lorebooks.svelte";
@@ -110,6 +111,7 @@
       {#key route.name + (route.params.id ?? "")}
         {#if route.name === "home"}<Home />
         {:else if route.name === "chat"}<ChatView id={route.params.id!} />
+        {:else if route.name === "memory"}<MemoryInspector id={route.params.id!} />
         {:else if route.name === "character"}<CharacterEditor id={route.params.id!} />
         {:else if route.name === "personas"}<Personas selectedId={route.params.id} />
         {:else if route.name === "lorebooks"}<Lorebooks />

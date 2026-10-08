@@ -231,7 +231,9 @@ export type BlockKind =
   | "lore_after"
   | "history"
   | "authors_note"
-  | "post_history";
+  | "post_history"
+  | "memory_story"
+  | "memory_recall";
 
 export interface PromptBlock {
   id: string;
@@ -280,6 +282,7 @@ export interface Connection {
   modelCount: number;
   lastSyncAt: number | null;
   lastError: string | null;
+  format?: "openai" | "anthropic";
 }
 
 export interface ModelInfo {
@@ -292,6 +295,9 @@ export interface ModelInfo {
   pricing: Record<string, any>;
   subscription: boolean;
   starred: boolean;
+  learnedContext?: number | null;
+  calibration?: number | null;
+  cacheProbe?: CacheProbe | null;
 }
 
 export interface ProfileParams {
@@ -306,6 +312,7 @@ export interface ProfileParams {
   reasoning_effort?: string;
   hide_reasoning?: boolean;
   context_target?: number;
+  cache?: "auto" | "off";
 }
 
 export interface Profile {
@@ -344,6 +351,12 @@ export interface Settings {
   "backup.dailyKeep": number;
   "onboarding.done": boolean;
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
+  "routing.tasks": { summarizer: string | null; helper: string | null };
+  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[] };
+  "routing.timeouts": { story: number; summarizer: number; helper: number };
+  "routing.embeddings": { connectionId: string | null; model: string; dims: number };
+  "memory.config": MemoryConfig;
+  "quota.degradeAt": number;
 }
 
 export interface BlockTrace {
@@ -359,9 +372,10 @@ export interface BlockTrace {
 
 export interface PromptTrace {
   blocks: BlockTrace[];
-  history: { included: number; total: number; tokens: number; dropped: number };
+  history: { included: number; total: number; tokens: number; dropped: number; evicted?: number; filtered?: number };
   lore: LoreTrace[];
-  budget: { contextTarget: number; reserve: number; fixed: number; history: number; total: number };
+  budget: { contextTarget: number; reserve: number; fixed: number; history: number; total: number; memory?: number; recall?: number; lore?: number; ratio?: number; effectiveTarget?: number };
+  memory?: MemoryTrace;
 }
 
 export type MeaEvent =
@@ -372,5 +386,256 @@ export type MeaEvent =
   | { type: "chat.changed"; chatId: string }
   | { type: "jobs.activity"; running: number; queued: number }
   | { type: "quota.changed" }
+  | { type: "memory.changed"; chatId: string }
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" }
   | { type: "reconnected" };
+
+// ---------- Phase 1: memory ----------
+
+export type SummaryLevel = "scene" | "chapter" | "arc" | "story";
+export type SummaryState = "pending" | "building" | "ready" | "stale" | "review" | "error";
+
+export interface Verification {
+  verdict: "ok" | "minor" | "major";
+  unsupported: { claim: string; reason: string }[];
+  omissions: { what: string; seq?: number }[];
+  repaired?: boolean;
+  skipped?: string;
+}
+
+export interface Summary {
+  id: string;
+  level: SummaryLevel;
+  startSeq: number;
+  endSeq: number | null;
+  closed: boolean;
+  boundary: string | null;
+  manual: boolean;
+  title: string;
+  content: string;
+  data: Record<string, any>;
+  state: SummaryState;
+  error: string | null;
+  verification: Verification | null;
+  userEdited: boolean;
+  importance: number | null;
+  tokens: number;
+  sourceTokens: number;
+  storyTime: string | null;
+  proposal: { title: string; content: string; data: Record<string, any>; at: number } | null;
+  builtAt: number | null;
+  updatedAt: number;
+}
+
+export type AtomType = "event" | "fact" | "trait" | "preference" | "promise" | "secret" | "quote" | "plan" | "relationship";
+export const ATOM_TYPES: AtomType[] = ["event", "fact", "trait", "preference", "promise", "secret", "quote", "plan", "relationship"];
+
+export interface Atom {
+  id: string;
+  sceneId: string | null;
+  type: AtomType;
+  content: string;
+  entities: string[];
+  importance: number;
+  emotions: string[];
+  storyTime: string | null;
+  knownBy: string[];
+  status: "active" | "superseded" | "resolved" | "disputed";
+  supersededBy: string | null;
+  confidence: number;
+  pinned: boolean;
+  userEdited: boolean;
+  stale: boolean;
+  minSeq: number | null;
+  maxSeq: number | null;
+  tokens: number;
+  sources?: { messageId: string; seq: number }[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface UsageRef {
+  generationId: string;
+  slot: string;
+  at: number;
+  messageId: string | null;
+  seq: number | null;
+}
+
+export interface CoverageRow {
+  id: string;
+  level: SummaryLevel;
+  title: string;
+  startSeq: number;
+  endSeq: number | null;
+  closed: boolean;
+  state: SummaryState;
+  manual: boolean;
+  userEdited: boolean;
+  tokens: number;
+}
+
+export interface EmbeddingStatus {
+  enabled: boolean;
+  model: string;
+  dims: number;
+  byModel: { model: string; dims: number; n: number }[];
+  total: number;
+  current: number;
+  mismatched: number;
+  missing: number;
+}
+
+export interface MemoryOverview {
+  enabled: boolean;
+  paused: boolean;
+  onEdit: "auto" | "ask";
+  firstSeq: number;
+  lastSeq: number;
+  segmentedThrough: number;
+  evictedThrough: number;
+  coverage: CoverageRow[];
+  gaps: { startSeq: number; endSeq: number; reason: string }[];
+  stats: {
+    scenes: number;
+    chapters: number;
+    arcs: number;
+    hasStory: boolean;
+    summarizedSourceTokens: number;
+    sceneSummaryTokens: number;
+    telescopeTokens: number;
+    lastPromptMemoryTokens: number | null;
+    atoms: number;
+    pinned: number;
+    stale: number;
+    review: number;
+    errors: number;
+    edited: number;
+  };
+  atomCounts: { type: string; status: string; n: number }[];
+  jobs: { kind: string; status: string; n: number }[];
+  embeddings: EmbeddingStatus;
+}
+
+export interface Boundary {
+  id: string;
+  level: "scene" | "chapter";
+  startSeq: number;
+  title: string;
+  state: SummaryState;
+  manual: boolean;
+  boundary: string | null;
+  storyTime: string | null;
+}
+
+export interface RecallItem {
+  ownerType: "memory" | "summary";
+  id: string;
+  type: string;
+  content: string;
+  slot: "pinned" | "recent" | "relevant" | "serendipity";
+  score: number;
+  reasons: string[];
+  tokens: number;
+  seq: number | null;
+}
+
+export interface MemoryTrace {
+  enabled: boolean;
+  evictedThrough: number;
+  window: { messages: number; tokens: number; budget: number; target: number; moved: "kept" | "advanced" | "restored"; unsafe: boolean };
+  gaps: { startSeq: number; endSeq: number; reason: string }[];
+  telescope: { id: string; level: SummaryLevel; title: string; startSeq: number; endSeq: number; tokens: number; state: string }[];
+  telescopeTokens: number;
+  telescopeBudget: number;
+  dropped: number;
+  recall: RecallItem[];
+  recallTokens: number;
+  recallBudget: number;
+  query: string;
+  vector: boolean;
+}
+
+export interface MemoryConfig {
+  enabled: boolean;
+  sceneTokenCap: number;
+  pauseHours: number;
+  lag: number;
+  boundaryCheck: boolean;
+  scenesPerChapter: number;
+  chaptersPerArc: number;
+  verify: boolean;
+  autoRepair: boolean;
+  onEdit: "auto" | "ask";
+  budget: { summaries: number; recall: number };
+  slots: { recent: number; relevant: number; serendipity: number };
+  filterDepth: number;
+  lowWater: number;
+  cacheTtl: "5m" | "1h";
+}
+
+export interface Planner {
+  measured: boolean;
+  turns: number;
+  swipes: number;
+  swipeRatio: number;
+  avgStoryPrompt: number;
+  features: { task: string; kind: string; perTurn: number }[];
+  perTurn: number;
+  turnsPerDay: number | null;
+  turnsLeftThisWeek: number | null;
+  turnsLeftToday: number | null;
+  calibration: { cachedWeight: number | null; samples: number; updatedAt: number | null };
+  pacing: { ahead: boolean; usedShare: number; elapsedShare: number; resetAt: number | null } | null;
+  state: { known: boolean; used: number | null; exhausted: boolean; resetAt: number | null; window: string | null; degradeAt: number; shed: string[] };
+  scenarios: { target: number; turnsPerDay: number }[];
+}
+
+export interface RequestRow {
+  id: string;
+  chatId: string | null;
+  chatTitle: string | null;
+  kind: string;
+  task: string;
+  model: string | null;
+  billing: string;
+  estPromptTokens: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cachedTokens: number | null;
+  cacheWriteTokens: number | null;
+  cost: number | null;
+  status: string;
+  error: string | null;
+  startedAt: number;
+  ttftMs: number | null;
+  durationMs: number | null;
+}
+
+export interface JobRow {
+  id: string;
+  kind: string;
+  status: string;
+  priority: number;
+  attempts: number;
+  maxAttempts: number;
+  runAfter: number;
+  lastError: string | null;
+  chatId: string | null;
+  payload: Record<string, any>;
+  meta: Record<string, any>;
+  inputTokens: number;
+  outputTokens: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CacheProbe {
+  verified: boolean;
+  format: string;
+  firstWrite: number;
+  secondRead: number;
+  hitRate: number;
+  at: number;
+  error?: string;
+}
