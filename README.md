@@ -2,7 +2,7 @@
 
 A personal AI roleplay frontend for Windows and Android, served from an always-on host and powered by NanoGPT. Its focus is memory, continuity, and a cozy reading experience.
 
-**Status:** Phase 0 (foundations) and Phase 1 (memory core) are built. See [docs/05-phase1-status.md](docs/05-phase1-status.md).
+**Status:** Phase 0 (foundations), Phase 1 (memory core) and Phase 2 (trackers, the world off the page, chat tools) are built. See [docs/06-phase2-status.md](docs/06-phase2-status.md).
 
 ## Planning docs
 
@@ -13,6 +13,7 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/03-phase0-status.md](docs/03-phase0-status.md) | What Phase 0 delivered, deviations, and what still needs a real-world check |
 | [docs/04-phase1-progress.md](docs/04-phase1-progress.md) | Phase 1 build notes, file by file (schema, memory engine, routes, UI) |
 | [docs/05-phase1-status.md](docs/05-phase1-status.md) | What Phase 1 delivered, where to find it, and what still needs a real-world check |
+| [docs/06-phase2-status.md](docs/06-phase2-status.md) | What Phase 2 delivered (trackers, world simulation, chat tools), build notes, and what still needs a real-world check |
 
 ## Running Mea
 
@@ -75,11 +76,13 @@ server/src
   memory/     scenes, summaries, memories, recall, telescoping budget, inspector
   prompt/     macros, presets, prompt assembly
   providers/  OpenAI-compatible + Anthropic streaming, NanoGPT catalog & quota, mock
-  services/   characters, chats, generation, connections, backups, auth, jobs…
+  trackers/   story state: ledger grammar, event fold, rules, drift, clock, templates, prompt note
+  sim/        the world off the page: roster, subplots, director, news, crossings, sky
+  services/   characters, chats, generation, chat tools, connections, backups, auth, jobs…
   routes/     HTTP API
 web/src
-  views/      Home, Chat, Character, Personas, Lorebooks, Presets, Settings…
-  components/ chat, memory, settings, lore, shared UI
+  views/      Home, Chat, Story, World, Search, Character, Personas, Lorebooks, Presets, Settings…
+  components/ chat, memory, trackers, world, settings, lore, shared UI
   lib/        api, events (live stream), router, rendering, gestures, images
 scripts/      dev runner, icons, budgets, exe build, Windows service install
 ```

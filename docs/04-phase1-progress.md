@@ -69,7 +69,7 @@
 ## Known gaps / decisions to revisit
 
 - Macros `{{storySoFar}}` / `{{recall}}` aren't wired (memory is computed after block expansion); the blocks cover it.
-- Location-change scene breaks need the scene tracker (Phase 2).
+- ~~Location-change scene breaks need the scene tracker (Phase 2).~~ Done: `memory/scheduler.ts` reads the tracker's scene changes (see [06-phase2-status.md](06-phase2-status.md)).
 - Scene token cap counts raw tokens of the open scene; a single huge message can still exceed it.
 - `costOf` guesses NanoGPT's pricing field names; verify against a real `/models?detailed=true` response.
 - NanoGPT's `prompt_caching.cut_after_message_index` is set to the history end; confirm hits with the probe on a real key.

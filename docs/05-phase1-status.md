@@ -46,7 +46,7 @@
 
 - **ARCH-14 data folder:** the exe keeps its data in `data/` next to itself, not in the repo's `./data`. If you switch an existing install to the exe, copy the folder over first. `install-service.ps1 -Exe` warns about this.
 - **Macros `{{storySoFar}}` / `{{recall}}`** aren't wired up. Memory is computed after macros are expanded; the two preset blocks cover it.
-- **Location-change scene breaks** wait for the scene tracker (Phase 2).
+- **Location-change scene breaks** wait for the scene tracker (Phase 2). *Done in Phase 2: memory now follows the tracker's scene changes.*
 
 ## Not verified yet (needs your real setup)
 
@@ -59,4 +59,4 @@
 
 ## Next: Phase 2 (trackers & chat tools)
 
-TRK-01…13, TRK-16…22, TRK-26…32 (scene tracker, which also unlocks location-based scene breaks), CHAT-09…20, CHAT-26…27, CONN-07, CONN-09, CONN-14.
+TRK-01…13, TRK-16…22, TRK-26…32 (scene tracker, which also unlocks location-based scene breaks), CHAT-09…20, CHAT-26…27, CONN-07, CONN-09, CONN-14. **Built:** see [06-phase2-status.md](06-phase2-status.md).
