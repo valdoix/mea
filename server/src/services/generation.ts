@@ -47,6 +47,13 @@ import { evalCondition } from "../trackers/condition";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
 import { finishRequest, getRequest, startRequest } from "./requests";
+import { anchorExtra } from "../accuracy/anchor";
+import { checksOn } from "../accuracy/checker";
+import { scheduleDrift } from "../accuracy/drift";
+import { applyGuards } from "../accuracy/guards";
+import { advisorExtra, markPlanUsed, runAdvisor, turnKey } from "../steer/advisor";
+import { scheduleEditor } from "../steer/editor";
+import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
 
 interface ActiveGeneration {
   id: string;
@@ -88,6 +95,19 @@ interface Prepared {
   lore: ActivationResult;
   cache?: CacheHint;
   trackers: { tokens: number; lanes: { name: string; tokens: number; dropped?: boolean }[]; inline: boolean } | null;
+  /** STEER-01: the turn the advisor's plan was for (marked used once the reply is written). */
+  planKey: string | null;
+  /** PERF-10: where the time went before the request was sent, in ms. */
+  timing: Timing;
+}
+
+export interface Timing {
+  totalMs: number;
+  trackersMs: number;
+  retrievalMs: number;
+  loreMs: number;
+  advisorMs: number;
+  assemblyMs: number;
 }
 
 /** The world simulation adds what reaches the scene from off the page (sim/crossings). */
@@ -104,10 +124,21 @@ export interface PrepareOptions {
   profileId?: string | null;
   /** Shrinks the prompt target after an overflow (CTX-08). */
   targetScale?: number;
+  /** STEER-01: wait (briefly) for the advisor's plan if it isn't ready. Off for previews. */
+  advise?: boolean;
 }
 
 /** Gathers everything for one request: card, persona, preset, profile, lore, memory, prompt. */
 export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareOptions = {}): Promise<Prepared> {
+  // PERF-10: a stopwatch for each stage of putting the prompt together.
+  const t0 = performance.now();
+  let mark = t0;
+  const lap = () => {
+    const t = performance.now();
+    const ms = t - mark;
+    mark = t;
+    return Math.round(ms * 10) / 10;
+  };
   const chat = mustChat(chatId);
   if (!chat.character_id) throw new HttpError(400, "This chat has no character");
   const charRow = getCharacterRow(chat.character_id);
@@ -129,6 +160,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     m.role === "system" ? m : { ...m, content: applyRegex(m.content, scripts, { role: m.role === "user" ? "user" : "ai", mode: "prompt", characterId: chat.character_id }) },
   );
   const cfg = memoryConfig();
+  lap();
 
   const substitute = (s: string) => expandMacros(s, { char: card.name, user: userName, vars: {}, mode: chat.mode });
   const loreDefaults = getSetting("lore.defaults");
@@ -139,6 +171,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   } catch (e) {
     console.error("[mea] trackers unavailable for this prompt:", e);
   }
+  const trackersMs = lap();
   // TRK-12: lorebook entries with a tracker condition switch on when it holds, and only then.
   const entries = scanEntriesFor({ characterId: chat.character_id, personaId: persona?.id ?? null, chatId }).flatMap((e) => {
     const when = (e.extra as { trackerWhen?: string } | undefined)?.trackerWhen?.trim();
@@ -150,6 +183,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const memInputs = cfg.enabled
     ? await memoryInputs(chatId, { history, draft: kind === "expand" ? opts.draft : undefined, chatMode: chat.mode, state: tp?.state ?? null, names: { char: card.name, user: userName } })
     : emptyInputs();
+  let retrievalMs = lap();
   // LORE-05 / LORE-06: lore fires on who's in the scene or just named, and on meaning when an entry opts in.
   const named = memInputs.queries.length ? resolver(chatId).mentionedIn(history.slice(-2).map((m) => m.content).join("\n")).map((e) => e.name) : [];
   let loreVec = memInputs.qvecs[0] ?? null;
@@ -167,8 +201,14 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     semantic: semanticScorer(loreVec),
     all: entries,
   });
+  const loreMs = lap();
 
   const contextTarget = Math.floor(resolved.contextTarget * (opts.targetScale ?? 1));
+  // STEER-01: the advisor's private plan for this turn (usually written while you typed).
+  const plan = kind === "story" ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise) }) : null;
+  const style = styleExtra(chatId);
+  const advisorMs = lap();
+  let memoryMs = 0;
 
   const assembled = assemblePrompt({
     kind,
@@ -195,17 +235,29 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       ...(tp?.note ? [{ id: "trackers", name: "Story state (trackers)", content: tp.note.text, depth: 1 } satisfies PromptExtra] : []),
       ...(tp?.inline ? [{ id: "ledger", name: "Ledger instructions", content: tp.inline, depth: 0 } satisfies PromptExtra] : []),
       ...chatExtras(chatId, kind, tp?.state ?? null),
+      // STEER-04: the style profile joins the stable prefix.
+      ...(style ? [style] : []),
+      ...(plan ? [plan] : []),
+      // CON-03: who the character is, near the end of the prompt (stronger while the voice drifts).
+      ...(kind === "story" || kind === "continue" ? [anchorExtra(chatId, card, userName, chat.character_id)].filter((x): x is PromptExtra => Boolean(x)) : []),
     ],
-    memory: (available) =>
-      buildMemoryContext({
+    memory: (available) => {
+      const s = performance.now();
+      const m = buildMemoryContext({
         chatId,
         history,
         available,
         target: Math.floor(contextTarget / (resolved.tokenRatio || 1)),
         inputs: memInputs,
         seed: `${chatId}:${messageCountOf(chatId)}`,
-      }),
+      });
+      memoryMs += performance.now() - s;
+      return m;
+    },
   });
+  const assembled_ = lap();
+  retrievalMs = Math.round((retrievalMs + memoryMs) * 10) / 10;
+  const timing: Timing = { totalMs: Math.round((performance.now() - t0) * 10) / 10, trackersMs, retrievalMs, loreMs, advisorMs, assemblyMs: Math.max(0, Math.round((assembled_ - memoryMs) * 10) / 10) };
 
   // Preset samplers are defaults; the profile's tuning for this model wins.
   const samplers: GenerationParams = { ...preset.samplers, ...resolved.params };
@@ -213,7 +265,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan ? turnKey(history) : null, timing };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -225,7 +277,7 @@ function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swip
     task: "story",
     resolved: p.resolved,
     request: { model: p.resolved.modelId, messages: p.assembled.messages, params: p.samplers, cache: p.cache ?? null },
-    trace: { ...p.assembled.trace, cacheMarks: p.assembled.cacheMarks, cacheMode: p.cache?.mode ?? null, profile: p.resolved.profile.name, trackers: p.trackers },
+    trace: { ...p.assembled.trace, cacheMarks: p.assembled.cacheMarks, cacheMode: p.cache?.mode ?? null, profile: p.resolved.profile.name, trackers: p.trackers, timing: p.timing },
     estPromptTokens: p.assembled.estPromptTokens,
   });
 }
@@ -251,9 +303,9 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
 
   const prepared =
     action === "new"
-      ? await prepare(chatId, "story", { feedback: opts.feedback, profileId: opts.profileId })
+      ? await prepare(chatId, "story", { feedback: opts.feedback, profileId: opts.profileId, advise: true })
       : action === "swipe"
-        ? await prepare(chatId, "story", { excludeMessageId: last!.id, feedback: opts.feedback, profileId: opts.profileId })
+        ? await prepare(chatId, "story", { excludeMessageId: last!.id, feedback: opts.feedback, profileId: opts.profileId, advise: true })
         : await prepare(chatId, "continue", { feedback: opts.feedback, profileId: opts.profileId });
   // A used-up subscription quota is explained plainly, with paid options only on your tap (CONN-20).
   assertQuota(prepared.resolved.billing);
@@ -455,8 +507,18 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   // PROMPT-08: persistent regex scripts change the stored reply.
   if (status !== "error") text = applyRegex(text, getSetting("regex.scripts"), { role: "ai", mode: "persistent", characterId: p.characterId });
   // CHAT-19: banned phrases.
-  const banned = status !== "error" ? applyBanned(text) : { text, hits: [], replaced: 0 };
+  // CHAT-19 + STEER-04: banned phrases (yours, and this story's style profile).
+  const style = styleFor(gen.chatId);
+  const banned = status !== "error" ? applyBanned(text, style.banned ?? []) : { text, hits: [], replaced: 0 };
   text = banned.text;
+  if (status !== "error" && style.quotes && style.quotes !== "any") text = normalizeQuotes(text, style.quotes);
+  // CON-04 / CON-05: names corrected and puppeting cut, when you chose those actions.
+  const original = text;
+  const guarded = status !== "error" && text.trim() ? applyGuards(gen.chatId, text, { seq: getMessageRow(gen.messageId)?.seq ?? 0, messageId: gen.messageId }) : null;
+  if (guarded) {
+    text = guarded.text;
+    notes.push(...guarded.notes);
+  }
   const finalStatus = status === "error" && action === "continue" ? "done" : status === "error" && text ? "stopped" : status;
   updateSwipe(gen.messageId, gen.swipeIdx, {
     content: text,
@@ -478,12 +540,20 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       estPromptTokens: p.assembled.estPromptTokens,
       ttftMs: firstTokenAt ? firstTokenAt - startedAt : null,
       durationMs: now() - startedAt,
+      // PERF-10: the timing breakdown for the inspector.
+      timing: {
+        ...p.timing,
+        ttftMs: firstTokenAt ? firstTokenAt - startedAt : null,
+        tokensPerSec: usage?.completionTokens && firstTokenAt && now() > firstTokenAt ? Math.round((usage.completionTokens / ((now() - firstTokenAt) / 1000)) * 10) / 10 : null,
+        cacheHit: usage?.promptTokens ? Math.round(((usage.cachedTokens ?? 0) / usage.promptTokens) * 1000) / 1000 : null,
+      },
       finishReason: finishReason ?? null,
       ...(notes.length ? { notes } : {}),
       ...(feedback ? { feedback } : {}),
       ...(banned.hits.length ? { banned: banned.hits } : {}),
       ...(ledgerRaw ? { ledger: ledgerRaw.slice(0, 6000) } : {}),
       ...(cutOff ? { cutOff: true } : {}),
+      ...(guarded && text !== original ? { guard: { ...guarded.meta, original: original.slice(0, 20_000) } } : {}),
     },
   });
   finishRequest(requestId, { status, error, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
@@ -502,8 +572,10 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     recordLoreHits(gen.chatId, p.lore.activated.map((a) => a.entry.id));
     setChatVars(gen.chatId, p.assembled.vars);
     recordMemoryUsage(requestId, gen.chatId, p);
+    // STEER-02: the advisor remembers which of its plans a reply was written with.
+    if (p.planKey) markPlanUsed(gen.chatId, p.planKey, requestId);
     // CON-02 / CON-06: check the reply against the story's facts, in the background.
-    if (status === "done" && memoryConfig().continuity) enqueue("accuracy.check", { chatId: gen.chatId, messageId: gen.messageId, swipeIdx: gen.swipeIdx }, { delayMs: 2500, chatId: gen.chatId, dedupeKey: `accuracy.check:${gen.messageId}:${gen.swipeIdx}` });
+    if (status === "done" && checksOn(gen.chatId)) enqueue("accuracy.check", { chatId: gen.chatId, messageId: gen.messageId, swipeIdx: gen.swipeIdx }, { delayMs: 2500, chatId: gen.chatId, dedupeKey: `accuracy.check:${gen.messageId}:${gen.swipeIdx}` });
     // MEM-19: the memories this reply drew on gain weight.
     if (status === "done" && memoryConfig().reinforcement) {
       try {
@@ -512,6 +584,10 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         console.error("[mea] reinforcement failed:", e);
       }
     }
+    // CON-10: every few replies, measure the character's voice against their samples.
+    if (status === "done") scheduleDrift(gen.chatId);
+    // STEER-03: the post-pass editor, when it's on (not for a reply about to be written again).
+    if (status === "done" && !guarded?.retry) scheduleEditor(gen.chatId, gen.messageId, gen.swipeIdx);
     const chat = mustChat(gen.chatId);
     if (chat.character_id) touchCharacter(chat.character_id);
   }
@@ -524,6 +600,9 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     setTimeout(() => void startStory(gen.chatId, "continue", { messageId: gen.messageId, auto: "continue" }).catch(() => {}), 50);
   } else if (status === "done" && banned.hits.length && getSetting("chat.banned").action === "regenerate" && !auto) {
     setTimeout(() => void startStory(gen.chatId, "swipe", { messageId: gen.messageId, auto: "banned" }).catch(() => {}), 50);
+  } else if (status === "done" && guarded?.retry && !auto) {
+    // CON-04: the reply wrote for you; one more try with a note.
+    setTimeout(() => void startStory(gen.chatId, "swipe", { messageId: gen.messageId, auto: "guard", feedback: guarded.retry! }).catch(() => {}), 50);
   }
   if (status === "done" && !isChatWatched(gen.chatId)) {
     void sendPush({ title: p.card.name, body: text.replace(/\s+/g, " ").slice(0, 140), url: `/chat/${gen.chatId}`, tag: gen.chatId }).catch(() => {});
@@ -591,7 +670,7 @@ export async function previewPrompt(chatId: string) {
     billing: p.resolved.billing,
     params: p.samplers,
     messages: p.assembled.messages,
-    trace: p.assembled.trace,
+    trace: { ...p.assembled.trace, timing: p.timing },
     estPromptTokens: p.assembled.estPromptTokens,
     cacheMarks: p.assembled.cacheMarks,
     cacheMode: p.cache?.mode ?? null,
@@ -600,6 +679,8 @@ export async function previewPrompt(chatId: string) {
 
 /** Warms retrieval while you type (CTX-10, MEM-20): query vectors, the rewritten query and the librarian's pick. */
 export async function prefetch(chatId: string, draft: string) {
+  // STEER-01: the advisor plans the next reply while you type.
+  void runAdvisor(chatId, { draft });
   return warmMemory(chatId, draft);
 }
 

@@ -67,7 +67,11 @@ export function mirrorBackup(file: string) {
     const source = join(paths.backups, file);
     if (!existsSync(source)) throw new Error(`Backup ${file} not found`);
     let target: string;
-    if (cur.encrypt) {
+    if (file.endsWith(".enc")) {
+      // SEC-05: already sealed with the database passphrase; copied as it is.
+      target = join(cur.dir, basename(file));
+      copyFileSync(source, target);
+    } else if (cur.encrypt) {
       const pass = getSecret(cur.secretId);
       if (!pass) throw new Error("The mirror passphrase is missing");
       target = join(cur.dir, `${basename(file)}.enc`);

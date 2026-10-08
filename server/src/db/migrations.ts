@@ -695,4 +695,79 @@ CREATE TABLE variants (
 CREATE INDEX variants_owner ON variants(owner_type, owner_id);
 `,
   },
+  {
+    id: 8,
+    name: "accuracy guards",
+    sql: /* sql */ `
+-- CON-10: the drift detector's readings, newest last per chat.
+CREATE TABLE drift_checks (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL,
+  score REAL NOT NULL,
+  drifting INTEGER NOT NULL DEFAULT 0,
+  details TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX drift_checks_chat ON drift_checks(chat_id, created_at);
+
+-- CON-09: suggestions you turned down in the review inbox (so they don't come back).
+CREATE TABLE inbox_dismissed (
+  key TEXT PRIMARY KEY,
+  chat_id TEXT,
+  created_at INTEGER NOT NULL
+);
+`,
+  },
+  {
+    id: 9,
+    name: "steering",
+    sql: /* sql */ `
+-- STEER-01 / STEER-02: the advisor's private plans, keyed by the turn they were written for.
+CREATE TABLE advisor_plans (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  plan TEXT NOT NULL,
+  used_at INTEGER,
+  generation_id TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX advisor_plans_key ON advisor_plans(chat_id, key);
+CREATE INDEX advisor_plans_chat ON advisor_plans(chat_id, created_at);
+`,
+  },
+  {
+    id: 10,
+    name: "notebook, highlights and image sizes",
+    sql: /* sql */ `
+-- QOL-01: notes per chat (chat_id) and global (chat_id NULL), with [[links]] to people and lore.
+CREATE TABLE notes (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT REFERENCES chats(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  pinned INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
+);
+CREATE INDEX notes_chat ON notes(chat_id, deleted_at, updated_at);
+
+-- QOL-02: highlighted passages (bookmarks are a flag on the message).
+CREATE TABLE highlights (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX highlights_chat ON highlights(chat_id, created_at);
+CREATE INDEX highlights_message ON highlights(message_id);
+
+-- PERF-08: extra thumbnail sizes, { "s": file, "l": file } (thumb_file stays the medium one).
+ALTER TABLE images ADD COLUMN variants TEXT NOT NULL DEFAULT '{}';
+`,
+  },
 ];

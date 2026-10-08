@@ -225,6 +225,14 @@ export function recall(input: RecallInput) {
 
   // ---- weights: salience, mood, reinforcement, canon, librarian ----
   if (input.librarian) stats.librarian = "used";
+  // QOL-02: memories from moments you bookmarked or highlighted count for more.
+  const favored = new Set(
+    all<{ memory_id: string }>(
+      `SELECT DISTINCT ms.memory_id FROM memory_sources ms JOIN messages m ON m.id = ms.message_id
+       WHERE m.chat_id = ? AND m.deleted_at IS NULL AND (m.bookmarked = 1 OR EXISTS (SELECT 1 FROM highlights h WHERE h.message_id = m.id))`,
+      chatId,
+    ).map((r) => r.memory_id),
+  );
   for (const [key, s] of scores) {
     const [type, id] = key.split(":") as [string, string];
     if (type === "memory") {
@@ -242,6 +250,10 @@ export function recall(input: RecallInput) {
       }
       if (a.status === "disputed") w *= 0.6;
       if (a.user_edited) w *= 1.15;
+      if (favored.has(a.id)) {
+        w *= 1.2;
+        s.reasons.push("from a moment you marked");
+      }
       s.score *= w;
     }
     if (input.librarian?.keep.has(key)) {

@@ -22,6 +22,7 @@ export function purgeTrash(olderThan = now() - RETENTION_MS) {
     run("DELETE FROM characters WHERE deleted_at IS NOT NULL AND deleted_at < ?", olderThan);
     run("DELETE FROM personas WHERE deleted_at IS NOT NULL AND deleted_at < ?", olderThan);
     run("DELETE FROM lorebooks WHERE deleted_at IS NOT NULL AND deleted_at < ?", olderThan);
+    run("DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?", olderThan);
   });
   return purgeUnreferencedImages();
 }

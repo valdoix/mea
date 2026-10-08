@@ -82,4 +82,9 @@ export function download(path: string) {
   a.remove();
 }
 
-export const imageUrl = (id: string | null | undefined, thumb = false) => (id ? `/api/images/${id}${thumb ? "?thumb=1" : ""}` : "");
+/** PERF-08: an image at a size: "s" (128 px), "m" (320 px, `true`), "l" (768 px), or the original. */
+export const imageUrl = (id: string | null | undefined, size: boolean | "s" | "m" | "l" = false) => {
+  if (!id) return "";
+  const s = size === true ? "m" : size || null;
+  return `/api/images/${id}${s ? `?size=${s}` : ""}`;
+};

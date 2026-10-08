@@ -89,8 +89,11 @@ export function asDirection(content: string) {
 // ---------- after the reply ----------
 
 /** CHAT-19: phrases you never want to read. Replacements are applied; the rest are reported. */
-export function applyBanned(text: string): { text: string; hits: string[]; replaced: number } {
-  const banned = getSetting("chat.banned");
+export function applyBanned(text: string, extra: string[] = []): { text: string; hits: string[]; replaced: number } {
+  const global = getSetting("chat.banned");
+  // STEER-04: a story's own banned words are flagged like yours (they have no replacements).
+  const known = new Set(global.list.map((b) => b.phrase.toLowerCase()));
+  const banned = { ...global, list: [...global.list, ...extra.filter((p) => !known.has(p.toLowerCase())).map((phrase): { phrase: string; replace?: string } => ({ phrase }))] };
   let out = text;
   const hits: string[] = [];
   let replaced = 0;

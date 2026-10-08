@@ -2,7 +2,7 @@
   import { get } from "../lib/api";
   import { onEvent } from "../lib/events";
   import { timeAgo } from "../lib/format";
-  import { BookOpen, House, Moon, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
+  import { BookOpen, House, Inbox, Moon, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
   import { route } from "../lib/router.svelte";
   import { app, saveSetting } from "../lib/state.svelte";
   import type { ChatListItem } from "../lib/types";
@@ -27,8 +27,27 @@
   $effect(() =>
     onEvent((e) => {
       if (e.type === "chat.changed" || e.type === "gen.end" || e.type === "reconnected") void load();
+      if (e.type === "inbox.changed" || e.type === "memory.changed" || e.type === "reconnected") countSoon();
     }),
   );
+
+  // CON-09: how many proposals wait in the review inbox.
+  let inbox = $state(0);
+  let countTimer: ReturnType<typeof setTimeout>;
+  function countSoon() {
+    clearTimeout(countTimer);
+    countTimer = setTimeout(async () => {
+      try {
+        inbox = (await get<{ count: number }>("/api/inbox/count")).count;
+      } catch {
+        // best-effort
+      }
+    }, 1500);
+  }
+  $effect(() => {
+    void app.libraryVersion;
+    countSoon();
+  });
 
   const nav = [
     { href: "/", label: "Home", icon: House, match: ["home", "character"] },
@@ -36,6 +55,7 @@
     { href: "/creator", label: "Studio", icon: WandSparkles, match: ["creator", "studio"] },
     { href: "/lorebooks", label: "Lorebooks", icon: BookOpen, match: ["lorebooks", "lorebook"] },
     { href: "/presets", label: "Presets", icon: SlidersHorizontal, match: ["presets", "preset"] },
+    { href: "/inbox", label: "Inbox", icon: Inbox, match: ["inbox"] },
     { href: "/settings", label: "Settings", icon: Settings, match: ["settings"] },
   ];
 
@@ -64,6 +84,7 @@
       <a href={item.href} class="nav" class:active={item.match.includes(route.name)}>
         <item.icon size={18} />
         <span>{item.label}</span>
+        {#if item.href === "/inbox" && inbox > 0}<span class="badge" aria-label="{inbox} waiting">{inbox > 99 ? "99+" : inbox}</span>{/if}
       </a>
     {/each}
   </nav>
@@ -110,6 +131,17 @@
     font-weight: 600;
     color: var(--text);
     text-decoration: none !important;
+  }
+  .badge {
+    margin-left: auto;
+    min-width: 1.3rem;
+    padding: 0 0.35rem;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    text-align: center;
   }
   .brand span {
     color: var(--accent-strong);

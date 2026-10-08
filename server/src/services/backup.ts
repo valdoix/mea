@@ -1,7 +1,9 @@
 import { copyFileSync, existsSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import { paths } from "../config";
-import { closeDb, db, one, openDb } from "../db/db";
+import { writeFileSync, readFileSync } from "node:fs";
+import { closeDb, db, dbMode, one, openDb, openDbFromBytes } from "../db/db";
+import { openSealed, persistVault, sealSnapshot, vaultActive, vaultMigrationBackup } from "../lib/vault";
 import { badRequest } from "../lib/http";
 import { getSetting } from "../lib/settings";
 import { mirrorBackup } from "./mirror";
@@ -15,6 +17,12 @@ function stamp(d = new Date()) {
 }
 
 export function createBackup(kind: BackupKind) {
+  // SEC-05: with encryption on, backups are sealed too; nothing plain touches the disk.
+  if (vaultActive()) {
+    const file = join(paths.backups, `mea-${kind}-${stamp()}.db.enc`);
+    writeFileSync(file, sealSnapshot());
+    return { file: basename(file), bytes: statSync(file).size };
+  }
   const file = join(paths.backups, `mea-${kind}-${stamp()}.db`);
   db().exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
   return { file: basename(file), bytes: statSync(file).size };
@@ -23,11 +31,11 @@ export function createBackup(kind: BackupKind) {
 export function listBackups() {
   if (!existsSync(paths.backups)) return [];
   return readdirSync(paths.backups)
-    .filter((f) => f.endsWith(".db"))
+    .filter((f) => f.endsWith(".db") || f.endsWith(".db.enc"))
     .map((f) => {
       const st = statSync(join(paths.backups, f));
       const kind = (f.match(/^(?:mea-)?(hourly|daily|manual|pre-restore|pre-migration)/)?.[1] ?? "manual") as BackupKind;
-      return { file: f, kind, bytes: st.size, createdAt: st.mtimeMs };
+      return { file: f, kind, bytes: st.size, createdAt: st.mtimeMs, encrypted: f.endsWith(".enc") };
     })
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -77,10 +85,23 @@ export function scheduledBackup() {
 
 /** Replaces the live database with a snapshot. A pre-restore backup is taken first. */
 export function restoreBackup(file: string) {
-  if (file.includes("/") || file.includes("\\") || !file.endsWith(".db")) throw badRequest("Invalid backup name");
+  if (file.includes("/") || file.includes("\\") || !(file.endsWith(".db") || file.endsWith(".db.enc"))) throw badRequest("Invalid backup name");
   const source = join(paths.backups, file);
   if (!existsSync(source)) throw badRequest("Backup not found");
   createBackup("pre-restore");
+  if (dbMode() === "memory") {
+    // SEC-05: the snapshot replaces the in-memory database, and is saved (encrypted) at once.
+    let bytes: Buffer;
+    try {
+      bytes = file.endsWith(".enc") ? openSealed(readFileSync(source)) : readFileSync(source);
+    } catch {
+      throw badRequest("That backup was sealed with another passphrase");
+    }
+    openDbFromBytes(bytes, { backup: vaultMigrationBackup });
+    persistVault(true);
+    return;
+  }
+  if (file.endsWith(".enc")) throw badRequest("That backup is encrypted; turn encryption on (with its passphrase) to restore it");
   closeDb();
   for (const suffix of ["-wal", "-shm"]) if (existsSync(paths.db + suffix)) unlinkSync(paths.db + suffix);
   copyFileSync(source, paths.db);

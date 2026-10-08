@@ -9,7 +9,7 @@
   import { compact, debounce, timeAgo } from "../lib/format";
   import { ArrowLeft, Brain, Merge, Pause, Play, Plus, RefreshCw, Search } from "../lib/icons";
   import { errorToast, toast } from "../lib/state.svelte";
-  import { ATOM_TYPES, type Atom, type ChatDetail, type JobRow, type MemoryOverview, type RequestRow, type Summary } from "../lib/types";
+  import { ATOM_TYPES, type Atom, type ChatDetail, type JobRow, type MemoryOverview, type RebuildEstimate, type RebuildProgress, type RequestRow, type Summary } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -111,11 +111,33 @@
     overview = await patch<MemoryOverview>(`/api/chats/${id}/memory`, { paused: !overview.paused }).catch((e) => (errorToast(e), overview));
   }
 
+  // SUM-19: an estimate first, then progress you can pause; it resumes by itself after a restart.
+  let progress = $state<RebuildProgress | null>(null);
+  async function loadProgress() {
+    try {
+      progress = await get<RebuildProgress>(`/api/chats/${id}/memory/progress`);
+    } catch {
+      progress = null;
+    }
+  }
+  $effect(() => {
+    void overview?.stats.scenes;
+    void overview?.jobs.length;
+    void loadProgress();
+  });
   async function rebuildAll() {
+    let est: RebuildEstimate | null = null;
+    try {
+      est = await get<RebuildEstimate>(`/api/chats/${id}/memory/rebuild-estimate`);
+    } catch (e) {
+      errorToast(e);
+      return;
+    }
+    const share = est.quotaShare != null ? ` (about ${Math.max(0.1, Math.round(est.quotaShare * 1000) / 10)}% of your weekly quota)` : "";
     if (
       !(await confirm({
         title: "Rebuild this chat's memory from scratch?",
-        message: "Every scene is summarized again from the messages. Memories you edited or pinned are kept. This uses quota for each scene.",
+        message: `Every scene is summarized again from the messages, in the background, one scene at a time. Memories you edited or pinned are kept.\n\nEstimate: ${est.messages.toLocaleString()} messages (${compact(est.storyTokens)} tokens) → about ${est.scenes} scenes, ${est.chapters} chapters and ${est.arcs} arcs; ${est.calls} helper calls using about ${compact(est.inputTokens)} input tokens${share}. You can pause it any time; it carries on after a restart.`,
         confirmLabel: "Rebuild everything",
         danger: true,
       }))
@@ -124,6 +146,7 @@
     await post(`/api/chats/${id}/memory/rebuild`, { keepUserWork: true }).catch(errorToast);
     toast("Rebuilding in the background…");
     void loadOverview();
+    void loadProgress();
   }
 
   async function addMemory() {
@@ -178,7 +201,15 @@
     {#if !overview.enabled}<div class="notice warn tiny">Memory is turned off in Settings → Memory. Nothing new is summarized.</div>{/if}
     {#if overview.paused}<div class="notice warn tiny">Memory is paused for this chat.</div>{/if}
 
+    {#if progress?.startedAt && !progress.done}
+      <section class="panel stack tight rebuild">
+        <div class="row between"><b class="small">Rebuilding memory</b><span class="tiny muted">{progress.scenes.ready} of {Math.max(progress.scenes.total, progress.estimate?.scenes ?? 0)} scenes{progress.paused ? " · paused" : ""}</span></div>
+        <div class="bar"><span style:width="{Math.min(100, (progress.scenes.ready / Math.max(1, progress.scenes.total, progress.estimate?.scenes ?? 0)) * 100)}%"></span></div>
+        <span class="tiny muted">Read through #{progress.segmentedThrough} of #{progress.lastSeq}{progress.scenes.failed ? ` · ${progress.scenes.failed} failed (retry from the scene)` : ""}</span>
+      </section>
+    {/if}
     <section class="panel stack tight">
+      {#if overview.stats.messages && overview.stats.storyTokens}<p class="headline"><b>{overview.stats.messages.toLocaleString()}</b> messages · <b>{compact(overview.stats.storyTokens)}</b> tokens → <b>{compact(overview.stats.memoryTokens ?? overview.stats.telescopeTokens)}</b> tokens of memory</p>{/if}
       <CoverageMap {overview} onpick={() => (tab = "story")} />
       <div class="row wrap tiny muted stats">
         <span><b>{overview.stats.scenes}</b> scenes · <b>{overview.stats.chapters}</b> chapters · <b>{overview.stats.arcs}</b> arcs</span>
@@ -293,6 +324,22 @@
 </div>
 
 <style>
+  .headline {
+    margin: 0 0 0.3rem;
+    text-align: center;
+  }
+  .rebuild .bar {
+    height: 0.45rem;
+    border-radius: var(--r-pill);
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .rebuild .bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--lavender), var(--accent));
+    transition: width 0.5s var(--ease);
+  }
   .page {
     max-width: 56rem;
     margin: 0 auto;

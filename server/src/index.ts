@@ -1,6 +1,7 @@
 import { createApp } from "./app";
 import { config } from "./config";
-import { closeDb } from "./db/db";
+import { closeDb, dbMode } from "./db/db";
+import { persistVault, stopVaultTimer } from "./lib/vault";
 import { stopJobs } from "./services/jobs";
 import { startup } from "./startup";
 
@@ -21,6 +22,15 @@ function shutdown() {
   console.log("Mea is shutting down…");
   stopJobs();
   server.stop();
+  // SEC-05: the in-memory database goes back to disk, encrypted, before Mea stops.
+  if (dbMode() === "memory") {
+    try {
+      persistVault(true);
+    } catch (err) {
+      console.error("[mea] couldn't save the encrypted database:", err);
+    }
+    stopVaultTimer();
+  }
   closeDb();
   process.exit(0);
 }

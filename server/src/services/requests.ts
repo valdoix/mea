@@ -1,9 +1,15 @@
+import { appendFileSync } from "node:fs";
+import { join } from "node:path";
+import { paths } from "../config";
 import { all, newId, now, one, parseJson, run } from "../db/db";
+import { redact } from "../lib/redact";
+import { getSetting } from "../lib/settings";
 import type { Usage } from "../providers/types";
 
 /**
  * Every model request is logged here (DBG-01 inspector, DBG-02 request history, CONN-08 usage).
- * Keys never appear: only the body Mea built and what came back.
+ * Keys never appear: only the body Mea built and what came back, with anything key-shaped
+ * redacted (SEC-06). A small daily log file keeps the numbers (never the text) for a few weeks.
  */
 export function startRequest(input: {
   chatId?: string | null;
@@ -30,7 +36,7 @@ export function startRequest(input: {
     input.resolved.connection.id,
     input.resolved.modelId,
     input.resolved.billing,
-    JSON.stringify(input.request),
+    redact(JSON.stringify(input.request)),
     input.trace === undefined ? null : JSON.stringify(input.trace),
     input.estPromptTokens ?? null,
     now(),
@@ -49,18 +55,52 @@ export function finishRequest(
     `UPDATE generations SET status = ?, error = ?, prompt_tokens = ?, completion_tokens = ?, cached_tokens = ?, cache_write_tokens = ?, first_token_at = ?, finished_at = ?,
        request = COALESCE(?, request), response = COALESCE(?, response), cost = ? WHERE id = ?`,
     r.status,
-    r.error ?? null,
+    redact(r.error) ?? null,
     r.usage?.promptTokens ?? null,
     r.usage?.completionTokens ?? null,
     r.usage?.cachedTokens ?? null,
     r.usage?.cacheWriteTokens ?? null,
     r.firstTokenAt ?? null,
     now(),
-    r.sentBody ? JSON.stringify(r.sentBody) : null,
-    r.response != null ? r.response.slice(0, 200_000) : null,
+    r.sentBody ? redact(JSON.stringify(r.sentBody)) : null,
+    r.response != null ? redact(r.response.slice(0, 200_000)) : null,
     cost,
     id,
   );
+  logLine(id);
+}
+
+/** SEC-06: one line per request in data/logs/requests-YYYY-MM-DD.jsonl: when, what, how long, how many tokens. No text. */
+function logLine(id: string) {
+  try {
+    if (!getSetting("privacy.requestLog").fileLog) return;
+    const g = one<{ task: string; kind: string; model_id: string | null; chat_id: string | null; status: string; error: string | null; started_at: number; first_token_at: number | null; finished_at: number | null; prompt_tokens: number | null; completion_tokens: number | null; cached_tokens: number | null; billing: string; cost: number | null }>(
+      "SELECT task, kind, model_id, chat_id, status, error, started_at, first_token_at, finished_at, prompt_tokens, completion_tokens, cached_tokens, billing, cost FROM generations WHERE id = ?",
+      id,
+    );
+    if (!g) return;
+    const day = new Date(g.started_at).toISOString().slice(0, 10);
+    const line = {
+      at: new Date(g.started_at).toISOString(),
+      id,
+      task: g.task,
+      kind: g.kind,
+      model: g.model_id,
+      chat: g.chat_id,
+      status: g.status,
+      ms: g.finished_at ? g.finished_at - g.started_at : null,
+      ttftMs: g.first_token_at ? g.first_token_at - g.started_at : null,
+      in: g.prompt_tokens,
+      out: g.completion_tokens,
+      cached: g.cached_tokens,
+      billing: g.billing,
+      cost: g.cost,
+      ...(g.error ? { error: g.error.slice(0, 300) } : {}),
+    };
+    appendFileSync(join(paths.logs, `requests-${day}.jsonl`), `${JSON.stringify(line)}\n`);
+  } catch {
+    // the log is a convenience; never fail a request over it
+  }
 }
 
 /** Per-million-token prices from the catalog; NanoGPT and OpenRouter-style shapes both appear. */

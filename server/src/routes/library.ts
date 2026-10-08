@@ -18,7 +18,7 @@ import {
   updateCharacter,
 } from "../services/characters";
 import { characterSettingsSchema } from "../services/charsettings";
-import { getImage, imagePath, saveImage, setThumbnail } from "../services/images";
+import { getImage, imageFileFor, imagePath, saveImage, setThumbnail } from "../services/images";
 import { importFile } from "../services/importer";
 import { detectMode } from "../services/mode";
 import { createPersona, getPersona, listPersonas, restorePersona, softDeletePersona, updatePersona } from "../services/personas";
@@ -168,27 +168,40 @@ library.post("/images", async (c) => {
     height: Number(form.get("height")) || undefined,
     palette: typeof palette === "string" ? (JSON.parse(palette) as string[]) : undefined,
     thumb: thumb instanceof File ? new Uint8Array(await thumb.arrayBuffer()) : undefined,
+    variants: await variantsOf(form),
   });
   return c.json({ id }, 201);
 });
+
+/** PERF-08: the small and large sizes the browser made, if it sent them. */
+async function variantsOf(form: FormData) {
+  const out: Partial<Record<"s" | "l", Uint8Array>> = {};
+  for (const k of ["s", "l"] as const) {
+    const f = form.get(`thumb_${k}`);
+    if (f instanceof File) out[k] = new Uint8Array(await f.arrayBuffer());
+  }
+  return out;
+}
 
 library.post("/images/:id/thumb", async (c) => {
   const form = await c.req.formData();
   const thumb = form.get("thumb");
   if (!(thumb instanceof File)) throw badRequest("No thumbnail");
   const palette = form.get("palette");
-  await setThumbnail(c.req.param("id"), new Uint8Array(await thumb.arrayBuffer()), typeof palette === "string" ? JSON.parse(palette) : undefined);
+  await setThumbnail(c.req.param("id"), new Uint8Array(await thumb.arrayBuffer()), typeof palette === "string" ? JSON.parse(palette) : undefined, await variantsOf(form));
   return c.json({ ok: true });
 });
 
 library.get("/images/:id", async (c) => {
   const img = must(getImage(c.req.param("id")), "Image not found");
-  const wantThumb = c.req.query("thumb") === "1" && img.thumb_file;
-  const file = Bun.file(imagePath(wantThumb ? img.thumb_file! : img.file));
+  // PERF-08: ?size=s|m|l picks a WebP size (?thumb=1 is the medium one); the original otherwise.
+  const q = c.req.query("size") ?? (c.req.query("thumb") === "1" ? "m" : null);
+  const pick = imageFileFor(img, q === "s" || q === "m" || q === "l" ? q : null);
+  const file = Bun.file(imagePath(pick.file));
   if (!(await file.exists())) throw badRequest("Image file missing");
   return new Response(file, {
     headers: {
-      "Content-Type": wantThumb ? file.type : img.mime,
+      "Content-Type": pick.original ? img.mime : file.type,
       "Cache-Control": "private, max-age=31536000, immutable",
       "X-Has-Thumb": img.thumb_file ? "1" : "0",
     },

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { stash } from "../services/undo";
 import { z } from "zod";
 import { one } from "../db/db";
 import { body, must } from "../lib/http";
@@ -109,8 +110,9 @@ lore.post("/lorebooks/:id/links", async (c) => {
 
 lore.delete("/lorebooks/:id/links", async (c) => {
   const l = await body(c, linkSchema);
+  const undo = stash("Link", [{ table: "lorebook_links", where: "lorebook_id = ? AND target_type = ? AND target_id = ?", params: [c.req.param("id"), l.type, l.type === "global" ? "" : (l.id ?? "")] }], "lorebooks");
   unlinkLorebook(c.req.param("id"), l.type as LinkType, l.id);
-  return c.json(getLorebook(c.req.param("id")));
+  return c.json({ ...getLorebook(c.req.param("id")), undo });
 });
 
 /** LORE-05: entries that fire on meaning need fresh vectors after an edit. */
@@ -188,8 +190,9 @@ lore.get("/lore/entries/:id/locate", (c) => {
 });
 
 lore.delete("/lorebooks/:id/entries/:entryId", (c) => {
+  const undo = stash("Entry", [{ table: "lorebook_entries", where: "id = ?", params: [c.req.param("entryId")] }], "lorebooks");
   deleteEntry(c.req.param("entryId"));
-  return c.json({ ok: true });
+  return c.json({ ok: true, undo });
 });
 
 lore.post("/lorebooks/:id/order", async (c) => {

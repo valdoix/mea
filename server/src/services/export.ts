@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { paths } from "../config";
-import { all, db } from "../db/db";
+import { all, db, dbMode } from "../db/db";
 import { getCard } from "./characters";
 import { getChatRow, type SwipeRow } from "./chats";
 import { getDefaultPersona, getPersona } from "./personas";
@@ -106,13 +106,19 @@ ${body}
 
 /** Whole-library backup zip: database snapshot + images (DATA-02). Secrets stay encrypted. */
 export function exportLibraryZip(): Uint8Array {
-  const tmp = join(tmpdir(), `mea-export-${Date.now()}.db`);
-  db().exec(`VACUUM INTO '${tmp.replaceAll("'", "''")}'`);
+  // An in-memory (encrypted) database is serialized directly, so no plain copy lands in a temp folder.
+  let snapshot: Uint8Array;
+  if (dbMode() === "memory") snapshot = db().serialize();
+  else {
+    const tmp = join(tmpdir(), `mea-export-${Date.now()}.db`);
+    db().exec(`VACUUM INTO '${tmp.replaceAll("'", "''")}'`);
+    snapshot = readFileSync(tmp);
+    unlinkSync(tmp);
+  }
   const files: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {
-    "mea.db": readFileSync(tmp),
+    "mea.db": snapshot,
     "manifest.json": strToU8(JSON.stringify({ app: "mea", format: 1, exportedAt: new Date().toISOString(), note: "API keys are encrypted with this machine's key file and won't work elsewhere." }, null, 2)),
   };
-  unlinkSync(tmp);
   for (const f of readdirSync(paths.images)) files[`images/${f}`] = [readFileSync(join(paths.images, f)), { level: 0 }];
   return zipSync(files as Parameters<typeof zipSync>[0], { level: 6 });
 }

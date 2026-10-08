@@ -1,4 +1,5 @@
 import { type Context, Hono } from "hono";
+import { stash } from "../services/undo";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { parseDocument } from "../lore/ingest";
@@ -120,8 +121,9 @@ studio.put("/lore-studio/:id", async (c) => {
 });
 
 studio.delete("/lore-studio/:id", (c) => {
+  const undo = stash("Draft", [{ table: "lore_drafts", where: "id = ?", params: [c.req.param("id")] }]);
   deleteDraft(c.req.param("id"));
-  return c.json({ ok: true });
+  return c.json({ ok: true, undo });
 });
 
 studio.post("/lore-studio/:id/readback", async (c) => {

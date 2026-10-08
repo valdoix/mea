@@ -3,6 +3,7 @@ import { GLOBAL_ID, promptSetSchema, SERVICE_PROMPTS, servicePromptFor } from ".
 import { regexScriptSchema } from "../lib/regex";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
+import { restoreStash, stash } from "../services/undo";
 import { streamSSE } from "hono/streaming";
 import QRCode from "qrcode";
 import { z } from "zod";
@@ -10,7 +11,7 @@ import { config, paths } from "../config";
 import { all, one, parseJson } from "../db/db";
 import { type MeaEvent, subscribe } from "../lib/events";
 import { badRequest, body, must } from "../lib/http";
-import { clientKeys, getClientSettings, type MemoryConfig, type Settings, setSetting } from "../lib/settings";
+import { clientKeys, getClientSettings, guardsSchema, type MemoryConfig, type Settings, setSetting, steerSchema } from "../lib/settings";
 import { normalizeMemoryConfig } from "../memory/profiles";
 import { defaultPreset, importStPreset, presetSchema } from "../prompt/preset";
 import { createPairingCode, DEVICE_COOKIE, deviceForToken, isTrustedLocal, listDevices, redeemPairingCode, revokeDevice } from "../services/auth";
@@ -36,6 +37,9 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
   "regex.scripts": z.array(regexScriptSchema).max(200),
   "prompts.sets": z.array(promptSetSchema).max(20),
   "prompts.active": z.string().nullable(),
+  "guards.config": guardsSchema.partial(),
+  "steer.config": steerSchema.partial(),
+  "privacy.requestLog": z.object({ bodiesDays: z.number().int().min(1).max(3650), rowsDays: z.number().int().min(0).max(36500), fileLog: z.boolean(), fileDays: z.number().int().min(1).max(3650) }),
 };
 
 system.get("/settings", (c) => c.json(getClientSettings()));
@@ -84,9 +88,13 @@ system.put("/presets/:id", async (c) => {
   return c.json(getPreset(c.req.param("id")));
 });
 system.delete("/presets/:id", (c) => {
+  const undo = stash("Preset", [{ table: "presets", where: "id = ?", params: [c.req.param("id")] }], "presets");
   deletePreset(c.req.param("id"));
-  return c.json({ ok: true });
+  return c.json({ ok: true, undo });
 });
+
+/** QOL-05: puts back what a delete removed, within 15 minutes. */
+system.post("/undo/:token", (c) => c.json(restoreStash(c.req.param("token"))));
 system.post("/presets/import", async (c) => {
   const form = await c.req.formData();
   const file = form.get("file");

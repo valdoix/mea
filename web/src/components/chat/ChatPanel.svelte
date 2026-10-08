@@ -1,6 +1,8 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
   import ControlSwitches from "../presets/ControlSwitches.svelte";
+  import ChatGuards from "./ChatGuards.svelte";
+  import ChatSteer from "./ChatSteer.svelte";
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
@@ -338,6 +340,9 @@
       </div>
     </div>
   </details>
+
+  <ChatSteer chatId={detail.chat.id} settings={detail.chat.settings} characterStyle={detail.defaults?.characterStyle ?? null} onupdate={(b) => update(b)} />
+  <ChatGuards chatId={detail.chat.id} settings={detail.chat.settings} onupdate={(b) => update(b)} />
 
   <div class="field">
     <span class="label">Lorebooks for this chat</span>

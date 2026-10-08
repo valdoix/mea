@@ -17,7 +17,9 @@ export type MeaEvent =
   | { type: "draft.changed"; chatId: string; device: string | null }
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" }
   | { type: "studio.changed"; draftId: string }
-  | { type: "creator.changed"; draftId: string };
+  | { type: "creator.changed"; draftId: string }
+  | { type: "inbox.changed" }
+  | { type: "import.progress"; chatId: string; done: number; total: number; label: string };
 
 type Listener = (event: MeaEvent) => void;
 

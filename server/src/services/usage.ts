@@ -1,3 +1,6 @@
+import { readdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { paths } from "../config";
 import { all, now, run } from "../db/db";
 import { getSetting } from "../lib/settings";
 import { cachedQuota } from "./connections";
@@ -31,9 +34,21 @@ export function usageSummary(days = 7) {
   return { days, byDay, byModel, byKind, byChat, failures, quota: cachedQuota() };
 }
 
+/** SEC-06: request bodies go after N days, rows after M days (0 = keep the numbers forever), log files after K days. */
 export function pruneGenerations() {
-  // Keep request bodies for the inspector for 30 days; keep the numbers forever.
-  run("UPDATE generations SET request = NULL, trace = NULL WHERE started_at < ? AND request IS NOT NULL", now() - 30 * 24 * 3600_000);
+  const cfg = getSetting("privacy.requestLog");
+  const day = 24 * 3600_000;
+  run("UPDATE generations SET request = NULL, trace = NULL, response = NULL WHERE started_at < ? AND (request IS NOT NULL OR response IS NOT NULL)", now() - cfg.bodiesDays * day);
+  if (cfg.rowsDays > 0) run("DELETE FROM generations WHERE started_at < ? AND status != 'running'", now() - cfg.rowsDays * day);
+  try {
+    const cutoff = new Date(now() - cfg.fileDays * day).toISOString().slice(0, 10);
+    for (const f of readdirSync(paths.logs)) {
+      const m = f.match(/^requests-(\d{4}-\d{2}-\d{2})\.jsonl$/);
+      if (m && m[1]! < cutoff) unlinkSync(join(paths.logs, f));
+    }
+  } catch {
+    // no logs folder yet
+  }
 }
 
 /**

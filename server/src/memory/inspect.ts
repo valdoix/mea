@@ -3,7 +3,8 @@ import { memoryConfig } from "../lib/settings";
 import { atomOut, type AtomRow, atomSources, usageOf } from "./atoms";
 import { telescope } from "./context";
 import { embeddingStatus } from "./embed";
-import { allRows, getSummary, lastSeq, memState, rowAt, summaryOut } from "./store";
+import { allRows, getSummary, lastSeq, ledger, memState, rowAt, summaryOut } from "./store";
+import { countTokens } from "../lib/tokens";
 import { summaryVersions } from "./build";
 
 /** Overview for the Memory Inspector (MEM-39): coverage map (SUM-09), stats (SUM-16), and health. */
@@ -22,6 +23,11 @@ export function memoryOverview(chatId: string) {
   const scenes = rows.filter((r) => r.level === "scene");
   const sourceTokens = scenes.filter((s) => s.state === "ready").reduce((n, s) => n + s.source_tokens, 0);
   const summaryTokens = scenes.filter((s) => s.state === "ready").reduce((n, s) => n + s.tokens, 0);
+  // SUM-16: "1,240 messages · 610k tokens → 9.8k tokens of memory".
+  const summarizedThrough = scenes.filter((s) => s.state === "ready").reduce((n, s) => Math.max(n, s.end_seq ?? 0), 0);
+  const tail = ledger(chatId, summarizedThrough + 1);
+  const storyTokens = sourceTokens + tail.reduce((n, r) => n + countTokens(r.content), 0);
+  const messageCount = one<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.n ?? 0;
   const jobs = all<{ kind: string; status: string; n: number }>("SELECT kind, status, COUNT(*) AS n FROM jobs WHERE chat_id = ? AND status IN ('queued', 'running', 'failed') GROUP BY kind, status", chatId);
   const lastUsed = one<{ trace: string | null }>("SELECT trace FROM generations WHERE chat_id = ? AND task = 'story' AND trace IS NOT NULL ORDER BY started_at DESC LIMIT 1", chatId);
   const lastTrace = parseJson<{ memory?: { telescopeTokens: number; recallTokens: number } } | null>(lastUsed?.trace, null);
@@ -50,6 +56,9 @@ export function memoryOverview(chatId: string) {
       review: rows.filter((r) => r.state === "review").length,
       errors: rows.filter((r) => r.state === "error").length,
       edited: atomTotals?.edited ?? 0,
+      messages: messageCount,
+      storyTokens,
+      memoryTokens: lastTrace?.memory ? lastTrace.memory.telescopeTokens + lastTrace.memory.recallTokens : t.tokens,
     },
     atomCounts: counts,
     jobs,

@@ -2,6 +2,7 @@
   import { imageUrl } from "../lib/api";
   import { initials } from "../lib/format";
   import { backfillThumb } from "../lib/images";
+  import { app } from "../lib/state.svelte";
 
   let {
     id = null,
@@ -18,6 +19,12 @@
     palette.length >= 2 ? `linear-gradient(135deg, ${palette[0]}, ${palette[1]})` : "linear-gradient(135deg, var(--peach), var(--lavender))",
   );
   const height = $derived(portrait ? Math.round(size * 1.5) : size);
+  // PERF-08 / MOB-12: the smallest size that stays sharp here (one size smaller in data-light mode).
+  const want = $derived.by(() => {
+    if (!thumb) return false as const;
+    const px = Math.max(size, height) * (typeof devicePixelRatio === "number" ? devicePixelRatio : 1) * (app.dataLight ? 0.5 : 1);
+    return px <= 128 ? ("s" as const) : px <= 320 ? ("m" as const) : ("l" as const);
+  });
 
   $effect(() => {
     void id;
@@ -28,7 +35,7 @@
 <span class="avatar {shape}" style:width="{size}px" style:height="{height}px" style:background={bg} style:font-size="{Math.max(10, size * 0.38)}px">
   {#if id && !failed}
     <img
-      src={imageUrl(id, thumb)}
+      src={imageUrl(id, want)}
       alt={name}
       loading="lazy"
       decoding="async"

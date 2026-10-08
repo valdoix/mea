@@ -2,6 +2,7 @@ import { z } from "zod";
 import { config } from "../config";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { deleteSecret, getSecret, maskSecret, putSecret } from "../lib/crypto";
+import { refreshRedaction } from "../lib/redact";
 import { publish } from "../lib/events";
 import { badRequest } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
@@ -91,6 +92,7 @@ export function createConnection(input: z.infer<typeof connectionInput>): string
   const id = newId();
   const t = now();
   const secretId = input.apiKey ? putSecret(input.apiKey) : null;
+  refreshRedaction();
   const extra: ConnectionExtra = input.kind === "openai" && input.format === "anthropic" ? { format: "anthropic" } : {};
   run(
     "INSERT INTO connections (id, name, kind, base_url, secret_id, billing, extra, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -113,6 +115,7 @@ export function updateConnection(id: string, input: Partial<z.infer<typeof conne
   if (!row) return false;
   let secretId = row.secret_id;
   if (input.apiKey !== undefined) {
+    refreshRedaction();
     if (input.apiKey) secretId = putSecret(input.apiKey, row.secret_id ?? undefined);
     else if (row.secret_id) {
       deleteSecret(row.secret_id);

@@ -77,11 +77,19 @@ export function extractPalette(img: HTMLImageElement, count = 5): string[] {
 }
 
 /** Uploads an image plus thumbnail and palette; returns the image id. */
+/** PERF-08: the small and large sizes next to the medium thumbnail (only when the image is bigger). */
+async function appendSizes(form: FormData, image: HTMLImageElement) {
+  const side = Math.max(image.naturalWidth, image.naturalHeight);
+  form.append("thumb", await makeThumb(image), "thumb.webp");
+  if (side > 160) form.append("thumb_s", await makeThumb(image, 128), "s.webp");
+  if (side > 900) form.append("thumb_l", await makeThumb(image, 768), "l.webp");
+}
+
 export async function uploadImage(blob: Blob, img?: HTMLImageElement): Promise<string> {
   const image = img ?? (await loadImage(blob));
   const form = new FormData();
   form.append("file", blob, "image.png");
-  form.append("thumb", await makeThumb(image), "thumb.webp");
+  await appendSizes(form, image);
   form.append("palette", JSON.stringify(extractPalette(image)));
   form.append("width", String(image.naturalWidth));
   form.append("height", String(image.naturalHeight));
@@ -96,7 +104,7 @@ export async function backfillThumb(id: string, img: HTMLImageElement) {
   backfilled.add(id);
   try {
     const form = new FormData();
-    form.append("thumb", await makeThumb(img), "thumb.webp");
+    await appendSizes(form, img);
     form.append("palette", JSON.stringify(extractPalette(img)));
     await api("POST", `/api/images/${id}/thumb`, form);
   } catch {

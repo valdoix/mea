@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { stash } from "../services/undo";
+import { one } from "../db/db";
 import { z } from "zod";
 import { body, must } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
@@ -50,8 +52,21 @@ models.put("/connections/:id", async (c) => {
 });
 
 models.delete("/connections/:id", (c) => {
-  deleteConnection(c.req.param("id"));
-  return c.json({ ok: true });
+  const id = c.req.param("id");
+  const secret = one<{ secret_id: string | null }>("SELECT secret_id FROM connections WHERE id = ?", id)?.secret_id ?? "";
+  // The connection, its key, its model list, and which profiles pointed at it.
+  const undo = stash(
+    "Connection",
+    [
+      { table: "secrets", where: "id = ?", params: [secret] },
+      { table: "connections", where: "id = ?", params: [id] },
+      { table: "models", where: "connection_id = ?", params: [id] },
+      { table: "profiles", where: "connection_id = ?", params: [id] },
+    ],
+    "connections",
+  );
+  deleteConnection(id);
+  return c.json({ ok: true, undo });
 });
 
 models.post("/connections/:id/sync", async (c) => c.json({ count: await syncModels(c.req.param("id")) }));
@@ -82,8 +97,9 @@ models.put("/profiles/:id", async (c) => {
 });
 
 models.delete("/profiles/:id", (c) => {
+  const undo = stash("Profile", [{ table: "profiles", where: "id = ?", params: [c.req.param("id")] }], "connections");
   deleteProfile(c.req.param("id"));
-  return c.json({ ok: true });
+  return c.json({ ok: true, undo });
 });
 
 models.put("/routing", async (c) => {

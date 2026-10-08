@@ -36,6 +36,7 @@ export { default as History } from "@lucide/svelte/icons/history";
 export { default as House } from "@lucide/svelte/icons/house";
 export { default as ImageIcon } from "@lucide/svelte/icons/image";
 export { default as Import } from "@lucide/svelte/icons/import";
+export { default as Inbox } from "@lucide/svelte/icons/inbox";
 export { default as Info } from "@lucide/svelte/icons/info";
 export { default as KeyRound } from "@lucide/svelte/icons/key-round";
 export { default as Laptop } from "@lucide/svelte/icons/laptop";

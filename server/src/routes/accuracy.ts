@@ -5,8 +5,18 @@ import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor } from "../ac
 import { codex, codexEntry } from "../accuracy/codex";
 import { quizRuns, runQuiz } from "../accuracy/quiz";
 import { body } from "../lib/http";
+import { stash } from "../services/undo";
 import { getMessageRow, mustChat } from "../services/chats";
 import { startStory } from "../services/generation";
+import { anchorExtra, buildAnchor } from "../accuracy/anchor";
+import { checkDrift, driftHistory, voiceSamples } from "../accuracy/drift";
+import { guardsFor } from "../accuracy/guards";
+import { actOnInbox, inboxCount, inboxItems } from "../accuracy/inbox";
+import { nameRegistry } from "../accuracy/names";
+import { parseJson } from "../db/db";
+import { getCard } from "../services/characters";
+import { chatNames } from "../memory/build";
+import type { ChatSettings } from "../services/chats";
 
 /** Accuracy (Phase 3): continuity and leak checks, the Archivist, the Codex, the memory quiz. */
 export const accuracy = new Hono();
@@ -44,6 +54,49 @@ accuracy.post("/continuity/:id/regenerate", async (c) => {
   return c.json({ ok: true, feedback: f.feedback });
 });
 
+// ---------- guards (CON-03…05, CON-10, CON-12) ----------
+
+/** What the guards are doing in this chat: settings (yours over the global ones), the re-anchor, the voice. */
+accuracy.get("/chats/:id/guards", (c) => {
+  const id = c.req.param("id");
+  const chat = mustChat(id);
+  const card = chat.character_id ? getCard(chat.character_id) : undefined;
+  const names = chatNames(id);
+  const active = card ? anchorExtra(id, card, names.user, chat.character_id) : null;
+  const samples = voiceSamples(chat.character_id);
+  return c.json({
+    config: guardsFor(id),
+    own: parseJson<ChatSettings>(chat.settings, {}).guards ?? {},
+    anchor: {
+      active: Boolean(active),
+      strong: Boolean(active?.name.includes("stronger")),
+      text: active?.content ?? (card ? buildAnchor({ card, userName: names.user, characterId: chat.character_id }) : ""),
+    },
+    drift: { history: driftHistory(id), samples: samples.lines.length, source: samples.source },
+  });
+});
+
+accuracy.post("/chats/:id/drift/check", async (c) => {
+  mustChat(c.req.param("id"));
+  const r = await checkDrift(c.req.param("id"));
+  return c.json({ ...r, history: driftHistory(c.req.param("id")) });
+});
+
+/** CON-05: the names the story spells one way (also the composer's @-mentions, QOL-03). */
+accuracy.get("/chats/:id/names", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ names: nameRegistry(c.req.param("id")) });
+});
+
+// ---------- the review inbox (CON-09) ----------
+
+accuracy.get("/inbox", (c) => c.json({ items: inboxItems({ chatId: c.req.query("chat") || undefined }) }));
+accuracy.get("/inbox/count", (c) => c.json({ count: inboxCount(c.req.query("chat") || undefined) }));
+accuracy.post("/inbox/act", async (c) => {
+  const input = await body(c, z.object({ key: z.string().min(3).max(300), action: z.enum(["accept", "reject"]), edited: z.string().max(40_000).optional() }));
+  return c.json(actOnInbox(input.key, input.action, input.edited));
+});
+
 // ---------- Ask the Archivist (CON-07) ----------
 
 accuracy.get("/chats/:id/archivist", (c) => {
@@ -57,8 +110,9 @@ accuracy.post("/chats/:id/archivist", async (c) => {
 });
 
 accuracy.delete("/archivist/:id", (c) => {
+  const undo = stash("Answer", [{ table: "archivist", where: "id = ?", params: [c.req.param("id")] }]);
   deleteArchive(c.req.param("id"));
-  return c.json({ ok: true });
+  return c.json({ ok: true, undo });
 });
 
 accuracy.post("/archivist/:id/push", async (c) => {

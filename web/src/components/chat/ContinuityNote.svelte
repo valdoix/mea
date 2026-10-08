@@ -10,7 +10,9 @@
   let open = $state(false);
   const issues = $derived(flag.issues.filter((i) => !i.dismissed));
   const major = $derived(issues.some((i) => i.severity === "major"));
-  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what" };
+  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline" };
+  /** A citation that points somewhere (guard notes cite a rule, not a source). */
+  const opens = (c: Citation) => Boolean(c.messageId || c.seq != null || c.id);
 
   async function act(path: string, body: unknown, done?: string) {
     try {
@@ -43,7 +45,7 @@
             <div class="small"><span class="sev" class:hi={i.severity === "major"}>{i.severity}</span> “{i.claim}”</div>
             <div class="small muted">{i.conflict}</div>
             <div class="row wrap cites">
-              {#each i.citations as c, k (k)}<button class="chip tiny cite" onclick={() => oncite(c)} title="Open the source">{c.type} · {c.label.slice(0, 60)}</button>{/each}
+              {#each i.citations as c, k (k)}{#if opens(c)}<button class="chip tiny cite" onclick={() => oncite(c)} title="Open the source">{c.type} · {c.label.slice(0, 60)}</button>{:else}<span class="chip tiny cite rule">{c.label.slice(0, 60)}</span>{/if}{/each}
               {#if i.by === "model"}<span class="tiny faint">checked by the helper model</span>{/if}
             </div>
             <div class="row wrap">
@@ -107,6 +109,9 @@
   }
   .cites {
     gap: 0.3rem;
+  }
+  .cite.rule {
+    cursor: default;
   }
   .cite {
     cursor: pointer;

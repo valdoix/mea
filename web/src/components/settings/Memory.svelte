@@ -3,7 +3,7 @@
   import { get, post } from "../../lib/api";
   import { compact } from "../../lib/format";
   import { app, errorToast, saveSetting } from "../../lib/state.svelte";
-  import type { MemoryConfig, Planner } from "../../lib/types";
+  import type { Compression, MemoryConfig, Planner } from "../../lib/types";
 
   const cfg = $derived(app.settings?.["memory.config"]);
   let planner = $state<Planner | null>(null);
@@ -34,6 +34,12 @@
       }
     }, 400);
   }
+  const LEVELS: { k: keyof MemoryConfig["compression"]; label: string }[] = [
+    { k: "scene", label: "Scenes" },
+    { k: "chapter", label: "Chapters" },
+    { k: "arc", label: "Arcs" },
+    { k: "story", label: "The Story So Far" },
+  ];
   const num = (v: string, min: number, max: number) => Math.max(min, Math.min(max, Number(v) || min));
   const pct = (n: number) => `${Math.round(n * 100)}%`;
 
@@ -190,6 +196,44 @@
           <span class="hint">newest messages left alone, since you may still swipe or edit them</span>
         </label>
       </div>
+    </section>
+
+    <section class="panel stack">
+      <h2>How summaries are written</h2>
+      <p class="tiny muted">How much each level keeps (SUM-10), and the voice every summary uses (SUM-17). Changes apply to summaries written from now on; rebuild a level to rewrite older ones.</p>
+      <div class="grid">
+        {#each LEVELS as l (l.k)}
+          <label class="field">
+            <span class="label">{l.label}</span>
+            <select class="select" value={cfg.compression[l.k]} onchange={(e) => set({ compression: { ...cfg.compression, [l.k]: e.currentTarget.value as Compression } })}>
+              <option value="tight">Tight</option>
+              <option value="balanced">Balanced</option>
+              <option value="detailed">Detailed</option>
+            </select>
+          </label>
+        {/each}
+      </div>
+      <div class="grid">
+        <label class="field">
+          <span class="label">Tense</span>
+          <select class="select" value={cfg.voice.tense} onchange={(e) => set({ voice: { ...cfg.voice, tense: e.currentTarget.value as MemoryConfig["voice"]["tense"] } })}>
+            <option value="past">Past</option><option value="present">Present</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label">Person</span>
+          <select class="select" value={cfg.voice.person} onchange={(e) => set({ voice: { ...cfg.voice, person: e.currentTarget.value as MemoryConfig["voice"]["person"] } })}>
+            <option value="third">Third person</option><option value="first">First person (the main character remembering)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label">Voice</span>
+          <select class="select" value={cfg.voice.register} onchange={(e) => set({ voice: { ...cfg.voice, register: e.currentTarget.value as MemoryConfig["voice"]["register"] } })}>
+            <option value="record">A neutral record</option><option value="storybook">A storybook narrator</option>
+          </select>
+        </label>
+      </div>
+      <label class="switch"><input type="checkbox" checked={cfg.moments} onchange={(e) => set({ moments: e.currentTarget.checked })} /> Tag dramatic moments (confessions, betrayals, promises, deaths…) and keep them through every level (SUM-11)</label>
     </section>
 
     <section class="panel stack">

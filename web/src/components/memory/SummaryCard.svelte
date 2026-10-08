@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Moment } from "../../lib/types";
   import Modal from "../Modal.svelte";
   import { get, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
@@ -31,6 +32,8 @@
   const st = $derived(summary.level !== "story" && !summary.closed ? { label: "still open", chip: "sky" } : (STATE[summary.state] ?? STATE.pending!));
   const range = $derived(`#${summary.startSeq}–#${summary.endSeq ?? "…"}`);
   const v = $derived(summary.verification);
+  // SUM-11: the dramatic moments this part keeps (carried up from every scene below it).
+  const moments = $derived(((summary.data?.moments as Moment[] | undefined) ?? []).filter((m) => m.text));
 
   function startEdit() {
     draftTitle = summary.title;
@@ -142,6 +145,9 @@
         </div>
       {:else if summary.content}
         <p class="content">{summary.content}</p>
+        {#if moments.length}
+          <div class="row wrap moments">{#each moments as m, i (i)}<span class="chip tiny lavender" title={m.text}>✦ {m.tag}</span>{/each}</div>
+        {/if}
       {:else if summary.state === "error"}
         <div class="notice error tiny">{summary.error ?? "The summary couldn't be written."}</div>
       {:else}

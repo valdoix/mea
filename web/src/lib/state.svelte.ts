@@ -25,6 +25,10 @@ export const app = $state({
   drawerOpen: false,
   devMode: false,
   dark: document.documentElement.dataset.theme === "dark",
+  /** MOB-12: smaller images and fewer prefetches (on a metered connection, or switched on by hand). */
+  dataLight: false,
+  /** SEC-05: the encrypted database is waiting for its passphrase. */
+  locked: false,
 });
 
 mobileQuery.addEventListener("change", (e) => {
