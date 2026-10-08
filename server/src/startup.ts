@@ -12,7 +12,9 @@ import { onLedgerEdit } from "./services/chats";
 import { embedChat } from "./memory/embed";
 import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
-import { runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
+import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
+import { runTelling, worldAfterReply, worldLane } from "./sim/service";
+import { setElsewhereLane } from "./services/generation";
 
 /** Replies that were streaming when Mea stopped are marked so the user can retry them. */
 function recoverInterrupted() {
@@ -55,6 +57,10 @@ export function startup(opts: { jobs?: boolean; dbFile?: string } = {}) {
   onLedgerEdit(trackerLedgerHook);
   registerJob("tracker.update", async (p, job) => runTrackerUpdate(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   registerJob("tracker.init", async (p, job) => runTrackerInit(p as { chatId: string }, job));
+  // The world off the page (Phase 2): ticks once the story clock moves; the model only tells.
+  onTrackerUpdate(worldAfterReply);
+  setElsewhereLane((chatId) => worldLane(chatId));
+  registerJob("world.tell", async (p, job) => runTelling(p as Parameters<typeof runTelling>[0], job));
   registerJob("cache.probe", async (p) => {
     if (p.connectionId && p.modelId) await probeCache(String(p.connectionId), String(p.modelId));
     else await runDueProbes();

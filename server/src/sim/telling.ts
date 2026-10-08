@@ -1,0 +1,57 @@
+import { z } from "zod";
+import type { BeatCard } from "./storyteller";
+
+/**
+ * Telling (ALMANAC 09 §9): the engine has already decided who, where, when and how it turned
+ * out; one quiet model call puts each beat into the story's own words. A validator keeps it
+ * honest; a beat that fails keeps the engine's sentence.
+ */
+export const tellingSchema = z.object({
+  beats: z.array(z.object({ card: z.string(), text: z.string(), arrival: z.string().optional() })),
+});
+
+export function tellingPrompt(cards: BeatCard[], o: { userName: string; truths: string[]; genres: string[] }) {
+  const system = `You tell what happened off the page in a roleplay, between two story times. Each CARD is already decided: who, where, when, and how it turned out (WIN, COST, LOSS, or an ending: MET, PRICE, LOST). Tell each as two short, plain sentences: what happened (past tense, naming the actual people, places and news), then where it leaves things (present tense). At most 50 words per card.
+Keep the outcome. Add nothing the card doesn't allow. Name only the people on the card; anyone else is unnamed ("a clerk"). Never decide anything ${o.userName} (the user's character) does, says, thinks or knows. No dialogue.${o.genres.length ? `\nThe story's genre: ${o.genres.join(", ")}.` : ""}${o.truths.length ? `\nStory truths that hold here too: ${o.truths.join("; ")}` : ""}
+Reply with JSON only: {"beats":[{"card":"<id>","text":"…"}]}`;
+  const user = cards
+    .map((c) =>
+      [
+        `CARD ${c.id}`,
+        `KIND ${c.kind} · ${c.ending ? "ENDING" : `step: ${c.stage}`} · outcome ${String(c.result).toUpperCase()}${c.twist ? ` · twist: ${c.twist}` : ""}`,
+        `LEAD ${c.lead}${c.cast.length ? ` · WITH ${c.cast.join(", ")}` : ""} · WHERE ${c.where}`,
+        `PREMISE ${c.premise}`,
+        `WANTS ${c.want} · FEARS ${c.fear}`,
+        c.soFar.length ? `SO FAR ${c.soFar.join(" ")}` : "",
+        `ENGINE'S WORDS ${c.template}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
+    .join("\n\n");
+  return { system, user: `${user}\n\nWORLD TELLING: tell each card.` };
+}
+
+const COMMON = new Set(
+  "The A An It In On At By For With From After Before When While Then But And Or Off Somewhere Nobody Someone Everyone Later Meanwhile That This Their His Her They She He Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April May June July August September October November December Day Night Morning Evening".split(" "),
+);
+
+/** Checks a telling; returns the problem, or null when it can be used. */
+export function validateTelling(text: string, card: BeatCard, o: { userName: string; places: string[] }): string | null {
+  const words = text.trim().split(/\s+/);
+  if (words.length > 75) return "too long";
+  if (/["“”]/.test(text) && /\b(said|says|asked|told)\b/.test(text) && /["“][^"”]{10,}["”]/.test(text)) return "dialogue";
+  const u = o.userName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`\\b${u}\\s+(?:\\w+ed|\\w+s|was|is|had|felt|thought|knew|decided|agreed)\\b`, "i").test(text)) return "decided something for the user's character";
+  const allowed = new Set([card.lead, ...card.cast, o.userName, ...o.places].flatMap((n) => n.split(/[\s›]+/)).map((w) => w.replace(/[^\w'-]/g, "").toLowerCase()));
+  // Capitalised words not at the start of a sentence must be names the card allows.
+  const tokens = text.match(/(?<![.!?]\s)(?<!^)\b[A-Z][a-z'’-]{2,}\b/g) ?? [];
+  for (const t of tokens) {
+    if (COMMON.has(t)) continue;
+    if (!allowed.has(t.toLowerCase().replace(/['’]s$/, ""))) return `named someone or somewhere not on the card ("${t}")`;
+  }
+  const r = String(card.result).toLowerCase();
+  if ((r === "loss" || r === "lost") && /\b(succeeded|managed to|won|triumph\w*)\b/i.test(text)) return "told a loss as a win";
+  if ((r === "win" || r === "met") && /\b(failed|gave up|was defeated|fell apart)\b/i.test(text)) return "told a win as a loss";
+  return null;
+}

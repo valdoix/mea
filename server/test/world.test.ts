@@ -1,0 +1,200 @@
+import { describe, expect, test } from "bun:test";
+import { applySim } from "../src/sim/fold";
+import { confirmArrivals, elsewhereLane } from "../src/sim/crossings";
+import { lean, measureTension, targetTension } from "../src/sim/director";
+import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/sim/grammar";
+import { spreadNews } from "../src/sim/news";
+import { buildRoster, readStanding } from "../src/sim/roster";
+import { forecast, weatherAt } from "../src/sim/sky";
+import { tick, type TickInput } from "../src/sim/storyteller";
+import { validateTelling } from "../src/sim/telling";
+import { parseLine } from "../src/trackers/dsl";
+import { foldEvents, type FoldConfig } from "../src/trackers/fold";
+import type { WorldState } from "../src/trackers/types";
+
+const cfg: FoldConfig = { userName: "Alex", mainName: "Mira", sealedPersona: true, romance: "slow", strictness: "lenient", limits: true, templates: [] };
+
+function world(lines: string[]): WorldState {
+  return foldEvents(
+    lines.map((l, i) => ({ id: `e${i}`, messageId: "m1", seq: 1, source: "init" as const, op: parseLine(l)! })),
+    cfg,
+  ).state;
+}
+
+const base = [
+  "clock: Day 1 20:00",
+  "at: Port Ellis › Lighthouse › Lamp room",
+  "cast: Mira@spot · Alex@spot",
+  "cast: Joss@left(→ Port Ellis › Harbour)",
+  "bond Joss>Mira: resentment 4 — she took his job",
+  "bond Mira>Alex: trust 2; affection 2 — from the card",
+  "thread Smuggling ring: new — Joss has been seen with the Harbour Guild",
+  "clockf Harbour Guild: take the docks 2/6",
+  "secret #joss-debt: Joss owes the Guild money | kept by Joss · from Mira",
+  "know Mira: Old Tom died in the storm | saw it · knows",
+];
+
+function input(st: WorldState, over: Partial<TickInput> = {}): TickInput {
+  const roster = buildRoster({ state: st, profiles: { tom: { name: "Old Tom" } } as never, lore: [{ name: "Edda", text: "Edda is Mira's sister. She lives in London and works as a nurse." }], userName: "Alex" });
+  return { chatId: "c1", state: st, roster, mode: "living", director: "steady", seeding: "auto", fates: "ask", genres: [], tech: "modern", from: null, now: st.time!.minutes, recent: new Set(), ...over };
+}
+
+/** Folds sim ops into a state the way the tracker fold does. */
+function advance(st: WorldState, res: ReturnType<typeof tick>) {
+  for (const op of res.sim) applySim(st.sim, op, 2);
+  return st;
+}
+
+describe("grammar", () => {
+  test("every kind has a full shape", () => {
+    for (const s of Object.values(SPECS)) {
+      expect(Object.keys(s.moves).sort()).toEqual(["climax", "crisis", "hook", "reversal", "rising"]);
+      expect(s.prices.length).toBeGreaterThan(0);
+      expect(s.worse.length).toBeGreaterThan(0);
+    }
+    expect(stageOf(0, 6)).toBe("hook");
+    expect(stageOf(3, 6)).toBe("reversal");
+    expect(stageOf(4, 6)).toBe("crisis");
+    expect(stageOf(5, 6)).toBe("climax");
+    expect(kindFromText("he wants revenge for what she did")).toBe("revenge");
+    expect(kindFromText("she's coming back home next week")).toBe("return");
+  });
+
+  test("templates read as sentences", () => {
+    const t = beatTemplate({ kind: "rivalry", lead: "Joss", want: "to come out on top", stage: "rising", result: "cost", cast: "Mira", price: "pride took a bruising" });
+    expect(t).toBe("Joss raised the stakes with Mira. Pride took a bruising.");
+    expect(endTemplate({ kind: "return", lead: "Edda", want: "to come back", fear: "they come back too late", result: "lost" })).toBe("It went badly for Edda. Edda came back too late.");
+  });
+});
+
+describe("roster", () => {
+  test("rings, standing, reach and ties", () => {
+    const st = world(base);
+    const r = input(st).roster;
+    expect(r.byName("Mira")!.ring).toBe("onstage");
+    expect(r.byName("Joss")!.ring).toBe("offstage");
+    expect(r.byName("Joss")!.reach).toBe("town");
+    const edda = r.byName("Edda")!;
+    expect(edda.ring).toBe("unmet");
+    expect(edda.standing).toBe("away");
+    expect(edda.reach).toBe("far");
+    expect(edda.ties.get(r.byName("Mira")!.id)).toBe(3);
+    expect(readStanding("He died last winter.").standing).toBe("dead");
+  });
+});
+
+describe("storyteller", () => {
+  test("the same stretch of time rolls the same dice", () => {
+    const a = tick(input(world(base)));
+    const b = tick(input(world(base)));
+    expect(JSON.stringify(a.sim)).toBe(JSON.stringify(b.sim));
+  });
+
+  test("subplots seed from the story's loose ends, and move over time", () => {
+    let st = world(base);
+    let res = tick(input(st, { forced: true }));
+    st = advance(st, res);
+    const kinds = Object.values(st.sim.arcs).map((a) => `${a.leadName}:${a.kind}`);
+    expect(kinds.length).toBeGreaterThan(0);
+    // Over two story days, beats happen and every beat is a sentence.
+    let from = st.time!.minutes;
+    for (let h = 2; h <= 48; h += 2) {
+      st.time = { minutes: from + h * 60, form: "day" };
+      res = tick(input(st, { from: st.sim.lastTickAt }));
+      st = advance(st, res);
+    }
+    const beats = Object.values(st.sim.arcs).flatMap((a) => a.beats);
+    expect(beats.length).toBeGreaterThan(0);
+    for (const b of beats) expect(b.text).toMatch(/[.!?]$/);
+    expect(st.sim.tension.length).toBeGreaterThan(5);
+  });
+
+  test("seeding 'ask' writes proposals, not subplots", () => {
+    const st = world(base);
+    const res = tick(input(st, { seeding: "ask", forced: true }));
+    expect(res.sim.some((o) => o.type === "proposal.new")).toBe(true);
+    expect(res.sim.some((o) => o.type === "arc.new")).toBe(false);
+  });
+
+  test("irreversible endings wait on the player (fates)", () => {
+    const st = world(base);
+    const roster = input(st).roster;
+    const joss = roster.byName("Joss")!;
+    st.sim.arcs.x = {
+      id: "x", kind: "decline", lead: joss.id, leadName: "Joss", cast: [], premise: "Joss drinks.", want: "to stay in control", fear: "they hit bottom", grounds: ["player"], secrecy: "secret",
+      clock: { cur: 5, max: 6 }, tally: { win: 0, cost: 0, loss: 5 }, heat: 3, stage: "crisis", beats: [], nextAt: 0, status: "running", by: "player", push: true, createdAt: 0, seq: 1,
+    };
+    let fate = false;
+    for (let i = 0; i < 20 && !fate; i++) {
+      const s2 = structuredClone(st);
+      s2.time = { minutes: st.time!.minutes + i * 60, form: "day" };
+      const res = tick(input(s2));
+      if (res.sim.some((o) => o.type === "arc.fate")) fate = true;
+      if (res.sim.some((o) => o.type === "arc.end" && o.id === "x")) {
+        // A met or priced ending isn't irreversible, so it may end outright.
+        fate = true;
+      }
+    }
+    expect(fate).toBe(true);
+  });
+});
+
+describe("news", () => {
+  test("big news travels along ties; secrets don't leave their keepers", () => {
+    const st = world([...base, "bond Joss>Edda: trust 3; affection 3 — old friends", "know Joss: Old Tom died in the storm | heard it · knows"]);
+    let hops = 0;
+    for (let i = 0; i < 30; i++) {
+      const r = spreadNews({ state: st, roster: input(st).roster, hours: 24, rand: Math.random, tech: "modern", now: 0 });
+      hops += r.hops.length;
+      expect(r.hops.every((h) => h.fact !== "joss-debt")).toBe(true);
+    }
+    expect(hops).toBeGreaterThan(0);
+  });
+});
+
+describe("crossings", () => {
+  test("an arrival is offered when its route fits, and delivered only when used", () => {
+    const st = world(base);
+    const roster = input(st).roster;
+    const arrivals = [
+      { id: "a1", route: "carrier" as const, carrier: "Mira", text: "Mira knows something about Joss: Joss was seen at the harbour with strangers.", at: 0, until: null, status: "pending" as const, offers: 0, maxOffers: 3, seq: 1 },
+      { id: "a2", route: "trace" as const, place: ["Old Mill"], text: "At Old Mill, signs of a struggle.", at: 0, until: null, status: "pending" as const, offers: 0, maxOffers: 2, seq: 1 },
+    ];
+    const lane = elsewhereLane({ arrivals, state: st, roster, now: st.time!.minutes, userName: "Alex", arcs: [] });
+    expect(lane.offered).toEqual(["a1"]);
+    expect(lane.text).toContain("Reaches the scene now");
+    const used = confirmArrivals({ arrivals, offered: lane.offered, prose: "Mira frowns. \"Joss was down at the harbour with strangers last night.\"", now: st.time!.minutes, castNames: ["Mira"] });
+    expect(used[0]).toMatchObject({ id: "a1", status: "used" });
+    const unused = confirmArrivals({ arrivals, offered: lane.offered, prose: "They drink tea.", now: st.time!.minutes, castNames: ["Mira"] });
+    expect(unused[0]).toMatchObject({ id: "a1", status: "offered", offers: 1 });
+  });
+});
+
+describe("telling validator", () => {
+  const card = { id: "c", arc: "x", kind: "return" as const, stage: "rising", result: "loss" as const, lead: "Edda", cast: ["Mira"], where: "London", premise: "", want: "", fear: "", soFar: [], template: "", at: 0 };
+  test("keeps the model honest", () => {
+    expect(validateTelling("Edda's train was cancelled in London. She is stuck for another day.", card, { userName: "Alex", places: ["London"] })).toBeNull();
+    expect(validateTelling("Edda met Gregor at the station.", card, { userName: "Alex", places: [] })).toContain("Gregor");
+    expect(validateTelling("Edda called and Alex decided to meet her.", card, { userName: "Alex", places: [] })).toContain("user");
+    expect(validateTelling("Edda managed to get on the train after all.", card, { userName: "Alex", places: [] })).toContain("loss");
+  });
+});
+
+describe("director and sky", () => {
+  test("personalities lean the dice", () => {
+    expect(lean("steady", 1, 4).rate).toBeGreaterThan(1);
+    expect(lean("steady", 8, 4).rate).toBeLessThan(1);
+    expect(lean("gentle", 1, 4).soften).toBe(true);
+    const st = world([...base, "mode: crisis"]);
+    expect(measureTension(st, st.sim)).toBeGreaterThan(2);
+    expect(targetTension("rising", { ...st.sim, tension: [{ at: 0, value: 3, target: 3 }] }, 5 * 1440, "c")).toBeGreaterThan(targetTension("rising", { ...st.sim, tension: [{ at: 0, value: 3, target: 3 }] }, 1440, "c"));
+  });
+
+  test("weather is seeded and follows the story's own line", () => {
+    const inp = { seed: "c1", minutes: 3000, form: "day" as const, climate: "maritime", latitude: 50 };
+    expect(weatherAt(inp)).toEqual(weatherAt(inp));
+    expect(forecast(inp).length).toBe(4);
+    const anchored = weatherAt({ ...inp, anchor: { minutes: 2990, text: "storm" } });
+    expect(anchored.level).toBeGreaterThanOrEqual(5);
+  });
+});

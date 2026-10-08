@@ -59,6 +59,10 @@ function helperJson(name: string, user: string): unknown {
       return { newScene: !/MOCK_SAME_SCENE/.test(user), reason: "mock" };
     case "tracker_gate":
       return { changed: !/MOCK_NO_CHANGE/.test(user) };
+    case "world_telling":
+      return {
+        beats: [...user.matchAll(/^CARD (\S+)[\s\S]*?^ENGINE'S WORDS (.+)$/gm)].map((m) => ({ card: m[1], text: `Off the page: ${m[2]}` })),
+      };
     default:
       return {};
   }
@@ -144,6 +148,7 @@ export class MockProvider implements Provider {
 function guessSchema(system: string) {
   if (system.includes('"memories"')) return "scene_memory";
   if (system.includes('"changed"')) return "tracker_gate";
+  if (system.includes('"beats"')) return "world_telling";
   if (system.includes('"verdict"')) return "summary_check";
   if (system.includes('"newScene"')) return "scene_boundary";
   if (system.includes('"openThreads"')) return "summary_rollup";

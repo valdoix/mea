@@ -9,7 +9,8 @@ import { createConnection, createProfile, syncModels } from "../src/services/con
 import { prepare, startStory } from "../src/services/generation";
 import { registerJob } from "../src/services/jobs";
 import { evalCondition } from "../src/trackers/condition";
-import { runTrackerInit, runTrackerUpdate, timeskip, trackerLedgerHook, userEdit } from "../src/trackers/service";
+import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, timeskip, trackerLedgerHook, userEdit } from "../src/trackers/service";
+import { worldAfterReply, worldLane, worldView } from "../src/sim/service";
 import { currentFold, linesToOps } from "../src/trackers/store";
 import { freshDb } from "./helpers";
 
@@ -57,6 +58,7 @@ beforeAll(async () => {
   freshDb();
   for (const kind of ["memory.segment", "memory.build", "memory.embed", "quota.refresh", "cache.probe"]) registerJob(kind, async () => {});
   onLedgerEdit(trackerLedgerHook);
+  onTrackerUpdate(worldAfterReply);
   const connId = createConnection({ name: "Mock", kind: "mock", billing: "subscription" });
   await syncModels(connId);
   createProfile({ name: "Story", connectionId: connId, modelId: "mock/storyteller", params: { context_target: 8000, max_tokens: 400 } });
@@ -143,6 +145,16 @@ describe("trackers end to end (mock)", () => {
     const st = currentFold(chatId).result.state;
     expect(st.time!.minutes - before).toBe(3 * 1440);
     expect(getMessageRow(r.messageId)!.role).toBe("system");
+  });
+
+  test("the world ticks once the clock has moved (sim)", () => {
+    const st = currentFold(chatId).result.state;
+    expect(st.sim.lastTickAt).not.toBeNull();
+    expect(st.sim.tension.length).toBeGreaterThan(0);
+    const v = worldView(chatId);
+    expect(v.sky?.line).toContain("SKY:");
+    expect(worldLane(chatId)).toContain("SKY:");
+    expect(v.people.some((p) => p.name === "Mira")).toBe(true);
   });
 
   test("inline mode: the ledger comes out of the reply and is filed", async () => {
