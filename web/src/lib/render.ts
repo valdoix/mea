@@ -88,7 +88,8 @@ function scopeCss(css: string, scope: string): string {
   }
 }
 
-export function renderMessage(text: string, scopeClass: string): string {
+export function renderMessage(input: string, scopeClass: string): string {
+  const text = input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, "");
   const key = `${scopeClass}\u0000${text}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
@@ -121,7 +122,8 @@ export function renderMessage(text: string, scopeClass: string): string {
 
 /** Cheap render for streaming text: re-rendered at most once per animation frame. */
 export function renderStreaming(text: string): string {
-  const raw = marked.parse(text, { async: false }) as string;
+  // Inline trackers: the hidden <ledger> the story model writes never shows while it streams.
+  const raw = marked.parse(text.replace(/<ledger\b[\s\S]*$/i, ""), { async: false }) as string;
   const clean = DOMPurify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "form", "input", "button"] });
   const tpl = document.createElement("template");
   tpl.innerHTML = clean;

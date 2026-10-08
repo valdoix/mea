@@ -3,11 +3,13 @@
   import Data from "../components/settings/Data.svelte";
   import Devices from "../components/settings/Devices.svelte";
   import Memory from "../components/settings/Memory.svelte";
+  import Trackers from "../components/settings/Trackers.svelte";
+  import Writing from "../components/settings/Writing.svelte";
   import Models from "../components/settings/Models.svelte";
   import Notifications from "../components/settings/Notifications.svelte";
   import Status from "../components/settings/Status.svelte";
   import Usage from "../components/settings/Usage.svelte";
-  import { Activity, Bell, Brain, Cpu, Database, Gauge, Palette, Smartphone } from "../lib/icons";
+  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, ListChecks, Palette, Smartphone } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
 
   let { tab = "models" }: { tab?: string } = $props();
@@ -15,6 +17,8 @@
   const tabs = [
     { id: "models", label: "Models", icon: Cpu },
     { id: "memory", label: "Memory", icon: Brain },
+    { id: "trackers", label: "Trackers", icon: ListChecks },
+    { id: "writing", label: "Writing", icon: Feather },
     { id: "appearance", label: "Appearance", icon: Palette },
     { id: "devices", label: "Devices", icon: Smartphone },
     { id: "notifications", label: "Notifications", icon: Bell },
@@ -33,6 +37,8 @@
   </nav>
   <div class="content">
     {#if tab === "memory"}<Memory />
+    {:else if tab === "trackers"}<Trackers />
+    {:else if tab === "writing"}<Writing />
     {:else if tab === "appearance"}<Appearance />
     {:else if tab === "devices"}<Devices />
     {:else if tab === "notifications"}<Notifications />

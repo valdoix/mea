@@ -21,8 +21,11 @@
     Milestone,
     Flag,
     Info,
+    Undo,
   } from "../../lib/icons";
   import { renderMessage, renderStreaming } from "../../lib/render";
+  import ChangeChips from "../trackers/ChangeChips.svelte";
+  import type { TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
   import { clock } from "../../lib/format";
   import type { Message } from "../../lib/types";
@@ -47,7 +50,15 @@
     onendscene,
     onnewchapter,
     onmemory,
+    chips = [],
+    storyTime = null,
+    onrewind,
+    mark = "",
   }: {
+    mark?: string;
+    chips?: TrackerChange[];
+    storyTime?: string | null;
+    onrewind?: () => void;
     highlighted?: boolean;
     onendscene?: () => void;
     onnewchapter?: () => void;
@@ -81,8 +92,17 @@
   const isUser = $derived(message.role === "user");
   const streaming = $derived(message.status === "streaming");
   const scope = $derived(`m-${message.id.slice(0, 8)}`);
-  const html = $derived(streaming ? "" : renderMessage(message.content, scope));
+  const html = $derived(streaming ? "" : markText(renderMessage(message.content, scope), mark));
+
+  /** CHAT-18: highlight search matches in the rendered text (only between tags). */
+  function markText(h: string, q: string) {
+    if (!q || q.length < 2) return h;
+    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    return h.replace(/>([^<]+)</g, (_m, text: string) => `>${text.replace(re, (x) => `<mark>${x}</mark>`)}<`);
+  }
   const swipeable = $derived(message.role === "assistant" && isLast && !streaming);
+  const words = $derived(message.content.trim() ? message.content.trim().split(/\s+/).length : 0);
+  const banned = $derived((message.meta?.banned as string[] | undefined) ?? []);
 
   // Re-render streaming text at most once per frame (PERF-03).
   $effect(() => {
@@ -127,6 +147,7 @@
     if (onmemory) list.push({ label: "What memory knows", icon: Brain, onclick: onmemory });
     if (onendscene) list.push({ label: "End the scene after this", icon: Milestone, onclick: onendscene });
     if (onnewchapter) list.push({ label: "Start a new chapter here", icon: Flag, onclick: onnewchapter });
+    if (onrewind && !isLast) list.push({ label: "Rewind to here", icon: Undo, onclick: onrewind, hint: "deletes what comes after" });
     list.push({ label: "Delete", icon: Trash, danger: true, onclick: ondelete });
     return list;
   });
@@ -154,7 +175,7 @@
       {#if message.hidden}<span class="chip" title="Not sent to the model"><EyeOff size={11} /> hidden</span>{/if}
       <button class="btn ghost icon small more" bind:this={menuBtn} onclick={() => ((menuPoint = null), (menuOpen = true))} aria-label="Message actions"><Ellipsis size={16} /></button>
     </span>
-    <span class="time" title={clock(message.createdAt)}>{clock(message.updatedAt || message.createdAt)}</span>
+    <span class="time" title={`${clock(message.createdAt)}${storyTime ? ` · in the story: ${storyTime}` : ""} · ${words} words`}>{storyTime && app.settings?.["appearance.chatStyle"] !== "bubbles" ? storyTime : clock(message.updatedAt || message.createdAt)}</span>
   </header>
   <div class="bubble">
 
@@ -187,10 +208,13 @@
           {#if isLast}<button class="btn small" style="margin-top:.5rem" onclick={() => onregen()} disabled={!canGenerate}><RotateCcw size={14} /> Try again</button>{/if}
         {:else}
           <div class="prose {scope}">{@html html}</div>
+          {#if banned.length}<div class="tiny banned" title="Phrases from your banned list (Settings → Writing)">Banned phrases: {banned.join(", ")}</div>{/if}
           {#if message.status === "stopped"}<div class="tiny faint" style="margin-top:.3rem">Stopped{message.error ? ` · ${message.error}` : ""}</div>{/if}
         {/if}
       </div>
     {/if}
+
+    {#if chips.length && !editing && !streaming}<ChangeChips changes={chips} />{/if}
 
     {#if message.role === "assistant" && (message.swipeCount > 1 || isLast) && !editing}
       <footer class="swipes">
@@ -218,6 +242,10 @@
 <Menu bind:open={menuOpen} {items} anchor={menuBtn} point={menuPoint} title={displayName} />
 
 <style>
+  .banned {
+    color: var(--warn);
+    margin-top: 0.3rem;
+  }
   .msg {
     display: flex;
     flex-direction: column;

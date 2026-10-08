@@ -4,6 +4,12 @@
   import ChatPanel from "../components/chat/ChatPanel.svelte";
   import Composer from "../components/chat/Composer.svelte";
   import MemoryPanel from "../components/memory/MemoryPanel.svelte";
+  import TrackerPanel from "../components/trackers/TrackerPanel.svelte";
+  import Hud from "../components/trackers/Hud.svelte";
+  import WorldPanel from "../components/world/WorldPanel.svelte";
+  import ModelSwitcher from "../components/chat/ModelSwitcher.svelte";
+  import ChatSearch from "../components/chat/ChatSearch.svelte";
+  import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
   import Segmented from "../components/Segmented.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
   import MessageItem from "../components/chat/MessageItem.svelte";
@@ -13,7 +19,7 @@
   import { promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { compact } from "../lib/format";
-  import { ArrowDown, ArrowLeft, PanelRight } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, PanelRight, Search } from "../lib/icons";
   import { renderMessage } from "../lib/render";
   import { back, navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
@@ -38,7 +44,16 @@
   let stick = $state(true);
   let editSignals = $state<Record<string, number>>({});
   let error = $state("");
-  let dockTab = $state<"chat" | "memory">(localStorage.getItem("mea.dockTab") === "memory" ? "memory" : "chat");
+  type DockTab = "chat" | "memory" | "story" | "world";
+  let dockTab = $state<DockTab>((["chat", "memory", "story", "world"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
+  const dockOptions = [
+    { value: "chat" as const, label: "Chat" },
+    { value: "memory" as const, label: "Memory" },
+    { value: "story" as const, label: "Story" },
+    { value: "world" as const, label: "World" },
+  ];
+  let searchOpen = $state(false);
+  let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
   let highlight = $state<number | null>(null);
   let quotaChoice = $state<{ message: string; alternatives: { id: string; name: string; model: string }[]; retry: (profileId: string) => Promise<void> } | null>(null);
@@ -54,6 +69,7 @@
 
   onMount(() => {
     app.currentChatId = id;
+    openTrackers(id);
     reportPresence();
     return () => {
       app.currentChatId = null;
@@ -86,6 +102,10 @@
       void loadBoundaries();
       await tick();
       const at = Number(route.query.at);
+      if (route.query.q) {
+        searchQ = route.query.q;
+        searchOpen = true;
+      }
       if (at) void jumpTo(at);
       else scrollToBottom(false);
       refreshPreview();
@@ -257,6 +277,8 @@
           const m = messages.find((x) => x.id === e.messageId);
           if (m) {
             if (m.status !== "streaming") m.status = "streaming";
+            // A smart retry (CONN-09) starts the reply over.
+            if (e.reset) m.content = "";
             m.content += e.text;
             if (e.reasoning) m.reasoning = (m.reasoning ?? "") + e.reasoning;
           }
@@ -277,6 +299,10 @@
           break;
         case "memory.changed":
           void loadBoundaries();
+          break;
+        case "trackers.changed":
+          if (e.running) trk.running = true;
+          else refreshTrackers(id);
           break;
       }
     }),
@@ -312,10 +338,10 @@
     }
   }
 
-  async function send(content: string, generate: boolean, profileId?: string): Promise<boolean> {
+  async function send(content: string, generate: boolean, director = false, profileId?: string): Promise<boolean> {
     stick = true;
     try {
-      const r = await post<{ userMessage: Message | null; generationId?: string; messageId?: string }>(`/api/chats/${id}/send`, { content, generate, profileId });
+      const r = await post<{ userMessage: Message | null; generationId?: string; messageId?: string }>(`/api/chats/${id}/send`, { content, generate, profileId, director: director || undefined });
       if (r.userMessage) upsert(r.userMessage);
       if (r.messageId && r.generationId) {
         gens[r.messageId] = r.generationId;
@@ -327,7 +353,7 @@
       scrollToBottom();
       return true;
     } catch (e) {
-      if (offerQuotaChoice(e, async (profileId) => void (await send("", true, profileId)))) {
+      if (offerQuotaChoice(e, async (profileId) => void (await send("", true, false, profileId)))) {
         await load();
         return true;
       }
@@ -427,6 +453,34 @@
     }
   }
 
+  /** CHAT-16: delete everything after this message, with undo. */
+  async function rewind(m: Message) {
+    try {
+      const r = await post<{ deleted: string[] }>(`/api/messages/${m.id}/rewind`);
+      if (!r.deleted.length) return;
+      messages = messages.filter((x) => x.seq <= m.seq);
+      refreshPreview();
+      toast(`Rewound: ${r.deleted.length} message${r.deleted.length === 1 ? "" : "s"} moved to the trash`, {
+        action: {
+          label: "Undo",
+          run: async () => {
+            await post(`/api/chats/${id}/restore-messages`, { ids: r.deleted });
+            await load();
+          },
+        },
+      });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  function openStory() {
+    dockTab = "story";
+    localStorage.setItem("mea.dockTab", "story");
+    if (app.isMobile) sheetOpen = true;
+    else if (!panelOpen) togglePanel();
+  }
+
   async function flag(m: Message, flags: { hidden?: boolean; bookmarked?: boolean }) {
     try {
       upsert(await patch<Message>(`/api/messages/${m.id}`, flags));
@@ -500,11 +554,16 @@
               <span class="tiny muted hide-sm">{compact(preview.est)} / {compact(preview.target)}</span>
             </button>
           {/if}
+          <ModelSwitcher {detail} onchange={() => load()} />
+          <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" class:on={searchOpen}><Search size={18} /></button>
           <QuotaRing size={22} />
           <button class="btn ghost icon" onclick={togglePanel} aria-label="Chat settings" class:on={panelOpen && !app.isMobile}><PanelRight size={19} /></button>
         </div>
       </header>
 
+      {#if searchOpen}
+        <ChatSearch chatId={id} onclose={() => ((searchOpen = false), (searchQ = ""))} onjump={(seq, q) => ((searchQ = q), void jumpTo(seq))} />
+      {/if}
       <div class="scroller" bind:this={scroller} onscroll={onScroll}>
         <div class="column {styleClass}">
           {#if hasMore}
@@ -543,9 +602,13 @@
               onflag={(f) => flag(m, f)}
               oninspect={() => openInspector(m.meta?.generationId ?? null)}
               highlighted={highlight === m.seq}
+              mark={searchOpen ? searchQ : ""}
               onendscene={m.id !== lastMsg?.id ? () => endScene(m) : undefined}
               onnewchapter={m.seq !== firstSeq || hasMore ? () => newChapter(m) : undefined}
               onmemory={() => showMemory(m)}
+              chips={trk.chips[m.id] ?? []}
+              storyTime={trk.times[m.id] ?? null}
+              onrewind={() => rewind(m)}
               oncompare={async () => {
                 compare = await get<Message>(`/api/messages/${m.id}`);
                 compareOpen = true;
@@ -566,16 +629,17 @@
         {#if !hasModel}
           <div class="notice warn tiny setup">No model is set up yet. <a href="/settings/models">Connect NanoGPT</a> to start writing.</div>
         {/if}
-        <Composer chatId={id} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} />
+        <Hud onopen={openStory} />
+        <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} />
       </div>
     </div>
 
     {#if panelOpen && !app.isMobile}
       <aside class="dock">
         <div class="dock-tabs">
-          <Segmented bind:value={dockTab} small options={[{ value: "chat" as const, label: "This chat" }, { value: "memory" as const, label: "Memory" }]} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
+          <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
         </div>
-        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
       </aside>
     {/if}
   </div>
@@ -583,9 +647,9 @@
   {#if app.isMobile}
     <Modal bind:open={sheetOpen} title="This chat">
       <div class="dock-tabs">
-        <Segmented bind:value={dockTab} small options={[{ value: "chat" as const, label: "This chat" }, { value: "memory" as const, label: "Memory" }]} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
+        <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
       </div>
-      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
+      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
     </Modal>
   {/if}
 

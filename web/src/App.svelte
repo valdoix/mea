@@ -13,6 +13,9 @@
   import CharacterEditor from "./views/CharacterEditor.svelte";
   import ChatView from "./views/ChatView.svelte";
   import MemoryInspector from "./views/MemoryInspector.svelte";
+  import StoryView from "./views/StoryView.svelte";
+  import WorldView from "./views/WorldView.svelte";
+  import SearchView from "./views/SearchView.svelte";
   import Home from "./views/Home.svelte";
   import LorebookEditor from "./views/LorebookEditor.svelte";
   import Lorebooks from "./views/Lorebooks.svelte";
@@ -112,6 +115,9 @@
         {#if route.name === "home"}<Home />
         {:else if route.name === "chat"}<ChatView id={route.params.id!} />
         {:else if route.name === "memory"}<MemoryInspector id={route.params.id!} />
+        {:else if route.name === "story"}<StoryView id={route.params.id!} />
+        {:else if route.name === "world"}<WorldView id={route.params.id!} />
+        {:else if route.name === "search"}<SearchView />
         {:else if route.name === "character"}<CharacterEditor id={route.params.id!} />
         {:else if route.name === "personas"}<Personas selectedId={route.params.id} />
         {:else if route.name === "lorebooks"}<Lorebooks />

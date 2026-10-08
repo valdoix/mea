@@ -7,11 +7,13 @@
 
   let { profiles, connections }: { profiles: Profile[]; connections: Connection[] } = $props();
 
-  type Task = "story" | "summarizer" | "helper";
+  type Task = "story" | "summarizer" | "helper" | "tracker" | "world";
   const taskInfo: { id: Task; label: string; hint: string }[] = [
     { id: "story", label: "Story replies", hint: "uses the story default above, or the chat's own profile" },
     { id: "summarizer", label: "Memory summaries", hint: "scene records, verification, chapter and arc rollups" },
-    { id: "helper", label: "Small helper checks", hint: "unclear scene breaks and other short questions" },
+    { id: "helper", label: "Small helper checks", hint: "unclear scene breaks, /ask, and other short questions" },
+    { id: "tracker", label: "Trackers", hint: "reads each reply for what changed (unset: the helper's profile)" },
+    { id: "world", label: "The world off the page", hint: "tells what happened between scenes (unset: the summarizer's profile)" },
   ];
 
   const s = $derived(app.settings);
@@ -39,7 +41,7 @@
     }
   }
 
-  function setTask(task: "summarizer" | "helper", id: string) {
+  function setTask(task: Exclude<Task, "story">, id: string) {
     if (!s) return;
     void save("routing.tasks", { ...s["routing.tasks"], [task]: id || null });
   }
@@ -98,8 +100,8 @@
         <div class="row between wrap">
           <div><b>{t.label}</b><div class="tiny muted">{t.hint}</div></div>
           {#if t.id !== "story"}
-            <select class="select narrow" value={s["routing.tasks"][t.id] ?? ""} onchange={(e) => setTask(t.id as "summarizer" | "helper", e.currentTarget.value)}>
-              <option value="">Same as story</option>
+            <select class="select narrow" value={s["routing.tasks"][t.id] ?? ""} onchange={(e) => setTask(t.id as Exclude<Task, "story">, e.currentTarget.value)}>
+              <option value="">{t.id === "tracker" ? "Same as helper checks" : t.id === "world" ? "Same as memory summaries" : "Same as story"}</option>
               {#each profiles as p (p.id)}<option value={p.id}>{p.name}{billingOf(p) === "paygo" ? " (paid)" : ""}</option>{/each}
             </select>
           {/if}

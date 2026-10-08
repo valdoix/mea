@@ -1,0 +1,428 @@
+<script lang="ts">
+  import Avatar from "../components/Avatar.svelte";
+  import Modal from "../components/Modal.svelte";
+  import Segmented from "../components/Segmented.svelte";
+  import { get, put } from "../lib/api";
+  import { ArrowLeft, Pin, Upload } from "../lib/icons";
+  import { uploadImage } from "../lib/images";
+  import { navigate } from "../lib/router.svelte";
+  import { errorToast, toast } from "../lib/state.svelte";
+  import type { CastPerson, CastProfile, TrackerChange } from "../lib/types";
+
+  let { id }: { id: string } = $props();
+
+  type Tab = "timeline" | "web" | "cast";
+  let tab = $state<Tab>((new URLSearchParams(location.search).get("tab") as Tab) ?? "timeline");
+
+  // ---------- timeline (TRK-28) ----------
+  interface Series {
+    key: string;
+    label: string;
+    min: number;
+    max: number;
+    points: { seq: number; v: number }[];
+  }
+  let entries = $state<(TrackerChange & { messageId: string; seq: number })[]>([]);
+  let series = $state<Series[]>([]);
+  let kind = $state("");
+  let q = $state("");
+  async function loadTimeline() {
+    try {
+      const r = await get<{ entries: typeof entries; series: Series[] }>(`/api/chats/${id}/trackers/timeline`);
+      entries = r.entries;
+      series = r.series.filter((s) => s.points.length >= 2);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  const kinds = $derived([...new Set(entries.map((e) => e.kind))].sort());
+  const shown = $derived(entries.filter((e) => (!kind || e.kind === kind) && (!q || `${e.text} ${e.reason ?? ""} ${e.subject ?? ""}`.toLowerCase().includes(q.toLowerCase()))).slice(-400).reverse());
+  function sparkPath(s: Series) {
+    const xs = s.points.map((p) => p.seq);
+    const lo = Math.min(...xs);
+    const hi = Math.max(...xs, lo + 1);
+    const x = (v: number) => ((v - lo) / (hi - lo)) * 100;
+    const y = (v: number) => 28 - ((v - s.min) / (s.max - s.min || 1)) * 26;
+    let d = "";
+    s.points.forEach((p, i) => {
+      // Step line: a value holds until it changes.
+      d += i === 0 ? `M${x(p.seq)},${y(p.v)}` : `H${x(p.seq)}V${y(p.v)}`;
+    });
+    return d + "H100";
+  }
+
+  // ---------- relationship web (TRK-29) ----------
+  interface Graph {
+    nodes: { id: string; name: string; isUser: boolean; isMain: boolean; present: boolean; dead: boolean; mood: string | null; avatarId: string | null; color: string | null }[];
+    edges: { from: string; to: string; label: string | null; axes: Record<string, number>; tags: string[]; warmth: number; heat: number; ladder: number | null }[];
+    seq: number;
+    maxSeq: number;
+  }
+  let graph = $state<Graph | null>(null);
+  let scrub = $state<number | null>(null);
+  let selected = $state<string | null>(null);
+  let gTimer: ReturnType<typeof setTimeout>;
+  async function loadGraph(seq?: number) {
+    try {
+      graph = await get<Graph>(`/api/chats/${id}/trackers/graph${seq != null ? `?seq=${seq}` : ""}`);
+      if (scrub == null) scrub = graph.maxSeq;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  function onScrub() {
+    clearTimeout(gTimer);
+    gTimer = setTimeout(() => void loadGraph(scrub ?? undefined), 150);
+  }
+  const layout = $derived.by(() => {
+    if (!graph) return new Map<string, { x: number; y: number }>();
+    const nodes = graph.nodes.filter((n) => graph!.edges.some((e) => e.from === n.id || e.to === n.id) || n.isUser || n.isMain);
+    const m = new Map<string, { x: number; y: number }>();
+    const center = nodes.find((n) => n.isUser) ?? nodes[0];
+    const ring = nodes.filter((n) => n !== center);
+    if (center) m.set(center.id, { x: 50, y: 50 });
+    ring.forEach((n, i) => {
+      const a = (i / Math.max(1, ring.length)) * Math.PI * 2 - Math.PI / 2;
+      const r = ring.length > 8 ? 40 : 34;
+      m.set(n.id, { x: 50 + Math.cos(a) * r, y: 50 + Math.sin(a) * r });
+    });
+    return m;
+  });
+  const LADDER = ["Strangers", "Aware", "Interested", "Charged", "Tested", "Spoken", "Together", "Established"];
+  const nodeName = (nid: string) => graph?.nodes.find((n) => n.id === nid)?.name ?? nid;
+  const edgeColor = (w: number) => (w > 0.5 ? "var(--mint)" : w < -0.5 ? "var(--danger)" : "var(--lavender)");
+
+  // ---------- cast (CHAT-26, CHAT-27) ----------
+  let people = $state<CastPerson[]>([]);
+  let editing = $state<CastPerson | null>(null);
+  let form = $state<CastProfile>({ name: "" });
+  let editOpen = $state(false);
+  let fileInput = $state<HTMLInputElement | null>(null);
+  async function loadCast() {
+    try {
+      people = (await get<{ people: CastPerson[] }>(`/api/chats/${id}/cast`)).people;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  function openEdit(p: CastPerson | null) {
+    editing = p;
+    form = p ? { ...(p.profile ?? {}), name: p.name } : { name: "" };
+    editOpen = true;
+  }
+  async function saveProfile() {
+    if (!form.name.trim()) return;
+    try {
+      await put(`/api/chats/${id}/cast/${encodeURIComponent(editing?.name ?? form.name)}`, $state.snapshot(form));
+      editOpen = false;
+      toast("Saved", { kind: "ok" });
+      await loadCast();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function upload(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    try {
+      form.avatarId = await uploadImage(f);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function togglePin(p: CastPerson) {
+    try {
+      await put(`/api/chats/${id}/cast/${encodeURIComponent(p.name)}`, { pinned: !p.profile?.pinned });
+      await loadCast();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  $effect(() => {
+    if (tab === "timeline") void loadTimeline();
+    else if (tab === "web") void loadGraph(scrub ?? undefined);
+    else void loadCast();
+  });
+  const STAMINA = [
+    ["", "From the card"],
+    ["ordinary", "Ordinary"],
+    ["hardy", "Hardy"],
+    ["frail", "Frail"],
+    ["superhuman", "Superhuman"],
+    ["shifter", "Shifter"],
+    ["vampire", "Vampire"],
+    ["immortal", "Immortal"],
+    ["construct", "Construct"],
+  ];
+</script>
+
+<div class="page">
+  <div class="row head">
+    <a class="btn ghost icon" href="/chat/{id}" aria-label="Back to the chat"><ArrowLeft size={18} /></a>
+    <h1 class="grow">Story</h1>
+    <Segmented
+      bind:value={tab}
+      small
+      options={[
+        { value: "timeline" as const, label: "Timeline" },
+        { value: "web" as const, label: "Relationships" },
+        { value: "cast" as const, label: "Cast" },
+      ]}
+    />
+  </div>
+
+  {#if tab === "timeline"}
+    {#if series.length}
+      <section class="sparks">
+        {#each series as s (s.key)}
+          <div class="spark card" title="{s.label}: {s.points.at(-1)?.v}">
+            <div class="tiny row between"><span class="truncate">{s.label}</span><b>{s.points.at(-1)?.v}</b></div>
+            <svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path d={sparkPath(s)} /></svg>
+          </div>
+        {/each}
+      </section>
+    {/if}
+    <div class="row wrap filters">
+      <select class="select narrow" bind:value={kind}>
+        <option value="">Every kind of change</option>
+        {#each kinds as k (k)}<option value={k}>{k}</option>{/each}
+      </select>
+      <input class="input grow" bind:value={q} placeholder="When did… (search changes)" />
+    </div>
+    <div class="log">
+      {#each shown as e, i (i)}
+        <button class="entry" onclick={() => navigate(`/chat/${id}?at=${e.seq}`)}>
+          <span class="tiny faint seq">#{e.seq}</span>
+          <span class="grow"><span class="small">{e.text}</span>{#if e.reason}<span class="tiny muted"> — {e.reason}</span>{/if}</span>
+          <span class="chip tiny">{e.kind}</span>
+        </button>
+      {:else}
+        <p class="muted small">No changes recorded yet. They appear as the trackers read the story.</p>
+      {/each}
+    </div>
+  {:else if tab === "web"}
+    {#if graph}
+      <div class="graph card">
+        <svg viewBox="0 0 100 100" role="img" aria-label="Relationship web">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--text-muted)" /></marker>
+          </defs>
+          {#each graph.edges as e (`${e.from}>${e.to}`)}
+            {@const a = layout.get(e.from)}
+            {@const b = layout.get(e.to)}
+            {#if a && b}
+              {@const back = graph.edges.some((x) => x.from === e.to && x.to === e.from)}
+              {@const off = back ? 2.2 : 0}
+              {@const dx = b.x - a.x}
+              {@const dy = b.y - a.y}
+              {@const len = Math.hypot(dx, dy) || 1}
+              {@const nx = (-dy / len) * off}
+              {@const ny = (dx / len) * off}
+              <line x1={a.x + nx + (dx / len) * 5} y1={a.y + ny + (dy / len) * 5} x2={b.x + nx - (dx / len) * 6} y2={b.y + ny - (dy / len) * 6} stroke={edgeColor(e.warmth)} stroke-width={0.35 + Math.abs(e.warmth) * 0.25 + e.heat * 0.12} marker-end="url(#arrow)" opacity={selected && selected !== e.from && selected !== e.to ? 0.15 : 0.9} />
+              {#if e.label || e.ladder}
+                <text x={(a.x + b.x) / 2 + nx * 2} y={(a.y + b.y) / 2 + ny * 2} class="elabel" text-anchor="middle">{e.ladder ? `💗${e.ladder} ` : ""}{e.label ?? ""}</text>
+              {/if}
+            {/if}
+          {/each}
+          {#each graph.nodes as n (n.id)}
+            {@const p = layout.get(n.id)}
+            {#if p}
+              <g class="node" class:dim={selected && selected !== n.id} onclick={() => (selected = selected === n.id ? null : n.id)} role="button" tabindex="0" onkeydown={(ev) => ev.key === "Enter" && (selected = n.id)}>
+                <circle cx={p.x} cy={p.y} r={n.isUser || n.isMain ? 4.4 : 3.6} fill={n.color ?? (n.isUser ? "var(--lavender)" : n.isMain ? "var(--accent)" : "var(--surface-2)")} stroke={n.present ? "var(--accent)" : "var(--border)"} stroke-width="0.5" />
+                <text x={p.x} y={p.y + 7} text-anchor="middle" class="nlabel">{n.name}{n.dead ? " †" : ""}</text>
+              </g>
+            {/if}
+          {/each}
+        </svg>
+      </div>
+      <label class="field scrub">
+        <span class="label">As of message #{scrub ?? graph.maxSeq} <span class="faint">drag to see how it changed</span></span>
+        <input type="range" min="1" max={graph.maxSeq} bind:value={scrub} oninput={onScrub} />
+      </label>
+      {#if selected}
+        <div class="card details">
+          <b>{nodeName(selected)}</b>
+          {#each graph.edges.filter((e) => e.from === selected || e.to === selected) as e (`${e.from}>${e.to}`)}
+            <div class="small">{nodeName(e.from)} → {nodeName(e.to)}{e.label ? ` · “${e.label}”` : ""}{e.ladder != null ? ` · ${LADDER[e.ladder]}` : ""}</div>
+            <div class="tiny muted">{Object.entries(e.axes).filter(([, v]) => v).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).join(" · ")}{e.tags.length ? ` · ${e.tags.join(", ")}` : ""}</div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
+  {:else}
+    <div class="row between">
+      <p class="tiny muted">Everyone the story has met, plus anyone you add. Voice notes go into the prompt only when that person is in the scene; pinned people are always kept in mind.</p>
+      <button class="btn small" onclick={() => openEdit(null)}>Add a person</button>
+    </div>
+    <div class="cast">
+      {#each people as p (p.key)}
+        <div class="person card" class:dead={p.dead}>
+          <div class="row">
+            <Avatar id={p.profile?.avatarId ?? null} name={p.name} size={44} />
+            <div class="grow">
+              <div class="row"><b>{p.name}</b>{#if p.present}<span class="chip mint tiny">here</span>{/if}{#if p.dead}<span class="chip tiny">†</span>{/if}{#if p.profile?.standing && p.profile.standing !== "here"}<span class="chip tiny">{p.profile.standing}</span>{/if}</div>
+              <div class="tiny muted truncate">{p.profile?.role ?? p.profile?.description ?? p.wants ?? ""}</div>
+            </div>
+            <button class="btn ghost icon small" class:on={p.profile?.pinned} onclick={() => togglePin(p)} aria-label="Pin" title="Always keep in mind"><Pin size={14} /></button>
+          </div>
+          <div class="tiny">
+            {#if p.mood}<span class="muted">Mood</span> {p.mood} ·{/if}
+            {#if p.place}<span class="muted">At</span> {p.place.split(" › ").at(-1)} ·{/if}
+            {#if p.regard}<span class="muted">Toward you</span> {p.regard.label ?? Object.entries(p.regard.axes).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(", ")}{/if}
+          </div>
+          {#if p.traits.length}<div class="tiny"><span class="muted">Always</span> {p.traits.join(" · ")}</div>{/if}
+          {#if p.profile?.voice}<div class="tiny"><span class="muted">Voice</span> {p.profile.voice}</div>{/if}
+          {#if p.lastSeq}<a class="tiny" href="/chat/{id}?at={p.lastSeq}">Last seen at #{p.lastSeq}</a>{/if}
+          <button class="btn ghost small" onclick={() => openEdit(p)}>Edit</button>
+        </div>
+      {:else}
+        <p class="muted small">Nobody yet. People appear as the trackers meet them.</p>
+      {/each}
+    </div>
+  {/if}
+</div>
+
+<Modal bind:open={editOpen} title={editing ? `About ${editing.name}` : "Add a person"} size="md">
+  <div class="stack">
+    <div class="row">
+      <Avatar id={form.avatarId ?? null} name={form.name || "?"} size={56} />
+      <button class="btn small" onclick={() => fileInput?.click()}><Upload size={14} /> Portrait</button>
+      <input type="file" accept="image/*" hidden bind:this={fileInput} onchange={(e) => upload(e.currentTarget.files)} />
+    </div>
+    <label class="field"><span class="label">Name</span><input class="input" bind:value={form.name} /></label>
+    <label class="field"><span class="label">Who they are</span><input class="input" bind:value={form.role} placeholder="Harbourmaster, Mira's older sister…" /></label>
+    <label class="field"><span class="label">Description</span><textarea class="textarea" rows="3" bind:value={form.description}></textarea></label>
+    <label class="field"><span class="label">Voice notes</span><textarea class="textarea" rows="2" bind:value={form.voice} placeholder="Clipped sentences, calls everyone 'love', never swears"></textarea><span class="hint">Sent only when they're in the scene, so a big cast doesn't blur into one voice.</span></label>
+    <div class="grid">
+      <label class="field">
+        <span class="label">Body</span>
+        <select class="select" bind:value={form.stamina}>{#each STAMINA as [v, l] (v)}<option value={v}>{l}</option>{/each}</select>
+      </label>
+      <label class="field">
+        <span class="label">Standing</span>
+        <select class="select" bind:value={form.standing}>
+          <option value="here">Around</option><option value="away">Away</option><option value="captive">Held captive</option><option value="changed">Changed / can't act</option><option value="dead">Dead</option><option value="companion">Companion (pet, mount)</option><option value="construct">Construct</option>
+        </select>
+      </label>
+      <label class="field"><span class="label">Where now</span><input class="input" bind:value={form.where} placeholder="Town › Place" /></label>
+      <label class="field"><span class="label">Home or work</span><input class="input" bind:value={form.base} placeholder="Town › Place" /></label>
+    </div>
+    <label class="field"><span class="label">Routine</span><input class="input" bind:value={form.routine} placeholder="9-17 Port Ellis › Harbour office; 18-23 Port Ellis › The Anchor" /><span class="hint">Hours and places, for who is likely where.</span></label>
+    <label class="switch"><input type="checkbox" bind:checked={form.pinned} /> Always keep in mind (described in every prompt)</label>
+    <label class="switch"><input type="checkbox" bind:checked={form.out} /> Leave them out of the world off the page</label>
+  </div>
+  {#snippet footer()}
+    <button class="btn ghost" onclick={() => (editOpen = false)}>Cancel</button>
+    <button class="btn primary" onclick={saveProfile} disabled={!form.name.trim()}>Save</button>
+  {/snippet}
+</Modal>
+
+<style>
+  .page {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 1.2rem clamp(1rem, 3vw, 2rem) 5rem;
+    display: grid;
+    gap: 1rem;
+  }
+  .head {
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .sparks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+    gap: 0.5rem;
+  }
+  .spark {
+    padding: 0.5rem 0.6rem;
+  }
+  .spark svg {
+    width: 100%;
+    height: 2.2rem;
+    display: block;
+  }
+  .spark path {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .filters {
+    gap: 0.5rem;
+  }
+  .narrow {
+    width: auto;
+  }
+  .log {
+    display: grid;
+  }
+  .entry {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    border: 0;
+    border-top: 1px solid var(--border);
+    background: none;
+    padding: 0.45rem 0.2rem;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+  }
+  .entry:hover {
+    background: var(--surface-2);
+  }
+  .seq {
+    width: 3rem;
+    flex: none;
+  }
+  .graph {
+    padding: 0.5rem;
+  }
+  .graph svg {
+    width: 100%;
+    max-height: 70vh;
+    display: block;
+  }
+  .nlabel {
+    font: 600 2.6px var(--font-ui);
+    fill: var(--text);
+  }
+  .elabel {
+    font: 2.1px var(--font-ui);
+    fill: var(--text-muted);
+  }
+  .node {
+    cursor: pointer;
+  }
+  .node.dim {
+    opacity: 0.35;
+  }
+  .details {
+    padding: 0.7rem;
+    display: grid;
+    gap: 0.25rem;
+  }
+  .cast {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 0.6rem;
+  }
+  .person {
+    padding: 0.7rem;
+    display: grid;
+    gap: 0.3rem;
+  }
+  .person.dead {
+    opacity: 0.6;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+    gap: 0.7rem;
+  }
+  .btn.on {
+    color: var(--accent);
+  }
+</style>

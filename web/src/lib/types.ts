@@ -83,6 +83,17 @@ export interface ChatSettings {
   authorsNote?: { content: string; depth: number; role: Role };
   profileId?: string | null;
   presetId?: string | null;
+  trackers?: Partial<TrackerConfig>;
+  world?: Partial<WorldConfig>;
+  story?: { genre?: string; tone?: string; pov?: string; tense?: string; style?: string; intensity?: string; language?: string };
+  length?: "short" | "normal" | "long" | null;
+  pacing?: "slow" | "normal" | "fast" | null;
+  ooc?: { id: string; text: string }[];
+  cue?: string | null;
+  guidance?: { active?: string[]; once?: string[] };
+  director?: boolean;
+  modelOverride?: { connectionId: string; modelId: string } | null;
+  truths?: string[];
 }
 
 export interface Chat {
@@ -351,12 +362,18 @@ export interface Settings {
   "backup.dailyKeep": number;
   "onboarding.done": boolean;
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
-  "routing.tasks": { summarizer: string | null; helper: string | null };
-  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[] };
-  "routing.timeouts": { story: number; summarizer: number; helper: number };
+  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null };
+  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[] };
+  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number };
   "routing.embeddings": { connectionId: string | null; model: string; dims: number };
   "memory.config": MemoryConfig;
   "quota.degradeAt": number;
+  "trackers.defaults": Partial<TrackerConfig>;
+  "world.defaults": { mode: WorldConfig["mode"]; director: WorldConfig["director"]; telling: WorldConfig["telling"]; seeding: WorldConfig["seeding"]; fates: WorldConfig["fates"]; view: WorldConfig["view"]; step: number };
+  "chat.guidance": GuidanceChip[];
+  "chat.banned": { list: { phrase: string; replace?: string }[]; action: "flag" | "regenerate" | "replace"; remind: boolean };
+  "chat.cutoff": "continue" | "trim" | "off";
+  "chat.retry": { empty: boolean; refusal: boolean; serverErrors: boolean };
 }
 
 export interface BlockTrace {
@@ -640,4 +657,339 @@ export interface CacheProbe {
   hitRate: number;
   at: number;
   error?: string;
+}
+
+// ---------- Phase 2: trackers ----------
+
+export type Tier = "spot" | "peri" | "off";
+
+export interface TrackerCharacter {
+  id: string;
+  name: string;
+  aliases: string[];
+  isUser: boolean;
+  isMain: boolean;
+  firstSeq: number;
+  lastSeq: number;
+  tier?: Tier;
+  activity?: string;
+  place?: string;
+  mood?: { name: string; v?: number; a?: number; d?: number; prev?: string; seq: number };
+  meters: Partial<Record<"health" | "fatigue" | "hunger" | "thirst" | "pain" | "intox" | "composure" | "arousal" | "stress", number>>;
+  flags: string[];
+  injuries: { where: string; severity: 1 | 2 | 3 | 4; treated: boolean; since: number | null; worst: number }[];
+  conditions: { kind: string; text: string; since: number | null; until: number | null }[];
+  look?: string;
+  traits: { kind: string; text: string; by: "user" | "model" | "card"; seq: number }[];
+  drives: { want?: string; fear?: string; need?: string; tactic?: string };
+  mask?: { shown?: string; felt?: string; tell?: string };
+  thoughts?: { text: string; seq: number };
+  journal: { text: string; seq: number; at: string | null }[];
+  dead?: boolean;
+  stamina: string;
+}
+
+export interface TrackerBond {
+  from: string;
+  to: string;
+  axes: Partial<Record<string, number>>;
+  label?: string;
+  tags: string[];
+  history: { axis: string; from: number; to: number; delta: number; cause?: string; seq: number }[];
+}
+
+export interface TrackerState {
+  time: { minutes: number; form: "date" | "day" } | null;
+  weather: { now: string; prev?: string; seq: number } | null;
+  place: string[];
+  sceneNo: number;
+  sceneTitle?: string;
+  mode?: string;
+  chars: Record<string, TrackerCharacter>;
+  bonds: Record<string, TrackerBond>;
+  ladders: Record<string, { from: string; to: string; tier: number; evidence?: string; seq: number; history: { tier: number; evidence?: string; seq: number }[] }>;
+  facts: Record<string, { key: string; statement: string; truth: string; secret?: { keepers: string[]; from: string[] }; stances: Record<string, { status: string; route?: string; seq: number; set?: boolean }>; firstSeq: number; lastSeq: number }>;
+  items: Record<string, { id: string; name: string; holder?: string; owner?: string; where?: string; condition?: string; gone?: boolean; gift?: string; custody: { from?: string; to?: string; how?: string; seq: number }[]; lastSeq: number }>;
+  threads: Record<string, { id: string; title: string; kind?: string; status: "open" | "stalled" | "resolved"; latest?: string; blocker?: string; openedSeq: number; lastSeq: number; history: { op: string; detail?: string; seq: number }[] }>;
+  obligations: Record<string, { id: string; kind: "owe" | "promise"; who: string; whom?: string; what: string; status: string; due?: { minutes: number | null; text: string }; seq: number }>;
+  deadlines: Record<string, { id: string; title: string; at: number | null; text: string; done: boolean; seq: number }>;
+  plants: Record<string, { id: string; text: string; payoff?: string; seq: number; scene: number; paidSeq?: number }>;
+  clues: { id: string; text: string; pointsTo?: string; reliability?: string; seq: number }[];
+  gauges: Record<string, { name: string; cur: number; max: number; cause?: string; history: { v: number; seq: number }[] }>;
+  clocks: Record<string, { faction: string; name: string; cur: number; max: number; history: { v: number; seq: number }[] }>;
+  rep: Record<string, { who: string; group: string; score: number; tags: string[] }>;
+  calendar: Record<string, { id: string; title: string; kind: string; when: string; at: number | null; who: string[]; done?: boolean; seq: number }>;
+  motifs: Record<string, { id: string; text: string; who?: string; firstSeq: number; lastSeq: number; uses: number }>;
+  milestones: { text: string; who: string[]; seq: number; at: string | null }[];
+  places: Record<string, { id: string; name: string; path: string[]; visits: number; lastSeq: number }>;
+  custom: Record<string, Record<string, unknown>>;
+  locks: string[];
+  sim: SimState;
+  lastSeq: number;
+}
+
+export interface TrackerChange {
+  kind: string;
+  text: string;
+  subject?: string;
+  reason?: string;
+  tone?: "up" | "down" | "due" | "warn";
+  path: string;
+  from?: unknown;
+  to?: unknown;
+  flag?: string;
+  memory?: boolean;
+  source: "model" | "inline" | "user" | "init" | "timeskip" | "engine";
+}
+
+export interface TemplateField {
+  key: string;
+  label: string;
+  type: "text" | "longtext" | "number" | "meter" | "enum" | "tags" | "boolean" | "datetime" | "duration" | "entity" | "object" | "table";
+  hint?: string;
+  options?: string[];
+  min?: number;
+  max?: number;
+  visibility?: "prompt" | "ui" | "hidden";
+  hud?: boolean;
+  spoiler?: boolean;
+  memory?: boolean;
+  maxDelta?: number;
+  fields?: TemplateField[];
+  keyField?: string;
+}
+
+export interface TrackerTemplate {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  schema: { fields: TemplateField[] };
+  builtin: boolean;
+}
+
+export type TrackerSection = "scene" | "cast" | "body" | "bonds" | "romance" | "knowledge" | "items" | "threads" | "stakes" | "calendar" | "motifs" | "persona" | "custom" | "world";
+
+export interface TrackerConfig {
+  mode: "helper" | "inline" | "off";
+  cadence: "every" | "everyN" | "scene" | "manual";
+  everyN: number;
+  gate: boolean;
+  sections: Record<TrackerSection, boolean>;
+  templates: string[];
+  romance: "off" | "slow" | "measured" | "fast" | "established";
+  sealed: boolean;
+  strictness: "strict" | "lenient";
+  limits: boolean;
+  budget: number;
+  quietAfter: number;
+  nudges: boolean;
+}
+
+export interface CastProfile {
+  name: string;
+  description?: string;
+  voice?: string;
+  pinned?: boolean;
+  avatarId?: string | null;
+  stamina?: string;
+  color?: string;
+  standing?: string;
+  where?: string;
+  base?: string;
+  routine?: string;
+  role?: string;
+  out?: boolean;
+}
+
+export interface TrackersResponse {
+  state: TrackerState;
+  time: string | null;
+  hud: string;
+  config: TrackerConfig;
+  templates: TrackerTemplate[];
+  userName: string;
+  mainName: string;
+  profiles: Record<string, CastProfile>;
+  hasBase: boolean;
+  running: boolean;
+}
+
+export interface CastPerson {
+  key: string;
+  id: string;
+  name: string;
+  isMain: boolean;
+  present: boolean;
+  dead: boolean;
+  mood: string | null;
+  place: string | null;
+  activity: string | null;
+  look: string | null;
+  traits: string[];
+  wants: string | null;
+  items: string[];
+  regard: { label: string | null; axes: Record<string, number> } | null;
+  lastSeq: number;
+  firstSeq: number;
+  profile: CastProfile | null;
+}
+
+// ---------- Phase 2: the world off the page ----------
+
+export type ArcKind =
+  | "pursuit" | "scheme" | "rivalry" | "revenge" | "courtship" | "rift" | "reconcile" | "debt" | "secret" | "decline" | "recovery"
+  | "investigation" | "threat" | "return" | "duty" | "ambition" | "protect" | "life" | "loss" | "faction";
+export type ArcStage = "hook" | "rising" | "reversal" | "crisis" | "climax" | "aftermath";
+
+export interface ArcBeat {
+  at: number;
+  roll: [number, number];
+  mod: number;
+  why: string[];
+  result: "win" | "cost" | "loss";
+  stage: ArcStage;
+  twist?: string;
+  text: string;
+  told: "template" | "model";
+  seq: number;
+}
+
+export interface Arc {
+  id: string;
+  kind: ArcKind;
+  lead: string;
+  leadName: string;
+  cast: string[];
+  target?: string;
+  premise: string;
+  want: string;
+  fear: string;
+  grounds: string[];
+  secrecy: "public" | "private" | "secret";
+  clock: { cur: number; max: number };
+  tally: { win: number; cost: number; loss: number };
+  heat: number;
+  stage: ArcStage;
+  beats: ArcBeat[];
+  nextAt: number;
+  status: "running" | "held" | "crossed" | "resolved" | "dropped" | "fate";
+  by: "engine" | "player";
+  locked?: boolean;
+  push?: boolean;
+  bringIn?: boolean;
+  foreshadowed?: boolean;
+  place?: string[];
+  ending?: { result: string; text: string; at: number; seq: number };
+  fate?: { result: string; text: string; at: number };
+  createdAt: number;
+}
+
+export interface Arrival {
+  id: string;
+  arc?: string;
+  route: "carrier" | "signal" | "ambient" | "trace" | "entrance" | "omen";
+  text: string;
+  carrier?: string;
+  to?: string;
+  place?: string[];
+  medium?: string;
+  at: number;
+  until: number | null;
+  status: "pending" | "offered" | "used" | "expired";
+  offers: number;
+  maxOffers: number;
+}
+
+export interface SimProposal {
+  id: string;
+  kind: ArcKind;
+  lead: string;
+  leadName: string;
+  cast: string[];
+  premise: string;
+  want: string;
+  fear: string;
+  grounds: string[];
+  secrecy: string;
+  why: string;
+  at: number;
+}
+
+export interface SimState {
+  lastTickAt: number | null;
+  tension: { at: number; value: number; target: number }[];
+  arcs: Record<string, Arc>;
+  arrivals: Record<string, Arrival>;
+  proposals: Record<string, SimProposal>;
+  news: { at: number; fact: string; statement: string; from: string; to: string; medium: string; distorted?: string }[];
+  incidents: { at: number; text: string; place?: string[] }[];
+  ticks: number;
+}
+
+export interface WorldConfig {
+  mode: "off" | "quiet" | "living" | "restless";
+  director: "steady" | "rising" | "chaotic" | "gentle";
+  telling: "model" | "engine";
+  seeding: "auto" | "ask" | "off";
+  fates: "page" | "ask" | "allow";
+  view: "director" | "surprise";
+  climate: string;
+  latitude: number;
+  tech: "modern" | "historic" | "fantasy" | "future";
+  genres: string[];
+  step: number;
+}
+
+export interface WorldPerson {
+  id: string;
+  name: string;
+  ring: "onstage" | "offstage" | "unmet";
+  standing: string;
+  where: string | null;
+  reach: string;
+  travel: number | null;
+  ties: { id: string; name: string; strength: number }[];
+  flag: string | null;
+  arcs: string[];
+}
+
+export interface WorldViewData {
+  config: WorldConfig;
+  personalities: Record<string, { label: string; about: string }>;
+  modes: string[];
+  kinds: Record<string, { label: string; clock: number; hostile: boolean }>;
+  time: string | null;
+  sky: { line: string; weather: { text: string; tempC: number; level: number }; season: string; sunrise: string | null; sunset: string | null; moon: string; forecast: { minutes: number; text: string; tempC: number }[] } | null;
+  arcs: Arc[];
+  arrivals: Arrival[];
+  proposals: SimProposal[];
+  news: SimState["news"];
+  incidents: SimState["incidents"];
+  tension: SimState["tension"];
+  lastTickAt: string | null;
+  ticks: number;
+  people: WorldPerson[];
+  town: string;
+}
+
+export interface GuidanceChip {
+  id: string;
+  name: string;
+  text: string;
+  mode: "once" | "persistent";
+  auto?: { characterIds?: string[]; when?: string };
+}
+
+export interface SearchResult {
+  messageId: string;
+  chatId: string;
+  chatTitle: string;
+  characterName: string | null;
+  seq: number;
+  role: string;
+  name: string | null;
+  createdAt: number;
+  snippet: string;
+  match: { start: number; length: number };
 }
