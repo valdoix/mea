@@ -57,6 +57,10 @@ function helperJson(name: string, user: string): unknown {
     }
     case "scene_boundary":
       return { newScene: !/MOCK_SAME_SCENE/.test(user), reason: "mock" };
+    case "ask_answer":
+      return { answer: "From what the story has established: Mira keeps the lighthouse and is waiting out the storm." };
+    case "recap":
+      return { recap: "Previously: you came back to the lighthouse through the storm, and Mira was waiting with tea." };
     case "tracker_gate":
       return { changed: !/MOCK_NO_CHANGE/.test(user) };
     case "world_telling":
