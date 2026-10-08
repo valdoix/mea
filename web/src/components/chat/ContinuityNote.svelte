@@ -83,12 +83,17 @@
   }
   .list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.55rem;
     margin-top: 0.35rem;
+    min-width: 0;
   }
   .issue {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.2rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .sev {
     font-size: 0.7em;
@@ -106,5 +111,9 @@
   .cite {
     cursor: pointer;
     border: 1px solid var(--border);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

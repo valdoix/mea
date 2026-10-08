@@ -317,6 +317,30 @@ function factSheet(chatId: string, reply: string, st: WorldState | null) {
   return { lines, cites };
 }
 
+/**
+ * The canon a reply is checked against: the story state as the reply found it (so its own
+ * tracker updates can't hide a slip), plus what's canon regardless of when it was written:
+ * traits you or the card set, deaths, and the secrets the story knows (CON-01).
+ */
+export function canonFor(chatId: string, seq: number): WorldState {
+  const before = foldAt(chatId, { uptoSeq: seq - 1 }).state;
+  const now = currentFold(chatId).result.state;
+  const st = structuredClone(before);
+  for (const [id, c] of Object.entries(now.chars)) {
+    const mine = st.chars[id];
+    if (!mine) {
+      // Someone the story knows now but not yet at this reply (added by an edit anchored to it):
+      // known by name, with only the traits that are canon regardless of the reply.
+      st.chars[id] = { ...structuredClone(c), traits: c.traits.filter((t) => t.by !== "model") };
+      continue;
+    }
+    if (c.dead) mine.dead = true;
+    for (const t of c.traits) if (t.by !== "model" && !mine.traits.some((x) => x.kind === t.kind && x.text === t.text)) mine.traits = [...mine.traits.filter((x) => x.kind !== t.kind || x.by !== "model"), t];
+  }
+  for (const [key, f] of Object.entries(now.facts)) if (!st.facts[key]) st.facts[key] = structuredClone(f);
+  return st;
+}
+
 /** Checks one reply and stores the issues (replacing any earlier check of the same swipe). */
 export async function checkReply(chatId: string, messageId: string, swipeIdx: number, opts: { job?: JobContext; model?: boolean } = {}) {
   const cfg = memoryConfig();
@@ -327,11 +351,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   const names = chatNames(chatId);
   let st: WorldState | null = null;
   try {
-    // The state as the reply found it (before its own changes).
-    st = foldAt(chatId, { uptoSeq: m.seq - 1 }).state;
-    // Traits and deaths established by this very reply still count against it.
-    const full = currentFold(chatId).result.state;
-    for (const [id, c] of Object.entries(full.chars)) if (st.chars[id] && c.dead) st.chars[id]!.dead = true;
+    st = canonFor(chatId, m.seq);
   } catch {
     st = null;
   }

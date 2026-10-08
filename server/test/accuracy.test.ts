@@ -12,6 +12,7 @@ import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat, getChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { registerJob } from "../src/services/jobs";
+import { userEdit } from "../src/trackers/service";
 import { currentFold, linesToOps, writeEvents } from "../src/trackers/store";
 import { createLorebook } from "../src/lore/service";
 import { defaultEntry } from "../src/lore/types";
@@ -96,6 +97,14 @@ describe("checking a reply", () => {
     const done = dismissIssue(flag.id, null);
     expect(done.status).toBe("resolved");
   });
+  test("your tracker edits count even when they're anchored to the reply being checked", async () => {
+    const m = addMessage(chatId, "assistant", "Joss grins, his grey eyes crinkling.", { name: "Mira" });
+    // A trait you set now lands on the latest message: the reply itself.
+    userEdit(chatId, linesToOps(["trait Joss: brown eyes"]).ops);
+    const issues = await checkReply(chatId, m, 0, { model: false });
+    expect(issues!.some((i) => i.kind === "trait" && i.conflict.includes("brown eyes"))).toBe(true);
+  });
+
   test("a clean reply is marked clean", async () => {
     const m = addMessage(chatId, "assistant", "Mira pours the tea and listens to the rain.", { name: "Mira" });
     expect(await checkReply(chatId, m, 0)).toEqual([]);

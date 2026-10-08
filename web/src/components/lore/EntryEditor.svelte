@@ -265,6 +265,11 @@
   .secret {
     gap: 0.4rem;
     margin-bottom: 0.3rem;
+    flex-wrap: wrap;
+  }
+  .secret .grow {
+    min-width: 12rem;
+    flex: 1;
   }
   .who {
     width: 11rem;
@@ -286,7 +291,15 @@
   .after {
     background: color-mix(in srgb, var(--mint, #8fd6b5) 18%, transparent);
   }
+  .field.grow {
+    min-width: 0;
+    flex: 1 1 14rem;
+  }
   @media (max-width: 640px) {
+    .narrow {
+      width: auto;
+      flex: 1 1 100%;
+    }
     .diff {
       grid-template-columns: 1fr;
     }

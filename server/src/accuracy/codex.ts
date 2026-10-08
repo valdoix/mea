@@ -102,5 +102,6 @@ export function codexEntry(entityId: string) {
   const lore = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })
     .filter((x) => x.keys.some((k) => names.some((n) => norm(k) === norm(n))) || names.some((n) => norm(x.comment) === norm(n)))
     .map((x) => ({ id: x.id, bookId: x.bookId, bookName: x.bookName, title: x.comment || x.keys[0] || "", content: x.content.slice(0, 600) }));
-  return { entity: entityOut(e), card: entityCard(e, entityFacts(chatId, e, 2)), facts, appearances, ties, journal, lore };
+  // The facts are listed in full below, so the card is just who or what it is.
+  return { entity: entityOut(e), card: entityCard(e), facts, appearances, ties, journal, lore };
 }

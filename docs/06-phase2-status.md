@@ -119,4 +119,4 @@
 
 ## Next: Phase 3 (retrieval, facts & accuracy)
 
-MEM-14…23, MEM-26…31, MEM-36…38, MEM-41…42, MEM-44, MEM-46, CON-01, CON-02, CON-06…08, LORE-05…15, LIB-04…07, SUM-22. The tracker's knowledge model (who knows, believes or suspects what) is a head start on CON-06 (knowledge guard).
+MEM-14…23, MEM-26…31, MEM-36…38, MEM-41…42, MEM-44, MEM-46, CON-01, CON-02, CON-06…08, LORE-05…15, LIB-04…07, SUM-22. The tracker's knowledge model (who knows, believes or suspects what) is a head start on CON-06 (knowledge guard). **Built:** see [07-phase3-status.md](07-phase3-status.md).

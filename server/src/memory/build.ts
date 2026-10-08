@@ -169,8 +169,13 @@ function applyScene(row: SummaryRow, b: SceneBuild) {
     run("DELETE FROM memories WHERE scene_id = ? AND user_edited = 0 AND pinned = 0", row.id);
     run("UPDATE memories SET stale = 0 WHERE scene_id = ?", row.id);
     const all = b.rows.map((m) => ({ id: m.id, seq: m.seq }));
+    // The scene's old AI atoms are gone now, so anything matching is a real duplicate, even one
+    // from this very record (a model can repeat a memory) or one you kept in this scene.
+    const seen = new Set<string>();
     for (const m of o.memories) {
-      if (!m.content.trim() || isDuplicate(row.chat_id, m.content, row.id)) continue;
+      const key = m.content.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
+      if (!key || seen.has(key) || isDuplicate(row.chat_id, m.content)) continue;
+      seen.add(key);
       let sources = m.sources.map((s) => bySeq.get(Math.round(s))).filter((x): x is NonNullable<typeof x> => Boolean(x)).map((x) => ({ id: x.id, seq: x.seq }));
       if (!sources.length) sources = all.length <= 3 ? all : [all.at(-1)!];
       const targets = m.supersedes

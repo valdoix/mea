@@ -2,7 +2,7 @@
 
 A personal AI roleplay frontend for Windows and Android, served from an always-on host and powered by NanoGPT. Its focus is memory, continuity, and a cozy reading experience.
 
-**Status:** Phase 0 (foundations), Phase 1 (memory core) and Phase 2 (trackers, the world off the page, chat tools) are built. See [docs/06-phase2-status.md](docs/06-phase2-status.md).
+**Status:** Phases 0–3 are built: foundations, memory core, trackers and the world off the page, and retrieval, facts and accuracy. See [docs/07-phase3-status.md](docs/07-phase3-status.md).
 
 ## Planning docs
 
@@ -14,6 +14,7 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/04-phase1-progress.md](docs/04-phase1-progress.md) | Phase 1 build notes, file by file (schema, memory engine, routes, UI) |
 | [docs/05-phase1-status.md](docs/05-phase1-status.md) | What Phase 1 delivered, where to find it, and what still needs a real-world check |
 | [docs/06-phase2-status.md](docs/06-phase2-status.md) | What Phase 2 delivered (trackers, world simulation, chat tools), build notes, and what still needs a real-world check |
+| [docs/07-phase3-status.md](docs/07-phase3-status.md) | What Phase 3 delivered (retrieval, entities, accuracy guards, lore, library), fixes, and what still needs a real-world check |
 
 ## Running Mea
 
@@ -73,7 +74,8 @@ This starts the API (with the mock provider enabled) on :7766 and Vite on http:/
 server/src
   cards/      character card PNG/JSON/CHARX parsing and writing
   lore/       lorebook model, SillyTavern conversion, activation engine
-  memory/     scenes, summaries, memories, recall, telescoping budget, inspector
+  memory/     scenes, summaries, memories, recall, entities, journals, ledgers, telescoping budget
+  accuracy/   continuity checker and leak guard, Archivist, Codex, memory quiz
   prompt/     macros, presets, prompt assembly
   providers/  OpenAI-compatible + Anthropic streaming, NanoGPT catalog & quota, mock
   trackers/   story state: ledger grammar, event fold, rules, drift, clock, templates, prompt note

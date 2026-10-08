@@ -381,6 +381,21 @@ describe("the memory pipeline, Phase 3 (journals, deep search, reconcile, sleep)
   });
 });
 
+describe("scene records don't store the same memory twice", () => {
+  test("repeats inside one record are dropped", async () => {
+    setSetting("memory.config", { ...defaultMemoryConfig, boundaryCheck: false, lag: 1, sceneTokenCap: 100_000 });
+    const chatId = chatWith();
+    for (let i = 0; i < 4; i++) addMessage(chatId, i % 2 ? "assistant" : "user", i % 2 ? "The lamp flickers as the wind presses against the old glass." : `Line ${i}`, { name: i % 2 ? "Mira" : "You" });
+    addMessage(chatId, "user", "The next morning, we set out.", { name: "You" });
+    addMessage(chatId, "assistant", "Fine.", { name: "Mira" });
+    await segmentChat(chatId);
+    const scene = levelRows(chatId, "scene")[0]!;
+    await buildSummary(scene.id);
+    const n = all<{ n: number }>("SELECT COUNT(*) AS n FROM memories WHERE chat_id = ? AND content LIKE '%lamp flickers%' AND status = 'active'", chatId)[0]!.n;
+    expect(n).toBe(1);
+  });
+});
+
 describe("memory profiles (MEM-44)", () => {
   test("presets apply, and hand changes become custom", () => {
     const light = applyMemoryProfile("light");

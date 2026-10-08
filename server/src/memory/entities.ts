@@ -2,6 +2,7 @@ import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { badRequest, notFound } from "../lib/http";
 import { publish } from "../lib/events";
 import type { AtomRow } from "./atoms";
+import { scanEntriesFor } from "../lore/service";
 import { castProfiles, currentFold } from "../trackers/store";
 import { memState } from "./store";
 
@@ -262,6 +263,28 @@ export function syncEntities(chatId: string, force = false) {
 
   for (const a of all<Pick<AtomRow, "entities" | "min_seq" | "max_seq">>("SELECT entities, min_seq, max_seq FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'", chatId)) {
     for (const n of parseJson<string[]>(a.entities, [])) add(n, guessKind(n), { first: a.min_seq, last: a.max_seq, source: "memories" });
+  }
+
+  // Lore that names an entity describes it (its essentials, or its first sentence).
+  try {
+    const chat = one<{ character_id: string | null; persona_id: string | null }>("SELECT character_id, persona_id FROM chats WHERE id = ?", chatId);
+    const byName = new Map<string, { text: string }>();
+    for (const e of scanEntriesFor({ characterId: chat?.character_id, personaId: chat?.persona_id, chatId })) {
+      if (!e.enabled || !e.content.trim()) continue;
+      const ex = (e.extra ?? {}) as { essentials?: string; aliases?: string[] };
+      const text = ex.essentials?.trim() || e.content.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/)[0]!.slice(0, 240);
+      for (const n of [e.comment, ...e.keys, ...(ex.aliases ?? [])]) if (n?.trim() && !/^\/.*\/[a-z]*$/.test(n)) byName.set(norm(n), { text });
+    }
+    for (const sn of seen.values()) {
+      if (sn.description) continue;
+      const hit = [sn.name, ...sn.aliases].map((n) => byName.get(norm(n))).find(Boolean);
+      if (hit) {
+        sn.description = hit.text;
+        sn.descSource = "lore";
+      }
+    }
+  } catch {
+    // lore is optional
   }
 
   const cast = castOf(chatId);
