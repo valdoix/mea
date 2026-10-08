@@ -8,7 +8,11 @@ import { activateLore, type ActivationResult } from "../lore/activate";
 import { loadLoreState, saveLoreState, scanEntriesFor } from "../lore/service";
 import { CANON_RULE } from "../memory/canon";
 import { buildMemoryContext, emptyInputs, memoryInputs } from "../memory/context";
+import { embeddingsEnabled, embedQueries } from "../memory/embed";
+import { resolver } from "../memory/entities";
 import { reinforce } from "../memory/reinforce";
+import { anySemantic, semanticScorer } from "../lore/semantic";
+import { recordLoreHits } from "../lore/health";
 import { warmMemory } from "../memory/warm";
 import { scheduleMemory } from "../memory/scheduler";
 import { setMemState } from "../memory/store";
@@ -129,6 +133,15 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     if (!when) return [e];
     return tp && evalCondition(tp.state, when) ? [{ ...e, constant: true }] : [];
   });
+  // Recall inputs (Phase 3): queries, vectors (usually warm from prefetch), point of view, the
+  // people in the scene, the librarian's verdict. Nothing here waits long (MEM-21).
+  const memInputs = cfg.enabled
+    ? await memoryInputs(chatId, { history, draft: kind === "expand" ? opts.draft : undefined, chatMode: chat.mode, state: tp?.state ?? null, names: { char: card.name, user: userName } })
+    : emptyInputs();
+  // LORE-05 / LORE-06: lore fires on who's in the scene or just named, and on meaning when an entry opts in.
+  const named = memInputs.queries.length ? resolver(chatId).mentionedIn(history.slice(-2).map((m) => m.content).join("\n")).map((e) => e.name) : [];
+  let loreVec = memInputs.qvecs[0] ?? null;
+  if (!loreVec && anySemantic(entries) && embeddingsEnabled()) loreVec = (await embedQueries([history.slice(-2).map((m) => m.content).join("\n").slice(-2000)], 1500))[0] ?? null;
   const lore = activateLore({
     entries,
     history: history.map((m) => `${m.role === "user" ? userName : m.role === "assistant" ? card.name : "Note"}: ${m.content}`),
@@ -138,13 +151,11 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     countTokens,
     substitute,
     splitTriggered: true,
+    present: [...memInputs.present, ...named],
+    semantic: semanticScorer(loreVec),
+    all: entries,
   });
 
-  // Recall inputs (Phase 3): queries, vectors (usually warm from prefetch), point of view, the
-  // people in the scene, the librarian's verdict. Nothing here waits long (MEM-21).
-  const memInputs = cfg.enabled
-    ? await memoryInputs(chatId, { history, draft: kind === "expand" ? opts.draft : undefined, chatMode: chat.mode, state: tp?.state ?? null, names: { char: card.name, user: userName } })
-    : emptyInputs();
   const contextTarget = Math.floor(resolved.contextTarget * (opts.targetScale ?? 1));
 
   const assembled = assemblePrompt({
@@ -473,6 +484,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       console.error("[mea] after-reply step failed:", e);
     }
     saveLoreState(gen.chatId, p.lore.stateUpdates);
+    recordLoreHits(gen.chatId, p.lore.activated.map((a) => a.entry.id));
     setChatVars(gen.chatId, p.assembled.vars);
     recordMemoryUsage(requestId, gen.chatId, p);
     // CON-02 / CON-06: check the reply against the story's facts, in the background.

@@ -212,6 +212,27 @@ export function ruleCheck(chatId: string, text: string, st: WorldState | null, o
         }
       }
     }
+    // Lorebook secrets with a known-by list (LORE-09).
+    const chat = mustChat(chatId);
+    for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
+      for (const sec of ((e.extra ?? {}) as { secrets?: { text: string; knownBy: string[] }[] }).secrets ?? []) {
+        const kb = new Set((sec.knownBy ?? []).map(norm));
+        if (!sec.text?.trim() || kb.has(norm(o.speaker)) || kb.has("everyone")) continue;
+        const secretWords = [...contentWords(sec.text, 4)].filter((w) => !knownNames.has(w));
+        if (secretWords.length < 2) continue;
+        const hit = sents.find((s) => /["“]/.test(s) && secretWords.filter((w) => contentWords(s, 4).has(w)).length >= Math.max(2, Math.ceil(secretWords.length * 0.5)));
+        if (hit && !out.some((i) => i.kind === "leak" && i.claim === hit.trim().slice(0, 240)))
+          out.push({
+            kind: "leak",
+            severity: "major",
+            claim: hit.trim().slice(0, 240),
+            conflict: `${o.speaker} doesn't know this lore secret${sec.knownBy?.length ? ` (only ${sec.knownBy.join(", ")} do)` : ""}: "${sec.text}"`,
+            citations: [{ ref: "L", type: "lore", label: `${e.comment || e.keys[0] || "lore"}: secret`, id: e.id }],
+            fix: `${o.speaker} doesn't know: ${sec.text}`,
+            by: "rules",
+          });
+      }
+    }
     // Secret memories with a known-by list (narrator mode: each NPC only knows their own).
     for (const a of all<AtomRow>("SELECT * FROM memories WHERE chat_id = ? AND type = 'secret' AND deleted_at IS NULL AND status = 'active' AND known_by != '[]'", chatId)) {
       const kb = new Set(parseJson<string[]>(a.known_by, []).map(norm));

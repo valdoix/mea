@@ -12,6 +12,8 @@ import { onLedgerEdit } from "./services/chats";
 import { embedChat } from "./memory/embed";
 import { consolidate } from "./memory/consolidate";
 import { runCheckJob } from "./accuracy/checker";
+import { runChronicle } from "./lore/chronicle";
+import { embedLore } from "./lore/semantic";
 import { runJournalJob } from "./memory/journals";
 import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
@@ -58,6 +60,12 @@ export function startup(opts: { jobs?: boolean; dbFile?: string } = {}) {
   registerJob("memory.embed", async (p, job) => embedChat(String(p.chatId), job));
   // Phase 3: journals, sleep (consolidation), story-born lore, the continuity checker.
   registerJob("memory.journal", async (p, job) => runJournalJob(String(p.chatId), job));
+  registerJob("lore.chronicle", async (p, job) => {
+    await runChronicle(String(p.chatId), job);
+  });
+  registerJob("lore.embed", async () => {
+    await embedLore();
+  });
   registerJob("accuracy.check", async (p, job) => runCheckJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   registerJob("memory.consolidate", async (p, job) => {
     await consolidate(String(p.chatId), job);

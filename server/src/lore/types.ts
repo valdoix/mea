@@ -41,6 +41,10 @@ export interface LorebookSettings {
   recursive?: boolean;
   caseSensitive?: boolean;
   matchWholeWords?: boolean;
+  /** LORE-05: every entry in this book can also fire on meaning. */
+  semantic?: boolean;
+  /** LORE-12: this book is a chat's Chronicle (story-born lore). */
+  chronicleFor?: string;
 }
 
 export function defaultEntry(partial: Partial<LoreEntry> = {}): LoreEntry {

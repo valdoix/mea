@@ -13,6 +13,8 @@ import { addMessage, createChat, getChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { registerJob } from "../src/services/jobs";
 import { currentFold, linesToOps, writeEvents } from "../src/trackers/store";
+import { createLorebook } from "../src/lore/service";
+import { defaultEntry } from "../src/lore/types";
 import { freshDb } from "./helpers";
 
 let chatId = "";
@@ -69,6 +71,11 @@ describe("continuity rules (CON-02)", () => {
     const leak = ruleCheck(chatId, '"I know you stole the harbor ledger from the customs office," Mira says.', st(), { speaker: "Mira", leaks: true });
     expect(leak.some((i) => i.kind === "leak" && i.conflict.includes("Mira doesn't know"))).toBe(true);
     expect(ruleCheck(chatId, '"I know you stole the harbor ledger from the customs office," Mira says.', st(), { speaker: "Mira", leaks: false }).some((i) => i.kind === "leak")).toBe(false);
+    // Lorebook secrets with a known-by list (LORE-09).
+    createLorebook({ name: "Town", entries: [defaultEntry({ comment: "Gull Inn", keys: ["Gull Inn"], content: "An inn.", extra: { secrets: [{ text: "The cellar hides smuggled brandy barrels.", knownBy: ["Joss"] }] } })], links: [{ target_type: "chat", target_id: chatId }] });
+    const lore = ruleCheck(chatId, '"Everyone knows the cellar hides smuggled brandy barrels," she says.', st(), { speaker: "Mira", leaks: true });
+    expect(lore.some((i) => i.kind === "leak" && i.citations[0]?.type === "lore")).toBe(true);
+    expect(ruleCheck(chatId, '"The cellar hides smuggled brandy barrels," he says.', st(), { speaker: "Joss", leaks: true }).some((i) => i.citations[0]?.type === "lore")).toBe(false);
   });
 });
 

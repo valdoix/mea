@@ -121,6 +121,18 @@ function helperJson(name: string, user: string): unknown {
       return { digest: (user.match(/^- (.*)$/gm) ?? []).map((l) => l.slice(2).replace(/[.!?]$/, "")).join("; ") + "." };
     case "entity_profile":
       return { description: firstSentence((user.split("NOTES:")[1] ?? "").replace(/^\s*- /m, "")) };
+    case "lore_assist": {
+      const idea = user.match(/^IDEA: (.*)$/m)?.[1];
+      const entry = user.split("ENTRY:\n")[1] ?? "";
+      const title = user.match(/^TITLE: (.*)$/m)?.[1] ?? idea?.split(/[,.]/)[0] ?? "Entry";
+      const content = idea ? `${idea.trim().replace(/\.?$/, ".")} It matters to the story.` : entry.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ");
+      return { comment: title, content, keys: names(`${title} ${content}`).length ? names(`${title} ${content}`) : [title.toLowerCase()], aliases: [], essentials: firstSentence(content) };
+    }
+    case "chronicle_entry": {
+      const name = user.match(/^(\S[^—\n(]*?)(?: \(| —|\.)/m)?.[1]?.trim() ?? "Someone";
+      const notes = (user.match(/^- (.*)$/gm) ?? []).map((l) => l.slice(2));
+      return { comment: name, keys: [name], content: `${name}. ${notes.join(" ")}`.slice(0, 900) };
+    }
     default:
       return {};
   }
