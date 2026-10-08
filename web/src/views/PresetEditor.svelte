@@ -66,6 +66,8 @@
     history: "Chat history",
     authors_note: "Author's note",
     post_history: "Post-history instructions",
+    memory_story: "Story so far (memory)",
+    memory_recall: "Recalled memories & triggered lore",
   };
 
   function move(i: number, dir: -1 | 1) {

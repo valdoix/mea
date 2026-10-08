@@ -2,7 +2,7 @@
 
 > Living document: updated as work lands so a new session can pick up from here.
 > IDs refer to [02-mea-ideas.md](02-mea-ideas.md). Phase 0 is in [03-phase0-status.md](03-phase0-status.md).
-> **Nothing from Phase 1 is committed yet.** All work is in the working tree on `main` (last commit: `0b7437c Phase 0`).
+> Work is on branch **`phase-1-memory`** (pushed to origin). `main` still holds Phase 0 (`0b7437c`). Server part committed; anything newer is in the working tree.
 
 ## State at a glance
 

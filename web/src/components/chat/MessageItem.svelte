@@ -17,6 +17,10 @@
     Trash,
     CircleAlert,
     Feather,
+    Brain,
+    Milestone,
+    Flag,
+    Info,
   } from "../../lib/icons";
   import { renderMessage, renderStreaming } from "../../lib/render";
   import { app } from "../../lib/state.svelte";
@@ -39,7 +43,15 @@
     oninspect,
     oncompare,
     editSignal = 0,
+    highlighted = false,
+    onendscene,
+    onnewchapter,
+    onmemory,
   }: {
+    highlighted?: boolean;
+    onendscene?: () => void;
+    onnewchapter?: () => void;
+    onmemory?: () => void;
     editSignal?: number;
     message: Message;
     isLast: boolean;
@@ -111,7 +123,10 @@
     if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: ScrollText, onclick: oncompare });
     list.push({ label: message.bookmarked ? "Remove bookmark" : "Bookmark", icon: Bookmark, onclick: () => onflag({ bookmarked: !message.bookmarked }) });
     list.push({ label: message.hidden ? "Include in prompt" : "Hide from prompt", icon: message.hidden ? Eye : EyeOff, onclick: () => onflag({ hidden: !message.hidden }) });
-    if (message.meta?.generationId) list.push({ label: "View prompt", icon: ScrollText, onclick: oninspect });
+    if (message.meta?.generationId) list.push({ label: "What the model received", icon: ScrollText, onclick: oninspect });
+    if (onmemory) list.push({ label: "What memory knows", icon: Brain, onclick: onmemory });
+    if (onendscene) list.push({ label: "End the scene after this", icon: Milestone, onclick: onendscene });
+    if (onnewchapter) list.push({ label: "Start a new chapter here", icon: Flag, onclick: onnewchapter });
     list.push({ label: "Delete", icon: Trash, danger: true, onclick: ondelete });
     return list;
   });
@@ -126,6 +141,7 @@
   class="msg {message.role}"
   class:hidden-msg={message.hidden}
   class:editing
+  class:highlighted
   use:longpress={{ onLong: openMenuAt }}
   data-seq={message.seq}
 >
@@ -193,6 +209,7 @@
           {#if message.content}<button class="btn ghost small" onclick={oncontinue} disabled={!canGenerate} title="Continue this reply"><StepForward size={14} /> <span class="hide-sm">Continue</span></button>{/if}
         {/if}
         {#if message.meta?.model && !app.isMobile}<span class="tiny faint model truncate" title="Model">{message.meta.model}</span>{/if}
+        {#if message.meta?.generationId && !streaming}<button class="btn ghost icon small receipt" onclick={oninspect} aria-label="What this reply was given: memories, summaries, lore" title="What this reply was given"><Info size={14} /></button>{/if}
       </footer>
     {/if}
   </div>
@@ -349,6 +366,16 @@
   }
   .edit {
     min-height: 8rem;
+  }
+  .highlighted .bubble {
+    box-shadow: 0 0 0 2px var(--accent);
+    transition: box-shadow 0.4s var(--ease);
+  }
+  .receipt {
+    opacity: 0.55;
+  }
+  .receipt:hover {
+    opacity: 1;
   }
 
   /* Book style: flowing prose, no boxes; the name stays as a small header */
