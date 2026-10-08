@@ -8,6 +8,8 @@ export interface Settings {
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
   "appearance.storyFont": "lora" | "literata" | "nunito";
+  /** LORE-15: underline lore terms in messages. */
+  "appearance.glossary": boolean;
   "chat.enterToSend": boolean;
   "chat.defaultPresetId": string | null;
   "backup.hourlyKeep": number;
@@ -178,6 +180,7 @@ export const defaults: Settings = {
   "appearance.chatStyle": "cards",
   "appearance.fontScale": 1,
   "appearance.storyFont": "lora",
+  "appearance.glossary": true,
   "chat.enterToSend": false,
   "chat.defaultPresetId": null,
   "backup.hourlyKeep": 24,
@@ -233,6 +236,7 @@ export const clientKeys: (keyof Settings)[] = [
   "appearance.chatStyle",
   "appearance.fontScale",
   "appearance.storyFont",
+  "appearance.glossary",
   "chat.enterToSend",
   "chat.defaultPresetId",
   "backup.hourlyKeep",

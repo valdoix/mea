@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { one } from "../db/db";
 import { body, must } from "../lib/http";
 import {
   createEntry,
@@ -179,6 +180,12 @@ lore.post("/chronicle/:id/reject", (c) => {
   return c.json({ ok: true });
 });
 lore.post("/lore/embed", async (c) => c.json(await embedLore()));
+
+/** Which book an entry lives in (for citations that point at a lore entry). */
+lore.get("/lore/entries/:id/locate", (c) => {
+  const r = one<{ lorebook_id: string }>("SELECT lorebook_id FROM lorebook_entries WHERE id = ?", c.req.param("id"));
+  return r ? c.json({ bookId: r.lorebook_id }) : c.json({ error: "Entry not found" }, 404);
+});
 
 lore.delete("/lorebooks/:id/entries/:entryId", (c) => {
   deleteEntry(c.req.param("entryId"));

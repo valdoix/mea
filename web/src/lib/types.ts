@@ -107,9 +107,14 @@ export interface Chat {
   createdAt: number;
   lastMessageAt: number | null;
   archivedAt: number | null;
+  /** LIB-04: you named it yourself, so the Story So Far won't. */
+  titleLocked?: boolean;
+  coverImageId?: string | null;
 }
 
 export interface ChatListItem extends Chat {
+  /** LIB-06 */
+  collections?: string[];
   characterName: string | null;
   avatarId: string | null;
   lastText: string;
@@ -192,6 +197,10 @@ export interface LorebookSettings {
   recursive?: boolean;
   caseSensitive?: boolean;
   matchWholeWords?: boolean;
+  /** LORE-05 */
+  semantic?: boolean;
+  /** LORE-12 */
+  chronicleFor?: string;
 }
 
 export interface LoreLink {
@@ -356,6 +365,8 @@ export interface Settings {
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
   "appearance.storyFont": "lora" | "literata" | "nunito";
+  /** LORE-15: underline lore terms in messages. */
+  "appearance.glossary": boolean;
   "chat.enterToSend": boolean;
   "chat.defaultPresetId": string | null;
   "backup.hourlyKeep": number;
@@ -404,6 +415,7 @@ export type MeaEvent =
   | { type: "jobs.activity"; running: number; queued: number }
   | { type: "quota.changed" }
   | { type: "memory.changed"; chatId: string }
+  | { type: "continuity.changed"; chatId: string; messageId: string }
   | { type: "trackers.changed"; chatId: string; running?: boolean }
   | { type: "draft.changed"; chatId: string; device: string | null }
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" }
@@ -471,6 +483,11 @@ export interface Atom {
   sources?: { messageId: string; seq: number }[];
   createdAt: number;
   updatedAt: number;
+  /** MEM-19 */
+  recallCount?: number;
+  refCount?: number;
+  /** MEM-30, MEM-31 */
+  ledger?: { status: string; by?: string; to?: string; markedBy?: string } | null;
 }
 
 export interface UsageRef {
@@ -548,15 +565,20 @@ export interface Boundary {
 }
 
 export interface RecallItem {
-  ownerType: "memory" | "summary";
+  ownerType: "memory" | "summary" | "entity" | "quote" | "journal";
   id: string;
   type: string;
   content: string;
-  slot: "pinned" | "recent" | "relevant" | "serendipity";
+  slot: "pinned" | "entity" | "recent" | "relevant" | "serendipity" | "deep";
   score: number;
   reasons: string[];
   tokens: number;
   seq: number | null;
+  when?: string | null;
+  where?: string | null;
+  who?: string[];
+  confirmed?: boolean;
+  disputed?: boolean;
 }
 
 export interface MemoryTrace {
@@ -573,6 +595,12 @@ export interface MemoryTrace {
   recallBudget: number;
   query: string;
   vector: boolean;
+  queries?: { label: string; weight: number; vector: boolean }[];
+  stats?: { candidates: number; filteredPov: number; signaled: number; queries: string[]; librarian: "used" | "none"; deep: number; entities: string[]; diversity: number };
+  pov?: string | null;
+  format?: MemoryConfig["format"];
+  index?: { coverage: number; vectors: number; of: number };
+  journalTokens?: number;
 }
 
 export interface MemoryConfig {
@@ -591,6 +619,265 @@ export interface MemoryConfig {
   filterDepth: number;
   lowWater: number;
   cacheTtl: "5m" | "1h";
+  profile: "light" | "balanced" | "deep" | "custom";
+  pov: "auto" | "character" | "narrator";
+  format: "prose" | "attributed" | "clinical" | "minimal";
+  rewriteQuery: boolean;
+  diversity: number;
+  entityRecall: boolean;
+  reinforcement: boolean;
+  deepSearch: boolean;
+  librarian: boolean;
+  journals: boolean;
+  consolidate: boolean;
+  continuity: boolean;
+  leakGuard: "auto" | "on" | "off";
+  checkerModel: boolean;
+  chronicle: boolean;
+}
+
+// ---------- Phase 3 ----------
+
+export type EntityKind = "person" | "place" | "object" | "group" | "concept";
+export interface Entity {
+  id: string;
+  kind: EntityKind;
+  name: string;
+  aliases: string[];
+  description: string;
+  status: "active" | "dead" | "missing" | "gone" | "unknown";
+  facts: string[];
+  firstSeq: number | null;
+  lastSeq: number | null;
+  mentions: number;
+  userEdited: boolean;
+  mergedInto: string | null;
+  isUser: boolean;
+  isMain: boolean;
+  path: string[] | null;
+  holder: string | null;
+  sources: string[];
+  descSource: string | null;
+  updatedAt: number;
+}
+export type CodexEntity = Omit<Entity, "facts"> & { card: string; facts: number; journal: boolean };
+export interface Journal {
+  id: string;
+  name: string;
+  content: string;
+  throughSeq: number;
+  userEdited: boolean;
+  proposal: { content: string; throughSeq: number; at: number } | null;
+  tokens: number;
+  updatedAt: number;
+}
+export interface PromiseEntry {
+  key: string;
+  source: "tracker" | "memory";
+  who: string | null;
+  whom: string | null;
+  what: string;
+  status: "pending" | "kept" | "broken";
+  due: string | null;
+  seq: number | null;
+  messageId: string | null;
+  kind: "promise" | "debt";
+  memoryIds: string[];
+  markedBy: string | null;
+}
+export interface SecretEntry {
+  key: string;
+  source: "tracker" | "memory";
+  statement: string;
+  keepers: string[];
+  hiddenFrom: string[];
+  knows: { name: string; status: string }[];
+  revealed: { to: string[]; seq: number | null; how: string | null; messageId: string | null }[];
+  truth: string | null;
+  seq: number | null;
+  messageId: string | null;
+  memoryIds: string[];
+}
+export interface Citation {
+  ref: string;
+  type: "tracker" | "memory" | "lore" | "card" | "message";
+  label: string;
+  id?: string;
+  messageId?: string | null;
+  seq?: number | null;
+}
+export interface ContinuityIssue {
+  id: string;
+  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak";
+  severity: "minor" | "major";
+  claim: string;
+  conflict: string;
+  citations: Citation[];
+  fix: string;
+  canon?: { memory: string; wrong?: string; trackerLine?: string };
+  by: "rules" | "model";
+  dismissed?: boolean;
+}
+export interface ContinuityFlag {
+  id: string;
+  messageId: string;
+  swipeIdx: number;
+  status: "open" | "clean" | "resolved";
+  issues: ContinuityIssue[];
+  open: number;
+  updatedAt: number;
+}
+export interface ArchiveCitation {
+  n: number;
+  type: string;
+  label: string;
+  excerpt: string;
+  messageId: string | null;
+  seq: number | null;
+  ownerId: string | null;
+}
+export interface ArchiveAnswer {
+  id: string;
+  question: string;
+  answer: string;
+  citations: ArchiveCitation[];
+  sources: ArchiveCitation[];
+  confidence: "sure" | "likely" | "unknown";
+  createdAt: number;
+}
+export interface GraphEdge {
+  from: string;
+  to: string;
+  label: string;
+  strength: number;
+  kind: "bond" | "memory" | "holds";
+  history: { seq: number; strength: number }[];
+  fromName?: string;
+  toName?: string;
+}
+export interface CodexScene {
+  id: string;
+  title: string;
+  startSeq: number;
+  endSeq: number | null;
+  storyTime: string | null;
+  state: string;
+  summary: string;
+}
+export interface Codex {
+  story: { title: string; summary: string; throughSeq: number | null } | null;
+  cast: CodexEntity[];
+  places: CodexEntity[];
+  objects: CodexEntity[];
+  groups: CodexEntity[];
+  concepts: CodexEntity[];
+  timeline: (CodexScene & { scenes: CodexScene[] })[];
+  unfiled: CodexScene[];
+  threads: { tracked: { id: string; title: string; status: string; latest: string | null; openedSeq: number; lastSeq: number }[]; fromRecords: string[] };
+  calendar: { title: string; when: string; who: string[] }[];
+  milestones: { text: string; seq: number }[];
+  relationships: GraphEdge[];
+  promises: number;
+  secrets: number;
+}
+export interface CodexPage {
+  entity: Entity;
+  card: string;
+  facts: Atom[];
+  appearances: { id: string; title: string; startSeq: number; endSeq: number | null; storyTime: string | null }[];
+  ties: (GraphEdge & { other: string; direction: "in" | "out" })[];
+  journal: Journal | null;
+  lore: { id: string; bookId: string; bookName: string; title: string; content: string }[];
+}
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  answer: string;
+  atomId: string;
+  retrieved?: boolean;
+  rank?: number | null;
+  given?: string;
+  correct?: boolean | null;
+}
+export interface QuizRun {
+  id: string;
+  settings: Record<string, unknown>;
+  questions: QuizQuestion[];
+  retrieval: number | null;
+  answers: number | null;
+  score: number | null;
+  createdAt: number;
+}
+export interface ChronicleProposal {
+  id: string;
+  entityId: string | null;
+  name: string;
+  entry: { comment: string; keys: string[]; content: string; extra: Record<string, unknown> };
+  status: string;
+  createdAt: number;
+}
+export interface LoreHealthIssue {
+  kind: string;
+  severity: "info" | "warn";
+  entries: string[];
+  message: string;
+}
+export interface LoreHealth {
+  bookId: string;
+  entries: number;
+  issues: LoreHealthIssue[];
+  cost: { constantTokens: number; totalTokens: number; budget: number; averageTriggeredTokens: number; top: { id: string; title: string; tokens: number; hits: number; constant: boolean }[] };
+}
+export interface LorePreview {
+  id: string;
+  bookId: string;
+  bookName: string;
+  title: string;
+  reason: string;
+  tokens: number;
+  type: string | null;
+}
+export interface GlossaryTerm {
+  term: string;
+  entryId: string;
+  bookId: string;
+  title: string;
+  type: string | null;
+  snippet: string;
+}
+export interface Collection {
+  id: string;
+  name: string;
+  builtin: string | null;
+  sort: number;
+  count: number;
+}
+export interface StoryStats {
+  messages: number;
+  yourMessages: number;
+  words: number;
+  yourWords: number;
+  characterWords: number;
+  swipes: number;
+  tokens: { prompt: number; completion: number; cached: number; requests: number };
+  cost: number;
+  minutesSpent: number;
+  daysActive: number;
+  longestStreak: number;
+  firstAt: number | null;
+  lastAt: number | null;
+  memories: number;
+  scenes: number;
+}
+export interface GlobalHit {
+  kind: "message" | "character" | "lore" | "memory" | "summary";
+  id: string;
+  title: string;
+  snippet: string;
+  chatId: string | null;
+  chatTitle: string | null;
+  link: string;
+  seq?: number | null;
 }
 
 export interface Planner {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
-  import { get } from "../../lib/api";
+  import { get, post } from "../../lib/api";
   import { compact } from "../../lib/format";
   import { app, errorToast, saveSetting } from "../../lib/state.svelte";
   import type { MemoryConfig, Planner } from "../../lib/types";
@@ -48,6 +48,22 @@
     set({ slots });
   }
 
+  // MEM-44: Light / Balanced / Deep; any change you make yourself turns the profile into "custom".
+  const PROFILES = [
+    { id: "light" as const, label: "Light", about: "Cheapest: records without checks, smaller budgets, no journals, librarian or deep search." },
+    { id: "balanced" as const, label: "Balanced", about: "Checked records, journals and deep search; no librarian or checker model pass." },
+    { id: "deep" as const, label: "Deep", about: "Everything on, for the best continuity. The default." },
+  ];
+  async function applyProfile(name: "light" | "balanced" | "deep") {
+    try {
+      const r = await post<{ config: MemoryConfig }>(`/api/memory/profiles/${name}`);
+      if (app.settings) app.settings["memory.config"] = r.config;
+      void loadPlanner();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   const degradeAt = $derived(app.settings?.["quota.degradeAt"] ?? 0.9);
   const shedLabel: Record<string, string> = { advisor: "advisor", librarian: "librarian", gates: "scene-break checks", drift: "drift checks", continuity: "continuity checks", verification: "summary verification" };
 </script>
@@ -79,6 +95,72 @@
       <label class="switch"><input type="checkbox" checked={cfg.verify} onchange={(e) => set({ verify: e.currentTarget.checked })} /> Double-check each scene summary against the messages</label>
       <label class="switch indent"><input type="checkbox" checked={cfg.autoRepair} disabled={!cfg.verify} onchange={(e) => set({ autoRepair: e.currentTarget.checked })} /> Fix it automatically once when the check finds a real problem</label>
       <label class="switch"><input type="checkbox" checked={cfg.boundaryCheck} onchange={(e) => set({ boundaryCheck: e.currentTarget.checked })} /> Ask the helper model to confirm unclear scene breaks</label>
+    </section>
+
+    <section class="panel stack">
+      <h2>How much memory work</h2>
+      <div class="profiles">
+        {#each PROFILES as p (p.id)}
+          <button class="prof card" class:on={cfg.profile === p.id} onclick={() => applyProfile(p.id)} aria-pressed={cfg.profile === p.id}>
+            <b>{p.label}</b>
+            <span class="tiny muted">{p.about}</span>
+          </button>
+        {/each}
+      </div>
+      {#if cfg.profile === "custom"}<p class="tiny muted">Custom: you've changed settings below. Pick a profile to reset them.</p>{/if}
+    </section>
+
+    <section class="panel stack">
+      <h2>Recall & accuracy</h2>
+      <div class="grid2">
+        <label class="field">
+          <span class="label">Whose memory</span>
+          <select class="select" value={cfg.pov} onchange={(e) => set({ pov: e.currentTarget.value as MemoryConfig["pov"] })}>
+            <option value="auto">Follow the chat mode</option>
+            <option value="character">The character's (they only recall what they could know)</option>
+            <option value="narrator">The narrator's (everything)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label">How memories are written</span>
+          <select class="select" value={cfg.format} onchange={(e) => set({ format: e.currentTarget.value as MemoryConfig["format"] })}>
+            <option value="prose">Notes with when and where</option>
+            <option value="attributed">Who remembers, how long ago</option>
+            <option value="clinical">Bullet facts with sources</option>
+            <option value="minimal">Minimal</option>
+          </select>
+          <span class="hint">Some models do better with bullets.</span>
+        </label>
+      </div>
+      <div class="field">
+        <span class="label">Variety in what's recalled <span class="faint">{pct(cfg.diversity)}</span></span>
+        <input type="range" min="0" max="0.8" step="0.05" value={cfg.diversity} oninput={(e) => set({ diversity: Number(e.currentTarget.value) })} />
+        <span class="hint">Higher keeps five near-identical memories from filling the budget.</span>
+      </div>
+      <label class="switch"><input type="checkbox" checked={cfg.entityRecall} onchange={(e) => set({ entityRecall: e.currentTarget.checked })} /> People and places in the scene bring their card and top facts</label>
+      <label class="switch"><input type="checkbox" checked={cfg.reinforcement} onchange={(e) => set({ reinforcement: e.currentTarget.checked })} /> Memories the replies use gain weight; unused trivia fades (never deleted)</label>
+      <label class="switch"><input type="checkbox" checked={cfg.rewriteQuery} onchange={(e) => set({ rewriteQuery: e.currentTarget.checked })} /> A helper rewrites the search while you type</label>
+      <label class="switch"><input type="checkbox" checked={cfg.librarian} onchange={(e) => set({ librarian: e.currentTarget.checked })} /> The librarian picks what matters for the next reply (while you type)</label>
+      <label class="switch"><input type="checkbox" checked={cfg.deepSearch} onchange={(e) => set({ deepSearch: e.currentTarget.checked })} /> Deep search: quote the old messages themselves when the story reaches far back</label>
+      <label class="switch"><input type="checkbox" checked={cfg.journals} onchange={(e) => set({ journals: e.currentTarget.checked })} /> First-person journals for the main character and recurring people</label>
+      <label class="switch"><input type="checkbox" checked={cfg.consolidate} onchange={(e) => set({ consolidate: e.currentTarget.checked })} /> Tidy memory while the chat is quiet (merge duplicates, fold trivia)</label>
+      <label class="switch"><input type="checkbox" checked={cfg.chronicle} onchange={(e) => set({ chronicle: e.currentTarget.checked })} /> Propose lore entries for people and places the story introduces</label>
+      <label class="switch"><input type="checkbox" checked={cfg.continuity} onchange={(e) => set({ continuity: e.currentTarget.checked })} /> Check each reply for continuity slips (flags only; nothing is rewritten)</label>
+      <label class="switch indent"><input type="checkbox" checked={cfg.checkerModel} disabled={!cfg.continuity} onchange={(e) => set({ checkerModel: e.currentTarget.checked })} /> Also ask the helper model, with sources (the quick rules always run)</label>
+      <div class="field indent">
+        <span class="label">Knowledge-leak guard</span>
+        <Segmented
+          value={cfg.leakGuard}
+          small
+          options={[
+            { value: "auto", label: "In Narrator chats" },
+            { value: "on", label: "Always" },
+            { value: "off", label: "Off" },
+          ]}
+          onchange={(v) => set({ leakGuard: v })}
+        />
+        <span class="hint">Flags a character mentioning a secret they don't know.</span>
+      </div>
     </section>
 
     <section class="panel stack">
@@ -202,6 +284,29 @@
 {/if}
 
 <style>
+  .profiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.5rem;
+  }
+  .prof {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    display: grid;
+    gap: 0.25rem;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  .prof.on {
+    border-color: var(--accent);
+    box-shadow: var(--focus);
+  }
+  .grid2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.7rem;
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));

@@ -1,9 +1,11 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
-  import { del, download, get, patch, post } from "../../lib/api";
+  import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
-  import { Archive, BookOpen, Download, Pencil, Plus, ScrollText, Trash, Unlink } from "../../lib/icons";
+  import { Archive, BookOpen, Download, ImageIcon, Library, Pencil, Plus, ScrollText, Sparkles, Trash, Unlink, X } from "../../lib/icons";
+  import { uploadImage } from "../../lib/images";
+  import type { Collection, StoryStats } from "../../lib/types";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { ChatDetail, ChatMode, LorebookSummary, Persona, Profile } from "../../lib/types";
@@ -75,6 +77,66 @@
     newOoc = "";
   }
 
+  // LIB-04…07: title, cover, collections, stats.
+  let collections = $state<Collection[]>([]);
+  let mine = $state<string[]>([]);
+  let extras = $state<{ titleLocked: boolean; coverImageId: string | null } | null>(null);
+  let stats = $state<StoryStats | null>(null);
+  let coverInput = $state<HTMLInputElement | null>(null);
+  async function loadLibrary() {
+    try {
+      const [c, x, st] = await Promise.all([
+        get<{ collections: Collection[] }>("/api/collections"),
+        get<{ titleLocked: boolean; coverImageId: string | null; collections: string[] }>(`/api/chats/${detail.chat.id}/extras`),
+        get<StoryStats>(`/api/chats/${detail.chat.id}/stats`),
+      ]);
+      collections = c.collections;
+      mine = x.collections;
+      extras = x;
+      stats = st;
+    } catch {
+      // the library is optional here
+    }
+  }
+  $effect(() => {
+    void detail.chat.id;
+    void loadLibrary();
+  });
+  async function toggleCollection(cid: string) {
+    try {
+      mine = (await put<{ collections: string[] }>(`/api/chats/${detail.chat.id}/collections/${cid}`, { member: !mine.includes(cid) })).collections;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function autoTitle() {
+    try {
+      await post(`/api/chats/${detail.chat.id}/title/auto`);
+      onchange();
+      await loadLibrary();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function setCover(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    try {
+      const imageId = await uploadImage(f);
+      extras = await put(`/api/chats/${detail.chat.id}/cover`, { imageId });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function clearCover() {
+    try {
+      extras = await put(`/api/chats/${detail.chat.id}/cover`, { imageId: null });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  const hours = (m: number) => (m >= 90 ? `${Math.round(m / 60)} h` : `${m} min`);
+
   async function rename() {
     const title = await promptText({ title: "Rename chat", value: detail.chat.title, confirmLabel: "Rename" });
     if (title?.trim()) await update({ title: title.trim() });
@@ -121,6 +183,27 @@
       <button class="btn ghost icon small" onclick={rename} aria-label="Rename chat"><Pencil size={15} /></button>
     </div>
     <span class="tiny muted">{detail.chat.messageCount} messages</span>
+  </section>
+
+  <section class="field">
+    <span class="label">This story</span>
+    {#if extras?.coverImageId}
+      <div class="cover"><img src={imageUrl(extras.coverImageId, true)} alt="Cover" /><button class="btn ghost icon small" onclick={clearCover} aria-label="Remove cover"><X size={14} /></button></div>
+    {/if}
+    <div class="row wrap">
+      <button class="btn small" onclick={() => coverInput?.click()}><ImageIcon size={14} /> {extras?.coverImageId ? "Change cover" : "Cover image"}</button>
+      {#if extras?.titleLocked}<button class="btn small" onclick={autoTitle} title="Let the Story So Far name this chat"><Sparkles size={14} /> Name it from the story</button>{/if}
+      <a class="btn small" href="/chat/{detail.chat.id}/codex"><Library size={14} /> Codex</a>
+    </div>
+    <input type="file" accept="image/*" hidden bind:this={coverInput} onchange={(e) => setCover(e.currentTarget.files)} />
+    {#if collections.length}
+      <div class="row wrap cols">
+        {#each collections as c (c.id)}<button class="chip tiny col" class:on={mine.includes(c.id)} onclick={() => toggleCollection(c.id)} aria-pressed={mine.includes(c.id)}>{c.name}</button>{/each}
+      </div>
+    {/if}
+    {#if stats && stats.messages}
+      <span class="hint">{stats.messages} messages · {stats.words.toLocaleString()} words ({stats.yourWords.toLocaleString()} yours) · {hours(stats.minutesSpent)} over {stats.daysActive} day{stats.daysActive === 1 ? "" : "s"}{stats.cost ? ` · $${stats.cost.toFixed(2)}` : ""}{stats.memories ? ` · ${stats.memories} memories` : ""}</span>
+    {/if}
   </section>
 
   <label class="field">
@@ -264,6 +347,34 @@
     color: var(--text);
     gap: 0.4rem;
     font-size: var(--fs-sm);
+  }
+  .cover {
+    position: relative;
+    border-radius: var(--r-md, 10px);
+    overflow: hidden;
+  }
+  .cover img {
+    width: 100%;
+    max-height: 9rem;
+    object-fit: cover;
+    display: block;
+  }
+  .cover button {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    background: var(--surface);
+  }
+  .cols {
+    gap: 0.3rem;
+  }
+  .col {
+    cursor: pointer;
+    border: 1px solid var(--border);
+  }
+  .col.on {
+    border-color: var(--accent);
+    color: var(--accent);
   }
   .story-set summary {
     cursor: pointer;

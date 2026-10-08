@@ -3,7 +3,7 @@
   import { get, post } from "../../lib/api";
   import { onEvent } from "../../lib/events";
   import { compact, debounce } from "../../lib/format";
-  import { Brain, RefreshCw } from "../../lib/icons";
+  import { Brain, Library, RefreshCw, ShieldAlert } from "../../lib/icons";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { MemoryOverview, Summary } from "../../lib/types";
@@ -27,6 +27,23 @@
     void load();
   });
   $effect(() => onEvent((e) => (e.type === "memory.changed" && e.chatId === chatId) || e.type === "reconnected" ? soon() : undefined));
+
+  // Phase 3: open continuity notes and Chronicle proposals waiting for you.
+  let openNotes = $state(0);
+  let proposals = $state(0);
+  async function loadPhase3() {
+    try {
+      const [f, c] = await Promise.all([get<{ flags: { open: number }[] }>(`/api/chats/${chatId}/continuity?open=1`), get<{ proposals: unknown[] }>(`/api/chats/${chatId}/chronicle`)]);
+      openNotes = f.flags.reduce((n, x) => n + x.open, 0);
+      proposals = c.proposals.length;
+    } catch {
+      // optional
+    }
+  }
+  $effect(() => {
+    void loadPhase3();
+  });
+  $effect(() => onEvent((e) => ((e.type === "continuity.changed" || e.type === "memory.changed") && e.chatId === chatId ? void loadPhase3() : undefined)));
 
   async function run() {
     await post(`/api/chats/${chatId}/memory/run`).catch(errorToast);
@@ -81,8 +98,12 @@
       </details>
     {/if}
 
+    {#if openNotes}<div class="notice warn tiny row"><ShieldAlert size={14} /> {openNotes} continuity note{openNotes > 1 ? "s" : ""} on recent replies (see under the messages).</div>{/if}
+    {#if proposals}<a class="notice tiny" href="/chat/{chatId}/codex?tab=chronicle">{proposals} lore entr{proposals > 1 ? "ies" : "y"} proposed for this story's Chronicle →</a>{/if}
+
     <div class="row wrap">
       <a class="btn small primary" href="/chat/{chatId}/memory"><Brain size={14} /> Open memory</a>
+      <a class="btn small" href="/chat/{chatId}/codex"><Library size={14} /> Codex</a>
       <button class="btn small" onclick={run}><RefreshCw size={14} /> Catch up</button>
     </div>
   {/if}

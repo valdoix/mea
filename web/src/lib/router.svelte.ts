@@ -6,6 +6,7 @@ export type RouteName =
   | "memory"
   | "story"
   | "world"
+  | "codex"
   | "search"
   | "character"
   | "personas"
@@ -25,6 +26,7 @@ const table: [RegExp, RouteName, string[]][] = [
   [/^\/chat\/([^/]+)\/memory$/, "memory", ["id"]],
   [/^\/chat\/([^/]+)\/story$/, "story", ["id"]],
   [/^\/chat\/([^/]+)\/world$/, "world", ["id"]],
+  [/^\/chat\/([^/]+)\/codex$/, "codex", ["id"]],
   [/^\/search$/, "search", []],
   [/^\/character\/([^/]+)$/, "character", ["id"]],
   [/^\/personas(?:\/([^/]+))?$/, "personas", ["id"]],

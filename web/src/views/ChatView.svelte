@@ -9,6 +9,8 @@
   import WorldPanel from "../components/world/WorldPanel.svelte";
   import ModelSwitcher from "../components/chat/ModelSwitcher.svelte";
   import ChatSearch from "../components/chat/ChatSearch.svelte";
+  import ArchivistPanel from "../components/chat/ArchivistPanel.svelte";
+  import SelectionMenu from "../components/chat/SelectionMenu.svelte";
   import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
   import Segmented from "../components/Segmented.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
@@ -19,11 +21,11 @@
   import { promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { compact } from "../lib/format";
-  import { ArrowDown, ArrowLeft, PanelRight, Search } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, Library, PanelRight, Search } from "../lib/icons";
   import { renderMessage } from "../lib/render";
   import { back, navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
-  import type { Atom, Boundary, ChatDetail, Message, Profile, Summary } from "../lib/types";
+  import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -44,14 +46,19 @@
   let stick = $state(true);
   let editSignals = $state<Record<string, number>>({});
   let error = $state("");
-  type DockTab = "chat" | "memory" | "story" | "world";
-  let dockTab = $state<DockTab>((["chat", "memory", "story", "world"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
+  type DockTab = "chat" | "memory" | "story" | "world" | "ask";
+  let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "ask"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
   const dockOptions = [
     { value: "chat" as const, label: "Chat" },
     { value: "memory" as const, label: "Memory" },
     { value: "story" as const, label: "Story" },
     { value: "world" as const, label: "World" },
+    { value: "ask" as const, label: "Ask" },
   ];
+  // Phase 3: continuity notes per message (CON-02), glossary terms (LORE-15).
+  let flags = $state<Record<string, ContinuityFlag>>({});
+  let terms = $state<GlossaryTerm[]>([]);
+  let glossPick = $state<{ t: GlossaryTerm; x: number; y: number } | null>(null);
   let searchOpen = $state(false);
   let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
@@ -71,6 +78,9 @@
     app.currentChatId = id;
     openTrackers(id);
     reportPresence();
+    // MEM-21: recall is warmed as the chat opens, so the first reply doesn't wait.
+    void post(`/api/chats/${id}/warm`).catch(() => {});
+    void loadTerms();
     return () => {
       app.currentChatId = null;
       reportPresence();
@@ -100,6 +110,7 @@
       }
       gens = g;
       void loadBoundaries();
+      void loadFlags();
       await tick();
       const at = Number(route.query.at);
       if (route.query.q) {
@@ -107,6 +118,7 @@
         searchOpen = true;
       }
       if (at) void jumpTo(at);
+      else if (route.query.m) void openCitation({ messageId: route.query.m, seq: null } as Citation);
       else scrollToBottom(false);
       refreshPreview();
     } catch (e) {
@@ -116,6 +128,61 @@
   $effect(() => {
     void load();
   });
+
+  // A link to another message of this chat (?at= or ?m=) jumps there without reloading.
+  let lastJump = `${route.query.at ?? ""}|${route.query.m ?? ""}`;
+  $effect(() => {
+    const key = `${route.query.at ?? ""}|${route.query.m ?? ""}`;
+    if (!detail || key === lastJump || route.name !== "chat") return;
+    lastJump = key;
+    if (route.query.at) void jumpTo(Number(route.query.at));
+    else if (route.query.m) void openCitation({ messageId: route.query.m, seq: null } as Citation);
+  });
+
+  async function loadFlags() {
+    try {
+      const r = await get<{ flags: ContinuityFlag[] }>(`/api/chats/${id}/continuity`);
+      const next: Record<string, ContinuityFlag> = {};
+      // Only the active swipe's notes matter.
+      for (const f of r.flags) {
+        const m = messages.find((x) => x.id === f.messageId);
+        if (m && m.activeSwipe === f.swipeIdx && f.open > 0) next[f.messageId] = f;
+      }
+      flags = next;
+    } catch {
+      // notes are optional
+    }
+  }
+  async function loadTerms() {
+    try {
+      terms = (await get<{ terms: GlossaryTerm[] }>(`/api/chats/${id}/glossary`)).terms;
+    } catch {
+      terms = [];
+    }
+  }
+  /** Opens what a citation points at: a message, a memory, or a lore entry. */
+  async function openCitation(c: Citation | ArchiveCitation) {
+    const seq = c.seq ?? null;
+    const messageId = c.messageId ?? null;
+    if (messageId) {
+      try {
+        const r = await get<{ seq: number }>(`/api/messages/${messageId}/locate`);
+        return void jumpTo(r.seq);
+      } catch {
+        // fall through to seq
+      }
+    }
+    if (seq != null) return void jumpTo(seq);
+    if (c.type === "lore" && "id" in c && c.id) {
+      try {
+        const r = await get<{ bookId: string }>(`/api/lore/entries/${c.id}/locate`);
+        return navigate(`/lorebooks/${r.bookId}?entry=${c.id}`);
+      } catch {
+        return navigate("/lorebooks");
+      }
+    }
+    navigate(`/chat/${id}/memory`);
+  }
 
   async function loadBoundaries() {
     try {
@@ -299,6 +366,9 @@
           break;
         case "memory.changed":
           void loadBoundaries();
+          break;
+        case "continuity.changed":
+          void loadFlags();
           break;
         case "trackers.changed":
           if (e.running) trk.running = true;
@@ -556,6 +626,7 @@
           {/if}
           <ModelSwitcher {detail} onchange={() => load()} />
           <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" class:on={searchOpen}><Search size={18} /></button>
+          <a class="btn ghost icon hide-sm" href="/chat/{id}/codex" aria-label="Codex: people, places, timeline" title="Codex"><Library size={18} /></a>
           <QuotaRing size={22} />
           <button class="btn ghost icon" onclick={togglePanel} aria-label="Chat settings" class:on={panelOpen && !app.isMobile}><PanelRight size={19} /></button>
         </div>
@@ -609,6 +680,14 @@
               chips={trk.chips[m.id] ?? []}
               storyTime={trk.times[m.id] ?? null}
               onrewind={() => rewind(m)}
+              flag={flags[m.id] ?? null}
+              onflagchange={(f) => {
+                if (f && f.open > 0) flags[m.id] = f;
+                else delete flags[m.id];
+              }}
+              oncite={openCitation}
+              glossary={terms}
+              onglossary={(t, at) => (glossPick = { t, x: Math.min(window.innerWidth - 300, Math.max(8, at.left)), y: at.bottom + 6 })}
               oncompare={async () => {
                 compare = await get<Message>(`/api/messages/${m.id}`);
                 compareOpen = true;
@@ -639,7 +718,7 @@
         <div class="dock-tabs">
           <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
         </div>
-        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
       </aside>
     {/if}
   </div>
@@ -649,11 +728,22 @@
       <div class="dock-tabs">
         <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
       </div>
-      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
+      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
     </Modal>
   {/if}
 
   <Inspector bind:open={inspectorOpen} chatId={id} generationId={inspectGen} />
+
+  <SelectionMenu chatId={id} root={scroller} idForSeq={(seq) => messages.find((x) => x.seq === seq)?.id ?? null} />
+
+  {#if glossPick}
+    <button class="gloss-scrim" onclick={() => (glossPick = null)} aria-label="Close"></button>
+    <div class="gloss-pop card" style:left="{glossPick.x}px" style:top="{glossPick.y}px" role="dialog" aria-label={glossPick.t.title}>
+      <div class="row"><b class="grow">{glossPick.t.title}</b>{#if glossPick.t.type}<span class="chip tiny">{glossPick.t.type}</span>{/if}</div>
+      <p class="small">{glossPick.t.snippet}</p>
+      <a class="tiny" href="/lorebooks/{glossPick.t.bookId}?entry={glossPick.t.entryId}">Open the entry</a>
+    </div>
+  {/if}
 
   <Modal bind:open={quotaOpen} title="Quota used up" size="sm">
     {#if quotaChoice}
@@ -715,6 +805,30 @@
 {/if}
 
 <style>
+  .gloss-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: transparent;
+    border: 0;
+  }
+  .gloss-pop {
+    position: fixed;
+    z-index: 56;
+    width: min(290px, calc(100vw - 16px));
+    padding: 0.6rem 0.7rem;
+    display: grid;
+    gap: 0.3rem;
+    box-shadow: var(--shadow-2, 0 4px 18px rgb(0 0 0 / 0.15));
+  }
+  .gloss-pop p {
+    margin: 0;
+  }
+  .column :global(.gloss) {
+    text-decoration: underline dotted color-mix(in srgb, var(--accent) 60%, transparent);
+    text-underline-offset: 3px;
+    cursor: help;
+  }
   .center {
     height: 100%;
     display: grid;

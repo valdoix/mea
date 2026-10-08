@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ContinuityNote from "./ContinuityNote.svelte";
+  import { gloss } from "../../lib/glossary";
   import Avatar from "../Avatar.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
   import { autosize, longpress, swipe } from "../../lib/gestures";
@@ -25,7 +27,7 @@
   } from "../../lib/icons";
   import { renderMessage, renderStreaming } from "../../lib/render";
   import ChangeChips from "../trackers/ChangeChips.svelte";
-  import type { TrackerChange } from "../../lib/types";
+  import type { Citation, ContinuityFlag, GlossaryTerm, TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
   import { clock } from "../../lib/format";
   import type { Message } from "../../lib/types";
@@ -54,8 +56,20 @@
     storyTime = null,
     onrewind,
     mark = "",
+    flag = null,
+    onflagchange,
+    oncite,
+    glossary = [],
+    onglossary,
   }: {
     mark?: string;
+    /** CON-02: this reply's continuity notes. */
+    flag?: ContinuityFlag | null;
+    onflagchange?: (f: ContinuityFlag | null) => void;
+    oncite?: (c: Citation) => void;
+    /** LORE-15: lore terms to underline, and what tapping one does. */
+    glossary?: GlossaryTerm[];
+    onglossary?: (t: GlossaryTerm, at: DOMRect) => void;
     chips?: TrackerChange[];
     storyTime?: string | null;
     onrewind?: () => void;
@@ -207,7 +221,7 @@
           <div class="notice error row"><CircleAlert size={16} /><span class="grow">{message.error ?? "Something went wrong."}</span></div>
           {#if isLast}<button class="btn small" style="margin-top:.5rem" onclick={() => onregen()} disabled={!canGenerate}><RotateCcw size={14} /> Try again</button>{/if}
         {:else}
-          <div class="prose {scope}">{@html html}</div>
+          <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }}>{@html html}</div>
           {#if banned.length}<div class="tiny banned" title="Phrases from your banned list (Settings → Writing)">Banned phrases: {banned.join(", ")}</div>{/if}
           {#if message.status === "stopped"}<div class="tiny faint" style="margin-top:.3rem">Stopped{message.error ? ` · ${message.error}` : ""}</div>{/if}
         {/if}
@@ -215,6 +229,7 @@
     {/if}
 
     {#if chips.length && !editing && !streaming}<ChangeChips changes={chips} />{/if}
+    {#if flag && !editing && !streaming && onflagchange && oncite}<ContinuityNote {flag} canRegenerate={isLast && canGenerate} onchange={onflagchange} {oncite} />{/if}
 
     {#if message.role === "assistant" && (message.swipeCount > 1 || isLast) && !editing}
       <footer class="swipes">

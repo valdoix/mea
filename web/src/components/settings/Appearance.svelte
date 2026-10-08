@@ -61,6 +61,14 @@
     </section>
 
     <section class="panel stack">
+      <h2>Lore in messages</h2>
+      <label class="switch">
+        <input type="checkbox" checked={s["appearance.glossary"] !== false} onchange={(e) => saveSetting("appearance.glossary", e.currentTarget.checked)} />
+        Underline lorebook terms in messages; tap one to read its entry
+      </label>
+    </section>
+
+    <section class="panel stack">
       <h2>Typing</h2>
       <label class="switch">
         <input type="checkbox" checked={s["chat.enterToSend"]} onchange={(e) => saveSetting("chat.enterToSend", e.currentTarget.checked)} />

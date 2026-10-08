@@ -6,7 +6,7 @@
   import { autosize } from "../../lib/gestures";
   import { ArrowUp, Square, Sparkles, UserPen, WandSparkles, Send, Clapperboard, SlidersHorizontal, X } from "../../lib/icons";
   import { app, errorToast, toast } from "../../lib/state.svelte";
-  import type { ChatDetail, ChatSettings } from "../../lib/types";
+  import type { ChatDetail, ChatSettings, LorePreview } from "../../lib/types";
 
   let {
     chatId,
@@ -31,7 +31,7 @@
   const settings = $derived(detail.chat.settings as ChatSettings);
   const director = $derived(Boolean(settings.director));
   let steerOpen = $state(false);
-  let answer = $state<{ title: string; text: string } | null>(null);
+  let answer = $state<{ title: string; text: string; citations?: { n: number; type: string; excerpt: string; seq: number | null }[] } | null>(null);
   let answerOpen = $state(false);
   let paletteAt = $state(0);
 
@@ -113,8 +113,8 @@
         case "ask": {
           if (!arg) return (errorToast("Write your question after /ask"), true);
           toast("Asking…");
-          const r = await post<{ answer: string }>(`/api/chats/${chatId}/ask`, { question: arg });
-          answer = { title: arg, text: r.answer };
+          const r = await post<{ answer: string; citations?: { n: number; type: string; excerpt: string; seq: number | null }[] }>(`/api/chats/${chatId}/ask`, { question: arg });
+          answer = { title: arg, text: r.answer, citations: r.citations };
           answerOpen = true;
           return true;
         }
@@ -226,7 +226,7 @@
     }
   });
 
-  // Warm recall for what's being typed so sending is faster (CTX-10). Errors don't matter here.
+  // Warm recall for what's being typed so sending is faster (CTX-10, MEM-20). Errors don't matter here.
   let lastPrefetch = "";
   $effect(() => {
     const draft = text.trim();
@@ -236,6 +236,26 @@
       lastPrefetch = draft;
       post(`/api/chats/${id}/prefetch`, { draft }).catch(() => {});
     }, 900);
+    return () => clearTimeout(t);
+  });
+
+  // LORE-08: which lore entries your draft would bring in, shown as you type.
+  let lorePreview = $state<LorePreview[]>([]);
+  let lastLore = "";
+  $effect(() => {
+    const draft = text.trim();
+    const id = chatId;
+    if (draft.startsWith("/") || draft.length < 4) {
+      lorePreview = [];
+      return;
+    }
+    if (draft === lastLore) return;
+    const t = setTimeout(() => {
+      lastLore = draft;
+      post<{ entries: LorePreview[] }>(`/api/chats/${id}/lore/preview`, { draft })
+        .then((r) => (lorePreview = r.entries.slice(0, 5)))
+        .catch(() => (lorePreview = []));
+    }, 600);
     return () => clearTimeout(t);
   });
 
@@ -396,6 +416,11 @@
       {/if}
     </div>
   {/if}
+  {#if lorePreview.length && !generating}
+    <div class="lore-preview" aria-label="Lore your message brings in">
+      {#each lorePreview as l (l.id)}<span class="chip tiny" title="{l.bookName} · {l.reason} · {l.tokens} tokens">📖 {l.title}</span>{/each}
+    </div>
+  {/if}
   <div class="composer card" class:busy={drafting} class:director>
     <button class="btn ghost icon tool" bind:this={toolsBtn} onclick={() => (toolsOpen = true)} disabled={generating || Boolean(drafting)} aria-label="Writing tools">
       <Sparkles size={19} />
@@ -431,7 +456,15 @@
 <Menu bind:open={toolsOpen} items={tools} anchor={toolsBtn} title="Writing tools" />
 
 <Modal bind:open={answerOpen} title={answer?.title ?? ""} size="md">
-  {#if answer}<p class="answer">{answer.text}</p>{/if}
+  {#if answer}
+    <p class="answer">{answer.text}</p>
+    {#if answer.citations?.length}
+      <div class="cites">
+        {#each answer.citations as c (c.n)}<div class="tiny"><span class="faint">[{c.n}] {c.type}{c.seq != null ? ` · #${c.seq}` : ""}</span> {c.excerpt.slice(0, 200)}</div>{/each}
+      </div>
+      <p class="tiny muted">More in the Ask tab of the chat panel, with links to each source.</p>
+    {/if}
+  {/if}
   {#snippet footer()}<button class="btn primary small" onclick={() => (answerOpen = false)}>Close</button>{/snippet}
 </Modal>
 
@@ -528,6 +561,18 @@
     cursor: pointer;
     color: inherit;
     display: inline-flex;
+  }
+  .lore-preview {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    padding: 0 0.3rem;
+    opacity: 0.85;
+  }
+  .cites {
+    display: grid;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
   }
   .answer {
     white-space: pre-wrap;

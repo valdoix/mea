@@ -45,7 +45,8 @@
   const mem = $derived(data?.trace?.memory);
   const windowNote = { kept: "window unchanged", advanced: "older messages moved into memory", restored: "window widened again" } as const;
   const levelChip: Record<string, string> = { scene: "", chapter: "lavender", arc: "peach", story: "butter" };
-  const slotChip: Record<string, string> = { pinned: "butter", recent: "mint", relevant: "lavender", serendipity: "sky" };
+  const slotChip: Record<string, string> = { pinned: "butter", recent: "mint", relevant: "lavender", serendipity: "sky", entity: "mint", deep: "butter" };
+  const slotName: Record<string, string> = { pinned: "pinned", recent: "recent", relevant: "relevant", serendipity: "callback", entity: "in play", deep: "quoted" };
   const lore = $derived((data?.trace?.lore ?? []).filter((l) => showLore === "all" || l.status === "active"));
 
   function copyJson() {
@@ -143,13 +144,24 @@
                 {/if}
 
                 <h4>Recalled <span class="tiny muted">{compact(mem.recallTokens)} / {compact(mem.recallBudget)} tokens{mem.vector ? " · keywords + meaning" : " · keywords only"}</span></h4>
+                {#if mem.queries?.length}
+                  <div class="tiny muted how">
+                    Searched with {mem.queries.map((q) => `${q.label}${q.vector ? "" : " (keywords)"}`).join(" · ")}.
+                    {#if mem.pov}Remembered as {mem.pov}{#if mem.stats?.filteredPov} ({mem.stats.filteredPov} memories they couldn't know were left out){/if}.{:else}Narrator's view: everything.{/if}
+                    {#if mem.stats?.librarian === "used"}The librarian picked from the candidates.{/if}
+                    {#if mem.stats?.deep}{mem.stats.deep} quote{mem.stats.deep === 1 ? "" : "s"} found by deep search.{/if}
+                    {#if mem.index && mem.index.coverage < 0.95}Meaning search index {Math.round(mem.index.coverage * 100)}% ready.{/if}
+                    {#if mem.journalTokens}The character's journal rode along ({compact(mem.journalTokens)} tokens).{/if}
+                    Written as “{mem.format ?? "prose"}”.
+                  </div>
+                {/if}
                 {#if mem.recall.length}
                   <table>
                     <tbody>
                       {#each mem.recall as r (r.ownerType + r.id)}
                         <tr>
-                          <td><span class="chip {slotChip[r.slot]}">{r.slot}</span></td>
-                          <td>{r.content}<div class="tiny muted">{r.type}{r.seq != null ? ` · #${r.seq}` : ""}{r.reasons.length ? ` · ${r.reasons.join(", ")}` : ""}</div></td>
+                          <td><span class="chip {slotChip[r.slot]}">{slotName[r.slot] ?? r.slot}</span></td>
+                          <td>{r.content}<div class="tiny muted">{r.type}{r.seq != null ? ` · #${r.seq}` : ""}{r.when ? ` · ${r.when}` : ""}{r.where ? `, at ${r.where}` : ""}{r.confirmed ? " · confirmed by you" : ""}{r.disputed ? " · disputed" : ""}{r.reasons.length ? ` · ${r.reasons.join(", ")}` : ""}</div></td>
                           <td class="num">{r.tokens}</td>
                         </tr>
                       {/each}
@@ -225,6 +237,10 @@
   .seg.mem,
   .dot.mem {
     background: var(--butter);
+  }
+  .how {
+    margin: 0.2rem 0 0.4rem;
+    line-height: 1.5;
   }
   .seg.recall,
   .dot.recall {
