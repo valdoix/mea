@@ -1,6 +1,6 @@
 <script lang="ts">
   import Menu, { type MenuItem } from "../Menu.svelte";
-  import { postStream } from "../../lib/api";
+  import { post, postStream } from "../../lib/api";
   import { autosize } from "../../lib/gestures";
   import { ArrowUp, Square, Sparkles, UserPen, WandSparkles, Send } from "../../lib/icons";
   import { app, errorToast } from "../../lib/state.svelte";
@@ -45,6 +45,19 @@
     } catch {
       // storage unavailable
     }
+  });
+
+  // Warm recall for what's being typed so sending is faster (CTX-10). Errors don't matter here.
+  let lastPrefetch = "";
+  $effect(() => {
+    const draft = text.trim();
+    const id = chatId;
+    if (draft.length < 12 || draft === lastPrefetch || generating) return;
+    const t = setTimeout(() => {
+      lastPrefetch = draft;
+      post(`/api/chats/${id}/prefetch`, { draft }).catch(() => {});
+    }, 900);
+    return () => clearTimeout(t);
   });
 
   function refit() {

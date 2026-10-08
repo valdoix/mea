@@ -1,0 +1,246 @@
+<script lang="ts">
+  import Segmented from "../Segmented.svelte";
+  import { get } from "../../lib/api";
+  import { compact } from "../../lib/format";
+  import { app, errorToast, saveSetting } from "../../lib/state.svelte";
+  import type { MemoryConfig, Planner } from "../../lib/types";
+
+  const cfg = $derived(app.settings?.["memory.config"]);
+  let planner = $state<Planner | null>(null);
+
+  async function loadPlanner() {
+    try {
+      planner = await get<Planner>("/api/quota/planner");
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  $effect(() => {
+    void loadPlanner();
+  });
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  function set(patch: Partial<MemoryConfig>) {
+    if (!cfg) return;
+    const next = { ...$state.snapshot(cfg), ...patch } as MemoryConfig;
+    if (app.settings) app.settings["memory.config"] = next;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      try {
+        await saveSetting("memory.config", next);
+        void loadPlanner();
+      } catch (e) {
+        errorToast(e);
+      }
+    }, 400);
+  }
+  const num = (v: string, min: number, max: number) => Math.max(min, Math.min(max, Number(v) || min));
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+  /** Recall slots must add up to 1; moving one rebalances the other two proportionally. */
+  function setSlot(k: keyof MemoryConfig["slots"], v: number) {
+    if (!cfg) return;
+    const others = (["recent", "relevant", "serendipity"] as const).filter((x) => x !== k);
+    const rest = others.reduce((n, x) => n + cfg.slots[x], 0) || 1;
+    const left = Math.max(0, 1 - v);
+    const slots = { ...cfg.slots, [k]: v };
+    for (const x of others) slots[x] = Math.round((cfg.slots[x] / rest) * left * 100) / 100;
+    set({ slots });
+  }
+
+  const degradeAt = $derived(app.settings?.["quota.degradeAt"] ?? 0.9);
+  const shedLabel: Record<string, string> = { advisor: "advisor", librarian: "librarian", gates: "scene-break checks", drift: "drift checks", continuity: "continuity checks", verification: "summary verification" };
+</script>
+
+{#if cfg}
+  <div class="stack">
+    <section class="panel stack">
+      <div class="row between wrap">
+        <h2>Long-term memory</h2>
+        <label class="switch"><input type="checkbox" checked={cfg.enabled} onchange={(e) => set({ enabled: e.currentTarget.checked })} /> On</label>
+      </div>
+      <p class="tiny muted">
+        As a story grows past what fits in the prompt, Mea records each scene, rolls scenes up into chapters and arcs, and keeps a Story So Far. It also pulls back details (facts, promises,
+        secrets) when they matter again. You can read and edit all of it in each chat's Memory tab.
+      </p>
+      <div class="field">
+        <span class="label">When you edit or delete old messages</span>
+        <Segmented
+          value={cfg.onEdit}
+          options={[
+            { value: "auto", label: "Update memory automatically" },
+            { value: "ask", label: "Let me review changes" },
+          ]}
+          onchange={(v) => set({ onEdit: v })}
+          small
+        />
+        <span class="hint">Summaries you edited yourself are always sent for review, never overwritten.</span>
+      </div>
+      <label class="switch"><input type="checkbox" checked={cfg.verify} onchange={(e) => set({ verify: e.currentTarget.checked })} /> Double-check each scene summary against the messages</label>
+      <label class="switch indent"><input type="checkbox" checked={cfg.autoRepair} disabled={!cfg.verify} onchange={(e) => set({ autoRepair: e.currentTarget.checked })} /> Fix it automatically once when the check finds a real problem</label>
+      <label class="switch"><input type="checkbox" checked={cfg.boundaryCheck} onchange={(e) => set({ boundaryCheck: e.currentTarget.checked })} /> Ask the helper model to confirm unclear scene breaks</label>
+    </section>
+
+    <section class="panel stack">
+      <h2>Scenes & chapters</h2>
+      <div class="grid">
+        <label class="field">
+          <span class="label">Scene size limit</span>
+          <input class="input" type="number" min="1000" max="40000" step="500" value={cfg.sceneTokenCap} onchange={(e) => set({ sceneTokenCap: num(e.currentTarget.value, 1000, 40000) })} />
+          <span class="hint">tokens; a scene closes here even without a break</span>
+        </label>
+        <label class="field">
+          <span class="label">Pause that starts a new scene</span>
+          <input class="input" type="number" min="0.5" max="168" step="0.5" value={cfg.pauseHours} onchange={(e) => set({ pauseHours: num(e.currentTarget.value, 0.5, 168) })} />
+          <span class="hint">hours between messages</span>
+        </label>
+        <label class="field">
+          <span class="label">Scenes per chapter</span>
+          <input class="input" type="number" min="2" max="30" value={cfg.scenesPerChapter} onchange={(e) => set({ scenesPerChapter: Math.round(num(e.currentTarget.value, 2, 30)) })} />
+        </label>
+        <label class="field">
+          <span class="label">Chapters per arc</span>
+          <input class="input" type="number" min="2" max="20" value={cfg.chaptersPerArc} onchange={(e) => set({ chaptersPerArc: Math.round(num(e.currentTarget.value, 2, 20)) })} />
+        </label>
+        <label class="field">
+          <span class="label">Settle delay</span>
+          <input class="input" type="number" min="0" max="20" value={cfg.lag} onchange={(e) => set({ lag: Math.round(num(e.currentTarget.value, 0, 20)) })} />
+          <span class="hint">newest messages left alone, since you may still swipe or edit them</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel stack">
+      <h2>Prompt budget</h2>
+      <p class="tiny muted">Shares of each profile's prompt size target. What memory doesn't use goes to recent messages.</p>
+      <label class="field">
+        <span class="label">Story So Far <span class="faint">{pct(cfg.budget.summaries)}</span></span>
+        <input type="range" min="0" max="0.4" step="0.01" value={cfg.budget.summaries} oninput={(e) => set({ budget: { ...cfg.budget, summaries: Number(e.currentTarget.value) } })} />
+      </label>
+      <label class="field">
+        <span class="label">Recalled memories <span class="faint">{pct(cfg.budget.recall)}</span></span>
+        <input type="range" min="0" max="0.25" step="0.01" value={cfg.budget.recall} oninput={(e) => set({ budget: { ...cfg.budget, recall: Number(e.currentTarget.value) } })} />
+      </label>
+      <div class="field">
+        <span class="label">Recall mix</span>
+        <div class="mix" aria-hidden="true">
+          <span style:flex={cfg.slots.recent} class="recent"></span><span style:flex={cfg.slots.relevant} class="relevant"></span><span style:flex={cfg.slots.serendipity} class="seren"></span>
+        </div>
+        <div class="grid">
+          <label class="field"><span class="label tiny">Recent <span class="faint">{pct(cfg.slots.recent)}</span></span><input type="range" min="0" max="1" step="0.05" value={cfg.slots.recent} oninput={(e) => setSlot("recent", Number(e.currentTarget.value))} /></label>
+          <label class="field"><span class="label tiny">Relevant <span class="faint">{pct(cfg.slots.relevant)}</span></span><input type="range" min="0" max="1" step="0.05" value={cfg.slots.relevant} oninput={(e) => setSlot("relevant", Number(e.currentTarget.value))} /></label>
+          <label class="field"><span class="label tiny">Serendipity <span class="faint">{pct(cfg.slots.serendipity)}</span></span><input type="range" min="0" max="1" step="0.05" value={cfg.slots.serendipity} oninput={(e) => setSlot("serendipity", Number(e.currentTarget.value))} /></label>
+        </div>
+        <span class="hint">Recent: things from the last scenes. Relevant: matches what's happening now. Serendipity: an older detail now and then, so the story remembers its past.</span>
+      </div>
+      <div class="grid">
+        <label class="field">
+          <span class="label">Trim history down to</span>
+          <input class="input" type="number" min="40" max="95" step="5" value={Math.round(cfg.lowWater * 100)} onchange={(e) => set({ lowWater: num(e.currentTarget.value, 40, 95) / 100 })} />
+          <span class="hint">% of its budget when it overflows; trimming in chunks keeps the prompt cache warm</span>
+        </label>
+        <label class="field">
+          <span class="label">Clean up older messages after</span>
+          <input class="input" type="number" min="0" max="100" value={cfg.filterDepth} onchange={(e) => set({ filterDepth: Math.round(num(e.currentTarget.value, 0, 100)) })} />
+          <span class="hint">messages; strips reasoning and markup from older ones</span>
+        </label>
+        <label class="field">
+          <span class="label">Claude cache lifetime</span>
+          <select class="select" value={cfg.cacheTtl} onchange={(e) => set({ cacheTtl: e.currentTarget.value as MemoryConfig["cacheTtl"] })}>
+            <option value="5m">5 minutes</option>
+            <option value="1h">1 hour (costs more to write)</option>
+          </select>
+          <span class="hint">pay-as-you-go Claude only</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel stack">
+      <h2>Quota planner</h2>
+      {#if planner}
+        {#if planner.turnsPerDay != null}
+          <div class="row wrap big">
+            <div><b>≈ {planner.turnsPerDay}</b><span class="tiny muted"> replies/day</span></div>
+            {#if planner.turnsLeftToday != null}<div><b>{planner.turnsLeftToday}</b><span class="tiny muted"> left today</span></div>{/if}
+            {#if planner.turnsLeftThisWeek != null}<div><b>{planner.turnsLeftThisWeek}</b><span class="tiny muted"> left this week</span></div>{/if}
+          </div>
+        {:else}
+          <p class="tiny muted">Add a NanoGPT subscription key to see how many replies your quota allows.</p>
+        {/if}
+        <p class="tiny muted">
+          {planner.measured ? `Measured from your last ${planner.turns} replies` : "Estimated (not enough replies yet to measure)"} · ≈ {compact(planner.perTurn)} quota tokens per reply including helpers{planner.swipeRatio
+            ? ` · ${Math.round(planner.swipeRatio * 100)}% swipes`
+            : ""}
+        </p>
+        {#if planner.features.length}
+          <table>
+            <tbody>
+              <tr><td>Story reply</td><td class="num">{compact(planner.avgStoryPrompt)}</td></tr>
+              {#each planner.features as f (f.task + f.kind)}<tr><td>{f.kind}</td><td class="num">{compact(f.perTurn)}</td></tr>{/each}
+            </tbody>
+          </table>
+        {/if}
+        {#if planner.scenarios[0]?.turnsPerDay != null}
+          <p class="tiny muted">At other prompt sizes: {planner.scenarios.map((s) => `${compact(s.target)} → ≈ ${s.turnsPerDay}/day`).join(" · ")}</p>
+        {/if}
+        {#if planner.pacing}
+          <div class="notice {planner.pacing.ahead ? 'warn' : 'ok'} tiny">
+            {Math.round(planner.pacing.usedShare * 100)}% of the quota used with {Math.round(planner.pacing.elapsedShare * 100)}% of the week gone{planner.pacing.ahead ? ": you're ahead of pace" : ": on pace"}.
+          </div>
+        {/if}
+        {#if planner.calibration.cachedWeight != null}<p class="tiny faint">Cached tokens count as {Math.round(planner.calibration.cachedWeight * 100)}% toward the quota (measured from {planner.calibration.samples} samples).</p>{/if}
+      {:else}
+        <p class="tiny muted">Loading…</p>
+      {/if}
+      <label class="field">
+        <span class="label">Save quota from {pct(degradeAt)} used <span class="faint">turns off optional helpers one by one</span></span>
+        <input type="range" min="0.5" max="1" step="0.05" value={degradeAt} onchange={(e) => saveSetting("quota.degradeAt", Number(e.currentTarget.value)).then(loadPlanner, errorToast)} />
+      </label>
+      {#if planner?.state.shed.length}<div class="notice warn tiny">Paused to save quota: {planner.state.shed.map((s) => shedLabel[s] ?? s).join(", ")}.</div>{/if}
+    </section>
+  </div>
+{/if}
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+    gap: 0.8rem;
+  }
+  .indent {
+    margin-left: 1.6rem;
+  }
+  .mix {
+    display: flex;
+    height: 0.6rem;
+    border-radius: var(--r-pill);
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .mix .recent {
+    background: var(--mint);
+  }
+  .mix .relevant {
+    background: var(--lavender);
+  }
+  .mix .seren {
+    background: var(--sky);
+  }
+  .big {
+    gap: 1.4rem;
+    font-size: var(--fs-lg);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+  }
+  td {
+    padding: 0.25rem 0.3rem;
+    border-top: 1px solid var(--border);
+  }
+  td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
