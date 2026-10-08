@@ -80,6 +80,15 @@
       <label class="field"><span class="label">Cooldown <span class="faint">messages</span></span><input class="input" type="number" min="0" bind:value={entry.cooldown} /></label>
       <label class="field"><span class="label">Delay <span class="faint">until message #</span></span><input class="input" type="number" min="0" bind:value={entry.delay} /></label>
     </div>
+    <label class="field">
+      <span class="label">Only when the story state matches <span class="faint">optional tracker condition</span></span>
+      <input
+        class="input mono"
+        value={(entry.extra?.trackerWhen as string | undefined) ?? ""}
+        oninput={(e) => (entry.extra = { ...(entry.extra ?? {}), trackerWhen: e.currentTarget.value || undefined })}
+        placeholder="location contains harbor · time_of_day = night"
+      />
+    </label>
     <div class="row wrap toggles">
       <label class="switch"><input type="checkbox" bind:checked={entry.groupOverride} /> Prioritize in group</label>
       <label class="switch"><input type="checkbox" checked={Boolean(entry.useGroupScoring)} onchange={(e) => (entry.useGroupScoring = e.currentTarget.checked || null)} /> Group scoring</label>
