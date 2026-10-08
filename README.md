@@ -2,7 +2,7 @@
 
 A personal AI roleplay frontend for Windows and Android, served from an always-on host and powered by NanoGPT. Its focus is memory, continuity, and a cozy reading experience.
 
-**Status:** Phases 0–3 are built: foundations, memory core, trackers and the world off the page, and retrieval, facts and accuracy. See [docs/07-phase3-status.md](docs/07-phase3-status.md).
+**Status:** Phases 0–4 are built: foundations, memory core, trackers and the world off the page, retrieval, facts and accuracy, and the creator studio. Phase 4 brought lorebooks, characters and personas built from your ideas and linked to each other, card tools in the editors (field AI actions, voice lab, test bench, variants), and prompt layers, preset controls, regex scripts and editable helper prompts. See [docs/08-phase4-status.md](docs/08-phase4-status.md).
 
 ## Planning docs
 
@@ -15,6 +15,7 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/05-phase1-status.md](docs/05-phase1-status.md) | What Phase 1 delivered, where to find it, and what still needs a real-world check |
 | [docs/06-phase2-status.md](docs/06-phase2-status.md) | What Phase 2 delivered (trackers, world simulation, chat tools), build notes, and what still needs a real-world check |
 | [docs/07-phase3-status.md](docs/07-phase3-status.md) | What Phase 3 delivered (retrieval, entities, accuracy guards, lore, library), fixes, and what still needs a real-world check |
+| [docs/08-phase4-status.md](docs/08-phase4-status.md) | What Phase 4 delivered (the studios, card tools, variants, prompt layers, controls, regex, helper prompts), fixes, and what still needs a real-world check |
 
 ## Running Mea
 
@@ -58,7 +59,7 @@ To remove it: `scripts\uninstall-service.ps1` (your data stays).
 bun run dev
 ```
 
-This starts the API (with the mock provider enabled) on :7766 and Vite on http://localhost:5173. Dev data goes to `./data-dev`, so your real stories are never touched.
+This starts the API (with the mock provider enabled) on :7766 and Vite on http://localhost:5173. Dev data goes to `./data-dev`, so your real stories are never touched. If the Mea service is already running on :7766, set `MEA_PORT` (for example `7767`) for the dev run; both the API and Vite's proxy follow it.
 
 | Command | What it does |
 |---|---|
@@ -73,7 +74,8 @@ This starts the API (with the mock provider enabled) on :7766 and Vite on http:/
 ```
 server/src
   cards/      character card PNG/JSON/CHARX parsing and writing
-  lore/       lorebook model, SillyTavern conversion, activation engine
+  lore/       lorebook model, SillyTavern conversion, activation engine, the Lore Studio
+  creator/    expand my idea, the character and persona creator, card checks, world context
   memory/     scenes, summaries, memories, recall, entities, journals, ledgers, telescoping budget
   accuracy/   continuity checker and leak guard, Archivist, Codex, memory quiz
   prompt/     macros, presets, prompt assembly

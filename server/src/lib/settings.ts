@@ -1,4 +1,6 @@
 import { now, one, parseJson, run } from "../db/db";
+import type { PromptSet } from "./prompts";
+import type { RegexScript } from "./regex";
 
 /** Typed app settings with defaults. Stored as JSON per key. */
 export interface Settings {
@@ -45,6 +47,11 @@ export interface Settings {
   "chat.cutoff": "continue" | "trim" | "off";
   /** CONN-09: retry empty replies, refusals and server errors. */
   "chat.retry": { empty: boolean; refusal: boolean; serverErrors: boolean };
+  /** PROMPT-08: regex scripts for display, the prompt, or the stored text. */
+  "regex.scripts": RegexScript[];
+  /** PROMPT-09: helper prompt sets, and the one in use (null: Mea's defaults). */
+  "prompts.sets": PromptSet[];
+  "prompts.active": string | null;
 }
 
 export interface TrackerDefaults {
@@ -227,10 +234,16 @@ export const defaults: Settings = {
   },
   "chat.cutoff": "continue",
   "chat.retry": { empty: true, refusal: true, serverErrors: true },
+  "regex.scripts": [],
+  "prompts.sets": [],
+  "prompts.active": null,
 };
 
 /** Keys the web client may read and write directly. */
 export const clientKeys: (keyof Settings)[] = [
+  "regex.scripts",
+  "prompts.sets",
+  "prompts.active",
   "routing.story",
   "appearance.theme",
   "appearance.chatStyle",

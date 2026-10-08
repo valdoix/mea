@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { applyCardVariant, getVariant } from "./variants";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -70,6 +71,11 @@ export const chatSettingsSchema = z.object({
   modelOverride: z.object({ connectionId: z.string(), modelId: z.string() }).nullable().optional(),
   /** Story truths: your rules for this story, sent every turn. */
   truths: z.array(short(300)).max(30).optional(),
+  /** PROMPT-07: this chat's preset control values (over the character's and the preset's). */
+  controls: z.record(z.string(), z.union([z.boolean(), z.string()])).optional(),
+  /** CHAR-06 / PER-05: the character variant and persona variant this chat plays. */
+  variantId: z.string().nullable().optional(),
+  personaVariantId: z.string().nullable().optional(),
 });
 export type ChatSettings = z.infer<typeof chatSettingsSchema>;
 
@@ -209,9 +215,12 @@ export function listChats(opts: { characterId?: string; archived?: boolean; dele
 }
 
 /** Creates a chat and its greeting: first_mes plus alternate greetings as swipes. */
-export function createChat(input: { characterId: string; personaId?: string | null; mode?: ChatMode; title?: string }) {
+export function createChat(input: { characterId: string; personaId?: string | null; mode?: ChatMode; title?: string; variantId?: string | null }) {
   const row = getCharacterRow(input.characterId);
-  const card = getCard(input.characterId);
+  // A variant with its own greetings opens the chat with them (CHAR-06).
+  const variant = getVariant(input.variantId);
+  const base = getCard(input.characterId);
+  const card = base && applyCardVariant(base, variant, input.characterId);
   if (!row || !card || row.deleted_at) throw notFound("Character not found");
   const persona = getPersona(input.personaId) ?? getPersona(row.default_persona_id) ?? getDefaultPersona();
   const mode = input.mode ?? row.mode ?? detectMode(card).mode;
@@ -223,12 +232,13 @@ export function createChat(input: { characterId: string; personaId?: string | nu
   tx(() => {
     run(
       `INSERT INTO chats (id, character_id, persona_id, title, mode, settings, vars, message_count, created_at, updated_at, last_message_at)
-       VALUES (?, ?, ?, ?, ?, '{}', '{}', 0, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, '{}', 0, ?, ?, ?)`,
       id,
       input.characterId,
       persona?.id ?? null,
-      input.title ?? `${card.name} · ${new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      input.title ?? `${card.name}${variant && variant.ownerId === input.characterId ? ` (${variant.name})` : ""} · ${new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
       mode,
+      JSON.stringify(variant && variant.ownerId === input.characterId ? { variantId: variant.id } : {}),
       t,
       t,
       t,

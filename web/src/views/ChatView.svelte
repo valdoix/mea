@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { regexScope } from "../lib/regex.svelte";
   import Avatar from "../components/Avatar.svelte";
   import ChatPanel from "../components/chat/ChatPanel.svelte";
   import Composer from "../components/chat/Composer.svelte";
@@ -95,6 +96,7 @@
         get<{ profiles: Profile[] }>("/api/profiles"),
       ]);
       detail = d;
+      regexScope.characterId = d.chat.characterId;
       messages = page.messages;
       hasMore = page.hasMore;
       hasModel = profiles.profiles.some((p) => p.connectionId && p.modelId);

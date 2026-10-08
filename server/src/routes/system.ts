@@ -1,11 +1,13 @@
 import { statfsSync, statSync } from "node:fs";
+import { GLOBAL_ID, promptSetSchema, SERVICE_PROMPTS, servicePromptFor } from "../lib/prompts";
+import { regexScriptSchema } from "../lib/regex";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import QRCode from "qrcode";
 import { z } from "zod";
 import { config, paths } from "../config";
-import { one } from "../db/db";
+import { all, one, parseJson } from "../db/db";
 import { type MeaEvent, subscribe } from "../lib/events";
 import { badRequest, body, must } from "../lib/http";
 import { clientKeys, getClientSettings, type MemoryConfig, type Settings, setSetting } from "../lib/settings";
@@ -29,17 +31,42 @@ const startedAt = Date.now();
 
 // ---------- Settings ----------
 
+/** Settings with structure that's checked before it's stored. */
+const SETTING_SCHEMAS: Record<string, z.ZodType> = {
+  "regex.scripts": z.array(regexScriptSchema).max(200),
+  "prompts.sets": z.array(promptSetSchema).max(20),
+  "prompts.active": z.string().nullable(),
+};
+
 system.get("/settings", (c) => c.json(getClientSettings()));
 
 system.put("/settings", async (c) => {
   const input = await body(c, z.record(z.string(), z.unknown()));
   for (const [k, v] of Object.entries(input)) {
     if (!clientKeys.includes(k as keyof Settings)) throw badRequest(`Unknown setting "${k}"`);
+    const schema = SETTING_SCHEMAS[k];
+    if (schema && !schema.safeParse(v).success) throw badRequest(`Invalid value for "${k}"`, z.treeifyError(schema.safeParse(v).error!));
     // MEM-44: saving memory settings by hand keeps the profile label honest ("custom" when changed).
     const value = k === "memory.config" && v && typeof v === "object" ? normalizeMemoryConfig(v as MemoryConfig) : v;
     setSetting(k as keyof Settings, value as never);
   }
   return c.json(getClientSettings());
+});
+
+/**
+ * PROMPT-09: the helper prompts you can add to or replace, each with the last system prompt Mea
+ * actually sent for it (so you can see what you're changing).
+ */
+system.get("/prompts/service", (c) => {
+  const samples = new Map<string, { text: string; at: number }>();
+  for (const r of all<{ kind: string; request: string; started_at: number }>("SELECT kind, request, started_at FROM generations WHERE task != 'story' ORDER BY started_at DESC LIMIT 800")) {
+    const id = servicePromptFor(r.kind)?.id;
+    if (!id || samples.has(id)) continue;
+    const req = parseJson<{ messages?: { role: string; content: string }[] }>(r.request, {});
+    const text = req.messages?.find((m) => m.role === "system")?.content;
+    if (text) samples.set(id, { text, at: r.started_at });
+  }
+  return c.json({ globalId: GLOBAL_ID, prompts: SERVICE_PROMPTS.map(({ match: _m, ...p }) => ({ ...p, sample: samples.get(p.id) ?? null })) });
 });
 
 // ---------- Presets (PROMPT-01..05) ----------

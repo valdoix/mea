@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import { fade, fly } from "svelte/transition";
   import { X } from "../lib/icons";
+  import { portal } from "../lib/gestures";
   import { app } from "../lib/state.svelte";
 
   let {
@@ -76,6 +77,7 @@
 </script>
 
 {#if open}
+  <div class="portal" use:portal>
   <div class="scrim" transition:fade={{ duration: 180 }} onclick={close} role="presentation"></div>
   <div
     bind:this={panel}
@@ -106,6 +108,7 @@
     {#if footer}
       <footer>{@render footer()}</footer>
     {/if}
+  </div>
   </div>
 {/if}
 

@@ -5,11 +5,20 @@
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
   import TagInput from "../components/TagInput.svelte";
+  import CardCheck from "../components/cardtools/CardCheck.svelte";
+  import CharacterDefaults from "../components/cardtools/CharacterDefaults.svelte";
+  import DiffModal from "../components/cardtools/DiffModal.svelte";
+  import FieldTools from "../components/cardtools/FieldTools.svelte";
+  import GreetingWorkshop from "../components/cardtools/GreetingWorkshop.svelte";
+  import NotesSorter from "../components/cardtools/NotesSorter.svelte";
+  import TestBench from "../components/cardtools/TestBench.svelte";
+  import VariantsPanel from "../components/cardtools/VariantsPanel.svelte";
+  import VoiceLab from "../components/cardtools/VoiceLab.svelte";
   import { download, get, post, put, del } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { clock, timeAgo } from "../lib/format";
   import { autosize } from "../lib/gestures";
-  import { ArrowLeft, BookOpen, Download, Ellipsis, History, ImageIcon, Link, MessageHeart, Plus, Trash, Unlink } from "../lib/icons";
+  import { ArrowLeft, BookOpen, Download, Ellipsis, History, ImageIcon, Link, MessageHeart, Plus, Trash, Unlink, WandSparkles } from "../lib/icons";
   import { uploadImage } from "../lib/images";
   import { navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
@@ -17,7 +26,7 @@
 
   let { id }: { id: string } = $props();
 
-  type Tab = "chats" | "card" | "greetings" | "advanced" | "images" | "lore" | "history";
+  type Tab = "chats" | "card" | "greetings" | "voice" | "test" | "variants" | "advanced" | "images" | "lore" | "history";
   let tab = $state<Tab>((route.query.tab as Tab) || "chats");
   let character = $state<Character | null>(null);
   let draft = $state<CardData | null>(null);
@@ -42,6 +51,37 @@
   let exportOpen = $state(false);
   let exportBtn = $state<HTMLButtonElement | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
+
+  // Card tools (CHAR-11…17) read the card as it is on screen, saved or not.
+  const cardNow = () => $state.snapshot(draft) as unknown as Record<string, unknown>;
+  let pov = $state<"first" | "second" | "third">("third");
+  let tense = $state<"present" | "past">("present");
+  let notesOpen = $state(false);
+  let rules = $state<{ before: string; after: string } | null>(null);
+  let rulesOpen = $state(false);
+  let drafting = $state(false);
+  const LABELS: Record<string, string> = { name: "Name", description: "Description", personality: "Personality", scenario: "Scenario", first_mes: "First message", mes_example: "Example dialogue", creator_notes: "Creator notes" };
+
+  function setField(field: string, text: string) {
+    if (!draft) return;
+    const alt = field.match(/^alt_(\d+)$/);
+    if (alt) draft.alternate_greetings[Number(alt[1]) - 1] = text;
+    else (draft as unknown as Record<string, unknown>)[field] = text;
+  }
+
+  async function draftRules() {
+    if (!draft) return;
+    drafting = true;
+    try {
+      const r = await post<{ text: string }>("/api/card-tools/rules", { card: cardNow() });
+      rules = { before: draft.post_history_instructions, after: r.text };
+      rulesOpen = true;
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      drafting = false;
+    }
+  }
 
   const snapshot = () => JSON.stringify({ draft, tags, folder, mode, defaultPersonaId });
   const dirty = $derived(Boolean(draft) && snapshot() !== saved);
@@ -168,6 +208,23 @@
     }
   }
 
+  /** CHAR-18: the studio reads the saved card, so unsaved edits go first. */
+  async function buildLore() {
+    if (dirty) await save();
+    navigate(`/lore-studio?character=${id}`);
+  }
+
+  /** Rework the card in the Creator Studio: its text is the starting idea, saving updates it. */
+  async function rework() {
+    try {
+      if (dirty) await save();
+      const r = await post<{ draft: { id: string } }>("/api/creator", { kind: "character", baseId: id });
+      navigate(`/creator/${r.draft.id}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   async function newChat() {
     if (dirty) await save();
     try {
@@ -246,6 +303,9 @@
     { id: "chats", label: "Chats" },
     { id: "card", label: "Card" },
     { id: "greetings", label: "Greetings" },
+    { id: "voice", label: "Voice" },
+    { id: "test", label: "Test" },
+    { id: "variants", label: "Variants" },
     { id: "advanced", label: "Advanced" },
     { id: "images", label: "Images" },
     { id: "lore", label: "Lore" },
@@ -287,6 +347,7 @@
       </div>
       <div class="actions row wrap">
         <button class="btn primary" onclick={newChat}><MessageHeart size={16} /> New chat</button>
+        <button class="btn" onclick={rework} title="Expand, deepen and rewrite this card with the Creator Studio"><WandSparkles size={16} /> Rework</button>
         <button class="btn icon" bind:this={exportBtn} onclick={() => (exportOpen = true)} aria-label="Export"><Download size={18} /></button>
         <button class="btn icon" onclick={deleteCharacter} aria-label="Move to trash"><Trash size={18} /></button>
       </div>
@@ -329,14 +390,17 @@
               onchange={(v) => switchEditor(v)}
               small
             />
-            <span class="tiny muted">Ctrl+S saves</span>
+            <div class="row">
+              <button class="btn small" onclick={() => (notesOpen = true)} title="Paste messy notes; Mea sorts them into the fields">Sort my notes</button>
+              <span class="tiny muted hide-sm">Ctrl+S saves</span>
+            </div>
           </div>
           <label class="field"><span class="label">Name</span><input class="input" bind:value={draft.name} /></label>
           {#if editorMode === "form"}
-            <label class="field"><span class="label">Description <span class="faint">{tk("description")}</span></span><textarea class="textarea story" use:autosize={600} bind:value={draft.description} placeholder="Who they are: appearance, history, how they speak…"></textarea></label>
-            <label class="field"><span class="label">Personality <span class="faint">{tk("personality")}</span></span><textarea class="textarea story" use:autosize={400} bind:value={draft.personality} placeholder="A short summary of their personality"></textarea></label>
-            <label class="field"><span class="label">Scenario <span class="faint">{tk("scenario")}</span></span><textarea class="textarea story" use:autosize={400} bind:value={draft.scenario} placeholder="Where and how the story begins"></textarea></label>
-            <label class="field"><span class="label">Example dialogue <span class="faint">{tk("mes_example")}</span></span><textarea class="textarea story" use:autosize={500} bind:value={draft.mes_example} placeholder={"<START>\n{{user}}: …\n{{char}}: …"}></textarea><span class="hint">Separate examples with &lt;START&gt;. They teach the voice; they aren't treated as events.</span></label>
+            <label class="field"><span class="label">Description <span class="faint">{tk("description")}</span> <FieldTools kind="character" field="description" label="Description" text={draft.description} card={cardNow} {pov} {tense} onapply={(t) => setField("description", t)} /></span><textarea class="textarea story" use:autosize={600} bind:value={draft.description} placeholder="Who they are: appearance, history, how they speak…"></textarea></label>
+            <label class="field"><span class="label">Personality <span class="faint">{tk("personality")}</span> <FieldTools kind="character" field="personality" label="Personality" text={draft.personality} card={cardNow} {pov} {tense} onapply={(t) => setField("personality", t)} /></span><textarea class="textarea story" use:autosize={400} bind:value={draft.personality} placeholder="A short summary of their personality"></textarea></label>
+            <label class="field"><span class="label">Scenario <span class="faint">{tk("scenario")}</span> <FieldTools kind="character" field="scenario" label="Scenario" text={draft.scenario} card={cardNow} {pov} {tense} onapply={(t) => setField("scenario", t)} /></span><textarea class="textarea story" use:autosize={400} bind:value={draft.scenario} placeholder="Where and how the story begins"></textarea></label>
+            <label class="field"><span class="label">Example dialogue <span class="faint">{tk("mes_example")}</span> <FieldTools kind="character" field="mes_example" label="Example dialogue" text={draft.mes_example} card={cardNow} {pov} {tense} onapply={(t) => setField("mes_example", t)} /></span><textarea class="textarea story" use:autosize={500} bind:value={draft.mes_example} placeholder={"<START>\n{{user}}: …\n{{char}}: …"}></textarea><span class="hint">Separate examples with &lt;START&gt;. They teach the voice; they aren't treated as events.</span></label>
           {:else}
             <label class="field">
               <span class="label">Card document <span class="faint">Keep the five headings</span></span>
@@ -365,13 +429,15 @@
               </select>
             </label>
           </div>
+          <CardCheck kind="character" card={cardNow} labels={LABELS} {pov} onapply={setField} />
         </div>
       {:else if tab === "greetings"}
         <div class="stack">
-          <label class="field"><span class="label">First message <span class="faint">{tk("first_mes")}</span></span><textarea class="textarea story" use:autosize={600} bind:value={draft.first_mes} placeholder="How the story opens"></textarea></label>
+          <GreetingWorkshop card={cardNow} bind:pov bind:tense onadd={(t) => draft?.alternate_greetings.push(t)} />
+          <label class="field"><span class="label">First message <span class="faint">{tk("first_mes")}</span> <FieldTools kind="character" field="first_mes" label="First message" text={draft.first_mes} card={cardNow} {pov} {tense} onapply={(t) => setField("first_mes", t)} /></span><textarea class="textarea story" use:autosize={600} bind:value={draft.first_mes} placeholder="How the story opens"></textarea></label>
           {#each draft.alternate_greetings as _g, i (i)}
             <label class="field">
-              <span class="label">Alternate greeting {i + 1} <button class="btn ghost small danger" onclick={() => draft?.alternate_greetings.splice(i, 1)}>Remove</button></span>
+              <span class="label">Alternate greeting {i + 1} <FieldTools kind="character" field="alternate_greetings" label="Alternate greeting {i + 1}" text={draft.alternate_greetings[i] ?? ""} card={cardNow} {pov} {tense} onapply={(t) => setField(`alt_${i + 1}`, t)} /> <button class="btn ghost small danger" onclick={() => draft?.alternate_greetings.splice(i, 1)}>Remove</button></span>
               <textarea class="textarea story" use:autosize={600} bind:value={draft.alternate_greetings[i]}></textarea>
             </label>
           {/each}
@@ -381,13 +447,23 @@
       {:else if tab === "advanced"}
         <div class="stack">
           <label class="field"><span class="label">System prompt <span class="faint">{tk("system_prompt")}</span></span><textarea class="textarea" use:autosize={400} bind:value={draft.system_prompt} placeholder="Replaces the preset's main prompt. Use {'{{original}}'} to include it."></textarea></label>
-          <label class="field"><span class="label">Post-history instructions <span class="faint">{tk("post_history_instructions")}</span></span><textarea class="textarea" use:autosize={400} bind:value={draft.post_history_instructions} placeholder="Placed after the chat history"></textarea></label>
+          <label class="field">
+            <span class="label">Rules (post-history instructions) <span class="faint">{tk("post_history_instructions")}</span> <button class="btn ghost small" onclick={(e) => (e.preventDefault(), draftRules())} disabled={drafting} title="A short re-anchor block this card carries, so it plays well with any preset">{drafting ? "Drafting…" : "Draft rules"}</button></span>
+            <textarea class="textarea" use:autosize={{ max: 400, value: draft.post_history_instructions }} bind:value={draft.post_history_instructions} placeholder="Read after the chat history every turn. Start with {'{{original}}'} to keep the preset's own instructions."></textarea>
+          </label>
           <label class="field"><span class="label">Creator notes</span><textarea class="textarea" use:autosize={400} bind:value={draft.creator_notes} placeholder="Not sent to the model"></textarea></label>
           <div class="row wrap">
             <label class="field grow"><span class="label">Creator</span><input class="input" bind:value={draft.creator} /></label>
             <label class="field grow"><span class="label">Version</span><input class="input" bind:value={draft.character_version} /></label>
           </div>
+          <CharacterDefaults characterId={id} settings={character.settings} />
         </div>
+      {:else if tab === "voice"}
+        <VoiceLab characterId={id} card={cardNow} kept={character.settings?.voice?.kept ?? []} onexamples={(t) => draft && (draft.mes_example = [draft.mes_example.trim(), t].filter(Boolean).join("\n"))} />
+      {:else if tab === "test"}
+        <TestBench characterId={id} card={cardNow} mode={mode === "auto" ? undefined : mode} />
+      {:else if tab === "variants"}
+        <VariantsPanel ownerType="character" ownerId={id} base={() => character?.card as unknown as Record<string, unknown>} gallery={character.gallery} />
       {:else if tab === "images"}
         <div class="stack">
           <div class="row wrap">
@@ -433,7 +509,8 @@
             <p class="muted small">No lorebooks are linked to {draft.name}. Linked books are active in all of their chats.</p>
           {/each}
           <div class="row wrap">
-            <button class="btn primary" onclick={createLorebook}><Plus size={16} /> New lorebook for {draft.name}</button>
+            <button class="btn primary" onclick={buildLore} title="Plan and draft their backstory, people and places with the Lore Studio"><WandSparkles size={16} /> Build a companion lorebook</button>
+            <button class="btn" onclick={createLorebook}><Plus size={16} /> Empty lorebook</button>
             {#if books.filter((b) => !character?.lorebooks.some((l) => l.id === b.id)).length}
               <select class="select" style="width:auto" onchange={(e) => e.currentTarget.value && link(e.currentTarget.value)}>
                 <option value="">Link an existing lorebook…</option>
@@ -469,6 +546,8 @@
   <div class="page"><p class="muted" style="padding:3rem">Loading…</p></div>
 {/if}
 
+<NotesSorter bind:open={notesOpen} kind="character" card={cardNow} labels={LABELS} onapply={(f) => Object.entries(f).forEach(([k, v]) => setField(k, v))} />
+{#if rules}<DiffModal bind:open={rulesOpen} title="Rules for this card" note="Read after the chat history every turn. {'{{original}}'} keeps the preset's own instructions first." before={rules.before} after={rules.after} onaccept={(t) => draft && (draft.post_history_instructions = t)} />{/if}
 <Menu bind:open={exportOpen} items={exportItems} anchor={exportBtn} title="Export" />
 
 <Modal bind:open={cropOpen} title="Crop portrait" size="md">

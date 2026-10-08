@@ -9,7 +9,9 @@
   import Notifications from "../components/settings/Notifications.svelte";
   import Status from "../components/settings/Status.svelte";
   import Usage from "../components/settings/Usage.svelte";
-  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, ListChecks, Palette, Smartphone } from "../lib/icons";
+  import Prompts from "../components/settings/Prompts.svelte";
+  import Regex from "../components/settings/Regex.svelte";
+  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, ListChecks, Palette, ScrollText, Slash, Smartphone } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
 
   let { tab = "models" }: { tab?: string } = $props();
@@ -19,6 +21,8 @@
     { id: "memory", label: "Memory", icon: Brain },
     { id: "trackers", label: "Trackers", icon: ListChecks },
     { id: "writing", label: "Writing", icon: Feather },
+    { id: "prompts", label: "Helper prompts", icon: ScrollText },
+    { id: "regex", label: "Regex", icon: Slash },
     { id: "appearance", label: "Appearance", icon: Palette },
     { id: "devices", label: "Devices", icon: Smartphone },
     { id: "notifications", label: "Notifications", icon: Bell },
@@ -39,6 +43,8 @@
     {#if tab === "memory"}<Memory />
     {:else if tab === "trackers"}<Trackers />
     {:else if tab === "writing"}<Writing />
+    {:else if tab === "prompts"}<Prompts />
+    {:else if tab === "regex"}<Regex />
     {:else if tab === "appearance"}<Appearance />
     {:else if tab === "devices"}<Devices />
     {:else if tab === "notifications"}<Notifications />

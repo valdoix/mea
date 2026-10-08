@@ -15,6 +15,7 @@ export const blockKinds = [
   "post_history",
   "memory_story",
   "memory_recall",
+  "controls",
 ] as const;
 
 export const roleSchema = z.enum(["system", "user", "assistant"]);
@@ -43,6 +44,24 @@ export const samplersSchema = z.object({
   stop: z.array(z.string()).optional(),
 });
 
+/**
+ * Preset controls (PROMPT-07): friendly switches a preset exposes ("More dialogue", "Slow burn")
+ * so a chat can change its feel without opening the builder. Active ones fill the Controls block.
+ */
+export const controlSchema = z.object({
+  id: z.string().min(1).max(40),
+  label: z.string().min(1).max(60),
+  help: z.string().max(300).default(""),
+  type: z.enum(["toggle", "choice"]),
+  default: z.union([z.boolean(), z.string()]),
+  /** Toggle: the instruction while it's on. */
+  text: z.string().max(2000).default(""),
+  /** Choice: one instruction per option (empty = nothing added). */
+  options: z.array(z.object({ value: z.string().min(1).max(40), label: z.string().max(60), text: z.string().max(2000) })).max(8).default([]),
+});
+export type PresetControl = z.infer<typeof controlSchema>;
+export type ControlValues = Record<string, boolean | string>;
+
 export const presetSchema = z.object({
   name: z.string().min(1),
   mode: z.enum(["simple", "advanced"]),
@@ -55,6 +74,7 @@ export const presetSchema = z.object({
   /** Simple-mode knobs (PROMPT-02). */
   simple: z.object({ length: z.enum(["short", "normal", "long"]), style: z.string() }),
   importNotes: z.array(z.string()).optional(),
+  controls: z.array(controlSchema).max(20).default([]),
 });
 
 export type PromptBlock = z.infer<typeof blockSchema>;
@@ -81,6 +101,7 @@ export function defaultPreset(): Preset {
     mode: "simple",
     blocks: [
       b("main", "Main prompt", "text", { content: DEFAULT_MAIN_PROMPT }),
+      b("controls", "Preset controls", "controls"),
       b("character", "Character", "character"),
       b("lore_before", "Lore (before)", "lore_before"),
       b("persona", "Persona", "persona"),
@@ -100,7 +121,66 @@ export function defaultPreset(): Preset {
     continuePrompt: "[Continue your last reply exactly where it stopped. Don't repeat anything already written; pick up mid-sentence if needed.]",
     prefill: "",
     simple: { length: "normal", style: "" },
+    controls: DEFAULT_CONTROLS,
   };
+}
+
+export const DEFAULT_CONTROLS: PresetControl[] = [
+  {
+    id: "dialogue",
+    label: "More dialogue",
+    help: "Characters talk more; narration stays brief.",
+    type: "toggle",
+    default: false,
+    text: "Favour dialogue over narration: let characters talk, interrupt, banter and argue; keep description brief and purposeful.",
+    options: [],
+  },
+  {
+    id: "slowburn",
+    label: "Slow burn",
+    help: "Trust and attraction build gradually.",
+    type: "toggle",
+    default: false,
+    text: "Slow burn: let trust and attraction build gradually through small moments and setbacks. No sudden declarations or leaps in intimacy; every step is earned.",
+    options: [],
+  },
+  {
+    id: "mature",
+    label: "Mature content",
+    help: "Dark themes, violence and explicit romance are allowed when the story calls for them.",
+    type: "toggle",
+    default: false,
+    text: "Mature content is allowed when the story calls for it: violence, dark themes and explicit romance can be written plainly, without fading to black or moralising.",
+    options: [],
+  },
+  {
+    id: "focus",
+    label: "Narration focus",
+    help: "What the prose lingers on.",
+    type: "choice",
+    default: "balanced",
+    text: "",
+    options: [
+      { value: "balanced", label: "Balanced", text: "" },
+      { value: "inner", label: "Inner life", text: "Lean into inner life: thoughts, feelings and sensations, shown through the body and small actions." },
+      { value: "action", label: "Action", text: "Keep it moving: favour action, decisions and consequences over reflection." },
+      { value: "atmosphere", label: "Atmosphere", text: "Linger on atmosphere: place, weather, light, sound and texture." },
+    ],
+  },
+];
+
+/** The instructions of the controls that are on, with chat/character values over the preset's defaults. */
+export function controlsText(controls: PresetControl[], values: ControlValues = {}) {
+  const lines: string[] = [];
+  for (const c of controls) {
+    const v = values[c.id] ?? c.default;
+    if (c.type === "toggle" && v === true && c.text.trim()) lines.push(c.text.trim());
+    if (c.type === "choice") {
+      const opt = c.options.find((o) => o.value === v);
+      if (opt?.text.trim()) lines.push(opt.text.trim());
+    }
+  }
+  return lines.length ? `[Story preferences]\n${lines.map((l) => `- ${l}`).join("\n")}` : "";
 }
 
 /**
@@ -108,6 +188,11 @@ export function defaultPreset(): Preset {
  * history (cached prefix) and recalled memories at depth 1 (dynamic block) (CTX-04).
  */
 export function ensureMemoryBlocks(blocks: PromptBlock[]) {
+  // PROMPT-07: presets from before controls gain the block right after the main prompt.
+  if (!blocks.some((x) => x.kind === "controls")) {
+    const at = blocks.findIndex((x) => x.id === "main");
+    blocks.splice(at < 0 ? 0 : at + 1, 0, b("controls", "Preset controls", "controls"));
+  }
   if (!blocks.some((x) => x.kind === "memory_story")) {
     const at = blocks.findIndex((x) => x.kind === "history");
     blocks.splice(at < 0 ? blocks.length : at, 0, b("memory_story", "Story so far (memory)", "memory_story"));

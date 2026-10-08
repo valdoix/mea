@@ -6,6 +6,7 @@ import { badRequest } from "../lib/http";
 import { countTokens } from "../lib/tokens";
 import { fromCardBook, toCardBook } from "../lore/convert";
 import { createLorebook, getLorebook, linkedBooks } from "../lore/service";
+import { type CharacterSettings, characterSettings, patchCharacterSettings } from "./charsettings";
 import { getImage, imagePalette, readImage, saveImage } from "./images";
 
 export type ChatMode = "companion" | "narrator";
@@ -110,6 +111,7 @@ export function getCharacter(id: string) {
     mode: row.mode,
     palette: parseJson<string[]>(row.palette, []),
     lorebooks: linkedBooks("character", id),
+    settings: characterSettings(id),
     tokens: tokenCounts(card),
     versionCount: one<{ n: number }>("SELECT COUNT(*) AS n FROM character_versions WHERE character_id = ?", id)?.n ?? 0,
     createdAt: row.created_at,
@@ -164,7 +166,7 @@ export function createCharacter(card: CardData, meta: CharacterMeta = {}): strin
 }
 
 /** Saves a card. The previous card is kept as a version (CHAR-04). */
-export function updateCharacter(id: string, input: { card?: CardData; note?: string } & CharacterMeta) {
+export function updateCharacter(id: string, input: { card?: CardData; note?: string; settings?: Partial<CharacterSettings> } & CharacterMeta) {
   const row = getCharacterRow(id);
   if (!row) return false;
   tx(() => {
@@ -182,6 +184,7 @@ export function updateCharacter(id: string, input: { card?: CardData; note?: str
         run("UPDATE characters SET card = ?, name = ? WHERE id = ?", JSON.stringify(data), data.name, id);
       }
     }
+    if (input.settings) patchCharacterSettings(id, input.settings);
     if (input.tags) run("UPDATE characters SET tags = ? WHERE id = ?", JSON.stringify([...new Set(input.tags.map((t) => t.trim()).filter(Boolean))]), id);
     if (input.folder !== undefined) run("UPDATE characters SET folder = ? WHERE id = ?", input.folder || null, id);
     if (input.favorite !== undefined) run("UPDATE characters SET favorite = ? WHERE id = ?", input.favorite ? 1 : 0, id);

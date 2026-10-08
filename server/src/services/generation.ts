@@ -1,4 +1,5 @@
 import type { CardData } from "../cards/card";
+import { applyRegex } from "../lib/regex";
 import { now, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
 import { HttpError, notFound } from "../lib/http";
@@ -37,7 +38,8 @@ import { learnContextLimit, recordCalibration, type ResolvedProfile, resolveProf
 import { enqueue } from "./jobs";
 import { getDefaultPersona, getPersona, personaPrompt } from "./personas";
 import { isChatWatched } from "./presence";
-import { resolvePreset } from "./presets";
+import { layered, presetForRequest } from "./layers";
+import { applyCardVariant, applyPersonaVariant, getVariant } from "./variants";
 import { sendPush } from "./push";
 import { assertQuota } from "./quota";
 import { applyBanned, chatExtras, consumeOnce, looksLikeRefusal, trimUnfinished } from "./chattools";
@@ -76,6 +78,7 @@ export function stopChatGenerations(chatId: string) {
 }
 
 interface Prepared {
+  characterId: string;
   card: CardData;
   userName: string;
   resolved: ResolvedProfile;
@@ -108,14 +111,23 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const chat = mustChat(chatId);
   if (!chat.character_id) throw new HttpError(400, "This chat has no character");
   const charRow = getCharacterRow(chat.character_id);
-  const card = getCard(chat.character_id);
-  if (!charRow || !card) throw notFound("Character not found");
-  const persona = getPersona(chat.persona_id) ?? getDefaultPersona();
-  const userName = persona?.name ?? "You";
   const settings = parseJson<ChatSettings>(chat.settings, {});
-  const preset = resolvePreset(settings.presetId);
-  const resolved = resolveProfile(opts.profileId ?? settings.profileId, opts.profileId ? null : settings.modelOverride);
-  const history = historyForPrompt(chatId, { excludeMessageId: opts.excludeMessageId });
+  // CHAR-06 / PER-05: the chat's variants overlay the card and the persona.
+  const baseCard = getCard(chat.character_id);
+  const card = baseCard && applyCardVariant(baseCard, getVariant(settings.variantId), chat.character_id);
+  if (!charRow || !card) throw notFound("Character not found");
+  const persona = applyPersonaVariant(getPersona(chat.persona_id) ?? getDefaultPersona(), getVariant(settings.personaVariantId));
+  const userName = persona?.name ?? "You";
+  // PROMPT-06: chat → character → global.
+  const layers = layered(settings, chat.character_id);
+  const resolved = resolveProfile(opts.profileId ?? layers.profileId, opts.profileId ? null : settings.modelOverride);
+  // PROMPT-10 per-model prefill, PROMPT-07 controls.
+  const { preset, controls } = presetForRequest(layers.presetId, resolved.prefill, layers.controls);
+  // PROMPT-08: prompt-only regex scripts change what the model is sent, never what's stored.
+  const scripts = getSetting("regex.scripts");
+  const history = historyForPrompt(chatId, { excludeMessageId: opts.excludeMessageId }).map((m) =>
+    m.role === "system" ? m : { ...m, content: applyRegex(m.content, scripts, { role: m.role === "user" ? "user" : "ai", mode: "prompt", characterId: chat.character_id }) },
+  );
   const cfg = memoryConfig();
 
   const substitute = (s: string) => expandMacros(s, { char: card.name, user: userName, vars: {}, mode: chat.mode });
@@ -166,7 +178,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     personaText: personaPrompt(persona),
     mode: chat.mode,
     history,
-    authorsNote: settings.authorsNote?.content.trim() ? settings.authorsNote : undefined,
+    authorsNote: layers.authorsNote,
+    controls,
     lore,
     contextTarget,
     modelId: resolved.modelId,
@@ -200,7 +213,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -439,6 +452,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   const cutoff = getSetting("chat.cutoff");
   const cutOff = status === "done" && finishReason === "length";
   if (cutOff && cutoff === "trim") text = trimUnfinished(text);
+  // PROMPT-08: persistent regex scripts change the stored reply.
+  if (status !== "error") text = applyRegex(text, getSetting("regex.scripts"), { role: "ai", mode: "persistent", characterId: p.characterId });
   // CHAT-19: banned phrases.
   const banned = status !== "error" ? applyBanned(text) : { text, hits: [], replaced: 0 };
   text = banned.text;

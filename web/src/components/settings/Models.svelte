@@ -288,6 +288,12 @@
           </label>
         </div>
         <label class="switch"><input type="checkbox" checked={Boolean(p.params.hide_reasoning)} onchange={(e) => ((p.params.hide_reasoning = e.currentTarget.checked || undefined), saveProfile(p))} /> Ask the provider not to return reasoning</label>
+        <div class="field">
+          <label class="switch"><input type="checkbox" checked={p.params.prefill !== undefined} onchange={(e) => ((p.params.prefill = e.currentTarget.checked ? "" : undefined), saveProfile(p))} /> Its own prefill <span class="tiny muted">(the start of every reply; replaces the preset's, even when empty)</span></label>
+          {#if p.params.prefill !== undefined}
+            <textarea class="textarea" rows="2" value={p.params.prefill} onchange={(e) => ((p.params.prefill = e.currentTarget.value), saveProfile(p))} placeholder="Leave empty for no prefill with this model (some models refuse prefills)"></textarea>
+          {/if}
+        </div>
         {#if mi?.learnedContext}<span class="tiny muted">Learned limit: this model refused prompts over ≈ {compact(mi.learnedContext)} tokens, so Mea stays under that.</span>{/if}
         {#if conn && conn.billing !== "subscription" && p.modelId}
           <div class="row wrap cache">

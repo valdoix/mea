@@ -55,6 +55,7 @@ export interface Character {
   mode: ChatMode | null;
   palette: string[];
   lorebooks: { id: string; name: string }[];
+  settings: CharacterSettings;
   tokens: TokenCounts;
   versionCount: number;
   createdAt: number;
@@ -94,6 +95,9 @@ export interface ChatSettings {
   director?: boolean;
   modelOverride?: { connectionId: string; modelId: string } | null;
   truths?: string[];
+  controls?: ControlValues;
+  variantId?: string | null;
+  personaVariantId?: string | null;
 }
 
 export interface Chat {
@@ -155,6 +159,11 @@ export interface ChatDetail {
   persona?: { id: string; name: string; avatarId: string | null };
   lorebooks: { id: string; name: string }[];
   active: { generationId: string; chatId: string; messageId: string; swipeIdx: number; text: string; reasoning: string }[];
+  /** CHAR-06 / PER-05 */
+  variants?: { id: string; name: string; note: string }[];
+  personaVariants?: { id: string; name: string; note: string }[];
+  /** PROMPT-06: what applies when the chat leaves a choice empty. */
+  defaults?: { from: { preset: "chat" | "character" | "global"; profile: "chat" | "character" | "global"; authorsNote: "chat" | "character" | null }; presetId: string | null; profileId: string | null; characterControls: ControlValues };
 }
 
 export type LorePosition = "before_char" | "after_char" | "an_top" | "an_bottom" | "depth" | "ex_top" | "ex_bottom";
@@ -253,7 +262,8 @@ export type BlockKind =
   | "authors_note"
   | "post_history"
   | "memory_story"
-  | "memory_recall";
+  | "memory_recall"
+  | "controls";
 
 export interface PromptBlock {
   id: string;
@@ -289,6 +299,51 @@ export interface Preset {
   prefill: string;
   simple: { length: "short" | "normal" | "long"; style: string };
   importNotes?: string[];
+  controls: PresetControl[];
+}
+
+/** PROMPT-07: a friendly switch a preset exposes. */
+export interface PresetControl {
+  id: string;
+  label: string;
+  help: string;
+  type: "toggle" | "choice";
+  default: boolean | string;
+  text: string;
+  options: { value: string; label: string; text: string }[];
+}
+export type ControlValues = Record<string, boolean | string>;
+
+/** PROMPT-06 / CHAR-07 / CHAR-14: per-character settings. */
+export interface CharacterSettings {
+  notes?: string;
+  sourceUrl?: string;
+  presetId?: string | null;
+  profileId?: string | null;
+  authorsNote?: { content: string; depth: number; role: "system" | "user" | "assistant" } | null;
+  story?: Partial<Record<"genre" | "tone" | "pov" | "tense" | "style" | "intensity" | "language", string>>;
+  truths?: string[];
+  controls?: ControlValues;
+  voice?: { kept: { id: string; situation: string; cue: string; line: string }[] };
+}
+
+/** PROMPT-08 */
+export interface RegexScript {
+  id: string;
+  name: string;
+  find: string;
+  replace: string;
+  targets: ("ai" | "user")[];
+  mode: "display" | "prompt" | "persistent";
+  enabled: boolean;
+  characterIds: string[];
+}
+
+/** PROMPT-09 */
+export interface PromptSet {
+  id: string;
+  name: string;
+  overrides: Record<string, { mode: "append" | "replace"; text: string }>;
 }
 
 export interface Connection {
@@ -333,6 +388,7 @@ export interface ProfileParams {
   hide_reasoning?: boolean;
   context_target?: number;
   cache?: "auto" | "off";
+  prefill?: string;
 }
 
 export interface Profile {
@@ -385,6 +441,9 @@ export interface Settings {
   "chat.banned": { list: { phrase: string; replace?: string }[]; action: "flag" | "regenerate" | "replace"; remind: boolean };
   "chat.cutoff": "continue" | "trim" | "off";
   "chat.retry": { empty: boolean; refusal: boolean; serverErrors: boolean };
+  "regex.scripts": RegexScript[];
+  "prompts.sets": PromptSet[];
+  "prompts.active": string | null;
 }
 
 export interface BlockTrace {
@@ -419,6 +478,8 @@ export type MeaEvent =
   | { type: "trackers.changed"; chatId: string; running?: boolean }
   | { type: "draft.changed"; chatId: string; device: string | null }
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" }
+  | { type: "studio.changed"; draftId: string }
+  | { type: "creator.changed"; draftId: string }
   | { type: "reconnected" };
 
 // ---------- Phase 1: memory ----------
@@ -1279,4 +1340,177 @@ export interface SearchResult {
   createdAt: number;
   snippet: string;
   match: { start: number; length: number };
+}
+
+// ---------- Phase 4: the Lore Studio ----------
+
+export type LoreType = "character" | "location" | "item" | "faction" | "concept" | "event" | "rule";
+export type StudioSourceKind = "idea" | "character" | "persona" | "document" | "book";
+export type StudioStage = "start" | "questions" | "plan" | "review" | "done";
+
+export interface StudioOptions {
+  size: "small" | "medium" | "large";
+  length: "lean" | "standard" | "rich";
+  types: LoreType[];
+  tone: string;
+  style: string;
+  secrets: boolean;
+  faithful: boolean;
+  overview: boolean;
+}
+
+export interface StudioEntry {
+  content: string;
+  keys: string[];
+  aliases: string[];
+  essentials: string;
+  secrets: { text: string; knownBy: string[] }[];
+}
+
+export interface StudioItem {
+  id: string;
+  title: string;
+  type: LoreType | null;
+  pitch: string;
+  parent: string;
+  folder: string;
+  source: string;
+  constant: boolean;
+  keep: boolean;
+  status: "planned" | "queued" | "writing" | "drafted" | "error";
+  error: string;
+  entry: StudioEntry | null;
+  previous: StudioEntry | null;
+  steer: string;
+  savedEntryId: string | null;
+  links: { creatorDraftId?: string; characterId?: string; personaId?: string };
+}
+
+export interface StudioDraft {
+  id: string;
+  title: string;
+  stage: StudioStage;
+  source: { kind: StudioSourceKind; text: string; refId: string | null; refName: string; fileName: string };
+  options: StudioOptions;
+  readback: { understood: string; missing: string[] } | null;
+  questions: { id: string; q: string; why: string; answer: string }[];
+  directions: { title: string; pitch: string }[];
+  expansion: Expansion | null;
+  overview: string;
+  items: StudioItem[];
+  targetBookId: string | null;
+  links: { type: "global" | "character" | "persona" | "chat"; id: string }[];
+  committedBookId: string | null;
+  consistency: { items: string[]; problem: string; fix: string }[] | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface StudioDraftSummary {
+  id: string;
+  title: string;
+  stage: StudioStage;
+  kind: StudioSourceKind;
+  refName: string;
+  items: number;
+  drafted: number;
+  writing: number;
+  committedBookId: string | null;
+  updatedAt: number;
+}
+
+export interface StudioIssue {
+  kind: string;
+  severity: "info" | "warn";
+  message: string;
+}
+
+export interface StudioReview {
+  issues: Record<string, StudioIssue[]>;
+  tokens: Record<string, number>;
+  cost: { entries: number; totalTokens: number; alwaysOnTokens: number; averageTokens: number };
+}
+
+// ---------- Phase 4: expand my idea, the character and persona creator ----------
+
+export interface ExpansionSection {
+  id: string;
+  heading: string;
+  text: string;
+}
+
+export interface Expansion {
+  sections: ExpansionSection[];
+  use: boolean;
+  steer: string;
+}
+
+export interface ExpansionPatch {
+  sections?: { id: string; heading?: string; text?: string }[];
+  use?: boolean;
+  remove?: string[];
+}
+
+export type CreatorKind = "character" | "persona";
+export type CreatorStage = "idea" | "questions" | "bible" | "write" | "done";
+
+export interface CreatorOptions {
+  pov: "first" | "second" | "third";
+  tense: "present" | "past";
+  length: "lean" | "standard" | "rich";
+  tone: string;
+  style: string;
+  mode: "companion" | "narrator";
+  greetings: number;
+}
+
+export interface CardField {
+  key: string;
+  label: string;
+  value: string;
+  status: "empty" | "queued" | "writing" | "done" | "error";
+  error: string;
+  previous: string | null;
+  steer: string;
+}
+
+export interface CreatorDraft {
+  id: string;
+  kind: CreatorKind;
+  name: string;
+  stage: CreatorStage;
+  idea: string;
+  expansion: Expansion | null;
+  options: CreatorOptions;
+  worldBookIds: string[];
+  loreDraftId: string | null;
+  origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string } | null;
+  baseId: string | null;
+  readback: { understood: string; missing: string[] } | null;
+  questions: { id: string; q: string; why: string; answer: string }[];
+  bible: { key: string; label: string; text: string }[];
+  bibleCheck: { section: string; problem: string; fix: string }[] | null;
+  fields: CardField[];
+  savedId: string | null;
+  companionLoreDraftId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreatorDraftSummary {
+  id: string;
+  kind: CreatorKind;
+  name: string;
+  stage: CreatorStage;
+  written: number;
+  fields: number;
+  writing: number;
+  savedId: string | null;
+  updatedAt: number;
+}
+
+export interface CreatorReview {
+  issues: Record<string, StudioIssue[]>;
+  tokens: Record<string, number>;
+  cost: { permanent: number; greeting: number; examples: number };
 }

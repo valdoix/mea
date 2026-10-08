@@ -244,7 +244,7 @@
           <div class="row between"><b>{ch.title}</b><span class="tiny faint">#{ch.startSeq}–#{ch.endSeq ?? "…"}{ch.storyTime ? ` · ${ch.storyTime}` : ""}</span></div>
           {#if ch.summary}<p class="small muted">{ch.summary}</p>{/if}
           {#each ch.scenes as s (s.id)}
-            <a class="scene" href="/chat/{id}?at={s.startSeq}"><span class="tiny faint">#{s.startSeq}</span> <span class="small">{s.title || "Scene"}</span>{#if s.storyTime}<span class="tiny muted"> · {s.storyTime}</span>{/if}</a>
+            <a class="scene" href="/chat/{id}?at={s.startSeq}"><span class="tiny faint">#{s.startSeq}</span> <span class="small">{s.title || "Scene"}</span>{#if s.storyTime}{" "}<span class="tiny muted">· {s.storyTime}</span>{/if}</a>
           {/each}
         </section>
       {/each}

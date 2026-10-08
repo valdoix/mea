@@ -133,9 +133,136 @@ function helperJson(name: string, user: string): unknown {
       const notes = (user.match(/^- (.*)$/gm) ?? []).map((l) => l.slice(2));
       return { comment: name, keys: [name], content: `${name}. ${notes.join(" ")}`.slice(0, 900) };
     }
+    // ---------- Lore Studio (Phase 4) ----------
+    case "studio_readback":
+      return {
+        understood: `A setting built around ${names(user).slice(0, 2).join(" and ") || "the author's idea"}. ${firstSentence(user.split("\n").slice(1).join(" "))}`,
+        missing: ["who holds power", "what people fear"],
+        questions: [
+          { q: "Who holds power here, and who wants it?", why: "Factions and rivals need someone to push against." },
+          { q: "What do ordinary people fear at night?", why: "Fears become dangers, rumours and rules." },
+          { q: "What should never happen in this world?", why: "Hard rules keep long stories consistent." },
+        ],
+      };
+    case "studio_directions":
+      return {
+        directions: [
+          { title: "The quiet decline", pitch: "The town is slowly emptying. Those who stay guard something they won't name." },
+          { title: "The rival house", pitch: "Two families split the harbour between them. Every favour has a price." },
+          { title: "The thing in the fog", pitch: "Ships come back with one sailor too many. Nobody counts aloud anymore." },
+        ],
+      };
+    case "studio_outline": {
+      const want = Number(user.match(/^MOCK_COUNT (\d+)$/m)?.[1] ?? 0) || 6;
+      const planned = new Set((user.split("ALREADY PLANNED:")[1] ?? "").split("\n").map((l) => l.match(/^- (.+?)(?: \(|:|$)/)?.[1]?.toLowerCase()).filter(Boolean));
+      const source = user.split(/\n\n(?:THE AUTHOR'S ANSWERS|TONE AND GENRE|STYLE NOTES|ENTRY KINDS|OVERVIEW|ALREADY PLANNED|ALREADY IN THEIR LORE)/)[0] ?? user;
+      const found = [...new Set(source.match(/\b[A-Z][a-z]{2,}(?: [A-Z][a-z]{2,})?\b/g) ?? [])].filter((w) => !["The", "She", "You", "This", "That", "THE", "Description", "Personality", "Scenario", "First", "Creator", "Example", "About", "Entries"].includes(w.split(" ")[0]!));
+      const types = ["location", "character", "faction", "item", "concept", "event"];
+      const titles = [...found, "The Old Harbour", "The Night Market", "The Salt Guild", "The Drowned Bell", "The Long Winter", "The Ferryman"].filter((t) => !planned.has(t.toLowerCase()));
+      const items = [...new Set(titles)].slice(0, want).map((t, k) => ({ title: t, type: types[k % types.length], pitch: `${t} matters to the story.`, parent: k === 1 && titles[0] ? titles[0] : "", folder: "" }));
+      return { title: /ALREADY PLANNED/.test(user) ? "" : "Mock World", overview: /ALREADY PLANNED/.test(user) ? "" : "A cold harbour town where the fog keeps secrets. Everyone owes someone.", items };
+    }
+    case "studio_entry": {
+      const m = user.match(/^THIS ENTRY: (.+?)(?: \((\w+)\))?(?:: (.*))?$/m);
+      const title = m?.[1] ?? "Entry";
+      const notes = user.split("SOURCE NOTES FOR THIS ENTRY:\n")[1]?.split("\n\n")[0];
+      const content = notes ? notes.trim() : `${title} is part of this world. ${m?.[3] ?? ""} People speak of it in low voices, and it shapes what happens next.`.replace(/\s+/g, " ").trim();
+      const asks = user.match(/^THE AUTHOR ASKS: (.*)$/m)?.[1];
+      return {
+        content: asks ? `${content} (${asks})` : content,
+        keys: [title, ...names(content).filter((n) => n !== title).slice(0, 1)],
+        aliases: [],
+        essentials: firstSentence(content),
+        secrets: /"secrets": 0–2/.test(user) || !/MOCK_SECRET/.test(user) ? [] : [{ text: `${title} hides something.`, knownBy: [title] }],
+      };
+    }
+    case "studio_consistency": {
+      const n = [...user.matchAll(/^(\d+)\. /gm)].length;
+      return { issues: /MOCK_CONFLICT/.test(user) && n >= 2 ? [{ entries: [1, 2], problem: "They disagree.", fix: "Pick one." }] : [] };
+    }
+    // ---------- Expand my idea, the character and persona creator (Phase 4) ----------
+    case "idea_expand": {
+      const kind = user.match(/^KIND: (\w+)/m)?.[1] ?? "world";
+      const idea = (user.split(/THE AUTHOR'S IDEA \(canon\):\n/)[1] ?? "").split("\n\n")[0] ?? "";
+      const heads = kind === "world" ? ["Premise", "Central tension", "Places", "Story hooks"] : ["Concept", "Voice", "Wants and fears", "Story hooks"];
+      const again = /THE CURRENT VERSION:/.test(user) ? " (reworked)" : "";
+      return { sections: heads.map((h) => ({ heading: h, text: `${h} for ${firstSentence(idea) || "the idea"} Named: ${names(idea).join(", ") || "nobody yet"}.${again}` })) };
+    }
+    case "creator_readback":
+      return {
+        understood: `Someone built from ${names(user).slice(0, 2).join(" and ") || "the author's idea"}.`,
+        missing: ["their voice", "what they want"],
+        questions: [
+          { q: "What do they want that they can't admit?", why: "A hidden want drives scenes." },
+          { q: "How do they talk when they're angry?", why: "Voice under pressure is what players remember." },
+        ],
+      };
+    case "creator_bible": {
+      const name = user.match(/^NAME: (.+)$/m)?.[1] ?? names(user.split("THE AUTHOR'S IDEA")[1] ?? user)[0] ?? "Wren";
+      const keys = ["identity", "appearance", "personality", "voice", "backstory", "background", "motivation", "flaws", "relationships", "secrets", "details", "user", "hooks", "skills"];
+      const steer = /THE CURRENT BIBLE:/.test(user) ? " Reworked." : "";
+      return { name, ...Object.fromEntries(keys.map((k) => [k, `${name}'s ${k}: specific and playable.${k === "voice" ? ' "Sit. You look like the fog chewed you."' : ""}${steer}`])) };
+    }
+    // ---------- card tools (Phase 4) ----------
+    case "notes_sort": {
+      const notes = user.split("THE NOTES:\n")[1] ?? "";
+      const looks = notes.split("\n").filter((l) => /eyes|hair|tall|wears/i.test(l));
+      const rest = notes.split("\n").filter((l) => l.trim() && !/eyes|hair|tall|wears/i.test(l) && !/^TODO/i.test(l));
+      return {
+        fields: { ...(looks.length ? { description: looks.join(" ") } : {}), ...(rest.length ? { personality: rest.join(" ") } : {}) },
+        placements: [...looks.map((l) => ({ piece: l.slice(0, 30), field: "description", why: "how they look" })), ...rest.map((l) => ({ piece: l.slice(0, 30), field: "personality", why: "how they act" }))],
+        leftover: notes.split("\n").filter((l) => /^TODO/i.test(l)),
+      };
+    }
+    case "card_review":
+      return { issues: /MOCK_ISSUE/.test(user) ? [{ field: "description", problem: "The want is vague.", fix: "Say what she wants from {{user}}." }] : [] };
+    case "voice_lab": {
+      const name = user.match(/^CHARACTER: (.+)$/m)?.[1] ?? "Mira";
+      return { lines: ["calm", "angry"].map((s) => ({ situation: s, cue: s === "calm" ? "How are you?" : "You lied to me.", line: `"${s === "calm" ? "Fine. The lamp's lit." : "Then leave."}" ${name} doesn't look up.` })) };
+    }
+    case "variant_draft": {
+      const idea = user.split("THE VARIANT: ")[1]?.trim() ?? "variant";
+      return { name: idea.split(" ").slice(0, 3).join(" "), note: `The ${idea}.`, fields: { description: `In the ${idea}: the same person, different clothes.`, first_mes: `Snow falls on the harbour as she looks up. "You came back?"`, nonsense: "dropped" } };
+    }
+    case "creator_bible_check":
+      return { issues: /MOCK_ISSUE/.test(user) ? [{ section: "voice", problem: "The voice is flat.", fix: "Give them a verbal habit." }] : [] };
     default:
       return {};
   }
+}
+
+/** Plain-text creative helpers (fields, deeper sections, extended answers), keyed by their prompt's wording. */
+function mockPlainText(system: string, user: string): string | null {
+  const field = system.match(/^Field: (.+)$/m)?.[1];
+  // Card tools' field actions echo the field with the action, so a test can see what was asked.
+  const editing = user.match(/THE FIELD TO EDIT \([^)]*\):\n([\s\S]*)$/)?.[1];
+  if (field && editing !== undefined) {
+    const action = /Condense it/.test(system) ? "condensed" : /Expand it/.test(system) ? "expanded" : /Convert it to flowing prose/.test(system) ? "prose" : /Make exactly this change/.test(system) ? "edited" : "rewritten";
+    return `${editing.trim()} (${action})`;
+  }
+  if (field) {
+    const name = user.match(/^NAME: (.+)$/m)?.[1] ?? "Wren";
+    const asks = user.match(/^THE AUTHOR ASKS: (.*)$/m)?.[1];
+    const fixed = /writes \{\{user\}\}'s actions/.test(user);
+    let text: string;
+    if (field === "Greeting" || field.startsWith("Alternate greeting"))
+      text =
+        /MOCK_PUPPET/.test(user) && !fixed
+          ? `{{user}} nods and smiles at ${name}. You feel safe at last.`
+          : `${name} looks up from the logbook as the door bangs open, and the lamp gutters in the draught. "You're late," ${name} says, sliding a chipped mug across the table. The tea is still warm; the fog presses at the glass like a held breath. "Sit down. The harbourmaster was here asking about you, and I told him nothing. ${field === "Greeting" ? "So" : "Now"} — what did the fog take from you this time?"`;
+    else if (field === "Example dialogue") text = `<START>\n{{user}}: Hello.\n{{char}}: "Hello yourself." ${name} doesn't look up from the ledger.\n<START>\n{{user}}: Are you angry?\n{{char}}: "Angry is for people with time." ${name} snaps the book shut.`;
+    else if (field === "Tags") text = "Fantasy, Harbour, mystery, slow burn";
+    else if (field === "Pronouns") text = "she/her";
+    else text = `${field} of ${name}: ${name} keeps the harbour light and keeps her promises, and the people of Port Ellis know both cost her something. She talks in short, dry sentences and laughs only when she's tired.`;
+    return asks ? `${text} (${asks})` : text;
+  }
+  if (/^Go deeper on one section/.test(system)) {
+    const section = user.split("THE SECTION TO DEEPEN: ")[1] ?? "";
+    return `${section.split("\n").slice(1).join(" ").trim()} Deeper: the harbourmaster keeps a second ledger, and the Salt Guild pays for the pages that go missing.`;
+  }
+  if (/^Rewrite one section of the bible/.test(system)) return `Rewritten: sharper, more specific, and playable.${/The author asks: (.*)/.exec(system)?.[1] ? ` ${/The author asks: (.*)/.exec(system)![1]}` : ""}`;
+  if (/^Push the author's draft answer further/.test(system)) return `${(user.split("THE AUTHOR'S DRAFT:\n")[1] ?? "").trim()} She keeps the key on a cord around her wrist, and never lets anyone see her use it.`;
+  return null;
 }
 
 /** Bag-of-words hashing so related texts land near each other. */
@@ -162,6 +289,11 @@ export class MockProvider implements Provider {
       const text = /STARTING STATE/.test(userText) ? mockInit(userText) : mockLedger(`${system}\n${userText}`);
       onDelta({ text });
       return { finishReason: "stop", usage: { promptTokens: Math.round(JSON.stringify(req.messages).length / 4), completionTokens: Math.round(text.length / 4) }, sentBody: { model: req.model, messages: req.messages } };
+    }
+    const plain = schemaName ? null : mockPlainText(system, userText);
+    if (plain !== null) {
+      onDelta({ text: plain });
+      return { finishReason: "stop", usage: { promptTokens: Math.round(JSON.stringify(req.messages).length / 4), completionTokens: Math.round(plain.length / 4) }, sentBody: { model: req.model, messages: req.messages } };
     }
     const helper = schemaName ?? (/Reply with one JSON object only|Reply with JSON only/.test(system) ? guessSchema(system) : undefined);
     if (helper) {

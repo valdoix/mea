@@ -1,4 +1,5 @@
 import { parseJson } from "../db/db";
+import { layered } from "./layers";
 import { getSetting, type GuidanceChip } from "../lib/settings";
 import type { PromptExtra } from "../prompt/assemble";
 import { evalCondition } from "../trackers/condition";
@@ -42,7 +43,9 @@ export function chatExtras(chatId: string, kind: string, state: WorldState | nul
   const chat = mustChat(chatId);
   const s = parseJson<ChatSettings>(chat.settings, {});
   const out: PromptExtra[] = [];
-  const story = s.story ?? {};
+  // PROMPT-06: the character's story settings and truths are the defaults under the chat's.
+  const layers = layered(s, chat.character_id);
+  const story = layers.story;
   const settings = [
     story.genre && `Genre: ${story.genre}`,
     story.tone && `Tone: ${story.tone}`,
@@ -53,7 +56,7 @@ export function chatExtras(chatId: string, kind: string, state: WorldState | nul
     story.language && story.language.toLowerCase() !== "english" && `Write in ${story.language}`,
   ].filter(Boolean);
   if (settings.length) out.push({ id: "story", name: "Story settings", content: `[Story settings]\n${settings.join("\n")}`, prefix: true });
-  if (s.truths?.length) out.push({ id: "truths", name: "Story truths", content: `[Story truths: these hold over the card, the lore and anything earlier in the chat]\n${s.truths.map((t) => `- ${t}`).join("\n")}`, prefix: true });
+  if (layers.truths.length) out.push({ id: "truths", name: "Story truths", content: `[Story truths: these hold over the card, the lore and anything earlier in the chat]\n${layers.truths.map((t) => `- ${t}`).join("\n")}`, prefix: true });
 
   const story_ = kind === "story" || kind === "continue";
   if (s.ooc?.length) out.push({ id: "ooc", name: "OOC notes", content: `[Notes from the user, out of character]\n${s.ooc.map((o) => `- ${o.text}`).join("\n")}`, depth: 1 });

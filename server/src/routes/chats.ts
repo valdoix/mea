@@ -1,7 +1,12 @@
 import { Hono } from "hono";
+import { characterSettings } from "../services/charsettings";
+import { layered } from "../services/layers";
+import { listVariants } from "../services/variants";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { badRequest, body, must } from "../lib/http";
+import { applyRegex } from "../lib/regex";
+import { getSetting } from "../lib/settings";
 import { linkedBooks } from "../lore/service";
 import { getCharacter } from "../services/characters";
 import {
@@ -37,7 +42,7 @@ chats.get("/chats", (c) => {
 });
 
 chats.post("/chats", async (c) => {
-  const input = await body(c, z.object({ characterId: z.string(), personaId: z.string().nullable().optional(), mode: z.enum(["companion", "narrator"]).optional() }));
+  const input = await body(c, z.object({ characterId: z.string(), personaId: z.string().nullable().optional(), mode: z.enum(["companion", "narrator"]).optional(), variantId: z.string().nullable().optional() }));
   return c.json(createChat(input), 201);
 });
 
@@ -46,12 +51,22 @@ chats.get("/chats/:id", (c) => {
   const chat = must(getChat(c.req.param("id")), "Chat not found");
   const character = chat.characterId ? getCharacter(chat.characterId) : undefined;
   const persona = getPersona(chat.personaId) ?? getDefaultPersona();
+  // CHAR-06 / PER-05: the variants this chat can play, and a variant's own portrait.
+  const variants = character ? listVariants("character", character.id) : [];
+  const personaVariants = persona ? listVariants("persona", persona.id) : [];
+  const variant = variants.find((v) => v.id === chat.settings.variantId);
+  const personaVariant = personaVariants.find((v) => v.id === chat.settings.personaVariantId);
+  const layers = layered(chat.settings, chat.characterId);
   return c.json({
     chat,
-    character: character && { id: character.id, name: character.name, avatarId: character.avatarId, palette: character.palette, mode: character.mode, tags: character.tags },
-    persona: persona && { id: persona.id, name: persona.name, avatarId: persona.avatarId },
+    character: character && { id: character.id, name: character.name, avatarId: variant?.avatarId ?? character.avatarId, palette: character.palette, mode: character.mode, tags: character.tags },
+    persona: persona && { id: persona.id, name: persona.name, avatarId: personaVariant?.avatarId ?? persona.avatarId },
     lorebooks: linkedBooks("chat", chat.id),
     active: activeGenerations(chat.id),
+    variants: variants.map((v) => ({ id: v.id, name: v.name, note: v.note })),
+    personaVariants: personaVariants.map((v) => ({ id: v.id, name: v.name, note: v.note })),
+    // PROMPT-06: what the character sets for its chats, so the panel can say "from the character".
+    defaults: { from: layers.from, presetId: layers.presetId, profileId: layers.profileId, characterControls: characterSettings(chat.characterId).controls ?? {} },
   });
 });
 
@@ -96,7 +111,7 @@ chats.post("/chats/:id/send", async (c) => {
   if (input.content?.trim()) {
     const chat = getChat(chatId)!;
     const persona = getPersona(chat.personaId) ?? getDefaultPersona();
-    userMessageId = addMessage(chatId, "user", input.content.trim(), { name: persona?.name ?? "You", meta: input.director ? { director: true } : undefined });
+    userMessageId = addMessage(chatId, "user", applyRegex(input.content.trim(), getSetting("regex.scripts"), { role: "user", mode: "persistent", characterId: mustChat(chatId).character_id }), { name: persona?.name ?? "You", meta: input.director ? { director: true } : undefined });
   }
   if (!input.generate) return c.json({ userMessage: userMessageId && getMessage(userMessageId) });
   try {

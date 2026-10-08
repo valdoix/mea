@@ -1,5 +1,6 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
+  import ControlSwitches from "../presets/ControlSwitches.svelte";
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
@@ -8,7 +9,7 @@
   import type { Collection, StoryStats } from "../../lib/types";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
-  import type { ChatDetail, ChatMode, LorebookSummary, Persona, Profile } from "../../lib/types";
+  import type { ChatDetail, ChatMode, LorebookSummary, Persona, Preset, Profile } from "../../lib/types";
 
   let { detail, onchange, oninspect }: { detail: ChatDetail; onchange: () => void; oninspect: () => void } = $props();
 
@@ -16,6 +17,21 @@
   let profiles = $state<Profile[]>([]);
   let storyProfileId = $state<string | null>(null);
   let presets = $state<{ id: string; name: string }[]>([]);
+  let defaultPresetId = $state<string | null>(null);
+  // PROMPT-07: the controls of the preset this chat actually uses (its own, the character's, or the global one).
+  let preset = $state<Preset | null>(null);
+  const effectivePresetId = $derived(detail.chat.settings.presetId ?? detail.defaults?.presetId ?? defaultPresetId);
+  $effect(() => {
+    const id = effectivePresetId;
+    if (id) get<Preset>(`/api/presets/${id}`).then((p) => (preset = p), () => (preset = null));
+  });
+  function setControl(id: string, value: boolean | string | null) {
+    const next = { ...(detail.chat.settings.controls ?? {}) };
+    if (value === null) delete next[id];
+    else next[id] = value;
+    void update({ settings: { controls: next } });
+  }
+  const fromCharacter = (what: "preset" | "profile") => detail.defaults?.from[what] === "character";
   let books = $state<LorebookSummary[]>([]);
   // A local copy: typing must not be overwritten by refreshes from the server.
   // svelte-ignore state_referenced_locally
@@ -34,7 +50,7 @@
     void Promise.all([
       get<{ personas: Persona[] }>("/api/personas"),
       get<{ profiles: Profile[]; storyProfileId: string | null }>("/api/profiles"),
-      get<{ presets: { id: string; name: string }[] }>("/api/presets"),
+      get<{ presets: { id: string; name: string }[]; defaultId: string | null }>("/api/presets"),
       get<{ lorebooks: LorebookSummary[] }>("/api/lorebooks"),
     ])
       .then(([p, pr, ps, lb]) => {
@@ -42,6 +58,7 @@
         profiles = pr.profiles;
         storyProfileId = pr.storyProfileId;
         presets = ps.presets;
+        defaultPresetId = ps.defaultId;
         books = lb.lorebooks;
       })
       .catch(errorToast);
@@ -228,10 +245,33 @@
     </select>
   </label>
 
+  {#if detail.variants?.length || detail.personaVariants?.length}
+    <div class="row wrap variants">
+      {#if detail.variants?.length}
+        <label class="field grow">
+          <span class="label">{detail.character?.name} plays</span>
+          <select class="select" value={detail.chat.settings.variantId ?? ""} onchange={(e) => update({ settings: { variantId: e.currentTarget.value || null } })}>
+            <option value="">The base card</option>
+            {#each detail.variants as v (v.id)}<option value={v.id}>{v.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
+      {#if detail.personaVariants?.length}
+        <label class="field grow">
+          <span class="label">You play</span>
+          <select class="select" value={detail.chat.settings.personaVariantId ?? ""} onchange={(e) => update({ settings: { personaVariantId: e.currentTarget.value || null } })}>
+            <option value="">{detail.persona?.name} (base)</option>
+            {#each detail.personaVariants as v (v.id)}<option value={v.id}>{v.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
+    </div>
+  {/if}
+
   <label class="field">
     <span class="label">Model</span>
     <select class="select" value={detail.chat.settings.profileId ?? ""} onchange={(e) => update({ settings: { profileId: e.currentTarget.value || null } })}>
-      <option value="">Default ({profileName(storyProfileId)})</option>
+      <option value="">{fromCharacter("profile") ? `${detail.character?.name}'s default (${profileName(detail.defaults?.profileId ?? null)})` : `Default (${profileName(storyProfileId)})`}</option>
       {#each profiles as p (p.id)}<option value={p.id}>{p.name} · {p.modelId}</option>{/each}
     </select>
   </label>
@@ -239,14 +279,21 @@
   <label class="field">
     <span class="label">Preset</span>
     <select class="select" value={detail.chat.settings.presetId ?? ""} onchange={(e) => update({ settings: { presetId: e.currentTarget.value || null } })}>
-      <option value="">Default preset</option>
+      <option value="">{fromCharacter("preset") ? `${detail.character?.name}'s default (${presets.find((p) => p.id === detail.defaults?.presetId)?.name ?? "preset"})` : `Default (${presets.find((p) => p.id === defaultPresetId)?.name ?? "preset"})`}</option>
       {#each presets as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
     </select>
   </label>
 
+  {#if preset?.controls.length}
+    <div class="field">
+      <span class="label">Controls <span class="faint">from “{preset.name}”</span></span>
+      <ControlSwitches controls={preset.controls} values={detail.chat.settings.controls ?? {}} inherited={detail.defaults?.characterControls ?? {}} inheritedLabel={Object.keys(detail.defaults?.characterControls ?? {}).length ? "character's default" : "preset's default"} onchange={setControl} />
+    </div>
+  {/if}
+
   <div class="field">
     <span class="label">Author's note <span class="faint">depth <input class="depth" type="number" min="0" max="100" bind:value={depth} oninput={saveNote} aria-label="Depth" /></span></span>
-    <textarea class="textarea" use:autosize={240} bind:value={note} oninput={saveNote} placeholder="A standing note for the story, e.g. “It's raining all week.”"></textarea>
+    <textarea class="textarea" use:autosize={240} bind:value={note} oninput={saveNote} placeholder={detail.defaults?.from.authorsNote === "character" ? "Empty: the character's default note applies." : "A standing note for the story, e.g. “It's raining all week.”"}></textarea>
     <span class="hint">Inserted {depth} messages from the end, every turn.</span>
   </div>
 

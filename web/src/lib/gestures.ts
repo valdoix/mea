@@ -137,7 +137,12 @@ export function onEdgeSwipe(cb: () => void) {
 }
 
 /** Auto-grows a textarea with its content. */
-export function autosize(node: HTMLTextAreaElement, max = 320) {
+/**
+ * Grows a textarea with its text, up to `max` px. Pass `{ max, value }` when the text can change
+ * without typing (a background writer, a server update) so it re-fits then too.
+ */
+export function autosize(node: HTMLTextAreaElement, opt: number | { max?: number; value?: string } = 320) {
+  let max = typeof opt === "number" ? opt : (opt.max ?? 320);
   const fit = () => {
     node.style.height = "auto";
     node.style.height = `${Math.min(max, node.scrollHeight)}px`;
@@ -146,7 +151,23 @@ export function autosize(node: HTMLTextAreaElement, max = 320) {
   node.addEventListener("input", fit);
   queueMicrotask(fit);
   return {
-    update: fit,
+    update: (next: number | { max?: number; value?: string }) => {
+      max = typeof next === "number" ? next : (next.max ?? 320);
+      queueMicrotask(fit);
+    },
     destroy: () => node.removeEventListener("input", fit),
+  };
+}
+
+/**
+ * Moves an element to the end of <body>, so a dialog or menu opened from inside a label or a
+ * clipped container doesn't inherit its styles, its overflow, or its clicks.
+ */
+export function portal(node: HTMLElement) {
+  document.body.appendChild(node);
+  return {
+    destroy() {
+      node.remove();
+    },
   };
 }

@@ -642,4 +642,57 @@ CREATE TRIGGER swipes_fts_ad AFTER DELETE ON swipes BEGIN
 END;
 `,
   },
+  {
+    id: 5,
+    name: "creator studio",
+    sql: /* sql */ `
+-- The Lore Studio (Phase 4): a lorebook being planned and written, kept until you save it.
+CREATE TABLE lore_drafts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
+  {
+    id: 6,
+    name: "character and persona creator",
+    sql: /* sql */ `
+-- The character and persona creator (Phase 4): an idea becoming a card, kept until you save it.
+CREATE TABLE creator_drafts (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
+  {
+    id: 7,
+    name: "card tools, variants and layered settings",
+    sql: /* sql */ `
+-- PROMPT-06 and CHAR-07: per-character defaults for its chats (preset, profile, author's note,
+-- story settings, preset controls) plus your notes, the source link and the voice lab's kept lines.
+ALTER TABLE characters ADD COLUMN settings TEXT NOT NULL DEFAULT '{}';
+
+-- CHAR-06 / PER-05: variants (an outfit, an era, an AU) overlay a card or persona without copying it.
+CREATE TABLE variants (
+  id TEXT PRIMARY KEY,
+  owner_type TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  overlay TEXT NOT NULL DEFAULT '{}',
+  avatar_id TEXT,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX variants_owner ON variants(owner_type, owner_id);
+`,
+  },
 ];

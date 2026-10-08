@@ -14,6 +14,8 @@ import { consolidate } from "./memory/consolidate";
 import { runCheckJob } from "./accuracy/checker";
 import { runChronicle } from "./lore/chronicle";
 import { embedLore } from "./lore/semantic";
+import { runStudioJob } from "./lore/studio";
+import { runCreatorJob } from "./creator/creator";
 import { runJournalJob } from "./memory/journals";
 import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
@@ -66,6 +68,9 @@ export function startup(opts: { jobs?: boolean; dbFile?: string } = {}) {
   registerJob("lore.embed", async () => {
     await embedLore();
   });
+  // Phase 4: the Lore Studio writes drafted entries one at a time, in plan order.
+  registerJob("lore.studio", async (p, job) => runStudioJob(String(p.draftId), job));
+  registerJob("creator.write", async (p, job) => runCreatorJob(String(p.draftId), job));
   registerJob("accuracy.check", async (p, job) => runCheckJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   registerJob("memory.consolidate", async (p, job) => {
     await consolidate(String(p.chatId), job);

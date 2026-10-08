@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { applyServicePrompt } from "../lib/prompts";
 import { now } from "../db/db";
 import { getSetting } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
@@ -22,6 +23,8 @@ export interface JsonCall<T extends z.ZodType> {
   system: string;
   user: string;
   maxTokens?: number;
+  /** Creative helpers (the Lore Studio) run warmer than extraction does. */
+  temperature?: number;
   signal?: AbortSignal;
 }
 
@@ -59,7 +62,7 @@ function jsonSchemaOf(name: string, schema: z.ZodType) {
 async function once(r: ResolvedProfile, call: JsonCall<z.ZodType>, messages: ChatMessage[], structured: boolean) {
   const timeoutMs = (getSetting("routing.timeouts")[call.task] ?? 120) * 1000;
   const signal = call.signal ? AbortSignal.any([call.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
-  const params = { ...r.params, max_tokens: call.maxTokens ?? 4000, temperature: 0.3 };
+  const params = { ...r.params, max_tokens: call.maxTokens ?? 4000, temperature: call.temperature ?? 0.3 };
   const responseFormat = structured ? { type: "json_schema", json_schema: { name: call.name, strict: false, schema: jsonSchemaOf(call.name, call.schema) } } : undefined;
   const est = messages.reduce((n, m) => n + countTokens(m.content) + 4, 0);
   const id = startRequest({
@@ -107,7 +110,7 @@ export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<
     }
     let structured = r.structured;
     const messages: ChatMessage[] = [
-      { role: "system", content: call.system },
+      { role: "system", content: applyServicePrompt(call.kind, call.system) },
       { role: "user", content: call.user },
     ];
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -154,6 +157,7 @@ export interface TextCall {
   user: string;
   maxTokens?: number;
   signal?: AbortSignal;
+  temperature?: number;
   /** Returns a problem to send back once ("the reply had no ledger lines"), or null when it's usable. */
   validate?: (text: string) => string | null;
 }
@@ -171,7 +175,7 @@ export async function callText(call: TextCall): Promise<{ text: string; generati
       throw e;
     }
     const messages: ChatMessage[] = [
-      { role: "system", content: call.system },
+      { role: "system", content: applyServicePrompt(call.kind, call.system) },
       { role: "user", content: call.user },
     ];
     for (let attempt = 0; attempt < 2; attempt++) {

@@ -17,6 +17,7 @@ import {
   tokenCounts,
   updateCharacter,
 } from "../services/characters";
+import { characterSettingsSchema } from "../services/charsettings";
 import { getImage, imagePath, saveImage, setThumbnail } from "../services/images";
 import { importFile } from "../services/importer";
 import { detectMode } from "../services/mode";
@@ -67,6 +68,7 @@ library.put("/characters/:id", async (c) => {
       mode: modeSchema.optional(),
       avatarId: z.string().nullable().optional(),
       gallery: z.array(z.string()).optional(),
+      settings: characterSettingsSchema.partial().optional(),
     }),
   );
   let card;

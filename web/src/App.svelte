@@ -10,23 +10,31 @@
   import { Menu, WifiOff } from "./lib/icons";
   import { navigate, route } from "./lib/router.svelte";
   import { app, loadSettings, toast } from "./lib/state.svelte";
-  import CharacterEditor from "./views/CharacterEditor.svelte";
+  import type { Component } from "svelte";
   import ChatView from "./views/ChatView.svelte";
-  import MemoryInspector from "./views/MemoryInspector.svelte";
-  import StoryView from "./views/StoryView.svelte";
-  import WorldView from "./views/WorldView.svelte";
-  import CodexView from "./views/CodexView.svelte";
-  import SearchView from "./views/SearchView.svelte";
   import Home from "./views/Home.svelte";
-  import LorebookEditor from "./views/LorebookEditor.svelte";
-  import Lorebooks from "./views/Lorebooks.svelte";
   import Pair from "./views/Pair.svelte";
-  import Personas from "./views/Personas.svelte";
-  import PresetEditor from "./views/PresetEditor.svelte";
-  import Presets from "./views/Presets.svelte";
-  import SettingsView from "./views/Settings.svelte";
-  import Trash from "./views/Trash.svelte";
   import Welcome from "./views/Welcome.svelte";
+
+  // PERF-09: Home and the chat are in the first load; every other screen loads on first visit.
+  type Loader = () => Promise<{ default: Component<any> }>;
+  const views: Partial<Record<string, Loader>> = {
+    memory: () => import("./views/MemoryInspector.svelte"),
+    story: () => import("./views/StoryView.svelte"),
+    world: () => import("./views/WorldView.svelte"),
+    codex: () => import("./views/CodexView.svelte"),
+    search: () => import("./views/SearchView.svelte"),
+    character: () => import("./views/CharacterEditor.svelte"),
+    personas: () => import("./views/Personas.svelte"),
+    lorebooks: () => import("./views/Lorebooks.svelte"),
+    lorebook: () => import("./views/LorebookEditor.svelte"),
+    studio: () => import("./views/LoreStudio.svelte"),
+    creator: () => import("./views/Creator.svelte"),
+    presets: () => import("./views/Presets.svelte"),
+    preset: () => import("./views/PresetEditor.svelte"),
+    settings: () => import("./views/Settings.svelte"),
+    trash: () => import("./views/Trash.svelte"),
+  };
 
   let ready = $state(false);
   let unreachable = $state(false);
@@ -115,19 +123,12 @@
       {#key route.name + (route.params.id ?? "")}
         {#if route.name === "home"}<Home />
         {:else if route.name === "chat"}<ChatView id={route.params.id!} />
-        {:else if route.name === "memory"}<MemoryInspector id={route.params.id!} />
-        {:else if route.name === "story"}<StoryView id={route.params.id!} />
-        {:else if route.name === "world"}<WorldView id={route.params.id!} />
-        {:else if route.name === "codex"}<CodexView id={route.params.id!} />
-        {:else if route.name === "search"}<SearchView />
-        {:else if route.name === "character"}<CharacterEditor id={route.params.id!} />
-        {:else if route.name === "personas"}<Personas selectedId={route.params.id} />
-        {:else if route.name === "lorebooks"}<Lorebooks />
-        {:else if route.name === "lorebook"}<LorebookEditor id={route.params.id!} />
-        {:else if route.name === "presets"}<Presets />
-        {:else if route.name === "preset"}<PresetEditor id={route.params.id!} />
-        {:else if route.name === "settings"}<SettingsView tab={route.params.tab} />
-        {:else if route.name === "trash"}<Trash />
+        {:else if views[route.name]}
+          {#await views[route.name]!() then view}
+            <view.default id={route.params.id} selectedId={route.params.id} tab={route.params.tab} />
+          {:catch}
+            <div class="boot"><div class="stack" style="text-align:center"><h2>Couldn't load this screen</h2><p class="muted small">Mea may have been updated. Reload the page.</p><button class="btn" onclick={() => location.reload()}>Reload</button></div></div>
+          {/await}
         {:else}
           <div class="boot"><div class="stack" style="text-align:center"><h2>Lost in the stacks</h2><a href="/">Back home</a></div></div>
         {/if}

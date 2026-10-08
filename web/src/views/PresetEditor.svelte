@@ -1,5 +1,6 @@
 <script lang="ts">
   import Segmented from "../components/Segmented.svelte";
+  import ControlsEditor from "../components/presets/ControlsEditor.svelte";
   import { del, get, put } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { autosize } from "../lib/gestures";
@@ -68,6 +69,7 @@
     post_history: "Post-history instructions",
     memory_story: "Story so far (memory)",
     memory_recall: "Recalled memories & triggered lore",
+    controls: "Preset controls",
   };
 
   function move(i: number, dir: -1 | 1) {
@@ -212,6 +214,8 @@
         <label class="field"><span class="label">Assistant prefill <span class="faint">optional</span></span><textarea class="textarea" use:autosize={200} bind:value={preset.prefill}></textarea></label>
       </section>
     {/if}
+
+    <ControlsEditor bind:controls={preset.controls} />
 
     {#if dirty}
       <div class="savebar card"><span class="small">Unsaved changes</span><button class="btn ghost small" onclick={load}>Discard</button><button class="btn primary small" onclick={save}>Save</button></div>

@@ -119,3 +119,9 @@ export { default as Quote } from "@lucide/svelte/icons/quote";
 export { default as ShieldAlert } from "@lucide/svelte/icons/shield-alert";
 export { default as ShieldCheck } from "@lucide/svelte/icons/shield-check";
 export { default as Stethoscope } from "@lucide/svelte/icons/stethoscope";
+// Phase 4: the Lore Studio
+export { default as Compass } from "@lucide/svelte/icons/compass";
+export { default as PenLine } from "@lucide/svelte/icons/pen-line";
+export { default as Save } from "@lucide/svelte/icons/save";
+export { default as FlaskConical } from "@lucide/svelte/icons/flask-conical";
+export { default as Shirt } from "@lucide/svelte/icons/shirt";

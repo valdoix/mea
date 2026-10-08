@@ -2,7 +2,7 @@
   import { get } from "../lib/api";
   import { onEvent } from "../lib/events";
   import { timeAgo } from "../lib/format";
-  import { BookOpen, House, Moon, Settings, SlidersHorizontal, Sun, Trash, Users } from "../lib/icons";
+  import { BookOpen, House, Moon, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
   import { route } from "../lib/router.svelte";
   import { app, saveSetting } from "../lib/state.svelte";
   import type { ChatListItem } from "../lib/types";
@@ -33,6 +33,7 @@
   const nav = [
     { href: "/", label: "Home", icon: House, match: ["home", "character"] },
     { href: "/personas", label: "Personas", icon: Users, match: ["personas"] },
+    { href: "/creator", label: "Studio", icon: WandSparkles, match: ["creator", "studio"] },
     { href: "/lorebooks", label: "Lorebooks", icon: BookOpen, match: ["lorebooks", "lorebook"] },
     { href: "/presets", label: "Presets", icon: SlidersHorizontal, match: ["presets", "preset"] },
     { href: "/settings", label: "Settings", icon: Settings, match: ["settings"] },

@@ -17,6 +17,9 @@ import { tools } from "./routes/tools";
 import { knowledge } from "./routes/knowledge";
 import { accuracy } from "./routes/accuracy";
 import { stories } from "./routes/stories";
+import { studio } from "./routes/studio";
+import { creator } from "./routes/creator";
+import { cardtools } from "./routes/cardtools";
 import { DEVICE_COOKIE, deviceForToken, isTrustedLocal } from "./services/auth";
 import { importFile } from "./services/importer";
 
@@ -70,6 +73,9 @@ export function createApp() {
   app.get("/api/ping", (c) => c.json({ ok: true, app: "mea" }));
   app.route("/api", library);
   app.route("/api", lore);
+  app.route("/api", studio);
+  app.route("/api", creator);
+  app.route("/api", cardtools);
   app.route("/api", chats);
   app.route("/api", memory);
   app.route("/api", models);

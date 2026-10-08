@@ -12,6 +12,7 @@
 
 <script lang="ts">
   import { fade, scale } from "svelte/transition";
+  import { portal } from "../lib/gestures";
   import { app } from "../lib/state.svelte";
   import Modal from "./Modal.svelte";
 
@@ -70,7 +71,7 @@
     </div>
   </Modal>
 {:else if open}
-  <div class="menu card" bind:this={menu} style:top="{pos.top}px" style:left="{pos.left}px" role="menu" in:scale={{ start: 0.96, duration: 140 }} out:fade={{ duration: 100 }}>
+  <div class="menu card" use:portal bind:this={menu} style:top="{pos.top}px" style:left="{pos.left}px" role="menu" in:scale={{ start: 0.96, duration: 140 }} out:fade={{ duration: 100 }}>
     {#each items as item (item.label)}
       <button class="item" class:danger={item.danger} disabled={item.disabled} onclick={() => pick(item)} role="menuitem">
         {#if item.icon}<item.icon size={16} />{/if}

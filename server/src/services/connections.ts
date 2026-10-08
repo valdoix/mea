@@ -302,6 +302,8 @@ export const profileParams = z.object({
   context_target: z.number().int().min(1024).max(2_000_000).optional(),
   /** Explicit prompt caching on paid Claude routes (CONN-12): auto or off. */
   cache: z.enum(["auto", "off"]).optional(),
+  /** PROMPT-10: this model's prefill (the start of its reply); set, even empty, it replaces the preset's. */
+  prefill: z.string().max(4000).optional(),
 });
 export type ProfileParams = z.infer<typeof profileParams>;
 
@@ -405,8 +407,11 @@ export function resolveProfile(profileId?: string | null, override?: { connectio
   const params: GenerationParams = { ...profile.params };
   delete (params as Record<string, unknown>).context_target;
   delete (params as Record<string, unknown>).cache;
+  delete (params as Record<string, unknown>).prefill;
   return {
     profile,
+    /** PROMPT-10: this model's prefill; undefined means "use the preset's". */
+    prefill: profile.params.prefill,
     connection: conn,
     provider: providerFor(conn.id),
     modelId: profile.modelId,

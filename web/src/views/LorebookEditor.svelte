@@ -4,7 +4,7 @@
   import Segmented from "../components/Segmented.svelte";
   import { del, download, get, post, put } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
-  import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, Download, Folder, Globe, Plus, Search, Stethoscope, Trash, X } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, Download, Folder, Globe, Plus, Search, Stethoscope, Trash, WandSparkles, X } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
   import { route } from "../lib/router.svelte";
@@ -213,6 +213,7 @@
           <select class="select mini" bind:value={folder} aria-label="Folder"><option value="">All folders</option>{#each folders as f (f)}<option value={f}>{f}</option>{/each}</select>
         {/if}
         <Segmented value={full ? "full" : "simple"} options={[{ value: "simple", label: "Simple" }, { value: "full", label: "Full" }]} onchange={(v) => { full = v === "full"; localStorage.setItem("mea.loreFull", full ? "1" : "0"); }} small />
+        {#if !book.settings.chronicleFor}<button class="btn" onclick={() => navigate(`/lore-studio?book=${id}`)} title="Find what this book is missing and draft it with the Lore Studio"><WandSparkles size={16} /> Grow</button>{/if}
         <button class="btn primary" onclick={addEntry}><Plus size={16} /> Entry</button>
       </div>
     </div>

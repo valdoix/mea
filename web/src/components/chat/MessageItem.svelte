@@ -26,6 +26,7 @@
     Undo,
   } from "../../lib/icons";
   import { renderMessage, renderStreaming } from "../../lib/render";
+  import { applyRegex, regexScope } from "../../lib/regex.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
   import type { Citation, ContinuityFlag, GlossaryTerm, TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
@@ -106,7 +107,9 @@
   const isUser = $derived(message.role === "user");
   const streaming = $derived(message.status === "streaming");
   const scope = $derived(`m-${message.id.slice(0, 8)}`);
-  const html = $derived(streaming ? "" : markText(renderMessage(message.content, scope), mark));
+  // PROMPT-08: display-only regex scripts change what's shown, never the stored text.
+  const shown = $derived(message.role === "system" ? message.content : applyRegex(message.content, app.settings?.["regex.scripts"], { role: isUser ? "user" : "ai", mode: "display", characterId: regexScope.characterId }));
+  const html = $derived(streaming ? "" : markText(renderMessage(shown, scope), mark));
 
   /** CHAT-18: highlight search matches in the rendered text (only between tags). */
   function markText(h: string, q: string) {

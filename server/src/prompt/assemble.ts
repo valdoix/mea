@@ -55,6 +55,8 @@ export interface AssembleInput {
    * go in at a depth.
    */
   extras?: PromptExtra[];
+  /** PROMPT-07: the active preset controls, already rendered. */
+  controls?: string;
 }
 
 export interface PromptExtra {
@@ -199,6 +201,9 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
         break;
       case "character":
         content = characterBlock(card, x);
+        break;
+      case "controls":
+        content = input.controls ?? "";
         break;
       case "description":
         content = x(card.description);

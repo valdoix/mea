@@ -2,18 +2,20 @@
   import EmptyState from "../components/EmptyState.svelte";
   import { api, get, post } from "../lib/api";
   import { timeAgo } from "../lib/format";
-  import { BookOpen, Globe, Import, Plus } from "../lib/icons";
+  import { BookOpen, Globe, Import, Plus, WandSparkles } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
-  import type { LorebookSummary } from "../lib/types";
+  import type { LorebookSummary, StudioDraftSummary } from "../lib/types";
 
   let books = $state<LorebookSummary[]>([]);
+  let drafts = $state<StudioDraftSummary[]>([]);
+  const waiting = $derived(drafts.filter((d) => d.stage !== "done"));
   let loaded = $state(false);
   let fileInput = $state<HTMLInputElement | null>(null);
 
   async function load() {
     try {
-      books = (await get<{ lorebooks: LorebookSummary[] }>("/api/lorebooks")).lorebooks;
+      [books, drafts] = await Promise.all([get<{ lorebooks: LorebookSummary[] }>("/api/lorebooks").then((r) => r.lorebooks), get<{ drafts: StudioDraftSummary[] }>("/api/lore-studio").then((r) => r.drafts)]);
     } catch (e) {
       errorToast(e);
     }
@@ -61,14 +63,20 @@
     </div>
     <div class="row">
       <button class="btn" onclick={() => fileInput?.click()}><Import size={16} /> Import</button>
-      <button class="btn primary" onclick={create}><Plus size={16} /> New</button>
+      <button class="btn" onclick={create}><Plus size={16} /> New</button>
+      <a class="btn primary" href="/lore-studio"><WandSparkles size={16} /> Lore Studio</a>
       <input bind:this={fileInput} type="file" accept=".json,application/json" hidden onchange={(e) => e.currentTarget.files?.[0] && importFile(e.currentTarget.files[0])} />
     </div>
   </div>
 
+  {#if waiting.length}
+    <a class="notice small drafts" href={waiting.length === 1 ? `/lore-studio/${waiting[0]!.id}` : "/lore-studio"}><WandSparkles size={15} /> {waiting.length === 1 ? `“${waiting[0]!.title}” is waiting in the Lore Studio` : `${waiting.length} lorebooks are waiting in the Lore Studio`}{waiting.some((d) => d.writing) ? " (writing now)" : ""} →</a>
+  {/if}
+
   {#if loaded && !books.length}
     <EmptyState icon="📖" title="No lorebooks yet" text="Create one for a world, a character's backstory, or notes for a single chat. Cards with embedded lore create one automatically.">
-      <button class="btn primary" onclick={create}><Plus size={16} /> New lorebook</button>
+      <a class="btn primary" href="/lore-studio"><WandSparkles size={16} /> Build one with the Lore Studio</a>
+      <button class="btn" onclick={create}><Plus size={16} /> Empty lorebook</button>
     </EmptyState>
   {:else}
     <div class="grid">
@@ -99,6 +107,13 @@
   .head {
     margin-bottom: 1.2rem;
     gap: 1rem;
+  }
+  .drafts {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+    text-decoration: none;
   }
   .grid {
     display: grid;

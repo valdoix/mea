@@ -4,7 +4,7 @@
   import Stories from "../components/library/Stories.svelte";
   import { api, get, post, put } from "../lib/api";
   import { greeting, timeAgo } from "../lib/format";
-  import { Heart, Import, MessageHeart, Plus, Search, Star } from "../lib/icons";
+  import { Heart, Import, MessageHeart, Plus, Search, Star, WandSparkles } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
   import type { CharacterSummary, ChatListItem } from "../lib/types";
@@ -173,6 +173,7 @@
           <option value="created">Newest</option>
         </select>
         <button class="btn" onclick={() => fileInput?.click()} disabled={importing}><Import size={16} /> {importing ? "Importing…" : "Import"}</button>
+        <a class="btn" href="/creator?kind=character" title="Expand an idea into a full card with the Creator Studio"><WandSparkles size={16} /> Create</a>
         <button class="btn primary" onclick={newCharacter}><Plus size={16} /> New</button>
         <input bind:this={fileInput} type="file" accept=".png,.json,.charx,image/png,application/json" multiple hidden onchange={(e) => e.currentTarget.files && importFiles(e.currentTarget.files)} />
       </div>
@@ -196,7 +197,8 @@
       {:else}
         <EmptyState title="No characters yet" text="Import a character card (PNG, JSON or CHARX), drop files anywhere on this page, or create one from scratch.">
           <button class="btn" onclick={() => fileInput?.click()}><Import size={16} /> Import a card</button>
-          <button class="btn primary" onclick={newCharacter}><Plus size={16} /> Create a character</button>
+          <a class="btn primary" href="/creator?kind=character"><WandSparkles size={16} /> Create one with the studio</a>
+          <button class="btn" onclick={newCharacter}><Plus size={16} /> Blank card</button>
         </EmptyState>
       {/if}
     {:else}
