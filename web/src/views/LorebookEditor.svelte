@@ -4,10 +4,12 @@
   import Segmented from "../components/Segmented.svelte";
   import { del, download, get, post, put } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
-  import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, Download, Globe, Plus, Search, Trash, X } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, Download, Folder, Globe, Plus, Search, Stethoscope, Trash, X } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
-  import type { CharacterSummary, LoreEntry, Lorebook, LoreTrace, Persona } from "../lib/types";
+  import { route } from "../lib/router.svelte";
+  import { tick } from "svelte";
+  import type { CharacterSummary, LoreEntry, Lorebook, LoreHealth, LoreTrace, Persona } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -24,9 +26,35 @@
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   let metaTimer: ReturnType<typeof setTimeout>;
 
+  // LORE-13: health check.
+  let health = $state<LoreHealth | null>(null);
+  let folder = $state("");
+  async function checkHealth() {
+    try {
+      health = await get<LoreHealth>(`/api/lorebooks/${id}/health`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  const titleOf = (eid: string) => {
+    const e = book?.entries.find((x) => x.id === eid);
+    return e ? e.comment || e.keys.slice(0, 2).join(", ") || "Untitled" : "?";
+  };
+  async function openEntry(eid: string) {
+    open[eid] = true;
+    filter = "";
+    folder = "";
+    await tick();
+    document.getElementById(`entry-${eid}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  const folderOf = (e: LoreEntry) => String((e.extra as { folder?: string } | undefined)?.folder ?? "");
+  const folders = $derived([...new Set((book?.entries ?? []).map(folderOf).filter(Boolean))].sort());
+  const siblings = $derived((book?.entries ?? []).map((e) => ({ id: e.id, title: e.comment || e.keys[0] || "Untitled" })));
+
   async function load() {
     try {
       book = await get<Lorebook>(`/api/lorebooks/${id}`);
+      if (route.query.entry) void openEntry(route.query.entry);
       [characters, personas] = await Promise.all([
         get<{ characters: CharacterSummary[] }>("/api/characters?sort=name").then((r) => r.characters),
         get<{ personas: Persona[] }>("/api/personas").then((r) => r.personas),
@@ -118,7 +146,7 @@
   const linkedPersonas = $derived(personas.filter((p) => book?.links.some((l) => l.type === "persona" && l.id === p.id)));
   const chatLinks = $derived(book?.links.filter((l) => l.type === "chat").length ?? 0);
   const visible = $derived(
-    (book?.entries ?? []).filter((e) => !filter || `${e.comment} ${e.keys.join(" ")} ${e.content}`.toLowerCase().includes(filter.toLowerCase())),
+    (book?.entries ?? []).filter((e) => (!filter || `${e.comment} ${e.keys.join(" ")} ${e.content}`.toLowerCase().includes(filter.toLowerCase())) && (!folder || folderOf(e) === folder || folderOf(e).startsWith(`${folder} ›`))),
   );
 
   const exportItems: MenuItem[] = [
@@ -138,6 +166,7 @@
       </div>
     </div>
     <textarea class="textarea desc" rows="2" bind:value={book.description} oninput={saveMeta} placeholder="What this lorebook covers (not sent to the model)"></textarea>
+    {#if book.settings.chronicleFor}<a class="notice tiny" href="/chat/{book.settings.chronicleFor}/codex?tab=chronicle">This is a story's Chronicle: Mea proposes entries for what the story introduces, and you review them in the Codex →</a>{/if}
 
     <section class="panel stack scope">
       <h3>Where it applies</h3>
@@ -172,6 +201,7 @@
             <select class="select" value={String(book.settings.matchWholeWords ?? "")} onchange={(e) => { book!.settings.matchWholeWords = e.currentTarget.value === "" ? undefined : e.currentTarget.value === "true"; saveMeta(); }}><option value="">App default</option><option value="true">Yes</option><option value="false">No</option></select>
           </label>
         </div>
+        <label class="switch"><input type="checkbox" checked={Boolean(book.settings.semantic)} onchange={(e) => { book!.settings.semantic = e.currentTarget.checked || undefined; saveMeta(); }} /> Entries also fire on meaning, not just keywords <span class="tiny muted">(needs embeddings, Settings → Models)</span></label>
       </details>
     </section>
 
@@ -179,6 +209,9 @@
       <h2>Entries <span class="muted small">({book.entries.length})</span></h2>
       <div class="row wrap">
         <label class="search input"><Search size={15} /><input bind:value={filter} placeholder="Filter entries" /></label>
+        {#if folders.length}
+          <select class="select mini" bind:value={folder} aria-label="Folder"><option value="">All folders</option>{#each folders as f (f)}<option value={f}>{f}</option>{/each}</select>
+        {/if}
         <Segmented value={full ? "full" : "simple"} options={[{ value: "simple", label: "Simple" }, { value: "full", label: "Full" }]} onchange={(v) => { full = v === "full"; localStorage.setItem("mea.loreFull", full ? "1" : "0"); }} small />
         <button class="btn primary" onclick={addEntry}><Plus size={16} /> Entry</button>
       </div>
@@ -187,7 +220,7 @@
     <div class="entries">
       {#each book.entries as entry, i (entry.id)}
         {#if visible.includes(entry)}
-        <div class="entry card" class:disabled={!entry.enabled}>
+        <div class="entry card" class:disabled={!entry.enabled} id="entry-{entry.id}">
           <div class="erow">
             <button class="expand" onclick={() => (open[entry.id] = !open[entry.id])} aria-expanded={Boolean(open[entry.id])}>
               {#if open[entry.id]}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
@@ -196,6 +229,8 @@
                 <span class="tiny muted truncate">{entry.constant ? "Always on" : entry.keys.join(", ") || "No keywords"} · {entry.content.slice(0, 90)}</span>
               </span>
             </button>
+            {#if folderOf(entry)}<span class="chip tiny hide-sm"><Folder size={11} /> {folderOf(entry).split(" › ").at(-1)}</span>{/if}
+            {#if (entry.extra as { type?: string } | undefined)?.type}<span class="chip tiny hide-sm">{(entry.extra as { type?: string }).type}</span>{/if}
             {#if entry.constant}<span class="chip butter">always</span>{/if}
             {#if !filter}
               <button class="btn ghost icon small" onclick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"><ArrowUp size={14} /></button>
@@ -205,7 +240,7 @@
           </div>
           {#if open[entry.id]}
             <div class="ebody" oninput={() => saveEntry(entry)} onchange={() => saveEntry(entry)} role="group">
-              <EntryEditor bind:entry={book.entries[i]} {full} />
+              <EntryEditor bind:entry={book.entries[i]} {full} {siblings} onchange={() => saveEntry(entry)} />
             </div>
           {/if}
         </div>
@@ -215,6 +250,27 @@
         <p class="muted small">{filter ? "No entries match." : "No entries yet. Add the first one."}</p>
       {/if}
     </div>
+
+    <section class="panel stack">
+      <div class="row between"><h3><Stethoscope size={16} /> Health check</h3><button class="btn small" onclick={checkHealth}>{health ? "Check again" : "Check"}</button></div>
+      {#if health}
+        <div class="tiny muted">{health.entries} entries · always-on cost {health.cost.constantTokens} tokens · all entries {health.cost.totalTokens} tokens · budget {health.cost.budget}{health.cost.averageTriggeredTokens ? ` · a fired entry averages ${health.cost.averageTriggeredTokens}` : ""}</div>
+        {#each health.issues as iss, k (k)}
+          <div class="issue small" class:warn={iss.severity === "warn"}>
+            <span class="chip tiny">{iss.kind.replace(/-/g, " ")}</span> {iss.message}
+            {#each iss.entries.slice(0, 4) as eid (eid)}<button class="link tiny" onclick={() => openEntry(eid)}>{titleOf(eid)}</button>{/each}
+          </div>
+        {:else}
+          <p class="tiny muted">No problems found.</p>
+        {/each}
+        {#if health.cost.top.length}
+          <details>
+            <summary class="tiny">Biggest entries</summary>
+            {#each health.cost.top as t (t.id)}<div class="tiny"><button class="link" onclick={() => openEntry(t.id)}>{t.title}</button> · {t.tokens} tokens{t.constant ? " · always on" : ` · fired ${t.hits}×`}</div>{/each}
+          </details>
+        {/if}
+      {/if}
+    </section>
 
     <section class="panel stack test">
       <h3>Test activation</h3>
@@ -238,11 +294,26 @@
 <Menu bind:open={exportOpen} items={exportItems} anchor={exportBtn} title="Export" />
 
 <style>
+  .issue {
+    border-top: 1px solid var(--border);
+    padding-top: 0.35rem;
+  }
+  .issue.warn :global(.chip) {
+    background: color-mix(in srgb, var(--danger) 15%, var(--surface));
+  }
+  .link {
+    border: 0;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0 0.25rem;
+  }
   .page {
     max-width: 54rem;
     margin: 0 auto;
     padding: 1.2rem clamp(1rem, 3vw, 2rem) 5rem;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
   }
   .head {

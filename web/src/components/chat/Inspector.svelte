@@ -42,6 +42,11 @@
 
   const b = $derived(data?.trace?.budget);
   const pct = (n: number) => (b ? `${Math.max(0, Math.min(100, (n / b.contextTarget) * 100))}%` : "0%");
+  const mem = $derived(data?.trace?.memory);
+  const windowNote = { kept: "window unchanged", advanced: "older messages moved into memory", restored: "window widened again" } as const;
+  const levelChip: Record<string, string> = { scene: "", chapter: "lavender", arc: "peach", story: "butter" };
+  const slotChip: Record<string, string> = { pinned: "butter", recent: "mint", relevant: "lavender", serendipity: "sky", entity: "mint", deep: "butter" };
+  const slotName: Record<string, string> = { pinned: "pinned", recent: "recent", relevant: "relevant", serendipity: "callback", entity: "in play", deep: "quoted" };
   const lore = $derived((data?.trace?.lore ?? []).filter((l) => showLore === "all" || l.status === "active"));
 
   function copyJson() {
@@ -72,14 +77,18 @@
       {#if b}
         <div class="budget" title="Prompt budget">
           <span class="seg fixed" style:width={pct(b.fixed)} title="Instructions, card, lore: {b.fixed}"></span>
+          {#if b.memory}<span class="seg mem" style:width={pct(b.memory)} title="Story So Far: {b.memory}"></span>{/if}
+          {#if b.recall}<span class="seg recall" style:width={pct(b.recall)} title="Recalled memories: {b.recall}"></span>{/if}
           <span class="seg hist" style:width={pct(b.history)} title="History: {b.history}"></span>
           <span class="seg reserve" style:width={pct(b.reserve)} title="Reserved for the reply: {b.reserve}"></span>
         </div>
         <div class="row wrap tiny muted legend">
           <span><i class="dot fixed"></i>Setup {compact(b.fixed)}</span>
+          {#if b.memory}<span><i class="dot mem"></i>Story So Far {compact(b.memory)}</span>{/if}
+          {#if b.recall}<span><i class="dot recall"></i>Recall {compact(b.recall)}</span>{/if}
           <span><i class="dot hist"></i>History {compact(b.history)}</span>
           <span><i class="dot reserve"></i>Reply {compact(b.reserve)}</span>
-          <span>Target {compact(b.contextTarget)}</span>
+          <span>Target {compact(b.effectiveTarget ?? b.contextTarget)}{b.ratio && b.ratio !== 1 ? ` (calibrated ×${b.ratio.toFixed(2)})` : ""}</span>
         </div>
       {/if}
 
@@ -99,6 +108,73 @@
             </tbody>
           </table>
         </details>
+
+        {#if mem}
+          <details open>
+            <summary>
+              <b>Memory</b>
+              <span class="tiny muted">{mem.enabled ? `${mem.telescope.length} summaries · ${mem.recall.length} recalled` : "off"}</span>
+            </summary>
+            {#if !mem.enabled}
+              <p class="tiny muted">Memory is off for this reply. Turn it on in Settings → Memory.</p>
+            {:else}
+              <div class="stack tight memsec">
+                <p class="tiny muted">
+                  Verbatim window: {mem.window.messages} {mem.window.messages === 1 ? "message" : "messages"} ({compact(mem.window.tokens)}{mem.window.budget ? ` of ${compact(mem.window.budget)}` : ""} tokens) · {windowNote[mem.window.moved]}{mem.evictedThrough ? ` · messages up to #${mem.evictedThrough} are covered by summaries` : ""}
+                </p>
+                {#if mem.window.unsafe}<div class="notice warn tiny">Some messages left the window before memory had summarized them; the reply may miss details from them.</div>{/if}
+                {#each mem.gaps as g (g.startSeq)}<div class="notice warn tiny">Not summarized yet: #{g.startSeq}–#{g.endSeq} ({g.reason})</div>{/each}
+
+                <h4>Story So Far <span class="tiny muted">{compact(mem.telescopeTokens)} / {compact(mem.telescopeBudget)} tokens{mem.dropped ? ` · ${mem.dropped} oldest folded away` : ""}</span></h4>
+                {#if mem.telescope.length}
+                  <table>
+                    <tbody>
+                      {#each mem.telescope as t (t.id)}
+                        <tr>
+                          <td><span class="chip {levelChip[t.level]}">{t.level}</span> {t.title || "Untitled"}</td>
+                          <td class="muted">#{t.startSeq}–#{t.endSeq}</td>
+                          <td class="num">{t.tokens}</td>
+                          <td class="muted">{t.state === "ready" ? "" : t.state}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                {:else}
+                  <p class="tiny muted">Nothing has left the verbatim window yet, so no summaries were needed.</p>
+                {/if}
+
+                <h4>Recalled <span class="tiny muted">{compact(mem.recallTokens)} / {compact(mem.recallBudget)} tokens{mem.vector ? " · keywords + meaning" : " · keywords only"}</span></h4>
+                {#if mem.queries?.length}
+                  <div class="tiny muted how">
+                    Searched with {mem.queries.map((q) => `${q.label}${q.vector ? "" : " (keywords)"}`).join(" · ")}.
+                    {#if mem.pov}Remembered as {mem.pov}{#if mem.stats?.filteredPov} ({mem.stats.filteredPov} memories they couldn't know were left out){/if}.{:else}Narrator's view: everything.{/if}
+                    {#if mem.stats?.librarian === "used"}The librarian picked from the candidates.{/if}
+                    {#if mem.stats?.deep}{mem.stats.deep} quote{mem.stats.deep === 1 ? "" : "s"} found by deep search.{/if}
+                    {#if mem.index && mem.index.coverage < 0.95}Meaning search index {Math.round(mem.index.coverage * 100)}% ready.{/if}
+                    {#if mem.journalTokens}The character's journal rode along ({compact(mem.journalTokens)} tokens).{/if}
+                    Written as “{mem.format ?? "prose"}”.
+                  </div>
+                {/if}
+                {#if mem.recall.length}
+                  <table>
+                    <tbody>
+                      {#each mem.recall as r (r.ownerType + r.id)}
+                        <tr>
+                          <td><span class="chip {slotChip[r.slot]}">{slotName[r.slot] ?? r.slot}</span></td>
+                          <td>{r.content}<div class="tiny muted">{r.type}{r.seq != null ? ` · #${r.seq}` : ""}{r.when ? ` · ${r.when}` : ""}{r.where ? `, at ${r.where}` : ""}{r.confirmed ? " · confirmed by you" : ""}{r.disputed ? " · disputed" : ""}{r.reasons.length ? ` · ${r.reasons.join(", ")}` : ""}</div></td>
+                          <td class="num">{r.tokens}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                {:else}
+                  <p class="tiny muted">Nothing recalled for this reply.</p>
+                {/if}
+                {#if mem.query}<p class="tiny faint">Searched for: “{mem.query.slice(0, 200)}”</p>{/if}
+              </div>
+            {/if}
+          </details>
+        {/if}
 
         <details open>
           <summary>
@@ -157,6 +233,22 @@
   .seg.fixed,
   .dot.fixed {
     background: var(--lavender);
+  }
+  .seg.mem,
+  .dot.mem {
+    background: var(--butter);
+  }
+  .how {
+    margin: 0.2rem 0 0.4rem;
+    line-height: 1.5;
+  }
+  .seg.recall,
+  .dot.recall {
+    background: var(--sky);
+  }
+  .memsec h4 {
+    margin: 0.4rem 0 0;
+    font-size: var(--fs-sm);
   }
   .seg.hist,
   .dot.hist {

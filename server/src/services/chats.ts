@@ -9,10 +9,67 @@ import { type ChatMode, getCard, getCharacterRow, touchCharacter } from "./chara
 import { detectMode } from "./mode";
 import { getDefaultPersona, getPersona } from "./personas";
 
+const short = (n = 200) => z.string().trim().max(n);
+
+/** Trackers for this chat (TRK-06, TRK-08). Missing fields fall back to the character's and the global defaults. */
+export const trackerConfigSchema = z.object({
+  mode: z.enum(["helper", "inline", "off"]).optional(),
+  cadence: z.enum(["every", "everyN", "scene", "manual"]).optional(),
+  everyN: z.number().int().min(2).max(20).optional(),
+  gate: z.boolean().optional(),
+  sections: z.record(z.string(), z.boolean()).optional(),
+  templates: z.array(z.string()).max(20).optional(),
+  romance: z.enum(["off", "slow", "measured", "fast", "established"]).optional(),
+  sealed: z.boolean().optional(),
+  strictness: z.enum(["strict", "lenient"]).optional(),
+  limits: z.boolean().optional(),
+  budget: z.number().int().min(100).max(4000).optional(),
+  quietAfter: z.number().int().min(5).max(500).optional(),
+  nudges: z.boolean().optional(),
+});
+export type TrackerConfig = z.infer<typeof trackerConfigSchema>;
+
+/** The world off the page (sim/). */
+export const worldConfigSchema = z.object({
+  mode: z.enum(["off", "quiet", "living", "restless"]).optional(),
+  director: z.enum(["steady", "rising", "chaotic", "gentle"]).optional(),
+  telling: z.enum(["model", "engine"]).optional(),
+  seeding: z.enum(["auto", "ask", "off"]).optional(),
+  fates: z.enum(["page", "ask", "allow"]).optional(),
+  view: z.enum(["director", "surprise"]).optional(),
+  climate: short(80).optional(),
+  latitude: short(40).optional(),
+  tech: z.enum(["modern", "historic", "fantasy", "future"]).optional(),
+  genres: z.array(short(30)).max(6).optional(),
+  step: z.number().int().min(30).max(1440).optional(),
+});
+export type WorldConfig = z.infer<typeof worldConfigSchema>;
+
 export const chatSettingsSchema = z.object({
   authorsNote: z.object({ content: z.string(), depth: z.number().int().min(0).max(100), role: z.enum(["system", "user", "assistant"]) }).optional(),
   profileId: z.string().nullable().optional(),
   presetId: z.string().nullable().optional(),
+  trackers: trackerConfigSchema.optional(),
+  world: worldConfigSchema.optional(),
+  /** CHAT-13: story settings compiled into the prompt. */
+  story: z
+    .object({ genre: short(60), tone: short(60), pov: short(40), tense: short(20), style: short(200), intensity: short(40), language: short(30) })
+    .partial()
+    .optional(),
+  /** CHAT-12: quick switches. */
+  length: z.enum(["short", "normal", "long"]).nullable().optional(),
+  pacing: z.enum(["slow", "normal", "fast"]).nullable().optional(),
+  /** CHAT-10: standing out-of-character notes, and a one-time cue for the next reply. */
+  ooc: z.array(z.object({ id: z.string(), text: short(600) })).max(20).optional(),
+  cue: short(1000).nullable().optional(),
+  /** CHAT-11: guidance chips switched on for this chat (persistent), and ones used once. */
+  guidance: z.object({ active: z.array(z.string()).max(40), once: z.array(z.string()).max(40) }).partial().optional(),
+  /** CHAT-09: your messages are stage directions. */
+  director: z.boolean().optional(),
+  /** CONN-07: a model picked in the header, with this chat's profile settings. */
+  modelOverride: z.object({ connectionId: z.string(), modelId: z.string() }).nullable().optional(),
+  /** Story truths: your rules for this story, sent every turn. */
+  truths: z.array(short(300)).max(30).optional(),
 });
 export type ChatSettings = z.infer<typeof chatSettingsSchema>;
 
@@ -30,6 +87,8 @@ interface ChatRow {
   last_message_at: number | null;
   archived_at: number | null;
   deleted_at: number | null;
+  title_locked?: number;
+  cover_image_id?: string | null;
 }
 
 export interface MessageRow {
@@ -60,6 +119,25 @@ export interface SwipeRow {
 }
 
 const chatChanged = (chatId: string) => publish({ type: "chat.changed", chatId });
+
+/**
+ * Called when a message that memory may already be built from changes: edit, delete, restore,
+ * hide, or a different swipe chosen (MEM-10). The memory module registers itself here.
+ */
+type LedgerHook = (chatId: string, messageId: string) => void;
+const ledgerHooks: LedgerHook[] = [];
+export function onLedgerEdit(fn: LedgerHook) {
+  ledgerHooks.push(fn);
+}
+function ledgerEdited(chatId: string, messageId: string) {
+  for (const h of ledgerHooks) {
+    try {
+      h(chatId, messageId);
+    } catch (e) {
+      console.error("[mea] memory hook failed:", e);
+    }
+  }
+}
 const msgChanged = (chatId: string, messageId: string) => publish({ type: "message.changed", chatId, messageId });
 
 export function getChatRow(id: string) {
@@ -86,6 +164,8 @@ function chatOut(r: ChatRow) {
     lastMessageAt: r.last_message_at,
     archivedAt: r.archived_at,
     deletedAt: r.deleted_at,
+    titleLocked: Boolean(r.title_locked),
+    coverImageId: r.cover_image_id ?? null,
   };
 }
 
@@ -94,10 +174,14 @@ export function getChat(id: string) {
   return r ? chatOut(r) : undefined;
 }
 
-export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number } = {}) {
+export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number; collectionId?: string } = {}) {
   const where = [opts.deleted ? "c.deleted_at IS NOT NULL" : "c.deleted_at IS NULL"];
   const params: (string | number)[] = [];
-  if (!opts.deleted) where.push(opts.archived ? "c.archived_at IS NOT NULL" : "c.archived_at IS NULL");
+  if (!opts.deleted && !opts.collectionId) where.push(opts.archived ? "c.archived_at IS NOT NULL" : "c.archived_at IS NULL");
+  if (opts.collectionId) {
+    where.push("c.id IN (SELECT chat_id FROM collection_chats WHERE collection_id = ?)");
+    params.push(opts.collectionId);
+  }
   if (opts.characterId) {
     where.push("c.character_id = ?");
     params.push(opts.characterId);
@@ -112,8 +196,11 @@ export function listChats(opts: { characterId?: string; archived?: boolean; dele
     ...params,
     opts.limit ?? 200,
   );
+  const memberships = new Map<string, string[]>();
+  for (const m of all<{ chat_id: string; collection_id: string }>("SELECT chat_id, collection_id FROM collection_chats")) memberships.set(m.chat_id, [...(memberships.get(m.chat_id) ?? []), m.collection_id]);
   return rows.map((r) => ({
     ...chatOut(r),
+    collections: memberships.get(r.id) ?? [],
     characterName: r.character_name,
     avatarId: r.avatar_id,
     lastText: (r.last_text ?? "").slice(0, 160),
@@ -179,6 +266,8 @@ export function updateChat(id: string, patch: { title?: string; personaId?: stri
     now(),
     id,
   );
+  // LIB-04: a title you set yourself is never replaced by an automatic one.
+  if (patch.title !== undefined && patch.title !== cur.title) run("UPDATE chats SET title_locked = 1 WHERE id = ?", id);
   chatChanged(id);
   return getChat(id)!;
 }
@@ -339,6 +428,7 @@ export function editMessage(id: string, content: string) {
     run("UPDATE messages SET updated_at = ? WHERE id = ?", now(), id);
   });
   msgChanged(m.chat_id, id);
+  ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -349,6 +439,7 @@ export function setActiveSwipe(id: string, idx: number) {
   if (!exists) throw badRequest("No such swipe");
   run("UPDATE messages SET active_swipe = ?, updated_at = ? WHERE id = ?", idx, now(), id);
   msgChanged(m.chat_id, id);
+  if (idx !== m.active_swipe) ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -363,6 +454,7 @@ export function setMessageFlags(id: string, flags: { hidden?: boolean; bookmarke
     id,
   );
   msgChanged(m.chat_id, id);
+  if (flags.hidden !== undefined && Boolean(m.hidden) !== flags.hidden) ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -372,6 +464,7 @@ export function softDeleteMessage(id: string) {
   run("UPDATE messages SET deleted_at = ? WHERE id = ?", now(), id);
   bumpChat(m.chat_id);
   msgChanged(m.chat_id, id);
+  ledgerEdited(m.chat_id, id);
 }
 
 export function restoreMessage(id: string) {
@@ -380,20 +473,27 @@ export function restoreMessage(id: string) {
   run("UPDATE messages SET deleted_at = NULL WHERE id = ?", id);
   bumpChat(m.chat_id);
   msgChanged(m.chat_id, id);
+  ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
 /** Messages that go into the prompt: not deleted, not hidden, non-empty, oldest first. */
 export function historyForPrompt(chatId: string, opts: { excludeMessageId?: string; uptoSeq?: number } = {}): HistoryMessage[] {
-  return all<{ id: string; role: Role; content: string; seq: number }>(
-    `SELECT m.id, m.role, s.content, m.seq FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+  return all<{ id: string; role: Role; content: string; seq: number; meta: string }>(
+    `SELECT m.id, m.role, s.content, m.seq, s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
      WHERE m.chat_id = ? AND m.deleted_at IS NULL AND m.hidden = 0 AND s.status != 'error' AND TRIM(s.content) != ''
      ${opts.uptoSeq != null ? "AND m.seq <= ?" : ""}
      ORDER BY m.seq`,
     ...(opts.uptoSeq != null ? [chatId, opts.uptoSeq] : [chatId]),
   )
     .filter((m) => m.id !== opts.excludeMessageId)
-    .map(({ id, role, content }) => ({ id, role, content }));
+    .map(({ id, role, content, seq, meta }) => ({
+      id,
+      role,
+      // CHAT-09: a stage direction never reads as the user's character speaking.
+      content: role === "user" && meta.includes('"director":true') ? `[Stage direction from the user, not their character's words or actions: ${content.trim()}]` : content,
+      seq,
+    }));
 }
 
 export function messageCountOf(chatId: string) {

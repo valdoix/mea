@@ -1,6 +1,7 @@
 <script lang="ts">
   import Avatar from "../components/Avatar.svelte";
   import EmptyState from "../components/EmptyState.svelte";
+  import Stories from "../components/library/Stories.svelte";
   import { api, get, post, put } from "../lib/api";
   import { greeting, timeAgo } from "../lib/format";
   import { Heart, Import, MessageHeart, Plus, Search, Star } from "../lib/icons";
@@ -154,6 +155,8 @@
       </div>
     {/if}
   {/if}
+
+  {#if latest}<Stories />{/if}
 
   <section class="library">
     <div class="toolbar">

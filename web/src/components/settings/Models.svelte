@@ -2,13 +2,14 @@
   import Modal from "../Modal.svelte";
   import QuotaRing from "../QuotaRing.svelte";
   import ModelPicker from "./ModelPicker.svelte";
+  import Routing from "./Routing.svelte";
   import { del, get, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { refreshQuota } from "../../lib/events";
   import { compact, timeAgo } from "../../lib/format";
   import { KeyRound, Plus, RefreshCw, Trash } from "../../lib/icons";
   import { app, errorToast, toast } from "../../lib/state.svelte";
-  import type { Connection, ModelInfo, Profile, ProfileParams } from "../../lib/types";
+  import type { CacheProbe, Connection, ModelInfo, Profile, ProfileParams } from "../../lib/types";
 
   let connections = $state<Connection[]>([]);
   let models = $state<ModelInfo[]>([]);
@@ -16,7 +17,8 @@
   let storyId = $state<string | null>(null);
   let addOpen = $state(false);
   let addKind = $state<"nano-sub" | "nano-paygo" | "openai" | "mock">("nano-sub");
-  let form = $state({ name: "", baseUrl: "", apiKey: "", billing: "paygo" as Connection["billing"] });
+  let form = $state({ name: "", baseUrl: "", apiKey: "", billing: "paygo" as Connection["billing"], format: "openai" as NonNullable<Connection["format"]> });
+  let probing = $state<Record<string, boolean>>({});
   let busy = $state(false);
   let syncing = $state<Record<string, boolean>>({});
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -48,6 +50,7 @@
       baseUrl: kind === "openai" ? "https://" : "",
       apiKey: "",
       billing: kind === "nano-sub" ? "subscription" : "paygo",
+      format: "openai",
     };
     addOpen = true;
   }
@@ -62,6 +65,7 @@
         baseUrl: kind === "openai" ? form.baseUrl : undefined,
         apiKey: form.apiKey || undefined,
         billing: form.billing,
+        format: kind === "openai" ? form.format : undefined,
       });
       addOpen = false;
       if (r.syncError) toast(`Saved, but loading models failed: ${r.syncError}`, { kind: "error" });
@@ -104,6 +108,30 @@
     if (!key?.trim()) return;
     await put(`/api/connections/${c.id}`, { apiKey: key.trim() });
     await sync(c);
+  }
+
+  async function setFormat(c: Connection, format: NonNullable<Connection["format"]>) {
+    try {
+      await put(`/api/connections/${c.id}`, { format });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  /** Sends two small identical requests to see whether the provider caches the prefix (CONN-24). */
+  async function probe(p: Profile) {
+    if (!p.connectionId || !p.modelId) return;
+    probing[p.id] = true;
+    try {
+      const r = await post<CacheProbe>(`/api/connections/${p.connectionId}/probe`, { modelId: p.modelId });
+      toast(r.error ? `Cache check failed: ${r.error}` : r.verified ? `Caching works · ${Math.round(r.hitRate * 100)}% of the repeat was cached` : "No cache hits seen on this route", { kind: r.verified ? "ok" : "error" });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      probing[p.id] = false;
+    }
   }
 
   async function removeConnection(c: Connection) {
@@ -157,6 +185,7 @@
     return { now: Math.round(weekly / 7 / perTurn), full: Math.round(weekly / 7 / (perTurn + 13000)) };
   }
   const modelsFor = (connId: string | null) => models.filter((m) => m.connectionId === connId);
+  const modelOf = (p: Profile) => models.find((m) => m.connectionId === p.connectionId && m.id === p.modelId);
   const billingLabel = { subscription: "subscription", paygo: "pay-as-you-go", unknown: "unknown billing" };
 </script>
 
@@ -193,6 +222,15 @@
           <div class="tiny muted">
             {c.kind === "openai" ? c.baseUrl : c.kind === "nanogpt" ? "NanoGPT" : "Mock provider"} · {c.hasKey ? `key ${c.keyMask}` : "no key"} · {c.modelCount} models{c.lastSyncAt ? ` · synced ${timeAgo(c.lastSyncAt)}` : ""}
           </div>
+          {#if c.kind === "openai"}
+            <label class="row tiny muted fmt">
+              Request format
+              <select class="select tiny" value={c.format ?? "openai"} onchange={(e) => setFormat(c, e.currentTarget.value as "openai" | "anthropic")}>
+                <option value="openai">OpenAI chat completions</option>
+                <option value="anthropic">Anthropic Messages</option>
+              </select>
+            </label>
+          {/if}
           {#if c.lastError}<div class="tiny" style="color:var(--danger)">{c.lastError}</div>{/if}
         </div>
         <div class="row">
@@ -212,6 +250,7 @@
     {#each profiles as p (p.id)}
       {@const est = turnsPerDay(p.params.context_target)}
       {@const conn = connections.find((c) => c.id === p.connectionId)}
+      {@const mi = modelOf(p)}
       <div class="profile card stack tight">
         <div class="row between wrap">
           <input class="pname" bind:value={p.name} oninput={() => saveProfile(p)} aria-label="Profile name" />
@@ -249,11 +288,25 @@
           </label>
         </div>
         <label class="switch"><input type="checkbox" checked={Boolean(p.params.hide_reasoning)} onchange={(e) => ((p.params.hide_reasoning = e.currentTarget.checked || undefined), saveProfile(p))} /> Ask the provider not to return reasoning</label>
+        {#if mi?.learnedContext}<span class="tiny muted">Learned limit: this model refused prompts over ≈ {compact(mi.learnedContext)} tokens, so Mea stays under that.</span>{/if}
+        {#if conn && conn.billing !== "subscription" && p.modelId}
+          <div class="row wrap cache">
+            <label class="switch"><input type="checkbox" checked={p.params.cache !== "off"} onchange={(e) => ((p.params.cache = e.currentTarget.checked ? undefined : "off"), saveProfile(p))} /> Prompt caching</label>
+            {#if mi?.cacheProbe}
+              <span class="chip {mi.cacheProbe.verified ? 'mint' : mi.cacheProbe.error ? 'rose' : 'butter'}" title={mi.cacheProbe.error ?? `Checked ${timeAgo(mi.cacheProbe.at)}`}>
+                {mi.cacheProbe.verified ? `cache verified · ${Math.round(mi.cacheProbe.hitRate * 100)}%` : mi.cacheProbe.error ? "cache check failed" : "no cache hits"}
+              </span>
+            {/if}
+            <button class="btn ghost small" onclick={() => probe(p)} disabled={probing[p.id]}>{probing[p.id] ? "Checking…" : mi?.cacheProbe ? "Check again" : "Check caching"}</button>
+          </div>
+        {/if}
       </div>
     {:else}
       <p class="muted small">Add a connection first; Mea makes a story profile for you.</p>
     {/each}
   </section>
+
+  {#if profiles.length}<Routing {profiles} {connections} />{/if}
 </div>
 
 <Modal bind:open={addOpen} title={addKind === "nano-sub" ? "NanoGPT subscription key" : addKind === "nano-paygo" ? "NanoGPT pay-as-you-go key" : addKind === "mock" ? "Mock provider" : "OpenAI-compatible connection"} size="sm">
@@ -264,6 +317,11 @@
       <label class="field">
         <span class="label">Billing</span>
         <select class="select" bind:value={form.billing}><option value="paygo">Pay-as-you-go</option><option value="subscription">Subscription</option><option value="unknown">Not sure</option></select>
+      </label>
+      <label class="field">
+        <span class="label">Request format</span>
+        <select class="select" bind:value={form.format}><option value="openai">OpenAI chat completions</option><option value="anthropic">Anthropic Messages (/v1/messages)</option></select>
+        <span class="hint">Pick Anthropic for Claude proxies that speak the Messages API; caching then uses cache_control.</span>
       </label>
     {/if}
     {#if addKind !== "mock"}
@@ -285,6 +343,13 @@
   }
   .profile {
     padding: 1rem;
+  }
+  .fmt .select {
+    width: auto;
+    padding: 0.15rem 0.4rem;
+  }
+  .cache {
+    gap: 0.6rem;
   }
   .pname {
     border: 0;

@@ -3,12 +3,20 @@ import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { config } from "./config";
+import { embeddedAsset, hasEmbeddedAssets } from "./lib/embedded";
 import { HttpError } from "./lib/http";
 import { chats } from "./routes/chats";
 import { library } from "./routes/library";
 import { lore } from "./routes/lore";
+import { memory } from "./routes/memory";
 import { models } from "./routes/models";
 import { system } from "./routes/system";
+import { trackers } from "./routes/trackers";
+import { world } from "./routes/world";
+import { tools } from "./routes/tools";
+import { knowledge } from "./routes/knowledge";
+import { accuracy } from "./routes/accuracy";
+import { stories } from "./routes/stories";
 import { DEVICE_COOKIE, deviceForToken, isTrustedLocal } from "./services/auth";
 import { importFile } from "./services/importer";
 
@@ -63,8 +71,15 @@ export function createApp() {
   app.route("/api", library);
   app.route("/api", lore);
   app.route("/api", chats);
+  app.route("/api", memory);
   app.route("/api", models);
   app.route("/api", system);
+  app.route("/api", trackers);
+  app.route("/api", world);
+  app.route("/api", tools);
+  app.route("/api", knowledge);
+  app.route("/api", accuracy);
+  app.route("/api", stories);
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
   // Android share sheet → import a card (MOB-05). Same auth as the API.
@@ -91,17 +106,20 @@ export function createApp() {
     const safe = normalize(path).replace(/^([\\/])+/, "");
     if (safe.startsWith("..")) return c.notFound();
     if (safe && safe !== "index.html") {
-      const file = Bun.file(join(config.webDist, safe));
-      if (await file.exists()) {
+      const file = webFile(safe);
+      if (file && (await file.exists())) {
         const immutable = safe.startsWith("assets/") || safe.startsWith("assets\\");
         const noCache = safe === "sw.js" || safe.endsWith(".webmanifest");
         return new Response(file, {
-          headers: { "Cache-Control": immutable ? "public, max-age=31536000, immutable" : noCache ? "no-cache" : "public, max-age=3600" },
+          headers: {
+            "Content-Type": Bun.file(safe).type,
+            "Cache-Control": immutable ? "public, max-age=31536000, immutable" : noCache ? "no-cache" : "public, max-age=3600",
+          },
         });
       }
     }
-    const index = Bun.file(join(config.webDist, "index.html"));
-    if (await index.exists()) return new Response(index, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
+    const index = webFile("index.html");
+    if (index && (await index.exists())) return new Response(index, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
     return c.html(
       `<!doctype html><meta charset="utf-8"><title>Mea</title><body style="font-family:system-ui;background:#FBF6F1;color:#43363D;padding:3rem">
        <h1>Mea's server is running ✿</h1><p>The web app isn't built yet. Run <code>bun run build</code>, or use <code>bun run dev</code> while developing.</p></body>`,
@@ -109,4 +127,13 @@ export function createApp() {
   });
 
   return app;
+}
+
+/** A web app file: embedded in mea.exe when compiled (ARCH-14), else read from web/dist. */
+function webFile(path: string) {
+  if (hasEmbeddedAssets()) {
+    const embedded = embeddedAsset(path.replaceAll("\\", "/"));
+    return embedded ? Bun.file(embedded) : null;
+  }
+  return Bun.file(join(config.webDist, path));
 }

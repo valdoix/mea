@@ -1,19 +1,65 @@
 <script lang="ts">
-  import { api, download, get, post } from "../../lib/api";
+  import { api, download, get, post, put } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
-  import { bytes, clock } from "../../lib/format";
-  import { Database, Download, Import } from "../../lib/icons";
+  import { bytes, clock, timeAgo } from "../../lib/format";
+  import { Database, Download, HardDrive, Import } from "../../lib/icons";
   import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
 
   let backups = $state<{ file: string; kind: string; bytes: number; createdAt: number }[]>([]);
   let busy = $state(false);
   let fileInput = $state<HTMLInputElement | null>(null);
 
+  interface Mirror {
+    dir: string;
+    encrypt: boolean;
+    keep: number;
+    lastAt: number | null;
+    lastError: string | null;
+    hasPassphrase: boolean;
+  }
+  let mirror = $state<Mirror | null>(null);
+  let mirrorForm = $state({ dir: "", keep: 14, encrypt: false, passphrase: "" });
+  let mirrorBusy = $state(false);
+
   async function load() {
     try {
-      backups = (await get<{ backups: typeof backups }>("/api/backups")).backups;
+      const [b, m] = await Promise.all([get<{ backups: typeof backups }>("/api/backups"), get<Mirror>("/api/backups/mirror")]);
+      backups = b.backups;
+      mirror = m;
+      mirrorForm = { dir: m.dir, keep: m.keep, encrypt: m.encrypt, passphrase: "" };
     } catch (e) {
       errorToast(e);
+    }
+  }
+
+  async function saveMirror() {
+    mirrorBusy = true;
+    try {
+      mirror = await put<Mirror>("/api/backups/mirror", {
+        dir: mirrorForm.dir,
+        keep: mirrorForm.keep,
+        encrypt: mirrorForm.encrypt,
+        passphrase: mirrorForm.passphrase || undefined,
+      });
+      mirrorForm.passphrase = "";
+      toast("Saved", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      mirrorBusy = false;
+    }
+  }
+
+  async function runMirror() {
+    mirrorBusy = true;
+    try {
+      const r = await post<{ copied: string; mirror: Mirror }>("/api/backups/mirror/run");
+      mirror = r.mirror;
+      toast("Copied the latest backup", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      mirrorBusy = false;
     }
   }
   $effect(() => {
@@ -84,6 +130,40 @@
     </div>
   </section>
 
+  {#if mirror}
+    <section class="panel stack">
+      <h2>Copy backups elsewhere</h2>
+      <p class="tiny muted">
+        Once a day Mea copies its newest backup to a second folder, such as another drive or a synced folder (OneDrive, Dropbox), so a dead disk doesn't take your stories with it.
+      </p>
+      <label class="field">
+        <span class="label">Folder</span>
+        <input class="input" bind:value={mirrorForm.dir} placeholder="D:\Backups\Mea" />
+        <span class="hint">A full path. Leave empty to turn this off.</span>
+      </label>
+      <div class="grid">
+        <label class="field"><span class="label">Keep</span><input class="input" type="number" min="1" max="90" bind:value={mirrorForm.keep} /><span class="hint">copies</span></label>
+      </div>
+      <label class="switch"><input type="checkbox" bind:checked={mirrorForm.encrypt} /> Encrypt the copies with a passphrase</label>
+      {#if mirrorForm.encrypt}
+        <label class="field">
+          <span class="label">Passphrase {#if mirror.hasPassphrase}<span class="faint">(set; type a new one to change it)</span>{/if}</span>
+          <input class="input" type="password" autocomplete="new-password" bind:value={mirrorForm.passphrase} placeholder={mirror.hasPassphrase ? "••••••••" : "Choose a passphrase"} />
+          <span class="hint">Write it down. Without it, the encrypted copies can't be restored.</span>
+        </label>
+      {/if}
+      <div class="row wrap between">
+        <span class="tiny muted">
+          {#if mirror.lastError}<span class="err">Last copy failed: {mirror.lastError}</span>{:else if mirror.lastAt}Last copy {timeAgo(mirror.lastAt)}{:else if mirror.dir}No copy yet{/if}
+        </span>
+        <div class="row">
+          <button class="btn small" onclick={runMirror} disabled={mirrorBusy || !mirror.dir}><HardDrive size={14} /> Copy now</button>
+          <button class="btn primary small" onclick={saveMirror} disabled={mirrorBusy || (mirrorForm.encrypt && !mirror.hasPassphrase && !mirrorForm.passphrase)}>Save</button>
+        </div>
+      </div>
+    </section>
+  {/if}
+
   <section class="panel stack">
     <h2>Import & export</h2>
     <div class="row wrap">
@@ -112,6 +192,9 @@
 </div>
 
 <style>
+  .err {
+    color: var(--danger);
+  }
   .list {
     display: grid;
     gap: 0.35rem;

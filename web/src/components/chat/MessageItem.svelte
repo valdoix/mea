@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ContinuityNote from "./ContinuityNote.svelte";
+  import { gloss } from "../../lib/glossary";
   import Avatar from "../Avatar.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
   import { autosize, longpress, swipe } from "../../lib/gestures";
@@ -17,8 +19,15 @@
     Trash,
     CircleAlert,
     Feather,
+    Brain,
+    Milestone,
+    Flag,
+    Info,
+    Undo,
   } from "../../lib/icons";
   import { renderMessage, renderStreaming } from "../../lib/render";
+  import ChangeChips from "../trackers/ChangeChips.svelte";
+  import type { Citation, ContinuityFlag, GlossaryTerm, TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
   import { clock } from "../../lib/format";
   import type { Message } from "../../lib/types";
@@ -39,7 +48,35 @@
     oninspect,
     oncompare,
     editSignal = 0,
+    highlighted = false,
+    onendscene,
+    onnewchapter,
+    onmemory,
+    chips = [],
+    storyTime = null,
+    onrewind,
+    mark = "",
+    flag = null,
+    onflagchange,
+    oncite,
+    glossary = [],
+    onglossary,
   }: {
+    mark?: string;
+    /** CON-02: this reply's continuity notes. */
+    flag?: ContinuityFlag | null;
+    onflagchange?: (f: ContinuityFlag | null) => void;
+    oncite?: (c: Citation) => void;
+    /** LORE-15: lore terms to underline, and what tapping one does. */
+    glossary?: GlossaryTerm[];
+    onglossary?: (t: GlossaryTerm, at: DOMRect) => void;
+    chips?: TrackerChange[];
+    storyTime?: string | null;
+    onrewind?: () => void;
+    highlighted?: boolean;
+    onendscene?: () => void;
+    onnewchapter?: () => void;
+    onmemory?: () => void;
     editSignal?: number;
     message: Message;
     isLast: boolean;
@@ -69,8 +106,17 @@
   const isUser = $derived(message.role === "user");
   const streaming = $derived(message.status === "streaming");
   const scope = $derived(`m-${message.id.slice(0, 8)}`);
-  const html = $derived(streaming ? "" : renderMessage(message.content, scope));
+  const html = $derived(streaming ? "" : markText(renderMessage(message.content, scope), mark));
+
+  /** CHAT-18: highlight search matches in the rendered text (only between tags). */
+  function markText(h: string, q: string) {
+    if (!q || q.length < 2) return h;
+    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    return h.replace(/>([^<]+)</g, (_m, text: string) => `>${text.replace(re, (x) => `<mark>${x}</mark>`)}<`);
+  }
   const swipeable = $derived(message.role === "assistant" && isLast && !streaming);
+  const words = $derived(message.content.trim() ? message.content.trim().split(/\s+/).length : 0);
+  const banned = $derived((message.meta?.banned as string[] | undefined) ?? []);
 
   // Re-render streaming text at most once per frame (PERF-03).
   $effect(() => {
@@ -111,7 +157,11 @@
     if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: ScrollText, onclick: oncompare });
     list.push({ label: message.bookmarked ? "Remove bookmark" : "Bookmark", icon: Bookmark, onclick: () => onflag({ bookmarked: !message.bookmarked }) });
     list.push({ label: message.hidden ? "Include in prompt" : "Hide from prompt", icon: message.hidden ? Eye : EyeOff, onclick: () => onflag({ hidden: !message.hidden }) });
-    if (message.meta?.generationId) list.push({ label: "View prompt", icon: ScrollText, onclick: oninspect });
+    if (message.meta?.generationId) list.push({ label: "What the model received", icon: ScrollText, onclick: oninspect });
+    if (onmemory) list.push({ label: "What memory knows", icon: Brain, onclick: onmemory });
+    if (onendscene) list.push({ label: "End the scene after this", icon: Milestone, onclick: onendscene });
+    if (onnewchapter) list.push({ label: "Start a new chapter here", icon: Flag, onclick: onnewchapter });
+    if (onrewind && !isLast) list.push({ label: "Rewind to here", icon: Undo, onclick: onrewind, hint: "deletes what comes after" });
     list.push({ label: "Delete", icon: Trash, danger: true, onclick: ondelete });
     return list;
   });
@@ -126,6 +176,7 @@
   class="msg {message.role}"
   class:hidden-msg={message.hidden}
   class:editing
+  class:highlighted
   use:longpress={{ onLong: openMenuAt }}
   data-seq={message.seq}
 >
@@ -138,7 +189,7 @@
       {#if message.hidden}<span class="chip" title="Not sent to the model"><EyeOff size={11} /> hidden</span>{/if}
       <button class="btn ghost icon small more" bind:this={menuBtn} onclick={() => ((menuPoint = null), (menuOpen = true))} aria-label="Message actions"><Ellipsis size={16} /></button>
     </span>
-    <span class="time" title={clock(message.createdAt)}>{clock(message.updatedAt || message.createdAt)}</span>
+    <span class="time" title={`${clock(message.createdAt)}${storyTime ? ` · in the story: ${storyTime}` : ""} · ${words} words`}>{storyTime && app.settings?.["appearance.chatStyle"] !== "bubbles" ? storyTime : clock(message.updatedAt || message.createdAt)}</span>
   </header>
   <div class="bubble">
 
@@ -170,11 +221,15 @@
           <div class="notice error row"><CircleAlert size={16} /><span class="grow">{message.error ?? "Something went wrong."}</span></div>
           {#if isLast}<button class="btn small" style="margin-top:.5rem" onclick={() => onregen()} disabled={!canGenerate}><RotateCcw size={14} /> Try again</button>{/if}
         {:else}
-          <div class="prose {scope}">{@html html}</div>
+          <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }}>{@html html}</div>
+          {#if banned.length}<div class="tiny banned" title="Phrases from your banned list (Settings → Writing)">Banned phrases: {banned.join(", ")}</div>{/if}
           {#if message.status === "stopped"}<div class="tiny faint" style="margin-top:.3rem">Stopped{message.error ? ` · ${message.error}` : ""}</div>{/if}
         {/if}
       </div>
     {/if}
+
+    {#if chips.length && !editing && !streaming}<ChangeChips changes={chips} />{/if}
+    {#if flag && !editing && !streaming && onflagchange && oncite}<ContinuityNote {flag} canRegenerate={isLast && canGenerate} onchange={onflagchange} {oncite} />{/if}
 
     {#if message.role === "assistant" && (message.swipeCount > 1 || isLast) && !editing}
       <footer class="swipes">
@@ -193,6 +248,7 @@
           {#if message.content}<button class="btn ghost small" onclick={oncontinue} disabled={!canGenerate} title="Continue this reply"><StepForward size={14} /> <span class="hide-sm">Continue</span></button>{/if}
         {/if}
         {#if message.meta?.model && !app.isMobile}<span class="tiny faint model truncate" title="Model">{message.meta.model}</span>{/if}
+        {#if message.meta?.generationId && !streaming}<button class="btn ghost icon small receipt" onclick={oninspect} aria-label="What this reply was given: memories, summaries, lore" title="What this reply was given"><Info size={14} /></button>{/if}
       </footer>
     {/if}
   </div>
@@ -201,6 +257,10 @@
 <Menu bind:open={menuOpen} {items} anchor={menuBtn} point={menuPoint} title={displayName} />
 
 <style>
+  .banned {
+    color: var(--warn);
+    margin-top: 0.3rem;
+  }
   .msg {
     display: flex;
     flex-direction: column;
@@ -349,6 +409,16 @@
   }
   .edit {
     min-height: 8rem;
+  }
+  .highlighted .bubble {
+    box-shadow: 0 0 0 2px var(--accent);
+    transition: box-shadow 0.4s var(--ease);
+  }
+  .receipt {
+    opacity: 0.55;
+  }
+  .receipt:hover {
+    opacity: 1;
   }
 
   /* Book style: flowing prose, no boxes; the name stays as a small header */

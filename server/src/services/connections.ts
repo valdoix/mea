@@ -7,8 +7,10 @@ import { badRequest } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
 import { MockProvider } from "../providers/mock";
 import { NANOGPT_BASE, NanoGPTProvider, type Quota } from "../providers/nanogpt";
+import { AnthropicProvider } from "../providers/anthropic";
 import { OpenAIProvider } from "../providers/openai";
-import type { GenerationParams, ModelInfo, Provider } from "../providers/types";
+import type { CacheHint, GenerationParams, ModelInfo, Provider } from "../providers/types";
+import { recordQuotaSample } from "./quota";
 
 export type ConnectionKind = "nanogpt" | "openai" | "mock";
 export type Billing = "subscription" | "paygo" | "unknown";
@@ -25,10 +27,14 @@ interface ConnectionRow {
   updated_at: number;
 }
 
+export type ApiFormat = "openai" | "anthropic";
+
 interface ConnectionExtra {
   lastSyncAt?: number;
   lastError?: string | null;
   headers?: Record<string, string>;
+  /** Wire format for generic connections (CONN-23). */
+  format?: ApiFormat;
 }
 
 const changed = () => publish({ type: "library.changed", what: "connections" });
@@ -39,6 +45,7 @@ export const connectionInput = z.object({
   baseUrl: z.string().trim().optional(),
   apiKey: z.string().trim().optional(),
   billing: z.enum(["subscription", "paygo", "unknown"]).default("unknown"),
+  format: z.enum(["openai", "anthropic"]).optional(),
 });
 
 function rowToConnection(r: ConnectionRow) {
@@ -54,6 +61,7 @@ function rowToConnection(r: ConnectionRow) {
     modelCount: one<{ n: number }>("SELECT COUNT(*) AS n FROM models WHERE connection_id = ?", r.id)?.n ?? 0,
     lastSyncAt: extra.lastSyncAt ?? null,
     lastError: extra.lastError ?? null,
+    format: (extra.format ?? "openai") as ApiFormat,
   };
 }
 
@@ -83,14 +91,16 @@ export function createConnection(input: z.infer<typeof connectionInput>): string
   const id = newId();
   const t = now();
   const secretId = input.apiKey ? putSecret(input.apiKey) : null;
+  const extra: ConnectionExtra = input.kind === "openai" && input.format === "anthropic" ? { format: "anthropic" } : {};
   run(
-    "INSERT INTO connections (id, name, kind, base_url, secret_id, billing, extra, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, '{}', ?, ?)",
+    "INSERT INTO connections (id, name, kind, base_url, secret_id, billing, extra, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     id,
     input.name,
     input.kind,
     normalizeBaseUrl(input.kind, input.baseUrl),
     secretId,
     input.billing,
+    JSON.stringify(extra),
     t,
     t,
   );
@@ -118,6 +128,7 @@ export function updateConnection(id: string, input: Partial<z.infer<typeof conne
     now(),
     id,
   );
+  if (input.format && row.kind === "openai") setExtra(id, { format: input.format });
   changed();
   return true;
 }
@@ -145,7 +156,12 @@ export function providerFor(connectionId: string): Provider {
   const headers = parseJson<ConnectionExtra>(row.extra, {}).headers;
   if (row.kind === "mock") return new MockProvider(Number(process.env.MEA_MOCK_DELAY ?? 18));
   if (row.kind === "nanogpt") return new NanoGPTProvider({ baseUrl: row.base_url, apiKey, headers });
+  if (connectionFormat(row) === "anthropic") return new AnthropicProvider({ baseUrl: row.base_url, apiKey, headers });
   return new OpenAIProvider({ baseUrl: row.base_url, apiKey, headers });
+}
+
+export function connectionFormat(row: Pick<ConnectionRow, "kind" | "extra">): ApiFormat {
+  return row.kind === "openai" && parseJson<ConnectionExtra>(row.extra, {}).format === "anthropic" ? "anthropic" : "openai";
 }
 
 /** Refreshes the model catalog for a connection (CONN-11). Starred flags survive. */
@@ -201,6 +217,9 @@ export interface ModelRow {
   pricing: string;
   subscription: number;
   starred: number;
+  learned_context: number | null;
+  calibration: number | null;
+  cache_probe: string | null;
 }
 
 export function listModels(connectionId?: string) {
@@ -226,7 +245,40 @@ function modelOut(r: ModelRow) {
     pricing: parseJson<Record<string, unknown>>(r.pricing, {}),
     subscription: Boolean(r.subscription),
     starred: Boolean(r.starred),
+    learnedContext: r.learned_context,
+    calibration: r.calibration,
+    cacheProbe: parseJson<CacheProbe | null>(r.cache_probe, null),
   };
+}
+
+/** Result of the cache probe (CONN-24). */
+export interface CacheProbe {
+  verified: boolean;
+  format: string;
+  firstWrite: number;
+  secondRead: number;
+  hitRate: number;
+  at: number;
+  error?: string;
+}
+
+/** Remembers a model's real context limit from an overflow error (CTX-03). */
+export function learnContextLimit(connectionId: string, modelId: string, limit: number) {
+  run("UPDATE models SET learned_context = ? WHERE connection_id = ? AND model_id = ?", limit, connectionId, modelId);
+}
+
+/** Running ratio of provider-reported prompt tokens to Mea's estimate (CTX-03). */
+export function recordCalibration(connectionId: string, modelId: string, estimated: number, reported: number) {
+  if (estimated < 200 || reported < 200) return;
+  const ratio = Math.max(0.5, Math.min(2, reported / estimated));
+  const cur = one<{ calibration: number | null }>("SELECT calibration FROM models WHERE connection_id = ? AND model_id = ?", connectionId, modelId);
+  if (!cur) return;
+  const next = cur.calibration == null ? ratio : cur.calibration * 0.8 + ratio * 0.2;
+  run("UPDATE models SET calibration = ? WHERE connection_id = ? AND model_id = ?", Math.round(next * 1000) / 1000, connectionId, modelId);
+}
+
+export function saveCacheProbe(connectionId: string, modelId: string, probe: CacheProbe) {
+  run("UPDATE models SET cache_probe = ? WHERE connection_id = ? AND model_id = ?", JSON.stringify(probe), connectionId, modelId);
 }
 
 export function starModel(connectionId: string, modelId: string, starred: boolean) {
@@ -248,6 +300,8 @@ export const profileParams = z.object({
   hide_reasoning: z.boolean().optional(),
   /** Prompt size target in tokens (CTX-01). */
   context_target: z.number().int().min(1024).max(2_000_000).optional(),
+  /** Explicit prompt caching on paid Claude routes (CONN-12): auto or off. */
+  cache: z.enum(["auto", "off"]).optional(),
 });
 export type ProfileParams = z.infer<typeof profileParams>;
 
@@ -319,20 +373,83 @@ export function deleteProfile(id: string) {
 
 export const DEFAULT_CONTEXT_TARGET = 48_000;
 
+/**
+ * Caching strategy for a model (CONN-12). Subscription routes cache implicitly and must never
+ * carry explicit flags (NanoGPT would bill them as pay-as-you-go). Paid Claude gets markers.
+ */
+export function cacheModeFor(conn: Pick<ConnectionRow, "kind" | "extra" | "billing">, modelId: string, setting?: "auto" | "off"): CacheHint["mode"] | null {
+  if (setting === "off" || conn.billing === "subscription") return null;
+  if (connectionFormat(conn) === "anthropic") return "anthropic";
+  if (conn.kind === "nanogpt" && /claude/i.test(modelId)) return "nanogpt";
+  return null;
+}
+
+export type ResolvedProfile = ReturnType<typeof resolveProfile>;
+
 /** Resolves everything needed to call a model for a profile. */
-export function resolveProfile(profileId?: string | null) {
-  const profile = getProfile(profileId ?? getSetting("routing.story")) ?? listProfiles()[0];
-  if (!profile) throw badRequest("No model is set up yet. Add a connection and a profile in Settings → Models.");
+/**
+ * A profile ready to use. `override` (CONN-07, the header's quick switcher) swaps the model and
+ * connection while keeping the profile's tuning.
+ */
+export function resolveProfile(profileId?: string | null, override?: { connectionId: string; modelId: string } | null) {
+  const base = getProfile(profileId ?? getSetting("routing.story")) ?? listProfiles()[0];
+  if (!base) throw badRequest("No model is set up yet. Add a connection and a profile in Settings → Models.");
+  const profile = override && getConnectionRow(override.connectionId) ? { ...base, connectionId: override.connectionId, modelId: override.modelId } : base;
   if (!profile.connectionId || !profile.modelId) throw badRequest(`Profile "${profile.name}" has no model selected.`);
   const conn = getConnectionRow(profile.connectionId);
   if (!conn) throw badRequest(`Profile "${profile.name}" points to a deleted connection.`);
   const model = getModel(conn.id, profile.modelId);
-  const contextLength = model?.contextLength ?? null;
+  const contextLength = model?.learnedContext ?? model?.contextLength ?? null;
   let contextTarget = profile.params.context_target ?? DEFAULT_CONTEXT_TARGET;
   if (contextLength) contextTarget = Math.min(contextTarget, contextLength);
   const params: GenerationParams = { ...profile.params };
   delete (params as Record<string, unknown>).context_target;
-  return { profile, connection: conn, provider: providerFor(conn.id), modelId: profile.modelId, billing: conn.billing, contextTarget, params };
+  delete (params as Record<string, unknown>).cache;
+  return {
+    profile,
+    connection: conn,
+    provider: providerFor(conn.id),
+    modelId: profile.modelId,
+    billing: conn.billing,
+    contextTarget,
+    params,
+    /** Provider tokens per estimated token, learned from usage (CTX-03). */
+    tokenRatio: model?.calibration ?? 1,
+    cacheMode: cacheModeFor(conn, profile.modelId, profile.params.cache),
+    structured: Boolean(model?.capabilities?.structured_output),
+    pricing: model?.pricing ?? {},
+  };
+}
+
+export type Task = "story" | "summarizer" | "helper" | "tracker" | "world";
+
+/** Unset helper tasks borrow another task's profile: trackers the helper's, the world the summarizer's. */
+const BORROWS: Partial<Record<Task, "summarizer" | "helper">> = { tracker: "helper", world: "summarizer" };
+
+/**
+ * The profiles to try for a task, in order (CONN-03, CONN-05). Helpers fall back to the story
+ * profile. A chain never moves from a subscription key to a paid one on its own (CONN-20).
+ */
+export function resolveTaskChain(task: Task, primaryId?: string | null): ResolvedProfile[] {
+  const routing = getSetting("routing.tasks");
+  const fallbacks = getSetting("routing.fallbacks");
+  const story = getSetting("routing.story");
+  const first = primaryId ?? (task === "story" ? story : (routing[task] ?? (BORROWS[task] ? routing[BORROWS[task]!] : null) ?? story));
+  const out: ResolvedProfile[] = [resolveProfile(first)];
+  const seen = new Set([out[0]!.profile.id]);
+  for (const id of fallbacks[task] ?? (BORROWS[task] ? fallbacks[BORROWS[task]!] : []) ?? []) {
+    let r: ResolvedProfile;
+    try {
+      r = resolveProfile(id);
+    } catch {
+      continue;
+    }
+    if (seen.has(r.profile.id)) continue;
+    if (out[0]!.billing === "subscription" && r.billing !== "subscription") continue;
+    seen.add(r.profile.id);
+    out.push(r);
+  }
+  return out;
 }
 
 // ---------- Quota (CONN-13, CONN-19) ----------
@@ -350,6 +467,7 @@ export async function refreshQuota(): Promise<Quota | null> {
   const provider = providerFor(conn.id) as NanoGPTProvider;
   const quota = await provider.getQuota();
   setSetting("quota.cache", quota);
+  recordQuotaSample(quota);
   publish({ type: "quota.changed" });
   return quota;
 }

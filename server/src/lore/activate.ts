@@ -33,6 +33,50 @@ export interface ActivationInput {
   /** Macro substitution for keys ({{char}} etc.). */
   substitute?: (text: string) => string;
   random?: () => number;
+  /**
+   * Cache-friendly placement (CTX-04): entries that fire on keywords change from turn to turn,
+   * so before/after-character ones go to the dynamic block instead of the stable prefix.
+   */
+  splitTriggered?: boolean;
+  /** LORE-06: people, places and things in the scene (trackers) or just named; their entries fire. */
+  present?: string[];
+  /** LORE-05: similarity of an entry to the recent context, for entries that opt in (null = not semantic). */
+  semantic?: (e: ScanEntry) => number | null;
+  semanticThreshold?: number;
+  /** Every entry by id, so a child can pull in its parent's essentials (LORE-10). */
+  all?: ScanEntry[];
+}
+
+/** Phase 3 entry fields, kept in `extra` so SillyTavern imports and exports carry them (LORE-09, LORE-10). */
+export interface EntryExtra {
+  type?: "character" | "location" | "item" | "faction" | "concept" | "event" | "rule";
+  aliases?: string[];
+  secrets?: { text: string; knownBy: string[] }[];
+  parent?: string;
+  folder?: string;
+  essentials?: string;
+  semantic?: boolean;
+  entity?: string;
+  trackerWhen?: string;
+}
+
+export const extraOf = (e: { extra: Record<string, unknown> }) => (e.extra ?? {}) as EntryExtra;
+const normName = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+
+/** The few words of an entry that matter most: its essentials, else its first two sentences. */
+export function essentialsOf(e: ScanEntry | LoreEntryLike) {
+  const x = extraOf(e).essentials?.trim();
+  if (x) return x;
+  const sents = e.content.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/);
+  return sents.slice(0, 2).join(" ").slice(0, 320);
+}
+type LoreEntryLike = { content: string; extra: Record<string, unknown> };
+
+/** Lore secrets are told to the model with who knows them, so it keeps them in the right mouths (LORE-09). */
+function withSecrets(e: ScanEntry, content: string) {
+  const secrets = extraOf(e).secrets?.filter((s) => s.text?.trim()) ?? [];
+  if (!secrets.length) return content;
+  return `${content}\n${secrets.map((s) => `[Secret${s.knownBy?.length ? ` — known only to ${s.knownBy.join(", ")}` : ""}: ${s.text.trim()}]`).join("\n")}`;
 }
 
 export interface TraceItem {
@@ -45,6 +89,8 @@ export interface TraceItem {
   tokens?: number;
   position?: LorePosition;
   order: number;
+  /** LORE-14: how much this entry mattered when the budget was tight. */
+  priority?: number;
 }
 
 export interface ActivatedEntry {
@@ -53,6 +99,9 @@ export interface ActivatedEntry {
   reason: string;
   level: number;
   content: string;
+  /** LORE-14 priority inputs. */
+  score?: number;
+  kind?: "key" | "constant" | "entity" | "semantic" | "sticky" | "recursion" | "parent";
 }
 
 export interface Placements {
@@ -63,6 +112,8 @@ export interface Placements {
   ex_top: string[];
   ex_bottom: string[];
   depth: { depth: number; role: Role; content: string; order: number }[];
+  /** Keyword-triggered before/after-character entries, moved out of the cached prefix (CTX-04). */
+  triggered: string[];
 }
 
 export interface ActivationResult {
@@ -125,13 +176,26 @@ export function activateLore(input: ActivationInput): ActivationResult {
     return text;
   };
 
-  const match = (e: ScanEntry, text: string): MatchResult => {
-    if (e.constant) return { ok: true, reason: "constant", score: 0 };
-    if (e.keys.length === 0) return { ok: false, reason: "no keys", score: 0 };
+  const present = new Set((input.present ?? []).map(normName).filter(Boolean));
+  const match = (e: ScanEntry, text: string, level: number): MatchResult & { kind?: ActivatedEntry["kind"] } => {
+    if (e.constant) return { ok: true, reason: "constant", score: 0, kind: "constant" };
+    const x = extraOf(e);
+    const keys = [...e.keys, ...(x.aliases ?? [])].filter((k) => k.trim());
     const cs = e.caseSensitive ?? e.book.caseSensitive ?? defaults.caseSensitive;
     const ww = e.matchWholeWords ?? e.book.matchWholeWords ?? defaults.matchWholeWords;
-    const primary = e.keys.filter((k) => keyMatches(sub(k), text, cs, ww));
-    if (primary.length === 0) return { ok: false, reason: "no key matched", score: 0 };
+    const primary = keys.filter((k) => keyMatches(sub(k), text, cs, ww));
+    if (primary.length === 0) {
+      if (level === 0) {
+        // LORE-06: the entry's entity is in the scene, even if nobody said its name.
+        const names = [x.entity, ...keys.filter((k) => !/^\/.*\/[a-z]*$/.test(k)), ...(x.type && e.comment ? [e.comment] : [])].filter((n): n is string => Boolean(n?.trim()));
+        const here = names.find((n) => present.has(normName(sub(n))));
+        if (here) return { ok: true, reason: `"${here}" is in the scene`, score: 2, kind: "entity" };
+        // LORE-05: close enough in meaning to what's happening.
+        const sim = input.semantic?.(e);
+        if (sim != null && sim >= (input.semanticThreshold ?? 0.45)) return { ok: true, reason: `similar meaning (${sim.toFixed(2)})`, score: 1 + sim, kind: "semantic" };
+      }
+      return { ok: false, reason: keys.length ? "no key matched" : "no keys", score: 0 };
+    }
     let secondaryHits = 0;
     if (e.secondaryKeys.length > 0) {
       secondaryHits = e.secondaryKeys.filter((k) => keyMatches(sub(k), text, cs, ww)).length;
@@ -140,7 +204,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
         e.logic === "and_any" ? secondaryHits > 0 : e.logic === "and_all" ? secondaryHits === total : e.logic === "not_any" ? secondaryHits === 0 : secondaryHits < total;
       if (!ok) return { ok: false, reason: `secondary keys failed (${e.logic.replace("_", " ")})`, score: 0 };
     }
-    return { ok: true, reason: `key "${primary[0]}"`, score: primary.length + secondaryHits };
+    return { ok: true, reason: `key "${primary[0]}"`, score: primary.length + secondaryHits, kind: "key" };
   };
 
   const candidates: ScanEntry[] = [];
@@ -159,7 +223,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
       continue;
     }
     if (st?.stickyUntil != null && st.stickyUntil > messageCount) {
-      active.set(e.id, { entry: e, tokens: 0, reason: `sticky (${st.stickyUntil - messageCount} more)`, level: 0, content: e.content });
+      active.set(e.id, { entry: e, tokens: 0, reason: `sticky (${st.stickyUntil - messageCount} more)`, level: 0, content: e.content, kind: "sticky", score: 1 });
       continue;
     }
     if (st?.cooldownUntil != null && st.cooldownUntil > messageCount) {
@@ -226,7 +290,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
       }
       if (level > 0 && e.excludeRecursion) continue;
       const text = level === 0 ? scanText(e) : `${scanText(e)}\n${recursionBuffer}`;
-      const m = match(e, text);
+      const m = match(e, text, level);
       if (!m.ok) {
         setTrace(e, "inactive", m.reason);
         continue;
@@ -239,38 +303,66 @@ export function activateLore(input: ActivationInput): ActivationResult {
           continue;
         }
       }
-      fresh.push({ entry: e, tokens: 0, reason: level > 0 ? `${m.reason} (recursion)` : m.reason, level, content: e.content, score: m.score });
+      fresh.push({ entry: e, tokens: 0, reason: level > 0 ? `${m.reason} (recursion)` : m.reason, level, content: e.content, score: m.score, kind: level > 0 ? "recursion" : m.kind });
     }
     const winners = applyGroups(fresh);
     if (winners.length === 0) break;
     for (const w of winners) {
-      active.set(w.entry.id, { entry: w.entry, tokens: 0, reason: w.reason, level: w.level, content: w.content });
+      active.set(w.entry.id, { entry: w.entry, tokens: 0, reason: w.reason, level: w.level, content: w.content, score: w.score, kind: w.kind });
       if (!w.entry.preventRecursion) recursionBuffer += `\n${w.entry.content}`;
     }
   }
 
-  // Budget: higher order = higher priority (LORE-14 refines this later).
-  const sorted = [...active.values()].sort((a, b) => b.entry.order - a.entry.order || Number(b.entry.constant) - Number(a.entry.constant));
+  // LORE-10: a child that fires brings its parent's essentials (world › region › city › building).
+  const byId = new Map((input.all ?? input.entries).map((e) => [e.id, e]));
+  for (const a of [...active.values()]) {
+    let parentId = extraOf(a.entry).parent;
+    for (let depth = 0; parentId && depth < 4; depth++) {
+      const p = byId.get(parentId);
+      if (!p || !p.enabled || active.has(p.id)) break;
+      active.set(p.id, { entry: { ...p, position: a.entry.position, depth: a.entry.depth, role: a.entry.role }, tokens: 0, reason: `essentials, as the parent of ${a.entry.comment || a.entry.keys[0] || "an entry"}`, level: a.level, content: essentialsOf(p), kind: "parent", score: 0.5 });
+      parentId = extraOf(p).parent;
+    }
+  }
+
+  // LORE-14: priority decides what stays when the budget is tight; long entries are trimmed
+  // to their essentials before they are dropped.
+  const priority = (a: ActivatedEntry) =>
+    a.entry.order +
+    (a.kind === "constant" ? 60 : a.kind === "sticky" ? 30 : a.kind === "entity" ? 35 : a.kind === "semantic" ? 15 : a.kind === "parent" ? 10 : 25) +
+    Math.min(20, (a.score ?? 0) * 5) -
+    a.level * 10;
+  const sorted = [...active.values()].sort((a, b) => priority(b) - priority(a) || b.entry.order - a.entry.order);
   const accepted: ActivatedEntry[] = [];
   let used = 0;
   for (const a of sorted) {
-    const content = sub(a.content);
-    const tokens = input.countTokens(content);
+    let content = withSecrets(a.entry, sub(a.content));
+    let tokens = input.countTokens(content);
+    let reason = a.reason;
+    const p = Math.round(priority(a));
     if (defaults.tokenBudget > 0 && used + tokens > defaults.tokenBudget) {
-      setTrace(a.entry, "inactive", `over token budget (${tokens} tokens, ${defaults.tokenBudget - used} left)`, { level: a.level, tokens });
-      continue;
+      const short = withSecrets(a.entry, sub(essentialsOf(a.entry)));
+      const st = input.countTokens(short);
+      if (a.kind !== "parent" && short.length < content.length && used + st <= defaults.tokenBudget) {
+        content = short;
+        tokens = st;
+        reason = `${a.reason} · trimmed to its essentials to fit the budget`;
+      } else {
+        setTrace(a.entry, "inactive", `over token budget (${tokens} tokens, ${defaults.tokenBudget - used} left; priority ${p})`, { level: a.level, tokens, priority: p });
+        continue;
+      }
     }
     used += tokens;
-    const done = { ...a, content, tokens };
-    accepted.push(done);
-    setTrace(a.entry, "active", a.reason, { level: a.level, tokens });
+    accepted.push({ ...a, content, tokens, reason });
+    setTrace(a.entry, "active", reason, { level: a.level, tokens, priority: p });
   }
 
   accepted.sort((a, b) => a.entry.order - b.entry.order);
-  const placements: Placements = { before_char: [], after_char: [], an_top: [], an_bottom: [], ex_top: [], ex_bottom: [], depth: [] };
+  const placements: Placements = { before_char: [], after_char: [], an_top: [], an_bottom: [], ex_top: [], ex_bottom: [], depth: [], triggered: [] };
   const stateUpdates: Record<string, TimedState> = {};
   for (const a of accepted) {
     if (a.entry.position === "depth") placements.depth.push({ depth: a.entry.depth, role: a.entry.role, content: a.content, order: a.entry.order });
+    else if (input.splitTriggered && !a.entry.constant && (a.entry.position === "before_char" || a.entry.position === "after_char")) placements.triggered.push(a.content);
     else placements[a.entry.position].push(a.content);
     const fresh = !a.reason.startsWith("sticky");
     if (fresh && (a.entry.sticky > 0 || a.entry.cooldown > 0)) {

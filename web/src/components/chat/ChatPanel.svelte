@@ -1,9 +1,11 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
-  import { del, download, get, patch, post } from "../../lib/api";
+  import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
-  import { Archive, BookOpen, Download, Pencil, Plus, ScrollText, Trash, Unlink } from "../../lib/icons";
+  import { Archive, BookOpen, Download, ImageIcon, Library, Pencil, Plus, ScrollText, Sparkles, Trash, Unlink, X } from "../../lib/icons";
+  import { uploadImage } from "../../lib/images";
+  import type { Collection, StoryStats } from "../../lib/types";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { ChatDetail, ChatMode, LorebookSummary, Persona, Profile } from "../../lib/types";
@@ -21,6 +23,12 @@
   // svelte-ignore state_referenced_locally
   let depth = $state(detail.chat.settings.authorsNote?.depth ?? 4);
   let noteTimer: ReturnType<typeof setTimeout>;
+  // svelte-ignore state_referenced_locally
+  let story = $state({ ...(detail.chat.settings.story ?? {}) });
+  let storyTimer: ReturnType<typeof setTimeout>;
+  let newTruth = $state("");
+  let newOoc = $state("");
+  const s = $derived(detail.chat.settings);
 
   $effect(() => {
     void Promise.all([
@@ -52,6 +60,82 @@
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => update({ settings: { authorsNote: { content: note, depth: Number(depth) || 0, role: "system" } } }), 500);
   }
+
+  function saveStory() {
+    clearTimeout(storyTimer);
+    const clean = Object.fromEntries(Object.entries(story).filter(([, v]) => typeof v === "string" && v.trim()));
+    storyTimer = setTimeout(() => update({ settings: { story: clean } }), 500);
+  }
+  function addTruth() {
+    if (!newTruth.trim()) return;
+    void update({ settings: { truths: [...(s.truths ?? []), newTruth.trim()] } });
+    newTruth = "";
+  }
+  function addOoc() {
+    if (!newOoc.trim()) return;
+    void update({ settings: { ooc: [...(s.ooc ?? []), { id: crypto.randomUUID().slice(0, 8), text: newOoc.trim() }] } });
+    newOoc = "";
+  }
+
+  // LIB-04…07: title, cover, collections, stats.
+  let collections = $state<Collection[]>([]);
+  let mine = $state<string[]>([]);
+  let extras = $state<{ titleLocked: boolean; coverImageId: string | null } | null>(null);
+  let stats = $state<StoryStats | null>(null);
+  let coverInput = $state<HTMLInputElement | null>(null);
+  async function loadLibrary() {
+    try {
+      const [c, x, st] = await Promise.all([
+        get<{ collections: Collection[] }>("/api/collections"),
+        get<{ titleLocked: boolean; coverImageId: string | null; collections: string[] }>(`/api/chats/${detail.chat.id}/extras`),
+        get<StoryStats>(`/api/chats/${detail.chat.id}/stats`),
+      ]);
+      collections = c.collections;
+      mine = x.collections;
+      extras = x;
+      stats = st;
+    } catch {
+      // the library is optional here
+    }
+  }
+  $effect(() => {
+    void detail.chat.id;
+    void loadLibrary();
+  });
+  async function toggleCollection(cid: string) {
+    try {
+      mine = (await put<{ collections: string[] }>(`/api/chats/${detail.chat.id}/collections/${cid}`, { member: !mine.includes(cid) })).collections;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function autoTitle() {
+    try {
+      await post(`/api/chats/${detail.chat.id}/title/auto`);
+      onchange();
+      await loadLibrary();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function setCover(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    try {
+      const imageId = await uploadImage(f);
+      extras = await put(`/api/chats/${detail.chat.id}/cover`, { imageId });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function clearCover() {
+    try {
+      extras = await put(`/api/chats/${detail.chat.id}/cover`, { imageId: null });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  const hours = (m: number) => (m >= 90 ? `${Math.round(m / 60)} h` : `${m} min`);
 
   async function rename() {
     const title = await promptText({ title: "Rename chat", value: detail.chat.title, confirmLabel: "Rename" });
@@ -101,6 +185,27 @@
     <span class="tiny muted">{detail.chat.messageCount} messages</span>
   </section>
 
+  <section class="field">
+    <span class="label">This story</span>
+    {#if extras?.coverImageId}
+      <div class="cover"><img src={imageUrl(extras.coverImageId, true)} alt="Cover" /><button class="btn ghost icon small" onclick={clearCover} aria-label="Remove cover"><X size={14} /></button></div>
+    {/if}
+    <div class="row wrap">
+      <button class="btn small" onclick={() => coverInput?.click()}><ImageIcon size={14} /> {extras?.coverImageId ? "Change cover" : "Cover image"}</button>
+      {#if extras?.titleLocked}<button class="btn small" onclick={autoTitle} title="Let the Story So Far name this chat"><Sparkles size={14} /> Name it from the story</button>{/if}
+      <a class="btn small" href="/chat/{detail.chat.id}/codex"><Library size={14} /> Codex</a>
+    </div>
+    <input type="file" accept="image/*" hidden bind:this={coverInput} onchange={(e) => setCover(e.currentTarget.files)} />
+    {#if collections.length}
+      <div class="row wrap cols">
+        {#each collections as c (c.id)}<button class="chip tiny col" class:on={mine.includes(c.id)} onclick={() => toggleCollection(c.id)} aria-pressed={mine.includes(c.id)}>{c.name}</button>{/each}
+      </div>
+    {/if}
+    {#if stats && stats.messages}
+      <span class="hint">{stats.messages} messages · {stats.words.toLocaleString()} words ({stats.yourWords.toLocaleString()} yours) · {hours(stats.minutesSpent)} over {stats.daysActive} day{stats.daysActive === 1 ? "" : "s"}{stats.cost ? ` · $${stats.cost.toFixed(2)}` : ""}{stats.memories ? ` · ${stats.memories} memories` : ""}</span>
+    {/if}
+  </section>
+
   <label class="field">
     <span class="label">Mode</span>
     <Segmented
@@ -145,6 +250,48 @@
     <span class="hint">Inserted {depth} messages from the end, every turn.</span>
   </div>
 
+  <details class="story-set" open={!!(s.truths?.length || Object.keys(s.story ?? {}).length || s.ooc?.length)}>
+    <summary class="label">Story settings</summary>
+    <div class="stack tight">
+      <div class="sgrid">
+        <label class="field"><span class="tiny muted">Genre</span><input class="input mini" bind:value={story.genre} oninput={saveStory} placeholder="cozy mystery" maxlength="60" /></label>
+        <label class="field"><span class="tiny muted">Tone</span><input class="input mini" bind:value={story.tone} oninput={saveStory} placeholder="warm, wry" maxlength="60" /></label>
+        <label class="field"><span class="tiny muted">Point of view</span>
+          <select class="select mini" bind:value={story.pov} onchange={saveStory}><option value={undefined}>Card's choice</option><option value="first">First person</option><option value="second">Second person</option><option value="third">Third person</option></select>
+        </label>
+        <label class="field"><span class="tiny muted">Tense</span>
+          <select class="select mini" bind:value={story.tense} onchange={saveStory}><option value={undefined}>Card's choice</option><option value="past">Past</option><option value="present">Present</option></select>
+        </label>
+        <label class="field"><span class="tiny muted">Intensity</span>
+          <select class="select mini" bind:value={story.intensity} onchange={saveStory}><option value={undefined}>Card's choice</option><option value="gentle">Gentle</option><option value="moderate">Moderate</option><option value="intense">Intense</option></select>
+        </label>
+        <label class="field"><span class="tiny muted">Language</span><input class="input mini" bind:value={story.language} oninput={saveStory} placeholder="English" maxlength="30" /></label>
+      </div>
+      <label class="field"><span class="tiny muted">Style</span><input class="input mini" bind:value={story.style} oninput={saveStory} placeholder="Short paragraphs, sensory detail, no purple prose" maxlength="200" /></label>
+      <div class="field">
+        <span class="tiny muted">Reply length and pace</span>
+        <div class="row wrap">
+          <Segmented value={s.length ?? "normal"} small options={[{ value: "short", label: "Short" }, { value: "normal", label: "Normal" }, { value: "long", label: "Long" }]} onchange={(v) => update({ settings: { length: v === "normal" ? null : v } })} />
+          <Segmented value={s.pacing ?? "normal"} small options={[{ value: "slow", label: "Slow" }, { value: "normal", label: "Normal" }, { value: "fast", label: "Fast" }]} onchange={(v) => update({ settings: { pacing: v === "normal" ? null : v } })} />
+        </div>
+      </div>
+      <div class="field">
+        <span class="tiny muted">Truths: rules of this story, sent every turn</span>
+        {#each s.truths ?? [] as t, i (i)}
+          <div class="row item"><span class="grow">{t}</span><button class="btn ghost icon small" onclick={() => update({ settings: { truths: (s.truths ?? []).filter((_, j) => j !== i) } })} aria-label="Remove truth"><Trash size={13} /></button></div>
+        {/each}
+        <input class="input mini" bind:value={newTruth} placeholder="Magic always costs something. Enter to add" maxlength="300" onkeydown={(e) => e.key === "Enter" && addTruth()} />
+      </div>
+      <div class="field">
+        <span class="tiny muted">Standing notes to the model (out of character)</span>
+        {#each s.ooc ?? [] as o (o.id)}
+          <div class="row item"><span class="grow">{o.text}</span><button class="btn ghost icon small" onclick={() => update({ settings: { ooc: (s.ooc ?? []).filter((x) => x.id !== o.id) } })} aria-label="Remove note"><Trash size={13} /></button></div>
+        {/each}
+        <input class="input mini" bind:value={newOoc} placeholder="Don't speak for my character. Enter to add" maxlength="600" onkeydown={(e) => e.key === "Enter" && addOoc()} />
+      </div>
+    </div>
+  </details>
+
   <div class="field">
     <span class="label">Lorebooks for this chat</span>
     {#each detail.lorebooks as b (b.id)}
@@ -180,7 +327,6 @@
     <button class="btn small danger" onclick={remove}><Trash size={14} /> Delete chat</button>
   </div>
 
-  <p class="tiny faint">Trackers and memory arrive in the next phases ✿</p>
 </div>
 
 <style>
@@ -201,6 +347,52 @@
     color: var(--text);
     gap: 0.4rem;
     font-size: var(--fs-sm);
+  }
+  .cover {
+    position: relative;
+    border-radius: var(--r-md, 10px);
+    overflow: hidden;
+  }
+  .cover img {
+    width: 100%;
+    max-height: 9rem;
+    object-fit: cover;
+    display: block;
+  }
+  .cover button {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    background: var(--surface);
+  }
+  .cols {
+    gap: 0.3rem;
+  }
+  .col {
+    cursor: pointer;
+    border: 1px solid var(--border);
+  }
+  .col.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .story-set summary {
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+  }
+  .sgrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .mini {
+    padding: 0.3rem 0.5rem;
+    font-size: var(--fs-sm);
+  }
+  .item {
+    font-size: var(--fs-sm);
+    padding: 0.15rem 0.2rem;
+    border-bottom: 1px solid var(--border);
   }
   .small-select {
     width: auto;

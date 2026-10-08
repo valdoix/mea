@@ -13,6 +13,8 @@ export const blockKinds = [
   "history",
   "authors_note",
   "post_history",
+  "memory_story",
+  "memory_recall",
 ] as const;
 
 export const roleSchema = z.enum(["system", "user", "assistant"]);
@@ -84,7 +86,9 @@ export function defaultPreset(): Preset {
       b("persona", "Persona", "persona"),
       b("lore_after", "Lore (after)", "lore_after"),
       b("examples", "Example dialogue", "examples"),
+      b("memory_story", "Story so far (memory)", "memory_story"),
       b("history", "Chat history", "history"),
+      b("memory_recall", "Recalled memories & triggered lore", "memory_recall", { position: "depth", depth: 1 }),
       b("authors_note", "Author's note", "authors_note", { position: "depth", depth: 4 }),
       b("post_history", "Post-history instructions", "post_history", { content: "" }),
     ],
@@ -97,6 +101,22 @@ export function defaultPreset(): Preset {
     prefill: "",
     simple: { length: "normal", style: "" },
   };
+}
+
+/**
+ * Presets made before Phase 1 gain the memory blocks: the Story So Far right before the
+ * history (cached prefix) and recalled memories at depth 1 (dynamic block) (CTX-04).
+ */
+export function ensureMemoryBlocks(blocks: PromptBlock[]) {
+  if (!blocks.some((x) => x.kind === "memory_story")) {
+    const at = blocks.findIndex((x) => x.kind === "history");
+    blocks.splice(at < 0 ? blocks.length : at, 0, b("memory_story", "Story so far (memory)", "memory_story"));
+  }
+  if (!blocks.some((x) => x.kind === "memory_recall")) {
+    const at = blocks.findIndex((x) => x.kind === "history");
+    blocks.splice(at < 0 ? blocks.length : at + 1, 0, b("memory_recall", "Recalled memories & triggered lore", "memory_recall", { position: "depth", depth: 1 }));
+  }
+  return blocks;
 }
 
 const LENGTH_HINTS: Record<Preset["simple"]["length"], string> = {
@@ -149,6 +169,7 @@ export function importStPreset(json: unknown, name: string): Preset {
       }
     }
     if (!blocks.some((x) => x.kind === "history")) blocks.push(b("history", "Chat history", "history"));
+    ensureMemoryBlocks(blocks);
     if (!blocks.some((x) => x.kind === "authors_note")) blocks.push(b("authors_note", "Author's note", "authors_note", { position: "depth", depth: 4 }));
     preset.blocks = blocks;
   } else {

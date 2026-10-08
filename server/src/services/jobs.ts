@@ -5,7 +5,23 @@ import { publish } from "../lib/events";
  * Persistent job queue (ARCH-03). Jobs live in SQLite, survive restarts,
  * retry with backoff, and never block request handling.
  */
-type Handler = (payload: Record<string, unknown>) => Promise<void>;
+export interface JobContext {
+  id: string;
+  /** Adds numbers shown in the job monitor, e.g. input tokens (CONN-21). */
+  note(meta: Record<string, unknown>): void;
+}
+type Handler = (payload: Record<string, unknown>, job: JobContext) => Promise<void>;
+
+/** Thrown by a handler to run again later without counting a failed attempt. */
+export class Deferred extends Error {
+  constructor(
+    message: string,
+    public delayMs: number,
+  ) {
+    super(message);
+    this.name = "Deferred";
+  }
+}
 
 interface JobRow {
   id: string;
@@ -18,6 +34,10 @@ interface JobRow {
   run_after: number;
   dedupe_key: string | null;
   last_error: string | null;
+  chat_id: string | null;
+  meta: string;
+  created_at: number;
+  updated_at: number;
 }
 
 const handlers = new Map<string, Handler>();
@@ -34,6 +54,7 @@ export interface EnqueueOptions {
   delayMs?: number;
   dedupeKey?: string;
   maxAttempts?: number;
+  chatId?: string | null;
 }
 
 export function enqueue(kind: string, payload: Record<string, unknown> = {}, opts: EnqueueOptions = {}): string | null {
@@ -41,8 +62,8 @@ export function enqueue(kind: string, payload: Record<string, unknown> = {}, opt
   const id = newId();
   const t = now();
   run(
-    `INSERT INTO jobs (id, kind, payload, status, priority, attempts, max_attempts, run_after, dedupe_key, created_at, updated_at)
-     VALUES (?, ?, ?, 'queued', ?, 0, ?, ?, ?, ?, ?)`,
+    `INSERT INTO jobs (id, kind, payload, status, priority, attempts, max_attempts, run_after, dedupe_key, created_at, updated_at, chat_id)
+     VALUES (?, ?, ?, 'queued', ?, 0, ?, ?, ?, ?, ?, ?)`,
     id,
     kind,
     JSON.stringify(payload),
@@ -52,6 +73,7 @@ export function enqueue(kind: string, payload: Record<string, unknown> = {}, opt
     opts.dedupeKey ?? null,
     t,
     t,
+    opts.chatId ?? (typeof payload.chatId === "string" ? payload.chatId : null),
   );
   queueMicrotask(tick);
   return id;
@@ -67,11 +89,23 @@ async function runJob(job: JobRow) {
   running.add(job.id);
   run("UPDATE jobs SET status = 'running', attempts = attempts + 1, updated_at = ? WHERE id = ?", now(), job.id);
   activity();
+  const meta = parseJson<Record<string, unknown>>(job.meta, {});
+  const ctx: JobContext = {
+    id: job.id,
+    note: (m) => {
+      Object.assign(meta, m);
+      run("UPDATE jobs SET meta = ? WHERE id = ?", JSON.stringify(meta), job.id);
+    },
+  };
   try {
     if (!handler) throw new Error(`No handler for job kind "${job.kind}"`);
-    await handler(parseJson(job.payload, {}));
+    await handler(parseJson(job.payload, {}), ctx);
     run("UPDATE jobs SET status = 'done', last_error = NULL, updated_at = ? WHERE id = ?", now(), job.id);
   } catch (e) {
+    if (e instanceof Deferred) {
+      run("UPDATE jobs SET status = 'queued', attempts = attempts - 1, last_error = ?, run_after = ?, updated_at = ? WHERE id = ?", e.message, now() + e.delayMs, now(), job.id);
+      return;
+    }
     const attempts = job.attempts + 1;
     const failed = attempts >= job.max_attempts;
     const backoff = Math.min(15 * 60_000, 2 ** attempts * 5_000);
@@ -137,7 +171,66 @@ export function jobStats() {
   return { counts: Object.fromEntries(counts.map((c) => [c.status, c.n])), running: running.size, recentFailures };
 }
 
+/** Job monitor (DBG-03). */
+export function listJobs(opts: { status?: string; chatId?: string; limit?: number } = {}) {
+  const where: string[] = [];
+  const params: (string | number)[] = [];
+  if (opts.status) {
+    where.push("status = ?");
+    params.push(opts.status);
+  }
+  if (opts.chatId) {
+    where.push("chat_id = ?");
+    params.push(opts.chatId);
+  }
+  const rows = all<JobRow>(
+    `SELECT * FROM jobs ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'queued' THEN 1 WHEN 'failed' THEN 2 ELSE 3 END, updated_at DESC LIMIT ?`,
+    ...params,
+    Math.min(500, opts.limit ?? 100),
+  );
+  const tokens = new Map(
+    all<{ job_id: string; p: number; c: number }>(
+      `SELECT job_id, COALESCE(SUM(COALESCE(prompt_tokens, est_prompt_tokens)), 0) AS p, COALESCE(SUM(completion_tokens), 0) AS c FROM generations
+       WHERE job_id IN (${rows.map(() => "?").join(",") || "''"}) GROUP BY job_id`,
+      ...rows.map((r) => r.id),
+    ).map((t) => [t.job_id, t]),
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    status: r.status,
+    priority: r.priority,
+    attempts: r.attempts,
+    maxAttempts: r.max_attempts,
+    runAfter: r.run_after,
+    lastError: r.last_error,
+    chatId: r.chat_id,
+    payload: parseJson<Record<string, unknown>>(r.payload, {}),
+    meta: parseJson<Record<string, unknown>>(r.meta, {}),
+    inputTokens: tokens.get(r.id)?.p ?? 0,
+    outputTokens: tokens.get(r.id)?.c ?? 0,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }));
+}
+
+export function retryJob(id: string) {
+  run("UPDATE jobs SET status = 'queued', attempts = 0, run_after = ?, updated_at = ? WHERE id = ? AND status IN ('failed', 'queued')", now(), now(), id);
+  queueMicrotask(tick);
+}
+
+export function cancelJob(id: string) {
+  run("UPDATE jobs SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'queued'", now(), id);
+  activity();
+}
+
+/** Drops queued jobs for a chat (e.g. when its memory is rebuilt from scratch). */
+export function cancelChatJobs(chatId: string, kinds: string[]) {
+  run(`UPDATE jobs SET status = 'cancelled', updated_at = ? WHERE chat_id = ? AND status = 'queued' AND kind IN (${kinds.map(() => "?").join(",")})`, now(), chatId, ...kinds);
+}
+
 export function pruneJobs() {
-  run("DELETE FROM jobs WHERE status IN ('done') AND updated_at < ?", now() - 3 * 24 * 3600_000);
+  run("DELETE FROM jobs WHERE status IN ('done', 'cancelled') AND updated_at < ?", now() - 3 * 24 * 3600_000);
   run("DELETE FROM jobs WHERE status IN ('failed') AND updated_at < ?", now() - 30 * 24 * 3600_000);
 }

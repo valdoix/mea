@@ -3,6 +3,16 @@
   import Avatar from "../components/Avatar.svelte";
   import ChatPanel from "../components/chat/ChatPanel.svelte";
   import Composer from "../components/chat/Composer.svelte";
+  import MemoryPanel from "../components/memory/MemoryPanel.svelte";
+  import TrackerPanel from "../components/trackers/TrackerPanel.svelte";
+  import Hud from "../components/trackers/Hud.svelte";
+  import WorldPanel from "../components/world/WorldPanel.svelte";
+  import ModelSwitcher from "../components/chat/ModelSwitcher.svelte";
+  import ChatSearch from "../components/chat/ChatSearch.svelte";
+  import ArchivistPanel from "../components/chat/ArchivistPanel.svelte";
+  import SelectionMenu from "../components/chat/SelectionMenu.svelte";
+  import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
+  import Segmented from "../components/Segmented.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
   import MessageItem from "../components/chat/MessageItem.svelte";
   import Modal from "../components/Modal.svelte";
@@ -11,11 +21,11 @@
   import { promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { compact } from "../lib/format";
-  import { ArrowDown, ArrowLeft, PanelRight } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, Library, PanelRight, Search } from "../lib/icons";
   import { renderMessage } from "../lib/render";
-  import { back, navigate } from "../lib/router.svelte";
+  import { back, navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
-  import type { ChatDetail, Message, Profile } from "../lib/types";
+  import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -36,6 +46,27 @@
   let stick = $state(true);
   let editSignals = $state<Record<string, number>>({});
   let error = $state("");
+  type DockTab = "chat" | "memory" | "story" | "world" | "ask";
+  let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "ask"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
+  const dockOptions = [
+    { value: "chat" as const, label: "Chat" },
+    { value: "memory" as const, label: "Memory" },
+    { value: "story" as const, label: "Story" },
+    { value: "world" as const, label: "World" },
+    { value: "ask" as const, label: "Ask" },
+  ];
+  // Phase 3: continuity notes per message (CON-02), glossary terms (LORE-15).
+  let flags = $state<Record<string, ContinuityFlag>>({});
+  let terms = $state<GlossaryTerm[]>([]);
+  let glossPick = $state<{ t: GlossaryTerm; x: number; y: number } | null>(null);
+  let searchOpen = $state(false);
+  let searchQ = $state("");
+  let boundaries = $state<Boundary[]>([]);
+  let highlight = $state<number | null>(null);
+  let quotaChoice = $state<{ message: string; alternatives: { id: string; name: string; model: string }[]; retry: (profileId: string) => Promise<void> } | null>(null);
+  let quotaOpen = $state(false);
+  let knows = $state<{ scene: Summary | null; atoms: Atom[]; inMemory: boolean; seq: number } | null>(null);
+  let knowsOpen = $state(false);
 
   const generating = $derived(Object.keys(gens).length > 0 || messages.some((m) => m.status === "streaming"));
   const lastMsg = $derived(messages.at(-1));
@@ -45,7 +76,11 @@
 
   onMount(() => {
     app.currentChatId = id;
+    openTrackers(id);
     reportPresence();
+    // MEM-21: recall is warmed as the chat opens, so the first reply doesn't wait.
+    void post(`/api/chats/${id}/warm`).catch(() => {});
+    void loadTerms();
     return () => {
       app.currentChatId = null;
       reportPresence();
@@ -74,8 +109,17 @@
         }
       }
       gens = g;
+      void loadBoundaries();
+      void loadFlags();
       await tick();
-      scrollToBottom(false);
+      const at = Number(route.query.at);
+      if (route.query.q) {
+        searchQ = route.query.q;
+        searchOpen = true;
+      }
+      if (at) void jumpTo(at);
+      else if (route.query.m) void openCitation({ messageId: route.query.m, seq: null } as Citation);
+      else scrollToBottom(false);
       refreshPreview();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -84,6 +128,132 @@
   $effect(() => {
     void load();
   });
+
+  // A link to another message of this chat (?at= or ?m=) jumps there without reloading.
+  let lastJump = `${route.query.at ?? ""}|${route.query.m ?? ""}`;
+  $effect(() => {
+    const key = `${route.query.at ?? ""}|${route.query.m ?? ""}`;
+    if (!detail || key === lastJump || route.name !== "chat") return;
+    lastJump = key;
+    if (route.query.at) void jumpTo(Number(route.query.at));
+    else if (route.query.m) void openCitation({ messageId: route.query.m, seq: null } as Citation);
+  });
+
+  async function loadFlags() {
+    try {
+      const r = await get<{ flags: ContinuityFlag[] }>(`/api/chats/${id}/continuity`);
+      const next: Record<string, ContinuityFlag> = {};
+      // Only the active swipe's notes matter.
+      for (const f of r.flags) {
+        const m = messages.find((x) => x.id === f.messageId);
+        if (m && m.activeSwipe === f.swipeIdx && f.open > 0) next[f.messageId] = f;
+      }
+      flags = next;
+    } catch {
+      // notes are optional
+    }
+  }
+  async function loadTerms() {
+    try {
+      terms = (await get<{ terms: GlossaryTerm[] }>(`/api/chats/${id}/glossary`)).terms;
+    } catch {
+      terms = [];
+    }
+  }
+  /** Opens what a citation points at: a message, a memory, or a lore entry. */
+  async function openCitation(c: Citation | ArchiveCitation) {
+    const seq = c.seq ?? null;
+    const messageId = c.messageId ?? null;
+    if (messageId) {
+      try {
+        const r = await get<{ seq: number }>(`/api/messages/${messageId}/locate`);
+        return void jumpTo(r.seq);
+      } catch {
+        // fall through to seq
+      }
+    }
+    if (seq != null) return void jumpTo(seq);
+    if (c.type === "lore" && "id" in c && c.id) {
+      try {
+        const r = await get<{ bookId: string }>(`/api/lore/entries/${c.id}/locate`);
+        return navigate(`/lorebooks/${r.bookId}?entry=${c.id}`);
+      } catch {
+        return navigate("/lorebooks");
+      }
+    }
+    navigate(`/chat/${id}/memory`);
+  }
+
+  async function loadBoundaries() {
+    try {
+      boundaries = (await get<{ boundaries: Boundary[] }>(`/api/chats/${id}/boundaries`)).boundaries;
+    } catch {
+      // dividers are optional
+    }
+  }
+
+  /** Scrolls to a message by its number, loading older pages as needed (links from memory). */
+  async function jumpTo(seq: number) {
+    stick = false;
+    for (let i = 0; i < 200 && hasMore && (messages[0]?.seq ?? 0) > seq; i++) {
+      const page = await get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?before=${messages[0]!.seq}&limit=200`);
+      messages = [...page.messages, ...messages];
+      hasMore = page.hasMore;
+    }
+    await tick();
+    const target = messages.find((m) => m.seq >= seq);
+    const el = target && scroller?.querySelector(`[data-seq="${target.seq}"]`);
+    if (el) {
+      el.scrollIntoView({ block: "center" });
+      highlight = target.seq;
+      setTimeout(() => (highlight = null), 2600);
+    }
+  }
+
+  const firstSeq = $derived(messages[0]?.seq ?? 0);
+  const dividersAt = (seq: number) => (seq === firstSeq && !hasMore ? [] : boundaries.filter((b) => b.startSeq === seq && !(b.level === "scene" && boundaries.some((c) => c.level === "chapter" && c.startSeq === seq))));
+
+  async function endScene(m: Message) {
+    try {
+      boundaries = (await post<{ boundaries: Boundary[] }>(`/api/messages/${m.id}/end-scene`)).boundaries;
+      toast("Scene ended here. The next message starts a new one.", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  async function newChapter(m: Message) {
+    const title = await promptText({ title: "Start a new chapter here?", label: "Optional title (Mea writes one otherwise)", confirmLabel: "Start chapter" });
+    if (title === null) return;
+    try {
+      boundaries = (await post<{ boundaries: Boundary[] }>(`/api/messages/${m.id}/new-chapter`)).boundaries;
+      const ch = boundaries.find((b) => b.level === "chapter" && b.startSeq === m.seq);
+      if (ch && title.trim()) await put(`/api/summaries/${ch.id}`, { title: title.trim() });
+      void loadBoundaries();
+      toast("New chapter", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  async function showMemory(m: Message) {
+    try {
+      knows = { ...(await get<{ scene: Summary | null; atoms: Atom[]; inMemory: boolean }>(`/api/messages/${m.id}/memory`)), seq: m.seq };
+      knowsOpen = true;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  /** A used-up quota is explained plainly; a paid reply happens only if you pick one (CONN-20). */
+  function offerQuotaChoice(e: unknown, retry: (profileId: string) => Promise<void>) {
+    if (!(e instanceof ApiError) || e.status !== 429) return false;
+    const d = (e.details ?? {}) as { code?: string; alternatives?: { id: string; name: string; model: string }[] };
+    if (e.code !== "quota_exhausted" && d.code !== "quota_exhausted") return false;
+    quotaChoice = { message: e.message, alternatives: d.alternatives ?? [], retry };
+    quotaOpen = true;
+    return true;
+  }
 
   let previewTimer: ReturnType<typeof setTimeout>;
   function refreshPreview() {
@@ -174,6 +344,8 @@
           const m = messages.find((x) => x.id === e.messageId);
           if (m) {
             if (m.status !== "streaming") m.status = "streaming";
+            // A smart retry (CONN-09) starts the reply over.
+            if (e.reset) m.content = "";
             m.content += e.text;
             if (e.reasoning) m.reasoning = (m.reasoning ?? "") + e.reasoning;
           }
@@ -191,6 +363,16 @@
         case "chat.changed":
           get<ChatDetail>(`/api/chats/${id}`).then((d) => (detail = d)).catch(() => {});
           refreshPreview();
+          break;
+        case "memory.changed":
+          void loadBoundaries();
+          break;
+        case "continuity.changed":
+          void loadFlags();
+          break;
+        case "trackers.changed":
+          if (e.running) trk.running = true;
+          else refreshTrackers(id);
           break;
       }
     }),
@@ -226,10 +408,10 @@
     }
   }
 
-  async function send(content: string, generate: boolean): Promise<boolean> {
+  async function send(content: string, generate: boolean, director = false, profileId?: string): Promise<boolean> {
     stick = true;
     try {
-      const r = await post<{ userMessage: Message | null; generationId?: string; messageId?: string }>(`/api/chats/${id}/send`, { content, generate });
+      const r = await post<{ userMessage: Message | null; generationId?: string; messageId?: string }>(`/api/chats/${id}/send`, { content, generate, profileId, director: director || undefined });
       if (r.userMessage) upsert(r.userMessage);
       if (r.messageId && r.generationId) {
         gens[r.messageId] = r.generationId;
@@ -241,6 +423,10 @@
       scrollToBottom();
       return true;
     } catch (e) {
+      if (offerQuotaChoice(e, async (profileId) => void (await send("", true, false, profileId)))) {
+        await load();
+        return true;
+      }
       if (e instanceof ApiError && e.status !== 0) {
         await load();
         toast(e.message, { kind: "error", action: !hasModel ? { label: "Set up a model", run: () => navigate("/settings/models") } : undefined });
@@ -258,12 +444,15 @@
       if (note === null) return;
       feedback = note.trim() || undefined;
     }
-    try {
-      const r = await post<{ generationId: string; messageId: string; swipeIdx: number }>(`/api/messages/${m.id}/swipe`, { feedback });
+    const go = async (profileId?: string) => {
+      const r = await post<{ generationId: string; messageId: string; swipeIdx: number }>(`/api/messages/${m.id}/swipe`, { feedback, profileId });
       gens[r.messageId] = r.generationId;
       stick = true;
+    };
+    try {
+      await go();
     } catch (e) {
-      errorToast(e);
+      if (!offerQuotaChoice(e, (p) => go(p).catch(errorToast))) errorToast(e);
     }
   }
 
@@ -289,12 +478,15 @@
   }
 
   async function continueMsg(m: Message) {
-    try {
-      const r = await post<{ generationId: string; messageId: string }>(`/api/messages/${m.id}/continue`);
+    const go = async (profileId?: string) => {
+      const r = await post<{ generationId: string; messageId: string }>(`/api/messages/${m.id}/continue`, { profileId });
       gens[r.messageId] = r.generationId;
       stick = true;
+    };
+    try {
+      await go();
     } catch (e) {
-      errorToast(e);
+      if (!offerQuotaChoice(e, (p) => go(p).catch(errorToast))) errorToast(e);
     }
   }
 
@@ -329,6 +521,34 @@
     } catch (e) {
       errorToast(e);
     }
+  }
+
+  /** CHAT-16: delete everything after this message, with undo. */
+  async function rewind(m: Message) {
+    try {
+      const r = await post<{ deleted: string[] }>(`/api/messages/${m.id}/rewind`);
+      if (!r.deleted.length) return;
+      messages = messages.filter((x) => x.seq <= m.seq);
+      refreshPreview();
+      toast(`Rewound: ${r.deleted.length} message${r.deleted.length === 1 ? "" : "s"} moved to the trash`, {
+        action: {
+          label: "Undo",
+          run: async () => {
+            await post(`/api/chats/${id}/restore-messages`, { ids: r.deleted });
+            await load();
+          },
+        },
+      });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  function openStory() {
+    dockTab = "story";
+    localStorage.setItem("mea.dockTab", "story");
+    if (app.isMobile) sheetOpen = true;
+    else if (!panelOpen) togglePanel();
   }
 
   async function flag(m: Message, flags: { hidden?: boolean; bookmarked?: boolean }) {
@@ -404,11 +624,17 @@
               <span class="tiny muted hide-sm">{compact(preview.est)} / {compact(preview.target)}</span>
             </button>
           {/if}
+          <ModelSwitcher {detail} onchange={() => load()} />
+          <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" class:on={searchOpen}><Search size={18} /></button>
+          <a class="btn ghost icon hide-sm" href="/chat/{id}/codex" aria-label="Codex: people, places, timeline" title="Codex"><Library size={18} /></a>
           <QuotaRing size={22} />
           <button class="btn ghost icon" onclick={togglePanel} aria-label="Chat settings" class:on={panelOpen && !app.isMobile}><PanelRight size={19} /></button>
         </div>
       </header>
 
+      {#if searchOpen}
+        <ChatSearch chatId={id} onclose={() => ((searchOpen = false), (searchQ = ""))} onjump={(seq, q) => ((searchQ = q), void jumpTo(seq))} />
+      {/if}
       <div class="scroller" bind:this={scroller} onscroll={onScroll}>
         <div class="column {styleClass}">
           {#if hasMore}
@@ -420,6 +646,17 @@
             </div>
           {/if}
           {#each messages as m (m.id)}
+            {#each dividersAt(m.seq) as b (b.id)}
+              {#if b.level === "chapter"}
+                <a class="divider chapter" href="/chat/{id}/memory" title={b.boundary ?? ""}>
+                  <span class="orn">✿</span>
+                  <span class="ctitle-div">{b.title || "A new chapter"}</span>
+                  {#if b.storyTime}<span class="tiny muted">{b.storyTime}</span>{/if}
+                </a>
+              {:else}
+                <a class="divider scene tiny" href="/chat/{id}/memory" title={b.boundary ?? ""}><span>{b.title || "· · ·"}</span></a>
+              {/if}
+            {/each}
             <MessageItem
               message={m}
               isLast={m.id === lastMsg?.id}
@@ -435,6 +672,22 @@
               ondelete={() => remove(m)}
               onflag={(f) => flag(m, f)}
               oninspect={() => openInspector(m.meta?.generationId ?? null)}
+              highlighted={highlight === m.seq}
+              mark={searchOpen ? searchQ : ""}
+              onendscene={m.id !== lastMsg?.id ? () => endScene(m) : undefined}
+              onnewchapter={m.seq !== firstSeq || hasMore ? () => newChapter(m) : undefined}
+              onmemory={() => showMemory(m)}
+              chips={trk.chips[m.id] ?? []}
+              storyTime={trk.times[m.id] ?? null}
+              onrewind={() => rewind(m)}
+              flag={flags[m.id] ?? null}
+              onflagchange={(f) => {
+                if (f && f.open > 0) flags[m.id] = f;
+                else delete flags[m.id];
+              }}
+              oncite={openCitation}
+              glossary={terms}
+              onglossary={(t, at) => (glossPick = { t, x: Math.min(window.innerWidth - 300, Math.max(8, at.left)), y: at.bottom + 6 })}
               oncompare={async () => {
                 compare = await get<Message>(`/api/messages/${m.id}`);
                 compareOpen = true;
@@ -455,24 +708,80 @@
         {#if !hasModel}
           <div class="notice warn tiny setup">No model is set up yet. <a href="/settings/models">Connect NanoGPT</a> to start writing.</div>
         {/if}
-        <Composer chatId={id} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} />
+        <Hud onopen={openStory} />
+        <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} />
       </div>
     </div>
 
     {#if panelOpen && !app.isMobile}
       <aside class="dock">
-        <ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />
+        <div class="dock-tabs">
+          <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
+        </div>
+        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
       </aside>
     {/if}
   </div>
 
   {#if app.isMobile}
     <Modal bind:open={sheetOpen} title="This chat">
-      <ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />
+      <div class="dock-tabs">
+        <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
+      </div>
+      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
     </Modal>
   {/if}
 
   <Inspector bind:open={inspectorOpen} chatId={id} generationId={inspectGen} />
+
+  <SelectionMenu chatId={id} root={scroller} idForSeq={(seq) => messages.find((x) => x.seq === seq)?.id ?? null} />
+
+  {#if glossPick}
+    <button class="gloss-scrim" onclick={() => (glossPick = null)} aria-label="Close"></button>
+    <div class="gloss-pop card" style:left="{glossPick.x}px" style:top="{glossPick.y}px" role="dialog" aria-label={glossPick.t.title}>
+      <div class="row"><b class="grow">{glossPick.t.title}</b>{#if glossPick.t.type}<span class="chip tiny">{glossPick.t.type}</span>{/if}</div>
+      <p class="small">{glossPick.t.snippet}</p>
+      <a class="tiny" href="/lorebooks/{glossPick.t.bookId}?entry={glossPick.t.entryId}">Open the entry</a>
+    </div>
+  {/if}
+
+  <Modal bind:open={quotaOpen} title="Quota used up" size="sm">
+    {#if quotaChoice}
+      <div class="stack">
+        <p>{quotaChoice.message}</p>
+        {#if quotaChoice.alternatives.length}
+          <p class="small muted">You can write this one reply with a pay-as-you-go model instead. It's billed to that key; nothing switches on its own.</p>
+          {#each quotaChoice.alternatives as a (a.id)}
+            <button class="btn" onclick={() => { quotaOpen = false; void quotaChoice?.retry(a.id); }}>Use {a.name} · {a.model}</button>
+          {/each}
+        {:else}
+          <p class="small muted">Add a pay-as-you-go profile in Settings → Models if you want a way to keep writing until the reset.</p>
+        {/if}
+      </div>
+    {/if}
+    {#snippet footer()}<button class="btn ghost" onclick={() => (quotaOpen = false)}>Wait for the reset</button>{/snippet}
+  </Modal>
+
+  <Modal bind:open={knowsOpen} title="What memory knows from #{knows?.seq ?? ''}" size="md">
+    {#if knows}
+      <div class="stack">
+        {#if !knows.inMemory}<p class="small muted">This message isn't in memory yet. Recent messages are recorded once the story moves past them.</p>{/if}
+        {#if knows.scene}
+          <div class="card knows">
+            <div class="tiny muted">Scene · #{knows.scene.startSeq}–#{knows.scene.endSeq ?? "…"} · {knows.scene.state}</div>
+            <b>{knows.scene.title || "Untitled scene"}</b>
+            {#if knows.scene.content}<p class="small">{knows.scene.content}</p>{/if}
+          </div>
+        {/if}
+        {#each knows.atoms as a (a.id)}
+          <div class="card knows"><span class="chip">{a.type}</span> <span class="small">{a.content}</span></div>
+        {:else}
+          {#if knows.inMemory}<p class="small muted">No memories cite this message directly.</p>{/if}
+        {/each}
+        <a class="btn small" href="/chat/{id}/memory">Open memory</a>
+      </div>
+    {/if}
+  </Modal>
 
   <Modal bind:open={compareOpen} title="Compare versions" size="xl">
     {#if compare?.swipes}
@@ -496,6 +805,30 @@
 {/if}
 
 <style>
+  .gloss-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: transparent;
+    border: 0;
+  }
+  .gloss-pop {
+    position: fixed;
+    z-index: 56;
+    width: min(290px, calc(100vw - 16px));
+    padding: 0.6rem 0.7rem;
+    display: grid;
+    gap: 0.3rem;
+    box-shadow: var(--shadow-2, 0 4px 18px rgb(0 0 0 / 0.15));
+  }
+  .gloss-pop p {
+    margin: 0;
+  }
+  .column :global(.gloss) {
+    text-decoration: underline dotted color-mix(in srgb, var(--accent) 60%, transparent);
+    text-underline-offset: 3px;
+    cursor: help;
+  }
   .center {
     height: 100%;
     display: grid;
@@ -632,6 +965,46 @@
     border-radius: 50%;
     box-shadow: var(--shadow-2);
     z-index: 4;
+  }
+  .dock-tabs {
+    margin-bottom: 1rem;
+  }
+  .divider {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    color: var(--text-muted);
+    text-decoration: none !important;
+    margin: 0.6rem 0;
+  }
+  .divider.chapter {
+    gap: 0.15rem;
+    padding: 1.4rem 0 0.8rem;
+  }
+  .ctitle-div {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 100;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .divider.scene {
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .divider.scene::before,
+  .divider.scene::after {
+    content: "";
+    height: 1px;
+    background: var(--border);
+  }
+  .knows {
+    padding: 0.6rem 0.8rem;
+  }
+  .knows p {
+    margin: 0.3rem 0 0;
+    white-space: pre-wrap;
   }
   .dock {
     border-left: 1px solid var(--border);

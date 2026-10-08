@@ -1,0 +1,360 @@
+import { emptySim, type SimState } from "../sim/types";
+
+/**
+ * The story world the trackers keep (TRK-16…22), modelled on ALMANAC's ledger state.
+ * It is rebuilt by folding events in message order, so any message's state can be recomputed
+ * and swipes, edits and deletes never corrupt it (TRK-04).
+ */
+
+export type OpName =
+  | "clock" | "wx" | "at" | "scene" | "mode" | "cast" | "mood" | "body" | "look" | "trait" | "drive" | "mask" | "think" | "journal" | "dead"
+  | "bond" | "ladder" | "know" | "secret" | "reveal" | "item" | "thread" | "owe" | "promise" | "deadline" | "plant" | "payoff" | "clue"
+  | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "set" | "lock" | "unset" | "rename"
+  // engine-only: the world off the page (sim/types.ts)
+  | "sim";
+
+export type EventSource = "model" | "inline" | "user" | "init" | "timeskip" | "engine";
+
+/** One parsed ledger line. */
+export interface Op {
+  op: OpName;
+  subject?: string;
+  object?: string;
+  args: Record<string, any>;
+  cause?: string;
+  raw: string;
+}
+
+/** "Day 3 21:40" or a calendar date, as minutes (see clock.ts). */
+export interface Moment {
+  minutes: number;
+  form: "date" | "day";
+}
+
+export type Tier = "spot" | "peri" | "off";
+export const METERS = ["health", "fatigue", "hunger", "thirst", "pain", "intox", "composure", "arousal", "stress"] as const;
+export type Meter = (typeof METERS)[number];
+
+export interface Injury {
+  where: string;
+  /** 1 scratch · 2 wound · 3 serious · 4 critical */
+  severity: 1 | 2 | 3 | 4;
+  treated: boolean;
+  /** Minutes on the clock when it happened or last stepped down. */
+  since: number | null;
+  worst: 1 | 2 | 3 | 4;
+  note?: string;
+}
+
+export interface Condition {
+  kind: string;
+  text: string;
+  since: number | null;
+  /** When it should be over (minutes); null: only the story ends it. */
+  until: number | null;
+}
+
+export type TraitKind = "eyes" | "hair" | "height" | "build" | "skin" | "face" | "scar" | "mark" | "voice" | "age" | "other";
+export interface Trait {
+  kind: TraitKind;
+  text: string;
+  by: "user" | "model" | "card";
+  seq: number;
+}
+
+export interface Character {
+  id: string;
+  name: string;
+  aliases: string[];
+  isUser: boolean;
+  isMain: boolean;
+  firstSeq: number;
+  lastSeq: number;
+  tier?: Tier;
+  activity?: string;
+  place?: string;
+  mood?: { name: string; v?: number; a?: number; d?: number; prev?: string; seq: number };
+  meters: Partial<Record<Meter, number>>;
+  flags: string[];
+  injuries: Injury[];
+  conditions: Condition[];
+  look?: string;
+  traits: Trait[];
+  drives: { want?: string; fear?: string; need?: string; tactic?: string };
+  mask?: { shown?: string; felt?: string; tell?: string };
+  thoughts?: { text: string; seq: number };
+  journal: { text: string; seq: number; at: string | null }[];
+  dead?: boolean;
+  /** How fast needs build and recover (stamina.ts). */
+  stamina: string;
+  /** Last clock reading drift was applied at. */
+  driftAt?: number | null;
+}
+
+export const BIPOLAR_AXES = ["trust", "affection", "respect", "comfort"] as const;
+export const UNIPOLAR_AXES = ["familiarity", "attraction", "fear", "resentment", "obligation", "rivalry"] as const;
+export const AXES = [...BIPOLAR_AXES, ...UNIPOLAR_AXES] as const;
+export type Axis = (typeof AXES)[number];
+
+export interface BondMove {
+  axis: Axis;
+  from: number;
+  to: number;
+  delta: number;
+  cause?: string;
+  seq: number;
+}
+
+export interface Bond {
+  from: string;
+  to: string;
+  axes: Partial<Record<Axis, number>>;
+  label?: string;
+  tags: string[];
+  history: BondMove[];
+}
+
+export const LADDER = ["Strangers", "Aware", "Interested", "Charged", "Tested", "Spoken", "Together", "Established"];
+
+export interface Ladder {
+  from: string;
+  to: string;
+  tier: number;
+  evidence?: string;
+  seq: number;
+  scene: number;
+  history: { tier: number; evidence?: string; seq: number }[];
+}
+
+export type KnowStatus = "knows" | "believes" | "suspects" | "doubts" | "wrong" | "unaware";
+export type Truth = "true" | "false" | "partial" | "unknown";
+
+export interface Fact {
+  key: string;
+  statement: string;
+  truth: Truth;
+  secret?: { keepers: string[]; from: string[] };
+  stances: Record<string, { status: KnowStatus; route?: string; seq: number; set?: boolean }>;
+  revealed: { to: string[]; seq: number; how?: string }[];
+  firstSeq: number;
+  lastSeq: number;
+}
+
+export interface Item {
+  id: string;
+  name: string;
+  holder?: string;
+  owner?: string;
+  where?: string;
+  condition?: string;
+  gone?: boolean;
+  gift?: string;
+  custody: { from?: string; to?: string; how?: string; seq: number }[];
+  lastSeq: number;
+}
+
+export type ThreadStatus = "open" | "stalled" | "resolved";
+export interface Thread {
+  id: string;
+  title: string;
+  kind?: string;
+  status: ThreadStatus;
+  latest?: string;
+  blocker?: string;
+  openedSeq: number;
+  lastSeq: number;
+  history: { op: string; detail?: string; seq: number }[];
+}
+
+export interface Obligation {
+  id: string;
+  kind: "owe" | "promise";
+  who: string;
+  whom?: string;
+  what: string;
+  status: "open" | "due" | "kept" | "broken" | "paid" | "forgiven" | "lapsed";
+  due?: { minutes: number | null; text: string };
+  seq: number;
+  /** Kept/broken already moved the bond. */
+  felt?: boolean;
+}
+
+export interface Deadline {
+  id: string;
+  title: string;
+  at: number | null;
+  text: string;
+  done: boolean;
+  seq: number;
+}
+
+export interface Plant {
+  id: string;
+  text: string;
+  payoff?: string;
+  seq: number;
+  scene: number;
+  paidSeq?: number;
+}
+
+export interface Clue {
+  id: string;
+  text: string;
+  pointsTo?: string;
+  reliability?: string;
+  seq: number;
+}
+
+export interface Gauge {
+  name: string;
+  cur: number;
+  max: number;
+  cause?: string;
+  history: { v: number; seq: number }[];
+}
+
+export interface FactionClock {
+  faction: string;
+  name: string;
+  cur: number;
+  max: number;
+  history: { v: number; seq: number }[];
+}
+
+export interface Reputation {
+  who: string;
+  group: string;
+  score: number;
+  tags: string[];
+  history: { delta: number; deed?: string; seq: number }[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  kind: "birthday" | "anniversary" | "holiday" | "appointment" | "plan" | "recurring";
+  when: string;
+  /** For one-off events with a reading on the clock. */
+  at: number | null;
+  who: string[];
+  done?: boolean;
+  seq: number;
+}
+
+export interface Motif {
+  id: string;
+  text: string;
+  who?: string;
+  firstSeq: number;
+  lastSeq: number;
+  uses: number;
+}
+
+export interface Milestone {
+  text: string;
+  who: string[];
+  seq: number;
+  at: string | null;
+}
+
+export interface Place {
+  id: string;
+  name: string;
+  path: string[];
+  visits: number;
+  lastSeq: number;
+}
+
+export interface WorldState {
+  time: Moment | null;
+  weather: { now: string; prev?: string; seq: number } | null;
+  place: string[];
+  sceneNo: number;
+  sceneTitle?: string;
+  sceneStartSeq: number;
+  mode?: string;
+  chars: Record<string, Character>;
+  bonds: Record<string, Bond>;
+  ladders: Record<string, Ladder>;
+  facts: Record<string, Fact>;
+  items: Record<string, Item>;
+  threads: Record<string, Thread>;
+  obligations: Record<string, Obligation>;
+  deadlines: Record<string, Deadline>;
+  plants: Record<string, Plant>;
+  clues: Clue[];
+  gauges: Record<string, Gauge>;
+  clocks: Record<string, FactionClock>;
+  rep: Record<string, Reputation>;
+  calendar: Record<string, CalendarEvent>;
+  motifs: Record<string, Motif>;
+  milestones: Milestone[];
+  places: Record<string, Place>;
+  /** Custom template values (TRK-01): { templateKey: { field: value } }. */
+  custom: Record<string, Record<string, unknown>>;
+  /** Paths the user locked (TRK-05). */
+  locks: string[];
+  /** The world off the page: subplots, arrivals, news (sim/). */
+  sim: SimState;
+  lastSeq: number;
+}
+
+/** One change, for the chips under a message (TRK-07) and the timeline (TRK-28). */
+export interface Change {
+  kind: string;
+  /** Short text for the chip: "Trust +1", "21:40 → 23:10", "Harbor → Lighthouse". */
+  text: string;
+  /** Who or what it's about. */
+  subject?: string;
+  reason?: string;
+  tone?: "up" | "down" | "due" | "warn";
+  /** Stable path for locks, history and "when did X change?". */
+  path: string;
+  from?: unknown;
+  to?: unknown;
+  /** A note for the detail view: "capped from +3", "flashback". */
+  flag?: string;
+  /** This change opened a new scene (memory treats it as a scene break). */
+  newScene?: boolean;
+  memory?: boolean;
+  source: EventSource;
+}
+
+export interface Verdict {
+  raw: string;
+  ok: boolean;
+  reason?: string;
+  /** Accepted with a warning. */
+  warn?: string;
+}
+
+export function emptyWorld(): WorldState {
+  return {
+    time: null,
+    weather: null,
+    place: [],
+    sceneNo: 1,
+    sceneStartSeq: 0,
+    chars: {},
+    bonds: {},
+    ladders: {},
+    facts: {},
+    items: {},
+    threads: {},
+    obligations: {},
+    deadlines: {},
+    plants: {},
+    clues: [],
+    gauges: {},
+    clocks: {},
+    rep: {},
+    calendar: {},
+    motifs: {},
+    milestones: [],
+    places: {},
+    custom: {},
+    locks: [],
+    sim: emptySim(),
+    lastSeq: 0,
+  };
+}

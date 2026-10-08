@@ -2,6 +2,8 @@ import type { CardData } from "../cards/card";
 import { countTokens, MESSAGE_OVERHEAD } from "../lib/tokens";
 import type { ActivationResult, TraceItem } from "../lore/activate";
 import type { Role } from "../lore/types";
+import type { MemoryContext, MemoryTrace } from "../memory/context";
+import { cleanText, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
 import { lengthHint, type Preset, type PromptBlock } from "./preset";
 
@@ -14,6 +16,7 @@ export interface HistoryMessage {
   id: string;
   role: Role;
   content: string;
+  seq?: number;
 }
 
 export type AssembleKind = "story" | "continue" | "impersonate" | "expand";
@@ -37,6 +40,31 @@ export interface AssembleInput {
   draft?: string;
   feedback?: string;
   now?: Date;
+  /**
+   * Memory (MEM-02): given the tokens left for memory + history, returns the Story So Far,
+   * recalled memories, and the verbatim window. Without it, history is trimmed newest-first.
+   */
+  memory?: (available: number) => MemoryContext;
+  /** Provider tokens per estimated token for this model (CTX-03). */
+  tokenRatio?: number;
+  /** Strip markup and reasoning from messages older than this depth (CTX-07). 0 = off. */
+  filterDepth?: number;
+  /**
+   * Extra blocks from chat tools and trackers (TRK-06, CHAT-09…13): the story-state note, story
+   * settings, OOC notes, cues, guidance. `prefix` blocks join the stable cached prefix; the rest
+   * go in at a depth.
+   */
+  extras?: PromptExtra[];
+}
+
+export interface PromptExtra {
+  id: string;
+  name: string;
+  content: string;
+  /** Messages from the end (0 = after the last message). Ignored for prefix blocks. */
+  depth?: number;
+  role?: Role;
+  prefix?: boolean;
 }
 
 export interface BlockTrace {
@@ -52,9 +80,22 @@ export interface BlockTrace {
 
 export interface PromptTrace {
   blocks: BlockTrace[];
-  history: { included: number; total: number; tokens: number; dropped: number };
+  history: { included: number; total: number; tokens: number; dropped: number; evicted?: number; filtered?: number };
   lore: TraceItem[];
-  budget: { contextTarget: number; reserve: number; fixed: number; history: number; total: number };
+  /** Layer sizes in estimated tokens (CTX-01, CTX-02). */
+  budget: {
+    contextTarget: number;
+    reserve: number;
+    fixed: number;
+    history: number;
+    total: number;
+    memory: number;
+    recall: number;
+    lore: number;
+    ratio: number;
+    effectiveTarget: number;
+  };
+  memory?: MemoryTrace;
 }
 
 export interface AssembleResult {
@@ -63,6 +104,10 @@ export interface AssembleResult {
   estPromptTokens: number;
   /** Variables after macro side effects ({{setvar}}), to persist on the chat. */
   vars: Record<string, string>;
+  /** Where the stable prefix and the history end, for explicit caching (CONN-12). */
+  cacheMarks: { prefixEnd: number; historyEnd: number };
+  /** The verbatim window's start, to persist when the request is sent (CTX-05). */
+  evictedThrough: number | null;
 }
 
 const tok = (s: string) => countTokens(s) + MESSAGE_OVERHEAD;
@@ -86,7 +131,25 @@ function examplesBlock(raw: string, top: string[] = [], bottom: string[] = [], x
   return parts.join("\n\n").trim();
 }
 
-/** Builds the final message list for a request (PROMPT-01), with a full trace for the inspector (DBG-01). */
+type Tag = "prefix" | "history" | "dynamic" | "tail";
+interface Tagged extends ChatMessage {
+  tag: Tag;
+}
+
+type Inline = { kind: "msg"; msg: ChatMessage } | { kind: "history" } | { kind: "memory"; trace: BlockTrace; role: Role };
+interface DepthItem {
+  depth: number;
+  role: Role;
+  content: string;
+  order: number;
+  recall?: BlockTrace;
+}
+
+/**
+ * Builds the final message list for a request (PROMPT-01), with a full trace for the inspector (DBG-01).
+ * Layout is cache-friendly (CTX-04): stable blocks and the Story So Far first, then the history,
+ * with per-turn content (recall, triggered lore, notes) at shallow depth near the end.
+ */
 export function assemblePrompt(input: AssembleInput): AssembleResult {
   const { card, preset } = input;
   const lastOf = (role: Role) => [...input.history].reverse().find((m) => m.role === role)?.content ?? "";
@@ -113,11 +176,13 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   const x = (s: string | undefined) => expandMacros(s ?? "", ctx).trim();
   const lore = input.lore?.placements;
   const reserve = preset.samplers.max_tokens ?? 1200;
+  const ratio = input.tokenRatio && input.tokenRatio > 0 ? input.tokenRatio : 1;
+  const effectiveTarget = Math.floor(input.contextTarget / ratio);
 
-  type Inline = { kind: "msg"; msg: ChatMessage } | { kind: "history" };
   const inline: Inline[] = [];
-  const depthItems: { depth: number; role: Role; content: string; order: number }[] = [];
+  const depthItems: DepthItem[] = [];
   const blocks: BlockTrace[] = [];
+  let loreTokens = 0;
 
   preset.blocks.forEach((block: PromptBlock, index) => {
     const trace: BlockTrace = { id: block.id, name: block.name, kind: block.kind, role: block.role, tokens: 0, included: false };
@@ -152,14 +217,26 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
         break;
       case "lore_before":
         content = (lore?.before_char ?? []).join("\n\n");
+        if (content) loreTokens += tok(content);
         break;
       case "lore_after":
         content = (lore?.after_char ?? []).join("\n\n");
+        if (content) loreTokens += tok(content);
         break;
       case "history":
         inline.push({ kind: "history" });
         trace.included = true;
         return;
+      case "memory_story":
+        // Filled in once the memory context is known (it depends on the space left).
+        inline.push({ kind: "memory", trace, role: block.role });
+        return;
+      case "memory_recall": {
+        const depth = block.position === "depth" ? (block.depth ?? 1) : 1;
+        trace.depth = depth;
+        depthItems.push({ depth, role: block.role, content: "", order: index, recall: trace });
+        return;
+      }
       case "authors_note":
         content = [...(lore?.an_top ?? []), x(input.authorsNote?.content ?? block.content ?? ""), ...(lore?.an_bottom ?? [])].filter(Boolean).join("\n");
         break;
@@ -185,7 +262,31 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     }
   });
 
-  for (const d of lore?.depth ?? []) depthItems.push({ depth: d.depth, role: d.role, content: d.content, order: 1000 + d.order });
+  for (const [i, e] of (input.extras ?? []).entries()) {
+    const content = e.content.trim();
+    const trace: BlockTrace = { id: `extra:${e.id}`, name: e.name, kind: "extra", role: e.role ?? "system", tokens: content ? tok(content) : 0, included: Boolean(content) };
+    blocks.push(trace);
+    if (!content) continue;
+    if (e.prefix) {
+      // Stable blocks go just before the history so the cached prefix stays unchanged turn to turn.
+      const at = inline.findIndex((x) => x.kind === "history");
+      inline.splice(at < 0 ? inline.length : at, 0, { kind: "msg", msg: { role: e.role ?? "system", content } });
+    } else {
+      trace.depth = e.depth ?? 1;
+      depthItems.push({ depth: e.depth ?? 1, role: e.role ?? "system", content, order: 500 + i });
+    }
+  }
+
+  for (const d of lore?.depth ?? []) {
+    depthItems.push({ depth: d.depth, role: d.role, content: d.content, order: 1000 + d.order });
+    loreTokens += tok(d.content);
+  }
+
+  // Keyword-triggered lore rides with the recalled memories in the dynamic block (CTX-04).
+  const triggered = (lore?.triggered ?? []).join("\n\n");
+  if (triggered) loreTokens += tok(triggered);
+  const recallItem = depthItems.find((d) => d.recall);
+  if (!recallItem && triggered) depthItems.push({ depth: 1, role: "system", content: triggered, order: 999 });
 
   const hint = lengthHint(preset);
   if (input.kind === "story" && hint) depthItems.push({ depth: 0, role: "system", content: hint, order: 9000 });
@@ -200,59 +301,127 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   if (input.kind === "story" && preset.prefill.trim()) tail.push({ role: "assistant", content: x(preset.prefill) });
 
   const fixed =
-    inline.reduce((n, i) => n + (i.kind === "msg" ? tok(i.msg.content) : 0), 0) + depthItems.reduce((n, d) => n + tok(d.content), 0) + tail.reduce((n, m) => n + tok(m.content), 0);
-  const historyBudget = Math.max(0, input.contextTarget - reserve - fixed - 32);
+    inline.reduce((n, i) => n + (i.kind === "msg" ? tok(i.msg.content) : 0), 0) +
+    depthItems.reduce((n, d) => n + (d.content ? tok(d.content) : 0), 0) +
+    tail.reduce((n, m) => n + tok(m.content), 0) +
+    (triggered && recallItem ? tok(triggered) : 0);
+  const available = Math.max(0, effectiveTarget - reserve - fixed - 32);
+
+  // Memory: the Story So Far, recalled memories, and which messages stay verbatim.
+  const mem = input.memory?.(available);
+  const memoryInline = inline.find((i): i is Extract<Inline, { kind: "memory" }> => i.kind === "memory");
+  const storyText = mem?.story && memoryInline ? mem.story : "";
+  const recallMemory = mem?.recall && recallItem ? mem.recall : "";
+  const recallText = [triggered, recallMemory].filter(Boolean).join("\n\n");
+  if (memoryInline) {
+    memoryInline.trace.included = Boolean(storyText);
+    memoryInline.trace.tokens = storyText ? tok(storyText) : 0;
+    if (!storyText) memoryInline.trace.note = mem ? (mem.trace.enabled ? "nothing has left the window yet" : "memory is off") : "memory is off";
+  }
+  if (recallItem) {
+    recallItem.content = recallText;
+    recallItem.recall!.included = Boolean(recallText);
+    recallItem.recall!.tokens = recallText ? tok(recallText) : 0;
+    if (!recallText) recallItem.recall!.note = "nothing to recall";
+  }
+  const memoryTokens = (storyText ? tok(storyText) : 0) + (recallMemory ? tok(recallMemory) : 0);
+  const historyBudget = Math.max(0, available - memoryTokens);
+  const source = mem?.history ?? input.history;
 
   // Newest messages first until the budget is used; always keep the latest message.
   const chosen: HistoryMessage[] = [];
   let historyTokens = 0;
-  for (let i = input.history.length - 1; i >= 0; i--) {
-    const m = input.history[i]!;
+  for (let i = source.length - 1; i >= 0; i--) {
+    const m = source[i]!;
     const t = tok(m.content);
     if (historyTokens + t > historyBudget && chosen.length > 0) break;
     chosen.unshift(m);
     historyTokens += t;
   }
 
-  const hist = chosen.map((m) => ({ role: m.role, content: m.content }));
-  const slots: ChatMessage[][] = Array.from({ length: hist.length + 1 }, () => []);
+  // CTX-07: older messages lose markup, reasoning, and status blocks; recent ones stay exact.
+  let filtered = 0;
+  const filterDepth = input.filterDepth ?? 0;
+  const hist: ChatMessage[] = chosen.map((m, i) => {
+    const depth = chosen.length - i;
+    if (filterDepth > 0 && depth > filterDepth && needsCleaning(m.content)) {
+      filtered++;
+      return { role: m.role, content: cleanText(m.content) };
+    }
+    return { role: m.role, content: m.content };
+  });
+
+  const slots: Tagged[][] = Array.from({ length: hist.length + 1 }, () => []);
   for (const d of [...depthItems].sort((a, b) => a.order - b.order)) {
-    slots[Math.max(0, hist.length - d.depth)]!.push({ role: d.role, content: d.content });
+    if (!d.content) continue;
+    slots[Math.max(0, hist.length - d.depth)]!.push({ role: d.role, content: d.content, tag: "dynamic" });
   }
-  const merged: ChatMessage[] = [];
+  const merged: Tagged[] = [];
   for (let i = 0; i <= hist.length; i++) {
     merged.push(...slots[i]!);
-    if (i < hist.length) merged.push(hist[i]!);
+    if (i < hist.length) merged.push({ ...hist[i]!, tag: "history" });
   }
 
-  let messages: ChatMessage[] = [];
+  let tagged: Tagged[] = [];
   let placedHistory = false;
   for (const item of inline) {
     if (item.kind === "history") {
-      messages.push(...merged);
+      tagged.push(...merged);
       placedHistory = true;
-    } else messages.push(item.msg);
+    } else if (item.kind === "memory") {
+      if (storyText) tagged.push({ role: item.role, content: storyText, tag: placedHistory ? "tail" : "prefix" });
+    } else tagged.push({ ...item.msg, tag: placedHistory ? "tail" : "prefix" });
   }
-  if (!placedHistory) messages.push(...merged);
-  messages.push(...tail);
+  if (!placedHistory) tagged.push(...merged);
+  tagged.push(...tail.map((m) => ({ ...m, tag: "tail" as const })));
 
   // Squash the leading run of system messages into one (friendlier to most providers).
-  const firstNonSystem = messages.findIndex((m) => m.role !== "system");
-  const lead = firstNonSystem < 0 ? messages.length : firstNonSystem;
+  const firstNonSystem = tagged.findIndex((m) => m.role !== "system");
+  const lead = firstNonSystem < 0 ? tagged.length : firstNonSystem;
   if (lead > 1) {
-    messages = [{ role: "system", content: messages.slice(0, lead).map((m) => m.content).join("\n\n") }, ...messages.slice(lead)];
+    const head = tagged.slice(0, lead);
+    const tag: Tag = head.find((m) => m.tag !== "prefix")?.tag ?? "prefix";
+    tagged = [{ role: "system", content: head.map((m) => m.content).join("\n\n"), tag }, ...tagged.slice(lead)];
   }
 
+  // Cache marks: the stable prefix ends before the history; the history ends before the first per-turn item.
+  const firstHistory = tagged.findIndex((m) => m.tag !== "prefix");
+  const prefixEnd = firstHistory < 0 ? tagged.length - 1 : firstHistory - 1;
+  const firstDynamic = tagged.findIndex((m) => m.tag === "dynamic" || m.tag === "tail");
+  const historyEnd = Math.max(prefixEnd, firstDynamic < 0 ? tagged.length - 1 : firstDynamic - 1);
+
+  const messages: ChatMessage[] = tagged.map(({ role, content }) => ({ role, content }));
   const estPromptTokens = messages.reduce((n, m) => n + tok(m.content), 0);
   return {
     messages,
     estPromptTokens,
     vars: ctx.vars,
+    cacheMarks: { prefixEnd, historyEnd },
+    evictedThrough: mem ? mem.evictedThrough : null,
     trace: {
       blocks,
-      history: { included: chosen.length, total: input.history.length, tokens: historyTokens, dropped: input.history.length - chosen.length },
+      history: {
+        included: chosen.length,
+        total: input.history.length,
+        tokens: historyTokens,
+        dropped: input.history.length - chosen.length,
+        evicted: mem ? input.history.length - source.length : undefined,
+        filtered,
+      },
       lore: input.lore?.trace ?? [],
-      budget: { contextTarget: input.contextTarget, reserve, fixed, history: historyTokens, total: estPromptTokens },
+      budget: {
+        contextTarget: input.contextTarget,
+        reserve,
+        fixed,
+        history: historyTokens,
+        total: estPromptTokens,
+        memory: storyText ? tok(storyText) : 0,
+        recall: recallMemory ? tok(recallMemory) : 0,
+        lore: loreTokens,
+        ratio,
+        effectiveTarget,
+      },
+      memory: mem?.trace,
     },
   };
 }

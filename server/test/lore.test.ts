@@ -68,11 +68,16 @@ describe("lore activation", () => {
     const never = entry({ keys: ["tea"], probability: 10, useProbability: true });
     expect(run([never], ["tea time"], { random: () => 0.99 }).activated).toHaveLength(0);
 
+    // LORE-14: over budget, a long entry is trimmed to its essentials before it's dropped.
     const big = entry({ keys: ["tea"], content: "x".repeat(800), order: 1 });
     const small = entry({ keys: ["tea"], content: "y".repeat(300), order: 2 });
     const r = run([big, small], ["tea time"]);
-    expect(r.activated.map((x) => x.entry.id)).toEqual([small.id]);
-    expect(r.trace.find((t) => t.id === big.id)?.reason).toContain("budget");
+    expect(r.activated.map((x) => x.entry.id).sort()).toEqual([big.id, small.id].sort());
+    expect(r.trace.find((t) => t.id === big.id)?.reason).toContain("trimmed");
+    expect(r.activated.find((x) => x.entry.id === big.id)!.content.length).toBeLessThanOrEqual(320);
+    const tight = run([big, small], ["tea time"], { defaults: { ...defaults, tokenBudget: 400 } });
+    expect(tight.activated.map((x) => x.entry.id)).toEqual([small.id]);
+    expect(tight.trace.find((t) => t.id === big.id)?.reason).toContain("budget");
 
     const deep = entry({ keys: ["tea"], position: "depth", depth: 2, role: "user", content: "deep" });
     expect(run([deep], ["tea"]).placements.depth[0]).toMatchObject({ depth: 2, role: "user", content: "deep" });

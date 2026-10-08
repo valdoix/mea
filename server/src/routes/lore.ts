@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { one } from "../db/db";
 import { body, must } from "../lib/http";
 import {
   createEntry,
@@ -20,6 +21,12 @@ import {
 } from "../lore/service";
 import { defaultEntry } from "../lore/types";
 import { activateLore } from "../lore/activate";
+import { assistEntry, ENTRY_TEMPLATES, glossary, previewLore, templateContent } from "../lore/assist";
+import { acceptChronicle, chronicleProposals, rejectChronicle, runChronicle } from "../lore/chronicle";
+import { loreHealth } from "../lore/health";
+import { embedLore } from "../lore/semantic";
+import { embeddingsEnabled } from "../memory/embed";
+import { enqueue } from "../services/jobs";
 import { getSetting } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 
@@ -31,6 +38,8 @@ const settingsSchema = z.object({
   recursive: z.boolean().optional(),
   caseSensitive: z.boolean().optional(),
   matchWholeWords: z.boolean().optional(),
+  semantic: z.boolean().optional(),
+  chronicleFor: z.string().optional(),
 });
 
 const entrySchema = z.object({
@@ -104,15 +113,78 @@ lore.delete("/lorebooks/:id/links", async (c) => {
   return c.json(getLorebook(c.req.param("id")));
 });
 
+/** LORE-05: entries that fire on meaning need fresh vectors after an edit. */
+const reembed = () => {
+  if (embeddingsEnabled()) enqueue("lore.embed", {}, { dedupeKey: "lore.embed", delayMs: 4000 });
+};
+
 lore.post("/lorebooks/:id/entries", async (c) => {
   const partial = await body(c, entrySchema.partial());
-  return c.json(createEntry(c.req.param("id"), defaultEntry(partial)), 201);
+  const e = createEntry(c.req.param("id"), defaultEntry(partial));
+  reembed();
+  return c.json(e, 201);
 });
 
 lore.put("/lorebooks/:id/entries/:entryId", async (c) => {
   const entry = await body(c, entrySchema);
   must(updateEntry(c.req.param("entryId"), entry) || undefined, "Entry not found");
+  reembed();
   return c.json({ ...entry, id: c.req.param("entryId") });
+});
+
+// ---------- Phase 3: health, assist, templates, preview, glossary, Chronicle ----------
+
+lore.get("/lorebooks/:id/health", (c) => c.json(must(loreHealth(c.req.param("id")) ?? undefined, "Lorebook not found")));
+
+lore.get("/lore/templates", (c) => c.json({ templates: ENTRY_TEMPLATES }));
+lore.get("/lore/templates/:type", (c) => {
+  const type = c.req.param("type") as keyof typeof ENTRY_TEMPLATES;
+  if (!ENTRY_TEMPLATES[type]) return c.json({ error: "Unknown type" }, 400);
+  return c.json({ content: templateContent(type, c.req.query("name") ?? "") });
+});
+
+lore.post("/lore/assist", async (c) => {
+  const input = await body(
+    c,
+    z.object({
+      action: z.enum(["draft", "keys", "condense", "rewrite"]),
+      idea: z.string().max(2000).optional(),
+      comment: z.string().max(300).optional(),
+      content: z.string().max(20_000).optional(),
+      keys: z.array(z.string()).max(40).optional(),
+      type: z.enum(["character", "location", "item", "faction", "concept", "event", "rule"]).optional(),
+      style: z.string().max(500).optional(),
+      chatId: z.string().nullable().optional(),
+    }),
+  );
+  return c.json(await assistEntry(input.action, input));
+});
+
+lore.post("/chats/:id/lore/preview", async (c) => {
+  const input = await body(c, z.object({ draft: z.string().max(20_000) }));
+  return c.json({ entries: previewLore(c.req.param("id"), input.draft) });
+});
+
+lore.get("/chats/:id/glossary", (c) => c.json({ terms: glossary(c.req.param("id")) }));
+
+lore.get("/chats/:id/chronicle", (c) => c.json({ proposals: chronicleProposals(c.req.param("id"), c.req.query("status") || "open") }));
+lore.post("/chats/:id/chronicle/run", async (c) => c.json({ proposals: await runChronicle(c.req.param("id"), undefined, { max: 5 }) }));
+lore.post("/chronicle/:id/accept", async (c) => {
+  const input = await body(c, z.object({ comment: z.string().optional(), keys: z.array(z.string()).optional(), content: z.string().optional() }).default({}));
+  const r = acceptChronicle(c.req.param("id"), input);
+  reembed();
+  return c.json(r);
+});
+lore.post("/chronicle/:id/reject", (c) => {
+  rejectChronicle(c.req.param("id"));
+  return c.json({ ok: true });
+});
+lore.post("/lore/embed", async (c) => c.json(await embedLore()));
+
+/** Which book an entry lives in (for citations that point at a lore entry). */
+lore.get("/lore/entries/:id/locate", (c) => {
+  const r = one<{ lorebook_id: string }>("SELECT lorebook_id FROM lorebook_entries WHERE id = ?", c.req.param("id"));
+  return r ? c.json({ bookId: r.lorebook_id }) : c.json({ error: "Entry not found" }, 404);
 });
 
 lore.delete("/lorebooks/:id/entries/:entryId", (c) => {

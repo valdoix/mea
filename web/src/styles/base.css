@@ -494,3 +494,10 @@ kbd {
     transform: rotate(360deg);
   }
 }
+
+mark {
+  background: color-mix(in srgb, var(--butter) 70%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 0.1em;
+}

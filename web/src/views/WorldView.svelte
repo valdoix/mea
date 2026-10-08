@@ -1,0 +1,411 @@
+<script lang="ts">
+  import Modal from "../components/Modal.svelte";
+  import Segmented from "../components/Segmented.svelte";
+  import { get, patch, post, put } from "../lib/api";
+  import { onEvent } from "../lib/events";
+  import { ArrowLeft, Dices, Plus, Settings } from "../lib/icons";
+  import { errorToast, toast } from "../lib/state.svelte";
+  import type { Arc, WorldConfig, WorldViewData } from "../lib/types";
+
+  let { id }: { id: string } = $props();
+  let w = $state<WorldViewData | null>(null);
+  let filter = $state<"live" | "ended" | "all">("live");
+  let busy = $state(false);
+  let settingsOpen = $state(false);
+  let authorOpen = $state(false);
+  let author = $state({ name: "", premise: "" });
+  let editArc = $state<Arc | null>(null);
+  let arcForm = $state({ premise: "", want: "", fear: "" });
+  let cfg = $state<WorldConfig>({ mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", view: "director", climate: "maritime", latitude: 45, tech: "modern", genres: [], step: 120 });
+
+  async function load() {
+    try {
+      w = await get<WorldViewData>(`/api/chats/${id}/world`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  $effect(() => {
+    void load();
+  });
+  $effect(() =>
+    onEvent((e) => {
+      if (e.type === "trackers.changed" && e.chatId === id && !e.running) void load();
+    }),
+  );
+
+  async function step() {
+    busy = true;
+    try {
+      const r = await post<{ summary: string[] }>(`/api/chats/${id}/world/tick`);
+      toast(r.summary.length ? `${r.summary.length} things moved` : "A quiet stretch: nothing moved", { kind: "ok" });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      busy = false;
+    }
+  }
+  async function act(url: string, body: unknown) {
+    try {
+      w = await post<WorldViewData>(url, body);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function saveConfig(over?: Partial<WorldConfig>) {
+    try {
+      await patch(`/api/chats/${id}`, { settings: { world: over ?? $state.snapshot(cfg) } });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  function openSettings() {
+    if (w) cfg = { ...w.config, genres: [...w.config.genres] };
+    settingsOpen = true;
+  }
+  async function giveStory() {
+    try {
+      w = await post<WorldViewData>(`/api/chats/${id}/world/arcs`, author);
+      authorOpen = false;
+      author = { name: "", premise: "" };
+      toast("Their story begins", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function saveArc() {
+    if (!editArc) return;
+    await act(`/api/chats/${id}/world/arcs/${encodeURIComponent(editArc.id)}`, { action: "edit", ...arcForm });
+    editArc = null;
+  }
+  async function setPerson(name: string, body: Record<string, unknown>) {
+    try {
+      w = await put<WorldViewData>(`/api/chats/${id}/world/people/${encodeURIComponent(name)}`, body);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  const arcs = $derived((w?.arcs ?? []).filter((a) => (filter === "all" ? true : filter === "live" ? ["running", "held", "fate", "crossed"].includes(a.status) : ["resolved", "dropped"].includes(a.status))));
+  const director = $derived(w?.config.view !== "surprise");
+  const STAGES = ["hook", "rising", "reversal", "crisis", "climax"] as const;
+  const resultWord = { win: "went their way", cost: "worked, at a price", loss: "went wrong" } as Record<string, string>;
+  const routeIcon: Record<string, string> = { carrier: "🗣", signal: "📨", ambient: "📣", trace: "👣", entrance: "🚪", omen: "🌘" };
+  const chart = $derived.by(() => {
+    const t = w?.tension ?? [];
+    if (t.length < 2) return null;
+    const lo = t[0]!.at;
+    const hi = Math.max(t.at(-1)!.at, lo + 1);
+    const x = (v: number) => ((v - lo) / (hi - lo)) * 100;
+    const y = (v: number) => 38 - (v / 10) * 36;
+    return { value: t.map((p) => `${x(p.at)},${y(p.value)}`).join(" "), target: t.map((p) => `${x(p.at)},${y(p.target)}`).join(" ") };
+  });
+  const rings = $derived({
+    onstage: (w?.people ?? []).filter((p) => p.ring === "onstage"),
+    offstage: (w?.people ?? []).filter((p) => p.ring === "offstage"),
+    unmet: (w?.people ?? []).filter((p) => p.ring === "unmet"),
+  });
+  const fmtMin = (m: number) => `${String(Math.floor((m % 1440) / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+</script>
+
+<div class="page">
+  <div class="row head">
+    <a class="btn ghost icon" href="/chat/{id}" aria-label="Back to the chat"><ArrowLeft size={18} /></a>
+    <h1 class="grow">The world off the page</h1>
+    {#if w && w.config.mode !== "off"}<button class="btn small" onclick={step} disabled={busy || !w.time}><Dices size={15} /> Move a step</button>{/if}
+    <button class="btn ghost icon" onclick={openSettings} aria-label="World settings"><Settings size={18} /></button>
+  </div>
+
+  {#if !w}
+    <p class="muted">Loading…</p>
+  {:else if w.config.mode === "off"}
+    <section class="panel stack">
+      <p>While it's off, people only act when they're in a scene. Turned on, everyone the story knows lives their own life between scenes: subplots move with the dice as story time passes, news travels person to person, and some of it reaches your scene.</p>
+      <button class="btn primary" onclick={() => saveConfig({ mode: "living" })}>Turn it on (living)</button>
+    </section>
+  {:else}
+    <div class="top-grid">
+      <section class="panel stack tight">
+        <h2>Now</h2>
+        <div class="small">{w.time ?? "No story time yet"} · {w.town}</div>
+        {#if w.sky}
+          <div class="small">{w.sky.weather.text}, {w.sky.weather.tempC}°C · {w.sky.season}{w.sky.sunrise ? ` · sun ${w.sky.sunrise}–${w.sky.sunset}` : ""} · {w.sky.moon}</div>
+          <div class="row wrap fc">{#each w.sky.forecast as f (f.minutes)}<span class="chip tiny">{fmtMin(f.minutes)} {f.text.split(",")[0]} {f.tempC}°</span>{/each}</div>
+        {/if}
+        <div class="tiny muted">{w.lastTickAt ? `Last moved at ${w.lastTickAt}` : "Hasn't moved yet"} · {w.ticks} steps · {w.config.mode}</div>
+      </section>
+      <section class="panel stack tight">
+        <h2>Tension <span class="tiny muted">{w.personalities[w.config.director]?.label}</span></h2>
+        {#if chart}
+          <svg class="chart" viewBox="0 0 100 40" preserveAspectRatio="none" aria-label="Story tension over time against the director's target"><polyline points={chart.target} class="target" /><polyline points={chart.value} class="value" /></svg>
+          <div class="tiny muted">Line: the story's tension. Dashes: where the director wants it. {w.personalities[w.config.director]?.about}</div>
+        {:else}
+          <p class="tiny muted">Builds up as the world moves.</p>
+        {/if}
+      </section>
+    </div>
+
+    {#if w.proposals.length}
+      <section class="stack tight">
+        <h2>Waiting for your word</h2>
+        {#each w.proposals as p (p.id)}
+          <div class="card item">
+            <div class="tiny muted">{w.kinds[p.kind]?.label} · grows out of {p.why}</div>
+            <div><b>{p.leadName}</b>: {p.premise}</div>
+            <div class="tiny muted">Wants {p.want} · fears {p.fear}</div>
+            <div class="row"><button class="btn small primary" onclick={() => act(`/api/chats/${id}/world/proposals/${encodeURIComponent(p.id)}`, { accept: true })}>Let it happen</button><button class="btn small ghost" onclick={() => act(`/api/chats/${id}/world/proposals/${encodeURIComponent(p.id)}`, { accept: false })}>Not this</button></div>
+          </div>
+        {/each}
+      </section>
+    {/if}
+
+    <section class="stack tight">
+      <div class="row between wrap">
+        <h2>Subplots</h2>
+        <div class="row">
+          <Segmented bind:value={filter} small options={[{ value: "live" as const, label: "Live" }, { value: "ended" as const, label: "Ended" }, { value: "all" as const, label: "All" }]} />
+          <button class="btn small" onclick={() => (authorOpen = true)}><Plus size={14} /> Give someone a story</button>
+        </div>
+      </div>
+      {#each arcs as a (a.id)}
+        <article class="card arc" id={a.id} class:fate={a.status === "fate"}>
+          <div class="row between wrap">
+            <div><b>{a.leadName}</b> · {w.kinds[a.kind]?.label} <span class="tiny muted">· {a.secrecy}{a.by === "player" ? " · your story" : ""}{a.status !== "running" ? ` · ${a.status}` : ""}</span></div>
+            <div class="stages" aria-label="Where it is in its shape">
+              {#each STAGES as s, i (s)}<span class="st" class:on={STAGES.indexOf(a.stage as (typeof STAGES)[number]) >= i || a.stage === "aftermath"} title={s}></span>{/each}
+              <span class="tiny muted">{a.clock.cur}/{a.clock.max}</span>
+            </div>
+          </div>
+          <p class="small">{a.premise}</p>
+          <div class="tiny muted">Wants {a.want} · fears {a.fear}{director ? ` · heat ${a.heat}` : ""}{director ? ` · ${a.tally.win} won, ${a.tally.cost} at a cost, ${a.tally.loss} lost` : ""}</div>
+          {#if director && a.grounds.length}<div class="tiny faint">Rests on: {a.grounds.join(", ")}</div>{/if}
+          {#if a.fate}
+            <div class="notice warn small">{a.fate.text}</div>
+            <div class="row wrap">
+              <button class="btn small" onclick={() => act(`/api/chats/${id}/world/fates/${encodeURIComponent(a.id)}`, { choice: "accept" })}>Accept</button>
+              <button class="btn small" onclick={() => act(`/api/chats/${id}/world/fates/${encodeURIComponent(a.id)}`, { choice: "soften" })}>Soften it</button>
+              <button class="btn small ghost" onclick={() => act(`/api/chats/${id}/world/fates/${encodeURIComponent(a.id)}`, { choice: "page" })}>Keep it for a scene on the page</button>
+            </div>
+          {/if}
+          {#if a.beats.length}
+            <ol class="beats">
+              {#each a.beats.slice(-6) as b (b.at)}
+                <li>
+                  <span class="tiny faint">{b.stage}{director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && b.why.length ? ` (${b.why.join(", ")})` : ""}</span>
+                  <div class="small">{b.text}</div>
+                </li>
+              {/each}
+            </ol>
+          {/if}
+          {#if a.ending}<div class="small ending">Ending ({a.ending.result}): {a.ending.text}</div>{/if}
+          {#if ["running", "held"].includes(a.status)}
+            <div class="row wrap ctl">
+              {#if a.status === "running"}<button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "hold" })}>Hold</button>{:else}<button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "resume" })}>Resume</button>{/if}
+              <button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "nudge" })}>Nudge</button>
+              <button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "bringIn" })} title="Offer a way into your scene next turn">Bring in</button>
+              <button class="btn ghost small" onclick={() => ((editArc = a), (arcForm = { premise: a.premise, want: a.want, fear: a.fear }))}>Edit</button>
+              <button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "drop" })}>Drop</button>
+            </div>
+          {/if}
+        </article>
+      {:else}
+        <p class="small muted">{filter === "live" ? "Nothing is moving off the page yet. Subplots grow from the story's loose ends (threads, debts, secrets, strong feelings, people who are away) as story time passes." : "None yet."}</p>
+      {/each}
+    </section>
+
+    <div class="top-grid">
+      <section class="panel stack tight">
+        <h2>On its way to the scene</h2>
+        {#each w.arrivals.filter((a) => a.status === "pending" || a.status === "offered").slice(0, 10) as a (a.id)}
+          <div class="small">{routeIcon[a.route]} {a.text} <span class="tiny faint">{a.route}{a.offers ? ` · offered ${a.offers}/${a.maxOffers}` : ""}</span></div>
+        {:else}<p class="tiny muted">Nothing right now.</p>{/each}
+        {#if w.arrivals.some((a) => a.status === "used")}
+          <details><summary class="tiny">Delivered</summary>{#each w.arrivals.filter((a) => a.status === "used").slice(0, 10) as a (a.id)}<div class="tiny">{routeIcon[a.route]} {a.text}</div>{/each}</details>
+        {/if}
+      </section>
+      <section class="panel stack tight">
+        <h2>News and happenings</h2>
+        {#if director}{#each w.news.slice(0, 8) as n, i (i)}<div class="tiny">{n.to} heard from {n.from} ({n.medium}){n.distorted ? ", garbled" : ""}: {n.statement}</div>{/each}{/if}
+        {#each w.incidents.slice(0, 6) as inc, i (i)}<div class="tiny">📣 {inc.text}</div>{/each}
+        {#if !w.news.length && !w.incidents.length}<p class="tiny muted">Quiet so far.</p>{/if}
+      </section>
+    </div>
+
+    <section class="panel stack tight">
+      <h2>People</h2>
+      {#each [["Here", rings.onstage], ["Seen before", rings.offstage], ["Not met yet", rings.unmet]] as [label, list] (label)}
+        {#if (list as typeof rings.onstage).length}
+          <div class="tiny muted">{label}</div>
+          <div class="ppl">
+            {#each list as typeof rings.onstage as p (p.id)}
+              <div class="pp">
+                <div class="small"><b>{p.name}</b> {#if p.standing !== "here"}<span class="chip tiny">{p.standing}</span>{/if}{#if p.flag}<span class="chip tiny">{p.flag}</span>{/if}</div>
+                <div class="tiny muted">{p.where ?? ""}{p.travel != null && p.ring !== "onstage" ? ` · ${p.travel < 60 ? `${p.travel} min` : `${Math.round(p.travel / 60)} h`} away` : ""}{p.arcs.length ? ` · ${p.arcs.length} subplot${p.arcs.length > 1 ? "s" : ""}` : ""}</div>
+                {#if director && p.ties.length}<div class="tiny faint">Tied to {p.ties.map((t) => `${t.name} (${["", "slight", "some", "close", "strong", "deep"][Math.min(5, Math.max(0, Math.round(t.strength)))] || "slight"})`).join(", ")}</div>{/if}
+                {#if p.ring !== "onstage"}
+                  <div class="row">
+                    <select class="select tiny pick" value={p.standing} onchange={(e) => setPerson(p.name, { standing: e.currentTarget.value })} aria-label="Standing">
+                      <option value="here">around</option><option value="away">away</option><option value="captive">captive</option><option value="changed">can't act</option><option value="dead">dead</option><option value="companion">companion</option><option value="construct">construct</option>
+                    </select>
+                    <select class="select tiny pick" value={p.flag ?? ""} onchange={(e) => setPerson(p.name, { flag: e.currentTarget.value || null })} aria-label="Simulation">
+                      <option value="">simulate as usual</option><option value="wake">keep awake</option><option value="hold">no new moves</option><option value="out">leave out</option>
+                    </select>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {/each}
+    </section>
+  {/if}
+</div>
+
+<Modal bind:open={authorOpen} title="Give someone a story" size="md">
+  <div class="stack">
+    <label class="field"><span class="label">Who</span>
+      <input class="input" list="world-people" bind:value={author.name} />
+      <datalist id="world-people">{#each w?.people ?? [] as p (p.id)}<option value={p.name}></option>{/each}</datalist>
+    </label>
+    <label class="field"><span class="label">Their story</span><textarea class="textarea" rows="3" bind:value={author.premise} placeholder="Joss wants to buy back his father's boat before the Guild sells it."></textarea><span class="hint">In your words. The engine picks the kind, grounds it, and starts it at once; it never rewrites what you wrote.</span></label>
+  </div>
+  {#snippet footer()}<button class="btn ghost" onclick={() => (authorOpen = false)}>Cancel</button><button class="btn primary" onclick={giveStory} disabled={!author.name.trim() || author.premise.trim().length < 5}>Start it</button>{/snippet}
+</Modal>
+
+<Modal open={Boolean(editArc)} onclose={() => (editArc = null)} title="Edit subplot" size="md">
+  <div class="stack">
+    <label class="field"><span class="label">Premise</span><textarea class="textarea" rows="3" bind:value={arcForm.premise}></textarea></label>
+    <label class="field"><span class="label">What they want</span><input class="input" bind:value={arcForm.want} /></label>
+    <label class="field"><span class="label">What they fear</span><input class="input" bind:value={arcForm.fear} /></label>
+    <p class="tiny muted">Your edit locks it: the engine won't rewrite these words.</p>
+  </div>
+  {#snippet footer()}<button class="btn ghost" onclick={() => (editArc = null)}>Cancel</button><button class="btn primary" onclick={saveArc}>Save</button>{/snippet}
+</Modal>
+
+<Modal bind:open={settingsOpen} title="World settings for this chat" size="md">
+  <div class="stack">
+    <div class="field">
+      <span class="label">How lively</span>
+      <Segmented bind:value={cfg.mode} small options={[{ value: "off" as const, label: "Off" }, { value: "quiet" as const, label: "Quiet" }, { value: "living" as const, label: "Living" }, { value: "restless" as const, label: "Restless" }]} />
+    </div>
+    <div class="field">
+      <span class="label">Director</span>
+      {#each Object.entries(w?.personalities ?? {}) as [k, p] (k)}
+        <label class="switch small"><input type="radio" name="director" value={k} bind:group={cfg.director} /> <b>{p.label}</b> <span class="tiny muted">{p.about}</span></label>
+      {/each}
+    </div>
+    <div class="grid">
+      <label class="field"><span class="label">New subplots</span><select class="select" bind:value={cfg.seeding}><option value="ask">Ask me first</option><option value="auto">Let them start</option><option value="off">Only mine</option></select></label>
+      <label class="field"><span class="label">Endings that can't be undone</span><select class="select" bind:value={cfg.fates}><option value="ask">Ask me</option><option value="page">Only on the page</option><option value="allow">Let them happen</option></select></label>
+      <label class="field"><span class="label">Telling</span><select class="select" bind:value={cfg.telling}><option value="model">A model writes the words</option><option value="engine">The engine's own words (no requests)</option></select></label>
+      <label class="field"><span class="label">What you see</span><select class="select" bind:value={cfg.view}><option value="director">Everything (dice, grounds)</option><option value="surprise">Surprise me</option></select></label>
+      <label class="field"><span class="label">Setting</span><select class="select" bind:value={cfg.tech}><option value="modern">Modern (calls, texts)</option><option value="historic">Historic (letters, notes)</option><option value="fantasy">Fantasy (letters, messengers)</option><option value="future">Future (messages)</option></select></label>
+      <label class="field"><span class="label">Climate</span><select class="select" bind:value={cfg.climate}>{#each ["maritime", "continental", "mediterranean", "desert", "tropical", "subarctic", "alpine"] as c (c)}<option value={c}>{c}</option>{/each}</select></label>
+      <label class="field"><span class="label">Step</span><input class="input" type="number" min="30" max="1440" step="30" bind:value={cfg.step} /><span class="hint">story minutes between moves</span></label>
+      <label class="field"><span class="label">Genres</span><input class="input" value={(cfg.genres ?? []).join(", ")} onchange={(e) => (cfg.genres = e.currentTarget.value.split(/\s*,\s*/).filter(Boolean))} placeholder="mystery, romance" /></label>
+    </div>
+  </div>
+  {#snippet footer()}<button class="btn ghost" onclick={() => (settingsOpen = false)}>Cancel</button><button class="btn primary" onclick={() => ((settingsOpen = false), saveConfig({ ...$state.snapshot(cfg), latitude: undefined } as Partial<WorldConfig>))}>Save</button>{/snippet}
+</Modal>
+
+<style>
+  .pick {
+    width: auto;
+    padding: 0.2rem 1.7rem 0.2rem 0.5rem;
+    background-position: right 0.4rem center;
+  }
+  .page {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 1.2rem clamp(1rem, 3vw, 2rem) 5rem;
+    display: grid;
+    gap: 1.1rem;
+  }
+  .head {
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .top-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1rem;
+  }
+  .fc {
+    gap: 0.25rem;
+  }
+  .chart {
+    width: 100%;
+    height: 5rem;
+  }
+  .chart .value {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .chart .target {
+    fill: none;
+    stroke: var(--lavender);
+    stroke-width: 1.2;
+    stroke-dasharray: 4 3;
+    vector-effect: non-scaling-stroke;
+  }
+  .item,
+  .arc {
+    padding: 0.8rem 0.9rem;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .arc.fate {
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  }
+  .stages {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .st {
+    width: 1.1rem;
+    height: 0.35rem;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+  }
+  .st.on {
+    background: var(--accent);
+  }
+  .beats {
+    margin: 0.2rem 0 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.3rem;
+  }
+  .ending {
+    font-style: italic;
+  }
+  .ctl {
+    gap: 0.2rem;
+  }
+  .ppl {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 0.5rem;
+  }
+  .pp {
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 0.5rem 0.6rem;
+    display: grid;
+    gap: 0.2rem;
+  }
+  .pp .select {
+    width: auto;
+    padding: 0.15rem 0.4rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+    gap: 0.7rem;
+  }
+</style>

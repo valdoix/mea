@@ -2,7 +2,7 @@
 
 A personal AI roleplay frontend for Windows and Android, served from an always-on host and powered by NanoGPT. Its focus is memory, continuity, and a cozy reading experience.
 
-**Status:** Phase 0 (foundations) is built. See [docs/03-phase0-status.md](docs/03-phase0-status.md).
+**Status:** Phases 0–3 are built: foundations, memory core, trackers and the world off the page, and retrieval, facts and accuracy. See [docs/07-phase3-status.md](docs/07-phase3-status.md).
 
 ## Planning docs
 
@@ -11,6 +11,10 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/01-frontend-analysis.md](docs/01-frontend-analysis.md) | Analysis of the 45 frontends on Tavernary (plus Lumiverse `staging` and the memory-extension ecosystem) |
 | [docs/02-mea-ideas.md](docs/02-mea-ideas.md) | The full idea list with IDs and priorities, your decisions (§0.1), NanoGPT specifics, the cozy pastel theme, and the roadmap |
 | [docs/03-phase0-status.md](docs/03-phase0-status.md) | What Phase 0 delivered, deviations, and what still needs a real-world check |
+| [docs/04-phase1-progress.md](docs/04-phase1-progress.md) | Phase 1 build notes, file by file (schema, memory engine, routes, UI) |
+| [docs/05-phase1-status.md](docs/05-phase1-status.md) | What Phase 1 delivered, where to find it, and what still needs a real-world check |
+| [docs/06-phase2-status.md](docs/06-phase2-status.md) | What Phase 2 delivered (trackers, world simulation, chat tools), build notes, and what still needs a real-world check |
+| [docs/07-phase3-status.md](docs/07-phase3-status.md) | What Phase 3 delivered (retrieval, entities, accuracy guards, lore, library), fixes, and what still needs a real-world check |
 
 ## Running Mea
 
@@ -40,6 +44,8 @@ powershell -ExecutionPolicy Bypass -File scripts\install-service.ps1
 
 To remove it: `scripts\uninstall-service.ps1` (your data stays).
 
+**As a single file** (ARCH-14): `bun run build:exe` makes `dist\mea.exe` with the web app inside. Run it anywhere; its data goes in a `data` folder next to it. To run the exe as the service, add `-Exe` to the install command above (copy your existing `data` folder to `dist\data` first).
+
 **Phone access:**
 1. Install Tailscale on the PC and the phone, signed in to the same account.
 2. Once, on the PC, run `tailscale serve --bg 7766`. This gives Mea a private `https://<pc>.<tailnet>.ts.net` address.
@@ -60,6 +66,7 @@ This starts the API (with the mock provider enabled) on :7766 and Vite on http:/
 | `bun run check` | TypeScript + Svelte type checks |
 | `bun run build` | Builds the web app into `web/dist` |
 | `bun run budgets` | Checks the bundle-size budgets (PERF-01) |
+| `bun run build:exe` | Builds `dist/mea.exe` (add `-- --target host` for a binary for this machine) |
 
 ## Layout
 
@@ -67,13 +74,17 @@ This starts the API (with the mock provider enabled) on :7766 and Vite on http:/
 server/src
   cards/      character card PNG/JSON/CHARX parsing and writing
   lore/       lorebook model, SillyTavern conversion, activation engine
+  memory/     scenes, summaries, memories, recall, entities, journals, ledgers, telescoping budget
+  accuracy/   continuity checker and leak guard, Archivist, Codex, memory quiz
   prompt/     macros, presets, prompt assembly
-  providers/  OpenAI-compatible streaming, NanoGPT catalog & quota, mock
-  services/   characters, chats, generation, connections, backups, auth, jobs…
+  providers/  OpenAI-compatible + Anthropic streaming, NanoGPT catalog & quota, mock
+  trackers/   story state: ledger grammar, event fold, rules, drift, clock, templates, prompt note
+  sim/        the world off the page: roster, subplots, director, news, crossings, sky
+  services/   characters, chats, generation, chat tools, connections, backups, auth, jobs…
   routes/     HTTP API
 web/src
-  views/      Home, Chat, Character, Personas, Lorebooks, Presets, Settings…
-  components/ chat, settings, lore, shared UI
+  views/      Home, Chat, Story, World, Search, Character, Personas, Lorebooks, Presets, Settings…
+  components/ chat, memory, trackers, world, settings, lore, shared UI
   lib/        api, events (live stream), router, rendering, gestures, images
-scripts/      dev runner, icons, budgets, Windows service install
+scripts/      dev runner, icons, budgets, exe build, Windows service install
 ```

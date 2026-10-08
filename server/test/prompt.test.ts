@@ -117,8 +117,8 @@ describe("SillyTavern preset import", () => {
     );
     expect(p.samplers.temperature).toBe(0.8);
     expect(p.samplers.max_tokens).toBe(900);
-    expect(p.blocks.map((b) => b.kind)).toEqual(["text", "history", "post_history", "text", "authors_note"]);
-    expect(p.blocks[3]).toMatchObject({ position: "depth", depth: 2, enabled: false });
+    expect(p.blocks.map((b) => b.kind)).toEqual(["text", "memory_story", "history", "memory_recall", "post_history", "text", "authors_note"]);
+    expect(p.blocks[5]).toMatchObject({ position: "depth", depth: 2, enabled: false });
     expect(p.importNotes?.some((n) => n.includes("wi_format"))).toBe(true);
   });
 });
