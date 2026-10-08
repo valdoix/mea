@@ -8,10 +8,15 @@
 
   Run from an elevated PowerShell (Run as administrator):
     powershell -ExecutionPolicy Bypass -File scripts\install-service.ps1
+
+  With -Exe it builds the single-file dist\mea.exe (ARCH-14) and runs that instead of Bun + source.
+  Mea's data then lives in dist\data next to the exe (copy your existing data\ folder there first
+  if you're switching).
 #>
 param(
   [string]$TaskName = "Mea",
-  [int]$Port = 7766
+  [int]$Port = 7766,
+  [switch]$Exe
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,14 +28,28 @@ if (-not $admin) { throw "Please run this from PowerShell opened with 'Run as ad
 $bun = (Get-Command bun -ErrorAction SilentlyContinue).Source
 if (-not $bun) { throw "Bun isn't installed or isn't on PATH. Install it from https://bun.sh first." }
 
-Write-Host "Building the web app..." -ForegroundColor Cyan
 Push-Location $root
 try {
   & $bun install --frozen-lockfile
-  & $bun run build
+  if ($Exe) {
+    Write-Host "Building mea.exe..." -ForegroundColor Cyan
+    & $bun scripts/build-exe.ts --hide-console
+  } else {
+    Write-Host "Building the web app..." -ForegroundColor Cyan
+    & $bun run build
+  }
+  if ($LASTEXITCODE -ne 0) { throw "The build failed." }
 } finally { Pop-Location }
 
-$action = New-ScheduledTaskAction -Execute $bun -Argument "server/src/index.ts" -WorkingDirectory $root
+if ($Exe) {
+  $exePath = Join-Path $root "dist\mea.exe"
+  if (-not (Test-Path (Join-Path $root "dist\data")) -and (Test-Path (Join-Path $root "data"))) {
+    Write-Warning "Your existing data is in $root\data. The exe uses $root\dist\data; stop Mea and copy the folder over to keep your chats."
+  }
+  $action = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory (Split-Path -Parent $exePath)
+} else {
+  $action = New-ScheduledTaskAction -Execute $bun -Argument "server/src/index.ts" -WorkingDirectory $root
+}
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType S4U -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet `

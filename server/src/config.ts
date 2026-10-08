@@ -1,7 +1,10 @@
 import { mkdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
-const root = resolve(import.meta.dir, "../..");
+/** True inside the compiled mea.exe (ARCH-14): source paths then point into Bun's virtual filesystem. */
+export const compiled = /\$bunfs|~BUN/.test(import.meta.dir);
+/** Repo root from source; the exe's own folder when compiled, so data sits next to mea.exe. */
+const root = compiled ? dirname(process.execPath) : resolve(import.meta.dir, "../..");
 const dataDir = resolve(process.env.MEA_DATA_DIR ?? join(root, "data"));
 
 export const config = {
