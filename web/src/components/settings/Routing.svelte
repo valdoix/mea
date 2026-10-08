@@ -192,7 +192,7 @@
     color: var(--text-muted);
   }
   .add .select {
-    padding: 0.2rem 0.4rem;
+    padding: 0.2rem 2rem 0.2rem 0.5rem;
     width: auto;
   }
   .sec {

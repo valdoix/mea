@@ -119,7 +119,7 @@
             {:else}
               <div class="stack tight memsec">
                 <p class="tiny muted">
-                  Verbatim window: {mem.window.messages} messages ({compact(mem.window.tokens)} of {compact(mem.window.budget)} tokens) · {windowNote[mem.window.moved]}{mem.evictedThrough ? ` · messages up to #${mem.evictedThrough} are covered by summaries` : ""}
+                  Verbatim window: {mem.window.messages} {mem.window.messages === 1 ? "message" : "messages"} ({compact(mem.window.tokens)}{mem.window.budget ? ` of ${compact(mem.window.budget)}` : ""} tokens) · {windowNote[mem.window.moved]}{mem.evictedThrough ? ` · messages up to #${mem.evictedThrough} are covered by summaries` : ""}
                 </p>
                 {#if mem.window.unsafe}<div class="notice warn tiny">Some messages left the window before memory had summarized them; the reply may miss details from them.</div>{/if}
                 {#each mem.gaps as g (g.startSeq)}<div class="notice warn tiny">Not summarized yet: #{g.startSeq}–#{g.endSeq} ({g.reason})</div>{/each}

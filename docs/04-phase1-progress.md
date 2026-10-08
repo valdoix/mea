@@ -2,7 +2,7 @@
 
 > Living document: updated as work lands so a new session can pick up from here.
 > IDs refer to [02-mea-ideas.md](02-mea-ideas.md). Phase 0 is in [03-phase0-status.md](03-phase0-status.md).
-> Work is on branch **`phase-1-memory-6g4jph`** (pushed to origin, PR into `main`). `main` still holds Phase 0 (`0b7437c`). Server part and the first web UI slice are committed.
+> Work is on branch **`phase-1-memory-6g4jph`** (PR #1 into `main`). **Phase 1 is feature-complete**; the summary is in [05-phase1-status.md](05-phase1-status.md). This file keeps the detailed build notes.
 
 ## State at a glance
 
@@ -11,9 +11,9 @@
 | Server: schema, providers, memory engine, routes | **Done: type-checks, 70/70 tests pass** (`bun run test`) |
 | Server: tests for the new memory code | **Done:** `server/test/memory.test.ts` (25 tests: heuristics, eviction, Anthropic conversion, quota shed/calibration/planner, mirror crypto, full mock pipeline incl. MEM-10 rebuild, proposals, merge, manual breaks) |
 | Mock provider: canned JSON for helper calls + fake embeddings | **Done** (`providers/mock.ts`; also lists a `mock/embed` model) |
-| Web UI (Memory Inspector, dividers, receipts, settings) | **In progress:** Memory Inspector view, Memory panel (coverage map, summary cards, atoms), chat dividers + message memory items, types/router/icons done; type-check + build clean. Settings tabs, receipts, prefetch, `quota_exhausted` handling still to do |
-| Single-file `mea.exe` build (ARCH-14) | Not started |
-| Docs: phase 1 status, README | This file only |
+| Web UI | **Done:** Memory dock tab + Memory Inspector, chat dividers, message memory menu, per-reply receipt with layered budget bar, composer prefetch, `quota_exhausted` choice; Settings → Memory (config + quota planner), Models (task routing, fallbacks, timeouts, embeddings, cache toggle + probe, Anthropic format), Usage (cache stats, request history), Status (job monitor), Backups (mirror) |
+| Single-file `mea.exe` build (ARCH-14) | **Done:** `bun run build:exe` (`scripts/build-exe.ts`, `server/src/exe.ts`, `lib/embedded.ts`), `install-service.ps1 -Exe` |
+| Docs | **Done:** [05-phase1-status.md](05-phase1-status.md), README |
 
 ## What's built (server)
 
@@ -47,12 +47,24 @@
 
 **New API routes:** `routes/memory.ts` (overview, run/rebuild/pause, boundaries, summaries CRUD/rebuild/accept/reject/versions/merge, end-scene/new-chapter, atoms CRUD/merge/split, message memory, embeddings registry); in `routes/models.ts`: `/connections/:id/probe`, `/quota/planner`, `/cache-stats`, `/requests`, `/requests/:id`, `/jobs`, `/jobs/:id/retry|cancel`; in `routes/system.ts`: `/backups/mirror` (GET/PUT), `/backups/mirror/run`; in `routes/chats.ts`: `/chats/:id/prefetch`, `profileId` on send/swipe/continue.
 
-## Next steps, in order
+## What's built (web)
 
-1. ~~Mock provider~~ ✓  2. ~~Tests~~ ✓ (still worth adding: verification auto-repair path via `MOCK_MAJOR`, story fallback chain, overflow retry, cache probe with the mock)
-3. **Web UI**: Memory tab in the chat dock + mobile sheet (coverage map, stats, review queue); Memory Inspector view (story/chapters/scenes with edit, versions, rebuild-with-instruction, proposals diff; atoms list with search/filter/edit/pin/merge/split/sources/usage); scene/chapter dividers in the chat + message menu items (End scene here / New chapter here / What memory knows); per-reply receipt (memory section in the Inspector); context meter breakdown; Settings: Memory tab (config, budgets with turns/day), Models (task routing, fallbacks, timeouts, embeddings, cache toggle/TTL, probe badges, Anthropic format), Usage (planner, cache stats, request history), Status (job monitor), Backups (mirror). Composer: debounced `prefetch`. Send: handle `quota_exhausted` with "use <paid profile> for this reply".
-4. **ARCH-14**: `scripts/build-exe.ts` (`bun build --compile`, embed `web/dist` via generated imports, data dir next to the exe when compiled) + service script option for the exe.
-5. Browser verification with the mock (desktop + phone), budgets check, `docs/05-phase1-status.md`, README update, commit.
+| Where | What |
+|---|---|
+| `views/MemoryInspector.svelte`, `components/memory/*` | Story/chapters/scenes with edit, versions, rebuild, proposals; atoms with search/filter/edit/pin/merge/split/sources/usage; coverage map |
+| `views/ChatView.svelte`, `components/chat/MessageItem.svelte` | Scene/chapter dividers, End scene / New chapter / What memory knows, Memory dock tab, paid-alternative dialog on `quota_exhausted` |
+| `components/chat/Inspector.svelte` | Receipt: budget bar (setup / Story So Far / recall / history / reply), window state, gaps, telescope rows, recalled items with slot + reasons |
+| `components/chat/Composer.svelte` | Debounced `prefetch` (900 ms, drafts ≥ 12 chars) |
+| `components/settings/Memory.svelte` | `memory.config`, recall mix (slots rebalance to 100%), `quota.degradeAt`, planner |
+| `components/settings/Routing.svelte` (inside Models) | `routing.tasks`, `routing.fallbacks` (ordered chips), `routing.timeouts`, `routing.embeddings` + re-embed |
+| `components/settings/Models.svelte` | Connection request format, per-profile `cache` + cache probe badge, learned context limit |
+| `components/settings/Usage.svelte`, `Status.svelte`, `Data.svelte` | Cache stats + request history/detail; job monitor; backup mirror |
+
+## Follow-ups worth doing (not blocking)
+
+- Tests still worth adding: verification auto-repair via `MOCK_MAJOR`, story fallback chain, overflow retry, cache probe with the mock.
+- Start `mea.exe` on Windows once and run `install-service.ps1 -Exe`.
+- First real-key session: check memory helper output quality and cost (see "Not verified yet" in 05).
 
 ## Known gaps / decisions to revisit
 

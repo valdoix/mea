@@ -165,6 +165,7 @@
   }
   .req {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
     width: 100%;
@@ -178,6 +179,10 @@
   }
   .nowrap {
     white-space: nowrap;
+    margin-left: auto;
+  }
+  .req .grow {
+    min-width: 8rem;
   }
   .err {
     color: var(--danger);

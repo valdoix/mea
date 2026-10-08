@@ -180,7 +180,7 @@
             </tbody>
           </table>
         {/if}
-        {#if planner.scenarios[0]?.turnsPerDay != null}
+        {#if planner.turnsPerDay != null && planner.scenarios[0]?.turnsPerDay != null}
           <p class="tiny muted">At other prompt sizes: {planner.scenarios.map((s) => `${compact(s.target)} → ≈ ${s.turnsPerDay}/day`).join(" · ")}</p>
         {/if}
         {#if planner.pacing}
