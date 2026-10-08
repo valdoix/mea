@@ -60,3 +60,21 @@ export function ftsQuery(text: string, max = 24): string | null {
 export function hashText(text: string): string {
   return new Bun.CryptoHasher("sha1").update(text).digest("hex");
 }
+
+/** Content words of a text (lowercased, no stop words), for overlap checks: MMR, reinforcement, excerpts. */
+export function contentWords(text: string, min = 3): Set<string> {
+  const out = new Set<string>();
+  for (const w of text.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'-]*/gu) ?? []) {
+    const word = w.replace(/'s$/, "").replace(/['-]+$/, "");
+    if (word.length >= min && !STOP.has(word)) out.add(word);
+  }
+  return out;
+}
+
+/** Jaccard overlap of two word sets. */
+export function overlap(a: Set<string>, b: Set<string>) {
+  if (!a.size || !b.size) return 0;
+  let n = 0;
+  for (const w of a) if (b.has(w)) n++;
+  return n / (a.size + b.size - n);
+}

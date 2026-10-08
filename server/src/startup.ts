@@ -10,6 +10,8 @@ import { purgeTrash } from "./services/trash";
 import { pruneGenerations } from "./services/usage";
 import { onLedgerEdit } from "./services/chats";
 import { embedChat } from "./memory/embed";
+import { consolidate } from "./memory/consolidate";
+import { runJournalJob } from "./memory/journals";
 import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
 import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
@@ -53,6 +55,11 @@ export function startup(opts: { jobs?: boolean; dbFile?: string } = {}) {
   registerJob("memory.segment", async (p, job) => segmentChat(String(p.chatId), job));
   registerJob("memory.build", async (p, job) => runBuildJob(p as { chatId: string; summaryId: string; instruction?: string; propose?: boolean }, job));
   registerJob("memory.embed", async (p, job) => embedChat(String(p.chatId), job));
+  // Phase 3: journals, sleep (consolidation), story-born lore, the continuity checker.
+  registerJob("memory.journal", async (p, job) => runJournalJob(String(p.chatId), job));
+  registerJob("memory.consolidate", async (p, job) => {
+    await consolidate(String(p.chatId), job);
+  });
   // Trackers (Phase 2): read after each reply, never in the way (TRK-03).
   onLedgerEdit(trackerLedgerHook);
   registerJob("tracker.update", async (p, job) => runTrackerUpdate(p as { chatId: string; messageId: string; swipeIdx: number }, job));

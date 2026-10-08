@@ -9,10 +9,12 @@ import { markAtomsStaleForMessage } from "./atoms";
 import { buildSummary, chatNames, confirmBoundary, storyNeedsRebuild } from "./build";
 import { embeddingsEnabled } from "./embed";
 import { currentFold } from "../trackers/store";
+import { reconcileScene } from "./reconcile";
 import { detectBoundary, type BoundarySignal } from "./segment";
 import {
   childrenOf,
   ensureRoots,
+  getSummary,
   formatLedger,
   ledger,
   type LedgerRow,
@@ -185,9 +187,27 @@ export function queueBuilds(chatId: string) {
 export async function runBuildJob(payload: { chatId: string; summaryId: string; instruction?: string; propose?: boolean }, job: JobContext) {
   if (activeGenerations(payload.chatId).length) throw new Deferred("A reply is being written", 15_000);
   await buildSummary(payload.summaryId, { job, instruction: payload.instruction, propose: payload.propose });
+  const built = getSummary(payload.summaryId);
+  if (built?.level === "scene" && built.state === "ready") afterScene(payload.chatId, built.id);
   // Cascade: a finished scene may complete a chapter, a chapter an arc, and so on.
   queueBuilds(payload.chatId);
   if (embeddingsEnabled()) enqueue("memory.embed", { chatId: payload.chatId }, { dedupeKey: `memory.embed:${payload.chatId}`, delayMs: 3000, chatId: payload.chatId });
+}
+
+/**
+ * After a scene record (Phase 3): reconcile it with the trackers now (SUM-22), then let the
+ * journals (MEM-29), the Chronicle (LORE-12) and, once the chat goes quiet, the sleep job (MEM-42) catch up.
+ */
+function afterScene(chatId: string, summaryId: string) {
+  const cfg = memoryConfig();
+  try {
+    reconcileScene(summaryId);
+  } catch (e) {
+    console.error("[mea] reconcile failed:", e);
+  }
+  if (cfg.journals) enqueue("memory.journal", { chatId }, { dedupeKey: `memory.journal:${chatId}`, delayMs: 20_000, priority: 0, chatId });
+  if (cfg.chronicle) enqueue("lore.chronicle", { chatId }, { dedupeKey: `lore.chronicle:${chatId}`, delayMs: 30_000, priority: 0, chatId });
+  if (cfg.consolidate) enqueue("memory.consolidate", { chatId }, { dedupeKey: `memory.consolidate:${chatId}`, delayMs: 20 * 60_000, priority: 0, chatId });
 }
 
 /** Rebuild requested from the inspector, optionally with an instruction (SUM-08) or as a proposal. */

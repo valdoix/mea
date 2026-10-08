@@ -67,6 +67,23 @@ function helperJson(name: string, user: string): unknown {
       return {
         beats: [...user.matchAll(/^CARD (\S+)[\s\S]*?^ENGINE'S WORDS (.+)$/gm)].map((m) => ({ card: m[1], text: `Off the page: ${m[2]}` })),
       };
+    case "recall_query": {
+      const latest = user.split("LATEST LINES:")[1] ?? user;
+      return { query: [...new Set(latest.toLowerCase().match(/[a-z]{5,}/g) ?? [])].slice(0, 10).join(" ") };
+    }
+    case "librarian": {
+      // Keep notes that share a longer word with the latest lines.
+      const [head, notes = ""] = user.split("NOTES:");
+      const words = new Set((head!.toLowerCase().match(/[a-z]{5,}/g) ?? []).filter((w) => !["latest", "lines", "player", "writing"].includes(w)));
+      const keep = [...notes.matchAll(/^(\d+)\. (.*)$/gm)].filter((m) => (m[2]!.toLowerCase().match(/[a-z]{5,}/g) ?? []).some((w) => words.has(w))).map((m) => Number(m[1]));
+      return { keep };
+    }
+    case "journal_update": {
+      const who = user.match(/^PERSON: (.+?)(?: \(the main character\))?\. /m)?.[1] ?? "I";
+      const titles = [...user.matchAll(/^- (.+?) \(#\d+–#\d+\): (.*)$/gm)].map((m) => `${m[1]}: ${firstSentence(m[2]!)}`);
+      const prev = user.match(/JOURNAL SO FAR:\n([\s\S]*?)\n\n/)?.[1] ?? "";
+      return { journal: `${prev ? `${prev} ` : ""}I, ${who}, remember ${titles.join(" Then ")}`.slice(0, 1800) };
+    }
     default:
       return {};
   }
@@ -156,6 +173,9 @@ function guessSchema(system: string) {
   if (system.includes('"verdict"')) return "summary_check";
   if (system.includes('"newScene"')) return "scene_boundary";
   if (system.includes('"openThreads"')) return "summary_rollup";
+  if (system.includes('"query"')) return "recall_query";
+  if (system.includes('"keep"')) return "librarian";
+  if (system.includes('"journal"')) return "journal_update";
   return undefined;
 }
 

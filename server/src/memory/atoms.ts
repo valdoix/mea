@@ -28,6 +28,21 @@ export interface AtomRow {
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
+  recall_count: number;
+  ref_count: number;
+  last_recalled_seq: number | null;
+  last_ref_seq: number | null;
+  ledger: string | null;
+}
+
+/** Promise and secret ledger state (MEM-30, MEM-31). */
+export interface AtomLedger {
+  status: "pending" | "kept" | "broken" | "secret" | "revealed";
+  by?: string;
+  to?: string;
+  markedBy?: "you" | "story";
+  seq?: number | null;
+  note?: string;
 }
 
 export interface NewAtom {
@@ -64,6 +79,11 @@ export function atomOut(r: AtomRow, extra: { sources?: { messageId: string; seq:
     minSeq: r.min_seq,
     maxSeq: r.max_seq,
     tokens: countTokens(r.content),
+    recallCount: r.recall_count ?? 0,
+    refCount: r.ref_count ?? 0,
+    lastRecalledSeq: r.last_recalled_seq ?? null,
+    lastRefSeq: r.last_ref_seq ?? null,
+    ledger: r.ledger ? parseJson<AtomLedger | null>(r.ledger, null) : null,
     sources: extra.sources,
     createdAt: r.created_at,
     updatedAt: r.updated_at,

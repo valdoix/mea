@@ -154,6 +154,45 @@ export async function embedQuery(text: string, signal?: AbortSignal): Promise<Fl
   }
 }
 
+/**
+ * Several queries in one request (MEM-14), each cached by text. With a deadline the reply never
+ * waits long: what isn't ready by then comes back null and recall uses keywords (MEM-21).
+ */
+export async function embedQueries(texts: string[], timeoutMs = 8000): Promise<(Float32Array | null)[]> {
+  const t = embeddingTarget();
+  if (!t) return texts.map(() => null);
+  const keyOf = (s: string) => `${t.model}:${t.dims}:${hashText(s)}`;
+  const missing = [...new Set(texts.filter((s) => s.trim() && !queryCache.has(keyOf(s))))];
+  if (missing.length) {
+    try {
+      const res = await t.provider.embed!(missing, t.model, t.dims, AbortSignal.timeout(timeoutMs));
+      missing.forEach((s, i) => {
+        const v = res.vectors[i];
+        if (v) queryCache.set(keyOf(s), normalize(v));
+      });
+      while (queryCache.size > 500) queryCache.delete(queryCache.keys().next().value!);
+    } catch {
+      // keywords carry this turn (MEM-21)
+    }
+  }
+  return texts.map((s) => queryCache.get(keyOf(s)) ?? null);
+}
+
+/** True when a query's vector is already cached (so a send doesn't wait). */
+export function queryReady(text: string) {
+  const t = embeddingTarget();
+  return Boolean(t && queryCache.has(`${t.model}:${t.dims}:${hashText(text)}`));
+}
+
+/** How much of a chat's memory has vectors for the current model (MEM-21: is the index ready?). */
+export function indexCoverage(chatId: string) {
+  const t = getSetting("routing.embeddings");
+  const total = (one<{ n: number }>("SELECT COUNT(*) AS n FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'", chatId)?.n ?? 0) +
+    (one<{ n: number }>("SELECT COUNT(*) AS n FROM summaries WHERE chat_id = ? AND level IN ('scene', 'chapter') AND state = 'ready' AND content != ''", chatId)?.n ?? 0);
+  const have = one<{ n: number }>("SELECT COUNT(*) AS n FROM embeddings WHERE chat_id = ? AND model = ? AND dims = ?", chatId, t.model, t.dims)?.n ?? 0;
+  return total ? Math.min(1, have / total) : 1;
+}
+
 const vectorCache = new Map<string, { key: string; rows: { ownerType: string; ownerId: string; vector: Float32Array }[] }>();
 
 export function invalidateVectors(chatId: string) {

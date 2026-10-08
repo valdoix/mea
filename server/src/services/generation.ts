@@ -6,8 +6,10 @@ import { getSetting, memoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 import { activateLore, type ActivationResult } from "../lore/activate";
 import { loadLoreState, saveLoreState, scanEntriesFor } from "../lore/service";
-import { buildMemoryContext, queryText } from "../memory/context";
-import { embeddingsEnabled, embedQuery } from "../memory/embed";
+import { CANON_RULE } from "../memory/canon";
+import { buildMemoryContext, emptyInputs, memoryInputs } from "../memory/context";
+import { reinforce } from "../memory/reinforce";
+import { warmMemory } from "../memory/warm";
 import { scheduleMemory } from "../memory/scheduler";
 import { setMemState } from "../memory/store";
 import { type AssembleKind, type AssembleResult, assemblePrompt } from "../prompt/assemble";
@@ -138,9 +140,11 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     splitTriggered: true,
   });
 
-  // Retrieval query (MEM-11); the embedding is usually warm from typing prefetch (CTX-10).
-  const query = queryText(history, kind === "expand" ? opts.draft : undefined);
-  const qvec = cfg.enabled && embeddingsEnabled() ? await embedQuery(query) : null;
+  // Recall inputs (Phase 3): queries, vectors (usually warm from prefetch), point of view, the
+  // people in the scene, the librarian's verdict. Nothing here waits long (MEM-21).
+  const memInputs = cfg.enabled
+    ? await memoryInputs(chatId, { history, draft: kind === "expand" ? opts.draft : undefined, chatMode: chat.mode, state: tp?.state ?? null, names: { char: card.name, user: userName } })
+    : emptyInputs();
   const contextTarget = Math.floor(resolved.contextTarget * (opts.targetScale ?? 1));
 
   const assembled = assemblePrompt({
@@ -162,6 +166,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
     extras: [
+      // CON-01: one stable rule for which source wins when they disagree.
+      ...(cfg.enabled || tp?.note ? [{ id: "canon", name: "Canon order", content: CANON_RULE, prefix: true } satisfies PromptExtra] : []),
       ...(tp?.note ? [{ id: "trackers", name: "Story state (trackers)", content: tp.note.text, depth: 1 } satisfies PromptExtra] : []),
       ...(tp?.inline ? [{ id: "ledger", name: "Ledger instructions", content: tp.inline, depth: 0 } satisfies PromptExtra] : []),
       ...chatExtras(chatId, kind, tp?.state ?? null),
@@ -172,8 +178,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
         history,
         available,
         target: Math.floor(contextTarget / (resolved.tokenRatio || 1)),
-        query,
-        qvec,
+        inputs: memInputs,
         seed: `${chatId}:${messageCountOf(chatId)}`,
       }),
   });
@@ -470,6 +475,14 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     saveLoreState(gen.chatId, p.lore.stateUpdates);
     setChatVars(gen.chatId, p.assembled.vars);
     recordMemoryUsage(requestId, gen.chatId, p);
+    // MEM-19: the memories this reply drew on gain weight.
+    if (status === "done" && memoryConfig().reinforcement) {
+      try {
+        reinforce(gen.chatId, requestId, text, getMessageRow(gen.messageId)?.seq ?? 0);
+      } catch (e) {
+        console.error("[mea] reinforcement failed:", e);
+      }
+    }
     const chat = mustChat(gen.chatId);
     if (chat.character_id) touchCharacter(chat.character_id);
   }
@@ -556,12 +569,9 @@ export async function previewPrompt(chatId: string) {
   };
 }
 
-/** Warms retrieval while you type (CTX-10, MEM-20): the query embedding is cached for the send. */
+/** Warms retrieval while you type (CTX-10, MEM-20): query vectors, the rewritten query and the librarian's pick. */
 export async function prefetch(chatId: string, draft: string) {
-  if (!memoryConfig().enabled || !embeddingsEnabled()) return { warmed: false };
-  const history = historyForPrompt(chatId);
-  await embedQuery(queryText(history, draft.trim()));
-  return { warmed: true };
+  return warmMemory(chatId, draft);
 }
 
 export function getGeneration(id: string) {

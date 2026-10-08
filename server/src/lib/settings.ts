@@ -107,6 +107,36 @@ export interface MemoryConfig {
   lowWater: number;
   /** Explicit cache TTL for paid Claude routes (CONN-12). */
   cacheTtl: "5m" | "1h";
+  /** MEM-44: Light / Balanced / Deep presets; "custom" once you change a setting yourself. */
+  profile: "light" | "balanced" | "deep" | "custom";
+  /** MEM-16: whose point of view recall respects. "auto" follows the chat mode. */
+  pov: "auto" | "character" | "narrator";
+  /** MEM-37: how recalled memories are written into the prompt. */
+  format: "prose" | "attributed" | "clinical" | "minimal";
+  /** MEM-14: a helper rewrites the retrieval query during prefetch. */
+  rewriteQuery: boolean;
+  /** MEM-15: diversity in recall (0 = off, 1 = only diversity). */
+  diversity: number;
+  /** MEM-17: people and places in the scene pull in their entity card and top facts. */
+  entityRecall: boolean;
+  /** MEM-19: memories the replies use gain weight; unused trivia fades in ranking. */
+  reinforcement: boolean;
+  /** MEM-22: very old material is found through chapters, then quoted from the messages. */
+  deepSearch: boolean;
+  /** MEM-23: a helper filters recall candidates during prefetch. */
+  librarian: boolean;
+  /** MEM-29: first-person journals for the main character and important NPCs. */
+  journals: boolean;
+  /** MEM-42: an idle job merges duplicates, compresses trivia, refreshes entities. */
+  consolidate: boolean;
+  /** CON-02: check each reply against trackers and facts. */
+  continuity: boolean;
+  /** CON-06: flag secrets that a character shouldn't know. "auto" = on in Narrator mode. */
+  leakGuard: "auto" | "on" | "off";
+  /** CON-02 helper pass (the cheap rules always run). */
+  checkerModel: boolean;
+  /** LORE-12: propose Chronicle entries for people, places and things the story introduces. */
+  chronicle: boolean;
 }
 
 export const defaultMemoryConfig: MemoryConfig = {
@@ -125,6 +155,21 @@ export const defaultMemoryConfig: MemoryConfig = {
   filterDepth: 6,
   lowWater: 0.7,
   cacheTtl: "5m",
+  profile: "deep",
+  pov: "auto",
+  format: "prose",
+  rewriteQuery: true,
+  diversity: 0.3,
+  entityRecall: true,
+  reinforcement: true,
+  deepSearch: true,
+  librarian: true,
+  journals: true,
+  consolidate: true,
+  continuity: true,
+  leakGuard: "auto",
+  checkerModel: true,
+  chronicle: true,
 };
 
 export const defaults: Settings = {
@@ -219,7 +264,7 @@ export function getSetting<K extends keyof Settings>(key: K): Settings[K] {
 
 export function memoryConfig(): MemoryConfig {
   const c = getSetting("memory.config");
-  return { ...c, budget: { ...defaultMemoryConfig.budget, ...c.budget }, slots: { ...defaultMemoryConfig.slots, ...c.slots } };
+  return { ...defaultMemoryConfig, ...c, budget: { ...defaultMemoryConfig.budget, ...c.budget }, slots: { ...defaultMemoryConfig.slots, ...c.slots } };
 }
 
 export function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {

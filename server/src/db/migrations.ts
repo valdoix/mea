@@ -496,4 +496,150 @@ CREATE TABLE drafts (
 ALTER TABLE characters ADD COLUMN trackers TEXT NOT NULL DEFAULT '{}';
 `,
   },
+  {
+    id: 4,
+    name: "retrieval, facts and accuracy",
+    sql: /* sql */ `
+-- Reinforcement and decay (MEM-19): how often a memory was recalled, and how often the reply used it.
+ALTER TABLE memories ADD COLUMN recall_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE memories ADD COLUMN ref_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE memories ADD COLUMN last_recalled_seq INTEGER;
+ALTER TABLE memories ADD COLUMN last_ref_seq INTEGER;
+-- Promise and secret ledgers (MEM-30, MEM-31): {status, by, to, markedBy, seq}.
+ALTER TABLE memories ADD COLUMN ledger TEXT;
+
+-- Entity graph (MEM-26, MEM-28): people, places, objects, groups and concepts, with aliases.
+-- A merged entity points at the one it became (merged_into); nothing is lost.
+CREATE TABLE entities (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'person',
+  name TEXT NOT NULL,
+  aliases TEXT NOT NULL DEFAULT '[]',
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  facts TEXT NOT NULL DEFAULT '[]',
+  data TEXT NOT NULL DEFAULT '{}',
+  first_seq INTEGER,
+  last_seq INTEGER,
+  mentions INTEGER NOT NULL DEFAULT 0,
+  user_edited INTEGER NOT NULL DEFAULT 0,
+  merged_into TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX entities_chat ON entities(chat_id, merged_into, kind);
+
+-- Character journals (MEM-29): a first-person memory per main character and important NPCs.
+CREATE TABLE journals (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  through_seq INTEGER NOT NULL DEFAULT 0,
+  user_edited INTEGER NOT NULL DEFAULT 0,
+  proposal TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX journals_name ON journals(chat_id, name);
+
+-- Continuity checker and knowledge-leak guard (CON-02, CON-06): issues per reply, with citations.
+CREATE TABLE continuity_flags (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT NOT NULL,
+  swipe_idx INTEGER NOT NULL,
+  issues TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (message_id, swipe_idx)
+);
+CREATE INDEX continuity_chat ON continuity_flags(chat_id, status);
+
+-- Ask the Archivist (CON-07): questions and cited answers, never part of the roleplay.
+CREATE TABLE archivist (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  citations TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX archivist_chat ON archivist(chat_id, created_at);
+
+-- Memory quiz (MEM-46): a personal benchmark of the current settings.
+CREATE TABLE quiz_runs (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  settings TEXT NOT NULL DEFAULT '{}',
+  questions TEXT NOT NULL DEFAULT '[]',
+  retrieval REAL,
+  answers REAL,
+  score REAL,
+  created_at INTEGER NOT NULL
+);
+
+-- Which lore entries fire, for the health check (LORE-13).
+CREATE TABLE lore_hits (
+  entry_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  last_at INTEGER NOT NULL,
+  PRIMARY KEY (entry_id, chat_id)
+);
+
+-- Story-born lore (LORE-12): entries proposed for a chat's Chronicle book, waiting for review.
+CREATE TABLE chronicle_proposals (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  entity_id TEXT,
+  name TEXT NOT NULL,
+  entry TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX chronicle_chat ON chronicle_proposals(chat_id, status);
+
+-- Collections (LIB-06).
+CREATE TABLE collections (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  sort INTEGER NOT NULL DEFAULT 0,
+  builtin TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE collection_chats (
+  collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (collection_id, chat_id)
+);
+INSERT INTO collections (id, name, sort, builtin, created_at) VALUES
+  ('col-ongoing', 'Ongoing', 0, 'ongoing', 0),
+  ('col-finished', 'Finished', 1, 'finished', 0),
+  ('col-favorites', 'Favorites', 2, 'favorites', 0);
+
+-- Auto-titled chats (LIB-04): a title you set yourself is never replaced.
+ALTER TABLE chats ADD COLUMN title_locked INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE chats ADD COLUMN cover_image_id TEXT;
+
+-- Global search over messages (LIB-05). External content keyed by the swipe's rowid, so a
+-- streaming reply updates its own row instead of scanning the index.
+CREATE VIRTUAL TABLE swipes_fts USING fts5(content, content = 'swipes', content_rowid = 'rowid', tokenize = 'porter unicode61');
+INSERT INTO swipes_fts (swipes_fts) VALUES ('rebuild');
+CREATE TRIGGER swipes_fts_ai AFTER INSERT ON swipes BEGIN
+  INSERT INTO swipes_fts (rowid, content) VALUES (new.rowid, new.content);
+END;
+CREATE TRIGGER swipes_fts_au AFTER UPDATE OF content ON swipes BEGIN
+  INSERT INTO swipes_fts (swipes_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+  INSERT INTO swipes_fts (rowid, content) VALUES (new.rowid, new.content);
+END;
+CREATE TRIGGER swipes_fts_ad AFTER DELETE ON swipes BEGIN
+  INSERT INTO swipes_fts (swipes_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+END;
+`,
+  },
 ];

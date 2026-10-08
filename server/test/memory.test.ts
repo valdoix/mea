@@ -237,7 +237,8 @@ describe("memory pipeline with the mock provider", () => {
   test("the prompt holds the telescope, recall, and a chunked window (MEM-02, MEM-11, CTX-05)", async () => {
     const p = await previewPrompt(chatId);
     const all = p.messages.map((m) => m.content).join("\n");
-    expect(all).toContain("STORY SO FAR");
+    expect(all).toContain("CANON 5 · story so far");
+    expect(all).toContain("Canon order.");
     expect(p.trace.memory?.evictedThrough).toBeGreaterThan(0);
     expect(p.trace.memory?.telescope.length).toBeGreaterThan(0);
     // nothing recalled from inside the verbatim window (MEM-13)
