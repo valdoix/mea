@@ -15,6 +15,9 @@ import type { JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { userEdit } from "../trackers/service";
+import { guardIssues, guardsFor } from "./guards";
+import { nameSlips } from "./names";
+import { timelineIssues } from "./timeline";
 import { currentFold, foldAt, linesToOps } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 
@@ -39,7 +42,7 @@ export interface Citation {
 
 export interface Issue {
   id: string;
-  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak";
+  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak" | "pov" | "tense" | "puppet" | "timeline";
   severity: "minor" | "major";
   claim: string;
   conflict: string;
@@ -67,17 +70,7 @@ const colorRe = new RegExp(`\\b((?:(?:light|dark|pale|deep|bright)[- ])?(?:${COL
 const sentences = (t: string) => t.split(/(?<=[.!?…]["”')\]*]*)\s+|\n+/).filter((s) => s.trim());
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Edit distance where swapping two neighbouring letters counts as one typo (optimal string alignment). */
-export function typoDistance(a: string, b: string) {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)] as number[]);
-  for (let j = 1; j <= b.length; j++) d[0]![j] = j;
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++) {
-      d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i]![j] = Math.min(d[i]![j]!, d[i - 2]![j - 2]! + 1);
-    }
-  return d[a.length]![b.length]!;
-}
+export { typoDistance } from "./names";
 
 function colorOf(text: string) {
   return text.match(colorRe)?.[1]?.toLowerCase().replace(/gray/g, "grey").replace(/gold$/, "golden").replace(/blond$/, "blonde") ?? null;
@@ -98,7 +91,7 @@ function leakGuardOn(chatId: string) {
 }
 
 /** The rules pass. Pure apart from reading the story state; returns issues without ids. */
-export function ruleCheck(chatId: string, text: string, st: WorldState | null, o: { speaker: string; leaks: boolean }): Omit<Issue, "id">[] {
+export function ruleCheck(chatId: string, text: string, st: WorldState | null, o: { speaker: string; leaks: boolean; names?: boolean; messageId?: string }): Omit<Issue, "id">[] {
   const out: Omit<Issue, "id">[] = [];
   const reply = cleanText(text);
   const sents = sentences(reply);
@@ -165,19 +158,23 @@ export function ruleCheck(chatId: string, text: string, st: WorldState | null, o
     }
   }
 
-  // Names that look like typos of people the story knows ("Mria" for "Mira").
+  // Names that look like typos of names the story knows ("Mria" for "Mira"): the name registry (CON-05).
   const known = resolver(chatId).rows.filter((e) => e.kind === "person");
   const knownNames = new Set(known.flatMap((e) => [e.name, ...parseJson<string[]>(e.aliases, [])]).map(norm));
-  const words = new Set((reply.match(/\b[A-Z][a-z]{3,}\b/g) ?? []).filter((w) => !knownNames.has(norm(w))));
-  for (const w of words) {
-    const near = known.find((e) => {
-      const n = norm(e.name).split(" ")[0]!;
-      if (n.length < 4 || Math.abs(n.length - w.length) > 1) return false;
-      return typoDistance(n, w.toLowerCase()) === 1;
-    });
-    if (near)
-      out.push({ kind: "name", severity: "minor", claim: w, conflict: `Did you mean ${near.name}?`, citations: [{ ref: "E", type: "memory", label: `${near.name} (known to the story)`, id: near.id }], fix: `The name is spelled "${near.name}".`, by: "rules" });
-  }
+  if (o.names !== false)
+    for (const slip of nameSlips(chatId, text, { messageId: o.messageId })) {
+      const ent = slip.entry.source === "entity" ? resolver(chatId).find(slip.entry.name) : undefined;
+      const where = slip.entry.source === "lore" ? "lorebook" : slip.entry.source === "card" ? "the character card" : slip.entry.source === "persona" ? "your persona" : "known to the story";
+      out.push({
+        kind: "name",
+        severity: "minor",
+        claim: slip.word,
+        conflict: `Did you mean ${slip.canonical}?`,
+        citations: [{ ref: "E", type: slip.entry.source === "lore" ? "lore" : slip.entry.source === "card" || slip.entry.source === "persona" ? "card" : "memory", label: `${slip.entry.name} (${where})`, ...(ent ? { id: ent.id } : {}) }],
+        fix: `The name is spelled "${slip.canonical}".`,
+        by: "rules",
+      });
+    }
 
   // Knowledge leaks (CON-06): a secret's words in a sentence that belongs to someone who doesn't know it.
   if (o.leaks && st) {
@@ -355,8 +352,20 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   } catch {
     st = null;
   }
-  const issues: Omit<Issue, "id">[] = ruleCheck(chatId, sw.content, st, { speaker: m.name ?? names.char, leaks: leakGuardOn(chatId) });
-  const useModel = opts.model ?? (cfg.checkerModel && !shouldShed("continuity"));
+  const g = guardsFor(chatId);
+  const issues: Omit<Issue, "id">[] = cfg.continuity ? ruleCheck(chatId, sw.content, st, { speaker: m.name ?? names.char, leaks: leakGuardOn(chatId), names: g.names !== "off", messageId }) : [];
+  // CON-04 / CON-05: point of view, tense, puppeting (and names, when the rules above didn't run).
+  if (m.role === "assistant") {
+    try {
+      issues.push(...guardIssues(chatId, sw.content, { seq: m.seq, messageId, cfg: { ...g, names: cfg.continuity ? "off" : g.names } }));
+    } catch (e) {
+      opts.job?.note({ guardError: (e as Error).message.slice(0, 200) });
+    }
+  }
+  // CON-12: the timeline check runs once the trackers have read the reply; keep what it found.
+  const earlier = one<FlagRow>("SELECT * FROM continuity_flags WHERE message_id = ? AND swipe_idx = ?", messageId, swipeIdx);
+  issues.push(...parseJson<Issue[]>(earlier?.issues, []).filter((i) => i.kind === "timeline").map(({ id: _id, ...rest }) => rest));
+  const useModel = cfg.continuity && (opts.model ?? (cfg.checkerModel && !shouldShed("continuity")));
   if (useModel) {
     const sheet = factSheet(chatId, sw.content, st);
     if (sheet.lines.length) {
@@ -377,7 +386,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           const citations = i.cites.map((c) => sheet.cites.get(c.replace(/[[\]\s]/g, ""))).filter((c): c is Citation => Boolean(c));
           if (!citations.length) continue; // an issue without a source is a guess
           issues.push({
-            kind: (["trait", "dead", "name", "time", "place", "fact", "leak"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
+            kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
             severity: i.severity,
             claim: i.claim.slice(0, 300),
             conflict: i.conflict.slice(0, 400),
@@ -468,8 +477,52 @@ export function fixNotes(flagId: string) {
   return { chatId: r.chat_id, messageId: r.message_id, feedback: `Keep continuity: ${open.map((i) => i.fix).join(" ")}`.slice(0, 1500) };
 }
 
+/** True when anything would check a reply: the continuity checker or one of the guards. */
+export function checksOn(chatId: string) {
+  if (memoryConfig().continuity) return true;
+  const g = guardsFor(chatId);
+  return g.pov || g.tense || g.puppet || g.names !== "off" || g.timeline;
+}
+
 /** After each reply (job "accuracy.check"). */
 export async function runCheckJob(p: { chatId: string; messageId: string; swipeIdx: number }, job?: JobContext) {
-  if (!memoryConfig().continuity) return;
+  if (!checksOn(p.chatId)) return;
   await checkReply(p.chatId, p.messageId, p.swipeIdx, { job });
+}
+
+/**
+ * Replaces one kind of issue on a reply's notes (the timeline check, which runs later than the
+ * rest), keeping the others and anything you already dismissed.
+ */
+export function mergeIssues(chatId: string, messageId: string, swipeIdx: number, kind: Issue["kind"], found: Omit<Issue, "id">[]) {
+  const r = one<FlagRow>("SELECT * FROM continuity_flags WHERE message_id = ? AND swipe_idx = ?", messageId, swipeIdx);
+  const cur = parseJson<Issue[]>(r?.issues, []);
+  if (!r && !found.length) return;
+  const dismissed = new Set(cur.filter((i) => i.kind === kind && i.dismissed).map((i) => i.claim));
+  const kept = cur.filter((i) => i.kind !== kind);
+  let next = 0;
+  for (const i of kept) next = Math.max(next, Number(i.id) || 0);
+  const issues: Issue[] = [...kept, ...found.map((i) => ({ ...i, id: String(++next), ...(dismissed.has(i.claim) ? { dismissed: true } : {}) }))];
+  const open = issues.filter((i) => !i.dismissed).length;
+  const t = now();
+  run(
+    `INSERT INTO continuity_flags (id, chat_id, message_id, swipe_idx, issues, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(message_id, swipe_idx) DO UPDATE SET issues = excluded.issues, status = excluded.status, updated_at = excluded.updated_at`,
+    newId(),
+    chatId,
+    messageId,
+    swipeIdx,
+    JSON.stringify(issues),
+    open ? "open" : issues.length ? "resolved" : "clean",
+    t,
+    t,
+  );
+  publish({ type: "continuity.changed", chatId, messageId });
+}
+
+/** CON-12, after the trackers read a reply (an onTrackerUpdate hook). */
+export function recordTimeline(chatId: string, messageId: string) {
+  const m = getMessageRow(messageId);
+  if (!m || m.deleted_at) return;
+  mergeIssues(chatId, messageId, m.active_swipe, "timeline", timelineIssues(chatId, messageId));
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import ControlSwitches from "../presets/ControlSwitches.svelte";
+  import StyleEditor from "../chat/StyleEditor.svelte";
   import { get, put } from "../../lib/api";
   import { autosize } from "../../lib/gestures";
   import { ExternalLink, Layers, NotebookPen, Plus, X } from "../../lib/icons";
@@ -111,6 +112,15 @@
       <ControlSwitches controls={preset.controls} values={s.controls ?? {}} inheritedLabel="preset's default" onchange={setControl} />
     </div>
   {/if}
+  <label class="field">
+    <span class="label">Re-anchor <span class="faint">who this character is, in a few lines; sent near the end of the prompt in long chats</span></span>
+    <textarea class="textarea" use:autosize={{ max: 240, value: s.anchor ?? "" }} value={s.anchor ?? ""} oninput={(e) => save({ anchor: e.currentTarget.value })} placeholder="Empty: Mea writes one from the personality and the voice samples."></textarea>
+    <span class="hint">Settings → Guards decides when it's used.</span>
+  </label>
+  <div class="field">
+    <span class="label">Style profile <span class="faint">for this character's chats; a chat can change any part of it</span></span>
+    <StyleEditor value={s.style ?? {}} onchange={(style) => save({ style }, 0)} />
+  </div>
 </section>
 
 <style>

@@ -44,6 +44,10 @@ export interface ChatMemoryState {
   /** Bumped on every memory change; keys recall caches (PERF-06). */
   version: number;
   paused?: boolean;
+  /** SUM-15: the last "previously on…" recap, for the story as of this seq. */
+  recap?: { text: string; seq: number; at: number };
+  /** SUM-19: a rebuild from scratch in progress (when it started, what it was estimated to take). */
+  rebuild?: { startedAt: number; estimate: Record<string, number | null> } | null;
 }
 
 const DEFAULT_STATE: ChatMemoryState = { segmentedThrough: 0, evictedThrough: 0, version: 0 };

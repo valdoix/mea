@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { now, one, parseJson, run } from "../db/db";
 import type { PromptSet } from "./prompts";
 import type { RegexScript } from "./regex";
@@ -52,7 +53,100 @@ export interface Settings {
   /** PROMPT-09: helper prompt sets, and the one in use (null: Mea's defaults). */
   "prompts.sets": PromptSet[];
   "prompts.active": string | null;
+  /** Phase 5 accuracy guards (CON-03…05, CON-10, CON-12). A chat's own `guards` settings win. */
+  "guards.config": GuardsConfig;
+  /** Phase 5 steering (STEER-01…03) and the "previously on" card (SUM-15). A chat's own switches win. */
+  "steer.config": SteerConfig;
+  /** SEC-06: how long the local request log keeps what. */
+  "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
 }
+
+export interface SteerConfig {
+  /** STEER-01: a private plan before each reply, written while you type. Default for chats that don't choose. */
+  advisor: boolean;
+  /** STEER-02: how many of its own earlier plans the advisor sees. */
+  advisorMemory: number;
+  /** At most this many seconds of waiting for a plan that isn't ready when you send (0 = never wait). */
+  advisorWait: number;
+  /** STEER-03: the post-pass editor. "flagged" runs only when the guards found something. */
+  editor: "off" | "flagged" | "every";
+  /** Show the editor's fixes as a diff to accept, or apply them (with undo). */
+  editorApply: "suggest" | "auto";
+  /** SUM-15: show a "previously on…" card when you come back after this many hours (0 = off). */
+  recapAfterHours: number;
+}
+
+export const defaultSteer: SteerConfig = { advisor: false, advisorMemory: 3, advisorWait: 6, editor: "off", editorApply: "suggest", recapAfterHours: 6 };
+
+export const steerSchema = z.object({
+  advisor: z.boolean(),
+  advisorMemory: z.number().int().min(0).max(10),
+  advisorWait: z.number().min(0).max(60),
+  editor: z.enum(["off", "flagged", "every"]),
+  editorApply: z.enum(["suggest", "auto"]),
+  recapAfterHours: z.number().min(0).max(24 * 60),
+});
+
+/** SUM-10: how much each summary level keeps. */
+export type Compression = "tight" | "balanced" | "detailed";
+
+export interface GuardsConfig {
+  /** CON-03: a short reminder of who the character is, near the end of the prompt. auto = once the chat is long, or while the voice drifts. */
+  anchor: "auto" | "always" | "off";
+  /** In auto mode, the re-anchor starts at this many messages. */
+  anchorAfter: number;
+  /** Messages from the end where the re-anchor goes. */
+  anchorDepth: number;
+  /** CON-04: point of view, tense, and the model writing for you. */
+  pov: boolean;
+  tense: boolean;
+  puppet: boolean;
+  /** What happens when a reply writes your character's words or actions: a note, cut the end, or one automatic retry. */
+  puppetAction: "flag" | "trim" | "regenerate";
+  /** CON-05: misspelled names, flagged or corrected in the stored reply. */
+  names: "off" | "flag" | "fix";
+  /** CON-10: compare the character's recent lines with their voice samples every N replies. */
+  drift: boolean;
+  driftEvery: number;
+  /** 0–1: above this the voice counts as drifting, and the re-anchor gets stronger. */
+  driftThreshold: number;
+  /** CON-12: impossible time jumps against the story clock. */
+  timeline: boolean;
+  /** A forward jump bigger than this, with nothing in the reply saying time passed, is flagged. */
+  maxJumpHours: number;
+}
+
+export const guardsSchema = z.object({
+  anchor: z.enum(["auto", "always", "off"]),
+  anchorAfter: z.number().int().min(0).max(100_000),
+  anchorDepth: z.number().int().min(0).max(40),
+  pov: z.boolean(),
+  tense: z.boolean(),
+  puppet: z.boolean(),
+  puppetAction: z.enum(["flag", "trim", "regenerate"]),
+  names: z.enum(["off", "flag", "fix"]),
+  drift: z.boolean(),
+  driftEvery: z.number().int().min(1).max(100),
+  driftThreshold: z.number().min(0.05).max(1),
+  timeline: z.boolean(),
+  maxJumpHours: z.number().min(1).max(24 * 365),
+});
+
+export const defaultGuards: GuardsConfig = {
+  anchor: "auto",
+  anchorAfter: 30,
+  anchorDepth: 3,
+  pov: true,
+  tense: true,
+  puppet: true,
+  puppetAction: "flag",
+  names: "flag",
+  drift: true,
+  driftEvery: 6,
+  driftThreshold: 0.45,
+  timeline: true,
+  maxJumpHours: 12,
+};
 
 export interface TrackerDefaults {
   mode?: "helper" | "inline" | "off";
@@ -146,6 +240,12 @@ export interface MemoryConfig {
   checkerModel: boolean;
   /** LORE-12: propose Chronicle entries for people, places and things the story introduces. */
   chronicle: boolean;
+  /** SUM-10: Tight / Balanced / Detailed per summary level. */
+  compression: { scene: Compression; chapter: Compression; arc: Compression; story: Compression };
+  /** SUM-11: tag dramatic moments in scene records and carry them up through every level. */
+  moments: boolean;
+  /** SUM-17: the voice every summary is written in. */
+  voice: { tense: "past" | "present"; person: "third" | "first"; register: "record" | "storybook" };
 }
 
 export const defaultMemoryConfig: MemoryConfig = {
@@ -179,6 +279,9 @@ export const defaultMemoryConfig: MemoryConfig = {
   leakGuard: "auto",
   checkerModel: true,
   chronicle: true,
+  compression: { scene: "balanced", chapter: "balanced", arc: "balanced", story: "balanced" },
+  moments: true,
+  voice: { tense: "past", person: "third", register: "record" },
 };
 
 export const defaults: Settings = {
@@ -237,6 +340,9 @@ export const defaults: Settings = {
   "regex.scripts": [],
   "prompts.sets": [],
   "prompts.active": null,
+  "guards.config": defaultGuards,
+  "steer.config": defaultSteer,
+  "privacy.requestLog": { bodiesDays: 30, rowsDays: 0, fileLog: true, fileDays: 14 },
 };
 
 /** Keys the web client may read and write directly. */
@@ -268,6 +374,9 @@ export const clientKeys: (keyof Settings)[] = [
   "chat.banned",
   "chat.cutoff",
   "chat.retry",
+  "guards.config",
+  "steer.config",
+  "privacy.requestLog",
 ];
 
 export function getSetting<K extends keyof Settings>(key: K): Settings[K] {
@@ -281,7 +390,14 @@ export function getSetting<K extends keyof Settings>(key: K): Settings[K] {
 
 export function memoryConfig(): MemoryConfig {
   const c = getSetting("memory.config");
-  return { ...defaultMemoryConfig, ...c, budget: { ...defaultMemoryConfig.budget, ...c.budget }, slots: { ...defaultMemoryConfig.slots, ...c.slots } };
+  return {
+    ...defaultMemoryConfig,
+    ...c,
+    budget: { ...defaultMemoryConfig.budget, ...c.budget },
+    slots: { ...defaultMemoryConfig.slots, ...c.slots },
+    compression: { ...defaultMemoryConfig.compression, ...c.compression },
+    voice: { ...defaultMemoryConfig.voice, ...c.voice },
+  };
 }
 
 export function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {

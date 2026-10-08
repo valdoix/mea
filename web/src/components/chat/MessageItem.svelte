@@ -1,5 +1,8 @@
 <script lang="ts">
   import ContinuityNote from "./ContinuityNote.svelte";
+  import { post } from "../../lib/api";
+  import { wordDiff } from "../../lib/diff";
+  import { errorToast } from "../../lib/state.svelte";
   import { gloss } from "../../lib/glossary";
   import Avatar from "../Avatar.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
@@ -28,7 +31,7 @@
   import { renderMessage, renderStreaming } from "../../lib/render";
   import { applyRegex, regexScope } from "../../lib/regex.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
-  import type { Citation, ContinuityFlag, GlossaryTerm, TrackerChange } from "../../lib/types";
+  import type { Citation, ContinuityFlag, EditSuggestion, GlossaryTerm, TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
   import { clock } from "../../lib/format";
   import type { Message } from "../../lib/types";
@@ -120,6 +123,19 @@
   const swipeable = $derived(message.role === "assistant" && isLast && !streaming);
   const words = $derived(message.content.trim() ? message.content.trim().split(/\s+/).length : 0);
   const banned = $derived((message.meta?.banned as string[] | undefined) ?? []);
+  // CON-04 / CON-05: what the guards changed when the reply was saved, with a way back.
+  const guard = $derived(message.meta?.guard as { trimmed?: string; fixed?: { from: string; to: string }[]; original?: string } | undefined);
+  // STEER-03: the post-pass editor's fixes, waiting as a diff (or applied, with undo).
+  const suggestion = $derived(message.meta?.edit as EditSuggestion | undefined);
+  let diffOpen = $state(false);
+  async function decide(action: "apply" | "dismiss" | "undo") {
+    try {
+      await post(`/api/messages/${message.id}/edit-suggestion`, { action });
+      diffOpen = false;
+    } catch (err) {
+      errorToast(err);
+    }
+  }
 
   // Re-render streaming text at most once per frame (PERF-03).
   $effect(() => {
@@ -226,6 +242,27 @@
         {:else}
           <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }}>{@html html}</div>
           {#if banned.length}<div class="tiny banned" title="Phrases from your banned list (Settings → Writing)">Banned phrases: {banned.join(", ")}</div>{/if}
+          {#if suggestion?.status === "proposed" && suggestion.original === message.content}
+            <div class="editor-note tiny">
+              <button class="linkish" onclick={() => (diffOpen = !diffOpen)}>The editor suggests {suggestion.notes.length || "some"} fix{suggestion.notes.length === 1 ? "" : "es"}</button>{#if suggestion.notes.length && !diffOpen}: {suggestion.notes.join("; ")}{/if}
+              {#if diffOpen}
+                <p class="diff">{#each wordDiff(suggestion.original, suggestion.text) as part, i (i)}<span class={part.type}>{part.text}</span>{/each}</p>
+                <div class="row">
+                  <button class="btn primary small" onclick={() => decide("apply")}>Apply</button>
+                  <button class="btn ghost small" onclick={() => decide("dismiss")}>Dismiss</button>
+                </div>
+              {/if}
+            </div>
+          {:else if suggestion?.status === "applied" && suggestion.text === message.content}
+            <div class="tiny guardnote">Tidied by the editor{suggestion.notes.length ? `: ${suggestion.notes.join("; ")}` : ""}. <button class="linkish" onclick={() => decide("undo")}>Undo</button></div>
+          {/if}
+          {#if guard && (guard.trimmed || guard.fixed?.length) && guard.original !== message.content}
+            <div class="tiny guardnote" title={guard.trimmed ? `Cut: ${guard.trimmed}` : undefined}>
+              {#if guard.fixed?.length}Names corrected: {guard.fixed.map((f) => `${f.from} → ${f.to}`).join(", ")}.{/if}
+              {#if guard.trimmed}The end was cut where it wrote for you.{/if}
+              {#if guard.original}<button class="linkish" onclick={() => onedit(guard.original!)}>Undo</button>{/if}
+            </div>
+          {/if}
           {#if message.status === "stopped"}<div class="tiny faint" style="margin-top:.3rem">Stopped{message.error ? ` · ${message.error}` : ""}</div>{/if}
         {/if}
       </div>
@@ -263,6 +300,40 @@
   .banned {
     color: var(--warn);
     margin-top: 0.3rem;
+  }
+  .guardnote {
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+  }
+  .editor-note {
+    margin-top: 0.35rem;
+    color: var(--text-muted);
+  }
+  .editor-note .diff {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: var(--surface);
+    border-radius: var(--r-sm);
+    padding: 0.45rem 0.6rem;
+    margin: 0.35rem 0;
+    color: var(--text);
+    font-size: var(--fs-sm);
+  }
+  .editor-note :global(.del) {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    text-decoration: line-through;
+  }
+  .editor-note :global(.add) {
+    background: color-mix(in srgb, var(--mint) 35%, transparent);
+  }
+  .linkish {
+    border: 0;
+    background: none;
+    padding: 0 0.2rem;
+    color: var(--accent-strong);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
   .msg {
     display: flex;

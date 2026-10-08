@@ -98,6 +98,13 @@ export interface ChatSettings {
   controls?: ControlValues;
   variantId?: string | null;
   personaVariantId?: string | null;
+  /** Phase 5: this chat's own guard settings over the global ones. */
+  guards?: Partial<GuardsConfig>;
+  /** STEER-01 / STEER-03 (null = the global default). */
+  advisor?: boolean | null;
+  editor?: "off" | "flagged" | "every" | null;
+  /** STEER-04 */
+  style?: StyleProfile;
 }
 
 export interface Chat {
@@ -163,7 +170,9 @@ export interface ChatDetail {
   variants?: { id: string; name: string; note: string }[];
   personaVariants?: { id: string; name: string; note: string }[];
   /** PROMPT-06: what applies when the chat leaves a choice empty. */
-  defaults?: { from: { preset: "chat" | "character" | "global"; profile: "chat" | "character" | "global"; authorsNote: "chat" | "character" | null }; presetId: string | null; profileId: string | null; characterControls: ControlValues };
+  defaults?: { from: { preset: "chat" | "character" | "global"; profile: "chat" | "character" | "global"; authorsNote: "chat" | "character" | null }; presetId: string | null; profileId: string | null; characterControls: ControlValues; characterStyle?: StyleProfile | null };
+  /** SUM-20: messages up to this seq reach the model through memory, not word for word. */
+  memory?: { evictedThrough: number };
 }
 
 export type LorePosition = "before_char" | "after_char" | "an_top" | "an_bottom" | "depth" | "ex_top" | "ex_bottom";
@@ -325,6 +334,10 @@ export interface CharacterSettings {
   truths?: string[];
   controls?: ControlValues;
   voice?: { kept: { id: string; situation: string; cue: string; line: string }[] };
+  /** CON-03: your own re-anchor text. */
+  anchor?: string;
+  /** STEER-04: the default style profile for this character's chats. */
+  style?: StyleProfile;
 }
 
 /** PROMPT-08 */
@@ -444,6 +457,131 @@ export interface Settings {
   "regex.scripts": RegexScript[];
   "prompts.sets": PromptSet[];
   "prompts.active": string | null;
+  "guards.config": GuardsConfig;
+  "steer.config": SteerConfig;
+}
+
+// ---------- Phase 5: steering ----------
+
+export interface SteerConfig {
+  advisor: boolean;
+  advisorMemory: number;
+  advisorWait: number;
+  editor: "off" | "flagged" | "every";
+  editorApply: "suggest" | "auto";
+  recapAfterHours: number;
+}
+
+export interface StyleProfile {
+  guide?: string;
+  banned?: string[];
+  actions?: "asterisks" | "plain" | "any";
+  quotes?: "straight" | "curly" | "any";
+  dialogue?: string;
+}
+
+export interface AdvisorPlan {
+  direction: string;
+  beats: string[];
+  threads: string[];
+  reminders: string[];
+  avoid: string[];
+}
+
+export interface EditSuggestion {
+  status: "proposed" | "applied" | "dismissed";
+  text: string;
+  notes: string[];
+  original: string;
+  at: number;
+}
+
+export interface Moment {
+  tag: string;
+  text: string;
+  seq?: number;
+}
+
+export interface RebuildEstimate {
+  messages: number;
+  storyTokens: number;
+  scenes: number;
+  chapters: number;
+  arcs: number;
+  inputTokens: number;
+  outputTokens: number;
+  calls: number;
+  quotaShare: number | null;
+}
+
+export interface RebuildProgress {
+  startedAt: number | null;
+  estimate: RebuildEstimate | null;
+  segmentedThrough: number;
+  lastSeq: number;
+  scenes: { total: number; ready: number; failed: number };
+  working: boolean;
+  paused: boolean;
+  done: boolean;
+}
+
+// ---------- Phase 5: accuracy guards ----------
+
+export interface GuardsConfig {
+  anchor: "auto" | "always" | "off";
+  anchorAfter: number;
+  anchorDepth: number;
+  pov: boolean;
+  tense: boolean;
+  puppet: boolean;
+  puppetAction: "flag" | "trim" | "regenerate";
+  names: "off" | "flag" | "fix";
+  drift: boolean;
+  driftEvery: number;
+  driftThreshold: number;
+  timeline: boolean;
+  maxJumpHours: number;
+}
+
+export interface DriftReading {
+  id: string;
+  seq: number;
+  score: number;
+  drifting: boolean;
+  reasons: string[];
+  semantic: number | null;
+  style: number;
+  samples: number;
+  replies: number;
+  at: number;
+}
+
+export interface GuardsView {
+  config: GuardsConfig;
+  own: Partial<GuardsConfig>;
+  anchor: { active: boolean; strong: boolean; text: string };
+  drift: { history: DriftReading[]; samples: number; source: "voice lab" | "examples" | "both" | "none" };
+}
+
+export interface InboxItem {
+  key: string;
+  kind: "summary" | "journal" | "chronicle" | "merge" | "disputed" | "world";
+  chatId: string;
+  chatTitle: string;
+  title: string;
+  why: string;
+  before: string | null;
+  after: string;
+  editable: boolean;
+  createdAt: number;
+  link: string;
+}
+
+export interface NameEntry {
+  name: string;
+  kind: string;
+  source: "card" | "persona" | "entity" | "tracker" | "lore";
+  hint?: string;
 }
 
 export interface BlockTrace {
@@ -480,6 +618,7 @@ export type MeaEvent =
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" }
   | { type: "studio.changed"; draftId: string }
   | { type: "creator.changed"; draftId: string }
+  | { type: "inbox.changed" }
   | { type: "reconnected" };
 
 // ---------- Phase 1: memory ----------
@@ -602,6 +741,10 @@ export interface MemoryOverview {
     sceneSummaryTokens: number;
     telescopeTokens: number;
     lastPromptMemoryTokens: number | null;
+    /** SUM-16 */
+    messages?: number;
+    storyTokens?: number;
+    memoryTokens?: number;
     atoms: number;
     pinned: number;
     stale: number;
@@ -695,7 +838,14 @@ export interface MemoryConfig {
   leakGuard: "auto" | "on" | "off";
   checkerModel: boolean;
   chronicle: boolean;
+  /** SUM-10 */
+  compression: { scene: Compression; chapter: Compression; arc: Compression; story: Compression };
+  /** SUM-11 */
+  moments: boolean;
+  /** SUM-17 */
+  voice: { tense: "past" | "present"; person: "third" | "first"; register: "record" | "storybook" };
 }
+export type Compression = "tight" | "balanced" | "detailed";
 
 // ---------- Phase 3 ----------
 
@@ -769,7 +919,7 @@ export interface Citation {
 }
 export interface ContinuityIssue {
   id: string;
-  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak";
+  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak" | "pov" | "tense" | "puppet" | "timeline";
   severity: "minor" | "major";
   claim: string;
   conflict: string;

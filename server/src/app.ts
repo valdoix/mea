@@ -20,12 +20,16 @@ import { stories } from "./routes/stories";
 import { studio } from "./routes/studio";
 import { creator } from "./routes/creator";
 import { cardtools } from "./routes/cardtools";
+import { steer } from "./routes/steer";
+import { data } from "./routes/data";
+import { vault } from "./routes/vault";
+import { isLocked } from "./lib/vault";
 import { DEVICE_COOKIE, deviceForToken, isTrustedLocal } from "./services/auth";
 import { importFile } from "./services/importer";
 
 type Env = { Variables: { deviceId: string | null } };
 
-const PUBLIC_API = new Set(["/api/pair", "/api/whoami", "/api/ping"]);
+const PUBLIC_API = new Set(["/api/pair", "/api/whoami", "/api/ping", "/api/vault/status", "/api/vault/unlock"]);
 
 export function createApp() {
   const app = new Hono<Env>();
@@ -41,6 +45,15 @@ export function createApp() {
     c.header("X-Content-Type-Options", "nosniff");
     c.header("Referrer-Policy", "no-referrer");
     c.header("X-Frame-Options", "DENY");
+  });
+
+  // SEC-05: while the encrypted database is locked, only the unlock screen's calls are answered.
+  app.use("/api/*", async (c, next) => {
+    if (!isLocked()) return next();
+    const p = c.req.path;
+    if (p === "/api/vault/status" || p === "/api/vault/unlock" || p === "/api/ping") return next();
+    if (p === "/api/whoami") return c.json({ locked: true, local: false, authorized: false, device: null });
+    return c.json({ error: "Mea is locked. Enter the passphrase to open it.", code: "locked" }, 423);
   });
 
   // Auth (SEC-02): the host machine is trusted; other devices need a paired cookie.
@@ -86,10 +99,14 @@ export function createApp() {
   app.route("/api", knowledge);
   app.route("/api", accuracy);
   app.route("/api", stories);
+  app.route("/api", steer);
+  app.route("/api", data);
+  app.route("/api", vault);
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
   // Android share sheet → import a card (MOB-05). Same auth as the API.
   app.post("/share-target", async (c) => {
+    if (isLocked()) return c.redirect("/", 303);
     const authorized = isTrustedLocal(c) || Boolean(deviceForToken(getCookie(c, DEVICE_COOKIE)));
     if (!authorized) return c.redirect("/pair", 303);
     const form = await c.req.formData();

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { stash } from "../services/undo";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { mustChat } from "../services/chats";
@@ -55,8 +56,13 @@ stories.patch("/collections/:id", async (c) => {
   return c.json({ collections: listCollections() });
 });
 stories.delete("/collections/:id", (c) => {
-  deleteCollection(c.req.param("id"));
-  return c.json({ collections: listCollections() });
+  const id = c.req.param("id");
+  const undo = stash("Collection", [
+    { table: "collections", where: "id = ? AND builtin IS NULL", params: [id] },
+    { table: "collection_chats", where: "collection_id = ?", params: [id] },
+  ]);
+  deleteCollection(id);
+  return c.json({ collections: listCollections(), undo });
 });
 stories.post("/collections/order", async (c) => {
   const input = await body(c, z.object({ ids: z.array(z.string()).max(200) }));

@@ -36,6 +36,7 @@ function helperJson(name: string, user: string): unknown {
         locations: [],
         participants: [...new Set(lines.map((l) => l.who))],
         importance: 5,
+        moments: lines.filter((l) => /\bpromise/i.test(l.text)).map((l) => ({ tag: "promise", text: firstSentence(l.text), seq: l.seq })),
         memories: lines.map((l) => ({
           type: "event",
           content: `${l.who}: ${l.text.split(/(?<=[.!?])\s+/).find((x) => /promise|secret|named/i.test(x)) ?? firstSentence(l.text)}`,
@@ -54,6 +55,17 @@ function helperJson(name: string, user: string): unknown {
     case "summary_rollup": {
       const titles = [...user.matchAll(/^(?:Scene|Chapter|Arc) \d+: (.+?) \(messages/gm)].map((m) => m[1]);
       return { title: `Part with ${titles.length} records`, summary: `Rollup of: ${titles.join("; ")}.`, keyQuotes: [], openThreads: [], storyTime: "", importance: 5 };
+    }
+    case "advisor_plan": {
+      const said = user.split("IS ABOUT TO SAY:")[1]?.trim().split("\n")[0] ?? "";
+      return { direction: `Answer what was just said${said ? ` ("${said.slice(0, 60)}")` : ""} and let the scene breathe.`, beats: ["A small gesture", "One honest line", "Leave room to respond"], threads: [], reminders: [], avoid: ["writing the player's actions"] };
+    }
+    case "post_edit": {
+      const reply = user.split("REPLY:\n")[1] ?? "";
+      if (!/PROBLEMS FOUND/.test(user)) return { changed: false, text: reply, notes: [] };
+      // Drop sentences that write for the player, as a careful editor would.
+      const kept = reply.split(/(?<=[.!?]["”]?)\s+/).filter((s) => !/\b(?:Ash|Alex|You)\s+(?:says|said|nods|takes|follows)\b/.test(s.replace(/"[^"]*"/g, "")));
+      return { changed: true, text: kept.join(" "), notes: ["cut a line written for the player"] };
     }
     case "scene_boundary":
       return { newScene: !/MOCK_SAME_SCENE/.test(user), reason: "mock" };

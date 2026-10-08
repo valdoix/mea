@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { stash } from "../services/undo";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { normalizeCard } from "../cards/card";
@@ -118,6 +119,7 @@ cardtools.put("/variants/:id", async (c) => {
 cardtools.get("/variants/:id", (c) => c.json(must(getVariant(c.req.param("id")), "Variant not found")));
 
 cardtools.delete("/variants/:id", (c) => {
+  const undo = stash("Variant", [{ table: "variants", where: "id = ?", params: [c.req.param("id")] }]);
   deleteVariant(c.req.param("id"));
-  return c.json({ ok: true });
+  return c.json({ ok: true, undo });
 });

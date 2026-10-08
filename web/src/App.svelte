@@ -34,6 +34,7 @@
     preset: () => import("./views/PresetEditor.svelte"),
     settings: () => import("./views/Settings.svelte"),
     trash: () => import("./views/Trash.svelte"),
+    inbox: () => import("./views/InboxView.svelte"),
   };
 
   let ready = $state(false);

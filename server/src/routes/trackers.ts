@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { stash } from "../services/undo";
 import { z } from "zod";
 import { all, one } from "../db/db";
 import { badRequest, body, must } from "../lib/http";
@@ -310,8 +311,9 @@ trackers.put("/tracker-templates/:id", async (c) => {
 trackers.delete("/tracker-templates/:id", (c) => {
   const id = c.req.param("id");
   if (STARTER_TEMPLATES.some((t) => t.id === id)) throw badRequest("Starter templates can't be deleted");
+  const undo = stash("Template", [{ table: "tracker_templates", where: "id = ?", params: [id] }]);
   deleteTemplate(id);
-  return c.json({ ok: true });
+  return c.json({ ok: true, undo });
 });
 /** Duplicate (a starter or your own), with a fresh key. */
 trackers.post("/tracker-templates/:id/duplicate", (c) => {

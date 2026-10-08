@@ -3,6 +3,7 @@ import { applyCardVariant, getVariant } from "./variants";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
+import { guardsSchema } from "../lib/settings";
 import { expandMacros } from "../prompt/macros";
 import type { HistoryMessage } from "../prompt/assemble";
 import type { Role } from "../lore/types";
@@ -76,6 +77,21 @@ export const chatSettingsSchema = z.object({
   /** CHAR-06 / PER-05: the character variant and persona variant this chat plays. */
   variantId: z.string().nullable().optional(),
   personaVariantId: z.string().nullable().optional(),
+  /** Phase 5: this chat's own accuracy guard settings (CON-03…05, CON-10, CON-12) over the global ones. */
+  guards: guardsSchema.partial().optional(),
+  /** STEER-01 / STEER-03: this chat's advisor and editor (null = the global default). */
+  advisor: z.boolean().nullable().optional(),
+  editor: z.enum(["off", "flagged", "every"]).nullable().optional(),
+  /** STEER-04: the style profile, over the character's. */
+  style: z
+    .object({
+      guide: z.string().max(1500).optional(),
+      banned: z.array(z.string().trim().min(1).max(80)).max(60).optional(),
+      actions: z.enum(["asterisks", "plain", "any"]).optional(),
+      quotes: z.enum(["straight", "curly", "any"]).optional(),
+      dialogue: z.string().max(200).optional(),
+    })
+    .optional(),
 });
 export type ChatSettings = z.infer<typeof chatSettingsSchema>;
 

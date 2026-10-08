@@ -12,6 +12,7 @@ import {
   boundarySchema,
   boundarySystem,
   clampInt,
+  type Moment,
   renderRollup,
   renderScene,
   rollupSchema,
@@ -37,6 +38,7 @@ import {
   touchMemory,
 } from "./store";
 import { ftsQuery, hashText } from "./text";
+import { highlightsInRange } from "../services/notebook";
 
 export function chatNames(chatId: string) {
   const chat = getChatRow(chatId);
@@ -84,11 +86,17 @@ async function runScenePass(row: SummaryRow, ctx: { job?: JobContext; instructio
   const sourceTokens = ledgerTokens(rows);
   const prev = all<SummaryRow>("SELECT * FROM summaries WHERE chat_id = ? AND level = 'scene' AND start_seq < ? AND state = 'ready' ORDER BY start_seq DESC LIMIT 1", row.chat_id, row.start_seq)[0];
   const related = relatedAtoms(row.chat_id, source, row.start_seq, row.id);
+  // QOL-02: what the player marked in this scene matters to them; keep it, word for word.
+  const marked = [
+    ...all<{ seq: number }>("SELECT seq FROM messages WHERE chat_id = ? AND bookmarked = 1 AND deleted_at IS NULL AND seq BETWEEN ? AND ? ORDER BY seq", row.chat_id, row.start_seq, row.end_seq ?? Number.MAX_SAFE_INTEGER).map((r) => `[#${r.seq}] (the whole message)`),
+    ...highlightsInRange(row.chat_id, row.start_seq, row.end_seq ?? Number.MAX_SAFE_INTEGER).map((h) => `[#${h.seq}] "${h.text.slice(0, 300)}"`),
+  ];
   const header = [
     `Characters: ${names.char} (the character), ${names.user} (the player's character).`,
     prev ? `Previous scene, for continuity only (don't record it again): ${prev.title}: ${prev.content.slice(0, 1500)}` : "",
     related.length ? `EXISTING MEMORIES that may be related:\n${related.map((a, i) => `A${i + 1} (${a.type}) ${a.content}`).join("\n")}` : "",
     ctx.instruction ? `Extra instruction from the author for this record: ${ctx.instruction}` : "",
+    marked.length ? `The player marked these as favourite moments. Make sure the record keeps them (quote the key words):\n${marked.join("\n")}` : "",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -248,13 +256,15 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
     .map((p, i) => {
       const d = parseJson<Record<string, unknown>>(p.data, {});
       const extra = [d.storyTime ? `Time: ${d.storyTime}` : "", Array.isArray(d.threadsClosed) && d.threadsClosed.length ? `Resolved: ${(d.threadsClosed as string[]).join("; ")}` : ""].filter(Boolean).join(" · ");
-      return `${label(p)} ${i + 1}: ${p.title} (messages #${p.start_seq}–#${p.end_seq ?? "…"})${extra ? `\n${extra}` : ""}\n${p.content}`;
+      const moments = memoryConfig().moments && Array.isArray(d.moments) && d.moments.length ? `\nMOMENTS: ${(d.moments as Moment[]).map((m) => `[${m.tag}] ${m.text}`).join(" · ")}` : "";
+      return `${label(p)} ${i + 1}: ${p.title} (messages #${p.start_seq}–#${p.end_seq ?? "…"})${extra ? `\n${extra}` : ""}\n${p.content}${moments}`;
     })
     .join("\n\n");
   const user = `${opts.instruction ? `Extra instruction from the author: ${opts.instruction}\n\n` : ""}RECORDS, oldest first:\n\n${body}`;
   opts.job?.note({ inputTokens: countTokens(user), level });
-  const r = await callJson({ task: "summarizer", kind: level, chatId: row.chat_id, jobId: opts.job?.id, name: "summary_rollup", schema: rollupSchema, system: rollupSystem(level, names), user, maxTokens: 3000, signal: opts.signal });
-  const content = renderRollup(r.data);
+  const r = await callJson({ task: "summarizer", kind: level, chatId: row.chat_id, jobId: opts.job?.id, name: "summary_rollup", schema: rollupSchema, system: rollupSystem(level, names), user, maxTokens: memoryConfig().compression[level] === "detailed" ? 4000 : 3000, signal: opts.signal });
+  r.data.moments = memoryConfig().moments ? carryMoments(parts) : [];
+  const content = renderRollup(r.data, level);
   const hash = hashText(parts.map((p) => `${p.id}:${p.source_hash ?? ""}:${p.updated_at}`).join("|"));
   const cur = getSummary(row.id)!;
   if (opts.propose || cur.user_edited) {
@@ -279,6 +289,22 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
       ...(level === "story" ? [endSeq, row.id] : [row.id]),
     );
   });
+}
+
+/** SUM-11: the moments of a rollup's parts, in story order, so none is lost to compression. */
+export function carryMoments(parts: SummaryRow[]): Moment[] {
+  const out: Moment[] = [];
+  const seen = new Set<string>();
+  for (const p of parts) {
+    const d = parseJson<{ moments?: Moment[] }>(p.data, {});
+    for (const m of d.moments ?? []) {
+      const key = `${m.tag}|${m.text}`.toLowerCase();
+      if (!m.text?.trim() || seen.has(key)) continue;
+      seen.add(key);
+      out.push(m);
+    }
+  }
+  return out;
 }
 
 export interface BuildOptions {

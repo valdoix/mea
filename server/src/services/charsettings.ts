@@ -25,6 +25,18 @@ export const characterSettingsSchema = z.object({
   /** PROMPT-07: preset control values for this character's chats. */
   controls: z.record(z.string(), z.union([z.boolean(), z.string()])).optional(),
   voice: z.object({ kept: z.array(voiceLineSchema).max(60) }).optional(),
+  /** CON-03: your own re-anchor text for this character (Mea writes one from the card otherwise). */
+  anchor: short(2000).optional(),
+  /** STEER-04: this character's style profile, the default under each chat's. */
+  style: z
+    .object({
+      guide: z.string().max(1500).optional(),
+      banned: z.array(z.string().trim().min(1).max(80)).max(60).optional(),
+      actions: z.enum(["asterisks", "plain", "any"]).optional(),
+      quotes: z.enum(["straight", "curly", "any"]).optional(),
+      dialogue: z.string().max(200).optional(),
+    })
+    .optional(),
 });
 export type CharacterSettings = z.infer<typeof characterSettingsSchema>;
 

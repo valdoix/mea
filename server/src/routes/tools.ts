@@ -3,12 +3,9 @@ import { z } from "zod";
 import { all, now, one, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, body, must } from "../lib/http";
-import { storyRow } from "../memory/store";
-import { cleanText } from "../memory/text";
-import { getMessageRow, getMessage, historyForPrompt, mustChat } from "../services/chats";
+import { getMessageRow, getMessage, mustChat } from "../services/chats";
 import { quickAnswer } from "../accuracy/archivist";
-import { callJson } from "../services/llm";
-import { trackerPrompt } from "../trackers/service";
+import { autoRecap, recapFor } from "../memory/recap";
 
 /** Chat tools that act on the chat itself (CHAT-15…18). */
 export const tools = new Hono<{ Variables: { deviceId: string | null } }>();
@@ -101,18 +98,6 @@ tools.get("/search", (c) => {
 
 // ---------- /ask and /recap (CHAT-15) ----------
 
-function storyContext(chatId: string) {
-  const story = storyRow(chatId);
-  const recent = historyForPrompt(chatId).slice(-12).map((m) => `${m.role === "user" ? "User" : m.role === "assistant" ? "Story" : "Note"}: ${cleanText(m.content).slice(0, 1500)}`).join("\n\n");
-  let state = "";
-  try {
-    state = trackerPrompt(chatId, { kind: "story" }).note?.text ?? "";
-  } catch {
-    // trackers are optional context
-  }
-  return [story?.content ? `STORY SO FAR:\n${story.content}` : "", state, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
-}
-
 /** Ask the Archivist something out of character (CON-07); the answer isn't added to the story. */
 tools.post("/chats/:id/ask", async (c) => {
   const chatId = c.req.param("id");
@@ -121,21 +106,26 @@ tools.post("/chats/:id/ask", async (c) => {
   return c.json(await quickAnswer(chatId, input.question));
 });
 
-/** A recap of the story so far, to read before picking it back up. */
+/** A recap of the story so far, to read before picking it back up (SUM-15, CHAT-15). Cached until the story moves. */
 tools.post("/chats/:id/recap", async (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
-  const res = await callJson({
-    task: "summarizer",
-    kind: "recap",
-    chatId,
-    name: "recap",
-    schema: z.object({ recap: z.string() }),
-    system: 'Write a warm, readable "previously on…" recap of this roleplay for the user picking it back up: the main events in order, where things stand now, and what\'s unresolved. Three short paragraphs at most. Use only what the material establishes. Reply with JSON only: {"recap": "…"}',
-    user: storyContext(chatId),
-    maxTokens: 900,
-  });
-  return c.json({ recap: res.data.recap });
+  const raw = (await c.req.json().catch(() => ({}))) as { force?: unknown };
+  const r = await recapFor(chatId, { force: raw?.force === true });
+  return c.json({ recap: r.text, seq: r.seq, at: r.at, cached: r.cached });
+});
+
+/** SUM-15: the "previously on…" card when you come back after a while. Empty when it isn't due. */
+tools.get("/chats/:id/recap/auto", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const away = Math.max(0, Number(c.req.query("away")) || 0);
+  try {
+    const r = await autoRecap(chatId, away);
+    return c.json(r ? { recap: r.text, seq: r.seq, at: r.at } : { recap: null });
+  } catch {
+    return c.json({ recap: null });
+  }
 });
 
 /** The message a search result points at (for jump-to when it's older than what's loaded). */

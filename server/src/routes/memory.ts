@@ -9,6 +9,7 @@ import { ATOM_TYPES } from "../memory/prompts";
 import { endSceneAfter, newChapterAt, requestRebuild, scheduleMemory } from "../memory/scheduler";
 import { getSummary, levelRows, memState, removeBoundary, resetChatMemory, setMemState, summaryOut, touchMemory } from "../memory/store";
 import { getMessageRow, mustChat } from "../services/chats";
+import { rebuildEstimate, rebuildProgress } from "../memory/recap";
 import { cancelChatJobs, enqueue } from "../services/jobs";
 
 export const memory = new Hono();
@@ -43,10 +44,24 @@ memory.post("/chats/:id/memory/rebuild", async (c) => {
   mustChat(id);
   const input = await body(c, z.object({ keepUserWork: z.boolean().default(true) }));
   cancelChatJobs(id, ["memory.segment", "memory.build", "memory.embed"]);
+  // SUM-19: estimated before it starts; the jobs are persistent, so it resumes after a restart.
+  const estimate = rebuildEstimate(id);
   resetChatMemory(id, input.keepUserWork);
+  setMemState(id, { rebuild: { startedAt: Date.now(), estimate }, paused: false });
   touchMemory(id);
   scheduleMemory(id, 0);
   return c.json({ ok: true });
+});
+
+/** SUM-19: what a rebuild would take, before you start one. */
+memory.get("/chats/:id/memory/rebuild-estimate", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json(rebuildEstimate(c.req.param("id")));
+});
+
+memory.get("/chats/:id/memory/progress", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json(rebuildProgress(c.req.param("id")));
 });
 
 memory.get("/chats/:id/boundaries", (c) => c.json({ boundaries: boundaries(c.req.param("id")) }));

@@ -31,6 +31,7 @@
   let { id }: { id: string } = $props();
 
   let detail = $state<ChatDetail | null>(null);
+  let recapChecked = false;
   let messages = $state<Message[]>([]);
   let hasMore = $state(false);
   let loadingOlder = $state(false);
@@ -67,6 +68,37 @@
   let quotaChoice = $state<{ message: string; alternatives: { id: string; name: string; model: string }[]; retry: (profileId: string) => Promise<void> } | null>(null);
   let quotaOpen = $state(false);
   let knows = $state<{ scene: Summary | null; atoms: Atom[]; inMemory: boolean; seq: number } | null>(null);
+  // SUM-15: "previously on…" when you come back after a while.
+  let recap = $state<{ text: string } | null>(null);
+  const seenKey = $derived(`mea.seen.${id}`);
+  function markSeen() {
+    try {
+      localStorage.setItem(seenKey, String(Date.now()));
+    } catch {
+      // storage unavailable
+    }
+  }
+  async function maybeRecap(d: ChatDetail) {
+    const hours = app.settings?.["steer.config"]?.recapAfterHours ?? 0;
+    if (!hours) return;
+    let seen = 0;
+    try {
+      seen = Number(localStorage.getItem(seenKey)) || 0;
+    } catch {
+      seen = 0;
+    }
+    const away = Date.now() - (seen || d.chat.lastMessageAt || Date.now());
+    if (away < hours * 3600_000) return;
+    try {
+      const r = await get<{ recap: string | null }>(`/api/chats/${id}/recap/auto?away=${away}`);
+      if (r.recap) recap = { text: r.recap };
+    } catch {
+      // the recap is a nicety
+    }
+  }
+  // SUM-20: summarized isn't hidden; this marks where the model's word-for-word window begins.
+  const evicted = $derived(detail?.memory?.evictedThrough ?? 0);
+  const firstVerbatim = $derived(evicted > 0 ? messages.find((m) => m.seq > evicted)?.seq ?? null : null);
   let knowsOpen = $state(false);
 
   const generating = $derived(Object.keys(gens).length > 0 || messages.some((m) => m.status === "streaming"));
@@ -82,7 +114,11 @@
     // MEM-21: recall is warmed as the chat opens, so the first reply doesn't wait.
     void post(`/api/chats/${id}/warm`).catch(() => {});
     void loadTerms();
+    const onHide = () => document.visibilityState === "hidden" && markSeen();
+    document.addEventListener("visibilitychange", onHide);
     return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      markSeen();
       app.currentChatId = null;
       reportPresence();
     };
@@ -111,6 +147,10 @@
         }
       }
       gens = g;
+      if (!recapChecked) {
+        recapChecked = true;
+        void maybeRecap(d).finally(markSeen);
+      }
       void loadBoundaries();
       void loadFlags();
       await tick();
@@ -659,6 +699,11 @@
                 <a class="divider scene tiny" href="/chat/{id}/memory" title={b.boundary ?? ""}><span>{b.title || "· · ·"}</span></a>
               {/if}
             {/each}
+            {#if firstVerbatim === m.seq && (messages[0]?.seq ?? 0) < m.seq}
+              <div class="divider evict tiny" title="Messages above are still yours to read; the model gets them through the Story So Far and recalled memories.">
+                <span>Above: remembered through summaries · Below: read word for word</span>
+              </div>
+            {/if}
             <MessageItem
               message={m}
               isLast={m.id === lastMsg?.id}
@@ -698,6 +743,12 @@
           {/each}
           {#if !messages.length}
             <p class="muted center-text">No messages yet. Say hello ✿</p>
+          {/if}
+          {#if recap}
+            <aside class="recap card" aria-label="Previously">
+              <div class="row between"><b class="recap-title">Previously…</b><button class="btn ghost small" onclick={() => (recap = null)}>Dismiss</button></div>
+              <p class="small">{recap.text}</p>
+            </aside>
           {/if}
         </div>
       </div>
@@ -989,6 +1040,33 @@
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--text);
+  }
+  .divider.evict {
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.6rem;
+    opacity: 0.75;
+  }
+  .divider.evict::before,
+  .divider.evict::after {
+    content: "";
+    height: 1px;
+    background: repeating-linear-gradient(90deg, var(--border) 0 6px, transparent 6px 10px);
+  }
+  .recap {
+    margin: 1rem 0 0.5rem;
+    padding: 0.8rem 1rem;
+    background: color-mix(in srgb, var(--lavender) 22%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--lavender) 60%, var(--border));
+    animation: fade-up 0.4s var(--ease) both;
+  }
+  .recap p {
+    margin: 0.4rem 0 0;
+    white-space: pre-wrap;
+  }
+  .recap-title {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 100;
   }
   .divider.scene {
     grid-template-columns: 1fr auto 1fr;

@@ -75,7 +75,8 @@
     </div>
 
     {#if overview.stats.summarizedSourceTokens}
-      <p class="tiny muted">{compact(overview.stats.summarizedSourceTokens)} tokens of story kept in {compact(overview.stats.sceneSummaryTokens)} tokens of scene summaries. Messages from #{overview.evictedThrough + 1} are sent word for word.</p>
+      {#if overview.stats.messages && overview.stats.storyTokens}<p class="headline small"><b>{overview.stats.messages.toLocaleString()}</b> messages · <b>{compact(overview.stats.storyTokens)}</b> tokens → <b>{compact(overview.stats.memoryTokens ?? overview.stats.telescopeTokens)}</b> tokens of memory</p>{/if}
+      <p class="tiny muted">{compact(overview.stats.summarizedSourceTokens)} tokens of story kept in {compact(overview.stats.sceneSummaryTokens)} tokens of scene summaries. Messages from #{overview.evictedThrough + 1} are sent word for word; the ones before stay here to read.</p>
     {:else}
       <p class="tiny muted">Scenes are recorded in the background once the story moves past them. Until the chat outgrows the prompt, everything is sent word for word.</p>
     {/if}
@@ -116,6 +117,10 @@
   h3 {
     gap: 0.4rem;
     margin: 0;
+  }
+  .headline {
+    margin: 0;
+    text-align: center;
   }
   .grid {
     display: grid;

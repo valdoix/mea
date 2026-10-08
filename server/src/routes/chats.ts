@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { characterSettings } from "../services/charsettings";
+import { memState } from "../memory/store";
 import { layered } from "../services/layers";
 import { listVariants } from "../services/variants";
 import { streamSSE } from "hono/streaming";
@@ -66,7 +67,9 @@ chats.get("/chats/:id", (c) => {
     variants: variants.map((v) => ({ id: v.id, name: v.name, note: v.note })),
     personaVariants: personaVariants.map((v) => ({ id: v.id, name: v.name, note: v.note })),
     // PROMPT-06: what the character sets for its chats, so the panel can say "from the character".
-    defaults: { from: layers.from, presetId: layers.presetId, profileId: layers.profileId, characterControls: characterSettings(chat.characterId).controls ?? {} },
+    defaults: { from: layers.from, presetId: layers.presetId, profileId: layers.profileId, characterControls: characterSettings(chat.characterId).controls ?? {}, characterStyle: characterSettings(chat.characterId).style ?? null },
+    // SUM-20: summarized isn't hidden; the chat marks where word-for-word ends.
+    memory: { evictedThrough: memState(chat.id).evictedThrough },
   });
 });
 
