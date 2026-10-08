@@ -1,14 +1,16 @@
 import { all, newId, now, one, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
 import { getSetting, setSetting } from "../lib/settings";
-import { defaultPreset, type Preset, presetSchema } from "../prompt/preset";
+import { defaultPreset, ensureMemoryBlocks, type Preset, presetSchema } from "../prompt/preset";
 
 const changed = () => publish({ type: "library.changed", what: "presets" });
 
 function parsePreset(raw: string): Preset {
   const fallback = defaultPreset();
   const parsed = presetSchema.safeParse({ ...fallback, ...parseJson<Partial<Preset>>(raw, {}) });
-  return parsed.success ? parsed.data : fallback;
+  if (!parsed.success) return fallback;
+  ensureMemoryBlocks(parsed.data.blocks);
+  return parsed.data;
 }
 
 export function listPresets() {

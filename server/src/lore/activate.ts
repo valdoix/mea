@@ -33,6 +33,11 @@ export interface ActivationInput {
   /** Macro substitution for keys ({{char}} etc.). */
   substitute?: (text: string) => string;
   random?: () => number;
+  /**
+   * Cache-friendly placement (CTX-04): entries that fire on keywords change from turn to turn,
+   * so before/after-character ones go to the dynamic block instead of the stable prefix.
+   */
+  splitTriggered?: boolean;
 }
 
 export interface TraceItem {
@@ -63,6 +68,8 @@ export interface Placements {
   ex_top: string[];
   ex_bottom: string[];
   depth: { depth: number; role: Role; content: string; order: number }[];
+  /** Keyword-triggered before/after-character entries, moved out of the cached prefix (CTX-04). */
+  triggered: string[];
 }
 
 export interface ActivationResult {
@@ -267,10 +274,11 @@ export function activateLore(input: ActivationInput): ActivationResult {
   }
 
   accepted.sort((a, b) => a.entry.order - b.entry.order);
-  const placements: Placements = { before_char: [], after_char: [], an_top: [], an_bottom: [], ex_top: [], ex_bottom: [], depth: [] };
+  const placements: Placements = { before_char: [], after_char: [], an_top: [], an_bottom: [], ex_top: [], ex_bottom: [], depth: [], triggered: [] };
   const stateUpdates: Record<string, TimedState> = {};
   for (const a of accepted) {
     if (a.entry.position === "depth") placements.depth.push({ depth: a.entry.depth, role: a.entry.role, content: a.content, order: a.entry.order });
+    else if (input.splitTriggered && !a.entry.constant && (a.entry.position === "before_char" || a.entry.position === "after_char")) placements.triggered.push(a.content);
     else placements[a.entry.position].push(a.content);
     const fresh = !a.reason.startsWith("sticky");
     if (fresh && (a.entry.sticky > 0 || a.entry.cooldown > 0)) {

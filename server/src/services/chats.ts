@@ -60,6 +60,25 @@ export interface SwipeRow {
 }
 
 const chatChanged = (chatId: string) => publish({ type: "chat.changed", chatId });
+
+/**
+ * Called when a message that memory may already be built from changes: edit, delete, restore,
+ * hide, or a different swipe chosen (MEM-10). The memory module registers itself here.
+ */
+type LedgerHook = (chatId: string, messageId: string) => void;
+const ledgerHooks: LedgerHook[] = [];
+export function onLedgerEdit(fn: LedgerHook) {
+  ledgerHooks.push(fn);
+}
+function ledgerEdited(chatId: string, messageId: string) {
+  for (const h of ledgerHooks) {
+    try {
+      h(chatId, messageId);
+    } catch (e) {
+      console.error("[mea] memory hook failed:", e);
+    }
+  }
+}
 const msgChanged = (chatId: string, messageId: string) => publish({ type: "message.changed", chatId, messageId });
 
 export function getChatRow(id: string) {
@@ -339,6 +358,7 @@ export function editMessage(id: string, content: string) {
     run("UPDATE messages SET updated_at = ? WHERE id = ?", now(), id);
   });
   msgChanged(m.chat_id, id);
+  ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -349,6 +369,7 @@ export function setActiveSwipe(id: string, idx: number) {
   if (!exists) throw badRequest("No such swipe");
   run("UPDATE messages SET active_swipe = ?, updated_at = ? WHERE id = ?", idx, now(), id);
   msgChanged(m.chat_id, id);
+  if (idx !== m.active_swipe) ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -363,6 +384,7 @@ export function setMessageFlags(id: string, flags: { hidden?: boolean; bookmarke
     id,
   );
   msgChanged(m.chat_id, id);
+  if (flags.hidden !== undefined && Boolean(m.hidden) !== flags.hidden) ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -372,6 +394,7 @@ export function softDeleteMessage(id: string) {
   run("UPDATE messages SET deleted_at = ? WHERE id = ?", now(), id);
   bumpChat(m.chat_id);
   msgChanged(m.chat_id, id);
+  ledgerEdited(m.chat_id, id);
 }
 
 export function restoreMessage(id: string) {
@@ -380,6 +403,7 @@ export function restoreMessage(id: string) {
   run("UPDATE messages SET deleted_at = NULL WHERE id = ?", id);
   bumpChat(m.chat_id);
   msgChanged(m.chat_id, id);
+  ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -393,7 +417,7 @@ export function historyForPrompt(chatId: string, opts: { excludeMessageId?: stri
     ...(opts.uptoSeq != null ? [chatId, opts.uptoSeq] : [chatId]),
   )
     .filter((m) => m.id !== opts.excludeMessageId)
-    .map(({ id, role, content }) => ({ id, role, content }));
+    .map(({ id, role, content, seq }) => ({ id, role, content, seq }));
 }
 
 export function messageCountOf(chatId: string) {

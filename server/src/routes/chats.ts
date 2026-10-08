@@ -25,7 +25,8 @@ import {
   updateChat,
 } from "../services/chats";
 import { chatTitleFor, exportChatHtml, exportChatJsonl, exportChatMarkdown } from "../services/export";
-import { activeGenerations, getGeneration, previewPrompt, startStory, stopChatGenerations, stopGeneration, streamDraft } from "../services/generation";
+import { activeGenerations, getGeneration, prefetch, previewPrompt, startStory, stopChatGenerations, stopGeneration, streamDraft } from "../services/generation";
+import { HttpError } from "../lib/http";
 import { getDefaultPersona, getPersona } from "../services/personas";
 
 export const chats = new Hono();
@@ -88,7 +89,7 @@ chats.get("/chats/:id/messages", (c) => {
 /** Send a message (optional) and start the reply. Generation continues server-side (ARCH-02). */
 chats.post("/chats/:id/send", async (c) => {
   const chatId = c.req.param("id");
-  const input = await body(c, z.object({ content: z.string().max(100_000).optional(), generate: z.boolean().default(true) }));
+  const input = await body(c, z.object({ content: z.string().max(100_000).optional(), generate: z.boolean().default(true), profileId: z.string().nullable().optional() }));
   mustChat(chatId);
   if (activeGenerations(chatId).length) throw badRequest("Wait for the current reply to finish");
   let userMessageId: string | null = null;
@@ -99,23 +100,26 @@ chats.post("/chats/:id/send", async (c) => {
   }
   if (!input.generate) return c.json({ userMessage: userMessageId && getMessage(userMessageId) });
   try {
-    const gen = startStory(chatId, "new");
+    const gen = await startStory(chatId, "new", { profileId: input.profileId });
     return c.json({ userMessage: userMessageId && getMessage(userMessageId), ...gen });
   } catch (e) {
-    // The user's message is kept even if the reply can't start (e.g. no model set up).
-    return c.json({ userMessage: userMessageId && getMessage(userMessageId), error: (e as Error).message }, 400);
+    // The user's message is kept even if the reply can't start (e.g. no model set up, quota used up).
+    const details = e instanceof HttpError ? (e.details as Record<string, unknown> | undefined) : undefined;
+    return c.json({ userMessage: userMessageId && getMessage(userMessageId), error: (e as Error).message, code: details?.code, details }, e instanceof HttpError && e.status === 429 ? 429 : 400);
   }
 });
 
 chats.post("/messages/:id/swipe", async (c) => {
-  const input = await body(c, z.object({ feedback: z.string().max(2000).optional() }));
+  const input = await body(c, z.object({ feedback: z.string().max(2000).optional(), profileId: z.string().nullable().optional() }));
   const m = must(getMessageRow(c.req.param("id")), "Message not found");
-  return c.json(startStory(m.chat_id, "swipe", { messageId: m.id, feedback: input.feedback }));
+  return c.json(await startStory(m.chat_id, "swipe", { messageId: m.id, feedback: input.feedback, profileId: input.profileId }));
 });
 
 chats.post("/messages/:id/continue", async (c) => {
+  const raw = (await c.req.json().catch(() => ({}))) as { profileId?: unknown };
+  const input = { profileId: typeof raw?.profileId === "string" ? raw.profileId : null };
   const m = must(getMessageRow(c.req.param("id")), "Message not found");
-  return c.json(startStory(m.chat_id, "continue", { messageId: m.id }));
+  return c.json(await startStory(m.chat_id, "continue", { messageId: m.id, profileId: input.profileId }));
 });
 
 chats.get("/messages/:id", (c) => c.json(must(getMessage(c.req.param("id")), "Message not found")));
@@ -144,7 +148,14 @@ chats.post("/generations/:id/stop", (c) => c.json({ stopped: stopGeneration(c.re
 
 chats.get("/generations/:id", (c) => c.json(must(getGeneration(c.req.param("id")), "Generation not found")));
 
-chats.get("/chats/:id/prompt-preview", (c) => c.json(previewPrompt(c.req.param("id"))));
+chats.get("/chats/:id/prompt-preview", async (c) => c.json(await previewPrompt(c.req.param("id"))));
+
+/** Warms retrieval while you type (CTX-10). Cheap and safe to call often. */
+chats.post("/chats/:id/prefetch", async (c) => {
+  const input = await body(c, z.object({ draft: z.string().max(20_000) }));
+  mustChat(c.req.param("id"));
+  return c.json(await prefetch(c.req.param("id"), input.draft));
+});
 
 /** Impersonate / expand stream straight back to the composer (CHAT-05). */
 chats.post("/chats/:id/draft", async (c) => {

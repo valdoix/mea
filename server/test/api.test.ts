@@ -52,7 +52,7 @@ describe("API end to end (mock provider)", () => {
   test("setup: connection, models, profile", async () => {
     const conn = await api("POST", "/api/connections", { name: "Mock", kind: "mock", billing: "subscription" });
     expect(conn.status).toBe(201);
-    expect(conn.json.connection.modelCount).toBe(2);
+    expect(conn.json.connection.modelCount).toBe(3);
     const profile = await api("POST", "/api/profiles", { name: "Story", connectionId: conn.json.connection.id, modelId: "mock/storyteller", params: { temperature: 0.9 } });
     expect(profile.status).toBe(201);
     const profiles = await api("GET", "/api/profiles");

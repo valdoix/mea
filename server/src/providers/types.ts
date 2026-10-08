@@ -15,11 +15,27 @@ export interface GenerationParams {
   hide_reasoning?: boolean;
 }
 
+/**
+ * Where the stable part of the prompt ends, for explicit caching (CONN-12).
+ * Indexes point into `messages`. Subscription requests never carry this.
+ */
+export interface CacheHint {
+  mode: "nanogpt" | "anthropic";
+  ttl: "5m" | "1h";
+  /** Last message of the stable prefix (system, card, summaries). */
+  prefixEnd: number;
+  /** Last history message before the per-turn dynamic block. */
+  historyEnd: number;
+}
+
 export interface StreamRequest {
   model: string;
   messages: ChatMessage[];
   params: GenerationParams;
   signal: AbortSignal;
+  cache?: CacheHint;
+  /** OpenAI-style response_format (structured output for helpers). */
+  responseFormat?: Record<string, unknown>;
 }
 
 export interface StreamDelta {
@@ -29,9 +45,23 @@ export interface StreamDelta {
 
 export interface StreamResult {
   finishReason?: string;
-  usage?: { promptTokens?: number; completionTokens?: number; cachedTokens?: number };
+  usage?: Usage;
   /** The request body actually sent (keys never included). */
   sentBody: Record<string, unknown>;
+}
+
+export interface Usage {
+  promptTokens?: number;
+  completionTokens?: number;
+  /** Input tokens read from the provider's cache. */
+  cachedTokens?: number;
+  /** Input tokens written to the cache (Anthropic-style). */
+  cacheWriteTokens?: number;
+}
+
+export interface EmbedResult {
+  vectors: Float32Array[];
+  promptTokens?: number;
 }
 
 export interface ModelInfo {
@@ -47,14 +77,47 @@ export interface ModelInfo {
 export interface Provider {
   stream(req: StreamRequest, onDelta: (d: StreamDelta) => void): Promise<StreamResult>;
   listModels(): Promise<ModelInfo[]>;
+  embed?(texts: string[], model: string, dims?: number, signal?: AbortSignal): Promise<EmbedResult>;
 }
 
+export type ErrorKind = "overflow" | "quota" | "auth" | "rate" | "server" | "network" | "refused" | "other";
+
 export class ProviderError extends Error {
+  kind: ErrorKind;
   constructor(
     message: string,
     public status?: number,
     public body?: string,
   ) {
     super(message);
+    this.kind = classifyError(status, `${message} ${body ?? ""}`);
   }
+  /** Worth trying the next model in a fallback chain (CONN-05). */
+  get retryable() {
+    return this.kind === "server" || this.kind === "network" || this.kind === "rate" || this.kind === "other";
+  }
+}
+
+/** Sorts provider failures so Mea can react: shrink the prompt, fall back, or explain the quota. */
+export function classifyError(status: number | undefined, text: string): ErrorKind {
+  const t = text.toLowerCase();
+  if (/context.{0,20}(length|window|limit)|maximum context|too many tokens|prompt is too long|input.{0,20}too long|reduce the length|exceeds? the (model'?s )?(maximum|context)|token limit/.test(t)) return "overflow";
+  if (/quota|subscription (limit|usage)|weekly limit|daily limit|insufficient (balance|credits?)|usage limit/.test(t) && status !== 500) return "quota";
+  if (status === 401 || status === 403) return "auth";
+  if (status === 429) return "rate";
+  if (status != null && status >= 500) return "server";
+  if (status == null && /couldn't reach|fetch failed|network|econn|timed? ?out|socket/.test(t)) return "network";
+  if (status === 400 || status === 404 || status === 422) return "refused";
+  return "other";
+}
+
+/** Reads a context limit out of an overflow error, e.g. "maximum context length is 131072 tokens" (CTX-03). */
+export function contextLimitFromError(text: string): number | null {
+  const m =
+    text.match(/maximum context length (?:is|of) (\d[\d,]*)/i) ??
+    text.match(/context (?:length|window|limit)(?: of| is|:)? (\d[\d,]*)/i) ??
+    text.match(/(\d[\d,]{3,}) tokens? (?:limit|maximum|max)/i) ??
+    text.match(/(?:limit|maximum|max)(?: is| of)? (\d[\d,]{3,}) tokens/i);
+  const n = m ? Number(m[1]!.replaceAll(",", "")) : NaN;
+  return Number.isFinite(n) && n >= 1024 ? n : null;
 }

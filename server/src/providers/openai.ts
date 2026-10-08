@@ -1,4 +1,4 @@
-import { type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
+import { type EmbedResult, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
 
 export interface OpenAIOptions {
   baseUrl: string;
@@ -46,6 +46,11 @@ export function buildBody(req: StreamRequest, extra: Record<string, unknown> = {
   if (p.stop?.length) body.stop = p.stop;
   if (p.reasoning_effort) body.reasoning_effort = p.reasoning_effort;
   if (p.hide_reasoning) body.reasoning = { exclude: true };
+  if (req.responseFormat) body.response_format = req.responseFormat;
+  // NanoGPT's Claude cache helper (CONN-12). Only ever set for pay-as-you-go Claude.
+  if (req.cache?.mode === "nanogpt") {
+    body.prompt_caching = { enabled: true, ttl: req.cache.ttl, cut_after_message_index: Math.max(0, req.cache.historyEnd) };
+  }
   return body;
 }
 
@@ -111,6 +116,30 @@ export class OpenAIProvider implements Provider {
     return result;
   }
 
+  /** OpenAI-style embeddings (NanoGPT: text-embedding-3-large with `dimensions`). */
+  async embed(texts: string[], model: string, dims?: number, signal?: AbortSignal): Promise<EmbedResult> {
+    let res: Response;
+    try {
+      res = await fetch(this.url("/embeddings"), {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({ model, input: texts, ...(dims ? { dimensions: dims } : {}), encoding_format: "float" }),
+        signal,
+      });
+    } catch (e) {
+      if ((e as Error).name === "AbortError") throw e;
+      throw new ProviderError(`Couldn't reach the provider: ${(e as Error).message}`);
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new ProviderError(describeError(res.status, text), res.status, text.slice(0, 2000));
+    }
+    const json = (await res.json()) as { data?: { index: number; embedding: number[] }[]; usage?: { prompt_tokens?: number } };
+    const rows = [...(json.data ?? [])].sort((a, b) => a.index - b.index);
+    if (rows.length !== texts.length) throw new ProviderError(`Expected ${texts.length} embeddings, got ${rows.length}`);
+    return { vectors: rows.map((r) => Float32Array.from(r.embedding)), promptTokens: json.usage?.prompt_tokens };
+  }
+
   async listModels(): Promise<ModelInfo[]> {
     const res = await fetch(this.url("/models"), { headers: this.headers() });
     if (!res.ok) throw new ProviderError(describeError(res.status, await res.text().catch(() => "")), res.status);
@@ -126,12 +155,13 @@ export class OpenAIProvider implements Provider {
   }
 }
 
-function usageOf(u: Record<string, any> | undefined): StreamResult["usage"] {
+export function usageOf(u: Record<string, any> | undefined): StreamResult["usage"] {
   if (!u) return undefined;
   return {
     promptTokens: u.prompt_tokens ?? u.input_tokens,
     completionTokens: u.completion_tokens ?? u.output_tokens,
-    cachedTokens: u.prompt_tokens_details?.cached_tokens ?? u.cache_read_input_tokens ?? undefined,
+    cachedTokens: u.prompt_tokens_details?.cached_tokens ?? u.cache_read_input_tokens ?? u.prompt_cache_hit_tokens ?? undefined,
+    cacheWriteTokens: u.cache_creation_input_tokens ?? u.prompt_tokens_details?.cache_write_tokens ?? undefined,
   };
 }
 

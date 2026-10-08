@@ -7,6 +7,7 @@ import { HttpError } from "./lib/http";
 import { chats } from "./routes/chats";
 import { library } from "./routes/library";
 import { lore } from "./routes/lore";
+import { memory } from "./routes/memory";
 import { models } from "./routes/models";
 import { system } from "./routes/system";
 import { DEVICE_COOKIE, deviceForToken, isTrustedLocal } from "./services/auth";
@@ -63,6 +64,7 @@ export function createApp() {
   app.route("/api", library);
   app.route("/api", lore);
   app.route("/api", chats);
+  app.route("/api", memory);
   app.route("/api", models);
   app.route("/api", system);
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

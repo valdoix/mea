@@ -4,6 +4,7 @@ import { paths } from "../config";
 import { closeDb, db, one, openDb } from "../db/db";
 import { badRequest } from "../lib/http";
 import { getSetting } from "../lib/settings";
+import { mirrorBackup } from "./mirror";
 
 /** Rolling SQLite snapshots (DATA-03). Images are append-only on disk, so the DB snapshot is the backup. */
 export type BackupKind = "hourly" | "daily" | "manual" | "pre-restore" | "pre-migration";
@@ -61,8 +62,15 @@ export function scheduledBackup() {
   const fp = fingerprint();
   const backups = listBackups();
   const today = stamp().slice(0, 8);
-  if (!backups.some((b) => b.kind === "daily" && b.file.includes(`-${today}-`))) createBackup("daily");
-  else if (fp !== lastFingerprint) createBackup("hourly");
+  if (!backups.some((b) => b.kind === "daily" && b.file.includes(`-${today}-`))) {
+    const daily = createBackup("daily");
+    // DATA-08: the daily snapshot also goes off this machine. A failure is shown in settings.
+    try {
+      mirrorBackup(daily.file);
+    } catch (e) {
+      console.error("[mea] backup mirror failed:", (e as Error).message);
+    }
+  } else if (fp !== lastFingerprint) createBackup("hourly");
   lastFingerprint = fp;
   pruneBackups();
 }

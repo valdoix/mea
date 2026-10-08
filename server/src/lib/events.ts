@@ -11,6 +11,7 @@ export type MeaEvent =
   | { type: "chat.changed"; chatId: string }
   | { type: "jobs.activity"; running: number; queued: number }
   | { type: "quota.changed" }
+  | { type: "memory.changed"; chatId: string }
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" };
 
 type Listener = (event: MeaEvent) => void;

@@ -12,6 +12,7 @@ import { clientKeys, getClientSettings, type Settings, setSetting } from "../lib
 import { defaultPreset, importStPreset, presetSchema } from "../prompt/preset";
 import { createPairingCode, DEVICE_COOKIE, deviceForToken, isTrustedLocal, listDevices, redeemPairingCode, revokeDevice } from "../services/auth";
 import { createBackup, lastBackupAt, listBackups, restoreBackup } from "../services/backup";
+import { mirrorBackup, mirrorSettings, updateMirror } from "../services/mirror";
 import { cachedQuota, listConnections } from "../services/connections";
 import { exportLibraryZip } from "../services/export";
 import { jobStats } from "../services/jobs";
@@ -164,6 +165,21 @@ system.post("/backups", (c) => c.json(createBackup("manual"), 201));
 system.post("/backups/:file/restore", (c) => {
   restoreBackup(c.req.param("file"));
   return c.json({ ok: true });
+});
+
+/** Off-machine copy (DATA-08). */
+system.get("/backups/mirror", (c) => c.json(mirrorSettings()));
+system.put("/backups/mirror", async (c) => {
+  const input = await body(c, z.object({ dir: z.string().max(500).optional(), encrypt: z.boolean().optional(), keep: z.number().int().min(1).max(90).optional(), passphrase: z.string().max(200).optional() }));
+  return c.json(updateMirror(input));
+});
+system.post("/backups/mirror/run", (c) => {
+  const latest = listBackups().find((b) => b.kind === "daily") ?? listBackups()[0] ?? createBackup("manual");
+  try {
+    return c.json({ copied: mirrorBackup(latest.file), mirror: mirrorSettings() });
+  } catch (e) {
+    throw badRequest(`Couldn't copy the backup: ${(e as Error).message}`);
+  }
 });
 
 system.get("/export/library", () => {

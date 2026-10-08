@@ -20,8 +20,12 @@ import {
   updateConnection,
   updateProfile,
 } from "../services/connections";
-import { usageSummary } from "../services/usage";
+import { cacheStats, usageSummary } from "../services/usage";
 import { config } from "../config";
+import { cancelJob, enqueue, listJobs, retryJob } from "../services/jobs";
+import { probeCache } from "../services/probe";
+import { quotaPlannerJson } from "../services/quota";
+import { getRequest, listRequests } from "../services/requests";
 
 export const models = new Hono();
 
@@ -64,12 +68,16 @@ models.get("/profiles", (c) => c.json({ profiles: listProfiles(), storyProfileId
 
 models.post("/profiles", async (c) => {
   const input = await body(c, profileInput);
-  return c.json(getProfile(createProfile(input)), 201);
+  const id = createProfile(input);
+  enqueue("cache.probe", {}, { dedupeKey: "cache.probe", delayMs: 5000 });
+  return c.json(getProfile(id), 201);
 });
 
 models.put("/profiles/:id", async (c) => {
   const input = await body(c, profileInput.partial());
   must(updateProfile(c.req.param("id"), input) || undefined, "Profile not found");
+  // A paid Claude model is probed for caching the first time it's chosen (CONN-24).
+  if (input.modelId || input.connectionId) enqueue("cache.probe", {}, { dedupeKey: "cache.probe", delayMs: 5000 });
   return c.json(getProfile(c.req.param("id")));
 });
 
@@ -89,3 +97,32 @@ models.get("/quota", (c) => c.json({ quota: cachedQuota() }));
 models.post("/quota/refresh", async (c) => c.json({ quota: await refreshQuota() }));
 
 models.get("/usage", (c) => c.json(usageSummary(Math.min(90, Number(c.req.query("days")) || 7))));
+
+/** Cache probe on demand (CONN-24). */
+models.post("/connections/:id/probe", async (c) => {
+  const input = await body(c, z.object({ modelId: z.string().min(1) }));
+  return c.json(await probeCache(c.req.param("id"), input.modelId));
+});
+
+/** Quota planner (CONN-19): turns per day at current settings, by feature, plus pacing. */
+models.get("/quota/planner", (c) => c.json(quotaPlannerJson()));
+
+models.get("/cache-stats", (c) => c.json(cacheStats(Math.min(90, Number(c.req.query("days")) || 7), c.req.query("chatId") || undefined)));
+
+/** Request history (DBG-02). */
+models.get("/requests", (c) => {
+  const q = c.req.query();
+  return c.json({ requests: listRequests({ chatId: q.chatId || undefined, task: q.task || undefined, limit: Number(q.limit) || undefined, before: Number(q.before) || undefined }) });
+});
+models.get("/requests/:id", (c) => c.json(must(getRequest(c.req.param("id")), "Request not found")));
+
+/** Job monitor (DBG-03). */
+models.get("/jobs", (c) => c.json({ jobs: listJobs({ status: c.req.query("status") || undefined, chatId: c.req.query("chatId") || undefined, limit: Number(c.req.query("limit")) || undefined }) }));
+models.post("/jobs/:id/retry", (c) => {
+  retryJob(c.req.param("id"));
+  return c.json({ ok: true });
+});
+models.post("/jobs/:id/cancel", (c) => {
+  cancelJob(c.req.param("id"));
+  return c.json({ ok: true });
+});
