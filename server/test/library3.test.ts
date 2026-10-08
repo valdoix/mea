@@ -38,7 +38,7 @@ beforeAll(async () => {
   for (let i = 0; i < 6; i++) {
     ids.push(addMessage(chatId, i % 2 ? "assistant" : "user", `Line ${i}: the brass lantern needs a new wick, number ${i}.`, { name: i % 2 ? "Mira" : "Alex" }));
     // Two sittings on two days.
-    run("UPDATE messages SET created_at = ? WHERE id = ?", base + (i < 3 ? i * 120_000 : 86_400_000 + i * 120_000), ids[i]);
+    run("UPDATE messages SET created_at = ? WHERE id = ?", base + (i < 3 ? i * 120_000 : 86_400_000 + i * 120_000), ids[i]!);
   }
   insertAtom(chatId, null, { type: "promise", content: "Mira promised to replace the wick of the brass lantern.", importance: 8, entities: ["Mira"] }, [{ id: ids[1]!, seq: 3 }]);
   createLorebook({ name: "Town", entries: [defaultEntry({ comment: "The Wick Shop", keys: ["wick shop"], content: "A chandlery that sells lantern wicks." })] });
