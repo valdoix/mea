@@ -1,0 +1,91 @@
+/**
+ * The code-owned story clock (TRK-10). Story time is either a calendar date ("2026-03-14 21:40")
+ * or a relative day when the story never names one ("Day 3 21:40"). Both map to minutes so the
+ * clock can only move forward.
+ */
+export interface StoryTime {
+  minutes: number;
+  /** "date": minutes since 0001-01-01 (UTC math, no time zones); "day": minutes since Day 1 00:00. */
+  form: "date" | "day";
+}
+
+const DAY = 1440;
+
+export function parseStoryTime(s: unknown): StoryTime | null {
+  if (typeof s !== "string") return null;
+  const t = s.trim();
+  let m = t.match(/^(\d{1,4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$/);
+  if (m) {
+    const d = new Date(Date.UTC(2000, Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 12), Number(m[5] ?? 0)));
+    d.setUTCFullYear(Number(m[1]));
+    if (Number.isNaN(d.getTime())) return null;
+    return { minutes: Math.round((d.getTime() - YEAR1) / 60_000), form: "date" };
+  }
+  m = t.match(/^day\s*(\d{1,5})(?:[ ,]+(\d{1,2}):(\d{2}))?$/i);
+  if (m) return { minutes: (Number(m[1]) - 1) * DAY + Number(m[2] ?? 12) * 60 + Number(m[3] ?? 0), form: "day" };
+  return null;
+}
+
+const YEAR1 = (() => {
+  const d = new Date(Date.UTC(2000, 0, 1));
+  d.setUTCFullYear(1);
+  return d.getTime();
+})();
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+export function formatStoryTime(t: StoryTime): string {
+  if (t.form === "day") {
+    const day = Math.floor(t.minutes / DAY) + 1;
+    const rest = ((t.minutes % DAY) + DAY) % DAY;
+    return `Day ${day} ${pad(Math.floor(rest / 60))}:${pad(rest % 60)}`;
+  }
+  const d = new Date(YEAR1 + t.minutes * 60_000);
+  return `${String(d.getUTCFullYear()).padStart(4, "0")}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+/** "Thu 23:10" or "Day 3 · 23:10", for chips, the HUD and timestamps. */
+export function shortStoryTime(s: unknown): string {
+  const t = parseStoryTime(s);
+  if (!t) return typeof s === "string" ? s : "";
+  if (t.form === "day") return formatStoryTime(t).replace(/ (\d{1,2}:\d{2})$/, " · $1");
+  const d = new Date(YEAR1 + t.minutes * 60_000);
+  return `${d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+export function addMinutes(s: string, minutes: number): string | null {
+  const t = parseStoryTime(s);
+  return t ? formatStoryTime({ ...t, minutes: t.minutes + Math.round(minutes) }) : null;
+}
+
+export function timeOfDay(s: unknown): string | null {
+  const t = parseStoryTime(s);
+  if (!t) return null;
+  const h = Math.floor((((t.minutes % DAY) + DAY) % DAY) / 60);
+  return h < 5 ? "late night" : h < 7 ? "dawn" : h < 11 ? "morning" : h < 14 ? "midday" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
+}
+
+/** "3 days", "2h", "90 minutes", "a week" → minutes, for /timeskip. */
+export function parseDuration(s: string): number | null {
+  const t = s.trim().toLowerCase().replace(/^an? /, "1 ");
+  const units: [RegExp, number][] = [
+    [/^(\d+(?:\.\d+)?)\s*(m|min|mins|minute|minutes)$/, 1],
+    [/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)$/, 60],
+    [/^(\d+(?:\.\d+)?)\s*(d|day|days)$/, DAY],
+    [/^(\d+(?:\.\d+)?)\s*(w|wk|week|weeks)$/, DAY * 7],
+    [/^(\d+(?:\.\d+)?)\s*(month|months)$/, DAY * 30],
+    [/^(\d+(?:\.\d+)?)\s*(y|year|years)$/, DAY * 365],
+  ];
+  for (const [re, mult] of units) {
+    const m = t.match(re);
+    if (m) return Math.round(Number(m[1]) * mult);
+  }
+  return null;
+}
+
+export function describeMinutes(m: number): string {
+  if (m >= DAY * 2 && m % DAY === 0) return `${m / DAY} days`;
+  if (m >= DAY) return `${Math.round((m / DAY) * 10) / 10} days`;
+  if (m >= 120) return `${Math.round((m / 60) * 10) / 10} hours`;
+  return `${m} minutes`;
+}
