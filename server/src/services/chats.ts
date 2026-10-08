@@ -87,6 +87,8 @@ interface ChatRow {
   last_message_at: number | null;
   archived_at: number | null;
   deleted_at: number | null;
+  title_locked?: number;
+  cover_image_id?: string | null;
 }
 
 export interface MessageRow {
@@ -162,6 +164,8 @@ function chatOut(r: ChatRow) {
     lastMessageAt: r.last_message_at,
     archivedAt: r.archived_at,
     deletedAt: r.deleted_at,
+    titleLocked: Boolean(r.title_locked),
+    coverImageId: r.cover_image_id ?? null,
   };
 }
 
@@ -170,10 +174,14 @@ export function getChat(id: string) {
   return r ? chatOut(r) : undefined;
 }
 
-export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number } = {}) {
+export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number; collectionId?: string } = {}) {
   const where = [opts.deleted ? "c.deleted_at IS NOT NULL" : "c.deleted_at IS NULL"];
   const params: (string | number)[] = [];
-  if (!opts.deleted) where.push(opts.archived ? "c.archived_at IS NOT NULL" : "c.archived_at IS NULL");
+  if (!opts.deleted && !opts.collectionId) where.push(opts.archived ? "c.archived_at IS NOT NULL" : "c.archived_at IS NULL");
+  if (opts.collectionId) {
+    where.push("c.id IN (SELECT chat_id FROM collection_chats WHERE collection_id = ?)");
+    params.push(opts.collectionId);
+  }
   if (opts.characterId) {
     where.push("c.character_id = ?");
     params.push(opts.characterId);
@@ -188,8 +196,11 @@ export function listChats(opts: { characterId?: string; archived?: boolean; dele
     ...params,
     opts.limit ?? 200,
   );
+  const memberships = new Map<string, string[]>();
+  for (const m of all<{ chat_id: string; collection_id: string }>("SELECT chat_id, collection_id FROM collection_chats")) memberships.set(m.chat_id, [...(memberships.get(m.chat_id) ?? []), m.collection_id]);
   return rows.map((r) => ({
     ...chatOut(r),
+    collections: memberships.get(r.id) ?? [],
     characterName: r.character_name,
     avatarId: r.avatar_id,
     lastText: (r.last_text ?? "").slice(0, 160),
@@ -255,6 +266,8 @@ export function updateChat(id: string, patch: { title?: string; personaId?: stri
     now(),
     id,
   );
+  // LIB-04: a title you set yourself is never replaced by an automatic one.
+  if (patch.title !== undefined && patch.title !== cur.title) run("UPDATE chats SET title_locked = 1 WHERE id = ?", id);
   chatChanged(id);
   return getChat(id)!;
 }

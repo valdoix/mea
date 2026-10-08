@@ -16,6 +16,7 @@ import { world } from "./routes/world";
 import { tools } from "./routes/tools";
 import { knowledge } from "./routes/knowledge";
 import { accuracy } from "./routes/accuracy";
+import { stories } from "./routes/stories";
 import { DEVICE_COOKIE, deviceForToken, isTrustedLocal } from "./services/auth";
 import { importFile } from "./services/importer";
 
@@ -78,6 +79,7 @@ export function createApp() {
   app.route("/api", tools);
   app.route("/api", knowledge);
   app.route("/api", accuracy);
+  app.route("/api", stories);
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
   // Android share sheet → import a card (MOB-05). Same auth as the API.

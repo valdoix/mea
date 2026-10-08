@@ -9,6 +9,7 @@ import { markAtomsStaleForMessage } from "./atoms";
 import { buildSummary, chatNames, confirmBoundary, storyNeedsRebuild } from "./build";
 import { embeddingsEnabled } from "./embed";
 import { currentFold } from "../trackers/store";
+import { autoTitle } from "../services/stories";
 import { reconcileScene } from "./reconcile";
 import { detectBoundary, type BoundarySignal } from "./segment";
 import {
@@ -189,6 +190,8 @@ export async function runBuildJob(payload: { chatId: string; summaryId: string; 
   await buildSummary(payload.summaryId, { job, instruction: payload.instruction, propose: payload.propose });
   const built = getSummary(payload.summaryId);
   if (built?.level === "scene" && built.state === "ready") afterScene(payload.chatId, built.id);
+  // LIB-04: a new chapter or Story So Far may name the chat.
+  if ((built?.level === "chapter" || built?.level === "story") && built.state === "ready") autoTitle(payload.chatId);
   // Cascade: a finished scene may complete a chapter, a chapter an arc, and so on.
   queueBuilds(payload.chatId);
   if (embeddingsEnabled()) enqueue("memory.embed", { chatId: payload.chatId }, { dedupeKey: `memory.embed:${payload.chatId}`, delayMs: 3000, chatId: payload.chatId });
