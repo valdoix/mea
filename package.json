@@ -1,0 +1,43 @@
+{
+  "name": "mea",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mea: a personal AI roleplay frontend with deep memory.",
+  "scripts": {
+    "dev": "bun scripts/dev.ts",
+    "dev:server": "bun --watch server/src/index.ts",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts && bun scripts/gen-icons.ts --check",
+    "start": "bun server/src/index.ts",
+    "test": "bun test server/test",
+    "check": "tsc --noEmit -p server/tsconfig.json && svelte-check --workspace web --tsconfig ./tsconfig.json --threshold warning",
+    "budgets": "bun scripts/check-budgets.ts",
+    "icons": "bun scripts/gen-icons.ts"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.16",
+    "fflate": "^0.8.3",
+    "gpt-tokenizer": "^4.0.0",
+    "hono": "^4.13.13",
+    "marked": "^18.1.0",
+    "qrcode": "^1.5.4",
+    "web-push": "^3.6.7",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/literata": "^5.3.0",
+    "@fontsource-variable/lora": "^5.3.0",
+    "@fontsource-variable/nunito": "^5.3.0",
+    "@lucide/svelte": "^1.53.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@types/bun": "^1.4.2",
+    "@types/qrcode": "^1.5.6",
+    "@types/web-push": "^3.6.4",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "^6",
+    "vite": "^8.3.3"
+  }
+}

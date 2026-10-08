@@ -1,0 +1,129 @@
+/* Mea design tokens (UI-02). A theme is just a set of these variables. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  /* Mea Cozy */
+  --bg: #fbf6f1;
+  --surface: #fffdfb;
+  --surface-2: #f6ede7;
+  --surface-3: #efe3db;
+  --border: #eaddd5;
+  --border-strong: #dccbc1;
+  --text: #43363d;
+  --text-muted: #76646d;
+  --text-faint: #9a8a92;
+  --dialogue: #9c3f63;
+  --thought: #6650a8;
+  --action: #76646d;
+  --accent: #e7a1b5;
+  --accent-strong: #d98aa2;
+  --accent-ink: #a3466a;
+  --on-accent: #43363d;
+  --lavender: #c7b8ec;
+  --mint: #b5e0cf;
+  --peach: #f7cbb2;
+  --butter: #f5e3a6;
+  --sky: #b7d3ee;
+  --tint-char: #fdf0f3;
+  --tint-user: #f4f0fc;
+  --tint-note: #fbf3e3;
+  --danger: #a83a54;
+  --danger-bg: #fbe5ea;
+  --ok: #2f7259;
+  --ok-bg: #e2f3ec;
+  --warn: #7d5a10;
+  --warn-bg: #fbf0d5;
+  --shadow-1: 0 1px 2px rgb(67 54 61 / 6%), 0 2px 10px rgb(67 54 61 / 6%);
+  --shadow-2: 0 6px 28px rgb(67 54 61 / 14%);
+  --scrim: rgb(43 32 40 / 38%);
+  --focus: 0 0 0 3px rgb(217 138 162 / 50%);
+  --glass: rgb(255 253 251 / 82%);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* Cozy Night */
+  --bg: #231e2a;
+  --surface: #2d2635;
+  --surface-2: #362e40;
+  --surface-3: #3f3649;
+  --border: #463c52;
+  --border-strong: #574b65;
+  --text: #f2e8ee;
+  --text-muted: #b9aab4;
+  --text-faint: #8f8299;
+  --dialogue: #f2a7bf;
+  --thought: #c9b9f2;
+  --action: #b9aab4;
+  --accent: #f0b3c5;
+  --accent-strong: #e79ab2;
+  --accent-ink: #f2a7bf;
+  --on-accent: #2a1f2c;
+  --lavender: #9f8fd0;
+  --mint: #7fb9a3;
+  --peach: #d9a78c;
+  --butter: #d7c27f;
+  --sky: #8eb0d1;
+  --tint-char: #33293a;
+  --tint-user: #2e2a3d;
+  --tint-note: #352f2a;
+  --danger: #f39aac;
+  --danger-bg: #4a2a35;
+  --ok: #8fd6b7;
+  --ok-bg: #213a33;
+  --warn: #f0cf7e;
+  --warn-bg: #3f3522;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 25%), 0 2px 10px rgb(0 0 0 / 18%);
+  --shadow-2: 0 8px 30px rgb(0 0 0 / 40%);
+  --scrim: rgb(12 8 16 / 55%);
+  --focus: 0 0 0 3px rgb(240 179 197 / 45%);
+  --glass: rgb(45 38 53 / 82%);
+}
+
+:root {
+  --font-ui: "Nunito Variable", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-story: "Lora Variable", "Lora", Georgia, serif;
+  --font-display: "Fraunces Variable", "Fraunces", Georgia, serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  --scale: 1;
+  --fs-xs: calc(0.75rem * var(--scale));
+  --fs-sm: calc(0.875rem * var(--scale));
+  --fs-md: calc(1rem * var(--scale));
+  --fs-story: calc(1.0625rem * var(--scale));
+  --fs-lg: calc(1.25rem * var(--scale));
+  --fs-xl: calc(1.6rem * var(--scale));
+  --r-sm: 10px;
+  --r: 16px;
+  --r-lg: 22px;
+  --r-pill: 999px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --t-fast: 140ms;
+  --t: 220ms;
+  --measure: 46rem;
+  --sidebar-w: 288px;
+  --dock-w: 340px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+:root[data-story-font="literata"] {
+  --font-story: "Literata Variable", "Literata", Georgia, serif;
+}
+:root[data-story-font="nunito"] {
+  --font-story: var(--font-ui);
+}
+
+@media (max-width: 760px) {
+  :root {
+    --fs-story: calc(1.0625rem * var(--scale));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t: 0ms;
+  }
+}

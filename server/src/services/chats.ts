@@ -1,0 +1,401 @@
+import { z } from "zod";
+import { all, newId, now, one, parseJson, run, tx } from "../db/db";
+import { publish } from "../lib/events";
+import { badRequest, notFound } from "../lib/http";
+import { expandMacros } from "../prompt/macros";
+import type { HistoryMessage } from "../prompt/assemble";
+import type { Role } from "../lore/types";
+import { type ChatMode, getCard, getCharacterRow, touchCharacter } from "./characters";
+import { detectMode } from "./mode";
+import { getDefaultPersona, getPersona } from "./personas";
+
+export const chatSettingsSchema = z.object({
+  authorsNote: z.object({ content: z.string(), depth: z.number().int().min(0).max(100), role: z.enum(["system", "user", "assistant"]) }).optional(),
+  profileId: z.string().nullable().optional(),
+  presetId: z.string().nullable().optional(),
+});
+export type ChatSettings = z.infer<typeof chatSettingsSchema>;
+
+interface ChatRow {
+  id: string;
+  character_id: string | null;
+  persona_id: string | null;
+  title: string;
+  mode: ChatMode;
+  settings: string;
+  vars: string;
+  message_count: number;
+  created_at: number;
+  updated_at: number;
+  last_message_at: number | null;
+  archived_at: number | null;
+  deleted_at: number | null;
+}
+
+export interface MessageRow {
+  id: string;
+  chat_id: string;
+  seq: number;
+  role: Role;
+  name: string | null;
+  active_swipe: number;
+  hidden: number;
+  bookmarked: number;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
+export interface SwipeRow {
+  id: string;
+  message_id: string;
+  idx: number;
+  content: string;
+  reasoning: string | null;
+  status: "done" | "streaming" | "error" | "stopped";
+  error: string | null;
+  meta: string;
+  created_at: number;
+  updated_at: number;
+}
+
+const chatChanged = (chatId: string) => publish({ type: "chat.changed", chatId });
+const msgChanged = (chatId: string, messageId: string) => publish({ type: "message.changed", chatId, messageId });
+
+export function getChatRow(id: string) {
+  return one<ChatRow>("SELECT * FROM chats WHERE id = ?", id);
+}
+
+export function mustChat(id: string) {
+  const c = getChatRow(id);
+  if (!c || c.deleted_at) throw notFound("Chat not found");
+  return c;
+}
+
+function chatOut(r: ChatRow) {
+  return {
+    id: r.id,
+    characterId: r.character_id,
+    personaId: r.persona_id,
+    title: r.title,
+    mode: r.mode,
+    settings: parseJson<ChatSettings>(r.settings, {}),
+    messageCount: r.message_count,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    lastMessageAt: r.last_message_at,
+    archivedAt: r.archived_at,
+    deletedAt: r.deleted_at,
+  };
+}
+
+export function getChat(id: string) {
+  const r = getChatRow(id);
+  return r ? chatOut(r) : undefined;
+}
+
+export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number } = {}) {
+  const where = [opts.deleted ? "c.deleted_at IS NOT NULL" : "c.deleted_at IS NULL"];
+  const params: (string | number)[] = [];
+  if (!opts.deleted) where.push(opts.archived ? "c.archived_at IS NOT NULL" : "c.archived_at IS NULL");
+  if (opts.characterId) {
+    where.push("c.character_id = ?");
+    params.push(opts.characterId);
+  }
+  const rows = all<ChatRow & { character_name: string | null; avatar_id: string | null; last_text: string | null; last_role: string | null }>(
+    `SELECT c.*, ch.name AS character_name, ch.avatar_id,
+       (SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+        WHERE m.chat_id = c.id AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 1) AS last_text,
+       (SELECT m.role FROM messages m WHERE m.chat_id = c.id AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 1) AS last_role
+     FROM chats c LEFT JOIN characters ch ON ch.id = c.character_id
+     WHERE ${where.join(" AND ")} ORDER BY COALESCE(c.last_message_at, c.created_at) DESC LIMIT ?`,
+    ...params,
+    opts.limit ?? 200,
+  );
+  return rows.map((r) => ({
+    ...chatOut(r),
+    characterName: r.character_name,
+    avatarId: r.avatar_id,
+    lastText: (r.last_text ?? "").slice(0, 160),
+    lastRole: r.last_role,
+  }));
+}
+
+/** Creates a chat and its greeting: first_mes plus alternate greetings as swipes. */
+export function createChat(input: { characterId: string; personaId?: string | null; mode?: ChatMode; title?: string }) {
+  const row = getCharacterRow(input.characterId);
+  const card = getCard(input.characterId);
+  if (!row || !card || row.deleted_at) throw notFound("Character not found");
+  const persona = getPersona(input.personaId) ?? getPersona(row.default_persona_id) ?? getDefaultPersona();
+  const mode = input.mode ?? row.mode ?? detectMode(card).mode;
+  const id = newId();
+  const t = now();
+  const userName = persona?.name ?? "You";
+  const fill = (s: string) => expandMacros(s, { char: card.name, user: userName, vars: {}, seed: id, mode });
+  const greetings = [card.first_mes, ...card.alternate_greetings].map((g) => fill(g ?? "")).filter((g) => g.trim());
+  tx(() => {
+    run(
+      `INSERT INTO chats (id, character_id, persona_id, title, mode, settings, vars, message_count, created_at, updated_at, last_message_at)
+       VALUES (?, ?, ?, ?, ?, '{}', '{}', 0, ?, ?, ?)`,
+      id,
+      input.characterId,
+      persona?.id ?? null,
+      input.title ?? `${card.name} · ${new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      mode,
+      t,
+      t,
+      t,
+    );
+    if (greetings.length) {
+      const msgId = newId();
+      run(
+        "INSERT INTO messages (id, chat_id, seq, role, name, active_swipe, created_at, updated_at) VALUES (?, ?, 1, 'assistant', ?, 0, ?, ?)",
+        msgId,
+        id,
+        card.name,
+        t,
+        t,
+      );
+      greetings.forEach((g, i) =>
+        run("INSERT INTO swipes (id, message_id, idx, content, status, meta, created_at, updated_at) VALUES (?, ?, ?, ?, 'done', ?, ?, ?)", newId(), msgId, i, g, JSON.stringify({ greeting: true }), t, t),
+      );
+      run("UPDATE chats SET message_count = 1 WHERE id = ?", id);
+    }
+  });
+  touchCharacter(input.characterId);
+  chatChanged(id);
+  return getChat(id)!;
+}
+
+export function updateChat(id: string, patch: { title?: string; personaId?: string | null; mode?: ChatMode; settings?: ChatSettings; archived?: boolean }) {
+  const cur = mustChat(id);
+  run(
+    "UPDATE chats SET title = ?, persona_id = ?, mode = ?, settings = ?, archived_at = ?, updated_at = ? WHERE id = ?",
+    patch.title ?? cur.title,
+    patch.personaId !== undefined ? patch.personaId : cur.persona_id,
+    patch.mode ?? cur.mode,
+    patch.settings ? JSON.stringify({ ...parseJson<ChatSettings>(cur.settings, {}), ...patch.settings }) : cur.settings,
+    patch.archived === undefined ? cur.archived_at : patch.archived ? now() : null,
+    now(),
+    id,
+  );
+  chatChanged(id);
+  return getChat(id)!;
+}
+
+export function softDeleteChat(id: string) {
+  run("UPDATE chats SET deleted_at = ? WHERE id = ?", now(), id);
+  chatChanged(id);
+}
+
+export function restoreChat(id: string) {
+  run("UPDATE chats SET deleted_at = NULL WHERE id = ?", id);
+  chatChanged(id);
+}
+
+export function setChatVars(id: string, vars: Record<string, string>) {
+  run("UPDATE chats SET vars = ? WHERE id = ?", JSON.stringify(vars), id);
+}
+
+// ---------- Messages ----------
+
+export function messageOut(m: MessageRow, swipes: SwipeRow[], includeAllSwipes: boolean) {
+  const active = swipes.find((s) => s.idx === m.active_swipe) ?? swipes[0];
+  return {
+    id: m.id,
+    chatId: m.chat_id,
+    seq: m.seq,
+    role: m.role,
+    name: m.name,
+    hidden: Boolean(m.hidden),
+    bookmarked: Boolean(m.bookmarked),
+    activeSwipe: m.active_swipe,
+    swipeCount: swipes.length,
+    content: active?.content ?? "",
+    reasoning: active?.reasoning ?? null,
+    status: active?.status ?? "done",
+    error: active?.error ?? null,
+    meta: parseJson<Record<string, unknown>>(active?.meta, {}),
+    swipes: includeAllSwipes ? swipes.map((s) => ({ idx: s.idx, content: s.content, status: s.status, error: s.error, meta: parseJson<Record<string, unknown>>(s.meta, {}) })) : undefined,
+    createdAt: m.created_at,
+    updatedAt: m.updated_at,
+  };
+}
+
+export type MessageOut = ReturnType<typeof messageOut>;
+
+export function getMessageRow(id: string) {
+  return one<MessageRow>("SELECT * FROM messages WHERE id = ?", id);
+}
+
+export function getSwipes(messageId: string) {
+  return all<SwipeRow>("SELECT * FROM swipes WHERE message_id = ? ORDER BY idx", messageId);
+}
+
+export function getMessage(id: string, allSwipes = true) {
+  const m = getMessageRow(id);
+  return m ? messageOut(m, getSwipes(id), allSwipes) : undefined;
+}
+
+export function lastMessage(chatId: string) {
+  return one<MessageRow>("SELECT * FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", chatId);
+}
+
+/** A page of messages, oldest first (PERF-02: paginated reads). The last message carries all its swipes. */
+export function listMessages(chatId: string, opts: { before?: number; limit?: number } = {}) {
+  const limit = Math.min(200, opts.limit ?? 60);
+  const rows = all<MessageRow>(
+    `SELECT * FROM messages WHERE chat_id = ? AND deleted_at IS NULL ${opts.before ? "AND seq < ?" : ""} ORDER BY seq DESC LIMIT ?`,
+    ...(opts.before ? [chatId, opts.before, limit + 1] : [chatId, limit + 1]),
+  );
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit).reverse();
+  if (!page.length) return { messages: [], hasMore: false };
+  const ids = page.map((r) => r.id);
+  const swipes = all<SwipeRow>(`SELECT * FROM swipes WHERE message_id IN (${ids.map(() => "?").join(",")}) ORDER BY idx`, ...ids);
+  const byMsg = new Map<string, SwipeRow[]>();
+  for (const s of swipes) {
+    if (!byMsg.has(s.message_id)) byMsg.set(s.message_id, []);
+    byMsg.get(s.message_id)!.push(s);
+  }
+  const last = lastMessage(chatId)?.id;
+  return { messages: page.map((m) => messageOut(m, byMsg.get(m.id) ?? [], m.id === last)), hasMore };
+}
+
+function nextSeq(chatId: string) {
+  return (one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ?", chatId)?.s ?? 0) + 1;
+}
+
+function bumpChat(chatId: string) {
+  const t = now();
+  run(
+    "UPDATE chats SET message_count = (SELECT COUNT(*) FROM messages WHERE chat_id = ? AND deleted_at IS NULL), last_message_at = ?, updated_at = ? WHERE id = ?",
+    chatId,
+    t,
+    t,
+    chatId,
+  );
+}
+
+export function addMessage(chatId: string, role: Role, content: string, opts: { name?: string; status?: SwipeRow["status"]; meta?: Record<string, unknown> } = {}) {
+  const id = newId();
+  const t = now();
+  tx(() => {
+    run("INSERT INTO messages (id, chat_id, seq, role, name, active_swipe, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)", id, chatId, nextSeq(chatId), role, opts.name ?? null, t, t);
+    run(
+      "INSERT INTO swipes (id, message_id, idx, content, status, meta, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?, ?, ?)",
+      newId(),
+      id,
+      content,
+      opts.status ?? "done",
+      JSON.stringify(opts.meta ?? {}),
+      t,
+      t,
+    );
+    bumpChat(chatId);
+  });
+  msgChanged(chatId, id);
+  return id;
+}
+
+export function addSwipe(messageId: string, status: SwipeRow["status"] = "streaming") {
+  const m = getMessageRow(messageId);
+  if (!m) throw notFound("Message not found");
+  const idx = (one<{ i: number | null }>("SELECT MAX(idx) AS i FROM swipes WHERE message_id = ?", messageId)?.i ?? -1) + 1;
+  const t = now();
+  tx(() => {
+    run("INSERT INTO swipes (id, message_id, idx, content, status, meta, created_at, updated_at) VALUES (?, ?, ?, '', ?, '{}', ?, ?)", newId(), messageId, idx, status, t, t);
+    run("UPDATE messages SET active_swipe = ?, updated_at = ? WHERE id = ?", idx, t, messageId);
+  });
+  return idx;
+}
+
+export function updateSwipe(messageId: string, idx: number, patch: Partial<Pick<SwipeRow, "content" | "reasoning" | "status" | "error">> & { meta?: Record<string, unknown> }) {
+  const cur = one<SwipeRow>("SELECT * FROM swipes WHERE message_id = ? AND idx = ?", messageId, idx);
+  if (!cur) return;
+  run(
+    "UPDATE swipes SET content = ?, reasoning = ?, status = ?, error = ?, meta = ?, updated_at = ? WHERE id = ?",
+    patch.content ?? cur.content,
+    patch.reasoning !== undefined ? patch.reasoning : cur.reasoning,
+    patch.status ?? cur.status,
+    patch.error !== undefined ? patch.error : cur.error,
+    patch.meta ? JSON.stringify({ ...parseJson<Record<string, unknown>>(cur.meta, {}), ...patch.meta }) : cur.meta,
+    now(),
+    cur.id,
+  );
+}
+
+/** Edits the active swipe and keeps the previous text (MEM-01 edit history). */
+export function editMessage(id: string, content: string) {
+  const m = getMessageRow(id);
+  if (!m || m.deleted_at) throw notFound("Message not found");
+  const s = one<SwipeRow>("SELECT * FROM swipes WHERE message_id = ? AND idx = ?", id, m.active_swipe);
+  if (!s) throw notFound("Message has no content");
+  if (s.status === "streaming") throw badRequest("Wait for the reply to finish before editing");
+  if (s.content === content) return getMessage(id)!;
+  tx(() => {
+    run("INSERT INTO swipe_edits (id, swipe_id, previous, created_at) VALUES (?, ?, ?, ?)", newId(), s.id, s.content, now());
+    run("UPDATE swipes SET content = ?, status = 'done', error = NULL, updated_at = ? WHERE id = ?", content, now(), s.id);
+    run("UPDATE messages SET updated_at = ? WHERE id = ?", now(), id);
+  });
+  msgChanged(m.chat_id, id);
+  return getMessage(id)!;
+}
+
+export function setActiveSwipe(id: string, idx: number) {
+  const m = getMessageRow(id);
+  if (!m) throw notFound("Message not found");
+  const exists = one("SELECT 1 FROM swipes WHERE message_id = ? AND idx = ?", id, idx);
+  if (!exists) throw badRequest("No such swipe");
+  run("UPDATE messages SET active_swipe = ?, updated_at = ? WHERE id = ?", idx, now(), id);
+  msgChanged(m.chat_id, id);
+  return getMessage(id)!;
+}
+
+export function setMessageFlags(id: string, flags: { hidden?: boolean; bookmarked?: boolean }) {
+  const m = getMessageRow(id);
+  if (!m) throw notFound("Message not found");
+  run(
+    "UPDATE messages SET hidden = ?, bookmarked = ?, updated_at = ? WHERE id = ?",
+    flags.hidden === undefined ? m.hidden : flags.hidden ? 1 : 0,
+    flags.bookmarked === undefined ? m.bookmarked : flags.bookmarked ? 1 : 0,
+    now(),
+    id,
+  );
+  msgChanged(m.chat_id, id);
+  return getMessage(id)!;
+}
+
+export function softDeleteMessage(id: string) {
+  const m = getMessageRow(id);
+  if (!m) throw notFound("Message not found");
+  run("UPDATE messages SET deleted_at = ? WHERE id = ?", now(), id);
+  bumpChat(m.chat_id);
+  msgChanged(m.chat_id, id);
+}
+
+export function restoreMessage(id: string) {
+  const m = getMessageRow(id);
+  if (!m) throw notFound("Message not found");
+  run("UPDATE messages SET deleted_at = NULL WHERE id = ?", id);
+  bumpChat(m.chat_id);
+  msgChanged(m.chat_id, id);
+  return getMessage(id)!;
+}
+
+/** Messages that go into the prompt: not deleted, not hidden, non-empty, oldest first. */
+export function historyForPrompt(chatId: string, opts: { excludeMessageId?: string; uptoSeq?: number } = {}): HistoryMessage[] {
+  return all<{ id: string; role: Role; content: string; seq: number }>(
+    `SELECT m.id, m.role, s.content, m.seq FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+     WHERE m.chat_id = ? AND m.deleted_at IS NULL AND m.hidden = 0 AND s.status != 'error' AND TRIM(s.content) != ''
+     ${opts.uptoSeq != null ? "AND m.seq <= ?" : ""}
+     ORDER BY m.seq`,
+    ...(opts.uptoSeq != null ? [chatId, opts.uptoSeq] : [chatId]),
+  )
+    .filter((m) => m.id !== opts.excludeMessageId)
+    .map(({ id, role, content }) => ({ id, role, content }));
+}
+
+export function messageCountOf(chatId: string) {
+  return one<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.n ?? 0;
+}

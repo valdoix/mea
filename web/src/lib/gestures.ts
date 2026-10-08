@@ -1,0 +1,152 @@
+/** Touch gestures as Svelte actions (MOB-03). */
+
+export function swipe(node: HTMLElement, params: { onLeft?: () => void; onRight?: () => void; enabled?: boolean }) {
+  let p = params;
+  let startX = 0,
+    startY = 0,
+    dx = 0,
+    tracking = false,
+    locked: "x" | "y" | null = null;
+
+  const start = (e: TouchEvent) => {
+    if (p.enabled === false || e.touches.length !== 1) return;
+    startX = e.touches[0]!.clientX;
+    startY = e.touches[0]!.clientY;
+    dx = 0;
+    tracking = true;
+    locked = null;
+  };
+  const move = (e: TouchEvent) => {
+    if (!tracking) return;
+    const x = e.touches[0]!.clientX - startX;
+    const y = e.touches[0]!.clientY - startY;
+    if (!locked && (Math.abs(x) > 10 || Math.abs(y) > 10)) locked = Math.abs(x) > Math.abs(y) * 1.4 ? "x" : "y";
+    if (locked === "x") {
+      dx = x;
+      node.style.transform = `translateX(${x * 0.35}px)`;
+      node.style.transition = "none";
+    }
+  };
+  const end = () => {
+    if (!tracking) return;
+    tracking = false;
+    node.style.transition = "transform 220ms cubic-bezier(.22,1,.36,1)";
+    node.style.transform = "";
+    if (locked === "x" && Math.abs(dx) > 60) {
+      if (dx < 0) p.onLeft?.();
+      else p.onRight?.();
+      navigator.vibrate?.(8);
+    }
+  };
+  node.addEventListener("touchstart", start, { passive: true });
+  node.addEventListener("touchmove", move, { passive: true });
+  node.addEventListener("touchend", end);
+  node.addEventListener("touchcancel", end);
+  return {
+    update(next: typeof params) {
+      p = next;
+    },
+    destroy() {
+      node.removeEventListener("touchstart", start);
+      node.removeEventListener("touchmove", move);
+      node.removeEventListener("touchend", end);
+      node.removeEventListener("touchcancel", end);
+    },
+  };
+}
+
+export function longpress(node: HTMLElement, params: { onLong: (e: { x: number; y: number }) => void; ms?: number }) {
+  let p = params;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let sx = 0,
+    sy = 0,
+    fired = false;
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  const start = (e: TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    fired = false;
+    sx = e.touches[0]!.clientX;
+    sy = e.touches[0]!.clientY;
+    timer = setTimeout(() => {
+      fired = true;
+      navigator.vibrate?.(12);
+      p.onLong({ x: sx, y: sy });
+    }, p.ms ?? 480);
+  };
+  const move = (e: TouchEvent) => {
+    if (Math.abs(e.touches[0]!.clientX - sx) > 10 || Math.abs(e.touches[0]!.clientY - sy) > 10) clear();
+  };
+  const click = (e: Event) => {
+    if (fired) {
+      e.preventDefault();
+      e.stopPropagation();
+      fired = false;
+    }
+  };
+  const ctx = (e: Event) => {
+    if (fired || timer) e.preventDefault();
+  };
+  node.addEventListener("touchstart", start, { passive: true });
+  node.addEventListener("touchmove", move, { passive: true });
+  node.addEventListener("touchend", clear);
+  node.addEventListener("touchcancel", clear);
+  node.addEventListener("click", click, true);
+  node.addEventListener("contextmenu", ctx);
+  return {
+    update(next: typeof params) {
+      p = next;
+    },
+    destroy() {
+      clear();
+      node.removeEventListener("touchstart", start);
+      node.removeEventListener("touchmove", move);
+      node.removeEventListener("touchend", clear);
+      node.removeEventListener("touchcancel", clear);
+      node.removeEventListener("click", click, true);
+      node.removeEventListener("contextmenu", ctx);
+    },
+  };
+}
+
+/** Swipe in from the left screen edge (opens the drawer). */
+export function onEdgeSwipe(cb: () => void) {
+  let sx = -1,
+    sy = 0;
+  const start = (e: TouchEvent) => {
+    const t = e.touches[0]!;
+    sx = t.clientX < 24 ? t.clientX : -1;
+    sy = t.clientY;
+  };
+  const move = (e: TouchEvent) => {
+    if (sx < 0) return;
+    const t = e.touches[0]!;
+    if (t.clientX - sx > 50 && Math.abs(t.clientY - sy) < 40) {
+      sx = -1;
+      cb();
+    }
+  };
+  window.addEventListener("touchstart", start, { passive: true });
+  window.addEventListener("touchmove", move, { passive: true });
+  return () => {
+    window.removeEventListener("touchstart", start);
+    window.removeEventListener("touchmove", move);
+  };
+}
+
+/** Auto-grows a textarea with its content. */
+export function autosize(node: HTMLTextAreaElement, max = 320) {
+  const fit = () => {
+    node.style.height = "auto";
+    node.style.height = `${Math.min(max, node.scrollHeight)}px`;
+    node.style.overflowY = node.scrollHeight > max ? "auto" : "hidden";
+  };
+  node.addEventListener("input", fit);
+  queueMicrotask(fit);
+  return {
+    update: fit,
+    destroy: () => node.removeEventListener("input", fit),
+  };
+}
