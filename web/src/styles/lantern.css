@@ -1,0 +1,290 @@
+/*
+ * Lantern: Mea's night-garden theme. Everything here is scoped to [data-theme="lantern"], so the
+ * Cozy themes stay exactly as they were. Shared pieces (buttons, cards, chips, fields) are restyled
+ * here; the shell, the sky and the chat carry their own Lantern styles.
+ */
+
+:root[data-theme="lantern"] {
+  --chat-w: var(--measure);
+  --portrait-w: 76px;
+  --pad-y: 1.1rem;
+  --pad-x: 1.45rem;
+}
+
+:root[data-theme="lantern"] body {
+  background: var(--bg);
+}
+
+:root[data-theme="lantern"] ::selection {
+  background: rgb(255 158 192 / 32%);
+}
+
+:root[data-theme="lantern"] * {
+  scrollbar-color: rgb(255 255 255 / 13%) transparent;
+}
+
+/* ---------- Type ---------- */
+:root[data-theme="lantern"] h1,
+:root[data-theme="lantern"] h2,
+:root[data-theme="lantern"] h3 {
+  font-weight: 400;
+  letter-spacing: 0;
+  font-variation-settings: normal;
+}
+:root[data-theme="lantern"] h1 {
+  font-size: calc(var(--fs-xl) * 1.45);
+  line-height: 1.05;
+}
+:root[data-theme="lantern"] h2 {
+  font-size: calc(var(--fs-lg) * 1.25);
+}
+:root[data-theme="lantern"] h3 {
+  font-family: var(--font-ui);
+  font-weight: 700;
+}
+:root[data-theme="lantern"] a {
+  color: var(--accent-ink);
+}
+
+/* ---------- Buttons ---------- */
+:root[data-theme="lantern"] .btn {
+  border-radius: 14px;
+  background: var(--fill);
+  border: 1px solid var(--edge);
+  color: var(--text);
+  font-weight: 650;
+  transition:
+    background var(--t-fast) var(--ease),
+    transform 0.25s var(--spring),
+    box-shadow var(--t) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+:root[data-theme="lantern"] .btn:hover {
+  background: var(--fill-2);
+}
+:root[data-theme="lantern"] .btn:active {
+  transform: scale(0.96);
+}
+:root[data-theme="lantern"] .btn.primary {
+  background: var(--grad);
+  border-color: transparent;
+  color: var(--on-accent);
+  box-shadow: 0 0 26px -6px rgb(255 158 192 / 60%);
+}
+:root[data-theme="lantern"] .btn.primary:hover {
+  box-shadow: 0 0 32px -4px rgb(199 180 255 / 70%);
+  background: var(--grad);
+}
+:root[data-theme="lantern"] .btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+:root[data-theme="lantern"] .btn.ghost:hover {
+  background: var(--fill);
+  color: var(--text);
+}
+:root[data-theme="lantern"] .btn.icon {
+  border-radius: 12px;
+}
+:root[data-theme="lantern"] .btn.danger.solid {
+  background: var(--danger-bg);
+}
+
+/* ---------- Fields ---------- */
+:root[data-theme="lantern"] .input,
+:root[data-theme="lantern"] .textarea,
+:root[data-theme="lantern"] .select {
+  background-color: rgb(0 0 0 / 24%);
+  border: 1px solid var(--edge);
+  border-radius: 13px;
+}
+:root[data-theme="lantern"] .input:focus,
+:root[data-theme="lantern"] .textarea:focus,
+:root[data-theme="lantern"] .select:focus {
+  border-color: rgb(255 158 192 / 55%);
+  box-shadow: 0 0 0 4px rgb(255 158 192 / 12%);
+  background-color: rgb(0 0 0 / 32%);
+}
+:root[data-theme="lantern"] option {
+  background: var(--surface);
+  color: var(--text);
+}
+:root[data-theme="lantern"] .field > .label {
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+  color: var(--text-faint);
+}
+:root[data-theme="lantern"] .switch input {
+  background: rgb(255 255 255 / 10%);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+:root[data-theme="lantern"] .switch input::after {
+  background: #e9e0f0;
+}
+:root[data-theme="lantern"] .switch input:checked {
+  background: var(--grad);
+  box-shadow: 0 0 16px -2px rgb(255 158 192 / 55%);
+}
+:root[data-theme="lantern"] .switch input:checked::after {
+  background: #fff;
+}
+:root[data-theme="lantern"] input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* ---------- Surfaces ---------- */
+:root[data-theme="lantern"] .card,
+:root[data-theme="lantern"] .panel {
+  background: var(--pane);
+  border: 1px solid rgb(255 255 255 / 9%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 24px 50px -28px rgb(0 0 0 / 80%);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+:root[data-theme="lantern"] .panel {
+  border-radius: var(--r-lg);
+  padding: 1.3rem 1.4rem;
+}
+:root[data-theme="lantern"] .panel > h2:first-child,
+:root[data-theme="lantern"] .panel > .row > h2:first-child {
+  font-size: 1.6rem;
+}
+
+/* ---------- Chips ---------- */
+:root[data-theme="lantern"] .chip {
+  background: var(--fill);
+  color: var(--text-muted);
+  border: 1px solid var(--edge);
+  font-weight: 600;
+}
+:root[data-theme="lantern"] .chip.rose {
+  background: rgb(255 158 192 / 12%);
+  border-color: rgb(255 158 192 / 30%);
+  color: var(--accent-ink);
+}
+:root[data-theme="lantern"] .chip.lavender {
+  background: rgb(199 180 255 / 12%);
+  border-color: rgb(199 180 255 / 30%);
+  color: var(--lavender);
+}
+:root[data-theme="lantern"] .chip.mint {
+  background: rgb(130 227 211 / 10%);
+  border-color: rgb(130 227 211 / 28%);
+  color: var(--mint);
+}
+:root[data-theme="lantern"] .chip.butter {
+  background: rgb(255 208 143 / 10%);
+  border-color: rgb(255 208 143 / 28%);
+  color: var(--butter);
+}
+:root[data-theme="lantern"] .chip.sky {
+  background: rgb(156 196 255 / 11%);
+  border-color: rgb(156 196 255 / 28%);
+  color: var(--sky);
+}
+:root[data-theme="lantern"] .chip.peach {
+  background: rgb(255 196 163 / 11%);
+  border-color: rgb(255 196 163 / 28%);
+  color: var(--peach);
+}
+
+:root[data-theme="lantern"] .notice {
+  background: var(--fill);
+  border: 1px solid var(--edge);
+}
+:root[data-theme="lantern"] .notice.error {
+  background: var(--danger-bg);
+  border-color: rgb(255 138 154 / 30%);
+}
+:root[data-theme="lantern"] .notice.ok {
+  background: var(--ok-bg);
+  border-color: rgb(130 227 211 / 25%);
+}
+:root[data-theme="lantern"] .notice.warn {
+  background: var(--warn-bg);
+  border-color: rgb(255 208 143 / 25%);
+}
+:root[data-theme="lantern"] kbd {
+  background: rgb(0 0 0 / 25%);
+  border-color: var(--edge);
+}
+:root[data-theme="lantern"] .divider {
+  background: var(--edge);
+}
+
+/* ---------- Segmented (shared component) ---------- */
+:root[data-theme="lantern"] .seg {
+  background: rgb(0 0 0 / 24%);
+  box-shadow: inset 0 0 0 1px var(--edge);
+  border-radius: 14px;
+}
+:root[data-theme="lantern"] .seg button {
+  border-radius: 10px;
+  color: var(--text-faint);
+}
+:root[data-theme="lantern"] .seg button:hover {
+  color: var(--text-muted);
+}
+:root[data-theme="lantern"] .seg button.on {
+  background: rgb(255 255 255 / 12%);
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 16%),
+    0 0 18px rgb(199 180 255 / 22%);
+}
+
+/* ---------- Story text ---------- */
+:root[data-theme="lantern"] .prose em {
+  color: var(--action);
+}
+:root[data-theme="lantern"] .prose code {
+  background: rgb(0 0 0 / 25%);
+}
+:root[data-theme="lantern"] .prose blockquote {
+  border-left-color: rgb(255 208 143 / 45%);
+}
+:root[data-theme="lantern"] mark {
+  background: rgb(255 208 143 / 30%);
+}
+:root[data-theme="lantern"] mark.hl {
+  background: linear-gradient(transparent 50%, rgb(255 158 192 / 32%) 50%);
+}
+
+/* ---------- Shared small pieces ---------- */
+.grad-text {
+  background: var(--grad, linear-gradient(90deg, var(--accent-strong), var(--lavender)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.eyebrow-l {
+  font: 700 0.68rem var(--font-ui);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.eyebrow-l.lamp {
+  color: var(--lamp, var(--accent-strong));
+}
+
+@keyframes lantern-glow {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes lantern-spin {
+  to {
+    --ring: 360deg;
+  }
+}
+@property --ring {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}

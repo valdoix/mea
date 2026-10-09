@@ -109,6 +109,24 @@
   }
 
   const latest = $derived(recent[0]);
+  const when = new Date().toLocaleDateString(undefined, { weekday: "long" });
+
+  /** Lantern: a character card leans toward the pointer and catches the light. */
+  function tilt(el: HTMLElement) {
+    if (app.isMobile || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const move = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      const y = (e.clientY - r.top) / r.height;
+      el.style.transform = `perspective(900px) rotateY(${(x - 0.5) * 9}deg) rotateX(${(0.5 - y) * 9}deg) translateY(-4px)`;
+      el.style.setProperty("--mx", `${x * 100}%`);
+      el.style.setProperty("--my", `${y * 100}%`);
+    };
+    const leave = () => (el.style.transform = "");
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerleave", leave);
+    return { destroy: () => (el.removeEventListener("pointermove", move), el.removeEventListener("pointerleave", leave)) };
+  }
   // UI-14: the chapter you're in and one line of recap, for the Continue card.
   let cont = $state<{ chapter: { title: string; storyTime: string | null } | null; line: string | null } | null>(null);
   $effect(() => {
@@ -137,13 +155,14 @@
 
 <div class="home">
   <header class="hello">
-    <h1>{greeting()} <span class="spark">✿</span></h1>
-    <p class="muted">Pick up a story, or start a new one.</p>
+    <div class="eyebrow-l lamp">{when}</div>
+    <h1>{greeting()}<span class="spark">✿</span></h1>
+    <p class="muted">{latest ? `The lamp is lit. ${latest.characterName ?? "Your story"} is waiting where you left off.` : "Pick up a story, or start a new one."}</p>
   </header>
 
   {#if latest}
     <a href="/chat/{latest.id}" class="continue card">
-      <Avatar id={latest.avatarId} name={latest.characterName ?? ""} size={64} shape="squircle" />
+      <span class="hero-pic"><Avatar id={latest.avatarId} name={latest.characterName ?? ""} size={app.isMobile ? 64 : 112} portrait={!app.isMobile} shape="squircle" /></span>
       <div class="grow">
         <div class="tiny muted eyebrow">Continue · {timeAgo(latest.lastMessageAt)}</div>
         <div class="title">{latest.characterName}{#if cont?.chapter}<span class="chapter"> · {cont.chapter.title}</span>{/if}</div>
@@ -212,7 +231,8 @@
     {:else}
       <div class="grid">
         {#each characters as c (c.id)}
-          <a href="/character/{c.id}" class="char card">
+          <a href="/character/{c.id}" class="char card" use:tilt>
+            <span class="shine" aria-hidden="true"></span>
             <div class="portrait">
               <Avatar id={c.avatarId} name={c.name} size={220} portrait shape="squircle" palette={c.palette} />
               <button class="fav" class:on={c.favorite} onclick={(e) => toggleFav(c, e)} aria-label={c.favorite ? "Unfavorite" : "Favorite"}>
@@ -430,7 +450,142 @@
     background: var(--surface);
     font-weight: 700;
   }
+  /* ---------- Lantern ---------- */
+  .shine {
+    display: none;
+  }
+  :global([data-theme="lantern"]) .home {
+    gap: 1.8rem;
+  }
+  :global([data-theme="lantern"]) .hello h1 {
+    font-size: clamp(2.6rem, 6vw, 4.4rem);
+    line-height: 0.95;
+    margin: 0.5rem 0 0.4rem;
+  }
+  :global([data-theme="lantern"]) .hello .spark {
+    margin-left: 0.25em;
+    font-size: 0.45em;
+    vertical-align: middle;
+    color: var(--lamp);
+    text-shadow: 0 0 16px var(--lamp);
+  }
+  :global([data-theme="lantern"]) .hello p {
+    font-size: 1.02rem;
+  }
+  :global([data-theme="lantern"]) .continue {
+    position: relative;
+    overflow: hidden;
+    gap: 1.6rem;
+    padding: 1.3rem 1.6rem 1.3rem 1.3rem;
+    border-radius: 30px;
+    background:
+      radial-gradient(500px 240px at 0% 0%, rgb(255 208 143 / 14%), transparent 70%),
+      linear-gradient(135deg, rgb(255 255 255 / 8%), rgb(255 158 192 / 5%) 60%, rgb(199 180 255 / 6%));
+    border-color: rgb(255 208 143 / 28%);
+  }
+  :global([data-theme="lantern"]) .continue:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 30px 60px -24px rgb(0 0 0 / 80%), 0 0 40px -16px rgb(255 208 143 / 45%);
+  }
+  :global([data-theme="lantern"]) .hero-pic {
+    display: inline-flex;
+    border-radius: 24px;
+    box-shadow:
+      0 0 0 2px var(--bg),
+      0 0 0 3.5px rgb(255 208 143 / 60%),
+      0 20px 40px -14px rgb(0 0 0 / 75%);
+  }
+  :global([data-theme="lantern"]) .hero-pic :global(.avatar) {
+    border-radius: 24px !important;
+  }
+  :global([data-theme="lantern"]) .continue .eyebrow {
+    color: var(--lamp);
+    letter-spacing: 0.2em;
+  }
+  :global([data-theme="lantern"]) .continue .title {
+    font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+    font-weight: 400;
+    line-height: 1.05;
+    margin: 0.2rem 0 0.3rem;
+  }
+  :global([data-theme="lantern"]) .continue .recapline {
+    font: italic 400 1.05rem/1.55 var(--font-story);
+    color: #f0e2d6;
+    padding-left: 0.9rem;
+    border-left: 2px solid var(--lamp);
+  }
+  :global([data-theme="lantern"]) .continue .go {
+    background: var(--grad-warm);
+    color: #2b1724;
+    min-height: 3rem;
+    padding: 0 1.3rem;
+  }
+  :global([data-theme="lantern"]) .mini {
+    border-radius: 18px;
+  }
+  :global([data-theme="lantern"]) .toolbar h2 {
+    font-size: 2rem;
+  }
+  :global([data-theme="lantern"]) .grid {
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+    gap: 1.1rem;
+  }
+  :global([data-theme="lantern"]) .char {
+    position: relative;
+    border-radius: 26px;
+    transform-style: preserve-3d;
+    transition:
+      transform 0.5s var(--ease),
+      box-shadow 0.4s;
+  }
+  :global([data-theme="lantern"]) .char .portrait {
+    aspect-ratio: 3 / 4.1;
+  }
+  :global([data-theme="lantern"]) .char .portrait :global(.avatar img) {
+    transition: transform 0.8s var(--ease);
+  }
+  :global([data-theme="lantern"]) .char:hover .portrait :global(.avatar img) {
+    transform: scale(1.06);
+  }
+  :global([data-theme="lantern"]) .char .meta {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 3.2rem 0.95rem 0.95rem;
+    background: linear-gradient(180deg, transparent, rgb(14 10 24 / 78%) 45%, rgb(14 10 24 / 95%));
+  }
+  :global([data-theme="lantern"]) .char .name {
+    font: 400 1.65rem/1.05 var(--font-display);
+    white-space: normal;
+  }
+  :global([data-theme="lantern"]) .shine {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: radial-gradient(circle at var(--mx, 50%) var(--my, 0%), rgb(255 255 255 / 16%), transparent 45%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  :global([data-theme="lantern"]) .char:hover .shine {
+    opacity: 1;
+  }
+  :global([data-theme="lantern"]) .fav {
+    z-index: 3;
+    background: rgb(0 0 0 / 35%);
+    color: var(--accent);
+  }
+
   @media (max-width: 760px) {
+    :global([data-theme="lantern"]) .grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    :global([data-theme="lantern"]) .char .name {
+      font-size: 1.3rem;
+    }
     .home {
       padding-top: 1.2rem;
     }

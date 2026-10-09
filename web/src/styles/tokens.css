@@ -81,6 +81,62 @@
   --glass: rgb(45 38 53 / 82%);
 }
 
+:root[data-theme="lantern"] {
+  color-scheme: dark;
+  /* Lantern: a night garden. Deep ink, lamplight, rose and sea glass. */
+  --bg: #0e0a18;
+  --surface: #1c1530;
+  --surface-2: #251c3b;
+  --surface-3: #2f2549;
+  --border: #33294b;
+  --border-strong: #463a62;
+  --text: #f5eef7;
+  --text-muted: #b9abc8;
+  --text-faint: #8a7d9e;
+  --dialogue: #ffd6e5;
+  --thought: #c7b4ff;
+  --action: #b9abc8;
+  --accent: #ff9ec0;
+  --accent-strong: #f58bb0;
+  --accent-ink: #ffb3cd;
+  --on-accent: #24142f;
+  --lavender: #c7b4ff;
+  --mint: #82e3d3;
+  --peach: #ffc4a3;
+  --butter: #ffd08f;
+  --sky: #9cc4ff;
+  --tint-char: rgb(255 255 255 / 6%);
+  --tint-user: rgb(156 196 255 / 10%);
+  --tint-note: rgb(255 208 143 / 8%);
+  --danger: #ff8a9a;
+  --danger-bg: #3d1f2c;
+  --ok: #82e3d3;
+  --ok-bg: #16322f;
+  --warn: #ffd08f;
+  --warn-bg: #3a2c1c;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px -10px rgb(0 0 0 / 55%);
+  --shadow-2: 0 24px 60px -20px rgb(0 0 0 / 75%);
+  --scrim: rgb(8 5 16 / 62%);
+  --focus: 0 0 0 3px rgb(255 158 192 / 40%);
+  --glass: rgb(26 19 42 / 72%);
+
+  --lamp: #ffd08f;
+  --rose: #ff9ec0;
+  --sea: #82e3d3;
+  --grad: linear-gradient(135deg, #ff9ec0 0%, #c7b4ff 52%, #82e3d3 100%);
+  --grad-warm: linear-gradient(135deg, #ffd08f, #ff9ec0);
+  --hair: linear-gradient(160deg, rgb(255 255 255 / 22%), rgb(255 255 255 / 5%) 38%, rgb(255 255 255 / 4%) 70%, rgb(255 255 255 / 13%));
+  --pane: linear-gradient(160deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 2.5%));
+  --edge: rgb(255 255 255 / 10%);
+  --fill: rgb(255 255 255 / 6%);
+  --fill-2: rgb(255 255 255 / 10%);
+  --r-sm: 12px;
+  --r: 18px;
+  --r-lg: 24px;
+  --font-ui: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+}
+
 :root {
   --font-ui: "Nunito Variable", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-story: "Lora Variable", "Lora", Georgia, serif;
@@ -108,6 +164,17 @@
   --safe-top: env(safe-area-inset-top, 0px);
 }
 
+:root[data-theme="lantern"] {
+  --font-ui: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --r-sm: 12px;
+  --r: 18px;
+  --r-lg: 24px;
+}
+
+:root[data-story-font="newsreader"] {
+  --font-story: "Newsreader Variable", "Newsreader", Georgia, serif;
+}
 :root[data-story-font="literata"] {
   --font-story: "Literata Variable", "Literata", Georgia, serif;
 }

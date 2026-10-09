@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>Mea</title>
     <meta name="description" content="Mea: a cozy roleplay frontend that remembers your story." />
-    <meta name="theme-color" content="#FBF6F1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#231E2A" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#0E0A18" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0E0A18" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -16,10 +16,12 @@
     <script>
       // Apply the theme before first paint to avoid a flash.
       try {
-        var t = localStorage.getItem("mea.theme") || "system";
+        var t = localStorage.getItem("mea.theme") || "lantern";
         var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.dataset.theme = dark ? "dark" : "light";
-      } catch (e) {}
+        document.documentElement.dataset.theme = t === "lantern" ? "lantern" : dark ? "dark" : "light";
+      } catch (e) {
+        document.documentElement.dataset.theme = "lantern";
+      }
     </script>
   </head>
   <body>

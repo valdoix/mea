@@ -452,10 +452,10 @@ export interface Typography {
 
 export interface Settings {
   "routing.story": string | null;
-  "appearance.theme": "system" | "light" | "dark";
+  "appearance.theme": "system" | "light" | "dark" | "lantern";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
-  "appearance.storyFont": "lora" | "literata" | "nunito";
+  "appearance.storyFont": "lora" | "literata" | "nunito" | "newsreader";
   /** LORE-15: underline lore terms in messages. */
   "appearance.glossary": boolean;
   "appearance.typography"?: Typography;

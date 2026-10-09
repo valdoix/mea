@@ -5,7 +5,7 @@
   import type { ChatDetail, Connection, ModelInfo, Profile } from "../../lib/types";
 
   /** CONN-07: switch models from the header. Profiles first, then starred models (kept with the chat's profile settings). */
-  let { detail, onchange }: { detail: ChatDetail; onchange: () => void } = $props();
+  let { detail, onchange, up = false }: { detail: ChatDetail; onchange: () => void; /** Open upward, with the model's name always shown (the composer's tray). */ up?: boolean } = $props();
 
   let open = $state(false);
   let profiles = $state<Profile[]>([]);
@@ -63,7 +63,7 @@
   }
 </script>
 
-<div class="ms">
+<div class="ms" class:up>
   <button class="btn ghost small trigger" bind:this={btn} onclick={() => (open = !open)} title="Switch model for this chat" aria-haspopup="menu" aria-expanded={open}>
     <Cpu size={15} /> <span class="truncate lbl hide-sm">{label}</span>
   </button>
@@ -109,6 +109,22 @@
   }
   .lbl {
     max-width: 8rem;
+  }
+  .up .pop {
+    top: auto;
+    bottom: calc(100% + 0.3rem);
+    right: auto;
+    left: 0;
+  }
+  .up .trigger,
+  .up .lbl {
+    max-width: none;
+  }
+  .up .lbl {
+    display: inline !important;
+  }
+  :global([data-theme="lantern"]) .pop {
+    background: rgb(30 22 50 / 97%);
   }
   .pop {
     position: absolute;

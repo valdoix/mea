@@ -4,14 +4,29 @@
     {
       "name": "mea-dev",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "mea-dev-alt-port",
       "runtimeExecutable": "powershell",
-      "runtimeArgs": ["-NoProfile", "-Command", "$env:MEA_PORT='7767'; bun run dev"],
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:MEA_PORT='7767'; bun run dev"
+      ],
       "port": 5173
+    },
+    {
+      "name": "lantern-mockup",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "mockups/lantern/serve.ts"
+      ],
+      "port": 5190
     }
   ]
 }

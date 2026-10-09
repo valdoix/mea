@@ -6,9 +6,8 @@
   import Composer from "../components/chat/Composer.svelte";
   import MemoryPanel from "../components/memory/MemoryPanel.svelte";
   import TrackerPanel from "../components/trackers/TrackerPanel.svelte";
-  import Hud from "../components/trackers/Hud.svelte";
   import WorldPanel from "../components/world/WorldPanel.svelte";
-  import ModelSwitcher from "../components/chat/ModelSwitcher.svelte";
+  import DisplayMenu from "../components/chat/DisplayMenu.svelte";
   import ChatSearch from "../components/chat/ChatSearch.svelte";
   import ArchivistPanel from "../components/chat/ArchivistPanel.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
@@ -17,19 +16,17 @@
   import { delight } from "../lib/delight";
   import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
   import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
-  import Segmented from "../components/Segmented.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
   import MessageItem from "../components/chat/MessageItem.svelte";
   import Modal from "../components/Modal.svelte";
-  import QuotaRing from "../components/QuotaRing.svelte";
   import { ApiError, del, get, imageUrl, patch, post, put } from "../lib/api";
   import { promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
-  import { compact } from "../lib/format";
-  import { ArrowDown, ArrowLeft, BookOpen, Library, PanelRight, Search } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessageQuestion, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
+  import { layout, setFocus, toggleDock, toggleRail } from "../lib/layout.svelte";
   import { renderMessage } from "../lib/render";
   import { back, navigate, route } from "../lib/router.svelte";
-  import { app, errorToast, toast } from "../lib/state.svelte";
+  import { app, errorToast, saveSetting, toast } from "../lib/state.svelte";
   import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, CodexPage, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
 
   let { id }: { id: string } = $props();
@@ -41,7 +38,7 @@
   let loadingOlder = $state(false);
   let gens = $state<Record<string, string>>({});
   let hasModel = $state(true);
-  let panelOpen = $state(localStorage.getItem("mea.panel") !== "0");
+  const panelOpen = $derived(layout.dock && !layout.focus);
   let sheetOpen = $state(false);
   let inspectorOpen = $state(false);
   let inspectGen = $state<string | null>(null);
@@ -55,13 +52,17 @@
   type DockTab = "chat" | "memory" | "story" | "world" | "ask" | "notes";
   let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "ask", "notes"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
   const dockOptions = [
-    { value: "chat" as const, label: "Chat" },
-    { value: "memory" as const, label: "Memory" },
-    { value: "story" as const, label: "Story" },
-    { value: "world" as const, label: "World" },
-    { value: "ask" as const, label: "Ask" },
-    { value: "notes" as const, label: "Notes" },
+    { value: "chat" as const, label: "Chat", icon: SlidersHorizontal },
+    { value: "memory" as const, label: "Memory", icon: Brain },
+    { value: "story" as const, label: "Story", icon: Heart },
+    { value: "world" as const, label: "World", icon: Globe },
+    { value: "ask" as const, label: "Ask", icon: MessageQuestion },
+    { value: "notes" as const, label: "Notes", icon: NotebookPen },
   ];
+  function pickDock(v: DockTab) {
+    dockTab = v;
+    localStorage.setItem("mea.dockTab", v);
+  }
   // Phase 3: continuity notes per message (CON-02), glossary terms (LORE-15).
   let flags = $state<Record<string, ContinuityFlag>>({});
   let terms = $state<GlossaryTerm[]>([]);
@@ -329,7 +330,35 @@
   }
 
   const firstSeq = $derived(messages[0]?.seq ?? 0);
-  const dividersAt = (seq: number) => (seq === firstSeq && !hasMore ? [] : boundaries.filter((b) => b.startSeq === seq && !(b.level === "scene" && boundaries.some((c) => c.level === "chapter" && c.startSeq === seq))));
+  const dividersAt = (seq: number) =>
+    boundaries.filter((b) => b.startSeq === seq && !(b.level === "scene" && ((seq === firstSeq && !hasMore) || boundaries.some((c) => c.level === "chapter" && c.startSeq === seq))));
+  // Lantern: chapters are numbered, and each knows how many scenes it holds.
+  const chapters = $derived(boundaries.filter((b) => b.level === "chapter").sort((a, b) => a.startSeq - b.startSeq));
+  const openingChapter = $derived(!hasMore && chapters.some((c) => c.startSeq === firstSeq));
+  function roman(n: number) {
+    const map: [number, string][] = [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]];
+    let out = "";
+    for (const [v, r] of map) while (n >= v) ((out += r), (n -= v));
+    return out;
+  }
+  function chapterInfo(b: Boundary) {
+    const i = chapters.findIndex((c) => c.id === b.id);
+    const next = chapters[i + 1]?.startSeq ?? Infinity;
+    const scenes = boundaries.filter((x) => x.level === "scene" && x.startSeq >= b.startSeq && x.startSeq < next).length;
+    return { n: roman(i + 1), scenes };
+  }
+  /** A little picture for a scene, from when and where it happens. */
+  function sceneIcon(b: Boundary) {
+    const t = `${b.title} ${b.storyTime ?? ""}`.toLowerCase();
+    if (/rain|storm|gale|snow|thunder|fog|mist/.test(t)) return CloudRain;
+    if (/dawn|sunrise|morning/.test(t)) return Sunrise;
+    if (/dusk|sunset|evening/.test(t)) return Sunset;
+    if (/night|midnight|moon|dark|bell/.test(t)) return Moon;
+    if (/noon|afternoon|day|sun/.test(t)) return Sun;
+    return MapPin;
+  }
+  const hud = $derived(trk.data?.hud && trk.data.config.mode !== "off" ? trk.data.hud : "");
+  const chatStyle = $derived(app.settings?.["appearance.chatStyle"] ?? "cards");
 
   async function endScene(m: Message) {
     try {
@@ -670,10 +699,9 @@
   }
 
   function openStory() {
-    dockTab = "story";
-    localStorage.setItem("mea.dockTab", "story");
+    pickDock("story");
     if (app.isMobile) sheetOpen = true;
-    else if (!panelOpen) togglePanel();
+    else if (!layout.dock) toggleDock();
   }
 
   async function flag(m: Message, flags: { hidden?: boolean; bookmarked?: boolean }) {
@@ -705,6 +733,10 @@
       glossPick = null;
       return;
     }
+    if (e.key === "Escape" && layout.focus) {
+      setFocus(false);
+      return;
+    }
     if (!lastMsg || lastMsg.role !== "assistant") return;
     if (e.altKey && e.key.toLowerCase() === "r" && !generating) {
       e.preventDefault();
@@ -721,8 +753,8 @@
   function togglePanel() {
     if (app.isMobile) sheetOpen = true;
     else {
-      panelOpen = !panelOpen;
-      localStorage.setItem("mea.panel", panelOpen ? "1" : "0");
+      if (layout.focus) setFocus(false);
+      toggleDock();
     }
   }
 
@@ -731,7 +763,6 @@
     inspectorOpen = true;
   }
 
-  const meterPct = $derived(preview ? Math.min(100, (preview.est / preview.target) * 100) : 0);
 </script>
 
 <svelte:window onkeydown={onkey} />
@@ -739,33 +770,50 @@
 {#if error}
   <div class="center"><div class="stack" style="text-align:center"><h2>Couldn't open this chat</h2><p class="muted">{error}</p><a href="/">Back home</a></div></div>
 {:else if detail}
-  <div class="chat" class:with-panel={panelOpen && !app.isMobile} class:art={Boolean(amb.imageId)} style:--accent={ambAccent} style:--panel="{Math.round((amb.panel ?? 0.86) * 100)}%">
+  <div class="chat" class:with-panel={panelOpen && !app.isMobile} class:focus={layout.focus} class:art={Boolean(amb.imageId)} style:--accent={ambAccent} style:--panel="{Math.round((amb.panel ?? 0.86) * 100)}%">
     <div class="main-col">
-      <header class="bar">
+      <header class="bar" class:compact={layout.focus}>
         {#if app.isMobile}
           <button class="btn ghost icon" onclick={() => back("/")} aria-label="Back"><ArrowLeft size={20} /></button>
         {/if}
-        <a href={detail.character ? `/character/${detail.character.id}` : "/"} class="who">
-          <Avatar id={detail.character?.avatarId} name={charName} size={app.isMobile ? 34 : 40} palette={detail.character?.palette ?? []} />
-          <span class="grow names">
-            <span class="cname truncate">{charName}</span>
-            <span class="ctitle truncate">{detail.chat.title}</span>
-          </span>
-        </a>
+        <div class="who">
+          <a class="pic" href={detail.character ? `/character/${detail.character.id}` : "/"} aria-label="{charName}'s page">
+            <Avatar id={detail.character?.avatarId} name={charName} size={app.isMobile ? 40 : layout.focus ? 42 : 58} palette={detail.character?.palette ?? []} />
+          </a>
+          <div class="grow names">
+            <a class="cname truncate" href={detail.character ? `/character/${detail.character.id}` : "/"}>{charName}<em class="ctitle hide-sm"> · {detail.chat.title}</em></a>
+            {#if !layout.focus && (hud || detail.chat.mode === "narrator" || trk.running)}
+              <button class="sub" onclick={openStory} title="Story state: open the Story panel">
+                {#if detail.chat.mode === "narrator"}<span class="chip lavender">Narrator</span>{/if}
+                {#if trk.running}<span class="live" aria-label="Reading the latest reply"></span>{/if}
+                {#if hud}<span class="hudline truncate">{hud}</span>{/if}
+              </button>
+            {/if}
+          </div>
+        </div>
         <div class="row tools">
-          {#if detail.chat.mode === "narrator"}<span class="chip lavender hide-sm">Narrator</span>{/if}
-          {#if preview}
-            <button class="meter" onclick={() => openInspector(null)} title="Prompt size: about {preview.est.toLocaleString()} of {preview.target.toLocaleString()} tokens. Click to inspect.">
-              <span class="track"><span class="fill" style:width="{meterPct}%"></span></span>
-              <span class="tiny muted hide-sm">{compact(preview.est)} / {compact(preview.target)}</span>
-            </button>
+          {#if !layout.focus}
+            <div class="styles hide-sm" role="radiogroup" aria-label="Chat style">
+              <button role="radio" aria-checked={chatStyle === "cards"} class:on={chatStyle === "cards"} onclick={() => saveSetting("appearance.chatStyle", "cards")} title="Cards"><Rows2 size={15} /> Cards</button>
+              <button role="radio" aria-checked={chatStyle === "book"} class:on={chatStyle === "book"} onclick={() => saveSetting("appearance.chatStyle", "book")} title="Book"><BookOpen size={15} /> Book</button>
+              <button role="radio" aria-checked={chatStyle === "bubbles"} class:on={chatStyle === "bubbles"} onclick={() => saveSetting("appearance.chatStyle", "bubbles")} title="Bubbles"><MessageCircle size={15} /> Bubbles</button>
+            </div>
+            <span class="sep hide-sm"></span>
+            <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" title="Search this chat" class:on={searchOpen}><Search size={18} /></button>
+            <a class="btn ghost icon hide-sm" href="/chat/{id}/codex" aria-label="Codex: people, places, timeline" title="Codex"><Library size={18} /></a>
+            <a class="btn ghost icon" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>
+            <DisplayMenu />
+            <span class="sep hide-sm"></span>
+            {#if app.theme === "lantern" && !app.isMobile}
+              <button class="btn ghost icon" onclick={() => toggleRail(true)} class:on={layout.railChat} aria-label={layout.railChat ? "Hide navigation" : "Show navigation"} title={layout.railChat ? "Hide navigation" : "Show navigation"}><PanelLeft size={18} /></button>
+            {/if}
+            <button class="btn ghost icon" onclick={togglePanel} aria-label={app.isMobile ? "Memory, story and world" : panelOpen ? "Hide the side panel" : "Show the side panel"} title={panelOpen && !app.isMobile ? "Hide the side panel" : "Memory, story, world and notes"} class:on={panelOpen && !app.isMobile}><PanelRight size={18} /></button>
           {/if}
-          <ModelSwitcher {detail} onchange={() => load()} />
-          <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" class:on={searchOpen}><Search size={18} /></button>
-          <a class="btn ghost icon hide-sm" href="/chat/{id}/codex" aria-label="Codex: people, places, timeline" title="Codex"><Library size={18} /></a>
-          <a class="btn ghost icon hide-sm" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>
-          <QuotaRing size={22} />
-          <button class="btn ghost icon" onclick={togglePanel} aria-label="Chat settings" class:on={panelOpen && !app.isMobile}><PanelRight size={19} /></button>
+          {#if layout.focus}
+            <button class="btn small leave" onclick={() => setFocus(false)}><span class="spark">✦</span> Leave focus</button>
+          {:else}
+            <button class="btn ghost icon" onclick={() => setFocus(true)} aria-label="Focus on the story" title="Focus on the story: hide everything else"><Scan size={18} /></button>
+          {/if}
         </div>
       </header>
 
@@ -784,21 +832,39 @@
           {#if hasMore}
             <div class="older tiny muted">{loadingOlder ? "Loading earlier messages…" : "Scroll up for earlier messages"}</div>
           {:else}
-            <div class="start">
-              <span class="orn">✿</span>
-              <span class="tiny muted">The story of {charName} and {personaName} begins</span>
-            </div>
+            {#if !openingChapter}
+              <div class="start">
+                <span class="orn-line"><span></span><i>✿</i><span></span></span>
+                <span class="begins">The story of {charName} and {personaName} begins</span>
+              </div>
+            {/if}
           {/if}
           {#each messages as m (m.id)}
             {#each dividersAt(m.seq) as b (b.id)}
               {#if b.level === "chapter"}
-                <a class="divider chapter" href="/chat/{id}/memory" title={b.boundary ?? ""}>
-                  <span class="orn">✿</span>
-                  <span class="ctitle-div">{b.title || "A new chapter"}</span>
-                  {#if b.storyTime}<span class="tiny muted">{b.storyTime}</span>{/if}
+                {@const info = chapterInfo(b)}
+                <a class="chapter-h" href="/chat/{id}/memory" title="Open this chapter in memory">
+                  <span class="orn-line"><span></span><i>✦</i><span></span></span>
+                  <span class="ch-num">Chapter <b>{info.n}</b></span>
+                  <span class="ch-title">{b.title || (b.startSeq === firstSeq && !hasMore ? "The beginning" : "A new chapter")}</span>
+                  {#if b.storyTime || info.scenes}
+                    <span class="ch-meta">
+                      {#if b.storyTime}<span>{b.storyTime}</span>{/if}
+                      {#if b.storyTime && info.scenes}<i></i>{/if}
+                      {#if info.scenes}<span>{info.scenes} scene{info.scenes === 1 ? "" : "s"}</span>{/if}
+                    </span>
+                  {/if}
                 </a>
               {:else}
-                <a class="divider scene tiny" href="/chat/{id}/memory" title={b.boundary ?? ""}><span>{b.title || "· · ·"}</span></a>
+                {@const Icon = sceneIcon(b)}
+                <a class="scene-h" href="/chat/{id}/memory" title="Open this scene in memory">
+                  <span class="sc-line"></span>
+                  <span class="sc-body">
+                    <span class="sc-ic"><Icon size={14} /></span>
+                    <span class="sc-text"><b>{b.title || "A new scene"}</b>{#if b.storyTime}<span>{b.storyTime}</span>{/if}</span>
+                  </span>
+                  <span class="sc-line"></span>
+                </a>
               {/if}
             {/each}
             {#if firstVerbatim === m.seq && (messages[0]?.seq ?? 0) < m.seq}
@@ -873,15 +939,16 @@
         {#if !hasModel}
           <div class="notice warn tiny setup">No model is set up yet. <a href="/settings/models">Connect NanoGPT</a> to start writing.</div>
         {/if}
-        <Hud onopen={openStory} />
-        <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} />
+        <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} {preview} oninspect={() => openInspector(null)} lastMessageId={lastMsg?.id ?? null} />
       </div>
     </div>
 
     {#if panelOpen && !app.isMobile}
       <aside class="dock">
-        <div class="dock-tabs">
-          <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
+        <div class="dock-tabs" role="tablist" aria-label="Side panel">
+          {#each dockOptions as o (o.value)}
+            <button role="tab" aria-selected={dockTab === o.value} class:on={dockTab === o.value} onclick={() => pickDock(o.value)}><o.icon size={16} /><span>{o.label}</span></button>
+          {/each}
         </div>
         {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
       </aside>
@@ -890,8 +957,10 @@
 
   {#if app.isMobile}
     <Modal bind:open={sheetOpen} title="This chat">
-      <div class="dock-tabs">
-        <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
+      <div class="dock-tabs" role="tablist" aria-label="Side panel">
+        {#each dockOptions as o (o.value)}
+          <button role="tab" aria-selected={dockTab === o.value} class:on={dockTab === o.value} onclick={() => pickDock(o.value)}><o.icon size={16} /><span>{o.label}</span></button>
+        {/each}
       </div>
       {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
     </Modal>
@@ -1058,61 +1127,8 @@
     backdrop-filter: blur(12px);
     z-index: 5;
   }
-  .who {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-width: 0;
-    flex: 1;
-    color: var(--text);
-    text-decoration: none !important;
-  }
-  .names {
-    display: grid;
-    min-width: 0;
-  }
-  .cname {
-    font-family: var(--font-display);
-    font-variation-settings: "SOFT" 100;
-    font-weight: 600;
-    font-size: 1.1rem;
-  }
-  .ctitle {
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-  }
   .tools {
     gap: 0.35rem;
-  }
-  .tools .on {
-    background: var(--surface-2);
-  }
-  .meter {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    border: 0;
-    background: none;
-    cursor: pointer;
-    padding: 0.3rem;
-    border-radius: var(--r-sm);
-  }
-  .meter:hover {
-    background: var(--surface-2);
-  }
-  .track {
-    width: 3.2rem;
-    height: 0.4rem;
-    border-radius: var(--r-pill);
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .fill {
-    display: block;
-    height: 100%;
-    background: linear-gradient(90deg, var(--lavender), var(--accent));
-    border-radius: inherit;
-    transition: width 0.5s var(--ease);
   }
   .ambience {
     position: absolute;
@@ -1161,21 +1177,10 @@
     scroll-padding-bottom: 2rem;
   }
   .column {
-    max-width: var(--measure);
+    max-width: var(--chat-w, var(--measure));
+    transition: max-width 0.4s var(--ease);
     margin: 0 auto;
     padding: 1.2rem 1.1rem 1.5rem;
-  }
-  .start,
-  .older {
-    display: grid;
-    justify-items: center;
-    gap: 0.3rem;
-    padding: 1rem 0 1.4rem;
-    text-align: center;
-  }
-  .orn {
-    color: var(--accent-strong);
-    font-size: 1.2rem;
   }
   .center-text {
     text-align: center;
@@ -1183,7 +1188,7 @@
   }
   .composer-area {
     padding: 0.4rem 1rem calc(0.8rem + var(--safe-bottom));
-    max-width: calc(var(--measure) + 2rem);
+    max-width: calc(var(--chat-w, var(--measure)) + 2rem);
     width: 100%;
     margin: 0 auto;
     display: grid;
@@ -1225,9 +1230,6 @@
     box-shadow: var(--shadow-2);
     z-index: 4;
   }
-  .dock-tabs {
-    margin-bottom: 1rem;
-  }
   .divider {
     display: grid;
     justify-items: center;
@@ -1235,17 +1237,6 @@
     color: var(--text-muted);
     text-decoration: none !important;
     margin: 0.6rem 0;
-  }
-  .divider.chapter {
-    gap: 0.15rem;
-    padding: 1.4rem 0 0.8rem;
-  }
-  .ctitle-div {
-    font-family: var(--font-display);
-    font-variation-settings: "SOFT" 100;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text);
   }
   .divider.evict {
     grid-template-columns: 1fr auto 1fr;
@@ -1273,17 +1264,6 @@
   .recap-title {
     font-family: var(--font-display);
     font-variation-settings: "SOFT" 100;
-  }
-  .divider.scene {
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 0.6rem;
-  }
-  .divider.scene::before,
-  .divider.scene::after {
-    content: "";
-    height: 1px;
-    background: var(--border);
   }
   .knows {
     padding: 0.6rem 0.8rem;
@@ -1329,6 +1309,479 @@
     }
     .jump {
       bottom: 5.8rem;
+    }
+  }
+
+  /* ---------- Header ---------- */
+  .who {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 0;
+    flex: 1;
+  }
+  .pic {
+    display: grid;
+    flex: none;
+    padding: 3px;
+    border-radius: 50%;
+    text-decoration: none !important;
+    background: conic-gradient(from var(--ring), #ff9ec0, #ffd08f, #82e3d3, #c7b4ff, #ff9ec0);
+    animation: lantern-spin 7s linear infinite;
+  }
+  .pic :global(.avatar) {
+    border-radius: 50% !important;
+    box-shadow: 0 0 0 3px var(--bg);
+  }
+  .names {
+    display: grid;
+    min-width: 0;
+    gap: 0.35rem;
+  }
+  .cname {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 100;
+    font-weight: 600;
+    font-size: 1.2rem;
+    line-height: 1.05;
+    color: var(--text) !important;
+    text-decoration: none !important;
+  }
+  .ctitle {
+    font-size: 0.6em;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--text-faint);
+  }
+  .sub {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-muted);
+    font: 600 var(--fs-xs) var(--font-ui);
+    text-align: left;
+  }
+  .hudline {
+    padding: 0.22rem 0.7rem;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    min-width: 0;
+  }
+  .sub:hover .hudline {
+    color: var(--text);
+  }
+  .live {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    flex: none;
+    background: var(--accent);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .tools {
+    gap: 0.2rem;
+    flex: none;
+  }
+  .tools .on {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .sep {
+    width: 1px;
+    height: 22px;
+    margin: 0 0.3rem;
+    background: var(--border);
+  }
+  .styles {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 14px;
+    background: var(--surface-2);
+  }
+  .styles button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 0;
+    background: none;
+    padding: 0.42rem 0.7rem;
+    border-radius: 10px;
+    font: 650 var(--fs-xs) var(--font-ui);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
+  .styles button:hover {
+    color: var(--text);
+  }
+  .styles button.on {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-1);
+  }
+  .leave .spark {
+    color: var(--lamp, var(--accent-strong));
+  }
+  .bar.compact {
+    padding-top: calc(0.7rem + var(--safe-top));
+    padding-bottom: 0.3rem;
+  }
+
+  /* ---------- The story begins, chapters, scenes ---------- */
+  .start,
+  .older {
+    display: grid;
+    justify-items: center;
+    gap: 0.55rem;
+    padding: 1.4rem 0 1.8rem;
+    text-align: center;
+  }
+  .begins {
+    font: italic 400 1.05rem var(--font-story);
+    color: var(--text-muted);
+  }
+  .orn-line {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    color: var(--lamp, var(--accent-strong));
+  }
+  .orn-line span {
+    width: 5.5rem;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, currentColor);
+    opacity: 0.7;
+  }
+  .orn-line span:last-child {
+    background: linear-gradient(90deg, currentColor, transparent);
+  }
+  .orn-line i {
+    font-style: normal;
+    font-size: 0.8rem;
+    text-shadow: 0 0 12px currentColor;
+    animation: lantern-glow 3s ease-in-out infinite alternate;
+  }
+  .chapter-h {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.3rem;
+    margin: 1.6rem 0 2.3rem;
+    padding: 1.6rem 0.6rem 0.4rem;
+    text-align: center;
+    color: var(--text) !important;
+    text-decoration: none !important;
+  }
+  .chapter-h::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -0.6rem;
+    width: min(26rem, 100%);
+    height: 13rem;
+    transform: translateX(-50%);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--lamp, var(--butter)) 16%, transparent), transparent);
+    pointer-events: none;
+  }
+  .ch-num {
+    margin-top: 0.7rem;
+    font: 700 0.7rem var(--font-ui);
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .ch-num b {
+    color: var(--lamp, var(--accent-ink));
+  }
+  .ch-title {
+    padding: 0 0.12em;
+    font: italic 600 clamp(2rem, 4.6vw, 3.2rem) / 1.05 var(--font-display);
+    font-variation-settings: "SOFT" 100;
+    color: var(--text);
+  }
+  .ch-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.45rem;
+    font: 600 0.7rem var(--font-ui);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .ch-meta i {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .scene-h {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin: 0.8rem 0 1.6rem;
+    color: var(--text) !important;
+    text-decoration: none !important;
+  }
+  .sc-line {
+    flex: 1;
+    height: 1px;
+    min-width: 1rem;
+    background: linear-gradient(90deg, transparent, var(--border-strong));
+  }
+  .sc-line:last-child {
+    background: linear-gradient(90deg, var(--border-strong), transparent);
+  }
+  .sc-body {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+    max-width: 80%;
+    padding: 0.42rem 1.1rem 0.42rem 0.42rem;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    transition: transform 0.3s var(--spring);
+  }
+  .scene-h:hover .sc-body {
+    transform: translateY(-1px);
+  }
+  .sc-ic {
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--lamp, var(--butter)) 18%, transparent);
+    color: var(--lamp, var(--accent-ink));
+  }
+  .sc-text {
+    display: grid;
+    min-width: 0;
+  }
+  .sc-text b {
+    font: 400 1.1rem/1.15 var(--font-display);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sc-text span {
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .column.style-cards .scene-h {
+    margin-left: calc(var(--portrait-w, 76px) + 1rem);
+  }
+  .column.style-book .sc-body {
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    text-align: center;
+  }
+  .column.style-book .sc-ic {
+    background: none;
+    width: auto;
+    height: auto;
+  }
+  .column.style-bubbles .sc-line {
+    display: none;
+  }
+  .column.style-bubbles .scene-h {
+    justify-content: center;
+  }
+
+  /* ---------- Side panel tabs ---------- */
+  .dock-tabs {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 2px;
+    padding: 4px;
+    margin-bottom: 1rem;
+    border-radius: 16px;
+    background: var(--surface-2);
+  }
+  .dock-tabs button {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    padding: 0.45rem 0 0.4rem;
+    border: 0;
+    background: none;
+    border-radius: 12px;
+    color: var(--text-faint);
+    font: 650 0.66rem var(--font-ui);
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
+  .dock-tabs button:hover {
+    color: var(--text-muted);
+  }
+  .dock-tabs button.on {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-1);
+  }
+
+  /* ---------- Lantern: the glass stage ---------- */
+  :global([data-theme="lantern"]) .chat {
+    height: 100%;
+    column-gap: 14px;
+  }
+  :global([data-theme="lantern"]) .chat.with-panel {
+    grid-template-columns: minmax(0, 1fr) var(--dock-w);
+  }
+  :global([data-theme="lantern"]) .main-col {
+    height: 100%;
+    overflow: hidden;
+    isolation: isolate;
+    border-radius: 30px;
+    background: linear-gradient(160deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
+    border: 1px solid rgb(255 255 255 / 9%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 6%),
+      0 24px 60px -24px rgb(0 0 0 / 65%);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    transition:
+      border-radius 0.6s var(--ease),
+      background 0.6s var(--ease);
+  }
+  :global([data-theme="lantern"]) .chat.focus .main-col {
+    border-radius: 0;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  :global([data-theme="lantern"]) .bar {
+    background: transparent;
+    border-bottom: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: calc(1rem + var(--safe-top)) 1.1rem 0.7rem 1.3rem;
+  }
+  :global([data-theme="lantern"]) .bar.compact {
+    padding-top: calc(0.8rem + var(--safe-top));
+  }
+  :global([data-theme="lantern"]) .cname {
+    font-size: 2rem;
+    font-weight: 400;
+  }
+  :global([data-theme="lantern"]) .bar.compact .cname {
+    font-size: 1.5rem;
+  }
+  :global([data-theme="lantern"]) .hudline {
+    background: var(--fill);
+    border-color: var(--edge);
+  }
+  :global([data-theme="lantern"]) .tools .on,
+  :global([data-theme="lantern"]) .styles button.on {
+    background: rgb(255 255 255 / 12%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 14%),
+      0 0 16px rgb(199 180 255 / 18%);
+  }
+  :global([data-theme="lantern"]) .styles,
+  :global([data-theme="lantern"]) .dock-tabs {
+    background: rgb(0 0 0 / 24%);
+    box-shadow: inset 0 0 0 1px var(--edge);
+  }
+  :global([data-theme="lantern"]) .sep {
+    background: var(--edge);
+  }
+  :global([data-theme="lantern"]) .dock-tabs button.on {
+    background: rgb(255 255 255 / 11%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 15%),
+      0 0 18px rgb(199 180 255 / 22%);
+  }
+  :global([data-theme="lantern"]) .dock {
+    height: 100%;
+    border-radius: 28px;
+    border: 1px solid rgb(255 255 255 / 9%);
+    background: linear-gradient(160deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 6%),
+      0 24px 60px -24px rgb(0 0 0 / 65%);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    padding: 14px 14px 2rem;
+    animation: dock-in 0.5s var(--ease);
+  }
+  @keyframes dock-in {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+  }
+  :global([data-theme="lantern"]) .ch-title {
+    font-weight: 400;
+    font-size: clamp(2.6rem, 5.4vw, 4rem);
+    background: linear-gradient(180deg, #fff6ea 20%, #ffd08f 72%, #ff9ec0);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 6px 26px rgb(255 158 192 / 25%));
+  }
+  :global([data-theme="lantern"]) .sc-body {
+    background: rgb(255 255 255 / 4.5%);
+    border-color: var(--edge);
+  }
+  :global([data-theme="lantern"]) .sc-ic {
+    box-shadow: 0 0 16px -4px var(--lamp);
+  }
+  :global([data-theme="lantern"]) .sc-line {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 14%));
+  }
+  :global([data-theme="lantern"]) .sc-line:last-child {
+    background: linear-gradient(90deg, rgb(255 255 255 / 14%), transparent);
+  }
+  :global([data-theme="lantern"]) .jump {
+    background: rgb(36 26 60 / 90%);
+    border-color: var(--edge);
+  }
+  @media (max-width: 760px) {
+    :global([data-theme="lantern"]) .main-col {
+      border-radius: 0;
+      border: 0;
+    }
+    :global([data-theme="lantern"]) .cname {
+      font-size: 1.45rem;
+    }
+    :global([data-theme="lantern"]) .bar {
+      padding: calc(0.6rem + var(--safe-top)) 0.5rem 0.5rem 0.3rem;
+    }
+    .column.style-cards .scene-h {
+      margin-left: 0;
+    }
+    .pic {
+      padding: 2px;
+    }
+    .styles.hide-sm,
+    .sep.hide-sm {
+      display: none;
+    }
+    .tools {
+      gap: 0;
     }
   }
 </style>

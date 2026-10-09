@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mea · Storybook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400;1,9..144,600&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --desk: #e7d3d0;
+    --desk-2: #d9bfc1;
+    --cover: #5b3550;
+    --cover-2: #47283f;
+    --paper: #fbf5ea;
+    --paper-2: #f4ead9;
+    --ink: #3b2c33;
+    --ink-soft: #6f5d63;
+    --ink-faint: #a6959a;
+    --rose: #9c3f63;
+    --plum: #6650a8;
+    --blue-ink: #3d5a8a;
+    --gold: #b8873b;
+    --rule: #e6d6c3;
+    --ribbon-1: #c65b7c;
+    --ribbon-2: #7b67b8;
+    --ribbon-3: #4f8f7a;
+    --ribbon-4: #d39a4a;
+    --ribbon-5: #4f78a8;
+    --ribbon-6: #a5577f;
+    --ribbon-7: #6b8f4f;
+    --ribbon-8: #8a6f63;
+    --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .2 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Lora", Georgia, serif;
+    color: var(--ink);
+    background:
+      var(--noise),
+      radial-gradient(1200px 600px at 15% -10%, #f3e3df 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 110%, #cfb2bb 0%, transparent 60%),
+      var(--desk);
+    overflow: hidden;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  svg.i { width: 1em; height: 1em; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ---------- Top: wordmark + bookmark ribbons ---------- */
+  .top {
+    height: 74px;
+    display: flex;
+    align-items: flex-start;
+    gap: 28px;
+    padding: 0 28px;
+    position: relative;
+    z-index: 3;
+  }
+  .brand {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 34px;
+    letter-spacing: -0.02em;
+    color: var(--cover);
+    padding-top: 14px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    text-decoration: none;
+  }
+  .brand .flower { font-style: normal; font-size: 22px; color: var(--ribbon-1); display: inline-block; transition: transform 0.8s cubic-bezier(.34,1.4,.64,1); }
+  .brand:hover .flower { transform: rotate(180deg) scale(1.2); }
+  .ribbons { display: flex; gap: 6px; align-items: flex-start; flex: 1; overflow-x: auto; scrollbar-width: none; }
+  .ribbon {
+    --c: var(--ribbon-1);
+    position: relative;
+    width: 76px;
+    height: 54px;
+    padding: 10px 0 0;
+    background: linear-gradient(90deg, rgb(0 0 0 / 10%), transparent 18%, transparent 82%, rgb(0 0 0 / 10%)), var(--c);
+    color: #fff8f2;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-family: "Fraunces", serif;
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    transition: height 0.35s cubic-bezier(.34,1.4,.64,1), filter 0.2s;
+    flex: none;
+  }
+  .ribbon svg.i { font-size: 17px; stroke-width: 1.7; }
+  .ribbon:hover { height: 62px; filter: brightness(1.06); }
+  .ribbon.on { height: 72px; }
+  .ribbon.on::after { content: "❀"; position: absolute; bottom: 16px; font-size: 11px; opacity: 0.85; }
+  .ribbon .badge {
+    position: absolute; top: 4px; right: 8px;
+    background: #fff8f2; color: var(--c);
+    font: 700 10px/1 "Lora", serif;
+    padding: 3px 5px; border-radius: 99px;
+  }
+  .tools { display: flex; gap: 10px; padding-top: 16px; align-items: center; }
+  .find {
+    display: flex; align-items: center; gap: 8px;
+    background: rgb(251 245 234 / 70%);
+    border: 1px solid rgb(91 53 80 / 18%);
+    border-radius: 99px;
+    padding: 8px 14px;
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 14px;
+    min-width: 220px;
+    backdrop-filter: blur(6px);
+  }
+  .find kbd { margin-left: auto; font: 600 11px "Lora", serif; font-style: normal; background: var(--paper-2); border-radius: 6px; padding: 2px 6px; color: var(--ink-faint); }
+  .round {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: rgb(251 245 234 / 70%);
+    border: 1px solid rgb(91 53 80 / 18%);
+    font-size: 17px; color: var(--cover);
+  }
+
+  /* ---------- Room: shelf + book ---------- */
+  .room {
+    height: calc(100vh - 74px);
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 22px;
+    padding: 8px 28px 24px;
+  }
+
+  .shelf { display: flex; flex-direction: column; min-height: 0; }
+  .shelf h3 {
+    font: 600 12px "Fraunces", serif; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--cover); opacity: 0.7; margin: 8px 0 12px;
+  }
+  .books {
+    flex: none;
+    height: 360px;
+    display: flex;
+    align-items: flex-end;
+    gap: 5px;
+    padding: 0 6px;
+    border-bottom: 10px solid #8c5f62;
+    box-shadow: 0 14px 0 -4px rgb(0 0 0 / 8%);
+    position: relative;
+  }
+  .spine {
+    --c: #2f5d62;
+    width: 30px;
+    height: var(--h, 300px);
+    background:
+      linear-gradient(90deg, rgb(255 255 255 / 16%), transparent 30%, transparent 70%, rgb(0 0 0 / 18%)),
+      var(--c);
+    border-radius: 4px 4px 1px 1px;
+    color: #fbefe0;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-family: "Fraunces", serif;
+    font-size: 12.5px;
+    letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    transition: transform 0.35s cubic-bezier(.34,1.4,.64,1);
+    position: relative;
+    flex: none;
+  }
+  .spine::before, .spine::after { content: ""; position: absolute; left: 3px; right: 3px; height: 2px; background: rgb(240 205 140 / 70%); }
+  .spine::before { top: 28px; }
+  .spine::after { bottom: 28px; }
+  .spine span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 80%; }
+  .spine small { font-size: 10px; opacity: 0.8; }
+  .spine:hover { transform: rotate(180deg) translateY(12px); }
+  .spine.on { transform: rotate(180deg) translateY(26px); box-shadow: 0 0 0 2px #fbefe0, 0 0 0 4px var(--c); }
+  .spine.new { --c: transparent; border: 2px dashed rgb(91 53 80 / 40%); color: var(--cover); background: rgb(251 245 234 / 40%); }
+  .shelf .note {
+    margin-top: 26px;
+    font-family: "Caveat", cursive;
+    font-size: 19px;
+    line-height: 1.1;
+    color: var(--cover);
+    transform: rotate(-3deg);
+  }
+
+  .book {
+    min-height: 0;
+    background: linear-gradient(160deg, var(--cover), var(--cover-2));
+    border-radius: 18px;
+    padding: 12px;
+    box-shadow: 0 30px 60px -20px rgb(71 40 63 / 50%), inset 0 0 0 1px rgb(255 255 255 / 8%);
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    position: relative;
+  }
+  .page {
+    background: var(--noise), linear-gradient(90deg, var(--paper), var(--paper));
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .page.left {
+    border-radius: 10px 4px 4px 10px;
+    background: var(--noise), linear-gradient(90deg, var(--paper) 0%, var(--paper) 92%, #eadbc4 100%);
+    box-shadow: inset -3px 0 0 #efe2cd;
+  }
+  .page.right {
+    border-radius: 4px 10px 10px 4px;
+    background: var(--noise), linear-gradient(90deg, #e8d8bf 0%, var(--paper-2) 7%, var(--paper-2) 100%);
+  }
+  .runhead {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 18px 40px 6px;
+    font: 500 11px "Fraunces", serif; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .runhead .acts { display: flex; gap: 4px; letter-spacing: 0; }
+  .runhead .acts button { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; color: var(--ink-soft); }
+  .runhead .acts button:hover { background: var(--paper-2); color: var(--rose); }
+
+  .scroll { flex: 1; overflow-y: auto; padding: 4px 56px 18px; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+  .chapter { text-align: center; margin: 18px 0 22px; }
+  .chapter .num { font: italic 400 15px "Fraunces", serif; color: var(--gold); }
+  .chapter h1 { font: 600 34px/1.1 "Fraunces", serif; margin: 4px 0 6px; letter-spacing: -0.01em; }
+  .chapter .orn { color: var(--gold); letter-spacing: 0.6em; font-size: 13px; }
+
+  .previously {
+    margin: 0 auto 26px;
+    max-width: 30rem;
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.6;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 10px 4px;
+    text-align: center;
+  }
+  .previously b { font: 600 11px "Fraunces", serif; letter-spacing: 0.2em; text-transform: uppercase; font-style: normal; color: var(--gold); display: block; margin-bottom: 4px; }
+
+  .msg { position: relative; margin: 0 0 22px; font-size: 17px; line-height: 1.78; }
+  .msg p { margin: 0 0 0.7em; }
+  .who {
+    font: 600 12px "Fraunces", serif; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--rose); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+  }
+  .who::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--rule), transparent); }
+  .who .swipe { font: 400 12px "Lora", serif; letter-spacing: 0.05em; text-transform: none; color: var(--ink-faint); order: 2; }
+  .d { color: var(--rose); }
+  .a { color: var(--ink-soft); font-style: italic; }
+  .t { color: var(--plum); font-style: italic; }
+  .drop::first-letter {
+    font: 600 64px/0.8 "Fraunces", serif;
+    float: left; margin: 8px 10px 0 0;
+    color: var(--cover);
+  }
+  .msg.you { padding-left: 34px; border-left: 2px solid rgb(61 90 138 / 25%); margin-left: 6px; }
+  .msg.you .who { color: var(--blue-ink); font-family: "Caveat", cursive; font-size: 24px; letter-spacing: 0; text-transform: none; font-weight: 700; }
+  .msg.you .who::after { display: none; }
+  .msg.you p { color: #2f3f5e; }
+  .msg.you .d { color: var(--blue-ink); }
+  .margin-acts {
+    position: absolute; left: -44px; top: 22px;
+    display: flex; flex-direction: column; gap: 2px;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .msg:hover .margin-acts { opacity: 1; }
+  .margin-acts button { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-faint); font-size: 14px; }
+  .margin-acts button:hover { color: var(--rose); background: var(--paper-2); }
+  .quill { display: inline-block; width: 2px; height: 1.1em; background: var(--rose); vertical-align: -3px; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .best {
+    position: absolute; right: -36px; top: -6px;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #d8667f, #9c3f63 70%);
+    color: #ffe9ee; display: grid; place-items: center;
+    font: 600 9px/1.05 "Fraunces", serif; text-align: center; letter-spacing: 0.05em;
+    box-shadow: 0 3px 0 rgb(0 0 0 / 15%), inset 0 0 0 3px rgb(255 255 255 / 15%);
+    transform: rotate(12deg);
+  }
+
+  .compose {
+    margin: 0 40px 18px;
+    border-top: 1px solid var(--rule);
+    padding-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    align-items: end;
+  }
+  .compose .lined {
+    font: italic 400 16.5px/32px "Lora", serif;
+    background: repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px);
+    min-height: 64px;
+    outline: none;
+    color: var(--blue-ink);
+    padding: 0 4px;
+  }
+  .compose .lined:empty::before { content: attr(data-ph); color: var(--ink-faint); }
+  .meta { grid-column: 1 / -1; display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-faint); margin-top: -4px; }
+  .meta b { font-weight: 500; color: var(--ink-soft); }
+  .meta .chip { border: 1px solid var(--rule); border-radius: 99px; padding: 2px 10px; background: var(--paper); }
+  .seal {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #d96a86, #9c3f63 62%, #7a2c4a);
+    color: #ffe2ea;
+    display: grid; place-items: center;
+    font-size: 26px;
+    box-shadow: 0 4px 0 #6d2742, 0 10px 20px -6px rgb(122 44 74 / 60%), inset 0 0 0 5px rgb(255 255 255 / 10%);
+    position: relative;
+    transition: transform 0.2s cubic-bezier(.34,1.4,.64,1);
+    clip-path: polygon(50% 0, 61% 4%, 72% 2%, 80% 10%, 92% 14%, 95% 26%, 100% 38%, 97% 50%, 100% 62%, 94% 74%, 90% 86%, 79% 90%, 70% 98%, 58% 96%, 50% 100%, 40% 96%, 29% 98%, 20% 90%, 9% 86%, 5% 74%, 0 62%, 3% 50%, 0 38%, 6% 26%, 9% 14%, 20% 10%, 29% 2%, 40% 4%);
+  }
+  .seal:hover { transform: rotate(-12deg) scale(1.05); }
+  .seal:active { transform: scale(0.9); }
+
+  /* ---------- Right page: marginalia ---------- */
+  .tabs {
+    position: absolute; right: -40px; top: 40px;
+    display: flex; flex-direction: column; gap: 6px; z-index: 2;
+  }
+  .tab {
+    --c: var(--ribbon-1);
+    writing-mode: vertical-rl;
+    background: var(--c);
+    color: #fff8f2;
+    padding: 14px 8px;
+    border-radius: 0 10px 10px 0;
+    font: 500 12.5px "Fraunces", serif;
+    letter-spacing: 0.08em;
+    width: 34px;
+    transform: translateX(-6px);
+    transition: transform 0.25s cubic-bezier(.34,1.4,.64,1);
+    box-shadow: 2px 2px 0 rgb(0 0 0 / 12%);
+  }
+  .tab:hover { transform: translateX(0); }
+  .tab.on { transform: translateX(4px); box-shadow: 4px 3px 0 rgb(0 0 0 / 16%); }
+  .margins { flex: 1; overflow-y: auto; padding: 22px 34px 26px 40px; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+  .cameo { display: flex; gap: 16px; align-items: center; margin-bottom: 22px; }
+  .cameo .oval {
+    width: 92px; height: 112px; border-radius: 50%;
+    border: 3px double var(--gold);
+    padding: 4px; flex: none;
+    background: var(--paper);
+  }
+  .cameo .oval svg { width: 100%; height: 100%; border-radius: 50%; display: block; }
+  .cameo h2 { font: 600 26px/1.1 "Fraunces", serif; margin: 0; }
+  .cameo .sub { font-style: italic; color: var(--ink-soft); font-size: 14px; margin: 4px 0 8px; }
+  .mood { font-family: "Caveat", cursive; font-size: 20px; color: var(--rose); }
+
+  .sec h4 {
+    font: 600 11.5px "Fraunces", serif; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--gold); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .sec h4::before { content: "❧"; letter-spacing: 0; font-size: 14px; }
+  .mem { list-style: none; padding: 0; margin: 0; }
+  .mem li {
+    padding: 8px 0 8px 22px;
+    border-bottom: 1px dashed var(--rule);
+    position: relative;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .mem li::before { content: "•"; position: absolute; left: 6px; color: var(--rose); }
+  .mem li.pin::before { content: "✦"; color: var(--gold); left: 2px; }
+  .mem small { display: block; color: var(--ink-faint); font-style: italic; font-size: 12.5px; }
+
+  .sticky {
+    margin: 26px 6px 10px;
+    background: #fbe9a8;
+    padding: 18px 18px 14px;
+    font-family: "Caveat", cursive;
+    font-size: 20px;
+    line-height: 1.15;
+    color: #5a4413;
+    transform: rotate(-1.6deg);
+    box-shadow: 0 10px 14px -8px rgb(90 68 19 / 40%);
+    position: relative;
+  }
+  .sticky::before {
+    content: ""; position: absolute; top: -10px; left: 50%; width: 90px; height: 22px;
+    transform: translateX(-50%) rotate(3deg);
+    background: repeating-linear-gradient(45deg, rgb(231 161 181 / 75%) 0 8px, rgb(240 190 205 / 75%) 8px 16px);
+  }
+  .sticky .row { display: flex; gap: 8px; margin-top: 10px; }
+  .sticky button { font: 600 13px "Lora", serif; border: 1.5px solid #5a4413; border-radius: 99px; padding: 3px 12px; }
+  .sticky button:hover { background: #5a4413; color: #fbe9a8; }
+
+  .meter { margin: 12px 0; }
+  .meter .lbl { display: flex; justify-content: space-between; font-size: 14px; }
+  .meter .lbl em { font-family: "Caveat", cursive; font-style: normal; font-size: 18px; color: var(--rose); }
+  .meter .bar { height: 10px; margin-top: 4px; background: var(--paper); border: 1px solid var(--rule); border-radius: 99px; overflow: hidden; }
+  .meter .bar i { display: block; height: 100%; width: var(--v); background: repeating-linear-gradient(-45deg, var(--c, var(--rose)) 0 6px, color-mix(in srgb, var(--c, var(--rose)) 80%, white) 6px 12px); border-radius: 99px; }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14.5px; }
+  .facts dt { font: 500 12px "Fraunces", serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); padding-top: 3px; }
+  .facts dd { margin: 0; }
+  .ask { display: flex; gap: 8px; margin-top: 10px; }
+  .ask input { flex: 1; font: italic 15px "Lora", serif; border: 0; border-bottom: 1.5px solid var(--rule); background: transparent; padding: 6px 2px; outline: none; color: var(--ink); }
+  .cite { font-size: 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 99px; padding: 1px 8px; color: var(--rose); white-space: nowrap; }
+  .answer { font-size: 14.5px; line-height: 1.6; margin-top: 12px; padding: 12px 14px; background: var(--paper); border-radius: 8px; border: 1px solid var(--rule); }
+  .pressed { position: absolute; right: 24px; bottom: 16px; width: 90px; opacity: 0.55; pointer-events: none; transform: rotate(14deg); }
+  .pane { display: none; }
+  .pane.on { display: block; animation: turn 0.45s cubic-bezier(.22,1,.36,1); }
+  @keyframes turn { from { opacity: 0; transform: translateX(10px) rotateY(-6deg); } }
+
+  @media (max-width: 1100px) {
+    .room { grid-template-columns: 1fr; }
+    .shelf { display: none; }
+  }
+  @media (max-width: 820px) {
+    body { overflow: auto; }
+    .top { height: auto; flex-wrap: wrap; padding: 0 16px 6px; gap: 10px; }
+    .tools { order: 2; margin-left: auto; padding-top: 14px; }
+    .find { min-width: 0; }
+    .find span, .find kbd { display: none; }
+    .ribbons { order: 3; flex-basis: 100%; }
+    .ribbon { width: 64px; }
+    .room { height: auto; padding: 4px 16px 20px; }
+    .book { grid-template-columns: 1fr; padding: 8px; }
+    .page.left { border-radius: 10px 10px 4px 4px; height: 78vh; }
+    .page.right { border-radius: 4px 4px 10px 10px; }
+    .tabs { position: static; flex-direction: row; overflow-x: auto; padding: 10px 14px 0; }
+    .tab { writing-mode: horizontal-tb; border-radius: 10px 10px 0 0; width: auto; transform: none !important; padding: 8px 14px; }
+    .scroll { padding: 4px 22px 18px; }
+    .compose { margin: 0 18px 14px; }
+    .margins { padding: 16px 20px; }
+    .best { right: -8px; }
+    .margin-acts { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#">Mea <span class="flower">✿</span></a>
+    <nav class="ribbons" aria-label="Main">
+      <button class="ribbon on" style="--c:var(--ribbon-1)"><i data-i="home"></i>Home</button>
+      <button class="ribbon" style="--c:var(--ribbon-2)"><i data-i="users"></i>Personas</button>
+      <button class="ribbon" style="--c:var(--ribbon-3)"><i data-i="wand"></i>Studio</button>
+      <button class="ribbon" style="--c:var(--ribbon-4)"><i data-i="book"></i>Lore</button>
+      <button class="ribbon" style="--c:var(--ribbon-5)"><i data-i="sliders"></i>Presets</button>
+      <button class="ribbon" style="--c:var(--ribbon-6)"><i data-i="pen"></i>Notebook</button>
+      <button class="ribbon" style="--c:var(--ribbon-7)"><i data-i="inbox"></i>Inbox<span class="badge">3</span></button>
+      <button class="ribbon" style="--c:var(--ribbon-8)"><i data-i="cog"></i>Settings</button>
+    </nav>
+    <div class="tools">
+      <div class="find"><i data-i="search"></i><span>Find anything…</span><kbd>Ctrl K</kbd></div>
+      <button class="round" aria-label="Night mode"><i data-i="moon"></i></button>
+    </div>
+  </header>
+
+  <div class="room">
+    <aside class="shelf">
+      <h3>Your shelf</h3>
+      <div class="books">
+        <button class="spine on" style="--c:#2f5d62;--h:290px"><span>The Lamp at Gull's Reach</span><small>III</small></button>
+        <button class="spine" style="--c:#8a3b4e;--h:255px"><span>Brass &amp; Thunder</span><small>VII</small></button>
+        <button class="spine" style="--c:#b8873b;--h:310px"><span>The Paper Library</span><small>II</small></button>
+        <button class="spine" style="--c:#34466e;--h:240px"><span>Night Shift</span><small>IV</small></button>
+        <button class="spine new" style="--h:180px"><span>+ new story</span></button>
+      </div>
+      <p class="note">pull a book<br>to keep reading ↑</p>
+    </aside>
+
+    <main class="book">
+      <section class="page left">
+        <div class="runhead">
+          <span>Wren Halloway</span>
+          <span>~ 214 ~</span>
+          <span class="acts">
+            <button title="Search this chat"><i data-i="search"></i></button>
+            <button title="Codex"><i data-i="library"></i></button>
+            <button title="Read as a book"><i data-i="book"></i></button>
+          </span>
+        </div>
+        <div class="scroll" id="story">
+          <div class="chapter">
+            <div class="num">Chapter the Third</div>
+            <h1>Oil and Salt</h1>
+            <div class="orn">✦ ✦ ✦</div>
+          </div>
+          <div class="previously">
+            <b>Previously</b>
+            The ferry stopped running after the equinox gale. Ash promised Wren he'd find lamp oil before the long dark, and Wren pretended not to care whether he came back.
+          </div>
+
+          <article class="msg">
+            <div class="margin-acts"><button title="Bookmark"><i data-i="star"></i></button><button title="Edit"><i data-i="pen"></i></button></div>
+            <div class="who">Wren</div>
+            <p class="drop"><span class="a">The lamp room hums as the great lens turns, throwing its slow gold arm across the black water.</span> <span class="d">“You came back,”</span> she says, not looking up from the brass she's polishing. <span class="d">“Most people only climb those stairs once.”</span></p>
+            <p><span class="t">He's soaked through. Again. Of course he is.</span></p>
+          </article>
+
+          <article class="msg you">
+            <div class="margin-acts"><button title="Edit"><i data-i="pen"></i></button></div>
+            <div class="who">Ash</div>
+            <p><span class="a">I shake the rain off my coat and set the oilskin parcel on her workbench, next to the tide tables.</span> <span class="d">“Your oil. The ferryman wouldn't come past the rocks, so I rowed it.”</span></p>
+          </article>
+
+          <article class="msg">
+            <div class="best">BEST<br>MOMENT</div>
+            <div class="margin-acts"><button title="Bookmark"><i data-i="star"></i></button><button title="Try again"><i data-i="redo"></i></button></div>
+            <div class="who">Wren <span class="swipe">‹ 2 of 3 ›</span></div>
+            <p><span class="a">Her hands go still on the cloth.</span> <span class="d">“You rowed. In this.”</span> <span class="a">She finally turns, and the lamplight catches the salt drying in her hair.</span> <span class="d">“That's either very brave or very stupid, and I haven't decided which I'd prefer.”</span></p>
+            <p><span class="a">She crosses to the stove before he can answer, and the kettle goes on with a clatter that is louder than it needs to be.</span> <span class="d">“Sit. You're dripping on my</span><span class="quill"></span></p>
+          </article>
+        </div>
+        <div class="compose">
+          <div class="lined" contenteditable="true" data-ph="Write the next line, as Ash…" id="pen"></div>
+          <button class="seal" id="send" aria-label="Send"><i data-i="feather"></i></button>
+          <div class="meta">
+            <span class="chip">as <b>Ash</b></span>
+            <span class="chip"><b>Wayfarer 12B</b> ▾</span>
+            <span>✎ steering: <b>slow burn</b></span>
+            <span>context 12k / 32k</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="page right">
+        <div class="tabs" role="tablist">
+          <button class="tab on" style="--c:var(--ribbon-1)" data-p="memory">Memory</button>
+          <button class="tab" style="--c:var(--ribbon-3)" data-p="story">Story</button>
+          <button class="tab" style="--c:var(--ribbon-5)" data-p="world">World</button>
+          <button class="tab" style="--c:var(--ribbon-4)" data-p="ask">Ask</button>
+          <button class="tab" style="--c:var(--ribbon-6)" data-p="notes">Notes</button>
+        </div>
+        <div class="margins">
+          <div class="cameo">
+            <div class="oval">
+              <svg viewBox="0 0 100 120" aria-hidden="true">
+                <defs>
+                  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34466e"/><stop offset="1" stop-color="#8a6f9c"/></linearGradient>
+                  <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fbe9a8" stop-opacity=".9"/><stop offset="1" stop-color="#fbe9a8" stop-opacity="0"/></linearGradient>
+                </defs>
+                <rect width="100" height="120" fill="url(#sky)"/>
+                <circle cx="22" cy="20" r="1" fill="#fff"/><circle cx="74" cy="14" r="1.2" fill="#fff"/><circle cx="84" cy="34" r=".8" fill="#fff"/><circle cx="12" cy="44" r=".8" fill="#fff"/>
+                <polygon points="52,40 100,26 100,54" fill="url(#beam)"><animateTransform attributeName="transform" type="rotate" values="-8 52 40; 8 52 40; -8 52 40" dur="5s" repeatCount="indefinite"/></polygon>
+                <path d="M0 98 Q 25 90 50 96 T 100 94 V120 H0Z" fill="#2f5d62"/>
+                <path d="M42 98 L45 48 H59 L62 98Z" fill="#fbf5ea"/>
+                <rect x="45" y="60" width="14" height="6" fill="#c65b7c"/><rect x="44" y="78" width="16" height="6" fill="#c65b7c"/>
+                <rect x="46" y="38" width="12" height="10" fill="#fbe9a8"/>
+                <path d="M44 38 L52 30 L60 38Z" fill="#5b3550"/>
+                <path d="M0 106 Q 25 100 50 106 T 100 104 V120 H0Z" fill="#47283f" opacity=".7"/>
+              </svg>
+            </div>
+            <div>
+              <h2>Wren Halloway</h2>
+              <div class="sub">Keeper of the Gull's Reach light</div>
+              <div class="mood">feeling: flustered, pretending not to be</div>
+            </div>
+          </div>
+
+          <div class="pane on" data-p="memory">
+            <div class="sec">
+              <h4>What she remembers</h4>
+              <ul class="mem">
+                <li class="pin">Ash rowed the oil across in a gale. <small>just now · chapter III</small></li>
+                <li>Her brother Tamsin left on the last ferry and never wrote. <small>chapter I · she won't bring it up first</small></li>
+                <li>She calls the Fresnel lens “the Old Eye.” <small>chapter I</small></li>
+                <li>Ash takes his tea black, “like the sea at four bells.” <small>chapter II</small></li>
+              </ul>
+            </div>
+            <div class="sticky">
+              Hmm — Wren said she's <u>never</u> left the island, but in chapter I she sold eggs at the mainland market.
+              <div class="row"><button>Keep both</button><button>Fix it</button></div>
+            </div>
+          </div>
+
+          <div class="pane" data-p="story">
+            <div class="sec">
+              <h4>Between them</h4>
+              <div class="meter"><div class="lbl">Trust <em>62 · rising</em></div><div class="bar"><i style="--v:62%"></i></div></div>
+              <div class="meter"><div class="lbl">Warmth <em>48 · thawing</em></div><div class="bar"><i style="--v:48%;--c:#d39a4a"></i></div></div>
+              <div class="meter"><div class="lbl">Tension <em>71 · the storm helps</em></div><div class="bar"><i style="--v:71%;--c:#6650a8"></i></div></div>
+              <h4>Threads left hanging</h4>
+              <ul class="mem">
+                <li>Why did Tamsin leave?</li>
+                <li>The second key on Wren's ring — she never uses it.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="pane" data-p="world">
+            <div class="sec">
+              <h4>Out the window</h4>
+              <dl class="facts">
+                <dt>Where</dt><dd>The lamp room, top of 112 stairs</dd>
+                <dt>When</dt><dd>Night, second bell · day 9</dd>
+                <dt>Weather</dt><dd>A gale out of the north-east</dd>
+                <dt>Tide</dt><dd>High at 11:40, turning</dd>
+                <dt>Ferry</dt><dd>Not running until the weather breaks</dd>
+              </dl>
+              <h4>Meanwhile, offstage</h4>
+              <ul class="mem"><li>The harbourmaster is counting boats and comes up one short.</li></ul>
+            </div>
+          </div>
+
+          <div class="pane" data-p="ask">
+            <div class="sec">
+              <h4>Ask the archivist</h4>
+              <div class="ask"><input value="When did Wren first mention her brother?" /><button class="round" style="width:34px;height:34px"><i data-i="send"></i></button></div>
+              <div class="answer">In chapter I, while showing Ash the logbook: she said the last entry in Tamsin's handwriting was “Wind SW, fair, leaving.” <span class="cite">ch. I · line 48</span></div>
+            </div>
+          </div>
+
+          <div class="pane" data-p="notes">
+            <div class="sec">
+              <h4>Your notes</h4>
+              <ul class="mem">
+                <li>Idea: Ash finds Tamsin's oilskin in the boathouse.</li>
+                <li>Keep the pacing slow — no confession before chapter V.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <svg class="pressed" viewBox="0 0 100 140" aria-hidden="true">
+          <path d="M50 140 C 48 100, 52 70, 50 40" stroke="#6b8f4f" stroke-width="2" fill="none"/>
+          <g fill="#c65b7c"><ellipse cx="50" cy="26" rx="9" ry="16"/><ellipse cx="50" cy="26" rx="9" ry="16" transform="rotate(72 50 40)"/><ellipse cx="50" cy="26" rx="9" ry="16" transform="rotate(144 50 40)"/><ellipse cx="50" cy="26" rx="9" ry="16" transform="rotate(216 50 40)"/><ellipse cx="50" cy="26" rx="9" ry="16" transform="rotate(288 50 40)"/></g>
+          <circle cx="50" cy="40" r="6" fill="#d39a4a"/>
+          <path d="M50 100 Q 30 90 26 74 Q 44 80 50 100" fill="#6b8f4f"/>
+        </svg>
+      </section>
+    </main>
+  </div>
+
+<script>
+  const I = {
+    home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    wand: '<path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/>',
+    book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+    sliders: '<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>',
+    pen: '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>',
+    inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+    cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    library: '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>',
+    star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+    redo: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+    feather: '<path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/>'
+  };
+  document.querySelectorAll("i[data-i]").forEach((el) => {
+    el.outerHTML = `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${I[el.dataset.i]}</svg>`;
+  });
+
+  document.querySelectorAll(".ribbon").forEach((r) => r.addEventListener("click", () => {
+    document.querySelectorAll(".ribbon").forEach((x) => x.classList.toggle("on", x === r));
+  }));
+  document.querySelectorAll(".spine:not(.new)").forEach((s) => s.addEventListener("click", () => {
+    document.querySelectorAll(".spine").forEach((x) => x.classList.toggle("on", x === s));
+  }));
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === t));
+    document.querySelectorAll(".pane").forEach((p) => p.classList.toggle("on", p.dataset.p === t.dataset.p));
+  }));
+
+  const pen = document.getElementById("pen"), story = document.getElementById("story");
+  document.getElementById("send").addEventListener("click", () => {
+    const text = pen.textContent.trim();
+    if (!text) return;
+    const a = document.createElement("article");
+    a.className = "msg you";
+    a.innerHTML = `<div class="who">Ash</div><p></p>`;
+    a.querySelector("p").textContent = text;
+    story.appendChild(a);
+    pen.textContent = "";
+    story.scrollTo({ top: story.scrollHeight, behavior: "smooth" });
+  });
+</script>
+</body>
+</html>

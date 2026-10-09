@@ -128,3 +128,11 @@ export { default as FlaskConical } from "@lucide/svelte/icons/flask-conical";
 export { default as Shirt } from "@lucide/svelte/icons/shirt";
 // Phase 5
 export { default as Minus } from "@lucide/svelte/icons/minus";
+// Lantern
+export { default as PanelLeft } from "@lucide/svelte/icons/panel-left";
+export { default as Scan } from "@lucide/svelte/icons/scan";
+export { default as CloudRain } from "@lucide/svelte/icons/cloud-rain";
+export { default as Sunrise } from "@lucide/svelte/icons/sunrise";
+export { default as Sunset } from "@lucide/svelte/icons/sunset";
+export { default as Rows2 } from "@lucide/svelte/icons/rows-2";
+export { default as MessageCircle } from "@lucide/svelte/icons/message-circle";

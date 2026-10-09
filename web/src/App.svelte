@@ -3,6 +3,10 @@
   import Dialogs from "./components/Dialogs.svelte";
   import Modal from "./components/Modal.svelte";
   import Sidebar from "./components/Sidebar.svelte";
+  import Rail from "./components/Rail.svelte";
+  import BottomNav from "./components/BottomNav.svelte";
+  import Sky from "./components/Sky.svelte";
+  import { layout, railShown, setFocus, toggleRail } from "./lib/layout.svelte";
   import Toasts from "./components/Toasts.svelte";
   import { get, setSourceHandler, setUnpairedHandler } from "./lib/api";
   import { flushOutbox, outbox } from "./lib/outbox.svelte";
@@ -142,6 +146,25 @@
 
   const bare = $derived(route.name === "pair" || route.name === "welcome" || route.name === "read");
   const fullBleed = $derived(route.name === "chat");
+
+  // Lantern: the night-garden shell (a slim rail, the sky, a bottom dock on the phone).
+  const lantern = $derived(app.theme === "lantern");
+  const showRail = $derived(railShown(route.name === "chat"));
+  $effect(() => {
+    if (route.name !== "chat") setFocus(false);
+  });
+  // Lantern display choices for this device: chat box width, portraits, room inside each box.
+  $effect(() => {
+    const root = document.documentElement.style;
+    const w = device.chatWidth;
+    if (w >= 100) root.setProperty("--chat-w", "100%");
+    else if (w > 0) root.setProperty("--chat-w", `${w}rem`);
+    else root.removeProperty("--chat-w");
+    root.setProperty("--portrait-w", `${{ small: 56, large: 76, grand: 104 }[device.portrait] ?? 76}px`);
+    const pad = { snug: ["0.75rem", "1rem"], cozy: ["1.1rem", "1.45rem"], airy: ["1.6rem", "2.1rem"] }[device.boxPadding] ?? ["1.1rem", "1.45rem"];
+    root.setProperty("--pad-y", pad[0]!);
+    root.setProperty("--pad-x", pad[1]!);
+  });
 </script>
 
 {#if !ready}
@@ -162,12 +185,17 @@
     {#await import("./views/ReadView.svelte") then v}<v.default id={route.params.id!} />{/await}
   {:else}<Welcome />{/if}
 {:else}
-  <div class="shell" class:full={fullBleed}>
+  {#if lantern}<Sky />{/if}
+  <div class="shell" class:full={fullBleed} class:lantern class:no-rail={lantern && !showRail} class:focus={lantern && layout.focus} class:with-bottom={lantern && app.isMobile && !fullBleed}>
     {#if !app.isMobile}
-      <aside class="side"><Sidebar /></aside>
+      {#if lantern}
+        <aside class="rail-wrap"><Rail /></aside>
+      {:else}
+        <aside class="side"><Sidebar /></aside>
+      {/if}
     {/if}
     <main class="main">
-      {#if app.isMobile && !fullBleed}
+      {#if app.isMobile && !fullBleed && !lantern}
         <header class="mtop">
           <button class="btn ghost icon" onclick={() => (app.drawerOpen = true)} aria-label="Open menu"><Menu size={20} /></button>
           <a href="/" class="brand">Mea<span>✿</span></a>
@@ -194,7 +222,11 @@
       {/key}
     </main>
   </div>
-  {#if app.isMobile}
+  {#if lantern && !app.isMobile && !showRail && !layout.focus}
+    <button class="reveal" onclick={() => toggleRail(route.name === "chat")} aria-label="Show navigation" title="Show navigation">✿</button>
+  {/if}
+  {#if lantern && app.isMobile && !fullBleed}<BottomNav />{/if}
+  {#if app.isMobile || lantern}
     <Modal bind:open={app.drawerOpen} side="left">
       <Sidebar />
     </Modal>
@@ -281,6 +313,97 @@
   @media (max-width: 760px) {
     .shell {
       grid-template-columns: 1fr;
+    }
+  }
+
+  /* ---------- Lantern shell ---------- */
+  .shell.lantern {
+    display: flex;
+    gap: 14px;
+    padding: 14px;
+    position: relative;
+    z-index: 1;
+    transition:
+      padding 0.6s var(--ease),
+      gap 0.6s var(--ease);
+  }
+  .shell.lantern .main {
+    flex: 1;
+    min-width: 0;
+  }
+  .shell.lantern.full .main {
+    height: calc(100dvh - 28px);
+  }
+  .rail-wrap {
+    flex: none;
+    position: sticky;
+    top: 14px;
+    height: calc(100dvh - 28px);
+    z-index: 20;
+    transition:
+      margin 0.55s var(--ease),
+      opacity 0.45s var(--ease),
+      transform 0.55s var(--ease);
+  }
+  .shell.no-rail {
+    padding-left: 30px;
+  }
+  .shell.no-rail .rail-wrap {
+    margin-left: -104px;
+    opacity: 0;
+    transform: translateX(-20px);
+    pointer-events: none;
+  }
+  .shell.focus {
+    padding: 0;
+    gap: 0;
+  }
+  .shell.focus.full .main {
+    height: 100dvh;
+  }
+  .reveal {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    translate: 0 -50%;
+    z-index: 30;
+    width: 22px;
+    height: 76px;
+    border: 0;
+    border-radius: 0 14px 14px 0;
+    display: grid;
+    place-items: center;
+    background: rgb(36 26 60 / 80%);
+    box-shadow:
+      inset -1px 0 0 rgb(255 255 255 / 10%),
+      0 10px 30px rgb(0 0 0 / 40%);
+    color: var(--lamp);
+    font-size: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(16px);
+    animation: reveal-in 0.5s var(--spring);
+    transition: width 0.3s var(--spring);
+  }
+  .reveal:hover {
+    width: 30px;
+    text-shadow: 0 0 10px var(--lamp);
+  }
+  @keyframes reveal-in {
+    from {
+      translate: -24px -50%;
+      opacity: 0;
+    }
+  }
+  @media (max-width: 760px) {
+    .shell.lantern {
+      padding: 0;
+      gap: 0;
+    }
+    .shell.lantern.full .main {
+      height: 100dvh;
+    }
+    .shell.with-bottom .main {
+      padding-bottom: calc(84px + var(--safe-bottom));
     }
   }
 </style>

@@ -83,7 +83,7 @@
   const settingItems: Item[] = settingsTabs.map(([tab, label, kw]) => ({ id: `set:${tab}`, label: `Settings: ${label}`, group: "Settings", icon: Settings, keywords: kw, run: () => navigate(`/settings/${tab}`) }));
   const actions = $derived<Item[]>([
     { id: "act:new", label: "New character", group: "Actions", icon: Plus, run: () => navigate("/creator") },
-    { id: "act:theme", label: app.dark ? "Light theme" : "Dark theme", group: "Actions", icon: Moon, keywords: "night day", run: () => saveSetting("appearance.theme", app.dark ? "light" : "dark") },
+    { id: "act:theme", label: app.theme === "lantern" ? "Mea Cozy theme" : app.theme === "light" ? "Cozy Night theme" : "Lantern theme", group: "Actions", icon: Moon, keywords: "night day theme lantern cozy", run: () => saveSetting("appearance.theme", app.theme === "lantern" ? "light" : app.theme === "light" ? "dark" : "lantern") },
     { id: "act:discreet", label: device.discreet ? "Leave discreet mode" : "Discreet mode", group: "Actions", icon: Eye, keywords: "privacy blur", run: () => setDevice("discreet", !device.discreet) },
     ...(route.name === "chat" && route.params.id
       ? [

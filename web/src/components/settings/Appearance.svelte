@@ -45,7 +45,8 @@
       <Segmented
         value={s["appearance.theme"]}
         options={[
-          { value: "system", label: "Match my device" },
+          { value: "lantern", label: "Lantern" },
+          { value: "system", label: "Cozy, matching my device" },
           { value: "light", label: "Mea Cozy" },
           { value: "dark", label: "Cozy Night" },
         ]}
@@ -67,8 +68,57 @@
         ]}
         onchange={(v) => saveSetting("appearance.chatStyle", v)}
       />
-      <p class="tiny muted">Cards: soft tinted blocks. Book: flowing prose without bubbles. Bubbles: a messenger look.</p>
+      <p class="tiny muted">Cards: glowing boxes with a portrait beside each. Book: flowing prose without boxes. Bubbles: a messenger look.</p>
+      <div class="field">
+        <span class="label">Chat box width <span class="faint">on this device</span></span>
+        <Segmented
+          value={String(device.chatWidth)}
+          options={[
+            { value: "38", label: "Narrow" },
+            { value: "0", label: "Comfortable" },
+            { value: "60", label: "Wide" },
+            { value: "100", label: "Full" },
+          ]}
+          onchange={(v) => setDevice("chatWidth", Number(v))}
+        />
+        <span class="hint">Comfortable follows the text width below.</span>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <span class="label">Portraits</span>
+          <Segmented
+            value={device.portrait}
+            options={[
+              { value: "small", label: "Small" },
+              { value: "large", label: "Large" },
+              { value: "grand", label: "Grand" },
+            ]}
+            onchange={(v) => setDevice("portrait", v)}
+          />
+        </div>
+        <div class="field">
+          <span class="label">Room inside each box</span>
+          <Segmented
+            value={device.boxPadding}
+            options={[
+              { value: "snug", label: "Snug" },
+              { value: "cozy", label: "Cozy" },
+              { value: "airy", label: "Airy" },
+            ]}
+            onchange={(v) => setDevice("boxPadding", v)}
+          />
+        </div>
+      </div>
     </section>
+
+    {#if app.theme === "lantern"}
+      <section class="panel stack">
+        <h2>Atmosphere</h2>
+        <label class="switch"><input type="checkbox" checked={device.fireflies} onchange={(e) => setDevice("fireflies", e.currentTarget.checked)} /> Fireflies drifting in the night sky</label>
+        <label class="switch"><input type="checkbox" checked={device.grain} onchange={(e) => setDevice("grain", e.currentTarget.checked)} /> A whisper of film grain</label>
+        <p class="tiny muted">Both stay on this device. If your system asks for less motion, Mea keeps everything still.</p>
+      </section>
+    {/if}
 
     <section class="panel stack">
       <h2>Reading</h2>
@@ -77,6 +127,7 @@
         <Segmented
           value={s["appearance.storyFont"]}
           options={[
+            { value: "newsreader", label: "Newsreader" },
             { value: "lora", label: "Lora" },
             { value: "literata", label: "Literata" },
             { value: "nunito", label: "Nunito" },
@@ -114,7 +165,7 @@
         <Segmented
           value={typo.uiFont}
           options={[
-            { value: "nunito", label: "Nunito" },
+            { value: "nunito", label: app.theme === "lantern" ? "The theme's own" : "Nunito" },
             { value: "system", label: "My device's" },
           ]}
           onchange={(v) => setTypo({ uiFont: v })}

@@ -1,15 +1,17 @@
 <script lang="ts">
-  import Menu, { type MenuItem } from "../Menu.svelte";
   import Modal from "../Modal.svelte";
   import { get, patch, post, postStream, put } from "../../lib/api";
   import { onEvent } from "../../lib/events";
   import { autosize } from "../../lib/gestures";
-  import { ArrowUp, Square, Sparkles, UserPen, WandSparkles, Send, Clapperboard, SlidersHorizontal, X } from "../../lib/icons";
+  import { ArrowUp, Square, UserPen, WandSparkles, Send, Clapperboard, SlidersHorizontal, X, Milestone, Flag, Hourglass, History, Brain, Pin, MessageQuestion, ShieldCheck } from "../../lib/icons";
+  import ModelSwitcher from "./ModelSwitcher.svelte";
+  import Segmented from "../Segmented.svelte";
+  import { compact } from "../../lib/format";
   import { app, errorToast, toast } from "../../lib/state.svelte";
   import { buzz, device as prefs } from "../../lib/device.svelte";
   import { delight } from "../../lib/delight";
   import type { SpellIssue } from "../../lib/spell";
-  import type { ChatDetail, ChatSettings, LorePreview } from "../../lib/types";
+  import type { Boundary, ChatDetail, ChatSettings, LorePreview } from "../../lib/types";
 
   let {
     chatId,
@@ -20,6 +22,9 @@
     onstop,
     oneditlast,
     onchange,
+    preview = null,
+    oninspect,
+    lastMessageId = null,
   }: {
     chatId: string;
     detail: ChatDetail;
@@ -29,14 +34,16 @@
     onstop: () => void;
     oneditlast: () => void;
     onchange: () => void;
+    /** About how big the next prompt is, against the context target. */
+    preview?: { est: number; target: number } | null;
+    oninspect?: () => void;
+    lastMessageId?: string | null;
   } = $props();
 
   const settings = $derived(detail.chat.settings as ChatSettings);
   const director = $derived(Boolean(settings.director));
-  let steerOpen = $state(false);
   let answer = $state<{ title: string; text: string; citations?: { n: number; type: string; excerpt: string; seq: number | null }[] } | null>(null);
   let answerOpen = $state(false);
-  let paletteAt = $state(0);
 
   async function saveSettings(patchBody: Partial<ChatSettings>) {
     try {
@@ -47,108 +54,170 @@
     }
   }
 
-  // ---------- slash commands (CHAT-15) ----------
-  const COMMANDS: { cmd: string; args: string; about: string }[] = [
-    { cmd: "/ooc", args: "note · clear", about: "A standing out-of-character note for every reply" },
-    { cmd: "/cue", args: "nudge", about: "A one-time nudge for the next reply" },
-    { cmd: "/scene", args: "", about: "End the scene after the last message" },
-    { cmd: "/chapter", args: "", about: "Start a new chapter at the last message" },
-    { cmd: "/timeskip", args: "3 days · note", about: "Jump forward in story time" },
-    { cmd: "/recap", args: "", about: "A \"previously on\" of the story so far" },
-    { cmd: "/remember", args: "fact", about: "Add a memory" },
-    { cmd: "/pin", args: "fact", about: "Add a memory that's always in the prompt" },
-    { cmd: "/ask", args: "question", about: "Ask about the story, out of character (not added to the chat)" },
-    { cmd: "/director", args: "", about: "Switch director mode: your messages become stage directions" },
-    { cmd: "/truth", args: "rule", about: "A story truth that holds over everything else" },
-  ];
-  const palette = $derived.by(() => {
-    const m = text.match(/^\/(\w*)$/);
-    if (!m) return [];
-    return COMMANDS.filter((c) => c.cmd.startsWith(`/${m[1]}`));
-  });
+  // ---------- story actions (CHAT-15) ----------
+  // These used to be slash commands; now they're buttons in the composer's tray. Typed commands
+  // (/ooc, /cue, /scene…) still work for anyone used to them.
+  async function lastMessage() {
+    return get<{ messages: { id: string; seq: number }[] }>(`/api/chats/${chatId}/messages?limit=1`)
+      .then((r) => r.messages.at(-1))
+      .catch(() => undefined);
+  }
+  async function act(fn: () => Promise<void>) {
+    try {
+      await fn();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  const actions = {
+    ooc: (note: string) =>
+      act(async () => {
+        if (!note.trim()) return;
+        await saveSettings({ ooc: [...(settings.ooc ?? []), { id: crypto.randomUUID().slice(0, 8), text: note.trim() }] });
+        toast("Out-of-character note added", { kind: "ok" });
+      }),
+    clearOoc: () => act(async () => void (await saveSettings({ ooc: [] }))),
+    cue: (nudge: string) =>
+      act(async () => {
+        if (!nudge.trim()) return;
+        await saveSettings({ cue: nudge.trim() });
+        toast("Cue set for the next reply", { kind: "ok" });
+      }),
+    endScene: () =>
+      act(async () => {
+        const last = await lastMessage();
+        if (!last) return;
+        await post(`/api/messages/${last.id}/end-scene`);
+        toast("Scene ended here. The next message starts a new one.", { kind: "ok" });
+        onchange();
+      }),
+    chapter: (title: string) =>
+      act(async () => {
+        const last = await lastMessage();
+        if (!last) return;
+        const r = await post<{ boundaries: Boundary[] }>(`/api/messages/${last.id}/new-chapter`);
+        const ch = r.boundaries.find((b) => b.level === "chapter" && b.startSeq === last.seq);
+        if (ch && title.trim()) await put(`/api/summaries/${ch.id}`, { title: title.trim() });
+        toast("A new chapter begins", { kind: "ok" });
+        delight("sparkle");
+        onchange();
+      }),
+    timeskip: (duration: string, note: string) =>
+      act(async () => {
+        if (!duration.trim()) return void errorToast("Say how long, like “3 days”");
+        await post(`/api/chats/${chatId}/timeskip`, { duration: duration.trim(), note: note.trim() || undefined });
+        toast("Time skipped", { kind: "ok" });
+      }),
+    recap: () =>
+      act(async () => {
+        toast("Writing a recap…");
+        const r = await post<{ recap: string }>(`/api/chats/${chatId}/recap`);
+        answer = { title: "Previously…", text: r.recap };
+        answerOpen = true;
+      }),
+    remember: (fact: string, pinned: boolean) =>
+      act(async () => {
+        if (!fact.trim()) return;
+        await post(`/api/chats/${chatId}/memories`, { type: "fact", content: fact.trim(), importance: 8, pinned });
+        toast(pinned ? "Pinned to memory" : "Remembered", { kind: "ok" });
+        delight("sparkle");
+      }),
+    ask: (question: string) =>
+      act(async () => {
+        if (!question.trim()) return;
+        toast("Asking…");
+        const r = await post<{ answer: string; citations?: { n: number; type: string; excerpt: string; seq: number | null }[] }>(`/api/chats/${chatId}/ask`, { question: question.trim() });
+        answer = { title: question.trim(), text: r.answer, citations: r.citations };
+        answerOpen = true;
+      }),
+    director: () =>
+      act(async () => {
+        await saveSettings({ director: !director });
+        toast(director ? "Director mode off" : "Director mode on: your messages are stage directions", { kind: "ok" });
+      }),
+    truth: (rule: string) =>
+      act(async () => {
+        if (!rule.trim()) return;
+        await saveSettings({ truths: [...(settings.truths ?? []), rule.trim()] });
+        toast("Story truth added", { kind: "ok" });
+      }),
+  };
 
   async function runCommand(raw: string): Promise<boolean> {
     const m = raw.trim().match(/^\/(\w+)\s*([\s\S]*)$/);
     if (!m) return false;
     const [, cmd, rest] = m as unknown as [string, string, string];
     const arg = rest.trim();
-    const last = await get<{ messages: { id: string; seq: number }[] }>(`/api/chats/${chatId}/messages?limit=1`).then((r) => r.messages.at(-1)).catch(() => undefined);
-    try {
-      switch (cmd.toLowerCase()) {
-        case "ooc":
-          if (/^clear$/i.test(arg)) await saveSettings({ ooc: [] });
-          else if (arg) await saveSettings({ ooc: [...(settings.ooc ?? []), { id: crypto.randomUUID().slice(0, 8), text: arg }] });
-          toast(arg && !/^clear$/i.test(arg) ? "OOC note added" : "OOC notes cleared", { kind: "ok" });
-          return true;
-        case "cue":
-          if (!arg) return (errorToast("Write the nudge after /cue"), true);
-          await saveSettings({ cue: arg });
-          toast("Cue set for the next reply", { kind: "ok" });
-          return true;
-        case "scene":
-          if (last) await post(`/api/messages/${last.id}/end-scene`);
-          toast("Scene ended here", { kind: "ok" });
-          return true;
-        case "chapter":
-          if (last) await post(`/api/messages/${last.id}/new-chapter`);
-          toast("New chapter", { kind: "ok" });
-          return true;
-        case "timeskip": {
-          const mm = arg.match(/^((?:an?|\d+(?:\.\d+)?)\s*\w+)\s*(.*)$/i);
-          if (!mm) return (errorToast("Write how long, like /timeskip 3 days"), true);
-          await post(`/api/chats/${chatId}/timeskip`, { duration: mm[1], note: mm[2] || undefined });
-          toast("Time skipped", { kind: "ok" });
-          return true;
-        }
-        case "recap": {
-          toast("Writing a recap…");
-          const r = await post<{ recap: string }>(`/api/chats/${chatId}/recap`);
-          answer = { title: "Previously…", text: r.recap };
-          answerOpen = true;
-          return true;
-        }
-        case "remember":
-        case "pin":
-          if (!arg) return (errorToast(`Write what to remember after /${cmd}`), true);
-          await post(`/api/chats/${chatId}/memories`, { type: "fact", content: arg, importance: 8, pinned: cmd === "pin" });
-          toast(cmd === "pin" ? "Pinned to memory" : "Remembered", { kind: "ok" });
-          delight("sparkle");
-          return true;
-        case "ask": {
-          if (!arg) return (errorToast("Write your question after /ask"), true);
-          toast("Asking…");
-          const r = await post<{ answer: string; citations?: { n: number; type: string; excerpt: string; seq: number | null }[] }>(`/api/chats/${chatId}/ask`, { question: arg });
-          answer = { title: arg, text: r.answer, citations: r.citations };
-          answerOpen = true;
-          return true;
-        }
-        case "director":
-          await saveSettings({ director: !director });
-          toast(director ? "Director mode off" : "Director mode on: your messages are stage directions", { kind: "ok" });
-          return true;
-        case "truth":
-          if (!arg) return (errorToast("Write the rule after /truth"), true);
-          await saveSettings({ truths: [...(settings.truths ?? []), arg] });
-          toast("Story truth added", { kind: "ok" });
-          return true;
+    switch (cmd.toLowerCase()) {
+      case "ooc":
+        await (/^clear$/i.test(arg) ? actions.clearOoc() : actions.ooc(arg));
+        return true;
+      case "cue":
+        await actions.cue(arg);
+        return true;
+      case "scene":
+        await actions.endScene();
+        return true;
+      case "chapter":
+        await actions.chapter(arg);
+        return true;
+      case "timeskip": {
+        const mm = arg.match(/^((?:an?|\d+(?:\.\d+)?)\s*\w+)\s*(.*)$/i);
+        if (!mm) return (errorToast("Say how long, like “3 days”"), true);
+        await actions.timeskip(mm[1]!, mm[2] ?? "");
+        return true;
       }
-    } catch (e) {
-      errorToast(e);
-      return true;
+      case "recap":
+        await actions.recap();
+        return true;
+      case "remember":
+      case "pin":
+        await actions.remember(arg, cmd.toLowerCase() === "pin");
+        return true;
+      case "ask":
+        await actions.ask(arg);
+        return true;
+      case "director":
+        await actions.director();
+        return true;
+      case "truth":
+        await actions.truth(arg);
+        return true;
     }
     return false;
   }
 
-  function pickCommand(c: { cmd: string; args: string }) {
-    text = `${c.cmd}${c.args ? " " : ""}`;
-    paletteAt = 0;
-    queueMicrotask(() => input?.focus());
+  // ---------- the tray: writing tools, steering and story actions, one button away ----------
+  let trayOpen = $state(false);
+  let trayTab = $state<"write" | "steer" | "story">("write");
+  let trayEl = $state<HTMLDivElement | null>(null);
+  let optsBtn = $state<HTMLButtonElement | null>(null);
+  let f = $state({ cue: "", ooc: "", truth: "", chapter: "", skip: "", skipNote: "", fact: "", question: "" });
+  function closeTrayOutside(e: MouseEvent) {
+    const t = e.target as Node;
+    if (trayOpen && trayEl && !trayEl.contains(t) && !optsBtn?.contains(t)) trayOpen = false;
   }
+  async function trayDo(fn: () => Promise<void>, reset?: (keyof typeof f)[], close = false) {
+    await fn();
+    for (const k of reset ?? []) f[k] = "";
+    if (close) trayOpen = false;
+  }
+  const meterPct = $derived(preview ? Math.min(100, (preview.est / preview.target) * 100) : 0);
 
   // ---------- guidance (CHAT-11, CHAT-12) ----------
   const chips = $derived(app.settings?.["chat.guidance"] ?? []);
   const activeG = $derived(new Set([...(settings.guidance?.active ?? []), ...(settings.guidance?.once ?? [])]));
   const steerCount = $derived(activeG.size + (settings.length ? 1 : 0) + (settings.pacing && settings.pacing !== "normal" ? 1 : 0) + (settings.cue ? 1 : 0) + (settings.ooc?.length ?? 0));
+  const lengthOpts = [
+    { value: "short", label: "Short" },
+    { value: "normal", label: "Normal" },
+    { value: "long", label: "Long" },
+  ];
+  const paceOpts = [
+    { value: "slow", label: "Slow" },
+    { value: "normal", label: "Normal" },
+    { value: "fast", label: "Fast" },
+  ];
   function toggleChip(id: string, mode: "once" | "persistent") {
     const g = { active: [...(settings.guidance?.active ?? [])], once: [...(settings.guidance?.once ?? [])] };
     const list = mode === "once" ? g.once : g.active;
@@ -209,8 +278,6 @@
   let input = $state<HTMLTextAreaElement | null>(null);
   let drafting = $state<"impersonate" | "expand" | null>(null);
   let draftAbort: AbortController | null = null;
-  let toolsOpen = $state(false);
-  let toolsBtn = $state<HTMLButtonElement | null>(null);
   let focused = $state(false);
 
   // ---------- @-mentions (QOL-03) ----------
@@ -424,23 +491,6 @@
         return;
       }
     }
-    if (palette.length) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        paletteAt = (paletteAt + 1) % palette.length;
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        paletteAt = (paletteAt - 1 + palette.length) % palette.length;
-        return;
-      }
-      if (e.key === "Tab" || (e.key === "Enter" && !e.ctrlKey && !e.metaKey)) {
-        e.preventDefault();
-        pickCommand(palette[Math.min(paletteAt, palette.length - 1)]!);
-        return;
-      }
-    }
     // Enter makes a new line; Ctrl/Cmd+Enter sends (an opt-in setting can make plain Enter send on desktop).
     const enterSends = (app.settings?.["chat.enterToSend"] ?? false) && !app.isMobile;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing && (enterSends || e.ctrlKey || e.metaKey)) {
@@ -473,12 +523,9 @@
     });
   }
 
-  const tools: MenuItem[] = $derived([
-    { label: "Impersonate: write my next message", icon: UserPen, onclick: () => draft("impersonate") },
-    { label: "Expand my rough draft", icon: WandSparkles, onclick: () => draft("expand"), disabled: !text.trim() },
-    { label: "Send without a reply", icon: Send, onclick: () => send(false), disabled: !text.trim() },
-  ]);
 </script>
+
+<svelte:window onclick={closeTrayOutside} />
 
 <div class="composer-wrap">
   {#if app.isMobile && focused}
@@ -501,43 +548,6 @@
       {/each}
     </div>
   {/if}
-  {#if palette.length}
-    <div class="palette card" role="listbox" aria-label="Commands">
-      {#each palette as c, i (c.cmd)}
-        <button class="pal" class:on={i === paletteAt} role="option" aria-selected={i === paletteAt} onmousedown={(e) => e.preventDefault()} onclick={() => pickCommand(c)}>
-          <b class="mono">{c.cmd}</b>{#if c.args}<span class="tiny faint mono"> {c.args}</span>{/if}
-          <span class="tiny muted grow">{c.about}</span>
-        </button>
-      {/each}
-    </div>
-  {/if}
-  {#if steerOpen}
-    <div class="steer card">
-      <div class="row wrap gap">
-        <span class="tiny muted">Length</span>
-        {#each ["short", "normal", "long"] as l (l)}<button class="schip" class:on={settings.length === l} onclick={() => saveSettings({ length: settings.length === l ? null : (l as ChatSettings["length"]) })}>{l}</button>{/each}
-        <span class="tiny muted sep">Pace</span>
-        {#each ["slow", "normal", "fast"] as p (p)}<button class="schip" class:on={(settings.pacing ?? "normal") === p && settings.pacing != null} onclick={() => saveSettings({ pacing: settings.pacing === p ? null : (p as ChatSettings["pacing"]) })}>{p}</button>{/each}
-      </div>
-      <div class="row wrap gap">
-        {#each chips as g (g.id)}
-          <button class="schip" class:on={activeG.has(g.id)} onclick={() => toggleChip(g.id, g.mode)} title={`${g.text}${g.mode === "once" ? " (next reply only)" : " (stays on)"}`}>{g.mode === "once" ? "◦" : "•"} {g.name}</button>
-        {/each}
-        <a class="tiny" href="/settings/writing">Edit chips</a>
-      </div>
-      {#if settings.cue || settings.ooc?.length}
-        <div class="row wrap gap">
-          {#if settings.cue}<span class="schip on" title="For the next reply only">cue: {settings.cue} <button class="x" onclick={() => saveSettings({ cue: null })} aria-label="Clear cue"><X size={11} /></button></span>{/if}
-          {#each settings.ooc ?? [] as o (o.id)}<span class="schip on" title="Standing OOC note">ooc: {o.text} <button class="x" onclick={() => saveSettings({ ooc: (settings.ooc ?? []).filter((x) => x.id !== o.id) })} aria-label="Remove note"><X size={11} /></button></span>{/each}
-        </div>
-      {/if}
-    </div>
-  {/if}
-  {#if lorePreview.length && !generating}
-    <div class="lore-preview" aria-label="Lore your message brings in">
-      {#each lorePreview as l (l.id)}<span class="chip tiny" title="{l.bookName} · {l.reason} · {l.tokens} tokens">📖 {l.title}</span>{/each}
-    </div>
-  {/if}
   {#if issues.length && !generating}
     <div class="spell" aria-label="Spelling and grammar">
       {#each issues as i (`${i.start}:${i.text}`)}
@@ -549,16 +559,141 @@
       {/each}
     </div>
   {/if}
+  {#if trayOpen}
+    <div class="tray card" bind:this={trayEl} role="dialog" aria-label="Writing tools, steering and story">
+      <div class="tray-top">
+        <Segmented
+          value={trayTab}
+          options={[
+            { value: "write", label: "Write" },
+            { value: "steer", label: steerCount ? `Steer · ${steerCount}` : "Steer" },
+            { value: "story", label: "Story" },
+          ]}
+          onchange={(v) => (trayTab = v)}
+        />
+        <button class="btn ghost icon small" onclick={() => (trayOpen = false)} aria-label="Close"><X size={16} /></button>
+      </div>
+
+      {#if trayTab === "write"}
+        <div class="opts-grid">
+          <button class="opt" onclick={() => trayDo(() => draft("impersonate"), [], true)} disabled={generating || Boolean(drafting)}>
+            <span class="ic"><UserPen size={17} /></span><span><b>Write my next message</b><small>In your character's voice</small></span>
+          </button>
+          <button class="opt" onclick={() => trayDo(() => draft("expand"), [], true)} disabled={generating || Boolean(drafting) || !text.trim()}>
+            <span class="ic"><WandSparkles size={17} /></span><span><b>Expand my draft</b><small>Turn rough notes into prose</small></span>
+          </button>
+          <button class="opt" onclick={() => trayDo(() => send(false), [], true)} disabled={!text.trim() || generating}>
+            <span class="ic"><Send size={17} /></span><span><b>Send without a reply</b><small>Add your turn and wait</small></span>
+          </button>
+          <button class="opt" class:on={director} onclick={() => actions.director()}>
+            <span class="ic"><Clapperboard size={17} /></span><span><b>Director mode {director ? "on" : "off"}</b><small>Write stage directions instead</small></span>
+          </button>
+        </div>
+        <div class="row wrap model-row">
+          <span class="tlabel">This reply</span>
+          <ModelSwitcher {detail} {onchange} up />
+          {#if preview}
+            <button class="meter" onclick={() => ((trayOpen = false), oninspect?.())} title="About {preview.est.toLocaleString()} of {preview.target.toLocaleString()} tokens. Open to see exactly what the model reads.">
+              <span class="track"><span class="fill" style:width="{meterPct}%"></span></span>
+              <span class="tiny muted">{compact(preview.est)} / {compact(preview.target)}</span>
+            </button>
+          {/if}
+        </div>
+        <div class="tsec">
+          <span class="tlabel">Lore your message brings in</span>
+          {#if lorePreview.length}
+            <div class="row wrap gap">{#each lorePreview as l (l.id)}<span class="chip lavender tiny" title="{l.bookName} · {l.reason} · {l.tokens} tokens">📖 {l.title}</span>{/each}</div>
+          {:else}
+            <p class="tiny faint">Start typing: entries your words wake up appear here.</p>
+          {/if}
+        </div>
+      {:else if trayTab === "steer"}
+        <div class="tsec">
+          <span class="tlabel">Length</span>
+          <Segmented value={settings.length ?? "normal"} options={lengthOpts} onchange={(v) => saveSettings({ length: v === "normal" ? null : (v as ChatSettings["length"]) })} />
+        </div>
+        <div class="tsec">
+          <span class="tlabel">Pace</span>
+          <Segmented value={settings.pacing ?? "normal"} options={paceOpts} onchange={(v) => saveSettings({ pacing: v === "normal" ? null : (v as ChatSettings["pacing"]) })} />
+        </div>
+        <div class="tsec">
+          <span class="tlabel">Nudges <a class="tiny" href="/settings/writing">edit</a></span>
+          <div class="row wrap gap">
+            {#each chips as g (g.id)}
+              <button class="schip" class:on={activeG.has(g.id)} onclick={() => toggleChip(g.id, g.mode)} title={`${g.text}${g.mode === "once" ? " (next reply only)" : " (stays on)"}`}>{g.mode === "once" ? "◦" : "✦"} {g.name}</button>
+            {:else}
+              <span class="tiny faint">No nudges yet. Add some in Settings → Writing.</span>
+            {/each}
+          </div>
+        </div>
+        <div class="tsec">
+          <span class="tlabel">A cue for the next reply only</span>
+          {#if settings.cue}
+            <span class="schip on">{settings.cue} <button class="x" onclick={() => saveSettings({ cue: null })} aria-label="Clear the cue"><X size={11} /></button></span>
+          {:else}
+            <form class="inline" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.cue(f.cue), ["cue"]))}>
+              <input class="input" bind:value={f.cue} placeholder="She notices the second key…" />
+              <button class="btn small" disabled={!f.cue.trim()}>Set</button>
+            </form>
+          {/if}
+        </div>
+        <div class="tsec">
+          <span class="tlabel">Standing notes to the writer (out of character)</span>
+          {#each settings.ooc ?? [] as o (o.id)}
+            <span class="schip on">{o.text} <button class="x" onclick={() => saveSettings({ ooc: (settings.ooc ?? []).filter((x) => x.id !== o.id) })} aria-label="Remove note"><X size={11} /></button></span>
+          {/each}
+          <form class="inline" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.ooc(f.ooc), ["ooc"]))}>
+            <input class="input" bind:value={f.ooc} placeholder="Keep replies under three paragraphs" />
+            <button class="btn small" disabled={!f.ooc.trim()}>Add</button>
+          </form>
+        </div>
+        <div class="tsec">
+          <span class="tlabel"><ShieldCheck size={12} /> Story truths that always hold</span>
+          {#each settings.truths ?? [] as t, i (i)}
+            <span class="schip on">{t} <button class="x" onclick={() => saveSettings({ truths: (settings.truths ?? []).filter((_, j) => j !== i) })} aria-label="Remove truth"><X size={11} /></button></span>
+          {/each}
+          <form class="inline" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.truth(f.truth), ["truth"]))}>
+            <input class="input" bind:value={f.truth} placeholder="Wren has never left the island" />
+            <button class="btn small" disabled={!f.truth.trim()}>Add</button>
+          </form>
+        </div>
+      {:else}
+        <div class="opts-grid">
+          <button class="opt" onclick={() => trayDo(actions.endScene, [], true)} disabled={!lastMessageId}>
+            <span class="ic"><Milestone size={17} /></span><span><b>End the scene here</b><small>The next message starts a new one</small></span>
+          </button>
+          <button class="opt" onclick={() => trayDo(actions.recap, [], true)}>
+            <span class="ic"><History size={17} /></span><span><b>Previously on…</b><small>A recap of the story so far</small></span>
+          </button>
+        </div>
+        <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.chapter(f.chapter), ["chapter"], true))}>
+          <span class="tlabel"><Flag size={12} /> Start a new chapter</span>
+          <div class="inline"><input class="input" bind:value={f.chapter} placeholder="A title, or leave it for Mea to write" /><button class="btn small" disabled={!lastMessageId}>Begin</button></div>
+        </form>
+        <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.timeskip(f.skip, f.skipNote), ["skip", "skipNote"], true))}>
+          <span class="tlabel"><Hourglass size={12} /> Skip ahead in time</span>
+          <div class="inline"><input class="input short" bind:value={f.skip} placeholder="3 days" /><input class="input" bind:value={f.skipNote} placeholder="What happened meanwhile (optional)" /><button class="btn small" disabled={!f.skip.trim()}>Skip</button></div>
+        </form>
+        <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.remember(f.fact, false), ["fact"]))}>
+          <span class="tlabel"><Brain size={12} /> Something to remember</span>
+          <div class="inline">
+            <input class="input" bind:value={f.fact} placeholder="Ash is afraid of deep water" />
+            <button class="btn small" disabled={!f.fact.trim()}>Remember</button>
+            <button type="button" class="btn small" disabled={!f.fact.trim()} onclick={() => trayDo(() => actions.remember(f.fact, true), ["fact"])} title="Always in the prompt"><Pin size={13} /> Pin</button>
+          </div>
+        </form>
+        <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.ask(f.question), ["question"], true))}>
+          <span class="tlabel"><MessageQuestion size={12} /> Ask about the story (out of character)</span>
+          <div class="inline"><input class="input" bind:value={f.question} placeholder="When did she first mention her brother?" /><button class="btn small" disabled={!f.question.trim()}>Ask</button></div>
+        </form>
+      {/if}
+    </div>
+  {/if}
   <div class="composer card" class:busy={drafting} class:director>
-    <button class="btn ghost icon tool" bind:this={toolsBtn} onclick={() => (toolsOpen = true)} disabled={generating || Boolean(drafting)} aria-label="Writing tools">
-      <Sparkles size={19} />
+    <button class="btn ghost icon tool opts" class:on={trayOpen} bind:this={optsBtn} onclick={() => (trayOpen = !trayOpen)} aria-label="Writing tools, steering and story actions" aria-expanded={trayOpen} title="Writing tools, steering and story actions">
+      <SlidersHorizontal size={19} />{#if steerCount || director}<span class="pip" aria-hidden="true"></span>{/if}
     </button>
-    <button class="btn ghost icon tool steer-btn" class:on={steerOpen || steerCount > 0} onclick={() => (steerOpen = !steerOpen)} aria-label="Steer the next reply" title="Length, pace, guidance, cues">
-      <SlidersHorizontal size={18} />{#if steerCount}<span class="badge">{steerCount}</span>{/if}
-    </button>
-    <button class="btn ghost icon tool director-btn" class:on={director} onclick={() => saveSettings({ director: !director })} aria-label="Director mode" title={director ? "Director mode: your messages are stage directions (click to turn off)" : "Director mode: write stage directions instead of your character's lines"}>
-      <Clapperboard size={18} />
-    </button>
+    {#if director}<button class="chip butter dir" onclick={() => actions.director()} title="Director mode is on: tap to turn it off"><Clapperboard size={12} /> Director</button>{/if}
     <textarea
       bind:this={input}
       bind:value={text}
@@ -571,21 +706,20 @@
       onfocus={() => (focused = true)}
       onblur={() => setTimeout(() => (focused = false), 150)}
       rows="1"
-      placeholder={drafting === "impersonate" ? "Writing as you…" : drafting === "expand" ? "Expanding your draft…" : disabled ? "Set up a model in Settings to start" : director ? "Stage direction: what should happen next…" : "Write your message… (/ for commands)"}
+      placeholder={drafting === "impersonate" ? "Writing as you…" : drafting === "expand" ? "Expanding your draft…" : disabled ? "Set up a model in Settings to start" : director ? "Stage direction: what should happen next…" : `Speak as ${detail.persona?.name ?? "yourself"}…`}
       aria-label="Message"
       readonly={Boolean(drafting)}
     ></textarea>
     {#if generating || drafting}
-      <button class="btn icon send stop" onclick={stop} aria-label="Stop"><Square size={16} fill="currentColor" /></button>
+      <button class="btn icon send stop" onclick={stop} aria-label="Stop" title="Stop"><Square size={16} fill="currentColor" /></button>
     {:else}
-      <button class="btn primary icon send" onclick={() => send()} disabled={disabled} aria-label={text.trim() ? "Send" : "Let them continue"} title={text.trim() ? (app.isMobile ? "Send" : "Send (Ctrl+Enter)") : "Send nothing: the character keeps going"}>
+      <button class="btn primary icon send" onclick={() => send()} disabled={disabled} aria-label={text.trim() ? "Send" : "Let them continue"} title={text.trim() ? "Send" : "Send nothing: the character keeps going"}>
         <ArrowUp size={19} />
       </button>
     {/if}
   </div>
 </div>
 
-<Menu bind:open={toolsOpen} items={tools} anchor={toolsBtn} title="Writing tools" />
 
 <Modal bind:open={answerOpen} title={answer?.title ?? ""} size="md">
   {#if answer}
@@ -621,20 +755,6 @@
   }
   .tool.on {
     color: var(--accent);
-  }
-  .steer-btn {
-    position: relative;
-  }
-  .badge {
-    position: absolute;
-    top: 0;
-    right: 0;
-    min-width: 1rem;
-    height: 1rem;
-    border-radius: var(--r-pill);
-    background: var(--accent);
-    color: var(--on-accent, white);
-    font: 700 0.62rem/1rem var(--font-ui);
   }
   .spell {
     display: flex;
@@ -677,16 +797,8 @@
   .pal:hover {
     background: var(--surface-2);
   }
-  .steer {
-    display: grid;
-    gap: 0.4rem;
-    padding: 0.55rem 0.7rem;
-  }
   .gap {
     gap: 0.3rem;
-  }
-  .sep {
-    margin-left: 0.6rem;
   }
   .schip {
     display: inline-flex;
@@ -712,13 +824,6 @@
     cursor: pointer;
     color: inherit;
     display: inline-flex;
-  }
-  .lore-preview {
-    display: flex;
-    gap: 0.3rem;
-    flex-wrap: wrap;
-    padding: 0 0.3rem;
-    opacity: 0.85;
   }
   .cites {
     display: grid;
@@ -759,10 +864,6 @@
       width: 2.1rem;
       padding-inline: 0;
     }
-    /* Director mode stays one tap away in /director; it shows here once it's on. */
-    .tool.director-btn:not(.on) {
-      display: none;
-    }
   }
   .send {
     border-radius: 50%;
@@ -787,5 +888,199 @@
     padding: 0.35rem 0.8rem;
     font: 700 var(--fs-sm) var(--font-ui);
     flex: none;
+  }
+  .opts {
+    position: relative;
+  }
+  .pip {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .dir {
+    align-self: center;
+    flex: none;
+    cursor: pointer;
+  }
+  .tray {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem 1.1rem 1.15rem;
+    border-radius: var(--r-lg);
+    max-height: min(62vh, 34rem);
+    overflow-y: auto;
+    animation: tray-in 0.32s var(--spring);
+    background: var(--surface);
+  }
+  @keyframes tray-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+  }
+  .tray-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .opts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.5rem;
+  }
+  .opt {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    transition:
+      transform 0.3s var(--spring),
+      background 0.2s,
+      border-color 0.2s;
+  }
+  .opt:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+  .opt:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .opt.on {
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+  }
+  .opt .ic {
+    width: 2.2rem;
+    height: 2.2rem;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--lamp, var(--butter)) 16%, transparent);
+    color: var(--lamp, var(--accent-ink));
+  }
+  .opt b {
+    display: block;
+    font-size: var(--fs-sm);
+    font-weight: 700;
+  }
+  .opt small {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--text-faint);
+  }
+  .tsec {
+    display: grid;
+    gap: 0.45rem;
+    justify-items: start;
+  }
+  .tlabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font: 700 0.68rem var(--font-ui);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .inline {
+    display: flex;
+    gap: 0.4rem;
+    width: 100%;
+  }
+  .inline .input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.75rem;
+  }
+  .inline .input.short {
+    flex: 0 0 7rem;
+  }
+  .model-row {
+    gap: 0.6rem;
+  }
+  .meter {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    padding: 0.3rem 0.4rem;
+    border-radius: var(--r-sm);
+    color: inherit;
+  }
+  .meter:hover {
+    background: var(--surface-2);
+  }
+  .track {
+    width: 4rem;
+    height: 0.4rem;
+    border-radius: var(--r-pill);
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--lavender), var(--accent));
+    border-radius: inherit;
+  }
+  .gap {
+    gap: 0.3rem;
+  }
+  :global([data-theme="lantern"]) .tray {
+    background: rgb(30 22 50 / 94%);
+  }
+  :global([data-theme="lantern"]) .opt {
+    background: rgb(255 255 255 / 4%);
+    border-color: var(--edge);
+  }
+  :global([data-theme="lantern"]) .opt .ic {
+    box-shadow: 0 0 16px -6px var(--lamp);
+  }
+  :global([data-theme="lantern"]) .composer {
+    background: rgb(32 23 54 / 80%);
+    border-radius: 24px;
+    padding: 0.45rem;
+  }
+  :global([data-theme="lantern"]) .composer:focus-within {
+    box-shadow:
+      0 0 0 4px rgb(255 158 192 / 10%),
+      0 24px 60px -20px rgb(0 0 0 / 70%),
+      0 0 40px -10px rgb(255 158 192 / 35%);
+  }
+  :global([data-theme="lantern"]) .send {
+    border-radius: 16px;
+    width: 2.9rem;
+    min-height: 2.9rem;
+  }
+  :global([data-theme="lantern"]) .send:not(:disabled):hover {
+    transform: scale(1.06) rotate(-8deg);
+  }
+  :global([data-theme="lantern"]) .tool {
+    color: var(--text-muted);
+  }
+  :global([data-theme="lantern"]) .tool.on {
+    color: var(--text);
+    background: rgb(255 255 255 / 10%);
+  }
+  :global([data-theme="lantern"]) textarea::placeholder {
+    color: var(--text-faint);
+    font-style: italic;
   }
 </style>

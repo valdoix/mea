@@ -24,7 +24,9 @@ export const app = $state({
   currentChatId: null as string | null,
   drawerOpen: false,
   devMode: false,
-  dark: document.documentElement.dataset.theme === "dark",
+  dark: document.documentElement.dataset.theme !== "light",
+  /** The theme that's showing: "lantern" (the default), or Mea Cozy light and dark. */
+  theme: (document.documentElement.dataset.theme ?? "lantern") as "lantern" | "light" | "dark",
   /** MOB-12: smaller images and fewer prefetches (on a metered connection, or switched on by hand). */
   dataLight: false,
   /** SEC-05: the encrypted database is waiting for its passphrase. */
@@ -71,11 +73,13 @@ darkQuery.addEventListener("change", () => applyAppearance());
 
 export function applyAppearance() {
   const s = app.settings;
-  const theme = s?.["appearance.theme"] ?? (localStorage.getItem("mea.theme") as Settings["appearance.theme"]) ?? "system";
-  const dark = theme === "dark" || (theme === "system" && darkQuery.matches);
+  const theme = s?.["appearance.theme"] ?? (localStorage.getItem("mea.theme") as Settings["appearance.theme"]) ?? "lantern";
+  const shown = theme === "lantern" ? "lantern" : theme === "dark" || (theme === "system" && darkQuery.matches) ? "dark" : "light";
+  const dark = shown !== "light";
   const root = document.documentElement;
-  root.dataset.theme = dark ? "dark" : "light";
+  root.dataset.theme = shown;
   app.dark = dark;
+  app.theme = shown;
   try {
     localStorage.setItem("mea.theme", theme);
   } catch {
@@ -101,5 +105,5 @@ export function applyAppearance() {
       root.toggleAttribute("data-dyslexic", t.dyslexic);
     }
   }
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#231E2A" : "#FBF6F1"));
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", shown === "lantern" ? "#0E0A18" : dark ? "#231E2A" : "#FBF6F1"));
 }

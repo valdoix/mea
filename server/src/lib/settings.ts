@@ -7,10 +7,10 @@ import type { RegexScript } from "./regex";
 export interface Settings {
   /** Profile used for story generation (CONN-03). */
   "routing.story": string | null;
-  "appearance.theme": "system" | "light" | "dark";
+  "appearance.theme": "system" | "light" | "dark" | "lantern";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
-  "appearance.storyFont": "lora" | "literata" | "nunito";
+  "appearance.storyFont": "lora" | "literata" | "nunito" | "newsreader";
   /** LORE-15: underline lore terms in messages. */
   "appearance.glossary": boolean;
   /** UI-16 / UI-19: line height, paragraph spacing, text width, dialogue color, UI font, dyslexia-friendly font. */
@@ -300,10 +300,10 @@ export const defaultMemoryConfig: MemoryConfig = {
 
 export const defaults: Settings = {
   "routing.story": null,
-  "appearance.theme": "system",
+  "appearance.theme": "lantern",
   "appearance.chatStyle": "cards",
   "appearance.fontScale": 1,
-  "appearance.storyFont": "lora",
+  "appearance.storyFont": "newsreader",
   "appearance.glossary": true,
   "appearance.typography": defaultTypography,
   "chat.enterToSend": false,

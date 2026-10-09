@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mea · Lantern</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="lantern.css" />
+</head>
+<body class="no-rail-chat">
+  <div class="sky" aria-hidden="true">
+    <div class="stars"></div>
+    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div>
+    <div class="shoot"></div>
+    <div id="flies"></div>
+  </div>
+
+  <button class="reveal" id="reveal" title="Show navigation" aria-label="Show navigation">✿</button>
+  <div class="focus-pill"><span style="color:var(--lamp)">✦</span> Focus <button class="btn sm" data-act="focus">Leave focus</button></div>
+
+  <div class="shell">
+    <!-- ================= Rail ================= -->
+    <nav class="rail glass" aria-label="Main">
+      <a class="logo" href="#/" title="Mea">✿</a>
+      <a class="nav" href="#/" data-route="home"><i data-i="home"></i><span class="tip">Home</span></a>
+      <a class="nav" href="#/personas" data-route="personas"><i data-i="users"></i><span class="tip">Personas</span></a>
+      <a class="nav" href="#/studio" data-route="studio"><i data-i="wand"></i><span class="tip">Studio</span></a>
+      <a class="nav" href="#/lore" data-route="lore"><i data-i="book"></i><span class="tip">Lorebooks</span></a>
+      <a class="nav hide-m" href="#/presets" data-route="presets"><i data-i="sliders"></i><span class="tip">Presets</span></a>
+      <a class="nav hide-m" href="#/notebook" data-route="notebook"><i data-i="pen"></i><span class="tip">Notebook</span></a>
+      <a class="nav" href="#/inbox" data-route="inbox"><i data-i="inbox"></i><span class="badge" id="inbox-badge">4</span><span class="tip">Review inbox</span></a>
+      <hr />
+      <div class="stories" id="rail-stories"></div>
+      <div class="grow"></div>
+      <a class="nav" href="#/settings" data-route="settings"><i data-i="cog"></i><span class="tip">Settings</span></a>
+      <button class="nav hide-m" data-act="palette"><i data-i="search"></i><span class="tip">Jump to anything</span></button>
+      <a class="me" href="#/personas" title="You're playing Ash"><span class="orb" data-art="ash" style="width:38px;height:38px"></span></a>
+    </nav>
+
+    <div id="views">
+      <!-- ================= Chat ================= -->
+      <section class="view" data-view="chat">
+        <div class="chatview">
+          <main class="stage glass">
+            <header class="chat-head">
+              <div class="who">
+                <div class="ring-spin"><span class="orb" data-art="wren"></span></div>
+                <div class="title">
+                  <div class="name">Wren Halloway <em>· The Lamp at Gull's Reach</em></div>
+                  <div class="chips">
+                    <span class="chip rose">♥ flustered</span>
+                    <span class="chip"><i data-i="pin"></i>Lamp room</span>
+                    <span class="chip"><i data-i="moon"></i>Night · 2nd bell</span>
+                    <span class="chip"><i data-i="wind"></i>North-east gale</span>
+                  </div>
+                </div>
+              </div>
+              <div class="tools">
+                <div class="seg hide-focus" id="style-seg" role="radiogroup" aria-label="Chat style">
+                  <span class="thumb"></span>
+                  <button data-style="cards" title="Cards"><i data-i="cards"></i><span class="hide-m">Cards</span></button>
+                  <button data-style="book" title="Book"><i data-i="book"></i><span class="hide-m">Book</span></button>
+                  <button data-style="bubbles" title="Bubbles"><i data-i="bubble"></i><span class="hide-m">Bubbles</span></button>
+                </div>
+                <span class="sep hide-focus hide-m"></span>
+                <button class="ib hide-focus" title="Search this chat" data-act="palette"><i data-i="search"></i></button>
+                <a class="ib hide-focus hide-m" href="#/codex" title="Codex"><i data-i="library"></i></a>
+                <a class="ib hide-focus" href="#/read" title="Read it as a book"><i data-i="bookopen"></i></a>
+                <div class="pop-wrap hide-focus">
+                  <button class="ib" data-pop="display" title="Display: box size, text, portraits"><span style="font:400 18px var(--f-display)">Aa</span></button>
+                  <div class="pop glass" id="pop-display">
+                    <div class="eyebrow" style="margin-bottom:12px">Display</div>
+                    <div class="field"><span>Chat box width <b class="grad-text" id="w-label">Comfortable</b></span>
+                      <div class="seg" id="width-seg"><span class="thumb"></span><button data-w="38">Narrow</button><button data-w="48" class="on">Comfortable</button><button data-w="60">Wide</button><button data-w="100">Full</button></div></div>
+                    <div class="field" style="margin-top:14px"><span>Text size</span><input class="range" id="pop-size" type="range" min="15" max="22" step="1" value="18" /></div>
+                    <div class="field" style="margin-top:14px"><span>Portraits</span>
+                      <div class="seg" id="portrait-seg"><span class="thumb"></span><button data-p="56">Small</button><button data-p="76" class="on">Large</button><button data-p="104">Grand</button></div></div>
+                    <div class="field" style="margin-top:14px"><span>Box padding</span>
+                      <div class="seg" id="pad-seg"><span class="thumb"></span><button data-pad="compact">Snug</button><button data-pad="cozy" class="on">Cozy</button><button data-pad="airy">Airy</button></div></div>
+                  </div>
+                </div>
+                <span class="sep hide-focus hide-m"></span>
+                <button class="ib hide-focus hide-m" data-act="rail" title="Show or hide navigation"><i data-i="panelL"></i></button>
+                <button class="ib hide-focus" data-act="dock" title="Show or hide the side panel"><i data-i="panelR"></i></button>
+                <button class="ib" data-act="focus" title="Focus on the story"><i data-i="focus"></i></button>
+              </div>
+            </header>
+
+            <div class="scrub" title="Timeline: tap a chapter to jump">
+              <div class="line"></div><div class="fill"></div>
+              <span class="bm" style="left:22%">♥</span><span class="bm" style="left:61%">♥</span>
+              <div class="ch" style="left:3%"><span>I · The Light</span></div>
+              <div class="ch" style="left:40%"><span>II · The Logbook</span></div>
+              <div class="ch now" style="left:82%"><span>III · Oil &amp; Salt</span></div>
+            </div>
+
+            <div class="feed scroll-thin" id="feed">
+              <div class="feed-inner style-cards" id="feed-inner">
+                <div class="recap hair">
+                  <div class="eyebrow lamp"><i data-i="sparkles"></i>Previously</div>
+                  The ferry stopped running after the equinox gale. Ash promised to find lamp oil before the long dark, and Wren pretended not to care whether he came back.
+                </div>
+
+                <header class="chapter">
+                  <div class="ch-orn"><span></span><i>✦</i><span></span></div>
+                  <div class="ch-num">Chapter <b>III</b></div>
+                  <h2 class="ch-title">Oil &amp; Salt</h2>
+                  <p class="ch-epi">in which a parcel is delivered, and a vote is postponed</p>
+                  <div class="ch-meta"><span>Day 9</span><i></i><span>3 scenes</span><i></i><span>Wren &amp; Ash</span></div>
+                </header>
+                <div class="scene-h"><span class="sc-line"></span><div class="sc-body"><span class="sc-ic"><i data-i="pin"></i></span><div><b>The lamp room</b><span>Night, second bell · north-east gale</span></div></div><span class="sc-line"></span></div>
+
+                <article class="msg ai first">
+                  <div class="av"><span class="orb" data-art="wren"></span></div>
+                  <div class="body hair">
+                    <div class="mh"><span class="nm">Wren</span><span class="when">night · 2nd bell</span>
+                      <span class="sw"><button>‹</button>1 / 1<button>›</button></span>
+                      <span class="acts"><button class="ib" title="Best moment"><i data-i="star"></i></button><button class="ib" title="Edit"><i data-i="pen"></i></button><button class="ib" title="More"><i data-i="dots"></i></button></span>
+                    </div>
+                    <div class="tx">
+                      <p><span class="a">The lamp room hums as the great lens turns, throwing its slow gold arm across the black water.</span> <span class="d">“You came back,”</span> she says, not looking up from the brass she's polishing. <span class="d">“Most people only climb those stairs once.”</span></p>
+                      <p><span class="t">He's soaked through. Again. Of course he is.</span></p>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="msg user">
+                  <div class="av"><span class="orb" data-art="ash"></span></div>
+                  <div class="body hair">
+                    <div class="mh"><span class="nm">Ash</span><span class="when">night · 2nd bell</span>
+                      <span class="acts" style="margin-left:auto"><button class="ib" title="Edit"><i data-i="pen"></i></button><button class="ib" title="Branch from here"><i data-i="branch"></i></button></span>
+                    </div>
+                    <div class="tx"><p><span class="a">I shake the rain off my coat and set the oilskin parcel on her workbench, next to the tide tables.</span> <span class="d">“Your oil. The ferryman wouldn't come past the rocks, so I rowed it.”</span></p></div>
+                  </div>
+                </article>
+
+                <article class="msg ai best">
+                  <div class="av"><span class="orb" data-art="wren"></span></div>
+                  <div class="body hair">
+                    <span class="ribbon" title="Best moment">★</span>
+                    <div class="mh"><span class="nm">Wren</span><span class="when">night · 2nd bell</span>
+                      <span class="sw"><button>‹</button>2 / 3<button>›</button></span>
+                      <span class="acts"><button class="ib" title="Try again"><i data-i="redo"></i></button><button class="ib" title="Edit"><i data-i="pen"></i></button><button class="ib" title="More"><i data-i="dots"></i></button></span>
+                    </div>
+                    <div class="tx">
+                      <p><span class="a">Her hands go still on the cloth.</span> <span class="d">“You rowed. In this.”</span> <span class="a">She finally turns, and the lamplight catches the salt drying in her hair.</span> <span class="d">“That's either very brave or very stupid, and I haven't decided which I'd prefer.”</span></p>
+                      <p><span class="a">She crosses to the stove before he can answer, and the kettle goes on with a clatter that is louder than it needs to be.</span></p>
+                    </div>
+                    <div class="mf"><span class="chip lamp keep"><i data-i="sparkles"></i>Wren will remember this</span><span class="chip">96 words</span><span class="chip">Wayfarer 12B</span></div>
+                  </div>
+                </article>
+
+                <div class="flag hair"><i data-i="alert"></i><span class="grow">Wren said she's <b>never</b> left the island, but in chapter I she sold eggs at the mainland market.</span><button class="btn sm">Keep both</button><button class="btn sm warm">Fix it</button></div>
+
+                <article class="msg user">
+                  <div class="av"><span class="orb" data-art="ash"></span></div>
+                  <div class="body hair">
+                    <div class="mh"><span class="nm">Ash</span><span class="when">night · 2nd bell</span>
+                      <span class="acts" style="margin-left:auto"><button class="ib" title="Edit"><i data-i="pen"></i></button></span>
+                    </div>
+                    <div class="tx"><p><span class="a">I take the chair by the stove without arguing, which seems to surprise her more than anything.</span> <span class="d">“Brave. Definitely brave. I'll take the vote when you've had a cup.”</span></p></div>
+                  </div>
+                </article>
+
+                <div class="scene-h"><span class="sc-line"></span><div class="sc-body"><span class="sc-ic"><i data-i="moon"></i></span><div><b>By the stove</b><span>Later · the kettle sings</span></div></div><span class="sc-line"></span></div>
+
+                <article class="msg ai live">
+                  <div class="av"><span class="orb" data-art="wren"></span></div>
+                  <div class="body hair">
+                    <div class="mh"><span class="nm">Wren</span><span class="when">writing…</span><span class="sw"><button class="btn sm ghost" style="height:24px">Stop</button></span></div>
+                    <div class="tx"><p><span class="a">She sets two mugs down, and one of them is chipped, and she gives him the good one without seeming to think about it.</span> <span class="d">“The vote,”</span> she says, <span class="d">“is still out. But you can stay until the tide turns.”</span><span class="caret"></span></p></div>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="composer">
+              <div class="composer-inner">
+                <div class="pop glass" id="pop-compose">
+                  <div class="row" style="margin-bottom:12px"><span class="eyebrow grow">For the next reply</span><button class="ib sm" data-pop="compose" title="Close"><i data-i="x"></i></button></div>
+                  <div class="opt-grid">
+                    <button class="opt"><span class="orb" data-art="ash"></span><div><small>Speaking as</small><b>Ash</b></div></button>
+                    <button class="opt"><span class="ic"><i data-i="cpu"></i></span><div><small>Model</small><b>Wayfarer 12B</b></div></button>
+                    <button class="opt" id="ghost"><span class="ic"><i data-i="wand"></i></span><div><small>Stuck?</small><b>Write it for me</b></div></button>
+                  </div>
+                  <div class="eyebrow" style="margin:16px 0 8px">Steering</div>
+                  <div class="nudges"><button class="chip on">✦ slow burn</button><button class="chip">more weather</button><button class="chip">let Wren lead</button><button class="chip">+ nudge</button></div>
+                  <div class="eyebrow" style="margin:16px 0 8px">Lore in play</div>
+                  <div class="nudges"><span class="chip lilac">📖 Gull's Reach</span><span class="chip lilac">📖 The Old Eye</span></div>
+                </div>
+                <div class="capsule glass">
+                  <button class="ib opts-btn" data-pop="compose" title="Persona, model, steering and lore"><i data-i="sliders"></i><span class="pip"></span></button>
+                  <textarea id="say" rows="1" placeholder="Speak as Ash…"></textarea>
+                  <button class="send" id="send" aria-label="Send"><i data-i="send"></i></button>
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <aside class="dock glass">
+            <div class="dock-in">
+              <div class="dock-tabs" id="dock-tabs">
+                <span class="thumb"></span>
+                <button data-p="chat"><i data-i="sliders"></i>Chat</button>
+                <button data-p="memory" class="on"><i data-i="brain"></i>Memory</button>
+                <button data-p="story"><i data-i="heart"></i>Story</button>
+                <button data-p="world"><i data-i="globe"></i>World</button>
+                <button data-p="ask"><i data-i="ask"></i>Ask</button>
+                <button data-p="notes"><i data-i="pen"></i>Notes</button>
+              </div>
+              <div class="dock-panes scroll-thin">
+                <section class="pane" data-p="chat">
+                  <div class="pane-h"><span class="h2">This chat</span><span class="tiny faint">Gull's Reach</span></div>
+                  <div class="mini">
+                    <div class="setrow"><div class="grow"><b>Model</b><small>NanoGPT · subscription</small></div><span class="chip">Wayfarer 12B</span></div>
+                    <div class="setrow"><div class="grow"><b>Preset</b><small>Samplers and prompt layers</small></div><span class="chip lilac">Slow Burn Prose</span></div>
+                    <div class="setrow"><div class="grow"><b>Persona</b></div><span class="chip sky">Ash</span></div>
+                  </div>
+                  <div class="mini">
+                    <div class="field"><span>Steering strength <b class="grad-text">gentle</b></span><input class="range" type="range" value="35" style="--p:35%" /></div>
+                  </div>
+                  <div class="mini">
+                    <div class="setrow"><div class="grow"><b>Keep Wren in character</b><small>Re-anchor when her voice drifts</small></div><label class="switch"><input type="checkbox" checked /><i></i></label></div>
+                    <div class="setrow"><div class="grow"><b>Don't write for Ash</b><small>Catch puppeting before it lands</small></div><label class="switch"><input type="checkbox" checked /><i></i></label></div>
+                    <div class="setrow"><div class="grow"><b>Ambience</b><small>Rain on glass, low</small></div><label class="switch"><input type="checkbox" /><i></i></label></div>
+                  </div>
+                </section>
+
+                <section class="pane on" data-p="memory">
+                  <div class="pane-h"><span class="h2">Her constellation</span><a href="#/memory" class="tiny faint">14 memories →</a></div>
+                  <svg class="constellation" viewBox="0 0 300 230" aria-label="Memory map">
+                    <g stroke="rgb(199 180 255 / 40%)" stroke-width="1" fill="none" class="lnk"><path d="M58 62 L132 40 L214 74 L252 150 M132 40 L150 124 L214 74 M150 124 L88 168 L58 62 M150 124 L252 150 M88 168 L180 196 L252 150"/></g>
+                    <g>
+                      <circle class="st" cx="58" cy="62" r="4" fill="#ffd08f"/><text x="66" y="58">the Old Eye</text>
+                      <circle class="st" cx="132" cy="40" r="5.5" fill="#ff9ec0" style="animation-delay:.4s"/><text x="140" y="36">Tamsin left</text>
+                      <circle class="st" cx="214" cy="74" r="4" fill="#c7b4ff" style="animation-delay:.9s"/><text x="222" y="70">second key</text>
+                      <circle class="st" cx="150" cy="124" r="7" fill="#fff" style="animation-delay:.2s"/><text x="160" y="128" style="fill:#fff;font-weight:700">Ash rowed the oil</text>
+                      <circle class="st" cx="88" cy="168" r="4" fill="#82e3d3" style="animation-delay:1.3s"/><text x="96" y="164">black tea</text>
+                      <circle class="st" cx="252" cy="150" r="4.5" fill="#ffd08f" style="animation-delay:.7s"/><text x="214" y="170">the gale</text>
+                      <circle class="st" cx="180" cy="196" r="3.5" fill="#9cc4ff" style="animation-delay:1.1s"/><text x="140" y="214">mainland eggs?</text>
+                    </g>
+                  </svg>
+                  <div class="mini atom"><span class="s">★</span><div>Ash rowed the oil across in a gale.<small>just now · pinned</small></div></div>
+                  <div class="mini atom"><span class="s" style="color:var(--rose)">●</span><div>Her brother Tamsin left on the last ferry and never wrote.<small>chapter I · sensitive, she won't raise it</small></div></div>
+                  <div class="mini atom"><span class="s" style="color:var(--lilac)">●</span><div>She calls the Fresnel lens “the Old Eye.”<small>chapter I</small></div></div>
+                </section>
+
+                <section class="pane" data-p="story">
+                  <div class="pane-h"><span class="h2">Between them</span></div>
+                  <div class="gauges" id="gauges"></div>
+                  <div class="pane-h" style="margin-top:18px"><span class="h2">Threads</span></div>
+                  <div class="mini atom"><span class="s">?</span><div>Why did Tamsin leave?<small>opened chapter I · simmering</small></div></div>
+                  <div class="mini atom"><span class="s">?</span><div>The second key on Wren's ring.<small>opened chapter II</small></div></div>
+                </section>
+
+                <section class="pane" data-p="world">
+                  <div class="pane-h"><span class="h2">Outside</span><a href="#/world" class="tiny faint">the world →</a></div>
+                  <div class="mini row" style="background:rgb(130 227 211 / 7%);box-shadow:inset 0 0 0 1px rgb(130 227 211 / 22%)"><span style="font:400 38px/1 var(--f-display);color:var(--sea)">11:40</span><div>High tide, turning<small>the rocks show at two bells</small></div></div>
+                  <div class="mini"><dl class="kv"><dt>Where</dt><dd>Lamp room, top of 112 stairs</dd><dt>When</dt><dd>Night, second bell · day 9</dd><dt>Weather</dt><dd>North-east gale, rising</dd><dt>Ferry</dt><dd>Suspended</dd></dl></div>
+                  <div class="mini atom"><span class="s">✦</span><div>Offstage: the harbourmaster counts the boats and comes up one short.<small>may reach the scene by morning</small></div></div>
+                </section>
+
+                <section class="pane" data-p="ask">
+                  <div class="pane-h"><span class="h2">Ask the archivist</span></div>
+                  <div class="mini" style="margin-left:34px;background:rgb(156 196 255 / 10%)">When did Wren first mention her brother?</div>
+                  <div class="mini">Chapter I, over the logbook. The last entry in Tamsin's hand reads “Wind SW, fair, leaving.” <span class="chip rose" style="height:20px">ch. I · 48</span></div>
+                  <div class="search" style="min-width:0;margin-top:12px"><i data-i="ask"></i><input placeholder="Ask about anything in this story…" /></div>
+                </section>
+
+                <section class="pane" data-p="notes">
+                  <div class="pane-h"><span class="h2">Notes</span><a href="#/notebook" class="tiny faint">notebook →</a></div>
+                  <div class="mini atom"><span class="s">✎</span><div>Ash finds Tamsin's oilskin in the boathouse?</div></div>
+                  <div class="mini atom"><span class="s">✎</span><div>No confession before chapter V.</div></div>
+                  <textarea class="input" placeholder="A note to yourself…" style="min-height:80px;font-family:var(--f-ui);font-size:14px"></textarea>
+                </section>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ================= Home ================= -->
+      <section class="view" data-view="home">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <div class="grow">
+                <div class="eyebrow lamp" id="greet-eyebrow">Thursday · late evening</div>
+                <h1 class="display" style="margin-top:10px">Good evening, <em>Ash.</em></h1>
+                <p class="lede">The lamp is lit. Three stories are waiting, and Wren is still deciding whether you're brave.</p>
+              </div>
+              <div class="actions">
+                <button class="search" data-act="palette" style="cursor:pointer"><i data-i="search"></i><span style="flex:1;text-align:left">Jump to anything</span></button>
+                <a class="btn primary lg" href="#/studio"><i data-i="sparkles"></i>Light a new story</a>
+              </div>
+            </div>
+
+            <div class="home-top">
+              <a class="hero-card glass lift" href="#/chat">
+                <div class="art" data-art="wren-wide"></div>
+                <div class="txt">
+                  <div class="row"><span class="eyebrow lamp">Continue</span><span class="chip">Chapter III · Oil &amp; Salt</span><span class="chip sea">● writing</span></div>
+                  <div class="h1">The Lamp at Gull's Reach</div>
+                  <blockquote>“That's either very brave or very stupid, and I haven't decided which I'd prefer.”</blockquote>
+                  <div class="actions">
+                    <span class="btn warm lg"><i data-i="flame"></i>Return to the lamp</span>
+                    <span class="btn ghost" onclick="event.preventDefault();location.hash='#/read'">Read from the start</span>
+                    <span class="tiny faint" style="margin-left:auto">212 messages · 14 memories</span>
+                  </div>
+                </div>
+              </a>
+              <div class="tonight glass">
+                <div class="row"><span class="h2" style="font-size:24px">Tonight</span><a class="tiny faint" href="#/inbox" style="margin-left:auto">inbox →</a></div>
+                <a class="mini atom" href="#/inbox"><span class="s" style="color:var(--amber)">!</span><div>Wren's island story doesn't add up.<small>Continuity · Gull's Reach</small></div></a>
+                <a class="mini atom" href="#/world"><span class="s">✦</span><div>The harbourmaster comes up one boat short.<small>Offstage · may reach the scene</small></div></a>
+                <a class="mini atom" href="#/notebook"><span class="s" style="color:var(--rose)">★</span><div>New best moment saved in Brass &amp; Thunder.<small>Notebook</small></div></a>
+                <div class="mini" style="margin-top:auto"><div class="row"><span class="tiny faint grow">This month's NanoGPT quota</span><span class="tiny">62%</span></div><div class="meter-line" style="margin-top:8px"><i style="--v:62%"></i></div></div>
+              </div>
+            </div>
+
+            <div class="sec-title"><span class="h2">Your characters</span><span class="line"></span>
+              <div class="seg" id="sort-seg"><span class="thumb"></span><button class="on">Recent</button><button>A–Z</button><button>Most loved</button></div>
+            </div>
+            <div class="grid chars" id="chars"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Read ================= -->
+      <section class="view" data-view="read">
+        <div class="read glass scroll-thin" id="read">
+          <div class="read-bar">
+            <a class="ib" href="#/chat" title="Back to the chat"><i data-i="back"></i></a>
+            <span class="grow faint small">The Lamp at Gull's Reach · Chapter III</span>
+            <div class="seg" id="read-theme"><span class="thumb"></span><button class="on" data-t="night">Night</button><button data-t="paper">Paper</button></div>
+            <button class="ib" data-size="-1" title="Smaller text">A<sup style="font-size:9px">−</sup></button>
+            <button class="ib" data-size="1" title="Larger text">A<sup style="font-size:9px">+</sup></button>
+          </div>
+          <article class="tx-read">
+            <div class="title-page">
+              <div class="eyebrow lamp">Chapter the third</div>
+              <div class="h1" style="margin:14px 0">Oil &amp; Salt</div>
+              <div class="faint" style="font-style:italic">in which a parcel is delivered, and a vote is postponed</div>
+            </div>
+            <p class="first"><span class="a">The lamp room hummed as the great lens turned, throwing its slow gold arm across the black water.</span> <span class="d">“You came back,”</span> Wren said, not looking up from the brass she was polishing. <span class="d">“Most people only climb those stairs once.”</span></p>
+            <p>He was soaked through. Again. Of course he was.</p>
+            <p class="user-line">I shake the rain off my coat and set the oilskin parcel on her workbench. “Your oil. The ferryman wouldn't come past the rocks, so I rowed it.”</p>
+            <p class="first" style="text-indent:0">Her hands went still on the cloth. <span class="d">“You rowed. In this.”</span> She finally turned, and the lamplight caught the salt drying in her hair. <span class="d">“That's either very brave or very stupid, and I haven't decided which I'd prefer.”</span></p>
+            <p>She crossed to the stove before he could answer, and the kettle went on with a clatter that was louder than it needed to be.</p>
+            <p class="user-line">I take the chair by the stove without arguing. “Brave. Definitely brave. I'll take the vote when you've had a cup.”</p>
+            <div class="orn">✦ ✦ ✦</div>
+            <p class="first" style="text-indent:0">She set two mugs down, and one of them was chipped, and she gave him the good one without seeming to think about it. <span class="d">“The vote,”</span> she said, <span class="d">“is still out. But you can stay until the tide turns.”</span></p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ================= Character ================= -->
+      <section class="view" data-view="character">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <div class="ring-spin" style="padding:4px"><span class="orb" data-art="wren" style="width:116px;height:116px"></span></div>
+              <div class="grow">
+                <div class="eyebrow rose">Character</div>
+                <h1 class="h1" style="margin:8px 0 6px">Wren Halloway</h1>
+                <div class="muted serif" style="font-size:17px;font-style:italic">Keeper of the Gull's Reach light. Prickly, precise, secretly delighted.</div>
+                <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px"><span class="chip">slow burn</span><span class="chip">coastal</span><span class="chip">found family</span><span class="chip lamp">3 chats</span></div>
+              </div>
+              <div class="actions">
+                <button class="btn"><i data-i="download"></i>Export</button>
+                <button class="btn"><i data-i="flask"></i>Test bench</button>
+                <a class="btn primary" href="#/chat"><i data-i="sparkles"></i>New chat</a>
+              </div>
+            </div>
+            <div class="tabs-line" id="char-tabs">
+              <button>Chats <span class="n">3</span></button><button class="on">Card</button><button>Greetings <span class="n">4</span></button><button>Voice</button><button>Test</button><button>Variants <span class="n">2</span></button><button>Advanced</button><button>Images</button>
+            </div>
+            <div class="two">
+              <div class="stack">
+                <div class="card pad hair">
+                  <div class="field"><span>Description <span class="row" style="gap:4px"><button class="chip">✦ Polish</button><button class="chip">Expand</button><button class="chip">Shorten</button></span></span>
+                    <textarea class="input" rows="5">Wren Halloway, 29, has kept the Gull's Reach light alone since her brother left on the last ferry. She is exact about tides, oil and other people's boots on her stairs. She talks to the lens. She will deny this.</textarea></div>
+                </div>
+                <div class="card pad hair">
+                  <div class="field"><span>Personality <span class="tiny faint">48 tokens</span></span>
+                    <textarea class="input" rows="3">Dry, guarded, quietly funny. Shows care through practical things: tea, dry socks, the good mug. Hates being thanked.</textarea></div>
+                </div>
+                <div class="card pad hair">
+                  <div class="field"><span>Scenario</span>
+                    <textarea class="input" rows="3">An island lighthouse in a long autumn of gales. The ferry has stopped. {{user}} is the only person who still climbs the stairs.</textarea></div>
+                </div>
+              </div>
+              <div class="stack">
+                <div class="card pad hair" style="display:flex;gap:18px;align-items:center">
+                  <div class="ring-score"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="none" stroke="rgb(255 255 255 / 8%)" stroke-width="8"/><circle cx="60" cy="60" r="52" fill="none" stroke="url(#gscore)" stroke-width="8" stroke-linecap="round" stroke-dasharray="300 327"/><defs><linearGradient id="gscore"><stop offset="0" stop-color="#ff9ec0"/><stop offset="1" stop-color="#82e3d3"/></linearGradient></defs></svg><div class="v"><div>92<small>card check</small></div></div></div>
+                  <div class="grow">
+                    <div class="h3" style="margin-bottom:8px">Nearly perfect</div>
+                    <div class="small muted" style="line-height:1.55">✓ Clear voice and goals<br>✓ No {{user}} puppeting<br><span style="color:var(--amber)">! Scenario repeats the description</span></div>
+                  </div>
+                </div>
+                <div class="card pad hair">
+                  <div class="eyebrow" style="margin-bottom:12px">Voice lab</div>
+                  <div class="serif" style="font-size:16.5px;line-height:1.6;font-style:italic;color:#f0e2d8">“Boots off. The stairs have been here longer than you and they'd like to stay that way.”</div>
+                  <div class="kw" style="margin-top:14px"><span class="chip rose">clipped sentences</span><span class="chip rose">tide metaphors</span><span class="chip rose">never says thank you</span></div>
+                </div>
+                <div class="card pad hair">
+                  <div class="eyebrow" style="margin-bottom:10px">Chats with Wren</div>
+                  <a class="list-item" href="#/chat"><span class="orb" data-art="wren"></span><div class="grow"><b>The Lamp at Gull's Reach</b><span>“Sit. You're dripping on my floor.”</span></div><span class="chip sea">now</span></a>
+                  <a class="list-item" href="#/chat"><span class="orb" data-art="wren"></span><div class="grow"><b>Winter Keeper (AU)</b><span>Snow on the gallery rail…</span></div><span class="tiny faint">Sep</span></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Personas ================= -->
+      <section class="view" data-view="personas">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <div class="grow"><div class="eyebrow lamp">Who you are</div><h1 class="h1" style="margin-top:10px">Your <em>personas</em></h1><p class="lede">The people you step into. Each one can be linked to the characters who know them.</p></div>
+              <div class="actions"><button class="btn primary"><i data-i="plus"></i>New persona</button></div>
+            </div>
+            <div class="two">
+              <div class="people-grid" id="personas" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))"></div>
+              <div class="card pad hair stack" style="gap:16px">
+                <div class="row"><span class="orb" data-art="ash" style="width:64px;height:64px"></span><div class="grow"><div class="h2">Ash</div><span class="chip sea" style="margin-top:6px">● in use · Gull's Reach</span></div></div>
+                <label class="field"><span>Name</span><input class="input" value="Ash" /></label>
+                <label class="field"><span>Pronouns</span><input class="input" value="he/him" /></label>
+                <label class="field"><span>Who you are in the story</span><textarea class="input" rows="4">A ferryman's apprentice turned odd-jobber. Rows when he shouldn't. Collects other people's problems like sea glass.</textarea></label>
+                <div class="field"><span>Known by</span><div class="kw"><span class="chip rose">Wren</span><span class="chip rose">Captain Ilse</span><span class="chip">+ link</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Studio ================= -->
+      <section class="view" data-view="studio">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <div class="grow"><div class="eyebrow lamp">Creator studio</div><h1 class="h1" style="margin-top:10px">Make something <em>new</em></h1><p class="lede">Start with a spark. Mea asks the right questions, writes a bible, and builds the card, the lore and the world around it.</p></div>
+              <div class="actions"><div class="seg" id="kind-seg"><span class="thumb"></span><button class="on">Character</button><button>Persona</button><button>Lorebook</button><button>World</button></div></div>
+            </div>
+            <div class="steps">
+              <div class="step done"><span class="n">✓</span>Idea</div><span class="step-line done"></span>
+              <div class="step on"><span class="n">2</span>Questions</div><span class="step-line"></span>
+              <div class="step"><span class="n">3</span>Bible</div><span class="step-line"></span>
+              <div class="step"><span class="n">4</span>Write &amp; save</div>
+            </div>
+            <div class="two">
+              <div class="stack">
+                <div class="card pad hair" style="--hairline:linear-gradient(135deg,rgb(255 208 143 / 55%),rgb(255 255 255 / 4%) 50%)">
+                  <div class="eyebrow lamp" style="margin-bottom:10px">Your spark</div>
+                  <div class="serif" style="font-size:22px;line-height:1.5">A cartographer who maps a city that rearranges itself every night, and who's started finding her own handwriting on maps she never drew.</div>
+                </div>
+                <div class="qa card hair" id="qa"></div>
+                <div class="row"><button class="btn ghost"><i data-i="back"></i>Back</button><span class="grow"></span><button class="btn">Skip the rest</button><button class="btn primary" onclick="location.hash='#/character'">Write the bible <i data-i="arrow"></i></button></div>
+              </div>
+              <div class="card pad hair">
+                <div class="row" style="margin-bottom:12px"><span class="eyebrow">Bible, forming</span><span class="chip lilac" style="margin-left:auto"><span class="typing" style="margin:0"><i></i><i></i><i></i></span></span></div>
+                <div class="timeline">
+                  <div class="tl" style="--c:var(--lamp)"><span class="when">Name</span><b>Ines Varro</b></div>
+                  <div class="tl" style="--c:var(--rose)"><span class="when">The city</span><p>Morrow, which folds its streets like letters at midnight.</p></div>
+                  <div class="tl" style="--c:var(--lilac)"><span class="when">Wound</span><p>She once drew a street that killed someone.</p></div>
+                  <div class="tl" style="--c:var(--sea)"><span class="when">Voice</span><p>Measures everything. Apologises to doors.</p></div>
+                  <div class="tl" style="--c:var(--ghost)"><span class="when">Waiting for your answers…</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Lorebooks ================= -->
+      <section class="view" data-view="lore">
+        <div class="page scroll-thin">
+          <div class="page-inner" style="max-width:1400px">
+            <div class="page-head">
+              <div class="grow"><div class="eyebrow lamp">Lorebooks</div><h1 class="h1" style="margin-top:10px">The <em>library</em> of worlds</h1></div>
+              <div class="actions"><div class="search"><i data-i="search"></i><input placeholder="Search every entry…" /></div><button class="btn"><i data-i="download"></i>Import</button><button class="btn primary"><i data-i="wand"></i>Lore Studio</button></div>
+            </div>
+            <div class="three">
+              <div class="card hair" style="padding:10px" id="tomes"></div>
+              <div class="card hair" style="padding:10px">
+                <div class="row" style="padding:10px 12px 14px"><span class="h2" style="font-size:24px">Gull's Reach</span><span class="chip">18 entries</span><span class="grow"></span><button class="btn sm"><i data-i="plus"></i>Entry</button></div>
+                <div id="entries"></div>
+              </div>
+              <div class="card pad hair stack" style="gap:16px">
+                <div class="row"><span class="eyebrow rose">Entry</span><span class="grow"></span><label class="row tiny faint" style="gap:8px">Always on <span class="switch"><input type="checkbox" /><i></i></span></label></div>
+                <input class="input" value="The Old Eye" style="font:400 26px var(--f-display);background:none;box-shadow:none;padding:0" />
+                <div class="field"><span>Wakes on</span><div class="kw"><span class="chip lilac">lens</span><span class="chip lilac">Old Eye</span><span class="chip lilac">Fresnel</span><span class="chip lilac">the light</span><span class="chip">+ keyword</span></div></div>
+                <label class="field"><span>Content <span class="tiny faint">96 tokens</span></span><textarea class="input" rows="6">A first-order Fresnel lens, 1891, brass and hand-ground glass. Wren calls it the Old Eye and talks to it during long watches. One prism has a hairline crack her brother made; she has never had it replaced.</textarea></label>
+                <div class="field"><span>Chance to wake <span class="grad-text" style="font-weight:700">80%</span></span><input class="range" type="range" value="80" style="--p:80%" /></div>
+                <div class="row"><span class="chip">depth 4</span><span class="chip">after story</span><span class="chip">sticky 2</span><span class="chip">cooldown 3</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Presets ================= -->
+      <section class="view" data-view="presets">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <div class="grow"><div class="eyebrow lamp">Presets</div><h1 class="h1" style="margin-top:10px">How the <em>story</em> is told</h1><p class="lede">Samplers, prompt layers and controls. Drag the layers to change what the model reads first.</p></div>
+              <div class="actions"><button class="btn"><i data-i="download"></i>Import</button><button class="btn primary"><i data-i="plus"></i>New preset</button></div>
+            </div>
+            <div class="row" id="preset-pills" style="gap:8px;flex-wrap:wrap;margin-bottom:22px"></div>
+            <div class="two">
+              <div class="stack">
+                <div class="card pad hair">
+                  <div class="row" style="margin-bottom:12px"><span class="h2" style="font-size:24px">Prompt layers</span><span class="grow"></span><span class="tiny faint">7,920 / 32,000 tokens</span></div>
+                  <div class="layers" id="layers"></div>
+                </div>
+              </div>
+              <div class="stack">
+                <div class="card pad hair" id="samplers">
+                  <div class="h2" style="font-size:24px;margin-bottom:6px">Samplers</div>
+                </div>
+                <div class="card pad hair">
+                  <div class="eyebrow" style="margin-bottom:6px">Controls</div>
+                  <div class="setrow"><div class="grow"><b>Slow the romance</b><small>No confessions before the story has earned them</small></div><label class="switch"><input type="checkbox" checked /><i></i></label></div>
+                  <div class="setrow"><div class="grow"><b>Weather has weight</b><small>The world interrupts, often</small></div><label class="switch"><input type="checkbox" checked /><i></i></label></div>
+                  <div class="setrow"><div class="grow"><b>Shorter replies</b></div><label class="switch"><input type="checkbox" /><i></i></label></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Notebook ================= -->
+      <section class="view" data-view="notebook">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <div class="grow"><div class="eyebrow lamp">Notebook</div><h1 class="h1" style="margin-top:10px">Lines worth <em>keeping</em></h1><p class="lede">Highlights, best moments and your notes from every story, in one place.</p></div>
+              <div class="actions"><div class="seg" id="nb-seg"><span class="thumb"></span><button class="on" data-k="all">All</button><button data-k="best">Best moments</button><button data-k="hl">Highlights</button><button data-k="note">Notes</button></div></div>
+            </div>
+            <div class="masonry" id="quotes"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Inbox ================= -->
+      <section class="view" data-view="inbox">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <div class="grow"><div class="eyebrow lamp">Review inbox</div><h1 class="h1" style="margin-top:10px"><span id="inbox-count">4</span> things <em>caught</em> tonight</h1><p class="lede">Mea's guards noticed these while you wrote. Keep what you meant, fix what you didn't.</p></div>
+              <div class="actions"><button class="btn" id="keep-all">Keep everything</button><button class="btn primary" id="fix-all"><i data-i="sparkles"></i>Fix everything</button></div>
+            </div>
+            <div class="two">
+              <div class="stack" id="inbox"></div>
+              <div class="stack">
+                <div class="card pad hair">
+                  <div class="eyebrow" style="margin-bottom:12px">This week's catches</div>
+                  <svg viewBox="0 0 300 90" class="chart" style="height:90px"><defs><linearGradient id="spark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9ec0" stop-opacity=".45"/><stop offset="1" stop-color="#ff9ec0" stop-opacity="0"/></linearGradient></defs><path d="M0 70 C 30 60, 50 30, 80 40 S 130 75, 160 55 S 220 20, 250 30 S 285 50, 300 22 V90 H0Z" fill="url(#spark)"/><path d="M0 70 C 30 60, 50 30, 80 40 S 130 75, 160 55 S 220 20, 250 30 S 285 50, 300 22" fill="none" stroke="#ff9ec0" stroke-width="2"/></svg>
+                  <div class="row" style="margin-top:12px;gap:6px;flex-wrap:wrap"><span class="chip">continuity 9</span><span class="chip">names 4</span><span class="chip">puppeting 3</span><span class="chip">drift 2</span></div>
+                </div>
+                <div class="card pad hair">
+                  <div class="eyebrow" style="margin-bottom:6px">Guards</div>
+                  <div class="setrow"><div class="grow"><b>Continuity</b></div><label class="switch"><input type="checkbox" checked /><i></i></label></div>
+                  <div class="setrow"><div class="grow"><b>Point of view &amp; puppeting</b></div><label class="switch"><input type="checkbox" checked /><i></i></label></div>
+                  <div class="setrow"><div class="grow"><b>Character drift</b></div><label class="switch"><input type="checkbox" checked /><i></i></label></div>
+                  <div class="setrow"><div class="grow"><b>Timeline</b></div><label class="switch"><input type="checkbox" /><i></i></label></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Settings ================= -->
+      <section class="view" data-view="settings">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head"><div class="grow"><div class="eyebrow lamp">Settings</div><h1 class="h1" style="margin-top:10px">Make it <em>yours</em></h1></div></div>
+            <div style="display:grid;grid-template-columns:230px minmax(0,1fr);gap:26px;align-items:start" class="set-layout">
+              <nav class="set-nav" id="set-nav"></nav>
+              <div id="set-body"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Codex ================= -->
+      <section class="view" data-view="codex">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <a class="ib" href="#/chat" title="Back to the chat"><i data-i="back"></i></a>
+              <div class="grow"><div class="eyebrow lamp">Codex · Gull's Reach</div><h1 class="h1" style="margin-top:10px">Everyone, everywhere, <em>everything</em></h1></div>
+              <div class="actions"><div class="search"><i data-i="search"></i><input placeholder="Find…" /></div></div>
+            </div>
+            <div class="tabs-line" id="codex-tabs"></div>
+            <div id="codex-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= Memory ================= -->
+      <section class="view" data-view="memory">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <a class="ib" href="#/chat" title="Back to the chat"><i data-i="back"></i></a>
+              <div class="grow"><div class="eyebrow lamp">Memory · Gull's Reach</div><h1 class="h1" style="margin-top:10px">What Wren <em>remembers</em></h1></div>
+              <div class="actions"><button class="btn"><i data-i="plus"></i>Something to remember</button><button class="btn primary"><i data-i="sparkles"></i>Tidy memories</button></div>
+            </div>
+            <div class="card pad hair" style="margin-bottom:18px">
+              <div class="row" style="margin-bottom:12px"><span class="eyebrow">Coverage · every message, summarised or not</span><span class="grow"></span><span class="tiny faint">212 messages · 3 chapters · 9 scenes</span></div>
+              <div class="heat" id="heat"></div>
+              <div class="row tiny faint" style="margin-top:8px"><span>Chapter I</span><span class="grow" style="text-align:center">Chapter II</span><span>Chapter III · now</span></div>
+            </div>
+            <div class="two">
+              <div class="stack">
+                <div class="row" style="gap:8px;flex-wrap:wrap"><div class="search" style="min-width:220px;flex:1"><i data-i="search"></i><input placeholder="Search memories" /></div><button class="chip on">All 14</button><button class="chip">Facts</button><button class="chip">Feelings</button><button class="chip">Promises</button><button class="chip">Pinned</button></div>
+                <div id="atoms" class="stack" style="gap:10px"></div>
+              </div>
+              <div class="card pad hair">
+                <div class="eyebrow" style="margin-bottom:12px">The shape of it</div>
+                <svg class="constellation" viewBox="0 0 300 230" style="height:300px" id="big-const"></svg>
+                <div class="tiny faint">Brighter stars are recalled more often. Lines are memories that wake each other.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= World ================= -->
+      <section class="view" data-view="world">
+        <div class="page scroll-thin">
+          <div class="page-inner">
+            <div class="page-head">
+              <a class="ib" href="#/chat" title="Back to the chat"><i data-i="back"></i></a>
+              <div class="grow"><div class="eyebrow lamp">The world off the page</div><h1 class="h1" style="margin-top:10px">Meanwhile, on <em>Gull's Reach</em></h1></div>
+              <div class="actions"><button class="btn"><i data-i="cog"></i>World settings</button></div>
+            </div>
+            <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:16px" id="world-grid">
+              <div class="card pad hair" style="--hairline:linear-gradient(135deg,rgb(130 227 211 / 55%),rgb(255 255 255 / 4%) 50%)">
+                <div class="eyebrow" style="color:var(--sea)">Now</div>
+                <div style="font:400 64px/1 var(--f-display);margin:12px 0 4px">11:40</div>
+                <div class="muted">Night, second bell · day 9</div>
+                <div class="row" style="margin-top:16px;gap:6px;flex-wrap:wrap"><span class="chip sea">high tide, turning</span><span class="chip">NE gale, rising</span><span class="chip">ferry suspended</span></div>
+              </div>
+              <div class="card pad hair" style="grid-column:span 2">
+                <div class="row"><span class="eyebrow">Tension</span><span class="grow"></span><span class="tiny faint">— story &nbsp; ┄ the director's target</span></div>
+                <svg viewBox="0 0 600 200" class="chart"><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c7b4ff" stop-opacity=".4"/><stop offset="1" stop-color="#c7b4ff" stop-opacity="0"/></linearGradient></defs>
+                  <g stroke="rgb(255 255 255 / 6%)"><path d="M0 50 H600 M0 100 H600 M0 150 H600"/></g>
+                  <path d="M0 160 C 60 150, 90 120, 140 128 S 220 80, 280 96 S 360 60, 420 70 S 520 30, 600 44 V200 H0Z" fill="url(#tg)"/>
+                  <path d="M0 160 C 60 150, 90 120, 140 128 S 220 80, 280 96 S 360 60, 420 70 S 520 30, 600 44" fill="none" stroke="#c7b4ff" stroke-width="2.5"/>
+                  <path d="M0 150 L 600 40" stroke="#ffd08f" stroke-width="1.5" stroke-dasharray="5 6" fill="none" opacity=".8"/>
+                  <circle cx="600" cy="44" r="6" fill="#ff9ec0"><animate attributeName="r" values="5;8;5" dur="2s" repeatCount="indefinite"/></circle>
+                  <g font-family="Manrope" font-size="11" fill="#8a7d9e"><text x="4" y="194">ch. I</text><text x="270" y="194">ch. II</text><text x="540" y="194">ch. III</text></g>
+                </svg>
+              </div>
+              <div class="card pad hair">
+                <div class="eyebrow" style="margin-bottom:12px">Waiting for your word</div>
+                <div class="mini"><b>A boat washes up below the light</b><small>The director wants to raise the stakes before chapter IV.</small><div class="row" style="margin-top:10px;gap:6px"><button class="btn sm primary">Let it happen</button><button class="btn sm ghost">Not yet</button></div></div>
+              </div>
+              <div class="card pad hair">
+                <div class="eyebrow" style="margin-bottom:12px">Subplots</div>
+                <div class="mini"><div class="row"><b class="grow">Tamsin's silence</b><span class="chip rose">rising</span></div><div class="meter-line" style="margin-top:10px"><i style="--v:42%"></i></div></div>
+                <div class="mini"><div class="row"><b class="grow">The harbourmaster's count</b><span class="chip lamp">opening</span></div><div class="meter-line" style="margin-top:10px"><i style="--v:15%;--c:var(--grad-warm)"></i></div></div>
+              </div>
+              <div class="card pad hair">
+                <div class="eyebrow" style="margin-bottom:12px">News and happenings</div>
+                <div class="timeline">
+                  <div class="tl" style="--c:var(--lamp)"><span class="when">tonight</span><p>The harbourmaster comes up one boat short.</p></div>
+                  <div class="tl" style="--c:var(--sea)"><span class="when">day 8</span><p>The mainland market closes early for the gale.</p></div>
+                  <div class="tl"><span class="when">day 6</span><p>The last ferry turns back at the rocks.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="palette-wrap" id="palette">
+    <div class="palette glass">
+      <div class="q"><i data-i="search"></i><input id="pq" placeholder="Jump to a story, a character, a setting…" autocomplete="off" /><button class="ib sm" data-act="close-palette" title="Close"><i data-i="x"></i></button></div>
+      <div class="res scroll-thin" id="pres"></div>
+      <div class="foot"><span>Stories, characters, places and settings</span><span style="margin-left:auto">✿ Mea</span></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"><span class="s">✦</span><span id="toast-t"></span></div>
+
+  <script src="lantern.js"></script>
+</body>
+</html>

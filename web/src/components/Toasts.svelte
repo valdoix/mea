@@ -58,7 +58,8 @@
     background: var(--danger);
     color: #fff;
   }
-  :global([data-theme="dark"]) .toast.error {
+  :global([data-theme="dark"]) .toast.error,
+  :global([data-theme="lantern"]) .toast.error {
     color: #2a1f2c;
   }
   .msg {
