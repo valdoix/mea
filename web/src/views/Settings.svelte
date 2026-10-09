@@ -12,7 +12,8 @@
   import Prompts from "../components/settings/Prompts.svelte";
   import Regex from "../components/settings/Regex.svelte";
   import Guards from "../components/settings/Guards.svelte";
-  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, ListChecks, Palette, ScrollText, ShieldCheck, Slash, Smartphone } from "../lib/icons";
+  import Privacy from "../components/settings/Privacy.svelte";
+  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, HardDrive, ListChecks, Palette, ScrollText, ShieldCheck, Slash, Smartphone } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
 
   let { tab = "models" }: { tab?: string } = $props();
@@ -29,6 +30,7 @@
     { id: "devices", label: "Devices", icon: Smartphone },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "data", label: "Backups & data", icon: Database },
+    { id: "storage", label: "Storage & privacy", icon: HardDrive },
     { id: "usage", label: "Usage", icon: Gauge },
     { id: "status", label: "Status", icon: Activity },
   ];
@@ -52,6 +54,7 @@
     {:else if tab === "devices"}<Devices />
     {:else if tab === "notifications"}<Notifications />
     {:else if tab === "data"}<Data />
+    {:else if tab === "storage"}<Privacy />
     {:else if tab === "usage"}<Usage />
     {:else if tab === "status"}<Status />
     {:else}<Models />{/if}

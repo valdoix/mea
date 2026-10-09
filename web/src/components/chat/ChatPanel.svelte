@@ -3,6 +3,7 @@
   import ControlSwitches from "../presets/ControlSwitches.svelte";
   import ChatGuards from "./ChatGuards.svelte";
   import ChatSteer from "./ChatSteer.svelte";
+  import BookExport from "./BookExport.svelte";
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
@@ -47,6 +48,7 @@
   let newTruth = $state("");
   let newOoc = $state("");
   const s = $derived(detail.chat.settings);
+  let exportOpen = $state(false);
 
   $effect(() => {
     void Promise.all([
@@ -371,8 +373,11 @@
       <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=html`)}><Download size={14} /> HTML</button>
       <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=md`)}><Download size={14} /> Markdown</button>
       <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=jsonl`)}><Download size={14} /> JSONL</button>
+      <button class="btn small" onclick={() => (exportOpen = true)}><BookOpen size={14} /> Book & memory</button>
     </div>
   </div>
+
+  <BookExport bind:open={exportOpen} chatId={detail.chat.id} />
 
   <div class="row wrap">
     <button class="btn small" onclick={archive}><Archive size={14} /> {detail.chat.archivedAt ? "Unarchive" : "Archive"}</button>

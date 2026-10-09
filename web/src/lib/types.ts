@@ -459,6 +459,7 @@ export interface Settings {
   "prompts.active": string | null;
   "guards.config": GuardsConfig;
   "steer.config": SteerConfig;
+  "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
 }
 
 // ---------- Phase 5: steering ----------
@@ -619,6 +620,7 @@ export type MeaEvent =
   | { type: "studio.changed"; draftId: string }
   | { type: "creator.changed"; draftId: string }
   | { type: "inbox.changed" }
+  | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   | { type: "reconnected" };
 
 // ---------- Phase 1: memory ----------

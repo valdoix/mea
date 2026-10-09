@@ -39,6 +39,8 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
   const data = await parse(res);
   if (!res.ok) {
     if (res.status === 401 && data?.code === "unpaired") onUnpaired?.();
+    // SEC-05: Mea restarted with an encrypted database; the boot screen asks for the passphrase.
+    if (res.status === 423 && data?.code === "locked") location.reload();
     throw new ApiError(data?.error ?? `Request failed (${res.status})`, res.status, data?.code, data?.details);
   }
   return data as T;

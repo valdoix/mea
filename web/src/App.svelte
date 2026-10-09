@@ -14,6 +14,7 @@
   import ChatView from "./views/ChatView.svelte";
   import Home from "./views/Home.svelte";
   import Pair from "./views/Pair.svelte";
+  import Unlock from "./views/Unlock.svelte";
   import Welcome from "./views/Welcome.svelte";
 
   // PERF-09: Home and the chat are in the first load; every other screen loads on first visit.
@@ -39,6 +40,7 @@
 
   let ready = $state(false);
   let unreachable = $state(false);
+  let vaultLocked = $state(false);
 
   setUnpairedHandler(() => {
     app.authorized = false;
@@ -54,7 +56,12 @@
 
   async function boot() {
     try {
-      const who = await get<{ local: boolean; authorized: boolean }>("/api/whoami");
+      const who = await get<{ local: boolean; authorized: boolean; locked?: boolean }>("/api/whoami");
+      if (who.locked) {
+        vaultLocked = true;
+        ready = true;
+        return;
+      }
       app.local = who.local;
       app.authorized = who.authorized;
       if (!who.authorized) {
@@ -103,6 +110,8 @@
       <p class="muted small">The server isn't answering. Trying again…</p>
     </div>
   </div>
+{:else if vaultLocked}
+  <Unlock />
 {:else if bare}
   {#if route.name === "pair"}<Pair />{:else}<Welcome />{/if}
 {:else}
