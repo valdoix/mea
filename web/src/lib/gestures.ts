@@ -1,4 +1,5 @@
 /** Touch gestures as Svelte actions (MOB-03). */
+import { buzz } from "./device.svelte";
 
 export function swipe(node: HTMLElement, params: { onLeft?: () => void; onRight?: () => void; enabled?: boolean }) {
   let p = params;
@@ -35,7 +36,7 @@ export function swipe(node: HTMLElement, params: { onLeft?: () => void; onRight?
     if (locked === "x" && Math.abs(dx) > 60) {
       if (dx < 0) p.onLeft?.();
       else p.onRight?.();
-      navigator.vibrate?.(8);
+      buzz(8);
     }
   };
   node.addEventListener("touchstart", start, { passive: true });
@@ -72,7 +73,7 @@ export function longpress(node: HTMLElement, params: { onLong: (e: { x: number; 
     sy = e.touches[0]!.clientY;
     timer = setTimeout(() => {
       fired = true;
-      navigator.vibrate?.(12);
+      buzz(12);
       p.onLong({ x: sx, y: sy });
     }, p.ms ?? 480);
   };

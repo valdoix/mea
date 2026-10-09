@@ -400,11 +400,11 @@ kbd {
 .prose {
   font-family: var(--font-story);
   font-size: var(--fs-story);
-  line-height: 1.7;
+  line-height: var(--story-lh, 1.7);
   overflow-wrap: anywhere;
 }
 .prose p {
-  margin: 0 0 0.75em;
+  margin: 0 0 var(--para-gap, 0.75em);
 }
 .prose p:last-child {
   margin-bottom: 0;
@@ -508,4 +508,16 @@ mark.hl {
   color: inherit;
   border-radius: 3px;
   padding: 0 0.1em;
+}
+
+/* UI-20: discreet mode. Avatars and story previews are blurred until you hover or focus them. */
+:root[data-discreet] .avatar,
+:root[data-discreet] .dz {
+  filter: blur(9px) saturate(0.6);
+  transition: filter var(--t);
+}
+:root[data-discreet] .avatar:hover,
+:root[data-discreet] .dz:hover,
+:root[data-discreet] a:focus-visible .dz {
+  filter: none;
 }

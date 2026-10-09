@@ -428,6 +428,16 @@ export interface Quota {
   fetchedAt: number;
 }
 
+/** UI-16 / UI-19 */
+export interface Typography {
+  uiFont: "nunito" | "system";
+  lineHeight: number;
+  paragraphSpacing: number;
+  width: number;
+  dialogueColor: string | null;
+  dyslexic: boolean;
+}
+
 export interface Settings {
   "routing.story": string | null;
   "appearance.theme": "system" | "light" | "dark";
@@ -436,6 +446,7 @@ export interface Settings {
   "appearance.storyFont": "lora" | "literata" | "nunito";
   /** LORE-15: underline lore terms in messages. */
   "appearance.glossary": boolean;
+  "appearance.typography"?: Typography;
   "chat.enterToSend": boolean;
   "chat.defaultPresetId": string | null;
   "backup.hourlyKeep": number;

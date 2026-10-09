@@ -6,6 +6,8 @@
   import { autosize } from "../../lib/gestures";
   import { ArrowUp, Square, Sparkles, UserPen, WandSparkles, Send, Clapperboard, SlidersHorizontal, X } from "../../lib/icons";
   import { app, errorToast, toast } from "../../lib/state.svelte";
+  import { buzz, device as prefs } from "../../lib/device.svelte";
+  import type { SpellIssue } from "../../lib/spell";
   import type { ChatDetail, ChatSettings, LorePreview } from "../../lib/types";
 
   let {
@@ -209,6 +211,91 @@
   let toolsBtn = $state<HTMLButtonElement | null>(null);
   let focused = $state(false);
 
+  // ---------- @-mentions (QOL-03) ----------
+  let names = $state<{ name: string; kind: string; hint?: string }[] | null>(null);
+  let caret = $state(0);
+  let mentionAt = $state(0);
+  let mentionOff = $state(false);
+  async function loadNames() {
+    try {
+      names = (await get<{ names: { name: string; kind: string; hint?: string }[] }>(`/api/chats/${chatId}/names`)).names;
+    } catch {
+      names = [];
+    }
+  }
+  $effect(() =>
+    onEvent((e) => {
+      if (e.type === "memory.changed" && e.chatId === chatId && names) void loadNames();
+    }),
+  );
+  const mentionQuery = $derived(text.slice(0, caret).match(/(?:^|[\s"(*])@([\p{L}'’-]{0,30})$/u)?.[1] ?? null);
+  $effect(() => {
+    if (mentionQuery !== null && !names) void loadNames();
+  });
+  const mentions = $derived.by(() => {
+    if (mentionQuery === null || !names || mentionOff) return [];
+    const q = mentionQuery.toLowerCase();
+    const starts = names.filter((n) => n.name.toLowerCase().startsWith(q));
+    const inside = names.filter((n) => !n.name.toLowerCase().startsWith(q) && n.name.toLowerCase().includes(q));
+    return [...starts, ...inside].slice(0, 7);
+  });
+  $effect(() => {
+    void mentionQuery;
+    mentionAt = 0;
+  });
+  function pickMention(n: { name: string }) {
+    const start = caret - (mentionQuery?.length ?? 0) - 1;
+    text = text.slice(0, start) + n.name + text.slice(caret);
+    const pos = start + n.name.length;
+    queueMicrotask(() => {
+      input?.focus();
+      input?.setSelectionRange(pos, pos);
+      caret = pos;
+      refit();
+    });
+  }
+  const trackCaret = () => (caret = input?.selectionStart ?? text.length);
+
+  // ---------- spell and grammar check (QOL-04) ----------
+  let issues = $state<SpellIssue[]>([]);
+  const ignored = new Set<string>();
+  let spellTimer: ReturnType<typeof setTimeout>;
+  let spellNamesLoaded = false;
+  $effect(() => {
+    const t = text;
+    clearTimeout(spellTimer);
+    if (!prefs.spellcheck || !t.trim()) {
+      issues = [];
+      return;
+    }
+    spellTimer = setTimeout(async () => {
+      try {
+        const spell = await import("../../lib/spell");
+        if (!spellNamesLoaded) {
+          spellNamesLoaded = true;
+          if (!names) await loadNames();
+          await spell.addNames((names ?? []).map((n) => n.name));
+        }
+        const found = await spell.check(t);
+        if (t === text) issues = found.filter((i) => !ignored.has(i.text.toLowerCase())).slice(0, 5);
+      } catch {
+        issues = [];
+      }
+    }, 700);
+    return () => clearTimeout(spellTimer);
+  });
+  function applyFix(i: SpellIssue, replacement: string) {
+    if (text.slice(i.start, i.end) !== i.text) return;
+    text = text.slice(0, i.start) + replacement + text.slice(i.end);
+    issues = [];
+    refit();
+  }
+  function ignoreIssue(i: SpellIssue) {
+    ignored.add(i.text.toLowerCase());
+    issues = issues.filter((x) => x !== i);
+  }
+
+
   $effect(() => {
     try {
       text = localStorage.getItem(key) ?? "";
@@ -276,6 +363,7 @@
     }
     text = "";
     refit();
+    buzz(12);
     const ok = await onsend(content, generate, director);
     if (!ok) {
       text = content;
@@ -317,6 +405,23 @@
   }
 
   function onkey(e: KeyboardEvent) {
+    if (mentions.length) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        mentionAt = (mentionAt + (e.key === "ArrowDown" ? 1 : mentions.length - 1)) % mentions.length;
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.ctrlKey && !e.metaKey)) {
+        e.preventDefault();
+        pickMention(mentions[Math.min(mentionAt, mentions.length - 1)]!);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        mentionOff = true;
+        return;
+      }
+    }
     if (palette.length) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -384,6 +489,16 @@
       <button onmousedown={(e) => e.preventDefault()} onclick={() => insert("(OOC: ", ")")}>OOC</button>
     </div>
   {/if}
+  {#if mentions.length}
+    <div class="palette card" role="listbox" aria-label="Names">
+      {#each mentions as n, i (n.name)}
+        <button class="pal" class:on={i === mentionAt} role="option" aria-selected={i === mentionAt} onmousedown={(e) => e.preventDefault()} onclick={() => pickMention(n)}>
+          <b>{n.name}</b>
+          <span class="tiny muted grow truncate">{n.hint ?? n.kind}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
   {#if palette.length}
     <div class="palette card" role="listbox" aria-label="Commands">
       {#each palette as c, i (c.cmd)}
@@ -421,6 +536,17 @@
       {#each lorePreview as l (l.id)}<span class="chip tiny" title="{l.bookName} · {l.reason} · {l.tokens} tokens">📖 {l.title}</span>{/each}
     </div>
   {/if}
+  {#if issues.length && !generating}
+    <div class="spell" aria-label="Spelling and grammar">
+      {#each issues as i (`${i.start}:${i.text}`)}
+        <span class="schip" title={i.message}>
+          <s>{i.text || "·"}</s>
+          {#each i.suggestions as sug (sug)}<button class="fix" onclick={() => applyFix(i, sug)} title="Use “{sug}”">{sug || "(remove)"}</button>{:else}<span class="tiny muted">{i.kind}</span>{/each}
+          <button class="x" onclick={() => ignoreIssue(i)} aria-label="Ignore “{i.text}”"><X size={11} /></button>
+        </span>
+      {/each}
+    </div>
+  {/if}
   <div class="composer card" class:busy={drafting} class:director>
     <button class="btn ghost icon tool" bind:this={toolsBtn} onclick={() => (toolsOpen = true)} disabled={generating || Boolean(drafting)} aria-label="Writing tools">
       <Sparkles size={19} />
@@ -436,6 +562,10 @@
       bind:value={text}
       use:autosize={app.isMobile ? 180 : 260}
       onkeydown={onkey}
+      onkeyup={trackCaret}
+      onclick={trackCaret}
+      oninput={() => ((mentionOff = false), trackCaret())}
+      spellcheck={!prefs.spellcheck}
       onfocus={() => (focused = true)}
       onblur={() => setTimeout(() => (focused = false), 150)}
       rows="1"
@@ -503,6 +633,25 @@
     background: var(--accent);
     color: var(--on-accent, white);
     font: 700 0.62rem/1rem var(--font-ui);
+  }
+  .spell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+  }
+  .spell s {
+    text-decoration-color: var(--danger);
+    opacity: 0.8;
+  }
+  .spell .fix {
+    border: 0;
+    background: color-mix(in srgb, var(--mint) 45%, transparent);
+    border-radius: 999px;
+    padding: 0 0.45rem;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
   }
   .palette {
     display: grid;

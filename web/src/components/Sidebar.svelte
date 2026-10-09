@@ -2,7 +2,8 @@
   import { get } from "../lib/api";
   import { onEvent } from "../lib/events";
   import { timeAgo } from "../lib/format";
-  import { BookOpen, House, Inbox, Moon, NotebookPen, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
+  import { device, setDevice } from "../lib/device.svelte";
+  import { BookOpen, Eye, EyeOff, House, Inbox, Moon, NotebookPen, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
   import { route } from "../lib/router.svelte";
   import { app, saveSetting } from "../lib/state.svelte";
   import type { ChatListItem } from "../lib/types";
@@ -74,6 +75,9 @@
         <span class="weaving" title="Working in the background"><span class="dot"></span></span>
       {/if}
       <QuotaRing />
+      <button class="btn ghost icon small" onclick={() => setDevice("discreet", !device.discreet)} aria-label={device.discreet ? "Leave discreet mode" : "Discreet mode: blur avatars and previews"} aria-pressed={device.discreet} title={device.discreet ? "Discreet mode is on" : "Discreet mode"}>
+        {#if device.discreet}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
+      </button>
       <button class="btn ghost icon small" onclick={toggleTheme} aria-label="Toggle light and dark">
         {#if dark}<Sun size={16} />{:else}<Moon size={16} />{/if}
       </button>
@@ -97,7 +101,7 @@
         <Avatar id={c.avatarId} name={c.characterName ?? "?"} size={34} />
         <span class="grow">
           <span class="name truncate">{c.characterName ?? "Unknown"}</span>
-          <span class="sub truncate">{c.lastText || c.title}</span>
+          <span class="sub truncate dz">{c.lastText || c.title}</span>
         </span>
         <span class="when">{timeAgo(c.lastMessageAt)}</span>
       </a>

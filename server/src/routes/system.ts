@@ -39,6 +39,14 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
   "prompts.active": z.string().nullable(),
   "guards.config": guardsSchema.partial(),
   "steer.config": steerSchema.partial(),
+  "appearance.typography": z.object({
+    uiFont: z.enum(["nunito", "system"]),
+    lineHeight: z.number().min(1.2).max(2.4),
+    paragraphSpacing: z.number().min(0).max(2),
+    width: z.number().min(26).max(80),
+    dialogueColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+    dyslexic: z.boolean(),
+  }),
   "privacy.requestLog": z.object({ bodiesDays: z.number().int().min(1).max(3650), rowsDays: z.number().int().min(0).max(36500), fileLog: z.boolean(), fileDays: z.number().int().min(1).max(3650) }),
 };
 

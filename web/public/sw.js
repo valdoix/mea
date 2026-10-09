@@ -69,6 +69,22 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+// UI-20: the page tells us when discreet mode is on; notifications then say nothing about the story.
+const PREFS = "mea-prefs";
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "prefs") {
+    event.waitUntil(caches.open(PREFS).then((c) => c.put("/__prefs", new Response(JSON.stringify({ discreet: Boolean(event.data.discreet) })))));
+  }
+});
+async function discreet() {
+  try {
+    const res = await (await caches.open(PREFS)).match("/__prefs");
+    return res ? Boolean((await res.json()).discreet) : false;
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener("push", (event) => {
   let data = { title: "Mea", body: "", url: "/", tag: undefined };
   try {
@@ -77,14 +93,14 @@ self.addEventListener("push", (event) => {
     if (event.data) data.body = event.data.text();
   }
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
+    discreet().then((quiet) => self.registration.showNotification(quiet ? "Mea" : data.title, {
+      body: quiet ? "Something new is waiting" : data.body,
       tag: data.tag,
       renotify: Boolean(data.tag),
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-96.png",
       data: { url: data.url },
-    }),
+    })),
   );
 });
 

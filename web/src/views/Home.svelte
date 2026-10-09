@@ -140,7 +140,7 @@
       <div class="grow">
         <div class="tiny muted eyebrow">Continue · {timeAgo(latest.lastMessageAt)}</div>
         <div class="title">{latest.characterName}</div>
-        <p class="last prose">{latest.lastText || latest.title}</p>
+        <p class="last prose dz">{latest.lastText || latest.title}</p>
       </div>
       <span class="btn primary go"><MessageHeart size={18} /> Continue</span>
     </a>

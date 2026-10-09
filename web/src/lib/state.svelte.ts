@@ -82,6 +82,22 @@ export function applyAppearance() {
   if (s) {
     root.dataset.storyFont = s["appearance.storyFont"];
     root.style.setProperty("--scale", String(s["appearance.fontScale"] || 1));
+    // UI-16 / UI-19: typography
+    const t = s["appearance.typography"];
+    if (t) {
+      root.style.setProperty("--story-lh", String(t.lineHeight));
+      root.style.setProperty("--para-gap", `${t.paragraphSpacing}em`);
+      root.style.setProperty("--measure", `${t.width}rem`);
+      if (t.dialogueColor) root.style.setProperty("--dialogue", t.dialogueColor);
+      else root.style.removeProperty("--dialogue");
+      root.dataset.uiFont = t.uiFont;
+      if (t.dyslexic) {
+        void import("@fontsource/opendyslexic/400.css");
+        void import("@fontsource/opendyslexic/700.css");
+        void import("@fontsource/opendyslexic/400-italic.css");
+      }
+      root.toggleAttribute("data-dyslexic", t.dyslexic);
+    }
   }
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", dark ? "#231E2A" : "#FBF6F1"));
 }

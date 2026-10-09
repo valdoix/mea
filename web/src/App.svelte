@@ -15,6 +15,9 @@
   import Home from "./views/Home.svelte";
   import Pair from "./views/Pair.svelte";
   import Unlock from "./views/Unlock.svelte";
+  import AppLock from "./components/AppLock.svelte";
+  import { lock, watchLock } from "./lib/applock.svelte";
+  import { device } from "./lib/device.svelte";
   import Welcome from "./views/Welcome.svelte";
 
   // PERF-09: Home and the chat are in the first load; every other screen loads on first visit.
@@ -50,9 +53,21 @@
 
   onMount(() => {
     void boot();
-    return onEdgeSwipe(() => {
+    const stopLock = watchLock();
+    const stopSwipe = onEdgeSwipe(() => {
       if (app.isMobile && route.name !== "chat") app.drawerOpen = true;
     });
+    return () => {
+      stopLock();
+      stopSwipe();
+    };
+  });
+
+  // UI-20: discreet mode blurs avatars and previews here, and hides notification text (the service worker reads it).
+  $effect(() => {
+    const on = device.discreet;
+    document.documentElement.toggleAttribute("data-discreet", on);
+    navigator.serviceWorker?.controller?.postMessage({ type: "prefs", discreet: on });
   });
 
   async function boot() {
@@ -155,6 +170,7 @@
 
 <Toasts />
 <Dialogs />
+{#if lock.locked}<AppLock />{/if}
 
 <style>
   .boot {

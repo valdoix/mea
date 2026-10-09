@@ -124,6 +124,7 @@ export function createApp() {
   });
 
   // Static web app with SPA fallback.
+  const gzipped = new Map<string, Uint8Array>();
   app.get("*", async (c) => {
     const path = decodeURIComponent(new URL(c.req.url).pathname);
     const safe = normalize(path).replace(/^([\\/])+/, "");
@@ -133,6 +134,12 @@ export function createApp() {
       if (file && (await file.exists())) {
         const immutable = safe.startsWith("assets/") || safe.startsWith("assets\\");
         const noCache = safe === "sw.js" || safe.endsWith(".webmanifest");
+        // QOL-04: the spell checker's WebAssembly is big; gzip it once and keep the result.
+        if (safe.endsWith(".wasm") && /\bgzip\b/.test(c.req.header("accept-encoding") ?? "")) {
+          let gz = gzipped.get(safe);
+          if (!gz) gzipped.set(safe, (gz = Bun.gzipSync(new Uint8Array(await file.arrayBuffer()))));
+          return new Response(gz, { headers: { "Content-Type": "application/wasm", "Content-Encoding": "gzip", Vary: "Accept-Encoding", "Cache-Control": "public, max-age=31536000, immutable" } });
+        }
         return new Response(file, {
           headers: {
             "Content-Type": Bun.file(safe).type,

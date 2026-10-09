@@ -13,6 +13,8 @@ export interface Settings {
   "appearance.storyFont": "lora" | "literata" | "nunito";
   /** LORE-15: underline lore terms in messages. */
   "appearance.glossary": boolean;
+  /** UI-16 / UI-19: line height, paragraph spacing, text width, dialogue color, UI font, dyslexia-friendly font. */
+  "appearance.typography": Typography;
   "chat.enterToSend": boolean;
   "chat.defaultPresetId": string | null;
   "backup.hourlyKeep": number;
@@ -60,6 +62,18 @@ export interface Settings {
   /** SEC-06: how long the local request log keeps what. */
   "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
 }
+
+export interface Typography {
+  uiFont: "nunito" | "system";
+  lineHeight: number;
+  paragraphSpacing: number;
+  /** The story column's width, in rem. */
+  width: number;
+  /** null = the theme's dialogue color. */
+  dialogueColor: string | null;
+  dyslexic: boolean;
+}
+export const defaultTypography: Typography = { uiFont: "nunito", lineHeight: 1.7, paragraphSpacing: 0.75, width: 46, dialogueColor: null, dyslexic: false };
 
 export interface SteerConfig {
   /** STEER-01: a private plan before each reply, written while you type. Default for chats that don't choose. */
@@ -291,6 +305,7 @@ export const defaults: Settings = {
   "appearance.fontScale": 1,
   "appearance.storyFont": "lora",
   "appearance.glossary": true,
+  "appearance.typography": defaultTypography,
   "chat.enterToSend": false,
   "chat.defaultPresetId": null,
   "backup.hourlyKeep": 24,
@@ -356,6 +371,7 @@ export const clientKeys: (keyof Settings)[] = [
   "appearance.fontScale",
   "appearance.storyFont",
   "appearance.glossary",
+  "appearance.typography",
   "chat.enterToSend",
   "chat.defaultPresetId",
   "backup.hourlyKeep",
