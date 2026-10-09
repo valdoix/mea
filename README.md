@@ -2,7 +2,7 @@
 
 A personal AI roleplay frontend for Windows and Android, served from an always-on host and powered by NanoGPT. Its focus is memory, continuity, and a cozy reading experience.
 
-**Status:** Phases 0–4 are built: foundations, memory core, trackers and the world off the page, retrieval, facts and accuracy, and the creator studio. Phase 4 brought lorebooks, characters and personas built from your ideas and linked to each other, card tools in the editors (field AI actions, voice lab, test bench, variants), and prompt layers, preset controls, regex scripts and editable helper prompts. See [docs/08-phase4-status.md](docs/08-phase4-status.md).
+**Status:** Phases 0–5 are built: foundations, memory core, trackers and the world off the page, retrieval, facts and accuracy, the creator studio, and guards and polish. Phase 5 brought accuracy guards (re-anchor, point of view and puppeting, names, drift, timeline, a review inbox), steering (advisor, post-pass editor, style profiles), summary controls, book and memory export, a storage dashboard, encryption at rest, a notebook and best moments, a command palette, reading mode, a timeline scrubber, offline reading with queued sends, an app lock, and a Windows tray icon. See [docs/09-phase5-status.md](docs/09-phase5-status.md).
 
 ## Planning docs
 
@@ -16,6 +16,7 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/06-phase2-status.md](docs/06-phase2-status.md) | What Phase 2 delivered (trackers, world simulation, chat tools), build notes, and what still needs a real-world check |
 | [docs/07-phase3-status.md](docs/07-phase3-status.md) | What Phase 3 delivered (retrieval, entities, accuracy guards, lore, library), fixes, and what still needs a real-world check |
 | [docs/08-phase4-status.md](docs/08-phase4-status.md) | What Phase 4 delivered (the studios, card tools, variants, prompt layers, controls, regex, helper prompts), fixes, and what still needs a real-world check |
+| [docs/09-phase5-status.md](docs/09-phase5-status.md) | What Phase 5 delivered (guards, steering, summaries, data and security, interface, phone and offline), fixes, and what still needs a real-world check |
 
 ## Running Mea
 
@@ -43,7 +44,7 @@ Then open http://127.0.0.1:7766. Data lives in `./data` (database, images, backu
 powershell -ExecutionPolicy Bypass -File scripts\install-service.ps1
 ```
 
-To remove it: `scripts\uninstall-service.ps1` (your data stays).
+Add `-Tray` to also put Mea's icon in the notification area at every sign-in (ARCH-09): whether it's running, background jobs and the last backup, with Open, Restart and View logs. To remove it: `scripts\uninstall-service.ps1` (your data stays).
 
 **As a single file** (ARCH-14): `bun run build:exe` makes `dist\mea.exe` with the web app inside. Run it anywhere; its data goes in a `data` folder next to it. To run the exe as the service, add `-Exe` to the install command above (copy your existing `data` folder to `dist\data` first).
 

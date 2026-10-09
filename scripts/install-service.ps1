@@ -12,11 +12,15 @@
   With -Exe it builds the single-file dist\mea.exe (ARCH-14) and runs that instead of Bun + source.
   Mea's data then lives in dist\data next to the exe (copy your existing data\ folder there first
   if you're switching).
+
+  With -Tray it also puts Mea's icon in the notification area at every sign-in (ARCH-09):
+  status, jobs and last backup, with Open, Restart and View logs.
 #>
 param(
   [string]$TaskName = "Mea",
   [int]$Port = 7766,
-  [switch]$Exe
+  [switch]$Exe,
+  [switch]$Tray
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,6 +75,20 @@ try {
   if ($ping.ok) { Write-Host "Mea is running at http://127.0.0.1:$Port" -ForegroundColor Green }
 } catch {
   Write-Warning "The task is registered but Mea didn't answer yet. Check Task Scheduler > '$TaskName' > History."
+}
+
+if ($Tray) {
+  # A shortcut in the user's Startup folder: the tray runs in your session, not in the service's.
+  $startup = [Environment]::GetFolderPath("Startup")
+  $dataDir = if ($Exe) { Join-Path $root "dist\data" } else { Join-Path $root "data" }
+  $shell = New-Object -ComObject WScript.Shell
+  $lnk = $shell.CreateShortcut((Join-Path $startup "Mea tray.lnk"))
+  $lnk.TargetPath = (Get-Command powershell.exe).Source
+  $lnk.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\scripts\tray.ps1`" -TaskName `"$TaskName`" -Port $Port -DataDir `"$dataDir`""
+  $lnk.WorkingDirectory = $root
+  $lnk.Save()
+  Start-Process -FilePath $lnk.TargetPath -ArgumentList $lnk.Arguments -WindowStyle Hidden
+  Write-Host "Mea's tray icon is on, and starts whenever you sign in." -ForegroundColor Green
 }
 
 Write-Host ""

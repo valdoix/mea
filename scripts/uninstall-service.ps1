@@ -11,3 +11,9 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
 } else {
   Write-Host "No '$TaskName' task found."
 }
+# ARCH-09: the tray icon's sign-in shortcut, if -Tray put one there.
+$lnk = Join-Path ([Environment]::GetFolderPath("Startup")) "Mea tray.lnk"
+if (Test-Path $lnk) {
+  Remove-Item $lnk
+  Write-Host "The tray icon won't start at sign-in any more (close it from its menu: Hide this icon)."
+}
