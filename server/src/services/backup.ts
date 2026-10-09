@@ -16,14 +16,22 @@ function stamp(d = new Date()) {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
+/** A file name not taken yet: two backups in the same second get "-2", "-3"… */
+function freshName(kind: BackupKind, ext: ".db" | ".db.enc") {
+  const base = `mea-${kind}-${stamp()}`;
+  let file = join(paths.backups, `${base}${ext}`);
+  for (let i = 2; existsSync(file) || existsSync(`${file}.enc`); i++) file = join(paths.backups, `${base}-${i}${ext}`);
+  return file;
+}
+
 export function createBackup(kind: BackupKind) {
   // SEC-05: with encryption on, backups are sealed too; nothing plain touches the disk.
   if (vaultActive()) {
-    const file = join(paths.backups, `mea-${kind}-${stamp()}.db.enc`);
+    const file = freshName(kind, ".db.enc");
     writeFileSync(file, sealSnapshot());
     return { file: basename(file), bytes: statSync(file).size };
   }
-  const file = join(paths.backups, `mea-${kind}-${stamp()}.db`);
+  const file = freshName(kind, ".db");
   db().exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
   return { file: basename(file), bytes: statSync(file).size };
 }
