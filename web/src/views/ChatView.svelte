@@ -15,6 +15,7 @@
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
   import { delight } from "../lib/delight";
+  import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
   import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
   import Segmented from "../components/Segmented.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
@@ -545,6 +546,12 @@
         await load();
         return true;
       }
+      // ARCH-11 / MOB-13: Mea can't be reached: the message waits on this device and goes out when it's back.
+      if (e instanceof ApiError && e.status === 0 && content.trim()) {
+        enqueueSend(id, content, director);
+        toast("Mea can't be reached. Your message will be sent when it's back.", { kind: "info" });
+        return true;
+      }
       if (e instanceof ApiError && e.status !== 0) {
         await load();
         toast(e.message, { kind: "error", action: !hasModel ? { label: "Set up a model", run: () => navigate("/settings/models") } : undefined });
@@ -840,6 +847,12 @@
           {#if !messages.length}
             <p class="muted center-text">No messages yet. Say hello ✿</p>
           {/if}
+          {#each outbox.items.filter((q) => q.chatId === id) as q (q.id)}
+            <div class="queued" aria-label="Waiting to send">
+              <p class="prose small">{q.content}</p>
+              <div class="row tiny muted"><span class="grow">Waiting to send, when Mea is reachable</span><button class="btn ghost small" onclick={() => cancelQueued(q.id)}>Cancel</button></div>
+            </div>
+          {/each}
           {#if recap}
             <aside class="recap card" aria-label="Previously">
               <div class="row between"><b class="recap-title">Previously…</b><button class="btn ghost small" onclick={() => (recap = null)}>Dismiss</button></div>
@@ -1178,6 +1191,19 @@
   }
   .setup {
     text-align: center;
+  }
+  .queued {
+    margin: 0.6rem 0 0.6rem auto;
+    max-width: 85%;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--r-lg);
+    border: 1px dashed var(--border-strong, var(--border));
+    background: color-mix(in srgb, var(--tint-user) 60%, transparent);
+    opacity: 0.85;
+  }
+  .queued p {
+    margin: 0 0 0.3rem;
+    white-space: pre-wrap;
   }
   .unread {
     position: absolute;

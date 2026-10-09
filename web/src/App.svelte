@@ -4,7 +4,8 @@
   import Modal from "./components/Modal.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import Toasts from "./components/Toasts.svelte";
-  import { get, setUnpairedHandler } from "./lib/api";
+  import { get, setSourceHandler, setUnpairedHandler } from "./lib/api";
+  import { flushOutbox, outbox } from "./lib/outbox.svelte";
   import { connectEvents } from "./lib/events";
   import { onEdgeSwipe } from "./lib/gestures";
   import { Menu, WifiOff } from "./lib/icons";
@@ -47,6 +48,17 @@
   let unreachable = $state(false);
   let vaultLocked = $state(false);
 
+  // ARCH-11: reading from this device's saved copy, and sending what waited once Mea is back.
+  setSourceHandler((fromCache) => (app.offlineCopy = fromCache));
+  $effect(() => {
+    if (app.connected && outbox.items.length) void flushOutbox();
+  });
+  onMount(() => {
+    const online = () => void flushOutbox();
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  });
+
   setUnpairedHandler(() => {
     app.authorized = false;
     if (route.name !== "pair") navigate("/pair", { replace: true });
@@ -71,11 +83,19 @@
     app.dataLight = device.dataLight === "on" || (device.dataLight === "auto" && metered);
   });
 
-  // UI-20: discreet mode blurs avatars and previews here, and hides notification text (the service worker reads it).
+  // UI-20: discreet mode blurs avatars and previews here, and hides notification text; ARCH-11: offline copies
+  // on or off. The service worker reads both, so it's told now and whenever it takes over the page.
+  function syncWorker() {
+    navigator.serviceWorker?.controller?.postMessage({ type: "prefs", discreet: device.discreet, offline: device.offline });
+  }
   $effect(() => {
-    const on = device.discreet;
-    document.documentElement.toggleAttribute("data-discreet", on);
-    navigator.serviceWorker?.controller?.postMessage({ type: "prefs", discreet: on });
+    document.documentElement.toggleAttribute("data-discreet", device.discreet);
+    void device.offline;
+    syncWorker();
+  });
+  onMount(() => {
+    navigator.serviceWorker?.addEventListener("controllerchange", syncWorker);
+    return () => navigator.serviceWorker?.removeEventListener("controllerchange", syncWorker);
   });
 
   async function boot() {
@@ -154,8 +174,10 @@
           <span style="width:2.5rem"></span>
         </header>
       {/if}
-      {#if !app.connected && app.authorized}
-        <div class="offline tiny"><WifiOff size={13} /> Reconnecting to Mea…</div>
+      {#if app.offlineCopy}
+        <div class="offline tiny" role="status"><WifiOff size={13} /> Offline: reading saved copies{outbox.items.length ? ` · ${outbox.items.length} waiting to send` : ""}</div>
+      {:else if !app.connected && app.authorized}
+        <div class="offline tiny" role="status"><WifiOff size={13} /> Reconnecting to Mea…</div>
       {/if}
       {#key route.name + (route.params.id ?? "")}
         {#if route.name === "home"}<Home />

@@ -4,6 +4,8 @@
  */
 
 export interface DevicePrefs {
+  /** ARCH-11: keep copies of recent chats on this device to read offline. */
+  offline: boolean;
   /** QOL-04: local spell and grammar check in the composer. */
   spellcheck: boolean;
   /** UI-20: blur avatars, previews and notification text. */
@@ -23,7 +25,7 @@ export interface DevicePrefs {
 }
 
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app" };
+const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app" };
 
 function read(): DevicePrefs {
   try {

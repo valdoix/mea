@@ -149,6 +149,8 @@
         </select>
         <span class="hint">Smaller images, loaded as they come into view.</span>
       </label>
+      <label class="switch"><input type="checkbox" checked={device.offline} onchange={(e) => setDevice("offline", e.currentTarget.checked)} /> Keep recent chats on this device to read offline</label>
+      <p class="tiny muted indent">Messages you write while Mea can't be reached wait here and are sent when it's back. Turning this off also deletes the copies kept so far.</p>
       <label class="switch"><input type="checkbox" checked={device.haptics} onchange={(e) => setDevice("haptics", e.currentTarget.checked)} /> Vibrate a little on send and swipe (Android)</label>
       <label class="switch"><input type="checkbox" checked={device.delights} onchange={(e) => setDevice("delights", e.currentTarget.checked)} /> Small delights: a sparkle when a memory is saved, a heart on bookmarks</label>
     </section>

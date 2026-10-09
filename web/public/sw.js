@@ -1,12 +1,32 @@
-/* Mea service worker: app shell caching, image cache, and push notifications (MOB-05, MOB-06). */
-const SHELL = "mea-shell-v1";
+/* Mea service worker: app shell caching, image cache, offline reading (ARCH-11), and push notifications (MOB-05, MOB-06). */
+const SHELL = "mea-shell-v2";
 const IMAGES = "mea-images-v1";
+const API = "mea-api-v1";
+const API_MAX = 400;
+
+// ARCH-11 / MOB-13: what Mea needs to open and read recent chats without the server.
+const READABLE = [
+  /^\/api\/(whoami|settings|connections|profiles|characters|moments|notes|personas|presets|lorebooks)$/,
+  /^\/api\/chats$/,
+  /^\/api\/chats\/[^/]+$/,
+  /^\/api\/chats\/[^/]+\/(messages|boundaries|continuity|glossary|names|highlights|continue|extras)$/,
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL)
-      .then((c) => c.addAll(["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/badge-96.png"]))
+      .then(async (c) => {
+        await c.addAll(["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/badge-96.png"]);
+        // The first screen's scripts and styles, so the app opens offline even before they were fetched once.
+        try {
+          const html = await (await c.match("/")).text();
+          const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
+          await c.addAll([...new Set(assets)]);
+        } catch {
+          // best effort
+        }
+      })
       .then(() => self.skipWaiting()),
   );
 });
@@ -15,7 +35,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== SHELL && k !== IMAGES).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== SHELL && k !== IMAGES && k !== API && k !== PREFS).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -36,6 +56,33 @@ self.addEventListener("fetch", (event) => {
         if (res.ok) cache.put(req, res.clone());
         return res;
       }),
+    );
+    return;
+  }
+  // Reading endpoints: network first; the saved copy (marked as such) when Mea can't be reached.
+  if (READABLE.some((re) => re.test(url.pathname))) {
+    event.respondWith(
+      fetch(req)
+        .then(async (res) => {
+          if (res.ok && (await prefs()).offline !== false) {
+            const copy = res.clone();
+            event.waitUntil(
+              caches.open(API).then(async (c) => {
+                await c.put(req, copy);
+                const keys = await c.keys();
+                for (const k of keys.slice(0, Math.max(0, keys.length - API_MAX))) await c.delete(k);
+              }),
+            );
+          }
+          return res;
+        })
+        .catch(async () => {
+          const hit = await (await caches.open(API)).match(req);
+          if (!hit) throw new Error("offline");
+          const headers = new Headers(hit.headers);
+          headers.set("X-Mea-Offline", "1");
+          return new Response(hit.body, { status: hit.status, headers });
+        }),
     );
     return;
   }
@@ -71,19 +118,27 @@ self.addEventListener("fetch", (event) => {
 
 // UI-20: the page tells us when discreet mode is on; notifications then say nothing about the story.
 const PREFS = "mea-prefs";
+let prefsMemo = null;
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "prefs") {
-    event.waitUntil(caches.open(PREFS).then((c) => c.put("/__prefs", new Response(JSON.stringify({ discreet: Boolean(event.data.discreet) })))));
+    prefsMemo = { discreet: Boolean(event.data.discreet), offline: event.data.offline !== false };
+    const work = [caches.open(PREFS).then((c) => c.put("/__prefs", new Response(JSON.stringify(prefsMemo))))];
+    // ARCH-11: no offline copies wanted on this device: drop the ones already kept.
+    if (!prefsMemo.offline) work.push(caches.delete(API));
+    event.waitUntil(Promise.all(work));
   }
 });
-async function discreet() {
+async function prefs() {
+  if (prefsMemo) return prefsMemo;
   try {
     const res = await (await caches.open(PREFS)).match("/__prefs");
-    return res ? Boolean((await res.json()).discreet) : false;
+    prefsMemo = res ? await res.json() : { discreet: false, offline: true };
   } catch {
-    return false;
+    prefsMemo = { discreet: false, offline: true };
   }
+  return prefsMemo;
 }
+const discreet = async () => Boolean((await prefs()).discreet);
 
 self.addEventListener("push", (event) => {
   let data = { title: "Mea", body: "", url: "/", tag: undefined };

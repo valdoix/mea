@@ -10,6 +10,11 @@ export class ApiError extends Error {
 }
 
 let onUnpaired: (() => void) | null = null;
+let onSource: ((fromCache: boolean) => void) | null = null;
+/** ARCH-11: told whether each answer came from Mea or from this device's saved copy. */
+export function setSourceHandler(fn: (fromCache: boolean) => void) {
+  onSource = fn;
+}
 export function setUnpairedHandler(fn: () => void) {
   onUnpaired = fn;
 }
@@ -36,6 +41,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
   } catch {
     throw new ApiError("Can't reach Mea. Is the server running?", 0, "offline");
   }
+  onSource?.(res.headers.get("X-Mea-Offline") === "1");
   const data = await parse(res);
   if (!res.ok) {
     if (res.status === 401 && data?.code === "unpaired") onUnpaired?.();

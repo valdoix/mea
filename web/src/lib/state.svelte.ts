@@ -29,6 +29,8 @@ export const app = $state({
   dataLight: false,
   /** SEC-05: the encrypted database is waiting for its passphrase. */
   locked: false,
+  /** ARCH-11: what's on screen came from this device's saved copy; Mea can't be reached. */
+  offlineCopy: false,
 });
 
 mobileQuery.addEventListener("change", (e) => {
