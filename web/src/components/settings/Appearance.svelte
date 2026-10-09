@@ -140,6 +140,15 @@
       <label class="switch"><input type="checkbox" checked={device.spellcheck} onchange={(e) => setDevice("spellcheck", e.currentTarget.checked)} /> Spelling and grammar check in the composer</label>
       <p class="tiny muted indent">Runs on this device (Harper); nothing is sent anywhere. Names from your story count as correct. The checker is about 8 MB and downloads once, the first time.</p>
       <label class="switch"><input type="checkbox" checked={device.discreet} onchange={(e) => setDevice("discreet", e.currentTarget.checked)} /> Discreet mode: blur avatars and previews, and keep notifications vague</label>
+      <label class="field narrow">
+        <span class="label">Data-light mode</span>
+        <select class="select" value={device.dataLight} onchange={(e) => setDevice("dataLight", e.currentTarget.value as "auto" | "on" | "off")}>
+          <option value="auto">Auto (data saver or cellular)</option>
+          <option value="on">Always</option>
+          <option value="off">Never</option>
+        </select>
+        <span class="hint">Smaller images, loaded as they come into view.</span>
+      </label>
       <label class="switch"><input type="checkbox" checked={device.haptics} onchange={(e) => setDevice("haptics", e.currentTarget.checked)} /> Vibrate a little on send and swipe (Android)</label>
       <label class="switch"><input type="checkbox" checked={device.delights} onchange={(e) => setDevice("delights", e.currentTarget.checked)} /> Small delights: a sparkle when a memory is saved, a heart on bookmarks</label>
     </section>

@@ -64,6 +64,20 @@ memory.get("/chats/:id/memory/progress", (c) => {
   return c.json(rebuildProgress(c.req.param("id")));
 });
 
+/** UI-14: what the home screen's Continue card shows: the chapter you're in and one line of recap. No model call. */
+memory.get("/chats/:id/continue", (c) => {
+  const id = c.req.param("id");
+  mustChat(id);
+  const chapter = levelRows(id, "chapter").filter((r) => r.title).at(-1) ?? null;
+  const scene = levelRows(id, "scene").filter((r) => r.state === "ready" && r.content).at(-1) ?? null;
+  const firstSentence = (t: string) => (t.replace(/\s+/g, " ").trim().match(/^.{20,240}?[.!?…](?=\s|$)/)?.[0] ?? t.replace(/\s+/g, " ").trim().slice(0, 200));
+  const recap = memState(id).recap?.text;
+  return c.json({
+    chapter: chapter ? { title: chapter.title, storyTime: chapter.story_time ?? null } : null,
+    line: recap ? firstSentence(recap) : scene ? firstSentence(scene.content) : null,
+  });
+});
+
 memory.get("/chats/:id/boundaries", (c) => c.json({ boundaries: boundaries(c.req.param("id")) }));
 
 memory.get("/chats/:id/summaries", (c) => {

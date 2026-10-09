@@ -4,6 +4,7 @@
   import ChatGuards from "./ChatGuards.svelte";
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
+  import AmbienceEditor from "./AmbienceEditor.svelte";
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
@@ -377,6 +378,8 @@
       <a class="btn small" href="/chat/{detail.chat.id}/read"><BookOpen size={14} /> Reading mode</a>
     </div>
   </div>
+
+  <AmbienceEditor {detail} {onchange} />
 
   <BookExport bind:open={exportOpen} chatId={detail.chat.id} />
 

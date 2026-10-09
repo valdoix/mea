@@ -21,7 +21,7 @@
   import MessageItem from "../components/chat/MessageItem.svelte";
   import Modal from "../components/Modal.svelte";
   import QuotaRing from "../components/QuotaRing.svelte";
-  import { ApiError, del, get, patch, post, put } from "../lib/api";
+  import { ApiError, del, get, imageUrl, patch, post, put } from "../lib/api";
   import { promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { compact } from "../lib/format";
@@ -121,6 +121,9 @@
   const generating = $derived(Object.keys(gens).length > 0 || messages.some((m) => m.status === "streaming"));
   const lastMsg = $derived(messages.at(-1));
   const charName = $derived(detail?.character?.name ?? "Character");
+  // UI-08: the chat's ambience: accent from the portrait, art behind the story.
+  const amb = $derived(detail?.chat.settings.ambience ?? {});
+  const ambAccent = $derived(amb.accent && detail?.character?.palette?.[0] ? detail.character.palette[0] : undefined);
   const personaName = $derived(detail?.persona?.name ?? "You");
   const styleClass = $derived(`style-${app.settings?.["appearance.chatStyle"] ?? "cards"}`);
 
@@ -729,7 +732,7 @@
 {#if error}
   <div class="center"><div class="stack" style="text-align:center"><h2>Couldn't open this chat</h2><p class="muted">{error}</p><a href="/">Back home</a></div></div>
 {:else if detail}
-  <div class="chat" class:with-panel={panelOpen && !app.isMobile}>
+  <div class="chat" class:with-panel={panelOpen && !app.isMobile} class:art={Boolean(amb.imageId)} style:--accent={ambAccent} style:--panel="{Math.round((amb.panel ?? 0.86) * 100)}%">
     <div class="main-col">
       <header class="bar">
         {#if app.isMobile}
@@ -761,6 +764,13 @@
 
       {#if searchOpen}
         <ChatSearch chatId={id} onclose={() => ((searchOpen = false), (searchQ = ""))} onjump={(seq, q) => ((searchQ = q), void jumpTo(seq))} />
+      {/if}
+      {#if amb.imageId}
+        <div class="ambience" aria-hidden="true">
+          <div class="art-img" style:background-image="url({imageUrl(amb.imageId, app.dataLight ? 'm' : 'l')})" style:filter="blur({amb.blur ?? 6}px)"></div>
+          <div class="art-dim" style:background="rgb(0 0 0 / {amb.dim ?? 0.25})"></div>
+          {#if amb.vignette !== false}<div class="art-vignette"></div>{/if}
+        </div>
       {/if}
       <div class="scroller" bind:this={scroller} onscroll={onScroll}>
         <div class="column {styleClass}">
@@ -1090,6 +1100,46 @@
     background: linear-gradient(90deg, var(--lavender), var(--accent));
     border-radius: inherit;
     transition: width 0.5s var(--ease);
+  }
+  .ambience {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .ambience > div {
+    position: absolute;
+    inset: 0;
+  }
+  .art-img {
+    inset: -40px !important;
+    background-size: cover;
+    background-position: center;
+  }
+  .art-vignette {
+    background: radial-gradient(ellipse at center, transparent 45%, rgb(0 0 0 / 45%) 100%);
+  }
+  .chat.art .bar {
+    position: relative;
+  }
+  .chat.art .scroller,
+  .chat.art .composer-area {
+    position: relative;
+    z-index: 1;
+  }
+  .chat.art :global(.msg .nameline),
+  .chat.art :global(.msg .time),
+  .chat.art :global(.divider),
+  .chat.art :global(.start) {
+    background: color-mix(in srgb, var(--surface) var(--panel), transparent);
+    border-radius: var(--r-pill);
+    padding: 0.05rem 0.55rem;
+    backdrop-filter: blur(6px);
+  }
+  .chat.art :global(.bubble) {
+    background: color-mix(in srgb, var(--surface) var(--panel), transparent);
+    backdrop-filter: blur(8px);
   }
   .scroller {
     flex: 1;

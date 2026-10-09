@@ -109,6 +109,13 @@
   }
 
   const latest = $derived(recent[0]);
+  // UI-14: the chapter you're in and one line of recap, for the Continue card.
+  let cont = $state<{ chapter: { title: string; storyTime: string | null } | null; line: string | null } | null>(null);
+  $effect(() => {
+    const idNow = latest?.id;
+    cont = null;
+    if (idNow) get<NonNullable<typeof cont>>(`/api/chats/${idNow}/continue`).then((r) => idNow === latest?.id && (cont = r), () => {});
+  });
 </script>
 
 <svelte:window
@@ -139,7 +146,8 @@
       <Avatar id={latest.avatarId} name={latest.characterName ?? ""} size={64} shape="squircle" />
       <div class="grow">
         <div class="tiny muted eyebrow">Continue · {timeAgo(latest.lastMessageAt)}</div>
-        <div class="title">{latest.characterName}</div>
+        <div class="title">{latest.characterName}{#if cont?.chapter}<span class="chapter"> · {cont.chapter.title}</span>{/if}</div>
+        {#if cont?.line}<p class="recapline dz">{cont.line}</p>{/if}
         <p class="last prose dz">{latest.lastText || latest.title}</p>
       </div>
       <span class="btn primary go"><MessageHeart size={18} /> Continue</span>
@@ -267,6 +275,22 @@
     font-variation-settings: "SOFT" 100;
     font-size: 1.3rem;
     font-weight: 600;
+  }
+  .chapter {
+    font-family: var(--font-story);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 0.8em;
+    color: var(--text-muted);
+  }
+  .recapline {
+    margin: 0.15rem 0 0.25rem;
+    font-size: var(--fs-sm);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .last {
     font-size: var(--fs-sm);

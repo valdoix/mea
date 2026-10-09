@@ -12,6 +12,8 @@ export interface DevicePrefs {
   haptics: boolean;
   /** UI-24: small delights (sparkles, heart pops, page turns). */
   delights: boolean;
+  /** MOB-12: smaller images and fewer prefetches. "auto" follows data saver and cellular connections. */
+  dataLight: "auto" | "on" | "off";
   /** MOB-11: lock the app after this many minutes in the background (0 = when it's hidden). */
   lockAfter: number;
   /** UI-15: reading mode. */
@@ -21,7 +23,7 @@ export interface DevicePrefs {
 }
 
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app" };
+const defaults: DevicePrefs = { dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app" };
 
 function read(): DevicePrefs {
   try {
@@ -45,4 +47,22 @@ export function setDevice<K extends keyof DevicePrefs>(key: K, value: DevicePref
 /** MOB-09: a short buzz, if this device can and you want it. */
 export function buzz(ms = 10) {
   if (device.haptics) navigator.vibrate?.(ms);
+}
+
+interface NetInfo extends EventTarget {
+  saveData?: boolean;
+  type?: string;
+  effectiveType?: string;
+}
+
+/** MOB-12: is this a connection to be careful with? */
+export function meteredConnection() {
+  const c = (navigator as Navigator & { connection?: NetInfo }).connection;
+  if (!c) return false;
+  return Boolean(c.saveData) || c.type === "cellular" || ["slow-2g", "2g", "3g"].includes(c.effectiveType ?? "");
+}
+export function onConnectionChange(fn: () => void) {
+  const c = (navigator as Navigator & { connection?: NetInfo }).connection;
+  c?.addEventListener("change", fn);
+  return () => c?.removeEventListener("change", fn);
 }

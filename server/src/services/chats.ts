@@ -82,6 +82,18 @@ export const chatSettingsSchema = z.object({
   /** STEER-01 / STEER-03: this chat's advisor and editor (null = the global default). */
   advisor: z.boolean().nullable().optional(),
   editor: z.enum(["off", "flagged", "every"]).nullable().optional(),
+  /** UI-08: per-chat ambience: the portrait's accent, a background with blur/dim/vignette, and how solid text panels are. */
+  ambience: z
+    .object({
+      accent: z.boolean(),
+      imageId: z.string().max(80).nullable(),
+      blur: z.number().min(0).max(30),
+      dim: z.number().min(0).max(0.9),
+      vignette: z.boolean(),
+      panel: z.number().min(0.4).max(1),
+    })
+    .partial()
+    .optional(),
   /** STEER-04: the style profile, over the character's. */
   style: z
     .object({

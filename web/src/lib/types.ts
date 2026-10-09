@@ -80,6 +80,16 @@ export interface Persona {
   lorebooks?: { id: string; name: string }[];
 }
 
+/** UI-08: per-chat ambience. */
+export interface Ambience {
+  accent?: boolean;
+  imageId?: string | null;
+  blur?: number;
+  dim?: number;
+  vignette?: boolean;
+  panel?: number;
+}
+
 export interface ChatSettings {
   authorsNote?: { content: string; depth: number; role: Role };
   profileId?: string | null;
@@ -104,6 +114,8 @@ export interface ChatSettings {
   advisor?: boolean | null;
   editor?: "off" | "flagged" | "every" | null;
   /** STEER-04 */
+  /** UI-08 */
+  ambience?: Ambience;
   style?: StyleProfile;
 }
 
@@ -608,6 +620,8 @@ export interface BlockTrace {
 }
 
 export interface PromptTrace {
+  /** PERF-10: how long building the prompt took, by part. */
+  timing?: { totalMs: number; trackersMs: number; retrievalMs: number; loreMs: number; advisorMs: number; assemblyMs: number };
   blocks: BlockTrace[];
   history: { included: number; total: number; tokens: number; dropped: number; evicted?: number; filtered?: number };
   lore: LoreTrace[];

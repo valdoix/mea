@@ -18,7 +18,7 @@
   import AppLock from "./components/AppLock.svelte";
   import CommandPalette from "./components/CommandPalette.svelte";
   import { lock, watchLock } from "./lib/applock.svelte";
-  import { device } from "./lib/device.svelte";
+  import { device, meteredConnection, onConnectionChange } from "./lib/device.svelte";
   import Welcome from "./views/Welcome.svelte";
 
   // PERF-09: Home and the chat are in the first load; every other screen loads on first visit.
@@ -62,6 +62,13 @@
       stopLock();
       stopSwipe();
     };
+  });
+
+  // MOB-12: data-light mode, by hand or following the connection.
+  let metered = $state(meteredConnection());
+  onMount(() => onConnectionChange(() => (metered = meteredConnection())));
+  $effect(() => {
+    app.dataLight = device.dataLight === "on" || (device.dataLight === "auto" && metered);
   });
 
   // UI-20: discreet mode blurs avatars and previews here, and hides notification text (the service worker reads it).

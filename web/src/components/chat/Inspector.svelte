@@ -16,6 +16,9 @@
     estPromptTokens?: number;
     promptTokens?: number | null;
     cachedTokens?: number | null;
+    /** PERF-10 */
+    ttftMs?: number | null;
+    tokensPerSec?: number | null;
     error?: string;
   }
 
@@ -35,6 +38,8 @@
           estPromptTokens: g.est_prompt_tokens,
           promptTokens: g.prompt_tokens,
           cachedTokens: g.cached_tokens,
+          ttftMs: g.first_token_at ? g.first_token_at - g.started_at : null,
+          tokensPerSec: g.completion_tokens && g.first_token_at && g.finished_at > g.first_token_at ? Math.round((g.completion_tokens / ((g.finished_at - g.first_token_at) / 1000)) * 10) / 10 : null,
         }))
       : get<any>(`/api/chats/${chatId}/prompt-preview`).then((p) => ({ model: p.model, profile: p.profile, messages: p.messages, trace: p.trace, estPromptTokens: p.estPromptTokens }));
     load.then((d) => (data = d)).catch((e) => (data = { messages: [], trace: null, error: (e as Error).message }));
@@ -73,6 +78,17 @@
         {#if data.cachedTokens}<span class="chip sky">{compact(data.cachedTokens)} cached</span>{/if}
         {#if data.trace}<span class="chip">{data.trace.history.included}/{data.trace.history.total} messages in context</span>{/if}
       </div>
+
+      {#if data.trace?.timing || data.ttftMs != null}
+        {@const t = data.trace?.timing}
+        <div class="row wrap tiny timing" aria-label="Timing">
+          <b>Timing</b>
+          {#if t}<span title="Building the prompt: trackers {t.trackersMs} ms, memory recall {t.retrievalMs} ms, lore {t.loreMs} ms, advisor {t.advisorMs} ms, assembly {t.assemblyMs} ms">prompt {Math.round(t.totalMs)} ms <span class="faint">(recall {Math.round(t.retrievalMs)} · lore {Math.round(t.loreMs)} · trackers {Math.round(t.trackersMs)} · assembly {Math.round(t.assemblyMs)})</span></span>{/if}
+          {#if data.ttftMs != null}<span>first token {(data.ttftMs / 1000).toFixed(2)} s</span>{/if}
+          {#if data.tokensPerSec}<span>{data.tokensPerSec} tokens/s</span>{/if}
+          {#if data.promptTokens}<span>cache hit {Math.round(((data.cachedTokens ?? 0) / data.promptTokens) * 100)}%</span>{/if}
+        </div>
+      {/if}
 
       {#if b}
         <div class="budget" title="Prompt budget">
@@ -220,6 +236,10 @@
 </Modal>
 
 <style>
+  .timing {
+    gap: 0.9rem;
+    color: var(--text-muted);
+  }
   .summary {
     gap: 0.4rem;
   }
