@@ -2,7 +2,7 @@
   import { get } from "../lib/api";
   import { onEvent } from "../lib/events";
   import { timeAgo } from "../lib/format";
-  import { BookOpen, House, Inbox, Moon, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
+  import { BookOpen, House, Inbox, Moon, NotebookPen, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
   import { route } from "../lib/router.svelte";
   import { app, saveSetting } from "../lib/state.svelte";
   import type { ChatListItem } from "../lib/types";
@@ -55,6 +55,7 @@
     { href: "/creator", label: "Studio", icon: WandSparkles, match: ["creator", "studio"] },
     { href: "/lorebooks", label: "Lorebooks", icon: BookOpen, match: ["lorebooks", "lorebook"] },
     { href: "/presets", label: "Presets", icon: SlidersHorizontal, match: ["presets", "preset"] },
+    { href: "/notebook", label: "Notebook", icon: NotebookPen, match: ["notebook"] },
     { href: "/inbox", label: "Inbox", icon: Inbox, match: ["inbox"] },
     { href: "/settings", label: "Settings", icon: Settings, match: ["settings"] },
   ];

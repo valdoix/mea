@@ -1,7 +1,7 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
-  import { post } from "../../lib/api";
-  import { Bookmark, BookmarkPlus, CircleAlert } from "../../lib/icons";
+  import { del, post } from "../../lib/api";
+  import { Bookmark, BookmarkPlus, CircleAlert, Heart } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { Atom } from "../../lib/types";
 
@@ -9,7 +9,7 @@
    * "Remember this" / "That's wrong" (MEM-41): select text in any message and turn it into a
    * memory, pin it, or correct what memory got wrong, in two taps.
    */
-  let { chatId, root, idForSeq }: { chatId: string; root: HTMLElement | null; idForSeq: (seq: number) => string | null } = $props();
+  let { chatId, root, idForSeq, onhighlight }: { chatId: string; root: HTMLElement | null; idForSeq: (seq: number) => string | null; onhighlight?: () => void } = $props();
 
   let sel = $state<{ text: string; messageId: string; x: number; y: number } | null>(null);
   let fixOpen = $state(false);
@@ -56,6 +56,19 @@
       errorToast(e);
     }
   }
+  /** QOL-02: keep the passage as a highlight (a best moment, and a memory signal). */
+  async function highlight() {
+    if (!sel) return;
+    try {
+      const h = await post<{ id: string }>(`/api/messages/${sel.messageId}/highlights`, { text: sel.text });
+      window.getSelection()?.removeAllRanges();
+      sel = null;
+      onhighlight?.();
+      toast("Highlighted ♡", { kind: "ok", action: { label: "Undo", run: () => void del(`/api/highlights/${h.id}`).then(() => onhighlight?.()) } });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   async function startFix() {
     if (!sel) return;
     wrong = sel.text;
@@ -91,6 +104,7 @@
 
 {#if sel && !fixOpen}
   <div class="selbar card" style:left="{sel.x}px" style:top="{sel.y}px" role="toolbar" aria-label="Selected text">
+    <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={highlight}><Heart size={14} /> Highlight</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={() => remember(false)}><BookmarkPlus size={14} /> Remember</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={() => remember(true)}><Bookmark size={14} /> Pin</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={startFix}><CircleAlert size={14} /> That's wrong</button>

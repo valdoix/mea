@@ -82,7 +82,7 @@
         <button class="btn small" onclick={() => book("html")}><Download size={14} /> HTML</button>
         <button class="btn small" onclick={() => book("pdf")}><Download size={14} /> PDF</button>
       </div>
-      <span class="hint">PDF opens the book with the print dialog: choose "Save as PDF".</span>
+      <p class="tiny muted">PDF opens the book with the print dialog: choose "Save as PDF".</p>
     </section>
 
     <section class="stack tight">

@@ -60,6 +60,7 @@
     storyTime = null,
     onrewind,
     mark = "",
+    passages = [],
     flag = null,
     onflagchange,
     oncite,
@@ -67,6 +68,8 @@
     onglossary,
   }: {
     mark?: string;
+    /** QOL-02: highlighted passages to mark in the text. */
+    passages?: string[];
     /** CON-02: this reply's continuity notes. */
     flag?: ContinuityFlag | null;
     onflagchange?: (f: ContinuityFlag | null) => void;
@@ -112,7 +115,14 @@
   const scope = $derived(`m-${message.id.slice(0, 8)}`);
   // PROMPT-08: display-only regex scripts change what's shown, never the stored text.
   const shown = $derived(message.role === "system" ? message.content : applyRegex(message.content, app.settings?.["regex.scripts"], { role: isUser ? "user" : "ai", mode: "display", characterId: regexScope.characterId }));
-  const html = $derived(streaming ? "" : markText(renderMessage(shown, scope), mark));
+  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope), mark), passages));
+
+  /** QOL-02: a highlighted passage is marked where it sits inside one stretch of text (between tags). */
+  function markPassages(h: string, list: string[]) {
+    if (!list.length) return h;
+    const res = list.filter((t) => t.length >= 3).map((t) => new RegExp(t.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"), "i"));
+    return h.replace(/>([^<]+)</g, (_m, text: string) => `>${res.reduce((acc, re) => acc.replace(re, (x) => `<mark class="hl">${x}</mark>`), text)}<`);
+  }
 
   /** CHAT-18: highlight search matches in the rendered text (only between tags). */
   function markText(h: string, q: string) {

@@ -12,6 +12,7 @@
   import ChatSearch from "../components/chat/ChatSearch.svelte";
   import ArchivistPanel from "../components/chat/ArchivistPanel.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
+  import NotesPanel from "../components/notes/NotesPanel.svelte";
   import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
   import Segmented from "../components/Segmented.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
@@ -48,14 +49,15 @@
   let stick = $state(true);
   let editSignals = $state<Record<string, number>>({});
   let error = $state("");
-  type DockTab = "chat" | "memory" | "story" | "world" | "ask";
-  let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "ask"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
+  type DockTab = "chat" | "memory" | "story" | "world" | "ask" | "notes";
+  let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "ask", "notes"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
   const dockOptions = [
     { value: "chat" as const, label: "Chat" },
     { value: "memory" as const, label: "Memory" },
     { value: "story" as const, label: "Story" },
     { value: "world" as const, label: "World" },
     { value: "ask" as const, label: "Ask" },
+    { value: "notes" as const, label: "Notes" },
   ];
   // Phase 3: continuity notes per message (CON-02), glossary terms (LORE-15).
   let flags = $state<Record<string, ContinuityFlag>>({});
@@ -153,6 +155,7 @@
       }
       void loadBoundaries();
       void loadFlags();
+      void loadHighlights();
       await tick();
       const at = Number(route.query.at);
       if (route.query.q) {
@@ -180,6 +183,19 @@
     if (route.query.at) void jumpTo(Number(route.query.at));
     else if (route.query.m) void openCitation({ messageId: route.query.m, seq: null } as Citation);
   });
+
+  // QOL-02: passages you highlighted, marked in their messages.
+  let passages = $state<Record<string, string[]>>({});
+  async function loadHighlights() {
+    try {
+      const r = await get<{ highlights: { messageId: string; text: string }[] }>(`/api/chats/${id}/highlights`);
+      const next: Record<string, string[]> = {};
+      for (const h of r.highlights) (next[h.messageId] ??= []).push(h.text);
+      passages = next;
+    } catch {
+      // optional
+    }
+  }
 
   async function loadFlags() {
     try {
@@ -721,6 +737,7 @@
               oninspect={() => openInspector(m.meta?.generationId ?? null)}
               highlighted={highlight === m.seq}
               mark={searchOpen ? searchQ : ""}
+              passages={passages[m.id] ?? []}
               onendscene={m.id !== lastMsg?.id ? () => endScene(m) : undefined}
               onnewchapter={m.seq !== firstSeq || hasMore ? () => newChapter(m) : undefined}
               onmemory={() => showMemory(m)}
@@ -771,7 +788,7 @@
         <div class="dock-tabs">
           <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
         </div>
-        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
       </aside>
     {/if}
   </div>
@@ -781,13 +798,13 @@
       <div class="dock-tabs">
         <Segmented bind:value={dockTab} small options={dockOptions} onchange={(v) => localStorage.setItem("mea.dockTab", v)} />
       </div>
-      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
+      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
     </Modal>
   {/if}
 
   <Inspector bind:open={inspectorOpen} chatId={id} generationId={inspectGen} />
 
-  <SelectionMenu chatId={id} root={scroller} idForSeq={(seq) => messages.find((x) => x.seq === seq)?.id ?? null} />
+  <SelectionMenu chatId={id} root={scroller} idForSeq={(seq) => messages.find((x) => x.seq === seq)?.id ?? null} onhighlight={loadHighlights} />
 
   {#if glossPick}
     <button class="gloss-scrim" onclick={() => (glossPick = null)} aria-label="Close"></button>

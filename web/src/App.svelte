@@ -36,6 +36,7 @@
     settings: () => import("./views/Settings.svelte"),
     trash: () => import("./views/Trash.svelte"),
     inbox: () => import("./views/InboxView.svelte"),
+    notebook: () => import("./views/NotebookView.svelte"),
   };
 
   let ready = $state(false);

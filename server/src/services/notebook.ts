@@ -120,6 +120,9 @@ interface HighlightRow {
 export function addHighlight(messageId: string, text: string, note = "") {
   const m = getMessageRow(messageId);
   if (!m) throw notFound("Message not found");
+  // The same passage marked twice is one highlight.
+  const same = one<HighlightRow>("SELECT * FROM highlights WHERE message_id = ? AND text = ?", messageId, text.trim().slice(0, 4000));
+  if (same) return { id: same.id, chatId: same.chat_id, messageId, text: same.text, note: same.note };
   const id = newId();
   run("INSERT INTO highlights (id, chat_id, message_id, text, note, created_at) VALUES (?, ?, ?, ?, ?, ?)", id, m.chat_id, messageId, text.trim().slice(0, 4000), note.slice(0, 1000), now());
   publish({ type: "message.changed", chatId: m.chat_id, messageId });
