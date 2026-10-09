@@ -31,6 +31,10 @@
   import { renderMessage, renderStreaming } from "../../lib/render";
   import { applyRegex, regexScope } from "../../lib/regex.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
+  import ThoughtsDrawer from "../trackers/ThoughtsDrawer.svelte";
+  import { trk } from "../../lib/trackers.svelte";
+  import { living } from "../../lib/living";
+  import { voices, voicesFrom } from "../../lib/voices";
   import type { Citation, ContinuityFlag, EditSuggestion, GlossaryTerm, TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
   import { device } from "../../lib/device.svelte";
@@ -118,7 +122,10 @@
   const scope = $derived(`m-${message.id.slice(0, 8)}`);
   // PROMPT-08: display-only regex scripts change what's shown, never the stored text.
   const shown = $derived(message.role === "system" ? message.content : applyRegex(message.content, app.settings?.["regex.scripts"], { role: isUser ? "user" : "ai", mode: "display", characterId: regexScope.characterId }));
-  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope), mark), passages));
+  const page = $derived(living(app.settings));
+  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope, { artifacts: page.artifacts }), mark), passages));
+  // Speaker colours: the story state's cast, plus whoever wrote this message.
+  const cast = $derived(voicesFrom(trk.data, [{ name: displayName, isUser }]));
 
   /** QOL-02: a highlighted passage is marked where it sits inside one stretch of text (between tags). */
   function markPassages(h: string, list: string[]) {
@@ -155,7 +162,7 @@
     if (!streaming) return;
     const text = message.content;
     cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => (streamHtml = renderStreaming(text)));
+    raf = requestAnimationFrame(() => (streamHtml = renderStreaming(text, { artifacts: page.artifacts })));
     return () => cancelAnimationFrame(raf);
   });
 
@@ -256,7 +263,7 @@
           <div class="notice error row"><CircleAlert size={16} /><span class="grow">{message.error ?? "Something went wrong."}</span></div>
           {#if isLast}<button class="btn small" style="margin-top:.5rem" onclick={() => onregen()} disabled={!canGenerate}><RotateCcw size={14} /> Try again</button>{/if}
         {:else}
-          <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }}>{@html html}</div>
+          <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }} use:voices={{ html, voices: cast, style: page.voices }}>{@html html}</div>
           {#if banned.length}<div class="tiny banned" title="Phrases from your banned list (Settings → Writing)">Banned phrases: {banned.join(", ")}</div>{/if}
           {#if suggestion?.status === "proposed" && suggestion.original === message.content}
             <div class="editor-note tiny">
@@ -285,6 +292,7 @@
     {/if}
 
     {#if chips.length && !editing && !streaming}<ChangeChips changes={chips} />{/if}
+    {#if !isUser && !editing && !streaming && page.thoughts !== "never"}<ThoughtsDrawer changes={chips} open={page.thoughts === "always"} />{/if}
     {#if flag && !editing && !streaming && onflagchange && oncite}<ContinuityNote {flag} canRegenerate={isLast && canGenerate} onchange={onflagchange} {oncite} />{/if}
 
     {#if message.role === "assistant" && (message.swipeCount > 1 || isLast) && !editing}
@@ -356,7 +364,8 @@
     grid-template-columns: var(--portrait-w, 76px) minmax(0, 1fr);
     gap: 1rem;
     align-items: start;
-    padding: 0.55rem 0;
+    padding: 0.55rem 8px;
+    margin-inline: -8px;
     content-visibility: auto;
     contain-intrinsic-size: auto 180px;
     animation: fade-up 0.4s var(--ease) backwards;

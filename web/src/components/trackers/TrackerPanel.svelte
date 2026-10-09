@@ -1,5 +1,9 @@
 <script lang="ts">
+  import SceneWindow from "./SceneWindow.svelte";
   import TrackerSettings from "./TrackerSettings.svelte";
+  import { living } from "../../lib/living";
+  import { readClock } from "../../lib/storytime";
+  import { app } from "../../lib/state.svelte";
   import { post } from "../../lib/api";
   import { Lock, LockOpen, RefreshCw, Settings, ExternalLink, Eye } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
@@ -107,7 +111,7 @@
 {:else if st}
   <div class="tpanel stack tight">
     <div class="row between top">
-      <span class="tiny muted">{trk.running ? "Reading the latest reply…" : d.time ? `Story time: ${d.time}` : "No story time yet"}</span>
+      <span class="tiny muted">{trk.running ? "Reading the latest reply…" : d.when ? d.when.label : d.time ? `Story time: ${d.time}` : "No story time yet"}</span>
       <span class="row">
         <button class="btn ghost icon small" onclick={readAgain} title="Read the latest reply again" aria-label="Read again"><RefreshCw size={14} class={trk.running ? "spin" : ""} /></button>
         <a class="btn ghost icon small" href="/chat/{chatId}/story" title="Timeline, relationship web and cast" aria-label="Open the story view"><ExternalLink size={14} /></a>
@@ -121,12 +125,13 @@
     {#if sec?.scene}
       <details open>
         <summary>Scene</summary>
+        {#if living(app.settings).window}<div class="window"><SceneWindow when={d.when} weather={st.weather?.now ?? null} place={st.place} /></div>{/if}
         <div class="kv">
           <span>Time</span>
           {#if editing === "clock"}
-            <input class="input mini" bind:value={draft} placeholder="Day 3 21:40 or 2026-03-14 21:40" onkeydown={(e) => e.key === "Enter" && save(`clock: ${draft}`)} onblur={() => save(draft ? `clock: ${draft}` : null)} />
+            <input class="input mini" bind:value={draft} placeholder={d.config.calendar === "westeros" ? "the 14th day of the 10th moon of 299 AC 21:40" : "Day 3 21:40 or 2026-03-14 21:40"} onkeydown={(e) => e.key === "Enter" && save(`clock: ${draft}`)} onblur={() => save(draft ? `clock: ${draft}` : null)} />
           {:else}
-            <button class="val" onclick={() => start("clock", d.time)}>{d.time ?? "—"}</button>
+            <button class="val" onclick={() => start("clock", d.time)} title={d.time ?? undefined}>{d.when?.label ?? d.time ?? "—"}</button>
           {/if}
           <button class="lk" class:on={locked("clock")} onclick={() => toggleLock("clock")} aria-label="Lock the clock">{#if locked("clock")}<Lock size={12} />{:else}<LockOpen size={12} />{/if}</button>
         </div>
@@ -303,7 +308,7 @@
       <details>
         <summary>Calendar & moments</summary>
         {#each Object.values(st.calendar) as e (e.id)}<div class="line tiny"><span aria-hidden="true">📅</span><span class="grow">{e.title}</span><span class="muted">{e.when}</span></div>{/each}
-        {#each st.milestones.slice(-6) as m, i (i)}<div class="line tiny"><span aria-hidden="true">🌟</span><span class="grow">{m.text}</span>{#if m.at}<span class="muted">{m.at}</span>{/if}</div>{/each}
+        {#each st.milestones.slice(-6) as m, i (i)}<div class="line tiny"><span aria-hidden="true">🌟</span><span class="grow">{m.text}</span>{#if m.at}<span class="muted">{readClock(m.at, d.config.calendar)}</span>{/if}</div>{/each}
         {#each Object.values(st.motifs) as m (m.id)}<div class="line tiny"><span aria-hidden="true">🔁</span><span class="grow">{m.text}</span><span class="muted">×{m.uses}</span></div>{/each}
       </details>
     {/if}
@@ -382,6 +387,9 @@
     cursor: pointer;
     font: 700 var(--fs-sm) var(--font-ui);
     padding: 0.15rem 0;
+  }
+  .window {
+    margin: 0.35rem 0 0.5rem;
   }
   .kv {
     display: grid;

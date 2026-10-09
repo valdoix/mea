@@ -6,7 +6,8 @@ import { badRequest, body, must } from "../lib/http";
 import { getCharacterRow } from "../services/characters";
 import { getMessageRow, mustChat, trackerConfigSchema } from "../services/chats";
 import { enqueue } from "../services/jobs";
-import { formatStoryTime, shortStoryTime } from "../trackers/clock";
+import { describeWhen, spanLabel } from "../trackers/calendars";
+import { formatStoryTime, parseStoryTime, shortStoryTime } from "../trackers/clock";
 import { checkCondition, evalCondition } from "../trackers/condition";
 import { hudLine } from "../trackers/note";
 import { STARTER_TEMPLATES, templateInput } from "../trackers/schema";
@@ -50,14 +51,17 @@ trackers.get("/chats/:id/trackers", (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
   const at = c.req.query("at");
-  const state = at ? foldAt(chatId, { uptoSeq: seqOf(chatId, at) }).state : currentFold(chatId).result.state;
+  const seq = c.req.query("seq");
+  // ?at=<message> or ?seq=<n>: the world as it stood then (the Almanac's rewind).
+  const state = at ? foldAt(chatId, { uptoSeq: seqOf(chatId, at) }).state : seq ? foldAt(chatId, { uptoSeq: Number(seq) }).state : currentFold(chatId).result.state;
   const config = trackerConfig(chatId);
   const fc = foldConfigFor(chatId, config);
   const running = Boolean(one("SELECT 1 FROM jobs WHERE chat_id = ? AND kind IN ('tracker.update', 'tracker.init') AND status IN ('queued', 'running')", chatId));
   return c.json({
     state,
     time: momentText(state.time),
-    hud: hudLine(state, fc.templates),
+    when: state.time ? describeWhen(state.time, config.calendar, config.season) : null,
+    hud: hudLine(state, fc.templates, config.calendar),
     config,
     templates: fc.templates,
     userName: fc.userName,
@@ -65,6 +69,7 @@ trackers.get("/chats/:id/trackers", (c) => {
     profiles: castProfiles(chatId),
     hasBase: hasBase(chatId),
     running,
+    maxSeq: one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.s ?? 0,
   });
 });
 
@@ -81,14 +86,25 @@ trackers.get("/chats/:id/trackers/chips", (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
   const fold = currentFold(chatId);
+  const cal = trackerConfig(chatId).calendar;
   const times: Record<string, string> = {};
   for (const [id, t] of Object.entries(fold.times)) {
     if (!t) continue;
     const [minutes, form] = t.split(":");
-    times[id] = shortStoryTime(formatStoryTime({ minutes: Number(minutes), form: form as Moment["form"] }));
+    const moment = { minutes: Number(minutes), form: form as Moment["form"] };
+    times[id] = cal === "gregorian" ? shortStoryTime(formatStoryTime(moment)) : describeWhen(moment, cal).short;
+  }
+  // Clock chips read in the chat's calendar ("21:40 → 23:10" within a day).
+  const byMessage: Record<string, Change[]> = {};
+  for (const [id, list] of Object.entries(fold.result.changes)) {
+    byMessage[id] = list.map((ch) => {
+      if (ch.kind !== "clock" || ch.flag) return ch;
+      const to = parseStoryTime(ch.to);
+      return to ? { ...ch, text: spanLabel(parseStoryTime(ch.from), to, cal) } : ch;
+    });
   }
   const issues: Record<string, number> = {};
-  return c.json({ byMessage: fold.result.changes, times, issues });
+  return c.json({ byMessage, times, issues });
 });
 
 /** One message's ledger: its lines, what each did, and why any was refused. */
@@ -163,7 +179,7 @@ trackers.get("/chats/:id/trackers/timeline", (c) => {
   const fold = currentFold(chatId).result;
   const seqs = new Map(all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId).map((m) => [m.id, m.seq]));
   const entries: (Change & { messageId: string; seq: number })[] = [];
-  for (const [mid, list] of Object.entries(fold.changes)) for (const ch of list) entries.push({ ...ch, messageId: mid, seq: seqs.get(mid) ?? 0 });
+  for (const [mid, list] of Object.entries(fold.changes)) for (const ch of list) if (ch.kind !== "thought" && ch.kind !== "mask") entries.push({ ...ch, messageId: mid, seq: seqs.get(mid) ?? 0 });
   entries.sort((a, b) => a.seq - b.seq);
   const st = fold.state;
   const userName = foldConfigFor(chatId).userName ?? "You";

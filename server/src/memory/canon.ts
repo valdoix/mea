@@ -13,7 +13,7 @@ export const AUTHORITY = {
 } as const;
 
 export const CANON_RULE =
-  "[Canon order. When sources disagree, trust them in this order: (1) the player's own edits and confirmed memories, (2) the character card and the lorebook, (3) the story state, (4) memory notes, (5) the story-so-far summaries, (6) your own improvisation. Never contradict a higher source to follow a lower one; if something seems off, follow the higher source quietly.]";
+  "[Canon order. When sources disagree, trust them in this order: (1) the player's own edits and confirmed memories, (2) the character card and the lorebook, (3) the story state, (4) memory notes, (5) the story-so-far summaries, (6) your own improvisation. The card wins on who someone is; the story state wins on what is true now (a haircut, a wound, a move, a changed relationship). Never contradict a higher source to follow a lower one; if something seems off, follow the higher source quietly.]";
 
 /** Ranks a source for conflict resolution in checkers and the codex (lower wins). */
 export function authorityRank(source: "user" | "card" | "lore" | "tracker" | "memory" | "summary" | "model") {

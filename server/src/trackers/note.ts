@@ -1,4 +1,5 @@
 import { countTokens } from "../lib/tokens";
+import { type CalendarId, describeWhen, noteTime } from "./calendars";
 import { parseStoryTime, shortStoryTime, timeOfDay, formatStoryTime } from "./clock";
 import { METER_WORDS, meterWords, SEVERITY, STAMINA } from "./drift";
 import type { Field, Template } from "./schema";
@@ -27,6 +28,9 @@ export interface NoteOptions {
   /** What reaches the scene from off the page (sim/crossings). */
   elsewhere?: string;
   nudges?: boolean;
+  /** How the date reads (calendars.ts); Gregorian keeps the short weekday form. */
+  calendar?: CalendarId;
+  season?: string;
 }
 
 export type Section = "scene" | "cast" | "body" | "bonds" | "romance" | "knowledge" | "items" | "threads" | "stakes" | "calendar" | "motifs" | "persona" | "custom" | "world";
@@ -184,7 +188,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   // NOW
   if (on(o, "scene")) {
     const now: string[] = [];
-    if (st.time) now.push(`${shortStoryTime(formatStoryTime(st.time))}${timeOfDay(formatStoryTime(st.time)) ? ` (${timeOfDay(formatStoryTime(st.time))})` : ""}`);
+    if (st.time && o.calendar === "westeros") now.push(noteTime(st.time, "westeros", o.season));
+    else if (st.time) now.push(`${shortStoryTime(formatStoryTime(st.time))}${timeOfDay(formatStoryTime(st.time)) ? ` (${timeOfDay(formatStoryTime(st.time))})` : ""}`);
     if (st.weather) now.push(st.weather.now);
     if (st.place.length) now.push(st.place.join(" › "));
     if (st.sceneTitle) now.push(`scene: ${st.sceneTitle}`);
@@ -301,9 +306,9 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
 const ORDER = ["now", "present", "voices", "stakes", "knowledge", "custom", "elsewhere", "hooks"];
 
 /** A one-line HUD (TRK-27): "Thu 23:10 · Lighthouse · Mira: wistful". */
-export function hudLine(st: WorldState, templates: Template[] = []): string {
+export function hudLine(st: WorldState, templates: Template[] = [], calendar: CalendarId = "gregorian"): string {
   const parts: string[] = [];
-  if (st.time) parts.push(shortStoryTime(formatStoryTime(st.time)));
+  if (st.time) parts.push(calendar === "gregorian" ? shortStoryTime(formatStoryTime(st.time)) : describeWhen(st.time, calendar).short);
   if (st.weather) parts.push(st.weather.now);
   if (st.place.length) parts.push(st.place.at(-1)!);
   for (const c of present(st)) if (!c.isUser && c.mood) parts.push(`${c.name}: ${c.mood.name}`);

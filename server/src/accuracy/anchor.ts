@@ -1,7 +1,8 @@
 import type { CardData } from "../cards/card";
 import type { PromptExtra } from "../prompt/assemble";
 import { characterSettings } from "../services/charsettings";
-import { messageCountOf } from "../services/chats";
+import { messageCountOf, mustChat } from "../services/chats";
+import { type PersonaMode, storyDials } from "../services/layers";
 import { driftState, spokenPart, voiceSamples } from "./drift";
 import { guardsFor } from "./guards";
 
@@ -24,7 +25,15 @@ export function essence(card: CardData) {
   return words(sents.slice(0, 3).join(" "), 70);
 }
 
-export function buildAnchor(o: { card: CardData; userName: string; characterId: string | null; strong?: boolean; reasons?: string[] }) {
+/** The anchor's last line follows the preset's Persona control (sealed when there's none). */
+function personaLine(name: string, user: string, persona: PersonaMode | null | undefined) {
+  if (persona === "full_cast") return `Write ${name}, the world and ${user} true to who each of them is.`;
+  if (persona === "director") return `Write ${name} and the world; write ${user} only inside the player's direction.`;
+  if (persona === "continuity") return `Write ${name} and the world, never ${user}'s words, thoughts, feelings or choices; you may only finish an action ${user} began.`;
+  return `Write ${name} and the world, never ${user}'s words, actions or thoughts.`;
+}
+
+export function buildAnchor(o: { card: CardData; userName: string; characterId: string | null; strong?: boolean; reasons?: string[]; persona?: PersonaMode | null }) {
   const own = characterSettings(o.characterId).anchor?.trim();
   const samples = voiceSamples(o.characterId)
     .lines.map((l) => spokenPart(l))
@@ -35,7 +44,7 @@ export function buildAnchor(o: { card: CardData; userName: string; characterId: 
     own || essence(o.card),
     pick.length ? `How ${o.card.name} talks: ${pick.map((l) => `"${l.replace(/^["“]|["”]$/g, "")}"`).join(" · ")}` : "",
     o.strong && o.reasons?.length ? `Lately the replies have drifted from this voice: ${o.reasons.join("; ")}. Bring ${o.card.name}'s own voice back.` : "",
-    `Write ${o.card.name} and the world, never ${o.userName}'s words, actions or thoughts.`,
+    personaLine(o.card.name, o.userName, o.persona),
   ];
   return lines.filter(Boolean).join("\n");
 }
@@ -50,7 +59,7 @@ export function anchorExtra(chatId: string, card: CardData, userName: string, ch
   return {
     id: "anchor",
     name: drifting ? "Re-anchor (stronger: voice drifting)" : "Re-anchor",
-    content: buildAnchor({ card, userName, characterId, strong: drifting, reasons: drift?.reasons }),
+    content: buildAnchor({ card, userName, characterId, strong: drifting, reasons: drift?.reasons, persona: storyDials(mustChat(chatId)).persona }),
     depth: cfg.anchorDepth,
   };
 }

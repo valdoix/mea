@@ -157,6 +157,7 @@
                 <span class="tiny muted hide-sm">{KIND_LABEL[block.kind]}</span>
               </button>
               <span class="chip">{block.position === "depth" ? `depth ${block.depth ?? 4}` : block.role}</span>
+              {#if block.when}<span class="chip hide-sm" title="Sent only while this holds">{block.when}</span>{/if}
               <button class="btn ghost icon small" onclick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"><ArrowUp size={14} /></button>
               <button class="btn ghost icon small" onclick={() => move(i, 1)} disabled={i === preset.blocks.length - 1} aria-label="Move down"><ArrowDown size={14} /></button>
               {#if block.kind === "text"}<button class="btn ghost icon small" onclick={() => preset?.blocks.splice(i, 1)} aria-label="Remove block"><Trash size={14} /></button>{/if}
@@ -175,6 +176,9 @@
                       <select class="select" bind:value={block.position}><option value="inline">In order</option><option value="depth">In chat at depth</option></select>
                     </label>
                     {#if block.position === "depth"}<label class="field"><span class="label">Depth</span><input class="input" type="number" min="0" style="width:5rem" bind:value={block.depth} /></label>{/if}
+                  {/if}
+                  {#if block.kind === "text"}
+                    <label class="field grow"><span class="label">Only when <span class="faint">a story-state condition, e.g. mode = conflict</span></span><input class="input" value={block.when ?? ""} oninput={(e) => (block.when = e.currentTarget.value.trim() || undefined)} placeholder="always" /></label>
                   {/if}
                 </div>
                 {#if block.kind === "text" || block.kind === "post_history" || block.kind === "authors_note"}
@@ -211,6 +215,7 @@
         <label class="field"><span class="label">Impersonate</span><textarea class="textarea" use:autosize={300} bind:value={preset.impersonationPrompt}></textarea></label>
         <label class="field"><span class="label">Expand my draft <span class="faint">{"{{draft}}"} is the draft</span></span><textarea class="textarea" use:autosize={300} bind:value={preset.expandPrompt}></textarea></label>
         <label class="field"><span class="label">Continue</span><textarea class="textarea" use:autosize={300} bind:value={preset.continuePrompt}></textarea></label>
+        <label class="field"><span class="label">Let the world move <span class="faint">sent when you send nothing after a reply</span></span><textarea class="textarea" use:autosize={200} value={preset.waitPrompt ?? ""} oninput={(e) => (preset!.waitPrompt = e.currentTarget.value)}></textarea></label>
         <label class="field"><span class="label">Assistant prefill <span class="faint">optional</span></span><textarea class="textarea" use:autosize={200} bind:value={preset.prefill}></textarea></label>
       </section>
     {/if}

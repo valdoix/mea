@@ -1,4 +1,5 @@
 import { get, put } from "./api";
+import { applyFonts } from "./fonts";
 import type { Quota, Settings } from "./types";
 
 export interface Toast {
@@ -86,7 +87,7 @@ export function applyAppearance() {
     // storage may be unavailable
   }
   if (s) {
-    root.dataset.storyFont = s["appearance.storyFont"];
+    applyFonts(root, s["appearance.storyFont"], s["appearance.typography"]?.uiFont);
     root.style.setProperty("--scale", String(s["appearance.fontScale"] || 1));
     // UI-16 / UI-19: typography
     const t = s["appearance.typography"];
@@ -96,7 +97,6 @@ export function applyAppearance() {
       root.style.setProperty("--measure", `${t.width}rem`);
       if (t.dialogueColor) root.style.setProperty("--dialogue", t.dialogueColor);
       else root.style.removeProperty("--dialogue");
-      root.dataset.uiFont = t.uiFont;
       if (t.dyslexic) {
         void import("@fontsource/opendyslexic/400.css");
         void import("@fontsource/opendyslexic/700.css");

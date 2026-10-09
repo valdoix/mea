@@ -17,6 +17,8 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/07-phase3-status.md](docs/07-phase3-status.md) | What Phase 3 delivered (retrieval, entities, accuracy guards, lore, library), fixes, and what still needs a real-world check |
 | [docs/08-phase4-status.md](docs/08-phase4-status.md) | What Phase 4 delivered (the studios, card tools, variants, prompt layers, controls, regex, helper prompts), fixes, and what still needs a real-world check |
 | [docs/09-phase5-status.md](docs/09-phase5-status.md) | What Phase 5 delivered (guards, steering, summaries, data and security, interface, phone and offline), fixes, and what still needs a real-world check |
+| [docs/10-default-preset.md](docs/10-default-preset.md) | Strengths and weaknesses of 21 community presets (ALMANAC in depth), and the design of Mea's default preset |
+| [docs/11-living-page.md](docs/11-living-page.md) | The living page: speaker colours, in-story artifacts, the scene window, the Almanac, private thoughts, and story calendars (Gregorian, Westeros) |
 
 ## Running Mea
 

@@ -90,9 +90,9 @@ describe("trackers end to end (mock)", () => {
   test("the prompt carries the story state, and a swipe's prompt doesn't see its own old lines (TRK-04)", async () => {
     const last = one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND role = 'assistant' ORDER BY seq DESC LIMIT 1", chatId)!;
     const p = await prepare(chatId, "story");
-    expect(p.assembled.messages.some((m) => m.content.includes("[Story state"))).toBe(true);
+    expect(p.assembled.messages.some((m) => m.content.startsWith("[Story state:"))).toBe(true);
     const swipe = await prepare(chatId, "story", { excludeMessageId: last.id });
-    const note = swipe.assembled.messages.find((m) => m.content.includes("[Story state"))?.content ?? "";
+    const note = swipe.assembled.messages.find((m) => m.content.startsWith("[Story state:"))?.content ?? "";
     expect(note).not.toContain("trust");
     expect(p.trackers?.tokens).toBeGreaterThan(0);
   });

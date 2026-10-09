@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { emptyCard } from "../src/cards/card";
 import { type AssembleInput, assemblePrompt } from "../src/prompt/assemble";
 import { expandMacros, type MacroContext } from "../src/prompt/macros";
-import { defaultPreset, importStPreset } from "../src/prompt/preset";
+import { meaControls } from "../src/prompt/mea";
+import { controlValues, defaultPreset, importStPreset } from "../src/prompt/preset";
 
 const ctx = (extra: Partial<MacroContext> = {}): MacroContext => ({ char: "Mira", user: "Ash", vars: {}, mode: "companion", seed: "chat1", random: () => 0, ...extra });
 
@@ -60,7 +61,9 @@ describe("prompt assembly", () => {
     expect(r.messages[0]!.content).toContain("You are Mira");
     expect(r.messages[0]!.content).toContain("Keeper of the lighthouse.");
     expect(r.messages[0]!.content).toContain("About Ash:");
-    expect(r.messages.at(-1)).toEqual({ role: "user", content: "Hello Mira." });
+    expect(r.messages.filter((m) => m.role === "user").at(-1)).toEqual({ role: "user", content: "Hello Mira." });
+    // Mea's preset ends with this reply's frame and the output contract, after the history.
+    expect(r.messages.at(-1)!.content).toStartWith("[OUTPUT]");
     expect(r.trace.history.included).toBe(2);
   });
 
@@ -73,12 +76,14 @@ describe("prompt assembly", () => {
     const r = assemblePrompt(base({ history, authorsNote: { content: "Keep it rainy.", depth: 2 } }));
     const idx = r.messages.findIndex((m) => m.content === "Keep it rainy.");
     expect(r.messages[idx + 1]!.content).toBe("m6");
-    expect(r.messages.length - idx).toBe(3);
+    expect(r.messages[idx + 2]!.content).toBe("m7");
   });
 
   test("history is trimmed to the budget, newest kept", () => {
     const history = Array.from({ length: 50 }, (_, i) => ({ id: String(i), role: "user" as const, content: `message ${i} `.repeat(40) }));
-    const r = assemblePrompt(base({ history, contextTarget: 3000 }));
+    const lean = defaultPreset();
+    lean.blocks = lean.blocks.filter((b) => b.id === "main" || b.kind === "history").map((b) => (b.id === "main" ? { ...b, content: "You are {{char}}." } : b));
+    const r = assemblePrompt(base({ preset: lean, history, contextTarget: 3000 }));
     expect(r.trace.history.dropped).toBeGreaterThan(0);
     expect(r.messages.at(-1)!.content).toContain("message 49");
     expect(r.estPromptTokens).toBeLessThanOrEqual(3000);
@@ -86,10 +91,10 @@ describe("prompt assembly", () => {
 
   test("continue, impersonate, expand tails and regen feedback", () => {
     expect(assemblePrompt(base({ kind: "continue" })).messages.at(-1)!.content).toContain("Continue your last reply");
-    expect(assemblePrompt(base({ kind: "impersonate" })).messages.at(-1)!.content).toContain("Write Ash's next message");
+    expect(assemblePrompt(base({ kind: "impersonate" })).messages.at(-1)!.content).toContain("write Ash's next message");
     expect(assemblePrompt(base({ kind: "expand", draft: "smile, wave" })).messages.at(-1)!.content).toContain("smile, wave");
     const fb = assemblePrompt(base({ feedback: "more dialogue" }));
-    expect(fb.messages.at(-1)!.content).toContain("more dialogue");
+    expect(fb.messages.some((m) => m.content === "[Note for this reply: more dialogue]")).toBe(true);
   });
 
   test("character system prompt replaces main with {{original}}", () => {
@@ -120,5 +125,81 @@ describe("SillyTavern preset import", () => {
     expect(p.blocks.map((b) => b.kind)).toEqual(["text", "controls", "memory_story", "history", "memory_recall", "post_history", "text", "authors_note"]);
     expect(p.blocks[6]).toMatchObject({ position: "depth", depth: 2, enabled: false });
     expect(p.importNotes?.some((n) => n.includes("wi_format"))).toBe(true);
+  });
+});
+
+describe("Mea's default preset", () => {
+  const long = "Mira set the lantern on the sill and watched the rain cross the harbour for a long while before she said anything at all to him. ".repeat(2);
+  const story = [
+    { id: "1", role: "assistant" as const, content: long },
+    { id: "2", role: "user" as const, content: "I step inside." },
+  ];
+  const all = (over: Partial<AssembleInput> = {}) => assemblePrompt(base({ history: story, ...over })).messages.map((m) => m.content).join("\n\n");
+
+  test("your defaults: continuity persona, fast romance, explicit, drama, fair judging", () => {
+    const p = all();
+    expect(p).toContain("finish the plain, inevitable tail");
+    expect(p).toContain("Romance pace: fast");
+    expect(p).toContain("Intimacy: explicit");
+    expect(p).toContain("Lead genre — DRAMA");
+    expect(p).toContain("are judged fairly");
+    expect(p).toContain("World texture: insistent");
+    expect(p).toContain("[BEFORE YOU WRITE]");
+    expect(p).not.toContain("{{");
+  });
+
+  test("the turn frame: first reply, echo guard, rotating hazards; nothing for impersonation", () => {
+    const p = all();
+    expect(p).toContain("keep its facts, not its habits");
+    expect(p).toContain("Your last reply opened «Mira set the lantern");
+    expect(p).toContain("Avoid above all:");
+    expect(all({ kind: "impersonate" })).not.toContain("[THIS REPLY]");
+  });
+
+  test("a swipe opens differently from the take it replaces", () => {
+    const p = all({ swipe: { rejected: "The rain had not stopped all night when Ash came up the stairs." } });
+    expect(p).toContain("A fresh take on the same moment");
+    expect(p).toContain("opened «The rain had not stopped all night");
+  });
+
+  test("controls shape the blocks: full cast unseals, the fair die holds across swipes, hard limits close the prompt", () => {
+    const values = { ...controlValues(meaControls(), {}), persona: "full_cast", outcomes: "die", limits: "gore" };
+    const p = all({ mode: "narrator", controlValues: values });
+    expect(p).toContain("Ash included as the persona rule allows");
+    expect(p).not.toContain("Stop before you would speak");
+    expect(p).toContain("Never depict: gore.");
+    const die = (m: string) => m.match(/Fair die for any contested attempt by Ash this reply: (\d+)/)?.[1];
+    const first = die(p);
+    expect(first).toBeDefined();
+    expect(die(all({ mode: "narrator", controlValues: values, swipe: { rejected: "x" } }))).toBe(first);
+  });
+
+  test("scene modules follow the story state", () => {
+    expect(all()).not.toContain("[SCENE ·");
+    const p = all({ when: (c) => c === "mode = conflict" });
+    expect(p).toContain("[SCENE · CONFLICT");
+    expect(p).not.toContain("[SCENE · INTIMACY");
+  });
+
+  test("an empty send lets the world move", () => {
+    const p = assemblePrompt(base({ history: [story[0]!] })).messages.at(-1)!.content;
+    expect(p).toContain("The player waits");
+  });
+
+  test("it stays lean: about 4.5k tokens of instructions", () => {
+    const r = assemblePrompt(base({ history: story }));
+    expect(r.estPromptTokens).toBeLessThan(5200);
+  });
+});
+
+describe("per-turn macros", () => {
+  test("rotate and turnroll change with the turn, not with each call", () => {
+    const at = (turn: number) => expandMacros("{{rotate::a::b::c::d::e::f::g}} {{turnroll::1d1000}}", ctx({ turn }));
+    expect(at(4)).toBe(at(4));
+    expect(new Set([at(1), at(2), at(3), at(4), at(5)]).size).toBeGreaterThan(1);
+  });
+
+  test("a control the preset doesn't have reads as empty", () => {
+    expect(expandMacros("{{if ctl.nothing}}yes{{else}}no{{/if}}", ctx())).toBe("no");
   });
 });

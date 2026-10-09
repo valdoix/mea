@@ -1,3 +1,4 @@
+import { type CalendarId, calendarHint } from "./calendars";
 import { formatStoryTime } from "./clock";
 import type { Field, Template } from "./schema";
 import { AXES, LADDER, type WorldState } from "./types";
@@ -33,8 +34,10 @@ Every bond, know, item and thread line needs a cause after " — ".`;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** The current state, with numbers, for the tracker model (it has to write correct deltas). */
-export function stateForModel(st: WorldState, o: { userName: string; templates: Template[]; sealed: boolean }): string {
+export function stateForModel(st: WorldState, o: { userName: string; templates: Template[]; sealed: boolean; calendar?: CalendarId }): string {
   const L: string[] = [];
+  const hint = calendarHint(o.calendar ?? "gregorian");
+  if (hint) L.push(hint);
   const nm = (id: string) => (st.chars[id]?.isUser ? o.userName : (st.chars[id]?.name ?? id));
   if (st.time) L.push(`clock: ${formatStoryTime(st.time)}`);
   else L.push("clock: (not set yet: set it with an absolute time if the story gives one, else Day 1 and a likely hour)");
@@ -107,11 +110,11 @@ Rules:
   return { system, user };
 }
 
-export function initPrompt(o: { userName: string; charName: string; card: string; persona: string; greeting: string; templates: Template[]; sealed: boolean }) {
+export function initPrompt(o: { userName: string; charName: string; card: string; persona: string; greeting: string; templates: Template[]; sealed: boolean; calendar?: CalendarId }) {
   const system = `You set up the starting state of a roleplay's story ledger from the character card and the opening message. ${o.userName} is the user's character; ${o.charName} is the card's character.
 ${GRAMMAR}
 Write the STARTING STATE as ledger lines:
-- clock (an absolute time: a date if the story gives one, else Day 1 with the likely hour), wx, at, cast (who is present in the opening), scene title.
+- clock (an absolute time: a date if the story gives one, else Day 1 with the likely hour${o.calendar === "westeros" ? "; " + calendarHint("westeros") : ""}), wx, at, cast (who is present in the opening), scene title.
 - For each person present: mood, look, trait (only lasting features the card states: eyes, hair, build, scars, voice, age), drive (their want and fear).
 - Bonds the card establishes (with axes and a label), the romance rung if the card states one, items people carry, open threads the premise sets up, secrets the card states.
 ${o.templates.length ? `- Custom trackers: set every field you can infer (${o.templates.map((t) => t.key).join(", ")}).\n` : ""}- Causes for starting lines may be "from the card".${o.sealed ? `\n- Never write ${o.userName}'s mood, thoughts or feelings.` : ""}

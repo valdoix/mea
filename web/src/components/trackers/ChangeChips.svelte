@@ -2,8 +2,10 @@
   import Modal from "../Modal.svelte";
   import type { TrackerChange } from "../../lib/types";
 
-  let { changes, max = 6 }: { changes: TrackerChange[]; max?: number } = $props();
+  let { changes: all, max = 6 }: { changes: TrackerChange[]; max?: number } = $props();
   let open = $state(false);
+  // Private thoughts and hidden feelings live in the drawer under the reply, never in the chips.
+  const changes = $derived(all.filter((c) => c.kind !== "thought" && c.kind !== "mask"));
 
   // The most telling first; the clock goes last (it's in the HUD).
   const RANK = ["death", "romance", "bond", "secret", "knowledge", "promise", "owe", "deadline", "thread", "item", "body", "mood", "place", "cast", "custom", "gauge", "faction", "trait", "look", "weather", "clock"];

@@ -15,6 +15,7 @@ import { actOnInbox, inboxCount, inboxItems } from "../accuracy/inbox";
 import { nameRegistry } from "../accuracy/names";
 import { parseJson } from "../db/db";
 import { getCard } from "../services/characters";
+import { storyDials } from "../services/layers";
 import { chatNames } from "../memory/build";
 import type { ChatSettings } from "../services/chats";
 
@@ -70,7 +71,7 @@ accuracy.get("/chats/:id/guards", (c) => {
     anchor: {
       active: Boolean(active),
       strong: Boolean(active?.name.includes("stronger")),
-      text: active?.content ?? (card ? buildAnchor({ card, userName: names.user, characterId: chat.character_id }) : ""),
+      text: active?.content ?? (card ? buildAnchor({ card, userName: names.user, characterId: chat.character_id, persona: storyDials(chat).persona }) : ""),
     },
     drift: { history: driftHistory(id), samples: samples.lines.length, source: samples.source },
   });

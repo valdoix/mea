@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import { extractArtifacts, placeArtifacts } from "./artifacts";
 
 /**
  * Message rendering (CHAT-07): Markdown → sanitized HTML (SEC-03), dialogue
@@ -88,11 +89,13 @@ function scopeCss(css: string, scope: string): string {
   }
 }
 
-export function renderMessage(input: string, scopeClass: string): string {
-  const text = input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, "");
-  const key = `${scopeClass}\u0000${text}`;
+export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean } = {}): string {
+  const dressed = opts.artifacts !== false;
+  const key = `${scopeClass}\u0000${dressed ? 1 : 0}\u0000${input}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
+  // Artifacts (<letter>, <texts>…) are cut out before Markdown and drawn from escaped text.
+  const { text, found } = extractArtifacts(input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, ""));
 
   const styles: string[] = [];
   const withoutStyles = text.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_m, css: string) => {
@@ -110,7 +113,7 @@ export function renderMessage(input: string, scopeClass: string): string {
   const container = document.createElement("div");
   container.appendChild(tpl.content);
   highlightDialogue(container);
-  let html = container.innerHTML;
+  let html = found.length ? placeArtifacts(container.innerHTML, found, dressed) : container.innerHTML;
   if (styles.length) {
     const scoped = scopeCss(styles.join("\n"), `.${scopeClass}`);
     if (scoped) html = `<style>${scoped}</style>${html}`;
@@ -121,14 +124,15 @@ export function renderMessage(input: string, scopeClass: string): string {
 }
 
 /** Cheap render for streaming text: re-rendered at most once per animation frame. */
-export function renderStreaming(text: string): string {
+export function renderStreaming(input: string, opts: { artifacts?: boolean } = {}): string {
   // Inline trackers: the hidden <ledger> the story model writes never shows while it streams.
-  const raw = marked.parse(text.replace(/<ledger\b[\s\S]*$/i, ""), { async: false }) as string;
+  const { text, found } = extractArtifacts(input.replace(/<ledger\b[\s\S]*$/i, ""));
+  const raw = marked.parse(text, { async: false }) as string;
   const clean = DOMPurify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "form", "input", "button"] });
   const tpl = document.createElement("template");
   tpl.innerHTML = clean;
   const container = document.createElement("div");
   container.appendChild(tpl.content);
   highlightDialogue(container);
-  return container.innerHTML;
+  return found.length ? placeArtifacts(container.innerHTML, found, opts.artifacts !== false) : container.innerHTML;
 }

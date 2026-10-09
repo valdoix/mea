@@ -141,7 +141,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   }
 
   const { system, user } = updatePrompt({
-    state: stateForModel(before, { userName: fc.userName, templates: fc.templates, sealed: cfg.sealed }),
+    state: stateForModel(before, { userName: fc.userName, templates: fc.templates, sealed: cfg.sealed, calendar: cfg.calendar }),
     messages,
     userName: fc.userName,
     charName: fc.mainName,
@@ -219,6 +219,7 @@ export async function runTrackerInit(p: { chatId: string }, job?: JobContext) {
     greeting: clip(cleanText(greeting?.content ?? ""), 6000),
     templates: fc.templates,
     sealed: cfg.sealed,
+    calendar: cfg.calendar,
   });
   const res = await callText({ task: "tracker", kind: "tracker:start", chatId: p.chatId, jobId: job?.id, system, user, maxTokens: 1500, validate: (t) => (parseLedger(t).ops.length ? null : "That had no ledger lines.") });
   job?.note({ inputTokens: res.inputTokens });
@@ -299,9 +300,11 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     pinned,
     nudges: cfg.nudges,
     elsewhere: opts.elsewhere,
+    calendar: cfg.calendar,
+    season: cfg.season,
   });
   const inline =
-    cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed })) : null;
+    cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar })) : null;
   return { note: note.text ? note : null, inline, state, config: cfg };
 }
 

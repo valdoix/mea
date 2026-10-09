@@ -1,0 +1,469 @@
+/* In-story artifacts (lib/artifacts.ts): physical objects inside a reply. They look the same on
+   every theme, as paper and glass would. */
+
+.art {
+  --tilt: 0deg;
+  margin: 1.4em auto;
+  width: min(100%, 22rem);
+  position: relative;
+  transform: rotate(var(--tilt));
+  transition: transform 0.6s cubic-bezier(0.34, 1.45, 0.64, 1);
+  font-size: 1rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.art:hover {
+  transform: rotate(calc(var(--tilt) * 0.3)) translateY(-3px);
+}
+.art p {
+  margin: 0 0 0.5em;
+}
+.art p:last-child {
+  margin-bottom: 0;
+}
+.art-plain {
+  border-left: 3px solid var(--border);
+  padding-left: 0.9em;
+  font-style: italic;
+}
+
+/* letter */
+.art-letter,
+.art-scroll {
+  padding: 1.6em 1.5em 1.8em;
+  color: #3b2a22;
+  font-family: "IM Fell English", Georgia, serif;
+  background:
+    radial-gradient(circle at 80% 18%, #b8865533, transparent 26%),
+    radial-gradient(circle at 18% 86%, #a0703f2a, transparent 30%),
+    repeating-linear-gradient(180deg, transparent 0 32%, #0000000f 32% 33%, transparent 33% 66%, #0000000f 66% 67%, transparent 67%),
+    linear-gradient(170deg, #f2e2c4, #e3cda4);
+  box-shadow: 0 24px 40px -18px #000c, inset 0 0 40px #8a5a2a22;
+  border-radius: 2px;
+}
+.art-scroll {
+  width: min(100%, 18rem);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, #c9ae7d 0, #efdcb5 4%, #f4e6c6 50%, #efdcb5 96%, #c9ae7d 100%);
+  box-shadow: 0 24px 40px -18px #000c, inset 0 0 30px #8a5a2a33;
+}
+.art-scroll::before,
+.art-scroll::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #8a6236, #5a3a1c);
+}
+.art-scroll::before {
+  top: -6px;
+}
+.art-scroll::after {
+  bottom: -6px;
+}
+.art-date {
+  font-style: italic;
+  font-size: 0.8em;
+  opacity: 0.7;
+  text-align: right;
+  margin-bottom: 0.6em;
+}
+.art-salute {
+  margin-bottom: 0.4em;
+}
+.art-sig {
+  font-family: "Caveat", cursive;
+  font-size: 1.6em;
+  transform: rotate(-4deg);
+  margin-top: 0.4em;
+  color: #2f2a5a;
+}
+.art-sealwrap {
+  position: absolute;
+  right: -14px;
+  bottom: -14px;
+  width: 58px;
+  height: 58px;
+}
+.art-seal {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 4px 6px #0006);
+}
+
+/* note */
+.art-note {
+  width: min(100%, 16rem);
+  padding: 1.1em 1.2em 1.2em;
+  background: linear-gradient(170deg, #fff6b8, #f6e48a);
+  color: #2c2a4a;
+  font: 600 1.3em/1.15 "Caveat", cursive;
+  box-shadow: 0 18px 30px -16px #000b;
+  clip-path: polygon(0 0, 100% 0, 100% 94%, 96% 100%, 0 100%);
+}
+.art-note .art-sig {
+  font-size: 0.9em;
+  text-align: right;
+}
+
+/* clipping */
+.art-clipping {
+  padding: 1em 1em 1.3em;
+  background: #ece4d0;
+  color: #1b1814;
+  box-shadow: 0 22px 40px -18px #000c;
+  clip-path: polygon(0 2%, 6% 0, 14% 2%, 24% 0, 33% 1.6%, 47% 0.2%, 58% 1.8%, 70% 0, 82% 1.5%, 92% 0, 100% 2%, 99% 22%, 100% 46%, 98.6% 70%, 100% 98%, 90% 100%, 78% 98.4%, 64% 100%, 50% 98.6%, 36% 100%, 22% 98%, 8% 100%, 0 98%, 1.5% 72%, 0 50%, 1.2% 24%);
+}
+.art-mast {
+  font-family: "UnifrakturMaguntia", serif;
+  font-size: 1.6em;
+  text-align: center;
+  border-bottom: 2px solid #1b1814;
+  line-height: 1.2;
+}
+.art-dateline {
+  display: flex;
+  justify-content: space-between;
+  font: 700 0.55em/1 var(--font-ui, sans-serif);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #1b1814;
+  padding: 0.4em 0;
+  margin-bottom: 0.6em;
+}
+.art-clipping h4 {
+  margin: 0 0 0.4em;
+  font: 700 1.1em/1.1 Georgia, serif;
+  text-transform: uppercase;
+  color: #1b1814;
+}
+.art-cols {
+  columns: 2;
+  column-gap: 0.8em;
+  font: 0.68em/1.4 Georgia, serif;
+  text-align: justify;
+  hyphens: auto;
+}
+
+/* phone */
+.art-phone {
+  width: min(100%, 15.5rem);
+  border-radius: 30px;
+  padding: 9px;
+  background: #0b0b10;
+  box-shadow: 0 0 0 2px #2a2a33, 0 26px 50px -20px #000;
+}
+.art-scr {
+  border-radius: 22px;
+  background: linear-gradient(180deg, #14121c, #0d0c12);
+  padding: 1em 0.7em 0.8em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  font: 0.8rem/1.35 var(--font-ui, sans-serif);
+}
+.art-who {
+  text-align: center;
+  font-size: 0.85em;
+  color: #999;
+  margin-bottom: 0.3em;
+}
+.art-who b {
+  display: block;
+  color: #eee;
+}
+.art-bub {
+  max-width: 80%;
+  padding: 0.45em 0.75em;
+  border-radius: 16px;
+  animation: art-pop 0.5s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+.art-bub.me {
+  align-self: flex-end;
+  background: linear-gradient(160deg, #ff9ec0, #c76b9a);
+  color: #1a0d16;
+  border-bottom-right-radius: 5px;
+}
+.art-bub.them {
+  align-self: flex-start;
+  background: #262433;
+  color: #eee;
+  border-bottom-left-radius: 5px;
+}
+.art-typing {
+  align-self: flex-start;
+  background: #262433;
+  border-radius: 16px;
+  padding: 0.65em 0.8em;
+  display: flex;
+  gap: 4px;
+}
+.art-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #aaa;
+  animation: art-dot 1.2s infinite;
+}
+.art-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.art-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes art-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: none;
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@keyframes art-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.7) translateY(8px);
+  }
+}
+
+/* poster */
+.art-poster {
+  width: min(100%, 16rem);
+  padding: 1.2em 1.1em;
+  text-align: center;
+  color: #2b1b10;
+  background:
+    radial-gradient(circle at 20% 15%, #7a4a2030, transparent 30%),
+    radial-gradient(circle at 85% 80%, #7a4a2038, transparent 34%),
+    linear-gradient(175deg, #e8cf9c, #d2b07a);
+  box-shadow: 0 24px 40px -18px #000c, inset 0 0 0 5px #e8cf9c, inset 0 0 0 7px #2b1b10, inset 0 0 30px #6b3f1a44;
+  font-family: "IM Fell English", Georgia, serif;
+}
+.art-w {
+  font-size: 2.3em;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.art-name {
+  font: 700 0.85em/1.2 Georgia, serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0.7em 0 0.4em;
+}
+.art-poster .art-body {
+  font-style: italic;
+  margin-bottom: 0.7em;
+}
+.art-rew {
+  font-size: 1.5em;
+  border-top: 1px solid #2b1b10;
+  border-bottom: 1px solid #2b1b10;
+  padding: 0.2em 0;
+}
+
+/* ticket */
+.art-ticket {
+  display: grid;
+  grid-template-columns: 1fr 3.6rem;
+  width: min(100%, 17rem);
+  filter: drop-shadow(0 18px 20px #0009);
+}
+.art-tmain,
+.art-stub {
+  background: linear-gradient(160deg, #ffd9a0, #f4b36c);
+  color: #3a1f12;
+  position: relative;
+}
+.art-tmain {
+  padding: 0.8em 0.9em;
+  border-radius: 8px 0 0 8px;
+  -webkit-mask: radial-gradient(circle at 100% 6px, #0000 4px, #000 4.5px) 0 0/100% 12px;
+  mask: radial-gradient(circle at 100% 6px, #0000 4px, #000 4.5px) 0 0/100% 12px;
+}
+.art-stub {
+  border-radius: 0 8px 8px 0;
+  display: grid;
+  place-items: center;
+  -webkit-mask: radial-gradient(circle at 0 6px, #0000 4px, #000 4.5px) 0 0/100% 12px;
+  mask: radial-gradient(circle at 0 6px, #0000 4px, #000 4.5px) 0 0/100% 12px;
+}
+.art-stub span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font: 800 0.7em var(--font-ui, sans-serif);
+  letter-spacing: 0.3em;
+}
+.art-co {
+  font: 800 0.55em/1 var(--font-ui, sans-serif);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.art-rt {
+  font: 400 1.3em/1.1 "Instrument Serif", Georgia, serif;
+  margin: 0.35em 0 0.25em;
+}
+.art-fine {
+  font: 600 0.6em/1.3 var(--font-ui, sans-serif);
+  opacity: 0.75;
+}
+.art-no {
+  font: 600 0.65em ui-monospace, monospace;
+  color: #a33;
+  text-align: right;
+  margin-top: 0.4em;
+}
+
+/* radio */
+.art-radio {
+  width: min(100%, 17rem);
+  border-radius: 16px;
+  padding: 0.9em;
+  background: #08130b;
+  color: #8dff9c;
+  font: 1.15em/1.1 "VT323", ui-monospace, monospace;
+  overflow: hidden;
+  box-shadow: 0 0 0 6px #1a1d18, 0 0 0 7px #333, 0 24px 40px -16px #000, inset 0 0 50px #00ff4022;
+  text-shadow: 0 0 6px #4dff6a99;
+}
+.art-radio::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, #0000 0 2px, #0004 2px 3px);
+  pointer-events: none;
+}
+.art-hd {
+  display: flex;
+  justify-content: space-between;
+  color: #5ccf6c;
+  font-size: 0.85em;
+  border-bottom: 1px dashed #2d6a36;
+  padding-bottom: 0.25em;
+  margin-bottom: 0.4em;
+}
+.art-cur {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.9em;
+  background: #8dff9c;
+  vertical-align: -2px;
+  animation: art-blink 1s steps(1) infinite;
+}
+@keyframes art-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* map */
+.art-map {
+  width: min(100%, 17rem);
+  aspect-ratio: 250 / 220;
+  background: radial-gradient(circle at 70% 30%, #8b5a2b2a, transparent 40%), linear-gradient(160deg, #eedcb4, #d8bd8a);
+  box-shadow: 0 24px 40px -18px #000c, inset 0 0 40px #6b3f1a44;
+  border-radius: 3px;
+}
+.art-msvg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.art-route {
+  fill: none;
+  stroke: #8a1d2a;
+  stroke-width: 2.2;
+  stroke-dasharray: 4 5;
+  animation: art-march 2s linear infinite;
+}
+@keyframes art-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+.art-x path {
+  stroke: #8a1d2a;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.art-mlabel {
+  font: italic 9px "IM Fell English", Georgia, serif;
+  fill: #5b3a1e;
+}
+.art-mtitle {
+  font: 13px "IM Fell English", Georgia, serif;
+  fill: #3b2412;
+}
+.art-mmark {
+  font: 600 14px "Caveat", cursive;
+  fill: #8a1d2a;
+}
+.art-rose circle {
+  fill: none;
+  stroke: #5b3a1e;
+}
+.art-rose path {
+  fill: #5b3a1e;
+}
+
+/* photo */
+.art-photo {
+  width: min(100%, 14rem);
+  padding: 0.75em 0.75em 2.9em;
+  background: #f7f4ee;
+  box-shadow: 0 24px 40px -16px #000d;
+}
+.art-photo::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 84px;
+  height: 24px;
+  translate: -50% 0;
+  rotate: -4deg;
+  background: rgb(255 240 200 / 55%);
+  box-shadow: 0 1px 2px #0002;
+}
+.art-ph {
+  aspect-ratio: 1;
+  position: relative;
+  overflow: hidden;
+  filter: saturate(0.8) sepia(0.18) contrast(1.05);
+}
+.art-ph::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, transparent 50%, #0006);
+}
+.art-ph svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.art-cap {
+  position: absolute;
+  left: 0.5em;
+  right: 0.5em;
+  bottom: 0.5em;
+  text-align: center;
+  font: 600 1.15em/1.1 "Caveat", cursive;
+  color: #2c2a4a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art,
+  .art * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

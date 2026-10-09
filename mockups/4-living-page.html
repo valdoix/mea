@@ -1,0 +1,1574 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mea · The Living Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,700;1,6..72,400&family=IM+Fell+English:ital@0;1&family=Caveat:wght@500;700&family=Special+Elite&family=UnifrakturMaguntia&family=VT323&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+/* =========================================================================
+   Mea · The Living Page — a catalogue of five rooms (Lantern palette)
+   ========================================================================= */
+:root {
+  --ink: #0e0a18; --ink-2: #160f26; --ink-3: #1f1633;
+  --text: #f5eef7; --muted: #b9abc8; --faint: #8a7d9e; --ghost: #5f5475;
+  --lamp: #ffd08f; --rose: #ff9ec0; --lilac: #c7b4ff; --sea: #82e3d3; --sky: #9cc4ff; --amber: #ffb86b; --red: #ff8a9a;
+  --grad: linear-gradient(135deg, #ff9ec0 0%, #c7b4ff 52%, #82e3d3 100%);
+  --grad-warm: linear-gradient(135deg, #ffd08f, #ff9ec0);
+  --glass: linear-gradient(160deg, rgb(255 255 255 / 8.5%), rgb(255 255 255 / 2.5%));
+  --fill: rgb(255 255 255 / 6%); --fill-2: rgb(255 255 255 / 10%); --edge: rgb(255 255 255 / 10%);
+  --f-display: "Instrument Serif", Georgia, serif;
+  --f-ui: "Manrope", system-ui, sans-serif;
+  --f-story: "Newsreader", Georgia, serif;
+  --f-mono: "JetBrains Mono", ui-monospace, monospace;
+  --r-sm: 12px; --r: 18px; --r-lg: 26px;
+  --ease: cubic-bezier(.22, 1, .36, 1); --spring: cubic-bezier(.34, 1.45, .64, 1);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: var(--f-ui); font-size: 14px; color: var(--text); background: var(--ink); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: .06; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+button, input, select { font: inherit; color: inherit; }
+button { background: none; border: 0; cursor: pointer; padding: 0; }
+::selection { background: rgb(255 158 192 / 35%); }
+
+/* ---------- sky ---------- */
+.sky { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+.sky .stars { position: absolute; inset: -50%; background-image:
+  radial-gradient(1px 1px at 10% 20%, #fff9, transparent), radial-gradient(1px 1px at 30% 70%, #fff6, transparent),
+  radial-gradient(1.5px 1.5px at 55% 15%, #fffb, transparent), radial-gradient(1px 1px at 80% 40%, #fff7, transparent),
+  radial-gradient(1px 1px at 90% 85%, #fff5, transparent), radial-gradient(1.4px 1.4px at 70% 60%, #fff8, transparent),
+  radial-gradient(1px 1px at 20% 90%, #fff5, transparent), radial-gradient(1px 1px at 45% 45%, #fff6, transparent);
+  background-size: 520px 520px; animation: stars 240s linear infinite; }
+@keyframes stars { to { transform: translate(-520px, -260px); } }
+.blob { position: absolute; border-radius: 50%; filter: blur(110px); animation: drift 26s ease-in-out infinite alternate; }
+.b1 { width: 680px; height: 680px; background: #5d3596; left: -160px; top: -200px; opacity: .5; }
+.b2 { width: 560px; height: 560px; background: #b8406f; right: -160px; top: 34%; opacity: .32; animation-duration: 31s; }
+.b3 { width: 620px; height: 440px; background: #19767d; left: 26%; bottom: -260px; opacity: .38; animation-duration: 27s; }
+@keyframes drift { to { transform: translate(60px, 40px) scale(1.08); } }
+
+/* ---------- shell ---------- */
+.page { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding: 0 16px 120px; }
+.glass { background: var(--glass); border: 1px solid var(--edge); border-radius: var(--r-lg); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); box-shadow: 0 30px 80px -40px #000c, inset 0 1px 0 rgb(255 255 255 / 8%); }
+.tiny { font-size: 11.5px; } .faint { color: var(--faint); } .muted { color: var(--muted); }
+.mono { font-family: var(--f-mono); }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--fill); border: 1px solid var(--edge); font-size: 12.5px; font-weight: 600; color: var(--muted); transition: all .25s var(--ease); white-space: nowrap; }
+.chip:hover { background: var(--fill-2); color: var(--text); }
+.chip.on { background: var(--text); color: var(--ink); border-color: transparent; }
+.seg { display: inline-flex; padding: 3px; background: rgb(0 0 0 / 25%); border: 1px solid var(--edge); border-radius: 999px; gap: 2px; }
+.seg button { padding: 6px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--muted); transition: all .25s var(--ease); }
+.seg button.on { background: var(--text); color: var(--ink); }
+
+/* ---------- hero ---------- */
+.hero { min-height: 92vh; display: grid; place-content: center; text-align: center; padding: 80px 0 40px; position: relative; }
+.eyebrow { font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+.hero h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(64px, 13vw, 180px); line-height: .86; margin: 22px 0 18px; letter-spacing: -.02em; }
+.hero h1 em { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .06em; }
+.hero .lede { max-width: 620px; margin: 0 auto; font-family: var(--f-story); font-size: clamp(17px, 2.2vw, 21px); line-height: 1.55; color: var(--muted); }
+.hero .lede b { color: var(--text); font-weight: 500; }
+.room-index { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 44px; }
+.room-index a { text-decoration: none; color: var(--muted); display: grid; gap: 2px; padding: 14px 20px; border-radius: 18px; background: var(--fill); border: 1px solid var(--edge); min-width: 132px; transition: all .3s var(--ease); }
+.room-index a:hover { transform: translateY(-3px); background: var(--fill-2); color: var(--text); }
+.room-index a span { font-family: var(--f-display); font-size: 28px; line-height: 1; color: var(--text); }
+.room-index a small { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+.scroll-hint { position: absolute; bottom: 18px; left: 50%; translate: -50% 0; color: var(--faint); font-size: 11px; letter-spacing: .3em; text-transform: uppercase; animation: bob 2.4s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(6px); } }
+
+/* ---------- rooms ---------- */
+.room { padding: 90px 0 30px; scroll-margin-top: 10px; }
+.room-head { display: grid; grid-template-columns: auto 1fr auto; gap: 28px; align-items: end; margin-bottom: 34px; }
+.numeral { font-family: var(--f-display); font-size: clamp(90px, 14vw, 170px); line-height: .75; background: linear-gradient(180deg, rgb(255 255 255 / 30%), rgb(255 255 255 / 2%)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.room-head h2 { font-family: var(--f-display); font-weight: 400; font-size: clamp(42px, 6vw, 68px); margin: 0; line-height: 1; }
+.room-head h2 i { color: var(--lamp); }
+.room-head p { margin: 10px 0 0; max-width: 560px; font-family: var(--f-story); font-size: 17px; line-height: 1.55; color: var(--muted); }
+.placard { width: 230px; padding: 14px 16px; border-radius: 4px; background: #efe7d8; color: #2a2230; font-size: 11.5px; line-height: 1.45; box-shadow: 0 18px 40px -20px #000, inset 0 0 0 1px #0000000d; transform: rotate(.6deg); }
+.placard b { display: block; font-family: var(--f-display); font-size: 20px; font-weight: 400; margin-bottom: 4px; }
+.placard dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 8px 0 0; }
+.placard dt { font-weight: 800; text-transform: uppercase; font-size: 9.5px; letter-spacing: .12em; padding-top: 2px; color: #6d6070; }
+.placard dd { margin: 0; }
+@media (max-width: 860px) { .room-head { grid-template-columns: 1fr; gap: 8px; } .placard { width: auto; transform: none; } .numeral { font-size: 80px; } }
+
+/* =========================================================================
+   I · Voices
+   ========================================================================= */
+.voices-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; align-items: start; }
+@media (max-width: 960px) { .voices-grid { grid-template-columns: 1fr; } }
+.reply { padding: 28px clamp(18px, 4vw, 44px) 22px; }
+.msg-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.msg-head b { font-family: var(--f-display); font-size: 24px; font-weight: 400; }
+.msg-head .meta { margin-left: auto; color: var(--faint); font-size: 12px; }
+.orb { --h: #888; width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; font-family: var(--f-display); font-size: 20px; color: #0e0a18cc;
+  background: radial-gradient(circle at 30% 26%, #fffa, transparent 34%), radial-gradient(circle at 72% 82%, color-mix(in oklab, var(--h), #000 50%), transparent 72%), var(--h);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 10%), 0 8px 24px -8px var(--h); }
+.orb.sm { width: 26px; height: 26px; font-size: 14px; }
+.orb.lg { width: 64px; height: 64px; font-size: 32px; }
+.prose { font-family: var(--f-story); font-size: 19px; line-height: 1.72; color: #e9e1ee; }
+.prose p { margin: 0 0 .9em; position: relative; transition: opacity .35s var(--ease), border-color .35s; }
+.q { transition: color .4s var(--ease), background .4s var(--ease), opacity .35s, text-shadow .4s; border-radius: 3px; }
+.q.whisper { font-size: .9em; font-style: italic; letter-spacing: .01em; }
+.q.far { letter-spacing: .06em; font-variant: small-caps; }
+.q.written { font-family: "Caveat", cursive; font-size: 1.28em; line-height: 1; }
+.q.echo { font-style: italic; text-decoration: underline dotted 1px; text-underline-offset: 4px; }
+/* style: ink */
+.prose[data-style="ink"] .q { color: var(--vc); }
+.prose[data-style="ink"] .q.far { color: color-mix(in oklab, var(--vc) 70%, transparent); }
+.prose[data-style="ink"] .q.whisper { color: color-mix(in oklab, var(--vc) 75%, #fff0); }
+.prose[data-style="ink"] .q.echo { text-decoration-color: var(--vc); }
+/* style: halo */
+.prose[data-style="halo"] .q { color: #fff; background: linear-gradient(180deg, transparent 58%, color-mix(in oklab, var(--vc) 38%, transparent) 58%, color-mix(in oklab, var(--vc) 38%, transparent) 92%, transparent 92%); text-shadow: 0 0 18px color-mix(in oklab, var(--vc) 70%, transparent); }
+/* style: ribbon */
+.prose[data-style="ribbon"] p { padding-left: 22px; border-left: 3px solid var(--lc, transparent); }
+.prose[data-style="ribbon"] p[data-lead]::before { content: attr(data-initial); position: absolute; left: -15px; top: .35em; width: 26px; height: 26px; border-radius: 50%; background: var(--lc); color: var(--ink); font: 400 14px/26px var(--f-display); text-align: center; box-shadow: 0 0 0 4px var(--ink-2); }
+.prose[data-style="ribbon"] p[data-lead="nar"] { border-left-color: transparent; }
+.prose[data-style="ribbon"] p[data-lead="nar"]::before { display: none; }
+.prose[data-style="ribbon"] .q { color: #fff; }
+/* isolate */
+.prose.iso p { color: rgb(233 225 238 / 28%); }
+.prose.iso .q:not(.hot) { opacity: .22; }
+.prose.iso .q.hot { opacity: 1; filter: drop-shadow(0 0 14px color-mix(in oklab, var(--vc) 60%, transparent)); }
+.reply-foot { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 14px; border-top: 1px dashed var(--edge); }
+.vpanel { padding: 20px; display: grid; gap: 18px; position: sticky; top: 20px; }
+.vpanel h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 24px; }
+.cast { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cast li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 14px; cursor: default; transition: background .25s; }
+.cast li:hover { background: var(--fill-2); }
+.cast .who b { display: block; font-size: 13px; }
+.cast .who span { font-size: 11px; color: var(--faint); }
+.cast .bars { display: flex; gap: 2px; align-items: end; height: 22px; }
+.cast .bars i { width: 3px; border-radius: 2px; background: var(--vc); opacity: .85; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; background: var(--vc); border: 2px solid rgb(255 255 255 / 30%); transition: transform .3s var(--spring); }
+.swatch:hover { transform: scale(1.18) rotate(20deg); }
+.textures { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--f-story); font-size: 15px; }
+.textures div { padding: 10px 12px; border-radius: 12px; background: var(--fill); }
+.textures small { display: block; font-family: var(--f-ui); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+
+/* =========================================================================
+   II · Artifacts
+   ========================================================================= */
+.vitrines { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 26px; }
+.vitrine { margin: 0; display: grid; grid-template-rows: 1fr auto; position: relative; }
+.case { position: relative; min-height: 340px; display: grid; place-items: center; padding: 28px 18px; border-radius: 22px 22px 6px 6px; overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 0%, rgb(255 230 190 / 13%), transparent 60%), linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(0 0 0 / 22%)); border: 1px solid var(--edge); border-bottom: 0; }
+.case::before { content: ""; position: absolute; top: -40px; left: 50%; width: 60%; height: 120px; translate: -50% 0; background: radial-gradient(closest-side, rgb(255 225 170 / 22%), transparent); pointer-events: none; }
+.case > .art { transition: transform .6s var(--spring); }
+.vitrine:hover .case > .art { transform: translateY(-6px) rotate(var(--tilt, 0deg)) scale(1.02); }
+.label { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #efe7d8; color: #2a2230; border-radius: 0 0 8px 8px; }
+.label b { font-family: var(--f-display); font-size: 19px; font-weight: 400; }
+.label span { font-size: 11px; color: #6d6070; }
+.label button { margin-left: auto; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #6d3a58; padding: 6px 9px; border-radius: 6px; background: #0000000d; }
+.src { position: absolute; inset: 0 0 auto 0; height: calc(100% - 52px); margin: 0; padding: 22px 18px; border-radius: 22px 22px 6px 6px; background: rgb(10 7 18 / 94%); color: var(--sea); font: 12px/1.65 var(--f-mono); white-space: pre-wrap; overflow: auto; opacity: 0; pointer-events: none; transform: translateY(10px); transition: all .4s var(--ease); z-index: 3; }
+.src .t { color: var(--rose); } .src .a { color: var(--lamp); } .src .c { color: var(--faint); }
+.vitrine.show-src .src { opacity: 1; pointer-events: auto; transform: none; }
+
+/* letter */
+.letter { --tilt: -2deg; width: 236px; padding: 26px 24px 30px; color: #3b2a22; font: 15px/1.5 "IM Fell English", serif; transform: rotate(-2deg);
+  background: radial-gradient(circle at 80% 18%, #b8865533, transparent 26%), radial-gradient(circle at 18% 86%, #a0703f2a, transparent 30%), repeating-linear-gradient(180deg, transparent 0 32%, #0000000f 32% 33%, transparent 33% 66%, #0000000f 66% 67%, transparent 67%), linear-gradient(170deg, #f2e2c4, #e3cda4);
+  box-shadow: 0 24px 40px -18px #000d, inset 0 0 40px #8a5a2a22; border-radius: 2px; position: relative; }
+.letter .date { font-style: italic; font-size: 12px; opacity: .7; text-align: right; margin-bottom: 8px; }
+.letter p { margin: 0 0 8px; }
+.letter .sig { font-family: "Caveat", cursive; font-size: 26px; transform: rotate(-4deg); margin-top: 6px; color: #2f2a5a; }
+.seal { position: absolute; right: -14px; bottom: -14px; width: 62px; height: 62px; }
+/* clipping */
+.clip { --tilt: 2deg; width: 244px; padding: 16px 16px 20px; background: #ece4d0; color: #1b1814; transform: rotate(1.5deg); box-shadow: 0 22px 40px -18px #000d;
+  clip-path: polygon(0 2%, 6% 0, 14% 2%, 24% 0, 33% 1.6%, 47% .2%, 58% 1.8%, 70% 0, 82% 1.5%, 92% 0, 100% 2%, 99% 22%, 100% 46%, 98.6% 70%, 100% 98%, 90% 100%, 78% 98.4%, 64% 100%, 50% 98.6%, 36% 100%, 22% 98%, 8% 100%, 0 98%, 1.5% 72%, 0 50%, 1.2% 24%); }
+.clip .mast { font-family: "UnifrakturMaguntia", serif; font-size: 25px; text-align: center; border-bottom: 2px solid #1b1814; padding-bottom: 2px; }
+.clip .dateline { display: flex; justify-content: space-between; font: 700 8px/1 var(--f-ui); letter-spacing: .14em; text-transform: uppercase; border-bottom: 1px solid #1b1814; padding: 4px 0; margin-bottom: 8px; }
+.clip h4 { margin: 0 0 6px; font: 700 17px/1.08 var(--f-story); text-transform: uppercase; letter-spacing: -.01em; }
+.clip .cols { columns: 2; column-gap: 10px; font: 9.5px/1.38 var(--f-story); text-align: justify; hyphens: auto; }
+.clip .cols p { margin: 0 0 4px; }
+.clip svg { width: 100%; height: 92px; display: block; margin-bottom: 6px; filter: contrast(1.1); }
+/* phone */
+.phone { width: 214px; height: 300px; border-radius: 32px; padding: 10px; background: #0b0b10; box-shadow: 0 0 0 2px #2a2a33, 0 26px 50px -20px #000; transform: rotate(-1deg); }
+.phone .scr { height: 100%; border-radius: 24px; background: linear-gradient(180deg, #14121c, #0d0c12); padding: 30px 10px 10px; display: flex; flex-direction: column; gap: 6px; position: relative; overflow: hidden; font: 12px/1.35 var(--f-ui); }
+.phone .notch { position: absolute; top: 8px; left: 50%; translate: -50% 0; width: 64px; height: 16px; border-radius: 10px; background: #000; }
+.phone .who { text-align: center; font-size: 10px; color: #aaa; margin: -8px 0 4px; }
+.phone .who b { display: block; font-size: 12px; color: #eee; }
+.bub { max-width: 78%; padding: 7px 10px; border-radius: 16px; animation: pop .5s var(--spring) both; }
+.bub.me { align-self: flex-end; background: linear-gradient(160deg, #ff9ec0, #c76b9a); color: #1a0d16; border-bottom-right-radius: 5px; }
+.bub.them { align-self: flex-start; background: #262433; color: #eee; border-bottom-left-radius: 5px; }
+.phone .rcpt { align-self: flex-end; font-size: 9px; color: #888; margin-top: -3px; }
+.typing { align-self: flex-start; background: #262433; border-radius: 16px; padding: 9px 12px; display: flex; gap: 4px; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: #aaa; animation: dot 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+@keyframes pop { from { opacity: 0; transform: scale(.7) translateY(8px); } }
+/* poster */
+.poster { --tilt: 1.5deg; width: 222px; padding: 18px 16px; text-align: center; color: #2b1b10; transform: rotate(1deg); position: relative;
+  background: radial-gradient(circle at 20% 15%, #7a4a2030, transparent 30%), radial-gradient(circle at 85% 80%, #7a4a2038, transparent 34%), linear-gradient(175deg, #e8cf9c, #d2b07a);
+  box-shadow: 0 24px 40px -18px #000d, inset 0 0 0 5px #e8cf9c, inset 0 0 0 7px #2b1b10, inset 0 0 30px #6b3f1a44; }
+.poster::before { content: ""; position: absolute; top: 6px; left: 50%; width: 12px; height: 12px; translate: -50% 0; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ddd, #555 60%, #222); box-shadow: 0 2px 3px #0008; }
+.poster .w { font: 400 38px/1 "IM Fell English", serif; letter-spacing: .04em; margin-top: 8px; }
+.poster .sub { font: italic 11px/1.3 "IM Fell English", serif; }
+.poster svg { width: 104px; height: 104px; margin: 6px auto 4px; display: block; }
+.poster .name { font: 700 13px/1.2 var(--f-story); letter-spacing: .12em; text-transform: uppercase; }
+.poster .crime { font: italic 12px/1.35 "IM Fell English", serif; margin: 4px 0 8px; }
+.poster .rew { font: 400 24px/1 "IM Fell English", serif; border-top: 1px solid #2b1b10; border-bottom: 1px solid #2b1b10; padding: 5px 0; }
+/* ticket */
+.ticket { --tilt: -3deg; width: 250px; height: 118px; display: grid; grid-template-columns: 1fr 64px; transform: rotate(-4deg); filter: drop-shadow(0 18px 20px #000a); }
+.ticket .main, .ticket .stub { background: linear-gradient(160deg, #ffd9a0, #f4b36c); color: #3a1f12; position: relative; }
+.ticket .main { padding: 12px 14px; border-radius: 8px 0 0 8px; -webkit-mask: radial-gradient(circle at 100% 6px, #0000 4px, #000 4.5px) 0 0/100% 12px; mask: radial-gradient(circle at 100% 6px, #0000 4px, #000 4.5px) 0 0/100% 12px; }
+.ticket .stub { border-radius: 0 8px 8px 0; display: grid; place-items: center; -webkit-mask: radial-gradient(circle at 0 6px, #0000 4px, #000 4.5px) 0 0/100% 12px; mask: radial-gradient(circle at 0 6px, #0000 4px, #000 4.5px) 0 0/100% 12px; }
+.ticket .co { font: 800 8.5px/1 var(--f-ui); letter-spacing: .22em; text-transform: uppercase; opacity: .7; }
+.ticket .rt { font: 400 22px/1.05 var(--f-display); margin: 6px 0 4px; }
+.ticket .fine { font: 600 9px/1.3 var(--f-ui); opacity: .75; }
+.ticket .no { position: absolute; right: 10px; bottom: 9px; font: 600 10px var(--f-mono); color: #a33; }
+.ticket .stub span { writing-mode: vertical-rl; transform: rotate(180deg); font: 800 11px var(--f-ui); letter-spacing: .3em; }
+.ticket .punch { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--ink-2); top: 14px; right: 18px; box-shadow: inset 0 2px 3px #0009; }
+/* radio */
+.radio { width: 250px; height: 230px; border-radius: 16px; padding: 14px; background: #08130b; color: #8dff9c; font: 19px/1.05 "VT323", monospace; position: relative; overflow: hidden; box-shadow: 0 0 0 6px #1a1d18, 0 0 0 7px #333, 0 24px 40px -16px #000, inset 0 0 50px #00ff4022; text-shadow: 0 0 6px #4dff6a99; }
+.radio::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, #0000 0 2px, #0004 2px 3px); pointer-events: none; animation: flick 6s infinite; }
+@keyframes flick { 0%, 96%, 100% { opacity: 1; } 97% { opacity: .6; } }
+.radio .hd { display: flex; justify-content: space-between; color: #5ccf6c; font-size: 15px; border-bottom: 1px dashed #2d6a36; padding-bottom: 4px; margin-bottom: 6px; }
+.radio .cur { display: inline-block; width: 9px; height: 16px; background: #8dff9c; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+/* map */
+.map { --tilt: -1.5deg; width: 250px; height: 220px; transform: rotate(-1.5deg); background: radial-gradient(circle at 70% 30%, #8b5a2b2a, transparent 40%), linear-gradient(160deg, #eedcb4, #d8bd8a); box-shadow: 0 24px 40px -18px #000d, inset 0 0 40px #6b3f1a44; border-radius: 3px; position: relative; overflow: hidden; }
+.map svg { width: 100%; height: 100%; }
+.map .route { stroke-dasharray: 4 5; animation: march 2s linear infinite; }
+@keyframes march { to { stroke-dashoffset: -18; } }
+/* polaroid */
+.polaroid { --tilt: 4deg; width: 210px; padding: 12px 12px 46px; background: #f7f4ee; box-shadow: 0 24px 40px -16px #000e; transform: rotate(3.5deg); position: relative; }
+.polaroid::before { content: ""; position: absolute; top: -12px; left: 50%; width: 84px; height: 24px; translate: -50% 0; rotate: -4deg; background: rgb(255 240 200 / 55%); box-shadow: 0 1px 2px #0002; }
+.polaroid .ph { aspect-ratio: 1; background: radial-gradient(circle at 62% 58%, #ffe7a4, #ff9c6a 14%, transparent 24%), linear-gradient(180deg, #43356b 0%, #c8607a 46%, #ffb08a 58%, #3d4a7a 60%, #233457 100%); position: relative; overflow: hidden; filter: saturate(.8) sepia(.18) contrast(1.05); }
+.polaroid .ph::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, transparent 50%, #0006); }
+.polaroid .ph svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.polaroid .cap { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 600 19px/1.1 "Caveat", cursive; color: #2c2a4a; }
+
+/* =========================================================================
+   III · The Window
+   ========================================================================= */
+.window-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; }
+@media (max-width: 1020px) { .window-wrap { grid-template-columns: 1fr; } }
+.frame { position: relative; border-radius: 200px 200px 22px 22px; padding: 14px; background: linear-gradient(160deg, #3a2b52, #1a1228); box-shadow: 0 40px 90px -40px #000, inset 0 1px 0 #ffffff1c, 0 0 0 1px #ffffff12; }
+.frame .pane { position: relative; border-radius: 188px 188px 12px 12px; overflow: hidden; aspect-ratio: 16 / 10.4; background: #0a0c20; }
+.frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.frame .mullion { position: absolute; inset: 14px; pointer-events: none; border-radius: 188px 188px 12px 12px;
+  background: linear-gradient(90deg, transparent calc(50% - 3px), #1d142c calc(50% - 3px), #2d2140 50%, #1d142c calc(50% + 3px), transparent calc(50% + 3px)), linear-gradient(180deg, transparent calc(46% - 3px), #1d142c calc(46% - 3px), #2d2140 46%, #1d142c calc(46% + 3px), transparent calc(46% + 3px)); opacity: .85; }
+.frame .sheen { position: absolute; inset: 14px; border-radius: 188px 188px 12px 12px; pointer-events: none; background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 7%) 38%, transparent 46%, transparent 60%, rgb(255 255 255 / 4%) 64%, transparent 70%); }
+.sill { height: 22px; margin: -2px -26px 0; border-radius: 6px; background: linear-gradient(180deg, #4a3866, #241a36); box-shadow: 0 20px 30px -14px #000; position: relative; z-index: 2; }
+.caption { position: absolute; left: 34px; bottom: 30px; z-index: 2; text-shadow: 0 2px 20px #000c; pointer-events: none; }
+.caption .clock { font-family: var(--f-display); font-size: clamp(48px, 7vw, 86px); line-height: .9; letter-spacing: -.02em; }
+.caption .clock small { font-size: .38em; color: #fffc; margin-left: 8px; font-style: italic; }
+.caption .day { font: 700 11px var(--f-ui); letter-spacing: .26em; text-transform: uppercase; color: #fffd; margin-top: 6px; }
+.caption .wx { font: italic 21px/1.3 var(--f-story); color: #fff; margin-top: 8px; }
+.caption .crumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.caption .crumbs span { padding: 4px 10px; border-radius: 999px; background: rgb(0 0 0 / 30%); backdrop-filter: blur(8px); font: 600 11.5px var(--f-ui); border: 1px solid #ffffff1f; }
+.caption .crumbs i { opacity: .5; font-style: normal; }
+.wcontrols { padding: 20px; display: grid; gap: 18px; align-content: start; }
+.wcontrols h4 { margin: 0 0 8px; font: 800 10.5px var(--f-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.timebar { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.play { width: 38px; height: 38px; border-radius: 50%; background: var(--grad-warm); color: var(--ink); font-size: 14px; display: grid; place-items: center; box-shadow: 0 8px 20px -6px #ffd08f88; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 26px; background: transparent; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 99px; background: var(--track, var(--fill-2)); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 99px; background: var(--track, var(--fill-2)); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; margin-top: -7px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px #ffffff30, 0 4px 10px #0008; }
+input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px #ffffff30; }
+#t-range { --track: linear-gradient(90deg, #0b1030, #2a2c66 22%, #ffb27a 27%, #8fc4f0 40%, #a9d6f7 55%, #f2d4a0 70%, #ff9a6a 77%, #3a2a5e 85%, #0b1030); }
+.beats { display: grid; gap: 8px; }
+.beat { text-align: left; padding: 10px 12px; border-radius: 14px; background: var(--fill); border: 1px solid var(--edge); display: grid; gap: 6px; transition: all .3s var(--ease); }
+.beat:hover { background: var(--fill-2); }
+.beat.on { border-color: #ffd08f88; background: linear-gradient(160deg, #ffd08f1c, #ff9ec012); }
+.beat .story { font: italic 14px/1.35 var(--f-story); color: var(--text); }
+.beat .ledger { font: 11px/1.5 var(--f-mono); color: var(--sea); }
+.beat .ledger span { display: block; }
+.beat .ledger b { color: var(--rose); font-weight: 600; }
+
+/* =========================================================================
+   IV · The Almanac
+   ========================================================================= */
+.rewind { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 14px 20px; margin-bottom: 18px; }
+.rewind .turn { font-family: var(--f-display); font-size: 30px; line-height: 1; min-width: 120px; }
+.rewind .turn small { display: block; font: 700 10px var(--f-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.rewind .ticks { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--faint); margin-top: -4px; padding: 0 6px; }
+.bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; grid-auto-flow: dense; }
+.tile { padding: 18px; border-radius: var(--r-lg); position: relative; overflow: hidden; min-width: 0; }
+.tile h3 { margin: 0 0 12px; display: flex; align-items: center; gap: 10px; font: 400 23px/1 var(--f-display); }
+.tile h3 .k { font: 800 9.5px var(--f-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--faint); margin-left: auto; }
+.tile h3 .g { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; background: var(--fill-2); }
+.s-scene { grid-column: span 5; } .s-cast { grid-column: span 7; } .s-body { grid-column: span 4; } .s-bonds { grid-column: span 5; } .s-ladder { grid-column: span 3; }
+.s-know { grid-column: span 7; } .s-items { grid-column: span 5; } .s-threads { grid-column: span 7; } .s-stakes { grid-column: span 5; }
+.s-cal { grid-column: span 6; } .s-motifs { grid-column: span 6; } .s-you { grid-column: span 7; } .s-custom { grid-column: span 5; } .s-chips { grid-column: span 12; }
+@media (max-width: 1080px) { .bento > .tile { grid-column: span 6; } .bento > .s-chips, .bento > .s-know, .bento > .s-cast { grid-column: span 12; } }
+@media (max-width: 720px) { .bento > .tile { grid-column: span 12; } }
+.mini-win { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 16/9; background: #0a0c20; }
+.mini-win canvas { width: 100%; height: 100%; display: block; }
+.mini-win .over { position: absolute; left: 14px; bottom: 12px; text-shadow: 0 2px 12px #000; }
+.mini-win .over b { font: 400 38px/1 var(--f-display); display: block; }
+.mini-win .over span { font-size: 12px; color: #fffd; }
+.scene-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.tag { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: var(--fill); border: 1px solid var(--edge); color: var(--muted); }
+.tag.hot { background: #ff9ec022; color: var(--rose); border-color: #ff9ec055; }
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.person { padding: 12px; border-radius: 18px; background: var(--fill); border: 1px solid var(--edge); display: grid; gap: 8px; position: relative; }
+.person.off { opacity: .55; border-style: dashed; }
+.person .top { display: flex; gap: 10px; align-items: center; }
+.person .top b { display: block; font-size: 13.5px; }
+.person .top span { font-size: 11px; color: var(--faint); }
+.mood { display: flex; align-items: center; gap: 8px; font: italic 14px var(--f-story); }
+.mood i { width: 14px; height: 14px; border-radius: 50%; background: var(--mc); box-shadow: 0 0 0 3px color-mix(in oklab, var(--mc) 25%, transparent), 0 0 16px var(--mc); animation: breathe var(--bp, 3s) ease-in-out infinite; flex: none; }
+@keyframes breathe { 50% { transform: scale(1.35); opacity: .75; } }
+.doing { font-size: 12px; color: var(--muted); }
+.meters { display: grid; gap: 4px; }
+.meter { display: grid; grid-template-columns: 62px 1fr 22px; gap: 6px; align-items: center; font-size: 10.5px; color: var(--faint); }
+.meter .bar { height: 5px; border-radius: 9px; background: var(--fill-2); overflow: hidden; }
+.meter .bar i { display: block; height: 100%; border-radius: 9px; background: var(--c, var(--sea)); width: var(--v); transition: width .8s var(--ease); }
+.body-tile .sw { display: flex; gap: 6px; margin-bottom: 8px; }
+.body-fig { display: grid; grid-template-columns: 130px 1fr; gap: 12px; align-items: center; }
+.body-fig svg { width: 100%; height: 230px; }
+.wound { animation: pulse 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { 50% { opacity: .45; transform: scale(1.5); } }
+.wlist { display: grid; gap: 8px; font-size: 12px; }
+.wlist div { padding: 8px 10px; border-radius: 12px; background: var(--fill); border-left: 3px solid var(--wc); }
+.wlist b { display: block; font-size: 12.5px; }
+.bonds svg { width: 100%; height: 250px; overflow: visible; }
+.bonds .edge { cursor: pointer; transition: opacity .3s; }
+.bonds .edge:hover path { filter: drop-shadow(0 0 6px #fff8); }
+.bond-detail { margin-top: 8px; padding: 10px 12px; border-radius: 14px; background: var(--fill); display: grid; gap: 5px; min-height: 120px; }
+.bond-detail .hd { font: 400 18px var(--f-display); }
+.axis { display: grid; grid-template-columns: 74px 1fr 26px; gap: 8px; align-items: center; font-size: 11px; color: var(--muted); }
+.axis .track { position: relative; height: 6px; border-radius: 9px; background: var(--fill-2); }
+.axis .track::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: #ffffff33; }
+.axis .track i { position: absolute; top: 0; bottom: 0; border-radius: 9px; background: var(--c); }
+.ladder { display: grid; gap: 4px; position: relative; }
+.rung { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: center; padding: 6px 10px; border-radius: 10px; font-size: 12.5px; color: var(--ghost); transition: all .5s var(--ease); position: relative; }
+.rung::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid currentColor; justify-self: center; }
+.rung.past { color: var(--muted); } .rung.past::before { background: currentColor; }
+.rung.now { color: var(--ink); background: var(--grad-warm); font-weight: 800; box-shadow: 0 8px 30px -8px #ff9ec0aa; }
+.rung.now::before { background: var(--ink); border-color: var(--ink); }
+.ladder-ev { margin-top: 10px; font: italic 13.5px/1.4 var(--f-story); color: var(--muted); border-left: 2px solid var(--rose); padding-left: 10px; }
+.know { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-size: 12.5px; }
+.know th { font: 800 9.5px var(--f-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); text-align: center; padding: 0 4px 4px; }
+.know th:first-child { text-align: left; }
+.know td { padding: 8px 6px; background: var(--fill); text-align: center; }
+.know td:first-child { text-align: left; border-radius: 12px 0 0 12px; padding-left: 12px; }
+.know td:last-child { border-radius: 0 12px 12px 0; }
+.know .fact b { font-weight: 600; } .know .fact small { display: block; color: var(--faint); font-size: 10.5px; margin-top: 2px; }
+.ks { display: inline-block; width: 18px; height: 18px; border-radius: 50%; position: relative; vertical-align: middle; }
+.ks.knows { background: var(--sea); box-shadow: 0 0 12px #82e3d388; }
+.ks.believes { background: conic-gradient(var(--sea) 0 75%, transparent 0); border: 1.5px solid var(--sea); }
+.ks.suspects { background: conic-gradient(var(--lamp) 0 50%, transparent 0); border: 1.5px solid var(--lamp); }
+.ks.doubts { background: conic-gradient(var(--lilac) 0 25%, transparent 0); border: 1.5px solid var(--lilac); }
+.ks.wrong { border: 2px solid var(--red); } .ks.wrong::after { content: ""; position: absolute; inset: 7px -2px; background: var(--red); rotate: -45deg; border-radius: 2px; }
+.ks.unaware { border: 1.5px dashed var(--ghost); }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--faint); margin-top: 8px; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend .ks { width: 12px; height: 12px; } .legend .ks.wrong::after { inset: 4px -2px; }
+.items { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.item { padding: 12px; border-radius: 16px; background: var(--fill); border: 1px solid var(--edge); display: grid; gap: 4px; position: relative; overflow: hidden; }
+.item .ic { font-size: 26px; line-height: 1; filter: drop-shadow(0 4px 10px #0008); }
+.item b { font-size: 13px; } .item span { font-size: 11px; color: var(--muted); }
+.item .cond { font: italic 12px var(--f-story); color: var(--lamp); }
+.item.gun::after { content: "planted · unfired"; position: absolute; top: 10px; right: -30px; rotate: 35deg; padding: 2px 30px; font: 800 8px var(--f-ui); letter-spacing: .14em; text-transform: uppercase; background: var(--red); color: var(--ink); }
+.loom { display: grid; gap: 14px; }
+.thread { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; }
+.thread .nm b { display: block; font-size: 13px; } .thread .nm span { font-size: 10.5px; color: var(--faint); text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+.thread svg { width: 100%; height: 34px; overflow: visible; }
+.plants { margin-top: 14px; display: grid; gap: 6px; }
+.plant { display: flex; gap: 10px; align-items: center; font-size: 12.5px; padding: 8px 12px; border-radius: 12px; background: repeating-linear-gradient(-45deg, #ff8a9a10 0 8px, transparent 8px 16px), var(--fill); border: 1px dashed #ff8a9a55; }
+.plant em { margin-left: auto; font-style: normal; color: var(--red); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.stakes { display: grid; gap: 14px; }
+.gauge { display: grid; gap: 4px; }
+.gauge .row { display: flex; justify-content: space-between; font-size: 12px; }
+.gauge .cells { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.gauge .cells i { height: 14px; border-radius: 4px; background: var(--fill-2); transition: background .5s; }
+.gauge .cells i.on { background: var(--c); box-shadow: 0 0 10px color-mix(in oklab, var(--c) 50%, transparent); }
+.clocks { display: flex; gap: 16px; flex-wrap: wrap; }
+.fclock { display: grid; grid-template-columns: 66px 1fr; gap: 10px; align-items: center; font-size: 12px; flex: 1 1 180px; }
+.fclock b { display: block; font-size: 12.5px; }
+.fclock svg { width: 66px; height: 66px; }
+.dl { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 12px; background: var(--fill); font-size: 12.5px; }
+.dl .cd { margin-left: auto; font: 600 12px var(--f-mono); color: var(--lamp); white-space: nowrap; }
+.oblig { font: italic 13.5px/1.45 var(--f-story); color: var(--muted); }
+.oblig b { font-style: normal; font-family: var(--f-ui); font-size: 12px; color: var(--text); }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal .dow { font: 800 9.5px var(--f-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); text-align: center; }
+.cal .d { aspect-ratio: 1; border-radius: 12px; background: var(--fill); display: grid; place-items: center; position: relative; font: 400 18px var(--f-display); color: var(--muted); }
+.cal .d.today { background: var(--text); color: var(--ink); }
+.cal .d.past { opacity: .4; }
+.cal .d .ev { position: absolute; bottom: 5px; display: flex; gap: 3px; }
+.cal .d .ev i { width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
+.cal .d[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; translate: -50% 0; white-space: nowrap; padding: 6px 10px; border-radius: 10px; background: var(--ink-3); color: var(--text); font: 600 11px var(--f-ui); z-index: 5; box-shadow: 0 10px 30px #000a; }
+.cal-list { display: grid; gap: 4px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.cal-list span i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 8px; }
+.stickers { display: flex; flex-wrap: wrap; gap: 10px; }
+.sticker { padding: 9px 14px; border-radius: 14px; background: var(--c); color: var(--ink); font: 600 14px/1.2 var(--f-story); rotate: var(--r); box-shadow: 0 10px 20px -10px #000, inset 0 -2px 0 #0002; position: relative; transition: rotate .4s var(--spring), transform .4s var(--spring); }
+.sticker:hover { rotate: 0deg; transform: scale(1.06); }
+.sticker sup { font: 800 10px var(--f-ui); margin-left: 4px; opacity: .65; }
+.sticker small { display: block; font: 700 9.5px var(--f-ui); letter-spacing: .1em; text-transform: uppercase; opacity: .6; margin-top: 2px; }
+.milestones { margin-top: 16px; position: relative; padding-left: 18px; display: grid; gap: 8px; }
+.milestones::before { content: ""; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px; background: linear-gradient(180deg, var(--rose), var(--lilac), var(--sea)); border-radius: 2px; }
+.milestones div { position: relative; font-size: 12.5px; }
+.milestones div::before { content: ""; position: absolute; left: -17px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); border: 2px solid var(--rose); }
+.milestones div span { color: var(--faint); font-size: 11px; margin-left: 6px; }
+.you-card { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .you-card { grid-template-columns: 1fr; } }
+.you-card .box { padding: 12px; border-radius: 16px; background: var(--fill); font-size: 12.5px; display: grid; gap: 6px; align-content: start; }
+.you-card .box h5 { margin: 0; font: 800 9.5px var(--f-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.you-card ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; }
+.sealed { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 16px; background: linear-gradient(120deg, #ff9ec014, #c7b4ff14); border: 1px dashed #ff9ec066; }
+.sealed svg { width: 46px; height: 46px; flex: none; }
+.sealed p { margin: 0; font: italic 14px/1.4 var(--f-story); color: var(--muted); }
+.sealed p b { font: 700 12.5px var(--f-ui); font-style: normal; color: var(--text); display: block; }
+.custom-log { font: 13px/1.6 var(--f-mono); padding: 14px; border-radius: 14px; background: #0006; border: 1px solid var(--edge); }
+.custom-log .k { color: var(--faint); } .custom-log .v { color: var(--lamp); }
+.custom-log .row { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed #ffffff12; padding: 3px 0; }
+.chgs { display: flex; flex-wrap: wrap; gap: 8px; }
+.chg { display: inline-flex; gap: 7px; align-items: center; padding: 7px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: var(--fill); border: 1px solid var(--edge); animation: pop .5s var(--spring) both; }
+.chg i { font-style: normal; font-size: 13px; }
+.chg.up { color: var(--sea); border-color: #82e3d355; background: #82e3d312; }
+.chg.down { color: var(--red); border-color: #ff8a9a55; background: #ff8a9a12; }
+.chg.due { color: var(--lamp); border-color: #ffd08f55; background: #ffd08f12; }
+.chg.warn { color: var(--amber); border-style: dashed; }
+.chg small { font-weight: 500; color: var(--faint); }
+.flash { animation: flashy 1s var(--ease); }
+@keyframes flashy { 0% { box-shadow: 0 0 0 0 #ffd08faa; } 100% { box-shadow: 0 0 0 18px #ffd08f00; } }
+
+/* =========================================================================
+   V · The Veil
+   ========================================================================= */
+.veil-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.veil-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 22px; }
+@media (max-width: 980px) { .veil-grid { grid-template-columns: 1fr; } }
+.veil-card { padding: 22px; display: grid; gap: 20px; }
+.mask { position: relative; border-radius: 22px; overflow: hidden; min-height: 210px; user-select: none; }
+.mask .layer { position: absolute; inset: 0; padding: 22px 24px; display: grid; align-content: center; gap: 8px; }
+.mask .felt { background: radial-gradient(120% 120% at 100% 100%, #b8406f88, transparent 60%), linear-gradient(140deg, #2a0f2a, #120a1e); }
+.mask .shown { background: radial-gradient(120% 120% at 0% 0%, #ffffff22, transparent 60%), linear-gradient(140deg, #d9d2e4, #a99fbc); color: #1a1426; clip-path: inset(0 0 0 calc(var(--lift, 0) * 1%)); transition: clip-path .08s linear; }
+.mask .seam { position: absolute; top: 0; bottom: 0; left: calc(var(--lift, 0) * 1%); width: 2px; background: #fff; box-shadow: 0 0 20px 4px #ff9ec0; opacity: calc(min(var(--lift, 0), 1) * (100 - var(--lift, 0)) / 50); pointer-events: none; }
+.mask small { font: 800 10px var(--f-ui); letter-spacing: .24em; text-transform: uppercase; opacity: .65; }
+.mask .big { font: 400 clamp(26px, 3.4vw, 36px)/1.08 var(--f-display); }
+.mask .felt .big { color: #ffd2e4; font-style: italic; }
+.mask .tell { font: italic 14px/1.4 var(--f-story); opacity: .85; }
+.mask input { position: absolute; left: 14px; right: 14px; bottom: 8px; width: auto; z-index: 3; }
+.mask .hint { position: absolute; right: 18px; top: 14px; z-index: 3; font: 700 10px var(--f-ui); letter-spacing: .16em; text-transform: uppercase; color: #1a1426aa; }
+.mind { position: relative; border-radius: 22px; padding: 26px 26px 22px; min-height: 170px; background: radial-gradient(circle at 20% 0%, #c7b4ff26, transparent 50%), #ffffff08; border: 1px solid var(--edge); cursor: pointer; overflow: hidden; touch-action: none; user-select: none; }
+.mind .txt { font: italic 22px/1.5 var(--f-story); color: #f3eaff; filter: blur(calc((1 - var(--p, 0)) * 9px)); opacity: calc(.35 + var(--p, 0) * .65); transition: filter .2s; }
+.mind.open .txt { filter: none; opacity: 1; }
+.mind .ring { position: absolute; right: 18px; bottom: 16px; width: 44px; height: 44px; }
+.mind .ring circle { fill: none; stroke-width: 3; }
+.mind .lbl { position: absolute; left: 26px; bottom: 16px; font: 800 10px var(--f-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+.mind.open .ring, .mind.open .lbl { opacity: 0; }
+.mind .again { position: absolute; right: 16px; top: 14px; font-size: 11px; font-weight: 700; color: var(--faint); opacity: 0; }
+.mind.open .again { opacity: 1; }
+.compass { position: relative; aspect-ratio: 1; max-width: 330px; width: 100%; margin: 0 auto; }
+.compass svg { position: absolute; inset: 0; width: 100%; height: 100%; animation: spin 120s linear infinite; }
+@keyframes spin { to { rotate: 360deg; } }
+.compass .c-orb { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
+.compass .pt { position: absolute; width: 44%; text-align: center; font: italic 13.5px/1.3 var(--f-story); color: var(--text); }
+.compass .pt small { display: block; font: 800 9.5px var(--f-ui); letter-spacing: .22em; text-transform: uppercase; font-style: normal; margin-bottom: 2px; }
+.compass .n { top: 2%; left: 28%; } .compass .s { bottom: 2%; left: 28%; }
+.compass .e { right: -6%; top: 40%; width: 34%; text-align: left; } .compass .w { left: -6%; top: 40%; width: 34%; text-align: right; }
+.diary { position: relative; display: grid; grid-template-columns: 1fr 1fr; border-radius: 6px 14px 14px 6px; overflow: hidden; box-shadow: 0 26px 50px -24px #000; min-height: 230px; background: #2a1a2e; padding: 8px; gap: 2px; }
+.diary .pg { background: linear-gradient(90deg, #e8dcc6 0, #f3ead8 12%, #f3ead8); color: #33264a; padding: 16px 16px 18px; font: 500 19px/1.3 "Caveat", cursive; background-image: repeating-linear-gradient(180deg, transparent 0 24px, #6a8ac022 24px 25px), linear-gradient(90deg, #e4d6bd, #f3ead8 14%); }
+.diary .pg:first-child { background-image: repeating-linear-gradient(180deg, transparent 0 24px, #6a8ac022 24px 25px), linear-gradient(270deg, #e4d6bd, #f3ead8 14%); border-radius: 4px 0 0 4px; }
+.diary .pg .dt { font: italic 12px "IM Fell English", serif; color: #7a5a6a; margin-bottom: 6px; }
+.diary .pg s { text-decoration-thickness: 2px; text-decoration-color: #33264aaa; }
+.diary .turn-anim { animation: pageturn .7s var(--ease); transform-origin: left center; }
+@keyframes pageturn { 0% { transform: perspective(900px) rotateY(-90deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.diary-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 12px; color: var(--faint); }
+.drawer-demo { margin-top: 22px; }
+.drawer-demo .reply { padding: 22px 26px; }
+.tellmark { text-decoration: underline wavy #ff9ec0aa 1.5px; text-underline-offset: 5px; cursor: help; }
+.drawer { margin-top: 14px; border-radius: 18px; border: 1px solid #c7b4ff33; background: linear-gradient(160deg, #c7b4ff12, #ff9ec00a); overflow: hidden; }
+.drawer summary { list-style: none; cursor: pointer; padding: 12px 16px; display: flex; align-items: center; gap: 10px; font: 700 12.5px var(--f-ui); color: var(--lilac); }
+.drawer summary::-webkit-details-marker { display: none; }
+.drawer summary .dots { font-family: var(--f-display); font-size: 20px; line-height: 0; }
+.drawer summary em { margin-left: auto; font-style: normal; color: var(--faint); font-weight: 600; font-size: 11px; }
+.drawer .in { padding: 0 16px 16px; display: grid; gap: 10px; }
+.drawer .th { display: grid; grid-template-columns: 26px 1fr; gap: 10px; font: italic 15.5px/1.5 var(--f-story); color: #eadfff; }
+.drawer .th small { display: block; font: 700 10px var(--f-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); font-style: normal; }
+.ash-sealed { display: grid; place-items: center; text-align: center; gap: 12px; padding: 30px 20px; min-height: 260px; }
+.ash-sealed svg { width: 110px; height: 110px; filter: drop-shadow(0 14px 30px #b8406f88); }
+.ash-sealed h4 { margin: 0; font: 400 30px var(--f-display); }
+.ash-sealed p { margin: 0; max-width: 360px; font: italic 15.5px/1.5 var(--f-story); color: var(--muted); }
+
+/* ---------- notes ---------- */
+.notes { margin-top: 70px; padding: 26px clamp(18px, 4vw, 40px); }
+.notes h2 { font: 400 40px var(--f-display); margin: 0 0 6px; }
+.notes table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.notes th { text-align: left; font: 800 10px var(--f-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); padding: 8px 10px; border-bottom: 1px solid var(--edge); }
+.notes td { padding: 10px; border-bottom: 1px solid #ffffff0d; vertical-align: top; color: var(--muted); }
+.notes td:first-child { color: var(--text); font-family: var(--f-display); font-size: 18px; white-space: nowrap; }
+.notes code { font-family: var(--f-mono); font-size: 11.5px; color: var(--sea); }
+.colophon { text-align: center; margin-top: 50px; color: var(--ghost); font: italic 14px var(--f-story); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+@media (max-width: 720px) { .sill { margin: -2px -8px 0; } .frame { border-radius: 120px 120px 18px 18px; padding: 8px; } .frame .pane, .frame .mullion, .frame .sheen { border-radius: 112px 112px 10px 10px; } .frame .mullion, .frame .sheen { inset: 8px; } .caption { left: 16px; bottom: 14px; } .caption .wx { font-size: 16px; } .caption .crumbs span { font-size: 10px; padding: 3px 7px; } }
+</style>
+</head>
+<body>
+<div class="sky" aria-hidden="true"><div class="stars"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<div class="page">
+  <!-- ===================================================== hero -->
+  <header class="hero">
+    <div class="eyebrow">Mea · Lantern · Catalogue of proposed works, No. 4</div>
+    <h1>The <em>Living</em><br />Page</h1>
+    <p class="lede">Five rooms for what a story knows about itself: <b>who is speaking</b>, <b>what's in their hands</b>, <b>the sky outside</b>, <b>everything the tracker remembers</b>, and <b>what nobody says aloud</b>.</p>
+    <nav class="room-index">
+      <a href="#voices"><small>Room I</small><span>Voices</span></a>
+      <a href="#artifacts"><small>Room II</small><span>Artifacts</span></a>
+      <a href="#window"><small>Room III</small><span>The Window</span></a>
+      <a href="#almanac"><small>Room IV</small><span>The Almanac</span></a>
+      <a href="#veil"><small>Room V</small><span>The Veil</span></a>
+    </nav>
+    <div class="scroll-hint">enter ↓</div>
+  </header>
+
+  <!-- ===================================================== I · Voices -->
+  <section class="room" id="voices">
+    <div class="room-head">
+      <span class="numeral">I</span>
+      <div><h2>Voices</h2><p>Every speaker writes in their own ink. The renderer reads who said each line, so the model never has to colour anything, and a voice keeps its texture: shouted from below, muttered, written, remembered.</p></div>
+      <aside class="placard"><b>Speaker colours</b>Ink drawn from each portrait.<dl><dt>Medium</dt><dd>One reply, five voices</dd><dt>Reads</dt><dd>dialogue attribution, cast</dd><dt>Try</dt><dd>hover a voice to hear only them</dd></dl></aside>
+    </div>
+    <div class="voices-grid">
+      <article class="reply glass">
+        <header class="msg-head"><span class="orb" data-orb="wren">W</span><b>Wren Halloway</b><span class="meta">The Lamp at Gull's Reach · reply 212 · swipe 1 / 3</span></header>
+        <div class="prose" id="prose" data-style="ink">
+          <p>The lamp room smelled of paraffin and wet wool. Wren didn't look up from the lens.</p>
+          <p><span class="q" data-v="wren">“You're dripping on my floor,”</span> she said. <span class="q" data-v="wren">“Again.”</span></p>
+          <p><span class="q" data-v="ash">“It's raining,”</span> Ash said, <span class="q" data-v="ash">“in case the lighthouse keeper hadn't noticed.”</span></p>
+          <p>Below, the harbour bell clanged twice. Mr. Pell, closing early; his voice came up the stairwell thin with wind: <span class="q far" data-v="pell">“Halloway! Boat's not coming tonight. Tell your lodger!”</span></p>
+          <p>Wren's hand stilled on the brass. <span class="q whisper" data-v="wren">“Not my lodger,”</span> she muttered, then louder, <span class="q" data-v="wren">“We heard you!”</span></p>
+          <p>On the sill, a folded square of paper had been weighted down with an egg. Nan's hand, all loops: <span class="q written" data-v="nan">Eggs on the step. Don't let her skip supper.</span></p>
+          <p><span class="q" data-v="ash">“She writes to you,”</span> Ash said.</p>
+          <p><span class="q" data-v="wren">“She writes to everyone.”</span> Wren polished the same spot of glass a third time. <span class="q" data-v="wren">“Tam used to say</span> <span class="q echo" data-v="tamsin">she'd write to the sea if it had a door</span><span class="q" data-v="wren">.”</span></p>
+        </div>
+        <footer class="reply-foot" id="reply-foot"></footer>
+      </article>
+      <aside class="vpanel glass">
+        <div><h3>How voices look</h3><p class="tiny faint" style="margin:4px 0 10px">Ink colours the words. Ribbon marks who leads each paragraph. Halo underlines in light.</p>
+          <div class="seg" id="vstyle"><button data-s="ink" class="on">Ink</button><button data-s="ribbon">Ribbon</button><button data-s="halo">Halo</button><button data-s="off">Off</button></div></div>
+        <div><h3>In this reply</h3><p class="tiny faint" style="margin:4px 0 8px">Bars are words spoken. Click a swatch to retint; the colour follows that character into every chat.</p><ul class="cast" id="cast"></ul></div>
+        <div><h3>Textures</h3><div class="textures">
+          <div><small>Spoken</small>“Again.”</div>
+          <div><small>From afar</small><span style="font-variant:small-caps;letter-spacing:.06em">“Halloway!”</span></div>
+          <div><small>Muttered</small><i style="font-size:.9em">“Not my lodger.”</i></div>
+          <div><small>Written</small><span style="font-family:Caveat;font-size:1.3em">Eggs on the step.</span></div>
+          <div style="grid-column:1/-1"><small>Remembered · quoted by someone else</small><i style="text-decoration:underline dotted;text-underline-offset:4px">she'd write to the sea if it had a door</i></div>
+        </div></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===================================================== II · Artifacts -->
+  <section class="room" id="artifacts">
+    <div class="room-head">
+      <span class="numeral">II</span>
+      <div><h2>Artifacts</h2><p>When the story hands someone a thing, the page hands it to you. The model writes a small tag; Mea's renderer turns it into paper, glass and ink. Every exhibit can turn around to show the tag behind it.</p></div>
+      <aside class="placard"><b>In-story objects</b>Eight kinds, any genre.<dl><dt>Medium</dt><dd>Tags in the reply</dd><dt>Falls back</dt><dd>to plain text when off</dd><dt>Try</dt><dd>“See the tag”</dd></dl></aside>
+    </div>
+    <div class="vitrines" id="vitrines">
+      <figure class="vitrine">
+        <div class="case"><div class="art letter">
+          <div class="date">Gull's Reach, the spring before</div>
+          <p>Wren —</p>
+          <p>Don't keep the lamp for me. Keep it for the boats. If I'm late, I'm late the way tides are late: certainly, and not on purpose.</p>
+          <p>Eat something that isn't toast.</p>
+          <div class="sig">Tam</div>
+          <svg class="seal" viewBox="0 0 64 64"><defs><radialGradient id="wax" cx=".38" cy=".34"><stop offset="0" stop-color="#e0485e"/><stop offset=".6" stop-color="#9c1d34"/><stop offset="1" stop-color="#5e0d1e"/></radialGradient></defs><path d="M32 3c6 0 8 4 13 5s9 1 11 6-1 8 1 13 5 8 2 13-7 4-9 9-4 9-10 10-9-3-14-2-10 3-13-2 0-9-3-13-7-6-5-12 6-6 7-11 1-10 6-12 8 1 12-1 4-3 9-3z" fill="url(#wax)"/><circle cx="32" cy="32" r="17" fill="none" stroke="#5e0d1e" stroke-width="2" opacity=".6"/><path d="M20 34c4-6 8-6 12-1 4-5 8-5 12 1" fill="none" stroke="#ffb3be" stroke-width="2.4" stroke-linecap="round" opacity=".75"/></svg>
+        </div></div>
+        <figcaption class="label"><b>Letter</b><span>Gull's Reach</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;letter</span> <span class="a">from</span>="Tamsin Halloway" <span class="a">to</span>="Wren"
+        <span class="a">seal</span>="gull" <span class="a">date</span>="the spring before"<span class="t">&gt;</span>
+Wren —
+Don't keep the lamp for me. Keep it for
+the boats. …
+<span class="t">&lt;/letter&gt;</span>
+
+<span class="c">→ Things tracker: "Tamsin's letter",
+  holder Wren, kept in the tin under the lens.</span></pre>
+      </figure>
+
+      <figure class="vitrine">
+        <div class="case"><div class="art clip">
+          <div class="mast">The Saltmere Courier</div>
+          <div class="dateline"><span>Est. 1821</span><span>Thursday</span><span>One penny</span></div>
+          <h4>Light at Gull's Reach dark six minutes; keeper silent</h4>
+          <svg viewBox="0 0 200 92" preserveAspectRatio="xMidYMid slice"><defs><pattern id="ht" width="4" height="4" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.35" fill="#1b1814"/></pattern><pattern id="ht2" width="4" height="4" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".7" fill="#1b1814"/></pattern></defs><rect width="200" height="92" fill="url(#ht2)"/><path d="M0 70 Q40 60 80 66 T200 62 V92 H0z" fill="url(#ht)"/><path d="M120 66 L124 22 h10 l4 44z M121 22 h16 l-2 -6 h-12z" fill="url(#ht)"/><path d="M129 18 L200 2 V30z" fill="#ece4d0" opacity=".7"/></svg>
+          <div class="cols"><p>Mariners report the Reach light failed between a quarter past eleven and twenty-one minutes past on Tuesday last. Miss W. Halloway, keeper, declined to speak to this paper.</p><p>The harbour board will sit Friday. Mr. Pell, harbourmaster, called the matter “regulations, nothing more.”</p></div>
+        </div></div>
+        <figcaption class="label"><b>Clipping</b><span>Gull's Reach</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;clipping</span> <span class="a">paper</span>="The Saltmere Courier"
+          <span class="a">day</span>="Thursday" <span class="a">photo</span>="lighthouse"<span class="t">&gt;</span>
+# Light at Gull's Reach dark six
+# minutes; keeper silent
+Mariners report …
+<span class="t">&lt;/clipping&gt;</span>
+
+<span class="c">→ Knowledge: "The lamp was dark six
+  minutes" becomes known to everyone
+  who reads the Courier.</span></pre>
+      </figure>
+
+      <figure class="vitrine">
+        <div class="case"><div class="art phone"><div class="scr"><div class="notch"></div>
+          <div class="who"><b>Dee (nights)</b>Night Shift · ward 3</div>
+          <div class="bub them" style="animation-delay:.1s">you up?</div>
+          <div class="bub me" style="animation-delay:.5s">on till 4. why</div>
+          <div class="bub them" style="animation-delay:.9s">the vending machine on 3 is talking again</div>
+          <div class="bub me" style="animation-delay:1.3s">talking how</div>
+          <div class="rcpt">Read 03:12</div>
+          <div class="typing"><i></i><i></i><i></i></div>
+        </div></div></div>
+        <figcaption class="label"><b>Messages</b><span>Night Shift</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;texts</span> <span class="a">with</span>="Dee (nights)" <span class="a">at</span>="03:12"<span class="t">&gt;</span>
+Dee: you up?
+me: on till 4. why
+Dee: the vending machine on 3 is
+     talking again
+me: talking how
+Dee: …
+<span class="t">&lt;/texts&gt;</span>
+
+<span class="c">"me" is your character. A trailing "…"
+draws the typing dots.</span></pre>
+      </figure>
+
+      <figure class="vitrine">
+        <div class="case"><div class="art poster">
+          <div class="w">WANTED</div>
+          <div class="sub">by the Guild of Honest Lenders</div>
+          <svg viewBox="0 0 100 100"><defs><pattern id="hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.2" height="3" fill="#2b1b10"/></pattern></defs><rect x="4" y="4" width="92" height="92" fill="none" stroke="#2b1b10" stroke-width="1.5"/><path d="M50 30c-12 0-18 9-18 21 0 9 5 17 10 20v8c-9 2-20 6-24 17h64c-4-11-15-15-24-17v-8c5-3 10-11 10-20 0-12-6-21-18-21z" fill="url(#hatch)"/><path d="M24 33c8-4 18-6 26-6s18 2 26 6l-4-10c-7-3-14-4-22-4s-15 1-22 4z" fill="#2b1b10"/><circle cx="50" cy="22" r="3" fill="#e8cf9c"/><path d="M40 52h7M53 52h7" stroke="#e8cf9c" stroke-width="2.4" stroke-linecap="round"/><path d="M44 63q6 4 12 0" stroke="#e8cf9c" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          <div class="name">Captain Ilse Varga</div>
+          <div class="crime">for debts most creative &amp; the theft<br />of one (1) weather</div>
+          <div class="rew">400 crowns</div>
+        </div></div>
+        <figcaption class="label"><b>Poster</b><span>Brass &amp; Thunder</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;poster</span> <span class="a">kind</span>="wanted" <span class="a">who</span>="Captain Ilse Varga"
+        <span class="a">reward</span>="400 crowns"<span class="t">&gt;</span>
+for debts most creative &amp; the theft
+of one (1) weather
+<span class="t">&lt;/poster&gt;</span>
+
+<span class="c">→ Stakes: faction clock "The Guild
+  collects" ticks to 3 of 6.</span></pre>
+      </figure>
+
+      <figure class="vitrine">
+        <div class="case"><div class="art ticket">
+          <div class="main"><div class="co">Saltmere Ferry Co.</div><div class="rt">Saltmere ⟶<br />Gull's Reach</div><div class="fine">Admit one · deck passage<br />Void in fog. No refunds to the drowned.</div><div class="no">№ 004127</div><span class="punch"></span></div>
+          <div class="stub"><span>ADMIT ONE</span></div>
+        </div></div>
+        <figcaption class="label"><b>Ticket</b><span>Gull's Reach</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;ticket</span> <span class="a">from</span>="Saltmere" <span class="a">to</span>="Gull's Reach"
+        <span class="a">line</span>="Saltmere Ferry Co." <span class="a">no</span>="004127"
+        <span class="a">punched</span><span class="t">/&gt;</span>
+
+<span class="c">→ Things: "ferry ticket", holder Ash,
+  condition "punched, void in fog".</span></pre>
+      </figure>
+
+      <figure class="vitrine">
+        <div class="case"><div class="art radio">
+          <div class="hd"><span>CH 7.2</span><span>RX ▮▮▮▯</span></div>
+          <div id="radio-text"></div><span class="cur"></span>
+        </div></div>
+        <figcaption class="label"><b>Transmission</b><span>Ashfall</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;radio</span> <span class="a">channel</span>="7.2" <span class="a">signal</span>="weak"<span class="t">&gt;</span>
+…anyone on seven-two…
+the ash stopped falling over
+the reservoir. repeat, it STOPPED.
+water's grey but it's water.
+if you're hearing this, bring
+filters. bring kids. bring—
+<span class="t">&lt;/radio&gt;</span></pre>
+      </figure>
+
+      <figure class="vitrine">
+        <div class="case"><div class="art map">
+          <svg viewBox="0 0 250 220"><g fill="none" stroke="#5b3a1e" stroke-width="1.2" opacity=".75">
+            <rect x="20" y="24" width="210" height="172" rx="2" stroke-dasharray="2 2"/>
+            <g id="stacks"></g></g>
+            <path class="route" d="M34 184 C 60 170, 70 150, 96 150 S 140 120, 128 96 S 150 52, 196 48" fill="none" stroke="#8a1d2a" stroke-width="2.2"/>
+            <g stroke="#8a1d2a" stroke-width="3" stroke-linecap="round"><path d="M189 41l14 14M203 41l-14 14"/></g>
+            <text x="150" y="72" font-family="Caveat" font-size="15" fill="#8a1d2a">Regrets, unsent</text>
+            <text x="30" y="206" font-family="IM Fell English" font-style="italic" font-size="10" fill="#5b3a1e">Here be overdue fines</text>
+            <text x="36" y="18" font-family="IM Fell English" font-size="13" fill="#3b2412">The Locked Stacks</text>
+            <g transform="translate(208 176)"><circle r="14" fill="none" stroke="#5b3a1e"/><path d="M0-16 3 0 0 16-3 0z" fill="#5b3a1e"/><text y="-18" text-anchor="middle" font-size="8" fill="#5b3a1e" font-family="IM Fell English">N</text></g>
+          </svg>
+        </div></div>
+        <figcaption class="label"><b>Map</b><span>The Paper Library</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;map</span> <span class="a">of</span>="The Locked Stacks" <span class="a">mark</span>="Regrets, unsent"<span class="t">&gt;</span>
+start: reading room
+→ past the card catalogue
+→ up the iron stair
+→ shelf 9, left of the clock
+<span class="t">&lt;/map&gt;</span>
+
+<span class="c">→ Places: "Locked Stacks › shelf 9"
+  added under The Paper Library.</span></pre>
+      </figure>
+
+      <figure class="vitrine">
+        <div class="case"><div class="art polaroid">
+          <div class="ph"><svg viewBox="0 0 100 100"><path d="M0 62 Q30 58 60 61 T100 60 V100 H0z" fill="#1b2340" opacity=".85"/><path d="M76 61 l2 -22 h4 l2 22z" fill="#140f24"/><g fill="#140f24"><circle cx="36" cy="66" r="2.6"/><path d="M33.6 68.5h4.8l1 11h-6.8z"/><circle cx="44" cy="64.5" r="3"/><path d="M41 67h6l1.2 13h-8.4z"/></g></svg></div>
+          <div class="cap">Tam &amp; me, the summer the light went out</div>
+        </div></div>
+        <figcaption class="label"><b>Photograph</b><span>Gull's Reach</span><button>See the tag</button></figcaption>
+        <pre class="src"><span class="t">&lt;photo</span> <span class="a">of</span>="Wren and Tamsin on the shingle, sunset"
+       <span class="a">caption</span>="Tam &amp; me, the summer the light went out"<span class="t">/&gt;</span>
+
+<span class="c">The picture is painted from the
+description: a scene, not a stock image.</span></pre>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ===================================================== III · Window -->
+  <section class="room" id="window">
+    <div class="room-head">
+      <span class="numeral">III</span>
+      <div><h2>The <i>Window</i></h2><p>The tracker already knows the hour, the weather and where everyone stands. This window paints them live: the light shifts with the clock, the lamp sweeps when it's dark, and fog rolls in when the story says so.</p></div>
+      <aside class="placard"><b>Weather, time &amp; place</b>A painting that never repeats.<dl><dt>Medium</dt><dd>Canvas, drawn every frame</dd><dt>Reads</dt><dd><code>clock</code>, <code>wx</code>, <code>at</code></dd><dt>Try</dt><dd>play the day; step through the beats</dd></dl></aside>
+    </div>
+    <div class="window-wrap">
+      <div>
+        <div class="frame"><div class="pane"><canvas id="win"></canvas>
+          <div class="caption"><div class="clock" id="w-clock">23:10</div><div class="day" id="w-day">Tuesday · 14 October</div><div class="wx" id="w-wx">Rain, steady</div><div class="crumbs" id="w-crumbs"></div></div>
+        </div><div class="mullion"></div><div class="sheen"></div></div>
+        <div class="sill"></div>
+      </div>
+      <div class="wcontrols glass">
+        <div><h4>Time</h4><div class="timebar"><button class="play" id="play" aria-label="Play the day">▶</button><input type="range" id="t-range" min="0" max="24" step="0.01" value="23.17" aria-label="Time of day" /></div></div>
+        <div><h4>Weather</h4><div class="chips" id="wx-chips"></div></div>
+        <div><h4>Place</h4><div class="chips" id="pl-chips"></div></div>
+        <div><h4>Story beats · what the tracker wrote</h4><div class="beats" id="beats"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== IV · Almanac -->
+  <section class="room" id="almanac">
+    <div class="room-head">
+      <span class="numeral">IV</span>
+      <div><h2>The Almanac</h2><p>Everything the trackers remember, laid out like a naturalist's cabinet. Drag the turn slider back and the whole cabinet rewinds with it.</p></div>
+      <aside class="placard"><b>Every tracker</b>Thirteen sections, one glance.<dl><dt>Medium</dt><dd>The story state</dd><dt>Reads</dt><dd>scene, cast, bodies, bonds, ladder, knowledge, things, threads, stakes, calendar, motifs, you, custom</dd></dl></aside>
+    </div>
+
+    <div class="rewind glass">
+      <div class="turn"><small>Rewind to</small><span id="turn-no">Turn 212</span></div>
+      <div><input type="range" id="rewind" min="0" max="3" step="1" value="3" aria-label="Rewind turns" /><div class="ticks"><span>180 · the bell</span><span>194 · cliff path</span><span>203 · fog</span><span>212 · now</span></div></div>
+      <span class="tag hot" id="turn-scene">Scene 14 · The lamp room</span>
+    </div>
+
+    <div class="bento">
+      <article class="tile glass s-scene">
+        <h3><span class="g">☾</span>Scene<span class="k">time · place · weather</span></h3>
+        <div class="mini-win"><canvas id="mini"></canvas><div class="over"><b id="m-clock">23:10</b><span id="m-wx">Fog off the water · Gull's Reach</span></div></div>
+        <div class="scene-meta"><span class="tag hot">mode · tender</span><span class="tag">scene 14 of the night</span><span class="tag">started 9 turns ago</span><span class="tag">moon · waxing gibbous</span></div>
+      </article>
+
+      <article class="tile glass s-cast">
+        <h3><span class="g">❀</span>People<span class="k">who's here and how they are</span></h3>
+        <div class="people" id="people"></div>
+      </article>
+
+      <article class="tile glass s-body body-tile">
+        <h3><span class="g">✚</span>Bodies<span class="k">wounds · conditions</span></h3>
+        <div class="sw seg" id="body-sw"><button data-b="ash" class="on">Ash</button><button data-b="wren">Wren</button></div>
+        <div class="body-fig"><svg viewBox="0 0 120 230" id="body-svg"></svg><div class="wlist" id="wlist"></div></div>
+      </article>
+
+      <article class="tile glass s-bonds bonds">
+        <h3><span class="g">✦</span>Bonds<span class="k">click a line</span></h3>
+        <svg viewBox="0 0 400 250" id="bond-svg"></svg>
+        <div class="bond-detail" id="bond-detail"></div>
+      </article>
+
+      <article class="tile glass s-ladder">
+        <h3><span class="g">♡</span>Romance<span class="k">measured</span></h3>
+        <div class="tiny faint" style="margin:-4px 0 8px">Wren → Ash</div>
+        <div class="ladder" id="ladder"></div>
+        <div class="ladder-ev" id="ladder-ev"></div>
+      </article>
+
+      <article class="tile glass s-know">
+        <h3><span class="g">◐</span>Knowledge<span class="k">who knows what</span></h3>
+        <table class="know" id="know"></table>
+        <div class="legend"><span><i class="ks knows"></i>knows</span><span><i class="ks believes"></i>believes</span><span><i class="ks suspects"></i>suspects</span><span><i class="ks doubts"></i>doubts</span><span><i class="ks wrong"></i>believes wrongly</span><span><i class="ks unaware"></i>unaware</span><span>🔒 secret, kept by</span></div>
+      </article>
+
+      <article class="tile glass s-items">
+        <h3><span class="g">⚿</span>Things<span class="k">who has what</span></h3>
+        <div class="items">
+          <div class="item"><span class="ic">🗝️</span><b>The brass key</b><span>Ash · owned by Wren</span><span class="cond">warm from her hand</span></div>
+          <div class="item"><span class="ic">✉️</span><b>Tamsin's letter</b><span>Wren · tin under the lens</span><span class="cond">read too often</span></div>
+          <div class="item gun"><span class="ic">🧨</span><b>Flare gun</b><span>lamp-room locker</span><span class="cond">loaded, one shell</span></div>
+          <div class="item"><span class="ic">🧣</span><b>Nan's scarf</b><span>Ash · owned by Nan</span><span class="cond">borrowed, damp</span></div>
+          <div class="item"><span class="ic">🥚</span><b>A dozen eggs</b><span>the step</span><span class="cond">two cracked</span></div>
+          <div class="item"><span class="ic">🎟️</span><b>Ferry ticket</b><span>Ash's pocket</span><span class="cond">void in fog</span></div>
+        </div>
+      </article>
+
+      <article class="tile glass s-threads">
+        <h3><span class="g">〰</span>Threads<span class="k">plots · Chekhov's guns</span></h3>
+        <div class="loom" id="loom"></div>
+        <div class="plants">
+          <div class="plant">🧨 A flare gun in the lamp-room locker<em>planted 3 scenes ago · unfired</em></div>
+          <div class="plant">✒️ “T.H.” scratched into the gallery rail<em>planted turn 171 · unpaid</em></div>
+        </div>
+      </article>
+
+      <article class="tile glass s-stakes">
+        <h3><span class="g">⧗</span>Stakes<span class="k">gauges · clocks · debts</span></h3>
+        <div class="stakes">
+          <div class="gauge" id="g-oil" style="--c:var(--lamp)"><div class="row"><b>Lamp oil</b><span class="faint" id="g-oil-t"></span></div><div class="cells"></div></div>
+          <div class="gauge" id="g-sleep" style="--c:var(--lilac)"><div class="row"><b>Wren's sleep debt</b><span class="faint" id="g-sleep-t"></span></div><div class="cells"></div></div>
+          <div class="clocks"><div class="fclock"><svg viewBox="0 0 66 66" id="fc-wreck"></svg><div><b>The Wreckers</b><span class="faint">move on the dark light</span></div></div><div class="fclock"><svg viewBox="0 0 66 66" id="fc-board"></svg><div><b>Harbour board</b><span class="faint">inquiry, Friday</span></div></div></div>
+          <div class="dl">⛴ Supply boat, rescheduled<span class="cd" id="cd-boat">in 2 d 9 h</span></div>
+          <div class="dl">📰 Courier goes to print<span class="cd">Fri · dawn</span></div>
+          <div class="oblig"><b>Promised</b> Wren: “I'll tell you about Tam. Tomorrow.”<br /><b>Owed</b> Ash → Nan: one basket, returned.</div>
+        </div>
+      </article>
+
+      <article class="tile glass s-cal">
+        <h3><span class="g">◷</span>Calendar<span class="k">October</span></h3>
+        <div class="cal" id="cal"></div>
+        <div class="cal-list"><span style="--c:var(--lamp)"><i></i>16 · supply boat (rescheduled)</span><span style="--c:var(--red)"><i></i>17 · harbour board sits</span><span style="--c:var(--rose)"><i></i>19 · Tamsin's birthday. Wren hasn't mentioned it.</span><span style="--c:var(--sea)"><i></i>21 · spring tide, 04:12</span></div>
+      </article>
+
+      <article class="tile glass s-motifs">
+        <h3><span class="g">✿</span>Running bits<span class="k">jokes · names · firsts</span></h3>
+        <div class="stickers">
+          <span class="sticker" style="--c:#ffd08f;--r:-3deg">“lodger”<sup>×6</sup><small>Wren's name for Ash</small></span>
+          <span class="sticker" style="--c:#82e3d3;--r:2deg">The lamp doesn't care<sup>×4</sup><small>Wren, when it matters</small></span>
+          <span class="sticker" style="--c:#c7b4ff;--r:-1deg">Nan's eggs<sup>×9</sup><small>arrive when she's worried</small></span>
+          <span class="sticker" style="--c:#ff9ec0;--r:3deg">Dripping on the floor<sup>×3</sup><small>every entrance</small></span>
+        </div>
+        <div class="milestones"><div>She laughed, once, at the gulls<span>turn 61</span></div><div>Ash slept in the cottage, not the inn<span>turn 140</span></div><div>She said “Tam” out loud<span>turn 212</span></div></div>
+      </article>
+
+      <article class="tile glass s-you">
+        <h3><span class="g">☉</span>Your character · Ash<span class="k">continuity</span></h3>
+        <div class="you-card">
+          <div class="box"><h5>Wearing</h5><ul><li>Oilskin coat, soaked through</li><li>Nan's wool scarf (borrowed)</li><li>Boots, left one letting water in</li></ul></div>
+          <div class="box"><h5>Carrying</h5><ul><li>The brass key</li><li>A letter you haven't sent</li><li>Ferry ticket, void in fog</li></ul></div>
+          <div class="sealed"><svg viewBox="0 0 64 64"><use href="#seal-shape"/></svg><p><b>Inner life sealed</b>Your mood and thoughts are yours. The trackers keep your coat, your wounds and your pockets, never what you feel.</p></div>
+        </div>
+      </article>
+
+      <article class="tile glass s-custom">
+        <h3><span class="g">⚙</span>Light log<span class="k">your template</span></h3>
+        <div class="custom-log">
+          <div class="row"><span class="k">lamp lit</span><span class="v">17:52</span></div>
+          <div class="row"><span class="k">rotation</span><span class="v">steady, 10 s</span></div>
+          <div class="row"><span class="k">lens</span><span class="v">NW pane cracked</span></div>
+          <div class="row"><span class="k">dark minutes</span><span class="v">6 (Tue)</span></div>
+          <div class="row"><span class="k">ships seen</span><span class="v">0 tonight</span></div>
+        </div>
+      </article>
+
+      <article class="tile glass s-chips">
+        <h3><span class="g">↯</span>What changed this reply<span class="k">chips under the message</span></h3>
+        <div class="chgs" id="chgs"></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================================================== V · Veil -->
+  <section class="room" id="veil">
+    <div class="room-head">
+      <span class="numeral">V</span>
+      <div><h2>The <i>Veil</i></h2><p>What a character shows, what they feel, and the small habit that gives them away. Thoughts stay blurred until you hold them, so you choose when to know. Your own character is sealed: nobody writes your mind but you.</p></div>
+      <aside class="placard"><b>Private thoughts</b>A drawer, not a spoiler.<dl><dt>Medium</dt><dd>Mask, mind, compass, diary</dd><dt>Reads</dt><dd><code>mask</code>, <code>thoughts</code>, <code>drives</code>, <code>journal</code></dd><dt>Try</dt><dd>lift the mask; hold the mind</dd></dl></aside>
+    </div>
+    <div class="veil-top">
+      <div class="seg" id="veil-who"><button data-w="wren" class="on">Wren</button><button data-w="pell">Mr. Pell</button><button data-w="nan">Old Nan</button><button data-w="ash">Ash (you)</button></div>
+      <div class="seg" id="veil-when" title="When thoughts appear under replies"><button data-m="never">Never show</button><button data-m="drawer" class="on">In a drawer</button><button data-m="always">Always open</button></div>
+    </div>
+    <div class="veil-grid" id="veil-grid"></div>
+
+    <div class="drawer-demo">
+      <article class="reply glass">
+        <header class="msg-head"><span class="orb" data-orb="wren">W</span><b>Wren Halloway</b><span class="meta">reply 212</span></header>
+        <div class="prose" style="font-size:18px"><p>“She writes to everyone.” Wren <span class="tellmark" title="Wren's tell: she polishes the lens when she's lying">polished the same spot of glass a third time</span>. “Tam used to say she'd write to the sea if it had a door.”</p></div>
+        <details class="drawer" id="drawer" open>
+          <summary><span class="dots">∴</span> What went unsaid<em id="drawer-mode">tap to fold</em></summary>
+          <div class="in">
+            <div class="th"><span class="orb sm" data-orb="wren">W</span><div><small>Wren · thinking</small>If the boat doesn't come, Ash stays another night. I shouldn't want that this much.</div></div>
+            <div class="th"><span class="orb sm" data-orb="pell">P</span><div><small>Mr. Pell · offstage</small>She'll find out who cancelled it. Better it's from me. Not tonight.</div></div>
+            <div class="th"><span class="orb sm" data-orb="nan">N</span><div><small>Old Nan · offstage</small>Third night she's skipped supper. Fourth, and I'm climbing those stairs myself.</div></div>
+          </div>
+        </details>
+      </article>
+    </div>
+  </section>
+
+  <section class="notes glass">
+    <h2>Notes on the collection</h2>
+    <p class="muted" style="margin:0;font-family:var(--f-story);font-size:16px">What each room reads, and what Mea would need to build it.</p>
+    <table>
+      <tr><th>Room</th><th>Reads from</th><th>New work</th></tr>
+      <tr><td>Voices</td><td>Cast names, card portraits; quotes attributed by the renderer</td><td>A dialogue attributor (name nearest the quote, "she said" resolution), per-character colour stored on the character</td></tr>
+      <tr><td>Artifacts</td><td>Tags in the reply: <code>&lt;letter&gt;</code>, <code>&lt;clipping&gt;</code>, <code>&lt;texts&gt;</code>, <code>&lt;poster&gt;</code>, <code>&lt;ticket&gt;</code>, <code>&lt;radio&gt;</code>, <code>&lt;map&gt;</code>, <code>&lt;photo&gt;</code></td><td>A preset control that teaches the tags; renderer components; tags stripped from memory and the tracker input</td></tr>
+      <tr><td>The Window</td><td><code>time</code>, <code>weather.now</code>, <code>place[]</code>, scene mode</td><td>A canvas painter; a small classifier from free-text weather and place to a palette ("fog off the water" → fog, coast)</td></tr>
+      <tr><td>The Almanac</td><td>The whole <code>WorldState</code>, plus change history for the rewind</td><td>Mostly layout; rewind folds events up to a turn (the timeline already stores them)</td></tr>
+      <tr><td>The Veil</td><td><code>chars.*.mask</code>, <code>thoughts</code>, <code>drives</code>, <code>journal</code>; persona sealing</td><td>The private-thoughts drawer under replies; a hold-to-reveal setting</td></tr>
+    </table>
+  </section>
+  <p class="colophon">Mea · The Living Page · mockup, not wired to data · the light at Gull's Reach is still burning</p>
+</div>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <radialGradient id="wax2" cx=".38" cy=".34"><stop offset="0" stop-color="#ff7aa0"/><stop offset=".6" stop-color="#b8406f"/><stop offset="1" stop-color="#5e1838"/></radialGradient>
+  <g id="seal-shape"><path d="M32 3c6 0 8 4 13 5s9 1 11 6-1 8 1 13 5 8 2 13-7 4-9 9-4 9-10 10-9-3-14-2-10 3-13-2 0-9-3-13-7-6-5-12 6-6 7-11 1-10 6-12 8 1 12-1 4-3 9-3z" fill="url(#wax2)"/><circle cx="32" cy="32" r="16" fill="none" stroke="#5e1838" stroke-width="2" opacity=".6"/><path d="M32 22a6 6 0 0 1 6 6v3h-12v-3a6 6 0 0 1 6-6z M24 31h16v12h-16z" fill="none" stroke="#ffd2e4" stroke-width="2.2" stroke-linejoin="round" opacity=".8"/></g>
+</defs></svg>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+const rand = (seed) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+
+/* ------------------------------------------------------------ voices */
+const V = {
+  wren: { name: "Wren Halloway", role: "the keeper", hue: "#7fe3d0" },
+  ash: { name: "Ash", role: "you", hue: "#ff9ec0" },
+  pell: { name: "Mr. Pell", role: "harbourmaster · from below", hue: "#ffbf6b" },
+  nan: { name: "Old Nan Ives", role: "in writing", hue: "#c7b4ff" },
+  tamsin: { name: "Tamsin Halloway", role: "remembered", hue: "#9cc4ff" },
+};
+const PALETTE = ["#7fe3d0", "#ff9ec0", "#ffbf6b", "#c7b4ff", "#9cc4ff", "#b6f08a", "#ff8a7a", "#f3e48c"];
+const paintOrbs = () => $$("[data-orb]").forEach((o) => o.style.setProperty("--h", V[o.dataset.orb].hue));
+const prose = $("#prose");
+
+function paintVoices() {
+  $$(".q", prose).forEach((q) => q.style.setProperty("--vc", V[q.dataset.v].hue));
+  $$("p", prose).forEach((p) => {
+    const first = $(".q", p);
+    const lead = first ? first.dataset.v : "nar";
+    p.dataset.lead = lead;
+    p.dataset.initial = lead === "nar" ? "" : V[lead].name[0];
+    if (lead !== "nar") p.style.setProperty("--lc", V[lead].hue);
+  });
+  paintOrbs();
+}
+function buildCast() {
+  const words = {};
+  $$(".q", prose).forEach((q) => (words[q.dataset.v] = (words[q.dataset.v] || 0) + q.textContent.split(/\s+/).filter(Boolean).length));
+  $("#cast").innerHTML = Object.entries(V).map(([k, v]) => {
+    const n = words[k] || 0;
+    const r = rand(k.length * 97 + n);
+    const bars = Array.from({ length: 12 }, (_, i) => `<i style="height:${Math.max(3, Math.min(22, (n / 3) * (0.35 + r() * 0.9)))}px"></i>`).join("");
+    return `<li data-v="${k}" style="--vc:${v.hue}"><button class="swatch" data-v="${k}" aria-label="Retint ${v.name}"></button><div class="who"><b>${v.name}</b><span>${v.role} · ${n} words</span></div><div class="bars">${bars}</div></li>`;
+  }).join("");
+}
+paintVoices(); buildCast();
+$("#cast").addEventListener("pointerover", (e) => {
+  const li = e.target.closest("li"); if (!li) return;
+  prose.classList.add("iso");
+  $$(".q", prose).forEach((q) => q.classList.toggle("hot", q.dataset.v === li.dataset.v));
+});
+$("#cast").addEventListener("pointerleave", () => { prose.classList.remove("iso"); $$(".q", prose).forEach((q) => q.classList.remove("hot")); });
+$("#cast").addEventListener("click", (e) => {
+  const b = e.target.closest(".swatch"); if (!b) return;
+  const v = V[b.dataset.v];
+  v.hue = PALETTE[(PALETTE.indexOf(v.hue) + 1) % PALETTE.length];
+  paintVoices(); buildCast(); renderPeople(); renderBonds(); renderVeil();
+});
+$("#vstyle").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  $$("#vstyle button").forEach((x) => x.classList.toggle("on", x === b));
+  prose.dataset.style = b.dataset.s;
+});
+const FOOT = [["up", "♡", "Wren → Ash", "affection +1"], ["due", "⛴", "Supply boat", "cancelled"], ["", "✦", "“Tam” said aloud", "milestone"], ["warn", "◐", "Pell knows why", "secret kept"]];
+$("#reply-foot").innerHTML = FOOT.map(([t, i, a, b]) => `<span class="chg ${t}"><i>${i}</i>${a} <small>${b}</small></span>`).join("");
+
+/* ------------------------------------------------------------ artifacts */
+$("#vitrines").addEventListener("click", (e) => {
+  const b = e.target.closest(".label button"); if (!b) return;
+  const f = b.closest(".vitrine");
+  f.classList.toggle("show-src");
+  b.textContent = f.classList.contains("show-src") ? "See the object" : "See the tag";
+});
+{ // map stacks
+  let s = "";
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 4; c++) if (!(r === 0 && c === 3)) s += `<rect x="${40 + c * 46}" y="${38 + r * 30}" width="34" height="12" rx="1"/>`;
+  $("#stacks").innerHTML = s;
+}
+{ // radio typewriter
+  const lines = ["…anyone on seven-two…", "the ash stopped falling", "over the reservoir.", "repeat, it STOPPED.", "water's grey but", "it's water. bring", "filters. bring kids.", "bring—"];
+  const el = $("#radio-text"); let li = 0, ci = 0, out = "";
+  const tick = () => {
+    if (li >= lines.length) { setTimeout(() => { li = 0; ci = 0; out = ""; el.innerHTML = ""; tick(); }, 2600); return; }
+    const L = lines[li];
+    if (ci <= L.length) { el.innerHTML = out + L.slice(0, ci) ; ci++; setTimeout(tick, 38 + Math.random() * 60); }
+    else { out += L + "<br>"; li++; ci = 0; setTimeout(tick, 380); }
+  };
+  tick();
+}
+
+/* ------------------------------------------------------------ the window */
+const SKY = [[0, "#060a1c", "#16133a"], [4.4, "#0b1030", "#2a1f4e"], [5.6, "#2a2c66", "#b0607a"], [6.6, "#4f78b8", "#ffb27a"], [8, "#4f93dc", "#bfe0f5"], [12, "#3a84d6", "#a9d6f7"], [16.4, "#4a83cf", "#f2d4a0"], [18.2, "#4a4a8c", "#ff9a6a"], [19.3, "#2a2560", "#a8506e"], [20.6, "#121540", "#3a2a5e"], [22, "#080c24", "#1e1840"], [24, "#060a1c", "#16133a"]].map(([t, a, b]) => [t, hex(a), hex(b)]);
+function skyAt(t) {
+  for (let i = 0; i < SKY.length - 1; i++) {
+    const [t0, a0, b0] = SKY[i], [t1, a1, b1] = SKY[i + 1];
+    if (t >= t0 && t <= t1) { const k = (t - t0) / (t1 - t0); return [mix(a0, a1, k), mix(b0, b1, k)]; }
+  }
+  return [SKY[0][1], SKY[0][2]];
+}
+const WX = {
+  clear: { label: "Clear", cloud: 0.08, rain: 0, snow: 0, fog: 0, storm: 0, wind: 0.1, words: "Clear, still" },
+  cloudy: { label: "Overcast", cloud: 0.85, rain: 0, snow: 0, fog: 0.1, storm: 0, wind: 0.25, words: "Overcast, low and grey" },
+  rain: { label: "Rain", cloud: 0.92, rain: 0.6, snow: 0, fog: 0.1, storm: 0, wind: 0.3, words: "Rain, steady" },
+  storm: { label: "Storm", cloud: 1, rain: 1, snow: 0, fog: 0.05, storm: 1, wind: 0.85, words: "Storm, building" },
+  fog: { label: "Fog", cloud: 0.55, rain: 0, snow: 0, fog: 1, storm: 0, wind: 0.05, words: "Fog off the water" },
+  snow: { label: "Snow", cloud: 0.78, rain: 0, snow: 0.85, fog: 0.15, storm: 0, wind: 0.2, words: "Snow, falling soft" },
+  wind: { label: "Gale", cloud: 0.45, rain: 0, snow: 0, fog: 0, storm: 0, wind: 1, words: "A gale, howling" },
+};
+const PLACES = {
+  coast: { label: "Lighthouse", crumbs: ["Gull's Reach", "Cliff path", "The lamp room"] },
+  harbor: { label: "Harbour", crumbs: ["Saltmere", "The harbour", "Pell's office"] },
+  forest: { label: "Pinewood", crumbs: ["Ashfall", "The pine road", "Kestrel's cabin"] },
+  city: { label: "City", crumbs: ["Night Shift", "St. Agnes", "Roof, ward 3"] },
+  desert: { label: "Dunes", crumbs: ["Brass & Thunder", "The Glass Waste", "Camp"] },
+};
+const DARK = [12, 9, 24], WARM = [255, 196, 120];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+class Scene {
+  constructor(canvas, { mini = false } = {}) {
+    this.c = canvas; this.g = canvas.getContext("2d"); this.mini = mini;
+    this.t = 23.17; this.wx = "rain"; this.place = "coast"; this.prev = null; this.pm = 1;
+    this.cur = { ...WX.rain }; this.flash = 0; this.bolt = null; this.time = 0; this.visible = true;
+    const r = rand(mini ? 7 : 3);
+    this.stars = Array.from({ length: 170 }, () => ({ x: r(), y: r() * 0.62, s: r() * 1.4 + 0.3, p: r() * 6.28 }));
+    this.clouds = Array.from({ length: 9 }, () => ({ x: r() * 1.4 - 0.2, y: 0.05 + r() * 0.3, s: 0.6 + r() * 0.9, v: 0.004 + r() * 0.008, b: Array.from({ length: 6 }, () => [r() * 0.16 - 0.08, r() * 0.04 - 0.02, 0.03 + r() * 0.05]) }));
+    const N = mini ? 160 : 520;
+    this.drops = Array.from({ length: N }, () => ({ x: r(), y: r(), v: 0.9 + r() * 0.8, l: 0.02 + r() * 0.03 }));
+    this.flakes = Array.from({ length: mini ? 110 : 320 }, () => ({ x: r(), y: r(), v: 0.03 + r() * 0.06, s: 0.6 + r() * 2.2, p: r() * 6.28 }));
+    this.leaves = Array.from({ length: 46 }, () => ({ x: r(), y: 0.2 + r() * 0.75, v: 0.25 + r() * 0.35, p: r() * 6.28 }));
+    this.flies = Array.from({ length: 34 }, () => ({ x: r(), y: 0.6 + r() * 0.35, p: r() * 6.28, s: 0.5 + r() }));
+    this.glass = Array.from({ length: mini ? 0 : 46 }, () => ({ x: r(), y: r(), s: 1.5 + r() * 4, v: r() < 0.25 ? 0.01 + r() * 0.04 : 0 }));
+    this.shim = Array.from({ length: 90 }, () => ({ x: r(), y: r(), w: 0.01 + r() * 0.04, p: r() * 6.28 }));
+    this.hills = Array.from({ length: 4 }, () => r() * 6.28);
+    this.houses = Array.from({ length: 22 }, (_, i) => ({ x: 0.01 + i * 0.021 + r() * 0.01, w: 0.016 + r() * 0.012, h: 0.03 + r() * 0.035, lit: r(), roof: r() }));
+    this.pines = [0, 1, 2].map((L) => Array.from({ length: 26 + L * 6 }, () => ({ x: r() * 1.1 - 0.05, h: (0.12 + r() * 0.12) * (1 + L * 0.45), p: r() * 6.28 })).sort((a, b) => a.h - b.h));
+    this.towers = [0, 1].map((L) => { const a = []; let x = -0.02; while (x < 1.02) { const w = 0.03 + r() * 0.06; a.push({ x, w, h: (0.12 + r() * 0.22) * (L ? 1.35 : 1), win: Array.from({ length: 60 }, () => r()) }); x += w + r() * 0.012; } return a; });
+    this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(canvas);
+    new IntersectionObserver(([e]) => (this.visible = e.isIntersecting)).observe(canvas);
+    this.last = performance.now();
+    const loop = (now) => { const dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; if (this.visible) this.frame(dt); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+  resize() {
+    const r = this.c.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1);
+    this.w = r.width; this.h = r.height; this.c.width = Math.round(r.width * d); this.c.height = Math.round(r.height * d);
+    this.g.setTransform(d, 0, 0, d, 0, 0);
+  }
+  set({ t, wx, place }) {
+    if (t != null) this.t = ((t % 24) + 24) % 24;
+    if (wx) this.wx = wx;
+    if (place && place !== this.place) { this.prev = this.place; this.place = place; this.pm = 0; }
+  }
+  frame(dt) {
+    if (!this.w) return;
+    this.time += dt;
+    const k = 1 - Math.exp(-dt * 1.6), tgt = WX[this.wx];
+    for (const key of ["cloud", "rain", "snow", "fog", "storm", "wind"]) this.cur[key] = lerp(this.cur[key], tgt[key], k);
+    this.pm = Math.min(1, this.pm + dt * 0.9);
+    this.draw(dt);
+  }
+  env() {
+    const t = this.t, c = this.cur;
+    const sunAlt = Math.sin(Math.PI * (t - 6.1) / 12.8);
+    const day = clamp(sunAlt * 2.2 + 0.25), night = 1 - day;
+    let [top, bot] = skyAt(t);
+    const grey = mix([20, 22, 32], [128, 134, 148], day);
+    top = mix(top, grey, c.cloud * 0.6); bot = mix(bot, mix(grey, [170, 176, 188], day * 0.4), c.cloud * 0.5);
+    bot = mix(bot, mix([200, 205, 215], bot, 0.5), c.fog * 0.35 * (0.3 + day));
+    const sky = { top, bot };
+    const far = mix(bot, DARK, 0.32), mid = mix(bot, DARK, 0.6), near = mix(bot, DARK, 0.86);
+    const glow = clamp(Math.max(night, c.cloud * 0.55 + c.fog * 0.3));
+    const moonT = (t - 18.6 + 24) % 24, moonAlt = moonT < 12.4 ? Math.sin(Math.PI * moonT / 12.4) : -1;
+    return { t, day, night, sunAlt, moonT, moonAlt, sky, far, mid, near, glow, c };
+  }
+  draw(dt) {
+    const g = this.g, W = this.w, H = this.h, E = this.env(), c = E.c, T = this.time;
+    // sky
+    const sg = g.createLinearGradient(0, 0, 0, H * 0.72); sg.addColorStop(0, rgb(E.sky.top)); sg.addColorStop(1, rgb(E.sky.bot));
+    g.fillStyle = sg; g.fillRect(0, 0, W, H);
+    // stars
+    const sa = E.night * (1 - c.cloud) * (1 - c.fog * 0.8);
+    if (sa > 0.01) for (const s of this.stars) { g.fillStyle = `rgba(255,255,255,${sa * (0.45 + 0.55 * Math.sin(T * 1.6 + s.p)) ** 2})`; g.fillRect(s.x * W, s.y * H, s.s, s.s); }
+    // sun
+    if (E.sunAlt > -0.15) {
+      const sx = W * clamp((E.t - 6.1) / 12.8), sy = H * 0.66 - E.sunAlt * H * 0.55, a = clamp((E.sunAlt + 0.15) * 3) * (1 - c.cloud * 0.75);
+      const warm = mix([255, 150, 90], [255, 246, 220], clamp(E.sunAlt * 2));
+      const sgl = g.createRadialGradient(sx, sy, 0, sx, sy, H * 0.55); sgl.addColorStop(0, rgb(warm, 0.55 * a)); sgl.addColorStop(1, rgb(warm, 0));
+      g.fillStyle = sgl; g.fillRect(0, 0, W, H);
+      g.fillStyle = rgb(warm, a); g.beginPath(); g.arc(sx, sy, H * 0.045, 0, 7); g.fill();
+      this.light = { x: sx, y: sy, c: warm, a };
+    } else this.light = null;
+    // moon
+    if (E.moonAlt > 0) {
+      const mx = W * (0.08 + 0.84 * (E.moonT / 12.4)), my = H * 0.62 - E.moonAlt * H * 0.5, a = clamp(E.night * 1.3) * (1 - c.cloud * 0.8), r = H * 0.035;
+      const mg = g.createRadialGradient(mx, my, 0, mx, my, r * 7); mg.addColorStop(0, `rgba(220,225,255,${0.25 * a})`); mg.addColorStop(1, "rgba(220,225,255,0)");
+      g.fillStyle = mg; g.fillRect(mx - r * 7, my - r * 7, r * 14, r * 14);
+      g.fillStyle = `rgba(240,238,255,${a})`; g.beginPath(); g.arc(mx, my, r, 0, 7); g.fill();
+      g.fillStyle = rgb(E.sky.top, a * 0.92); g.beginPath(); g.arc(mx - r * 0.55, my - r * 0.1, r * 0.92, 0, 7); g.fill();
+      if (!this.light || this.light.a < a * 0.6) this.light = { x: mx, y: my, c: [220, 228, 255], a: a * 0.6 };
+    }
+    // clouds
+    if (c.cloud > 0.04) {
+      const cc = mix(mix([60, 62, 80], [250, 246, 250], E.day), E.sky.bot, 0.25);
+      const under = mix(cc, DARK, 0.35);
+      for (const cl of this.clouds) {
+        cl.x += cl.v * dt * (1 + c.wind * 3); if (cl.x > 1.3) cl.x = -0.3;
+        for (const [bx, by, br] of cl.b) {
+          const x = (cl.x + bx * cl.s) * W, y = (cl.y + by * cl.s) * H, rr = br * cl.s * W * 0.9;
+          const cg = g.createRadialGradient(x, y - rr * 0.3, 0, x, y, rr); cg.addColorStop(0, rgb(cc, 0.75 * c.cloud)); cg.addColorStop(0.7, rgb(under, 0.5 * c.cloud)); cg.addColorStop(1, rgb(under, 0));
+          g.fillStyle = cg; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+        }
+      }
+    }
+    // far hills
+    g.fillStyle = rgb(E.far); g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 6) { const u = x / W; g.lineTo(x, H * (0.6 - 0.05 * Math.sin(u * 5 + this.hills[0]) - 0.03 * Math.sin(u * 13 + this.hills[1]))); }
+    g.lineTo(W, H); g.fill();
+    // places
+    if (this.prev && this.pm < 1) { g.globalAlpha = 1 - this.pm; this.drawPlace(this.prev, E, dt); }
+    g.globalAlpha = this.prev && this.pm < 1 ? this.pm : 1; this.drawPlace(this.place, E, dt); g.globalAlpha = 1;
+    // fog
+    if (c.fog > 0.02) {
+      const fc = mix(E.sky.bot, [210, 214, 224], 0.35 + E.day * 0.3);
+      for (let i = 0; i < 6; i++) {
+        const y = H * (0.48 + i * 0.09), off = ((T * (0.012 + i * 0.006) + i * 0.3) % 1) * W;
+        for (const dx of [-W, 0]) {
+          g.save(); g.translate(off + dx + W * 0.5, y); g.scale(3.2, 1);
+          const fg = g.createRadialGradient(0, 0, 0, 0, 0, W * 0.2); fg.addColorStop(0, rgb(fc, 0.42 * c.fog)); fg.addColorStop(1, rgb(fc, 0));
+          g.fillStyle = fg; g.beginPath(); g.arc(0, 0, W * 0.2, 0, 7); g.fill(); g.restore();
+        }
+      }
+      g.fillStyle = rgb(fc, 0.22 * c.fog); g.fillRect(0, 0, W, H);
+    }
+    // gloom
+    g.fillStyle = `rgba(14,16,30,${0.22 * c.rain + 0.2 * c.storm})`; g.fillRect(0, 0, W, H);
+    // rain
+    const nr = Math.floor(this.drops.length * c.rain);
+    if (nr) {
+      g.strokeStyle = rgb(mix([150, 170, 210], [210, 225, 250], E.day), 0.35 + 0.2 * c.storm); g.lineWidth = this.mini ? 0.8 : 1.1; g.beginPath();
+      const sl = 0.15 + c.wind * 0.5;
+      for (let i = 0; i < nr; i++) { const d = this.drops[i]; d.y += d.v * dt * (1.4 + c.storm * 0.6); d.x += d.v * dt * sl * 0.6; if (d.y > 1) { d.y -= 1.05; d.x = Math.random(); } if (d.x > 1) d.x -= 1;
+        const x = d.x * W, y = d.y * H; g.moveTo(x, y); g.lineTo(x - sl * d.l * H, y - d.l * H); }
+      g.stroke();
+    }
+    // snow
+    const ns = Math.floor(this.flakes.length * c.snow);
+    for (let i = 0; i < ns; i++) { const f = this.flakes[i]; f.y += f.v * dt * 1.4; f.x += (Math.sin(T + f.p) * 0.012 + c.wind * 0.08) * dt; if (f.y > 1) { f.y = -0.02; f.x = Math.random(); } if (f.x > 1) f.x -= 1;
+      g.fillStyle = `rgba(255,255,255,${0.55 + 0.4 * (f.s / 2.8)})`; g.beginPath(); g.arc(f.x * W, f.y * H, f.s * (this.mini ? 0.7 : 1), 0, 7); g.fill(); }
+    // gale
+    if (c.wind > 0.55) {
+      const a = (c.wind - 0.55) * 2;
+      for (const l of this.leaves) { l.x += l.v * dt * (1 + c.wind); l.y += Math.sin(T * 3 + l.p) * dt * 0.05; if (l.x > 1.05) { l.x = -0.05; l.y = 0.2 + Math.random() * 0.75; }
+        const x = l.x * W, y = l.y * H;
+        g.strokeStyle = `rgba(255,255,255,${0.12 * a})`; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x - W * 0.06, y + Math.sin(T * 2 + l.p) * 3); g.stroke();
+        g.save(); g.translate(x, y); g.rotate(T * 6 + l.p); g.fillStyle = rgb(mix([200, 120, 60], E.near, 0.4), a); g.beginPath(); g.ellipse(0, 0, 3.4, 1.6, 0, 0, 7); g.fill(); g.restore(); }
+    }
+    // lightning
+    if (c.storm > 0.6 && Math.random() < dt * 0.35) this.strike();
+    if (this.flash > 0) {
+      g.fillStyle = `rgba(225,230,255,${this.flash * 0.5})`; g.fillRect(0, 0, W, H);
+      if (this.bolt && this.flash > 0.25) { g.save(); g.strokeStyle = `rgba(255,255,255,${this.flash})`; g.shadowColor = "#b9c8ff"; g.shadowBlur = 18; g.lineWidth = 2.2; g.beginPath(); for (const seg of this.bolt) { g.moveTo(seg[0] * W, seg[1] * H); g.lineTo(seg[2] * W, seg[3] * H); } g.stroke(); g.restore(); }
+      this.flash -= dt * 2.6; if (this.flash <= 0 && this.again) { this.again = false; this.flash = 0.8; }
+    }
+    // drops on the glass
+    if (c.rain > 0.25 && this.glass.length) {
+      const a = (c.rain - 0.25) * 1.3;
+      for (const d of this.glass) { d.y += d.v * dt; if (d.y > 1.02) { d.y = -0.02; d.x = Math.random(); }
+        const x = d.x * W, y = d.y * H, s = d.s;
+        if (d.v) { g.strokeStyle = `rgba(255,255,255,${0.06 * a})`; g.lineWidth = s * 0.7; g.beginPath(); g.moveTo(x, y - s * 6); g.lineTo(x, y); g.stroke(); }
+        const dg = g.createRadialGradient(x - s * 0.3, y - s * 0.3, 0, x, y, s); dg.addColorStop(0, `rgba(255,255,255,${0.5 * a})`); dg.addColorStop(0.6, `rgba(200,210,240,${0.12 * a})`); dg.addColorStop(1, `rgba(0,0,10,${0.25 * a})`);
+        g.fillStyle = dg; g.beginPath(); g.arc(x, y, s, 0, 7); g.fill(); }
+    }
+    // vignette
+    const vg = g.createRadialGradient(W / 2, H * 0.55, H * 0.3, W / 2, H * 0.55, H * 1.05); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(5,3,12,.55)");
+    g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  }
+  strike() {
+    const segs = []; let x = 0.15 + Math.random() * 0.7, y = 0;
+    while (y < 0.6) { const nx = x + (Math.random() - 0.5) * 0.06, ny = y + 0.03 + Math.random() * 0.05; segs.push([x, y, nx, ny]);
+      if (Math.random() < 0.18) { let bx = nx, by = ny; for (let j = 0; j < 4; j++) { const ex = bx + (Math.random() - 0.3) * 0.05, ey = by + 0.03; segs.push([bx, by, ex, ey]); bx = ex; by = ey; } }
+      x = nx; y = ny; }
+    this.bolt = segs; this.flash = 1; this.again = Math.random() < 0.5;
+  }
+  windows(E, x, y, w, h, lit, flick = 0) {
+    const g = this.g, on = lit < E.glow * 0.95;
+    if (!on) return;
+    const fl = flick ? 0.85 + 0.15 * Math.sin(this.time * 9 + flick) : 1;
+    g.fillStyle = rgb(WARM, 0.9 * fl * clamp(E.glow * 1.4)); g.fillRect(x, y, w, h);
+    g.fillStyle = rgb(WARM, 0.12 * fl); g.fillRect(x - w, y - h, w * 3, h * 3);
+  }
+  sea(E, top) {
+    const g = this.g, W = this.w, H = this.h, T = this.time;
+    const sg = g.createLinearGradient(0, H * top, 0, H); sg.addColorStop(0, rgb(mix(E.sky.bot, DARK, 0.25))); sg.addColorStop(1, rgb(mix(E.sky.bot, DARK, 0.85)));
+    g.fillStyle = sg; g.fillRect(0, H * top, W, H * (1 - top));
+    const L = this.light;
+    for (const s of this.shim) {
+      const y = H * (top + s.y * (1 - top)), dx = L ? Math.abs(s.x * W - L.x) / W : 1;
+      const a = (0.06 + (L ? L.a * Math.max(0, 0.5 - dx * 2.2) : 0)) * (0.5 + 0.5 * Math.sin(T * 2 + s.p)) * (1 - this.cur.fog * 0.5);
+      g.fillStyle = rgb(L ? L.c : [200, 210, 255], a); g.fillRect(s.x * W + Math.sin(T * 0.8 + s.p) * 6, y, s.w * W * (0.4 + s.y), 1.2);
+    }
+  }
+  drawPlace(p, E, dt) {
+    const g = this.g, W = this.w, H = this.h, T = this.time, c = this.cur;
+    if (p === "coast") {
+      this.sea(E, 0.6);
+      g.fillStyle = rgb(E.mid); g.beginPath(); g.moveTo(0, H); g.lineTo(0, H * 0.72); g.quadraticCurveTo(W * 0.12, H * 0.66, W * 0.22, H * 0.74); g.lineTo(W * 0.3, H); g.fill();
+      g.fillStyle = rgb(E.near); g.beginPath(); g.moveTo(W * 0.55, H); g.lineTo(W * 0.62, H * 0.66); g.lineTo(W * 0.7, H * 0.58); g.lineTo(W * 0.78, H * 0.535); g.lineTo(W * 0.95, H * 0.52); g.lineTo(W, H * 0.54); g.lineTo(W, H); g.fill();
+      const lx = W * 0.84, base = H * 0.53, top = H * 0.25, bw = W * 0.026, tw = W * 0.018;
+      const tower = mix(E.near, [232, 226, 222], E.day * 0.75), stripe = mix(E.near, [196, 70, 84], E.day * 0.75);
+      g.fillStyle = rgb(tower); g.beginPath(); g.moveTo(lx - bw, base); g.lineTo(lx - tw, top); g.lineTo(lx + tw, top); g.lineTo(lx + bw, base); g.fill();
+      g.fillStyle = rgb(stripe);
+      for (const [a, b] of [[0.2, 0.34], [0.55, 0.69]]) { const y1 = lerp(base, top, a), y2 = lerp(base, top, b), w1 = lerp(bw, tw, a), w2 = lerp(bw, tw, b); g.beginPath(); g.moveTo(lx - w1, y1); g.lineTo(lx - w2, y2); g.lineTo(lx + w2, y2); g.lineTo(lx + w1, y1); g.fill(); }
+      g.fillStyle = rgb(E.near); g.fillRect(lx - tw * 1.5, top - 2, tw * 3, 3); g.beginPath(); g.moveTo(lx - tw * 1.1, top - H * 0.05); g.lineTo(lx, top - H * 0.075); g.lineTo(lx + tw * 1.1, top - H * 0.05); g.fill();
+      const ly = top - H * 0.028, gl = E.glow;
+      g.fillStyle = rgb(mix(E.near, [255, 240, 200], gl)); g.fillRect(lx - tw, top - H * 0.05, tw * 2, H * 0.048);
+      if (gl > 0.05) {
+        const lg = g.createRadialGradient(lx, ly, 0, lx, ly, H * 0.16); lg.addColorStop(0, `rgba(255,236,190,${0.75 * gl})`); lg.addColorStop(1, "rgba(255,236,190,0)");
+        g.fillStyle = lg; g.fillRect(lx - H * 0.16, ly - H * 0.16, H * 0.32, H * 0.32);
+        const ang = T * 0.75, L = Math.cos(ang) * W * 0.95, spread = H * (0.035 + 0.05 * Math.abs(Math.sin(ang)));
+        const a = gl * (0.25 + 0.45 * Math.abs(Math.cos(ang))) * (1 + c.fog * 0.9) * 0.6;
+        const bg = g.createLinearGradient(lx, ly, lx + L, ly); bg.addColorStop(0, `rgba(255,240,200,${a})`); bg.addColorStop(1, "rgba(255,240,200,0)");
+        g.fillStyle = bg; g.beginPath(); g.moveTo(lx, ly - 2); g.lineTo(lx + L, ly - spread); g.lineTo(lx + L, ly + spread * 0.8); g.lineTo(lx, ly + 2); g.fill();
+      }
+      g.fillStyle = rgb(E.near); g.fillRect(W * 0.9, H * 0.47, W * 0.06, H * 0.06); g.beginPath(); g.moveTo(W * 0.895, H * 0.475); g.lineTo(W * 0.93, H * 0.44); g.lineTo(W * 0.965, H * 0.475); g.fill();
+      this.windows(E, W * 0.92, H * 0.49, W * 0.012, H * 0.018, 0.2, 3);
+      // surf
+      g.strokeStyle = `rgba(255,255,255,${0.12 + 0.12 * c.wind})`; g.lineWidth = 1.2; g.beginPath();
+      for (let x = W * 0.56; x < W * 0.64; x += 4) g.lineTo(x, H * (0.98 - (x / W - 0.56) * 3.2) + Math.sin(T * 2 + x * 0.1) * 2 * (1 + c.wind * 2)); g.stroke();
+    } else if (p === "harbor") {
+      this.sea(E, 0.66);
+      g.fillStyle = rgb(E.mid); g.beginPath(); g.moveTo(0, H); g.lineTo(0, H * 0.58); g.quadraticCurveTo(W * 0.25, H * 0.52, W * 0.5, H * 0.7); g.lineTo(W * 0.5, H); g.fill();
+      for (const hs of this.houses) {
+        const x = hs.x * W, gy = H * (0.58 + Math.pow(hs.x / 0.5, 2) * 0.1) + 6, w = hs.w * W, h = hs.h * H;
+        g.fillStyle = rgb(mix(E.mid, E.near, 0.5 + hs.roof * 0.3)); g.fillRect(x, gy - h, w, h);
+        g.beginPath(); g.moveTo(x - 2, gy - h); g.lineTo(x + w / 2, gy - h - w * 0.55); g.lineTo(x + w + 2, gy - h); g.fill();
+        this.windows(E, x + w * 0.3, gy - h * 0.7, Math.max(2, w * 0.25), Math.max(2, h * 0.22), hs.lit, hs.lit * 50);
+      }
+      g.fillStyle = rgb(E.near); g.fillRect(W * 0.38, H * 0.705, W * 0.4, H * 0.016);
+      for (let i = 0; i < 9; i++) g.fillRect(W * (0.39 + i * 0.045), H * 0.72, 2.5, H * 0.07);
+      for (const px of [0.48, 0.7]) { g.fillRect(W * px, H * 0.62, 2, H * 0.085); if (E.glow > 0.2) { const lg = g.createRadialGradient(W * px, H * 0.62, 0, W * px, H * 0.62, H * 0.06); lg.addColorStop(0, rgb(WARM, 0.8 * E.glow)); lg.addColorStop(1, rgb(WARM, 0)); g.fillStyle = lg; g.fillRect(W * px - H * 0.06, H * 0.56, H * 0.12, H * 0.12); g.fillStyle = rgb(E.near); } }
+      [0.56, 0.68, 0.82, 0.93].forEach((bx, i) => {
+        const bob = Math.sin(T * 1.4 + i * 1.7) * (1.5 + c.wind * 4), tilt = Math.sin(T * 1.1 + i) * 0.03 * (1 + c.wind * 3);
+        g.save(); g.translate(W * bx, H * (0.8 + (i % 2) * 0.07) + bob); g.rotate(tilt);
+        const s = W * (0.05 + (i % 2) * 0.012);
+        g.fillStyle = rgb(E.near); g.beginPath(); g.moveTo(-s, 0); g.lineTo(s, 0); g.lineTo(s * 0.75, s * 0.28); g.lineTo(-s * 0.7, s * 0.28); g.fill();
+        g.fillRect(-1, -s * 1.5, 2, s * 1.5); g.beginPath(); g.moveTo(2, -s * 1.4); g.lineTo(s * 0.7, -s * 0.15); g.lineTo(2, -s * 0.15); g.fillStyle = rgb(mix(E.near, E.far, 0.35)); g.fill();
+        if (E.glow > 0.3) { g.fillStyle = rgb(WARM, E.glow); g.beginPath(); g.arc(0, -s * 1.5, 1.8, 0, 7); g.fill(); }
+        g.restore();
+      });
+    } else if (p === "forest") {
+      this.pines.forEach((layer, L) => {
+        const col = [E.far, E.mid, E.near][L], gy = H * (0.66 + L * 0.1);
+        g.fillStyle = rgb(mix(col, E.sky.bot, L === 0 ? 0.25 : 0)); g.beginPath(); g.moveTo(0, H);
+        for (let x = 0; x <= W; x += 8) g.lineTo(x, gy + Math.sin(x / W * 6 + L) * H * 0.02); g.lineTo(W, H); g.fill();
+        for (const pn of layer) {
+          const x = pn.x * W, h = pn.h * H, sway = Math.sin(T * 1.8 + pn.p) * c.wind * 4, by = gy + Math.sin(pn.x * 6 + L) * H * 0.02 + 4;
+          for (let tier = 0; tier < 4; tier++) { const ty = by - h * (tier * 0.24), tw = h * (0.26 - tier * 0.05);
+            g.beginPath(); g.moveTo(x - tw, ty); g.lineTo(x + sway * (tier + 1) * 0.3, ty - h * 0.42); g.lineTo(x + tw, ty); g.fill(); }
+        }
+        g.fillStyle = rgb(col);
+      });
+        { const cx = W * 0.58, cy = H * 0.87; g.fillStyle = rgb(E.near); g.fillRect(cx, cy - H * 0.06, W * 0.07, H * 0.06); g.beginPath(); g.moveTo(cx - 4, cy - H * 0.06); g.lineTo(cx + W * 0.035, cy - H * 0.1); g.lineTo(cx + W * 0.074, cy - H * 0.06); g.fill();
+          this.windows(E, cx + W * 0.012, cy - H * 0.042, W * 0.014, H * 0.02, 0.1, 7); this.windows(E, cx + W * 0.044, cy - H * 0.042, W * 0.014, H * 0.02, 0.1, 9);
+          if (E.glow > 0.3) for (let i = 0; i < 6; i++) { const k = (T * 0.15 + i / 6) % 1; g.fillStyle = `rgba(200,200,215,${0.18 * (1 - k)})`; g.beginPath(); g.arc(cx + W * 0.06 + k * 30 * (1 + c.wind * 3), cy - H * 0.11 - k * H * 0.18, 4 + k * 14, 0, 7); g.fill(); } }
+      const fa = E.night * (1 - c.rain) * (1 - c.snow) * (1 - c.wind * 0.8);
+      if (fa > 0.05) for (const f of this.flies) { const x = (f.x + Math.sin(T * 0.3 * f.s + f.p) * 0.03) * W, y = (f.y + Math.cos(T * 0.4 * f.s + f.p) * 0.02) * H, a = fa * (0.5 + 0.5 * Math.sin(T * 3 * f.s + f.p));
+        const fg = g.createRadialGradient(x, y, 0, x, y, 7); fg.addColorStop(0, `rgba(230,255,150,${a})`); fg.addColorStop(1, "rgba(230,255,150,0)"); g.fillStyle = fg; g.fillRect(x - 7, y - 7, 14, 14); }
+    } else if (p === "city") {
+      this.towers.forEach((row, L) => {
+        const col = L ? E.near : E.mid, gy = H * (L ? 1 : 0.84);
+        for (const b of row) {
+          const x = b.x * W, w = b.w * W, h = b.h * H;
+          g.fillStyle = rgb(col); g.fillRect(x, gy - h, w, h);
+          const cols = Math.max(2, Math.floor(w / 9)), rows = Math.floor(h / 12), cw = w / cols;
+          let n = 0;
+          for (let r2 = 1; r2 < rows; r2++) for (let k = 0; k < cols; k++) { const lit = b.win[n++ % 60];
+            if (lit < E.glow * (L ? 0.55 : 0.4)) { g.fillStyle = rgb(lit < 0.08 ? [170, 210, 255] : WARM, (L ? 0.85 : 0.55) * clamp(E.glow * 1.5) * (lit * 997 % 1 < 0.03 ? 0.4 + 0.6 * Math.abs(Math.sin(T * 7 + lit * 40)) : 1)); g.fillRect(x + k * cw + cw * 0.3, gy - h + r2 * 12, cw * 0.4, 5); } }
+        }
+        if (L) { const tb = row.reduce((a, b) => (b.h > a.h ? b : a)); const ax = (tb.x + tb.w / 2) * W, ay = H - tb.h * H; g.fillStyle = rgb(col); g.fillRect(ax - 1, ay - H * 0.07, 2, H * 0.07);
+          if (Math.sin(T * 3) > 0) { const rg = g.createRadialGradient(ax, ay - H * 0.07, 0, ax, ay - H * 0.07, 10); rg.addColorStop(0, "rgba(255,70,80,.95)"); rg.addColorStop(1, "rgba(255,70,80,0)"); g.fillStyle = rg; g.fillRect(ax - 10, ay - H * 0.07 - 10, 20, 20); } }
+      });
+      const st = g.createLinearGradient(0, H, 0, H * 0.75); st.addColorStop(0, rgb(WARM, 0.22 * E.glow)); st.addColorStop(1, rgb(WARM, 0)); g.fillStyle = st; g.fillRect(0, H * 0.75, W, H * 0.25);
+    } else if (p === "desert") {
+      const sand = mix([60, 40, 50], [222, 160, 104], E.day);
+      [[0.62, 0.35, E.far], [0.74, 0.55, E.mid], [0.86, 0.8, E.near]].forEach(([y0, k, base], i) => {
+        const col = mix(base, sand, (1 - k) * 0.4 + E.day * 0.35 * (1 - i * 0.25));
+        g.fillStyle = rgb(col); g.beginPath(); g.moveTo(0, H);
+        for (let x = 0; x <= W; x += 6) { const u = x / W; g.lineTo(x, H * (y0 - 0.05 * Math.sin(u * (3 + i) + i * 2 + this.hills[2]) - 0.02 * Math.sin(u * 11 + i))); }
+        g.lineTo(W, H); g.fill();
+        if (this.light && E.day > 0.2) { g.strokeStyle = rgb([255, 230, 190], 0.18 * E.day); g.lineWidth = 1.2; g.beginPath(); for (let x = 0; x <= W; x += 6) { const u = x / W; g.lineTo(x, H * (y0 - 0.05 * Math.sin(u * (3 + i) + i * 2 + this.hills[2]) - 0.02 * Math.sin(u * 11 + i))); } g.stroke(); }
+      });
+      const ax = W * 0.68, ay = H * 0.76, aw = W * 0.14, ah = H * 0.2;
+      { const x0 = ax + aw * 0.09, x1 = ax + aw * 0.91, cx = (x0 + x1) / 2, r = (x1 - x0) / 2;
+        g.strokeStyle = rgb(E.near); g.lineWidth = aw * 0.18; g.lineCap = "butt"; g.beginPath(); g.moveTo(x0, ay); g.lineTo(x0, ay - ah); g.arc(cx, ay - ah, r, Math.PI, Math.PI * 1.72); g.stroke();
+        g.beginPath(); g.moveTo(x1, ay); g.lineTo(x1, ay - ah * 0.72); g.stroke(); }
+      if (E.glow > 0.15) { const fx = W * 0.3, fy = H * 0.9, fl = 0.85 + 0.15 * Math.sin(T * 13) * Math.sin(T * 7); const fg = g.createRadialGradient(fx, fy, 0, fx, fy, H * 0.16 * fl); fg.addColorStop(0, `rgba(255,170,90,${0.85 * E.glow})`); fg.addColorStop(1, "rgba(255,170,90,0)"); g.fillStyle = fg; g.fillRect(fx - H * 0.2, fy - H * 0.2, H * 0.4, H * 0.4);
+        g.fillStyle = `rgba(255,220,150,${E.glow})`; g.beginPath(); g.moveTo(fx - 5, fy); g.quadraticCurveTo(fx, fy - 14 * fl, fx + 5, fy); g.fill(); }
+      g.fillStyle = rgb(E.near); g.beginPath(); g.moveTo(W * 0.36, H * 0.9); g.lineTo(W * 0.39, H * 0.84); g.lineTo(W * 0.42, H * 0.9); g.fill();
+    }
+  }
+}
+
+const fmt = (t) => { const m = Math.round(t * 60) % 1440; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
+const period = (t) => t < 4 ? "small hours" : t < 6 ? "before dawn" : t < 7.5 ? "dawn" : t < 11.5 ? "morning" : t < 13.5 ? "noon" : t < 17.5 ? "afternoon" : t < 20 ? "dusk" : t < 22 ? "evening" : "night";
+const win = new Scene($("#win"));
+const W8 = { t: 23.17, wx: "rain", place: "coast", day: 1 };
+function syncWindow() {
+  win.set(W8);
+  $("#w-clock").innerHTML = `${fmt(W8.t)}<small>${period(W8.t)}</small>`;
+  $("#w-day").textContent = `${DAYS[W8.day]} · ${13 + W8.day} October`;
+  $("#w-wx").textContent = WX[W8.wx].words;
+  $("#w-crumbs").innerHTML = PLACES[W8.place].crumbs.map((c) => `<span>${c}</span>`).join("<i>›</i>");
+  $("#t-range").value = W8.t;
+  $$("#wx-chips .chip").forEach((b) => b.classList.toggle("on", b.dataset.k === W8.wx));
+  $$("#pl-chips .chip").forEach((b) => b.classList.toggle("on", b.dataset.k === W8.place));
+}
+$("#wx-chips").innerHTML = Object.entries(WX).map(([k, v]) => `<button class="chip" data-k="${k}">${v.label}</button>`).join("");
+$("#pl-chips").innerHTML = Object.entries(PLACES).map(([k, v]) => `<button class="chip" data-k="${k}">${v.label}</button>`).join("");
+$("#wx-chips").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (b) { W8.wx = b.dataset.k; syncWindow(); clearBeat(); } });
+$("#pl-chips").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (b) { W8.place = b.dataset.k; syncWindow(); clearBeat(); } });
+$("#t-range").addEventListener("input", (e) => { W8.t = +e.target.value; syncWindow(); });
+let playing = false;
+$("#play").addEventListener("click", () => { playing = !playing; $("#play").textContent = playing ? "❚❚" : "▶"; });
+{ let last = performance.now(); const tick = (now) => { const dt = (now - last) / 1000; last = now; if (playing) { W8.t += dt * 1.2; if (W8.t >= 24) { W8.t -= 24; W8.day = (W8.day + 1) % 7; } syncWindow(); } requestAnimationFrame(tick); }; requestAnimationFrame(tick); }
+const BEATS = [
+  { t: 21.67, wx: "rain", place: "harbor", story: "Pell rings the bell twice. The supply boat isn't coming.", ledger: ["clock 21:40", "wx rain, steady", "at Saltmere > the harbour"] },
+  { t: 22.5, wx: "storm", place: "coast", story: "You climb the cliff path with the eggs under your coat.", ledger: ["clock 22:30", "wx storm, building", "at Gull's Reach > cliff path"] },
+  { t: 23.17, wx: "fog", place: "coast", story: "The storm blows itself out. Fog comes in thick enough to lean on.", ledger: ["clock 23:10", "wx fog off the water", "at Gull's Reach > the lamp room"] },
+  { t: 5.8, wx: "clear", place: "coast", story: "Dawn. She lets you hold the lamp.", ledger: ["clock +6h40", "wx clear, still", "at Gull's Reach > the gallery"] },
+  { t: 2.3, wx: "rain", place: "city", story: "Another story: the vending machine on 3 says your name.", ledger: ["clock 02:18", "wx rain on the glass", "at St. Agnes > roof, ward 3"] },
+  { t: 14.4, wx: "wind", place: "desert", story: "Another story: Ilse's airship limps over the Glass Waste.", ledger: ["clock 14:24", "wx gale, hot", "at The Glass Waste > camp"] },
+];
+$("#beats").innerHTML = BEATS.map((b, i) => `<button class="beat" data-i="${i}"><span class="story">${b.story}</span><span class="ledger">${b.ledger.map((l) => `<span><b>${l.split(" ")[0]}</b> ${l.split(" ").slice(1).join(" ")}</span>`).join("")}</span></button>`).join("");
+function clearBeat() { $$(".beat").forEach((x) => x.classList.remove("on")); }
+$("#beats").addEventListener("click", (e) => {
+  const b = e.target.closest(".beat"); if (!b) return;
+  const B = BEATS[+b.dataset.i]; playing = false; $("#play").textContent = "▶";
+  if (B.t < W8.t - 6) W8.day = (W8.day + 1) % 7;
+  Object.assign(W8, { t: B.t, wx: B.wx, place: B.place });
+  syncWindow(); clearBeat(); b.classList.add("on");
+});
+syncWindow();
+
+/* ------------------------------------------------------------ almanac */
+const SNAP = [
+  { turn: 180, scene: "Scene 11 · The harbour", t: 21.67, wx: "rain", where: "Saltmere harbour", tier: 3, trust: 3, aff: 2, oil: 6, sleep: 4, wreck: 2, board: 1, boat: "in 3 d 1 h",
+    wren: ["guarded", "#9cc4ff", "checking the oil stores"], ev: "She took the eggs and didn't say thank you, which from Wren is thank you." },
+  { turn: 194, scene: "Scene 12 · Cliff path", t: 22.5, wx: "storm", where: "Gull's Reach", tier: 3, trust: 4, aff: 3, oil: 5, sleep: 5, wreck: 3, board: 1, boat: "in 2 d 11 h",
+    wren: ["alarmed", "#ff8a9a", "holding the door against the wind"], ev: "“Get inside before you're a story.”" },
+  { turn: 203, scene: "Scene 13 · Fog", t: 23.17, wx: "fog", where: "Gull's Reach", tier: 4, trust: 5, aff: 4, oil: 4, sleep: 6, wreck: 4, board: 2, boat: "in 2 d 10 h",
+    wren: ["unsettled", "#ffd08f", "winding the clockwork"], ev: "She pressed a dry towel into Ash's hands and kept holding it a beat too long." },
+  { turn: 212, scene: "Scene 14 · The lamp room", t: 23.17, wx: "fog", where: "Gull's Reach", tier: 5, trust: 6, aff: 5, oil: 3, sleep: 7, wreck: 4, board: 2, boat: "in 2 d 9 h",
+    wren: ["tender, hiding it", "#ff9ec0", "polishing the lens"], ev: "“Tam used to say…” First time she's said his name to anyone." },
+];
+const mini = new Scene($("#mini"), { mini: true });
+const LADDER = ["Strangers", "Aware", "Interested", "Charged", "Tested", "Spoken", "Together", "Established"];
+let S = SNAP[3];
+
+function renderPeople() {
+  const P = [
+    ["wren", "Wren Halloway", "the keeper · lamp room", S.wren[0], S.wren[1], S.wren[2], [["fatigue", 40 + S.sleep * 7, "#c7b4ff"], ["hunger", 62, "#ffd08f"], ["composure", 70 - S.sleep * 4, "#82e3d3"], ["stress", 30 + S.wreck * 8, "#ff8a9a"]], false, "2.2s"],
+    ["ash", "Ash", "you · lamp room", "(sealed)", "#ffffff44", "dripping on the floor", [["fatigue", 55, "#c7b4ff"], ["health", 88, "#82e3d3"], ["hunger", 40, "#ffd08f"]], false, "4s"],
+    ["pell", "Mr. Pell", "harbour office · offstage", "guilty", "#ffbf6b", "drafting a report", [["stress", 66, "#ff8a9a"], ["intox", 30, "#ffd08f"]], true, "3s"],
+    ["nan", "Old Nan Ives", "her cottage · offstage", "worried", "#c7b4ff", "counting eggs", [["fatigue", 35, "#c7b4ff"], ["composure", 80, "#82e3d3"]], true, "3.4s"],
+  ];
+  $("#people").innerHTML = P.map(([k, n, where, mood, mc, act, m, off, bp]) => `<div class="person ${off ? "off" : ""}"><div class="top"><span class="orb sm" data-orb="${k}">${n[0]}</span><div><b>${n}</b><span>${where}</span></div></div>
+    <div class="mood" style="--mc:${mc};--bp:${bp}"><i></i>${mood}</div><div class="doing">${act}</div>
+    <div class="meters">${m.map(([l, v, c]) => `<div class="meter" style="--c:${c}"><span>${l}</span><span class="bar"><i style="--v:${v}%"></i></span><span>${Math.round(v / 10)}</span></div>`).join("")}</div></div>`).join("");
+  paintOrbs();
+}
+
+const BODY = {
+  ash: { w: [[38, 120, 2, "Left palm", "rope burn · treated", "climbing the lamp-room ladder"], [70, 176, 1, "Right knee", "bruised", "slipped on the cliff path"]], cond: [["Chilled", "until you're dry", "#9cc4ff"], ["Soaked boots", "left one leaking", "#82e3d3"]] },
+  wren: { w: [[86, 104, 2, "Right forearm", "old lamp burn · scarred", "the night Tam left"], [60, 30, 1, "Eyes", "strained", "watching the dark"]], cond: [["Awake 26 h", "sleep debt 7/10", "#c7b4ff"], ["Skipped supper", "third night running", "#ffd08f"]] },
+};
+const SEV = ["", "#ffd08f", "#ffb86b", "#ff8a9a", "#ff4d6d"];
+function renderBody(who) {
+  const B = BODY[who];
+  $("#body-svg").innerHTML = `<defs><linearGradient id="bodyg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ffffff30"/><stop offset="1" stop-color="#ffffff0a"/></linearGradient></defs>
+    <g fill="url(#bodyg)" stroke="#ffffff40" stroke-width="1.2"><circle cx="60" cy="26" r="15"/><path d="M42 48 q18 -8 36 0 l6 58 q-24 8 -48 0z"/><path d="M42 50 l-12 54 l-4 20 l7 2 l9 -40z"/><path d="M78 50 l12 54 l4 20 l-7 2 l-9 -40z"/><path d="M45 106 l-3 66 l-2 46 h10 l5 -50 l5 -60z"/><path d="M75 106 l3 66 l2 46 h-10 l-5 -50 l-5 -60z"/></g>
+    ${B.w.map(([x, y, s]) => `<circle cx="${x}" cy="${y}" r="${4 + s * 2}" fill="${SEV[s]}" opacity=".25" class="wound"/><circle cx="${x}" cy="${y}" r="3.2" fill="${SEV[s]}"/>`).join("")}`;
+  $("#wlist").innerHTML = B.w.map(([, , s, a, b, c]) => `<div style="--wc:${SEV[s]}"><b>${a}</b>${b}<br><span class="faint">${c}</span></div>`).join("") + B.cond.map(([a, b, c]) => `<div style="--wc:${c}"><b>${a}</b><span class="faint">${b}</span></div>`).join("");
+}
+$("#body-sw").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $$("#body-sw button").forEach((x) => x.classList.toggle("on", x === b)); renderBody(b.dataset.b); });
+
+const NODES = { wren: [200, 120], ash: [330, 70], pell: [70, 60], nan: [80, 200], tamsin: [320, 205] };
+let bondSel = "wren-ash";
+const bondsData = () => ({
+  "wren-ash": { a: "wren", b: "ash", trust: S.trust, affection: S.aff, respect: 5, comfort: S.trust - 1, attraction: S.tier + 1, label: "the lodger", last: `trust +1 · “${S.ev.slice(0, 48)}…”` },
+  "wren-nan": { a: "wren", b: "nan", trust: 8, affection: 7, respect: 6, comfort: 8, label: "the egg truce", last: "affection +1 · the note on the sill" },
+  "wren-pell": { a: "wren", b: "pell", trust: 3, affection: 1, respect: 4, comfort: -2, resentment: 4, label: "regulations", last: "trust −1 · the boat, cancelled" },
+  "wren-tamsin": { a: "wren", b: "tamsin", trust: 7, affection: 9, respect: 6, comfort: -3, label: "gone, not forgotten", last: "grief · his name, said aloud", absent: true },
+  "ash-pell": { a: "ash", b: "pell", trust: 2, affection: 0, respect: 1, comfort: 0, label: "strangers, wary", last: "“Tell your lodger.”" },
+  "ash-nan": { a: "ash", b: "nan", trust: 5, affection: 4, respect: 3, comfort: 5, obligation: 3, label: "the borrowed scarf", last: "obligation +1 · one basket" },
+});
+function renderBonds() {
+  const D = bondsData();
+  const edges = Object.entries(D).map(([id, d]) => {
+    const [x1, y1] = NODES[d.a], [x2, y2] = NODES[d.b], mx = (x1 + x2) / 2 + (y2 - y1) * 0.15, my = (y1 + y2) / 2 - (x2 - x1) * 0.15;
+    const w = 1 + Math.max(0, d.trust) * 0.7, col = d.affection >= 6 ? "#ff9ec0" : d.affection >= 3 ? "#c7b4ff" : d.affection >= 1 ? "#9cc4ff" : "#8a7d9e";
+    return `<g class="edge" data-id="${id}" opacity="${bondSel === id ? 1 : 0.6}"><path d="M${x1} ${y1}Q${mx} ${my} ${x2} ${y2}" stroke="transparent" stroke-width="16" fill="none"/><path d="M${x1} ${y1}Q${mx} ${my} ${x2} ${y2}" stroke="${col}" stroke-width="${w}" fill="none" stroke-linecap="round" ${d.absent ? 'stroke-dasharray="2 6"' : ""} ${(d.comfort ?? 0) < 0 ? 'stroke-dasharray="10 4"' : ""}>${bondSel === id ? '<animate attributeName="stroke-opacity" values="1;.5;1" dur="2.4s" repeatCount="indefinite"/>' : ""}</path></g>`;
+  }).join("");
+  const nodes = Object.entries(NODES).map(([k, [x, y]]) => `<g><circle cx="${x}" cy="${y}" r="${k === "wren" ? 22 : 17}" fill="${V[k].hue}" ${k === "tamsin" ? 'opacity=".45"' : ""}/><circle cx="${x}" cy="${y}" r="${k === "wren" ? 30 : 24}" fill="none" stroke="${V[k].hue}" stroke-opacity=".25"/><text x="${x}" y="${y + 6}" text-anchor="middle" font-family="Instrument Serif" font-size="${k === "wren" ? 20 : 16}" fill="#0e0a18">${V[k].name[0]}</text><text x="${x}" y="${y + (k === "wren" ? 46 : 40)}" text-anchor="middle" font-family="Manrope" font-weight="700" font-size="11" fill="#b9abc8">${V[k].name.split(" ").slice(-1)[0] === "Ives" ? "Nan" : V[k].name.replace("Mr. ", "").split(" ")[0]}${k === "tamsin" ? " · gone" : ""}</text></g>`).join("");
+  $("#bond-svg").innerHTML = edges + nodes;
+  const d = D[bondSel];
+  const axes = ["trust", "affection", "respect", "comfort", "attraction", "resentment", "obligation"].filter((a) => d[a] != null);
+  $("#bond-detail").innerHTML = `<div class="hd">${V[d.a].name.split(" ")[0]} ⟷ ${V[d.b].name.replace("Old ", "").split(" ")[0]} · <i style="color:var(--lamp)">${d.label}</i></div>` +
+    axes.map((a) => { const v = d[a], bip = ["trust", "affection", "respect", "comfort"].includes(a), c = v < 0 ? "#ff8a9a" : a === "attraction" ? "#ff9ec0" : a === "resentment" ? "#ffb86b" : "#82e3d3";
+      const style = bip ? (v >= 0 ? `left:50%;width:${v * 5}%` : `left:${50 + v * 5}%;width:${-v * 5}%`) : `left:0;width:${v * 10}%`;
+      return `<div class="axis" style="--c:${c}"><span>${a}</span><span class="track"><i style="${style}"></i></span><span>${v > 0 && bip ? "+" : ""}${v}</span></div>`; }).join("") +
+    `<div class="tiny faint" style="margin-top:4px">last move: ${d.last}</div>`;
+}
+$("#bond-svg").addEventListener("click", (e) => { const g = e.target.closest(".edge"); if (g) { bondSel = g.dataset.id; renderBonds(); } });
+
+function renderLadder() {
+  $("#ladder").innerHTML = LADDER.map((n, i) => `<div class="rung ${i < S.tier ? "past" : i === S.tier ? "now" : ""}">${n}</div>`).reverse().join("");
+  $("#ladder-ev").textContent = S.ev;
+}
+const KNOW = [
+  ["The lamp was dark for six minutes", "true", { wren: "knows", ash: "knows", pell: "knows", nan: "knows" }],
+  ["Pell cancelled the supply boat himself", "true", { wren: "unaware", ash: "suspects", pell: "knows", nan: "suspects" }, "Pell"],
+  ["Tamsin's boat was seen after the wreck", "partial", { wren: "doubts", ash: "unaware", pell: "knows", nan: "believes" }, "Pell, Nan"],
+  ["Ash wrote to the Courier", "true", { wren: "suspects", ash: "knows", pell: "unaware", nan: "unaware" }, "Ash"],
+  ["Wren sleeps in the cottage", "false", { wren: "knows", ash: "knows", pell: "wrong", nan: "knows" }],
+];
+function renderKnow() {
+  const who = ["wren", "ash", "pell", "nan"];
+  $("#know").innerHTML = `<tr><th>Fact</th>${who.map((w) => `<th>${w === "nan" ? "Nan" : w === "pell" ? "Pell" : V[w].name.split(" ")[0]}</th>`).join("")}</tr>` +
+    KNOW.map(([f, tr, st, sec]) => `<tr><td class="fact"><b>${sec ? "🔒 " : ""}${f}</b><small>${tr === "true" ? "true" : tr === "false" ? "false — a wrong belief is tracked" : "partly true"}${sec ? ` · kept by ${sec}` : ""}</small></td>${who.map((w) => `<td><i class="ks ${st[w]}" title="${st[w]}"></i></td>`).join("")}</tr>`).join("");
+}
+const THREADS = [
+  ["Where Tamsin went", "open · rising", [0.1, 0.25, 0.42, 0.6, 0.86], "#ff9ec0", 0.9],
+  ["The cancelled boat", "open · new", [0.7, 0.8, 0.95], "#ffbf6b", 0.7],
+  ["Six dark minutes", "simmering", [0.2, 0.55], "#9cc4ff", 0.45],
+  ["Nan's eggs", "resolved · comic", [0.05, 0.3, 0.5, 0.65], "#c7b4ff", 0.15],
+];
+function renderLoom() {
+  $("#loom").innerHTML = THREADS.map(([n, st, knots, c, ten], i) => {
+    let d = "M0 17"; for (let x = 0; x <= 100; x += 4) d += ` L${x} ${17 + Math.sin(x / 7 + i) * ten * 9}`;
+    return `<div class="thread"><div class="nm"><b>${n}</b><span style="color:${c}">${st}</span></div><svg viewBox="0 0 100 34" preserveAspectRatio="none"><path d="${d}" stroke="${c}" stroke-width="${1 + ten * 2}" fill="none" vector-effect="non-scaling-stroke" opacity="${st.startsWith("resolved") ? 0.4 : 1}"/>${knots.map((k) => `<circle cx="${k * 100}" cy="${17 + Math.sin(k * 100 / 7 + i) * ten * 9}" r="3" fill="${c}" vector-effect="non-scaling-stroke"/>`).join("")}${st.startsWith("resolved") ? '<path d="M96 12 l4 5 -4 5" stroke="#8a7d9e" fill="none" vector-effect="non-scaling-stroke"/>' : ""}</svg></div>`;
+  }).join("");
+}
+function gauge(id, v, label) { const el = $(`#${id} .cells`); el.innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i < v ? "on" : ""}"></i>`).join(""); $(`#${id}-t`).textContent = label; }
+function fclock(id, cur, max, c) {
+  const r = 26, cx = 33, cy = 33; let s = "";
+  for (let i = 0; i < max; i++) { const a0 = (i / max) * 6.283 - 1.571 + 0.04, a1 = ((i + 1) / max) * 6.283 - 1.571 - 0.04;
+    s += `<path d="M${cx} ${cy} L${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A${r} ${r} 0 0 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)}Z" fill="${i < cur ? c : "#ffffff14"}" ${i < cur ? `style="filter:drop-shadow(0 0 4px ${c})"` : ""}/>`; }
+  $(`#${id}`).innerHTML = s + `<circle cx="33" cy="33" r="9" fill="#160f26"/><text x="33" y="37" text-anchor="middle" font-family="Instrument Serif" font-size="12" fill="#f5eef7">${cur}/${max}</text>`;
+}
+function renderCal() {
+  const ev = { 14: [], 16: ["var(--lamp)"], 17: ["var(--red)"], 19: ["var(--rose)"], 21: ["var(--sea)"], 9: ["var(--lilac)"] };
+  const tip = { 14: "Today", 16: "Supply boat", 17: "Harbour board", 19: "Tamsin's birthday", 21: "Spring tide 04:12", 9: "The six dark minutes" };
+  let h = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => `<div class="dow">${d}</div>`).join("");
+  for (let d = 6; d <= 26; d++) h += `<div class="d ${d === 14 ? "today" : d < 14 ? "past" : ""}" ${tip[d] ? `data-tip="${tip[d]}"` : ""}>${d}${ev[d] && ev[d].length ? `<span class="ev">${ev[d].map((c) => `<i style="--c:${c}"></i>`).join("")}</span>` : ""}</div>`;
+  $("#cal").innerHTML = h;
+}
+const CHG = [["", "◷", "21:40 → 23:10", "+1 h 30"], ["", "☁", "Storm → Fog", "weather"], ["", "⌂", "Cliff path → Lamp room", "scene 14"], ["up", "♡", "Wren → Ash", "Tested → Spoken"], ["up", "✦", "Trust +1", "Wren → Ash"], ["", "🗝", "Brass key → Ash", "given"], ["down", "⧗", "Lamp oil −1", "3 / 10"], ["due", "⛴", "Supply boat", "in 2 d 9 h"], ["warn", "◐", "Ash suspects Pell", "fact · boat"], ["", "✿", "“lodger” ×6", "running bit"], ["up", "〰", "Where Tamsin went", "rising"]];
+function renderAll(flash) {
+  renderPeople(); renderBonds(); renderLadder(); renderKnow(); renderLoom(); renderCal();
+  gauge("g-oil", S.oil, `${S.oil} / 10 · the boat brought none`); gauge("g-sleep", S.sleep, `${S.sleep} / 10`);
+  fclock("fc-wreck", S.wreck, 6, "#ff8a9a"); fclock("fc-board", S.board, 4, "#ffd08f");
+  $("#cd-boat").textContent = S.boat; $("#turn-no").textContent = `Turn ${S.turn}`; $("#turn-scene").textContent = S.scene;
+  $("#m-clock").textContent = fmt(S.t); $("#m-wx").textContent = `${WX[S.wx].words} · ${S.where}`;
+  mini.set({ t: S.t, wx: S.wx, place: S.where.startsWith("Saltmere") ? "harbor" : "coast" });
+  $("#chgs").innerHTML = CHG.map(([t, i, a, b], k) => `<span class="chg ${t}" style="animation-delay:${k * 0.05}s"><i>${i}</i>${a} <small>${b}</small></span>`).join("");
+  if (flash) $$(".bento .tile").forEach((t) => { t.classList.remove("flash"); void t.offsetWidth; t.classList.add("flash"); });
+}
+$("#rewind").addEventListener("input", (e) => { S = SNAP[+e.target.value]; renderAll(true); });
+renderBody("ash"); renderAll();
+
+/* ------------------------------------------------------------ the veil */
+const MINDS = {
+  wren: { shown: "Dry. Busy with the lens.", felt: "Glad. Afraid of how glad.", tell: "Polishes the same spot of glass when she's lying.", thought: "If the boat doesn't come, Ash stays another night. I shouldn't want that this much.",
+    drives: { want: "keep the light burning without help", fear: "being left on the rock again", need: "let someone else carry the lamp", tactic: "a joke, then a chore" },
+    journal: [["14 Oct · after the bell", "Boat cancelled. Pell wouldn't look at me. Oil for three nights if I'm careful. <s>Ash can</s> The lodger can sleep in the cottage again."], ["14 Oct · late", "Said Tam's name. Out loud. To someone who never met him. The lamp didn't care. I did."], ["13 Oct", "Six minutes. I know where I was for every one of them, and I'm not writing it here either."], ["12 Oct", "Nan's eggs again. She thinks I don't notice when she's worried. Ate two to spite her."]] },
+  pell: { shown: "Gruff. Hurried. Regulations.", felt: "Ashamed, and certain he's right.", tell: "Says “regulations” when he's covering for someone.", thought: "She'll find out who cancelled it. Better it's from me. Not tonight.",
+    drives: { want: "the harbour board off his back", fear: "another wreck on his watch", need: "to be forgiven for the last one", tactic: "paperwork, loudly" },
+    journal: [["14 Oct", "Cancelled the boat. Told the board it was weather. It wasn't."], ["9 Oct", "Six minutes dark. Twenty-two years and I've never seen her miss a turn."]] },
+  nan: { shown: "Nosy. Merry. Full of eggs.", felt: "Frightened for the girl.", tell: "Brings eggs when she's worried; a dozen means very.", thought: "Third night she's skipped supper. Fourth, and I'm climbing those stairs myself.",
+    drives: { want: "everyone fed", fear: "another Halloway lost to that rock", need: "someone to tell the truth about Tamsin to", tactic: "food, gossip, sitting down uninvited" },
+    journal: [["14 Oct", "Twelve eggs up the hill. The lodger has kind hands and terrible boots."], ["11 Oct", "Saw a sail like Tamsin's off the Point. Told nobody. Told this book."]] },
+};
+let veilWho = "wren", page = 0;
+function renderVeil() {
+  const grid = $("#veil-grid");
+  if (veilWho === "ash") {
+    grid.innerHTML = `<div class="glass veil-card ash-sealed" style="grid-column:1/-1"><svg viewBox="0 0 64 64"><use href="#seal-shape"/></svg><h4>Ash's mind is sealed</h4><p>Your character's thoughts, mood and private life are yours to write. The model may describe what anyone can see, but never what you feel. This follows the preset's Persona control, set to Continuity.</p><span class="tag hot">persona · continuity</span></div>`;
+    return;
+  }
+  const M = MINDS[veilWho], name = { wren: "Wren", pell: "Mr. Pell", nan: "Nan" }[veilWho], hue = V[veilWho].hue;
+  grid.innerHTML = `
+  <div class="glass veil-card">
+    <div class="mask" id="mask" style="--lift:0">
+      <div class="layer felt"><small>Felt</small><div class="big">${M.felt}</div><div class="tell">Tell · ${M.tell}</div></div>
+      <div class="layer shown"><small>Shown</small><div class="big">${M.shown}</div><div class="tell" style="opacity:.6">What everyone in the room can see.</div></div>
+      <div class="seam"></div><span class="hint">drag to lift the mask →</span>
+      <input type="range" min="0" max="100" value="0" aria-label="Lift the mask" />
+    </div>
+    <div class="mind" id="mind" tabindex="0" role="button" aria-label="Hold to read ${name}'s thoughts">
+      <div class="txt">“${M.thought}”</div>
+      <svg class="ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" stroke="#ffffff1c"/><circle id="ring" cx="22" cy="22" r="18" stroke="${hue}" stroke-dasharray="113" stroke-dashoffset="113" transform="rotate(-90 22 22)" stroke-linecap="round"/></svg>
+      <span class="lbl">Hold to read ${name}'s mind</span><span class="again">click to veil again</span>
+    </div>
+  </div>
+  <div class="glass veil-card">
+    <div class="compass">
+      <svg viewBox="0 0 200 200"><g fill="none" stroke="${hue}" stroke-opacity=".35"><circle cx="100" cy="100" r="62"/><circle cx="100" cy="100" r="76" stroke-dasharray="1 5"/><path d="M100 18 L108 100 L100 182 L92 100Z M18 100 L100 92 L182 100 L100 108Z" fill="${hue}" fill-opacity=".08"/></g></svg>
+      <span class="c-orb orb lg" data-orb="${veilWho}">${name.replace("Mr. ", "")[0]}</span>
+      <div class="pt n"><small style="color:var(--rose)">Wants</small>${M.drives.want}</div>
+      <div class="pt e"><small style="color:var(--lamp)">Tactic</small>${M.drives.tactic}</div>
+      <div class="pt s"><small style="color:var(--sea)">Needs</small>${M.drives.need}</div>
+      <div class="pt w"><small style="color:var(--red)">Fears</small>${M.drives.fear}</div>
+    </div>
+    <div><div class="diary" id="diary"></div>
+    <div class="diary-nav"><button class="chip" id="pg-prev">← earlier</button><span id="pg-no"></span><button class="chip" id="pg-next">later →</button></div></div>
+  </div>`;
+  paintOrbs(); page = 0; renderDiary(); wireVeil();
+}
+function renderDiary() {
+  const J = MINDS[veilWho].journal, a = J[page], b = J[page + 1];
+  const pg = (e) => e ? `<div class="pg"><div class="dt">${e[0]}</div>${e[1]}</div>` : `<div class="pg"></div>`;
+  $("#diary").innerHTML = pg(a) + pg(b);
+  $$("#diary .pg").forEach((p) => p.classList.add("turn-anim"));
+  $("#pg-no").textContent = `${MINDS[veilWho].journal.length} entries · ${{ wren: "Wren's", pell: "Pell's", nan: "Nan's" }[veilWho]} diary`;
+}
+function wireVeil() {
+  const mask = $("#mask"), inp = $("input", mask);
+  inp.addEventListener("input", () => mask.style.setProperty("--lift", inp.value));
+  const mind = $("#mind"), ring = $("#ring");
+  let raf = 0, t0 = 0;
+  const set = (p) => { mind.style.setProperty("--p", p); ring.setAttribute("stroke-dashoffset", 113 * (1 - p)); };
+  const start = () => { if (mind.classList.contains("open")) return; t0 = performance.now(); cancelAnimationFrame(raf);
+    const step = (now) => { const p = clamp((now - t0) / 900); set(p); if (p >= 1) mind.classList.add("open"); else raf = requestAnimationFrame(step); }; raf = requestAnimationFrame(step); };
+  const stop = () => { cancelAnimationFrame(raf); if (!mind.classList.contains("open")) set(0); };
+  mind.addEventListener("pointerdown", (e) => { if (mind.classList.contains("open")) { mind.classList.remove("open"); set(0); return; } start(); });
+  mind.addEventListener("pointerup", stop); mind.addEventListener("pointerleave", stop);
+  mind.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); if (mind.classList.contains("open")) { mind.classList.remove("open"); set(0); } else start(); } });
+  mind.addEventListener("keyup", stop);
+  $("#pg-prev").addEventListener("click", () => { if (page + 2 < MINDS[veilWho].journal.length) { page += 2; renderDiary(); } });
+  $("#pg-next").addEventListener("click", () => { if (page > 0) { page -= 2; renderDiary(); } });
+}
+$("#veil-who").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $$("#veil-who button").forEach((x) => x.classList.toggle("on", x === b)); veilWho = b.dataset.w; renderVeil(); });
+$("#veil-when").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return; $$("#veil-when button").forEach((x) => x.classList.toggle("on", x === b));
+  const d = $("#drawer"), m = b.dataset.m;
+  d.style.display = m === "never" ? "none" : ""; d.open = m === "always"; $("#drawer-mode").textContent = m === "always" ? "always open" : "tap to unfold";
+});
+renderVeil(); paintOrbs();
+})();
+</script>
+</body>
+</html>

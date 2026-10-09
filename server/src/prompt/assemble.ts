@@ -5,7 +5,7 @@ import type { Role } from "../lore/types";
 import type { MemoryContext, MemoryTrace } from "../memory/context";
 import { cleanText, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
-import { lengthHint, type Preset, type PromptBlock } from "./preset";
+import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock } from "./preset";
 
 export interface ChatMessage {
   role: Role;
@@ -57,6 +57,12 @@ export interface AssembleInput {
   extras?: PromptExtra[];
   /** PROMPT-07: the active preset controls, already rendered. */
   controls?: string;
+  /** Every control's value, readable in blocks as {{ctl.id}}. */
+  controlValues?: Record<string, string>;
+  /** Evaluates a block's `when` against the story state; blocks with a condition need it to hold. */
+  when?: (cond: string) => boolean;
+  /** A swipe: the take it replaces, so the new one can open differently. */
+  swipe?: { rejected: string };
 }
 
 export interface PromptExtra {
@@ -114,6 +120,14 @@ export interface AssembleResult {
 
 const tok = (s: string) => countTokens(s) + MESSAGE_OVERHEAD;
 
+const words = (s: string) => (needsCleaning(s) ? cleanText(s) : s).replace(/^\s*#.*$/gm, "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+/** The first or last few words of a reply, for the echo guard (none for short replies). */
+function edge(text: string, n: number, end: "open" | "close"): string {
+  const w = words(text);
+  if (w.join(" ").length < 200) return "";
+  return (end === "open" ? w.slice(0, n) : w.slice(-n)).join(" ");
+}
+
 function characterBlock(card: CardData, x: (s: string) => string): string {
   const parts = [`## ${card.name}`];
   if (card.description.trim()) parts.push(x(card.description));
@@ -148,6 +162,32 @@ interface DepthItem {
 }
 
 /**
+ * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
+ * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
+ * {{userSealed}} (the Persona control), and {{ctl.id}} for every preset control.
+ */
+function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
+  // Without values from the chat (tests, previews), the preset's own defaults apply.
+  const ctl = input.controlValues ?? controlValues(input.preset.controls);
+  const persona = ctl.persona ?? "";
+  const replies = input.history.filter((m) => m.role === "assistant").length;
+  const rejected = input.swipe ? words(input.swipe.rejected).slice(0, 16).join(" ") : "";
+  return {
+    draft: input.draft ?? "",
+    kind: input.kind,
+    turn: String(input.history.length),
+    isFirst: replies <= 1 && input.kind === "story" ? "yes" : "",
+    isSwipe: input.swipe ? "yes" : "",
+    rejectedOpening: rejected,
+    lastOpening: edge(lastReply, 14, "open"),
+    lastClosing: edge(lastReply, 14, "close"),
+    persona,
+    userSealed: persona === "director" || persona === "full_cast" ? "" : "yes",
+    ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),
+  };
+}
+
+/**
  * Builds the final message list for a request (PROMPT-01), with a full trace for the inspector (DBG-01).
  * Layout is cache-friendly (CTX-04): stable blocks and the Story So Far first, then the history,
  * with per-turn content (recall, triggered lore, notes) at shallow depth near the end.
@@ -172,7 +212,9 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     lastCharMessage: lastOf("assistant"),
     vars: { ...input.vars },
     seed: input.seed,
-    extra: { draft: input.draft ?? "" },
+    // The turn is the same on every swipe of a reply (a swipe's history leaves the reply out).
+    turn: input.history.length,
+    extra: turnExtras(input, lastOf("assistant")),
     now: input.now,
   };
   const x = (s: string | undefined) => expandMacros(s ?? "", ctx).trim();
@@ -193,6 +235,10 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
       trace.note = "disabled";
       return;
     }
+    if (block.when?.trim() && !input.when?.(block.when)) {
+      trace.note = `only when ${block.when.trim()}`;
+      return;
+    }
     let content = "";
     switch (block.kind) {
       case "text":
@@ -203,7 +249,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
         content = characterBlock(card, x);
         break;
       case "controls":
-        content = input.controls ?? "";
+        content = x(input.controls ?? controlsText(preset.controls));
         break;
       case "description":
         content = x(card.description);
@@ -303,6 +349,8 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   if (input.kind === "continue") tail.push({ role: "system", content: x(preset.continuePrompt) });
   if (input.kind === "impersonate") tail.push({ role: "system", content: x(preset.impersonationPrompt) });
   if (input.kind === "expand") tail.push({ role: "system", content: x(preset.expandPrompt) });
+  // Nothing new from the player, and the last message is already a reply: the world moves on.
+  if (input.kind === "story" && input.history.at(-1)?.role === "assistant" && preset.waitPrompt.trim()) tail.push({ role: "system", content: x(preset.waitPrompt) });
   if (input.kind === "story" && preset.prefill.trim()) tail.push({ role: "assistant", content: x(preset.prefill) });
 
   const fixed =

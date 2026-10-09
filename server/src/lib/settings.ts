@@ -3,6 +3,20 @@ import { now, one, parseJson, run } from "../db/db";
 import type { PromptSet } from "./prompts";
 import type { RegexScript } from "./regex";
 
+/** Story fonts (web/src/lib/fonts.ts lists them with their faces). */
+export type StoryFont = "newsreader" | "lora" | "literata" | "ebgaramond" | "cormorant" | "crimson" | "sourceserif" | "merriweather" | "alegreya" | "spectral" | "nunito" | "inter" | "atkinson" | "lexend";
+
+export interface LivingPage {
+  /** How dialogue shows who is speaking. */
+  voices: "ink" | "ribbon" | "halo" | "off";
+  /** Letters, texts and clippings drawn as objects. */
+  artifacts: boolean;
+  /** The painted window of time, weather and place. */
+  window: boolean;
+  /** Private thoughts under replies. */
+  thoughts: "never" | "drawer" | "always";
+}
+
 /** Typed app settings with defaults. Stored as JSON per key. */
 export interface Settings {
   /** Profile used for story generation (CONN-03). */
@@ -10,13 +24,17 @@ export interface Settings {
   "appearance.theme": "system" | "light" | "dark" | "lantern";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
-  "appearance.storyFont": "lora" | "literata" | "nunito" | "newsreader";
+  "appearance.storyFont": StoryFont;
   /** LORE-15: underline lore terms in messages. */
   "appearance.glossary": boolean;
   /** UI-16 / UI-19: line height, paragraph spacing, text width, dialogue color, UI font, dyslexia-friendly font. */
   "appearance.typography": Typography;
+  /** The living page: speaker colours, in-story artifacts, the scene window, private thoughts. */
+  "appearance.living": LivingPage;
   "chat.enterToSend": boolean;
   "chat.defaultPresetId": string | null;
+  /** The version of Mea's own preset last installed (0 = never). */
+  "presets.meaVersion": number;
   "backup.hourlyKeep": number;
   "backup.dailyKeep": number;
   "push.vapid": { publicKey: string; privateKey: string } | null;
@@ -64,7 +82,7 @@ export interface Settings {
 }
 
 export interface Typography {
-  uiFont: "nunito" | "system";
+  uiFont: "nunito" | "system" | "inter" | "atkinson" | "lexend";
   lineHeight: number;
   paragraphSpacing: number;
   /** The story column's width, in rem. */
@@ -306,8 +324,10 @@ export const defaults: Settings = {
   "appearance.storyFont": "newsreader",
   "appearance.glossary": true,
   "appearance.typography": defaultTypography,
+  "appearance.living": { voices: "ink", artifacts: true, window: true, thoughts: "drawer" },
   "chat.enterToSend": false,
   "chat.defaultPresetId": null,
+  "presets.meaVersion": 0,
   "backup.hourlyKeep": 24,
   "backup.dailyKeep": 14,
   "push.vapid": null,
@@ -372,6 +392,7 @@ export const clientKeys: (keyof Settings)[] = [
   "appearance.storyFont",
   "appearance.glossary",
   "appearance.typography",
+  "appearance.living",
   "chat.enterToSend",
   "chat.defaultPresetId",
   "backup.hourlyKeep",

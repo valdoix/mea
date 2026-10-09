@@ -15,15 +15,23 @@ export function parseStoryTime(s: unknown): StoryTime | null {
   if (typeof s !== "string") return null;
   const t = s.trim();
   let m = t.match(/^(\d{1,4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$/);
-  if (m) {
-    const d = new Date(Date.UTC(2000, Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 12), Number(m[5] ?? 0)));
-    d.setUTCFullYear(Number(m[1]));
-    if (Number.isNaN(d.getTime())) return null;
-    return { minutes: Math.round((d.getTime() - YEAR1) / 60_000), form: "date" };
-  }
+  if (m) return ymd(m[1]!, m[2]!, m[3]!, m[4], m[5]);
+  // Westeros (calendars.ts): "the 14th day of the 10th moon of 299 AC 21:40" or "299 AC, 10th moon, day 14 21:40".
+  m = t.match(/^(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+day\s+of\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\s+moon,?\s+(?:of\s+)?(\d{1,4})\s*AC(?:[\s,·]+(\d{1,2}):(\d{2}))?$/i);
+  if (m) return ymd(m[3]!, m[2]!, m[1]!, m[4], m[5]);
+  m = t.match(/^(\d{1,4})\s*AC,?\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+moon,?\s+(?:day\s+)?(\d{1,2})(?:st|nd|rd|th)?(?:[\s,·]+(\d{1,2}):(\d{2}))?$/i);
+  if (m) return ymd(m[1]!, m[2]!, m[3]!, m[4], m[5]);
   m = t.match(/^day\s*(\d{1,5})(?:[ ,]+(\d{1,2}):(\d{2}))?$/i);
   if (m) return { minutes: (Number(m[1]) - 1) * DAY + Number(m[2] ?? 12) * 60 + Number(m[3] ?? 0), form: "day" };
   return null;
+}
+
+function ymd(y: string, mo: string, d: string, h?: string, mi?: string): StoryTime | null {
+  if (Number(mo) < 1 || Number(mo) > 12 || Number(d) < 1 || Number(d) > 31) return null;
+  const date = new Date(Date.UTC(2000, Number(mo) - 1, Number(d), Number(h ?? 12), Number(mi ?? 0)));
+  date.setUTCFullYear(Number(y));
+  if (Number.isNaN(date.getTime())) return null;
+  return { minutes: Math.round((date.getTime() - YEAR1) / 60_000), form: "date" };
 }
 
 const YEAR1 = (() => {

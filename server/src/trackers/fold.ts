@@ -541,6 +541,7 @@ export class Folder {
           if ((target as Record<string, string>)[k] && norm((target as Record<string, string>)[k]!) === norm(a[k])) continue;
           (target as Record<string, string>)[k] = clip(a[k], 160);
           any = true;
+          if (op.op === "mask" && k === "felt") this.push(ctx, { kind: "mask", text: `${c.name} hides: ${clip(a[k], 60)}`, subject: c.name, path: `chars.${c.id}.mask`, to: a[k] });
           if (op.op === "drive" && k === "want") this.push(ctx, { kind: "drive", text: `${c.name} wants: ${clip(a[k], 60)}`, subject: c.name, path: `chars.${c.id}.drives.want` });
         }
         if (!any && !keys.some((k) => a[k])) return this.reject(ctx, `write ${keys.join(": / ")}:`);
@@ -551,6 +552,8 @@ export class Folder {
         if (!c || !a.text) return this.reject(ctx, "whose thoughts?");
         if (c.isUser && this.cfg.sealedPersona && this.ai(ctx)) return this.reject(ctx, "your character's inner life is yours to write");
         c.thoughts = { text: clip(a.text, 400), seq };
+        // A private change: the thoughts drawer under the reply reads it; the chips never show it.
+        this.push(ctx, { kind: "thought", text: `${c.name} thinks`, subject: c.name, path: `chars.${c.id}.thoughts`, to: c.thoughts.text });
         return;
       }
       case "journal": {

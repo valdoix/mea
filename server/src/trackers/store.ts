@@ -1,9 +1,11 @@
+import type { CalendarId } from "./calendars";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
 import { getSetting } from "../lib/settings";
 import { getCard, getCharacterRow } from "../services/characters";
 import { type ChatSettings, mustChat, type TrackerConfig } from "../services/chats";
+import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona } from "../services/personas";
 import { detectStamina } from "./drift";
 import { parseLine } from "./dsl";
@@ -30,6 +32,10 @@ export interface ResolvedTrackerConfig {
   budget: number;
   quietAfter: number;
   nudges: boolean;
+  calendar: CalendarId;
+  season: string;
+  /** Settings the chat's preset controls decide (the tracker settings show them as set by the preset). */
+  dialed?: ("sealed" | "romance")[];
 }
 
 export const DEFAULT_TRACKERS: ResolvedTrackerConfig = {
@@ -47,6 +53,8 @@ export const DEFAULT_TRACKERS: ResolvedTrackerConfig = {
   budget: 700,
   quietAfter: 40,
   nudges: true,
+  calendar: "gregorian",
+  season: "",
 };
 
 export function characterTrackerDefaults(characterId: string | null): TrackerConfig {
@@ -66,6 +74,11 @@ export function trackerConfig(chatId: string): ResolvedTrackerConfig {
   const global = getSetting("trackers.defaults") as TrackerConfig;
   const merged = { ...DEFAULT_TRACKERS, ...strip(global), ...strip(char), ...strip(own) } as ResolvedTrackerConfig;
   merged.sections = { ...DEFAULT_TRACKERS.sections, ...(global.sections ?? {}), ...(char.sections ?? {}), ...(own.sections ?? {}) } as Record<Section, boolean>;
+  // The preset's Persona and Romance pace controls, when it has them, decide these (one source of truth).
+  const dials = storyDials(chat);
+  if (dials.persona) merged.sealed = dials.persona === "sealed" || dials.persona === "continuity";
+  if (dials.romance) merged.romance = dials.romance;
+  merged.dialed = [...(dials.persona ? ["sealed" as const] : []), ...(dials.romance ? ["romance" as const] : [])];
   // Narrator chats lean on the cast; companion chats leave possessions-heavy sections on too (max accuracy).
   return merged;
 }

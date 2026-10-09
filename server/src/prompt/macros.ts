@@ -1,6 +1,6 @@
 /**
  * Macro engine (PROMPT-03): {{char}}, {{user}}, {{if ...}}…{{else}}…{{/if}},
- * variables, random/pick/roll, dates. Unknown macros are left untouched.
+ * variables, random/pick/roll, rotate/turnroll (per turn), dates. Unknown macros are left untouched.
  */
 
 export interface MacroContext {
@@ -24,6 +24,8 @@ export interface MacroContext {
   globalVars?: Record<string, string>;
   /** Stable seed for {{pick}} (usually the chat id). */
   seed?: string;
+  /** The turn being written, for {{rotate}} and {{turnroll}}: the same on every swipe of a reply. */
+  turn?: number;
   /** Extra named values, e.g. draft, storySoFar. */
   extra?: Record<string, string>;
   now?: Date;
@@ -105,6 +107,18 @@ function hash(s: string): number {
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
+}
+
+/** A small deterministic random source (mulberry32) for seeded dice. */
+function seeded(key: string): () => number {
+  let a = hash(key);
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 const FALSY = new Set(["", "0", "no", "false", "off", "null", "undefined"]);
@@ -194,6 +208,11 @@ function evalMacro(raw: string, ctx: MacroContext, pos: number): string | null {
       return args.length ? args[hash(`${ctx.seed ?? ""}:${pos}:${args.join("|")}`) % args.length]! : "";
     case "roll":
       return rollDice(args[0] ?? "", random);
+    // Seeded by chat and turn: they change from one reply to the next but hold across its swipes.
+    case "rotate":
+      return args.length ? args[hash(`${ctx.seed ?? ""}:${ctx.turn ?? 0}:${pos}:${args.join("|")}`) % args.length]! : "";
+    case "turnroll":
+      return rollDice(args[0] ?? "", seeded(`${ctx.seed ?? ""}:${ctx.turn ?? 0}:${pos}:roll`));
     case "setvar":
       ctx.vars[args[0] ?? ""] = args.slice(1).join("::");
       return "";
@@ -226,6 +245,8 @@ function sideValue(side: string, ctx: MacroContext): string {
   if (/^[A-Za-z_][\w.]*$/.test(s)) {
     const v = evalMacro(s, ctx, 0);
     if (v !== null) return v;
+    // A control this preset doesn't have reads as empty, not as its own name.
+    if (/^ctl\./i.test(s)) return "";
   }
   return s.replace(/^["']|["']$/g, "");
 }

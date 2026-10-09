@@ -69,10 +69,9 @@
   }
   .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
-    overflow-x: auto;
     margin: 1rem 0 1.4rem;
-    scrollbar-width: none;
   }
   .tabs button {
     display: flex;
@@ -91,5 +90,15 @@
     background: var(--surface);
     color: var(--text);
     box-shadow: var(--shadow-1);
+  }
+  :global([data-theme="lantern"]) .tabs button.on {
+    background: rgb(255 255 255 / 12%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 14%),
+      0 0 18px rgb(199 180 255 / 22%);
+  }
+  :global([data-theme="lantern"]) .tabs button:hover:not(.on) {
+    background: rgb(255 255 255 / 6%);
+    color: var(--text);
   }
 </style>

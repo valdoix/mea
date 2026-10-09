@@ -21,7 +21,7 @@ import { cachedQuota, listConnections } from "../services/connections";
 import { exportLibraryZip } from "../services/export";
 import { jobStats } from "../services/jobs";
 import { dropPresence, reportPresence } from "../services/presence";
-import { createPreset, deletePreset, getPreset, listPresets, updatePreset } from "../services/presets";
+import { createPreset, deletePreset, getPreset, listPresets, restoreMeaPreset, updatePreset } from "../services/presets";
 import { publicVapidKey, removeSubscription, saveSubscription, sendPush, subscriptionCount } from "../services/push";
 import { tailscaleStatus } from "../services/tailscale";
 import { listTrash, purgeTrash } from "../services/trash";
@@ -40,13 +40,15 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
   "guards.config": guardsSchema.partial(),
   "steer.config": steerSchema.partial(),
   "appearance.typography": z.object({
-    uiFont: z.enum(["nunito", "system"]),
+    uiFont: z.enum(["nunito", "system", "inter", "atkinson", "lexend"]),
     lineHeight: z.number().min(1.2).max(2.4),
     paragraphSpacing: z.number().min(0).max(2),
     width: z.number().min(26).max(80),
     dialogueColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
     dyslexic: z.boolean(),
   }),
+  "appearance.storyFont": z.enum(["newsreader", "lora", "literata", "ebgaramond", "cormorant", "crimson", "sourceserif", "merriweather", "alegreya", "spectral", "nunito", "inter", "atkinson", "lexend"]),
+  "appearance.living": z.object({ voices: z.enum(["ink", "ribbon", "halo", "off"]), artifacts: z.boolean(), window: z.boolean(), thoughts: z.enum(["never", "drawer", "always"]) }),
   "privacy.requestLog": z.object({ bodiesDays: z.number().int().min(1).max(3650), rowsDays: z.number().int().min(0).max(36500), fileLog: z.boolean(), fileDays: z.number().int().min(1).max(3650) }),
 };
 
@@ -111,6 +113,8 @@ system.post("/presets/import", async (c) => {
   return c.json(getPreset(createPreset(preset)), 201);
 });
 system.get("/presets-default", (c) => c.json(defaultPreset()));
+/** Puts Mea's own preset back as shipped (or reinstalls it). */
+system.post("/presets-mea/restore", (c) => c.json(getPreset(restoreMeaPreset())));
 
 // ---------- Live events (ARCH-06) ----------
 

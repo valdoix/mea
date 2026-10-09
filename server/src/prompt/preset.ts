@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { meaPreset } from "./mea";
 
 export const blockKinds = [
   "text",
@@ -29,6 +30,8 @@ export const blockSchema = z.object({
   position: z.enum(["inline", "depth"]),
   depth: z.number().int().min(0).max(1000).optional(),
   content: z.string().optional(),
+  /** Sent only while this holds on the story state, e.g. `mode = conflict` (TRK-12 conditions). */
+  when: z.string().max(300).optional(),
 });
 
 export const samplersSchema = z.object({
@@ -52,12 +55,14 @@ export const controlSchema = z.object({
   id: z.string().min(1).max(40),
   label: z.string().min(1).max(60),
   help: z.string().max(300).default(""),
-  type: z.enum(["toggle", "choice"]),
+  type: z.enum(["toggle", "choice", "text"]),
   default: z.union([z.boolean(), z.string()]),
-  /** Toggle: the instruction while it's on. */
-  text: z.string().max(2000).default(""),
+  /** Toggle: the instruction while it's on. Text: the instruction, with {{value}} for what was typed. */
+  text: z.string().max(4000).default(""),
   /** Choice: one instruction per option (empty = nothing added). */
-  options: z.array(z.object({ value: z.string().min(1).max(40), label: z.string().max(60), text: z.string().max(2000) })).max(8).default([]),
+  options: z.array(z.object({ value: z.string().min(1).max(40), label: z.string().max(60), text: z.string().max(4000) })).max(40).default([]),
+  /** Shown under "More" in the chat panel, so simple use sees only the main few. */
+  advanced: z.boolean().default(false),
 });
 export type PresetControl = z.infer<typeof controlSchema>;
 export type ControlValues = Record<string, boolean | string>;
@@ -74,7 +79,11 @@ export const presetSchema = z.object({
   /** Simple-mode knobs (PROMPT-02). */
   simple: z.object({ length: z.enum(["short", "normal", "long"]), style: z.string() }),
   importNotes: z.array(z.string()).optional(),
-  controls: z.array(controlSchema).max(20).default([]),
+  controls: z.array(controlSchema).max(30).default([]),
+  /** Sent when the player sends nothing and the last message is already a reply: the world moves on. */
+  waitPrompt: z.string().default(""),
+  /** Marks a preset Mea ships (e.g. "mea"), so it can be installed once and restored. */
+  builtin: z.string().optional(),
 });
 
 export type PromptBlock = z.infer<typeof blockSchema>;
@@ -91,94 +100,41 @@ const b = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<P
   ...extra,
 });
 
-export const DEFAULT_MAIN_PROMPT = `{{if mode == narrator}}You are the narrator of an ongoing interactive story with {{user}}. Voice every character except {{user}}, describe the world around them, and keep the story moving. Never write {{user}}'s actions, words, or thoughts: end your reply where {{user}} would naturally respond.{{else}}You are {{char}} in an ongoing roleplay with {{user}}. Write {{char}}'s next reply only. Stay true to {{char}}'s personality, voice, and history, and never write {{user}}'s actions, words, or thoughts.{{/if}}
-
-Write vivid, grounded prose. Show emotion through action, dialogue, and small sensory details. Keep continuity with everything established so far: names, places, appearances, the time of day, and what each character knows. Let scenes breathe, avoid repeating phrases from earlier replies, and move the story forward with intention.`;
-
+/** Mea's own default preset (the full text lives in mea.ts). */
 export function defaultPreset(): Preset {
-  return {
-    name: "Mea default",
-    mode: "simple",
-    blocks: [
-      b("main", "Main prompt", "text", { content: DEFAULT_MAIN_PROMPT }),
-      b("controls", "Preset controls", "controls"),
-      b("character", "Character", "character"),
-      b("lore_before", "Lore (before)", "lore_before"),
-      b("persona", "Persona", "persona"),
-      b("lore_after", "Lore (after)", "lore_after"),
-      b("examples", "Example dialogue", "examples"),
-      b("memory_story", "Story so far (memory)", "memory_story"),
-      b("history", "Chat history", "history"),
-      b("memory_recall", "Recalled memories & triggered lore", "memory_recall", { position: "depth", depth: 1 }),
-      b("authors_note", "Author's note", "authors_note", { position: "depth", depth: 4 }),
-      b("post_history", "Post-history instructions", "post_history", { content: "" }),
-    ],
-    samplers: { temperature: 1, top_p: 0.95, max_tokens: 1200 },
-    impersonationPrompt:
-      "[Write {{user}}'s next message in first person, in {{user}}'s own voice and style, continuing naturally from the story so far. Write only {{user}}'s words and actions, nothing for {{char}} or anyone else. Reply with the message only.]",
-    expandPrompt:
-      '[{{user}} wrote a rough draft of their next message:\n"""\n{{draft}}\n"""\nRewrite it as {{user}}\'s full in-character message. Keep every intention, action, and line of dialogue from the draft, expand it into vivid prose that matches the story\'s tense and point of view, and add nothing for {{char}} or anyone else. Reply with the message only.]',
-    continuePrompt: "[Continue your last reply exactly where it stopped. Don't repeat anything already written; pick up mid-sentence if needed.]",
-    prefill: "",
-    simple: { length: "normal", style: "" },
-    controls: DEFAULT_CONTROLS,
-  };
+  return meaPreset();
 }
 
-export const DEFAULT_CONTROLS: PresetControl[] = [
-  {
-    id: "dialogue",
-    label: "More dialogue",
-    help: "Characters talk more; narration stays brief.",
-    type: "toggle",
-    default: false,
-    text: "Favour dialogue over narration: let characters talk, interrupt, banter and argue; keep description brief and purposeful.",
-    options: [],
-  },
-  {
-    id: "slowburn",
-    label: "Slow burn",
-    help: "Trust and attraction build gradually.",
-    type: "toggle",
-    default: false,
-    text: "Slow burn: let trust and attraction build gradually through small moments and setbacks. No sudden declarations or leaps in intimacy; every step is earned.",
-    options: [],
-  },
-  {
-    id: "mature",
-    label: "Mature content",
-    help: "Dark themes, violence and explicit romance are allowed when the story calls for them.",
-    type: "toggle",
-    default: false,
-    text: "Mature content is allowed when the story calls for it: violence, dark themes and explicit romance can be written plainly, without fading to black or moralising.",
-    options: [],
-  },
-  {
-    id: "focus",
-    label: "Narration focus",
-    help: "What the prose lingers on.",
-    type: "choice",
-    default: "balanced",
-    text: "",
-    options: [
-      { value: "balanced", label: "Balanced", text: "" },
-      { value: "inner", label: "Inner life", text: "Lean into inner life: thoughts, feelings and sensations, shown through the body and small actions." },
-      { value: "action", label: "Action", text: "Keep it moving: favour action, decisions and consequences over reflection." },
-      { value: "atmosphere", label: "Atmosphere", text: "Linger on atmosphere: place, weather, light, sound and texture." },
-    ],
-  },
-];
+/**
+ * What a control is set to: this layer's value, else the preset's default. Values saved for the
+ * controls Mea shipped before its default preset (More dialogue, Slow burn, Mature content) still count.
+ */
+export function controlValue(c: PresetControl, values: ControlValues = {}): boolean | string {
+  const v = values[c.id];
+  if (c.type === "choice" && typeof v === "boolean") return c.id === "dialogue" && v ? "forward" : c.default;
+  if (v !== undefined) return v;
+  if (c.id === "romance" && values.slowburn === true) return "slow";
+  if (values.mature === true && c.id === "intimacy") return "explicit";
+  if (values.mature === true && c.id === "violence") return "graphic";
+  return c.default;
+}
+
+/** Every control's value, for {{ctl.id}} in blocks. */
+export function controlValues(controls: PresetControl[], values: ControlValues = {}): Record<string, string> {
+  return Object.fromEntries(controls.map((c) => [c.id, String(controlValue(c, values))]));
+}
 
 /** The instructions of the controls that are on, with chat/character values over the preset's defaults. */
 export function controlsText(controls: PresetControl[], values: ControlValues = {}) {
   const lines: string[] = [];
   for (const c of controls) {
-    const v = values[c.id] ?? c.default;
+    const v = controlValue(c, values);
     if (c.type === "toggle" && v === true && c.text.trim()) lines.push(c.text.trim());
     if (c.type === "choice") {
       const opt = c.options.find((o) => o.value === v);
       if (opt?.text.trim()) lines.push(opt.text.trim());
     }
+    if (c.type === "text" && typeof v === "string" && v.trim() && c.text.trim()) lines.push(c.text.trim().replace(/\{\{value\}\}/g, v.trim()));
   }
   return lines.length ? `[Story preferences]\n${lines.map((l) => `- ${l}`).join("\n")}` : "";
 }
@@ -218,6 +174,10 @@ export function importStPreset(json: unknown, name: string): Preset {
   const preset = defaultPreset();
   preset.name = name;
   preset.mode = "advanced";
+  delete preset.builtin;
+  // Mea's planning and variety switches only work with Mea's own blocks.
+  preset.controls = preset.controls.filter((c) => c.id !== "planning" && c.id !== "variety");
+  preset.waitPrompt = "";
 
   const prompts = Array.isArray(root.prompts) ? (root.prompts as Record<string, unknown>[]) : [];
   const orders = Array.isArray(root.prompt_order) ? (root.prompt_order as { character_id?: number; order?: { identifier: string; enabled: boolean }[] }[]) : [];

@@ -4,9 +4,18 @@
   import { confirm } from "../../lib/dialogs.svelte";
   import { device, setDevice } from "../../lib/device.svelte";
   import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
-  import type { Typography } from "../../lib/types";
+  import { STORY_FONTS, UI_FONTS, loadAllFonts } from "../../lib/fonts";
+  import { living } from "../../lib/living";
+  import { onMount } from "svelte";
+  import type { LivingPage, Typography } from "../../lib/types";
 
   const s = $derived(app.settings);
+  const page = $derived(living(s));
+  // The picker shows each font in its own face.
+  onMount(loadAllFonts);
+  function setPage(patch: Partial<LivingPage>) {
+    void saveSetting("appearance.living", { ...page, ...patch });
+  }
 
   // UI-16 / UI-19
   const typoDefaults: Typography = { uiFont: "nunito", lineHeight: 1.7, paragraphSpacing: 0.75, width: 46, dialogueColor: null, dyslexic: false };
@@ -122,19 +131,17 @@
 
     <section class="panel stack">
       <h2>Reading</h2>
-      <label class="field">
+      <div class="field">
         <span class="label">Story font</span>
-        <Segmented
-          value={s["appearance.storyFont"]}
-          options={[
-            { value: "newsreader", label: "Newsreader" },
-            { value: "lora", label: "Lora" },
-            { value: "literata", label: "Literata" },
-            { value: "nunito", label: "Nunito" },
-          ]}
-          onchange={(v) => saveSetting("appearance.storyFont", v)}
-        />
-      </label>
+        <div class="fonts" role="radiogroup" aria-label="Story font">
+          {#each STORY_FONTS as f (f.id)}
+            <button class="font" class:on={s["appearance.storyFont"] === f.id} role="radio" aria-checked={s["appearance.storyFont"] === f.id} onclick={() => saveSetting("appearance.storyFont", f.id)}>
+              <span class="face" style:font-family={f.family}>“Stay,” she said. <i>Aa</i></span>
+              <b>{f.label}</b><span class="note">{f.note}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
       <label class="field">
         <span class="label">Text size <span class="faint">{Math.round(s["appearance.fontScale"] * 100)}%</span></span>
         <input type="range" min="0.85" max="1.3" step="0.05" value={s["appearance.fontScale"]} onchange={(e) => saveSetting("appearance.fontScale", Number(e.currentTarget.value))} />
@@ -160,21 +167,52 @@
           </div>
         </div>
       </div>
-      <label class="field">
+      <div class="field">
         <span class="label">Interface font</span>
-        <Segmented
-          value={typo.uiFont}
-          options={[
-            { value: "nunito", label: app.theme === "lantern" ? "The theme's own" : "Nunito" },
-            { value: "system", label: "My device's" },
-          ]}
-          onchange={(v) => setTypo({ uiFont: v })}
-        />
-      </label>
+        <div class="fonts ui" role="radiogroup" aria-label="Interface font">
+          {#each UI_FONTS as f (f.id)}
+            <button class="font" class:on={typo.uiFont === f.id} role="radio" aria-checked={typo.uiFont === f.id} onclick={() => setTypo({ uiFont: f.id })}>
+              <span class="face" style:font-family={f.family || undefined}>Settings · Aa</span>
+              <b>{f.id === "nunito" && app.theme !== "lantern" ? "Nunito" : f.label}</b><span class="note">{f.note}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
       <label class="switch"><input type="checkbox" checked={typo.dyslexic} onchange={(e) => setTypo({ dyslexic: e.currentTarget.checked })} /> Dyslexia-friendly font (OpenDyslexic) everywhere</label>
       <div class="sample prose">
         <p>The lamp flickers as the wind presses against the old glass. <span class="dl">“You came back,”</span> she says softly. <em>Outside, the sea keeps its patient rhythm.</em></p>
       </div>
+    </section>
+
+    <section class="panel stack">
+      <h2>The living page</h2>
+      <p class="tiny muted">Drawn by Mea from the story itself; nothing here is sent to the model.</p>
+      <label class="field">
+        <span class="label">Speaker colours <span class="faint">each character's lines in their own colour</span></span>
+        <Segmented
+          value={page.voices}
+          small
+          options={[
+            { value: "ink" as const, label: "Ink" },
+            { value: "ribbon" as const, label: "Ribbon" },
+            { value: "halo" as const, label: "Halo" },
+            { value: "off" as const, label: "Off" },
+          ]}
+          onchange={(v) => setPage({ voices: v })}
+        />
+        <span class="hint">{page.voices === "ink" ? "Dialogue is written in the speaker's ink." : page.voices === "ribbon" ? "A coloured ribbon marks who leads each paragraph." : page.voices === "halo" ? "Dialogue is underlined in the speaker's light." : "One dialogue colour for everyone."} Change someone's colour in the story's Cast.</span>
+      </label>
+      <label class="switch"><input type="checkbox" checked={page.artifacts} onchange={(e) => setPage({ artifacts: e.currentTarget.checked })} /> Show letters, texts, clippings and other in-story objects as the real thing</label>
+      <p class="tiny muted indent">Replies write them when the preset's Artifacts control is on (it is in Mea's own preset).</p>
+      <label class="switch"><input type="checkbox" checked={page.window} onchange={(e) => setPage({ window: e.currentTarget.checked })} /> A painted window of the story's time, weather and place in the story panel</label>
+      <label class="field narrow">
+        <span class="label">Private thoughts under replies</span>
+        <select class="select" value={page.thoughts} onchange={(e) => setPage({ thoughts: e.currentTarget.value as LivingPage["thoughts"] })}>
+          <option value="drawer">In a folded drawer</option>
+          <option value="always">Always open</option>
+          <option value="never">Never show</option>
+        </select>
+      </label>
     </section>
 
     <section class="panel stack">
@@ -247,6 +285,45 @@
 {/if}
 
 <style>
+  .fonts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+    gap: 0.5rem;
+  }
+  .font {
+    display: grid;
+    gap: 0.15rem;
+    text-align: left;
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--r-md, 14px);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .font:hover {
+    background: var(--surface-2);
+  }
+  .font.on {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .font .face {
+    font-size: 1.15rem;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .font b {
+    font-size: var(--fs-sm);
+  }
+  .font .note {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
   .swatches {
     display: flex;
     gap: 0.4rem;

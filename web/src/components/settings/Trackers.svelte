@@ -136,12 +136,20 @@
           <option value="off">Off</option><option value="slow">Slow burn</option><option value="measured">Measured</option><option value="fast">Fast</option><option value="established">Already together</option>
         </select>
       </label>
+      <label class="field">
+        <span class="label">Calendar</span>
+        <select class="select" value={defaults.calendar ?? "gregorian"} onchange={(e) => setDefault("calendar", e.currentTarget.value as TrackerConfig["calendar"])}>
+          <option value="gregorian">Gregorian</option><option value="westeros">Westeros (AC, moons)</option>
+        </select>
+        <span class="hint">how story dates read; a chat or character can change it</span>
+      </label>
       <label class="field"><span class="label">Prompt budget</span><input class="input" type="number" min="100" max="4000" step="50" value={defaults.budget ?? 700} onchange={(e) => setDefault("budget", Number(e.currentTarget.value))} /><span class="hint">tokens for the story-state note</span></label>
       <label class="field"><span class="label">Quiet after</span><input class="input" type="number" min="5" max="500" value={defaults.quietAfter ?? 40} onchange={(e) => setDefault("quietAfter", Number(e.currentTarget.value))} /><span class="hint">messages before a thread is offered back as a hook</span></label>
     </div>
     <label class="switch"><input type="checkbox" checked={defaults.sealed ?? true} onchange={(e) => setDefault("sealed", e.currentTarget.checked)} /> Keep my character's inner life mine</label>
     <label class="switch"><input type="checkbox" checked={defaults.limits ?? true} onchange={(e) => setDefault("limits", e.currentTarget.checked)} /> Slow changes: cap how far a bond or meter moves in one reply</label>
     <label class="switch"><input type="checkbox" checked={defaults.gate ?? false} onchange={(e) => setDefault("gate", e.currentTarget.checked)} /> Skip updates when nothing changed (saves quota)</label>
+    <p class="tiny muted">A preset with Persona or Romance pace controls (like Mea's own) sets those two for its chats.</p>
   </section>
 
   <section class="stack tight">

@@ -1,0 +1,50 @@
+/* Speaker colours (lib/voices.ts): each attributed line carries --vc, its speaker's colour,
+   mixed toward the text colour so it reads on light and dark pages alike. */
+
+:root {
+  --voice-mix: 58%;
+}
+:root[data-theme="dark"],
+:root[data-theme="lantern"] {
+  --voice-mix: 88%;
+}
+
+.prose[data-voices="ink"] .dl[data-v] {
+  color: color-mix(in oklab, var(--vc) var(--voice-mix), var(--text));
+  transition: color 0.4s ease, opacity 0.3s ease;
+}
+.prose[data-voices="halo"] .dl[data-v] {
+  background: linear-gradient(180deg, transparent 60%, color-mix(in oklab, var(--vc) 32%, transparent) 60%, color-mix(in oklab, var(--vc) 32%, transparent) 92%, transparent 92%);
+  text-shadow: 0 0 18px color-mix(in oklab, var(--vc) 45%, transparent);
+  border-radius: 3px;
+}
+.prose[data-voices="ribbon"] p[data-lead],
+.prose[data-voices="ribbon"] li[data-lead] {
+  position: relative;
+  padding-left: 1.1rem;
+  border-left: 3px solid color-mix(in oklab, var(--lc) var(--voice-mix), var(--text));
+}
+.prose[data-voices="ribbon"] p[data-lead]::before {
+  content: attr(data-initial);
+  position: absolute;
+  left: -0.85rem;
+  top: 0.25em;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--lc);
+  color: #0e0a18;
+  font: 400 0.85rem/1.5rem "Instrument Serif", Georgia, serif;
+  text-align: center;
+  box-shadow: 0 0 0 3px var(--surface, var(--bg));
+}
+
+/* How it was said. */
+.prose .dl.v-whisper {
+  font-size: 0.93em;
+  font-style: italic;
+}
+.prose .dl.v-loud {
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+}

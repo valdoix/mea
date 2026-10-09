@@ -48,7 +48,11 @@
     clearTimeout(timer);
     timer = setTimeout(async () => {
       try {
-        await patch(`/api/chats/${chatId}`, { settings: { trackers: $state.snapshot(cfg) } });
+        const snap = $state.snapshot(cfg);
+        if (!snap) return;
+        // What the preset decides isn't saved as the chat's own setting.
+        const { dialed: _dialed, ...own } = snap;
+        await patch(`/api/chats/${chatId}`, { settings: { trackers: own } });
         refreshTrackers(chatId);
       } catch (e) {
         errorToast(e);
@@ -63,7 +67,7 @@
   async function asCharacterDefault() {
     if (!cfg || !characterId) return;
     try {
-      await put(`/api/characters/${characterId}/trackers`, { templates: cfg.templates, sections: cfg.sections, romance: cfg.romance, mode: cfg.mode, sealed: cfg.sealed });
+      await put(`/api/characters/${characterId}/trackers`, { templates: cfg.templates, sections: cfg.sections, romance: cfg.romance, mode: cfg.mode, sealed: cfg.sealed, calendar: cfg.calendar, season: cfg.season });
       toast("New chats with this character start with these trackers", { kind: "ok" });
     } catch (e) {
       errorToast(e);
@@ -114,7 +118,7 @@
           {#if cfg.cadence === "everyN"}<label class="field"><span class="label">Every</span><input class="input" type="number" min="2" max="20" bind:value={cfg.everyN} onchange={save} /></label>{/if}
           <label class="field">
             <span class="label">Romance pace</span>
-            <select class="select" bind:value={cfg.romance} onchange={save}>
+            <select class="select" bind:value={cfg.romance} onchange={save} disabled={cfg.dialed?.includes("romance")} title={cfg.dialed?.includes("romance") ? "Set by the preset's Romance pace control" : undefined}>
               <option value="off">Off</option>
               <option value="slow">Slow burn</option>
               <option value="measured">Measured</option>
@@ -122,9 +126,20 @@
               <option value="established">Already together</option>
             </select>
           </label>
+          <label class="field">
+            <span class="label">Calendar</span>
+            <select class="select" bind:value={cfg.calendar} onchange={save}>
+              <option value="gregorian">Gregorian</option>
+              <option value="westeros">Westeros (AC, moons)</option>
+            </select>
+          </label>
+          {#if cfg.calendar === "westeros"}
+            <label class="field"><span class="label">Season</span><input class="input" bind:value={cfg.season} maxlength="80" placeholder="a long summer, its ninth year" onchange={save} /><span class="hint">Westeros seasons last for years, so say which one it is</span></label>
+          {/if}
           <label class="field"><span class="label">Prompt budget</span><input class="input" type="number" min="100" max="4000" step="50" bind:value={cfg.budget} onchange={save} /><span class="hint">tokens{note ? ` · now ${note.tokens}` : ""}</span></label>
         </div>
-        <label class="switch"><input type="checkbox" bind:checked={cfg.sealed} onchange={save} /> Keep my character's inner life mine (the model never writes your mood or thoughts)</label>
+        <label class="switch"><input type="checkbox" bind:checked={cfg.sealed} onchange={save} disabled={cfg.dialed?.includes("sealed")} /> Keep my character's inner life mine (the model never writes your mood or thoughts)</label>
+        {#if cfg.dialed?.length}<p class="tiny muted">{cfg.dialed.includes("sealed") && cfg.dialed.includes("romance") ? "Your character's inner life and the romance pace are" : cfg.dialed.includes("sealed") ? "Your character's inner life is" : "The romance pace is"} set by this chat's preset (its Persona and Romance pace controls in the chat panel).</p>{/if}
         <label class="switch"><input type="checkbox" bind:checked={cfg.limits} onchange={save} /> Slow changes: cap how far a bond or meter moves in one reply</label>
         <label class="switch"><input type="checkbox" bind:checked={cfg.nudges} onchange={save} /> Offer quiet threads and planted details back to the model as optional hooks</label>
         <label class="switch"><input type="checkbox" bind:checked={cfg.gate} onchange={save} /> Skip the update when nothing changed (a tiny check first; saves quota, can miss small things)</label>

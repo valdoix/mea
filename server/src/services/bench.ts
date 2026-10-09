@@ -35,7 +35,7 @@ export function benchPrompt(input: BenchInput) {
   const userName = persona?.name ?? "You";
   const layers = layered({}, input.characterId);
   const resolved = resolveProfile(layers.profileId);
-  const { preset, controls } = presetForRequest(layers.presetId, resolved.prefill, layers.controls);
+  const { preset, controls, values: controlValues } = presetForRequest(layers.presetId, resolved.prefill, layers.controls);
   const fill = (s: string) => expandMacros(s, { char: input.card.name, user: userName, vars: {}, mode: input.mode });
   const history: HistoryMessage[] = input.messages.filter((m) => m.content.trim()).map((m, i) => ({ id: `bench-${i}`, role: m.role, content: fill(m.content), seq: i + 1 }));
   const entries = input.characterId ? scanEntriesFor({ characterId: input.characterId, personaId: persona?.id ?? null }) : [];
@@ -68,6 +68,7 @@ export function benchPrompt(input: BenchInput) {
     seed: "bench",
     tokenRatio: resolved.tokenRatio,
     controls,
+    controlValues,
   });
   return { resolved, assembled, samplers: { ...preset.samplers, ...resolved.params } };
 }

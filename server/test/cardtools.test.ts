@@ -8,7 +8,8 @@ import { applyRegex, compileFind, importStRegex, type RegexScript } from "../src
 import { setSetting } from "../src/lib/settings";
 import { createLorebook } from "../src/lore/service";
 import { defaultEntry } from "../src/lore/types";
-import { controlsText, DEFAULT_CONTROLS } from "../src/prompt/preset";
+import { meaControls } from "../src/prompt/mea";
+import { controlsText, controlValues } from "../src/prompt/preset";
 import { benchPrompt, streamBench } from "../src/services/bench";
 import { createCharacter, getCard, updateCharacter } from "../src/services/characters";
 import { addMessage, createChat, updateChat } from "../src/services/chats";
@@ -156,7 +157,7 @@ describe("prompt layers: overrides, controls, prefill (PROMPT-06, 07, 10)", () =
     let prompt = sys((await previewPrompt(chat.id)).messages);
     expect(prompt).toContain("TERSE PRESET");
     expect(prompt).toContain("CHARACTER NOTE");
-    expect(prompt).toContain("Favour dialogue over narration");
+    expect(prompt).toContain("Dialogue: forward");
     expect(prompt).toContain("Tone: wistful");
     expect(prompt).toContain("Nobody counts aloud at sea.");
     // The chat's own choices win.
@@ -164,7 +165,7 @@ describe("prompt layers: overrides, controls, prefill (PROMPT-06, 07, 10)", () =
     prompt = sys((await previewPrompt(chat.id)).messages);
     expect(prompt).toContain("CHAT NOTE");
     expect(prompt).not.toContain("CHARACTER NOTE");
-    expect(prompt).not.toContain("Favour dialogue");
+    expect(prompt).not.toContain("Dialogue: forward");
     expect(prompt).toContain("Linger on atmosphere");
     // An empty chat preset falls through to the character's.
     expect(prompt).toContain("TERSE PRESET");
@@ -173,10 +174,26 @@ describe("prompt layers: overrides, controls, prefill (PROMPT-06, 07, 10)", () =
     updateCharacter(charId, { settings: { presetId: null, authorsNote: null, controls: {}, story: {}, truths: [] } });
   });
 
-  test("controls render only what's on", () => {
-    expect(controlsText(DEFAULT_CONTROLS, {})).toBe("");
-    expect(controlsText(DEFAULT_CONTROLS, { slowburn: true, focus: "inner" })).toContain("Slow burn");
-    expect(controlsText(DEFAULT_CONTROLS, { slowburn: true, focus: "inner" })).toContain("inner life");
+  test("controls render each choice's instruction, text controls only when filled", () => {
+    const c = meaControls();
+    const base = controlsText(c, {});
+    expect(base).toContain("finish the plain, inevitable tail");
+    expect(base).toContain("Lead genre — DRAMA");
+    expect(base).not.toContain("Hard limits");
+    expect(base).not.toContain("Second genre");
+    const set = controlsText(c, { genre: "cyberpunk", genre2: "noir", limits: "gore", focus: "inner" });
+    expect(set).toContain("Lead genre — CYBERPUNK");
+    expect(set).toContain("Second genre — NOIR");
+    expect(set).toContain("never depict, whatever else is set: gore.");
+    expect(set).toContain("inner life");
+  });
+
+  test("values saved for the old controls carry over", () => {
+    const v = controlValues(meaControls(), { dialogue: true, slowburn: true, mature: false });
+    expect(v.dialogue).toBe("forward");
+    expect(v.romance).toBe("slow");
+    expect(v.intimacy).toBe("explicit");
+    expect(controlValues(meaControls(), { mature: true }).violence).toBe("graphic");
   });
 
   test("a model's prefill replaces the preset's", async () => {
@@ -233,7 +250,8 @@ describe("regex scripts (PROMPT-08)", () => {
     const chat = createChat({ characterId: charId });
     addMessage(chat.id, "user", "Hello (OOC: is this on?) Mira");
     const p = await previewPrompt(chat.id);
-    expect(JSON.stringify(p.messages)).not.toContain("OOC");
+    // (The preset itself talks about OOC; the user's message is what the regex cleaned.)
+    expect(JSON.stringify(p.messages.filter((m) => m.role === "user"))).not.toContain("OOC");
     setSetting("regex.scripts", []);
   });
 });

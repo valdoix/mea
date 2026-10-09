@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Almanac from "../components/trackers/Almanac.svelte";
   import Avatar from "../components/Avatar.svelte";
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
@@ -7,12 +8,13 @@
   import { uploadImage } from "../lib/images";
   import { navigate } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
+  import { voiceColor } from "../lib/voices";
   import type { CastPerson, CastProfile, TrackerChange } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
-  type Tab = "timeline" | "web" | "cast";
-  let tab = $state<Tab>((new URLSearchParams(location.search).get("tab") as Tab) ?? "timeline");
+  type Tab = "almanac" | "timeline" | "web" | "cast";
+  let tab = $state<Tab>((new URLSearchParams(location.search).get("tab") as Tab) ?? "almanac");
 
   // ---------- timeline (TRK-28) ----------
   interface Series {
@@ -142,7 +144,7 @@
   $effect(() => {
     if (tab === "timeline") void loadTimeline();
     else if (tab === "web") void loadGraph(scrub ?? undefined);
-    else void loadCast();
+    else if (tab === "cast") void loadCast();
   });
   const STAMINA = [
     ["", "From the card"],
@@ -165,6 +167,7 @@
       bind:value={tab}
       small
       options={[
+        { value: "almanac" as const, label: "Almanac" },
         { value: "timeline" as const, label: "Timeline" },
         { value: "web" as const, label: "Relationships" },
         { value: "cast" as const, label: "Cast" },
@@ -172,7 +175,9 @@
     />
   </div>
 
-  {#if tab === "timeline"}
+  {#if tab === "almanac"}
+    <Almanac chatId={id} />
+  {:else if tab === "timeline"}
     {#if series.length}
       <section class="sparks">
         {#each series as s (s.key)}
@@ -295,6 +300,10 @@
     <label class="field"><span class="label">Description</span><textarea class="textarea" rows="3" bind:value={form.description}></textarea></label>
     <label class="field"><span class="label">Voice notes</span><textarea class="textarea" rows="2" bind:value={form.voice} placeholder="Clipped sentences, calls everyone 'love', never swears"></textarea><span class="hint">Sent only when they're in the scene, so a big cast doesn't blur into one voice.</span></label>
     <div class="grid">
+      <label class="field">
+        <span class="label">Colour <span class="faint">their lines and dot</span></span>
+        <span class="row"><input type="color" class="swatch" value={form.color || voiceColor(form.name)} oninput={(e) => (form.color = e.currentTarget.value)} />{#if form.color}<button class="btn ghost small" onclick={() => (form.color = "")}>Automatic</button>{/if}</span>
+      </label>
       <label class="field">
         <span class="label">Body</span>
         <select class="select" bind:value={form.stamina}>{#each STAMINA as [v, l] (v)}<option value={v}>{l}</option>{/each}</select>
@@ -424,5 +433,14 @@
   }
   .btn.on {
     color: var(--accent);
+  }
+  .swatch {
+    width: 2.4rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
   }
 </style>

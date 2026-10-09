@@ -153,7 +153,9 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const layers = layered(settings, chat.character_id);
   const resolved = resolveProfile(opts.profileId ?? layers.profileId, opts.profileId ? null : settings.modelOverride);
   // PROMPT-10 per-model prefill, PROMPT-07 controls.
-  const { preset, controls } = presetForRequest(layers.presetId, resolved.prefill, layers.controls);
+  const { preset: basePreset, controls, values: controlValues } = presetForRequest(layers.presetId, resolved.prefill, layers.controls);
+  // One length hint, not two: the chat's own length setting replaces the preset's.
+  const preset = settings.length ? { ...basePreset, simple: { ...basePreset.simple, length: "normal" as const } } : basePreset;
   // PROMPT-08: prompt-only regex scripts change what the model is sent, never what's stored.
   const scripts = getSetting("regex.scripts");
   const history = historyForPrompt(chatId, { excludeMessageId: opts.excludeMessageId }).map((m) =>
@@ -220,6 +222,10 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     history,
     authorsNote: layers.authorsNote,
     controls,
+    controlValues,
+    // Blocks with a condition (scene modules) follow the story state as of this reply.
+    when: (cond) => (tp ? evalCondition(tp.state, cond) : false),
+    swipe: kind === "story" && opts.excludeMessageId ? { rejected: rejectedTake(opts.excludeMessageId) } : undefined,
     lore,
     contextTarget,
     modelId: resolved.modelId,
@@ -280,6 +286,13 @@ function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swip
     trace: { ...p.assembled.trace, cacheMarks: p.assembled.cacheMarks, cacheMode: p.cache?.mode ?? null, profile: p.resolved.profile.name, trackers: p.trackers, timing: p.timing },
     estPromptTokens: p.assembled.estPromptTokens,
   });
+}
+
+/** The take a swipe replaces: the message's active swipe. */
+function rejectedTake(messageId: string): string {
+  const m = getMessageRow(messageId);
+  if (!m) return "";
+  return getSwipes(messageId).find((s) => s.idx === m.active_swipe)?.content ?? "";
 }
 
 /** Records which memories and summaries a reply was given (MEM-39, MEM-40). */

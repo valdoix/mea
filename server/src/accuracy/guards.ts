@@ -3,7 +3,7 @@ import { defaultGuards, getSetting, type GuardsConfig } from "../lib/settings";
 import { chatNames } from "../memory/build";
 import { cleanText } from "../memory/text";
 import { type ChatSettings, mustChat } from "../services/chats";
-import { layered } from "../services/layers";
+import { layered, storyDials } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { Issue } from "./checker";
 import { fixNames, nameSlips } from "./names";
@@ -56,6 +56,17 @@ export function puppetHits(text: string, userNames: string[], opts: { second: bo
   }
   return out;
 }
+
+/**
+ * What counts as puppeting under the preset's Persona control: everything when sealed, only
+ * words when the model may finish the player's started actions, nothing when it may write them.
+ */
+function puppetScope(chatId: string): "all" | "speech" | "off" {
+  const persona = storyDials(mustChat(chatId)).persona;
+  return persona === "director" || persona === "full_cast" ? "off" : persona === "continuity" ? "speech" : "all";
+}
+
+const scoped = (hits: PuppetHit[], scope: "all" | "speech" | "off") => (scope === "off" ? [] : scope === "speech" ? hits.filter((h) => h.speech) : hits);
 
 /** Cuts a reply where it starts writing for the user, when that's in its second half. */
 export function trimPuppeting(text: string, hits: PuppetHit[]): { text: string; cut: string } | null {
@@ -159,7 +170,7 @@ export function guardIssues(chatId: string, text: string, o: { seq: number; mess
   const exp = cfg.pov || cfg.tense || cfg.puppet ? expected(chatId, o.seq, charNames, userNames) : null;
 
   if (cfg.puppet) {
-    const hits = puppetHits(text, userNames, { second: exp?.address !== "third" });
+    const hits = scoped(puppetHits(text, userNames, { second: exp?.address !== "third" }), puppetScope(chatId));
     if (hits.length) {
       const h = hits.find((x) => x.speech) ?? hits[0]!;
       out.push({
@@ -258,7 +269,7 @@ export function applyGuards(chatId: string, text: string, o: { seq: number; mess
   if (cfg.puppet && cfg.puppetAction !== "flag") {
     const { n, userNames } = names(chatId);
     const exp = expected(chatId, o.seq, [n.char], userNames);
-    const hits = puppetHits(res.text, userNames, { second: exp.address !== "third" });
+    const hits = scoped(puppetHits(res.text, userNames, { second: exp.address !== "third" }), puppetScope(chatId));
     if (hits.length) {
       const cut = cfg.puppetAction === "trim" ? trimPuppeting(res.text, hits) : null;
       if (cut) {

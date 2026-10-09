@@ -1,3 +1,5 @@
+import type { StoryFontId, UiFontId } from "./fonts";
+
 export type Role = "system" | "user" | "assistant";
 export type ChatMode = "companion" | "narrator";
 
@@ -295,6 +297,8 @@ export interface PromptBlock {
   position: "inline" | "depth";
   depth?: number;
   content?: string;
+  /** Sent only while this holds on the story state, e.g. "mode = conflict". */
+  when?: string;
 }
 
 export interface Preset {
@@ -321,6 +325,10 @@ export interface Preset {
   simple: { length: "short" | "normal" | "long"; style: string };
   importNotes?: string[];
   controls: PresetControl[];
+  /** Sent when you send nothing and the last message is already a reply. */
+  waitPrompt?: string;
+  /** "mea" on Mea's own installed preset. */
+  builtin?: string;
 }
 
 /** PROMPT-07: a friendly switch a preset exposes. */
@@ -328,10 +336,13 @@ export interface PresetControl {
   id: string;
   label: string;
   help: string;
-  type: "toggle" | "choice";
+  type: "toggle" | "choice" | "text";
   default: boolean | string;
+  /** Toggle: the instruction while on. Text: the instruction, with {{value}} for what you typed. */
   text: string;
   options: { value: string; label: string; text: string }[];
+  /** Listed under "More" in the chat panel. */
+  advanced?: boolean;
 }
 export type ControlValues = Record<string, boolean | string>;
 
@@ -442,7 +453,7 @@ export interface Quota {
 
 /** UI-16 / UI-19 */
 export interface Typography {
-  uiFont: "nunito" | "system";
+  uiFont: UiFontId;
   lineHeight: number;
   paragraphSpacing: number;
   width: number;
@@ -450,15 +461,23 @@ export interface Typography {
   dyslexic: boolean;
 }
 
+export interface LivingPage {
+  voices: "ink" | "ribbon" | "halo" | "off";
+  artifacts: boolean;
+  window: boolean;
+  thoughts: "never" | "drawer" | "always";
+}
+
 export interface Settings {
   "routing.story": string | null;
   "appearance.theme": "system" | "light" | "dark" | "lantern";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
-  "appearance.storyFont": "lora" | "literata" | "nunito" | "newsreader";
+  "appearance.storyFont": StoryFontId;
   /** LORE-15: underline lore terms in messages. */
   "appearance.glossary": boolean;
   "appearance.typography"?: Typography;
+  "appearance.living"?: LivingPage;
   "chat.enterToSend": boolean;
   "chat.defaultPresetId": string | null;
   "backup.hourlyKeep": number;
@@ -1309,6 +1328,10 @@ export interface TrackerConfig {
   budget: number;
   quietAfter: number;
   nudges: boolean;
+  calendar: "gregorian" | "westeros";
+  season: string;
+  /** Settings the chat's preset decides through its Persona and Romance pace controls. */
+  dialed?: ("sealed" | "romance")[];
 }
 
 export interface CastProfile {
@@ -1327,9 +1350,27 @@ export interface CastProfile {
   out?: boolean;
 }
 
+export interface StoryWhen {
+  calendar: "gregorian" | "westeros";
+  form: "date" | "day";
+  label: string;
+  date: string;
+  time: string;
+  short: string;
+  hour: number;
+  period: string;
+  weekday: string | null;
+  day: number | null;
+  month: number | null;
+  monthName: string | null;
+  year: number | null;
+  season: string | null;
+}
+
 export interface TrackersResponse {
   state: TrackerState;
   time: string | null;
+  when: StoryWhen | null;
   hud: string;
   config: TrackerConfig;
   templates: TrackerTemplate[];
@@ -1338,6 +1379,7 @@ export interface TrackersResponse {
   profiles: Record<string, CastProfile>;
   hasBase: boolean;
   running: boolean;
+  maxSeq?: number;
 }
 
 export interface CastPerson {

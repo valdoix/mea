@@ -172,20 +172,16 @@
   --r-lg: 24px;
 }
 
-:root[data-story-font="newsreader"] {
-  --font-story: "Newsreader Variable", "Newsreader", Georgia, serif;
+/* The chosen story and interface fonts (lib/fonts.ts sets the -pick variables). UI-16: "nunito"
+   means the theme's own interface font. UI-19: a dyslexia-friendly font everywhere wins over both. */
+:root[data-story-font] {
+  --font-story: var(--font-story-pick, "Lora Variable", "Lora", Georgia, serif);
 }
-:root[data-story-font="literata"] {
-  --font-story: "Literata Variable", "Literata", Georgia, serif;
+:root[data-ui-font]:not([data-ui-font="nunito"]) {
+  --font-ui: var(--font-ui-pick, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
 }
-:root[data-story-font="nunito"] {
-  --font-story: var(--font-ui);
-}
-/* UI-16: the system's own UI font. UI-19: a dyslexia-friendly font everywhere. */
-:root[data-ui-font="system"] {
-  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-:root[data-dyslexic] {
+:root[data-dyslexic],
+:root[data-dyslexic][data-ui-font] {
   --font-ui: "OpenDyslexic", system-ui, sans-serif;
   --font-story: "OpenDyslexic", Georgia, serif;
   --font-display: "OpenDyslexic", Georgia, serif;

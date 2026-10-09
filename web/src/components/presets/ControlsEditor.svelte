@@ -13,13 +13,15 @@
 
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || `c${Date.now().toString(36)}`;
 
-  function add(type: "toggle" | "choice") {
+  function add(type: "toggle" | "choice" | "text") {
     const id = `${type}-${Date.now().toString(36)}`;
     controls = [
       ...controls,
       type === "toggle"
         ? { id, label: "New switch", help: "", type, default: false, text: "", options: [] }
-        : { id, label: "New choice", help: "", type, default: "off", text: "", options: [{ value: "off", label: "Off", text: "" }, { value: "on", label: "On", text: "" }] },
+        : type === "text"
+          ? { id, label: "New text", help: "", type, default: "", text: "{{value}}", options: [] }
+          : { id, label: "New choice", help: "", type, default: "off", text: "", options: [{ value: "off", label: "Off", text: "" }, { value: "on", label: "On", text: "" }] },
     ];
     open[id] = true;
   }
@@ -31,16 +33,17 @@
     <div class="row">
       <button class="btn small" onclick={() => add("toggle")}><Plus size={14} /> Switch</button>
       <button class="btn small" onclick={() => add("choice")}><Plus size={14} /> Choice</button>
+      <button class="btn small" onclick={() => add("text")}><Plus size={14} /> Text</button>
     </div>
   </div>
-  <p class="tiny muted">Friendly switches every chat using this preset can flip in its panel, and a character can set for all its chats. What's switched on goes into the “Preset controls” block.</p>
+  <p class="tiny muted">Friendly switches every chat using this preset can flip in its panel, and a character can set for all its chats. What's switched on goes into the “Preset controls” block, and any block can read a control's value as <code>{"{{ctl.id}}"}</code> (for example <code>{"{{if ctl.persona == sealed}}…{{/if}}"}</code>).</p>
   {#each controls as c, i (c.id)}
     <div class="control">
       <div class="row">
         <button class="expand" onclick={() => (open[c.id] = !open[c.id])} aria-expanded={Boolean(open[c.id])}>
           {#if open[c.id]}<ChevronDown size={15} />{:else}<ChevronRight size={15} />{/if}
           <b>{c.label}</b>
-          <span class="tiny muted">{c.type === "toggle" ? `switch · ${c.default ? "on" : "off"} by default` : `choice · ${c.options.length} options`}</span>
+          <span class="tiny muted">{c.type === "toggle" ? `switch · ${c.default ? "on" : "off"} by default` : c.type === "text" ? "text" : `choice · ${c.options.length} options`} · {c.id}{c.advanced ? " · under More" : ""}</span>
         </button>
         <button class="btn ghost icon small" onclick={() => (controls = controls.filter((_, j) => j !== i))} aria-label="Remove control"><Trash size={14} /></button>
       </div>
@@ -50,19 +53,23 @@
             <label class="field grow"><span class="label">Label</span><input class="input" bind:value={c.label} onchange={() => c.id.startsWith(c.type) && (c.id = slug(c.label))} /></label>
             <label class="field grow"><span class="label">Help <span class="faint">shown under the switch</span></span><input class="input" bind:value={c.help} /></label>
           </div>
-          {#if c.type === "toggle"}
+          <label class="switch"><input type="checkbox" checked={c.advanced === true} onchange={(e) => (c.advanced = e.currentTarget.checked)} /> List it under “More” in the chat panel</label>
+          {#if c.type === "text"}
+            <label class="field"><span class="label">Default text</span><input class="input" value={String(c.default ?? "")} oninput={(e) => (c.default = e.currentTarget.value)} /></label>
+            <label class="field"><span class="label">Instruction when filled <span class="faint">{"{{value}}"} is what was typed</span></span><textarea class="textarea" use:autosize={{ max: 240, value: c.text }} bind:value={c.text}></textarea></label>
+          {:else if c.type === "toggle"}
             <label class="switch"><input type="checkbox" checked={c.default === true} onchange={(e) => (c.default = e.currentTarget.checked)} /> On by default</label>
             <label class="field"><span class="label">Instruction while it's on</span><textarea class="textarea" use:autosize={{ max: 240, value: c.text }} bind:value={c.text}></textarea></label>
           {:else}
             {#each c.options as o, k (k)}
               <div class="row wrap opt">
                 <input type="radio" name="def-{c.id}" checked={c.default === o.value} onchange={() => (c.default = o.value)} aria-label="Default" title="Default" />
-                <input class="input lbl" bind:value={o.label} onchange={() => (o.value = slug(o.label))} aria-label="Option label" />
+                <input class="input lbl" bind:value={o.label} onchange={() => /^o\d+$/.test(o.value) && (o.value = slug(o.label))} aria-label="Option label" />
                 <textarea class="textarea grow" rows="1" bind:value={o.text} placeholder="Instruction (empty adds nothing)"></textarea>
                 <button class="btn ghost icon small" onclick={() => (c.options = c.options.filter((_, j) => j !== k))} disabled={c.options.length <= 2} aria-label="Remove option"><Trash size={13} /></button>
               </div>
             {/each}
-            <div class="row"><button class="btn ghost small" onclick={() => (c.options = [...c.options, { value: `o${c.options.length + 1}`, label: "Option", text: "" }])}><Plus size={13} /> Option</button><span class="tiny muted">The dot marks the default.</span></div>
+            <div class="row"><button class="btn ghost small" onclick={() => (c.options = [...c.options, { value: `o${c.options.length + 1}`, label: "Option", text: "" }])} disabled={c.options.length >= 40}><Plus size={13} /> Option</button><span class="tiny muted">The dot marks the default.</span></div>
           {/if}
         </div>
       {/if}
