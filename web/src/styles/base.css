@@ -521,3 +521,46 @@ mark.hl {
 :root[data-discreet] a:focus-visible .dz {
   filter: none;
 }
+
+/* UI-24: small delights (see lib/delight.ts). */
+.delight {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  font-size: 1.1rem;
+  translate: -50% -50%;
+  animation: delight-rise 900ms var(--ease) forwards;
+}
+.delight.heart {
+  color: var(--accent-strong);
+}
+.delight.sparkle {
+  color: var(--butter);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--butter) 70%, transparent);
+}
+@keyframes delight-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(calc(var(--dx) * 0.5), -14px) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), -54px) scale(0.9);
+  }
+}
+
+/* UI-13 / UI-19: people who ask their device for less motion get none, everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

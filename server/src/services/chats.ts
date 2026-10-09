@@ -357,14 +357,18 @@ export function lastMessage(chatId: string) {
 }
 
 /** A page of messages, oldest first (PERF-02: paginated reads). The last message carries all its swipes. */
-export function listMessages(chatId: string, opts: { before?: number; limit?: number } = {}) {
+export function listMessages(chatId: string, opts: { before?: number; after?: number; limit?: number } = {}) {
   const limit = Math.min(200, opts.limit ?? 60);
-  const rows = all<MessageRow>(
-    `SELECT * FROM messages WHERE chat_id = ? AND deleted_at IS NULL ${opts.before ? "AND seq < ?" : ""} ORDER BY seq DESC LIMIT ?`,
-    ...(opts.before ? [chatId, opts.before, limit + 1] : [chatId, limit + 1]),
-  );
+  // `after` reads forward from a point (reading mode, UI-15); otherwise pages go backwards from the end.
+  const forward = opts.after !== undefined && opts.before === undefined;
+  const rows = forward
+    ? all<MessageRow>("SELECT * FROM messages WHERE chat_id = ? AND deleted_at IS NULL AND seq > ? ORDER BY seq ASC LIMIT ?", chatId, opts.after!, limit + 1)
+    : all<MessageRow>(
+        `SELECT * FROM messages WHERE chat_id = ? AND deleted_at IS NULL ${opts.before ? "AND seq < ?" : ""} ORDER BY seq DESC LIMIT ?`,
+        ...(opts.before ? [chatId, opts.before, limit + 1] : [chatId, limit + 1]),
+      );
   const hasMore = rows.length > limit;
-  const page = rows.slice(0, limit).reverse();
+  const page = forward ? rows.slice(0, limit) : rows.slice(0, limit).reverse();
   if (!page.length) return { messages: [], hasMore: false };
   const ids = page.map((r) => r.id);
   const swipes = all<SwipeRow>(`SELECT * FROM swipes WHERE message_id IN (${ids.map(() => "?").join(",")}) ORDER BY idx`, ...ids);

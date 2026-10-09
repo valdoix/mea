@@ -101,7 +101,9 @@ chats.post("/chats/:id/restore", (c) => {
 chats.get("/chats/:id/messages", (c) => {
   mustChat(c.req.param("id"));
   const before = Number(c.req.query("before")) || undefined;
-  return c.json(listMessages(c.req.param("id"), { before, limit: Number(c.req.query("limit")) || undefined }));
+  const afterQ = c.req.query("after");
+  const after = afterQ !== undefined && afterQ !== "" && Number.isFinite(Number(afterQ)) ? Number(afterQ) : undefined;
+  return c.json(listMessages(c.req.param("id"), { before, after, limit: Number(c.req.query("limit")) || undefined }));
 });
 
 /** Send a message (optional) and start the reply. Generation continues server-side (ARCH-02). */

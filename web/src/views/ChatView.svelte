@@ -13,6 +13,8 @@
   import ArchivistPanel from "../components/chat/ArchivistPanel.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
   import NotesPanel from "../components/notes/NotesPanel.svelte";
+  import Scrubber from "../components/chat/Scrubber.svelte";
+  import { delight } from "../lib/delight";
   import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
   import Segmented from "../components/Segmented.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
@@ -23,11 +25,11 @@
   import { promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { compact } from "../lib/format";
-  import { ArrowDown, ArrowLeft, Library, PanelRight, Search } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, BookOpen, Library, PanelRight, Search } from "../lib/icons";
   import { renderMessage } from "../lib/render";
   import { back, navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
-  import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
+  import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, CodexPage, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -62,7 +64,20 @@
   // Phase 3: continuity notes per message (CON-02), glossary terms (LORE-15).
   let flags = $state<Record<string, ContinuityFlag>>({});
   let terms = $state<GlossaryTerm[]>([]);
-  let glossPick = $state<{ t: GlossaryTerm; x: number; y: number } | null>(null);
+  let glossPick = $state<{ t: GlossaryTerm; x: number; y: number; who?: CodexPage | null } | null>(null);
+  /** LORE-15 lore terms, and UI-11 who's-who cards for people and places. */
+  async function pickTerm(t: GlossaryTerm, at: DOMRect) {
+    const pos = { x: Math.min(window.innerWidth - 310, Math.max(8, at.left)), y: Math.min(window.innerHeight - 260, at.bottom + 6) };
+    if (!t.entryId.startsWith("entity:")) return void (glossPick = { t, ...pos });
+    glossPick = { t, ...pos, who: null };
+    try {
+      const page = await get<CodexPage>(`/api/codex/${t.entryId.slice(7)}`);
+      if (glossPick?.t === t) glossPick = { ...glossPick, who: page };
+    } catch {
+      // the short card still shows
+    }
+  }
+  const tieWithYou = (p: CodexPage) => p.ties.find((x) => x.other && personaName && x.other.toLowerCase() === personaName.toLowerCase());
   let searchOpen = $state(false);
   let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
@@ -184,9 +199,41 @@
     else if (route.query.m) void openCitation({ messageId: route.query.m, seq: null } as Citation);
   });
 
+  // UI-10: the scrubber's marks (chapters, bookmarks, highlights) and where the view is.
+  let momentMarks = $state<{ seq: number; kind: "bookmark" | "highlight"; title: string }[]>([]);
+  const scrubMarks = $derived([
+    ...boundaries.filter((b) => b.level === "chapter").map((b) => ({ seq: b.startSeq, kind: "chapter" as const, title: b.title || "A new chapter" })),
+    ...momentMarks,
+  ]);
+  let viewSeq = $state(0);
+  let viewRaf = 0;
+  function trackView() {
+    cancelAnimationFrame(viewRaf);
+    viewRaf = requestAnimationFrame(() => {
+      if (!scroller) return;
+      const top = scroller.getBoundingClientRect().top + 8;
+      for (const el of scroller.querySelectorAll<HTMLElement>("article.msg")) {
+        if (el.getBoundingClientRect().bottom > top) {
+          viewSeq = Number(el.dataset.seq) || viewSeq;
+          return;
+        }
+      }
+    });
+  }
+  // MOB-10: replies that arrived while you were reading further up.
+  let seenSeq = $state(0);
+  $effect(() => {
+    if (stick) seenSeq = lastMsg?.seq ?? 0;
+  });
+  const unread = $derived(stick ? 0 : messages.filter((m) => m.seq > seenSeq && m.role === "assistant" && m.status !== "streaming").length);
+
   // QOL-02: passages you highlighted, marked in their messages.
   let passages = $state<Record<string, string[]>>({});
   async function loadHighlights() {
+    void get<{ moments: { kind: "bookmark" | "highlight"; seq: number; text: string }[] }>(`/api/moments?chat=${id}`).then(
+      (r) => (momentMarks = r.moments.map((m) => ({ seq: m.seq, kind: m.kind, title: m.text.replace(/\s+/g, " ").slice(0, 60) }))),
+      () => {},
+    );
     try {
       const r = await get<{ highlights: { messageId: string; text: string }[] }>(`/api/chats/${id}/highlights`);
       const next: Record<string, string[]> = {};
@@ -213,7 +260,16 @@
   }
   async function loadTerms() {
     try {
-      terms = (await get<{ terms: GlossaryTerm[] }>(`/api/chats/${id}/glossary`)).terms;
+      const [g, n] = await Promise.all([
+        get<{ terms: GlossaryTerm[] }>(`/api/chats/${id}/glossary`),
+        get<{ names: { name: string; kind: string; hint?: string; entityId?: string }[] }>(`/api/chats/${id}/names`).catch(() => ({ names: [] })),
+      ]);
+      // UI-11: people and places from memory become tappable too (you aren't).
+      const have = new Set(g.terms.map((t) => t.term.toLowerCase()));
+      const people = n.names
+        .filter((x) => x.entityId && x.hint !== "you" && x.name.length >= 3 && !have.has(x.name.toLowerCase()))
+        .map((x) => ({ term: x.name, entryId: `entity:${x.entityId}`, bookId: "", title: x.name, type: x.kind, snippet: x.hint ?? "" }));
+      terms = [...g.terms, ...people];
     } catch {
       terms = [];
     }
@@ -450,6 +506,7 @@
 
   async function onScroll() {
     if (!scroller) return;
+    trackView();
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 140;
     if (scroller.scrollTop < 400 && hasMore && !loadingOlder && messages.length) {
       loadingOlder = true;
@@ -612,6 +669,13 @@
   async function flag(m: Message, flags: { hidden?: boolean; bookmarked?: boolean }) {
     try {
       upsert(await patch<Message>(`/api/messages/${m.id}`, flags));
+      if (flags.bookmarked !== undefined) {
+        void loadHighlights();
+        if (flags.bookmarked) {
+          const r = scroller?.querySelector(`[data-seq="${m.seq}"]`)?.getBoundingClientRect();
+          delight("heart", r ? { x: r.left + 40, y: r.top + 30 } : undefined);
+        }
+      }
       if (flags.hidden !== undefined) {
         toast(flags.hidden ? "Hidden from the prompt (still visible here)" : "Included in the prompt again");
         refreshPreview();
@@ -627,6 +691,10 @@
   }
 
   function onkey(e: KeyboardEvent) {
+    if (e.key === "Escape" && glossPick) {
+      glossPick = null;
+      return;
+    }
     if (!lastMsg || lastMsg.role !== "assistant") return;
     if (e.altKey && e.key.toLowerCase() === "r" && !generating) {
       e.preventDefault();
@@ -685,6 +753,7 @@
           <ModelSwitcher {detail} onchange={() => load()} />
           <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" class:on={searchOpen}><Search size={18} /></button>
           <a class="btn ghost icon hide-sm" href="/chat/{id}/codex" aria-label="Codex: people, places, timeline" title="Codex"><Library size={18} /></a>
+          <a class="btn ghost icon hide-sm" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>
           <QuotaRing size={22} />
           <button class="btn ghost icon" onclick={togglePanel} aria-label="Chat settings" class:on={panelOpen && !app.isMobile}><PanelRight size={19} /></button>
         </div>
@@ -751,7 +820,7 @@
               }}
               oncite={openCitation}
               glossary={terms}
-              onglossary={(t, at) => (glossPick = { t, x: Math.min(window.innerWidth - 300, Math.max(8, at.left)), y: at.bottom + 6 })}
+              onglossary={(t, at) => void pickTerm(t, at)}
               oncompare={async () => {
                 compare = await get<Message>(`/api/messages/${m.id}`);
                 compareOpen = true;
@@ -771,7 +840,10 @@
       </div>
 
       {#if !stick}
-        <button class="jump btn icon" onclick={() => ((stick = true), scrollToBottom())} aria-label="Jump to latest"><ArrowDown size={18} /></button>
+        <button class="jump btn icon" onclick={() => ((stick = true), scrollToBottom())} aria-label={unread ? `Jump to latest: ${unread} new` : "Jump to latest"}><ArrowDown size={18} />{#if unread}<span class="unread">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+      {/if}
+      {#if lastMsg && lastMsg.seq > 30}
+        <Scrubber max={lastMsg.seq} current={viewSeq || lastMsg.seq} marks={scrubMarks} onjump={(seq) => void jumpTo(seq)} />
       {/if}
 
       <div class="composer-area">
@@ -809,9 +881,29 @@
   {#if glossPick}
     <button class="gloss-scrim" onclick={() => (glossPick = null)} aria-label="Close"></button>
     <div class="gloss-pop card" style:left="{glossPick.x}px" style:top="{glossPick.y}px" role="dialog" aria-label={glossPick.t.title}>
-      <div class="row"><b class="grow">{glossPick.t.title}</b>{#if glossPick.t.type}<span class="chip tiny">{glossPick.t.type}</span>{/if}</div>
-      <p class="small">{glossPick.t.snippet}</p>
-      <a class="tiny" href="/lorebooks/{glossPick.t.bookId}?entry={glossPick.t.entryId}">Open the entry</a>
+      {#if glossPick.who !== undefined}
+        {@const p = glossPick.who}
+        <div class="row who">
+          {#if glossPick.t.title.toLowerCase() === charName.toLowerCase()}<Avatar id={detail?.character?.avatarId} name={charName} size={40} palette={detail?.character?.palette ?? []} />{/if}
+          <b class="grow">{p?.entity.name ?? glossPick.t.title}</b>
+          <span class="chip tiny">{p?.entity.kind ?? glossPick.t.type}</span>
+          {#if p && p.entity.status !== "active" && p.entity.status !== "unknown"}<span class="chip tiny peach">{p.entity.status}</span>{/if}
+        </div>
+        {#if p}
+          {#if p.card || p.entity.description}<p class="small">{(p.card || p.entity.description).slice(0, 240)}</p>{/if}
+          {#if p.facts.length}<ul class="tiny facts">{#each p.facts.slice(0, 3) as f (f.id)}<li>{f.content}</li>{/each}</ul>{/if}
+          {@const tie = tieWithYou(p)}
+          {#if tie}<p class="tiny muted">With you: {tie.label}</p>{/if}
+          {#if p.entity.lastSeq}<p class="tiny muted">Last seen at message {p.entity.lastSeq}{p.appearances.at(-1)?.storyTime ? ` · ${p.appearances.at(-1)?.storyTime}` : ""}</p>{/if}
+        {:else}
+          <p class="small muted">{glossPick.t.snippet || "Loading…"}</p>
+        {/if}
+        <a class="tiny" href="/chat/{id}/codex?entity={glossPick.t.entryId.slice(7)}">Open in the Codex</a>
+      {:else}
+        <div class="row"><b class="grow">{glossPick.t.title}</b>{#if glossPick.t.type}<span class="chip tiny">{glossPick.t.type}</span>{/if}</div>
+        <p class="small">{glossPick.t.snippet}</p>
+        <a class="tiny" href="/lorebooks/{glossPick.t.bookId}?entry={glossPick.t.entryId}">Open the entry</a>
+      {/if}
     </div>
   {/if}
 
@@ -893,6 +985,15 @@
   }
   .gloss-pop p {
     margin: 0;
+  }
+  .gloss-pop .who {
+    gap: 0.5rem;
+  }
+  .gloss-pop .facts {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.15rem;
   }
   .column :global(.gloss) {
     text-decoration: underline dotted color-mix(in srgb, var(--accent) 60%, transparent);
@@ -1027,6 +1128,18 @@
   }
   .setup {
     text-align: center;
+  }
+  .unread {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.35rem;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: var(--accent-strong);
+    color: white;
+    font: 700 0.65rem/1.15rem var(--font-ui);
   }
   .jump {
     position: absolute;

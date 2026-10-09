@@ -126,3 +126,5 @@ export { default as PenLine } from "@lucide/svelte/icons/pen-line";
 export { default as Save } from "@lucide/svelte/icons/save";
 export { default as FlaskConical } from "@lucide/svelte/icons/flask-conical";
 export { default as Shirt } from "@lucide/svelte/icons/shirt";
+// Phase 5
+export { default as Minus } from "@lucide/svelte/icons/minus";

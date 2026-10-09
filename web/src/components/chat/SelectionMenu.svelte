@@ -3,6 +3,7 @@
   import { del, post } from "../../lib/api";
   import { Bookmark, BookmarkPlus, CircleAlert, Heart } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
+  import { delight } from "../../lib/delight";
   import type { Atom } from "../../lib/types";
 
   /**
@@ -50,6 +51,7 @@
     try {
       await post(`/api/chats/${chatId}/remember`, { messageId: sel.messageId, text: sel.text, pin });
       toast(pin ? "Pinned: it's in every prompt from now on" : "Remembered", { kind: "ok" });
+      delight("sparkle", { x: sel.x + 90, y: sel.y + 20 });
       window.getSelection()?.removeAllRanges();
       sel = null;
     } catch (e) {
@@ -61,6 +63,7 @@
     if (!sel) return;
     try {
       const h = await post<{ id: string }>(`/api/messages/${sel.messageId}/highlights`, { text: sel.text });
+      delight("heart", { x: sel.x + 90, y: sel.y + 20 });
       window.getSelection()?.removeAllRanges();
       sel = null;
       onhighlight?.();

@@ -374,6 +374,7 @@
       <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=md`)}><Download size={14} /> Markdown</button>
       <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=jsonl`)}><Download size={14} /> JSONL</button>
       <button class="btn small" onclick={() => (exportOpen = true)}><BookOpen size={14} /> Book & memory</button>
+      <a class="btn small" href="/chat/{detail.chat.id}/read"><BookOpen size={14} /> Reading mode</a>
     </div>
   </div>
 

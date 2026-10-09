@@ -3,7 +3,8 @@
   import { onEvent } from "../lib/events";
   import { timeAgo } from "../lib/format";
   import { device, setDevice } from "../lib/device.svelte";
-  import { BookOpen, Eye, EyeOff, House, Inbox, Moon, NotebookPen, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
+  import { palette } from "../lib/palette.svelte";
+  import { BookOpen, Eye, EyeOff, House, Inbox, Moon, NotebookPen, Search, Settings, SlidersHorizontal, Sun, Trash, Users, WandSparkles } from "../lib/icons";
   import { route } from "../lib/router.svelte";
   import { app, saveSetting } from "../lib/state.svelte";
   import type { ChatListItem } from "../lib/types";
@@ -75,6 +76,7 @@
         <span class="weaving" title="Working in the background"><span class="dot"></span></span>
       {/if}
       <QuotaRing />
+      <button class="btn ghost icon small" onclick={() => ((app.drawerOpen = false), (palette.open = true))} aria-label="Jump to anything" title="Jump to anything (Ctrl+K)"><Search size={16} /></button>
       <button class="btn ghost icon small" onclick={() => setDevice("discreet", !device.discreet)} aria-label={device.discreet ? "Leave discreet mode" : "Discreet mode: blur avatars and previews"} aria-pressed={device.discreet} title={device.discreet ? "Discreet mode is on" : "Discreet mode"}>
         {#if device.discreet}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
       </button>

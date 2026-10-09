@@ -20,6 +20,8 @@ export interface NameEntry {
   source: "card" | "persona" | "entity" | "tracker" | "lore";
   /** A short line for the mention popup: "person · keeper of the lighthouse". */
   hint?: string;
+  /** For people and places from memory: their Codex page (UI-11's who's-who popover). */
+  entityId?: string;
 }
 
 const looksProper = (s: string) => /^[A-Z][\p{L}'’-]*(?:\s+(?:of|the|de|van|von|al|el|du|da|[A-Z][\p{L}'’-]*)){0,3}$/u.test(s.trim());
@@ -31,7 +33,13 @@ export function nameRegistry(chatId: string): NameEntry[] {
   const add = (name: string, e: Omit<NameEntry, "name">) => {
     const n = name.trim();
     const k = norm(n);
-    if (!k || k.length < 2 || out.has(k)) return;
+    if (!k || k.length < 2) return;
+    const had = out.get(k);
+    // The first spelling wins; a later source can still say which Codex page it is.
+    if (had) {
+      if (!had.entityId && e.entityId) had.entityId = e.entityId;
+      return;
+    }
     out.set(k, { name: n, ...e });
   };
   add(names.char, { kind: "person", source: "card", hint: "the character" });
@@ -45,7 +53,7 @@ export function nameRegistry(chatId: string): NameEntry[] {
   }
   for (const r of resolver(chatId).rows) {
     const hint = [r.kind, r.description.split(/(?<=[.!?])\s/)[0]?.slice(0, 80)].filter(Boolean).join(" · ");
-    for (const n of [r.name, ...JSON.parse(r.aliases || "[]")]) add(String(n), { kind: r.kind, source: "entity", hint });
+    for (const n of [r.name, ...JSON.parse(r.aliases || "[]")]) add(String(n), { kind: r.kind, source: "entity", hint, entityId: r.id });
   }
   for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
     if (!e.enabled) continue;

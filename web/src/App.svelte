@@ -16,6 +16,7 @@
   import Pair from "./views/Pair.svelte";
   import Unlock from "./views/Unlock.svelte";
   import AppLock from "./components/AppLock.svelte";
+  import CommandPalette from "./components/CommandPalette.svelte";
   import { lock, watchLock } from "./lib/applock.svelte";
   import { device } from "./lib/device.svelte";
   import Welcome from "./views/Welcome.svelte";
@@ -112,7 +113,7 @@
     app.drawerOpen = false;
   });
 
-  const bare = $derived(route.name === "pair" || route.name === "welcome");
+  const bare = $derived(route.name === "pair" || route.name === "welcome" || route.name === "read");
   const fullBleed = $derived(route.name === "chat");
 </script>
 
@@ -129,7 +130,10 @@
 {:else if vaultLocked}
   <Unlock />
 {:else if bare}
-  {#if route.name === "pair"}<Pair />{:else}<Welcome />{/if}
+  {#if route.name === "pair"}<Pair />
+  {:else if route.name === "read"}
+    {#await import("./views/ReadView.svelte") then v}<v.default id={route.params.id!} />{/await}
+  {:else}<Welcome />{/if}
 {:else}
   <div class="shell" class:full={fullBleed}>
     {#if !app.isMobile}
@@ -170,6 +174,7 @@
 
 <Toasts />
 <Dialogs />
+{#if ready && !unreachable && !vaultLocked && !bare && app.authorized && !lock.locked}<CommandPalette />{/if}
 {#if lock.locked}<AppLock />{/if}
 
 <style>

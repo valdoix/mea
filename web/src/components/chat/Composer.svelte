@@ -7,6 +7,7 @@
   import { ArrowUp, Square, Sparkles, UserPen, WandSparkles, Send, Clapperboard, SlidersHorizontal, X } from "../../lib/icons";
   import { app, errorToast, toast } from "../../lib/state.svelte";
   import { buzz, device as prefs } from "../../lib/device.svelte";
+  import { delight } from "../../lib/delight";
   import type { SpellIssue } from "../../lib/spell";
   import type { ChatDetail, ChatSettings, LorePreview } from "../../lib/types";
 
@@ -111,6 +112,7 @@
           if (!arg) return (errorToast(`Write what to remember after /${cmd}`), true);
           await post(`/api/chats/${chatId}/memories`, { type: "fact", content: arg, importance: 8, pinned: cmd === "pin" });
           toast(cmd === "pin" ? "Pinned to memory" : "Remembered", { kind: "ok" });
+          delight("sparkle");
           return true;
         case "ask": {
           if (!arg) return (errorToast("Write your question after /ask"), true);
