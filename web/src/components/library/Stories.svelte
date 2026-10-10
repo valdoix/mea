@@ -11,17 +11,19 @@
   let collections = $state<Collection[]>([]);
   let current = $state<string>(localStorage.getItem("mea.collection") ?? "");
   let chats = $state<ChatListItem[]>([]);
+  // L17: archived chats have their own filter (they're left out of every other list).
+  const ARCHIVED = "@archived";
   let stats = $state<StoryStats | null>(null);
 
   async function load() {
     try {
       const [c, list, s] = await Promise.all([
         get<{ collections: Collection[] }>("/api/collections"),
-        get<{ chats: ChatListItem[] }>(`/api/chats?limit=24${current ? `&collection=${current}` : ""}`),
+        get<{ chats: ChatListItem[] }>(current === ARCHIVED ? "/api/chats?archived=1&limit=200" : `/api/chats?limit=24${current ? `&collection=${current}` : ""}`),
         get<StoryStats>("/api/stats"),
       ]);
       collections = c.collections;
-      if (current && !collections.some((x) => x.id === current)) current = "";
+      if (current && current !== ARCHIVED && !collections.some((x) => x.id === current)) current = "";
       chats = list.chats;
       stats = s;
     } catch (e) {
@@ -84,6 +86,7 @@
     {#each collections as c (c.id)}
       <button class="chip" class:on={current === c.id} onclick={() => (current = c.id)}>{#if c.builtin === "favorites"}<Star size={11} />{/if} {c.name} <span class="faint">{c.count}</span></button>
     {/each}
+    <button class="chip" class:on={current === ARCHIVED} onclick={() => (current = ARCHIVED)}>Archived</button>
     <button class="chip ghost" onclick={newCollection} aria-label="New collection"><Plus size={12} /></button>
     {#if cur}
       <button class="chip ghost tiny" onclick={renameCurrent}>Rename</button>
@@ -104,7 +107,7 @@
         </div>
       </a>
     {:else}
-      <p class="tiny muted">{current ? "Nothing in this collection yet. Add chats from their panel (Chat tab)." : "No stories yet."}</p>
+      <p class="tiny muted">{current === ARCHIVED ? "No archived chats. Archive one from its panel (Chat tab)." : current ? "Nothing in this collection yet. Add chats from their panel (Chat tab)." : "No stories yet."}</p>
     {/each}
   </div>
 </section>
