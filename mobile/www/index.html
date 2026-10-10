@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mea</title>
+<style>
+  :root { color-scheme: dark; --bg: #0e0a18; --card: #1a1429; --line: #3a3050; --ink: #efe6f6; --muted: #a99bbd; --accent: #f3c98b; }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { min-height: 100vh; display: grid; align-content: center; gap: 1rem; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); max-width: 30rem; margin: 0 auto; }
+  .mark { font: 600 2.4rem/1 Georgia, serif; text-align: center; }
+  .mark span { color: var(--accent); }
+  p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  form { display: grid; gap: 0.9rem; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 1.1rem; }
+  label { display: grid; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+  input { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 0.7rem 0.8rem; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #code { letter-spacing: 0.2em; text-transform: uppercase; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 0.75rem 1rem; background: var(--accent); color: #2a1d10; }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 400; }
+  .err { color: #f2a7a7; }
+  [hidden] { display: none !important; }
+  .center { text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">Mea <span>✿</span></div>
+
+  <section id="down" hidden>
+    <p class="center err" id="downMsg">Can't reach Mea right now.</p>
+    <p class="center" style="margin-top:0.4rem">Is the computer on, with Mea and ngrok running?</p>
+    <div style="display:grid;gap:0.6rem;margin-top:1rem">
+      <button id="retry">Try again</button>
+      <button class="ghost" id="change">Change address</button>
+    </div>
+  </section>
+
+  <form id="setup" hidden>
+    <p>On the computer, open <b>Settings → Devices</b> in Mea, make a pairing code, and paste its link here. Or type the address and the code.</p>
+    <label>Mea's address or pairing link
+      <input id="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://your-name.ngrok-free.dev" required />
+    </label>
+    <label>Pairing code <span>(only the first time)</span>
+      <input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD2345" />
+    </label>
+    <p class="err" id="formErr" hidden></p>
+    <button type="submit" id="go">Connect</button>
+  </form>
+</main>
+<script>
+  const KEY = "mea.url";
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch {}
+
+  function showSetup() {
+    $("down").hidden = true;
+    $("setup").hidden = false;
+    if (saved) $("url").value = saved;
+  }
+
+  /** Accepts "name.ngrok-free.dev", a full address, or a whole pairing link (address + ?code=). */
+  function parse(raw) {
+    let text = raw.trim();
+    if (!/^https?:\/\//i.test(text)) text = "https://" + text;
+    const u = new URL(text);
+    if (u.protocol !== "https:") throw new Error("The address must start with https://");
+    return { origin: u.origin, code: u.searchParams.get("code") };
+  }
+
+  async function reachable(origin) {
+    try {
+      // Cross-origin from the app's own page, so the answer is opaque: getting one at all means the address works.
+      await fetch(origin + "/api/ping", { mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(8000) });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function open(origin, code) {
+    location.replace(code ? `${origin}/pair?code=${encodeURIComponent(code)}` : origin + "/");
+  }
+
+  $("setup").onsubmit = async (e) => {
+    e.preventDefault();
+    const err = $("formErr");
+    err.hidden = true;
+    let target;
+    try {
+      target = parse($("url").value);
+    } catch (x) {
+      err.textContent = x.message || "That address doesn't look right.";
+      err.hidden = false;
+      return;
+    }
+    const code = ($("code").value.trim() || target.code || "").toUpperCase();
+    $("go").disabled = true;
+    $("go").textContent = "Connecting…";
+    const ok = await reachable(target.origin);
+    $("go").disabled = false;
+    $("go").textContent = "Connect";
+    if (!ok) {
+      err.textContent = "Mea didn't answer at that address. Check it, and that ngrok is running on the computer.";
+      err.hidden = false;
+      return;
+    }
+    try { localStorage.setItem(KEY, target.origin); } catch {}
+    open(target.origin, code);
+  };
+  $("retry").onclick = () => saved && open(saved);
+  $("change").onclick = showSetup;
+
+  // This page is also the app's error page: Capacitor shows it when Mea's address can't be loaded.
+  const isError = !params.has("setup") && saved && sessionStorage.getItem("mea.launched") === "1";
+  if (params.has("setup") || !saved) showSetup();
+  else if (isError) {
+    $("down").hidden = false;
+  } else {
+    sessionStorage.setItem("mea.launched", "1");
+    open(saved);
+  }
+</script>
+</body>
+</html>

@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { brainstorm } from "../../lib/cowriter.svelte";
   import { promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
-  import { Layers, Loader, PenLine, Plus, RefreshCw, Sparkles, X } from "../../lib/icons";
+  import { Layers, Loader, MessagesSquare, PenLine, Plus, RefreshCw, Sparkles, X } from "../../lib/icons";
   import type { Expansion, ExpansionPatch } from "../../lib/types";
 
   /**
@@ -51,6 +52,7 @@
       <b>Expand my {what}</b>
       {#if expansion?.sections.length}<span class="tiny muted">{expansion.sections.length} sections · {words} words</span>{/if}
     </button>
+    <button class="btn ghost small" onclick={() => brainstorm(expansion?.sections.length ? "" : `Let's brainstorm my ${what} before expanding it. `)} title="Think it through with Mea: she can change and add sections"><MessagesSquare size={13} /> Brainstorm</button>
     {#if expansion?.sections.length}
       <label class="switch tiny" title="Feed it to the next steps"><input type="checkbox" checked={expansion.use} onchange={(e) => { expansion!.use = e.currentTarget.checked; onpatch({ use: expansion!.use }, "exp:use", 0); }} /> Use it</label>
     {/if}
@@ -58,7 +60,7 @@
 
   {#if open}
     {#if !expansion?.sections.length}
-      <p class="small muted">Turns your {what} into a fully fleshed-out concept, section by section: names, places, tensions, secrets and openings a story can use. Your words stay canon, nothing is hedged, and every section is yours to edit.</p>
+      <p class="small muted">Turns your {what} into a fully fleshed-out concept, section by section: names, places, tensions, secrets and openings a story can use. Your words stay canon, nothing is hedged, and every section is yours to edit. Or brainstorm it with Mea first: she can write and change sections as you talk.</p>
       <div class="row wrap">
         <input class="input grow" bind:value={steer} placeholder="Optional: lean it (darker, cozier, more political…)" aria-label="Lean the expansion" />
         <button class="btn primary" onclick={() => onexpand(steer)} disabled={disabled || Boolean(busy)}>
@@ -71,6 +73,7 @@
           <div class="row">
             <input class="heading" value={s.heading} oninput={(e) => { s.heading = e.currentTarget.value; onpatch({ sections: [{ id: s.id, heading: s.heading }] }, `exp:${s.id}`); }} aria-label="Section heading" />
             {#if busy === `deepen:${s.id}`}<span class="spin"><Loader size={14} /></span>{/if}
+            <button class="btn ghost icon small" onclick={() => brainstorm(`Let's brainstorm the "${s.heading}" section: `)} title="Brainstorm this section with Mea" aria-label="Brainstorm {s.heading}"><MessagesSquare size={13} /></button>
             <button class="btn ghost small" onclick={() => ondeepen(s.id, "")} disabled={disabled || Boolean(busy)} title="More depth: specifics, consequences, connections"><Plus size={13} /> Go deeper</button>
             <button class="btn ghost small" onclick={() => rewrite(s.id, s.heading)} disabled={disabled || Boolean(busy)} title="Rewrite it your way"><PenLine size={13} /> Rewrite</button>
             <button class="btn ghost icon small" onclick={() => { expansion!.sections = expansion!.sections.filter((x) => x.id !== s.id); onpatch({ remove: [s.id] }, `exp:remove:${s.id}`, 0); }} aria-label="Remove section"><X size={13} /></button>

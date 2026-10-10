@@ -1,5 +1,6 @@
 <script lang="ts">
   import EmptyState from "../components/EmptyState.svelte";
+  import CoWriter from "../components/studio/CoWriter.svelte";
   import StudioPlan from "../components/lore/studio/StudioPlan.svelte";
   import StudioQuestions from "../components/lore/studio/StudioQuestions.svelte";
   import StudioReview from "../components/lore/studio/StudioReview.svelte";
@@ -76,6 +77,17 @@
     {:else}
       <StudioReview {session} />
     {/if}
+
+    <CoWriter
+      chat={draft.chat ?? []}
+      proposal={draft.proposal ?? null}
+      busy={session.busy === "cowrite"}
+      examples={draft.stage === "start" || draft.stage === "questions" ? ["Brainstorm the central tension with me", "What would make this world feel lived-in?", "Give me three directions this could go", "Add a section on what people fear at night"] : draft.basedOn ? [`Who from ${draft.basedOn} am I forgetting?`, "Brainstorm three secrets that would wreck this group", "What are the most popular fanon takes I could use?", "Make the overview darker"] : ["Brainstorm three factions that want the same thing", "What's missing from this world?", "Give every place a secret", "Make the overview darker"]}
+      onsend={(message) => session.act("cowrite", "/cowrite", { message })}
+      onapply={(accept) => session.act("cowrite", "/cowrite/apply", { accept })}
+      ondismiss={() => session.act("cowrite", "/cowrite/dismiss")}
+      onclear={() => session.act("cowrite", "/cowrite", undefined, "DELETE")}
+    />
   </div>
 {/if}
 

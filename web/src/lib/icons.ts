@@ -136,3 +136,7 @@ export { default as Sunrise } from "@lucide/svelte/icons/sunrise";
 export { default as Sunset } from "@lucide/svelte/icons/sunset";
 export { default as Rows2 } from "@lucide/svelte/icons/rows-2";
 export { default as MessageCircle } from "@lucide/svelte/icons/message-circle";
+export { default as MessagesSquare } from "@lucide/svelte/icons/messages-square";
+export { default as ScanSearch } from "@lucide/svelte/icons/scan-search";
+export { default as ClockAlert } from "@lucide/svelte/icons/clock-alert";
+export { default as UserSearch } from "@lucide/svelte/icons/user-search";

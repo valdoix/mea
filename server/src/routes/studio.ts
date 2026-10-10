@@ -5,7 +5,15 @@ import { body } from "../lib/http";
 import { parseDocument } from "../lore/ingest";
 import {
   addItem,
+  applyCowrite,
+  applyCritique,
+  clearCowriteChat,
   commitDraft,
+  cowriteLore,
+  critiqueDraft,
+  dismissCowrite,
+  researchLore,
+  takeCensus,
   consistencyCheck,
   createDraft,
   deepenLore,
@@ -33,7 +41,7 @@ export const studio = new Hono();
 
 const types = z.enum(ENTRY_TYPES as [string, ...string[]]);
 const optionsSchema = z.object({
-  size: z.enum(["small", "medium", "large"]),
+  size: z.enum(["small", "medium", "large", "complete"]),
   length: z.enum(["lean", "standard", "rich"]),
   types: z.array(types),
   tone: z.string().max(300),
@@ -108,6 +116,7 @@ studio.put("/lore-studio/:id", async (c) => {
       overview: z.string().max(20_000).optional(),
       targetBookId: z.string().nullable().optional(),
       links: z.array(linkSchema).optional(),
+      basedOn: z.string().max(200).optional(),
       expansion: z
         .object({
           sections: z.array(z.object({ id: z.string().max(100), heading: z.string().max(200).optional(), text: z.string().max(20_000).optional() })).max(40).optional(),
@@ -147,9 +156,18 @@ studio.post("/lore-studio/:id/directions", async (c) => {
 });
 
 studio.post("/lore-studio/:id/outline", async (c) => {
-  const input = await opts(c, z.object({ mode: z.enum(["replace", "more"]).optional(), steer: z.string().max(1000).optional(), count: z.number().int().min(1).max(40).optional() }).default({}));
+  const input = await opts(c, z.object({ mode: z.enum(["replace", "more"]).optional(), steer: z.string().max(1000).optional(), count: z.number().int().min(1).max(40).optional(), names: z.array(z.string().max(200)).max(200).optional() }).default({}));
   return c.json(d(await planOutline(c.req.param("id"), input)));
 });
+
+/** Canon from the web: the work's wiki, Wikipedia and your links, distilled into a brief. */
+studio.post("/lore-studio/:id/research", async (c) => {
+  const input = await opts(c, z.object({ urls: z.array(z.string().max(2000)).max(8).optional() }).default({}));
+  return c.json(d(await researchLore(c.req.param("id"), input)));
+});
+
+/** The census: everyone and everything the world has, from the material and canon (re-taken on a fresh plan). */
+studio.post("/lore-studio/:id/census", async (c) => c.json(d(await takeCensus(c.req.param("id")))));
 
 studio.get("/lore-studio/:id/gaps", (c) => {
   const draft = mustDraft(c.req.param("id"));
@@ -186,6 +204,22 @@ studio.post("/lore-studio/:id/stop", (c) => c.json(d(stopWrite(c.req.param("id")
 studio.get("/lore-studio/:id/review", (c) => c.json(reviewDraft(c.req.param("id"))));
 
 studio.post("/lore-studio/:id/consistency", async (c) => c.json(d(await consistencyCheck(c.req.param("id")))));
+
+/** The editor's pass over every entry, and applying one of its fixes. */
+studio.post("/lore-studio/:id/critique", async (c) => c.json(d(await critiqueDraft(c.req.param("id")))));
+studio.post("/lore-studio/:id/critique/:issueId", (c) => c.json(d(applyCritique(c.req.param("id"), c.req.param("issueId")))));
+
+/** The co-writer: ask in plain words, get changes to accept or reject. */
+studio.post("/lore-studio/:id/cowrite", async (c) => {
+  const input = await body(c, z.object({ message: z.string().trim().min(1).max(4000) }));
+  return c.json(d(await cowriteLore(c.req.param("id"), input.message)));
+});
+studio.post("/lore-studio/:id/cowrite/apply", async (c) => {
+  const input = await body(c, z.object({ accept: z.array(z.string()).max(40) }));
+  return c.json(d(applyCowrite(c.req.param("id"), input.accept)));
+});
+studio.post("/lore-studio/:id/cowrite/dismiss", (c) => c.json(d(dismissCowrite(c.req.param("id")))));
+studio.delete("/lore-studio/:id/cowrite", (c) => c.json(d(clearCowriteChat(c.req.param("id")))));
 
 studio.post("/lore-studio/:id/commit", async (c) => {
   const input = await opts(

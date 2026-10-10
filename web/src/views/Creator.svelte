@@ -1,5 +1,6 @@
 <script lang="ts">
   import EmptyState from "../components/EmptyState.svelte";
+  import CoWriter from "../components/studio/CoWriter.svelte";
   import CreatorBible from "../components/creator/CreatorBible.svelte";
   import CreatorHub from "../components/creator/CreatorHub.svelte";
   import CreatorIdea from "../components/creator/CreatorIdea.svelte";
@@ -78,6 +79,17 @@
     {:else}
       <CreatorWrite {session} />
     {/if}
+
+    <CoWriter
+      chat={draft.chat ?? []}
+      proposal={draft.proposal ?? null}
+      busy={session.busy === "cowrite"}
+      examples={draft.stage === "idea" || draft.stage === "questions" ? ["Brainstorm the contradiction at their core", "What's the most interesting secret they could keep?", "Push the Voice section: give them three habits", `What would make ${draft.name || "them"} unforgettable?`] : [`What makes ${draft.name || "them"} interesting to play opposite?`, "Brainstorm a secret that would change everything", draft.basedOn ? `How close is this to canon ${draft.basedOn}?` : "Give them a contradiction at their core", "Make the greeting start in the middle of an argument"]}
+      onsend={(message) => session.act("cowrite", "/cowrite", { message })}
+      onapply={(accept) => session.act("cowrite", "/cowrite/apply", { accept })}
+      ondismiss={() => session.act("cowrite", "/cowrite/dismiss")}
+      onclear={() => session.act("cowrite", "/cowrite", undefined, "DELETE")}
+    />
   </div>
 {/if}
 

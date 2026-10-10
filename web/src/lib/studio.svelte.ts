@@ -4,7 +4,7 @@ import { onEvent } from "./events";
 import { Flag, Lightbulb, MapPin, Milestone, Package, ScrollText, Users } from "./icons";
 import { errorToast } from "./state.svelte";
 import { DraftSaver } from "./drafts.svelte";
-import type { Expansion, ExpansionPatch, LoreType, StudioDraft, StudioEntry, StudioItem, StudioOptions, StudioReview } from "./types";
+import type { CensusEntry, Expansion, ExpansionPatch, LoreType, StudioDraft, StudioEntry, StudioItem, StudioOptions, StudioReview } from "./types";
 
 /** Entry kinds, with the icon and chip colour the studio shows for each. */
 export const LORE_TYPES: { value: LoreType; label: string; plural: string; icon: Component<{ size?: number }>; chip: string }[] = [
@@ -18,7 +18,7 @@ export const LORE_TYPES: { value: LoreType; label: string; plural: string; icon:
 ];
 export const typeMeta = (t: LoreType | null) => LORE_TYPES.find((x) => x.value === t) ?? null;
 
-type DraftPatch = Partial<{ title: string; stage: StudioDraft["stage"]; text: string; options: Partial<StudioOptions>; answers: Record<string, string>; overview: string; targetBookId: string | null; links: StudioDraft["links"]; expansion: ExpansionPatch }>;
+type DraftPatch = Partial<{ title: string; stage: StudioDraft["stage"]; text: string; options: Partial<StudioOptions>; answers: Record<string, string>; overview: string; targetBookId: string | null; links: StudioDraft["links"]; expansion: ExpansionPatch; basedOn: string }>;
 type ItemPatch = Partial<Pick<StudioItem, "title" | "type" | "pitch" | "parent" | "folder" | "source" | "constant" | "keep" | "steer">> & { entry?: StudioEntry | null };
 
 /** Keeps the sections you're editing when the server's copy of an expansion comes in. */
@@ -91,6 +91,7 @@ export class StudioSession {
       overview: p("overview") ? cur.overview : s.overview,
       source: p("text") ? { ...s.source, text: cur.source.text } : s.source,
       options: p("options") ? cur.options : s.options,
+      basedOn: p("basedOn") ? cur.basedOn : s.basedOn,
       questions: s.questions.map((q) => (p(`answer:${q.id}`) ? { ...q, answer: cur.questions.find((x) => x.id === q.id)?.answer ?? q.answer } : q)),
       expansion: mergeExpansion(cur.expansion, s.expansion, this.saver),
     };
@@ -154,3 +155,28 @@ export class StudioSession {
 
 /** Steering for a re-write, one tap each. */
 export const STEERS = ["Shorter", "More concrete", "Darker", "Warmer", "Stranger", "Add a secret", "More about relationships", "Fix the point of view"];
+
+// ---------- coverage: the census against the plan (mirrors server/src/creator/smarts.ts) ----------
+
+const nameKey = (s: string) => s.toLowerCase().replace(/^(the|a|an)\s+/, "").replace(/['’]s\b/g, "").replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
+
+/** Does a plan title (or one of its names) cover this name? "Natalie" ↔ "Natalie Scatorccio". */
+export function covers(names: string[], name: string): boolean {
+  const n = nameKey(name);
+  if (!n) return true;
+  const words = n.split(" ");
+  const inside = (a: string[], b: string[]) => a.length <= b.length && b.join(" ").includes(a.join(" ")) && (a.length > 1 || b[0] === a[0] || b.at(-1) === a[0]);
+  return names.some((t) => {
+    const k = nameKey(t);
+    if (!k) return false;
+    if (k === n) return true;
+    const kw = k.split(" ");
+    return inside(words, kw) || inside(kw, words);
+  });
+}
+
+/** Who and what the census found that no planned entry covers yet. */
+export function uncovered(d: StudioDraft): CensusEntry[] {
+  const titles = d.items.flatMap((i) => [i.title, ...(i.entry?.aliases ?? [])]);
+  return (d.census ?? []).filter((e) => !covers(titles, e.name));
+}

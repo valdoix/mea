@@ -8,12 +8,14 @@ import {
   AXES,
   type Axis,
   BIPOLAR_AXES,
+  type Bond,
   type Change,
   type Character,
   emptyWorld,
   type EventSource,
   type KnowStatus,
   LADDER,
+  type Ladder,
   METERS,
   type Meter,
   type Op,
@@ -70,6 +72,8 @@ const norm = (s: string) =>
 export const slug = (s: string) => norm(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "x";
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 const clip = (s: string | undefined, n = 300) => (s ?? "").trim().slice(0, n);
+/** A name as the model wrote it, without a place or note: "Jackie Taylor@down-slope (finding James)" → "Jackie Taylor". */
+export const personName = (s: string) => s.replace(/\s*@.*$/, "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 
 function lev(a: string, b: string, max = 2) {
   if (Math.abs(a.length - b.length) > max) return max + 1;
@@ -151,17 +155,32 @@ export class Folder {
 
   // ---------- names ----------
 
-  /** Finds a character by name, alias, {{user}}/{{char}}, first name or a one-letter typo. */
+  /** Finds a character by name, alias, {{user}}/{{char}}, first or last name, or a one-letter typo. */
   findChar(name: string): Character | undefined {
-    const n = norm(name);
+    const n = norm(personName(name));
     if (!n) return undefined;
     const chars = Object.values(this.state.chars);
     if (/^(\{\{user\}\}|user|you|your character|me|i)$/.test(n)) return chars.find((c) => c.isUser);
     if (/^(\{\{char\}\}|char)$/.test(n)) return chars.find((c) => c.isMain);
     const exact = chars.find((c) => c.id === slug(n) || norm(c.name) === n || c.aliases.some((a) => norm(a) === n));
     if (exact) return exact;
-    const first = chars.filter((c) => norm(c.name).split(" ")[0] === n || n.split(" ")[0] === norm(c.name));
-    if (first.length === 1) return first[0];
+    // "Jackie" for Jackie Taylor, "Jackie Taylor" for Jackie, "Holloway" for James Holloway.
+    const words = (s: string) => norm(s).split(" ");
+    const nw = n.split(" ");
+    const pick = (list: Character[]) => {
+      if (list.length <= 1) return list[0];
+      // Several share the name: whoever is in the scene, then your character or the main one.
+      const here = list.filter((c) => c.tier === "spot" || c.tier === "peri");
+      if (here.length === 1) return here[0];
+      const lead = list.filter((c) => c.isUser || c.isMain);
+      return lead.length === 1 ? lead[0] : undefined;
+    };
+    const first = pick(chars.filter((c) => [c.name, ...c.aliases].some((x) => words(x)[0] === n || (nw.length > 1 && nw[0] === norm(x)))));
+    if (first) return first;
+    if (nw.length === 1 && n.length >= 3) {
+      const last = pick(chars.filter((c) => words(c.name).length > 1 && words(c.name).at(-1) === n));
+      if (last) return last;
+    }
     if (n.length >= 5) {
       const typo = chars.filter((c) => lev(norm(c.name), n, 1) <= 1);
       if (typo.length === 1) return typo[0];
@@ -175,8 +194,10 @@ export class Folder {
       found.lastSeq = Math.max(found.lastSeq, seq);
       return found;
     }
-    const clean = name.replace(/#\d+.*$/, "").replace(/[“”"]/g, "").trim();
-    const id = opts.isUser ? "user" : slug(clean);
+    const clean = personName(name).replace(/#\d+.*$/, "").replace(/[“”"]/g, "").trim() || name.trim();
+    let id = opts.isUser ? "user" : slug(clean);
+    // A merged-away person's id stays free of clashes.
+    for (let i = 2; !opts.isUser && this.state.chars[id]; i++) id = `${slug(clean)}-${i}`;
     const key = clean.toLowerCase();
     const c: Character = {
       id,
@@ -583,6 +604,33 @@ export class Folder {
         c.name = clip(a.to, 60);
         return;
       }
+      case "merge": {
+        if (ctx.ev.source !== "user") return this.reject(ctx, "only you can merge people");
+        const from = this.findChar(op.subject ?? "");
+        const into = this.findChar(a.to ?? "");
+        if (!from || !into) return this.reject(ctx, "merge whom into whom?");
+        if (from.id === into.id) return;
+        if (from.isUser) return this.reject(ctx, "your character can't be merged away");
+        this.mergeChars(from, into);
+        this.push(ctx, { kind: "cast", text: `${from.name} is ${into.name}`, subject: into.name, path: `chars.${into.id}` });
+        return;
+      }
+      case "edit": {
+        if (ctx.ev.source !== "user") return this.reject(ctx, "only you can edit fields directly");
+        const path = (a.path as (string | number)[]).map(String);
+        const err = editPath(st, path, a.value);
+        if (err) return this.reject(ctx, err);
+        // Whatever was typed, a person keeps the shape the rest of the app reads.
+        if (path[0] === "chars" && path[1] && st.chars[path[1]]) repairChar(st.chars[path[1]]!, path[1]);
+        // A person removed takes their bonds and ladders with them.
+        if (path.length === 2 && path[0] === "chars" && a.value == null) {
+          for (const k of Object.keys(st.bonds)) if (k.split(">").includes(path[1]!)) delete st.bonds[k];
+          for (const k of Object.keys(st.ladders)) if (k.split(">").includes(path[1]!)) delete st.ladders[k];
+        }
+        const who = path[0] === "chars" && path[1] ? st.chars[path[1]]?.name : undefined;
+        this.push(ctx, { kind: "edit", text: `Edited ${who ? `${who} · ` : ""}${path.slice(who ? 2 : 0).join(" › ") || path.join(" › ")}`, subject: who, path: path.join("."), to: a.value });
+        return;
+      }
       case "bond": {
         const from = this.person(op.subject, seq);
         const to = this.person(op.object, seq);
@@ -973,6 +1021,84 @@ export class Folder {
     return f;
   }
 
+  /** Folds one person into another (the same person written two ways): every bond, item, secret and promise follows. */
+  mergeChars(from: Character, into: Character) {
+    const st = this.state;
+    const swap = (id: string | undefined) => (id === from.id ? into.id : id);
+    const newer = from.lastSeq > into.lastSeq;
+    into.aliases = uniq([...into.aliases, ...from.aliases, from.name]).filter((x) => norm(x) !== norm(into.name));
+    into.firstSeq = Math.min(into.firstSeq, from.firstSeq);
+    into.lastSeq = Math.max(into.lastSeq, from.lastSeq);
+    into.isMain ||= from.isMain;
+    into.dead ||= from.dead;
+    // What changes scene to scene comes from whoever was seen last; the rest fills gaps.
+    for (const k of ["tier", "activity", "place", "mood", "look", "thoughts"] as const) {
+      if (from[k] != null && (newer || into[k] == null)) (into as unknown as Record<string, unknown>)[k] = from[k];
+    }
+    for (const [k, v] of Object.entries(from.meters)) if (into.meters[k as Meter] == null) into.meters[k as Meter] = v;
+    into.drives = { ...from.drives, ...into.drives };
+    if (from.mask) into.mask = { ...from.mask, ...into.mask };
+    into.flags = uniq([...into.flags, ...from.flags]);
+    for (const i of from.injuries) if (!into.injuries.some((x) => norm(x.where) === norm(i.where))) into.injuries.push(i);
+    for (const c of from.conditions) if (!into.conditions.some((x) => x.kind === c.kind)) into.conditions.push(c);
+    for (const t of from.traits) {
+      const clash = into.traits.find((x) => (t.kind !== "other" ? x.kind === t.kind : norm(x.text) === norm(t.text)));
+      if (!clash) into.traits.push(t);
+      else if (clash.by === "model" && t.by !== "model") into.traits[into.traits.indexOf(clash)] = t;
+    }
+    into.journal = [...into.journal, ...from.journal].sort((x, y) => x.seq - y.seq).slice(-40);
+    delete st.chars[from.id];
+    // Bonds and ladders are keyed by both ends.
+    for (const table of [st.bonds, st.ladders] as Record<string, Bond | Ladder>[]) {
+      for (const [k, v] of Object.entries(table)) {
+        if (v.from !== from.id && v.to !== from.id) continue;
+        delete table[k];
+        v.from = swap(v.from)!;
+        v.to = swap(v.to)!;
+        if (v.from === v.to) continue;
+        const key = `${v.from}>${v.to}`;
+        const cur = table[key];
+        if (!cur) table[key] = v;
+        else if ("axes" in cur && "axes" in v) {
+          cur.axes = { ...v.axes, ...cur.axes };
+          cur.tags = uniq([...cur.tags, ...v.tags]);
+          cur.label ??= v.label;
+          cur.history = [...v.history, ...cur.history].sort((x, y) => x.seq - y.seq);
+        } else if ("tier" in cur && "tier" in v && v.seq > cur.seq) table[key] = v;
+      }
+    }
+    for (const it of Object.values(st.items)) {
+      it.holder = swap(it.holder);
+      it.owner = swap(it.owner);
+      for (const c of it.custody) {
+        c.from = swap(c.from);
+        c.to = swap(c.to);
+      }
+    }
+    for (const f of Object.values(st.facts)) {
+      const s = f.stances[from.id];
+      if (s) {
+        if (!f.stances[into.id] || f.stances[into.id]!.seq < s.seq) f.stances[into.id] = s;
+        delete f.stances[from.id];
+      }
+      if (f.secret) f.secret = { keepers: uniq(f.secret.keepers.map((x) => swap(x)!)), from: uniq(f.secret.from.map((x) => swap(x)!)) };
+      for (const r of f.revealed) r.to = uniq(r.to.map((x) => swap(x)!));
+    }
+    for (const o of Object.values(st.obligations)) {
+      o.who = swap(o.who)!;
+      o.whom = swap(o.whom);
+    }
+    for (const [k, r] of Object.entries(st.rep)) {
+      if (r.who !== from.id) continue;
+      delete st.rep[k];
+      r.who = into.id;
+      st.rep[`${into.id}@${slug(r.group)}`] ??= r;
+    }
+    for (const e of Object.values(st.calendar)) e.who = uniq(e.who.map((x) => swap(x)!));
+    for (const m of st.milestones) m.who = uniq(m.who.map((x) => swap(x)!));
+    st.locks = st.locks.map((l) => l.replace(`chars.${from.id}`, `chars.${into.id}`).replace(new RegExp(`(^|[.>])${from.id}(?=$|[.>])`, "g"), `$1${into.id}`));
+  }
+
   threadId(title: string) {
     const st = this.state;
     const id = slug(title);
@@ -998,6 +1124,43 @@ function clamp(v: unknown, lo: number, hi: number): number | undefined {
   return n == null || !Number.isFinite(n) ? undefined : Math.max(lo, Math.min(hi, n));
 }
 const uniq = <T>(xs: T[]) => [...new Set(xs)];
+
+function repairChar(c: Character, id: string) {
+  c.id = id;
+  c.name = typeof c.name === "string" && c.name.trim() ? c.name : id;
+  for (const k of ["aliases", "flags", "injuries", "conditions", "traits", "journal"] as const) if (!Array.isArray(c[k])) (c as unknown as Record<string, unknown>)[k] = [];
+  for (const k of ["meters", "drives"] as const) if (!c[k] || typeof c[k] !== "object" || Array.isArray(c[k])) (c as unknown as Record<string, unknown>)[k] = {};
+  c.traits = c.traits.filter((t) => t && typeof t.text === "string").map((t) => ({ ...t, kind: t.kind ?? traitKind(t.text), by: t.by ?? "user", seq: t.seq ?? 0 }));
+  if (c.tier && !["spot", "peri", "off"].includes(c.tier)) c.tier = "spot";
+  c.firstSeq = Number(c.firstSeq) || 0;
+  c.lastSeq = Number(c.lastSeq) || 0;
+  c.stamina ||= "ordinary";
+  c.isUser = Boolean(c.isUser);
+  c.isMain = Boolean(c.isMain);
+}
+
+/** Sets (or, with null, removes) any field of the world by path; parents are made as needed. Returns why not. */
+export function editPath(root: object, path: string[], value: unknown): string | null {
+  if (path.some((k) => k === "__proto__" || k === "constructor" || k === "prototype")) return "not a field";
+  if (["sim", "lastSeq"].includes(path[0]!)) return "that part isn't editable";
+  let node = root as Record<string, unknown>;
+  for (let i = 0; i < path.length - 1; i++) {
+    const k = path[i]!;
+    let next = node[k];
+    if (next == null || typeof next !== "object") {
+      if (value == null) return null; // removing something already gone
+      next = /^\d+$/.test(path[i + 1]!) ? [] : {};
+      node[k] = next;
+    }
+    node = next as Record<string, unknown>;
+  }
+  const last = path.at(-1)!;
+  if (value == null) {
+    if (Array.isArray(node) && /^\d+$/.test(last)) node.splice(Number(last), 1);
+    else delete node[last];
+  } else node[last] = value;
+  return null;
+}
 const looksLikePerson = (s: string) => /^[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){0,2}$/.test(s.trim()) && !/\b(table|floor|bag|box|drawer|shelf|room|house|car|desk|chest|pocket|safe|trunk|bed)\b/i.test(s);
 
 function fromPatch(c: PatchChange): Omit<Change, "source"> {

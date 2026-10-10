@@ -8,7 +8,7 @@ export const GRAMMAR = `Write one change per line, only what changed in the NEW 
 clock: +45m | +2h | Day 3 21:40 | 2026-03-14 21:40   (time passed; never backwards unless "flashback")
 wx: rain → heavy rain                        at: City › District › Building › Room
 scene: <title of a new scene>                 mode: social|intimacy|conflict|investigation|travel|stealth|downtime|crisis
-cast: Name@spot(activity) · Name@peri(at the bar) · Name@left(→ where) · Name@arrive
+cast: Name@spot(activity) · Name@peri(at the bar) · Name@left(→ where) · Name@arrive   (after @ only spot|peri|left|arrive; places go in at:)
 mood Name: old → new | V-1 A2 D0              (named emotion; VAD optional: valence -3..3, arousal 0..5, dominance -3..3)
 body Name: fatigue 3; hunger +1; soaked; injury: left arm, wound, bandaged; healed: left arm
    (meters 0-5: health, fatigue, hunger, thirst, pain, intox, composure, stress, arousal; severities: scratch, wound, serious, critical)
@@ -29,6 +29,7 @@ clue text → points to … | reliability: shaky gauge Name: 3/6 — cause      
 rep Name @ Group: -1 — deed                   event Title: 19 March | birthday | who: Name     plan Title: Day 5 19:00 | who: A, B
 motif "a running joke or pet name" — whose    milestone what happened — who
 set template.field: value — cause   (custom trackers; tables: template.field[Row].column)
+Use each person's full name exactly as in the state below; never invent a second entry for someone already listed.
 Every bond, know, item and thread line needs a cause after " — ".`;
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);

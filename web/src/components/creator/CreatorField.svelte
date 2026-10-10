@@ -5,7 +5,7 @@
   import { CircleAlert, Loader, PenLine, RotateCcw, TriangleAlert } from "../../lib/icons";
   import type { CardField, StudioIssue } from "../../lib/types";
 
-  let { session, field, issues = [], tokens = 0 }: { session: CreatorSession; field: CardField; issues?: StudioIssue[]; tokens?: number } = $props();
+  let { session, field, issues = [], stale = [], tokens = 0 }: { session: CreatorSession; field: CardField; issues?: StudioIssue[]; stale?: string[]; tokens?: number } = $props();
   const busy = $derived(field.status === "queued" || field.status === "writing");
   const short = $derived(field.key === "tags" || field.key === "pronouns");
   const HINT: Record<string, string> = {
@@ -39,6 +39,7 @@
       {#if hint}{" "}<span class="tiny muted">· {hint}</span>{/if}
     </div>
     {#if busy}<span class="spin"><Loader size={15} /></span><span class="tiny muted">{field.status === "writing" ? "Writing…" : "In line"}</span>{/if}
+    {#if stale.length && !busy}<span class="chip tiny butter" title="Written before you changed {stale.join(', ')}">out of date</span>{/if}
     {#if field.value.trim() && !short}<span class="tiny faint">{tokens} tok</span>{/if}
   </div>
 

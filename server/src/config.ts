@@ -11,7 +11,12 @@ export const config = {
   root,
   dataDir,
   port: Number(process.env.MEA_PORT ?? 7766),
-  /** Localhost-only by default (SEC-02). Remote devices come in through Tailscale Serve. */
+  /**
+   * A second localhost listener for the ngrok tunnel: nothing that arrives on it is treated as the host computer,
+   * so every request needs a paired device. 0 turns it off.
+   */
+  publicPort: Number(process.env.MEA_PUBLIC_PORT ?? Number(process.env.MEA_PORT ?? 7766) + 4),
+  /** Localhost-only by default (SEC-02). Remote devices come in through the tunnel or Tailscale Serve. */
   host: process.env.MEA_HOST ?? "127.0.0.1",
   /** Enables the mock provider and other developer conveniences. */
   dev: process.env.MEA_DEV === "1",

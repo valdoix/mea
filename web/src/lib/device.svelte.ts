@@ -77,3 +77,8 @@ export function onConnectionChange(fn: () => void) {
   c?.addEventListener("change", fn);
   return () => c?.removeEventListener("change", fn);
 }
+
+/** Running inside the Mea Android app (mobile/), which identifies itself in the user agent. */
+export const inApp = typeof navigator !== "undefined" && /\bMeaApp\//.test(navigator.userAgent);
+/** The app's own start page, where the Mea address is set. */
+export const appSetupUrl = "https://localhost/?setup";

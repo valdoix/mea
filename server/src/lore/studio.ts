@@ -7,6 +7,9 @@ import { embeddingsEnabled } from "../memory/embed";
 import { getCard } from "../services/characters";
 import { Deferred, enqueue, type JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
+import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChange, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, covers, LOOKUP_FIELD, newProposal, type Proposal, type ProposedChange, shortHash, splitPeople, SUGGEST_RULE, withLookups } from "../creator/smarts";
+import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "../creator/research";
+import { callText } from "../services/llm";
 import { applyExpansionPatch, deepenSection, type Expansion, type ExpansionPatch, expandIdea, expansionBlock } from "../creator/expand";
 import { getPersona } from "../services/personas";
 import { essentialsOf, extraOf } from "./activate";
@@ -32,8 +35,8 @@ export type Stage = "start" | "questions" | "plan" | "review" | "done";
 export const ENTRY_TYPES = Object.keys(ENTRY_TEMPLATES) as EntryType[];
 
 export interface StudioOptions {
-  /** How many entries a plan aims for. */
-  size: "small" | "medium" | "large";
+  /** How many entries a plan aims for; "complete" plans every person, place and thing the census finds. */
+  size: "small" | "medium" | "large" | "complete";
   length: EntryLength;
   /** Kinds of entries to plan (empty: any). */
   types: EntryType[];
@@ -76,6 +79,10 @@ export interface StudioItem {
   steer: string;
   /** Set once the item is saved into a book, so saving again doesn't duplicate it. */
   savedEntryId: string | null;
+  /** Fingerprints of what the entry was written from (overview, answers, its pitch, canon), to spot stale entries. */
+  basis: string;
+  /** The wiki page about this entry (canon), looked up when it's first written. */
+  research: { title: string; url: string; text: string } | null;
   /** A character or persona made from this entry in the creator (links both ways). */
   links: { creatorDraftId?: string; characterId?: string; personaId?: string };
 }
@@ -85,6 +92,26 @@ export interface StudioQuestion {
   q: string;
   why: string;
   answer: string;
+  /** Answers to pick from (the author can still write their own). */
+  suggestions: string[];
+}
+
+/** Everything a complete lorebook for this world should cover (the census), before choosing what to plan. */
+export interface CensusEntry {
+  name: string;
+  type: EntryType | null;
+  tier: "core" | "supporting" | "minor";
+  note: string;
+}
+
+/** The editor's pass: contradictions, flat or generic entries, canon errors, weak keys, merged subjects, gaps. */
+export interface CritiqueIssue {
+  id: string;
+  kind: string;
+  items: string[];
+  problem: string;
+  fix: string;
+  add: { title: string; type: EntryType | null; pitch: string } | null;
 }
 
 export interface StudioDraft {
@@ -105,6 +132,15 @@ export interface StudioDraft {
   links: { type: LinkType; id: string }[];
   committedBookId: string | null;
   consistency: { items: string[]; problem: string; fix: string }[] | null;
+  /** The existing work this is based on ("Yellowjackets (TV series)"), if any: its canon fills the gaps. */
+  basedOn: string;
+  census: CensusEntry[] | null;
+  critique: CritiqueIssue[] | null;
+  /** The co-writer: the conversation, and the changes it's proposing. */
+  chat: ChatTurn[];
+  proposal: Proposal | null;
+  /** Canon gathered from the web (the source's wiki, Wikipedia, your links), distilled into a brief. */
+  research: Research | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -120,7 +156,7 @@ export const defaultOptions = (kind: SourceKind = "idea"): StudioOptions => ({
   overview: kind === "idea" || kind === "document",
 });
 
-const PLAN_SIZE = { small: 8, medium: 15, large: 26 } as const;
+const PLAN_SIZE = { small: 8, medium: 15, large: 26, complete: 26 } as const;
 const WORDS = { lean: "50–90", standard: "90–170", rich: "160–280" } as const;
 /** Model input is capped so a huge document can't eat the quota in one call. */
 const MAX_SOURCE_CHARS = 60_000;
@@ -145,7 +181,7 @@ function hydrate(r: Row): StudioDraft {
     source: { kind, text: "", refId: null, refName: "", fileName: "", ...d.source },
     options: { ...defaultOptions(kind), ...d.options },
     readback: d.readback ?? null,
-    questions: d.questions ?? [],
+    questions: (d.questions ?? []).map((q) => ({ ...q, suggestions: q.suggestions ?? [] })),
     directions: d.directions ?? [],
     expansion: d.expansion ?? null,
     overview: d.overview ?? "",
@@ -154,6 +190,12 @@ function hydrate(r: Row): StudioDraft {
     links: d.links ?? [],
     committedBookId: d.committedBookId ?? null,
     consistency: d.consistency ?? null,
+    basedOn: d.basedOn ?? "",
+    census: d.census ?? null,
+    critique: d.critique ?? null,
+    chat: d.chat ?? [],
+    proposal: d.proposal ?? null,
+    research: d.research ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -176,6 +218,8 @@ function normItem(i: Partial<StudioItem>): StudioItem {
     previous: i.previous ?? null,
     steer: i.steer ?? "",
     savedEntryId: i.savedEntryId ?? null,
+    basis: i.basis ?? "",
+    research: i.research ?? null,
     links: i.links ?? {},
   };
 }
@@ -333,6 +377,12 @@ export function createDraft(input: CreateInput): StudioDraft {
     links: [],
     committedBookId: null,
     consistency: null,
+    basedOn: "",
+    census: null,
+    critique: null,
+    chat: [],
+    proposal: null,
+    research: null,
     createdAt: t,
     updatedAt: t,
   };
@@ -392,6 +442,7 @@ export interface DraftPatch {
   targetBookId?: string | null;
   links?: { type: LinkType; id: string }[];
   expansion?: ExpansionPatch;
+  basedOn?: string;
 }
 
 export function patchDraft(id: string, p: DraftPatch) {
@@ -405,6 +456,7 @@ export function patchDraft(id: string, p: DraftPatch) {
     if (p.targetBookId !== undefined) d.targetBookId = p.targetBookId;
     if (p.links) d.links = p.links;
     if (p.expansion) applyExpansionPatch(d, p.expansion);
+    if (p.basedOn !== undefined) d.basedOn = p.basedOn.trim();
   });
 }
 
@@ -426,6 +478,8 @@ export function patchItem(id: string, itemId: string, p: ItemPatch) {
     if (p.entry !== undefined) {
       it.entry = p.entry && { ...p.entry, keys: dedupe(p.entry.keys), aliases: dedupe(p.entry.aliases) };
       if (it.entry && it.status !== "queued" && it.status !== "writing") it.status = "drafted";
+      // Your own edit is up to date with what you can see now.
+      if (it.entry) it.basis = basisOf(d, it);
     }
   });
 }
@@ -494,7 +548,8 @@ const AVOID = `Avoid names models overuse (${STOCK_NAMES.slice(0, 18).join(", ")
 const readbackSchema = z.object({
   understood: z.string().default(""),
   missing: z.array(z.string()).default([]),
-  questions: z.array(z.object({ q: z.string(), why: z.string().default("") })).default([]),
+  basedOn: z.string().default(""),
+  questions: z.array(z.object({ q: z.string(), why: z.string().default(""), suggestions: z.array(z.string()).default([]) })).default([]),
 });
 
 /** Read-back + Interview: what the model understood, and a few pointed questions with why they matter. */
@@ -506,9 +561,9 @@ export async function readBack(id: string, opts: { count?: number } = {}) {
     kind: "studio:readback",
     name: "studio_readback",
     schema: readbackSchema,
-    system: `You help an author build a lorebook for interactive fiction (roleplay). ${PURPOSE[d.source.kind]} Read their material, then reply with: "understood": 2–4 sentences on what you understood (premise, tone, what's central); "missing": up to 4 short phrases naming what's still unclear; "questions": up to ${n} pointed questions worth asking, most important first, each with "why" (one short sentence on what the answer changes in the lorebook). Ask about tension, specifics and the author's intent, never trivia, and never what the material already answers. Reply with JSON only: {"understood": "…", "missing": ["…"], "questions": [{"q": "…", "why": "…"}]}`,
-    user: [sourceBlock(d), answersBlock(d), prefsBlock(d)].filter(Boolean).join("\n\n"),
-    maxTokens: 1200,
+    system: `You help an author build a lorebook for interactive fiction (roleplay). ${PURPOSE[d.source.kind]} Read their material, then reply with: "understood": 2–4 sentences on what you understood (premise, tone, what's central); "missing": up to 4 short phrases naming what's still unclear; ${BASED_ON_RULE} "questions": up to ${n} pointed questions worth asking, most important first, each with "why" (one short sentence on what the answer changes in the lorebook) and ${SUGGEST_RULE} Ask about tension, specifics and the author's intent, never trivia, and never what the material (or canon, for an existing work) already answers. Reply with JSON only: {"understood": "…", "missing": ["…"], "basedOn": "", "questions": [{"q": "…", "why": "…", "suggestions": ["…", "…", "…"]}]}`,
+    user: [sourceBlock(d), canonBlock(d.basedOn), researchBlock(d.research), answersBlock(d), prefsBlock(d)].filter(Boolean).join("\n\n"),
+    maxTokens: 2000,
     temperature: 0.6,
   });
   return mutate(id, (cur) => {
@@ -516,7 +571,8 @@ export async function readBack(id: string, opts: { count?: number } = {}) {
     // Answered questions stay; new ones are added after them.
     const answered = cur.questions.filter((q) => q.answer.trim());
     const have = new Set(answered.map((q) => q.q.trim().toLowerCase()));
-    cur.questions = [...answered, ...r.data.questions.filter((q) => q.q.trim() && !have.has(q.q.trim().toLowerCase())).slice(0, n).map((q) => ({ id: newId(), q: q.q.trim(), why: q.why.trim(), answer: "" }))];
+    cur.questions = [...answered, ...r.data.questions.filter((q) => q.q.trim() && !have.has(q.q.trim().toLowerCase())).slice(0, n).map((q) => ({ id: newId(), q: q.q.trim(), why: q.why.trim(), answer: "", suggestions: q.suggestions.map((x) => x.trim()).filter(Boolean).slice(0, 3) }))];
+    if (!cur.basedOn && r.data.basedOn.trim().length > 2) cur.basedOn = r.data.basedOn.trim().slice(0, 160);
     if (cur.stage === "start") cur.stage = "questions";
   });
 }
@@ -571,21 +627,137 @@ export async function directions(id: string, steer = "") {
   });
 }
 
+// ---------- research: canon from the web ----------
+
+/** Reads up on the work this is based on (its wiki, Wikipedia, your links) and distils a canon brief. */
+export async function researchLore(id: string, opts: { urls?: string[] } = {}) {
+  const d = mustDraft(id);
+  if (!d.basedOn.trim() && !opts.urls?.length) throw badRequest("Say what it's based on first, or paste links to read");
+  const g = await gather(d.basedOn || d.title, { urls: opts.urls });
+  if (!g.text.trim()) throw badRequest(d.basedOn ? `Couldn't find a wiki for ${d.basedOn}. Paste a link to one (a Fandom or Wikipedia page).` : "Couldn't read those links");
+  const r = await callText({
+    task: "summarizer",
+    kind: "studio:research",
+    system: BRIEF_RULE(d.basedOn || d.title),
+    user: [`THE AUTHOR'S PREMISE (for what matters; the brief is canon only):\n${d.source.text.slice(0, 4000)}`, `THE RESEARCH:\n${g.text}`].join("\n\n"),
+    maxTokens: 5000,
+    temperature: 0.2,
+    validate: (t) => (t.trim().length < 200 ? "That was too short. Write the full brief." : null),
+  });
+  return mutate(id, (cur) => {
+    cur.research = { basedOn: cur.basedOn, at: now(), wikis: g.wikis, sources: g.sources, names: g.names, brief: r.text.trim() };
+  });
+}
+
+/** The wiki page for one entry (canon people, places, events), cached on the item. */
+async function entryPage(d: StudioDraft, it: StudioItem) {
+  if (it.research !== null || !d.research?.wikis.length || d.options.faithful) return it.research;
+  const page = await lookup(d.research.wikis, baseTitle(it.title), 5000, true).catch(() => null);
+  const found = page ? { title: page.title, url: page.url, text: page.text } : { title: "", url: "", text: "" };
+  mutate(d.id, (cur) => {
+    const x = cur.items.find((i) => i.id === it.id);
+    if (x) x.research = found;
+  });
+  return found;
+}
+
+// ---------- the census: everything a complete lorebook would cover ----------
+
+const censusSchema = z.object({
+  basedOn: z.string().default(""),
+  entities: z.array(z.object({ name: z.string(), type: z.string().default(""), tier: z.string().default("supporting"), note: z.string().default("") })).default([]),
+});
+
+const asType = (t: string): EntryType | null => ((ENTRY_TYPES as string[]).includes(t.trim().toLowerCase()) ? (t.trim().toLowerCase() as EntryType) : null);
+const asTier = (t: string): CensusEntry["tier"] => (/core|main|central|major/i.test(t) ? "core" : /minor|background|small/i.test(t) ? "minor" : "supporting");
+
+/** Proper names in the author's own words (multi-word names, or a name said twice mid-sentence): the census can't miss these. */
+export function namesInText(text: string): string[] {
+  const counts = new Map<string, number>();
+  for (const sentence of text.split(/(?<=[.!?:;\n—–-])\s+|\n+/)) {
+    const words = [...sentence.matchAll(/\b[\p{Lu}][\p{L}'’]+(?:\s+(?:of\s+|the\s+|de\s+|van\s+)?[\p{Lu}][\p{L}'’]+)*/gu)];
+    for (const m of words) {
+      let parts = m[0].trim().split(/\s+/);
+      while (parts.length && COMMON_WORDS.has(parts[0]!.toLowerCase())) parts = parts.slice(1);
+      // "Holloways’ Fourth of July" is two names; "James'" is James.
+      const names = parts.join(" ").split(/['’]s?\s+/).map((x) => x.replace(/['’]s?$/, "").replace(/\s+(AU|TV)$/i, "").trim());
+      // A single word that opens the sentence is often just a capital letter.
+      const atStart = m.index === sentence.search(/\S/);
+      for (const n of names) {
+        if (n.length < 3 || /^(AU|TV|OK|POV|NSFW|I|I'm)$/i.test(n)) continue;
+        const weight = n.includes(" ") ? 2 : atStart && n === names[0] ? 0 : 1;
+        counts.set(n, (counts.get(n) ?? 0) + weight);
+      }
+    }
+  }
+  return [...counts].filter(([, c]) => c >= 2).map(([n]) => n);
+}
+
+/**
+ * The census: every person, place, group, thing, event and idea the world has, from the author's
+ * material and (for a fan work or AU) the source's canon, before anything is chosen for the plan.
+ * People are never lumped together.
+ */
+export async function takeCensus(id: string) {
+  const d = mustDraft(id);
+  const material = [d.source.text, d.questions.map((q) => q.answer).join("\n"), d.expansion?.use ? d.expansion.sections.map((s) => s.text).join("\n") : ""].join("\n");
+  const r = await callJson({
+    task: "summarizer",
+    kind: "studio:census",
+    name: "studio_census",
+    schema: censusSchema,
+    system: [
+      "You take the census of a world for a lorebook (interactive fiction). List EVERYTHING a complete lorebook for it should cover: every named person, place, group, item, event, concept and rule.",
+      "Include every one named or clearly implied in the author's material. If it's set in or based on an existing work (a show, book, film, game) or the author says to keep canon, also list that work's canon cast and world as it stands where the story is set: main and minor characters (teammates, family, teachers, rivals), places, groups, objects and events, so nobody is left out.",
+      "One person per line; never combine people (\"Gen\", \"Melissa\" and \"Crystal\" are three lines). Use full names where known.",
+      `For each: "name"; "type" (one of: ${ENTRY_TYPES.join(", ")}); "tier": core (the story turns on them), supporting, or minor; "note": a few words on who or what it is in THIS version of the story.`,
+      BASED_ON_RULE,
+      PURPOSE[d.source.kind],
+      'Reply with JSON only: {"basedOn": "", "entities": [{"name": "…", "type": "…", "tier": "core", "note": "…"}]}',
+    ].join(" "),
+    user: [sourceBlock(d), canonBlock(d.basedOn), researchBlock(d.research), d.research?.names.length ? `CHARACTER PAGES ON THE WIKI (each is a canon person: include every one who exists at the point the story is set):\n${d.research.names.join(", ")}` : "", answersBlock(d), prefsBlock(d)].filter(Boolean).join("\n\n"),
+    maxTokens: 7000,
+    temperature: 0.2,
+  });
+  const out: CensusEntry[] = [];
+  const add = (e: CensusEntry) => {
+    if (!e.name.trim() || out.some((x) => covers([x.name], e.name) && (x.type === e.type || !e.type || !x.type))) return;
+    out.push(e);
+  };
+  for (const e of r.data.entities) {
+    const type = asType(e.type);
+    const names = type === "character" ? splitPeople(cleanTitle(e.name)) : [cleanTitle(e.name)];
+    for (const name of names) add({ name, type, tier: asTier(e.tier), note: e.note.trim().slice(0, 200) });
+  }
+  // Whatever the author named that the model missed is still counted.
+  for (const name of namesInText(material)) if (!out.some((x) => covers([x.name], name))) add({ name, type: null, tier: "supporting", note: "named in your material" });
+  return mutate(id, (cur) => {
+    cur.census = out.slice(0, 200);
+    if (!cur.basedOn && r.data.basedOn.trim().length > 2) cur.basedOn = r.data.basedOn.trim().slice(0, 160);
+  });
+}
+
+/** Census entries no planned (or already saved) entry covers yet. */
+export function uncovered(d: StudioDraft): CensusEntry[] {
+  const titles = [...d.items.flatMap((i) => [i.title, ...(i.entry?.aliases ?? [])]), ...existingTitles(d)];
+  return (d.census ?? []).filter((e) => !covers(titles, e.name));
+}
+
 const outlineSchema = z.object({
   title: z.string().default(""),
   overview: z.string().default(""),
   items: z.array(z.object({ title: z.string(), type: z.string().default(""), pitch: z.string().default(""), parent: z.string().default(""), folder: z.string().default("") })).default([]),
 });
 
-/** Plan: the overview (the "bible") and an outline of entries. "more" adds to the plan instead of replacing it. */
-export async function planOutline(id: string, opts: { mode?: "replace" | "more"; steer?: string; count?: number } = {}) {
-  const d = mustDraft(id);
-  const more = opts.mode === "more";
-  const n = opts.count ?? (more ? Math.max(4, Math.round(PLAN_SIZE[d.options.size] / 3)) : PLAN_SIZE[d.options.size]);
-  const planned = d.items.map((i) => `- ${i.title}${i.type ? ` (${i.type})` : ""}${i.pitch ? `: ${i.pitch}` : ""}`);
+type OutlineItem = z.infer<typeof outlineSchema>["items"][number];
+
+/** One planning call: about n entries, or exactly the names given. */
+async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?: CensusEntry[]; census?: CensusEntry[]; steer?: string; planned: StudioItem[]; withOverview: boolean }) {
+  const planned = o.planned.map((i) => `- ${i.title}${i.type ? ` (${i.type})` : ""}${i.pitch ? `: ${i.pitch}` : ""}`);
   const existing = existingTitles(d);
   const gaps = d.source.kind === "book" && d.source.refId ? missingNames(d.source.refId) : [];
   const typeList = (d.options.types.length ? d.options.types : ENTRY_TYPES).join(", ");
+  const line = (e: CensusEntry) => `- ${e.name}${e.type ? ` (${e.type}, ${e.tier})` : ` (${e.tier})`}${e.note ? `: ${e.note}` : ""}`;
   const r = await callJson({
     task: "summarizer",
     kind: "studio:outline",
@@ -594,39 +766,125 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     system: [
       "You plan a lorebook for interactive fiction (roleplay). A lorebook is a set of short entries a storyteller sees only when they matter: the people, places, items, factions, concepts, events and rules of a world.",
       PURPOSE[d.source.kind],
-      more ? `The plan already has the entries listed under ALREADY PLANNED. Propose up to ${n} NEW entries that fill its gaps; never repeat one.` : `Plan about ${n} entries.`,
-      `Each item: "title" (the name as the story would say it), "type" (one of: ${typeList}), "pitch" (one sentence: what the entry establishes and why a scene would need it), "parent" (the title of another planned entry it sits inside: a district inside a city, a member inside a faction; else ""), "folder" (a short path like "Places › Port Ellis", else "").`,
-      more ? 'Leave "overview" and "title" empty.' : `Also "title" (a name for the lorebook, 1–5 words) and "overview" (80–150 words: the world's premise, tone, and the ground truths every scene should respect).`,
-      d.options.faithful ? "Use only what the source says: no invented names, places or facts." : "Prefer specific, playable details with tension: things characters can want, fear, visit, use or argue about. Invent freely where the material is silent, but never against it.",
-      AVOID,
-      opts.steer?.trim() ? `The author asks: ${opts.steer.trim()}` : "",
+      canonRule(d.basedOn),
+      o.names
+        ? `Plan exactly one entry for each name under PLAN THESE, using that name as the title (you may complete a partial name), in that order. Nothing else.`
+        : o.more
+          ? `The plan already has the entries listed under ALREADY PLANNED. Propose up to ${o.n} NEW entries that fill its gaps; never repeat one.`
+          : `Plan about ${o.n} entries.`,
+      o.census && !o.names ? "THE CENSUS lists what the world contains. Every core name in it gets an entry; then supporting ones, most useful to a scene first; then the concepts, events and rules that make the world work." : "",
+      "One person per entry: never put two people in one entry (a family or team can have its own entry besides its members).",
+      `Each item: "title" (the name as the story would say it), "type" (one of: ${typeList}), "pitch" (one sentence: what the entry establishes in this version of the story and why a scene would need it), "parent" (the title of another planned entry it sits inside: a district inside a city, a member inside a faction; else ""), "folder" (a short path like "Places › Port Ellis", else "").`,
+      o.withOverview ? `Also "title" (a name for the lorebook, 1–5 words) and "overview" (80–150 words: the world's premise, tone, and the ground truths every scene should respect).` : 'Leave "overview" and "title" empty.',
+      d.options.faithful ? "Use only what the source says: no invented names, places or facts." : "Prefer specific, playable details with tension: things characters can want, fear, visit, use or argue about. Invent freely where the material and canon are silent, but never against them.",
+      d.basedOn ? "" : AVOID,
+      o.steer?.trim() ? `The author asks: ${o.steer.trim()}` : "",
       'Reply with JSON only: {"title": "…", "overview": "…", "items": [{"title": "…", "type": "…", "pitch": "…", "parent": "", "folder": ""}]}',
     ]
       .filter(Boolean)
       .join(" "),
     user: [
       sourceBlock(d),
+      canonBlock(d.basedOn),
+      researchBlock(d.research),
       answersBlock(d),
       prefsBlock(d),
-      d.overview.trim() && more ? `OVERVIEW:\n${d.overview.trim()}` : "",
-      planned.length && more ? `ALREADY PLANNED:\n${planned.join("\n")}` : "",
+      d.overview.trim() && !o.withOverview ? `OVERVIEW:\n${d.overview.trim()}` : "",
+      planned.length ? `ALREADY PLANNED:\n${planned.join("\n")}` : "",
       existing.length ? `ALREADY IN THEIR LORE (don't repeat):\n${existing.slice(0, 120).join(", ")}` : "",
       gaps.length ? `NAMED IN THE BOOK BUT WITHOUT AN ENTRY (good candidates):\n${gaps.join(", ")}` : "",
+      o.names ? `PLAN THESE:\n${o.names.map(line).join("\n")}` : o.census?.length ? `THE CENSUS:\n${o.census.map(line).join("\n")}` : "",
     ]
       .filter(Boolean)
       .join("\n\n"),
-    maxTokens: 4000,
-    temperature: d.options.faithful ? 0.3 : 0.8,
+    maxTokens: Math.min(8000, 1200 + (o.names?.length ?? o.n) * 160),
+    temperature: d.options.faithful ? 0.3 : 0.7,
   });
+  return r.data;
+}
+
+/** Plan items from the model's outline: people split one per entry, duplicates dropped. */
+function toItems(raw: OutlineItem[], taken: Set<string>, census: CensusEntry[]): StudioItem[] {
+  const out: StudioItem[] = [];
+  for (const x of raw) {
+    const type = asType(x.type) ?? census.find((e) => covers([e.name], x.title))?.type ?? null;
+    const titles = type === "character" ? splitPeople(cleanTitle(x.title)) : [cleanTitle(x.title)];
+    for (const title of titles) {
+      if (!title || taken.has(title.toLowerCase())) continue;
+      taken.add(title.toLowerCase());
+      out.push(normItem({ title, type, pitch: titles.length > 1 ? (census.find((e) => covers([e.name], title))?.note || x.pitch.trim()) : x.pitch.trim(), folder: x.folder.trim(), parent: x.parent.trim() }));
+    }
+  }
+  return out;
+}
+
+/**
+ * Plan: the overview (the "bible") and an outline of entries. A census of the whole world comes
+ * first, so nobody the story needs is skipped; "complete" plans all of it, in batches. "more" adds
+ * to the plan instead of replacing it, and `names` plans exactly those (the coverage list's "Add").
+ */
+export async function planOutline(id: string, opts: { mode?: "replace" | "more"; steer?: string; count?: number; names?: string[] } = {}) {
+  let d = mustDraft(id);
+  const more = opts.mode === "more" || Boolean(opts.names?.length);
+  // A world based on an existing work reads up on it first (once).
+  if (d.basedOn && !d.research?.brief && !d.options.faithful) {
+    try {
+      d = await researchLore(id);
+    } catch (e) {
+      if (e instanceof Deferred) throw e;
+    }
+  }
+  // A fresh plan takes a fresh census (a draft from a document plans from its own sections).
+  if ((!more || !d.census) && d.source.kind !== "document" && !d.options.faithful) {
+    try {
+      d = await takeCensus(id);
+    } catch (e) {
+      if (e instanceof Deferred) throw e;
+      // Planning still works without one.
+    }
+  }
+  const census = d.census ?? [];
+  const keptOnReplan = more ? d.items : d.items.filter((i) => i.entry || i.status === "queued" || i.status === "writing");
+  const taken = new Set([...keptOnReplan.map((i) => i.title.toLowerCase()), ...existingTitles(d).map((t) => t.toLowerCase())]);
+  const fresh: StudioItem[] = [];
+  let title = "";
+  let overview = "";
+
+  const named = opts.names?.length ? opts.names.map((n) => census.find((e) => e.name === n) ?? { name: n, type: null, tier: "supporting" as const, note: "" }) : null;
+  const complete = d.options.size === "complete" && !more;
+  if (named || complete) {
+    // Exactly these names, in batches small enough that each gets a real pitch.
+    const todo = named ?? census.filter((e) => !covers([...keptOnReplan.map((i) => i.title), ...existingTitles(d)], e.name)).sort((a, b) => ["core", "supporting", "minor"].indexOf(a.tier) - ["core", "supporting", "minor"].indexOf(b.tier));
+    const BATCH = 18;
+    for (let k = 0; k < todo.length || (k === 0 && complete); k += BATCH) {
+      const batch = todo.slice(k, k + BATCH);
+      const first = k === 0 && !more;
+      const data = await outlineCall(d, { n: batch.length || PLAN_SIZE.large, more: !first, names: batch.length ? batch : undefined, census, steer: opts.steer, planned: [...keptOnReplan, ...fresh], withOverview: first });
+      if (first) {
+        title = data.title;
+        overview = data.overview;
+      }
+      fresh.push(...toItems(data.items, taken, census));
+      if (!batch.length) break;
+    }
+    // The ideas that hold the world together (concepts, rules, events) beyond the census's names.
+    if (complete && !named) {
+      const data = await outlineCall(d, { n: 8, more: true, steer: ["Now the concepts, rules, events and places that make this world work and aren't planned yet.", opts.steer ?? ""].join(" "), planned: [...keptOnReplan, ...fresh], withOverview: false });
+      fresh.push(...toItems(data.items, taken, census));
+    }
+  } else {
+    const base = opts.count ?? (more ? Math.max(4, Math.round(PLAN_SIZE[d.options.size] / 3)) : PLAN_SIZE[d.options.size]);
+    // Every core name fits, whatever the size.
+    const n = more ? base : Math.max(base, census.filter((e) => e.tier === "core").length + 4);
+    const data = await outlineCall(d, { n, more, census, steer: opts.steer, planned: more ? d.items : [], withOverview: !more });
+    title = data.title;
+    overview = data.overview;
+    fresh.push(...toItems(data.items, taken, census).slice(0, more ? n : 120));
+  }
+
   return mutate(id, (cur) => {
-    const taken = new Set([...(more ? cur.items.map((i) => i.title.toLowerCase()) : []), ...existing.map((t) => t.toLowerCase())]);
-    const fresh = r.data.items
-      .map((x) => ({ ...x, title: cleanTitle(x.title) }))
-      .filter((x) => x.title && !taken.has(x.title.toLowerCase()) && (taken.add(x.title.toLowerCase()), true))
-      .slice(0, more ? n : 60)
-      .map((x) => normItem({ title: x.title, type: (ENTRY_TYPES as string[]).includes(x.type.toLowerCase()) ? (x.type.toLowerCase() as EntryType) : null, pitch: x.pitch.trim(), folder: x.folder.trim(), parent: x.parent.trim() }));
     // Parents come back as titles; point them at items (this plan's or the earlier ones).
-    const pool = more ? [...cur.items, ...fresh] : fresh;
+    const pool = [...(more ? cur.items : keptOnReplan), ...fresh];
     const book = cur.targetBookId ? getLorebook(cur.targetBookId) : undefined;
     for (const it of fresh) {
       if (!it.parent) continue;
@@ -641,8 +899,8 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
       const kept = cur.items.filter((i) => i.entry || i.status === "queued" || i.status === "writing");
       const keptTitles = new Set(kept.map((i) => i.title.toLowerCase()));
       cur.items = [...kept, ...fresh.filter((i) => !keptTitles.has(i.title.toLowerCase()))];
-      if (r.data.overview.trim() && (!cur.overview.trim() || cur.source.kind !== "document")) cur.overview = r.data.overview.trim();
-      if (r.data.title.trim() && (cur.title === "Untitled world" || !cur.title.trim())) cur.title = cleanTitle(r.data.title);
+      if (overview.trim() && (!cur.overview.trim() || cur.source.kind !== "document")) cur.overview = overview.trim();
+      if (title.trim() && (cur.title === "Untitled world" || !cur.title.trim())) cur.title = cleanTitle(title);
     }
     if (cur.stage === "start" || cur.stage === "questions") cur.stage = "plan";
   });
@@ -657,6 +915,25 @@ const entrySchema = z.object({
   essentials: z.string().default(""),
   secrets: z.array(z.object({ text: z.string(), knownBy: z.array(z.string()).default([]) })).default([]),
 });
+
+/**
+ * What an entry is written from, as fingerprints: the overview, your answers, canon, and its own
+ * title, kind and pitch. When one changes after it was written, the entry is out of date.
+ */
+export function basisOf(d: StudioDraft, it: StudioItem) {
+  const answers = d.questions.filter((q) => q.answer.trim()).map((q) => `${q.q}\n${q.answer.trim()}`).join("\n");
+  return `o:${shortHash(d.overview.trim())}|a:${shortHash(answers)}|c:${shortHash(d.basedOn.trim())}|p:${shortHash(`${it.title}\n${it.type ?? ""}\n${it.pitch.trim()}`)}`;
+}
+
+const BASIS_LABEL: Record<string, string> = { o: "the overview", a: "your answers", c: "what it's based on", p: "its plan line" };
+
+/** Why an entry is out of date ("the overview", "its plan line"), or [] if it isn't (or we can't tell). */
+export function staleReasons(d: StudioDraft, it: StudioItem): string[] {
+  if (!it.entry || !it.basis || it.status === "queued" || it.status === "writing") return [];
+  const was = Object.fromEntries(it.basis.split("|").map((p) => p.split(":") as [string, string]));
+  const now = Object.fromEntries(basisOf(d, it).split("|").map((p) => p.split(":") as [string, string]));
+  return Object.keys(now).filter((k) => was[k] !== undefined && was[k] !== now[k]).map((k) => BASIS_LABEL[k]!);
+}
 
 /** Queues entries to be written (or rewritten) in the background, in plan order. */
 export function queueWrite(id: string, opts: { itemIds?: string[]; steer?: string; all?: boolean } = {}) {
@@ -706,6 +983,7 @@ export async function runStudioJob(draftId: string, job?: JobContext) {
         it.entry = entry;
         it.status = "drafted";
         it.error = "";
+        it.basis = basisOf(d, next);
       });
       done++;
       job?.note({ written: done });
@@ -727,7 +1005,9 @@ export async function runStudioJob(draftId: string, job?: JobContext) {
   }
 }
 
-export async function writeEntry(d: StudioDraft, it: StudioItem, job?: JobContext): Promise<StudioEntry> {
+export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobContext): Promise<StudioEntry> {
+  // Canon people and places get their wiki page read first.
+  const it = { ...item, research: await entryPage(d, item) };
   const template = it.type ? ENTRY_TEMPLATES[it.type] : null;
   const titleOf = (ref: string) => {
     if (ref.startsWith("entry:")) {
@@ -755,15 +1035,21 @@ export async function writeEntry(d: StudioDraft, it: StudioItem, job?: JobContex
     system: [
       `You write one lorebook entry for interactive fiction: "${it.title}"${it.type ? ` (${template!.label.toLowerCase()})` : ""}. The storyteller reads it only when the entry fires, so it must stand on its own.`,
       `"content": ${WORDS[d.options.length]} words, third person, present tense, plain declarative sentences a storyteller can use in a scene: concrete looks, behaviour, history, relationships and stakes.${template ? ` Cover what fits of: ${template.fields.join(", ")}.` : ""} No headings, no lists of adjectives, no meta commentary.`,
+      "Tie it into the world: name the two or three other entries it matters most to and how (who they love, owe, fear or lie to; where it is; who holds it), using their exact titles. Show character through what they do and say, not adjectives; give the storyteller something to play (a want, a tension, a tell, a line of dialogue in their voice for people).",
+      canonRule(d.basedOn),
       `"keys": 2–6 trigger words: the names, nicknames and short phrases a story uses when this matters. Never common words that would fire on every message. "aliases": other names it goes by (can be empty). "essentials": one sentence, the single most important fact.`,
       d.options.secrets && !faithful ? `"secrets": 0–2 hidden truths that would change scenes if revealed, each with "knownBy" (who knows it, by name). Only where it fits; most entries have none.` : `"secrets": [] unless the source states a secret, with "knownBy" naming who knows it.`,
       faithful ? "Use only what the source notes say; keep every name, number and fact exact; add nothing." : "Stay consistent with the overview, the source and the rest of the plan; invent only details that fit.",
-      AVOID,
+      d.basedOn ? "" : AVOID,
       'Reply with JSON only: {"content": "…", "keys": ["…"], "aliases": ["…"], "essentials": "…", "secrets": [{"text": "…", "knownBy": ["…"]}]}',
-    ].join(" "),
+    ]
+      .filter(Boolean)
+      .join(" "),
     user: [
       d.overview.trim() ? `OVERVIEW:\n${d.overview.trim()}` : "",
       d.source.kind === "document" ? "" : sourceBlock(d),
+      canonBlock(d.basedOn),
+      researchBlock(d.research),
       answersBlock(d),
       prefsBlock(d),
       others.length ? `THE REST OF THE LOREBOOK:\n${others.join("\n")}` : "",
@@ -771,6 +1057,7 @@ export async function writeEntry(d: StudioDraft, it: StudioItem, job?: JobContex
       it.folder ? `FOLDER: ${it.folder}` : "",
       `THIS ENTRY: ${it.title}${it.type ? ` (${it.type})` : ""}${it.pitch ? `: ${it.pitch}` : ""}`,
       it.source.trim() ? `SOURCE NOTES FOR THIS ENTRY:\n${it.source.trim().slice(0, 12_000)}` : "",
+      it.research?.text ? `ITS WIKI PAGE (canon: use these facts; the author's changes win):\n${it.research.text}` : "",
       it.entry && it.steer.trim() ? `THE CURRENT DRAFT (rewrite it):\n${it.entry.content}` : "",
       it.steer.trim() ? `THE AUTHOR ASKS: ${it.steer.trim()}` : "",
       cast.length ? `MAIN CHARACTERS (may know secrets): ${cast.join(", ")}` : "",
@@ -805,9 +1092,11 @@ export function reviewDraft(id: string) {
   );
   const tokens = Object.fromEntries(drafted.map((i) => [i.id, countTokens(i.entry!.content)]));
   const overviewTokens = d.options.overview ? countTokens(d.overview) : 0;
+  const stale = Object.fromEntries(drafted.map((i) => [i.id, staleReasons(d, i)]).filter(([, r]) => r!.length));
   return {
     issues,
     tokens,
+    stale,
     cost: {
       entries: drafted.length,
       totalTokens: Object.values(tokens).reduce((a, b) => a + b, 0) + overviewTokens,
@@ -838,6 +1127,242 @@ export async function consistencyCheck(id: string) {
     cur.consistency = r.data.issues
       .map((x) => ({ items: x.entries.map((n) => drafted[n - 1]?.id).filter((v): v is string => Boolean(v)), problem: x.problem.trim(), fix: x.fix.trim() }))
       .filter((x) => x.items.length && x.problem);
+  });
+}
+
+// ---------- the editor's pass ----------
+
+const critiqueSchema = z.object({
+  issues: z
+    .array(
+      z.object({
+        entries: z.array(z.number()).default([]),
+        kind: z.string().default("quality"),
+        problem: z.string(),
+        fix: z.string().default(""),
+        add: z.object({ title: z.string(), type: z.string().default(""), pitch: z.string().default("") }).nullable().optional(),
+      }),
+    )
+    .default([]),
+});
+
+/**
+ * A demanding editor reads every drafted entry: contradictions, flat or generic writing, canon
+ * mistakes, weak trigger keys, two subjects in one entry, and the people or places that are missing.
+ * Each issue comes with a fix the author can apply (a rewrite with that steer, or a new plan line).
+ */
+export async function critiqueDraft(id: string) {
+  const d = mustDraft(id);
+  const drafted = d.items.filter((i) => i.keep && i.entry);
+  if (!drafted.length) throw badRequest("Write some entries first");
+  const missing = uncovered(d).slice(0, 40);
+  const r = await callJson({
+    task: "summarizer",
+    kind: "studio:critique",
+    name: "studio_critique",
+    schema: critiqueSchema,
+    system: [
+      "You are a demanding lorebook editor for interactive fiction. Read every entry and find what would make scenes worse:",
+      '"contradiction" (entries disagree with each other or the overview: ages, dates, family, places, rules);',
+      '"flat" (generic, tells instead of shows, nothing a scene can use, stock phrasing);',
+      d.basedOn ? `"canon" (gets ${d.basedOn} wrong where the author didn't change it, or misses canon detail that matters);` : "",
+      '"keys" (trigger words too common to be safe, or missing the nicknames the story would use);',
+      '"split" (one entry covers two subjects that each need their own);',
+      '"gap" (a person, place or thing the entries lean on, or canon has, with no entry: give "add" with its title, type and a one-line pitch).',
+      'Each issue cites entries by number (none for a gap), states the problem in one sentence, and gives "fix": an instruction a writer could follow as is ("Give Lottie her visions starting before the crash and her lithium; name her father"). At most 14 issues, most important first. If it\'s strong, return few.',
+      canonRule(d.basedOn),
+      'Reply with JSON only: {"issues": [{"entries": [1], "kind": "flat", "problem": "…", "fix": "…", "add": null}]}',
+    ]
+      .filter(Boolean)
+      .join(" "),
+    user: [
+      d.overview.trim() ? `OVERVIEW:\n${d.overview.trim()}` : "",
+      canonBlock(d.basedOn),
+      researchBlock(d.research),
+      `ENTRIES:\n${drafted.map((i, k) => `${k + 1}. ${i.title}${i.type ? ` (${i.type})` : ""} [keys: ${i.entry!.keys.join(", ")}]: ${i.entry!.content.replace(/\s+/g, " ").slice(0, 900)}`).join("\n")}`,
+      missing.length ? `IN THE CENSUS BUT NOT PLANNED: ${missing.map((e) => e.name).join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    maxTokens: 3000,
+    temperature: 0.3,
+  });
+  return mutate(id, (cur) => {
+    cur.critique = r.data.issues
+      .map((x) => ({
+        id: newId(),
+        kind: x.kind.trim().toLowerCase() || "quality",
+        items: x.entries.map((n) => drafted[n - 1]?.id).filter((v): v is string => Boolean(v)),
+        problem: x.problem.trim(),
+        fix: x.fix.trim(),
+        add: x.add?.title.trim() ? { title: cleanTitle(x.add.title), type: asType(x.add.type), pitch: x.add.pitch.trim() } : null,
+      }))
+      .filter((x) => x.problem && (x.items.length || x.add))
+      .slice(0, 14);
+  });
+}
+
+/** Applies one of the editor's fixes: a rewrite of the entries it names with that steer, or the missing entry added to the plan. */
+export function applyCritique(id: string, issueId: string) {
+  const d = mustDraft(id);
+  const issue = d.critique?.find((x) => x.id === issueId);
+  if (!issue) throw notFound("That note is gone");
+  if (issue.add && !d.items.some((i) => covers([i.title], issue.add!.title))) addItem(id, { title: issue.add.title, type: issue.add.type, pitch: issue.add.pitch });
+  if (issue.items.length) queueWrite(id, { itemIds: issue.items, steer: issue.fix || issue.problem });
+  return mutate(id, (cur) => void (cur.critique = (cur.critique ?? []).filter((x) => x.id !== issueId)));
+}
+
+// ---------- the co-writer ----------
+
+const cowriteSchema = z.object({
+  reply: z.string().default(""),
+  lookup: z.array(z.string()).default([]),
+  changes: z
+    .array(
+      z.object({
+        kind: z.string(),
+        entry: z.string().default(""),
+        title: z.string().default(""),
+        section: z.string().default(""),
+        type: z.string().default(""),
+        pitch: z.string().default(""),
+        content: z.string().default(""),
+        keys: z.array(z.string()).default([]),
+        steer: z.string().default(""),
+        text: z.string().default(""),
+      }),
+    )
+    .default([]),
+});
+
+/**
+ * "Make the Holloways old money from Philadelphia, and give Lottie a brother": the co-writer reads
+ * the whole draft and proposes exact changes (the overview, entries' text, plan lines, new entries,
+ * background rewrites) that you accept or reject one by one. Nothing changes until you accept.
+ */
+export async function cowriteLore(id: string, message: string) {
+  const d = mustDraft(id);
+  const m = message.toLowerCase();
+  // Entries the message names are read in full; the rest by their one-line essentials.
+  const named = (i: StudioItem) => [i.title, ...(i.entry?.keys ?? [])].some((k) => k.trim().length > 2 && m.includes(k.toLowerCase()));
+  const items = d.items.filter((i) => i.keep);
+  const full = items.filter(named).slice(0, 12);
+  // The co-writer can read the wiki (the source's, or Wikipedia) before it answers.
+  const wikis = await wikisFor(d.research, d.basedOn);
+  const ask = async (looked: string) => (await callJson({
+    task: "summarizer",
+    kind: "studio:cowrite",
+    name: "studio_cowrite",
+    schema: cowriteSchema,
+    system: [
+      COWRITER,
+      "The draft is a lorebook, grown from the author's idea and its expanded concept. Changes you can propose:",
+      IDEA_CHANGES,
+      '{"kind": "overview", "text": "the whole new overview"};',
+      '{"kind": "entry", "entry": "<exact title>", "content": "the whole new text", "keys": ["…"]} for a written entry whose text needs a small, exact edit (keys only if they change);',
+      '{"kind": "rewrite", "entry": "<exact title>", "steer": "what to change"} when an entry needs rewriting more than editing, or isn\'t shown in full below;',
+      '{"kind": "plan", "entry": "<exact title>", "title": "new title or empty", "type": "", "pitch": "new plan line or empty"};',
+      '{"kind": "add", "title": "…", "type": "…", "pitch": "…"} for a new entry;',
+      '{"kind": "remove", "entry": "<exact title>"} to leave one out.',
+      `Types: ${ENTRY_TYPES.join(", ")}. At most 20 changes; prefer "rewrite" for broad changes across many entries.`,
+      canonRule(d.basedOn),
+      looked ? "" : LOOKUP_FIELD,
+      'Reply with JSON only: {"reply": "…", "lookup": [], "changes": [ … ]}',
+    ]
+      .filter(Boolean)
+      .join(" "),
+    user: [
+      `THE LOREBOOK: ${d.title}`,
+      ideaBlock(d.source.kind === "idea" ? d.source.text : "", d.expansion),
+      d.overview.trim() ? `OVERVIEW:\n${d.overview.trim()}` : "",
+      canonBlock(d.basedOn),
+      researchBlock(d.research),
+      answersBlock(d),
+      `THE PLAN (title (type) [status]: essentials or plan line):\n${items.map((i) => `- ${i.title}${i.type ? ` (${i.type})` : ""} [${i.entry ? "written" : "planned"}]: ${i.entry?.essentials || i.pitch || ""}`).join("\n")}`,
+      ...full.filter((i) => i.entry).map((i) => `ENTRY IN FULL — ${i.title} [keys: ${i.entry!.keys.join(", ")}]:\n${i.entry!.content}`),
+      chatBlock(d.chat),
+      looked,
+      `THE AUTHOR SAYS: ${message.trim()}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    maxTokens: 6000,
+    temperature: 0.7,
+  })).data;
+  const { data, sources } = await withLookups(ask, (q) => lookup(wikis, q, 5000));
+  const r = { data };
+  const find = (t: string) => d.items.find((i) => i.title.toLowerCase() === t.trim().toLowerCase()) ?? d.items.find((i) => t.trim() && covers([i.title], t));
+  const changes: Omit<ProposedChange, "id">[] = [];
+  for (const c of r.data.changes.slice(0, 20)) {
+    const kind = c.kind.trim().toLowerCase();
+    const it = c.entry ? find(c.entry) : undefined;
+    if (kind === "idea" || kind === "section") {
+      const ch = kind === "idea" && d.source.kind !== "idea" ? null : ideaChange(c, d.source.text, d.expansion);
+      if (ch) changes.push(ch);
+      continue;
+    }
+    if (kind === "overview" && c.text.trim() && c.text.trim() !== d.overview.trim()) changes.push({ kind, target: "overview", label: "Overview", before: d.overview, after: c.text.trim() });
+    else if (kind === "entry" && it?.entry && c.content.trim() && c.content.trim() !== it.entry.content.trim())
+      changes.push({ kind, target: it.id, label: `${it.title} · text`, before: it.entry.content, after: c.content.trim(), data: c.keys.length ? { keys: c.keys } : undefined });
+    else if ((kind === "rewrite" || (kind === "entry" && it && !it.entry)) && it && (c.steer.trim() || c.content.trim()))
+      changes.push({ kind: "rewrite", target: it.id, label: `${it.title} · ${it.entry ? "rewrite" : "write"}`, before: it.entry?.content ?? it.pitch, after: "", steer: c.steer.trim() || `Use this: ${c.content.trim()}` });
+    else if (kind === "plan" && it && (c.title.trim() || c.pitch.trim() || c.type.trim()))
+      changes.push({ kind, target: it.id, label: `${it.title} · plan`, before: `${it.title}${it.type ? ` (${it.type})` : ""}: ${it.pitch}`, after: `${c.title.trim() || it.title}${asType(c.type) ?? it.type ? ` (${asType(c.type) ?? it.type})` : ""}: ${c.pitch.trim() || it.pitch}`, data: { title: c.title.trim(), type: asType(c.type), pitch: c.pitch.trim() } });
+    else if (kind === "add" && c.title.trim() && !d.items.some((i) => i.title.toLowerCase() === c.title.trim().toLowerCase()))
+      changes.push({ kind, target: "", label: `New: ${cleanTitle(c.title)}`, before: "", after: `${cleanTitle(c.title)}${asType(c.type) ? ` (${asType(c.type)})` : ""}: ${c.pitch.trim()}`, data: { title: cleanTitle(c.title), type: asType(c.type), pitch: c.pitch.trim() } });
+    else if (kind === "remove" && it && it.keep) changes.push({ kind, target: it.id, label: `Leave out ${it.title}`, before: it.title, after: "" });
+  }
+  const proposal = newProposal(message.trim(), r.data.reply.trim() || (changes.length ? "Here's what I'd change." : "Nothing to change for that."), changes);
+  return mutate(id, (cur) => {
+    cur.chat = addTurns(cur.chat, { role: "user", text: message }, { role: "mea", text: proposal.reply, ...(sources.length ? { sources } : {}) });
+    cur.proposal = changes.length ? proposal : null;
+  });
+}
+
+/** Accepts some of the co-writer's changes (by id); the rest are dropped. Rewrites go to the background writer. */
+export function applyCowrite(id: string, accept: string[]) {
+  const d0 = mustDraft(id);
+  const p = d0.proposal;
+  if (!p) throw badRequest("There's nothing to apply");
+  const ok = p.changes.filter((c) => accept.includes(c.id));
+  const rewrites: { itemId: string; steer: string }[] = [];
+  const d = mutate(id, (d) => {
+    for (const c of ok) {
+      const it = d.items.find((i) => i.id === c.target);
+      if (c.kind === "idea" || c.kind === "section") applyIdeaChange(d, c, (t) => (d.source.text = t));
+      else if (c.kind === "overview") d.overview = c.after;
+      else if (c.kind === "entry" && it?.entry) {
+        it.previous = it.entry;
+        it.entry = { ...it.entry, content: c.after, keys: Array.isArray(c.data?.keys) ? dedupe(c.data.keys as string[]) : it.entry.keys };
+        it.status = "drafted";
+        it.basis = basisOf(d, it);
+      } else if (c.kind === "plan" && it) {
+        const data = c.data as { title?: string; type?: EntryType | null; pitch?: string };
+        if (data.title) it.title = cleanTitle(data.title) || it.title;
+        if (data.type) it.type = data.type;
+        if (data.pitch) it.pitch = data.pitch;
+      } else if (c.kind === "add") {
+        const data = c.data as { title: string; type: EntryType | null; pitch: string };
+        d.items.push(normItem({ title: data.title, type: data.type, pitch: data.pitch }));
+      } else if (c.kind === "remove" && it) it.keep = false;
+      else if (c.kind === "rewrite" && it) rewrites.push({ itemId: it.id, steer: c.steer ?? "" });
+    }
+    d.proposal = null;
+    if (ok.length) d.chat = addTurns(d.chat, { role: "mea", text: `Applied ${ok.length} of ${p.changes.length} change${p.changes.length === 1 ? "" : "s"}.` });
+  });
+  // Each rewrite carries its own steer.
+  for (const w of rewrites) queueWrite(id, { itemIds: [w.itemId], steer: w.steer });
+  return rewrites.length ? mustDraft(id) : d;
+}
+
+export function dismissCowrite(id: string) {
+  return mutate(id, (d) => void (d.proposal = null));
+}
+
+export function clearCowriteChat(id: string) {
+  return mutate(id, (d) => {
+    d.chat = [];
+    d.proposal = null;
   });
 }
 

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mea</title>
+<style>
+  :root { color-scheme: dark; --bg: #0e0a18; --ink: #efe6f6; --muted: #a99bbd; --accent: #f3c98b; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { height: 100%; display: grid; place-content: center; text-align: center; gap: 0.75rem; padding: 0 24px; }
+  .mark { font: 600 2.4rem/1 Georgia, serif; letter-spacing: 0.02em; }
+  .mark span { color: var(--accent); }
+  p { margin: 0; color: var(--muted); max-width: 32rem; }
+  .err { color: #f2a7a7; }
+  button { justify-self: center; margin-top: 0.5rem; border: 1px solid #4a3f5e; background: #1d1630; color: var(--ink); border-radius: 999px; padding: 0.5rem 1.2rem; font: inherit; cursor: pointer; }
+  button[hidden] { display: none; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin: 0 3px; animation: blink 1.2s infinite both; }
+  .dot:nth-child(2) { animation-delay: 0.2s; } .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">Mea <span>✿</span></div>
+  <p id="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></p>
+  <button id="retry" hidden>Try again</button>
+</main>
+<script>
+  const status = document.getElementById("status");
+  const retry = document.getElementById("retry");
+  async function go() {
+    retry.hidden = true;
+    status.className = "";
+    status.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+    try {
+      const url = await window.__TAURI__.core.invoke("ensure_mea");
+      location.replace(url);
+    } catch (e) {
+      status.className = "err";
+      status.textContent = String(e);
+      retry.hidden = false;
+    }
+  }
+  retry.onclick = go;
+  go();
+</script>
+</body>
+</html>

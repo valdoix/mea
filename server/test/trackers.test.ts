@@ -194,3 +194,63 @@ describe("custom templates (TRK-01)", () => {
     expect((r.state.adventurer!.quests as { quest: string; status: string }[])[0]).toMatchObject({ quest: "Find the key", status: "active" });
   });
 });
+
+describe("one person, one entry", () => {
+  const userCfg = cfg({ userName: "James Holloway", mainName: "Jackie Taylor" });
+  const names = (r: ReturnType<typeof foldEvents>) => Object.values(r.state.chars).map((c) => c.name).sort();
+
+  test("a place after the @ is not part of the name", () => {
+    expect(parseLine("cast: Jackie Taylor@down-slope(finding James) · Misty Quigley@down-slope@spot(kit) · Shauna@left(→ wreck)")!.args.list).toEqual([
+      { name: "Jackie Taylor", tier: "spot", note: "finding James" },
+      { name: "Misty Quigley", tier: "spot", note: "kit" },
+      { name: "Shauna", tier: "left", note: "→ wreck" },
+    ]);
+  });
+
+  test("names already stored with a place still resolve, and first names stay unambiguous", () => {
+    // The shape older versions stored: the place glued to the name.
+    const stored = { op: "cast" as const, args: { list: [{ name: "Jackie Taylor@down-slope", tier: "spot", note: "finding James" }, { name: "James Holloway@down-slope", tier: "spot" }] }, raw: "cast: …" };
+    const evs: TrackerEvent[] = [{ id: "s1", messageId: "m1", seq: 1, source: "model", op: stored }, ...events([[], ["mood Jackie: warm", "body James: pain 1", "mood Holloway: tired"]])];
+    const r = foldEvents(evs, userCfg);
+    expect(names(r)).toEqual(["Jackie Taylor", "James Holloway"]);
+    expect(r.state.chars["jackie-taylor"]!.mood!.name).toBe("warm");
+  });
+
+  test("merge folds one into another, bonds and items included", () => {
+    const r = foldEvents(
+      [
+        ...events([["cast: Jackie@spot · Jax@spot", "bond Jax>James: trust +1 — x", "item Locket: → Jax — given", "trait Jax: freckles"]]),
+        ...events([[], ["merge Jax → Jackie Taylor"]], "user"),
+        ...events([[], [], ["mood Jax: giddy"]]),
+      ],
+      userCfg,
+    );
+    expect(names(r)).toEqual(["Jackie Taylor", "James Holloway"]);
+    const j = r.state.chars["jackie-taylor"]!;
+    expect(j.aliases).toContain("Jax");
+    expect(j.traits.some((t) => t.text === "freckles")).toBe(true);
+    expect(r.state.bonds["jackie-taylor>user"]!.axes.trust).toBe(1);
+    expect(r.state.items.locket!.holder).toBe("jackie-taylor");
+    // The old name now finds the merged person.
+    expect(j.mood!.name).toBe("giddy");
+  });
+
+  test("edit sets any field; only you can, and a person keeps their shape", () => {
+    expect(parseLine('edit ["chars","mira","mood"] = {"name":"calm","seq":1}')).toMatchObject({ op: "edit", args: { path: ["chars", "mira", "mood"], value: { name: "calm", seq: 1 } } });
+    const r = foldEvents(
+      [
+        ...events([["cast: Mira@spot · Joss@spot", "bond Joss>Mira: trust +1 — x"]]),
+        ...events([[], ['edit ["chars","mira","look"] = "a red coat"', 'edit ["chars","mira","traits"] = "oops"', 'edit ["chars","joss"] = null', 'edit ["threads","heist"] = {"id":"heist","title":"The heist","status":"open","openedSeq":0,"lastSeq":0,"history":[]}']], "user"),
+        ...events([[], [], ['edit ["chars","mira","look"] = "stolen"']], "model"),
+      ],
+      cfg(),
+    );
+    const mira = r.state.chars.mira!;
+    expect(mira.look).toBe("a red coat");
+    expect(Array.isArray(mira.traits)).toBe(true);
+    expect(r.state.chars.joss).toBeUndefined();
+    expect(Object.keys(r.state.bonds).some((k) => k.includes("joss"))).toBe(false);
+    expect(r.state.threads.heist!.title).toBe("The heist");
+    expect(Object.values(r.verdicts).at(-1)!.ok).toBe(false);
+  });
+});

@@ -5,14 +5,21 @@ import { randomToken, sha256 } from "../lib/crypto";
 
 /**
  * Device auth (ARCH-08, SEC-02). The host machine (direct localhost requests) is trusted.
- * Everything else, including requests through Tailscale Serve, needs a paired device cookie.
+ * Everything else, including requests through Tailscale Serve or the ngrok tunnel, needs a paired device cookie.
  */
 export const DEVICE_COOKIE = "mea_device";
 const PAIR_TTL_MS = 10 * 60_000;
 
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
+/** Requests that came in on the public listener (the ngrok tunnel's port). Never trusted, whatever their address. */
+const viaPublic = new WeakSet<Request>();
+export function markPublic(req: Request) {
+  viaPublic.add(req);
+}
+
 export function isTrustedLocal(c: Context): boolean {
+  if (viaPublic.has(c.req.raw)) return false;
   let address: string | undefined;
   try {
     address = getConnInfo(c).remote.address;

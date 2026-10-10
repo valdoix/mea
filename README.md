@@ -19,10 +19,11 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/09-phase5-status.md](docs/09-phase5-status.md) | What Phase 5 delivered (guards, steering, summaries, data and security, interface, phone and offline), fixes, and what still needs a real-world check |
 | [docs/10-default-preset.md](docs/10-default-preset.md) | Strengths and weaknesses of 21 community presets (ALMANAC in depth), and the design of Mea's default preset |
 | [docs/11-living-page.md](docs/11-living-page.md) | The living page: speaker colours, in-story artifacts, the scene window, the Almanac, private thoughts, and story calendars (Gregorian, Westeros) |
+| [docs/12-smarter-studios.md](docs/12-smarter-studios.md) | One person per cast entry (merge, edit any record, Story → Data), forgiving dialogue colours, and smarter studios: census and canon research, suggested answers, Mea the co-writer, out-of-date tracking, the editor's pass |
 
 ## Running Mea
 
-Requirements: [Bun](https://bun.sh) 1.4+, and Tailscale for phone access.
+Requirements: [Bun](https://bun.sh) 1.4+. For the phone: a free [ngrok](https://ngrok.com) account (or Tailscale).
 
 ```bash
 bun install
@@ -50,11 +51,22 @@ Add `-Tray` to also put Mea's icon in the notification area at every sign-in (AR
 
 **As a single file** (ARCH-14): `bun run build:exe` makes `dist\mea.exe` with the web app inside. Run it anywhere; its data goes in a `data` folder next to it. To run the exe as the service, add `-Exe` to the install command above (copy your existing `data` folder to `dist\data` first).
 
-**Phone access:**
-1. Install Tailscale on the PC and the phone, signed in to the same account.
-2. Once, on the PC, run `tailscale serve --bg 7766`. This gives Mea a private `https://<pc>.<tailnet>.ts.net` address.
-3. In Mea on the PC, open **Settings → Devices → New pairing code** and scan the QR code with the phone.
-4. In Chrome on the phone, choose **Install app**, then turn on **Settings → Notifications**.
+## The apps
+
+Mea runs on the PC (the service above). The apps are windows onto it, so every device always shows the same stories.
+
+**Windows:** `bun run app:desktop` builds an installer in `desktop/src-tauri/target/release/bundle/nsis`. The app opens Mea in its own window with a tray icon, and starts the "Mea" task if Mea isn't running. Closing the window leaves Mea running for your phone.
+
+**Android:** see [mobile/README.md](mobile/README.md). `bun run app:android` builds the APK to install on the phone.
+
+**Anywhere access (ngrok):**
+1. Make a free account at ngrok.com. In a terminal run `ngrok config add-authtoken <your token>`, and note your free domain (Universal Gateway → Domains).
+2. In PowerShell as administrator: `powershell -ExecutionPolicy Bypass -File scripts\install-tunnel.ps1 -Domain your-name.ngrok-free.dev`. ngrok then starts at boot, next to Mea.
+3. In Mea on the PC, open **Settings → Devices → New pairing code**. In the phone app, paste the link (or type the address and the code).
+
+The tunnel goes to Mea's second port (7770, `MEA_PUBLIC_PORT`), where nothing is treated as the host computer: every request needs a paired device. Never point ngrok at 7766.
+
+Tailscale still works as before (`tailscale serve --bg 7766`, then pair from Chrome on the phone).
 
 ## Development
 
@@ -71,6 +83,8 @@ This starts the API (with the mock provider enabled) on :7766 and Vite on http:/
 | `bun run build` | Builds the web app into `web/dist` |
 | `bun run budgets` | Checks the bundle-size budgets (PERF-01) |
 | `bun run build:exe` | Builds `dist/mea.exe` (add `-- --target host` for a binary for this machine) |
+| `bun run app:desktop` | Builds the Windows app and its installer (Tauri; needs Rust) |
+| `bun run app:android` | Builds the Android APK (Capacitor; needs JDK 21 and the Android SDK) |
 
 ## Layout
 
@@ -91,5 +105,7 @@ web/src
   views/      Home, Chat, Story, World, Search, Character, Personas, Lorebooks, Presets, Settings…
   components/ chat, memory, trackers, world, settings, lore, shared UI
   lib/        api, events (live stream), router, rendering, gestures, images
-scripts/      dev runner, icons, budgets, exe build, Windows service install
+desktop/      the Windows app (Tauri): window, tray, starts the service
+mobile/       the Android app (Capacitor): address setup, then Mea full screen
+scripts/      dev runner, icons, budgets, exe build, Windows service and tunnel install
 ```

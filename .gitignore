@@ -9,3 +9,7 @@ Thumbs.db
 .env.*
 coverage/
 data-dev/
+
+# Native apps
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

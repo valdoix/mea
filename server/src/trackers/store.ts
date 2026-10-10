@@ -177,6 +177,17 @@ export function saveCastProfile(chatId: string, name: string, patch: Partial<Cas
   return next;
 }
 
+/** A profile follows its person to a new name, or into the person they turned out to be (fields already set there win). */
+export function moveCastProfile(chatId: string, from: string, to: string) {
+  const all = castProfiles(chatId);
+  const src = all[castKey(from)];
+  if (!src || castKey(from) === castKey(to)) return;
+  const dst = all[castKey(to)];
+  const merged = { ...src, ...Object.fromEntries(Object.entries(dst ?? {}).filter(([, v]) => v !== "" && v != null)), name: dst?.name ?? to.trim() };
+  run("DELETE FROM cast_profiles WHERE chat_id = ? AND name_key = ?", chatId, castKey(from));
+  saveCastProfile(chatId, to, merged);
+}
+
 export function deleteCastProfile(chatId: string, name: string) {
   run("DELETE FROM cast_profiles WHERE chat_id = ? AND name_key = ?", chatId, castKey(name));
   invalidate(chatId);
@@ -315,7 +326,11 @@ export function cardTraits(text: string): string[] {
   if (eyes) out.push(`${eyes[1]!.toLowerCase()} eyes`);
   const hair = text.match(/\b((?:long |short |curly |straight |wavy |cropped |shoulder-length )?(?:blonde?|brown|black|red|auburn|ginger|silver|white|grey|gray|chestnut|dark|light|pink|blue|platinum)(?: and (?:curly|straight|wavy))?) hair\b/i);
   if (hair) out.push(`${hair[1]!.toLowerCase()} hair`);
-  const scar = text.match(/\b(?:a |an )?((?:\w+ ){0,3}scar(?: (?:on|across|over|along) (?:\w+ ){1,4})?)/i);
+  // A scar on a body ("a thin scar across his jaw"), never a place ("the torn scar of pines").
+  const BODY = "face|cheek|jaw|lip|brow|eyebrow|forehead|chin|neck|throat|arm|forearm|hand|wrist|chest|back|shoulder|leg|knee|thigh|stomach|belly|side|eye|temple|nose|knuckles?|palm|finger|hip|collarbone|ribs";
+  const scar =
+    text.match(new RegExp(`\\b((?:(?:thin|long|jagged|faint|old|pale|white|raised|deep|small|puckered|silvery|silver|crescent|burn|ragged)\\s+){0,2}scars?\\s+(?:on|across|over|along|through|down|above|below|under)\\s+(?:(?:his|her|their|its|the|a|one|left|right|upper|lower)\\s+){0,3}(?:${BODY}))\\b`, "i")) ??
+    text.match(/\b((?:thin|long|jagged|faint|old|pale|white|raised|deep|small|puckered|silvery|silver|crescent|burn|ragged)\s+(?:\w+\s+)?scars?)\b(?!\s+of\b)/i);
   if (scar) out.push(scar[1]!.trim().toLowerCase());
   return out.slice(0, 4);
 }

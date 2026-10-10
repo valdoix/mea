@@ -1,7 +1,7 @@
 <script lang="ts">
   import Segmented from "../../Segmented.svelte";
   import { get, post } from "../../../lib/api";
-  import { BookOpen, ClipboardCheck, Globe, PenLine, Square, X } from "../../../lib/icons";
+  import { BookOpen, ClipboardCheck, ClockAlert, Globe, PenLine, RefreshCw, Square, X } from "../../../lib/icons";
   import { navigate } from "../../../lib/router.svelte";
   import { app, errorToast, toast } from "../../../lib/state.svelte";
   import type { StudioSession } from "../../../lib/studio.svelte";
@@ -21,7 +21,14 @@
   const current = $derived(draft.items.find((i) => i.status === "writing"));
   const unwritten = $derived(kept.filter((i) => !i.entry && i.status !== "queued" && i.status !== "writing"));
   const issuesOf = (id: string) => review?.issues[id] ?? [];
-  const needsLook = (id: string) => issuesOf(id).some((i) => i.severity === "warn") || draft.items.find((x) => x.id === id)?.status === "error" || (draft.consistency ?? []).some((c) => c.items.includes(id));
+  const stale = $derived(review?.stale ?? {});
+  const staleIds = $derived(kept.filter((i) => stale[i.id]?.length).map((i) => i.id));
+  const staleWhy = $derived([...new Set(staleIds.flatMap((id) => stale[id] ?? []))]);
+  let hidden = $state<Record<string, boolean>>({});
+  const notes = $derived((draft.critique ?? []).filter((c) => !hidden[c.id]));
+  const needsLook = (id: string) =>
+    issuesOf(id).some((i) => i.severity === "warn") || draft.items.find((x) => x.id === id)?.status === "error" || (draft.consistency ?? []).some((c) => c.items.includes(id)) || notes.some((c) => c.items.includes(id)) || Boolean(stale[id]?.length);
+  const KIND: Record<string, string> = { contradiction: "contradiction", flat: "flat", canon: "canon", keys: "keys", split: "two in one", gap: "missing" };
   const lookCount = $derived(kept.filter((i) => needsLook(i.id)).length);
   const shown = $derived(kept.filter((i) => (filter === "all" ? true : filter === "look" ? needsLook(i.id) : !i.entry)));
   const left = $derived(draft.items.filter((i) => !i.keep));
@@ -97,6 +104,13 @@
       </div>
     </div>
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={kept.length} aria-valuenow={written.length}><span style:width="{kept.length ? (written.length / kept.length) * 100 : 0}%"></span></div>
+    {#if staleIds.length && !working.length}
+      <div class="row wrap stale">
+        <ClockAlert size={14} />
+        <span class="small grow">{staleIds.length} entr{staleIds.length === 1 ? "y was" : "ies were"} written before you changed {staleWhy.join(", ")}.</span>
+        <button class="btn small" onclick={() => session.act("write", "/write", { itemIds: staleIds, steer: "" })} disabled={Boolean(session.busy)}><RefreshCw size={13} /> Bring {staleIds.length === 1 ? "it" : "them"} up to date</button>
+      </div>
+    {/if}
     {#if review}
       <span class="tiny muted">{review.cost.entries} entries · {review.cost.totalTokens} tokens in all · always on {review.cost.alwaysOnTokens} · a fired entry averages {review.cost.averageTokens}</span>
     {/if}
@@ -104,8 +118,31 @@
 
   <div class="row between wrap">
     <Segmented value={filter} options={[{ value: "all", label: `All ${kept.length}` }, { value: "look", label: `Needs a look ${lookCount}` }, { value: "unwritten", label: `Not written ${kept.length - written.length}` }]} onchange={(v) => (filter = v)} small />
-    <button class="btn small" onclick={() => session.act("consistency", "/consistency")} disabled={Boolean(session.busy) || written.length < 2}><ClipboardCheck size={14} /> {session.busy === "consistency" ? "Checking…" : "Check for contradictions"}</button>
+    <button class="btn small" onclick={() => session.act("critique", "/critique")} disabled={Boolean(session.busy) || !written.length} title="Contradictions, flat writing, canon mistakes, weak keys, and who's missing"><ClipboardCheck size={14} /> {session.busy === "critique" ? "Reading every entry…" : "Editor's pass"}</button>
   </div>
+
+  {#if draft.critique}
+    <div class="panel stack tight">
+      {#each notes as c (c.id)}
+        <div class="small conflict">
+          <div class="row wrap">
+            <span class="chip tiny" class:rose={c.kind === "contradiction" || c.kind === "canon"} class:butter={c.kind === "gap"}>{KIND[c.kind] ?? c.kind}</span>
+            <b class="grow">{c.problem}</b>
+          </div>
+          {#if c.fix}<div class="muted">{c.fix}</div>{/if}
+          {#if c.add}<div class="tiny">Add: <b>{c.add.title}</b>{c.add.pitch ? ` · ${c.add.pitch}` : ""}</div>{/if}
+          <div class="row wrap">
+            {#each c.items as id (id)}<button class="link tiny" onclick={() => jump(id)}>{titleOf(id)}</button>{/each}
+            <span class="grow"></span>
+            <button class="btn ghost small" onclick={() => (hidden[c.id] = true)}>Dismiss</button>
+            <button class="btn small" onclick={() => session.act(`critique:${c.id}`, `/critique/${c.id}`)} disabled={Boolean(session.busy)}>{c.add && !c.items.length ? "Add to the plan" : c.items.length > 1 ? `Rewrite ${c.items.length} with this fix` : "Apply the fix"}</button>
+          </div>
+        </div>
+      {:else}
+        <span class="tiny muted">The editor has no notes{draft.critique.length ? " left" : ""}.</span>
+      {/each}
+    </div>
+  {/if}
 
   {#if draft.consistency}
     <div class="panel stack tight">
@@ -122,7 +159,7 @@
 
   <div class="items">
     {#each shown as it (it.id)}
-      <StudioItemCard {session} item={it} issues={issuesOf(it.id)} tokens={review?.tokens[it.id] ?? 0} bind:open={() => open[it.id] ?? false, (v) => (open[it.id] = v)} />
+      <StudioItemCard {session} item={it} issues={issuesOf(it.id)} stale={stale[it.id] ?? []} tokens={review?.tokens[it.id] ?? 0} bind:open={() => open[it.id] ?? false, (v) => (open[it.id] = v)} />
     {:else}
       <p class="muted small">{filter === "look" ? "Nothing needs a look." : filter === "unwritten" ? "Everything is written." : "Nothing planned yet. Go back to Plan."}</p>
     {/each}
@@ -198,6 +235,13 @@
   }
   details .items {
     margin-top: 0.5rem;
+  }
+  .stale {
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--butter, #f5d77a) 18%, transparent);
   }
   .conflict {
     border-top: 1px solid var(--border);

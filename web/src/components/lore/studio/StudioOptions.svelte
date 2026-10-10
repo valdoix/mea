@@ -17,12 +17,13 @@
 </script>
 
 <details class="panel" {open}>
-  <summary class="small"><SlidersHorizontal size={15} /> <b>Shape of the lorebook</b> <span class="muted">{o.size} · {o.length} entries{o.types.length ? ` · ${o.types.length} kinds` : ""}{o.tone ? ` · ${o.tone}` : ""}</span></summary>
+  <summary class="small"><SlidersHorizontal size={15} /> <b>Shape of the lorebook</b> <span class="muted">{o.size === "complete" ? "everything" : o.size} · {o.length} entries{session.draft!.basedOn ? ` · ${session.draft!.basedOn}` : ""}{o.types.length ? ` · ${o.types.length} kinds` : ""}{o.tone ? ` · ${o.tone}` : ""}</span></summary>
   <div class="stack body">
     <div class="grid">
       <div class="field">
         <span class="label">How many entries</span>
-        <Segmented value={o.size} options={[{ value: "small", label: "About 8" }, { value: "medium", label: "About 15" }, { value: "large", label: "About 26" }]} onchange={(v) => set("size", v)} small />
+        <Segmented value={o.size} options={[{ value: "small", label: "About 8" }, { value: "medium", label: "About 15" }, { value: "large", label: "About 26" }, { value: "complete", label: "Everything" }]} onchange={(v) => set("size", v)} small />
+        {#if o.size === "complete"}<span class="hint">Every person, place and thing the census finds (canon included), planned in batches.</span>{/if}
       </div>
       <div class="field">
         <span class="label">Entry length</span>
@@ -37,6 +38,10 @@
         {/each}
       </div>
     </div>
+    <label class="field">
+      <span class="label">Based on <span class="faint">an existing work; its canon fills the gaps</span></span>
+      <input class="input" value={session.draft!.basedOn} oninput={(e) => { session.draft!.basedOn = e.currentTarget.value; session.save({ basedOn: e.currentTarget.value }, "basedOn"); }} placeholder="Yellowjackets (TV series) · empty for an original world" />
+    </label>
     <div class="grid">
       <label class="field"><span class="label">Tone and genre</span><input class="input" value={o.tone} oninput={(e) => set("tone", e.currentTarget.value, 600)} placeholder="quiet gothic, cozy fantasy, hard sci-fi…" /></label>
       <label class="field"><span class="label">Style notes for entries</span><input class="input" value={o.style} oninput={(e) => set("style", e.currentTarget.value, 600)} placeholder="British spelling; no modern slang" /></label>

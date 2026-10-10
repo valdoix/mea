@@ -24,6 +24,7 @@ import { dropPresence, reportPresence } from "../services/presence";
 import { createPreset, deletePreset, getPreset, listPresets, restoreMeaPreset, updatePreset } from "../services/presets";
 import { publicVapidKey, removeSubscription, saveSubscription, sendPush, subscriptionCount } from "../services/push";
 import { tailscaleStatus } from "../services/tailscale";
+import { tunnelStatus } from "../services/tunnel";
 import { listTrash, purgeTrash } from "../services/trash";
 import { getSetting } from "../lib/settings";
 
@@ -159,17 +160,18 @@ system.post("/presence", async (c) => {
 // ---------- Devices & pairing (ARCH-08) ----------
 
 system.get("/devices", async (c) => {
-  return c.json({ devices: listDevices(), local: isTrustedLocal(c), tailscale: await tailscaleStatus() });
+  const [tailscale, tunnel] = await Promise.all([tailscaleStatus(), tunnelStatus()]);
+  return c.json({ devices: listDevices(), local: isTrustedLocal(c), tailscale, tunnel });
 });
 
 system.post("/devices/pairing", async (c) => {
   if (!isTrustedLocal(c)) throw badRequest("New devices can only be paired from the host computer");
   const { code, expiresAt } = createPairingCode();
-  const ts = await tailscaleStatus();
-  const base = ts.serveUrl ?? new URL(c.req.url).origin;
+  const [ts, tunnel] = await Promise.all([tailscaleStatus(), tunnelStatus()]);
+  const base = tunnel.url ?? ts.serveUrl ?? new URL(c.req.url).origin;
   const url = `${base}/pair?code=${code}`;
   const qrSvg = await QRCode.toString(url, { type: "svg", margin: 1, color: { dark: "#43363D", light: "#FFFDFB" } });
-  return c.json({ code, url, expiresAt, qrSvg, tailscale: ts });
+  return c.json({ code, url, expiresAt, qrSvg, tailscale: ts, tunnel });
 });
 
 system.delete("/devices/:id", (c) => {

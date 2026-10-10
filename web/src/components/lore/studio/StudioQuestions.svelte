@@ -3,6 +3,8 @@
   import { ListTree, MessageQuestion, Sparkles } from "../../../lib/icons";
   import type { StudioSession } from "../../../lib/studio.svelte";
   import ExtendButton from "../../studio/ExtendButton.svelte";
+  import Suggestions from "../../studio/Suggestions.svelte";
+  import ResearchPanel from "../../studio/ResearchPanel.svelte";
 
   let { session }: { session: StudioSession } = $props();
   const draft = $derived(session.draft!);
@@ -19,6 +21,13 @@
       {/if}
       <span class="tiny muted">Not right? Go back to Start and say it another way.</span>
     </div>
+  {/if}
+  {#if draft.readback || draft.basedOn}
+    <label class="field">
+      <span class="label">Based on <span class="faint">an existing show, book or game: its canon fills in everyone and everything you don't change</span></span>
+      <input class="input" bind:value={draft.basedOn} oninput={() => session.save({ basedOn: draft.basedOn }, "basedOn")} placeholder="Yellowjackets (TV series) · leave empty for an original world" />
+    </label>
+    <ResearchPanel research={draft.research} basedOn={draft.basedOn} busy={session.busy === "research"} onresearch={(urls) => session.act("research", "/research", { urls })} />
   {:else}
     <p class="muted small">Mea hasn't read your material yet.</p>
   {/if}
@@ -33,8 +42,9 @@
         rows="2"
         bind:value={q.answer}
         oninput={() => session.save({ answers: { [q.id]: q.answer } }, `answer:${q.id}`)}
-        placeholder="In your own words, or leave it blank to let Mea decide"
+        placeholder="In your own words, pick a suggestion, or leave it blank to let Mea decide"
       ></textarea>
+      <Suggestions suggestions={q.suggestions ?? []} answer={q.answer} onpick={(t) => { q.answer = t; session.save({ answers: { [q.id]: t } }, `answer:${q.id}`, 0); }} />
       <div class="row"><ExtendButton text={q.answer} question={q.q} idea={draft.source.text} onresult={(t) => { q.answer = t; session.save({ answers: { [q.id]: t } }, `answer:${q.id}`, 0); }} /></div>
     </div>
   {/each}

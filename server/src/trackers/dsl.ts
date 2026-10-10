@@ -13,7 +13,7 @@ import type { Op, OpName } from "./types";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
@@ -142,17 +142,26 @@ function bodyArgs(rest: string) {
   return { meters, injuries, flags, clear };
 }
 
-/** "Mira@spot(by the stove) · Joss@left(→ street) · Tom@arrive(← harbor)" */
+const TIER_WORD = /^(spot|here|present|peri\w*|arriv\w*|enter\w*|left|leave\w*|off|away|gone|exit\w*)$/i;
+
+/**
+ * "Mira@spot(by the stove) · Joss@left(→ street) · Tom@arrive(← harbor)".
+ * Models also write a place after the @ ("Jackie@down-slope(finding James)", "Misty@down-slope@spot"):
+ * the name stops at the first @, a tier word is the tier, and anything else is where they are.
+ */
 function castArgs(rest: string) {
   return rest
     .split(/\s*(?:·|•|\||;)\s*/)
     .map((x) => x.trim())
     .filter(Boolean)
     .map((x) => {
-      const m = x.match(/^(.+?)\s*@\s*([a-z]+)\s*(?:\((.*)\))?$/i);
-      if (!m) return { name: x.replace(/\(.*\)$/, "").trim(), tier: "spot", note: x.match(/\((.*)\)$/)?.[1] };
-      return { name: m[1]!.trim(), tier: m[2]!.toLowerCase(), note: m[3]?.trim() };
-    });
+      const note = x.match(/\(([^)]*)\)\s*$/)?.[1]?.trim();
+      const [name, ...tags] = x.replace(/\s*\([^)]*\)\s*$/, "").split(/\s*@\s*/);
+      const tier = tags.find((t) => TIER_WORD.test(t))?.toLowerCase() ?? "spot";
+      const where = tags.filter((t) => t && !TIER_WORD.test(t)).join(", ");
+      return { name: name!.trim(), tier, note: note || where || undefined };
+    })
+    .filter((c) => c.name);
 }
 
 /** "a | b · c · d" → ["a", ["b","c","d"]] */
@@ -169,6 +178,24 @@ function dueOf(text: string) {
 export function parseLine(raw: string): Op | null {
   const line = raw.replace(/^\s*(?:[-*•]\s+|\d+[.)]\s+)/, "").trim();
   if (!line || /^<\/?ledger/i.test(line) || /^```/.test(line)) return null;
+  // edit ["chars","mira","mood","name"] = "calm": your direct edit of any field (a JSON path and value).
+  const edit = line.match(/^edit\s+(\[.*?\])\s*=\s*([\s\S]*)$/i);
+  if (edit) {
+    let path: unknown;
+    let value: unknown;
+    try {
+      path = JSON.parse(edit[1]!);
+    } catch {
+      return null;
+    }
+    if (!Array.isArray(path) || !path.length || !path.every((k) => typeof k === "string" || typeof k === "number")) return null;
+    try {
+      value = JSON.parse(edit[2]!);
+    } catch {
+      value = edit[2]!.trim();
+    }
+    return { op: "edit", args: { path, value }, raw: line };
+  }
   const head = line.match(/^([a-z]+)\b\s*(.*)$/i);
   if (!head) return null;
   const word = head[1]!.toLowerCase();
@@ -414,6 +441,13 @@ export function parseLine(raw: string): Op | null {
     case "rename":
       a.to = arrow(body)[1];
       break;
+    case "merge": {
+      // "merge Jackie → Jackie Taylor": the first is folded into the second.
+      const [from, to] = arrow(body);
+      if (from) out.subject = from;
+      a.to = to;
+      break;
+    }
   }
   return out;
 }

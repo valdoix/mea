@@ -28,11 +28,13 @@ import {
   hasBase,
   linesToOps,
   listTemplates,
+  moveCastProfile,
   saveCastProfile,
   saveTemplate,
   setCharacterTrackerDefaults,
   trackerConfig,
 } from "../trackers/store";
+import { personName } from "../trackers/fold";
 import type { Change, Moment } from "../trackers/types";
 
 export const trackers = new Hono();
@@ -269,19 +271,31 @@ trackers.get("/chats/:id/cast", (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
   const st = currentFold(chatId).result.state;
+  // Profiles filed under a name the story no longer uses (a renamed duplicate, "Jackie Taylor@down-slope")
+  // go back to the person their name points to; what's already set on that person wins.
+  const byName = new Map<string, string>();
+  for (const ch of Object.values(st.chars)) if (!ch.isUser) for (const n of [ch.name, ...ch.aliases]) byName.set(castKey(n), ch.name);
+  for (const [key, p] of Object.entries(castProfiles(chatId))) {
+    if (byName.has(key)) continue;
+    const owner = byName.get(castKey(p.name)) ?? byName.get(castKey(personName(key)));
+    if (owner) moveCastProfile(chatId, key, owner);
+  }
   const profiles = castProfiles(chatId);
   const seen = new Set<string>();
   const people = Object.values(st.chars)
     .filter((ch) => !ch.isUser)
     .map((ch) => {
       const key = castKey(ch.name);
-      seen.add(key);
+      // A profile saved under another name they go by still belongs to them.
+      const names = [ch.name, ...ch.aliases].map(castKey);
+      for (const k of names) seen.add(k);
       const items = Object.values(st.items).filter((i) => i.holder === ch.id && !i.gone).map((i) => i.name);
       const toUser = st.bonds[`${ch.id}>user`];
       return {
         key,
         id: ch.id,
         name: ch.name,
+        aliases: ch.aliases,
         isMain: ch.isMain,
         present: ch.tier === "spot" || ch.tier === "peri",
         dead: Boolean(ch.dead),
@@ -295,23 +309,57 @@ trackers.get("/chats/:id/cast", (c) => {
         regard: toUser ? { label: toUser.label ?? null, axes: toUser.axes } : null,
         lastSeq: ch.lastSeq,
         firstSeq: ch.firstSeq,
-        profile: profiles[key] ?? null,
+        profile: names.map((k) => profiles[k]).find(Boolean) ?? null,
+        char: ch,
       };
     });
   // People you added who haven't been on the page yet.
-  for (const [key, p] of Object.entries(profiles)) if (!seen.has(key)) people.push({ key, id: key, name: p.name, isMain: false, present: false, dead: p.standing === "dead", mood: null, place: p.where ?? null, activity: null, look: null, traits: [], wants: null, items: [], regard: null, lastSeq: 0, firstSeq: 0, profile: p });
-  return c.json({ people });
+  for (const [key, p] of Object.entries(profiles)) if (!seen.has(key) && !Object.values(st.chars).some((ch) => ch.isUser && castKey(ch.name) === key)) people.push({ key, id: key, name: p.name, aliases: [], isMain: false, present: false, dead: p.standing === "dead", mood: null, place: p.where ?? null, activity: null, look: null, traits: [], wants: null, items: [], regard: null, lastSeq: 0, firstSeq: 0, profile: p, char: null as never });
+  return c.json({ people, userName: foldConfigFor(chatId).userName });
 });
 
 trackers.put("/chats/:id/cast/:name", async (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
   const input = await body(c, castInput);
-  return c.json(saveCastProfile(chatId, decodeURIComponent(c.req.param("name")), input));
+  const name = decodeURIComponent(c.req.param("name"));
+  // A new name: the story calls them that from now on, and the profile follows.
+  if (input.name && castKey(input.name) !== castKey(name)) {
+    const ch = Object.values(currentFold(chatId).result.state.chars).find((x) => !x.isUser && [x.name, ...x.aliases].some((n) => castKey(n) === castKey(name)));
+    if (ch) userEdit(chatId, [{ op: "rename", subject: ch.name, args: { to: input.name }, raw: `rename ${ch.name}: ${input.name}` }]);
+    moveCastProfile(chatId, name, input.name);
+    return c.json(saveCastProfile(chatId, input.name, input));
+  }
+  return c.json(saveCastProfile(chatId, name, input));
 });
 
+/** Two entries that are one person: the first folds into the second, in the story and in the cast. */
+trackers.post("/chats/:id/cast/merge", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const input = await body(c, z.object({ from: z.string().min(1).max(120), into: z.string().min(1).max(120) }));
+  const st = currentFold(chatId).result.state;
+  const into = Object.values(st.chars).find((x) => x.name === input.into || x.id === input.into);
+  const from = Object.values(st.chars).find((x) => x.name === input.from || x.id === input.from);
+  if (from && into) {
+    const raw = `merge ${from.name} → ${into.name}`;
+    const fold = userEdit(chatId, [{ op: "merge", subject: from.name, args: { to: into.name }, raw }]);
+    const verdict = Object.values(fold.verdicts).filter((v) => v.raw === raw).at(-1);
+    if (verdict && !verdict.ok) throw badRequest(verdict.reason ?? "Couldn't merge them");
+  }
+  moveCastProfile(chatId, from?.name ?? input.from, into?.name ?? input.into);
+  return c.json({ ok: true });
+});
+
+/** ?forget=1 also takes them out of the story's records (not just the profile). */
 trackers.delete("/chats/:id/cast/:name", (c) => {
-  deleteCastProfile(c.req.param("id"), decodeURIComponent(c.req.param("name")));
+  const chatId = c.req.param("id");
+  const name = decodeURIComponent(c.req.param("name"));
+  if (c.req.query("forget")) {
+    const ch = Object.values(currentFold(chatId).result.state.chars).find((x) => !x.isUser && [x.name, ...x.aliases].some((n) => castKey(n) === castKey(name)));
+    if (ch) userEdit(chatId, [{ op: "edit", args: { path: ["chars", ch.id], value: null }, raw: `edit ${JSON.stringify(["chars", ch.id])} = null` }]);
+  }
+  deleteCastProfile(chatId, name);
   return c.json({ ok: true });
 });
 

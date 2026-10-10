@@ -9,7 +9,7 @@
   import { STEERS, type StudioSession, typeMeta } from "../../../lib/studio.svelte";
   import type { StudioEntry, StudioIssue, StudioItem } from "../../../lib/types";
 
-  let { session, item, issues = [], tokens = 0, open = $bindable(false) }: { session: StudioSession; item: StudioItem; issues?: StudioIssue[]; tokens?: number; open?: boolean } = $props();
+  let { session, item, issues = [], stale = [], tokens = 0, open = $bindable(false) }: { session: StudioSession; item: StudioItem; issues?: StudioIssue[]; stale?: string[]; tokens?: number; open?: boolean } = $props();
 
   const meta = $derived(typeMeta(item.type));
   const busy = $derived(item.status === "queued" || item.status === "writing");
@@ -61,6 +61,7 @@
     </button>
     {#if busy}<span class="spin"><Loader size={15} /></span>{/if}
     {#if item.savedEntryId}<span class="chip tiny mint">saved</span>{/if}
+    {#if stale.length && !busy}<span class="chip tiny butter" title="Written before you changed {stale.join(', ')}">out of date</span>{/if}
     {#if warns}<span class="chip tiny rose" title="Needs a look"><TriangleAlert size={11} /> {warns}</span>{:else if issues.length}<span class="chip tiny" title="Notes"><CircleAlert size={11} /> {issues.length}</span>{/if}
     {#if item.entry}<span class="tiny faint hide-sm">{tokens} tok</span>{/if}
     <label class="switch keep" title="Include in the lorebook"><input type="checkbox" checked={item.keep} onchange={(e) => { item.keep = e.currentTarget.checked; session.saveItem(item.id, { keep: item.keep }, 0); }} /><span class="hide-sm">Keep</span></label>

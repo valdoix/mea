@@ -1386,6 +1386,9 @@ export interface CastPerson {
   key: string;
   id: string;
   name: string;
+  aliases: string[];
+  /** Everything the trackers hold about them (null for someone you added who hasn't appeared). */
+  char: TrackerCharacter | null;
   isMain: boolean;
   present: boolean;
   dead: boolean;
@@ -1568,7 +1571,7 @@ export type StudioSourceKind = "idea" | "character" | "persona" | "document" | "
 export type StudioStage = "start" | "questions" | "plan" | "review" | "done";
 
 export interface StudioOptions {
-  size: "small" | "medium" | "large";
+  size: "small" | "medium" | "large" | "complete";
   length: "lean" | "standard" | "rich";
   types: LoreType[];
   tone: string;
@@ -1602,7 +1605,60 @@ export interface StudioItem {
   previous: StudioEntry | null;
   steer: string;
   savedEntryId: string | null;
+  basis: string;
+  research: { title: string; url: string; text: string } | null;
   links: { creatorDraftId?: string; characterId?: string; personaId?: string };
+}
+
+/** The co-writer (both studios): the conversation, and the changes it proposes. */
+export interface ChatTurn {
+  role: "user" | "mea";
+  text: string;
+  at: number;
+  sources?: { title: string; url: string }[];
+}
+
+/** Canon gathered from the web (the source's wiki, Wikipedia, pasted links), distilled into a brief. */
+export interface Research {
+  basedOn: string;
+  at: number;
+  wikis: { name: string; api: string; base: string; kind: string }[];
+  sources: { title: string; url: string; kind: string; chars: number }[];
+  names: string[];
+  brief: string;
+}
+export interface ProposedChange {
+  id: string;
+  kind: string;
+  target: string;
+  label: string;
+  before: string;
+  after: string;
+  steer?: string;
+  data?: Record<string, unknown>;
+}
+export interface Proposal {
+  id: string;
+  message: string;
+  reply: string;
+  changes: ProposedChange[];
+  at: number;
+}
+
+export interface CensusEntry {
+  name: string;
+  type: LoreType | null;
+  tier: "core" | "supporting" | "minor";
+  note: string;
+}
+
+export interface CritiqueIssue {
+  id: string;
+  kind: string;
+  items: string[];
+  problem: string;
+  fix: string;
+  add: { title: string; type: LoreType | null; pitch: string } | null;
 }
 
 export interface StudioDraft {
@@ -1612,7 +1668,7 @@ export interface StudioDraft {
   source: { kind: StudioSourceKind; text: string; refId: string | null; refName: string; fileName: string };
   options: StudioOptions;
   readback: { understood: string; missing: string[] } | null;
-  questions: { id: string; q: string; why: string; answer: string }[];
+  questions: { id: string; q: string; why: string; answer: string; suggestions: string[] }[];
   directions: { title: string; pitch: string }[];
   expansion: Expansion | null;
   overview: string;
@@ -1621,6 +1677,12 @@ export interface StudioDraft {
   links: { type: "global" | "character" | "persona" | "chat"; id: string }[];
   committedBookId: string | null;
   consistency: { items: string[]; problem: string; fix: string }[] | null;
+  basedOn: string;
+  census: CensusEntry[] | null;
+  critique: CritiqueIssue[] | null;
+  chat: ChatTurn[];
+  proposal: Proposal | null;
+  research: Research | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -1647,6 +1709,8 @@ export interface StudioIssue {
 export interface StudioReview {
   issues: Record<string, StudioIssue[]>;
   tokens: Record<string, number>;
+  /** Entries written before their sources changed, with what changed. */
+  stale: Record<string, string[]>;
   cost: { entries: number; totalTokens: number; alwaysOnTokens: number; averageTokens: number };
 }
 
@@ -1691,6 +1755,7 @@ export interface CardField {
   error: string;
   previous: string | null;
   steer: string;
+  basis: string;
 }
 
 export interface CreatorDraft {
@@ -1706,12 +1771,17 @@ export interface CreatorDraft {
   origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string } | null;
   baseId: string | null;
   readback: { understood: string; missing: string[] } | null;
-  questions: { id: string; q: string; why: string; answer: string }[];
+  questions: { id: string; q: string; why: string; answer: string; suggestions: string[] }[];
   bible: { key: string; label: string; text: string }[];
   bibleCheck: { section: string; problem: string; fix: string }[] | null;
   fields: CardField[];
   savedId: string | null;
   companionLoreDraftId: string | null;
+  basedOn: string;
+  fieldCheck: { id: string; field: string; problem: string; fix: string }[] | null;
+  chat: ChatTurn[];
+  proposal: Proposal | null;
+  research: Research | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -1731,5 +1801,6 @@ export interface CreatorDraftSummary {
 export interface CreatorReview {
   issues: Record<string, StudioIssue[]>;
   tokens: Record<string, number>;
+  stale: Record<string, string[]>;
   cost: { permanent: number; greeting: number; examples: number };
 }

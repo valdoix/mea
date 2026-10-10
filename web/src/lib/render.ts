@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { extractArtifacts, placeArtifacts } from "./artifacts";
+import { quoteIds } from "./quotes";
 
 /**
  * Message rendering (CHAT-07): Markdown → sanitized HTML (SEC-03), dialogue
@@ -11,43 +12,34 @@ marked.setOptions({ gfm: true, breaks: true });
 const cache = new Map<string, string>();
 const MAX_CACHE = 600;
 
-const OPEN_CLOSE: Record<string, string> = { "“": "”", "«": "»", "„": "“" };
-
 /** Wraps quoted dialogue in <span class="dl">, across inline elements, never inside code. */
 function highlightDialogue(root: HTMLElement) {
   const blocks = root.querySelectorAll("p, li, blockquote, td, h1, h2, h3, h4, div");
   const targets: Element[] = blocks.length ? Array.from(blocks) : [root];
   for (const block of targets) {
     if (block.querySelector("p, li, div")) continue; // only leaf blocks
-    let inQuote = false;
-    let closer = "";
     const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
       acceptNode: (n) => ((n.parentElement?.closest("code, pre, style, .dl") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT)),
     });
     const nodes: Text[] = [];
     while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    // Read the whole block at once, so a mark at the end of one node can look at the start of the next.
+    const ids = quoteIds(nodes.map((n) => n.data).join(""));
+    let at = 0;
     for (const node of nodes) {
       const text = node.data;
-      const parts: { text: string; quoted: boolean }[] = [];
-      let buf = "";
-      for (const ch of text) {
-        if (!inQuote && (ch === '"' || ch in OPEN_CLOSE)) {
-          if (buf) parts.push({ text: buf, quoted: false });
-          buf = ch;
-          inQuote = true;
-          closer = ch === '"' ? '"' : OPEN_CLOSE[ch]!;
-        } else if (inQuote && (ch === closer || (closer === '"' && ch === "”"))) {
-          buf += ch;
-          parts.push({ text: buf, quoted: true });
-          buf = "";
-          inQuote = false;
-        } else buf += ch;
+      const parts: { text: string; id: number }[] = [];
+      for (let i = 0; i < text.length; i++) {
+        const id = ids[at + i]!;
+        const last = parts.at(-1);
+        if (last && last.id === id) last.text += text[i];
+        else parts.push({ text: text[i]!, id });
       }
-      if (buf) parts.push({ text: buf, quoted: inQuote });
-      if (!parts.some((p) => p.quoted)) continue;
+      at += text.length;
+      if (!parts.some((p) => p.id)) continue;
       const frag = document.createDocumentFragment();
       for (const p of parts) {
-        if (p.quoted) {
+        if (p.id) {
           const span = document.createElement("span");
           span.className = "dl";
           span.textContent = p.text;

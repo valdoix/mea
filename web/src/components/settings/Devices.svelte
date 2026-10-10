@@ -3,6 +3,7 @@
   import { confirm } from "../../lib/dialogs.svelte";
   import { timeAgo } from "../../lib/format";
   import { Copy, Laptop, QrCode, Smartphone, Trash } from "../../lib/icons";
+  import { appSetupUrl, inApp } from "../../lib/device.svelte";
   import { app, errorToast, toast } from "../../lib/state.svelte";
 
   interface TS {
@@ -14,6 +15,15 @@
     enableCommand: string;
     error?: string;
   }
+  interface Tunnel {
+    port: number;
+    installed: boolean;
+    running: boolean;
+    url: string | null;
+    wrongPort: string | null;
+    setupCommands: string[];
+  }
+  let tunnel = $state<Tunnel | null>(null);
   let devices = $state<{ id: string; name: string; userAgent: string | null; createdAt: number; lastSeenAt: number | null }[]>([]);
   let ts = $state<TS | null>(null);
   let local = $state(false);
@@ -22,8 +32,9 @@
 
   async function load() {
     try {
-      const r = await get<{ devices: typeof devices; local: boolean; tailscale: TS }>("/api/devices");
+      const r = await get<{ devices: typeof devices; local: boolean; tailscale: TS; tunnel: Tunnel }>("/api/devices");
       devices = r.devices;
+      tunnel = r.tunnel;
       local = r.local;
       ts = r.tailscale;
     } catch (e) {
@@ -59,26 +70,39 @@
 </script>
 
 <div class="stack">
+  {#if inApp}
+    <section class="panel row between wrap">
+      <div class="stack tight">
+        <h2>This app</h2>
+        <p class="small muted">Connected to <b>{location.origin}</b></p>
+      </div>
+      <a class="btn" href={appSetupUrl}>Change address</a>
+    </section>
+  {/if}
   <section class="panel stack">
     <h2>Reaching Mea from your phone</h2>
-    {#if !ts}
-      <p class="muted small">Checking Tailscale…</p>
-    {:else if !ts.installed}
-      <p class="small">Install <b>Tailscale</b> on this computer and your Android phone, signed in to the same account. Then come back here.</p>
-    {:else if !ts.running}
-      <p class="small">Tailscale is installed but not connected. Open it and sign in.</p>
+    {#if !tunnel}
+      <p class="muted small">Checking the tunnel…</p>
+    {:else if tunnel.url}
+      <div class="row wrap"><span class="chip mint">Tunnel open</span><span class="chip mint">Works from anywhere</span></div>
+      <p class="small">Your address: <b>{tunnel.url}</b></p>
+      <p class="tiny muted">Put it in the Mea app on your phone once. Everything that comes through it needs a paired device.</p>
     {:else}
-      <div class="row wrap">
-        <span class="chip mint">Tailscale connected</span>
-        {#if ts.serving}<span class="chip mint">HTTPS address ready</span>{:else}<span class="chip butter">HTTPS not set up yet</span>{/if}
-      </div>
-      {#if ts.serveUrl}<p class="small">Your address: <a href={ts.serveUrl} target="_blank" rel="noreferrer"><b>{ts.serveUrl}</b></a></p>{/if}
-      {#if !ts.serving}
-        <p class="small">Run this once in a terminal on this computer to give Mea a secure address (it stays private to your Tailscale devices):</p>
-        <div class="cmd"><code>{ts.enableCommand}</code><button class="btn ghost icon small" onclick={() => copy(ts!.enableCommand)} aria-label="Copy command"><Copy size={15} /></button></div>
+      {#if tunnel.wrongPort}
+        <p class="small"><span class="chip butter">Wrong port</span> ngrok is forwarding to Mea's main port ({tunnel.wrongPort}). That port trusts everything as this computer. Point it at <b>{tunnel.port}</b> instead.</p>
+      {:else if !tunnel.installed}
+        <p class="small">Install <b>ngrok</b> on this computer and make a free account at ngrok.com. It gives Mea a permanent https address your phone can reach from anywhere.</p>
+      {:else}
+        <p class="small">ngrok isn't running. Open a terminal on this computer and run (the first line only once):</p>
       {/if}
+      {#each tunnel.setupCommands as cmd}
+        <div class="cmd"><code>{cmd}</code><button class="btn ghost icon small" onclick={() => copy(cmd)} aria-label="Copy command"><Copy size={15} /></button></div>
+      {/each}
+      <p class="tiny muted">Your free domain is under Universal Gateway → Domains on the ngrok dashboard. To keep it running at every boot, see “Anywhere access” in the README.</p>
     {/if}
-    {#if ts?.error}<p class="tiny muted">{ts.error}</p>{/if}
+    {#if ts?.running && ts.serveUrl}
+      <p class="tiny muted">Tailscale also works: {ts.serveUrl}{ts.serving ? "" : ` (run ${ts.enableCommand})`}</p>
+    {/if}
   </section>
 
   <section class="panel stack">
@@ -92,14 +116,14 @@
       <div class="pair">
         <div class="qr">{@html pairing.qrSvg}</div>
         <div class="stack tight">
-          <p class="small">Scan with your phone's camera, or open the address and type the code:</p>
+          <p class="small">In the Mea app on your phone, paste this link, or enter the address and type the code:</p>
           <div class="code">{pairing.code}</div>
           <div class="cmd"><code class="truncate">{pairing.url}</code><button class="btn ghost icon small" onclick={() => copy(pairing!.url)} aria-label="Copy link"><Copy size={15} /></button></div>
           <span class="tiny muted">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} · works once</span>
         </div>
       </div>
     {:else}
-      <p class="small muted">Make a code, then scan it with your phone. After pairing, install Mea from Chrome's menu (“Add to Home screen” / “Install app”).</p>
+      <p class="small muted">Make a code, then enter it in the Mea app on your phone (or scan it to pair a browser).</p>
     {/if}
   </section>
 

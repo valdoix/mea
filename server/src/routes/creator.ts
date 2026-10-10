@@ -2,7 +2,14 @@ import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
 import {
+  applyCreatorCowrite,
+  applyFieldCheck,
   checkBible,
+  clearCreatorChat,
+  cowriteCreator,
+  critiqueFields,
+  dismissCreatorCowrite,
+  researchCreator,
   companionLore,
   createCreatorDraft,
   creatorReadback,
@@ -88,6 +95,7 @@ creator.put("/creator/:id", async (c) => {
       expansion: expansionPatch.optional(),
       bible: z.record(z.string(), z.string().max(20_000)).optional(),
       fields: z.record(z.string(), z.string().max(40_000)).optional(),
+      basedOn: z.string().max(200).optional(),
     }),
   );
   return c.json(d(patchCreator(c.req.param("id"), input)));
@@ -112,6 +120,28 @@ creator.post("/creator/:id/write", async (c) => {
 creator.post("/creator/:id/stop", (c) => c.json(d(stopFields(c.req.param("id")))));
 creator.post("/creator/:id/fields/:key/restore", (c) => c.json(d(restoreField(c.req.param("id"), c.req.param("key")))));
 creator.get("/creator/:id/review", (c) => c.json(reviewCreator(c.req.param("id"))));
+
+/** Canon from the web: the work's wiki, Wikipedia and your links, distilled into a brief. */
+creator.post("/creator/:id/research", async (c) => {
+  const input = await opts(c, z.object({ urls: z.array(z.string().max(2000)).max(8).optional() }).default({}));
+  return c.json(d(await researchCreator(c.req.param("id"), input)));
+});
+
+/** The editor's pass over the written card, and applying one of its notes. */
+creator.post("/creator/:id/critique", async (c) => c.json(d(await critiqueFields(c.req.param("id")))));
+creator.post("/creator/:id/critique/:issueId", (c) => c.json(d(applyFieldCheck(c.req.param("id"), c.req.param("issueId")))));
+
+/** The co-writer: ask in plain words, get changes to accept or reject. */
+creator.post("/creator/:id/cowrite", async (c) => {
+  const input = await body(c, z.object({ message: z.string().trim().min(1).max(4000) }));
+  return c.json(d(await cowriteCreator(c.req.param("id"), input.message)));
+});
+creator.post("/creator/:id/cowrite/apply", async (c) => {
+  const input = await body(c, z.object({ accept: z.array(z.string()).max(40) }));
+  return c.json(d(applyCreatorCowrite(c.req.param("id"), input.accept)));
+});
+creator.post("/creator/:id/cowrite/dismiss", (c) => c.json(d(dismissCreatorCowrite(c.req.param("id")))));
+creator.delete("/creator/:id/cowrite", (c) => c.json(d(clearCreatorChat(c.req.param("id")))));
 
 creator.post("/creator/:id/save", async (c) => {
   const input = await opts(c, z.object({ makeDefault: z.boolean().optional() }).default({}));

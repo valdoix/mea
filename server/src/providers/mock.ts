@@ -151,7 +151,7 @@ function helperJson(name: string, user: string): unknown {
         understood: `A setting built around ${names(user).slice(0, 2).join(" and ") || "the author's idea"}. ${firstSentence(user.split("\n").slice(1).join(" "))}`,
         missing: ["who holds power", "what people fear"],
         questions: [
-          { q: "Who holds power here, and who wants it?", why: "Factions and rivals need someone to push against." },
+          { q: "Who holds power here, and who wants it?", why: "Factions and rivals need someone to push against.", suggestions: ["The harbour guild", "An old family", "Nobody, and everyone wants it"] },
           { q: "What do ordinary people fear at night?", why: "Fears become dangers, rumours and rules." },
           { q: "What should never happen in this world?", why: "Hard rules keep long stories consistent." },
         ],
@@ -188,6 +188,38 @@ function helperJson(name: string, user: string): unknown {
         secrets: /"secrets": 0–2/.test(user) || !/MOCK_SECRET/.test(user) ? [] : [{ text: `${title} hides something.`, knownBy: [title] }],
       };
     }
+    case "studio_census": {
+      // Everyone named in the material, plus a canon extra when it says it's based on something.
+      const source = user.split(/\n\n(?:THE AUTHOR'S ANSWERS|TONE AND GENRE|STYLE NOTES|ENTRY KINDS)/)[0] ?? user;
+      const found = [...new Set(source.match(/\b[A-Z][a-z]{2,}(?: [A-Z][a-z]{2,})?\b/g) ?? [])].filter((w) => !["The", "She", "You", "This", "That", "BASED", "Description", "Personality", "Scenario", "First", "Creator", "Example", "About", "Entries"].includes(w.split(" ")[0]!));
+      const canon = /MOCK_CANON/.test(user) ? [{ name: "Laura Lee", type: "character", tier: "supporting", note: "canon teammate" }, { name: "Van Palmer", type: "character", tier: "supporting", note: "canon goalkeeper" }] : [];
+      return { basedOn: /MOCK_CANON/.test(user) ? "Mock Show (TV)" : "", entities: [...found.map((n, k) => ({ name: n, type: k === 0 ? "location" : "character", tier: k < 2 ? "core" : "supporting", note: `${n} in this story` })), ...canon] };
+    }
+    case "studio_critique": {
+      const n = [...user.matchAll(/^(\d+)\. /gm)].length;
+      return { issues: n ? [{ entries: [1], kind: "flat", problem: "It tells instead of shows.", fix: "Show one habit in action.", add: null }, { entries: [], kind: "gap", problem: "The ferry has no entry.", fix: "", add: { title: "The Ferry", type: "location", pitch: "How people leave." } }] : [] };
+    }
+    case "studio_cowrite": {
+      const says = user.match(/^THE AUTHOR SAYS: (.*)$/m)?.[1] ?? "";
+      const first = user.match(/^- (.+?)(?: \((\w+)\))? \[written\]/m)?.[1];
+      const changes: Record<string, unknown>[] = [];
+      if (/overview/i.test(says)) changes.push({ kind: "overview", text: `New overview: ${says}` });
+      if (first && /darker|rewrite/i.test(says)) changes.push({ kind: "rewrite", entry: first, steer: says });
+      if (/add/i.test(says)) changes.push({ kind: "add", title: "The Lighthouse Keeper", type: "character", pitch: "Keeps the light and the secrets." });
+      if (/concept/i.test(says)) changes.push({ kind: "section", section: "Central tension", text: `Sharper: ${says}` }, { kind: "section", section: "Weather", text: "The fog has a will." });
+      return { reply: changes.length ? `Done: ${says}` : "That all looks consistent.", changes };
+    }
+    case "creator_critique":
+      return { issues: /\[first_mes\]/.test(user) ? [{ field: "first_mes", problem: "The greeting is static.", fix: "Open in motion." }] : [] };
+    case "creator_cowrite": {
+      const says = user.match(/^THE AUTHOR SAYS: (.*)$/m)?.[1] ?? "";
+      const older = says.match(/(\d+)/)?.[1];
+      const changes: Record<string, unknown>[] = [];
+      if (older) changes.push({ kind: "bible", key: "identity", text: `Now ${older} years old.` }, { kind: "field", key: "description", text: `She is ${older}.` }, { kind: "rewrite", key: "first_mes", steer: `She is ${older} now.` });
+      if (/rename/i.test(says)) changes.push({ kind: "name", text: "Wren Vale" });
+      if (/concept/i.test(says)) changes.push({ kind: "section", section: "Voice", text: `Brainstormed: ${says}` });
+      return { reply: changes.length ? "Updated her age everywhere it shows." : "Nothing contradicts that.", changes };
+    }
     case "studio_consistency": {
       const n = [...user.matchAll(/^(\d+)\. /gm)].length;
       return { issues: /MOCK_CONFLICT/.test(user) && n >= 2 ? [{ entries: [1, 2], problem: "They disagree.", fix: "Pick one." }] : [] };
@@ -205,7 +237,7 @@ function helperJson(name: string, user: string): unknown {
         understood: `Someone built from ${names(user).slice(0, 2).join(" and ") || "the author's idea"}.`,
         missing: ["their voice", "what they want"],
         questions: [
-          { q: "What do they want that they can't admit?", why: "A hidden want drives scenes." },
+          { q: "What do they want that they can't admit?", why: "A hidden want drives scenes.", suggestions: ["To be forgiven", "To leave", "To be chosen first"] },
           { q: "How do they talk when they're angry?", why: "Voice under pressure is what players remember." },
         ],
       };

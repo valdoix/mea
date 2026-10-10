@@ -16,6 +16,7 @@ type Patch = Partial<{
   expansion: ExpansionPatch;
   bible: Record<string, string>;
   fields: Record<string, string>;
+  basedOn: string;
 }>;
 
 /** One open character or persona draft: same rules as the Lore Studio's (see StudioSession). */
@@ -61,6 +62,7 @@ export class CreatorSession {
       name: p("name") ? cur.name : s.name,
       idea: p("idea") ? cur.idea : s.idea,
       options: p("options") ? cur.options : s.options,
+      basedOn: p("basedOn") ? cur.basedOn : s.basedOn,
       worldBookIds: p("world") ? cur.worldBookIds : s.worldBookIds,
       questions: s.questions.map((q) => (p(`answer:${q.id}`) ? { ...q, answer: cur.questions.find((x) => x.id === q.id)?.answer ?? q.answer } : q)),
       expansion: mergeExpansion(cur.expansion, s.expansion, this.saver),

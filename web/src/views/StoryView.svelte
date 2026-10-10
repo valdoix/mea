@@ -1,10 +1,15 @@
 <script lang="ts">
   import Almanac from "../components/trackers/Almanac.svelte";
+  import DataEditor from "../components/trackers/DataEditor.svelte";
+  import TagInput from "../components/TagInput.svelte";
   import Avatar from "../components/Avatar.svelte";
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
-  import { get, put } from "../lib/api";
-  import { ArrowLeft, Pin, Upload } from "../lib/icons";
+  import { del, get, post, put } from "../lib/api";
+  import { diffLines, editLine } from "../lib/dataedit";
+  import { confirm } from "../lib/dialogs.svelte";
+  import { ArrowLeft, Merge, Pin, Trash, Upload } from "../lib/icons";
+  import { trackerEdit } from "../lib/trackers.svelte";
   import { uploadImage } from "../lib/images";
   import { navigate } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
@@ -13,8 +18,10 @@
 
   let { id }: { id: string } = $props();
 
-  type Tab = "almanac" | "timeline" | "web" | "cast";
-  let tab = $state<Tab>((new URLSearchParams(location.search).get("tab") as Tab) ?? "almanac");
+  type Tab = "almanac" | "timeline" | "web" | "cast" | "data";
+  const params = new URLSearchParams(location.search);
+  let tab = $state<Tab>((params.get("tab") as Tab) ?? "almanac");
+  let dataFocus = $state(params.get("focus") ?? "");
 
   // ---------- timeline (TRK-28) ----------
   interface Series {
@@ -102,19 +109,75 @@
   let fileInput = $state<HTMLInputElement | null>(null);
   async function loadCast() {
     try {
-      people = (await get<{ people: CastPerson[] }>(`/api/chats/${id}/cast`)).people;
+      const r = await get<{ people: CastPerson[]; userName: string }>(`/api/chats/${id}/cast`);
+      people = r.people;
+      userName = r.userName;
     } catch (e) {
       errorToast(e);
     }
   }
+  // What the story holds about them, as an editable copy (CHAT-26: you can correct anything).
+  interface StoryForm {
+    aliases: string[];
+    tier: string;
+    activity: string;
+    place: string;
+    mood: string;
+    look: string;
+    traits: string;
+    drives: { want?: string; need?: string; fear?: string; tactic?: string };
+    mask: { shown?: string; felt?: string; tell?: string };
+    dead: boolean;
+  }
+  type StoryChar = NonNullable<CastPerson["char"]>;
+  let story = $state<StoryForm | null>(null);
+  let mergeInto = $state("");
+  let userName = $state("");
+  const storyOf = (c: StoryChar): StoryForm => ({
+    aliases: [...c.aliases],
+    tier: c.tier ?? "off",
+    activity: c.activity ?? "",
+    place: c.place ?? "",
+    mood: c.mood?.name ?? "",
+    look: c.look ?? "",
+    traits: c.traits.map((t) => t.text).join("\n"),
+    drives: { want: "", need: "", fear: "", tactic: "", ...c.drives },
+    mask: { shown: "", felt: "", tell: "", ...c.mask },
+    dead: Boolean(c.dead),
+  });
   function openEdit(p: CastPerson | null) {
     editing = p;
     form = p ? { ...(p.profile ?? {}), name: p.name } : { name: "" };
+    story = p?.char ? storyOf(p.char) : null;
+    mergeInto = "";
     editOpen = true;
+  }
+  /** Ledger lines for whatever changed in the story fields. */
+  function storyLines(c: StoryChar, f: StoryForm): string[] {
+    const at = (...k: string[]) => ["chars", c.id, ...k];
+    const was = storyOf(c);
+    const lines: string[] = [];
+    for (const k of ["activity", "place", "look"] as const) if (f[k].trim() !== was[k].trim()) lines.push(editLine(at(k), f[k].trim() || null));
+    if (f.tier !== was.tier) lines.push(editLine(at("tier"), f.tier));
+    if (f.dead !== was.dead) lines.push(editLine(at("dead"), f.dead || null));
+    if (JSON.stringify(f.aliases) !== JSON.stringify(was.aliases)) lines.push(editLine(at("aliases"), f.aliases));
+    if (f.mood.trim() !== was.mood.trim()) lines.push(editLine(at("mood"), f.mood.trim() ? { ...(c.mood ?? { seq: c.lastSeq }), name: f.mood.trim(), prev: c.mood?.name } : null));
+    if (f.traits.trim() !== was.traits.trim()) {
+      const texts = f.traits.split("\n").map((t) => t.trim()).filter(Boolean);
+      lines.push(editLine(at("traits"), texts.map((t) => c.traits.find((x) => x.text === t) ?? { text: t, by: "user", seq: c.lastSeq })));
+    }
+    const clean = (o: Record<string, string | undefined>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v?.trim()).map(([k, v]) => [k, v!.trim()]));
+    lines.push(...diffLines(clean(was.drives), clean(f.drives), at("drives")));
+    lines.push(...diffLines(clean(was.mask), clean(f.mask), at("mask")));
+    return lines;
   }
   async function saveProfile() {
     if (!form.name.trim()) return;
     try {
+      if (editing?.char && story) {
+        const lines = storyLines(editing.char, story);
+        if (lines.length && !(await trackerEdit(id, lines))) return;
+      }
       await put(`/api/chats/${id}/cast/${encodeURIComponent(editing?.name ?? form.name)}`, $state.snapshot(form));
       editOpen = false;
       toast("Saved", { kind: "ok" });
@@ -122,6 +185,35 @@
     } catch (e) {
       errorToast(e);
     }
+  }
+  async function mergePerson() {
+    const into = mergeInto === "__user" ? { name: userName, id: "user" } : people.find((x) => x.key === mergeInto);
+    if (!editing || !into) return;
+    if (!(await confirm({ title: `Merge ${editing.name} into ${into.name}?`, message: `Everything the story knows about ${editing.name} (bonds, things, secrets, traits) moves to ${into.name}, and "${editing.name}" becomes another name for them.`, confirmLabel: "Merge" }))) return;
+    try {
+      await post(`/api/chats/${id}/cast/merge`, { from: editing.char?.id ?? editing.name, into: into.id === "user" ? "user" : ((into as CastPerson).char?.id ?? into.name) });
+      editOpen = false;
+      toast(`${editing.name} is now part of ${into.name}`, { kind: "ok" });
+      await loadCast();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function forgetPerson() {
+    if (!editing) return;
+    if (!(await confirm({ title: `Forget ${editing.name}?`, message: "They leave the cast and the story's records, with their bonds. If the story names them again, they come back fresh.", confirmLabel: "Forget", danger: true }))) return;
+    try {
+      await del(`/api/chats/${id}/cast/${encodeURIComponent(editing.name)}?forget=1`);
+      editOpen = false;
+      await loadCast();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  function allFields(p: CastPerson) {
+    editOpen = false;
+    dataFocus = `chars.${p.id}`;
+    tab = "data";
   }
   async function upload(files: FileList | null) {
     const f = files?.[0];
@@ -171,12 +263,16 @@
         { value: "timeline" as const, label: "Timeline" },
         { value: "web" as const, label: "Relationships" },
         { value: "cast" as const, label: "Cast" },
+        { value: "data" as const, label: "Data" },
       ]}
     />
   </div>
 
   {#if tab === "almanac"}
     <Almanac chatId={id} />
+  {:else if tab === "data"}
+    <p class="tiny muted">Everything the story keeps, field by field. Your edits are written into the story's ledger, so they hold when you rewind or swipe. Lock a record to stop the story changing it.</p>
+    {#key dataFocus}<DataEditor chatId={id} focus={dataFocus} />{/key}
   {:else if tab === "timeline"}
     {#if series.length}
       <section class="sparks">
@@ -268,6 +364,7 @@
             <div class="grow">
               <div class="row"><b>{p.name}</b>{#if p.present}<span class="chip mint tiny">here</span>{/if}{#if p.dead}<span class="chip tiny">†</span>{/if}{#if p.profile?.standing && p.profile.standing !== "here"}<span class="chip tiny">{p.profile.standing}</span>{/if}</div>
               <div class="tiny muted truncate">{p.profile?.role ?? p.profile?.description ?? p.wants ?? ""}</div>
+              {#if p.aliases.length}<div class="tiny faint truncate">also {p.aliases.join(", ")}</div>{/if}
             </div>
             <button class="btn ghost icon small" class:on={p.profile?.pinned} onclick={() => togglePin(p)} aria-label="Pin" title="Always keep in mind"><Pin size={14} /></button>
           </div>
@@ -318,8 +415,46 @@
       <label class="field"><span class="label">Home or work</span><input class="input" bind:value={form.base} placeholder="Town › Place" /></label>
     </div>
     <label class="field"><span class="label">Routine</span><input class="input" bind:value={form.routine} placeholder="9-17 Port Ellis › Harbour office; 18-23 Port Ellis › The Anchor" /><span class="hint">Hours and places, for who is likely where.</span></label>
+    {#if story && editing?.char}
+      <h3 class="sub">In the story now</h3>
+      <label class="field"><span class="label">Also called</span><TagInput bind:value={story.aliases} placeholder="A nickname, a title…" /><span class="hint">Any of these names finds them, so the story doesn't start a second entry.</span></label>
+      <div class="grid">
+        <label class="field">
+          <span class="label">Presence</span>
+          <select class="select" bind:value={story.tier}><option value="spot">In the scene</option><option value="peri">Nearby</option><option value="off">Not here</option></select>
+        </label>
+        <label class="field"><span class="label">Mood</span><input class="input" bind:value={story.mood} /></label>
+        <label class="field"><span class="label">Doing</span><input class="input" bind:value={story.activity} /></label>
+        <label class="field"><span class="label">At</span><input class="input" bind:value={story.place} placeholder="Town › Place" /></label>
+      </div>
+      <label class="field"><span class="label">Look right now</span><input class="input" bind:value={story.look} placeholder="What they wear, visible marks" /></label>
+      <label class="field"><span class="label">Lasting traits <span class="faint">one per line</span></span><textarea class="textarea" rows="3" bind:value={story.traits}></textarea><span class="hint">Traits you write hold against the story (it can't quietly change eye colour).</span></label>
+      <div class="grid">
+        <label class="field"><span class="label">Wants</span><input class="input" bind:value={story.drives.want} /></label>
+        <label class="field"><span class="label">Needs</span><input class="input" bind:value={story.drives.need} /></label>
+        <label class="field"><span class="label">Fears</span><input class="input" bind:value={story.drives.fear} /></label>
+        <label class="field"><span class="label">Copes by</span><input class="input" bind:value={story.drives.tactic} /></label>
+        <label class="field"><span class="label">Shows</span><input class="input" bind:value={story.mask.shown} /></label>
+        <label class="field"><span class="label">Feels</span><input class="input" bind:value={story.mask.felt} /></label>
+        <label class="field"><span class="label">Tell</span><input class="input" bind:value={story.mask.tell} /></label>
+      </div>
+      <label class="switch"><input type="checkbox" bind:checked={story.dead} /> Dead</label>
+      <button class="btn ghost small start" onclick={() => editing && allFields(editing)}>Every field (meters, injuries, journal…)</button>
+    {/if}
     <label class="switch"><input type="checkbox" bind:checked={form.pinned} /> Always keep in mind (described in every prompt)</label>
     <label class="switch"><input type="checkbox" bind:checked={form.out} /> Leave them out of the world off the page</label>
+    {#if editing}
+      <h3 class="sub">Duplicates</h3>
+      <div class="row wrap merge">
+        <select class="select grow" bind:value={mergeInto} aria-label="The same person as">
+          <option value="">The same person as…</option>
+          {#each people.filter((x) => x.key !== editing?.key) as x (x.key)}<option value={x.key}>{x.name}</option>{/each}
+          {#if userName}<option value="__user">{userName} (you)</option>{/if}
+        </select>
+        <button class="btn small" disabled={!mergeInto} onclick={mergePerson}><Merge size={14} /> Merge</button>
+        <button class="btn ghost small danger" onclick={forgetPerson}><Trash size={14} /> Forget</button>
+      </div>
+    {/if}
   </div>
   {#snippet footer()}
     <button class="btn ghost" onclick={() => (editOpen = false)}>Cancel</button>
@@ -433,6 +568,16 @@
   }
   .btn.on {
     color: var(--accent);
+  }
+  .sub {
+    margin: 0.4rem 0 0;
+    font-size: 0.95rem;
+  }
+  .start {
+    justify-self: start;
+  }
+  .merge {
+    gap: 0.4rem;
   }
   .swatch {
     width: 2.4rem;

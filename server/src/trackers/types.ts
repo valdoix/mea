@@ -9,7 +9,7 @@ import { emptySim, type SimState } from "../sim/types";
 export type OpName =
   | "clock" | "wx" | "at" | "scene" | "mode" | "cast" | "mood" | "body" | "look" | "trait" | "drive" | "mask" | "think" | "journal" | "dead"
   | "bond" | "ladder" | "know" | "secret" | "reveal" | "item" | "thread" | "owe" | "promise" | "deadline" | "plant" | "payoff" | "clue"
-  | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "set" | "lock" | "unset" | "rename"
+  | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 

@@ -4,6 +4,7 @@ import { normalizeCard } from "../src/cards/card";
 import { buildPngCard } from "../src/cards/io";
 import { type MeaEvent, subscribe } from "../src/lib/events";
 import { placeholderAvatar } from "../src/lib/png-encode";
+import { markPublic } from "../src/services/auth";
 import { freshDb } from "./helpers";
 
 let app: ReturnType<typeof createApp>;
@@ -195,6 +196,16 @@ describe("API end to end (mock provider)", () => {
     expect((await api("POST", "/api/pair", { code: pairing.json.code, name: "Again" }, { server: remote })).status).toBe(400);
     // Proxied requests from localhost (Tailscale Serve) are not trusted without the cookie.
     expect((await api("GET", "/api/characters", undefined, { headers: { "x-forwarded-for": "100.1.2.3" } })).status).toBe(401);
+    // The tunnel's port: from localhost with no proxy headers, and still not trusted.
+    const tunneled = () => {
+      const req = new Request("http://localhost/api/characters");
+      markPublic(req);
+      return app.fetch(req, local);
+    };
+    expect((await tunneled()).status).toBe(401);
+    const viaTunnel = new Request("http://localhost/api/devices/pairing", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    markPublic(viaTunnel);
+    expect((await app.fetch(viaTunnel, local)).status).toBe(401);
   });
 
   test("cross-site writes are blocked", async () => {

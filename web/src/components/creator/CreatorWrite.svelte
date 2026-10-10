@@ -2,7 +2,7 @@
   import type { CreatorSession } from "../../lib/creator.svelte";
   import { post } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
-  import { BookOpen, ExternalLink, MessageHeart, PenLine, RefreshCw, Save, Square, WandSparkles } from "../../lib/icons";
+  import { BookOpen, ClipboardCheck, ClockAlert, ExternalLink, MessageHeart, PenLine, RefreshCw, Save, Square, TriangleAlert, WandSparkles, X } from "../../lib/icons";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { CreatorDraft } from "../../lib/types";
@@ -17,6 +17,12 @@
   const current = $derived(draft.fields.find((f) => f.status === "writing"));
   const unwritten = $derived(draft.fields.filter((f) => !f.value.trim() && f.status !== "queued" && f.status !== "writing"));
   const warns = $derived(Object.values(review?.issues ?? {}).flat().filter((i) => i.severity === "warn").length);
+  const stale = $derived(review?.stale ?? {});
+  const staleKeys = $derived(draft.fields.filter((f) => stale[f.key]?.length).map((f) => f.key));
+  const staleWhy = $derived([...new Set(staleKeys.flatMap((k) => stale[k] ?? []))]);
+  let hidden = $state<Record<string, boolean>>({});
+  const notes = $derived((draft.fieldCheck ?? []).filter((n) => !hidden[n.id]));
+  const labelOf = (key: string) => draft.fields.find((f) => f.key === key)?.label ?? key;
   let makeDefault = $state(false);
   let saving = $state(false);
 
@@ -73,11 +79,34 @@
       </div>
     </div>
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={draft.fields.length} aria-valuenow={written.length}><span style:width="{(written.length / Math.max(1, draft.fields.length)) * 100}%"></span></div>
+    {#if staleKeys.length && !working.length}
+      <div class="row wrap stale">
+        <ClockAlert size={14} />
+        <span class="small grow">{staleKeys.length} field{staleKeys.length === 1 ? " was" : "s were"} written before you changed {staleWhy.join(", ")}.</span>
+        <button class="btn small" onclick={() => session.act("write", "/write", { keys: staleKeys, steer: "" })} disabled={Boolean(session.busy)}><RefreshCw size={13} /> Bring {staleKeys.length === 1 ? "it" : "them"} up to date</button>
+      </div>
+    {/if}
+    <div class="row between wrap">
+      <span class="tiny muted">The editor reads the card itself: voice drift, flat greetings, contradictions, {"{{user}}"} being played.</span>
+      <button class="btn small" onclick={() => session.act("critique", "/critique")} disabled={Boolean(session.busy) || !written.length}><ClipboardCheck size={14} /> {session.busy === "critique" ? "Reading the card…" : "Editor's pass"}</button>
+    </div>
+    {#if draft.fieldCheck}
+      {#each notes as n (n.id)}
+        <div class="issue small">
+          <TriangleAlert size={14} />
+          <div class="grow"><a href="#field-{n.field}" class="tiny">{labelOf(n.field)}</a> <b>{n.problem}</b>{#if n.fix}{" "}<span class="muted">{n.fix}</span>{/if}</div>
+          <button class="btn small" onclick={() => session.act(`critique:${n.id}`, `/critique/${n.id}`)} disabled={Boolean(session.busy)}>Apply the fix</button>
+          <button class="btn ghost icon small" onclick={() => (hidden[n.id] = true)} aria-label="Dismiss"><X size={13} /></button>
+        </div>
+      {:else}
+        <span class="tiny muted">The editor has no notes{draft.fieldCheck.length ? " left" : ""}.</span>
+      {/each}
+    {/if}
     {#if review && isChar}<span class="tiny muted">Always in the prompt: {review.cost.permanent} tokens · greeting {review.cost.greeting} · examples {review.cost.examples}{warns ? ` · ${warns} to look at` : ""}</span>{/if}
   </div>
 
   {#each draft.fields as f (f.key)}
-    <CreatorField {session} field={f} issues={review?.issues[f.key] ?? []} tokens={review?.tokens[f.key] ?? 0} />
+    <CreatorField {session} field={f} issues={review?.issues[f.key] ?? []} stale={stale[f.key] ?? []} tokens={review?.tokens[f.key] ?? 0} />
   {/each}
 
   <div class="panel stack savebox">
@@ -118,6 +147,20 @@
     height: 100%;
     background: var(--accent);
     transition: width 0.4s var(--ease);
+  }
+  .stale {
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--butter, #f5d77a) 18%, transparent);
+  }
+  .issue {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    border-top: 1px solid var(--border);
+    padding-top: 0.4rem;
   }
   .savebox h3 {
     display: flex;

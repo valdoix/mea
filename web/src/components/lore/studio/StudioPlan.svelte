@@ -2,11 +2,12 @@
   import { get, post } from "../../../lib/api";
   import { confirm } from "../../../lib/dialogs.svelte";
   import { autosize } from "../../../lib/gestures";
-  import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ListTree, PenLine, Plus, RefreshCw, Trash } from "../../../lib/icons";
-  import { LORE_TYPES, type StudioSession, typeMeta } from "../../../lib/studio.svelte";
+  import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ListTree, PenLine, Plus, RefreshCw, Trash, UserSearch } from "../../../lib/icons";
+  import { LORE_TYPES, type StudioSession, typeMeta, uncovered } from "../../../lib/studio.svelte";
   import { errorToast } from "../../../lib/state.svelte";
   import type { Lorebook, LoreType, StudioDraft, StudioItem } from "../../../lib/types";
   import StudioOptions from "./StudioOptions.svelte";
+  import ResearchPanel from "../../studio/ResearchPanel.svelte";
 
   let { session }: { session: StudioSession } = $props();
   const draft = $derived(session.draft!);
@@ -23,6 +24,9 @@
   });
 
   const kept = $derived(draft.items.filter((i) => i.keep));
+  // The census names no entry covers yet, most important first.
+  const missing = $derived(uncovered(draft).sort((a, b) => ["core", "supporting", "minor"].indexOf(a.tier) - ["core", "supporting", "minor"].indexOf(b.tier)));
+  const planNames = (names: string[]) => session.act("outline", "/outline", { mode: "more", names });
   const unwritten = $derived(kept.filter((i) => !i.entry && i.status !== "queued" && i.status !== "writing"));
   const depthOf = (i: StudioItem) => (i.parent && draft.items.some((x) => x.id === i.parent) ? 1 : 0);
   const parentOptions = (it: StudioItem) => [
@@ -69,6 +73,9 @@
 </script>
 
 <section class="stack">
+  {#if draft.basedOn || draft.research}
+    <ResearchPanel research={draft.research} basedOn={draft.basedOn} busy={session.busy === "research"} onresearch={(urls) => session.act("research", "/research", { urls })} />
+  {/if}
   <label class="field">
     <span class="label">Overview <span class="faint">the ground truths every entry is written against{draft.options.overview ? "; saved as an always-on entry" : ""}</span></span>
     <textarea class="textarea story" use:autosize={{ max: 360, value: draft.overview }} bind:value={draft.overview} oninput={() => session.save({ overview: draft.overview }, "overview")} placeholder="The world's premise, tone, and the rules every scene should respect. Plan the lorebook and Mea drafts this for you."></textarea>
@@ -114,12 +121,34 @@
             </label>
             <label class="field"><span class="label">Folder</span><input class="input" value={it.folder} oninput={(e) => edit(it, { folder: e.currentTarget.value })} placeholder="Places › Port Ellis" /></label>
             <label class="switch"><input type="checkbox" checked={it.constant} onchange={(e) => edit(it, { constant: e.currentTarget.checked }, 0)} /> Always on</label>
+            {#if it.research?.url}<a class="tiny src" href={it.research.url} target="_blank" rel="noopener noreferrer">Canon read from {it.research.title}</a>{/if}
             {#if it.source}<details class="src"><summary class="tiny muted">Source notes ({it.source.split(/\s+/).length} words)</summary><p class="tiny pre">{it.source}</p></details>{/if}
           </div>
         {/if}
       </div>
     {/each}
   </div>
+
+  {#if draft.census}
+    <div class="panel stack tight coverage">
+      <div class="row between wrap">
+        <span class="small"><UserSearch size={14} /> <b>Census</b> <span class="muted">{draft.census.length} people, places and things found{draft.basedOn ? `, ${draft.basedOn} canon included` : ""} · {missing.length ? `${missing.length} not in the plan yet` : "all of them are in the plan"}</span></span>
+        <div class="row">
+          <button class="btn ghost small" onclick={() => session.act("census", "/census")} disabled={Boolean(session.busy)} title="Look through the material and canon again">{session.busy === "census" ? "Counting…" : "Count again"}</button>
+          {#if missing.length}<button class="btn small" onclick={() => planNames(missing.map((e) => e.name))} disabled={Boolean(session.busy)}><Plus size={14} /> {session.busy === "outline" ? "Planning…" : `Plan all ${missing.length}`}</button>{/if}
+        </div>
+      </div>
+      {#if missing.length}
+        <div class="row wrap misses">
+          {#each missing as e (e.name)}
+            <button class="chip miss" class:core={e.tier === "core"} class:minor={e.tier === "minor"} title={e.note} onclick={() => planNames([e.name])} disabled={Boolean(session.busy)}><Plus size={11} /> {e.name}{#if e.type}<span class="faint"> · {typeMeta(e.type)?.label.toLowerCase()}</span>{/if}</button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {:else if draft.items.length && draft.source.kind !== "document"}
+    <div class="row"><button class="btn ghost small" onclick={() => session.act("census", "/census")} disabled={Boolean(session.busy)}><UserSearch size={14} /> {session.busy === "census" ? "Counting…" : "Check who's missing"}</button></div>
+  {/if}
 
   <div class="row wrap addrow">
     <select class="select type" bind:value={newType} aria-label="Kind of the new entry"><option value="">Plain</option>{#each LORE_TYPES as t (t.value)}<option value={t.value}>{t.label}</option>{/each}</select>
@@ -203,6 +232,31 @@
   .pre {
     white-space: pre-wrap;
     margin: 0.3rem 0 0;
+  }
+  .misses {
+    gap: 0.3rem;
+  }
+  .miss {
+    cursor: pointer;
+    border: 1px dashed var(--border);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--fs-xs);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+  .miss.core {
+    border-style: solid;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+  .miss.minor {
+    opacity: 0.75;
+  }
+  .miss:hover:not(:disabled) {
+    border-color: var(--accent);
   }
   .addrow .grow {
     flex: 1 1 12rem;

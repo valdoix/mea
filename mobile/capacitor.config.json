@@ -1,0 +1,16 @@
+{
+  "appId": "app.mea.android",
+  "appName": "Mea",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*.ngrok-free.dev", "*.ngrok-free.app", "*.ngrok.app", "*.ngrok.dev", "*.ngrok.io", "*.ts.net"],
+    "errorPath": "index.html"
+  },
+  "android": {
+    "overrideUserAgent": "MeaApp/0.1 (Linux; Android)",
+    "backgroundColor": "#0e0a18",
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}
