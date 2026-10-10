@@ -125,7 +125,7 @@ export function deepSearch(chatId: string, opts: { query: string; qvec: Float32A
       s.row.start_seq,
       s.row.end_seq ?? s.row.start_seq,
     );
-    for (const m of msgs) {
+    for (const [i, m] of msgs.entries()) {
       hits.push({
         chapterId: s.chapter?.row.id ?? null,
         chapterTitle: s.chapter?.row.title ?? null,
@@ -135,7 +135,8 @@ export function deepSearch(chatId: string, opts: { query: string; qvec: Float32A
         seq: m.seq,
         speaker: m.name ?? (m.role === "user" ? "You" : m.role),
         excerpt: excerpt(m.content, words, opts.excerptSize),
-        score: s.score + (s.chapter?.score ?? 0) + rrf(Math.round(-m.b)),
+        // L13: the best match in the scene (bm25 is lowest) gets the biggest bonus.
+        score: s.score + (s.chapter?.score ?? 0) + rrf(i),
         reasons: [s.chapter ? `chapter "${s.chapter.row.title}"` : "", `scene "${s.row.title}"`, ...s.reasons.slice(0, 2)].filter(Boolean),
       });
     }

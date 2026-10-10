@@ -364,8 +364,10 @@ function fingerprint(chatId: string) {
   return `${m?.n}:${m?.u}:${m?.a}:${m?.d}:${e?.n}:${e?.c}`;
 }
 
+const foldVersion = (chatId: string) => `${versions.get(chatId) ?? 0}:${globalVersion}:${fingerprint(chatId)}`;
+
 export function currentFold(chatId: string): CacheEntry {
-  const v = `${versions.get(chatId) ?? 0}:${globalVersion}:${fingerprint(chatId)}`;
+  const v = foldVersion(chatId);
   const hit = cache.get(chatId);
   if (hit && hit.version === v) return hit;
   const result = foldWithTimes(chatId, branchEvents(chatId));
@@ -388,8 +390,17 @@ function foldWithTimes(chatId: string, events: TrackerEvent[]) {
 /** The state as of a message (the drawer of an older message, the graph's time scrubber, a swipe's prompt). */
 export function foldAt(chatId: string, opts: { uptoSeq?: number; excludeMessageId?: string }) {
   if (opts.uptoSeq == null && !opts.excludeMessageId) return currentFold(chatId).result;
-  return foldWithTimes(chatId, branchEvents(chatId, opts)).result;
+  // M20: the tracker update, the timeline check and the checker ask for the same points after each reply.
+  const v = foldVersion(chatId);
+  const key = `${chatId}|${opts.uptoSeq ?? ""}|${opts.excludeMessageId ?? ""}`;
+  const hit = atCache.get(key);
+  if (hit && hit.version === v) return hit.result;
+  const result = foldWithTimes(chatId, branchEvents(chatId, opts)).result;
+  atCache.set(key, { version: v, result });
+  if (atCache.size > 60) atCache.delete(atCache.keys().next().value!);
+  return result;
 }
+const atCache = new Map<string, { version: string; result: FoldResult }>();
 
 /** Called when a message changes (edit, delete, restore, swipe): the cached fold is stale. */
 export function onTrackerLedgerEdit(chatId: string) {

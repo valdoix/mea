@@ -45,7 +45,7 @@ export interface ChatMemoryState {
   version: number;
   paused?: boolean;
   /** SUM-15: the last "previously on…" recap, for the story as of this seq. */
-  recap?: { text: string; seq: number; at: number };
+  recap?: { text: string; seq: number; at: number; hash?: string };
   /** SUM-19: a rebuild from scratch in progress (when it started, what it was estimated to take). */
   rebuild?: { startedAt: number; estimate: Record<string, number | null> } | null;
   /** M29: bumped by a rebuild from scratch, so a pass already running stops instead of writing into it. */

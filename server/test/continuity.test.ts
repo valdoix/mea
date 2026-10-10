@@ -4,7 +4,8 @@ import { all, now, one, run } from "../src/db/db";
 import { defaultMemoryConfig, setSetting } from "../src/lib/settings";
 import { createAtom, deleteAtom, getAtom, restoreAtom, supersede } from "../src/memory/atoms";
 import { buildSummary, storyNeedsRebuild } from "../src/memory/build";
-import { entityFacts, resolver } from "../src/memory/entities";
+import { entityFacts, norm, resolver, titlesClash } from "../src/memory/entities";
+import { povAllows } from "../src/memory/recall";
 import { ledgerChangedAfterReply, onLedgerChange, queueBuilds, segmentChat } from "../src/memory/scheduler";
 import { getSummary, levelRows, memState, storyRow } from "../src/memory/store";
 import { createCharacter } from "../src/services/characters";
@@ -239,5 +240,21 @@ describe("H7, M34: emptying the trash", () => {
     run("UPDATE characters SET deleted_at = ? WHERE id = ?", now() - 1000, charId);
     purgeTrash(now());
     expect(one("SELECT 1 FROM characters WHERE id = ?", charId)).toBeTruthy();
+  });
+});
+
+describe("M25, L13: names", () => {
+  test("different titles are different people", () => {
+    expect(titlesClash("Mr Smith", "Mrs Smith")).toBe(true);
+    expect(titlesClash("King Edward", "Prince Edward")).toBe(true);
+    expect(titlesClash("Old Tom", "Young Tom")).toBe(true);
+    expect(titlesClash("Captain Mira", "Mira")).toBe(false);
+  });
+
+  test("a possessive doesn't pass the point-of-view filter", () => {
+    const pov = { names: new Set([norm("Mira")]), label: "Mira" };
+    expect(povAllows({ known_by: JSON.stringify(["Mira's sister"]) }, pov)).toBe(false);
+    expect(povAllows({ known_by: JSON.stringify(["Captain Mira"]) }, pov)).toBe(true);
+    expect(povAllows({ known_by: JSON.stringify(["mira"]) }, pov)).toBe(true);
   });
 });
