@@ -1,4 +1,4 @@
-import { get, post } from "./api";
+import { ApiError, get, post } from "./api";
 import { app } from "./state.svelte";
 import type { MeaEvent } from "./types";
 
@@ -39,8 +39,11 @@ export const clientId = (() => {
 let source: EventSource | null = null;
 let everConnected = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
+/** L15: set once the app is in (paired, unlocked); before that, the Pair and Unlock screens stay quiet. */
+let live = false;
 
 export function connectEvents() {
+  live = true;
   if (source && source.readyState !== EventSource.CLOSED) return;
   source = new EventSource(`/api/events?client=${clientId}`);
   source.addEventListener("hello", () => {
@@ -67,9 +70,21 @@ export function connectEvents() {
     if (source?.readyState === EventSource.CLOSED) {
       source = null;
       if (retryTimer) clearTimeout(retryTimer);
-      retryTimer = setTimeout(connectEvents, 4000);
+      retryTimer = setTimeout(retry, 4000);
     }
   };
+}
+
+/** L15: an EventSource can't see why it failed; a plain request tells unpaired (401) or locked (423), which end the retries. */
+async function retry() {
+  retryTimer = null;
+  if (!app.authorized) return;
+  try {
+    await get("/api/quota");
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 401 || e.status === 423)) return;
+  }
+  if (app.authorized) connectEvents();
 }
 
 export async function refreshQuota() {
@@ -81,11 +96,12 @@ export async function refreshQuota() {
 }
 
 export function reportPresence() {
+  if (!live || !app.authorized) return;
   post("/api/presence", { clientId, chatId: app.currentChatId, visible: document.visibilityState === "visible" }).catch(() => {});
 }
 
 document.addEventListener("visibilitychange", () => {
   reportPresence();
-  if (document.visibilityState === "visible" && (!source || source.readyState === EventSource.CLOSED)) connectEvents();
+  if (live && app.authorized && document.visibilityState === "visible" && (!source || source.readyState === EventSource.CLOSED)) connectEvents();
 });
 setInterval(reportPresence, 30_000);

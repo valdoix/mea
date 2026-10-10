@@ -94,8 +94,14 @@ document.addEventListener("click", (e) => {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   const a = (e.target as HTMLElement).closest?.("a");
   if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+  // L15: a link to another site (`https://…` or `//host`) opens beside Mea instead of replacing it.
+  if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) {
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    return;
+  }
   const href = a.getAttribute("href");
-  if (!href || !href.startsWith("/") || href.startsWith("/api/")) return;
+  if (!href || !href.startsWith("/") || href.startsWith("//") || href.startsWith("/api/")) return;
   e.preventDefault();
   navigate(href);
 });
