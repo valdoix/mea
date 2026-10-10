@@ -1,4 +1,4 @@
-import { type EmbedResult, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
+import { type EmbedResult, httpError, INCOMPLETE, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
 
 export interface OpenAIOptions {
   baseUrl: string;
@@ -81,7 +81,7 @@ export class OpenAIProvider implements Provider {
     }
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => "");
-      throw new ProviderError(describeError(res.status, text), res.status, text.slice(0, 2000));
+      throw httpError(res, describeError(res.status, text), text);
     }
     const result: StreamResult = { sentBody: body };
     const contentType = res.headers.get("content-type") ?? "";
@@ -96,8 +96,13 @@ export class OpenAIProvider implements Provider {
       result.usage = usageOf(json.usage);
       return result;
     }
+    // M18: a stream that stops without [DONE] or a finish reason was cut off, not finished.
+    let ended = false;
     for await (const data of readSSE(res.body)) {
-      if (data === "[DONE]") break;
+      if (data === "[DONE]") {
+        ended = true;
+        break;
+      }
       let json: Record<string, any>;
       try {
         json = JSON.parse(data);
@@ -110,9 +115,13 @@ export class OpenAIProvider implements Provider {
       const reasoning = delta.reasoning ?? delta.reasoning_content;
       if (typeof reasoning === "string" && reasoning) onDelta({ reasoning });
       if (typeof delta.content === "string" && delta.content) onDelta({ text: delta.content });
-      if (choice?.finish_reason) result.finishReason = choice.finish_reason;
+      if (choice?.finish_reason) {
+        result.finishReason = choice.finish_reason;
+        ended = true;
+      }
       if (json.usage) result.usage = usageOf(json.usage);
     }
+    if (!ended) result.finishReason = INCOMPLETE;
     return result;
   }
 

@@ -77,6 +77,8 @@ export interface ModelInfo {
 export interface Provider {
   stream(req: StreamRequest, onDelta: (d: StreamDelta) => void): Promise<StreamResult>;
   listModels(): Promise<ModelInfo[]>;
+  /** H3: the output tokens a request will ask for (max_tokens plus any thinking allowance). */
+  outputTokens?(model: string, params: GenerationParams): number;
   embed?(texts: string[], model: string, dims?: number, signal?: AbortSignal): Promise<EmbedResult>;
 }
 
@@ -84,6 +86,8 @@ export type ErrorKind = "overflow" | "quota" | "auth" | "rate" | "server" | "net
 
 export class ProviderError extends Error {
   kind: ErrorKind;
+  /** M18: how long the provider asked us to wait (Retry-After), in ms. */
+  retryAfterMs?: number;
   constructor(
     message: string,
     public status?: number,
@@ -97,6 +101,21 @@ export class ProviderError extends Error {
     return this.kind === "server" || this.kind === "network" || this.kind === "rate" || this.kind === "other";
   }
 }
+
+/** M18: an HTTP error response as a ProviderError, with its Retry-After (seconds or a date) when given. */
+export function httpError(res: Response, message: string, body: string): ProviderError {
+  const err = new ProviderError(message, res.status, body.slice(0, 2000));
+  const ra = res.headers.get("retry-after");
+  if (ra) {
+    const secs = Number(ra);
+    const ms = Number.isFinite(secs) ? secs * 1000 : Date.parse(ra) - Date.now();
+    if (Number.isFinite(ms) && ms > 0) err.retryAfterMs = ms;
+  }
+  return err;
+}
+
+/** M18: a stream that ended without its end marker (the connection dropped mid-reply). */
+export const INCOMPLETE = "incomplete";
 
 /** Sorts provider failures so Mea can react: shrink the prompt, fall back, or explain the quota. */
 export function classifyError(status: number | undefined, text: string): ErrorKind {
