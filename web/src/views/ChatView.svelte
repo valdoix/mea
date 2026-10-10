@@ -1299,7 +1299,7 @@
         <div class="dock-scroll studio">
           {@render dockTabs()}
           {#key dockTab}<div class="dock-pane">
-            {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+            {#if dockTab === "memory"}<MemoryPanel chatId={id} onjump={(m) => void openCitation({ messageId: m, seq: null } as Citation)} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
           </div>{/key}
         </div>
       </aside>
@@ -1310,7 +1310,7 @@
     <Modal bind:open={sheetOpen} title="This chat">
       <div class="studio sheet-desk">
       {@render dockTabs()}
-      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
+      {#if dockTab === "memory"}<MemoryPanel chatId={id} onjump={(m) => ((sheetOpen = false), void openCitation({ messageId: m, seq: null } as Citation))} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
       </div>
     </Modal>
   {/if}
