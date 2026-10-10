@@ -8,7 +8,7 @@ import { enqueue, type JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { formatStoryTime } from "../trackers/clock";
 import { slug } from "../trackers/fold";
-import { castProfiles, currentFold, foldConfigFor, writeEvents } from "../trackers/store";
+import { castKey, castProfiles, currentFold, foldConfigFor, writeEvents } from "../trackers/store";
 import type { Op, WorldState } from "../trackers/types";
 import { confirmArrivals, elsewhereLane } from "./crossings";
 import { type Personality, PERSONALITIES } from "./director";
@@ -307,11 +307,16 @@ export function worldView(chatId: string) {
   const roster = rosterFor(chatId, st);
   const sky = skyInput(chatId, st, cfg);
   const skyNow = sky ? skyLine(sky, st.weather?.now ?? null) : null;
+  const profiles = castProfiles(chatId);
   const people = [...roster.actors.values()]
     .filter((a) => !a.isUser)
     .map((a) => ({
       id: a.id,
       name: a.name,
+      // Where they come from decides what you can change: the story's records, a cast profile, or only a lorebook entry.
+      source: st.chars[a.id] ? ("story" as const) : profiles[castKey(a.name)] ? ("cast" as const) : ("lore" as const),
+      role: profiles[castKey(a.name)]?.role ?? null,
+      description: profiles[castKey(a.name)]?.description ?? null,
       ring: a.ring,
       standing: a.standing,
       where: a.where?.join(" › ") ?? null,
