@@ -45,7 +45,7 @@ export function exportMemory(chatId: string) {
       "SELECT id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, ledger, recall_count, ref_count FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'",
       chatId,
     ).map(({ id, scene_id, ...r }) => ({ ...r, scene: scene_id, entities: parseJson(r.entities as string, []), emotions: parseJson(r.emotions as string, []), known_by: parseJson(r.known_by as string, []), ledger: parseJson(r.ledger as string | null, null), sources: sources.get(id) ?? [] })),
-    entities: all<Record<string, unknown>>("SELECT kind, name, aliases, description, status, facts, data, first_seq, last_seq, mentions, user_edited FROM entities WHERE chat_id = ? AND merged_into IS NULL", chatId).map((r) => ({
+    entities: all<Record<string, unknown>>("SELECT kind, name, aliases, description, status, facts, data, first_seq, last_seq, mentions, user_edited FROM entities WHERE chat_id = ? AND merged_into IS NULL AND deleted_at IS NULL", chatId).map((r) => ({
       ...r,
       aliases: parseJson(r.aliases as string, []),
       facts: parseJson(r.facts as string, []),

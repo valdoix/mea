@@ -1,9 +1,9 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import TagInput from "../TagInput.svelte";
-  import { get, patch, post, put } from "../../lib/api";
-  import { promptText } from "../../lib/dialogs.svelte";
-  import { BookOpen, Merge, NotebookPen, Pencil } from "../../lib/icons";
+  import { del, get, patch, post, put } from "../../lib/api";
+  import { confirm, promptText } from "../../lib/dialogs.svelte";
+  import { BookOpen, Merge, NotebookPen, Pencil, Trash } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { CodexPage, Entity, EntityKind } from "../../lib/types";
 
@@ -73,6 +73,56 @@
       errorToast(err);
     }
   }
+  async function removeEntity() {
+    if (!page) return;
+    const e = page.entity;
+    if (!(await confirm({ title: `Delete ${e.name} from the Codex?`, message: "Their entry and card are gone, and the story won't add them back. Memories that mention them stay.", confirmLabel: "Delete", danger: true }))) return;
+    try {
+      await del(`/api/entities/${e.id}`);
+      open = false;
+      onchange?.();
+      toast(`${e.name} deleted`, {
+        action: {
+          label: "Undo",
+          run: async () => {
+            try {
+              await post(`/api/entities/${e.id}/restore`);
+              onchange?.();
+            } catch (err) {
+              errorToast(err);
+            }
+          },
+        },
+      });
+    } catch (err) {
+      errorToast(err);
+    }
+  }
+  async function removeFact(id: string) {
+    if (!page) return;
+    const entity = page.entity.id;
+    try {
+      await del(`/api/memories/${id}`);
+      await load(entity);
+      onchange?.();
+      toast("Memory deleted", {
+        action: {
+          label: "Undo",
+          run: async () => {
+            try {
+              await post(`/api/memories/${id}/restore`);
+              if (entityId === entity) await load(entity);
+              onchange?.();
+            } catch (err) {
+              errorToast(err);
+            }
+          },
+        },
+      });
+    } catch (err) {
+      errorToast(err);
+    }
+  }
   async function addFact() {
     if (!page) return;
     const text = await promptText({ title: `Add a fact about ${page.entity.name}`, multiline: true, confirmLabel: "Add" });
@@ -129,7 +179,10 @@
         {#if e.userEdited}<span class="chip mint" title="Your edits are locked against AI rewrites">yours</span>{/if}
         <span class="tiny faint">{e.mentions} mentions{#if e.firstSeq} · first #{e.firstSeq}{/if}{#if e.lastSeq} · last #{e.lastSeq}{/if}</span>
         <span class="grow"></span>
-        {#if !editing}<button class="btn small" onclick={() => (editing = true)}><Pencil size={14} /> Edit</button>{/if}
+        {#if !editing}
+          <button class="btn small" onclick={() => (editing = true)}><Pencil size={14} /> Edit</button>
+          <button class="btn ghost small danger" onclick={removeEntity}><Trash size={14} /> Delete</button>
+        {/if}
       </div>
 
       {#if editing}
@@ -163,6 +216,7 @@
             <span class="grow small">{f.content}{#if f.userEdited}<span class="tiny mint-t"> · yours</span>{/if}{#if f.status === "disputed"}<span class="tiny warn-t"> · disputed</span>{/if}</span>
             {#if f.maxSeq}<a class="tiny" href="/chat/{chatId}?at={f.maxSeq}">#{f.maxSeq}</a>{/if}
             <button class="btn ghost icon small" onclick={() => editFact(f.id, f.content)} aria-label="Edit"><Pencil size={13} /></button>
+            <button class="btn ghost icon small" onclick={() => removeFact(f.id)} aria-label="Delete this memory" title="Delete this memory"><Trash size={13} /></button>
           </div>
         {:else}
           <p class="tiny muted">No memories name {e.name} yet.</p>

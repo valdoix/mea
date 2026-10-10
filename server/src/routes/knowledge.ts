@@ -6,6 +6,7 @@ import { consolidate, lastConsolidation } from "../memory/consolidate";
 import { indexCoverage, embeddingsEnabled } from "../memory/embed";
 import {
   createEntity,
+  deleteEntity,
   duplicateSuggestions,
   ENTITY_KINDS,
   entityCard,
@@ -15,6 +16,7 @@ import {
   getEntityRow,
   listEntities,
   mergeEntities,
+  restoreEntity,
   unmergeEntity,
   updateEntity,
 } from "../memory/entities";
@@ -70,6 +72,10 @@ knowledge.patch("/entities/:id", async (c) => {
   );
   return c.json(updateEntity(c.req.param("id"), input as Parameters<typeof updateEntity>[1]));
 });
+
+knowledge.delete("/entities/:id", (c) => c.json(deleteEntity(c.req.param("id"))));
+
+knowledge.post("/entities/:id/restore", (c) => c.json(restoreEntity(c.req.param("id"))));
 
 knowledge.post("/entities/:id/merge", async (c) => {
   const input = await body(c, z.object({ ids: z.array(z.string()).min(1).max(20) }));

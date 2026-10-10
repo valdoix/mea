@@ -6,7 +6,7 @@ import { atomOut, getAtom, insertAtom } from "../src/memory/atoms";
 import { buildSummary, storyNeedsRebuild } from "../src/memory/build";
 import { consolidate, findDuplicates } from "../src/memory/consolidate";
 import { deepSearch, excerpt } from "../src/memory/deep";
-import { createEntity, duplicateSuggestions, entityGraph, listEntities, mergeEntities, resolver, syncEntities, updateEntity } from "../src/memory/entities";
+import { createEntity, deleteEntity, duplicateSuggestions, entityGraph, listEntities, mergeEntities, resolver, restoreEntity, syncEntities, updateEntity } from "../src/memory/entities";
 import { relativeTime, TimeIndex } from "../src/memory/format";
 import { decideJournalProposal, editJournal, listJournals, updateJournal } from "../src/memory/journals";
 import { cachedVerdict, contextText, resetLibrarian, runLibrarian } from "../src/memory/librarian";
@@ -233,6 +233,19 @@ describe("entities (MEM-26, MEM-28)", () => {
     expect(g.edges.some((e) => e.kind === "holds")).toBe(true);
     createEntity(chatId, { name: "Old Tom", kind: "person" });
     expect(resolver(chatId).find("Tom")?.name).toBe("Old Tom");
+  });
+
+  test("a deleted entry stays gone through syncs, and can be restored", () => {
+    const locket = resolver(chatId).find("Silver locket")!;
+    deleteEntity(locket.id);
+    expect(listEntities(chatId).some((e) => e.id === locket.id)).toBe(false);
+    expect(resolver(chatId).find("Silver locket")).toBeUndefined();
+    // The tracker still has the locket, but a sync doesn't bring it back as a new entry.
+    syncEntities(chatId, true);
+    expect(listEntities(chatId).some((e) => e.name.toLowerCase() === "silver locket")).toBe(false);
+    expect(entityGraph(chatId).edges.some((e) => e.from === locket.id || e.to === locket.id)).toBe(false);
+    restoreEntity(locket.id);
+    expect(listEntities(chatId).find((e) => e.id === locket.id)?.name).toBe("Silver locket");
   });
 });
 
