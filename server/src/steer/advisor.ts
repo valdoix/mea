@@ -7,6 +7,7 @@ import { cleanText, hashText } from "../memory/text";
 import type { HistoryMessage, PromptExtra } from "../prompt/assemble";
 import { type ChatSettings, historyForPrompt, mustChat } from "../services/chats";
 import { activeGuidance } from "../services/chattools";
+import { type PersonaMode, storyDials } from "../services/layers";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { trackerPrompt } from "../trackers/service";
@@ -76,15 +77,23 @@ export function recentPlans(chatId: string, limit = 10) {
 
 const running = new Map<string, Promise<Plan | null>>();
 
-const ADVISOR_SYSTEM = (char: string, user: string) => `You are the private story advisor for an ongoing roleplay between ${char} (written by the AI) and ${user} (the player's character). Before ${char}'s next reply, you write a short plan the writer will follow loosely. The player never sees it.
+/** What the plan may say about the player's character: the Persona control's rule (sealed when unset). */
+const userRule = (user: string, persona: PersonaMode | null) =>
+  persona === "full_cast"
+    ? `${user} is yours to plan too, true to who they are and to the player's latest direction`
+    : persona === "director"
+      ? `plan ${user} only inside what the player directed this turn`
+      : `never decide what ${user} does, says, thinks or feels`;
+
+const ADVISOR_SYSTEM = (char: string, user: string, persona: PersonaMode | null) => `You are the private story advisor for an ongoing roleplay between ${char} (written by the AI) and ${user} (the player's character). Before ${char}'s next reply, you write a short plan the writer will follow loosely. The player never sees it.
 
 Plan the NEXT reply only:
 - "direction": one or two sentences: where this reply should take the scene, in response to what ${user} just did or said.
 - "beats": 2–4 concrete beats to hit, in order. Small and specific; leave room for ${user} to act.
 - "threads": up to 2 open threads, promises or secrets worth touching now (only if it fits naturally).
 - "reminders": continuity facts the reply must respect (time, place, injuries, who knows what).
-- "avoid": up to 3 things to avoid (repeating earlier beats, rushing, writing ${user}'s actions).
-Stay consistent with your earlier plans unless the story moved somewhere else; never decide what ${user} does.
+- "avoid": up to 3 things to avoid (repeating earlier beats, rushing, an echo of the last reply).
+Stay consistent with your earlier plans unless the story moved somewhere else; ${userRule(user, persona)}.
 Reply with JSON only: {"direction":"…","beats":["…"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
 
 function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig) {
@@ -114,7 +123,7 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
   const recent = history.slice(-8).map((m) => `${m.role === "user" ? names.user : m.role === "assistant" ? names.char : "Note"}: ${cleanText(m.content).slice(0, 1200)}`);
   parts.push(`RECENT MESSAGES:\n${recent.join("\n\n")}`);
   if (draft?.trim()) parts.push(`${names.user.toUpperCase()} IS ABOUT TO SAY:\n${draft.trim().slice(0, 2000)}`);
-  return { system: ADVISOR_SYSTEM(names.char, names.user), user: parts.join("\n\n") };
+  return { system: ADVISOR_SYSTEM(names.char, names.user, storyDials(chat).persona), user: parts.join("\n\n") };
 }
 
 /** Writes (or returns the cached) plan for a turn. Never throws: no plan just means no guidance. */

@@ -3,6 +3,7 @@ import { type CalendarId, describeWhen, noteTime } from "./calendars";
 import { parseStoryTime, shortStoryTime, timeOfDay, formatStoryTime } from "./clock";
 import { METER_WORDS, meterWords, SEVERITY, STAMINA } from "./drift";
 import type { Field, Template } from "./schema";
+import type { PersonaMode } from "../services/layers";
 import { BIPOLAR_AXES, type Bond, type Character, LADDER, type WorldState } from "./types";
 
 /**
@@ -31,6 +32,19 @@ export interface NoteOptions {
   /** How the date reads (calendars.ts); Gregorian keeps the short weekday form. */
   calendar?: CalendarId;
   season?: string;
+  /** The Persona control, so the note agrees with it (sealed when unset). */
+  persona?: PersonaMode | null;
+  /** The kind of request: impersonation and expansion write the user, so the note doesn't forbid it. */
+  kind?: string;
+}
+
+/** How the note names the player's character: the same rule as the Persona control (sealed when unset). */
+function userLabel(o: NoteOptions) {
+  if (o.kind && o.kind !== "story" && o.kind !== "continue") return "the player's character";
+  if (o.persona === "full_cast") return "the player's character, written by you";
+  if (o.persona === "director") return "the player's character; write them only inside the player's direction";
+  if (o.persona === "continuity") return "the player's character; never write their words, thoughts or choices, only finish an action they began";
+  return "the player's character; never write their actions or words";
 }
 
 export type Section = "scene" | "cast" | "body" | "bonds" | "romance" | "knowledge" | "items" | "threads" | "stakes" | "calendar" | "motifs" | "persona" | "custom" | "world";
@@ -103,7 +117,7 @@ function personLine(st: WorldState, c: Character, o: NoteOptions, here: Characte
       }
     }
   }
-  const name = c.isUser ? `${o.userName} (the user's character; never write their actions or words)` : c.name;
+  const name = c.isUser ? `${o.userName} (${userLabel(o)})` : c.name;
   return `- ${name}${bits.length ? `: ${bits.join("; ")}` : ""}${tail.length ? ` · ${tail.join(" · ")}` : ""}`;
 }
 

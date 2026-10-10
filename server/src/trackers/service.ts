@@ -9,6 +9,7 @@ import { getCard } from "../services/characters";
 import { addMessage, getMessageRow, getSwipes, lastMessage, mustChat, updateSwipe } from "../services/chats";
 import { enqueue, type JobContext } from "../services/jobs";
 import { callJson, callText } from "../services/llm";
+import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona, personaPrompt } from "../services/personas";
 import { shouldShed } from "../services/quota";
 import { describeMinutes, parseDuration } from "./clock";
@@ -302,6 +303,8 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     elsewhere: opts.elsewhere,
     calendar: cfg.calendar,
     season: cfg.season,
+    persona: storyDials(mustChat(chatId)).persona,
+    kind: opts.kind,
   });
   const inline =
     cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar })) : null;

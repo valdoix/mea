@@ -157,6 +157,23 @@ describe("Mea's default preset", () => {
     expect(all({ kind: "impersonate" })).not.toContain("[THIS REPLY]");
   });
 
+  test("the rules agree with each other: OOC answers, the inline ledger, planning only for story replies", () => {
+    const p = all();
+    expect(p).toContain("an out-of-character question from the player gets a short answer before the story");
+    expect(p).not.toContain("the <ledger> block follows the story");
+    expect(all({ extras: [{ id: "ledger", name: "Ledger", content: "LEDGER", depth: 0 }] })).toContain("the <ledger> block follows the story");
+    expect(all({ kind: "impersonate" })).not.toContain("[BEFORE YOU WRITE]");
+  });
+
+  test("no card greeting: no reply is told the opening came from the card", () => {
+    const noGreeting = [
+      { id: "1", role: "user" as const, content: "I step inside." },
+      { id: "2", role: "assistant" as const, content: long },
+      { id: "3", role: "user" as const, content: "I sit." },
+    ];
+    expect(assemblePrompt(base({ history: noGreeting })).messages.map((m) => m.content).join("\n")).not.toContain("keep its facts, not its habits");
+  });
+
   test("a swipe opens differently from the take it replaces", () => {
     const p = all({ swipe: { rejected: "The rain had not stopped all night when Ash came up the stairs." } });
     expect(p).toContain("A fresh take on the same moment");

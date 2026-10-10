@@ -164,7 +164,7 @@ interface DepthItem {
 /**
  * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
- * {{userSealed}} (the Persona control), and {{ctl.id}} for every preset control.
+ * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), and {{ctl.id}} for every preset control.
  */
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
@@ -176,13 +176,15 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     draft: input.draft ?? "",
     kind: input.kind,
     turn: String(input.history.length),
-    isFirst: replies <= 1 && input.kind === "story" ? "yes" : "",
+    // The reply right after the card's opening message (none when the card has no greeting).
+    isFirst: replies === 1 && input.history.find((m) => m.role !== "system")?.role === "assistant" && input.kind === "story" ? "yes" : "",
     isSwipe: input.swipe ? "yes" : "",
     rejectedOpening: rejected,
     lastOpening: edge(lastReply, 14, "open"),
     lastClosing: edge(lastReply, 14, "close"),
     persona,
     userSealed: persona === "director" || persona === "full_cast" ? "" : "yes",
+    ledger: input.extras?.some((e) => e.id === "ledger") ? "yes" : "",
     ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),
   };
 }
