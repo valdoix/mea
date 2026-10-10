@@ -75,6 +75,9 @@ export function recentPlans(chatId: string, limit = 10) {
 }
 
 const running = new Map<string, Promise<Plan | null>>();
+/** L10: while you type, one plan at a time per chat, and a pause between plans for the same turn (not one per typing pause). */
+const draftStarted = new Map<string, number>();
+const DRAFT_GAP_MS = 15_000;
 
 const ADVISOR_SYSTEM = (char: string, user: string) => `You are the private story advisor for an ongoing roleplay between ${char} (written by the AI) and ${user} (the player's character). Before ${char}'s next reply, you write a short plan the writer will follow loosely. The player never sees it.
 
@@ -127,6 +130,13 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
   if (cached) return cached;
   const inflight = running.get(`${chatId}:${key}`);
   if (inflight) return inflight;
+  if (opts.draft !== undefined) {
+    const turn = `${chatId}:${key.split("|")[0]}`;
+    const busy = [...running.keys()].some((k) => k.startsWith(`${chatId}:`));
+    if (busy || Date.now() - (draftStarted.get(turn) ?? 0) < DRAFT_GAP_MS) return null;
+    if (draftStarted.size > 500) draftStarted.clear();
+    draftStarted.set(turn, Date.now());
+  }
   const p = (async () => {
     try {
       const { system, user } = advisorInput(chatId, history, opts.draft, cfg);
@@ -169,6 +179,11 @@ export async function advisorExtra(chatId: string, history: HistoryMessage[], op
   let plan = planFor(chatId, key);
   if (!plan && opts.wait && cfg.advisorWait > 0) {
     plan = await Promise.race([runAdvisor(chatId, { history }), Bun.sleep(cfg.advisorWait * 1000).then(() => null)]);
+  }
+  // L10: no plan for the words as sent: the newest one written for this turn while you typed will do.
+  if (!plan) {
+    const r = one<PlanRow>("SELECT * FROM advisor_plans WHERE chat_id = ? AND key LIKE ? ORDER BY created_at DESC LIMIT 1", chatId, `${key.split("|")[0]}|%`);
+    if (r) plan = parseJson<Plan>(r.plan, planSchema.parse({}));
   }
   if (!plan) return null;
   return { id: "advisor", name: "Advisor's plan", content: planText(plan), depth: 0 };

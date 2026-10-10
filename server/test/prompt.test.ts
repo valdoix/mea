@@ -97,9 +97,18 @@ describe("prompt assembly", () => {
     expect(fb.messages.some((m) => m.content === "[Note for this reply: more dialogue]")).toBe(true);
   });
 
-  test("character system prompt replaces main with {{original}}", () => {
+  test("a card's system prompt follows Mea's Charter instead of replacing it (M12)", () => {
     const r = assemblePrompt(base({ card: { ...emptyCard("Mira"), system_prompt: "Custom. {{original}}" } }));
-    expect(r.messages[0]!.content.startsWith("Custom. You are Mira")).toBe(true);
+    const main = r.messages[0]!.content;
+    expect(main.startsWith("You are Mira")).toBe(true);
+    expect(main).toContain("What decides, highest first");
+    expect(main).toContain("[The character card's own instructions]\nCustom.");
+  });
+
+  test("with an imported preset, the card's system prompt still replaces main with {{original}}", () => {
+    const preset = importStPreset({ prompts: [{ identifier: "main", name: "Main", role: "system", content: "Be {{char}}." }, { identifier: "chatHistory", name: "Chat History", marker: true }], prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }, { identifier: "chatHistory", enabled: true }] }] }, "Imported");
+    const r = assemblePrompt(base({ preset, card: { ...emptyCard("Mira"), system_prompt: "Custom. {{original}}" } }));
+    expect(r.messages[0]!.content.startsWith("Custom. Be Mira.")).toBe(true);
   });
 });
 

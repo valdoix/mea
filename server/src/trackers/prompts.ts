@@ -98,27 +98,30 @@ function fieldValue(f: Field, v: unknown): string {
 }
 
 export function updatePrompt(o: { state: string; messages: string; userName: string; charName: string; sealed: boolean; romance: string; extra?: string }) {
+  // M16: the format comes last, after "Reply with", so a replaced prompt keeps it (lib/prompts.ts replyContract).
   const system = `You keep the story ledger for a roleplay between ${o.userName} (the user's character) and ${o.charName}. Read the NEW MESSAGES and write what changed in the story world, as ledger lines.
-${GRAMMAR}
 Rules:
 - Only changes the messages show or clearly imply. Never invent events. Small talk changes little; write nothing for what stayed the same.
 - Time: estimate time passed from the action (a short exchange: +2m to +10m; a meal: +45m) unless the text states a time.
 - People: use the names the story uses. New named people get a cast line when they appear.
 - Relationships change only when the aftermath differs from before; intensity is not progress. Not everyone warms up.${o.sealed ? `\n- ${o.userName}'s inner life is the user's: never write mood, think, drive, mask, journal or bond lines from ${o.userName}'s side.` : ""}
 - Romance pace: ${o.romance}.
-- Write nothing else: no commentary, no code fences, no headings. If nothing changed, write: clock: +2m`;
+Reply with ledger lines only, in this format:
+${GRAMMAR}
+Write nothing else: no commentary, no code fences, no headings. If nothing changed, write: clock: +2m`;
   const user = `CURRENT STATE:\n${o.state}\n${o.extra ? `\n${o.extra}\n` : ""}\nNEW MESSAGES:\n${o.messages}\n\nLEDGER TRACKER: write the ledger lines now.`;
   return { system, user };
 }
 
 export function initPrompt(o: { userName: string; charName: string; card: string; persona: string; greeting: string; templates: Template[]; sealed: boolean; calendar?: CalendarId }) {
   const system = `You set up the starting state of a roleplay's story ledger from the character card and the opening message. ${o.userName} is the user's character; ${o.charName} is the card's character.
-${GRAMMAR}
 Write the STARTING STATE as ledger lines:
 - clock (an absolute time: a date if the story gives one, else Day 1 with the likely hour${o.calendar === "westeros" ? "; " + calendarHint("westeros") : ""}), wx, at, cast (who is present in the opening), scene title.
 - For each person present: mood, look, trait (only lasting features the card states: eyes, hair, build, scars, voice, age), drive (their want and fear).
 - Bonds the card establishes (with axes and a label), the romance rung if the card states one, items people carry, open threads the premise sets up, secrets the card states.
 ${o.templates.length ? `- Custom trackers: set every field you can infer (${o.templates.map((t) => t.key).join(", ")}).\n` : ""}- Causes for starting lines may be "from the card".${o.sealed ? `\n- Never write ${o.userName}'s mood, thoughts or feelings.` : ""}
+Reply with ledger lines only, in this format:
+${GRAMMAR}
 Write nothing else.`;
   const user = `CARD (${o.charName}):\n${o.card}\n\n${o.persona ? `${o.userName}:\n${o.persona}\n\n` : ""}OPENING MESSAGE:\n${o.greeting}\n\nSTARTING STATE: write the ledger lines now.`;
   return { system, user };
