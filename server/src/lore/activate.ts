@@ -19,6 +19,11 @@ export interface ActivationDefaults {
 export interface TimedState {
   stickyUntil?: number | null;
   cooldownUntil?: number | null;
+  /**
+   * M31: the message whose reply fired the entry. A state that has it was already checked and moved
+   * to today's message count when it was loaded (see loadLoreState); one without it is timed by count alone.
+   */
+  firedAt?: string | null;
 }
 
 export interface ActivationInput {
@@ -156,10 +161,11 @@ interface MatchResult {
 /**
  * M32: timing belongs to the turn that fired the entry. A state written at this very message count is
  * another take of the same turn (a swipe, a continue), and one from a later count is from messages
- * since deleted or rewound: neither holds the entry back now.
+ * since deleted or rewound: neither holds the entry back now. M31: states that name their message
+ * were sorted out by message when loaded; this count-based guess is only for ones that don't.
  */
 function timedState(st: TimedState | undefined, e: { sticky: number; cooldown: number }, messageCount: number): TimedState | undefined {
-  if (!st) return st;
+  if (!st || st.firedAt) return st;
   const firedAt = st.stickyUntil != null ? st.stickyUntil - e.sticky : st.cooldownUntil != null ? st.cooldownUntil - e.cooldown : null;
   return firedAt != null && firedAt >= messageCount ? undefined : st;
 }

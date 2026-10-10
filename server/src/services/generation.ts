@@ -293,7 +293,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     entries,
     history: history.map((m) => `${m.role === "user" ? userName : m.role === "assistant" ? card.name : "Note"}: ${m.content}`),
     messageCount: messageCountOf(chatId),
-    state: loadLoreState(chatId),
+    // M31: timers the reply being rewritten (a swipe or continue of it) started don't count against it.
+    state: loadLoreState(chatId, { writing: opts.excludeMessageId ?? (kind === "continue" ? lastMessage(chatId)?.id : undefined) }),
     defaults: loreDefaults,
     countTokens,
     substitute,
@@ -754,7 +755,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       } catch (e) {
         console.error("[mea] after-reply step failed:", e);
       }
-      saveLoreState(gen.chatId, p.lore.stateUpdates);
+      saveLoreState(gen.chatId, p.lore.stateUpdates, gen.messageId);
       recordLoreHits(gen.chatId, p.lore.activated.map((a) => a.entry.id));
       setChatVars(gen.chatId, p.assembled.vars);
       recordMemoryUsage(requestId, gen.chatId, p);

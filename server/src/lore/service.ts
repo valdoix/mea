@@ -193,21 +193,59 @@ export function scanEntriesFor(scope: { characterId?: string | null; personaId?:
   return out;
 }
 
-export function loadLoreState(chatId: string): Record<string, TimedState> {
-  const rows = all<{ entry_id: string; sticky_until: number | null; cooldown_until: number | null }>("SELECT * FROM lore_state WHERE chat_id = ?", chatId);
-  return Object.fromEntries(rows.map((r) => [r.entry_id, { stickyUntil: r.sticky_until, cooldownUntil: r.cooldown_until }]));
+/**
+ * The chat's lore timers (sticky, cooldown), as of now. M31/M32: each names the message whose reply
+ * fired it. One fired by the reply being written again (`writing`: a swipe or continue of it) or by a
+ * message that's gone (deleted, rewound, purged) holds nothing back; the rest count from where their
+ * message stands now, so deleting earlier messages doesn't stretch or shrink them.
+ */
+export function loadLoreState(chatId: string, opts: { writing?: string | null } = {}): Record<string, TimedState> {
+  const rows = all<{ entry_id: string; sticky_until: number | null; cooldown_until: number | null; fired_at: string | null; fired_pos: number | null; live: number | null; pos: number | null }>(
+    `SELECT ls.entry_id, ls.sticky_until, ls.cooldown_until, ls.fired_at, ls.fired_pos, m.deleted_at IS NULL AND m.id IS NOT NULL AS live,
+       (SELECT COUNT(*) FROM messages x WHERE x.chat_id = ls.chat_id AND x.deleted_at IS NULL AND x.seq <= m.seq) AS pos
+     FROM lore_state ls LEFT JOIN messages m ON m.id = ls.fired_at AND m.chat_id = ls.chat_id WHERE ls.chat_id = ?`,
+    chatId,
+  );
+  const out: Record<string, TimedState> = {};
+  for (const r of rows) {
+    if (!r.fired_at) {
+      out[r.entry_id] = { stickyUntil: r.sticky_until, cooldownUntil: r.cooldown_until };
+      continue;
+    }
+    if (r.fired_at === opts.writing || !r.live) continue;
+    const shift = (r.pos ?? 0) - (r.fired_pos ?? r.pos ?? 0);
+    out[r.entry_id] = {
+      stickyUntil: r.sticky_until == null ? null : r.sticky_until + shift,
+      cooldownUntil: r.cooldown_until == null ? null : r.cooldown_until + shift,
+      firedAt: r.fired_at,
+    };
+  }
+  return out;
 }
 
-export function saveLoreState(chatId: string, updates: Record<string, TimedState>) {
+/** Stores the timers a reply started, with the message it was written into (M31). */
+export function saveLoreState(chatId: string, updates: Record<string, TimedState>, firedAt?: string | null) {
+  const entries = Object.entries(updates);
+  if (!entries.length) return;
+  const pos = firedAt
+    ? (one<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM messages x WHERE x.chat_id = ? AND x.deleted_at IS NULL AND x.seq <= (SELECT seq FROM messages WHERE id = ?)",
+        chatId,
+        firedAt,
+      )?.n ?? null)
+    : null;
   tx(() => {
-    for (const [entryId, s] of Object.entries(updates)) {
+    for (const [entryId, s] of entries) {
       run(
-        `INSERT INTO lore_state (chat_id, entry_id, sticky_until, cooldown_until) VALUES (?, ?, ?, ?)
-         ON CONFLICT(chat_id, entry_id) DO UPDATE SET sticky_until = excluded.sticky_until, cooldown_until = excluded.cooldown_until`,
+        `INSERT INTO lore_state (chat_id, entry_id, sticky_until, cooldown_until, fired_at, fired_pos) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(chat_id, entry_id) DO UPDATE SET sticky_until = excluded.sticky_until, cooldown_until = excluded.cooldown_until,
+           fired_at = excluded.fired_at, fired_pos = excluded.fired_pos`,
         chatId,
         entryId,
         s.stickyUntil ?? null,
         s.cooldownUntil ?? null,
+        firedAt ?? null,
+        pos,
       );
     }
   });

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { regexScope } from "../lib/regex.svelte";
   import Avatar from "../components/Avatar.svelte";
   import ChatPanel from "../components/chat/ChatPanel.svelte";
@@ -46,6 +46,21 @@
   let messages = $state<Message[]>([]);
   let hasMore = $state(false);
   let loadingOlder = $state(false);
+  // M21: the view holds a window of pages. `hasMore`: older messages exist above it; `hasNewer`: the
+  // window stops short of the live end, so streamed replies wait below and "Jump to latest" reloads it.
+  let hasNewer = $state(false);
+  let loadingNewer = $state(false);
+  /** Which window is on screen: a page fetched for an earlier one is dropped. */
+  let win = 0;
+  let paging = false;
+  let jumping = false;
+  /** The chat's real last message, while the window doesn't hold it. */
+  let liveEnd = $state<{ id: string; seq: number } | null>(null);
+  /** Replies that finished below the window (MOB-10 unread count). */
+  let outsideNew = $state<string[]>([]);
+  const PAGE = 60;
+  const WINDOW = 240;
+  const JUMP_WINDOW = 100;
   let gens = $state<Record<string, string>>({});
   let hasModel = $state(true);
   const panelOpen = $derived(layout.dock && !layout.focus);
@@ -162,7 +177,13 @@
   let knowsOpen = $state(false);
 
   const generating = $derived(Object.keys(gens).length > 0 || messages.some((m) => m.status === "streaming"));
-  const lastMsg = $derived(messages.at(-1));
+  /** The chat's last message, only when the window reaches it. */
+  const lastMsg = $derived(hasNewer ? undefined : messages.at(-1));
+  const endSeq = $derived(hasNewer ? Math.max(liveEnd?.seq ?? 0, messages.at(-1)?.seq ?? 0) : (messages.at(-1)?.seq ?? 0));
+  const endId = $derived(hasNewer ? (liveEnd?.id ?? null) : (lastMsg?.id ?? null));
+  $effect(() => {
+    if (lastMsg) liveEnd = { id: lastMsg.id, seq: lastMsg.seq };
+  });
   const charName = $derived(detail?.character?.name ?? "Character");
   // UI-08: the chat's ambience: accent from the portrait, art behind the story.
   const amb = $derived(detail?.chat.settings.ambience ?? {});
@@ -196,8 +217,11 @@
       ]);
       detail = d;
       regexScope.characterId = d.chat.characterId;
+      win++;
       messages = page.messages;
       hasMore = page.hasMore;
+      hasNewer = false;
+      outsideNew = [];
       hasModel = profiles.profiles.some((p) => p.connectionId && p.modelId);
       applyActive(d);
       if (!recapChecked) {
@@ -221,8 +245,12 @@
       error = e instanceof Error ? e.message : String(e);
     }
   }
+  // Loads once per chat: a link within it (?at=, ?m=) changes the route but not the chat, so it only
+  // jumps (below) instead of reloading the end and then jumping as well (M21).
+  const chatKey = $derived(id);
   $effect(() => {
-    void load();
+    void chatKey;
+    untrack(() => void load());
   });
 
   /** Replies being written right now, from the chat's detail: their text so far, and their generation. */
@@ -246,6 +274,20 @@
    */
   async function catchUp() {
     if (!detail || !messages.length) return void load();
+    // M21: reading further back, the end isn't on screen: refresh what's going on, append nothing.
+    if (hasNewer) {
+      try {
+        const d = await get<ChatDetail>(`/api/chats/${id}`);
+        detail = d;
+        applyActive(d);
+        void loadBoundaries();
+        void loadFlags();
+        refreshPreview();
+      } catch {
+        // the next reconnect tries again
+      }
+      return;
+    }
     try {
       // The last few are read again too: they may have been edited, swiped or deleted meanwhile.
       const from = messages[Math.max(0, messages.length - 10)]!.seq - 1;
@@ -301,7 +343,7 @@
   $effect(() => {
     if (stick) seenSeq = lastMsg?.seq ?? 0;
   });
-  const unread = $derived(stick ? 0 : messages.filter((m) => m.seq > seenSeq && m.role === "assistant" && m.status !== "streaming").length);
+  const unread = $derived(stick ? 0 : messages.filter((m) => m.seq > seenSeq && m.role === "assistant" && m.status !== "streaming").length + outsideNew.length);
 
   // QOL-02: passages you highlighted, marked in their messages.
   let passages = $state<Record<string, string[]>>({});
@@ -382,21 +424,70 @@
     }
   }
 
-  /** Scrolls to a message by its number, loading older pages as needed (links from memory). */
+  /**
+   * Scrolls to a message by its number (links from memory, search, the scrubber). M21: a message
+   * outside the window swaps in one window around it instead of every page down to the end.
+   */
   async function jumpTo(seq: number) {
     stick = false;
-    for (let i = 0; i < 200 && hasMore && (messages[0]?.seq ?? 0) > seq; i++) {
-      const page = await get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?before=${messages[0]!.seq}&limit=200`);
-      messages = [...page.messages, ...messages];
-      hasMore = page.hasMore;
+    const first = messages[0]?.seq ?? 0;
+    const last = messages.at(-1)?.seq ?? 0;
+    const inside = messages.length > 0 && (seq >= first || !hasMore) && (seq <= last || !hasNewer);
+    jumping = true;
+    try {
+      if (!inside) {
+        const mine = ++win;
+        const page = await get<{ messages: Message[]; hasMore: boolean; hasNewer: boolean }>(`/api/chats/${id}/messages?around=${seq}&limit=${JUMP_WINDOW}`);
+        if (mine !== win) return;
+        messages = page.messages;
+        hasMore = page.hasMore;
+        hasNewer = page.hasNewer;
+        if (!hasNewer) outsideNew = [];
+      }
+      await tick();
+      const target = messages.find((m) => m.seq >= seq) ?? messages.at(-1);
+      const el = target && scroller?.querySelector(`[data-seq="${target.seq}"]`);
+      if (el) {
+        el.scrollIntoView({ block: "center" });
+        highlight = target.seq;
+        setTimeout(() => (highlight = null), 2600);
+      }
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      // The scroll the jump itself caused shouldn't page; the next one may.
+      requestAnimationFrame(() => {
+        jumping = false;
+        void onScroll();
+      });
     }
-    await tick();
-    const target = messages.find((m) => m.seq >= seq);
-    const el = target && scroller?.querySelector(`[data-seq="${target.seq}"]`);
-    if (el) {
-      el.scrollIntoView({ block: "center" });
-      highlight = target.seq;
-      setTimeout(() => (highlight = null), 2600);
+  }
+
+  /** "Jump to latest": back to the end of the chat, reloading it when the window stops short of it. */
+  async function showLatest(smooth = true) {
+    if (!hasNewer) {
+      stick = true;
+      scrollToBottom(smooth);
+      return;
+    }
+    const mine = ++win;
+    jumping = true;
+    try {
+      const [d, page] = await Promise.all([get<ChatDetail>(`/api/chats/${id}`), get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?limit=${PAGE}`)]);
+      if (mine !== win) return;
+      detail = d;
+      messages = page.messages;
+      hasMore = page.hasMore;
+      hasNewer = false;
+      outsideNew = [];
+      applyActive(d);
+      stick = true;
+      await tick();
+      scrollToBottom(false);
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      requestAnimationFrame(() => (jumping = false));
     }
   }
 
@@ -509,9 +600,17 @@
       messages[i] = m;
       if (cur.seq !== m.seq) messages.sort((a, b) => a.seq - b.seq);
     } else {
+      // M21: a message outside the window isn't added; one past its end waits for "Jump to latest".
+      if (hasNewer && m.seq > (messages.at(-1)?.seq ?? 0)) return void noteOutside(m);
+      if (hasMore && m.seq < (messages[0]?.seq ?? 0)) return;
       messages.push(m);
       messages.sort((a, b) => a.seq - b.seq);
     }
+  }
+
+  function noteOutside(m: Message) {
+    if (!liveEnd || m.seq >= liveEnd.seq) liveEnd = { id: m.id, seq: m.seq };
+    if (m.role === "assistant" && m.status !== "streaming" && m.seq > seenSeq && !outsideNew.includes(m.id)) outsideNew = [...outsideNew, m.id];
   }
 
   $effect(() =>
@@ -525,6 +624,8 @@
         case "gen.start": {
           gens[e.messageId] = e.generationId;
           const m = messages.find((x) => x.id === e.messageId);
+          // M21: the window stops short of the end: the reply streams below it, unseen.
+          if (!m && hasNewer) break;
           if (!m) {
             // Placeholder so no early tokens are lost while the message loads.
             messages.push({
@@ -608,32 +709,137 @@
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: smooth ? "smooth" : "auto" });
   }
 
+  /**
+   * Changes the window without moving what you're reading: a message on screen is the anchor, and
+   * the scroll position follows it as pages are added or dropped above.
+   */
+  async function keepPlace(change: () => void) {
+    const anchor = scroller ? [...scroller.querySelectorAll<HTMLElement>("article.msg")].find((el) => el.getBoundingClientRect().bottom > scroller!.getBoundingClientRect().top + 8) : undefined;
+    const seq = anchor?.dataset.seq;
+    const before = anchor?.getBoundingClientRect().top ?? 0;
+    change();
+    await tick();
+    const after = seq && scroller?.querySelector<HTMLElement>(`article.msg[data-seq="${seq}"]`);
+    if (scroller && after) scroller.scrollTop += after.getBoundingClientRect().top - before;
+  }
+
   async function onScroll() {
     if (!scroller) return;
     trackView();
-    stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 140;
-    // M21: back at the latest after a long jump, the far pages are let go (they load again on the way up).
-    if (stick && messages.length > 600) {
-      messages = messages.slice(-200);
-      hasMore = true;
+    const fromBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    stick = !hasNewer && fromBottom < 140;
+    if (paging || jumping || !messages.length) return;
+    // M21: pinned to the latest for a long while, the oldest pages are let go (they load again on the way up).
+    if (stick && messages.length > WINDOW + PAGE) {
+      const start = trimStart(messages);
+      if (start > 0)
+        await keepPlace(() => {
+          messages = messages.slice(start);
+          hasMore = true;
+        });
       return;
     }
-    if (scroller.scrollTop < 400 && hasMore && !loadingOlder && messages.length) {
-      loadingOlder = true;
-      const prevHeight = scroller.scrollHeight;
-      try {
-        const page = await get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?before=${messages[0]!.seq}&limit=60`);
-        messages = [...page.messages, ...messages];
-        hasMore = page.hasMore;
-        await tick();
-        scroller.scrollTop += scroller.scrollHeight - prevHeight;
-      } finally {
-        loadingOlder = false;
+    if (scroller.scrollTop < 400 && hasMore) await pageOlder();
+    else if (fromBottom < 400 && hasNewer) await pageNewer();
+  }
+
+  /**
+   * Messages that must stay mounted however far away they are: one being edited, one holding the
+   * text selection, or one with focus inside (an open menu). The window grows past WINDOW meanwhile.
+   */
+  function pinnedSeqs() {
+    const pinned = new Set<number>();
+    if (!scroller) return pinned;
+    const add = (el: Element | null | undefined) => {
+      const seq = Number((el?.closest("article.msg") as HTMLElement | null)?.dataset.seq);
+      if (seq) pinned.add(seq);
+    };
+    for (const el of scroller.querySelectorAll("article.msg.editing")) add(el);
+    if (document.activeElement && scroller.contains(document.activeElement)) add(document.activeElement);
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) {
+      for (let i = 0; i < sel.rangeCount; i++) {
+        const r = sel.getRangeAt(i);
+        for (const el of scroller.querySelectorAll("article.msg")) if (r.intersectsNode(el)) add(el);
       }
+    }
+    return pinned;
+  }
+  /** Where to cut the top so about WINDOW remain, never above a pinned message. */
+  function trimStart(list: Message[]) {
+    let start = Math.max(0, list.length - WINDOW);
+    if (!start) return 0;
+    const pinned = pinnedSeqs();
+    const i = list.findIndex((m) => pinned.has(m.seq));
+    if (i >= 0) start = Math.min(start, i);
+    return start;
+  }
+  /** Where to cut the bottom so about WINDOW remain, never below a pinned message. */
+  function trimEnd(list: Message[]) {
+    if (list.length <= WINDOW) return list.length;
+    const pinned = pinnedSeqs();
+    const i = list.findLastIndex((m) => pinned.has(m.seq));
+    return Math.max(WINDOW, i + 1);
+  }
+
+  /** An older page on top; past the window's size, the newest pages (far below the view) are let go. */
+  async function pageOlder() {
+    const mine = win;
+    paging = true;
+    loadingOlder = true;
+    try {
+      const page = await get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?before=${messages[0]!.seq}&limit=${PAGE}`);
+      if (mine !== win) return;
+      await keepPlace(() => {
+        const next = [...page.messages, ...messages];
+        hasMore = page.hasMore;
+        const end = trimEnd(next);
+        if (end < next.length) {
+          next.length = end;
+          hasNewer = true;
+          stick = false;
+        }
+        messages = next;
+      });
+    } catch {
+      // the next scroll tries again
+    } finally {
+      paging = false;
+      loadingOlder = false;
+    }
+  }
+
+  /** A newer page below; past the window's size, the oldest pages (far above the view) are let go. */
+  async function pageNewer() {
+    const mine = win;
+    paging = true;
+    loadingNewer = true;
+    try {
+      const last = messages.at(-1)!.seq;
+      const page = await get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?after=${last}&limit=${PAGE}`);
+      if (mine !== win) return;
+      await keepPlace(() => {
+        let next = [...messages, ...page.messages.filter((m) => m.seq > last)];
+        const start = trimStart(next);
+        if (start > 0) {
+          next = next.slice(start);
+          hasMore = true;
+        }
+        messages = next;
+        hasNewer = page.hasMore;
+        if (!hasNewer) outsideNew = [];
+      });
+    } catch {
+      // the next scroll tries again
+    } finally {
+      paging = false;
+      loadingNewer = false;
     }
   }
 
   async function send(content: string, generate: boolean, director = false, profileId?: string): Promise<boolean> {
+    // M21: a message goes at the end, so the end comes back on screen first.
+    if (hasNewer) await showLatest(false);
     stick = true;
     try {
       const r = await post<{ userMessage: Message | null; generationId?: string; messageId?: string }>(`/api/chats/${id}/send`, { content, generate, profileId, director: director || undefined });
@@ -774,6 +980,10 @@
       const r = await post<{ deleted: string[] }>(`/api/messages/${m.id}/rewind`);
       if (!r.deleted.length) return;
       messages = messages.filter((x) => x.seq <= m.seq);
+      // The rewound message is the new end, so the window reaches it.
+      hasNewer = false;
+      outsideNew = [];
+      liveEnd = { id: m.id, seq: m.seq };
       refreshPreview();
       toast(`Rewound: ${r.deleted.length} message${r.deleted.length === 1 ? "" : "s"} moved to the trash`, {
         action: {
@@ -815,6 +1025,7 @@
   }
 
   function editLastUser() {
+    if (hasNewer) return;
     const m = [...messages].reverse().find((x) => x.role === "user");
     if (m) editSignals[m.id] = (editSignals[m.id] ?? 0) + 1;
   }
@@ -1032,13 +1243,16 @@
           {#if !messages.length}
             <p class="muted center-text">No messages yet. Say hello ✿</p>
           {/if}
-          {#each outbox.items.filter((q) => q.chatId === id) as q (q.id)}
+          {#if hasNewer}
+            <div class="older newer tiny muted">{loadingNewer ? "Loading later messages…" : "Scroll down for later messages"}</div>
+          {/if}
+          {#each hasNewer ? [] : outbox.items.filter((q) => q.chatId === id) as q (q.id)}
             <div class="queued" aria-label="Waiting to send">
               <p class="prose small">{q.content}</p>
               <div class="row tiny muted"><span class="grow">Waiting to send, when Mea is reachable</span><button class="btn ghost small" onclick={() => cancelQueued(q.id)}>Cancel</button></div>
             </div>
           {/each}
-          {#if recap}
+          {#if recap && !hasNewer}
             <aside class="recap card" aria-label="Previously">
               <div class="row between"><b class="recap-title">Previously…</b><button class="btn ghost small" onclick={() => (recap = null)}>Dismiss</button></div>
               <p class="small">{recap.text}</p>
@@ -1048,17 +1262,17 @@
       </div>
 
       {#if !stick}
-        <button class="jump btn icon" onclick={() => ((stick = true), scrollToBottom())} aria-label={unread ? `Jump to latest: ${unread} new` : "Jump to latest"}><ArrowDown size={18} />{#if unread}<span class="unread">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+        <button class="jump btn icon" onclick={() => void showLatest()} aria-label={unread ? `Jump to latest: ${unread} new` : "Jump to latest"}><ArrowDown size={18} />{#if unread}<span class="unread">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       {/if}
-      {#if lastMsg && lastMsg.seq > 30}
-        <Scrubber max={lastMsg.seq} current={viewSeq || lastMsg.seq} marks={scrubMarks} onjump={(seq) => void jumpTo(seq)} />
+      {#if endSeq > 30}
+        <Scrubber max={endSeq} current={viewSeq || endSeq} marks={scrubMarks} onjump={(seq) => void jumpTo(seq)} />
       {/if}
 
       <div class="composer-area">
         {#if !hasModel}
           <div class="notice warn tiny setup">No model is set up yet. <a href="/settings/models">Connect NanoGPT</a> to start writing.</div>
         {/if}
-        <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} {preview} oninspect={() => openInspector(null)} lastMessageId={lastMsg?.id ?? null} />
+        <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} {preview} oninspect={() => openInspector(null)} lastMessageId={endId} />
       </div>
     </div>
 
@@ -1320,6 +1534,8 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     scroll-padding-bottom: 2rem;
+    /* M21: pages come and go above the view; keepPlace() anchors by hand, so the browser mustn't too. */
+    overflow-anchor: none;
   }
   .column {
     max-width: var(--chat-w, var(--measure));

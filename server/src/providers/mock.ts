@@ -92,7 +92,11 @@ function helperJson(name: string, user: string): unknown {
     case "continuity_check": {
       if (!/MOCK_CONTRADICTION/.test(user)) return { issues: [] };
       const ref = user.match(/^\[([TML]\d+)\]/m)?.[1] ?? "T1";
-      return { issues: [{ kind: "fact", severity: "major", claim: "MOCK_CONTRADICTION", conflict: "The facts say otherwise.", cites: [ref], fix: "Follow the established facts." }] };
+      // M28: like the real checker, a self-contained sentence of what keeping the reply's version means.
+      const who = user.match(/NEW REPLY \(by ([^)]+)\)/)?.[1] ?? "The narrator";
+      return {
+        issues: [{ kind: "fact", severity: "major", claim: "MOCK_CONTRADICTION", conflict: "The facts say otherwise.", cites: [ref], fix: "Follow the established facts.", canon: `${who} keeps the brass lantern in the cellar.` }],
+      };
     }
     case "archivist_answer": {
       const first = user.match(/^\[1\] \([^)]*\) (.*)$/m)?.[1];

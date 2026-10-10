@@ -42,7 +42,7 @@ export function exportMemory(chatId: string) {
     chat: { title: chat.title, character: chat.character_id ? (getCard(chat.character_id)?.name ?? null) : null, messages: seqOf.size },
     summaries: summaries.map(({ id, ...r }) => ({ ...r, ref: id, data: parseJson(r.data as string, {}) })),
     memories: all<Record<string, unknown> & { id: string; scene_id: string | null }>(
-      "SELECT id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, ledger, recall_count, ref_count FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'",
+      "SELECT id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, ledger, recall_count, ref_count, origin, swipe_idx FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'",
       chatId,
     ).map(({ id, scene_id, ...r }) => ({ ...r, scene: scene_id, entities: parseJson(r.entities as string, []), emotions: parseJson(r.emotions as string, []), known_by: parseJson(r.known_by as string, []), ledger: parseJson(r.ledger as string | null, null), sources: sources.get(id) ?? [] })),
     // M30: deleted ones go too, so they stay deleted wherever the file goes.
@@ -99,6 +99,7 @@ export function queueMemoryImport(chatId: string, text: string, mode: "merge" | 
 const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
 const num = (v: unknown, d: number | null = null) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const json = (v: unknown, d: unknown) => JSON.stringify(v ?? d);
+const ORIGINS = new Set(["ai", "user", "tracker", "consolidation"]);
 
 /**
  * The import job: small transactions with a breath between them, and progress as it goes. M30: a
@@ -167,13 +168,24 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
     const content = str(r.content).trim();
     if (!content || (p.mode === "merge" && isDuplicate(chatId, content))) return;
     const id = newId();
+    const scene = typeof r.scene === "string" ? (sceneIds.get(r.scene) ?? null) : null;
+    const srcs = (Array.isArray(r.sources) ? r.sources : []) as number[];
+    // M31: who made it; files from before the column say it the old way (a tracker memory: confidence 0.85, no scene, one message).
+    const origin = ORIGINS.has(r.origin as string)
+      ? (r.origin as string)
+      : r.scene == null && num(r.confidence, 1) === 0.85 && srcs.length === 1
+        ? "tracker"
+        : r.scene == null && num(r.user_edited, 0)
+          ? "user"
+          : "ai";
+    const swipe = origin !== "tracker" ? null : (num(r.swipe_idx) ?? one<{ s: number }>("SELECT active_swipe AS s FROM messages WHERE id = ?", msgBySeq.get(srcs[0]!) ?? "")?.s ?? null);
     run(
-      `INSERT INTO memories (id, chat_id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, ledger, recall_count, ref_count, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, chatId, typeof r.scene === "string" ? (sceneIds.get(r.scene) ?? null) : null, str(r.type, "fact"), content, json(r.entities, []), num(r.importance, 5), json(r.emotions, []), (r.story_time as string | null) ?? null,
-      json(r.known_by, []), str(r.status, "active"), num(r.confidence, 1), num(r.pinned, 0), num(r.user_edited, 0), num(r.min_seq), num(r.max_seq), r.ledger == null ? null : json(r.ledger, null), num(r.recall_count, 0), num(r.ref_count, 0), t, t,
+      `INSERT INTO memories (id, chat_id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, ledger, recall_count, ref_count, created_at, updated_at, origin, swipe_idx)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, chatId, scene, str(r.type, "fact"), content, json(r.entities, []), num(r.importance, 5), json(r.emotions, []), (r.story_time as string | null) ?? null,
+      json(r.known_by, []), str(r.status, "active"), num(r.confidence, 1), num(r.pinned, 0), num(r.user_edited, 0), num(r.min_seq), num(r.max_seq), r.ledger == null ? null : json(r.ledger, null), num(r.recall_count, 0), num(r.ref_count, 0), t, t, origin, swipe,
     );
-    for (const seq of (Array.isArray(r.sources) ? r.sources : []) as number[]) {
+    for (const seq of srcs) {
       const mid = msgBySeq.get(seq);
       if (mid) run("INSERT OR IGNORE INTO memory_sources (memory_id, message_id, seq) VALUES (?, ?, ?)", id, mid, seq);
     }

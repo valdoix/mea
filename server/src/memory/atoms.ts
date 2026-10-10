@@ -5,6 +5,8 @@ import { type AtomType, normalizeType } from "./prompts";
 import { touchMemory } from "./store";
 
 export type AtomStatus = "active" | "superseded" | "resolved" | "disputed";
+/** M31: who made a memory. "tracker": from a tracker change of one message (and swipe); it follows that message. */
+export type AtomOrigin = "ai" | "user" | "tracker" | "consolidation";
 
 export interface AtomRow {
   id: string;
@@ -33,6 +35,9 @@ export interface AtomRow {
   last_recalled_seq: number | null;
   last_ref_seq: number | null;
   ledger: string | null;
+  origin: AtomOrigin;
+  /** The swipe of its message a tracker memory came from (null for the rest). */
+  swipe_idx: number | null;
 }
 
 /** Promise and secret ledger state (MEM-30, MEM-31). */
@@ -57,6 +62,9 @@ export interface NewAtom {
   status?: AtomStatus;
   pinned?: boolean;
   userEdited?: boolean;
+  /** Who made it (M31); by default "user" for your own and "ai" otherwise. */
+  origin?: AtomOrigin;
+  swipeIdx?: number | null;
 }
 
 export function atomOut(r: AtomRow, extra: { sources?: { messageId: string; seq: number }[] } = {}) {
@@ -73,6 +81,7 @@ export function atomOut(r: AtomRow, extra: { sources?: { messageId: string; seq:
     status: r.status,
     supersededBy: r.superseded_by,
     confidence: r.confidence,
+    origin: r.origin ?? "ai",
     pinned: Boolean(r.pinned),
     userEdited: Boolean(r.user_edited),
     stale: Boolean(r.stale),
@@ -113,8 +122,8 @@ export function insertAtom(chatId: string, sceneId: string | null, a: NewAtom, s
   const t = now();
   const seqs = sources.map((s) => s.seq);
   run(
-    `INSERT INTO memories (id, chat_id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO memories (id, chat_id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, created_at, updated_at, origin, swipe_idx)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     chatId,
     sceneId,
@@ -133,6 +142,8 @@ export function insertAtom(chatId: string, sceneId: string | null, a: NewAtom, s
     seqs.length ? Math.max(...seqs) : null,
     t,
     t,
+    a.origin ?? (a.userEdited ? "user" : "ai"),
+    a.swipeIdx ?? null,
   );
   for (const s of sources) run("INSERT OR IGNORE INTO memory_sources (memory_id, message_id, seq) VALUES (?, ?, ?)", id, s.id, s.seq);
   return id;
