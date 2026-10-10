@@ -62,6 +62,8 @@ export interface AssembleInput {
   extras?: PromptExtra[];
   /** The route reasons natively, so planning goes in its reasoning rather than a <think> block. */
   providerReasoning?: boolean;
+  /** The plan watch's second try: a last line insists the reply open with its <think> plan. */
+  forcePlan?: boolean;
   /** PROMPT-07: the active preset controls, already rendered. */
   controls?: string;
   /** Every control's value, readable in blocks as {{ctl.id}}. */
@@ -168,10 +170,23 @@ interface DepthItem {
   recall?: BlockTrace;
 }
 
+/** The model's family, for per-model notes in a preset ({{modelFamily}}): claude, deepseek, gemini, glm, kimi, gpt, open, or "". */
+export function modelFamily(model: string | undefined): string {
+  const id = (model ?? "").toLowerCase();
+  if (/claude|anthropic/.test(id)) return "claude";
+  if (/deepseek|\br1\b/.test(id)) return "deepseek";
+  if (/gemini|gemma/.test(id)) return "gemini";
+  if (/glm|zhipu|z-ai/.test(id)) return "glm";
+  if (/kimi|moonshot/.test(id)) return "kimi";
+  if (/gpt|\bo[1345]\b|openai/.test(id)) return "gpt";
+  if (/mistral|mixtral|llama|qwen|hermes|command-r|nemo|magnum|euryale|wizard/.test(id)) return "open";
+  return "";
+}
+
 /**
  * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
- * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{providerReasoning}} (the route reasons natively), and {{ctl.id}} for every preset control.
+ * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{providerReasoning}} (the route reasons natively), {{modelFamily}}, and {{ctl.id}} for every preset control.
  */
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
@@ -193,6 +208,7 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     userSealed: persona === "director" || persona === "full_cast" ? "" : "yes",
     ledger: input.extras?.some((e) => e.id === "ledger") ? "yes" : "",
     providerReasoning: input.providerReasoning ? "yes" : "",
+    modelFamily: modelFamily(input.modelId),
     ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),
   };
 }
@@ -370,6 +386,9 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   if (input.kind === "expand") tail.push({ role: "system", content: x(preset.expandPrompt) });
   // Nothing new from the player, and the last message is already a reply: the world moves on.
   if (input.kind === "story" && input.history.at(-1)?.role === "assistant") tail.push({ role: "system", content: x(preset.waitPrompt) || "[Continue the story.]" });
+  if (input.kind === "story" && input.forcePlan) {
+    tail.push({ role: "system", content: "[The last try skipped the planning pass. Start this reply with <think>, run the [BEFORE YOU WRITE] pass step by step, close with </think>, and only then write the story.]" });
+  }
   if (input.kind === "story" && preset.prefill.trim()) tail.push({ role: "assistant", content: x(preset.prefill) });
 
   const fixed =

@@ -251,6 +251,10 @@
   }
   .story .tip {
     left: 54px;
+    /* A long story name wraps in a readable box instead of running across the page. */
+    white-space: normal;
+    width: max-content;
+    max-width: min(22rem, calc(100vw - 80px));
   }
   .grow {
     flex: 1;

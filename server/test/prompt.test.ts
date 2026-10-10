@@ -153,14 +153,37 @@ describe("Mea's default preset", () => {
     expect(p).toContain("Lead genre — DRAMA");
     expect(p).toContain("are judged fairly");
     expect(p).toContain("World texture: insistent");
-    expect(p).toContain("[BEFORE YOU WRITE]");
+    expect(p).toContain("[BEFORE YOU WRITE");
     // Planning is always on: in a <think> block by default, in the model's own reasoning when the route reasons.
-    expect(p).toContain("Begin with <think>, run the [BEFORE YOU WRITE] pass");
+    expect(p).toContain("the very first thing you write is <think>, then the pass");
     expect(p).toContain("the <think> planning block opens the reply");
     const native = all({ providerReasoning: true });
-    expect(native).toContain("Open your reasoning with the [BEFORE YOU WRITE] pass");
+    expect(native).toContain("Run this pass in your reasoning before you write a word of the reply");
     expect(native).not.toContain("<think>");
     expect(p).not.toContain("{{");
+  });
+
+  test("the planning pass comes after the history, right before the output rules (like ALMANAC's Director's Pass)", () => {
+    const p = all();
+    expect(p.indexOf("[BEFORE YOU WRITE")).toBeGreaterThan(p.indexOf("I step inside."));
+    expect(p.indexOf("[BEFORE YOU WRITE")).toBeGreaterThan(p.indexOf("[THIS REPLY]"));
+    expect(p.indexOf("[OUTPUT]")).toBeGreaterThan(p.indexOf("STOP RULE: after VOICE"));
+    expect(all({ swipe: { rejected: "The rain had not stopped all night when Ash came up the stairs." } })).toContain("not a copy of the take being replaced");
+  });
+
+  test("per-model notes follow the model's family", () => {
+    expect(all({ modelId: "claude-sonnet-5" })).toContain("Write the <think> block first, in plain fragments");
+    expect(all({ modelId: "anthropic/claude-opus-4-7", providerReasoning: true })).toContain("Extended thinking is the planning pass");
+    expect(all({ modelId: "deepseek-r1" })).toContain("stop at VOICE");
+    expect(all({ modelId: "qwen3-235b" })).toContain("never in a code fence");
+    expect(all({ modelId: "test" })).not.toContain("[MODEL]");
+    expect(all({ kind: "impersonate", modelId: "claude-sonnet-5" })).not.toContain("[MODEL]");
+  });
+
+  test("the plan watch's second try ends on a plain order to plan first", () => {
+    const msgs = assemblePrompt(base({ history: story, forcePlan: true })).messages;
+    expect(msgs.at(-1)!.content).toContain("The last try skipped the planning pass. Start this reply with <think>");
+    expect(assemblePrompt(base({ history: story })).messages.at(-1)!.content).not.toContain("skipped the planning pass");
   });
 
   test("the turn frame: first reply, echo guard, rotating hazards; nothing for impersonation", () => {
@@ -176,7 +199,7 @@ describe("Mea's default preset", () => {
     expect(p).toContain("an out-of-character question from the player gets a short answer before the story");
     expect(p).not.toContain("the <ledger> block follows the story");
     expect(all({ extras: [{ id: "ledger", name: "Ledger", content: "LEDGER", depth: 0 }] })).toContain("the <ledger> block follows the story");
-    expect(all({ kind: "impersonate" })).not.toContain("[BEFORE YOU WRITE]");
+    expect(all({ kind: "impersonate" })).not.toContain("[BEFORE YOU WRITE");
   });
 
   test("no card greeting: no reply is told the opening came from the card", () => {

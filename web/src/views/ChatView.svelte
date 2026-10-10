@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
   import { regexScope } from "../lib/regex.svelte";
+  import { storyStyle } from "../lib/storystyle.svelte";
   import Avatar from "../components/Avatar.svelte";
   import ChatPanel from "../components/chat/ChatPanel.svelte";
   import Composer from "../components/chat/Composer.svelte";
@@ -190,6 +191,11 @@
   const ambAccent = $derived(amb.accent && detail?.character?.palette?.[0] ? detail.character.palette[0] : undefined);
   const personaName = $derived(detail?.persona?.name ?? "You");
   const styleClass = $derived(`style-${app.settings?.["appearance.chatStyle"] ?? "cards"}`);
+  // L-quotes: the story's quote style shows on every message, not only replies written after it was set.
+  $effect(() => {
+    const q = detail?.chat.settings.style?.quotes || detail?.defaults?.characterStyle?.quotes;
+    storyStyle.quotes = q === "curly" || q === "straight" ? q : null;
+  });
 
   onMount(() => {
     app.currentChatId = id;
@@ -204,6 +210,7 @@
       document.removeEventListener("visibilitychange", onHide);
       markSeen();
       app.currentChatId = null;
+      storyStyle.quotes = null;
       reportPresence();
     };
   });
@@ -663,8 +670,11 @@
           const m = messages.find((x) => x.id === e.messageId);
           if (m) {
             if (m.status !== "streaming") m.status = "streaming";
-            // A smart retry (CONN-09) starts the reply over.
-            if (e.reset) m.content = "";
+            // A smart retry (CONN-09) or the plan watch starts the reply over.
+            if (e.reset) {
+              m.content = "";
+              m.reasoning = null;
+            }
             m.content += e.text;
             if (e.reasoning) m.reasoning = (m.reasoning ?? "") + e.reasoning;
           }

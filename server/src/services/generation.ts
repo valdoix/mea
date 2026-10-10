@@ -63,12 +63,12 @@ const RETRY_AFTER_CAP_MS = 30_000;
 
 /** M17: a leading <think>…</think> block (inline reasoning from OpenAI-style routes) moves out of the story. */
 export function splitThink(text: string): { text: string; reasoning: string } {
-  const m = text.match(/^\s*<(think|thinking)>([\s\S]*?)(?:<\/\1>|$)\s*/i);
+  const m = text.match(/^\s*<(think|thinking|plan|reasoning)>([\s\S]*?)(?:<\/\1>|$)\s*/i);
   if (!m) return { text, reasoning: "" };
   return { text: text.slice(m[0].length), reasoning: m[2]!.trim() };
 }
 
-const THINK_OPEN = ["<think>", "<thinking>"];
+const THINK_OPEN = ["<think>", "<thinking>", "<plan>", "<reasoning>"];
 
 /**
  * Mea's preset has models without provider reasoning plan inside a leading <think> block. This
@@ -129,6 +129,9 @@ export function thinkRouter() {
   return { push, end };
 }
 
+/** The plan watch: a "plan" shorter than this is a one-line outline, not the pass. */
+const PLAN_MIN_WORDS = 15;
+
 const PLAN_HEADER = /^\s*(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*[—–:-]/;
 
 /**
@@ -144,7 +147,7 @@ export function splitLeakedPlan(text: string): { text: string; reasoning: string
     if (PLAN_HEADER.test(line)) {
       headers++;
       end = i;
-    } else if (!line.trim() || /^\s*\[BEFORE YOU WRITE\]\s*$/i.test(line) || (headers > 0 && /^\s+\S|^\s*[-*•]\s/.test(line))) {
+    } else if (!line.trim() || /^\s*\[BEFORE YOU WRITE[^\]]*\]\s*$/i.test(line) || (headers > 0 && /^\s+\S|^\s*[-*•]\s/.test(line))) {
       if (headers > 0 && line.trim()) end = i;
     } else break;
   }
@@ -215,6 +218,8 @@ export function setElsewhereLane(fn: (chatId: string) => string | undefined) {
 
 export interface PrepareOptions {
   excludeMessageId?: string;
+  /** The plan watch: the last try skipped its planning pass, so this one is told plainly to start with it. */
+  forcePlan?: boolean;
   draft?: string;
   feedback?: string;
   /** Use this profile instead of the chat's (fallbacks, or a paid reply you tapped for). */
@@ -339,6 +344,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     seed: chatId,
     draft: opts.draft,
     feedback: opts.feedback,
+    forcePlan: opts.forcePlan,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
     extras: [
@@ -494,6 +500,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   })();
   let overflowRetried = false;
   let smartRetried = false;
+  let planRetried = false;
   let backedOff = false;
   const notes: string[] = [];
 
@@ -521,6 +528,22 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       }, 5000);
       // The preset's <think> planning block goes to reasoning as it streams (not when continuing).
       const think = action === "continue" ? null : thinkRouter();
+      // The plan watch: a preset that plans (Mea's) on a route without its own reasoning. If the
+      // story starts with no plan before it, or a token one, this try stops at once and the next
+      // is told plainly to plan first. Once only; a second try is kept whatever it does.
+      let planSkipped = false;
+      let watching = !planRetried && action !== "continue" && !p.resolved.reasoning && p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included);
+      const watchPlan = () => {
+        if (!watching) return;
+        const story = gen.text.slice(baseText.length).replace(/^\s+/, "");
+        if (story.length < 40 && !story.includes("\n")) return;
+        watching = false;
+        // A plan written out without its tags is moved to reasoning when the reply ends (M17).
+        if (/^(?:\*\*|#+\s*)?(?:\[BEFORE YOU WRITE|NOW|SEAL|KNOW)\b/i.test(story)) return;
+        if (gen.reasoning.trim().split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS) return;
+        planSkipped = true;
+        attempt.abort();
+      };
       const addReasoning = (r: string) => {
         gen.reasoning += r;
         pendingReasoning += r;
@@ -551,9 +574,12 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
             if (d.text) {
               if (think) route(think.push(d.text));
               else addText(d.text);
+              watchPlan();
             }
           },
         );
+        // The plan watch stopped this try (a fast stream can finish before the abort lands).
+        if (planSkipped) throw new Error("the reply skipped its plan");
         // Text still held back (a tag cut short at the end) belongs to the reply or its reasoning.
         if (think) route(think.end());
         usage = result.usage;
@@ -584,6 +610,21 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         break;
       } catch (e) {
         if (gen.abort.signal.aborted) throw e;
+        if (planSkipped && !planRetried) {
+          planRetried = true;
+          finishRequest(requestId, { status: "error", error: "retried: the reply skipped its plan", firstTokenAt });
+          p = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, forcePlan: true });
+          notes.push("asked again: the first try skipped its plan");
+          gen.text = baseText;
+          gen.reasoning = "";
+          pendingText = "";
+          pendingReasoning = "";
+          first_ = true;
+          firstTokenAt = null;
+          publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reset: true });
+          requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
+          continue;
+        }
         const err = timedOut ? new ProviderError(`No reply within ${Math.round(timeoutMs / 1000)} s`) : stalled ? new ProviderError(`The reply stalled: nothing new for ${IDLE_MS / 1000} s`) : e;
         const nothingYet = firstTokenAt == null && !gen.text.slice(baseText.length);
         if (!(err instanceof ProviderError) || !nothingYet) throw err;

@@ -46,6 +46,12 @@
     outline: none;
     padding: 0.2rem;
   }
+  /* A long tag wraps inside its chip rather than running out of the box. */
+  .tags .chip {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .chip button {
     border: 0;
     background: none;

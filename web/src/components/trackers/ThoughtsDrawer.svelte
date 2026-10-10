@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { voiceColor } from "../../lib/voices";
+  import { storyColors, voiceColor } from "../../lib/voices";
   import { trk } from "../../lib/trackers.svelte";
   import type { TrackerChange } from "../../lib/types";
 
@@ -11,7 +11,8 @@
   let { changes, open = false }: { changes: TrackerChange[]; open?: boolean } = $props();
 
   const inner = $derived(changes.filter((c) => (c.kind === "thought" || c.kind === "mask") && typeof c.to === "string" && c.to));
-  const color = (name?: string) => voiceColor(name ?? "", name ? trk.data?.profiles[name.toLowerCase()]?.color : null);
+  const colors = $derived(storyColors(trk.data));
+  const color = (name?: string) => (name && colors.get(name.toLowerCase())) || voiceColor(name ?? "", name ? trk.data?.profiles[name.toLowerCase()]?.color : null);
 </script>
 
 {#if inner.length}

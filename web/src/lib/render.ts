@@ -1,7 +1,7 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { extractArtifacts, placeArtifacts } from "./artifacts";
-import { quoteIds } from "./quotes";
+import { quoteIds, smartQuotes, straightQuotes } from "./quotes";
 
 /**
  * Message rendering (CHAT-07): Markdown → sanitized HTML (SEC-03), dialogue
@@ -11,6 +11,36 @@ marked.setOptions({ gfm: true, breaks: true });
 
 const cache = new Map<string, string>();
 const MAX_CACHE = 600;
+
+export type QuoteStyle = "curly" | "straight" | null;
+
+/**
+ * The story's quote style on what's shown (L-quotes): every message, yours and older replies
+ * included, reads the same. Works on the text only, so tags, attributes and code keep their marks.
+ */
+function typeset(root: HTMLElement, quotes: QuoteStyle) {
+  if (!quotes) return;
+  const blocks = root.querySelectorAll("p, li, blockquote, td, th, h1, h2, h3, h4, div");
+  const targets: Element[] = blocks.length ? Array.from(blocks) : [root];
+  for (const block of targets) {
+    if (block.querySelector("p, li, div")) continue;
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement?.closest("code, pre, style") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    const nodes: Text[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    const joined = nodes.map((n) => n.data).join("");
+    if (!/["'\u201c\u201d\u201e]/.test(joined)) continue;
+    // Read the whole block at once, so a mark at the edge of an <em> sees the word beside it.
+    const done = quotes === "curly" ? smartQuotes(joined) : straightQuotes(joined);
+    let at = 0;
+    for (const node of nodes) {
+      const next = done.slice(at, at + node.data.length);
+      at += node.data.length;
+      if (next !== node.data) node.data = next;
+    }
+  }
+}
 
 /** Wraps quoted dialogue in <span class="dl">, across inline elements, never inside code. */
 function highlightDialogue(root: HTMLElement) {
@@ -150,9 +180,9 @@ purify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean } = {}): string {
+export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean; quotes?: QuoteStyle } = {}): string {
   const dressed = opts.artifacts !== false;
-  const key = `${scopeClass}\u0000${dressed ? 1 : 0}\u0000${input}`;
+  const key = `${scopeClass}\u0000${dressed ? 1 : 0}\u0000${opts.quotes ?? ""}\u0000${input}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   // Artifacts (<letter>, <texts>…) are cut out before Markdown and drawn from escaped text.
@@ -173,6 +203,7 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
   tpl.innerHTML = clean;
   const container = document.createElement("div");
   container.appendChild(tpl.content);
+  typeset(container, opts.quotes ?? null);
   highlightDialogue(container);
   let html = found.length ? placeArtifacts(container.innerHTML, found, dressed) : container.innerHTML;
   if (styles.length) {
@@ -185,7 +216,7 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
 }
 
 /** Cheap render for streaming text: re-rendered at most once per animation frame. */
-export function renderStreaming(input: string, opts: { artifacts?: boolean } = {}): string {
+export function renderStreaming(input: string, opts: { artifacts?: boolean; quotes?: QuoteStyle } = {}): string {
   // Inline trackers: the hidden <ledger> the story model writes never shows while it streams.
   const { text, found } = extractArtifacts(input.replace(/<ledger\b[\s\S]*$/i, ""));
   const raw = marked.parse(text, { async: false }) as string;
@@ -194,6 +225,7 @@ export function renderStreaming(input: string, opts: { artifacts?: boolean } = {
   tpl.innerHTML = clean;
   const container = document.createElement("div");
   container.appendChild(tpl.content);
+  typeset(container, opts.quotes ?? null);
   highlightDialogue(container);
   return found.length ? placeArtifacts(container.innerHTML, found, opts.artifacts !== false) : container.innerHTML;
 }

@@ -45,7 +45,7 @@
       <select class="select mini" value={value.quotes ?? ""} onchange={(e) => emit({ quotes: (e.currentTarget.value || undefined) as StyleProfile["quotes"] })}>
         <option value="">{inherited?.quotes ? `Character's (${inherited.quotes})` : "Any"}</option>
         <option value="straight">"Straight"</option>
-        <option value="curly">“Curly” (fixed in replies)</option>
+        <option value="curly">“Curly” (every message)</option>
         <option value="any">Any</option>
       </select>
     </label>

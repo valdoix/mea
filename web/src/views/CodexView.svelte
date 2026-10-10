@@ -231,9 +231,9 @@
     <div class="cards">
       {#each list as e (e.id)}
         <button class="ent card" class:dead={e.status === "dead" || e.status === "gone"} onclick={() => (open = e.id)}>
-          <div class="row">
+          <div class="row ent-head">
             {#if e.kind === "person"}<Users size={15} />{:else if e.kind === "place"}<MapPin size={15} />{:else}<Package size={15} />{/if}
-            <b class="truncate">{e.name}</b>
+            <b class="ent-name" title={e.name}>{e.name}</b>
             {#if e.status !== "active"}<span class="chip tiny">{e.status}</span>{/if}
             {#if e.isUser}<span class="chip tiny">you</span>{/if}
             {#if e.userEdited}<span class="chip tiny mint">yours</span>{/if}
@@ -496,6 +496,22 @@
   }
   .ent.dead {
     opacity: 0.65;
+  }
+  .ent-head {
+    align-items: flex-start;
+  }
+  .ent-head :global(svg) {
+    margin-top: 0.2em;
+  }
+  /* A long name wraps to two lines inside its card, then ends in an ellipsis. */
+  .ent-name {
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
   }
   .clamp {
     display: -webkit-box;
