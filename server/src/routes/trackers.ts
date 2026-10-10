@@ -366,11 +366,12 @@ trackers.delete("/chats/:id/cast/:name", (c) => {
 // ---------- template library (TRK-32) ----------
 
 trackers.get("/tracker-templates", (c) => c.json({ templates: listTemplates() }));
-trackers.post("/tracker-templates", async (c) => c.json(saveTemplate(await c.req.json()), 201));
+// L2: validate here so bad JSON or a bad template is a 400, not a 500 from saveTemplate's parse.
+trackers.post("/tracker-templates", async (c) => c.json(saveTemplate(await body(c, templateInput)), 201));
 trackers.put("/tracker-templates/:id", async (c) => {
   const id = c.req.param("id");
   if (STARTER_TEMPLATES.some((t) => t.id === id)) throw badRequest("Starter templates can't be changed; duplicate one first");
-  return c.json(saveTemplate(await c.req.json(), id));
+  return c.json(saveTemplate(await body(c, templateInput), id));
 });
 trackers.delete("/tracker-templates/:id", (c) => {
   const id = c.req.param("id");
@@ -379,13 +380,26 @@ trackers.delete("/tracker-templates/:id", (c) => {
   deleteTemplate(id);
   return c.json({ ok: true, undo });
 });
+/**
+ * A free template key from `base` (max 30 chars). H9: the number replaces the tail instead of being
+ * sliced off the end, so a 30-char key can't repeat forever; the loop is capped as well.
+ */
+function freeKey(base: string): string {
+  const keys = new Set(listTemplates().map((x) => x.key));
+  base = base.slice(0, 30);
+  if (!keys.has(base)) return base;
+  for (let i = 2; i < 10_000; i++) {
+    const key = base.slice(0, 30 - String(i).length) + i;
+    if (!keys.has(key)) return key;
+  }
+  throw badRequest("Too many templates share that key; rename one first");
+}
+
 /** Duplicate (a starter or your own), with a fresh key. */
 trackers.post("/tracker-templates/:id/duplicate", (c) => {
   const t = must(getTemplate(c.req.param("id")), "Template not found");
-  const keys = new Set(listTemplates().map((x) => x.key));
-  let key = `${t.key}_copy`;
-  for (let i = 2; keys.has(key); i++) key = `${t.key}_copy${i}`;
-  return c.json(saveTemplate({ key: key.slice(0, 30), name: `${t.name} (copy)`, description: t.description, schema: t.schema }), 201);
+  const key = freeKey(`${t.key.slice(0, 25)}_copy`);
+  return c.json(saveTemplate({ key, name: `${t.name} (copy)`, description: t.description, schema: t.schema }), 201);
 });
 /** Share as JSON. */
 trackers.get("/tracker-templates/:id/export", (c) => {
@@ -394,13 +408,10 @@ trackers.get("/tracker-templates/:id/export", (c) => {
   return c.json({ format: "mea-tracker-template", version: 1, key: t.key, name: t.name, description: t.description, schema: t.schema });
 });
 trackers.post("/tracker-templates/import", async (c) => {
-  const raw = (await c.req.json()) as Record<string, unknown>;
+  const raw = await body(c, z.record(z.string(), z.unknown()));
   const parsed = templateInput.safeParse({ key: raw.key, name: raw.name, description: raw.description ?? "", schema: raw.schema });
   if (!parsed.success) throw badRequest(`That isn't a Mea tracker template: ${z.prettifyError(parsed.error).slice(0, 300)}`);
-  const keys = new Set(listTemplates().map((x) => x.key));
-  let key = parsed.data.key;
-  for (let i = 2; keys.has(key); i++) key = `${parsed.data.key}${i}`.slice(0, 30);
-  return c.json(saveTemplate({ ...parsed.data, key }), 201);
+  return c.json(saveTemplate({ ...parsed.data, key: freeKey(parsed.data.key) }), 201);
 });
 
 // ---------- per-character defaults (TRK-32) ----------

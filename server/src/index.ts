@@ -1,4 +1,6 @@
 import { createApp } from "./app";
+import { onShutdown } from "./lib/lifecycle";
+import { MAX_REQUEST_BODY_BYTES } from "./routes/data";
 import { config } from "./config";
 import { closeDb, dbMode } from "./db/db";
 import { persistVault, stopVaultTimer } from "./lib/vault";
@@ -14,6 +16,7 @@ const server = Bun.serve({
   port: config.port,
   fetch: app.fetch,
   idleTimeout: 120,
+  maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
 });
 
 // The tunnel's door (ngrok forwards here). Same app, but no request on it counts as the host computer.
@@ -28,6 +31,7 @@ if (config.publicPort) {
         return app.fetch(req, srv);
       },
       idleTimeout: 120,
+      maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
     });
   } catch (err) {
     console.error(`[mea] couldn't open the tunnel port ${config.publicPort}:`, (err as Error).message);
@@ -57,3 +61,8 @@ function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+onShutdown(shutdown);
+
+// One failed background task must never take Mea down for every device (Bun exits on these by default).
+process.on("unhandledRejection", (err) => console.error("[mea] unhandled rejection:", err));
+process.on("uncaughtException", (err) => console.error("[mea] uncaught exception:", err));

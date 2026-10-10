@@ -40,7 +40,7 @@ export const chats = new Hono();
 
 chats.get("/chats", (c) => {
   const q = c.req.query();
-  return c.json({ chats: listChats({ characterId: q.characterId, archived: q.archived === "1", deleted: q.deleted === "1", limit: Number(q.limit) || undefined, collectionId: q.collection || undefined }) });
+  return c.json({ chats: listChats({ characterId: q.characterId, archived: q.archived === "1", deleted: q.deleted === "1", limit: Number(q.limit) || undefined, offset: Number(q.offset) || undefined, collectionId: q.collection || undefined }) });
 });
 
 chats.post("/chats", async (c) => {
@@ -107,17 +107,48 @@ chats.get("/chats/:id/messages", (c) => {
   return c.json(listMessages(c.req.param("id"), { before, after, limit: Number(c.req.query("limit")) || undefined }));
 });
 
+/**
+ * H8: messages already stored, by the client's own id for them (the offline outbox resends until it
+ * hears back), so a resend never adds the message twice. Kept a day, and only so many.
+ */
+const sentByClient = new Map<string, { messageId: string; at: number }>();
+const CLIENT_ID_TTL = 24 * 3600_000;
+const CLIENT_ID_CAP = 5000;
+
+function rememberClientId(key: string, messageId: string) {
+  const t = Date.now();
+  sentByClient.set(key, { messageId, at: t });
+  for (const [k, v] of sentByClient) {
+    if (sentByClient.size <= CLIENT_ID_CAP && t - v.at < CLIENT_ID_TTL) break;
+    sentByClient.delete(k);
+  }
+}
+
 /** Send a message (optional) and start the reply. Generation continues server-side (ARCH-02). */
 chats.post("/chats/:id/send", async (c) => {
   const chatId = c.req.param("id");
-  const input = await body(c, z.object({ content: z.string().max(100_000).optional(), generate: z.boolean().default(true), profileId: z.string().nullable().optional(), director: z.boolean().optional() }));
+  const input = await body(
+    c,
+    z.object({
+      content: z.string().max(100_000).optional(),
+      generate: z.boolean().default(true),
+      profileId: z.string().nullable().optional(),
+      director: z.boolean().optional(),
+      clientId: z.string().min(1).max(100).optional(),
+    }),
+  );
   mustChat(chatId);
-  if (activeGenerations(chatId).length) throw badRequest("Wait for the current reply to finish");
+  // H8: a resend of a message that's already stored: say so, and don't start another reply.
+  const key = input.clientId ? `${chatId}:${input.clientId}` : null;
+  const seen = key ? sentByClient.get(key) : undefined;
+  if (seen && Date.now() - seen.at < CLIENT_ID_TTL) return c.json({ userMessage: getMessage(seen.messageId) ?? null, duplicate: true });
+  if (activeGenerations(chatId).length) return c.json({ error: "Wait for the current reply to finish", stored: false }, 400);
   let userMessageId: string | null = null;
   if (input.content?.trim()) {
     const chat = getChat(chatId)!;
     const persona = getPersona(chat.personaId) ?? getDefaultPersona();
     userMessageId = addMessage(chatId, "user", applyRegex(input.content.trim(), getSetting("regex.scripts"), { role: "user", mode: "persistent", characterId: mustChat(chatId).character_id }), { name: persona?.name ?? "You", meta: input.director ? { director: true } : undefined });
+    if (key) rememberClientId(key, userMessageId);
   }
   if (!input.generate) return c.json({ userMessage: userMessageId && getMessage(userMessageId) });
   try {
@@ -125,8 +156,12 @@ chats.post("/chats/:id/send", async (c) => {
     return c.json({ userMessage: userMessageId && getMessage(userMessageId), ...gen });
   } catch (e) {
     // The user's message is kept even if the reply can't start (e.g. no model set up, quota used up).
+    // H8: `stored` tells the outbox whether its message is safe, whatever the status code.
     const details = e instanceof HttpError ? (e.details as Record<string, unknown> | undefined) : undefined;
-    return c.json({ userMessage: userMessageId && getMessage(userMessageId), error: (e as Error).message, code: details?.code, details }, e instanceof HttpError && e.status === 429 ? 429 : 400);
+    return c.json(
+      { userMessage: userMessageId && getMessage(userMessageId), error: (e as Error).message, code: details?.code, details, stored: Boolean(userMessageId) },
+      e instanceof HttpError && e.status === 429 ? 429 : 400,
+    );
   }
 });
 

@@ -52,7 +52,9 @@ function apply(node: HTMLElement, p: GlossParams) {
       const span = document.createElement("span");
       span.className = "gloss";
       span.dataset.term = key;
-      span.tabIndex = 0;
+      // M41: a button to assistive tech; only a message's first term is a tab stop (arrows reach the rest).
+      span.setAttribute("role", "button");
+      span.tabIndex = seen.size === 1 ? 0 : -1;
       span.textContent = m[1]!;
       frag.append(span);
       last = (m.index ?? 0) + m[1]!.length;
@@ -69,7 +71,16 @@ export function gloss(node: HTMLElement, params: GlossParams) {
   const pick = (e: Event) => {
     const el = (e.target as HTMLElement).closest?.("span.gloss") as HTMLElement | null;
     if (!el) return;
-    if (e instanceof KeyboardEvent && e.key !== "Enter") return;
+    if (e instanceof KeyboardEvent && (e.key === "ArrowRight" || e.key === "ArrowLeft") && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const all = [...node.querySelectorAll<HTMLElement>("span.gloss")];
+      const next = all[all.indexOf(el) + (e.key === "ArrowRight" ? 1 : -1)];
+      e.preventDefault();
+      e.stopPropagation();
+      next?.focus();
+      return;
+    }
+    if (e instanceof KeyboardEvent && e.key !== "Enter" && e.key !== " ") return;
+    if (e instanceof KeyboardEvent) e.preventDefault();
     const t = p.terms.find((x) => x.term.toLowerCase() === el.dataset.term);
     if (t) {
       e.stopPropagation();

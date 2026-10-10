@@ -277,8 +277,11 @@ export class Folder {
 
   /** Moves the clock and lets every body drift with it. */
   private moveClock(to: number, form: "date" | "day", ctx: Ctx, flag?: string) {
-    const from = this.state.time?.minutes ?? null;
+    const prev = this.state.time;
+    const from = prev && prev.form === form ? prev.minutes : null;
     this.state.time = { minutes: to, form };
+    // M26: a switch of clock form starts the count again; nothing drifts across it.
+    if (prev && prev.form !== form) for (const c of Object.values(this.state.chars)) c.driftAt = to;
     if (from == null) {
       this.push(ctx, { kind: "clock", text: shortStoryTime(formatStoryTime({ minutes: to, form })), path: "clock", to: formatStoryTime({ minutes: to, form }) });
       return;
@@ -373,6 +376,10 @@ export class Folder {
         }
         const t = parseStoryTime(a.set);
         if (!t) return this.reject(ctx, "use +45m, +2h, Day N HH:MM or YYYY-MM-DD HH:MM");
+        // M26: "Day N" and a calendar date count minutes from different starts; only the setup, you
+        // or /timeskip can switch between them (and bodies don't drift across the switch).
+        if (now != null && t.form !== st.time!.form && ctx.ev.source !== "init" && ctx.ev.source !== "user" && ctx.ev.source !== "timeskip")
+          return this.reject(ctx, st.time!.form === "day" ? "the clock counts days here: use Day N HH:MM or +2h" : "the clock follows a calendar here: use YYYY-MM-DD HH:MM or +2h");
         if (now != null && t.minutes < now && !a.flashback && this.ai(ctx) && ctx.ev.source !== "timeskip")
           return this.reject(ctx, "story time can't go backwards (write flashback if it's one)");
         if (now != null && t.minutes - now > 7 * 1440 && this.ai(ctx) && ctx.ev.source !== "timeskip" && ctx.ev.source !== "init") this.warn(ctx, "a jump of more than a week");

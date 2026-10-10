@@ -1,8 +1,10 @@
 /* Mea service worker: app shell caching, image cache, offline reading (ARCH-11), and push notifications (MOB-05, MOB-06). */
-const SHELL = "mea-shell-v2";
-const IMAGES = "mea-images-v1";
+const SHELL = "mea-shell-v3";
+const IMAGES = "mea-images-v2";
 const API = "mea-api-v1";
+const PREFS = "mea-prefs";
 const API_MAX = 400;
+const IMAGES_MAX = 600;
 
 // ARCH-11 / MOB-13: what Mea needs to open and read recent chats without the server.
 const READABLE = [
@@ -12,17 +14,21 @@ const READABLE = [
   /^\/api\/chats\/[^/]+\/(messages|boundaries|continuity|glossary|names|highlights|continue|extras)$/,
 ];
 
+/** The build's own scripts and styles named in a page of HTML. */
+const assetsIn = (html) => [...new Set([...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]))];
+
+/** M40: only a real page of the app is kept as the offline shell (never a tunnel's error page). */
+const isShell = (res) => res && res.ok && res.type === "basic" && (res.headers.get("Content-Type") || "").includes("text/html");
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL)
       .then(async (c) => {
-        await c.addAll(["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/badge-96.png"]);
+        await c.addAll(["/", "/theme.js", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/badge-96.png"]);
         // The first screen's scripts and styles, so the app opens offline even before they were fetched once.
         try {
-          const html = await (await c.match("/")).text();
-          const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
-          await c.addAll([...new Set(assets)]);
+          await c.addAll(assetsIn(await (await c.match("/")).text()));
         } catch {
           // best effort
         }
@@ -40,20 +46,55 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+/** M40: a new build's page drops the old build's scripts and styles from the cache. */
+async function keepShell(res) {
+  const cache = await caches.open(SHELL);
+  const html = await res.text();
+  const old = await cache.match("/");
+  const changed = !old || (await old.text()) !== html;
+  await cache.put("/", new Response(html, { status: res.status, statusText: res.statusText, headers: res.headers }));
+  if (!changed) return;
+  const keep = new Set(assetsIn(html));
+  for (const req of await cache.keys()) {
+    const path = new URL(req.url).pathname;
+    if (path.startsWith("/assets/") && !keep.has(path)) await cache.delete(req);
+  }
+}
+
+// M40: images are kept most-recently-used first, up to IMAGES_MAX. A hit is moved to the back of the
+// line once per worker lifetime (re-putting it), and the oldest are dropped when the cache grows.
+const touched = new Set();
+async function trimImages(cache) {
+  const keys = await cache.keys();
+  for (const k of keys.slice(0, Math.max(0, keys.length - IMAGES_MAX))) await cache.delete(k);
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Character images are immutable: cache-first.
+  // Character images: cache-first.
   if (url.pathname.startsWith("/api/images/") && !url.pathname.endsWith("/info")) {
     event.respondWith(
       caches.open(IMAGES).then(async (cache) => {
         const hit = await cache.match(req);
-        if (hit) return hit;
+        if (hit) {
+          if (!touched.has(req.url)) {
+            touched.add(req.url);
+            event.waitUntil(cache.put(req, hit.clone()).catch(() => {}));
+          }
+          return hit;
+        }
         const res = await fetch(req);
-        if (res.ok) cache.put(req, res.clone());
+        // M40: a size asked for but not made yet comes back as the original (X-Has-Thumb: 0). That
+        // stand-in isn't kept, so the thumbnail is seen once it exists.
+        const standIn = res.headers.get("X-Has-Thumb") === "0" && (url.searchParams.has("size") || url.searchParams.has("thumb"));
+        if (res.ok && !standIn) {
+          touched.add(req.url);
+          event.waitUntil(cache.put(req, res.clone()).then(() => trimImages(cache)).catch(() => {}));
+        }
         return res;
       }),
     );
@@ -101,23 +142,36 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
+  // The pre-paint theme script: network first, the saved copy offline.
+  if (url.pathname === "/theme.js") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            event.waitUntil(caches.open(SHELL).then((c) => c.put("/theme.js", copy)));
+          }
+          return res;
+        })
+        .catch(async () => (await caches.match("/theme.js")) || Response.error()),
+    );
+    return;
+  }
 
   // Navigations: network first, cached shell when offline.
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(SHELL).then((c) => c.put("/", copy));
+          if (isShell(res)) event.waitUntil(keepShell(res.clone()).catch(() => {}));
           return res;
         })
-        .catch(() => caches.match("/")),
+        .catch(async () => (await caches.match("/")) || Response.error()),
     );
   }
 });
 
 // UI-20: the page tells us when discreet mode is on; notifications then say nothing about the story.
-const PREFS = "mea-prefs";
 let prefsMemo = null;
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "prefs") {
@@ -126,6 +180,11 @@ self.addEventListener("message", (event) => {
     // ARCH-11: no offline copies wanted on this device: drop the ones already kept.
     if (!prefsMemo.offline) work.push(caches.delete(API));
     event.waitUntil(Promise.all(work));
+  }
+  // M7: this device was unpaired or revoked: the saved chats and images go with it.
+  if (event.data && event.data.type === "purge") {
+    touched.clear();
+    event.waitUntil(Promise.all([caches.delete(API), caches.delete(IMAGES)]));
   }
 });
 async function prefs() {

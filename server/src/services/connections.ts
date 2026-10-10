@@ -180,6 +180,11 @@ export async function syncModels(connectionId: string): Promise<number> {
     setExtra(connectionId, { lastError: (e as Error).message });
     throw badRequest(`Couldn't load models: ${(e as Error).message}`);
   }
+  // L3: an empty list is a provider hiccup, not a catalog: keep the stars, learned limits and calibration.
+  if (!models.length) {
+    setExtra(connectionId, { lastError: "The provider returned no models" });
+    throw badRequest("Couldn't load models: the provider returned an empty list. The saved list was kept.");
+  }
   const t = now();
   tx(() => {
     const keep = new Set(models.map((m) => m.id));
@@ -423,6 +428,8 @@ export function resolveProfile(profileId?: string | null, override?: { connectio
     params,
     /** Provider tokens per estimated token, learned from usage (CTX-03). */
     tokenRatio: model?.calibration ?? 1,
+    /** M15: this route reasons (asked to, or the model does by itself), so thinking shares max_tokens. */
+    reasoning: Boolean(params.reasoning_effort) || Boolean(model?.capabilities?.reasoning),
     cacheMode: cacheModeFor(conn, profile.modelId, profile.params.cache),
     structured: Boolean(model?.capabilities?.structured_output),
     pricing: model?.pricing ?? {},
@@ -442,8 +449,10 @@ export function resolveTaskChain(task: Task, primaryId?: string | null): Resolve
   const routing = getSetting("routing.tasks");
   const fallbacks = getSetting("routing.fallbacks");
   const story = getSetting("routing.story");
-  const first = primaryId ?? (task === "story" ? story : (routing[task] ?? (BORROWS[task] ? routing[BORROWS[task]!] : null) ?? story));
-  const out: ResolvedProfile[] = [resolveProfile(first)];
+  const own = primaryId ?? (task === "story" ? story : (routing[task] ?? (BORROWS[task] ? routing[BORROWS[task]!] : null)));
+  const out: ResolvedProfile[] = [resolveProfile(own ?? story)];
+  // M15: a helper borrowing the story's profile doesn't borrow its reasoning effort (its own profile can set one).
+  if (!own && task !== "story") delete out[0]!.params.reasoning_effort;
   const seen = new Set([out[0]!.profile.id]);
   for (const id of fallbacks[task] ?? (BORROWS[task] ? fallbacks[BORROWS[task]!] : []) ?? []) {
     let r: ResolvedProfile;

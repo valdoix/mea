@@ -12,7 +12,7 @@
   --border-strong: #dccbc1;
   --text: #43363d;
   --text-muted: #76646d;
-  --text-faint: #9a8a92;
+  --text-faint: #7d6d75; /* L16: 4.5:1 on the page (was 3.04:1) */
   --dialogue: #9c3f63;
   --thought: #6650a8;
   --action: #76646d;

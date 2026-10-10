@@ -48,7 +48,12 @@
 
   async function remove() {
     if (!preset || !(await confirm({ title: `Delete “${preset.name}”?`, confirmLabel: "Delete", danger: true }))) return;
-    await del(`/api/presets/${id}`);
+    try {
+      await del(`/api/presets/${id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     navigate("/presets");
   }
 

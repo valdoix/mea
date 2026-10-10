@@ -6,6 +6,7 @@ import { now } from "../db/db";
 import { deleteSecret, getSecret, putSecret } from "../lib/crypto";
 import { badRequest } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
+import { mirrorImages } from "./images";
 
 /**
  * Off-machine backup copy (DATA-08): after the daily snapshot, a copy goes to a second place
@@ -53,7 +54,7 @@ export function updateMirror(input: { dir?: string; encrypt?: boolean; keep?: nu
     }
   }
   const encrypt = input.encrypt ?? cur.encrypt;
-  if (encrypt && !(secretId && getSecret(secretId))) throw badRequest("Set a passphrase to encrypt the copies");
+  if (dir && encrypt && !(secretId && getSecret(secretId))) throw badRequest("Set a passphrase to encrypt the copies, or turn encryption off");
   setSetting("backup.mirror", { ...cur, dir, encrypt, keep: Math.max(1, Math.min(90, input.keep ?? cur.keep)), secretId });
   return mirrorSettings();
 }
@@ -80,6 +81,9 @@ export function mirrorBackup(file: string) {
       target = join(cur.dir, basename(file));
       copyFileSync(source, target);
     }
+    // M36: pictures go too (each once; they never change). Encrypted like the database copy when that's on.
+    const imagePass = cur.encrypt ? getSecret(cur.secretId) : undefined;
+    mirrorImages(cur.dir, imagePass ? (b) => encryptBackup(b, imagePass) : undefined);
     const copies = readdirSync(cur.dir)
       .filter((f) => /^mea-.*\.db(\.enc)?$/.test(f))
       .map((f) => ({ f, t: statSync(join(cur.dir, f)).mtimeMs }))

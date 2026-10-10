@@ -95,15 +95,15 @@ export function severityOf(word: string | undefined): 1 | 2 | 3 | 4 {
   return 2;
 }
 
-/** Minutes of (from, to] in the night, 23:00–07:00. */
+/** Minutes of [from, to) in the night, 23:00–07:00. M26: closed form, however long the span. */
 export function nightMinutes(from: number, to: number) {
-  let n = 0;
-  const step = 15;
-  for (let t = from; t < to; t += step) {
+  if (to <= from) return 0;
+  // Night minutes from the start of the count up to t: 8 hours a day, plus the part of today.
+  const upTo = (t: number) => {
     const m = ((t % DAY) + DAY) % DAY;
-    if (m >= 23 * 60 || m < 7 * 60) n += Math.min(step, to - t);
-  }
-  return n;
+    return Math.floor(t / DAY) * 8 * 60 + Math.min(m, 7 * 60) + Math.max(0, m - 23 * 60);
+  };
+  return upTo(to) - upTo(from);
 }
 
 const MEALS = [8 * 60, 13 * 60, 19 * 60];

@@ -1,8 +1,9 @@
 import { one } from "../db/db";
 import { cleanText } from "../memory/text";
 import { getMessageRow } from "../services/chats";
+import { describeWhen } from "../trackers/calendars";
 import { describeMinutes } from "../trackers/clock";
-import { currentFold, eventsOf, foldAt } from "../trackers/store";
+import { currentFold, eventsOf, foldAt, trackerConfig } from "../trackers/store";
 import type { Issue } from "./checker";
 import { guardsFor } from "./guards";
 
@@ -16,8 +17,6 @@ const SKIP = /\b(later|hours? (?:pass|passed|later|go by|went by)|(?:next|follow
 const NEXT_DAY = /\b((?:the )?(?:next|following) (?:morning|day)|days? later|weeks? later|months? later|the morning after|the day after)\b/i;
 const FLASHBACK = /\b(remember(?:s|ed)?|years ago|back then|flashback|memory of|once,? long ago|as a child|in the past)\b/i;
 
-const clock = (m: number) => `day ${Math.floor(m / 1440) + 1}, ${String(Math.floor((((m % 1440) + 1440) % 1440) / 60)).padStart(2, "0")}:${String(((m % 60) + 60) % 60).padStart(2, "0")}`;
-
 export function timelineIssues(chatId: string, messageId: string): Omit<Issue, "id">[] {
   const cfg = guardsFor(chatId);
   if (!cfg.timeline) return [];
@@ -27,13 +26,19 @@ export function timelineIssues(chatId: string, messageId: string): Omit<Issue, "
   if (!sw?.content.trim()) return [];
   let before: number | null = null;
   let after: number | null = null;
+  let form: "day" | "date" = "day";
   try {
     before = foldAt(chatId, { uptoSeq: m.seq - 1 }).state.time?.minutes ?? null;
-    after = foldAt(chatId, { uptoSeq: m.seq }).state.time?.minutes ?? null;
+    const t = foldAt(chatId, { uptoSeq: m.seq }).state.time;
+    after = t?.minutes ?? null;
+    form = t?.form ?? form;
   } catch {
     return [];
   }
   if (before == null || after == null) return [];
+  // M27: in the chat's own calendar ("Thu, 14 March 2026 · 21:40"), not "day 739,685".
+  const calendar = trackerConfig(chatId).calendar;
+  const clock = (minutes: number) => describeWhen({ minutes, form }, calendar).label;
   const text = cleanText(sw.content);
   const delta = after - before;
   const cite = (label: string) => [{ ref: "T", type: "tracker" as const, label, messageId, seq: m.seq }];
@@ -59,7 +64,8 @@ export function timelineIssues(chatId: string, messageId: string): Omit<Issue, "
       conflict: `Time ran backwards by ${describeMinutes(-delta)}, and the reply doesn't read as a flashback.`,
       citations: cite(`story clock before this reply: ${clock(before)}`),
       fix: `Time can't go backwards: it's ${clock(before)} or later.`,
-      canon: { memory: `The story clock is at ${clock(before)}.`, trackerLine: `clock: +${-delta}m` },
+      // M27: only the clock moves; a memory about the time would bury true ones on a shared word.
+      canon: { trackerLine: `clock: +${-delta}m` },
       by: "rules",
     });
   else if (delta > cfg.maxJumpHours * 60 && !SKIP.test(text))
@@ -82,7 +88,7 @@ export function timelineIssues(chatId: string, messageId: string): Omit<Issue, "
         conflict: `The reply moves on ("${said}"), but the story clock only moved ${delta ? describeMinutes(delta) : "not at all"} (${clock(after)}).`,
         citations: cite(`story clock after this reply: ${clock(after)}`),
         fix: `It's still ${clock(after)}; don't skip ahead to another day.`,
-        canon: { memory: `Time skipped ahead: ${said}.`, trackerLine: `clock: +${1440 - (((after % 1440) + 1440) % 1440) + 8 * 60}m` },
+        canon: { trackerLine: `clock: +${1440 - (((after % 1440) + 1440) % 1440) + 8 * 60}m` },
         by: "rules",
       });
   }

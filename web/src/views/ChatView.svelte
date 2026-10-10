@@ -14,12 +14,13 @@
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
   import { delight } from "../lib/delight";
+  import { lock } from "../lib/applock.svelte";
   import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
   import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
   import MessageItem from "../components/chat/MessageItem.svelte";
   import Modal from "../components/Modal.svelte";
-  import { ApiError, del, get, imageUrl, patch, post, put } from "../lib/api";
+  import { ApiError, del, get, imageUrl, patch, post, put, storedMessage } from "../lib/api";
   import { confirm, promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessageQuestion, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
@@ -195,17 +196,7 @@
       messages = page.messages;
       hasMore = page.hasMore;
       hasModel = profiles.profiles.some((p) => p.connectionId && p.modelId);
-      const g: Record<string, string> = {};
-      for (const a of d.active) {
-        g[a.messageId] = a.generationId;
-        const m = messages.find((x) => x.id === a.messageId);
-        if (m) {
-          m.status = "streaming";
-          m.content = a.text;
-          m.reasoning = a.reasoning || m.reasoning;
-        }
-      }
-      gens = g;
+      applyActive(d);
       if (!recapChecked) {
         recapChecked = true;
         void maybeRecap(d).finally(markSeen);
@@ -230,6 +221,46 @@
   $effect(() => {
     void load();
   });
+
+  /** Replies being written right now, from the chat's detail: their text so far, and their generation. */
+  function applyActive(d: ChatDetail) {
+    const g: Record<string, string> = {};
+    for (const a of d.active) {
+      g[a.messageId] = a.generationId;
+      const m = messages.find((x) => x.id === a.messageId);
+      if (m) {
+        m.status = "streaming";
+        m.content = a.text;
+        m.reasoning = a.reasoning || m.reasoning;
+      }
+    }
+    gens = g;
+  }
+
+  /**
+   * M37: back from a dropped connection (an app switch on a phone): fetch only the end of the chat and
+   * merge it in, keeping the older pages you loaded and your place.
+   */
+  async function catchUp() {
+    if (!detail || !messages.length) return void load();
+    try {
+      // The last few are read again too: they may have been edited, swiped or deleted meanwhile.
+      const from = messages[Math.max(0, messages.length - 10)]!.seq - 1;
+      const [d, page] = await Promise.all([get<ChatDetail>(`/api/chats/${id}`), get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?after=${from}&limit=200`)]);
+      if (page.hasMore) return void load();
+      detail = d;
+      gens = {};
+      const fresh = new Set(page.messages.map((m) => m.id));
+      messages = messages.filter((m) => m.seq <= from || fresh.has(m.id));
+      for (const m of page.messages) upsert(m);
+      applyActive(d);
+      void loadBoundaries();
+      void loadFlags();
+      refreshPreview();
+    } catch {
+      // the next reconnect tries again
+    }
+  }
 
   // A link to another message of this chat (?at= or ?m=) jumps there without reloading.
   let lastJump = `${route.query.at ?? ""}|${route.query.m ?? ""}`;
@@ -483,7 +514,7 @@
   $effect(() =>
     onEvent((e) => {
       if (e.type === "reconnected") {
-        void load();
+        void catchUp();
         return;
       }
       if (!("chatId" in e) || e.chatId !== id) return;
@@ -578,6 +609,12 @@
     if (!scroller) return;
     trackView();
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 140;
+    // M21: back at the latest after a long jump, the far pages are let go (they load again on the way up).
+    if (stick && messages.length > 600) {
+      messages = messages.slice(-200);
+      hasMore = true;
+      return;
+    }
     if (scroller.scrollTop < 400 && hasMore && !loadingOlder && messages.length) {
       loadingOlder = true;
       const prevHeight = scroller.scrollHeight;
@@ -608,7 +645,9 @@
       scrollToBottom();
       return true;
     } catch (e) {
-      if (offerQuotaChoice(e, async (profileId) => void (await send("", true, false, profileId)))) {
+      // M38: only a message the server says it kept leaves the composer; otherwise the text comes back.
+      const stored = storedMessage(e);
+      if ((stored || !content.trim()) && offerQuotaChoice(e, async (profileId) => void (await send("", true, false, profileId)))) {
         await load();
         return true;
       }
@@ -619,9 +658,9 @@
         return true;
       }
       if (e instanceof ApiError && e.status !== 0) {
-        await load();
+        if (stored) await load();
         toast(e.message, { kind: "error", action: !hasModel ? { label: "Set up a model", run: () => navigate("/settings/models") } : undefined });
-        return true;
+        return stored;
       }
       errorToast(e);
       return false;
@@ -787,6 +826,9 @@
       return;
     }
     if (!lastMsg || lastMsg.role !== "assistant") return;
+    // M39: Option/Alt+arrows move by word in a text field; a dialog or the lock has the keyboard.
+    const t = e.target as HTMLElement | null;
+    if (t?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])") || document.querySelector("[aria-modal='true']") || lock.locked) return;
     if (e.altKey && e.key.toLowerCase() === "r" && !generating) {
       e.preventDefault();
       void regen(lastMsg);
@@ -1175,7 +1217,7 @@
   }
   .heart {
     font-size: 2rem;
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     animation: pulse 1.4s infinite;
   }
   .chat {

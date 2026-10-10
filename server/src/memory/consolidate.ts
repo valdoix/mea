@@ -6,9 +6,9 @@ import { activeGenerations } from "../services/generation";
 import { Deferred, type JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
-import { type AtomRow, insertAtom, mergeAtoms, supersede } from "./atoms";
+import { type AtomRow, getAtom, insertAtom, mergeAtoms, supersede } from "./atoms";
 import { chatVectors, cosine, embeddingsEnabled } from "./embed";
-import { type EntityData, entityFacts, getEntityRow, mergeEntities, duplicateSuggestions, resolver } from "./entities";
+import { type EntityData, entityFacts, getEntityRow, mergeEntities, duplicateSuggestions, norm, resolver } from "./entities";
 import { queueBuilds } from "./scheduler";
 import { memState, touchMemory } from "./store";
 import { contentWords, ftsQuery, overlap } from "./text";
@@ -118,6 +118,8 @@ export async function consolidate(chatId: string, job?: JobContext) {
         // the joined list is a fine digest too
       }
     }
+    // L14: you may have edited, pinned or deleted one while the model was writing; then the scene waits for the next sleep.
+    if (list.map((a) => getAtom(a.id)).some((a) => !a || !editable(a))) continue;
     const sources = all<{ message_id: string; seq: number }>(`SELECT DISTINCT message_id, seq FROM memory_sources WHERE memory_id IN (${list.map(() => "?").join(",")})`, ...list.map((a) => a.id));
     tx(() => {
       const id = insertAtom(
@@ -158,7 +160,10 @@ export async function consolidate(chatId: string, job?: JobContext) {
           user: `${e.description ? `CURRENT DESCRIPTION: ${e.description}\n` : ""}NOTES:\n${facts.map((f) => `- ${f.content}`).join("\n")}`,
           maxTokens: 160,
         });
-        const d = parseJson<Record<string, unknown>>(e.data, {});
+        // L14: re-read it; a description you locked or an entity merged meanwhile is left alone.
+        const cur = getEntityRow(e.id);
+        if (!cur || cur.merged_into || cur.deleted_at || (parseJson<EntityData>(cur.data, {}).locked ?? []).includes("description")) continue;
+        const d = parseJson<Record<string, unknown>>(cur.data, {});
         run(
           "UPDATE entities SET description = ?, data = ?, updated_at = ? WHERE id = ?",
           r.data.description.trim(),
@@ -173,9 +178,13 @@ export async function consolidate(chatId: string, job?: JobContext) {
     }
   }
 
-  // 4. The same entity under a title ("Captain Mira" and "Mira"): merged when neither is yours.
+  // 4. The same entity under another article ("The Raven" and "Raven"): merged when neither is yours.
+  // M25: a title makes it a suggestion only ("Captain Mira" may be Mira, "Mrs Smith" isn't Mr Smith),
+  // and two characters the trackers keep apart are never merged.
+  const bare = (n: string) => norm(n).split(" ").filter((w) => w !== "the" && w !== "a" && w !== "an").join(" ");
   for (const s of duplicateSuggestions(chatId)) {
     if (s.reason !== "same name" || s.keep.userEdited || s.merge.userEdited) continue;
+    if (bare(s.keep.name) !== bare(s.merge.name) || (s.keep.sources.includes("tracker") && s.merge.sources.includes("tracker"))) continue;
     if (!getEntityRow(s.keep.id)?.merged_into && !getEntityRow(s.merge.id)?.merged_into) {
       mergeEntities(s.keep.id, [s.merge.id]);
       run("UPDATE entities SET user_edited = 0 WHERE id = ?", s.keep.id);

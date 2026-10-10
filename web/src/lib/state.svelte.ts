@@ -46,15 +46,37 @@ mobileQuery.addEventListener("change", (e) => {
 });
 
 let toastSeq = 0;
+/** L15: each toast's countdown, paused while the pointer or focus is on it. */
+const toastTimers = new Map<number, { timer: ReturnType<typeof setTimeout> | null; left: number; since: number }>();
 export function toast(message: string, opts: { kind?: Toast["kind"]; action?: Toast["action"]; timeout?: number } = {}) {
   const t: Toast = { id: ++toastSeq, message, kind: opts.kind ?? "info", action: opts.action };
   app.toasts.push(t);
-  const timeout = opts.timeout ?? (opts.action ? 6500 : opts.kind === "error" ? 6000 : 3200);
-  setTimeout(() => dismissToast(t.id), timeout);
+  // An Undo gets 10 s: enough to notice it and reach it.
+  const timeout = opts.timeout ?? (opts.action ? 10_000 : opts.kind === "error" ? 6000 : 3200);
+  toastTimers.set(t.id, { timer: setTimeout(() => dismissToast(t.id), timeout), left: timeout, since: Date.now() });
   return t.id;
 }
 
+export function pauseToast(id: number) {
+  const t = toastTimers.get(id);
+  if (!t?.timer) return;
+  clearTimeout(t.timer);
+  t.timer = null;
+  t.left = Math.max(0, t.left - (Date.now() - t.since));
+}
+
+export function resumeToast(id: number) {
+  const t = toastTimers.get(id);
+  if (!t || t.timer) return;
+  t.since = Date.now();
+  // Never gone the instant the pointer leaves.
+  t.timer = setTimeout(() => dismissToast(id), Math.max(t.left, 1500));
+}
+
 export function dismissToast(id: number) {
+  const t = toastTimers.get(id);
+  if (t?.timer) clearTimeout(t.timer);
+  toastTimers.delete(id);
   const i = app.toasts.findIndex((t) => t.id === id);
   if (i >= 0) app.toasts.splice(i, 1);
 }
@@ -68,10 +90,23 @@ export async function loadSettings() {
   applyAppearance();
 }
 
+const settingWrites = new Map<string, number>();
 export async function saveSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
+  const before = app.settings ? $state.snapshot(app.settings[key]) : undefined;
+  const n = (settingWrites.get(key) ?? 0) + 1;
+  settingWrites.set(key, n);
   if (app.settings) app.settings[key] = value;
   applyAppearance();
-  app.settings = await put<Settings>("/api/settings", { [key]: value });
+  try {
+    app.settings = await put<Settings>("/api/settings", { [key]: value });
+  } catch (e) {
+    // L1: not saved: the screen goes back to what Mea has (unless something newer was set meanwhile).
+    if (app.settings && settingWrites.get(key) === n) {
+      app.settings[key] = before as Settings[K];
+      applyAppearance();
+    }
+    throw e;
+  }
 }
 
 const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");

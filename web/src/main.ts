@@ -26,8 +26,23 @@ import { mount } from "svelte";
 import App from "./App.svelte";
 import { registerServiceWorker } from "./lib/push";
 import { navigate } from "./lib/router.svelte";
+import { ApiError } from "./lib/api";
+import { errorToast } from "./lib/state.svelte";
 
 registerServiceWorker();
+
+// L1: an action that failed with nobody to catch it still says so, once.
+let lastRejection = { message: "", at: 0 };
+window.addEventListener("unhandledrejection", (e) => {
+  const r = e.reason;
+  if (r instanceof DOMException && r.name === "AbortError") return;
+  // Unpaired and locked answers have their own screens.
+  if (r instanceof ApiError && (r.code === "unpaired" || r.status === 423)) return;
+  const message = r instanceof Error ? r.message : String(r);
+  if (message === lastRejection.message && Date.now() - lastRejection.at < 4000) return;
+  lastRejection = { message, at: Date.now() };
+  errorToast(r);
+});
 
 // Notification clicks ask an open window to navigate (sw.js).
 navigator.serviceWorker?.addEventListener("message", (e) => {

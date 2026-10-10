@@ -161,15 +161,20 @@ const chatChanged = (chatId: string) => publish({ type: "chat.changed", chatId }
  * Called when a message that memory may already be built from changes: edit, delete, restore,
  * hide, or a different swipe chosen (MEM-10). The memory module registers itself here.
  */
-type LedgerHook = (chatId: string, messageId: string) => void;
+type LedgerHook = (chatId: string, messageId: string, change?: LedgerChange) => void;
+/** C3: a rewind says where the story now ends; an undone rewind names the messages that came back. */
+export interface LedgerChange {
+  rewoundTo?: number;
+  restored?: string[];
+}
 const ledgerHooks: LedgerHook[] = [];
 export function onLedgerEdit(fn: LedgerHook) {
   ledgerHooks.push(fn);
 }
-function ledgerEdited(chatId: string, messageId: string) {
+function ledgerEdited(chatId: string, messageId: string, change?: LedgerChange) {
   for (const h of ledgerHooks) {
     try {
-      h(chatId, messageId);
+      h(chatId, messageId, change);
     } catch (e) {
       console.error("[mea] memory hook failed:", e);
     }
@@ -211,7 +216,8 @@ export function getChat(id: string) {
   return r ? chatOut(r) : undefined;
 }
 
-export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number; collectionId?: string } = {}) {
+/** L17: `archived` lists the archive; `limit`/`offset` page the list (500 at most per page). */
+export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number; offset?: number; collectionId?: string } = {}) {
   const where = [opts.deleted ? "c.deleted_at IS NOT NULL" : "c.deleted_at IS NULL"];
   const params: (string | number)[] = [];
   if (!opts.deleted && !opts.collectionId) where.push(opts.archived ? "c.archived_at IS NOT NULL" : "c.archived_at IS NULL");
@@ -229,9 +235,10 @@ export function listChats(opts: { characterId?: string; archived?: boolean; dele
         WHERE m.chat_id = c.id AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 1) AS last_text,
        (SELECT m.role FROM messages m WHERE m.chat_id = c.id AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 1) AS last_role
      FROM chats c LEFT JOIN characters ch ON ch.id = c.character_id
-     WHERE ${where.join(" AND ")} ORDER BY COALESCE(c.last_message_at, c.created_at) DESC LIMIT ?`,
+     WHERE ${where.join(" AND ")} ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.id LIMIT ? OFFSET ?`,
     ...params,
-    opts.limit ?? 200,
+    Math.min(500, Math.max(1, opts.limit ?? 200)),
+    Math.max(0, opts.offset ?? 0),
   );
   const memberships = new Map<string, string[]>();
   for (const m of all<{ chat_id: string; collection_id: string }>("SELECT chat_id, collection_id FROM collection_chats")) memberships.set(m.chat_id, [...(memberships.get(m.chat_id) ?? []), m.collection_id]);
@@ -517,7 +524,8 @@ export function deleteSwipe(id: string, idx: number) {
   });
   msgChanged(m.chat_id, id);
   publish({ type: "continuity.changed", chatId: m.chat_id, messageId: id });
-  ledgerEdited(m.chat_id, id);
+  // L14: another version going leaves the story as it reads untouched; only the shown one changes it.
+  if (idx === m.active_swipe) ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
 }
 
@@ -553,6 +561,39 @@ export function restoreMessage(id: string) {
   msgChanged(m.chat_id, id);
   ledgerEdited(m.chat_id, id);
   return getMessage(id)!;
+}
+
+/**
+ * "Delete everything after this message" (CHAT-16): the rest goes to the trash and can be undone.
+ * C3: it goes through the ledger hooks like any delete, so memory and trackers drop the abandoned timeline.
+ */
+export function rewindAfter(messageId: string) {
+  const m = getMessageRow(messageId);
+  if (!m || m.deleted_at) throw notFound("Message not found");
+  const ids = all<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND seq > ? AND deleted_at IS NULL ORDER BY seq", m.chat_id, m.seq).map((r) => r.id);
+  if (!ids.length) return ids;
+  const t = now();
+  tx(() => {
+    for (const id of ids) run("UPDATE messages SET deleted_at = ? WHERE id = ?", t, id);
+    run("UPDATE chats SET message_count = (SELECT COUNT(*) FROM messages WHERE chat_id = ? AND deleted_at IS NULL), updated_at = ? WHERE id = ?", m.chat_id, t, m.chat_id);
+  });
+  chatChanged(m.chat_id);
+  ledgerEdited(m.chat_id, m.id, { rewoundTo: m.seq });
+  return ids;
+}
+
+/** Undoes a rewind: the messages come back, and memory and trackers pick them up again (C3). */
+export function restoreMessages(chatId: string, ids: string[]) {
+  const back = ids.length
+    ? all<{ id: string }>(`SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NOT NULL AND id IN (${ids.map(() => "?").join(",")}) ORDER BY seq`, chatId, ...ids).map((r) => r.id)
+    : [];
+  tx(() => {
+    for (const id of back) run("UPDATE messages SET deleted_at = NULL WHERE id = ? AND chat_id = ?", id, chatId);
+    run("UPDATE chats SET message_count = (SELECT COUNT(*) FROM messages WHERE chat_id = ? AND deleted_at IS NULL), updated_at = ? WHERE id = ?", chatId, now(), chatId);
+  });
+  chatChanged(chatId);
+  if (back.length) ledgerEdited(chatId, back[0]!, { restored: back });
+  return back.length;
 }
 
 /** Messages that go into the prompt: not deleted, not hidden, non-empty, oldest first. */

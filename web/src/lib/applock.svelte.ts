@@ -27,14 +27,15 @@ function readData(): LockData | null {
   }
 }
 
-export const lock = $state({ enabled: Boolean(readData()), locked: Boolean(readData()), biometric: Boolean(readData()?.credId) });
+/** `covered`: the app is in the background, so a plain cover hides it (and the app switcher's snapshot). */
+export const lock = $state({ enabled: Boolean(readData()), locked: Boolean(readData()), biometric: Boolean(readData()?.credId), covered: false });
 
 async function derive(pin: string, salt: Uint8Array) {
   const keyMat = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
   return b64(await crypto.subtle.deriveBits({ name: "PBKDF2", salt: salt as BufferSource, iterations: 150_000, hash: "SHA-256" }, keyMat, 256));
 }
 
-export async function setPin(pin: string) {
+async function writePin(pin: string) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const prev = readData();
   const data: LockData = { salt: b64(salt), hash: await derive(pin, salt), credId: prev?.credId };
@@ -43,24 +44,56 @@ export async function setPin(pin: string) {
   lock.locked = false;
 }
 
-export function removeLock() {
+/** Turns the lock on. M6: once it's on, changing the PIN needs the current one. */
+export async function setPin(pin: string, current?: string) {
+  if (readData() && !(await checkPin(current ?? ""))) return false;
+  await writePin(pin);
+  return true;
+}
+
+/** M6: turning the lock off needs the current PIN. */
+export async function removeLock(current: string) {
+  if (readData() && !(await checkPin(current))) return false;
   localStorage.removeItem(KEY);
+  localStorage.removeItem(FAILS);
   lock.enabled = false;
   lock.locked = false;
   lock.biometric = false;
+  return true;
 }
 
-let failures = 0;
-export async function unlockWithPin(pin: string) {
+// M6: wrong tries are counted on this device, so reloading the page doesn't reset the wait.
+const FAILS = "mea.lock.failures";
+function failures() {
+  try {
+    return Number(localStorage.getItem(FAILS)) || 0;
+  } catch {
+    return 0;
+  }
+}
+function setFailures(n: number) {
+  try {
+    if (n) localStorage.setItem(FAILS, String(n));
+    else localStorage.removeItem(FAILS);
+  } catch {
+    // storage unavailable
+  }
+}
+
+/** Checks a PIN; a few wrong ones slow the next try down. */
+async function checkPin(pin: string) {
   const d = readData();
-  if (!d) return (lock.locked = false), true;
-  // A few wrong PINs slow the next try down.
-  if (failures >= 3) await new Promise((r) => setTimeout(r, Math.min(30_000, 1000 * 2 ** (failures - 3))));
+  if (!d) return true;
+  const n = failures();
+  if (n >= 3) await new Promise((r) => setTimeout(r, Math.min(30_000, 1000 * 2 ** (n - 3))));
   const ok = (await derive(pin, unb64(d.salt))) === d.hash;
-  if (ok) {
-    failures = 0;
-    lock.locked = false;
-  } else failures++;
+  setFailures(ok ? 0 : failures() + 1);
+  return ok;
+}
+
+export async function unlockWithPin(pin: string) {
+  const ok = await checkPin(pin);
+  if (ok) lock.locked = false;
   return ok;
 }
 
@@ -95,7 +128,10 @@ export async function unlockWithBiometrics() {
     const got = await navigator.credentials.get({
       publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ id: unb64(d.credId), type: "public-key" }], userVerification: "required", timeout: 60_000 },
     });
-    if (got) lock.locked = false;
+    if (got) {
+      lock.locked = false;
+      setFailures(0);
+    }
     return Boolean(got);
   } catch {
     return false;
@@ -107,8 +143,15 @@ export function watchLock() {
   let hiddenAt = 0;
   const onVis = () => {
     if (!lock.enabled) return;
-    if (document.visibilityState === "hidden") hiddenAt = Date.now();
-    else if (hiddenAt && Date.now() - hiddenAt >= device.lockAfter * 60_000) lock.locked = true;
+    if (document.visibilityState === "hidden") {
+      hiddenAt = Date.now();
+      // M6: covered at once, so the app switcher's snapshot doesn't show the story; "right away" locks now.
+      if (device.lockAfter <= 0) lock.locked = true;
+      else lock.covered = true;
+    } else {
+      if (hiddenAt && Date.now() - hiddenAt >= device.lockAfter * 60_000) lock.locked = true;
+      lock.covered = false;
+    }
   };
   document.addEventListener("visibilitychange", onVis);
   return () => document.removeEventListener("visibilitychange", onVis);

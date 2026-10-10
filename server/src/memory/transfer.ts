@@ -11,7 +11,7 @@ import { enqueue, type JobContext } from "../services/jobs";
 import { invalidate } from "../trackers/store";
 import { isDuplicate } from "./atoms";
 import { embeddingsEnabled } from "./embed";
-import { memState, setMemState, touchMemory } from "./store";
+import { LEVELS, markStale, memState, recomputeEnds, setMemState, touchMemory } from "./store";
 
 /**
  * Memory export and import (DATA-05): a chat's summaries, memories (with their sources),
@@ -45,7 +45,8 @@ export function exportMemory(chatId: string) {
       "SELECT id, scene_id, type, content, entities, importance, emotions, story_time, known_by, status, confidence, pinned, user_edited, min_seq, max_seq, ledger, recall_count, ref_count FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'",
       chatId,
     ).map(({ id, scene_id, ...r }) => ({ ...r, scene: scene_id, entities: parseJson(r.entities as string, []), emotions: parseJson(r.emotions as string, []), known_by: parseJson(r.known_by as string, []), ledger: parseJson(r.ledger as string | null, null), sources: sources.get(id) ?? [] })),
-    entities: all<Record<string, unknown>>("SELECT kind, name, aliases, description, status, facts, data, first_seq, last_seq, mentions, user_edited FROM entities WHERE chat_id = ? AND merged_into IS NULL AND deleted_at IS NULL", chatId).map((r) => ({
+    // M30: deleted ones go too, so they stay deleted wherever the file goes.
+    entities: all<Record<string, unknown>>("SELECT kind, name, aliases, description, status, facts, data, first_seq, last_seq, mentions, user_edited, deleted_at FROM entities WHERE chat_id = ? AND merged_into IS NULL", chatId).map((r) => ({
       ...r,
       aliases: parseJson(r.aliases as string, []),
       facts: parseJson(r.facts as string, []),
@@ -99,7 +100,11 @@ const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
 const num = (v: unknown, d: number | null = null) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const json = (v: unknown, d: unknown) => JSON.stringify(v ?? d);
 
-/** The import job: small transactions with a breath between them, and progress as it goes. */
+/**
+ * The import job: small transactions with a breath between them, and progress as it goes. M30: a
+ * replace is one transaction (a failure leaves memory as it was), and a re-run (after a restart)
+ * doesn't add notes or highlights twice.
+ */
 export async function runMemoryImport(p: { chatId: string; file: string; mode: "merge" | "replace" }, job?: JobContext) {
   const data = fileSchema.parse(JSON.parse(readFileSync(p.file, "utf8")));
   const chatId = p.chatId;
@@ -110,27 +115,42 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
     publish({ type: "import.progress", chatId, done, total, label });
     job?.note({ done, total });
   };
-  const chunks = async <T>(rows: T[], label: string, fn: (r: T) => void) => {
-    for (let i = 0; i < rows.length; i += 200) {
-      tx(() => rows.slice(i, i + 200).forEach(fn));
-      done += Math.min(200, rows.length - i);
-      progress(label);
-      await Bun.sleep(0);
-    }
-  };
+  const steps: (() => Promise<void> | void)[] = [];
+  const chunks = <T>(rows: T[], label: string, fn: (r: T) => void) =>
+    steps.push(
+      p.mode === "replace"
+        ? () => {
+            rows.forEach(fn);
+            done += rows.length;
+          }
+        : async () => {
+            for (let i = 0; i < rows.length; i += 200) {
+              tx(() => rows.slice(i, i + 200).forEach(fn));
+              done += Math.min(200, rows.length - i);
+              progress(label);
+              await Bun.sleep(0);
+            }
+          },
+    );
 
   if (p.mode === "replace")
-    tx(() => {
-      for (const t of ["summaries", "memories", "entities", "journals", "cast_profiles", "highlights"]) run(`DELETE FROM ${t} WHERE chat_id = ?`, chatId);
+    steps.push(() => {
+      for (const t of ["summaries", "memories", "journals", "cast_profiles", "highlights"]) run(`DELETE FROM ${t} WHERE chat_id = ?`, chatId);
+      // Entities you deleted stay deleted (M30).
+      run("DELETE FROM entities WHERE chat_id = ? AND deleted_at IS NULL", chatId);
       run("DELETE FROM tracker_events WHERE chat_id = ? AND source != 'user'", chatId);
       run("DELETE FROM embeddings WHERE chat_id = ?", chatId);
     });
 
   const t = now();
+  const ends = new Map<string, number | null>();
   // Summaries keep their links to atoms through the file's own ids.
   const sceneIds = new Map<string, string>();
+  steps.push(() => {
+    for (const r of all<{ id: string; end_seq: number | null }>("SELECT id, end_seq FROM summaries WHERE chat_id = ?", chatId)) ends.set(r.id, r.end_seq);
+  });
   const haveSummary = (level: string, start: number) => Boolean(one("SELECT 1 FROM summaries WHERE chat_id = ? AND level = ? AND start_seq = ?", chatId, level, start));
-  await chunks(data.summaries, "summaries", (r) => {
+  chunks(data.summaries, "summaries", (r) => {
     const level = str(r.level);
     const start = num(r.start_seq, 0)!;
     if (!["scene", "chapter", "arc", "story"].includes(level) || haveSummary(level, start)) return;
@@ -143,7 +163,7 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
       str(r.state, "ready") === "building" ? "pending" : str(r.state, "ready"), num(r.user_edited, 0), num(r.importance), num(r.tokens, 0), num(r.source_tokens, 0), (r.source_hash as string | null) ?? null, (r.story_time as string | null) ?? null, t, t,
     );
   });
-  await chunks(data.memories, "memories", (r) => {
+  chunks(data.memories, "memories", (r) => {
     const content = str(r.content).trim();
     if (!content || (p.mode === "merge" && isDuplicate(chatId, content))) return;
     const id = newId();
@@ -158,16 +178,25 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
       if (mid) run("INSERT OR IGNORE INTO memory_sources (memory_id, message_id, seq) VALUES (?, ?, ?)", id, mid, seq);
     }
   });
-  const haveEntity = new Set(all<{ name: string }>("SELECT name FROM entities WHERE chat_id = ?", chatId).map((e) => e.name.toLowerCase()));
-  await chunks(data.entities, "people and places", (r) => {
+  // M30: merging moves scene and chapter ends; rows whose range changed are built again.
+  steps.push(() => {
+    for (const level of LEVELS) recomputeEnds(chatId, level);
+    for (const r of all<{ id: string; end_seq: number | null }>("SELECT id, end_seq FROM summaries WHERE chat_id = ?", chatId)) if (ends.has(r.id) && ends.get(r.id) !== r.end_seq) markStale(r.id);
+  });
+  let haveEntity = new Set<string>();
+  steps.push(() => {
+    haveEntity = new Set(all<{ name: string }>("SELECT name FROM entities WHERE chat_id = ?", chatId).map((e) => e.name.toLowerCase()));
+  });
+  chunks(data.entities, "people and places", (r) => {
     const name = str(r.name).trim();
     if (!name || haveEntity.has(name.toLowerCase())) return;
+    haveEntity.add(name.toLowerCase());
     run(
-      `INSERT INTO entities (id, chat_id, kind, name, aliases, description, status, facts, data, first_seq, last_seq, mentions, user_edited, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      newId(), chatId, str(r.kind, "person"), name, json(r.aliases, []), str(r.description), str(r.status, "active"), json(r.facts, []), json(r.data, {}), num(r.first_seq), num(r.last_seq), num(r.mentions, 0), num(r.user_edited, 0), t, t,
+      `INSERT INTO entities (id, chat_id, kind, name, aliases, description, status, facts, data, first_seq, last_seq, mentions, user_edited, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      newId(), chatId, str(r.kind, "person"), name, json(r.aliases, []), str(r.description), str(r.status, "active"), json(r.facts, []), json(r.data, {}), num(r.first_seq), num(r.last_seq), num(r.mentions, 0), num(r.user_edited, 0), t, t, num(r.deleted_at),
     );
   });
-  await chunks(data.journals, "journals", (r) => {
+  chunks(data.journals, "journals", (r) => {
     const name = str(r.name).trim();
     if (!name) return;
     run(
@@ -176,25 +205,38 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
     );
   });
   // The tracker ledger only goes into a chat that doesn't have one (merging two ledgers would double every change).
-  const hasLedger = Boolean(one("SELECT 1 FROM tracker_events WHERE chat_id = ? AND source != 'user' LIMIT 1", chatId));
-  await chunks(hasLedger ? [] : data.trackers, "story state", (r) => {
+  // M30: your own edits kept here aren't added again from the file ("+50 gold" once).
+  const hasLedger = p.mode !== "replace" && Boolean(one("SELECT 1 FROM tracker_events WHERE chat_id = ? AND source != 'user' LIMIT 1", chatId));
+  const hasYours = Boolean(one("SELECT 1 FROM tracker_events WHERE chat_id = ? AND source = 'user' LIMIT 1", chatId));
+  chunks(hasLedger ? [] : data.trackers, "story state", (r) => {
+    if (hasYours && str(r.source, "model") === "user") return;
     const seq = num(r.seq);
     const mid = seq == null ? null : msgBySeq.get(seq);
     if (seq != null && !mid) return;
     run("INSERT INTO tracker_events (id, chat_id, message_id, swipe_idx, source, ord, op, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", newId(), chatId, mid ?? null, num(r.swipe, -1), str(r.source, "model"), num(r.ord, 0), json(r.op, {}), t);
   });
   done += hasLedger ? data.trackers.length : 0;
-  await chunks(data.cast, "cast", (r) => {
+  chunks(data.cast, "cast", (r) => {
     const name = str(r.name).trim();
     if (name) run("INSERT INTO cast_profiles (chat_id, name_key, name, data, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(chat_id, name_key) DO NOTHING", chatId, name.toLowerCase().replace(/\s+/g, " "), name, json(r.data, {}), t);
   });
-  await chunks(data.notes, "notes", (r) => {
+  chunks(data.notes, "notes", (r) => {
+    if (one("SELECT 1 FROM notes WHERE chat_id = ? AND title = ? AND body = ? AND deleted_at IS NULL", chatId, str(r.title), str(r.body))) return;
     if (str(r.body).trim() || str(r.title).trim()) run("INSERT INTO notes (id, chat_id, title, body, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", newId(), chatId, str(r.title), str(r.body), num(r.pinned, 0), t, t);
   });
-  await chunks(data.highlights, "highlights", (r) => {
+  chunks(data.highlights, "highlights", (r) => {
     const mid = msgBySeq.get(num(r.seq, -1)!);
+    if (mid && one("SELECT 1 FROM highlights WHERE message_id = ? AND text = ?", mid, str(r.text))) return;
     if (mid && str(r.text).trim()) run("INSERT INTO highlights (id, chat_id, message_id, text, note, created_at) VALUES (?, ?, ?, ?, ?, ?)", newId(), chatId, mid, str(r.text), str(r.note), t);
   });
+
+  if (p.mode === "replace") {
+    // One transaction: the steps run synchronously inside it.
+    tx(() => {
+      for (const s of steps) s();
+    });
+    progress("story");
+  } else for (const s of steps) await s();
 
   // Memory picks up after what was imported instead of segmenting it again.
   const reach = one<{ s: number | null }>("SELECT MAX(COALESCE(end_seq, start_seq)) AS s FROM summaries WHERE chat_id = ? AND level = 'scene'", chatId)?.s ?? 0;

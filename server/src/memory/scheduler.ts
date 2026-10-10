@@ -1,13 +1,14 @@
-import { newId, now, one, run } from "../db/db";
+import { all, newId, now, one, run, tx } from "../db/db";
 import { memoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
-import { getMessageRow } from "../services/chats";
+import { getMessageRow, type LedgerChange } from "../services/chats";
 import { activeGenerations } from "../services/generation";
 import { Deferred, enqueue, type JobContext } from "../services/jobs";
 import { shouldShed } from "../services/quota";
-import { markAtomsStaleForMessage } from "./atoms";
+import { dropAtoms, markAtomsStaleForMessage } from "./atoms";
 import { buildSummary, chatNames, confirmBoundary, storyNeedsRebuild } from "./build";
 import { embeddingsEnabled } from "./embed";
+import { syncTrackerMemories } from "../trackers/service";
 import { currentFold } from "../trackers/store";
 import { autoTitle } from "../services/stories";
 import { reconcileScene } from "./reconcile";
@@ -15,13 +16,16 @@ import { detectBoundary, type BoundarySignal } from "./segment";
 import {
   childrenOf,
   ensureRoots,
+  LEVELS,
   getSummary,
   formatLedger,
   ledger,
+  ledgerBefore,
   type LedgerRow,
   levelRows,
   markStale,
   memState,
+  recomputeEnds,
   rowAt,
   setMemState,
   settledThrough,
@@ -55,6 +59,10 @@ export async function segmentChat(chatId: string, job?: JobContext) {
 
   const settled = settledThrough(chatId, cfg.lag);
   const fresh = ledger(chatId, state.segmentedThrough + 1, settled);
+  // M29: a rebuild from scratch while this pass waits on a model call makes the rest of it moot;
+  // the pass starts over (the rebuild's own request was folded into this running job).
+  const epoch = state.epoch ?? 0;
+  const reset = () => (memState(chatId).epoch ?? 0) !== epoch;
   if (fresh.length) {
     const first = one<{ seq: number }>("SELECT MIN(seq) AS seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.seq ?? fresh[0]!.seq;
     ensureRoots(chatId, first);
@@ -62,7 +70,7 @@ export async function segmentChat(chatId: string, job?: JobContext) {
     let sceneId = "";
     let sceneRows: LedgerRow[] = [];
     let sceneTokens = 0;
-    let prev: LedgerRow | null = ledger(chatId, 0, fresh[0]!.seq - 1).at(-1) ?? null;
+    let prev: LedgerRow | null = ledgerBefore(chatId, fresh[0]!.seq);
     // The scene tracker (Phase 2) knows when the story moved: a new scene it recorded is a
     // break; a change of place is a likely one that the boundary check confirms.
     let tracked: Record<string, { kind: string; text: string; newScene?: boolean }[]> = {};
@@ -107,6 +115,7 @@ export async function segmentChat(chatId: string, job?: JobContext) {
               if ((e as Error).name === "Deferred") throw e;
               cut = `${signal.kind}: ${signal.detail}`;
             }
+            if (reset()) throw new Deferred("Memory was rebuilt from scratch meanwhile", 1000);
           } else cut = `${signal.kind}: ${signal.detail}`;
         }
         if (!cut && sceneTokens + tokens > cfg.sceneTokenCap && sceneRows.length >= 2) cut = `length: over ${cfg.sceneTokenCap} tokens`;
@@ -221,21 +230,82 @@ export function requestRebuild(chatId: string, summaryId: string, opts: { instru
 /**
  * A message changed after memory was made from it (MEM-10): its scene, chapter, arc, and the
  * Story So Far become stale, and so do atoms citing it. Auto mode rebuilds them in the background.
+ * A rewind (C3) cuts memory back to where the story now ends.
  */
-export function onLedgerChange(chatId: string, messageId: string) {
-  const m = getMessageRow(messageId);
-  if (!m) return;
+export function onLedgerChange(chatId: string, messageId: string, change?: LedgerChange) {
+  if (change?.rewoundTo != null) return onRewind(chatId, change.rewoundTo);
+  // An undone rewind: messages memory hasn't reached are segmented again; the rest rebuild where they fall.
+  const ids = change?.restored ?? [messageId];
   const state = memState(chatId);
-  if (m.seq > state.segmentedThrough) return;
-  markAtomsStaleForMessage(messageId);
-  for (const level of ["scene", "chapter", "arc"] as const) {
-    const row = rowAt(chatId, level, m.seq);
-    if (row?.closed) markStale(row.id);
+  let touched = false;
+  for (const id of ids) {
+    const m = getMessageRow(id);
+    if (!m || m.seq > state.segmentedThrough) continue;
+    markAtomsStaleForMessage(id);
+    for (const level of LEVELS) {
+      const row = rowAt(chatId, level, m.seq);
+      if (row?.closed) markStale(row.id);
+    }
+    const story = storyRow(chatId);
+    if (story && (story.end_seq ?? 0) >= m.seq) markStale(story.id);
+    touched = true;
   }
-  const story = storyRow(chatId);
-  if (story && (story.end_seq ?? 0) >= m.seq) markStale(story.id);
+  if (touched) touchMemory(chatId);
+  if (touched || change?.restored) scheduleMemory(chatId, 5000);
+}
+
+/**
+ * C3: a swipe or continue finished on a message memory was already built from (after a rewind, the
+ * newest message can be one): its scene and the rows above it are rebuilt as after an edit.
+ * Generation calls this when a swipe or continue ends; it does nothing for messages memory hasn't reached
+ * (besides H5: the trackers' memories follow the swipe now shown).
+ */
+export function ledgerChangedAfterReply(chatId: string, messageId: string) {
+  // H5: a new swipe is shown now; memories the trackers made from the one before go.
+  syncTrackerMemories(chatId, messageId);
+  const m = getMessageRow(messageId);
+  if (!m || m.seq > memState(chatId).segmentedThrough) return;
+  onLedgerChange(chatId, messageId);
+}
+
+/**
+ * C3: the story now ends at `seq` (a rewind). Rows that begin after it described the abandoned
+ * timeline and go, with their AI memories; the rows that held `seq` reopen and wait to be built
+ * once they close again; the markers, the journals and the Story So Far move back with it.
+ */
+export function onRewind(chatId: string, seq: number) {
+  const state = memState(chatId);
+  tx(() => {
+    const gone = all<{ id: string }>("SELECT id FROM summaries WHERE chat_id = ? AND level != 'story' AND start_seq > ?", chatId, seq).map((r) => r.id);
+    for (const id of gone) dropRowAtoms(id);
+    if (gone.length) {
+      run(`DELETE FROM embeddings WHERE owner_type = 'summary' AND owner_id IN (${gone.map(() => "?").join(",")})`, ...gone);
+      run(`DELETE FROM summaries WHERE id IN (${gone.map(() => "?").join(",")})`, ...gone);
+    }
+    for (const level of LEVELS) {
+      recomputeEnds(chatId, level);
+      // The row that held `seq` is open again: it isn't canon until it's rebuilt.
+      const row = rowAt(chatId, level, seq);
+      if (row && row.state !== "pending") run("UPDATE summaries SET state = 'pending', updated_at = ? WHERE id = ?", now(), row.id);
+    }
+    const story = storyRow(chatId);
+    if (story && (story.end_seq ?? 0) > seq) run("UPDATE summaries SET state = 'pending', end_seq = NULL, updated_at = ? WHERE id = ?", now(), story.id);
+    // Memories that reach past the rewind point are stale; recall leaves out stale ones whose sources are gone.
+    run("UPDATE memories SET stale = 1, updated_at = ? WHERE chat_id = ? AND user_edited = 0 AND COALESCE(max_seq, 0) > ?", now(), chatId, seq);
+    // M24: journals that took in the abandoned scenes are written again from what's left (yours wait as proposals).
+    run("UPDATE journals SET content = CASE WHEN user_edited = 1 THEN content ELSE '' END, proposal = NULL, through_seq = 0, updated_at = ? WHERE chat_id = ? AND through_seq > ?", now(), chatId, seq);
+    // A segmentation pass waiting on a model call starts over too (M29).
+    setMemState(chatId, { segmentedThrough: Math.min(state.segmentedThrough, seq), evictedThrough: Math.min(state.evictedThrough, seq), recap: undefined, epoch: (state.epoch ?? 0) + 1 });
+  });
   touchMemory(chatId);
   scheduleMemory(chatId, 5000);
+  if (memoryConfig().journals) enqueue("memory.journal", { chatId }, { dedupeKey: `memory.journal:${chatId}`, delayMs: 20_000, priority: 0, chatId });
+}
+
+/** A summary row's AI memories go with it; the ones you edited or pinned stay, unfiled and stale. */
+function dropRowAtoms(summaryId: string) {
+  dropAtoms("scene_id = ? AND user_edited = 0 AND pinned = 0", summaryId);
+  run("UPDATE memories SET scene_id = NULL, stale = 1 WHERE scene_id = ?", summaryId);
 }
 
 /** Manual structure controls (MEM-04). */

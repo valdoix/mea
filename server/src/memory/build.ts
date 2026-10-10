@@ -3,11 +3,11 @@ import { memoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 import { getCard } from "../services/characters";
 import { getChatRow } from "../services/chats";
-import type { JobContext } from "../services/jobs";
+import { Deferred, type JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { getDefaultPersona, getPersona } from "../services/personas";
 import { shouldShed } from "../services/quota";
-import { type AtomRow, insertAtom, isDuplicate, supersede } from "./atoms";
+import { type AtomRow, dropAtoms, insertAtom, isDuplicate, supersede } from "./atoms";
 import {
   boundarySchema,
   boundarySystem,
@@ -26,12 +26,15 @@ import {
 } from "./prompts";
 import {
   childrenOf,
+  dirtyBuilds,
   formatLedger,
   getSummary,
   ledger,
   ledgerTokens,
   levelRows,
+  markStale,
   removeBoundary,
+  rowAt,
   saveVersion,
   type SummaryRow,
   storyRow,
@@ -63,8 +66,14 @@ function relatedAtoms(chatId: string, text: string, beforeSeq: number, sceneId: 
       )
     : [];
   const pinned = all<AtomRow>("SELECT * FROM memories WHERE chat_id = ? AND pinned = 1 AND deleted_at IS NULL AND status = 'active' LIMIT 20", chatId);
+  // M23: facts this scene's old record superseded are revived by the rebuild; the new record decides about them again.
+  const revived = all<AtomRow>(
+    "SELECT * FROM memories WHERE chat_id = ? AND status = 'superseded' AND deleted_at IS NULL AND superseded_by IN (SELECT id FROM memories WHERE scene_id = ? AND user_edited = 0 AND pinned = 0) LIMIT 20",
+    chatId,
+    sceneId,
+  );
   const seen = new Set<string>();
-  return [...pinned, ...byFts].filter((a) => !seen.has(a.id) && seen.add(a.id)).slice(0, 40);
+  return [...revived, ...pinned, ...byFts].filter((a) => !seen.has(a.id) && seen.add(a.id)).slice(0, 40);
 }
 
 interface SceneBuild {
@@ -157,6 +166,8 @@ function applyScene(row: SummaryRow, b: SceneBuild) {
   tx(() => {
     const cur = getSummary(row.id)!;
     saveVersion(cur, cur.user_edited ? "user" : "ai", "before rebuild");
+    // M24: journals that already took in this scene fold its new record in again.
+    if (cur.built_at != null) run("UPDATE journals SET through_seq = ?, updated_at = ? WHERE chat_id = ? AND through_seq >= ?", Math.max(0, row.start_seq - 1), now(), row.chat_id, row.start_seq);
     run(
       `UPDATE summaries SET title = ?, content = ?, data = ?, state = 'ready', error = NULL, verification = ?, importance = ?, tokens = ?, source_tokens = ?,
          source_hash = ?, story_time = ?, proposal = NULL, user_edited = 0, built_at = ?, updated_at = ? WHERE id = ?`,
@@ -173,19 +184,26 @@ function applyScene(row: SummaryRow, b: SceneBuild) {
       now(),
       row.id,
     );
-    // Replace AI atoms from this scene; atoms you edited or pinned stay.
-    run("DELETE FROM memories WHERE scene_id = ? AND user_edited = 0 AND pinned = 0", row.id);
+    // L14: facts you corrected ("That's wrong") stay on record, so reading the wrong version again files it under your correction.
+    const keyOf = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
+    const yours = "SELECT id FROM memories WHERE user_edited = 1 AND deleted_at IS NULL";
+    const corrected = new Map(
+      all<{ content: string; superseded_by: string }>(`SELECT content, superseded_by FROM memories WHERE scene_id = ? AND status = 'superseded' AND superseded_by IN (${yours})`, row.id).map((r) => [keyOf(r.content), r.superseded_by]),
+    );
+    // Replace AI atoms from this scene; atoms you edited or pinned stay. M23: what they superseded comes back first.
+    dropAtoms(`scene_id = ? AND user_edited = 0 AND pinned = 0 AND NOT (status = 'superseded' AND superseded_by IN (${yours}))`, row.id);
     run("UPDATE memories SET stale = 0 WHERE scene_id = ?", row.id);
-    const all = b.rows.map((m) => ({ id: m.id, seq: m.seq }));
+    const every = b.rows.map((m) => ({ id: m.id, seq: m.seq }));
     // The scene's old AI atoms are gone now, so anything matching is a real duplicate, even one
     // from this very record (a model can repeat a memory) or one you kept in this scene.
     const seen = new Set<string>();
     for (const m of o.memories) {
-      const key = m.content.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
-      if (!key || seen.has(key) || isDuplicate(row.chat_id, m.content)) continue;
+      const key = keyOf(m.content);
+      // A fact you corrected, read again, is already on record under your correction.
+      if (!key || seen.has(key) || corrected.has(key) || isDuplicate(row.chat_id, m.content)) continue;
       seen.add(key);
       let sources = m.sources.map((s) => bySeq.get(Math.round(s))).filter((x): x is NonNullable<typeof x> => Boolean(x)).map((x) => ({ id: x.id, seq: x.seq }));
-      if (!sources.length) sources = all.length <= 3 ? all : [all.at(-1)!];
+      if (!sources.length) sources = every.length <= 3 ? every : [every.at(-1)!];
       const targets = m.supersedes
         .map((label) => b.related[Number(String(label).replace(/\D/g, "")) - 1])
         .filter((a): a is AtomRow => Boolean(a));
@@ -209,17 +227,50 @@ function applyScene(row: SummaryRow, b: SceneBuild) {
       );
       if (!locked) for (const t of targets) supersede(t.id, id);
     }
+    parentsStale(cur);
+  });
+}
+
+/** M19: a row has new content, so the chapter, arc and Story So Far built over it are rebuilt to match. */
+function parentsStale(row: SummaryRow) {
+  const up = row.level === "scene" ? (["chapter", "arc"] as const) : row.level === "chapter" ? (["arc"] as const) : [];
+  for (const lv of up) {
+    const p = rowAt(row.chat_id, lv, row.start_seq);
+    if (p?.closed) markStale(p.id);
+  }
+  const story = row.level === "story" ? null : storyRow(row.chat_id);
+  if (story?.end_seq != null && story.end_seq >= row.start_seq) markStale(story.id);
+}
+
+/** H4: the sources changed while the model was writing (an edit, a swipe, a delete): the record is already out of date. */
+function changedMidBuild(id: string, hash: (row: SummaryRow) => string, built: string) {
+  const dirty = dirtyBuilds.delete(id);
+  const fresh = getSummary(id);
+  return Boolean(fresh) && (dirty || hash(fresh!) !== built);
+}
+const sceneHash = (row: SummaryRow) => hashText(formatLedger(ledger(row.chat_id, row.start_seq, row.end_seq ?? Number.MAX_SAFE_INTEGER), chatNames(row.chat_id)));
+const rollupHash = (parts: SummaryRow[]) => hashText(parts.map((p) => `${p.id}:${p.source_hash ?? ""}:${p.updated_at}`).join("|"));
+const midBuild = () => new Deferred("Its messages changed while it was being written", 3000);
+
+/** M22: every message in a scene was deleted or hidden: its AI memories go and it folds into a neighbour, never left "building". */
+function foldEmptyScene(row: SummaryRow) {
+  tx(() => {
+    dropAtoms("scene_id = ? AND user_edited = 0 AND pinned = 0", row.id);
+    const prev = one("SELECT 1 FROM summaries WHERE chat_id = ? AND level = 'scene' AND start_seq < ?", row.chat_id, row.start_seq);
+    const next = one<{ start_seq: number }>("SELECT start_seq FROM summaries WHERE chat_id = ? AND level = 'scene' AND start_seq > ? ORDER BY start_seq LIMIT 1", row.chat_id, row.start_seq);
+    if (prev) removeBoundary(row.chat_id, "scene", row.start_seq);
+    else if (next) removeBoundary(row.chat_id, "scene", next.start_seq);
+    // The first scene took in the next one: it's built again from what's there now.
+    run("UPDATE summaries SET state = 'pending', updated_at = ? WHERE id = ? AND state = 'building'", now(), row.id);
   });
 }
 
 async function buildScene(row: SummaryRow, opts: BuildOptions) {
   const cur = getSummary(row.id)!;
   const b = await runScenePass(cur, opts);
-  if (!b) {
-    // Every message in the scene was deleted or hidden: fold it into its neighbour.
-    removeBoundary(row.chat_id, "scene", row.start_seq);
-    return;
-  }
+  if (!b) return foldEmptyScene(cur);
+  if (!getSummary(row.id)) return; // gone meanwhile (a rewind, a rebuild from scratch)
+  if (changedMidBuild(row.id, sceneHash, b.sourceHash)) throw midBuild();
   if (opts.propose || cur.user_edited) {
     // Your edited summary is never overwritten: the rebuild waits as a proposal (MEM-10 diff preview).
     run("UPDATE summaries SET state = 'review', proposal = ?, updated_at = ? WHERE id = ?", JSON.stringify({ title: b.output.title, content: renderScene(b.output), data: b.output, verification: b.verification, at: now(), kind: "scene", hash: b.sourceHash, sourceTokens: b.sourceTokens }), now(), row.id);
@@ -230,17 +281,20 @@ async function buildScene(row: SummaryRow, opts: BuildOptions) {
 
 const ROLLUP_CHILD: Record<"chapter" | "arc", "scene" | "chapter"> = { chapter: "scene", arc: "chapter" };
 
+/** M19: a child counts with the content it has now (ready, in review, stale or failed on a rebuild); one never built leaves a hole. */
+const hasContent = (r: SummaryRow) => Boolean(r.content.trim()) && r.state !== "pending";
+
 /** Inputs for a chapter, arc, or the Story So Far, built only from the level below (SUM-01, SUM-02). */
 function rollupInputs(row: SummaryRow): { parts: SummaryRow[]; endSeq: number | null } {
   if (row.level === "story") {
     // Rewritten from arcs (plus closed chapters after the last arc), never rolled forward (SUM-02).
-    const arcs = levelRows(row.chat_id, "arc").filter((a) => a.closed && a.state === "ready");
+    const arcs = levelRows(row.chat_id, "arc").filter((a) => a.closed && hasContent(a));
     const after = arcs.at(-1)?.end_seq ?? 0;
-    const chapters = levelRows(row.chat_id, "chapter").filter((c) => c.closed && c.state === "ready" && c.start_seq > after);
+    const chapters = levelRows(row.chat_id, "chapter").filter((c) => c.closed && hasContent(c) && c.start_seq > after);
     const parts = [...arcs, ...chapters];
     return { parts, endSeq: parts.at(-1)?.end_seq ?? null };
   }
-  return { parts: childrenOf(row, ROLLUP_CHILD[row.level as "chapter" | "arc"]).filter((c) => c.state === "ready"), endSeq: row.end_seq };
+  return { parts: childrenOf(row, ROLLUP_CHILD[row.level as "chapter" | "arc"]).filter(hasContent), endSeq: row.end_seq };
 }
 
 async function buildRollup(row: SummaryRow, opts: BuildOptions) {
@@ -265,8 +319,10 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
   const r = await callJson({ task: "summarizer", kind: level, chatId: row.chat_id, jobId: opts.job?.id, name: "summary_rollup", schema: rollupSchema, system: rollupSystem(level, names), user, maxTokens: memoryConfig().compression[level] === "detailed" ? 4000 : 3000, signal: opts.signal });
   r.data.moments = memoryConfig().moments ? carryMoments(parts) : [];
   const content = renderRollup(r.data, level);
-  const hash = hashText(parts.map((p) => `${p.id}:${p.source_hash ?? ""}:${p.updated_at}`).join("|"));
-  const cur = getSummary(row.id)!;
+  const hash = rollupHash(parts);
+  const cur = getSummary(row.id);
+  if (!cur) return;
+  if (changedMidBuild(row.id, (fresh) => rollupHash(rollupInputs(fresh).parts), hash)) throw midBuild();
   if (opts.propose || cur.user_edited) {
     run("UPDATE summaries SET state = 'review', proposal = ?, updated_at = ? WHERE id = ?", JSON.stringify({ title: r.data.title, content, data: r.data, at: now(), kind: level, hash, endSeq }), now(), row.id);
     return;
@@ -288,6 +344,7 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
       now(),
       ...(level === "story" ? [endSeq, row.id] : [row.id]),
     );
+    parentsStale(cur);
   });
 }
 
@@ -321,6 +378,7 @@ export async function buildSummary(id: string, opts: BuildOptions = {}) {
   if (!row) return;
   if (row.level !== "story" && !row.closed) return; // open rows are still being written
   run("UPDATE summaries SET state = 'building', error = NULL, updated_at = ? WHERE id = ?", now(), id);
+  dirtyBuilds.delete(id);
   touchMemory(row.chat_id);
   try {
     if (row.level === "scene") await buildScene(row, opts);
@@ -331,7 +389,8 @@ export async function buildSummary(id: string, opts: BuildOptions = {}) {
       const deferred = (e as Error).name === "Deferred";
       run(
         "UPDATE summaries SET state = ?, error = ?, updated_at = ? WHERE id = ?",
-        deferred ? (prev.content ? "stale" : "pending") : "error",
+        // A row a rewind reopened meanwhile waits to close again (C3).
+        deferred ? (prev.content && (prev.closed || prev.level === "story") ? "stale" : "pending") : "error",
         deferred ? null : (e as Error).message.slice(0, 500),
         now(),
         id,
@@ -378,6 +437,7 @@ export function acceptProposal(id: string) {
         now(),
         ...(row.level === "story" ? [p.endSeq ?? row.end_seq, id] : [id]),
       );
+      parentsStale(row);
     });
   }
   touchMemory(row.chat_id);
@@ -409,6 +469,7 @@ export function editSummary(id: string, patch: { title?: string; content?: strin
       now(),
       id,
     );
+    parentsStale(row);
   });
   touchMemory(row.chat_id);
   return getSummary(id);
@@ -428,6 +489,7 @@ export function restoreSummaryVersion(id: string, versionId: string) {
   tx(() => {
     saveVersion(row, row.user_edited ? "user" : "ai", "before restoring an older version");
     run("UPDATE summaries SET title = ?, content = ?, data = ?, tokens = ?, user_edited = 1, updated_at = ? WHERE id = ?", v.title, v.content, v.data, countTokens(v.content), now(), id);
+    parentsStale(row);
   });
   touchMemory(row.chat_id);
   return getSummary(id);

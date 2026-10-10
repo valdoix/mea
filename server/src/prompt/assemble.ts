@@ -7,6 +7,9 @@ import { cleanText, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
 import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock } from "./preset";
 
+/** M12: the line that marks a main prompt as Mea's Charter (prompt/mea.ts), which a card's system prompt doesn't replace. */
+const CHARTER_MARK = "What decides, highest first";
+
 export interface ChatMessage {
   role: Role;
   content: string;
@@ -32,8 +35,10 @@ export interface AssembleInput {
   history: HistoryMessage[];
   authorsNote?: { content: string; depth?: number; role?: Role };
   lore: ActivationResult | null;
-  /** Prompt size target in tokens (CTX-01), not the model's maximum. */
+  /** Prompt size target in tokens (CTX-01), not the model's maximum. It includes the reply's room. */
   contextTarget: number;
+  /** H3: tokens kept free for the reply (max_tokens as sent, thinking included). Defaults to the preset's max_tokens. */
+  reserve?: number;
   modelId: string;
   vars: Record<string, string>;
   seed: string;
@@ -221,9 +226,10 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   };
   const x = (s: string | undefined) => expandMacros(s ?? "", ctx).trim();
   const lore = input.lore?.placements;
-  const reserve = preset.samplers.max_tokens ?? 1200;
+  const reserve = input.reserve ?? preset.samplers.max_tokens ?? 1200;
   const ratio = input.tokenRatio && input.tokenRatio > 0 ? input.tokenRatio : 1;
-  const effectiveTarget = Math.floor(input.contextTarget / ratio);
+  // H3: the reply's room comes off the target in provider tokens, then the rest is scaled to Mea's estimate.
+  const effectiveTarget = Math.floor(Math.max(0, input.contextTarget - reserve) / ratio);
 
   const inline: Inline[] = [];
   const depthItems: DepthItem[] = [];
@@ -244,8 +250,15 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     let content = "";
     switch (block.kind) {
       case "text":
-        content = block.id === "main" && card.system_prompt.trim() ? x(card.system_prompt.replace(/\{\{original\}\}/gi, block.content ?? "")) : x(block.content);
-        if (block.id === "main" && card.system_prompt.trim()) trace.note = "replaced by the character's system prompt";
+        if (block.id === "main" && card.system_prompt.trim() && (block.content ?? "").includes(CHARTER_MARK)) {
+          // M12: Mea's Charter stays; the card's own system prompt follows it as the card's instructions.
+          const own = x(card.system_prompt.replace(/\{\{original\}\}/gi, ""));
+          content = [x(block.content), own && `[The character card's own instructions]\n${own}`].filter(Boolean).join("\n\n");
+          trace.note = "the character's system prompt follows the Charter";
+        } else {
+          content = block.id === "main" && card.system_prompt.trim() ? x(card.system_prompt.replace(/\{\{original\}\}/gi, block.content ?? "")) : x(block.content);
+          if (block.id === "main" && card.system_prompt.trim()) trace.note = "replaced by the character's system prompt";
+        }
         break;
       case "character":
         content = characterBlock(card, x);
@@ -348,11 +361,12 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   }
 
   const tail: ChatMessage[] = [];
-  if (input.kind === "continue") tail.push({ role: "system", content: x(preset.continuePrompt) });
+  // L8: a story or continue request never ends on a reply already written (it would read as a prefill).
+  if (input.kind === "continue") tail.push({ role: "system", content: x(preset.continuePrompt) || "[Continue your last reply from where it stopped.]" });
   if (input.kind === "impersonate") tail.push({ role: "system", content: x(preset.impersonationPrompt) });
   if (input.kind === "expand") tail.push({ role: "system", content: x(preset.expandPrompt) });
   // Nothing new from the player, and the last message is already a reply: the world moves on.
-  if (input.kind === "story" && input.history.at(-1)?.role === "assistant" && preset.waitPrompt.trim()) tail.push({ role: "system", content: x(preset.waitPrompt) });
+  if (input.kind === "story" && input.history.at(-1)?.role === "assistant") tail.push({ role: "system", content: x(preset.waitPrompt) || "[Continue the story.]" });
   if (input.kind === "story" && preset.prefill.trim()) tail.push({ role: "assistant", content: x(preset.prefill) });
 
   const fixed =
@@ -360,7 +374,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     depthItems.reduce((n, d) => n + (d.content ? tok(d.content) : 0), 0) +
     tail.reduce((n, m) => n + tok(m.content), 0) +
     (triggered && recallItem ? tok(triggered) : 0);
-  const available = Math.max(0, effectiveTarget - reserve - fixed - 32);
+  const available = Math.max(0, effectiveTarget - fixed - 32);
 
   // Memory: the Story So Far, recalled memories, and which messages stay verbatim.
   const mem = input.memory?.(available);

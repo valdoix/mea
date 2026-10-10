@@ -136,7 +136,7 @@
     padding: 0.2rem;
   }
   .star.on {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
   }
   @media (max-width: 760px) {
     .badges .chip:nth-child(n + 3) {

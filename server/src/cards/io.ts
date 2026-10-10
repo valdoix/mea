@@ -27,11 +27,40 @@ export function parseCardFile(bytes: Uint8Array, filename = ""): ParsedCard {
   return { data, spec, extraImages: [] };
 }
 
+/** H10: zip-bomb limits. Only card.json and icon entries are inflated, each by its declared size. */
+export const CHARX_LIMITS = { cardJson: 16 * 1024 * 1024, asset: 25 * 1024 * 1024, total: 64 * 1024 * 1024 };
+
 function parseCharx(bytes: Uint8Array): ParsedCard {
-  const files = unzipSync(bytes);
-  const cardFile = files["card.json"];
+  // Pass 1: card.json only. fflate allocates `originalSize` up front and won't grow past it.
+  const head = unzipSync(bytes, {
+    filter: (f) => {
+      if (f.name !== "card.json") return false;
+      if (f.originalSize > CHARX_LIMITS.cardJson) throw new Error("card.json is too large");
+      return true;
+    },
+  });
+  const cardFile = head["card.json"];
   if (!cardFile) throw new Error("CHARX archive has no card.json");
   const { data, spec } = normalizeCard(JSON.parse(strFromU8(cardFile)));
+  const wanted = new Set<string>();
+  for (const asset of data.assets ?? []) {
+    const uri = asset.uri ?? "";
+    const path = uri.replace(/^embedd?ed:\/\//, "");
+    if (path !== uri && asset.type === "icon") wanted.add(path);
+  }
+  // Pass 2: only the icon entries card.json names, each capped, with a cap on the total.
+  let total = 0;
+  const files = wanted.size
+    ? unzipSync(bytes, {
+        filter: (f) => {
+          if (!wanted.has(f.name)) return false;
+          if (f.originalSize > CHARX_LIMITS.asset) return false;
+          total += f.originalSize;
+          if (total > CHARX_LIMITS.total) throw new Error("The card's images are too large");
+          return true;
+        },
+      })
+    : {};
   const icons: { bytes: Uint8Array; mime: string; name: string }[] = [];
   for (const asset of data.assets ?? []) {
     const uri = asset.uri ?? "";

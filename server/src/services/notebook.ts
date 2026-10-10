@@ -31,32 +31,45 @@ export interface NoteLink {
   kind: "entity" | "lore" | "missing";
 }
 
+/** L5: one lore index (and one Codex resolver per chat) for a whole list of notes, built on first use. */
+function linkContext() {
+  let loreIndex: Map<string, { bookId: string; entryId: string }> | null = null;
+  const resolvers = new Map<string, ReturnType<typeof resolver>>();
+  return {
+    lore() {
+      if (!loreIndex) {
+        loreIndex = new Map();
+        for (const b of listLorebooks()) {
+          const book = getLorebook(b.id);
+          for (const e of book?.entries ?? []) for (const n of [e.comment, ...e.keys, ...(extraOf(e).aliases ?? [])]) if (n?.trim() && !loreIndex.has(norm(n))) loreIndex.set(norm(n), { bookId: b.id, entryId: e.id });
+        }
+      }
+      return loreIndex;
+    },
+    resolver(chatId: string) {
+      let r = resolvers.get(chatId);
+      if (!r) resolvers.set(chatId, (r = resolver(chatId)));
+      return r;
+    },
+  };
+}
+type LinkContext = ReturnType<typeof linkContext>;
+
 /** What each [[Name]] in a note points at: the chat's people and places first, then lore. */
-function linksFor(body: string, chatId: string | null): NoteLink[] {
+function linksFor(body: string, chatId: string | null, ctx: LinkContext): NoteLink[] {
   const names = [...new Set([...body.matchAll(/\[\[([^\]|]{1,80})(?:\|[^\]]*)?\]\]/g)].map((m) => m[1]!.trim()))];
   if (!names.length) return [];
-  const res = chatId ? resolver(chatId) : null;
-  let loreIndex: Map<string, { bookId: string; entryId: string }> | null = null;
-  const lore = () => {
-    if (!loreIndex) {
-      loreIndex = new Map();
-      for (const b of listLorebooks()) {
-        const book = getLorebook(b.id);
-        for (const e of book?.entries ?? []) for (const n of [e.comment, ...e.keys, ...(extraOf(e).aliases ?? [])]) if (n?.trim() && !loreIndex.has(norm(n))) loreIndex.set(norm(n), { bookId: b.id, entryId: e.id });
-      }
-    }
-    return loreIndex;
-  };
+  const res = chatId ? ctx.resolver(chatId) : null;
   return names.map((text) => {
     const ent = res?.find(text);
     if (ent && chatId) return { text, href: `/chat/${chatId}/codex?entity=${ent.id}`, kind: "entity" as const };
-    const hit = lore().get(norm(text));
+    const hit = ctx.lore().get(norm(text));
     if (hit) return { text, href: `/lorebooks/${hit.bookId}?entry=${hit.entryId}`, kind: "lore" as const };
     return { text, href: null, kind: "missing" as const };
   });
 }
 
-const noteOut = (r: NoteRow) => ({ id: r.id, chatId: r.chat_id, title: r.title, body: r.body, pinned: Boolean(r.pinned), createdAt: r.created_at, updatedAt: r.updated_at, links: linksFor(r.body, r.chat_id) });
+const noteOut = (r: NoteRow, ctx: LinkContext = linkContext()) => ({ id: r.id, chatId: r.chat_id, title: r.title, body: r.body, pinned: Boolean(r.pinned), createdAt: r.created_at, updatedAt: r.updated_at, links: linksFor(r.body, r.chat_id, ctx) });
 export type NoteOut = ReturnType<typeof noteOut>;
 
 export function listNotes(opts: { chatId?: string | null; scope?: "chat" | "global" | "all"; deleted?: boolean } = {}) {
@@ -67,7 +80,8 @@ export function listNotes(opts: { chatId?: string | null; scope?: "chat" | "glob
     where.push(opts.scope === "chat" ? "chat_id = ?" : "(chat_id = ? OR chat_id IS NULL)");
     params.push(opts.chatId);
   }
-  return all<NoteRow>(`SELECT * FROM notes WHERE ${where.join(" AND ")} ORDER BY pinned DESC, updated_at DESC LIMIT 500`, ...params).map(noteOut);
+  const ctx = linkContext();
+  return all<NoteRow>(`SELECT * FROM notes WHERE ${where.join(" AND ")} ORDER BY pinned DESC, updated_at DESC LIMIT 500`, ...params).map((r) => noteOut(r, ctx));
 }
 
 export function createNote(input: { chatId?: string | null; title?: string; body?: string; pinned?: boolean }) {

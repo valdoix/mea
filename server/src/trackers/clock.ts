@@ -31,6 +31,8 @@ function ymd(y: string, mo: string, d: string, h?: string, mi?: string): StoryTi
   const date = new Date(Date.UTC(2000, Number(mo) - 1, Number(d), Number(h ?? 12), Number(mi ?? 0)));
   date.setUTCFullYear(Number(y));
   if (Number.isNaN(date.getTime())) return null;
+  // M26: no February 30th (the date would roll over into March).
+  if (date.getUTCMonth() !== Number(mo) - 1 || date.getUTCDate() !== Number(d)) return null;
   return { minutes: Math.round((date.getTime() - YEAR1) / 60_000), form: "date" };
 }
 

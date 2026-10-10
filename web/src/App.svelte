@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import Dialogs from "./components/Dialogs.svelte";
   import Modal from "./components/Modal.svelte";
   import Sidebar from "./components/Sidebar.svelte";
@@ -11,7 +11,7 @@
   import { layout, railShown, setFocus, toggleRail } from "./lib/layout.svelte";
   import Toasts from "./components/Toasts.svelte";
   import { get, setSourceHandler, setUnpairedHandler } from "./lib/api";
-  import { flushOutbox, outbox } from "./lib/outbox.svelte";
+  import { clearOutbox, flushOutbox, outbox } from "./lib/outbox.svelte";
   import { connectEvents } from "./lib/events";
   import { onEdgeSwipe } from "./lib/gestures";
   import { Menu, WifiOff } from "./lib/icons";
@@ -56,19 +56,36 @@
 
   // ARCH-11: reading from this device's saved copy, and sending what waited once Mea is back.
   setSourceHandler((fromCache) => (app.offlineCopy = fromCache));
+  // H8: only the connection and the queue's length start a flush; what the flush itself changes doesn't.
+  let wasConnected = false;
   $effect(() => {
-    if (app.connected && outbox.items.length) void flushOutbox();
+    const back = app.connected && !wasConnected;
+    wasConnected = app.connected;
+    if (app.connected && outbox.items.length) untrack(() => void flushOutbox({ now: back }));
   });
   onMount(() => {
-    const online = () => void flushOutbox();
+    const online = () => void flushOutbox({ now: true });
     window.addEventListener("online", online);
     return () => window.removeEventListener("online", online);
   });
 
   setUnpairedHandler(() => {
     app.authorized = false;
+    forgetDevice();
     if (route.name !== "pair") navigate("/pair", { replace: true });
   });
+
+  /** M7: unpaired or revoked: the saved chats, images, drafts and waiting messages leave this device. */
+  function forgetDevice() {
+    navigator.serviceWorker?.controller?.postMessage({ type: "purge" });
+    if ("caches" in window) void Promise.all(["mea-api-v1", "mea-images-v2"].map((c) => caches.delete(c))).catch(() => {});
+    clearOutbox();
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith("mea.draft.")) localStorage.removeItem(k);
+    } catch {
+      // storage unavailable
+    }
+  }
 
   onMount(() => {
     void boot();
@@ -115,6 +132,7 @@
       app.local = who.local;
       app.authorized = who.authorized;
       if (!who.authorized) {
+        forgetDevice();
         if (route.name !== "pair") navigate("/pair", { replace: true });
         ready = true;
         return;
@@ -170,7 +188,10 @@
   });
 </script>
 
-{#if !ready}
+<!-- M6: while locked, only the lock is drawn: nothing behind it to tab to, read aloud or trigger. -->
+{#if lock.locked}
+  <AppLock />
+{:else if !ready}
   <div class="boot"><span class="heart">✿</span></div>
 {:else if unreachable}
   <div class="boot">
@@ -236,10 +257,12 @@
   {/if}
 {/if}
 
-<Toasts />
-<Dialogs />
-{#if ready && !unreachable && !vaultLocked && !bare && app.authorized && !lock.locked}<CommandPalette />{/if}
-{#if lock.locked}<AppLock />{/if}
+{#if !lock.locked}
+  <Toasts />
+  <Dialogs />
+  {#if ready && !unreachable && !vaultLocked && !bare && app.authorized}<CommandPalette />{/if}
+  {#if lock.covered}<div class="privacy-cover" aria-hidden="true"><span class="heart">✿</span></div>{/if}
+{/if}
 
 <style>
   .boot {
@@ -248,9 +271,17 @@
     place-items: center;
     padding: 2rem;
   }
+  .privacy-cover {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+  }
   .heart {
     font-size: 2.4rem;
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     animation: pulse 1.4s ease-in-out infinite;
   }
   .shell {
@@ -293,7 +324,7 @@
     text-decoration: none !important;
   }
   .brand span {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     font-size: 0.8em;
     margin-left: 0.15em;
   }

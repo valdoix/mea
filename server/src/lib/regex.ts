@@ -38,15 +38,86 @@ export function compileFind(find: string): RegExp | null {
   return re;
 }
 
-export function applyRegex(text: string, scripts: RegexScript[], scope: { role: "ai" | "user"; mode: RegexScript["mode"]; characterId?: string | null }) {
+/** M33: text shapes that make a backtracking pattern blow up, each ending on a character that forces a failed match. */
+const PROBE_UNITS = ["a", "a ", "word ", " ", "a\n", "1", ".", "*a*", '"a" ', "ab"];
+const PROBE_ENDS = ["!", "\u0000", ""];
+/** Probe lengths grow in small steps, so a pattern that blows up is caught soon after it starts to slow. */
+const PROBE_LENGTHS = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 40, 60, 90, 135, 200, 300, 450, 675, 1000, 1500];
+/** M33: a pattern slower than this on a probe is turned away when it's saved. */
+export const VET_BUDGET_MS = 25;
+
+/**
+ * M33: checks a pattern before it's saved: it must compile, and it must stay fast on texts built to
+ * make backtracking explode. Returns the problem, or null when the pattern is fine.
+ */
+export function vetPattern(find: string): string | null {
+  if (!find) return null;
+  const re = compileFind(find);
+  if (!re) return "isn't a valid pattern";
+  for (const unit of PROBE_UNITS) {
+    for (const end of PROBE_ENDS) {
+      for (const n of PROBE_LENGTHS) {
+        const text = unit.repeat(Math.ceil(n / unit.length)) + end;
+        re.lastIndex = 0;
+        const t0 = performance.now();
+        text.replace(re, "");
+        if (performance.now() - t0 > VET_BUDGET_MS) return `takes too long on a ${text.length}-character text (it backtracks); simplify nested repeats like (a+)+ or (\\w+\\s?)+`;
+      }
+    }
+  }
+  return null;
+}
+
+/** For the settings schema: each script's pattern is vetted when the list is saved. */
+export const vettedRegexScriptSchema = regexScriptSchema.superRefine((s, ctx) => {
+  const problem = vetPattern(s.find);
+  if (problem) ctx.addIssue({ code: "custom", path: ["find"], message: `Regex script "${s.name || s.id}": the pattern ${problem}.` });
+});
+
+/** M33: a prompt pass's shared state: scripts that ran too long are skipped for the rest of it. */
+export interface RegexPass {
+  slow: Set<string>;
+}
+
+/** M33: a script slower than this on one message is skipped for the rest of the pass. */
+export const SCRIPT_BUDGET_MS = 50;
+
+/** M33: prompt-pass results by scripts + scope + text; the history barely changes from turn to turn. */
+const results = new Map<string, string>();
+const RESULT_CAP = 5000;
+
+export function applyRegex(text: string, scripts: RegexScript[], scope: { role: "ai" | "user"; mode: RegexScript["mode"]; characterId?: string | null }, pass?: RegexPass) {
+  const active = scripts.filter(
+    (s) => s.enabled && s.mode === scope.mode && s.targets.includes(scope.role) && (!s.characterIds.length || (scope.characterId != null && s.characterIds.includes(scope.characterId))),
+  );
+  if (!active.length) return text;
+  const key = pass ? `${Bun.hash(JSON.stringify(active.map((s) => [s.find, s.replace])))}:${scope.role}:${text.length}:${Bun.hash(text)}` : "";
+  if (pass) {
+    const hit = results.get(key);
+    if (hit !== undefined) return hit;
+  }
   let out = text;
-  for (const s of scripts) {
-    if (!s.enabled || s.mode !== scope.mode || !s.targets.includes(scope.role)) continue;
-    if (s.characterIds.length && (!scope.characterId || !s.characterIds.includes(scope.characterId))) continue;
+  let skipped = false;
+  for (const s of active) {
+    if (pass?.slow.has(s.id)) {
+      skipped = true;
+      continue;
+    }
     const re = compileFind(s.find);
     if (!re) continue;
     re.lastIndex = 0;
+    const t0 = performance.now();
     out = out.replace(re, s.replace.replace(/\{\{match\}\}/gi, "$$&"));
+    const ms = performance.now() - t0;
+    if (ms > SCRIPT_BUDGET_MS) {
+      console.warn(`[mea] regex script "${s.name}" took ${Math.round(ms)} ms on one message${pass ? "; skipped for the rest of this prompt" : ""}`);
+      pass?.slow.add(s.id);
+    }
+  }
+  // A pass that skipped a slow script isn't the real result: it's worked out again next time.
+  if (pass && !skipped) {
+    results.set(key, out);
+    if (results.size > RESULT_CAP) results.delete(results.keys().next().value!);
   }
   return out;
 }

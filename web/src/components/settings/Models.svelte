@@ -136,7 +136,12 @@
 
   async function removeConnection(c: Connection) {
     if (!(await confirm({ title: `Remove ${c.name}?`, message: "Its key is deleted. Profiles using it stop working until you pick another model.", confirmLabel: "Remove", danger: true }))) return;
-    await del(`/api/connections/${c.id}`);
+    try {
+      await del(`/api/connections/${c.id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     await load();
   }
 
@@ -167,7 +172,12 @@
 
   async function removeProfile(p: Profile) {
     if (!(await confirm({ title: `Delete profile “${p.name}”?`, confirmLabel: "Delete", danger: true }))) return;
-    await del(`/api/profiles/${p.id}`);
+    try {
+      await del(`/api/profiles/${p.id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     await load();
   }
 

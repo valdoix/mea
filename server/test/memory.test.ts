@@ -101,7 +101,10 @@ describe("providers", () => {
     expect(system[0]!.cache_control).toEqual({ type: "ephemeral" });
     expect(messages[0]!.role).toBe("user");
     // the system note merges into the final user turn
-    expect(messages.at(-1)!.content.map((b) => b.text)).toEqual(["[Memory notes]", "Latest"]);
+    // L9: tagged as Mea's, so it doesn't read as the player's words; the system prompt says what the tag means
+    expect(messages.at(-1)!.content.map((b) => b.text)).toEqual(["<mea_note>\n[Memory notes]\n</mea_note>", "Latest"]);
+    expect(system).toHaveLength(1);
+    expect(system[0]!.text).toContain("<mea_note>");
     const marked = messages.findIndex((m) => m.content.some((b) => b.cache_control));
     expect(messages[marked]!.content.at(-1)!.text).toBe("Hello");
   });

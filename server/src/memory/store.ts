@@ -45,9 +45,11 @@ export interface ChatMemoryState {
   version: number;
   paused?: boolean;
   /** SUM-15: the last "previously on…" recap, for the story as of this seq. */
-  recap?: { text: string; seq: number; at: number };
+  recap?: { text: string; seq: number; at: number; hash?: string };
   /** SUM-19: a rebuild from scratch in progress (when it started, what it was estimated to take). */
   rebuild?: { startedAt: number; estimate: Record<string, number | null> } | null;
+  /** M29: bumped by a rebuild from scratch, so a pass already running stops instead of writing into it. */
+  epoch?: number;
 }
 
 const DEFAULT_STATE: ChatMemoryState = { segmentedThrough: 0, evictedThrough: 0, version: 0 };
@@ -92,6 +94,20 @@ export function ledger(chatId: string, from = 0, to = Number.MAX_SAFE_INTEGER): 
     chatId,
     from,
     to,
+  );
+}
+
+/** The visible message just before `seq` (M20: one row, not the whole chat). */
+export function ledgerBefore(chatId: string, seq: number): LedgerRow | null {
+  return (
+    one<LedgerRow>(
+      `SELECT m.id, m.seq, m.role, m.name, s.content, m.created_at FROM messages m
+       JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+       WHERE m.chat_id = ? AND m.deleted_at IS NULL AND m.hidden = 0 AND s.status NOT IN ('error', 'streaming') AND TRIM(s.content) != '' AND m.seq < ?
+       ORDER BY m.seq DESC LIMIT 1`,
+      chatId,
+      seq,
+    ) ?? null
   );
 }
 
@@ -197,8 +213,12 @@ export function ensureRoots(chatId: string, firstSeq: number) {
   }
 }
 
+/** H4: rows whose sources changed while they were being built; the build saves them stale and runs again. */
+export const dirtyBuilds = new Set<string>();
+
 /** Marks a summary as needing a rebuild because its sources changed (MEM-10). */
 export function markStale(id: string) {
+  if (one("SELECT 1 FROM summaries WHERE id = ? AND state = 'building'", id)) dirtyBuilds.add(id);
   run("UPDATE summaries SET state = CASE WHEN state IN ('ready', 'review', 'error') THEN 'stale' ELSE state END, updated_at = ? WHERE id = ?", now(), id);
 }
 
@@ -254,6 +274,7 @@ export function removeBoundary(chatId: string, level: Level, seq: number) {
       const prev = one<SummaryRow>("SELECT * FROM summaries WHERE chat_id = ? AND level = ? AND start_seq < ? ORDER BY start_seq DESC LIMIT 1", chatId, lv, seq);
       if (!prev) continue; // the first row can't merge backwards
       run("DELETE FROM summaries WHERE id = ?", row.id);
+      run("DELETE FROM embeddings WHERE owner_type = 'summary' AND owner_id = ?", row.id);
       run("UPDATE memories SET scene_id = ? WHERE scene_id = ?", lv === "scene" ? prev.id : null, row.id);
       markStale(prev.id);
       recomputeEnds(chatId, lv);
@@ -276,7 +297,10 @@ export function resetChatMemory(chatId: string, keepUserWork = true) {
       run("DELETE FROM memories WHERE chat_id = ? AND user_edited = 0 AND pinned = 0", chatId);
     } else run("DELETE FROM memories WHERE chat_id = ?", chatId);
     run("DELETE FROM embeddings WHERE chat_id = ? AND owner_type = 'summary'", chatId);
-    setMemState(chatId, { segmentedThrough: 0, evictedThrough: 0 });
+    // M31: and the vectors of the memories that just went.
+    run("DELETE FROM embeddings WHERE chat_id = ? AND owner_type = 'memory' AND owner_id NOT IN (SELECT id FROM memories WHERE chat_id = ?)", chatId, chatId);
+    const s = memState(chatId);
+    setMemState(chatId, { segmentedThrough: 0, evictedThrough: 0, epoch: (s.epoch ?? 0) + 1 });
   });
 }
 
@@ -292,6 +316,12 @@ export function saveVersion(row: SummaryRow, source: "ai" | "user" | "restore", 
     source,
     note ?? null,
     now(),
+  );
+  // M31: the history is capped (the inspector shows the newest 50).
+  run(
+    "DELETE FROM summary_versions WHERE summary_id = ? AND id NOT IN (SELECT id FROM summary_versions WHERE summary_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50)",
+    row.id,
+    row.id,
   );
 }
 
