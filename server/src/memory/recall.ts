@@ -1,7 +1,7 @@
 import { all, parseJson } from "../db/db";
 import type { MemoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
-import type { AtomRow } from "./atoms";
+import { type AtomRow, sourcesLive } from "./atoms";
 import { deepSearch, RECALL_CUE } from "./deep";
 import { chatVectors, cosine } from "./embed";
 import { entityCard, entityFacts, norm, resolver, type EntityRow } from "./entities";
@@ -154,7 +154,7 @@ export function recall(input: RecallInput) {
 
   // MEM-13: never recall what is already verbatim in the window. MEM-16: filter before ranking.
   const allAtoms = all<AtomRow>(
-    "SELECT * FROM memories WHERE chat_id = ? AND pinned = 0 AND deleted_at IS NULL AND status IN ('active', 'disputed') AND COALESCE(min_seq, 0) <= ?",
+    `SELECT * FROM memories WHERE chat_id = ? AND pinned = 0 AND deleted_at IS NULL AND status IN ('active', 'disputed') AND COALESCE(min_seq, 0) <= ? AND ${sourcesLive("memories")}`,
     chatId,
     evicted,
   );

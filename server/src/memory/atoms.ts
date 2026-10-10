@@ -99,6 +99,14 @@ export function atomSources(id: string) {
   return all<{ message_id: string; seq: number }>("SELECT message_id, seq FROM memory_sources WHERE memory_id = ? ORDER BY seq", id).map((s) => ({ messageId: s.message_id, seq: s.seq }));
 }
 
+/**
+ * SQL condition (for a memories row named `a`): C3, a stale memory whose sources were all deleted
+ * (a rewind, a delete) is about a story that no longer happened, so recall and the cards leave it out.
+ */
+export const sourcesLive = (a: string) =>
+  `NOT (${a}.stale = 1 AND EXISTS (SELECT 1 FROM memory_sources ms WHERE ms.memory_id = ${a}.id)
+    AND NOT EXISTS (SELECT 1 FROM memory_sources ms JOIN messages mm ON mm.id = ms.message_id WHERE ms.memory_id = ${a}.id AND mm.deleted_at IS NULL))`;
+
 /** Inserts an atom with its source links (principle 2: every fact has a source). */
 export function insertAtom(chatId: string, sceneId: string | null, a: NewAtom, sources: { id: string; seq: number }[]) {
   const id = newId();
@@ -128,6 +136,20 @@ export function insertAtom(chatId: string, sceneId: string | null, a: NewAtom, s
   );
   for (const s of sources) run("INSERT OR IGNORE INTO memory_sources (memory_id, message_id, seq) VALUES (?, ?, ?)", id, s.id, s.seq);
   return id;
+}
+
+/**
+ * Deletes AI-made memories for good (a rebuild or a rollback replaces them). M23: what they had
+ * superseded is active again, for the next build to supersede again or leave standing; M31: their vectors go too.
+ */
+export function dropAtoms(where: string, ...params: (string | number | null)[]) {
+  const ids = all<{ id: string }>(`SELECT id FROM memories WHERE ${where}`, ...params).map((r) => r.id);
+  if (!ids.length) return 0;
+  const list = ids.map(() => "?").join(",");
+  run(`UPDATE memories SET status = 'active', superseded_by = NULL, updated_at = ? WHERE status = 'superseded' AND superseded_by IN (${list})`, now(), ...ids);
+  run(`DELETE FROM embeddings WHERE owner_type = 'memory' AND owner_id IN (${list})`, ...ids);
+  run(`DELETE FROM memories WHERE id IN (${list})`, ...ids);
+  return ids.length;
 }
 
 /** Marks `oldId` as superseded by `newId`, keeping its history (MEM-07). */
@@ -241,14 +263,21 @@ export function updateAtom(id: string, patch: { content?: string; type?: string;
 
 export function deleteAtom(id: string) {
   const a = mustAtom(id);
-  run("UPDATE memories SET deleted_at = ?, updated_at = ? WHERE id = ?", now(), now(), id);
+  tx(() => {
+    run("UPDATE memories SET deleted_at = ?, updated_at = ? WHERE id = ?", now(), now(), id);
+    // M23: what it had replaced holds again (still pointing at it, so a restore can put it back).
+    run("UPDATE memories SET status = 'active', updated_at = ? WHERE status = 'superseded' AND superseded_by = ? AND deleted_at IS NULL", now(), id);
+  });
   touchMemory(a.chat_id);
 }
 
 export function restoreAtom(id: string) {
   const a = getAtom(id);
   if (!a) throw notFound("Memory not found");
-  run("UPDATE memories SET deleted_at = NULL, updated_at = ? WHERE id = ?", now(), id);
+  tx(() => {
+    run("UPDATE memories SET deleted_at = NULL, updated_at = ? WHERE id = ?", now(), id);
+    if (a.deleted_at && a.status !== "superseded") run("UPDATE memories SET status = 'superseded', updated_at = ? WHERE status = 'active' AND superseded_by = ?", now(), id);
+  });
   touchMemory(a.chat_id);
   return atomOut(getAtom(id)!, { sources: atomSources(id) });
 }
