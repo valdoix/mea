@@ -70,5 +70,6 @@ describe("security (SEC-07..10)", () => {
     expect((await call("PUT", "/api/settings", { body: { "routing.timeouts": { story: "soon" } } })).status).toBe(400);
     expect((await call("PUT", "/api/settings", { body: { "lore.defaults": "nope" } })).status).toBe(400);
     expect((await call("PUT", "/api/settings", { body: { "backup.hourlyKeep": 12 } })).status).toBe(200);
+    expect((await call("PUT", "/api/settings", { body: { "regex.scripts": [{ id: "slow", name: "Slow", find: "/(a+)+$/", replace: "", targets: ["ai"], mode: "prompt", enabled: true }] } })).status).toBe(400);
   });
 });

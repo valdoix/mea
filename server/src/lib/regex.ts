@@ -38,6 +38,42 @@ export function compileFind(find: string): RegExp | null {
   return re;
 }
 
+/** M33: text shapes that make a backtracking pattern blow up, each ending on a character that forces a failed match. */
+const PROBE_UNITS = ["a", "a ", "word ", " ", "a\n", "1", ".", "*a*", '"a" ', "ab"];
+const PROBE_ENDS = ["!", "\u0000", ""];
+/** Probe lengths grow in small steps, so a pattern that blows up is caught soon after it starts to slow. */
+const PROBE_LENGTHS = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 40, 60, 90, 135, 200, 300, 450, 675, 1000, 1500];
+/** M33: a pattern slower than this on a probe is turned away when it's saved. */
+export const VET_BUDGET_MS = 25;
+
+/**
+ * M33: checks a pattern before it's saved: it must compile, and it must stay fast on texts built to
+ * make backtracking explode. Returns the problem, or null when the pattern is fine.
+ */
+export function vetPattern(find: string): string | null {
+  if (!find) return null;
+  const re = compileFind(find);
+  if (!re) return "isn't a valid pattern";
+  for (const unit of PROBE_UNITS) {
+    for (const end of PROBE_ENDS) {
+      for (const n of PROBE_LENGTHS) {
+        const text = unit.repeat(Math.ceil(n / unit.length)) + end;
+        re.lastIndex = 0;
+        const t0 = performance.now();
+        text.replace(re, "");
+        if (performance.now() - t0 > VET_BUDGET_MS) return `takes too long on a ${text.length}-character text (it backtracks); simplify nested repeats like (a+)+ or (\\w+\\s?)+`;
+      }
+    }
+  }
+  return null;
+}
+
+/** For the settings schema: each script's pattern is vetted when the list is saved. */
+export const vettedRegexScriptSchema = regexScriptSchema.superRefine((s, ctx) => {
+  const problem = vetPattern(s.find);
+  if (problem) ctx.addIssue({ code: "custom", path: ["find"], message: `Regex script "${s.name || s.id}": the pattern ${problem}.` });
+});
+
 /** M33: a prompt pass's shared state: scripts that ran too long are skipped for the rest of it. */
 export interface RegexPass {
   slow: Set<string>;

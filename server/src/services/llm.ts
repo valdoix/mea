@@ -48,6 +48,54 @@ export function extractJson(text: string): unknown {
   return JSON.parse(body.slice(start, end + 1));
 }
 
+/**
+ * M14: a reply cut off mid-list keeps its finished items. Trims back to the last complete element of
+ * an open array and closes every open bracket. Returns null when there's no array item to keep.
+ */
+export function salvageJson(text: string): unknown {
+  const t = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  const start = t.indexOf("{");
+  if (start < 0) return null;
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let cut = -1;
+  let cutStack: string[] = [];
+  for (let i = start; i < t.length; i++) {
+    const ch = t[i]!;
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') {
+        inString = false;
+        if (stack[stack.length - 1] === "[") {
+          cut = i + 1;
+          cutStack = [...stack];
+        }
+      }
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") {
+      stack.pop();
+      if (!stack.length) return null; // the object closed: nothing was cut, so there's nothing to salvage
+      // A finished element of an open array is a safe place to stop.
+      if (stack[stack.length - 1] === "[") {
+        cut = i + 1;
+        cutStack = [...stack];
+      }
+    }
+  }
+  if (cut < 0) return null;
+  const close = cutStack.reverse().map((b) => (b === "{" ? "}" : "]")).join("");
+  try {
+    return JSON.parse(t.slice(start, cut) + close);
+  } catch {
+    return null;
+  }
+}
+
 const schemaCache = new Map<string, Record<string, unknown>>();
 function jsonSchemaOf(name: string, schema: z.ZodType) {
   let s = schemaCache.get(name);
@@ -123,6 +171,7 @@ export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<
       { role: "user", content: call.user },
     ];
     let maxTokens: number | undefined;
+    let salvaged: JsonResult<z.infer<T>> | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       let res: Awaited<ReturnType<typeof once>>;
       try {
@@ -154,6 +203,9 @@ export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<
       lastError = new Error(`The model's reply didn't match the expected format: ${problem}`);
       // M14: a reply cut off at the length limit gets more room and a request to be briefer, not the same budget again.
       if (cutOff(res)) {
+        // Keep the finished items in case every retry is cut off too.
+        const partial = call.schema.safeParse(salvageJson(res.text));
+        if (partial.success) salvaged = { data: partial.data, generationId: res.id, usage: res.usage, model: r.modelId, profileName: r.profile.name, inputTokens: res.usage?.promptTokens ?? res.est };
         maxTokens = Math.min(MAX_RETRY_TOKENS, res.maxTokens * 2);
         lastError = new Error(`The model's reply was cut off at ${res.maxTokens} tokens`);
         messages.splice(2, messages.length, { role: "user", content: "Your last reply was cut off at the length limit before the JSON was complete. Reply again with the whole JSON object, shorter this time: fewer items and briefer text where the format allows." });
@@ -161,6 +213,7 @@ export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<
       }
       messages.splice(2, messages.length, { role: "assistant", content: res.text.slice(0, 6000) }, { role: "user", content: `That reply wasn't valid: ${problem}\nReply again with only the corrected JSON object.` });
     }
+    if (salvaged) return salvaged;
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }

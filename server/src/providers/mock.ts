@@ -60,13 +60,6 @@ function helperJson(name: string, user: string): unknown {
       const said = user.split("IS ABOUT TO SAY:")[1]?.trim().split("\n")[0] ?? "";
       return { direction: `Answer what was just said${said ? ` ("${said.slice(0, 60)}")` : ""} and let the scene breathe.`, beats: ["A small gesture", "One honest line", "Leave room to respond"], threads: [], reminders: [], avoid: ["writing the player's actions"] };
     }
-    case "post_edit": {
-      const reply = user.split("REPLY:\n")[1] ?? "";
-      if (!/PROBLEMS FOUND/.test(user)) return { changed: false, text: reply, notes: [] };
-      // Drop sentences that write for the player, as a careful editor would.
-      const kept = reply.split(/(?<=[.!?]["”]?)\s+/).filter((s) => !/\b(?:Ash|Alex|You)\s+(?:says|said|nods|takes|follows)\b/.test(s.replace(/"[^"]*"/g, "")));
-      return { changed: true, text: kept.join(" "), notes: ["cut a line written for the player"] };
-    }
     case "scene_boundary":
       return { newScene: !/MOCK_SAME_SCENE/.test(user), reason: "mock" };
     case "ask_answer":
@@ -277,6 +270,13 @@ function helperJson(name: string, user: string): unknown {
 
 /** Plain-text creative helpers (fields, deeper sections, extended answers), keyed by their prompt's wording. */
 function mockPlainText(system: string, user: string): string | null {
+  if (/^You are a careful copy editor/.test(system)) {
+    const reply = user.split("REPLY:\n")[1] ?? "";
+    if (!/PROBLEMS FOUND/.test(user)) return "UNCHANGED";
+    // Drop sentences that write for the player, as a careful editor would.
+    const kept = reply.split(/(?<=[.!?]["”]?)\s+/).filter((s) => !/\b(?:Ash|Alex|You)\s+(?:says|said|nods|takes|follows)\b/.test(s.replace(/"[^"]*"/g, "")));
+    return `${kept.join(" ")}\n---NOTES---\n- cut a line written for the player`;
+  }
   const field = system.match(/^Field: (.+)$/m)?.[1];
   // Card tools' field actions echo the field with the action, so a test can see what was asked.
   const editing = user.match(/THE FIELD TO EDIT \([^)]*\):\n([\s\S]*)$/)?.[1];

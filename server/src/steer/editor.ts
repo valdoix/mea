@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { one, parseJson } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -7,7 +6,7 @@ import { chatNames } from "../memory/build";
 import { hashText } from "../memory/text";
 import { editMessage, getMessageRow, updateSwipe } from "../services/chats";
 import { enqueue, type JobContext } from "../services/jobs";
-import { callJson } from "../services/llm";
+import { callText } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { steerFor } from "./advisor";
 import { styleFor, styleText } from "./style";
@@ -28,7 +27,19 @@ export interface EditProposal {
   at: number;
 }
 
-const editSchema = z.object({ changed: z.boolean().default(true), text: z.string().default(""), notes: z.array(z.string()).default([]) });
+const NOTES = /\n-{3}\s*NOTES\s*-{3}[ \t]*(?:\n|$)/i;
+
+/** M14: the editor answers in plain text (a whole reply inside a JSON string escapes badly and truncates). */
+export function parseEditorReply(raw: string): { changed: boolean; text: string; notes: string[] } {
+  const t = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  if (/^UNCHANGED\.?$/i.test(t)) return { changed: false, text: "", notes: [] };
+  const [body = "", rest = ""] = t.split(NOTES);
+  const notes = rest
+    .split("\n")
+    .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean);
+  return { changed: true, text: body.trim(), notes };
+}
 
 export function scheduleEditor(chatId: string, messageId: string, swipeIdx: number) {
   const cfg = steerFor(chatId);
@@ -50,21 +61,22 @@ export async function runEditorJob(p: { chatId: string; messageId: string; swipe
   if (cfg.editor === "flagged" && !problems.length) return;
   const names = chatNames(p.chatId);
   const style = styleText(styleFor(p.chatId));
-  const r = await callJson({
+  const r = await callText({
     task: "helper",
     kind: "editor",
     chatId: p.chatId,
     jobId: job?.id,
-    name: "post_edit",
-    schema: editSchema,
-    system: `You are a careful copy editor for a roleplay. ${names.char}'s reply was just written. Make the smallest possible edits so it follows the rules below; change nothing else. Keep every event, every line of ${names.char}'s dialogue, the order and the length. Typical fixes: cut or rewrite a sentence that writes ${names.user}'s words, actions or decisions (only ${names.user}'s player writes those); fix a slip in point of view or tense; replace a banned phrase; fix formatting (asterisks, quotes) to match the style. If nothing needs fixing, set "changed" to false and return the text unchanged. In "notes", list each edit in a few words.
-Reply with JSON only: {"changed":true,"text":"the full edited reply","notes":["…"]}`,
+    system: `You are a careful copy editor for a roleplay. ${names.char}'s reply was just written. Make the smallest possible edits so it follows the rules below; change nothing else. Keep every event, every line of ${names.char}'s dialogue, the order and the length. Typical fixes: cut or rewrite a sentence that writes ${names.user}'s words, actions or decisions (only ${names.user}'s player writes those); fix a slip in point of view or tense; replace a banned phrase; fix formatting (asterisks, quotes) to match the style.
+Reply in plain text. If nothing needs fixing, reply with the single word UNCHANGED. Otherwise reply with the full edited reply, then a line ---NOTES--- and one line per edit, a few words each.`,
     user: `${style ? `${style}\n\n` : ""}${problems.length ? `PROBLEMS FOUND:\n${problems.join("\n")}\n\n` : ""}REPLY:\n${sw.content}`,
     maxTokens: Math.min(6000, Math.ceil(sw.content.length / 2.5) + 400),
+    // A reply cut off at the length limit loses its notes line: never take half a reply as the edit.
+    validate: (t) => (parseEditorReply(t).changed && !NOTES.test(t) ? "The reply had no ---NOTES--- line after the edited text." : null),
   });
   job?.note({ inputTokens: r.inputTokens });
-  const text = r.data.text.trim();
-  if (!r.data.changed || !text || text === sw.content.trim()) return;
+  const edit = parseEditorReply(r.text);
+  const text = edit.text;
+  if (!edit.changed || !text || text === sw.content.trim()) return;
   // A rewrite isn't an edit. Cutting a line written for you can remove a lot; adding much never fits.
   if (text.length < sw.content.length * 0.4 || text.length > sw.content.length * 1.3) return;
   // The reply changed while the editor worked (you edited or swiped): drop the proposal.
@@ -73,7 +85,7 @@ Reply with JSON only: {"changed":true,"text":"the full edited reply","notes":["�
   // L12: the edit belongs to the swipe it read: once you've moved to another, it waits there as a suggestion.
   const cur = getMessageRow(p.messageId);
   if (!cur || cur.deleted_at) return;
-  const proposal: EditProposal = { status: "proposed", text, notes: r.data.notes.slice(0, 8), original: sw.content, at: Date.now() };
+  const proposal: EditProposal = { status: "proposed", text, notes: edit.notes.slice(0, 8), original: sw.content, at: Date.now() };
   if (cfg.editorApply === "auto" && cur.active_swipe === p.swipeIdx) {
     editMessage(p.messageId, text);
     updateSwipe(p.messageId, p.swipeIdx, { meta: { edit: { ...proposal, status: "applied" } } });

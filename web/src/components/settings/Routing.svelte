@@ -106,6 +106,12 @@
             </select>
           {/if}
         </div>
+        {#if t.id === "helper" && !s["routing.tasks"].helper && profiles.length > 1}
+          <!-- M15: helpers run several short calls per reply; on the story model they cost the most. -->
+          <p class="notice warn tiny">
+            Helper checks, trackers and the editor are using your story model. They run several short calls per reply, so a cheaper, faster profile here saves quota and time.
+          </p>
+        {/if}
         <div class="row wrap chain">
           <span class="tiny muted">Then try:</span>
           {#each chain(t.id) as id, i (id)}

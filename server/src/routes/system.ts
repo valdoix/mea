@@ -1,6 +1,6 @@
 import { statfsSync, statSync } from "node:fs";
 import { GLOBAL_ID, promptSetSchema, SERVICE_PROMPTS, servicePromptFor } from "../lib/prompts";
-import { regexScriptSchema } from "../lib/regex";
+import { vettedRegexScriptSchema } from "../lib/regex";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { restoreStash, stash } from "../services/undo";
@@ -36,7 +36,7 @@ const startedAt = Date.now();
 
 /** Settings with structure that's checked before it's stored. */
 const SETTING_SCHEMAS: Record<string, z.ZodType> = {
-  "regex.scripts": z.array(regexScriptSchema).max(200),
+  "regex.scripts": z.array(vettedRegexScriptSchema).max(200),
   "prompts.sets": z.array(promptSetSchema).max(20),
   "prompts.active": z.string().nullable(),
   "guards.config": guardsSchema.partial(),

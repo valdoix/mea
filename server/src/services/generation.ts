@@ -68,6 +68,29 @@ export function splitThink(text: string): { text: string; reasoning: string } {
   return { text: text.slice(m[0].length), reasoning: m[2]!.trim() };
 }
 
+const PLAN_HEADER = /^\s*(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*[—–:-]/;
+
+/**
+ * M17: a model that can't reason privately sometimes writes the planning pass out. A reply that opens
+ * with two or more of its step headers (NOW —, SEAL —, …) has that block moved to the reasoning field.
+ */
+export function splitLeakedPlan(text: string): { text: string; reasoning: string } {
+  const lines = text.split("\n");
+  let headers = 0;
+  let end = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (PLAN_HEADER.test(line)) {
+      headers++;
+      end = i;
+    } else if (!line.trim() || /^\s*\[BEFORE YOU WRITE\]\s*$/i.test(line) || (headers > 0 && /^\s+\S|^\s*[-*•]\s/.test(line))) {
+      if (headers > 0 && line.trim()) end = i;
+    } else break;
+  }
+  if (headers < 2) return { text, reasoning: "" };
+  return { text: lines.slice(end + 1).join("\n").replace(/^\s+/, ""), reasoning: lines.slice(0, end + 1).join("\n").trim() };
+}
+
 interface ActiveGeneration {
   id: string;
   chatId: string;
@@ -563,10 +586,12 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   try {
     // M17: inline reasoning (<think>…</think>) from OpenAI-style routes goes to the reasoning field.
     if (action !== "continue") {
-      const think = splitThink(text);
-      if (think.reasoning) {
-        text = think.text;
-        reasoning = [reasoning, think.reasoning].filter(Boolean).join("\n\n");
+      for (const split of [splitThink, splitLeakedPlan]) {
+        const out = split(text);
+        if (out.reasoning && (split === splitThink || out.text.trim())) {
+          text = out.text;
+          reasoning = [reasoning, out.reasoning].filter(Boolean).join("\n\n");
+        }
       }
     }
     if (inline) {
