@@ -588,14 +588,14 @@
   }
 
   /* ---------- Lantern: glowing glass cards ---------- */
-  :global([data-theme="lantern"]) .bubble {
-    background: linear-gradient(165deg, rgb(255 255 255 / 7.5%), rgb(255 255 255 / 2%) 60%);
+  :global([data-shell="lantern"]) .bubble {
+    background: linear-gradient(165deg, color-mix(in srgb, var(--hi) 7.5%, transparent), color-mix(in srgb, var(--hi) 2%, transparent) 60%);
     border-color: transparent;
-    box-shadow: 0 18px 40px -26px rgb(0 0 0 / 80%);
+    box-shadow: 0 18px 40px -26px color-mix(in srgb, var(--lo) 80%, transparent);
     overflow: hidden;
-    --hairline: linear-gradient(160deg, rgb(255 158 192 / 48%), rgb(255 255 255 / 5%) 35%, rgb(255 255 255 / 3%) 75%, rgb(199 180 255 / 24%));
+    --hairline: linear-gradient(160deg, color-mix(in srgb, var(--accent) 48%, transparent), color-mix(in srgb, var(--hi) 5%, transparent) 35%, color-mix(in srgb, var(--hi) 3%, transparent) 75%, color-mix(in srgb, var(--lavender) 24%, transparent));
   }
-  :global([data-theme="lantern"]) .bubble::before {
+  :global([data-shell="lantern"]) .bubble::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -612,80 +612,80 @@
     mask-composite: exclude;
     pointer-events: none;
   }
-  :global([data-theme="lantern"]) .bubble::after {
+  :global([data-shell="lantern"]) .bubble::after {
     content: "";
     position: absolute;
     width: 260px;
     height: 200px;
     left: -80px;
     top: -110px;
-    background: radial-gradient(closest-side, rgb(255 208 143 / 12%), transparent);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--lamp) 12%, transparent), transparent);
     pointer-events: none;
   }
-  :global([data-theme="lantern"]) .user .bubble {
-    background: linear-gradient(165deg, rgb(156 196 255 / 11%), rgb(199 180 255 / 5%) 70%);
-    --hairline: linear-gradient(160deg, rgb(156 196 255 / 45%), rgb(255 255 255 / 4%) 40%, rgb(156 196 255 / 14%));
+  :global([data-shell="lantern"]) .user .bubble {
+    background: linear-gradient(165deg, color-mix(in srgb, var(--sky) 11%, transparent), color-mix(in srgb, var(--lavender) 5%, transparent) 70%);
+    --hairline: linear-gradient(160deg, color-mix(in srgb, var(--sky) 45%, transparent), color-mix(in srgb, var(--hi) 4%, transparent) 40%, color-mix(in srgb, var(--sky) 14%, transparent));
   }
-  :global([data-theme="lantern"]) .user .bubble::after {
-    background: radial-gradient(closest-side, rgb(156 196 255 / 11%), transparent);
+  :global([data-shell="lantern"]) .user .bubble::after {
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--sky) 11%, transparent), transparent);
   }
-  :global([data-theme="lantern"]) .system .bubble {
-    background: linear-gradient(165deg, rgb(255 208 143 / 9%), rgb(255 255 255 / 2%) 70%);
-    --hairline: linear-gradient(160deg, rgb(255 208 143 / 45%), rgb(255 255 255 / 4%) 50%);
+  :global([data-shell="lantern"]) .system .bubble {
+    background: linear-gradient(165deg, color-mix(in srgb, var(--lamp) 9%, transparent), color-mix(in srgb, var(--hi) 2%, transparent) 70%);
+    --hairline: linear-gradient(160deg, color-mix(in srgb, var(--lamp) 45%, transparent), color-mix(in srgb, var(--hi) 4%, transparent) 50%);
   }
-  :global([data-theme="lantern"]) .bookmarked .bubble {
-    --hairline: linear-gradient(160deg, rgb(255 208 143 / 75%), rgb(255 158 192 / 20%) 40%, rgb(255 255 255 / 4%) 70%, rgb(255 208 143 / 40%));
+  :global([data-shell="lantern"]) .bookmarked .bubble {
+    --hairline: linear-gradient(160deg, color-mix(in srgb, var(--lamp) 75%, transparent), color-mix(in srgb, var(--accent) 20%, transparent) 40%, color-mix(in srgb, var(--hi) 4%, transparent) 70%, color-mix(in srgb, var(--lamp) 40%, transparent));
   }
-  :global([data-theme="lantern"]) .streaming .bubble {
-    --hairline: conic-gradient(from var(--ring), #ff9ec0, #ffd08f, #82e3d3, #c7b4ff, #ff9ec0);
+  :global([data-shell="lantern"]) .streaming .bubble {
+    --hairline: conic-gradient(from var(--ring), var(--accent), var(--lamp), var(--sea), var(--lavender), var(--accent));
     animation: lantern-spin 4s linear infinite;
   }
-  :global([data-theme="lantern"]) .highlighted .bubble {
+  :global([data-shell="lantern"]) .highlighted .bubble {
     box-shadow:
       0 0 0 2px var(--lamp),
-      0 0 40px -6px rgb(255 208 143 / 55%);
+      0 0 40px -6px color-mix(in srgb, var(--lamp) 55%, transparent);
   }
-  :global([data-theme="lantern"]) .portrait {
+  :global([data-shell="lantern"]) .portrait {
     border-radius: 22px;
     box-shadow:
       0 0 0 2px var(--bg),
-      0 0 0 3.5px rgb(255 158 192 / 55%),
-      0 14px 30px -12px rgb(0 0 0 / 70%);
+      0 0 0 3.5px color-mix(in srgb, var(--accent) 55%, transparent),
+      0 14px 30px -12px color-mix(in srgb, var(--lo) 70%, transparent);
   }
-  :global([data-theme="lantern"]) .portrait :global(.avatar) {
+  :global([data-shell="lantern"]) .portrait :global(.avatar) {
     border-radius: 22px;
   }
-  :global([data-theme="lantern"]) .user .portrait {
+  :global([data-shell="lantern"]) .user .portrait {
     box-shadow:
       0 0 0 2px var(--bg),
-      0 0 0 3.5px rgb(156 196 255 / 50%),
-      0 14px 30px -12px rgb(0 0 0 / 70%);
+      0 0 0 3.5px color-mix(in srgb, var(--sky) 50%, transparent),
+      0 14px 30px -12px color-mix(in srgb, var(--lo) 70%, transparent);
   }
-  :global([data-theme="lantern"]) .assistant .name {
+  :global([data-shell="lantern"]) .assistant .name {
     color: var(--rose);
   }
-  :global([data-theme="lantern"]) .user .name {
+  :global([data-shell="lantern"]) .user .name {
     color: var(--sky);
   }
-  :global([data-theme="lantern"]) :global(.style-book) .bubble,
-  :global([data-theme="lantern"]) :global(.style-book) .user .bubble {
+  :global([data-shell="lantern"]) :global(.style-book) .bubble,
+  :global([data-shell="lantern"]) :global(.style-book) .user .bubble {
     background: none;
     box-shadow: none;
   }
-  :global([data-theme="lantern"]) :global(.style-book) .bubble::before,
-  :global([data-theme="lantern"]) :global(.style-book) .bubble::after {
+  :global([data-shell="lantern"]) :global(.style-book) .bubble::before,
+  :global([data-shell="lantern"]) :global(.style-book) .bubble::after {
     display: none;
   }
-  :global([data-theme="lantern"]) :global(.style-book) .msg {
-    border-bottom-color: rgb(255 255 255 / 6%);
+  :global([data-shell="lantern"]) :global(.style-book) .msg {
+    border-bottom-color: color-mix(in srgb, var(--hi) 6%, transparent);
   }
-  :global([data-theme="lantern"]) :global(.style-bubbles) .bubble {
-    background: rgb(255 255 255 / 8%);
+  :global([data-shell="lantern"]) :global(.style-bubbles) .bubble {
+    background: color-mix(in srgb, var(--hi) 8%, transparent);
   }
-  :global([data-theme="lantern"]) :global(.style-bubbles) .user .bubble {
-    background: linear-gradient(135deg, rgb(120 160 255 / 30%), rgb(199 180 255 / 22%));
+  :global([data-shell="lantern"]) :global(.style-bubbles) .user .bubble {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--sky) 30%, transparent), color-mix(in srgb, var(--lavender) 22%, transparent));
   }
-  :global([data-theme="lantern"]) :global(.style-bubbles) .bubble::after {
+  :global([data-shell="lantern"]) :global(.style-bubbles) .bubble::after {
     display: none;
   }
 

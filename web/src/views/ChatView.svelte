@@ -27,7 +27,14 @@
   import { renderMessage } from "../lib/render";
   import { back, navigate, route } from "../lib/router.svelte";
   import { app, errorToast, saveSetting, toast } from "../lib/state.svelte";
+  import { wreath } from "../lib/ornaments";
   import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, CodexPage, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
+
+  // The rooms' chapter flourishes: Wildflower's wreath, Marquee's bulbs, Citadel's maester chain.
+  const WREATH = wreath();
+  const BULBS_X = Array.from({ length: 16 }, (_, i) => i);
+  const BULBS_Y = Array.from({ length: 4 }, (_, i) => i);
+  const CHAIN = Array.from({ length: 27 }, (_, i) => i);
 
   let { id }: { id: string } = $props();
 
@@ -804,7 +811,7 @@
             <a class="btn ghost icon" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>
             <DisplayMenu />
             <span class="sep hide-sm"></span>
-            {#if app.theme === "lantern" && !app.isMobile}
+            {#if app.shell === "lantern" && !app.isMobile}
               <button class="btn ghost icon" onclick={() => toggleRail(true)} class:on={layout.railChat} aria-label={layout.railChat ? "Hide navigation" : "Show navigation"} title={layout.railChat ? "Hide navigation" : "Show navigation"}><PanelLeft size={18} /></button>
             {/if}
             <button class="btn ghost icon" onclick={togglePanel} aria-label={app.isMobile ? "Memory, story and world" : panelOpen ? "Hide the side panel" : "Show the side panel"} title={panelOpen && !app.isMobile ? "Hide the side panel" : "Memory, story, world and notes"} class:on={panelOpen && !app.isMobile}><PanelRight size={18} /></button>
@@ -844,7 +851,8 @@
               {#if b.level === "chapter"}
                 {@const info = chapterInfo(b)}
                 <a class="chapter-h" href="/chat/{id}/memory" title="Open this chapter in memory">
-                  <span class="orn-line"><span></span><i>✦</i><span></span></span>
+                  <span class="orn-line"><span></span><i>{app.theme === "citadel" ? "❧" : "✦"}</i><span></span></span>
+                  {#if app.theme === "wildflower"}{@html WREATH}{:else if app.theme === "overprint"}<span class="o-big" aria-hidden="true">{info.n}</span>{:else if app.theme === "marquee"}<span class="m-bulbs t" aria-hidden="true">{#each BULBS_X as i (i)}<i></i>{/each}</span><span class="m-bulbs b" aria-hidden="true">{#each BULBS_X as i (i)}<i></i>{/each}</span><span class="m-bulbs l" aria-hidden="true">{#each BULBS_Y as i (i)}<i></i>{/each}</span><span class="m-bulbs r" aria-hidden="true">{#each BULBS_Y as i (i)}<i></i>{/each}</span>{/if}
                   <span class="ch-num">Chapter <b>{info.n}</b></span>
                   <span class="ch-title">{b.title || (b.startSeq === firstSeq && !hasMore ? "The beginning" : "A new chapter")}</span>
                   {#if b.storyTime || info.scenes}
@@ -854,6 +862,7 @@
                       {#if info.scenes}<span>{info.scenes} scene{info.scenes === 1 ? "" : "s"}</span>{/if}
                     </span>
                   {/if}
+                  {#if app.theme === "citadel"}<span class="c-chain" aria-hidden="true">{#each CHAIN as i (i)}<i></i>{/each}</span>{/if}
                 </a>
               {:else}
                 {@const Icon = sceneIcon(b)}
@@ -1326,7 +1335,7 @@
     padding: 3px;
     border-radius: 50%;
     text-decoration: none !important;
-    background: conic-gradient(from var(--ring), #ff9ec0, #ffd08f, #82e3d3, #c7b4ff, #ff9ec0);
+    background: conic-gradient(from var(--ring), var(--accent), var(--lamp), var(--sea), var(--lavender), var(--accent));
     animation: lantern-spin 7s linear infinite;
   }
   .pic :global(.avatar) {
@@ -1641,30 +1650,30 @@
   }
 
   /* ---------- Lantern: the glass stage ---------- */
-  :global([data-theme="lantern"]) .chat {
+  :global([data-shell="lantern"]) .chat {
     height: 100%;
     column-gap: 14px;
   }
-  :global([data-theme="lantern"]) .chat.with-panel {
+  :global([data-shell="lantern"]) .chat.with-panel {
     grid-template-columns: minmax(0, 1fr) var(--dock-w);
   }
-  :global([data-theme="lantern"]) .main-col {
+  :global([data-shell="lantern"]) .main-col {
     height: 100%;
     overflow: hidden;
     isolation: isolate;
     border-radius: 30px;
-    background: linear-gradient(160deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
-    border: 1px solid rgb(255 255 255 / 9%);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--hi) 7%, transparent), color-mix(in srgb, var(--hi) 2%, transparent));
+    border: 1px solid color-mix(in srgb, var(--hi) 9%, transparent);
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 6%),
-      0 24px 60px -24px rgb(0 0 0 / 65%);
+      inset 0 1px 0 color-mix(in srgb, var(--hi) 6%, transparent),
+      0 24px 60px -24px color-mix(in srgb, var(--lo) 65%, transparent);
     backdrop-filter: blur(24px) saturate(150%);
     -webkit-backdrop-filter: blur(24px) saturate(150%);
     transition:
       border-radius 0.6s var(--ease),
       background 0.6s var(--ease);
   }
-  :global([data-theme="lantern"]) .chat.focus .main-col {
+  :global([data-shell="lantern"]) .chat.focus .main-col {
     border-radius: 0;
     border-color: transparent;
     background: transparent;
@@ -1672,56 +1681,56 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  :global([data-theme="lantern"]) .bar {
+  :global([data-shell="lantern"]) .bar {
     background: transparent;
     border-bottom: 0;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     padding: calc(1rem + var(--safe-top)) 1.1rem 0.7rem 1.3rem;
   }
-  :global([data-theme="lantern"]) .bar.compact {
+  :global([data-shell="lantern"]) .bar.compact {
     padding-top: calc(0.8rem + var(--safe-top));
   }
-  :global([data-theme="lantern"]) .cname {
+  :global([data-shell="lantern"]) .cname {
     font-size: 2rem;
     font-weight: 400;
   }
-  :global([data-theme="lantern"]) .bar.compact .cname {
+  :global([data-shell="lantern"]) .bar.compact .cname {
     font-size: 1.5rem;
   }
-  :global([data-theme="lantern"]) .hudline {
+  :global([data-shell="lantern"]) .hudline {
     background: var(--fill);
     border-color: var(--edge);
   }
-  :global([data-theme="lantern"]) .tools .on,
-  :global([data-theme="lantern"]) .styles button.on {
-    background: rgb(255 255 255 / 12%);
+  :global([data-shell="lantern"]) .tools .on,
+  :global([data-shell="lantern"]) .styles button.on {
+    background: color-mix(in srgb, var(--hi) 12%, transparent);
     box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 14%),
-      0 0 16px rgb(199 180 255 / 18%);
+      inset 0 0 0 1px color-mix(in srgb, var(--hi) 14%, transparent),
+      0 0 16px color-mix(in srgb, var(--lavender) 18%, transparent);
   }
-  :global([data-theme="lantern"]) .styles,
-  :global([data-theme="lantern"]) .dock-tabs {
-    background: rgb(0 0 0 / 24%);
+  :global([data-shell="lantern"]) .styles,
+  :global([data-shell="lantern"]) .dock-tabs {
+    background: var(--well);
     box-shadow: inset 0 0 0 1px var(--edge);
   }
-  :global([data-theme="lantern"]) .sep {
+  :global([data-shell="lantern"]) .sep {
     background: var(--edge);
   }
-  :global([data-theme="lantern"]) .dock-tabs button.on {
-    background: rgb(255 255 255 / 11%);
+  :global([data-shell="lantern"]) .dock-tabs button.on {
+    background: color-mix(in srgb, var(--hi) 11%, transparent);
     box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 15%),
-      0 0 18px rgb(199 180 255 / 22%);
+      inset 0 0 0 1px color-mix(in srgb, var(--hi) 15%, transparent),
+      0 0 18px color-mix(in srgb, var(--lavender) 22%, transparent);
   }
-  :global([data-theme="lantern"]) .dock {
+  :global([data-shell="lantern"]) .dock {
     height: 100%;
     border-radius: 28px;
-    border: 1px solid rgb(255 255 255 / 9%);
-    background: linear-gradient(160deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%));
+    border: 1px solid color-mix(in srgb, var(--hi) 9%, transparent);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--hi) 7%, transparent), color-mix(in srgb, var(--hi) 2%, transparent));
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 6%),
-      0 24px 60px -24px rgb(0 0 0 / 65%);
+      inset 0 1px 0 color-mix(in srgb, var(--hi) 6%, transparent),
+      0 24px 60px -24px color-mix(in srgb, var(--lo) 65%, transparent);
     backdrop-filter: blur(24px) saturate(150%);
     -webkit-backdrop-filter: blur(24px) saturate(150%);
     padding: 14px 14px 2rem;
@@ -1733,41 +1742,41 @@
       transform: translateX(16px);
     }
   }
-  :global([data-theme="lantern"]) .ch-title {
+  :global([data-shell="lantern"]) .ch-title {
     font-weight: 400;
     font-size: clamp(2.6rem, 5.4vw, 4rem);
-    background: linear-gradient(180deg, #fff6ea 20%, #ffd08f 72%, #ff9ec0);
+    background: var(--flame, linear-gradient(180deg, #fff6ea 20%, #ffd08f 72%, #ff9ec0));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    filter: drop-shadow(0 6px 26px rgb(255 158 192 / 25%));
+    filter: drop-shadow(0 6px 26px color-mix(in srgb, var(--accent) 25%, transparent));
   }
-  :global([data-theme="lantern"]) .sc-body {
-    background: rgb(255 255 255 / 4.5%);
+  :global([data-shell="lantern"]) .sc-body {
+    background: color-mix(in srgb, var(--hi) 4.5%, transparent);
     border-color: var(--edge);
   }
-  :global([data-theme="lantern"]) .sc-ic {
+  :global([data-shell="lantern"]) .sc-ic {
     box-shadow: 0 0 16px -4px var(--lamp);
   }
-  :global([data-theme="lantern"]) .sc-line {
-    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 14%));
+  :global([data-shell="lantern"]) .sc-line {
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--hi) 14%, transparent));
   }
-  :global([data-theme="lantern"]) .sc-line:last-child {
-    background: linear-gradient(90deg, rgb(255 255 255 / 14%), transparent);
+  :global([data-shell="lantern"]) .sc-line:last-child {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--hi) 14%, transparent), transparent);
   }
-  :global([data-theme="lantern"]) .jump {
-    background: rgb(36 26 60 / 90%);
+  :global([data-shell="lantern"]) .jump {
+    background: color-mix(in srgb, var(--pop) 90%, transparent);
     border-color: var(--edge);
   }
   @media (max-width: 760px) {
-    :global([data-theme="lantern"]) .main-col {
+    :global([data-shell="lantern"]) .main-col {
       border-radius: 0;
       border: 0;
     }
-    :global([data-theme="lantern"]) .cname {
+    :global([data-shell="lantern"]) .cname {
       font-size: 1.45rem;
     }
-    :global([data-theme="lantern"]) .bar {
+    :global([data-shell="lantern"]) .bar {
       padding: calc(0.6rem + var(--safe-top)) 0.5rem 0.5rem 0.3rem;
     }
     .column.style-cards .scene-h {

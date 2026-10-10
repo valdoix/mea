@@ -4,7 +4,7 @@ import type { PromptSet } from "./prompts";
 import type { RegexScript } from "./regex";
 
 /** Story fonts (web/src/lib/fonts.ts lists them with their faces). */
-export type StoryFont = "newsreader" | "lora" | "literata" | "ebgaramond" | "cormorant" | "crimson" | "sourceserif" | "merriweather" | "alegreya" | "spectral" | "nunito" | "inter" | "atkinson" | "lexend";
+export type StoryFont = "theme" | "newsreader" | "lora" | "literata" | "ebgaramond" | "cormorant" | "crimson" | "sourceserif" | "merriweather" | "alegreya" | "spectral" | "nunito" | "inter" | "atkinson" | "lexend";
 
 export interface LivingPage {
   /** How dialogue shows who is speaking. */
@@ -21,7 +21,9 @@ export interface LivingPage {
 export interface Settings {
   /** Profile used for story generation (CONN-03). */
   "routing.story": string | null;
-  "appearance.theme": "system" | "light" | "dark" | "lantern";
+  "appearance.theme": "system" | "light" | "dark" | "lantern" | "wildflower" | "overprint" | "citadel" | "marquee";
+  /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
+  "appearance.themeMode": "system" | "day" | "night";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
   "appearance.storyFont": StoryFont;
@@ -319,6 +321,7 @@ export const defaultMemoryConfig: MemoryConfig = {
 export const defaults: Settings = {
   "routing.story": null,
   "appearance.theme": "lantern",
+  "appearance.themeMode": "system",
   "appearance.chatStyle": "cards",
   "appearance.fontScale": 1,
   "appearance.storyFont": "newsreader",
@@ -387,6 +390,7 @@ export const clientKeys: (keyof Settings)[] = [
   "prompts.active",
   "routing.story",
   "appearance.theme",
+  "appearance.themeMode",
   "appearance.chatStyle",
   "appearance.fontScale",
   "appearance.storyFont",

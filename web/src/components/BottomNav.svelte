@@ -54,11 +54,11 @@
     gap: 2px;
     padding: 6px;
     border-radius: 22px;
-    background: rgb(28 20 46 / 82%);
-    border: 1px solid rgb(255 255 255 / 10%);
+    background: color-mix(in srgb, var(--pop) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--hi) 10%, transparent);
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
-    box-shadow: 0 20px 50px -10px rgb(0 0 0 / 70%);
+    box-shadow: 0 20px 50px -10px color-mix(in srgb, var(--lo) 70%, transparent);
   }
   .nav {
     position: relative;
@@ -75,7 +75,7 @@
   }
   .nav.on {
     color: var(--text) !important;
-    background: rgb(255 255 255 / 11%);
+    background: color-mix(in srgb, var(--hi) 11%, transparent);
   }
   .nav.on::after {
     content: "";
@@ -97,7 +97,7 @@
     padding: 0 4px;
     border-radius: 99px;
     background: var(--accent);
-    color: #2a1838;
+    color: var(--on-accent);
     font: 800 10px/17px var(--font-ui);
     text-align: center;
   }

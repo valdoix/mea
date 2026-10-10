@@ -47,7 +47,9 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
     dialogueColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
     dyslexic: z.boolean(),
   }),
-  "appearance.storyFont": z.enum(["newsreader", "lora", "literata", "ebgaramond", "cormorant", "crimson", "sourceserif", "merriweather", "alegreya", "spectral", "nunito", "inter", "atkinson", "lexend"]),
+  "appearance.storyFont": z.enum(["theme", "newsreader", "lora", "literata", "ebgaramond", "cormorant", "crimson", "sourceserif", "merriweather", "alegreya", "spectral", "nunito", "inter", "atkinson", "lexend"]),
+  "appearance.theme": z.enum(["lantern", "system", "light", "dark", "wildflower", "overprint", "citadel", "marquee"]),
+  "appearance.themeMode": z.enum(["system", "day", "night"]),
   "appearance.living": z.object({ voices: z.enum(["ink", "ribbon", "halo", "off"]), artifacts: z.boolean(), window: z.boolean(), thoughts: z.enum(["never", "drawer", "always"]) }),
   "privacy.requestLog": z.object({ bodiesDays: z.number().int().min(1).max(3650), rowsDays: z.number().int().min(0).max(36500), fileLog: z.boolean(), fileDays: z.number().int().min(1).max(3650) }),
 };

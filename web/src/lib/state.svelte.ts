@@ -1,5 +1,6 @@
 import { get, put } from "./api";
 import { applyFonts } from "./fonts";
+import { isRoom, isShellTheme, loadThemeFonts, themeInfo, type ThemeId } from "./themes";
 import type { Quota, Settings } from "./types";
 
 export interface Toast {
@@ -25,9 +26,13 @@ export const app = $state({
   currentChatId: null as string | null,
   drawerOpen: false,
   devMode: false,
-  dark: document.documentElement.dataset.theme !== "light",
-  /** The theme that's showing: "lantern" (the default), or Mea Cozy light and dark. */
-  theme: (document.documentElement.dataset.theme ?? "lantern") as "lantern" | "light" | "dark",
+  dark: document.documentElement.dataset.theme !== "light" && document.documentElement.dataset.mode !== "day",
+  /** The theme that's showing: Lantern (the default), one of the four rooms, or Mea Cozy light and dark. */
+  theme: (document.documentElement.dataset.theme ?? "lantern") as ThemeId | "light" | "dark",
+  /** Lantern and the rooms share the Lantern shell (rail, backdrop, glass); Cozy has its own. */
+  shell: (document.documentElement.dataset.shell ?? "lantern") as "lantern" | "cozy",
+  /** Day or night, for the rooms. */
+  night: document.documentElement.dataset.mode === "night",
   /** MOB-12: smaller images and fewer prefetches (on a metered connection, or switched on by hand). */
   dataLight: false,
   /** SEC-05: the encrypted database is waiting for its passphrase. */
@@ -75,14 +80,24 @@ darkQuery.addEventListener("change", () => applyAppearance());
 export function applyAppearance() {
   const s = app.settings;
   const theme = s?.["appearance.theme"] ?? (localStorage.getItem("mea.theme") as Settings["appearance.theme"]) ?? "lantern";
-  const shown = theme === "lantern" ? "lantern" : theme === "dark" || (theme === "system" && darkQuery.matches) ? "dark" : "light";
-  const dark = shown !== "light";
+  const mode = s?.["appearance.themeMode"] ?? (localStorage.getItem("mea.themeMode") as Settings["appearance.themeMode"]) ?? "system";
+  const shown: typeof app.theme = isShellTheme(theme) ? theme : theme === "dark" || (theme === "system" && darkQuery.matches) ? "dark" : "light";
+  const night = isRoom(shown) ? mode === "night" || (mode !== "day" && darkQuery.matches) : shown !== "light";
+  const dark = night;
   const root = document.documentElement;
   root.dataset.theme = shown;
+  root.dataset.shell = isShellTheme(shown) ? "lantern" : "cozy";
+  if (isRoom(shown)) {
+    root.dataset.mode = night ? "night" : "day";
+    loadThemeFonts(shown);
+  } else delete root.dataset.mode;
   app.dark = dark;
   app.theme = shown;
+  app.shell = isShellTheme(shown) ? "lantern" : "cozy";
+  app.night = night;
   try {
     localStorage.setItem("mea.theme", theme);
+    localStorage.setItem("mea.themeMode", mode);
   } catch {
     // storage may be unavailable
   }
@@ -105,5 +120,7 @@ export function applyAppearance() {
       root.toggleAttribute("data-dyslexic", t.dyslexic);
     }
   }
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", shown === "lantern" ? "#0E0A18" : dark ? "#231E2A" : "#FBF6F1"));
+  const info = themeInfo(shown);
+  const bar = info ? info.bar[night ? "night" : "day"] : dark ? "#231E2A" : "#FBF6F1";
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute("content", bar));
 }

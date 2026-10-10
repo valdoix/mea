@@ -6,10 +6,19 @@
   import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
   import { STORY_FONTS, UI_FONTS, loadAllFonts } from "../../lib/fonts";
   import { living } from "../../lib/living";
+  import { THEMES, isRoom, loadThemeFonts, themeInfo } from "../../lib/themes";
   import { onMount } from "svelte";
   import type { LivingPage, Typography } from "../../lib/types";
 
   const s = $derived(app.settings);
+  // The picker shows each room in its own type.
+  onMount(() => THEMES.forEach((t) => isRoom(t.id) && loadThemeFonts(t.id)));
+  const drifting = $derived(
+    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering" } as Record<string, string>)[app.theme] ?? "Drifting lights",
+  );
+  const texture = $derived(
+    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
+  );
   const page = $derived(living(s));
   // The picker shows each font in its own face.
   onMount(loadAllFonts);
@@ -51,19 +60,59 @@
   <div class="stack">
     <section class="panel stack">
       <h2>Theme</h2>
-      <Segmented
-        value={s["appearance.theme"]}
-        options={[
-          { value: "lantern", label: "Lantern" },
-          { value: "system", label: "Cozy, matching my device" },
-          { value: "light", label: "Mea Cozy" },
-          { value: "dark", label: "Cozy Night" },
-        ]}
-        onchange={(v) => saveSetting("appearance.theme", v)}
-      />
-      <div class="swatches" aria-hidden="true">
-        {#each ["var(--bg)", "var(--surface)", "var(--accent)", "var(--lavender)", "var(--mint)", "var(--peach)", "var(--butter)", "var(--sky)"] as c (c)}<span style:background={c}></span>{/each}
+      <div class="themes" role="radiogroup" aria-label="Theme">
+        {#each THEMES as t (t.id)}
+          {@const on = s["appearance.theme"] === t.id}
+          <button class="theme t-{t.id}" class:on role="radio" aria-checked={on} onclick={() => saveSetting("appearance.theme", t.id)}>
+            <span class="preview" aria-hidden="true">
+              <span class="half day" style:background={t.swatch.day[0]}>{#each t.swatch.day.slice(1) as c, i (i)}<i style:background={c}></i>{/each}</span>
+              <span class="half night" style:background={t.swatch.night[0]}>{#each t.swatch.night.slice(1) as c, i (i)}<i style:background={c}></i>{/each}</span>
+              <span class="tname">{t.name}</span>
+            </span>
+            <b>{t.name}</b>
+            <span class="note">{t.motto}</span>
+            {#if t.day}<span class="note faint">{t.day} by day · {t.night} by night</span>{:else}<span class="note faint">Always night</span>{/if}
+          </button>
+        {/each}
+        <button class="theme t-cozy" class:on={app.shell === "cozy"} role="radio" aria-checked={app.shell === "cozy"} onclick={() => saveSetting("appearance.theme", app.shell === "cozy" ? s["appearance.theme"] : "system")}>
+          <span class="preview" aria-hidden="true">
+            <span class="half day" style:background="#fbf6f1"><i style:background="#f0b3c5"></i><i style:background="#cdbdf0"></i><i style:background="#bfe6d8"></i><i style:background="#ffe2a8"></i></span>
+            <span class="half night" style:background="#231e2a"><i style:background="#f0b3c5"></i><i style:background="#b9a6e8"></i><i style:background="#8fd3bf"></i><i style:background="#f2cf8a"></i></span>
+            <span class="tname">Cozy</span>
+          </span>
+          <b>Mea Cozy</b>
+          <span class="note">The original: soft, plain and quiet</span>
+          <span class="note faint">A sidebar instead of the rail</span>
+        </button>
       </div>
+      {#if isRoom(app.theme)}
+        {@const info = themeInfo(app.theme)}
+        <div class="field">
+          <span class="label">Day or night</span>
+          <Segmented
+            value={s["appearance.themeMode"] ?? "system"}
+            options={[
+              { value: "system", label: "Match my device" },
+              { value: "day", label: info?.day ?? "Day" },
+              { value: "night", label: info?.night ?? "Night" },
+            ]}
+            onchange={(v) => saveSetting("appearance.themeMode", v)}
+          />
+        </div>
+      {:else if app.shell === "cozy"}
+        <div class="field">
+          <span class="label">Cozy light or dark</span>
+          <Segmented
+            value={s["appearance.theme"]}
+            options={[
+              { value: "system", label: "Match my device" },
+              { value: "light", label: "Mea Cozy" },
+              { value: "dark", label: "Cozy Night" },
+            ]}
+            onchange={(v) => saveSetting("appearance.theme", v)}
+          />
+        </div>
+      {/if}
     </section>
 
     <section class="panel stack">
@@ -120,11 +169,11 @@
       </div>
     </section>
 
-    {#if app.theme === "lantern"}
+    {#if app.shell === "lantern"}
       <section class="panel stack">
         <h2>Atmosphere</h2>
-        <label class="switch"><input type="checkbox" checked={device.fireflies} onchange={(e) => setDevice("fireflies", e.currentTarget.checked)} /> Fireflies drifting in the night sky</label>
-        <label class="switch"><input type="checkbox" checked={device.grain} onchange={(e) => setDevice("grain", e.currentTarget.checked)} /> A whisper of film grain</label>
+        <label class="switch"><input type="checkbox" checked={device.fireflies} onchange={(e) => setDevice("fireflies", e.currentTarget.checked)} /> {drifting}</label>
+        <label class="switch"><input type="checkbox" checked={device.grain} onchange={(e) => setDevice("grain", e.currentTarget.checked)} /> {texture}</label>
         <p class="tiny muted">Both stay on this device. If your system asks for less motion, Mea keeps everything still.</p>
       </section>
     {/if}
@@ -173,7 +222,7 @@
           {#each UI_FONTS as f (f.id)}
             <button class="font" class:on={typo.uiFont === f.id} role="radio" aria-checked={typo.uiFont === f.id} onclick={() => setTypo({ uiFont: f.id })}>
               <span class="face" style:font-family={f.family || undefined}>Settings · Aa</span>
-              <b>{f.id === "nunito" && app.theme !== "lantern" ? "Nunito" : f.label}</b><span class="note">{f.note}</span>
+              <b>{f.id === "nunito" && app.shell !== "lantern" ? "Nunito" : f.label}</b><span class="note">{f.note}</span>
             </button>
           {/each}
         </div>
@@ -324,15 +373,130 @@
     font-size: var(--fs-xs);
     color: var(--text-muted);
   }
-  .swatches {
-    display: flex;
-    gap: 0.4rem;
+  .themes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+    gap: 0.7rem;
   }
-  .swatches span {
-    width: 1.6rem;
-    height: 1.6rem;
-    border-radius: 50%;
+  .theme {
+    display: grid;
+    gap: 0.2rem;
+    align-content: start;
+    text-align: left;
+    padding: 0.5rem 0.5rem 0.75rem;
+    border-radius: calc(var(--r) + 2px);
     border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    transition:
+      border-color 0.2s,
+      transform 0.3s var(--spring),
+      box-shadow 0.3s;
+  }
+  .theme:hover {
+    transform: translateY(-2px);
+  }
+  .theme.on {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px var(--accent),
+      0 10px 26px -14px var(--accent);
+  }
+  .theme b,
+  .theme .note {
+    padding: 0 0.3rem;
+  }
+  .theme b {
+    margin-top: 0.35rem;
+    font-size: var(--fs-sm);
+  }
+  .theme .note {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
+  .theme .note.faint {
+    color: var(--text-faint);
+  }
+  .preview {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: 5.2rem;
+    border-radius: var(--r);
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+  }
+  .half {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0.5rem;
+  }
+  .half i {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1.5px rgb(255 255 255 / 25%);
+  }
+  .tname {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -62%;
+    padding: 0.15rem 0.6rem 0.2rem;
+    border-radius: 9px;
+    white-space: nowrap;
+    background: #1c1530;
+    box-shadow: 0 4px 14px -6px rgb(0 0 0 / 50%);
+    text-align: center;
+    font-size: 1.35rem;
+    line-height: 1.1;
+    color: #fff;
+    text-shadow: 0 1px 8px rgb(0 0 0 / 45%);
+  }
+  .t-lantern .tname {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-style: italic;
+    color: #ffd08f;
+  }
+  .t-wildflower .tname {
+    font: italic 600 1.4rem "Cormorant Garamond Variable", Georgia, serif;
+    color: #a8305f;
+    text-shadow: none;
+    background: #fffbfa;
+    box-shadow: 0 0 0 1.5px #f7b9cf, 0 4px 14px -6px rgb(176 52 106 / 40%);
+  }
+  .t-overprint .tname {
+    font: 800 1.25rem "Bricolage Grotesque Variable", sans-serif;
+    letter-spacing: -0.03em;
+    color: #1d2763;
+    text-shadow: 2px 1.5px 0 #ff4fb3;
+    background: #fbf8ef;
+    border-radius: 6px;
+    box-shadow: 0 0 0 2px #1d2763, 3px 3px 0 2px #3a5bd9;
+  }
+  .t-citadel .tname {
+    font: 700 1.1rem "Cinzel Decorative", Georgia, serif;
+    color: #d9b765;
+    text-shadow: none;
+    background: #2e2b29;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 2px #2e2b29, inset 0 0 0 3px #b08a3a;
+  }
+  .t-marquee .tname {
+    font: 400 1.9rem/1 "Neonderthaw", cursive;
+    color: #ffe0f2;
+    text-shadow: 0 0 4px #ff4fb0, 0 0 12px #ff4fb0, 0 0 24px #ff4fb0;
+    background: #0f0d1a;
+    box-shadow: 0 0 0 1.5px #3ee8ff, 0 0 14px #3ee8ff;
+  }
+  .t-cozy .tname {
+    font: italic 600 1.3rem "Fraunces Variable", Georgia, serif;
+    color: #9c3f63;
+    text-shadow: none;
+    background: #fffbf8;
   }
   .grid {
     display: grid;

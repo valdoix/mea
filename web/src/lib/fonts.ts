@@ -14,6 +14,7 @@ export interface FontChoice<Id extends string = string> {
 }
 
 export type StoryFontId =
+  | "theme"
   | "newsreader"
   | "lora"
   | "literata"
@@ -38,6 +39,7 @@ const loadAtkinson = () => Promise.all([import("@fontsource/atkinson-hyperlegibl
 const loadLexend = () => import("@fontsource-variable/lexend");
 
 export const STORY_FONTS: FontChoice<StoryFontId>[] = [
+  { id: "theme", label: "The theme's own", family: 'var(--font-story-theme, "Newsreader Variable", Georgia, serif)', note: "Changes with the theme" },
   { id: "newsreader", label: "Newsreader", family: serif("Newsreader Variable"), note: "Modern book serif" },
   { id: "lora", label: "Lora", family: serif("Lora Variable"), note: "Warm and brushed" },
   { id: "literata", label: "Literata", family: serif("Literata Variable"), note: "Made for e-books" },
@@ -55,7 +57,7 @@ export const STORY_FONTS: FontChoice<StoryFontId>[] = [
 ];
 
 export const UI_FONTS: FontChoice<UiFontId>[] = [
-  { id: "nunito", label: "The theme's own", family: "", note: "Manrope in Lantern, Nunito elsewhere" },
+  { id: "nunito", label: "The theme's own", family: "", note: "Each theme brings its own" },
   { id: "system", label: "My device's", family: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', note: "Whatever your system uses" },
   { id: "inter", label: "Inter", family: sans("Inter Variable"), note: "Neutral and compact", load: loadInter },
   { id: "atkinson", label: "Atkinson Hyperlegible", family: sans("Atkinson Hyperlegible"), note: "Every letter distinct", load: loadAtkinson },

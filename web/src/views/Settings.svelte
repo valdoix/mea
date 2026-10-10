@@ -91,14 +91,14 @@
     color: var(--text);
     box-shadow: var(--shadow-1);
   }
-  :global([data-theme="lantern"]) .tabs button.on {
-    background: rgb(255 255 255 / 12%);
+  :global([data-shell="lantern"]) .tabs button.on {
+    background: color-mix(in srgb, var(--hi) 12%, transparent);
     box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 14%),
-      0 0 18px rgb(199 180 255 / 22%);
+      inset 0 0 0 1px color-mix(in srgb, var(--hi) 14%, transparent),
+      0 0 18px color-mix(in srgb, var(--lavender) 22%, transparent);
   }
-  :global([data-theme="lantern"]) .tabs button:hover:not(.on) {
-    background: rgb(255 255 255 / 6%);
+  :global([data-shell="lantern"]) .tabs button:hover:not(.on) {
+    background: color-mix(in srgb, var(--hi) 6%, transparent);
     color: var(--text);
   }
 </style>

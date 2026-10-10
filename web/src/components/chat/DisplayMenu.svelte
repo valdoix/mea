@@ -104,9 +104,9 @@
     box-shadow: var(--shadow-2);
     animation: pop 0.3s var(--spring);
   }
-  :global([data-theme="lantern"]) .pop {
-    background: rgb(30 22 50 / 96%);
-    border-color: rgb(255 255 255 / 10%);
+  :global([data-shell="lantern"]) .pop {
+    background: color-mix(in srgb, var(--pop) 96%, transparent);
+    border-color: color-mix(in srgb, var(--hi) 10%, transparent);
     backdrop-filter: blur(20px);
   }
   @keyframes pop {
