@@ -4,12 +4,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::os::windows::process::CommandExt;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -98,6 +100,67 @@ fn restart_mea(app: &AppHandle) {
     });
 }
 
+static UPDATING: AtomicBool = AtomicBool::new(false);
+
+/// Mea's folder: MEA_ROOT if set, else the folder the "Mea" task runs in (or above it, for dist\mea.exe).
+fn mea_root() -> Option<PathBuf> {
+    if let Ok(root) = std::env::var("MEA_ROOT") {
+        return Some(PathBuf::from(root));
+    }
+    let query = format!("(Get-ScheduledTask -TaskName '{}').Actions[0].WorkingDirectory", task_name().replace('\'', "''"));
+    let out = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &query])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+    let dir = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if dir.is_empty() {
+        return None;
+    }
+    Path::new(&dir).ancestors().find(|p| p.join("scripts").join("update.ps1").exists()).map(Path::to_path_buf)
+}
+
+/// Runs scripts\update.ps1 (pull, build, restart), which shows its own result, then reloads the window.
+fn update_mea(app: &AppHandle, item: MenuItem<Wry>) {
+    if UPDATING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let _ = item.set_text("Updating Mea…");
+        let _ = item.set_enabled(false);
+        let port = port().to_string();
+        let task = task_name();
+        let ran = match mea_root() {
+            Some(root) => Command::new("powershell")
+                .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+                .arg(root.join("scripts").join("update.ps1"))
+                .args(["-TaskName", &task, "-Port", &port, "-ShowResult"])
+                .current_dir(&root)
+                .creation_flags(CREATE_NO_WINDOW)
+                .status()
+                .is_ok(),
+            None => false,
+        };
+        if !ran {
+            // update.ps1 shows its own message box; without it, say where to look (no quotes: it's a PowerShell string).
+            let msg = "Could not find the Mea folder to update. Set MEA_ROOT to it, or run scripts\\update.ps1 there.";
+            let _ = Command::new("powershell")
+                .args(["-NoProfile", "-Command", &format!("Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('{msg}', 'Update Mea')")])
+                .creation_flags(CREATE_NO_WINDOW)
+                .status();
+        }
+        if wait_alive(Duration::from_secs(30)) {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.eval("location.reload()");
+            }
+        }
+        let _ = item.set_text("Update Mea");
+        let _ = item.set_enabled(true);
+        UPDATING.store(false, Ordering::SeqCst);
+    });
+}
+
 /// Mea's own pages and the splash stay in the window; anything else opens in the default browser.
 fn is_internal(url: &Url) -> bool {
     match url.host_str() {
@@ -147,16 +210,17 @@ fn main() {
             let open = MenuItem::with_id(app, "open", "Open Mea", true, None::<&str>)?;
             let reload = MenuItem::with_id(app, "reload", "Reload", true, None::<&str>)?;
             let restart = MenuItem::with_id(app, "restart", "Restart Mea", true, None::<&str>)?;
+            let update = MenuItem::with_id(app, "update", "Update Mea", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Close this window (Mea keeps running)", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
-            let menu = Menu::with_items(app, &[&open, &reload, &restart, &sep, &quit])?;
+            let menu = Menu::with_items(app, &[&open, &reload, &restart, &update, &sep, &quit])?;
 
             TrayIconBuilder::with_id("mea")
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip("Mea")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, e| match e.id.as_ref() {
+                .on_menu_event(move |app, e| match e.id.as_ref() {
                     "open" => show_main(app),
                     "reload" => {
                         if let Some(w) = app.get_webview_window("main") {
@@ -165,6 +229,7 @@ fn main() {
                         }
                     }
                     "restart" => restart_mea(app),
+                    "update" => update_mea(app, update.clone()),
                     "quit" => app.exit(0),
                     _ => {}
                 })

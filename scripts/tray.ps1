@@ -1,8 +1,8 @@
-<#
+﻿<#
   Mea's tray icon on Windows (ARCH-09).
 
   Shows whether Mea is running, how many background jobs it has, and when it last made a backup,
-  with "Open Mea", "Restart" and "View logs" in its menu. It only talks to Mea's local health
+  with "Open Mea", "Restart", "Update Mea" and "View logs" in its menu. It only talks to Mea's local health
   endpoint (http://127.0.0.1:<port>/api/health); it never needs a password or a pairing.
 
   install-service.ps1 -Tray starts it at every sign-in. To run it by hand:
@@ -62,6 +62,7 @@ $openItem = $menu.Items.Add("Open Mea")
 $openItem.Font = New-Object System.Drawing.Font($openItem.Font, [System.Drawing.FontStyle]::Bold)
 $statusPage = $menu.Items.Add("Status and jobs")
 $restartItem = $menu.Items.Add("Restart")
+$updateItem = $menu.Items.Add("Update Mea")
 $logsItem = $menu.Items.Add("View logs")
 [void]$menu.Items.Add("-")
 $quitItem = $menu.Items.Add("Hide this icon")
@@ -86,6 +87,44 @@ $restartItem.add_Click({
   } catch {
     $tray.ShowBalloonTip(6000, "Mea", "Couldn't restart the '$TaskName' task. Try Task Scheduler, or run this tray as administrator once.", [System.Windows.Forms.ToolTipIcon]::Warning)
   }
+})
+# Update runs scripts\update.ps1 in its own hidden process so this menu stays responsive,
+# and a timer picks up its result file when it's done.
+$script:updateProc = $null
+$script:updateResult = Join-Path ([System.IO.Path]::GetTempPath()) "mea-update-$Port.json"
+$updateTimer = New-Object System.Windows.Forms.Timer
+$updateTimer.Interval = 1000
+$updateTimer.add_Tick({
+  if (-not $script:updateProc -or -not $script:updateProc.HasExited) { return }
+  $updateTimer.Stop()
+  $script:updateProc = $null
+  $updateItem.Text = "Update Mea"
+  $updateItem.Enabled = $true
+  $result = $null
+  try { $result = Get-Content $script:updateResult -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
+  if (-not $result) {
+    $result = [pscustomobject]@{ ok = $false; message = "The update stopped unexpectedly. See update.log in View logs." }
+  }
+  $icon = if ($result.ok) { [System.Windows.Forms.ToolTipIcon]::Info } else { [System.Windows.Forms.ToolTipIcon]::Warning }
+  $tray.ShowBalloonTip(10000, "Mea", $result.message, $icon)
+  $script:wasUp = $null
+  Update-Status
+})
+$updateItem.add_Click({
+  if ($script:updateProc) { return }
+  Remove-Item $script:updateResult -ErrorAction SilentlyContinue
+  $updateScript = Join-Path $root "scripts\update.ps1"
+  $arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$updateScript`" -TaskName `"$TaskName`" -Port $Port -DataDir `"$DataDir`" -ResultFile `"$($script:updateResult)`""
+  try {
+    $script:updateProc = Start-Process -FilePath powershell.exe -ArgumentList $arguments -WindowStyle Hidden -PassThru
+  } catch {
+    $tray.ShowBalloonTip(6000, "Mea", "Couldn't start the update: $($_.Exception.Message)", [System.Windows.Forms.ToolTipIcon]::Warning)
+    return
+  }
+  $updateItem.Text = "Updating…"
+  $updateItem.Enabled = $false
+  $tray.ShowBalloonTip(5000, "Mea", "Updating Mea. This can take a minute or two; Mea restarts at the end.", [System.Windows.Forms.ToolTipIcon]::Info)
+  $updateTimer.Start()
 })
 $quitItem.add_Click({
   $tray.Visible = $false
@@ -135,7 +174,7 @@ function Update-Status {
   # The tooltip can hold 63 characters.
   $tray.Text = if ($text.Length -gt 63) { $text.Substring(0, 63) } else { $text }
   $tray.Icon = if ($up) { $iconUp } else { $iconDown }
-  if ($null -ne $script:wasUp -and $script:wasUp -and -not $up) {
+  if ($null -ne $script:wasUp -and $script:wasUp -and -not $up -and -not $script:updateProc) {
     $tray.ShowBalloonTip(5000, "Mea", "Mea stopped answering. It restarts on its own within a minute; if not, use Restart.", [System.Windows.Forms.ToolTipIcon]::Warning)
   }
   $script:wasUp = $up
