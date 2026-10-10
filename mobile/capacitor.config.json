@@ -4,7 +4,6 @@
   "webDir": "www",
   "server": {
     "androidScheme": "https",
-    "allowNavigation": ["*.ngrok-free.dev", "*.ngrok-free.app", "*.ngrok.app", "*.ngrok.dev", "*.ngrok.io", "*.ts.net"],
     "errorPath": "index.html"
   },
   "android": {

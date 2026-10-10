@@ -12,6 +12,8 @@ address, from home Wi-Fi or mobile data alike.
   wait and go out when the PC is back).
 - **Downloads:** book, library and memory exports go to the phone's Downloads folder.
 - **Change address:** **Settings → Devices → This app → Change address**.
+- **Other sites:** the app stays on the address you set up (any tunnel or domain works); links to other
+  sites open in the phone's browser.
 - It sends a custom user agent (`MeaApp/…`), which skips ngrok's free-plan warning page and lets
   Mea know it's in the app.
 
