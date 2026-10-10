@@ -1,8 +1,16 @@
 import { beforeAll, describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
 import { strToU8, zipSync } from "fflate";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { createApp } from "../src/app";
 import { CHARX_LIMITS, parseCardFile } from "../src/cards/io";
+import { paths } from "../src/config";
+import { one, openDb, run } from "../src/db/db";
+import type { HttpError } from "../src/lib/http";
 import { placeholderAvatar } from "../src/lib/png-encode";
+import { createBackup, listBackups, restoreBackup } from "../src/services/backup";
+import { enqueue, registerJob, runningJobCount } from "../src/services/jobs";
 import { freshDb } from "./helpers";
 
 /** Regression tests for the audit's data-layer findings (H9–H12). */
@@ -104,5 +112,64 @@ describe("H10: CHARX zip bombs", () => {
     const zip = zipSync({ "card.json": [card([]), { level: 9 }] });
     patchDeclaredSize(zip, "card.json", CHARX_LIMITS.cardJson + 1);
     expect(() => parseCardFile(zip, "z.charx")).toThrow(/too large/);
+  });
+});
+
+describe("H11: restoring a bad backup", () => {
+  const marker = () => one<{ value: string }>("SELECT value FROM settings WHERE key = 'test.h11'")?.value;
+  const preRestores = () => listBackups().filter((b) => b.kind === "pre-restore").length;
+  const status = (fn: () => void) => {
+    try {
+      fn();
+      return 200;
+    } catch (e) {
+      return (e as HttpError).status ?? 500;
+    }
+  };
+
+  beforeAll(() => {
+    openDb(paths.db);
+    run("INSERT INTO settings (key, value) VALUES ('test.h11', '\"live\"') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+  });
+
+  test("garbage, a truncated snapshot and a non-Mea database are refused before anything changes", () => {
+    const before = preRestores();
+    writeFileSync(join(paths.backups, "mea-manual-garbage.db"), "this is not sqlite".repeat(100));
+    const good = createBackup("manual");
+    const bytes = readFileSync(join(paths.backups, good.file));
+    writeFileSync(join(paths.backups, "mea-manual-truncated.db"), bytes.subarray(0, Math.floor(bytes.length / 2)));
+    const other = new Database(join(paths.backups, "mea-manual-other.db"), { create: true });
+    other.exec("CREATE TABLE t (x)");
+    other.close();
+    for (const f of ["mea-manual-garbage.db", "mea-manual-truncated.db", "mea-manual-other.db"]) expect(status(() => restoreBackup(f))).toBe(400);
+    expect(marker()).toBe('"live"');
+    expect(preRestores()).toBe(before);
+    expect(readdirSync(dirname(paths.db)).some((f) => f.includes(".restore-"))).toBe(false);
+  });
+
+  test("a snapshot that passes the check but won't open puts the pre-restore copy back", () => {
+    // A Mea-looking file whose first migration collides with an existing table.
+    const broken = new Database(join(paths.backups, "mea-manual-broken.db"), { create: true });
+    broken.exec("CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at INTEGER NOT NULL); CREATE TABLE settings (nope)");
+    broken.close();
+    expect(status(() => restoreBackup("mea-manual-broken.db"))).toBe(500);
+    expect(marker()).toBe('"live"');
+  });
+
+  test("a restore waits for running jobs, then works", async () => {
+    let release = () => {};
+    registerJob("t.h11", () => new Promise<void>((r) => (release = r)));
+    run("UPDATE settings SET value = '\"snap\"' WHERE key = 'test.h11'");
+    const snap = createBackup("manual");
+    run("UPDATE settings SET value = '\"live\"' WHERE key = 'test.h11'");
+    enqueue("t.h11");
+    await Bun.sleep(20);
+    expect(runningJobCount()).toBe(1);
+    expect(status(() => restoreBackup(snap.file))).toBe(409);
+    expect(marker()).toBe('"live"');
+    release();
+    await Bun.sleep(20);
+    expect(status(() => restoreBackup(snap.file))).toBe(200);
+    expect(marker()).toBe('"snap"');
   });
 });
