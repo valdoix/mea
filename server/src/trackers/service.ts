@@ -350,7 +350,9 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
  * whose tracker lines are older than its text is read again (TRK-04: edits roll state back).
  */
 export function trackerLedgerHook(chatId: string, messageId: string, change?: LedgerChange) {
-  onTrackerLedgerEdit(chatId);
+  // M20: fold snapshots before the message stay good (a restore names its earliest message; a rewind, where it ends).
+  const at = one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", messageId)?.seq;
+  onTrackerLedgerEdit(chatId, at == null ? undefined : change?.rewoundTo != null ? Math.min(at, change.rewoundTo + 1) : at);
   // H5: memories made from these messages follow them (a rewind drops the ones of the messages it took).
   if (change?.rewoundTo != null) {
     for (const r of all<{ message_id: string }>(

@@ -2,6 +2,38 @@
  * Schema migrations. Embedded as strings so a compiled `mea.exe` carries them.
  * Never edit a shipped migration; add a new one.
  */
+/**
+ * M20: the triggers that keep fold_marks (migration 13). Kept here because a migration that rebuilds
+ * messages or tracker_events drops their triggers and must create them again.
+ */
+const EVENT_MARK = (row: "new" | "old") =>
+  `INSERT INTO fold_marks (chat_id, seq) SELECT ${row}.chat_id, s FROM (SELECT CASE WHEN ${row}.message_id IS NULL THEN 0 ELSE (SELECT seq FROM messages WHERE id = ${row}.message_id) END AS s) WHERE s IS NOT NULL;`;
+export const FOLD_MARK_MESSAGE_TRIGGERS = /* sql */ `
+CREATE TRIGGER IF NOT EXISTS fold_marks_msg_ai AFTER INSERT ON messages BEGIN
+  INSERT INTO fold_marks (chat_id, seq) VALUES (new.chat_id, new.seq);
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_msg_au AFTER UPDATE OF chat_id, seq, active_swipe, updated_at, deleted_at ON messages BEGIN
+  INSERT INTO fold_marks (chat_id, seq) VALUES (old.chat_id, MIN(old.seq, new.seq));
+  INSERT INTO fold_marks (chat_id, seq) SELECT new.chat_id, new.seq WHERE new.chat_id IS NOT old.chat_id;
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_msg_ad AFTER DELETE ON messages BEGIN
+  INSERT INTO fold_marks (chat_id, seq) VALUES (old.chat_id, old.seq);
+END;
+`;
+export const FOLD_MARK_EVENT_TRIGGERS = /* sql */ `
+CREATE TRIGGER IF NOT EXISTS fold_marks_ev_ai AFTER INSERT ON tracker_events BEGIN
+  ${EVENT_MARK("new")}
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_ev_au AFTER UPDATE ON tracker_events BEGIN
+  ${EVENT_MARK("old")}
+  ${EVENT_MARK("new")}
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_ev_ad AFTER DELETE ON tracker_events BEGIN
+  ${EVENT_MARK("old")}
+END;
+`;
+const FOLD_MARK_TRIGGERS = FOLD_MARK_MESSAGE_TRIGGERS + FOLD_MARK_EVENT_TRIGGERS;
+
 export const migrations: { id: number; name: string; sql: string }[] = [
   {
     id: 1,
@@ -787,6 +819,24 @@ ALTER TABLE entities ADD COLUMN deleted_at INTEGER;
 CREATE INDEX IF NOT EXISTS tracker_events_message ON tracker_events(message_id, swipe_idx);
 CREATE INDEX IF NOT EXISTS generations_job ON generations(job_id) WHERE job_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS jobs_chat ON jobs(chat_id, status) WHERE chat_id IS NOT NULL;
+`,
+  },
+  {
+    id: 13,
+    name: "fold marks",
+    sql: /* sql */ `
+-- M20: tracker folds start from in-memory snapshots. Every change that can alter a fold (a message
+-- written, edited, deleted, restored, purged or switched to another swipe; a tracker event written,
+-- renumbered or removed) leaves a mark with the earliest seq it touches, whatever code path made it.
+-- A snapshot at seq S stays good while no newer mark has a seq at or before S. AUTOINCREMENT: ids
+-- never come back after old marks are pruned.
+CREATE TABLE IF NOT EXISTS fold_marks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id TEXT NOT NULL,
+  seq INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fold_marks_chat ON fold_marks(chat_id, id);
+${FOLD_MARK_TRIGGERS}
 `,
   },
 ];

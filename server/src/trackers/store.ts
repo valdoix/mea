@@ -1,5 +1,5 @@
 import type { CalendarId } from "./calendars";
-import { all, newId, now, one, parseJson, run, tx } from "../db/db";
+import { all, dbGeneration, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
 import { getSetting } from "../lib/settings";
@@ -234,7 +234,8 @@ export function writeEvents(chatId: string, anchor: { messageId: string | null; 
       );
     }
   });
-  invalidate(chatId);
+  // M20: fold snapshots before this message stay good; the base state (no message) changes them all.
+  invalidate(chatId, anchor.messageId ? { messageId: anchor.messageId } : undefined);
   publish({ type: "trackers.changed", chatId });
 }
 
@@ -262,14 +263,27 @@ export function hasBase(chatId: string) {
 }
 
 /** The events of the chat's current branch, in story order (TRK-04): active swipes only, deleted (and purged, H7) messages left out. */
-export function branchEvents(chatId: string, opts: { uptoSeq?: number; excludeMessageId?: string } = {}): TrackerEvent[] {
-  const rows = all<EventRow & { seq: number | null }>(
-    `SELECT e.*, m.seq FROM tracker_events e LEFT JOIN messages m ON m.id = e.message_id
-     WHERE e.chat_id = ? AND (e.message_id IS NULL OR (m.id IS NOT NULL AND m.deleted_at IS NULL AND (e.swipe_idx = -1 OR e.swipe_idx = m.active_swipe)))
-     ${opts.uptoSeq != null ? "AND (m.seq IS NULL OR m.seq <= ?)" : ""}
-     ORDER BY COALESCE(m.seq, 0), e.ord`,
-    ...(opts.uptoSeq != null ? [chatId, opts.uptoSeq] : [chatId]),
-  );
+export function branchEvents(chatId: string, opts: { uptoSeq?: number; excludeMessageId?: string; afterSeq?: number } = {}): TrackerEvent[] {
+  // `afterSeq` (M20): only the messages after a fold snapshot, so the base state (no message) is left out too;
+  // read from those messages (by seq), not by scanning the whole chat's events.
+  const rows = opts.afterSeq != null
+    ? all<EventRow & { seq: number | null }>(
+        `SELECT e.*, m.seq FROM messages m JOIN tracker_events e ON e.message_id = m.id
+         WHERE m.chat_id = ? AND m.seq > ? ${opts.uptoSeq != null ? "AND m.seq <= ?" : ""} AND m.deleted_at IS NULL
+           AND e.chat_id = m.chat_id AND (e.swipe_idx = -1 OR e.swipe_idx = m.active_swipe)
+         ORDER BY m.seq, e.ord, e.rowid`,
+        chatId,
+        opts.afterSeq,
+        ...(opts.uptoSeq != null ? [opts.uptoSeq] : []),
+      )
+    : all<EventRow & { seq: number | null }>(
+        `SELECT e.*, m.seq FROM tracker_events e LEFT JOIN messages m ON m.id = e.message_id
+         WHERE e.chat_id = ? AND (e.message_id IS NULL OR (m.id IS NOT NULL AND m.deleted_at IS NULL AND (e.swipe_idx = -1 OR e.swipe_idx = m.active_swipe)))
+         ${opts.uptoSeq != null ? "AND (m.seq IS NULL OR m.seq <= ?)" : ""}
+         ORDER BY COALESCE(m.seq, 0), e.ord, e.rowid`,
+        chatId,
+        ...(opts.uptoSeq != null ? [opts.uptoSeq] : []),
+      );
   return rows
     .filter((r) => r.message_id !== opts.excludeMessageId)
     .map((r) => ({ id: r.id, messageId: r.message_id, seq: r.seq ?? 0, source: r.source, op: parseJson<Op>(r.op, { op: "clock", args: {}, raw: "" }) }));
@@ -346,22 +360,161 @@ const versions = new Map<string, number>();
 const cache = new Map<string, CacheEntry>();
 let globalVersion = 0;
 
-export function invalidate(chatId: string) {
+/**
+ * The cached fold is stale. M20: fold snapshots at or after the message named (all of them when none is)
+ * go too; the snapshots' own prefix check would catch the change anyway, this just frees them early.
+ */
+export function invalidate(chatId: string, from?: { messageId?: string | null; seq?: number }) {
   versions.set(chatId, (versions.get(chatId) ?? 0) + 1);
+  const seq = from?.seq ?? (from?.messageId ? one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", from.messageId)?.seq : undefined);
+  dropSnapshots(chatId, seq);
 }
 function invalidateAll() {
   globalVersion++;
+  snapshots.clear();
+}
+
+// ---------- fold snapshots (M20) ----------
+//
+// Folding every event from the start on every new message grows with the chat. Instead a fold
+// starts from the nearest snapshot at or before where it ends: the state after every message up
+// to a seq that's a multiple of SNAP_EVERY. Whether a snapshot is still good comes from the
+// database itself: triggers (migration 13) leave a mark in fold_marks, with the earliest seq it
+// touches, for every message written, edited, deleted, restored, purged or switched to another
+// swipe, and every tracker event written, renumbered or removed, whichever code path does it. A
+// snapshot at seq S is good while no mark newer than its last check has a seq at or before S;
+// otherwise it and every later one are dropped and the fold starts from an earlier one (or the
+// beginning). Snapshots also belong to one set of fold settings (card, persona, cast, templates)
+// and one open database.
+
+let SNAP_EVERY = 250;
+const MAX_SNAPSHOT_CHATS = 8;
+
+interface Snapshot {
+  seq: number;
+  state: FoldResult["state"];
+  changes: FoldResult["changes"];
+  verdicts: FoldResult["verdicts"];
+  times: Record<string, string | null>;
+}
+interface SnapshotSet {
+  key: string;
+  /** The fold mark up to which every snapshot here is known to be good. */
+  checked: number;
+  list: Snapshot[];
+}
+const snapshots = new Map<string, SnapshotSet>();
+let snapshotDb = -1;
+let foldsSincePrune = 0;
+
+/** Tests: a smaller spacing to exercise snapshots on short chats. Returns the previous spacing. */
+export function setSnapshotSpacing(n: number) {
+  const prev = SNAP_EVERY;
+  SNAP_EVERY = Math.max(1, Math.floor(n));
+  snapshots.clear();
+  return prev;
+}
+/** Tests and diagnostics: the seqs a chat has snapshots at. */
+export const snapshotSeqs = (chatId: string) => (snapshots.get(chatId)?.list ?? []).map((s) => s.seq);
+
+function dropSnapshots(chatId: string, fromSeq?: number) {
+  const b = snapshots.get(chatId);
+  if (!b) return;
+  if (fromSeq == null) snapshots.delete(chatId);
+  else b.list = b.list.filter((s) => s.seq < fromSeq);
+}
+
+const topMark = () => one<{ id: number | null }>("SELECT MAX(id) AS id FROM fold_marks")?.id ?? 0;
+
+/** Marks no snapshot needs any more (older than every set's last check) go. */
+export function pruneFoldMarks() {
+  if (snapshotDb !== dbGeneration()) snapshots.clear();
+  const keep = Math.min(topMark(), ...[...snapshots.values()].map((b) => b.checked));
+  run("DELETE FROM fold_marks WHERE id <= ?", keep);
+}
+
+/** The usable snapshots of a chat, checked against the marks left since they were last checked. */
+function snapshotSet(chatId: string, key: string): SnapshotSet {
+  if (snapshotDb !== dbGeneration()) {
+    snapshots.clear();
+    snapshotDb = dbGeneration();
+  }
+  let set = snapshots.get(chatId);
+  if (set && set.key === key) {
+    const r = one<{ low: number | null; top: number | null }>("SELECT MIN(seq) AS low, MAX(id) AS top FROM fold_marks WHERE chat_id = ? AND id > ?", chatId, set.checked);
+    if (r?.low != null) set.list = set.list.filter((s) => s.seq < r.low!);
+    if (r?.top != null) set.checked = r.top;
+  } else {
+    set = { key, checked: topMark(), list: [] };
+  }
+  snapshots.delete(chatId);
+  snapshots.set(chatId, set); // most recently used last
+  if (snapshots.size > MAX_SNAPSHOT_CHATS) snapshots.delete(snapshots.keys().next().value!);
+  if (++foldsSincePrune >= 200) {
+    foldsSincePrune = 0;
+    pruneFoldMarks();
+  }
+  return set;
+}
+
+/**
+ * Folds the branch up to `uptoSeq` (or the end), leaving out `excludeMessageId`, starting from the
+ * nearest usable snapshot and taking new ones as it passes snapshot points. `useSnapshots: false`
+ * folds from the very start (what the snapshots must always equal).
+ */
+function foldBranch(chatId: string, opts: { uptoSeq?: number; excludeMessageId?: string; useSnapshots?: boolean } = {}) {
+  const cfg = foldConfigFor(chatId);
+  const excludeSeq = opts.excludeMessageId ? one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", opts.excludeMessageId)?.seq : undefined;
+  // Snapshots are of the whole branch: one past the left-out message (or past where this fold ends) can't be used or taken.
+  const limit = Math.min(opts.uptoSeq ?? Infinity, excludeSeq != null ? excludeSeq - 1 : Infinity);
+  const set = opts.useSnapshots === false ? undefined : snapshotSet(chatId, `${globalVersion}:${SNAP_EVERY}:${Bun.hash(JSON.stringify(cfg)).toString(36)}`);
+  const base = set?.list.findLast((s) => s.seq <= limit);
+
+  const f = new Folder(cfg, base ? structuredClone(base.state) : undefined);
+  let times: Record<string, string | null> = {};
+  if (base) {
+    // Earlier messages' chips and verdicts are final: later events only add their own.
+    f.changes = { ...base.changes };
+    f.verdicts = { ...base.verdicts };
+    times = { ...base.times };
+  }
+  const events = branchEvents(chatId, { uptoSeq: opts.uptoSeq, excludeMessageId: opts.excludeMessageId, afterSeq: base?.seq });
+  let done = base?.seq ?? 0;
+  for (const ev of events) {
+    // Every event up to the last snapshot point before this one is in: that point's state is this.
+    const point = Math.floor((ev.seq - 1) / SNAP_EVERY) * SNAP_EVERY;
+    if (point > done) {
+      if (set && point <= limit && !set.list.some((s) => s.seq === point)) {
+        set.list.push({ seq: point, state: structuredClone(f.state), changes: { ...f.changes }, verdicts: { ...f.verdicts }, times: { ...times } });
+        set.list.sort((a, b) => a.seq - b.seq);
+      }
+      done = point;
+    }
+    f.apply(ev);
+    if (ev.messageId && f.state.time) times[ev.messageId] = `${f.state.time.minutes}:${f.state.time.form}`;
+  }
+  return { result: { state: f.state, changes: f.changes, verdicts: f.verdicts } as FoldResult, times };
+}
+
+/** The fold from the very first event, ignoring snapshots: the reference the snapshots must match (tests). */
+export function fullFold(chatId: string, opts: { uptoSeq?: number; excludeMessageId?: string } = {}) {
+  return foldBranch(chatId, { ...opts, useSnapshots: false });
+}
+/** A fold from the snapshots, past the result caches (tests). */
+export function snapshotFold(chatId: string, opts: { uptoSeq?: number; excludeMessageId?: string } = {}) {
+  return foldBranch(chatId, opts);
 }
 
 /** The chat's tracker state now, with change chips per message and story time per message. Cached until anything changes. */
 /** Anything that changes the branch (a new swipe, an edit, a delete) changes this. */
 function fingerprint(chatId: string) {
-  const m = one<{ n: number; u: number | null; a: number | null; d: number | null }>(
-    "SELECT COUNT(*) AS n, MAX(updated_at) AS u, SUM(CASE WHEN deleted_at IS NULL THEN active_swipe + 1 + hidden * 1000 ELSE 0 END) AS a, SUM(deleted_at IS NOT NULL) AS d FROM messages WHERE chat_id = ?",
+  // M20: which messages are deleted (not just how many) and which events (rowids, swipes) count too.
+  const m = one<{ n: number; u: number | null; a: number | null; d: number | null; t: number | null }>(
+    "SELECT COUNT(*) AS n, MAX(updated_at) AS u, SUM(CASE WHEN deleted_at IS NULL THEN (active_swipe + 1 + hidden * 1000) * seq ELSE 0 END) AS a, SUM(deleted_at IS NOT NULL) AS d, TOTAL(deleted_at) AS t FROM messages WHERE chat_id = ?",
     chatId,
   );
-  const e = one<{ n: number; c: number | null }>("SELECT COUNT(*) AS n, MAX(created_at) AS c FROM tracker_events WHERE chat_id = ?", chatId);
-  return `${m?.n}:${m?.u}:${m?.a}:${m?.d}:${e?.n}:${e?.c}`;
+  const e = one<{ n: number; c: number | null; r: number | null; s: number | null }>("SELECT COUNT(*) AS n, MAX(created_at) AS c, TOTAL(rowid) AS r, TOTAL(swipe_idx) AS s FROM tracker_events WHERE chat_id = ?", chatId);
+  return `${m?.n}:${m?.u}:${m?.a}:${m?.d}:${m?.t}:${e?.n}:${e?.c}:${e?.r}:${e?.s}`;
 }
 
 const foldVersion = (chatId: string) => `${versions.get(chatId) ?? 0}:${globalVersion}:${fingerprint(chatId)}`;
@@ -370,21 +523,11 @@ export function currentFold(chatId: string): CacheEntry {
   const v = foldVersion(chatId);
   const hit = cache.get(chatId);
   if (hit && hit.version === v) return hit;
-  const result = foldWithTimes(chatId, branchEvents(chatId));
+  const result = foldBranch(chatId);
   const entry = { version: v, ...result };
   cache.set(chatId, entry);
   if (cache.size > 30) cache.delete(cache.keys().next().value!);
   return entry;
-}
-
-function foldWithTimes(chatId: string, events: TrackerEvent[]) {
-  const f = new Folder(foldConfigFor(chatId));
-  const times: Record<string, string | null> = {};
-  for (const ev of events) {
-    f.apply(ev);
-    if (ev.messageId && f.state.time) times[ev.messageId] = `${f.state.time.minutes}:${f.state.time.form}`;
-  }
-  return { result: { state: f.state, changes: f.changes, verdicts: f.verdicts }, times };
 }
 
 /** The state as of a message (the drawer of an older message, the graph's time scrubber, a swipe's prompt). */
@@ -395,16 +538,19 @@ export function foldAt(chatId: string, opts: { uptoSeq?: number; excludeMessageI
   const key = `${chatId}|${opts.uptoSeq ?? ""}|${opts.excludeMessageId ?? ""}`;
   const hit = atCache.get(key);
   if (hit && hit.version === v) return hit.result;
-  const result = foldWithTimes(chatId, branchEvents(chatId, opts)).result;
+  const result = foldBranch(chatId, opts).result;
   atCache.set(key, { version: v, result });
   if (atCache.size > 60) atCache.delete(atCache.keys().next().value!);
   return result;
 }
 const atCache = new Map<string, { version: string; result: FoldResult }>();
 
-/** Called when a message changes (edit, delete, restore, swipe): the cached fold is stale. */
-export function onTrackerLedgerEdit(chatId: string) {
-  invalidate(chatId);
+/**
+ * Called when a message changes (edit, delete, restore, swipe): the cached fold is stale, and so are
+ * the fold snapshots from the earliest message touched on (`fromSeq`; all of them when unknown).
+ */
+export function onTrackerLedgerEdit(chatId: string, fromSeq?: number) {
+  invalidate(chatId, fromSeq != null ? { seq: fromSeq } : undefined);
   publish({ type: "trackers.changed", chatId });
 }
 

@@ -7,6 +7,9 @@ let current: Database | null = null;
 /** "memory" while the database runs decrypted in memory (SEC-05); "file" otherwise. */
 let mode: "file" | "memory" = "file";
 export const dbMode = () => mode;
+/** Goes up each time a database is opened, so in-memory caches of the last one (M20 fold snapshots) can tell. */
+let generation = 0;
+export const dbGeneration = () => generation;
 
 export function db(): Database {
   if (!current) throw new Error("Database is not open");
@@ -26,6 +29,7 @@ export function openDb(file: string = paths.db, opts: { backupDir?: string } = {
   database.exec("PRAGMA temp_store = MEMORY");
   database.exec("PRAGMA cache_size = -16000");
   current = database;
+  generation++;
   mode = "file";
   migrate(database, file === ":memory:" ? undefined : (opts.backupDir ?? paths.backups));
   return database;
@@ -49,6 +53,7 @@ export function openDbFromBytes(bytes: Uint8Array, opts: { backup?: (name: strin
   database.exec("PRAGMA busy_timeout = 5000");
   database.exec("PRAGMA temp_store = MEMORY");
   current = database;
+  generation++;
   mode = "memory";
   migrate(database, undefined, opts.backup);
   return database;
