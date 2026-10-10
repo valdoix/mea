@@ -1,4 +1,5 @@
 import { all, now, run, tx } from "../db/db";
+import { pruneMemoryMarks } from "../memory/entities";
 import { pruneFoldMarks } from "../trackers/store";
 import { purgeUnreferencedImages } from "./images";
 
@@ -57,6 +58,7 @@ export function sweepOrphans(usageOlderThan = now() - USAGE_MS) {
     run("DELETE FROM memory_usage WHERE created_at < ? OR chat_id NOT IN (SELECT id FROM chats)", usageOlderThan);
     run("DELETE FROM lore_hits WHERE chat_id NOT IN (SELECT id FROM chats)");
   });
-  // M20: fold marks older than every fold snapshot in memory.
+  // M20: change marks older than every fold snapshot and entity sync in memory.
   pruneFoldMarks();
+  pruneMemoryMarks();
 }

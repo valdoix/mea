@@ -839,4 +839,28 @@ CREATE INDEX IF NOT EXISTS fold_marks_chat ON fold_marks(chat_id, id);
 ${FOLD_MARK_TRIGGERS}
 `,
   },
+  {
+    id: 14,
+    name: "memory marks",
+    sql: /* sql */ `
+-- M20: the entity sync reads only the memories that changed since it last ran. Every memory
+-- written, deleted, or changed in what the sync reads (names, seqs, status, deletion) leaves a mark.
+CREATE TABLE IF NOT EXISTS memory_marks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id TEXT NOT NULL,
+  memory_id TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS memory_marks_chat ON memory_marks(chat_id, id);
+CREATE TRIGGER IF NOT EXISTS memory_marks_ai AFTER INSERT ON memories BEGIN
+  INSERT INTO memory_marks (chat_id, memory_id) VALUES (new.chat_id, new.id);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_marks_au AFTER UPDATE OF id, chat_id, entities, min_seq, max_seq, status, deleted_at, created_at ON memories BEGIN
+  INSERT INTO memory_marks (chat_id, memory_id) VALUES (old.chat_id, old.id);
+  INSERT INTO memory_marks (chat_id, memory_id) SELECT new.chat_id, new.id WHERE new.chat_id IS NOT old.chat_id OR new.id IS NOT old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS memory_marks_ad AFTER DELETE ON memories BEGIN
+  INSERT INTO memory_marks (chat_id, memory_id) VALUES (old.chat_id, old.id);
+END;
+`,
+  },
 ];
