@@ -163,7 +163,7 @@
   --t: 220ms;
   --measure: 46rem;
   --sidebar-w: 288px;
-  --dock-w: 340px;
+  --dock-w: 380px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 }

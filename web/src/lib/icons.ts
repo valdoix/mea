@@ -140,3 +140,13 @@ export { default as MessagesSquare } from "@lucide/svelte/icons/messages-square"
 export { default as ScanSearch } from "@lucide/svelte/icons/scan-search";
 export { default as ClockAlert } from "@lucide/svelte/icons/clock-alert";
 export { default as UserSearch } from "@lucide/svelte/icons/user-search";
+export { default as Sprout } from "@lucide/svelte/icons/sprout";
+export { default as Calendar } from "@lucide/svelte/icons/calendar";
+export { default as Landmark } from "@lucide/svelte/icons/landmark";
+export { default as Repeat } from "@lucide/svelte/icons/repeat";
+export { default as Bandage } from "@lucide/svelte/icons/bandage";
+export { default as Radio } from "@lucide/svelte/icons/radio";
+export { default as DoorOpen } from "@lucide/svelte/icons/door-open";
+export { default as Mail } from "@lucide/svelte/icons/mail";
+export { default as Footprints } from "@lucide/svelte/icons/footprints";
+export { default as Mic } from "@lucide/svelte/icons/mic";

@@ -23,7 +23,8 @@
   import { promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessageQuestion, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
-  import { layout, setFocus, toggleDock, toggleRail } from "../lib/layout.svelte";
+  import { DOCK_MIN, dockMax, layout, setDockWidth, setFocus, toggleDock, toggleRail } from "../lib/layout.svelte";
+  import "../styles/studio.css";
   import { renderMessage } from "../lib/render";
   import { back, navigate, route } from "../lib/router.svelte";
   import { app, errorToast, saveSetting, toast } from "../lib/state.svelte";
@@ -69,6 +70,35 @@
   function pickDock(v: DockTab) {
     dockTab = v;
     localStorage.setItem("mea.dockTab", v);
+  }
+  // The side panel resizes from a grip on its left edge; the width is remembered on this device.
+  let resizing = $state(false);
+  let gripX = 0;
+  let gripW = 0;
+  const dockWidth = () => layout.dockW ?? (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--dock-w")) || 380);
+  function gripDown(e: PointerEvent) {
+    if (e.button) return;
+    const aside = (e.currentTarget as HTMLElement).parentElement!;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    gripX = e.clientX;
+    gripW = aside.getBoundingClientRect().width;
+    resizing = true;
+  }
+  function gripMove(e: PointerEvent) {
+    if (!resizing) return;
+    setDockWidth(gripW + (gripX - e.clientX), false);
+  }
+  function gripUp() {
+    if (!resizing) return;
+    resizing = false;
+    setDockWidth(layout.dockW);
+  }
+  function gripKey(e: KeyboardEvent) {
+    const d = e.key === "ArrowLeft" ? 24 : e.key === "ArrowRight" ? -24 : 0;
+    if (d) {
+      e.preventDefault();
+      setDockWidth(dockWidth() + d);
+    } else if (e.key === "Home" || e.key === "Escape") setDockWidth(null);
   }
   // Phase 3: continuity notes per message (CON-02), glossary terms (LORE-15).
   let flags = $state<Record<string, ContinuityFlag>>({});
@@ -777,7 +807,7 @@
 {#if error}
   <div class="center"><div class="stack" style="text-align:center"><h2>Couldn't open this chat</h2><p class="muted">{error}</p><a href="/">Back home</a></div></div>
 {:else if detail}
-  <div class="chat" class:with-panel={panelOpen && !app.isMobile} class:focus={layout.focus} class:art={Boolean(amb.imageId)} style:--accent={ambAccent} style:--panel="{Math.round((amb.panel ?? 0.86) * 100)}%">
+  <div class="chat" class:with-panel={panelOpen && !app.isMobile} class:focus={layout.focus} class:art={Boolean(amb.imageId)} style:--accent={ambAccent} style:--panel="{Math.round((amb.panel ?? 0.86) * 100)}%" style:--dock-w={layout.dockW ? `${layout.dockW}px` : undefined}>
     <div class="main-col">
       <header class="bar" class:compact={layout.focus}>
         {#if app.isMobile}
@@ -953,27 +983,51 @@
     </div>
 
     {#if panelOpen && !app.isMobile}
-      <aside class="dock">
-        <div class="dock-tabs" role="tablist" aria-label="Side panel">
-          {#each dockOptions as o (o.value)}
-            <button role="tab" aria-selected={dockTab === o.value} class:on={dockTab === o.value} onclick={() => pickDock(o.value)}><o.icon size={16} /><span>{o.label}</span></button>
-          {/each}
+      <aside class="dock" class:resizing>
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions (a focusable separator is a splitter: arrows resize it) -->
+        <div
+          class="dock-grip"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the side panel"
+          aria-valuemin={DOCK_MIN}
+          aria-valuemax={dockMax()}
+          aria-valuenow={dockWidth()}
+          tabindex="0"
+          title="Drag to resize · double-click to reset"
+          onpointerdown={gripDown}
+          onpointermove={gripMove}
+          onpointerup={gripUp}
+          onpointercancel={gripUp}
+          ondblclick={() => setDockWidth(null)}
+          onkeydown={gripKey}
+        ></div>
+        <div class="dock-scroll studio">
+          {@render dockTabs()}
+          {#key dockTab}<div class="dock-pane">
+            {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+          </div>{/key}
         </div>
-        {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
       </aside>
     {/if}
   </div>
 
   {#if app.isMobile}
     <Modal bind:open={sheetOpen} title="This chat">
-      <div class="dock-tabs" role="tablist" aria-label="Side panel">
-        {#each dockOptions as o (o.value)}
-          <button role="tab" aria-selected={dockTab === o.value} class:on={dockTab === o.value} onclick={() => pickDock(o.value)}><o.icon size={16} /><span>{o.label}</span></button>
-        {/each}
-      </div>
+      <div class="studio sheet-desk">
+      {@render dockTabs()}
       {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
+      </div>
     </Modal>
   {/if}
+
+  {#snippet dockTabs()}
+    <div class="st-selector" role="tablist" aria-label="Side panel">
+      {#each dockOptions as o (o.value)}
+        <button type="button" role="tab" aria-selected={dockTab === o.value} onclick={() => pickDock(o.value)}><o.icon size={17} /><span>{o.label}</span></button>
+      {/each}
+    </div>
+  {/snippet}
 
   <Inspector bind:open={inspectorOpen} chatId={id} generationId={inspectGen} />
 
@@ -1117,7 +1171,7 @@
     height: 100dvh;
   }
   .chat.with-panel {
-    grid-template-columns: 1fr var(--dock-w);
+    grid-template-columns: minmax(0, 1fr) min(var(--dock-w), 55vw);
   }
   .main-col {
     display: flex;
@@ -1282,11 +1336,84 @@
     white-space: pre-wrap;
   }
   .dock {
+    position: relative;
+    min-width: 0;
     border-left: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface-2) 45%, var(--bg));
-    overflow-y: auto;
-    padding: 1.2rem 1.1rem 2rem;
     height: 100dvh;
+  }
+  .dock-scroll {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    align-content: start;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 12px 12px 2rem;
+    border-radius: inherit;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .dock-pane {
+    min-width: 0;
+    animation: pane-in 0.28s var(--ease);
+  }
+  @keyframes pane-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  /* The grip on the panel's left edge: drag to resize, double-click to reset. */
+  .dock-grip {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    bottom: 0;
+    left: -7px;
+    width: 14px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .dock-grip::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 46px;
+    margin: -23px 0 0 -2px;
+    border-radius: 4px;
+    background: var(--border-strong);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface) 60%, transparent);
+    opacity: 0;
+    transition:
+      opacity 0.2s,
+      background 0.2s,
+      height 0.2s;
+  }
+  .dock:hover > .dock-grip::after,
+  .dock-grip:focus-visible::after {
+    opacity: 0.8;
+  }
+  .dock.resizing > .dock-grip::after,
+  .dock-grip:hover::after {
+    opacity: 1;
+    height: 72px;
+    margin-top: -36px;
+    background: var(--accent);
+  }
+  .dock-grip:focus-visible {
+    outline: none;
+  }
+  .dock.resizing {
+    user-select: none;
+  }
+  .sheet-desk {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
   }
   .compare {
     display: grid;
@@ -1615,47 +1742,13 @@
     justify-content: center;
   }
 
-  /* ---------- Side panel tabs ---------- */
-  .dock-tabs {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 2px;
-    padding: 4px;
-    margin-bottom: 1rem;
-    border-radius: 16px;
-    background: var(--surface-2);
-  }
-  .dock-tabs button {
-    display: grid;
-    justify-items: center;
-    gap: 3px;
-    padding: 0.45rem 0 0.4rem;
-    border: 0;
-    background: none;
-    border-radius: 12px;
-    color: var(--text-faint);
-    font: 650 0.66rem var(--font-ui);
-    cursor: pointer;
-    transition:
-      background 0.2s,
-      color 0.2s;
-  }
-  .dock-tabs button:hover {
-    color: var(--text-muted);
-  }
-  .dock-tabs button.on {
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow-1);
-  }
-
   /* ---------- Lantern: the glass stage ---------- */
   :global([data-shell="lantern"]) .chat {
     height: 100%;
     column-gap: 14px;
   }
   :global([data-shell="lantern"]) .chat.with-panel {
-    grid-template-columns: minmax(0, 1fr) var(--dock-w);
+    grid-template-columns: minmax(0, 1fr) min(var(--dock-w), 55vw);
   }
   :global([data-shell="lantern"]) .main-col {
     height: 100%;
@@ -1709,19 +1802,12 @@
       inset 0 0 0 1px color-mix(in srgb, var(--hi) 14%, transparent),
       0 0 16px color-mix(in srgb, var(--lavender) 18%, transparent);
   }
-  :global([data-shell="lantern"]) .styles,
-  :global([data-shell="lantern"]) .dock-tabs {
+  :global([data-shell="lantern"]) .styles {
     background: var(--well);
     box-shadow: inset 0 0 0 1px var(--edge);
   }
   :global([data-shell="lantern"]) .sep {
     background: var(--edge);
-  }
-  :global([data-shell="lantern"]) .dock-tabs button.on {
-    background: color-mix(in srgb, var(--hi) 11%, transparent);
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--hi) 15%, transparent),
-      0 0 18px color-mix(in srgb, var(--lavender) 22%, transparent);
   }
   :global([data-shell="lantern"]) .dock {
     height: 100%;
@@ -1733,7 +1819,6 @@
       0 24px 60px -24px color-mix(in srgb, var(--lo) 65%, transparent);
     backdrop-filter: blur(24px) saturate(150%);
     -webkit-backdrop-filter: blur(24px) saturate(150%);
-    padding: 14px 14px 2rem;
     animation: dock-in 0.5s var(--ease);
   }
   @keyframes dock-in {

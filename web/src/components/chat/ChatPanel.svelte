@@ -1,6 +1,12 @@
 <script lang="ts">
-  import Segmented from "../Segmented.svelte";
-  import ControlSwitches from "../presets/ControlSwitches.svelte";
+  import "../../styles/studio.css";
+  import Module from "../desk/Module.svelte";
+  import Rocker from "../desk/Rocker.svelte";
+  import Jack from "../desk/Jack.svelte";
+  import Knob from "../desk/Knob.svelte";
+  import Seg from "../desk/Seg.svelte";
+  import Fader from "../desk/Fader.svelte";
+  import ControlDesk from "../presets/ControlDesk.svelte";
   import ChatGuards from "./ChatGuards.svelte";
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
@@ -8,12 +14,13 @@
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
-  import { Archive, BookOpen, Download, ImageIcon, Library, Pencil, Plus, ScrollText, Sparkles, Trash, Unlink, X } from "../../lib/icons";
+  import { compact } from "../../lib/format";
+  import { Archive, BookOpen, Download, Eye, ImageIcon, Library, Link, Pencil, Plus, ScrollText, Sparkles, Trash, Unlink, X } from "../../lib/icons";
   import { uploadImage } from "../../lib/images";
   import type { Collection, StoryStats } from "../../lib/types";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
-  import type { ChatDetail, ChatMode, LorebookSummary, Persona, Preset, Profile } from "../../lib/types";
+  import type { ChatDetail, ChatMode, ChatSettings, LorebookSummary, Persona, Preset, Profile } from "../../lib/types";
 
   let { detail, onchange, oninspect }: { detail: ChatDetail; onchange: () => void; oninspect: () => void } = $props();
 
@@ -88,6 +95,10 @@
     const clean = Object.fromEntries(Object.entries(story).filter(([, v]) => typeof v === "string" && v.trim()));
     storyTimer = setTimeout(() => update({ settings: { story: clean } }), 500);
   }
+  function setStory<K extends keyof typeof story>(k: K, v: string) {
+    story[k] = (v || undefined) as (typeof story)[K];
+    saveStory();
+  }
   function addTruth() {
     if (!newTruth.trim()) return;
     void update({ settings: { truths: [...(s.truths ?? []), newTruth.trim()] } });
@@ -157,7 +168,7 @@
       errorToast(e);
     }
   }
-  const hours = (m: number) => (m >= 90 ? `${Math.round(m / 60)} h` : `${m} min`);
+  const hours = (m: number) => (m >= 90 ? `${Math.round(m / 60)}H` : `${m}M`);
 
   async function rename() {
     const title = await promptText({ title: "Rename chat", value: detail.chat.title, confirmLabel: "Rename" });
@@ -169,6 +180,14 @@
     toast(detail.chat.archivedAt ? "Chat unarchived" : "Chat archived");
   }
 
+  // Delete hides under a striped safety cover: lift it, then press.
+  let coverLifted = $state(false);
+  let coverTimer: ReturnType<typeof setTimeout>;
+  function lift() {
+    coverLifted = true;
+    clearTimeout(coverTimer);
+    coverTimer = setTimeout(() => (coverLifted = false), 5000);
+  }
   async function remove() {
     if (!(await confirm({ title: "Move this chat to the trash?", message: "You can restore it for 30 days.", confirmLabel: "Move to trash", danger: true }))) return;
     await del(`/api/chats/${detail.chat.id}`);
@@ -196,268 +215,657 @@
 
   const unlinked = $derived(books.filter((b) => !detail.lorebooks.some((l) => l.id === b.id)));
   const profileName = (id: string | null) => profiles.find((p) => p.id === id)?.name ?? "none";
+  const sleeve = $derived(extras?.coverImageId ? imageUrl(extras.coverImageId, true) : detail.character?.avatarId ? imageUrl(detail.character.avatarId, "m") : null);
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0] ?? "")
+      .join("")
+      .toUpperCase();
+  const tapes = ["var(--st-sea)", "var(--st-rose)", "var(--st-cool)", "var(--st-warm)", "var(--accent)"];
+
+  const POV = [
+    { value: "", label: "Card", title: "The card's choice" },
+    { value: "first", label: "1st", title: "First person" },
+    { value: "second", label: "2nd", title: "Second person" },
+    { value: "third", label: "3rd", title: "Third person" },
+  ];
+  const TENSE = [
+    { value: "", label: "Card", title: "The card's choice" },
+    { value: "past", label: "Past" },
+    { value: "present", label: "Present" },
+  ];
+  const INTENSITY = [
+    { value: "", label: "Card", title: "The card's choice" },
+    { value: "gentle", label: "Gentle" },
+    { value: "moderate", label: "Moderate" },
+    { value: "intense", label: "Intense" },
+  ];
+  const storyPeek = $derived(
+    [story.genre, POV.find((p) => p.value && p.value === story.pov)?.label, story.tense].filter(Boolean).join(" · ") || "The card's choices",
+  );
+  // Open at first when anything is set; after that it stays where you leave it.
+  // svelte-ignore state_referenced_locally
+  const storyOpen = !!(s.truths?.length || Object.keys(s.story ?? {}).length || s.ooc?.length);
 </script>
 
-<div class="panel-body stack">
-  <section class="stack tight">
-    <div class="row between">
-      <h3 class="truncate">{detail.chat.title}</h3>
-      <button class="btn ghost icon small" onclick={rename} aria-label="Rename chat"><Pencil size={15} /></button>
-    </div>
-    <span class="tiny muted">{detail.chat.messageCount} messages</span>
-  </section>
-
-  <section class="field">
-    <span class="label">This story</span>
-    {#if extras?.coverImageId}
-      <div class="cover"><img src={imageUrl(extras.coverImageId, true)} alt="Cover" /><button class="btn ghost icon small" onclick={clearCover} aria-label="Remove cover"><X size={14} /></button></div>
-    {/if}
-    <div class="row wrap">
-      <button class="btn small" onclick={() => coverInput?.click()}><ImageIcon size={14} /> {extras?.coverImageId ? "Change cover" : "Cover image"}</button>
-      {#if extras?.titleLocked}<button class="btn small" onclick={autoTitle} title="Let the Story So Far name this chat"><Sparkles size={14} /> Name it from the story</button>{/if}
-      <a class="btn small" href="/chat/{detail.chat.id}/codex"><Library size={14} /> Codex</a>
+<div class="studio st-stack chat-desk">
+  <!-- now playing -->
+  <Module title="Now playing" lit peek="{detail.chat.messageCount} messages">
+    <div class="display">
+      <div class="sleeve">
+        {#if sleeve}<img src={sleeve} alt="" />{:else}<span class="np-initials" aria-hidden="true">{initials(detail.character?.name ?? detail.chat.title)}</span>{/if}
+        <button type="button" class="sl-b" onclick={() => coverInput?.click()} aria-label={extras?.coverImageId ? "Change cover" : "Add a cover image"} title={extras?.coverImageId ? "Change cover" : "Add a cover image"}><ImageIcon size={13} /></button>
+        {#if extras?.coverImageId}<button type="button" class="sl-b x" onclick={clearCover} aria-label="Remove cover" title="Remove cover"><X size={13} /></button>{/if}
+      </div>
+      <div class="np">
+        <p class="np-title">{detail.chat.title}</p>
+        {#if detail.character || detail.persona}<p class="np-cast">{[detail.character?.name, detail.persona?.name].filter(Boolean).join(" × ")}</p>{/if}
+        {#if stats && stats.messages}
+          <div class="counters" aria-label="Story statistics">
+            <span class="st-lcd" title="{stats.messages} messages">{compact(stats.messages)}<small>MSG</small></span>
+            <span class="st-lcd" title="{stats.words.toLocaleString()} words">{compact(stats.words)}<small>WORDS</small></span>
+            <span class="st-lcd" title="{stats.yourWords.toLocaleString()} of them yours">{compact(stats.yourWords)}<small>YOURS</small></span>
+            <span class="st-lcd" title="Time spent">{hours(stats.minutesSpent)}<small>{stats.daysActive} DAY{stats.daysActive === 1 ? "" : "S"}</small></span>
+            {#if stats.memories}<span class="st-lcd" title="Memories">{stats.memories}<small>MEM</small></span>{/if}
+            {#if stats.cost}<span class="st-lcd" title="Spent on this story">${stats.cost.toFixed(2)}</span>{/if}
+          </div>
+        {/if}
+      </div>
     </div>
     <input type="file" accept="image/*" hidden bind:this={coverInput} onchange={(e) => setCover(e.currentTarget.files)} />
+    <div class="st-keys">
+      <button class="st-key" type="button" onclick={rename}><Pencil size={14} /> Rename</button>
+      {#if extras?.titleLocked}<button class="st-key" type="button" onclick={autoTitle} title="Let the Story So Far name this chat"><Sparkles size={14} /> Name it</button>{/if}
+      <a class="st-key" href="/chat/{detail.chat.id}/codex"><Library size={14} /> Codex</a>
+    </div>
     {#if collections.length}
-      <div class="row wrap cols">
-        {#each collections as c (c.id)}<button class="chip tiny col" class:on={mine.includes(c.id)} onclick={() => toggleCollection(c.id)} aria-pressed={mine.includes(c.id)}>{c.name}</button>{/each}
+      <div class="st-keys" role="group" aria-label="Collections">
+        {#each collections as c (c.id)}
+          <button class="st-key" type="button" aria-pressed={mine.includes(c.id)} onclick={() => toggleCollection(c.id)}><span class="st-led" class:on={mine.includes(c.id)}></span>{c.name}</button>
+        {/each}
       </div>
     {/if}
-    {#if stats && stats.messages}
-      <span class="hint">{stats.messages} messages · {stats.words.toLocaleString()} words ({stats.yourWords.toLocaleString()} yours) · {hours(stats.minutesSpent)} over {stats.daysActive} day{stats.daysActive === 1 ? "" : "s"}{stats.cost ? ` · $${stats.cost.toFixed(2)}` : ""}{stats.memories ? ` · ${stats.memories} memories` : ""}</span>
-    {/if}
-  </section>
+  </Module>
 
-  <label class="field">
-    <span class="label">Mode</span>
-    <Segmented
+  <!-- mode and routing -->
+  <Module title="Mode">
+    <Rocker
+      label="Mode"
       value={detail.chat.mode}
       options={[
-        { value: "companion" as ChatMode, label: "Companion" },
-        { value: "narrator" as ChatMode, label: "Narrator" },
+        { value: "companion" as ChatMode, label: "Companion", sub: "one-on-one" },
+        { value: "narrator" as ChatMode, label: "Narrator", sub: "a whole world" },
       ]}
       onchange={(v) => update({ mode: v })}
-      small
     />
-    <span class="hint">{detail.chat.mode === "narrator" ? "The card narrates a world and voices its characters." : "One-on-one with this character."}</span>
-  </label>
-
-  <label class="field">
-    <span class="label">You're playing</span>
-    <select class="select" value={detail.persona?.id ?? ""} onchange={(e) => update({ personaId: e.currentTarget.value || null })}>
-      {#each personas as p (p.id)}<option value={p.id}>{p.name}{p.isDefault ? " (default)" : ""}</option>{/each}
-      {#if !personas.length}<option value="">No personas yet</option>{/if}
-    </select>
-  </label>
-
-  {#if detail.variants?.length || detail.personaVariants?.length}
-    <div class="row wrap variants">
+    <p class="st-caption">{detail.chat.mode === "narrator" ? "The card narrates a world and voices its characters." : "One-on-one with this character."}</p>
+    <div class="st-mod-h routing" role="heading" aria-level="4">Routing</div>
+    <div class="st-patch">
+      <Jack
+        label="You're playing"
+        value={detail.persona?.id ?? ""}
+        options={personas.length ? personas.map((p) => ({ value: p.id, label: `${p.name}${p.isDefault ? " (default)" : ""}` })) : [{ value: "", label: "No personas yet" }]}
+        onchange={(v) => update({ personaId: v || null })}
+      />
       {#if detail.variants?.length}
-        <label class="field grow">
-          <span class="label">{detail.character?.name} plays</span>
-          <select class="select" value={detail.chat.settings.variantId ?? ""} onchange={(e) => update({ settings: { variantId: e.currentTarget.value || null } })}>
-            <option value="">The base card</option>
-            {#each detail.variants as v (v.id)}<option value={v.id}>{v.name}</option>{/each}
-          </select>
-        </label>
+        <Jack
+          label="{detail.character?.name} plays"
+          value={s.variantId ?? ""}
+          options={[{ value: "", label: "The base card" }, ...detail.variants.map((v) => ({ value: v.id, label: v.name }))]}
+          onchange={(v) => update({ settings: { variantId: v || null } })}
+        />
       {/if}
       {#if detail.personaVariants?.length}
-        <label class="field grow">
-          <span class="label">You play</span>
-          <select class="select" value={detail.chat.settings.personaVariantId ?? ""} onchange={(e) => update({ settings: { personaVariantId: e.currentTarget.value || null } })}>
-            <option value="">{detail.persona?.name} (base)</option>
-            {#each detail.personaVariants as v (v.id)}<option value={v.id}>{v.name}</option>{/each}
-          </select>
-        </label>
+        <Jack
+          label="You play"
+          value={s.personaVariantId ?? ""}
+          options={[{ value: "", label: `${detail.persona?.name} (base)` }, ...detail.personaVariants.map((v) => ({ value: v.id, label: v.name }))]}
+          onchange={(v) => update({ settings: { personaVariantId: v || null } })}
+        />
       {/if}
+      <hr />
+      <Jack
+        label="Model"
+        value={s.profileId ?? ""}
+        options={[
+          { value: "", label: fromCharacter("profile") ? `${detail.character?.name}'s default (${profileName(detail.defaults?.profileId ?? null)})` : `Default (${profileName(storyProfileId)})` },
+          ...profiles.map((p) => ({ value: p.id, label: `${p.name} · ${p.modelId}` })),
+        ]}
+        onchange={(v) => update({ settings: { profileId: v || null } })}
+      />
+      <Jack
+        label="Preset"
+        value={s.presetId ?? ""}
+        options={[
+          {
+            value: "",
+            label: fromCharacter("preset")
+              ? `${detail.character?.name}'s default (${presets.find((p) => p.id === detail.defaults?.presetId)?.name ?? "preset"})`
+              : `Default (${presets.find((p) => p.id === defaultPresetId)?.name ?? "preset"})`,
+          },
+          ...presets.map((p) => ({ value: p.id, label: p.name })),
+        ]}
+        onchange={(v) => update({ settings: { presetId: v || null } })}
+      />
     </div>
-  {/if}
+  </Module>
 
-  <label class="field">
-    <span class="label">Model</span>
-    <select class="select" value={detail.chat.settings.profileId ?? ""} onchange={(e) => update({ settings: { profileId: e.currentTarget.value || null } })}>
-      <option value="">{fromCharacter("profile") ? `${detail.character?.name}'s default (${profileName(detail.defaults?.profileId ?? null)})` : `Default (${profileName(storyProfileId)})`}</option>
-      {#each profiles as p (p.id)}<option value={p.id}>{p.name} · {p.modelId}</option>{/each}
-    </select>
-  </label>
-
-  <label class="field">
-    <span class="label">Preset</span>
-    <select class="select" value={detail.chat.settings.presetId ?? ""} onchange={(e) => update({ settings: { presetId: e.currentTarget.value || null } })}>
-      <option value="">{fromCharacter("preset") ? `${detail.character?.name}'s default (${presets.find((p) => p.id === detail.defaults?.presetId)?.name ?? "preset"})` : `Default (${presets.find((p) => p.id === defaultPresetId)?.name ?? "preset"})`}</option>
-      {#each presets as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-    </select>
-  </label>
-
+  <!-- the preset's rules -->
   {#if preset?.controls.length}
-    <div class="field">
-      <span class="label">Controls <span class="faint">from “{preset.name}”</span></span>
-      <ControlSwitches controls={preset.controls} values={detail.chat.settings.controls ?? {}} inherited={detail.defaults?.characterControls ?? {}} inheritedLabel={Object.keys(detail.defaults?.characterControls ?? {}).length ? "character's default" : "preset's default"} onchange={setControl} />
-    </div>
+    {@const changed = preset.controls.filter((c) => s.controls?.[c.id] !== undefined && s.controls[c.id] !== (detail.defaults?.characterControls?.[c.id] ?? c.default)).length}
+    <Module title="Rules · from “{preset.name}”" led={changed ? "warm" : null} peek={changed ? `${changed} changed` : "All from the preset"}>
+      <ControlDesk
+        controls={preset.controls}
+        values={s.controls ?? {}}
+        inherited={detail.defaults?.characterControls ?? {}}
+        inheritedLabel={Object.keys(detail.defaults?.characterControls ?? {}).length ? "character's default" : "preset's default"}
+        onchange={setControl}
+      />
+    </Module>
   {/if}
 
-  <div class="field">
-    <span class="label">Author's note <span class="faint">depth <input class="depth" type="number" min="0" max="100" bind:value={depth} oninput={saveNote} aria-label="Depth" /></span></span>
-    <textarea class="textarea" use:autosize={240} bind:value={note} oninput={saveNote} placeholder={detail.defaults?.from.authorsNote === "character" ? "Empty: the character's default note applies." : "A standing note for the story, e.g. “It's raining all week.”"}></textarea>
-    <span class="hint">Inserted {depth} messages from the end, every turn.</span>
-  </div>
-
-  <details class="story-set" open={!!(s.truths?.length || Object.keys(s.story ?? {}).length || s.ooc?.length)}>
-    <summary class="label">Story settings</summary>
-    <div class="stack tight">
-      <div class="sgrid">
-        <label class="field"><span class="tiny muted">Genre</span><input class="input mini" bind:value={story.genre} oninput={saveStory} placeholder="cozy mystery" maxlength="60" /></label>
-        <label class="field"><span class="tiny muted">Tone</span><input class="input mini" bind:value={story.tone} oninput={saveStory} placeholder="warm, wry" maxlength="60" /></label>
-        <label class="field"><span class="tiny muted">Point of view</span>
-          <select class="select mini" bind:value={story.pov} onchange={saveStory}><option value={undefined}>Card's choice</option><option value="first">First person</option><option value="second">Second person</option><option value="third">Third person</option></select>
-        </label>
-        <label class="field"><span class="tiny muted">Tense</span>
-          <select class="select mini" bind:value={story.tense} onchange={saveStory}><option value={undefined}>Card's choice</option><option value="past">Past</option><option value="present">Present</option></select>
-        </label>
-        <label class="field"><span class="tiny muted">Intensity</span>
-          <select class="select mini" bind:value={story.intensity} onchange={saveStory}><option value={undefined}>Card's choice</option><option value="gentle">Gentle</option><option value="moderate">Moderate</option><option value="intense">Intense</option></select>
-        </label>
-        <label class="field"><span class="tiny muted">Language</span><input class="input mini" bind:value={story.language} oninput={saveStory} placeholder="English" maxlength="30" /></label>
+  <!-- author's note: masking tape and a depth knob -->
+  <Module title="Author's note" peek="every turn">
+    <div class="tapebox">
+      <div class="tape">
+        <textarea
+          use:autosize={240}
+          bind:value={note}
+          oninput={saveNote}
+          aria-label="Author's note"
+          placeholder={detail.defaults?.from.authorsNote === "character" ? "Empty: the character's default note applies." : "A standing note for the story, e.g. “It's raining all week.”"}
+        ></textarea>
       </div>
-      <label class="field"><span class="tiny muted">Style</span><input class="input mini" bind:value={story.style} oninput={saveStory} placeholder="Short paragraphs, sensory detail, no purple prose" maxlength="200" /></label>
-      <div class="field">
-        <span class="tiny muted">Reply length and pace</span>
-        <div class="row wrap">
-          <Segmented value={s.length ?? "normal"} small options={[{ value: "short", label: "Short" }, { value: "normal", label: "Normal" }, { value: "long", label: "Long" }]} onchange={(v) => update({ settings: { length: v === "normal" ? null : v } })} />
-          <Segmented value={s.pacing ?? "normal"} small options={[{ value: "slow", label: "Slow" }, { value: "normal", label: "Normal" }, { value: "fast", label: "Fast" }]} onchange={(v) => update({ settings: { pacing: v === "normal" ? null : v } })} />
-        </div>
-      </div>
-      <div class="field">
-        <span class="tiny muted">Truths: rules of this story, sent every turn</span>
-        {#each s.truths ?? [] as t, i (i)}
-          <div class="row item"><span class="grow">{t}</span><button class="btn ghost icon small" onclick={() => update({ settings: { truths: (s.truths ?? []).filter((_, j) => j !== i) } })} aria-label="Remove truth"><Trash size={13} /></button></div>
-        {/each}
-        <input class="input mini" bind:value={newTruth} placeholder="Magic always costs something. Enter to add" maxlength="300" onkeydown={(e) => e.key === "Enter" && addTruth()} />
-      </div>
-      <div class="field">
-        <span class="tiny muted">Standing notes to the model (out of character)</span>
-        {#each s.ooc ?? [] as o (o.id)}
-          <div class="row item"><span class="grow">{o.text}</span><button class="btn ghost icon small" onclick={() => update({ settings: { ooc: (s.ooc ?? []).filter((x) => x.id !== o.id) } })} aria-label="Remove note"><Trash size={13} /></button></div>
-        {/each}
-        <input class="input mini" bind:value={newOoc} placeholder="Don't speak for my character. Enter to add" maxlength="600" onkeydown={(e) => e.key === "Enter" && addOoc()} />
-      </div>
+      <Knob label="Depth" value={Number(depth) || 0} min={0} max={100} onchange={(v) => ((depth = v), saveNote())} />
     </div>
-  </details>
+    <p class="st-hint">Inserted {depth} message{depth === 1 ? "" : "s"} from the end, every turn. Drag the knob or use the arrow keys.</p>
+  </Module>
+
+  <!-- story settings -->
+  <Module title="Story settings" fold open={storyOpen} peek={storyPeek}>
+    <div class="dymo-grid">
+      <label><span class="st-k">Genre</span><input class="dymo" bind:value={story.genre} oninput={saveStory} placeholder="Cozy mystery" maxlength="60" /></label>
+      <label><span class="st-k">Tone</span><input class="dymo" bind:value={story.tone} oninput={saveStory} placeholder="Warm, wry" maxlength="60" /></label>
+      <label class="wide"><span class="st-k">Style</span><input class="dymo alt" bind:value={story.style} oninput={saveStory} placeholder="Short paragraphs, sensory detail" maxlength="200" /></label>
+      <label><span class="st-k">Language</span><input class="dymo" bind:value={story.language} oninput={saveStory} placeholder="English" maxlength="30" /></label>
+    </div>
+    <hr class="st-divider" />
+    <div class="st-seg-row"><span class="st-k">Point of view</span><Seg label="Point of view" value={story.pov ?? ""} options={POV} onchange={(v) => setStory("pov", v)} /></div>
+    <div class="st-seg-row"><span class="st-k">Tense</span><Seg label="Tense" value={story.tense ?? ""} options={TENSE} onchange={(v) => setStory("tense", v)} /></div>
+    <div class="st-seg-row"><span class="st-k">Intensity</span><Seg label="Intensity" value={story.intensity ?? ""} options={INTENSITY} onchange={(v) => setStory("intensity", v)} /></div>
+    <hr class="st-divider" />
+    <Fader
+      label="Reply length"
+      value={s.length ?? "normal"}
+      base="normal"
+      resetLabel="Back to normal"
+      options={[
+        { value: "short", label: "Short" },
+        { value: "normal", label: "Normal" },
+        { value: "long", label: "Long" },
+      ]}
+      onchange={(v) => update({ settings: { length: v === "normal" ? null : v } as Partial<ChatSettings> })}
+      onreset={() => update({ settings: { length: null } })}
+    />
+    <Fader
+      label="Pace"
+      value={s.pacing ?? "normal"}
+      base="normal"
+      resetLabel="Back to normal"
+      options={[
+        { value: "slow", label: "Slow" },
+        { value: "normal", label: "Normal" },
+        { value: "fast", label: "Fast" },
+      ]}
+      onchange={(v) => update({ settings: { pacing: v === "normal" ? null : v } as Partial<ChatSettings> })}
+      onreset={() => update({ settings: { pacing: null } })}
+    />
+    <hr class="st-divider" />
+    <span class="st-k">Truths · rules of this story, sent every turn</span>
+    {#if s.truths?.length}
+      <ul class="st-pins">
+        {#each s.truths as t, i (i)}
+          <li><span>{t}</span><button type="button" onclick={() => update({ settings: { truths: (s.truths ?? []).filter((_, j) => j !== i) } })} aria-label="Remove truth"><X size={13} /></button></li>
+        {/each}
+      </ul>
+    {/if}
+    <label class="st-addline"><Plus size={14} /><input bind:value={newTruth} placeholder="Magic always costs something. Enter to add" maxlength="300" onkeydown={(e) => e.key === "Enter" && addTruth()} aria-label="Add a truth" /></label>
+    <hr class="st-divider" />
+    <span class="st-k">Standing notes · to the model, out of character</span>
+    {#if s.ooc?.length}
+      <ul class="st-pins ooc">
+        {#each s.ooc as o (o.id)}
+          <li><span>{o.text}</span><button type="button" onclick={() => update({ settings: { ooc: (s.ooc ?? []).filter((x) => x.id !== o.id) } })} aria-label="Remove note"><X size={13} /></button></li>
+        {/each}
+      </ul>
+    {/if}
+    <label class="st-addline"><Plus size={14} /><input bind:value={newOoc} placeholder="Don't speak for my character. Enter to add" maxlength="600" onkeydown={(e) => e.key === "Enter" && addOoc()} aria-label="Add a standing note" /></label>
+  </Module>
 
   <ChatSteer chatId={detail.chat.id} settings={detail.chat.settings} characterStyle={detail.defaults?.characterStyle ?? null} onupdate={(b) => update(b)} />
   <ChatGuards chatId={detail.chat.id} settings={detail.chat.settings} onupdate={(b) => update(b)} />
 
-  <div class="field">
-    <span class="label">Lorebooks for this chat</span>
-    {#each detail.lorebooks as b (b.id)}
-      <div class="row book">
-        <a href="/lorebooks/{b.id}" class="grow row truncate"><BookOpen size={15} /> {b.name}</a>
-        <button class="btn ghost icon small" onclick={() => unlinkBook(b.id)} aria-label="Unlink {b.name}"><Unlink size={14} /></button>
+  <!-- lorebooks as cassettes -->
+  <Module title="Lorebooks" fold open={detail.lorebooks.length > 0} peek={detail.lorebooks.length ? `${detail.lorebooks.length} loaded` : "None for this chat"}>
+    {#if detail.lorebooks.length}
+      <div class="cassettes">
+        {#each detail.lorebooks as b, i (b.id)}
+          <div class="cassette" style:--c={tapes[i % tapes.length]}>
+            <a class="cas-label" href="/lorebooks/{b.id}"><span class="reels" aria-hidden="true"><i></i><i></i></span><b>{b.name}</b></a>
+            <button class="eject" type="button" onclick={() => unlinkBook(b.id)} aria-label="Unlink {b.name}" title="Unlink"><Unlink size={14} /></button>
+          </div>
+        {/each}
       </div>
-    {/each}
-    <div class="row wrap">
-      <button class="btn small" onclick={newChatBook}><Plus size={14} /> New</button>
+    {/if}
+    <div class="slots">
+      <button class="slot" type="button" onclick={newChatBook}><Plus size={14} /> New book</button>
       {#if unlinked.length}
-        <select class="select small-select" onchange={(e) => e.currentTarget.value && linkBook(e.currentTarget.value)}>
-          <option value="">Link existing…</option>
-          {#each unlinked as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
-        </select>
+        <label class="slot"
+          ><Link size={14} /> Link existing
+          <select value="" onchange={(e) => e.currentTarget.value && linkBook(e.currentTarget.value)} aria-label="Link an existing lorebook">
+            <option value="">Link existing…</option>
+            {#each unlinked as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+          </select>
+        </label>
       {/if}
     </div>
-    <span class="hint">Character, persona and global lorebooks apply automatically.</span>
-  </div>
-
-  <div class="field">
-    <span class="label">Tools</span>
-    <div class="row wrap">
-      <button class="btn small" onclick={oninspect}><ScrollText size={14} /> Next prompt</button>
-      <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=html`)}><Download size={14} /> HTML</button>
-      <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=md`)}><Download size={14} /> Markdown</button>
-      <button class="btn small" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=jsonl`)}><Download size={14} /> JSONL</button>
-      <button class="btn small" onclick={() => (exportOpen = true)}><BookOpen size={14} /> Book & memory</button>
-      <a class="btn small" href="/chat/{detail.chat.id}/read"><BookOpen size={14} /> Reading mode</a>
-    </div>
-  </div>
+    <p class="st-hint">Character, persona and global lorebooks apply automatically.</p>
+  </Module>
 
   <AmbienceEditor {detail} {onchange} />
 
+  <!-- tools -->
+  <Module title="Tools">
+    <div class="keypad">
+      <button class="st-key" type="button" onclick={oninspect}><ScrollText size={18} />Next prompt</button>
+      <a class="st-key" href="/chat/{detail.chat.id}/read"><Eye size={18} />Reading mode</a>
+      <button class="st-key" type="button" onclick={() => (exportOpen = true)}><BookOpen size={18} />Book &amp; memory</button>
+      <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=html`)}><Download size={15} />HTML</button>
+      <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=md`)}><Download size={15} />Markdown</button>
+      <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=jsonl`)}><Download size={15} />JSONL</button>
+    </div>
+  </Module>
+
   <BookExport bind:open={exportOpen} chatId={detail.chat.id} />
 
-  <div class="row wrap">
-    <button class="btn small" onclick={archive}><Archive size={14} /> {detail.chat.archivedAt ? "Unarchive" : "Archive"}</button>
-    <button class="btn small danger" onclick={remove}><Trash size={14} /> Delete chat</button>
-  </div>
-
+  <Module>
+    <div class="endrow">
+      <button class="st-key" type="button" onclick={archive}><Archive size={14} /> {detail.chat.archivedAt ? "Unarchive" : "Archive"}</button>
+      <div class="guarded" class:open={coverLifted}>
+        <button class="st-key danger" type="button" onclick={remove} tabindex={coverLifted ? 0 : -1}><Trash size={14} /> Delete chat</button>
+        <button class="cover" type="button" onclick={lift} aria-label="Lift the cover to reveal Delete" tabindex={coverLifted ? -1 : 0}>Lift to delete</button>
+      </div>
+    </div>
+    <p class="fine">Deleted chats wait in the trash for 30 days.</p>
+  </Module>
 </div>
 
 <style>
-  .panel-body {
-    gap: 1.15rem;
+  /* now playing */
+  .display {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px;
+    border-radius: var(--r-sm);
+    background: var(--st-well);
+    box-shadow: var(--st-inset);
   }
-  .depth {
-    width: 3.2rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--text);
-    font: inherit;
-    padding: 0 0.3rem;
-    text-transform: none;
-  }
-  .book a {
-    color: var(--text);
-    gap: 0.4rem;
-    font-size: var(--fs-sm);
-  }
-  .cover {
+  .sleeve {
     position: relative;
-    border-radius: var(--r-md, 10px);
+    aspect-ratio: 1;
+    align-self: start;
+    border-radius: calc(var(--r-sm) - 2px);
     overflow: hidden;
+    background: var(--st-grad);
+    box-shadow:
+      0 6px 14px -6px rgb(0 0 0 / 45%),
+      0 0 0 1px rgb(0 0 0 / 10%);
   }
-  .cover img {
+  .sleeve img {
     width: 100%;
-    max-height: 9rem;
+    height: 100%;
     object-fit: cover;
     display: block;
   }
-  .cover button {
+  .np-initials {
     position: absolute;
-    top: 0.3rem;
-    right: 0.3rem;
-    background: var(--surface);
+    inset: 0;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    font: 400 calc(30px * var(--st-hs)) / 1 var(--st-head);
+    color: var(--on-accent);
+    background:
+      radial-gradient(60% 60% at 30% 25%, rgb(255 255 255 / 35%), transparent 70%),
+      repeating-radial-gradient(circle at 50% 120%, transparent 0 7px, rgb(255 255 255 / 10%) 7px 8px);
   }
-  .cols {
-    gap: 0.3rem;
-  }
-  .col {
+  .sl-b {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(0 0 0 / 55%);
+    color: #fff;
     cursor: pointer;
-    border: 1px solid var(--border);
+    opacity: 0.85;
   }
-  .col.on {
+  .sl-b.x {
+    right: auto;
+    left: 4px;
+  }
+  .sl-b:hover,
+  .sl-b:focus-visible {
+    opacity: 1;
+  }
+  .np {
+    min-width: 0;
+  }
+  .np-title {
+    margin: 1px 0 0;
+    font: 600 calc(17px * var(--st-hs)) / 1.12 var(--st-head);
+    overflow-wrap: anywhere;
+  }
+  .np-cast {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .counters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 8px;
+  }
+  .counters small {
+    margin-left: 3px;
+    font-size: 0.78em;
+    color: var(--text-faint);
+    text-shadow: none;
+  }
+  .routing {
+    margin-top: 16px;
+  }
+
+  /* author's note: masking tape */
+  .tapebox {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 74px;
+    gap: 12px;
+    align-items: center;
+  }
+  .tape {
+    position: relative;
+    padding: 12px 14px 10px;
+    background: color-mix(in srgb, var(--butter) 70%, var(--surface));
+    color: #3a2f1e;
+    transform: rotate(-1deg);
+    clip-path: polygon(0 4%, 3% 0, 7% 5%, 12% 1%, 18% 4%, 25% 0, 33% 3%, 41% 0, 50% 4%, 58% 1%, 66% 4%, 74% 0, 82% 3%, 90% 0, 96% 4%, 100% 1%, 100% 96%, 97% 100%, 91% 96%, 84% 100%, 76% 97%, 68% 100%, 60% 96%, 52% 100%, 44% 97%, 36% 100%, 28% 96%, 20% 100%, 12% 97%, 5% 100%, 0 96%);
+    filter: drop-shadow(0 3px 6px rgb(0 0 0 / 12%));
+  }
+  :global(:root:is([data-mode="night"], [data-theme="lantern"], [data-theme="dark"])) .tape {
+    background: color-mix(in srgb, var(--butter) 62%, #d9c49a);
+  }
+  .tape textarea {
+    display: block;
+    width: 100%;
+    min-height: 84px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    resize: none;
+    color: inherit;
+    font: italic 15px/1.45 var(--st-story);
+  }
+  .tape textarea::placeholder {
+    color: rgb(58 47 30 / 55%);
+  }
+  .tape textarea:focus {
+    outline: none;
+  }
+  .tape:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  /* story settings: label-maker tapes */
+  .dymo-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 8px;
+  }
+  .dymo-grid label {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .dymo-grid .wide {
+    grid-column: span 2;
+  }
+  .dymo {
+    width: 100%;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--text);
+    color: var(--surface);
+    font: 800 12px/1.2 var(--font-ui);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    text-shadow:
+      0 1px 0 rgb(0 0 0 / 35%),
+      0 -1px 0 rgb(255 255 255 / 20%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 12%),
+      0 2px 4px rgb(0 0 0 / 20%);
+  }
+  .dymo-grid label:nth-child(odd) .dymo {
+    transform: rotate(-0.4deg);
+  }
+  .dymo::placeholder {
+    color: color-mix(in srgb, var(--surface) 50%, transparent);
+  }
+  .dymo:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .dymo.alt {
+    background: var(--accent);
+    color: var(--on-accent);
+    text-shadow: none;
+  }
+  .dymo.alt::placeholder {
+    color: color-mix(in srgb, var(--on-accent) 55%, transparent);
+  }
+
+  /* lorebooks: cassettes */
+  .cassettes {
+    display: grid;
+    gap: 8px;
+  }
+  .cassette {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 8px 10px;
+    border-radius: 8px;
+    background: linear-gradient(var(--c), color-mix(in srgb, var(--c) 75%, black));
+    box-shadow:
+      0 2px 0 rgb(0 0 0 / 20%),
+      inset 0 1px 0 rgb(255 255 255 / 25%);
+  }
+  :global(:root[data-theme="citadel"]) .cassette {
+    border-radius: 2px;
+  }
+  .cassette a.cas-label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 7px 10px;
+    border-radius: 4px;
+    background: #fdfaf2;
+    color: #2a2230;
+    text-decoration: none;
+  }
+  .cas-label b {
+    font: 600 calc(14.5px * var(--st-hs)) / 1.15 var(--st-head);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reels {
+    display: flex;
+    gap: 4px;
+  }
+  .reels i {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: repeating-conic-gradient(#2a2230 0 20deg, #5a5060 20deg 60deg);
+    box-shadow:
+      0 0 0 2px #fdfaf2,
+      0 0 0 3px rgb(0 0 0 / 20%);
+  }
+  .cas-label:hover .reels i {
+    animation: reel 3s linear infinite;
+  }
+  @keyframes reel {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+  .eject {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: rgb(0 0 0 / 22%);
+    color: #fff;
+    cursor: pointer;
+  }
+  .eject:hover {
+    background: rgb(0 0 0 / 38%);
+  }
+  .slots {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .slot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 8px;
+    background: none;
+    color: var(--text-muted);
+    font: 700 12px/1.2 var(--font-ui);
+    cursor: pointer;
+  }
+  .slot:hover,
+  .slot:focus-within {
     border-color: var(--accent);
-    color: var(--accent);
+    color: var(--text);
   }
-  .story-set summary {
+  .slot select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    opacity: 0;
     cursor: pointer;
-    margin-bottom: 0.5rem;
+    font-size: 16px;
   }
-  .sgrid {
+
+  /* tools: a keypad */
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .keypad .st-key {
+    flex-direction: column;
+    min-height: 64px;
+    padding: 8px 4px;
+    font-size: 11.5px;
+    text-align: center;
+    line-height: 1.15;
+  }
+  .keypad .st-key.fmt {
+    min-height: 52px;
+  }
+
+  /* archive, and delete under a safety cover */
+  .endrow {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    gap: 10px;
+    align-items: stretch;
   }
-  .mini {
-    padding: 0.3rem 0.5rem;
-    font-size: var(--fs-sm);
+  .guarded {
+    position: relative;
+    perspective: 400px;
   }
-  .item {
-    font-size: var(--fs-sm);
-    padding: 0.15rem 0.2rem;
-    border-bottom: 1px solid var(--border);
+  .guarded .st-key {
+    width: 100%;
+    height: 100%;
   }
-  .small-select {
-    width: auto;
-    padding-top: 0.35rem;
-    padding-bottom: 0.35rem;
+  .cover {
+    position: absolute;
+    inset: -3px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: calc(var(--r-sm) + 2px);
+    background: repeating-linear-gradient(135deg, var(--danger) 0 8px, color-mix(in srgb, var(--danger) 45%, var(--surface)) 8px 16px);
+    color: #fff;
+    font: 800 10px/1 var(--font-ui);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 50%);
+    transform-origin: top;
+    transition:
+      transform 0.35s var(--spring),
+      opacity 0.35s;
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--danger) 80%, black);
+    cursor: pointer;
+  }
+  .cover:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .guarded.open .cover {
+    transform: rotateX(-110deg);
+    opacity: 0.25;
+    pointer-events: none;
+  }
+  .fine {
+    margin: 8px 2px 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-faint);
   }
 </style>
