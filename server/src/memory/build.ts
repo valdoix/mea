@@ -184,19 +184,26 @@ function applyScene(row: SummaryRow, b: SceneBuild) {
       now(),
       row.id,
     );
+    // L14: facts you corrected ("That's wrong") stay on record, so reading the wrong version again files it under your correction.
+    const keyOf = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
+    const yours = "SELECT id FROM memories WHERE user_edited = 1 AND deleted_at IS NULL";
+    const corrected = new Map(
+      all<{ content: string; superseded_by: string }>(`SELECT content, superseded_by FROM memories WHERE scene_id = ? AND status = 'superseded' AND superseded_by IN (${yours})`, row.id).map((r) => [keyOf(r.content), r.superseded_by]),
+    );
     // Replace AI atoms from this scene; atoms you edited or pinned stay. M23: what they superseded comes back first.
-    dropAtoms("scene_id = ? AND user_edited = 0 AND pinned = 0", row.id);
+    dropAtoms(`scene_id = ? AND user_edited = 0 AND pinned = 0 AND NOT (status = 'superseded' AND superseded_by IN (${yours}))`, row.id);
     run("UPDATE memories SET stale = 0 WHERE scene_id = ?", row.id);
-    const all = b.rows.map((m) => ({ id: m.id, seq: m.seq }));
+    const every = b.rows.map((m) => ({ id: m.id, seq: m.seq }));
     // The scene's old AI atoms are gone now, so anything matching is a real duplicate, even one
     // from this very record (a model can repeat a memory) or one you kept in this scene.
     const seen = new Set<string>();
     for (const m of o.memories) {
-      const key = m.content.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
-      if (!key || seen.has(key) || isDuplicate(row.chat_id, m.content)) continue;
+      const key = keyOf(m.content);
+      // A fact you corrected, read again, is already on record under your correction.
+      if (!key || seen.has(key) || corrected.has(key) || isDuplicate(row.chat_id, m.content)) continue;
       seen.add(key);
       let sources = m.sources.map((s) => bySeq.get(Math.round(s))).filter((x): x is NonNullable<typeof x> => Boolean(x)).map((x) => ({ id: x.id, seq: x.seq }));
-      if (!sources.length) sources = all.length <= 3 ? all : [all.at(-1)!];
+      if (!sources.length) sources = every.length <= 3 ? every : [every.at(-1)!];
       const targets = m.supersedes
         .map((label) => b.related[Number(String(label).replace(/\D/g, "")) - 1])
         .filter((a): a is AtomRow => Boolean(a));

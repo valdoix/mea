@@ -22,6 +22,8 @@ import { nightMinutes } from "../src/trackers/drift";
 import { foldEvents, type TrackerEvent } from "../src/trackers/fold";
 import { STARTER_TEMPLATES } from "../src/trackers/schema";
 import { branchEvents, linesToOps, writeEvents } from "../src/trackers/store";
+import { acceptIssue } from "../src/accuracy/checker";
+import { correctMemory } from "../src/memory/remember";
 import { freshDb } from "./helpers";
 
 const kinds = ["memory.segment", "memory.build", "memory.embed", "memory.journal", "memory.consolidate", "lore.chronicle", "quota.refresh", "cache.probe", "tracker.update", "tracker.init"];
@@ -330,5 +332,35 @@ describe("M26: the clock keeps its form", () => {
     expect(nightMinutes(22 * 60, 32 * 60)).toBe(480);
     expect(nightMinutes(8 * 60, 9 * 60)).toBe(0);
     expect(nightMinutes(0, 1440 * 365 * 2900)).toBe(480 * 365 * 2900);
+  });
+});
+
+describe("M27, M28, L14: corrections", () => {
+  test("accepting an issue replaces only the memory it cites, with a whole sentence", async () => {
+    const { chatId, ids } = await setup(2);
+    const cited = createAtom(chatId, { type: "fact", content: "Mira's eyes are green." });
+    const other = createAtom(chatId, { type: "fact", content: "Mira's lantern is green and brass." });
+    const issues = [
+      { id: "1", kind: "trait", severity: "major", claim: "her grey eyes", conflict: "green eyes", citations: [{ ref: "M1", type: "memory", label: cited.content, id: cited.id }], fix: "green", canon: { memory: "Mira's eyes are grey.", wrong: cited.content }, by: "model" },
+      { id: "2", kind: "fact", severity: "minor", claim: "the quoted words", conflict: "x", citations: [{ ref: "M1", type: "memory", label: other.content, id: other.id }], fix: "x", by: "model" },
+    ];
+    run("INSERT INTO continuity_flags (id, chat_id, message_id, swipe_idx, issues, status, created_at, updated_at) VALUES ('f1', ?, ?, 0, ?, 'open', ?, ?)", chatId, ids[1]!, JSON.stringify(issues), now(), now());
+    acceptIssue("f1", "1");
+    expect(getAtom(cited.id)!.status).toBe("superseded");
+    expect(getAtom(other.id)!.status).toBe("active");
+    acceptIssue("f1", "2");
+    expect(one("SELECT 1 FROM memories WHERE chat_id = ? AND content = 'the quoted words'", chatId)).toBeFalsy();
+  });
+
+  test("a fact you corrected doesn't come back when its scene is rebuilt", async () => {
+    const { chatId } = await setup(12);
+    await drain(chatId);
+    const scene = levelRows(chatId, "scene")[0]!;
+    const wrong = one<{ id: string; content: string }>("SELECT id, content FROM memories WHERE scene_id = ? AND user_edited = 0 AND status = 'active'", scene.id)!;
+    correctMemory(chatId, { wrong: wrong.content, right: "What really happened.", memoryIds: [wrong.id], exact: true });
+    await buildSummary(scene.id);
+    expect(all("SELECT 1 FROM memories WHERE chat_id = ? AND content = ? AND status = 'active' AND deleted_at IS NULL", chatId, wrong.content)).toHaveLength(0);
+    await buildSummary(scene.id);
+    expect(all("SELECT 1 FROM memories WHERE chat_id = ? AND content = ?", chatId, wrong.content)).toHaveLength(1);
   });
 });

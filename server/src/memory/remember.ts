@@ -64,10 +64,11 @@ export function findWrong(chatId: string, wrong: string, messageId?: string) {
 }
 
 /** "That's wrong": the right version becomes a confirmed memory and the wrong ones are superseded. */
-export function correctMemory(chatId: string, input: { wrong: string; right: string; messageId?: string; memoryIds?: string[] }) {
+export function correctMemory(chatId: string, input: { wrong: string; right: string; messageId?: string; memoryIds?: string[]; exact?: boolean }) {
   if (!input.right.trim()) throw badRequest("Write what's right");
-  const targets = input.memoryIds?.length
-    ? input.memoryIds.map((id) => getAtom(id)).filter((a): a is AtomRow => Boolean(a && a.chat_id === chatId && !a.deleted_at))
+  // `exact`: only the memories named (maybe none), no search for similar ones (M27).
+  const targets = input.memoryIds?.length || input.exact
+    ? (input.memoryIds ?? []).map((id) => getAtom(id)).filter((a): a is AtomRow => Boolean(a && a.chat_id === chatId && !a.deleted_at))
     : findWrong(chatId, input.wrong, input.messageId).map((x) => x.a);
   const sources = new Map<string, number>();
   for (const t of targets) for (const s of atomSources(t.id)) sources.set(s.messageId, s.seq);
