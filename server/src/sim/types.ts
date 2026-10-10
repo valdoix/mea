@@ -18,6 +18,9 @@ export type EndResult = "met" | "price" | "lost" | "softened";
 export type Secrecy = "public" | "private" | "secret";
 export type Route = "carrier" | "signal" | "ambient" | "trace" | "entrance" | "omen";
 export type Twist = "tie" | "weather" | "calendar" | "object" | "slip" | "collide" | "reversal";
+/** The player's call on a subplot's next beat: a result, a twist, or a turn against how it's been going. */
+export const FORCES = ["win", "cost", "loss", "twist", "reversal"] as const;
+export type Force = (typeof FORCES)[number];
 
 export interface Beat {
   at: number;
@@ -30,6 +33,8 @@ export interface Beat {
   twist?: Twist;
   text: string;
   told: "template" | "model";
+  /** The player called this outcome; the dice didn't. */
+  forced?: Force;
   seq: number;
 }
 
@@ -64,6 +69,8 @@ export interface Arc {
   push?: boolean;
   /** Offer a crossing on the next turn. */
   bringIn?: boolean;
+  /** The player's call on the next beat; cleared once that beat lands. */
+  force?: Force | null;
   /** A foreshadowing omen has been offered before its crossing. */
   foreshadowed?: boolean;
   /** Where it's happening (a place path). */
@@ -173,7 +180,7 @@ export type SimOp =
   | { type: "arc.tell"; id: string; at: number; text: string }
   | { type: "arc.end"; id: string; result: EndResult; text: string; at: number }
   | { type: "arc.fate"; id: string; result: EndResult; text: string; at: number }
-  | { type: "arc.set"; id: string; patch: Partial<Pick<Arc, "status" | "premise" | "want" | "fear" | "push" | "bringIn" | "heat" | "locked" | "nextAt" | "foreshadowed" | "thread" | "cast">> }
+  | { type: "arc.set"; id: string; patch: Partial<Pick<Arc, "status" | "premise" | "want" | "fear" | "push" | "bringIn" | "heat" | "locked" | "nextAt" | "foreshadowed" | "thread" | "cast" | "force">> }
   | { type: "arrival.new"; arrival: Arrival }
   | { type: "arrival.set"; id: string; status: Arrival["status"]; text?: string; offers?: number }
   | { type: "actor.set"; actor: Partial<Actor> & { id: string; name: string } }

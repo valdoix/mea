@@ -1426,8 +1426,13 @@ export interface ArcBeat {
   twist?: string;
   text: string;
   told: "template" | "model";
+  /** The player called this outcome. */
+  forced?: ArcForce;
   seq: number;
 }
+
+/** The player's call on a subplot's next beat. */
+export type ArcForce = "win" | "cost" | "loss" | "twist" | "reversal";
 
 export interface Arc {
   id: string;
@@ -1452,6 +1457,8 @@ export interface Arc {
   locked?: boolean;
   push?: boolean;
   bringIn?: boolean;
+  /** A call on the next beat, waiting for it to land. */
+  force?: ArcForce | null;
   foreshadowed?: boolean;
   place?: string[];
   ending?: { result: string; text: string; at: number; seq: number };

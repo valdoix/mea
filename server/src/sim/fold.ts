@@ -21,6 +21,7 @@ export function applySim(sim: SimState, op: SimOp, seq: number) {
       arc.stage = op.beat.stage;
       arc.nextAt = op.nextAt;
       arc.push = false;
+      arc.force = null;
       if (op.heat != null) arc.heat = op.heat;
       if (op.place) arc.place = op.place;
       const actor = sim.actors[arc.lead];
