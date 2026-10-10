@@ -1060,7 +1060,7 @@ export async function cowriteCreator(id: string, message: string) {
   // The co-writer can read the wiki before it answers.
   const wikis = await wikisFor(d.research, d.basedOn);
   const ask = async (looked: string) => (await callJson({
-    task: "summarizer",
+    task: "assistant",
     kind: "creator:cowrite",
     name: "creator_cowrite",
     schema: cowriteSchema,

@@ -789,4 +789,19 @@ CREATE INDEX IF NOT EXISTS generations_job ON generations(job_id) WHERE job_id I
 CREATE INDEX IF NOT EXISTS jobs_chat ON jobs(chat_id, status) WHERE chat_id IS NOT NULL;
 `,
   },
+  {
+    id: 13,
+    name: "meus",
+    sql: /* sql */ `
+-- Meus in a chat: the conversation, the change card waiting for you, and the change sets you
+-- applied (with what undoes each). One row per chat; never part of the roleplay.
+CREATE TABLE meus (
+  chat_id TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+  turns TEXT NOT NULL DEFAULT '[]',
+  proposal TEXT,
+  sets TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
 ];

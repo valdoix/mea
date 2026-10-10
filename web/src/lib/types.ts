@@ -486,9 +486,9 @@ export interface Settings {
   "backup.dailyKeep": number;
   "onboarding.done": boolean;
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
-  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null };
-  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[] };
-  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number };
+  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null };
+  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[] };
+  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number; assistant?: number };
   "routing.embeddings": { connectionId: string | null; model: string; dims: number };
   "memory.config": MemoryConfig;
   "quota.degradeAt": number;

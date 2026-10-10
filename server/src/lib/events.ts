@@ -19,6 +19,7 @@ export type MeaEvent =
   | { type: "studio.changed"; draftId: string }
   | { type: "creator.changed"; draftId: string }
   | { type: "inbox.changed" }
+  | { type: "meus.changed"; chatId: string }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string };
 
 type Listener = (event: MeaEvent) => void;
