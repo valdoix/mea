@@ -778,4 +778,15 @@ ALTER TABLE images ADD COLUMN variants TEXT NOT NULL DEFAULT '{}';
 ALTER TABLE entities ADD COLUMN deleted_at INTEGER;
 `,
   },
+  {
+    id: 12,
+    name: "lookup indexes",
+    sql: /* sql */ `
+-- L4: swipe edits and deletes look tracker events up by message alone; the job monitor sums
+-- generations by job; chat deletes and rebuilds cancel a chat's jobs.
+CREATE INDEX IF NOT EXISTS tracker_events_message ON tracker_events(message_id, swipe_idx);
+CREATE INDEX IF NOT EXISTS generations_job ON generations(job_id) WHERE job_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS jobs_chat ON jobs(chat_id, status) WHERE chat_id IS NOT NULL;
+`,
+  },
 ];
