@@ -6,7 +6,7 @@
   import { app, errorToast } from "../../lib/state.svelte";
   import { MONTH_NAMES, daysIn, ordinal, readClock, weekdayOf, ymdOf } from "../../lib/storytime";
   import { openTrackers, trk } from "../../lib/trackers.svelte";
-  import { USER_COLOR, voiceColor } from "../../lib/voices";
+  import { USER_COLOR, storyColors, voiceColor } from "../../lib/voices";
   import type { TrackerCharacter, TrackersResponse } from "../../lib/types";
 
   /**
@@ -44,7 +44,8 @@
   const user = $derived(chars.find((c) => c.isUser));
   const nameOf = (c: TrackerCharacter | undefined) => (!c ? "—" : c.isUser ? (d?.userName ?? "You") : c.name);
   const nm = (id: string | undefined) => (!id ? "—" : id.startsWith("place:") ? id.slice(6) : nameOf(st?.chars[id]) === "—" ? id : nameOf(st?.chars[id]));
-  const colorOf = (c: TrackerCharacter | undefined) => (!c ? "#8a7d9e" : voiceColor(nameOf(c), d?.profiles[c.name.toLowerCase()]?.color ?? (c.isUser ? USER_COLOR : null)));
+  const colors = $derived(storyColors(d ?? null));
+  const colorOf = (c: TrackerCharacter | undefined) => (!c ? "#8a7d9e" : (colors.get(nameOf(c).toLowerCase()) ?? voiceColor(nameOf(c), d?.profiles[c.name.toLowerCase()]?.color ?? (c.isUser ? USER_COLOR : null))));
 
   // ---------- people ----------
   const METERS: [keyof TrackerCharacter["meters"], string, string][] = [

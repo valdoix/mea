@@ -32,6 +32,7 @@
   import { askMeus } from "../../lib/meus.svelte";
   import { renderMessage, renderStreaming } from "../../lib/render";
   import { applyRegex, regexScope } from "../../lib/regex.svelte";
+  import { storyStyle } from "../../lib/storystyle.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
   import ThoughtsDrawer from "../trackers/ThoughtsDrawer.svelte";
   import { trk } from "../../lib/trackers.svelte";
@@ -128,7 +129,7 @@
   // PROMPT-08: display-only regex scripts change what's shown, never the stored text.
   const shown = $derived(message.role === "system" ? message.content : applyRegex(message.content, app.settings?.["regex.scripts"], { role: isUser ? "user" : "ai", mode: "display", characterId: regexScope.characterId }));
   const page = $derived(living(app.settings));
-  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope, { artifacts: page.artifacts }), mark), passages));
+  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope, { artifacts: page.artifacts, quotes: message.role === "system" ? null : storyStyle.quotes }), mark), passages));
   // Speaker colours: the story state's cast, plus whoever wrote this message.
   const cast = $derived(voicesFrom(trk.data, [{ name: displayName, isUser }]));
 
@@ -167,7 +168,7 @@
     if (!streaming) return;
     const text = message.content;
     cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => (streamHtml = renderStreaming(text, { artifacts: page.artifacts })));
+    raf = requestAnimationFrame(() => (streamHtml = renderStreaming(text, { artifacts: page.artifacts, quotes: storyStyle.quotes })));
     return () => cancelAnimationFrame(raf);
   });
 
@@ -270,7 +271,7 @@
           <div class="notice error row"><CircleAlert size={16} /><span class="grow">{message.error ?? "Something went wrong."}</span></div>
           {#if isLast}<button class="btn small" style="margin-top:.5rem" onclick={() => onregen()} disabled={!canGenerate}><RotateCcw size={14} /> Try again</button>{/if}
         {:else}
-          <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }} use:voices={{ html, voices: cast, style: page.voices }}>{@html html}</div>
+          <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }} use:voices={{ html, voices: cast, style: page.voices, author: displayName }}>{@html html}</div>
           {#if banned.length}<div class="tiny banned" title="Phrases from your banned list (Settings → Writing)">Banned phrases: {banned.join(", ")}</div>{/if}
           {#if suggestion?.status === "proposed" && suggestion.original === message.content}
             <div class="editor-note tiny">

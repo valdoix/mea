@@ -47,21 +47,68 @@ export function styleExtra(chatId: string): PromptExtra | null {
   return content ? { id: "style", name: "Style profile", content, prefix: true } : null;
 }
 
-/** Dialogue quotes the way the profile wants them (apostrophes are left alone). */
+const OPENER_BEFORE = /[\s([{\u201c\u2018]/;
+const CLOSER_AFTER = /[\s.,;:!?)\]}\u2026*_\u201d\u2019]/;
+const WORDISH = /[\p{L}\p{N}]/u;
+/** Words that start with an apostrophe rather than a single quote: 'em, 'tis, '90s. */
+const ELISION = /^(?:em|tis|twas|cause|cos|til|bout|round|n|kay|scuse|nother)\b|^\d/i;
+
+/**
+ * Curly quotes, read from each straight mark's neighbours the way a typesetter would (mirrors
+ * web/src/lib/quotes.ts). A space or an opening bracket before it and a word after: it opens.
+ * Punctuation or a space after it: it closes. So "I was—" closes and —"wait" opens. Between two
+ * letters a ' is an apostrophe. `skip` marks characters left as they are (code, tags); the marks
+ * beside them are read past them, so "<i>Hi</i>" still opens and closes.
+ */
+export function smartQuotes(text: string, skip?: Uint8Array) {
+  const visible = (i: number, step: 1 | -1) => {
+    for (let j = i + step; j >= 0 && j < text.length; j += step) if (!skip?.[j]) return text[j]!;
+    return " ";
+  };
+  let open = false;
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === "\n") open = false;
+    if ((ch !== '"' && ch !== "'") || skip?.[i]) {
+      out += ch;
+      continue;
+    }
+    const prev = visible(i, -1);
+    const next = visible(i, 1);
+    if (ch === "'") {
+      if (WORDISH.test(prev) && WORDISH.test(next)) out += "\u2019";
+      else if (/[\s([{\u201c\u2014\u2013-]/.test(prev) && WORDISH.test(next) && !ELISION.test(text.slice(i + 1, i + 9))) out += "\u2018";
+      else out += "\u2019";
+      continue;
+    }
+    let opening: boolean;
+    const spaceBefore = OPENER_BEFORE.test(prev);
+    const spaceAfter = /\s/.test(next);
+    if (spaceBefore && !spaceAfter) opening = true;
+    else if (spaceBefore && spaceAfter) opening = !open;
+    else if (CLOSER_AFTER.test(next)) opening = false;
+    else if (/[\u2014\u2013\-*_]/.test(prev)) opening = true;
+    else opening = !open;
+    open = opening;
+    out += opening ? "\u201c" : "\u201d";
+  }
+  return out;
+}
+
+/** Code and tags (artifact attributes like from="Wren") keep their straight marks. */
+const SKIP = /```[\s\S]*?(?:```|$)|`[^`\n]*`|<\/?[a-zA-Z][^<>]*>/g;
+
+function skipMask(text: string) {
+  const mask = new Uint8Array(text.length);
+  for (const m of text.matchAll(SKIP)) mask.fill(1, m.index, m.index! + m[0].length);
+  return mask;
+}
+
+/** Dialogue quotes the way the profile wants them; curly makes apostrophes curly too. */
 export function normalizeQuotes(text: string, quotes: StyleProfile["quotes"]) {
-  if (quotes === "straight") return text.replace(/[“”]/g, '"');
-  if (quotes !== "curly") return text;
-  return text
-    .split("\n")
-    .map((line) => {
-      let open = true;
-      return line.replace(/"/g, (_m, at: number) => {
-        const prev = at > 0 ? line[at - 1]! : " ";
-        // An opening quote follows a space, a line start, or opening punctuation.
-        const opening = /[\s([{*—–-]/.test(prev) ? true : /[\p{L}\p{N}.,!?…;:'’]/u.test(prev) ? false : open;
-        open = !opening;
-        return opening ? "“" : "”";
-      });
-    })
-    .join("\n");
+  if (quotes === "curly") return smartQuotes(text, skipMask(text));
+  if (quotes !== "straight") return text;
+  const mask = skipMask(text);
+  return text.replace(/[\u201c\u201d\u201e]/g, (m, at: number) => (mask[at] ? m : '"'));
 }

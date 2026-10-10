@@ -64,9 +64,16 @@ describe("the style profile (STEER-04)", () => {
     expect(p.trace.blocks.find((b) => b.id === "extra:style")?.included).toBe(true);
     expect(p.messages[0]!.content).toContain("[Style for this story]");
   });
-  test("quotes are normalised, apostrophes left alone", () => {
-    expect(normalizeQuotes('"Don\'t," she said. "Stay."', "curly")).toBe("“Don't,” she said. “Stay.”");
+  test("quotes are normalised, apostrophes curled with them", () => {
+    expect(normalizeQuotes('"Don\'t," she said. "Stay."', "curly")).toBe("“Don’t,” she said. “Stay.”");
     expect(normalizeQuotes("“Stay,” she said.", "straight")).toBe('"Stay," she said.');
+  });
+  test("curly quotes read dashes, tags and code the way a reader would", () => {
+    expect(normalizeQuotes('"I was—" She stopped. "—wait."', "curly")).toBe("“I was—” She stopped. “—wait.”");
+    expect(normalizeQuotes('*"Hello,"* he said. "Get \'em."', "curly")).toBe("*“Hello,”* he said. “Get ’em.”");
+    expect(normalizeQuotes('<letter from="Wren">"Come home."</letter>', "curly")).toBe('<letter from="Wren">“Come home.”</letter>');
+    expect(normalizeQuotes('"<i>Never</i>," she said. `a "b"`', "curly")).toBe('“<i>Never</i>,” she said. `a "b"`');
+    expect(normalizeQuotes("'Maybe,' she thought.", "curly")).toBe("‘Maybe,’ she thought.");
   });
   test("the story's banned words are flagged with yours", () => {
     expect(applyBanned("Her orbs gleamed.", ["orbs"]).hits).toContain("orbs");

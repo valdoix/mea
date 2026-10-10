@@ -65,6 +65,13 @@ beforeAll(() => {
       }
       if (body.model === "overflow" && n === 1) return Response.json({ error: { message: "This model's maximum context length is 64000 tokens" } }, { status: 400 });
       if (body.model === "ratelimited") return Response.json({ error: { message: "slow down" } }, { status: 429, headers: { "Retry-After": "7" } });
+      if (body.model === "noplan") {
+        // The plan watch: the first try skips its plan, the second plans first.
+        const story = "The rain had not stopped all night, and the lantern on the sill burned low while the harbour bell rang twice.";
+        const plan = "<think>NOW — night, the lighthouse, Mira and Ash. SEAL — Ash stepped in. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short, quiet.</think>\n\n";
+        const content = n % 2 ? story : `${plan}${story}`;
+        return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+      }
       if (body.model === "nodone") return sse([{ choices: [{ delta: { content: "Half a sent" } }] }]);
       if (body.model === "truncated") {
         const content = n === 1 ? '{"items":["a","b",' : '{"items":["a"]}';
@@ -226,6 +233,8 @@ describe("helper prompts and calls (M14, M15, M16, M17, M18, M33, L3)", () => {
     expect(run(["She ", "smiled. <think>x</think>"])).toEqual({ text: "She smiled. <think>x</think>", reasoning: "" });
     expect(run(["<", "b>Bold</b> move"])).toEqual({ text: "<b>Bold</b> move", reasoning: "" });
     expect(run(["<think>never closed"])).toEqual({ text: "", reasoning: "never closed" });
+    expect(run(["<pl", "an>NOW — dusk</plan>Rain."])).toEqual({ text: "Rain.", reasoning: "NOW — dusk" });
+    expect(run(["<photo of=\"a gull\"/> Rain."])).toEqual({ text: "<photo of=\"a gull\"/> Rain.", reasoning: "" });
   });
 
   test("no provider reasoning by default: reasoning models are asked to stop where they can", () => {
@@ -388,6 +397,25 @@ describe("sending (H8, C2, H3)", () => {
       process.off("unhandledRejection", onRejection);
     }
     expect(rejections).toEqual([]);
+  });
+
+  test("the plan watch: a reply that skips its plan is asked again, once, told to plan first", async () => {
+    const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    setSetting("routing.story", createProfile({ name: "No plan", connectionId: conn, modelId: "noplan", params: {} }));
+    const chatId = newChat();
+    seen.length = 0;
+    counts.delete("noplan");
+    const end = waitFor((e) => e.type === "gen.end" && (e as any).chatId === chatId);
+    const r = await api("POST", `/api/chats/${chatId}/send`, { content: "I step inside." });
+    expect(r.status).toBe(200);
+    expect(((await end) as any).status).toBe("done");
+    expect(seen.filter((s) => s.model === "noplan").length).toBe(2);
+    const reply = all<{ content: string; reasoning: string | null; meta: string }>("SELECT s.content, s.reasoning, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
+    expect(reply.content.startsWith("The rain had not stopped")).toBe(true);
+    expect(reply.content).not.toContain("<think>");
+    expect(reply.reasoning).toContain("MOVE — she offers tea");
+    expect(JSON.parse(reply.meta).notes).toContain("asked again: the first try skipped its plan");
   });
 
   test("the overflow retry always sends a smaller prompt (H3)", async () => {

@@ -138,7 +138,7 @@
             <span class="blk verb" style:left="{pct(evicted + 1)}%" style:width="{width(evicted + 1, hi)}%" role="img" aria-label="From #{evicted + 1}: sent word for word" onpointerenter={() => (readout = `#${evicted + 1}–${hi} · sent word for word`)}></span>
           </div>
         </div>
-        <div class="ph-layer" aria-hidden="true"><span class="playhead" style:left="{pct(evicted + 1)}%"><span class:flip={pct(evicted + 1) > 62}>word for word</span></span></div>
+        <div class="ph-layer" aria-hidden="true"><span class="playhead" style:left="{pct(evicted + 1)}%"><span class:flip={pct(evicted + 1) > 50}>word for word</span></span></div>
         <div class="scale"><span>#{lo}</span><span>#{hi}</span></div>
       </div>
       <p class="readout st-lcd" aria-live="polite">{readout || "Point at a block to read it. Click to open it in memory."}</p>

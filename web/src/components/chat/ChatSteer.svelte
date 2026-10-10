@@ -161,7 +161,7 @@
       options={[
         { value: "", label: characterStyle?.quotes ? "Char's" : "Default", title: characterStyle?.quotes ? `The character's (${characterStyle.quotes})` : "Any" },
         { value: "straight", label: '"Straight"' },
-        { value: "curly", label: "“Curly”", title: "“Curly” (fixed in replies)" },
+        { value: "curly", label: "“Curly”", title: "“Curly” (every message)" },
         { value: "any", label: "Any" },
       ]}
       onchange={(v) => emit({ quotes: (v || undefined) as StyleProfile["quotes"] })}

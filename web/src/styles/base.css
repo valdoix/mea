@@ -20,6 +20,19 @@ body {
 
 body {
   overscroll-behavior-y: none;
+  /* A long word, name or link breaks rather than running out of its box. */
+  overflow-wrap: break-word;
+}
+
+/* Overflow: flex and grid children may shrink below their content, so a long title wraps or
+   truncates inside its card instead of spilling over the next one. Icons, buttons, chips and
+   avatars keep their size. Zero specificity, so a component's own sizes still win. */
+:where(.row, .stack, .card, .panel, .cards, .grid, .field, label) > *,
+:where(.row, .grow) {
+  min-width: 0;
+}
+:where(.row) > :where(svg, img, button, .btn, .chip, .avatar, input[type="checkbox"], input[type="radio"]) {
+  flex-shrink: 0;
 }
 
 #app {
@@ -275,6 +288,8 @@ input[type="range"] {
 }
 
 .chip {
+  max-width: 100%;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -371,6 +386,7 @@ button.chip {
   min-width: 0;
 }
 .truncate {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

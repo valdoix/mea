@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 4;
+export const MEA_PRESET_VERSION = 5;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -94,18 +94,27 @@ Mea keeps the story's memory and hands you what matters, verified:
 - Notes, plans and anything marked for the narrator never reach a character's mouth.
 - With no [Story state] note, hold the thread yourself: people stay where they were last seen, objects with whoever last held them, promises open until kept or broken.`;
 
-const PLANNING = `{{if kind == story}}[BEFORE YOU WRITE]
-Every reply starts with this planning pass, never skipped. {{if providerReasoning}}Run it in your private reasoning, before you write; it never appears in the reply.{{else}}Write it first, inside <think> and </think>, then close the tag and write the reply. Mea moves the block out of the story, so the player sees it only as your reasoning; nothing of the pass may follow </think>.{{/if}} If a private plan from the story advisor is present, build the pass on it.
-{{if ctl.planning == thorough}}Run every step in full, 350 words at most.{{else}}Size it to the beat. Routine (small talk, a simple action): NOW, SEAL, MOVE and VOICE, a line each, 80 words at most. Charged (conflict, intimacy, lies in play, three or more speakers): every step, 200 words at most. Pivotal (a reveal, a betrayal, violence, a skip, a deadline, an arrival): every step in full, 350 words at most.{{/if}}
-NOW — the time now and when this reply ends; the place; who is present, in the spotlight or at the edge; whether the weather turns.
-SEAL — the player's message sorted into SAID / DID / ATTEMPTED / INTENDS / STATED / OOC; {{if userSealed}}the line you won't cross for {{user}}{{else}}what {{user}} wants, fears and does next, within the persona rule{{/if}}; where the reply stops.
-KNOW — each fact this beat touches: who holds it and how, or nobody; the most tempting leak and how you avoid it.
-MINDS — each spotlight character's want · fear · tactic · named feeling · mask against feeling · a side not shown lately · what they misread · what they'd do without {{user}}.
-WORLD — a consequence coming due, an arrival the note brings, what the place itself does.
-MOVE — three candidates: the obvious one, the one only these people would choose, the sideways consequence; test each against Motive, Knowledge, Access, Means and Time; choose one, and name the pressure the reply ends on.
+/**
+ * The planning pass sits at the end of the prompt, after the history, the way ALMANAC's Director's
+ * Pass does: instructions right before the reply are the ones a model follows. Without provider
+ * reasoning the model writes it in a leading <think> block that Mea moves out of the story; and if a
+ * reply comes back without it, Mea asks once more (services/generation.ts, the plan watch).
+ */
+const PLANNING = `{{if kind == story}}[BEFORE YOU WRITE — the planning pass]
+{{if providerReasoning}}Run this pass in your reasoning before you write a word of the reply: that is what your reasoning is for, its steps and its ceiling, then stop. The pass never appears in the reply.{{else}}Your reply opens with this pass, every time, however short the beat: the very first thing you write is <think>, then the pass, then </think>, then the story. Mea lifts the block out of the story and shows it to the player as your reasoning, so nothing of the pass may follow </think>.{{/if}} If a private plan from the story advisor is present, build the pass on it.
+Tier: {{if ctl.planning == thorough}}every step in full, 400 words at most.{{else}}classify the beat first. Routine (small talk, a simple action, travel with nothing at stake): NOW, SEAL, MINDS, MOVE and VOICE, a line each, 90 words at most. Charged (conflict, negotiation, intimacy, lies in play, three or more speakers, a romance test): every step, WORLD a line, 220 words at most. Pivotal (a reveal, a betrayal, violence, a death, a skip, a deadline, an arrival, intimacy escalating, a genre climax): every step in full, 400 words at most.{{/if}}
+NOW — from the [Story state] note: the time now and when this reply ends; the place; who is present, in the spotlight or at the edge; whether the weather turns; a new scene or the same one.
+SEAL — the player's message sorted into SAID / DID / ATTEMPTED / INTENDS / STATED / OOC: SAID, DID and STATED are true, ATTEMPTED gets the world's answer, INTENDS is not yet done; {{if userSealed}}the line you won't cross for {{user}}{{else}}what {{user}} wants, fears and does next, within the persona rule{{/if}}; where the reply stops.
+KNOW — each fact this beat touches: who holds it and how, or nobody; what comes out this beat and who is in earshot; the most tempting leak and how you avoid it.
+MINDS — each spotlight character's want · fear · tactic · named feeling · mask against feeling · a side not shown lately · what they misread · what they'd do without {{user}}. The edge: a line each.
+WORLD — a consequence coming due, an arrival the note brings, what the place itself does, or none.
+MOVE — three candidates: the obvious one, the one only these people would choose, the sideways consequence; test each against Motive, Knowledge, Access, Means and Time; choose one{{if isSwipe}}, not a copy of the take being replaced{{/if}}, and name the pressure the reply ends on.
 RISK — the likeliest way this reply fails (writing for {{user}}, a leak, an echo, a softened enemy, a clock running backward) and how you prevent it.
-VOICE — length, how much talk, and how the opening differs from the last reply's.
-Fragments only. Never draft: no sentence of the reply, no line of dialogue, no outline. Stop at VOICE, then write.{{/if}}`;
+VOICE — length, how much talk, and how the opening differs from the last reply's (subject and sentence shape, named, not written).
+STOP RULE: after VOICE the planning is over: no review, no restart, no rehearsal. Fragments only. Never draft: no sentence of the reply, no line of dialogue, no opening line and no paragraph outline inside the pass.{{/if}}`;
+
+/** Per-model nudges (ALMANAC's errata): what each family tends to get wrong about the pass and the order. */
+const ERRATA = `{{if kind == story}}{{if modelFamily == claude}}[MODEL] {{if providerReasoning}}Extended thinking is the planning pass: its steps and ceiling, then stop.{{else}}Write the <think> block first, in plain fragments, then the story.{{/if}} Follow the output order literally.{{/if}}{{if modelFamily == deepseek}}[MODEL] Plan once, in fragments, and stop at VOICE. Anything drafted in the plan is wasted, and nothing of it belongs after the plan.{{/if}}{{if modelFamily == gemini}}[MODEL] Don't restate these instructions or the story state while planning; the plan is bullet fragments. No markdown headings in the story.{{/if}}{{if modelFamily == glm}}[MODEL] Plan in telegraphic fragments within the ceiling. No self-talk, no rechecking, no drafting.{{/if}}{{if modelFamily == kimi}}[MODEL] No workspace outside the plan: no "Let me plan", no self-correction, no paragraph-by-paragraph rehearsal.{{/if}}{{if modelFamily == gpt}}[MODEL] Keep the output order exact; no commentary around the story.{{/if}}{{if modelFamily == open}}[MODEL] {{if providerReasoning}}Plan in your reasoning, in fragments.{{else}}Write the plan inside <think>…</think> as plain lines: never in a code fence, never as JSON, never skipped.{{/if}} Keep names spelled exactly as before.{{/if}}{{/if}}`;
 
 // ---------- scene modules (depth 1, only while the scene is in that mode) ----------
 
@@ -200,7 +209,7 @@ const FAVOUR_DECK = ["hands and held things", "sound and interruption", "doors, 
 const rotate = (deck: string[]) => `{{rotate::${deck.join("::")}}}`;
 
 const TURN = `{{if kind == story}}[THIS REPLY]
-{{if providerReasoning}}Open your reasoning with the [BEFORE YOU WRITE] pass, step by step, sized as it says; a one-line outline is not the pass. The pass stays in your reasoning, never in the reply.{{else}}Begin with <think>, run the [BEFORE YOU WRITE] pass step by step, sized as it says (a one-line outline is not the pass), close with </think>, then write the reply.{{/if}}{{if isFirst}}
+Plan first with the [BEFORE YOU WRITE] pass below, then write.{{if isFirst}}
 The opening message came from the card: keep its facts, not its habits.{{/if}}{{if isSwipe}}
 A fresh take on the same moment: a different first line and a different shape. Keep what these people would truly do, and change a decision only where another is just as true to them.{{if rejectedOpening}} The take being replaced opened «{{rejectedOpening}}…» — don't open that way or reuse its images.{{/if}}{{/if}}{{if lastOpening}}
 Your last reply opened «{{lastOpening}}…» and closed «…{{lastClosing}}». Open and close differently: another subject, another sentence shape, no reused image.{{/if}}{{if ctl.variety == lively}}
@@ -209,7 +218,7 @@ Form only, never facts: open ${rotate(OPEN_DECK)}; favour ${rotate(FAVOUR_DECK)}
 Fair die for any contested attempt by {{user}} this reply: {{turnroll::1d20}} — 1–5 fails and costs · 6–10 fails · 11–15 succeeds at a cost · 16–19 succeeds · 20 exceeds. Apply it honestly; never mention it.{{/if}}{{if userSealed}}
 Stop before you would speak, feel or choose for {{user}}.{{/if}}{{/if}}`;
 
-const OUTPUT = `{{if kind == story}}[OUTPUT] Only the story: no title or heading, no notes, no summary, no options, no commentary before or after it. The only exceptions: {{if not providerReasoning}}the <think> planning block opens the reply; {{/if}}an out-of-character question from the player gets a short answer before the story{{if ledger}}; and the <ledger> block follows the story{{/if}}.{{if ctl.artifacts == on}} Artifact tags are part of the story.{{/if}}{{if ctl.limits}} Never depict: {{ctl.limits}}.{{/if}} The boundaries hold.{{/if}}`;
+const OUTPUT = `{{if kind == story}}[OUTPUT] {{if not providerReasoning}}Order: <think> with the planning pass, </think>, the story{{if ledger}}, the <ledger> block{{/if}}. {{/if}}Only the story: no title or heading, no notes, no summary, no options, no commentary before or after it. The only exceptions: {{if not providerReasoning}}the <think> planning block opens the reply; {{/if}}an out-of-character question from the player gets a short answer before the story{{if ledger}}; and the <ledger> block follows the story{{/if}}.{{if ctl.artifacts == on}} Artifact tags are part of the story.{{/if}}{{if ctl.limits}} Never depict: {{ctl.limits}}.{{/if}} The boundaries hold.{{/if}}`;
 
 // ---------- controls (PROMPT-07) ----------
 
@@ -512,7 +521,6 @@ export function meaPreset(): Preset {
       block("mea-dialogue", "Dialogue & voice", "text", { content: DIALOGUE }),
       block("controls", "Story preferences (controls)", "controls"),
       block("mea-notes", "Reading Mea's notes", "text", { content: NOTES }),
-      block("mea-planning", "Before you write", "text", { content: PLANNING }),
       block("character", "Character", "character"),
       block("lore_before", "Lore (before)", "lore_before"),
       block("persona", "Persona", "persona"),
@@ -525,6 +533,8 @@ export function meaPreset(): Preset {
       block("authors_note", "Author's note", "authors_note", { position: "depth", depth: 4 }),
       block("mea-turn", "This reply", "text", { content: TURN }),
       block("post_history", "Post-history instructions", "post_history", { content: "" }),
+      block("mea-planning", "Before you write", "text", { content: PLANNING }),
+      block("mea-errata", "Model notes", "text", { content: ERRATA }),
       block("mea-output", "Output", "text", { content: OUTPUT }),
     ],
     samplers: { temperature: 1, max_tokens: 2200 },
