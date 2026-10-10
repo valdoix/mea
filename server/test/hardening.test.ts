@@ -297,3 +297,19 @@ describe("L17: retrying a job whose dedupe key is taken again", () => {
     await Bun.sleep(20);
   });
 });
+
+describe("L17: the chat list", () => {
+  test("pages with limit/offset and lists the archive", async () => {
+    const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Old", first_mes: "Hi." } });
+    for (let i = 0; i < 4; i++) createChat({ characterId: createCharacter(data) });
+    const all = (await api<{ chats: { id: string }[] }>("GET", "/api/chats?limit=500")).json.chats.map((c) => c.id);
+    expect(all.length).toBeGreaterThanOrEqual(4);
+    const page1 = (await api("GET", "/api/chats?limit=2")).json.chats.map((c: { id: string }) => c.id);
+    const page2 = (await api("GET", "/api/chats?limit=2&offset=2")).json.chats.map((c: { id: string }) => c.id);
+    expect([...page1, ...page2]).toEqual(all.slice(0, 4));
+    const id = createChat({ characterId: createCharacter(data) }).id;
+    await api("PATCH", `/api/chats/${id}`, { archived: true });
+    expect((await api("GET", "/api/chats?limit=500")).json.chats.some((c: { id: string }) => c.id === id)).toBe(false);
+    expect((await api("GET", "/api/chats?archived=1")).json.chats.some((c: { id: string }) => c.id === id)).toBe(true);
+  });
+});

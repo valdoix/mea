@@ -211,7 +211,8 @@ export function getChat(id: string) {
   return r ? chatOut(r) : undefined;
 }
 
-export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number; collectionId?: string } = {}) {
+/** L17: `archived` lists the archive; `limit`/`offset` page the list (500 at most per page). */
+export function listChats(opts: { characterId?: string; archived?: boolean; deleted?: boolean; limit?: number; offset?: number; collectionId?: string } = {}) {
   const where = [opts.deleted ? "c.deleted_at IS NOT NULL" : "c.deleted_at IS NULL"];
   const params: (string | number)[] = [];
   if (!opts.deleted && !opts.collectionId) where.push(opts.archived ? "c.archived_at IS NOT NULL" : "c.archived_at IS NULL");
@@ -229,9 +230,10 @@ export function listChats(opts: { characterId?: string; archived?: boolean; dele
         WHERE m.chat_id = c.id AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 1) AS last_text,
        (SELECT m.role FROM messages m WHERE m.chat_id = c.id AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 1) AS last_role
      FROM chats c LEFT JOIN characters ch ON ch.id = c.character_id
-     WHERE ${where.join(" AND ")} ORDER BY COALESCE(c.last_message_at, c.created_at) DESC LIMIT ?`,
+     WHERE ${where.join(" AND ")} ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.id LIMIT ? OFFSET ?`,
     ...params,
-    opts.limit ?? 200,
+    Math.min(500, Math.max(1, opts.limit ?? 200)),
+    Math.max(0, opts.offset ?? 0),
   );
   const memberships = new Map<string, string[]>();
   for (const m of all<{ chat_id: string; collection_id: string }>("SELECT chat_id, collection_id FROM collection_chats")) memberships.set(m.chat_id, [...(memberships.get(m.chat_id) ?? []), m.collection_id]);
