@@ -11,6 +11,16 @@ export const DEVICE_COOKIE = "mea_device";
 const PAIR_TTL_MS = 10 * 60_000;
 
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+/** Host names a browser on this computer uses for Mea. Anything else (a rebound DNS name) isn't the host computer. */
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+/** The host name of a Host header, without its port ("[::1]:7766" → "[::1]"). */
+export function hostName(host: string | undefined): string {
+  if (!host) return "";
+  const h = host.trim().toLowerCase();
+  if (h.startsWith("[")) return h.slice(0, h.indexOf("]") + 1);
+  return h.replace(/:\d+$/, "");
+}
 
 /** Requests that came in on the public listener (the ngrok tunnel's port). Never trusted, whatever their address. */
 const viaPublic = new WeakSet<Request>();
@@ -27,6 +37,9 @@ export function isTrustedLocal(c: Context): boolean {
     address = undefined;
   }
   if (!address || !LOOPBACK.has(address)) return false;
+  // DNS rebinding (SEC-07): a page on attacker.example that points its name at 127.0.0.1 connects from loopback,
+  // but its requests still carry its own Host. Only loopback names count as this computer.
+  if (!LOOPBACK_HOSTS.has(hostName(c.req.header("host") ?? new URL(c.req.url).host))) return false;
   // Proxied requests (Tailscale Serve, reverse proxies) are never "local".
   const h = c.req.raw.headers;
   for (const name of ["x-forwarded-for", "x-forwarded-host", "forwarded", "tailscale-user-login", "tailscale-user-name", "x-real-ip"]) {
@@ -58,9 +71,38 @@ export function createPairingCode(): { code: string; expiresAt: number } {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   const code = [...bytes].map((b) => ALPHABET[b % ALPHABET.length]).join("");
   const expiresAt = now() + PAIR_TTL_MS;
-  run("DELETE FROM pairing_codes WHERE expires_at < ?", now());
+  // Only the newest code works: a code shown earlier and never used stops working (SEC-02).
+  run("DELETE FROM pairing_codes");
   run("INSERT INTO pairing_codes (code_hash, expires_at, created_at) VALUES (?, ?, ?)", sha256(code), expiresAt, now());
   return { code, expiresAt };
+}
+
+// A few wrong codes a minute per address; codes are 40 bits, so this is hygiene more than defence.
+const pairTries = new Map<string, number[]>();
+export function pairAttemptAllowed(address: string): boolean {
+  const t = Date.now();
+  const tries = (pairTries.get(address) ?? []).filter((x) => t - x < 60_000);
+  tries.push(t);
+  pairTries.set(address, tries);
+  if (pairTries.size > 1000) pairTries.delete(pairTries.keys().next().value!);
+  return tries.length <= 10;
+}
+
+/** Where each paired device was last seen from, so a cookie used somewhere unexpected is noticeable. */
+const lastSeenFrom = new Map<string, string>();
+export function clientAddress(c: Context): string {
+  const h = c.req.raw.headers;
+  const forwarded = h.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwarded) return forwarded;
+  try {
+    return getConnInfo(c).remote.address ?? "";
+  } catch {
+    return "";
+  }
+}
+export function noteDeviceSeen(id: string, c: Context) {
+  const address = clientAddress(c);
+  if (address) lastSeenFrom.set(id, address);
 }
 
 /** Redeems a one-time pairing code for a long-lived device token. */
@@ -91,6 +133,7 @@ export function listDevices() {
     userAgent: d.user_agent,
     createdAt: d.created_at,
     lastSeenAt: d.last_seen_at,
+    lastSeenFrom: lastSeenFrom.get(d.id) ?? null,
   }));
 }
 

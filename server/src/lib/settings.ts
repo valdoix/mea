@@ -344,7 +344,7 @@ export const defaults: Settings = {
   "memory.config": defaultMemoryConfig,
   "quota.degradeAt": 0.9,
   "quota.calibration": { cachedWeight: null, samples: 0, updatedAt: null },
-  "backup.mirror": { dir: "", encrypt: false, keep: 14, lastAt: null, lastError: null, secretId: null },
+  "backup.mirror": { dir: "", encrypt: true, keep: 14, lastAt: null, lastError: null, secretId: null },
   "trackers.defaults": {},
   "world.defaults": { mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", view: "director", step: 120 },
   "chat.guidance": [

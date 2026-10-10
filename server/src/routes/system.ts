@@ -4,17 +4,18 @@ import { regexScriptSchema } from "../lib/regex";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { restoreStash, stash } from "../services/undo";
+import { requestShutdown } from "../lib/lifecycle";
 import { streamSSE } from "hono/streaming";
 import QRCode from "qrcode";
 import { z } from "zod";
 import { config, paths } from "../config";
 import { all, one, parseJson } from "../db/db";
 import { type MeaEvent, subscribe } from "../lib/events";
-import { badRequest, body, must } from "../lib/http";
-import { clientKeys, getClientSettings, guardsSchema, type MemoryConfig, type Settings, setSetting, steerSchema } from "../lib/settings";
+import { badRequest, body, HttpError, must } from "../lib/http";
+import { clientKeys, defaults as settingDefaults, getClientSettings, guardsSchema, type MemoryConfig, type Settings, setSetting, steerSchema } from "../lib/settings";
 import { normalizeMemoryConfig } from "../memory/profiles";
 import { defaultPreset, importStPreset, presetSchema } from "../prompt/preset";
-import { createPairingCode, DEVICE_COOKIE, deviceForToken, isTrustedLocal, listDevices, redeemPairingCode, revokeDevice } from "../services/auth";
+import { clientAddress, createPairingCode, DEVICE_COOKIE, deviceForToken, isTrustedLocal, listDevices, pairAttemptAllowed, redeemPairingCode, revokeDevice } from "../services/auth";
 import { createBackup, lastBackupAt, listBackups, restoreBackup } from "../services/backup";
 import { mirrorBackup, mirrorSettings, updateMirror } from "../services/mirror";
 import { cachedQuota, listConnections } from "../services/connections";
@@ -53,7 +54,34 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
   "appearance.themeMode": z.enum(["system", "day", "night"]),
   "appearance.living": z.object({ voices: z.enum(["ink", "ribbon", "halo", "off"]), artifacts: z.boolean(), window: z.boolean(), thoughts: z.enum(["never", "drawer", "always"]) }),
   "privacy.requestLog": z.object({ bodiesDays: z.number().int().min(1).max(3650), rowsDays: z.number().int().min(0).max(36500), fileLog: z.boolean(), fileDays: z.number().int().min(1).max(3650) }),
+  "routing.story": z.string().max(200).nullable(),
+  "appearance.chatStyle": z.enum(["cards", "book", "bubbles"]),
+  "appearance.fontScale": z.number().min(0.6).max(2),
+  "appearance.glossary": z.boolean(),
+  "chat.enterToSend": z.boolean(),
+  "chat.defaultPresetId": z.string().max(200).nullable(),
+  "backup.hourlyKeep": z.number().int().min(1).max(500),
+  "backup.dailyKeep": z.number().int().min(1).max(500),
+  "onboarding.done": z.boolean(),
+  "routing.tasks": z.record(z.string(), z.string().max(200).nullable()),
+  "routing.fallbacks": z.record(z.string(), z.array(z.string().max(200)).max(20)),
+  "routing.timeouts": z.record(z.string(), z.number().min(5).max(3600)),
+  "quota.degradeAt": z.number().min(0).max(1),
+  "chat.cutoff": z.enum(["continue", "trim", "off"]),
 };
+
+/**
+ * L2: settings without their own schema must at least look like their default (same kinds of values,
+ * finite numbers), so a stray value can't break every reply.
+ */
+function shapedLike(value: unknown, def: unknown): boolean {
+  if (def === null || def === undefined) return true;
+  if (typeof def === "number") return typeof value === "number" && Number.isFinite(value);
+  if (typeof def !== "object") return typeof value === typeof def;
+  if (Array.isArray(def)) return Array.isArray(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.entries(value as Record<string, unknown>).every(([k, v]) => !(k in (def as object)) || v === null || shapedLike(v, (def as Record<string, unknown>)[k]));
+}
 
 system.get("/settings", (c) => c.json(getClientSettings()));
 
@@ -63,6 +91,7 @@ system.put("/settings", async (c) => {
     if (!clientKeys.includes(k as keyof Settings)) throw badRequest(`Unknown setting "${k}"`);
     const schema = SETTING_SCHEMAS[k];
     if (schema && !schema.safeParse(v).success) throw badRequest(`Invalid value for "${k}"`, z.treeifyError(schema.safeParse(v).error!));
+    if (!schema && !shapedLike(v, settingDefaults[k as keyof Settings])) throw badRequest(`Invalid value for "${k}"`);
     // MEM-44: saving memory settings by hand keeps the profile label honest ("custom" when changed).
     const value = k === "memory.config" && v && typeof v === "object" ? normalizeMemoryConfig(v as MemoryConfig) : v;
     setSetting(k as keyof Settings, value as never);
@@ -183,6 +212,7 @@ system.delete("/devices/:id", (c) => {
 
 /** Public: exchanges a one-time code for a device cookie. */
 system.post("/pair", async (c) => {
+  if (!pairAttemptAllowed(clientAddress(c))) throw new HttpError(429, "Too many tries. Wait a minute and try again.");
   const input = await body(c, z.object({ code: z.string().min(4).max(32), name: z.string().max(80).default("Phone") }));
   const result = redeemPairingCode(input.code, input.name, c.req.header("user-agent") ?? null);
   if (!result) throw badRequest("That code is wrong or expired. Make a new one on the computer.");
@@ -244,6 +274,13 @@ system.get("/export/library", () => {
 
 system.get("/trash", (c) => c.json(listTrash()));
 system.post("/trash/empty", (c) => c.json({ purgedImages: purgeTrash(Date.now() + 1) }));
+
+/** A clean stop (host only): saves the encrypted database and closes, so updates and restarts lose nothing. */
+system.post("/system/shutdown", (c) => {
+  if (!isTrustedLocal(c)) throw new HttpError(403, "This can only be done on the computer Mea runs on.");
+  requestShutdown();
+  return c.json({ ok: true });
+});
 
 // ---------- Health (ARCH-15) ----------
 

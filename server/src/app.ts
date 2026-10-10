@@ -1,5 +1,5 @@
 import { join, normalize } from "node:path";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { config } from "./config";
@@ -24,7 +24,7 @@ import { steer } from "./routes/steer";
 import { data } from "./routes/data";
 import { vault } from "./routes/vault";
 import { isLocked } from "./lib/vault";
-import { DEVICE_COOKIE, deviceForToken, isTrustedLocal } from "./services/auth";
+import { DEVICE_COOKIE, deviceForToken, isTrustedLocal, noteDeviceSeen } from "./services/auth";
 import { importFile } from "./services/importer";
 
 type Env = { Variables: { deviceId: string | null } };
@@ -59,19 +59,7 @@ export function createApp() {
   // Auth (SEC-02): the host machine is trusted; other devices need a paired cookie.
   app.use("/api/*", async (c, next) => {
     // Reject cross-site writes (cookie auth + JSON API).
-    if (c.req.method !== "GET" && c.req.method !== "HEAD") {
-      const origin = c.req.header("origin");
-      if (origin) {
-        const allowed = new Set([c.req.header("host"), c.req.header("x-forwarded-host")].filter(Boolean));
-        let originHost = "";
-        try {
-          originHost = new URL(origin).host;
-        } catch {
-          originHost = "";
-        }
-        if (!allowed.has(originHost)) return c.json({ error: "Cross-site request blocked" }, 403);
-      }
-    }
+    if (c.req.method !== "GET" && c.req.method !== "HEAD" && !sameSite(c)) return c.json({ error: "Cross-site request blocked" }, 403);
     if (PUBLIC_API.has(c.req.path)) return next();
     if (isTrustedLocal(c)) {
       c.set("deviceId", null);
@@ -80,6 +68,10 @@ export function createApp() {
     const device = deviceForToken(getCookie(c, DEVICE_COOKIE));
     if (!device) return c.json({ error: "This device isn't paired with Mea yet.", code: "unpaired" }, 401);
     c.set("deviceId", device.id);
+    noteDeviceSeen(device.id, c);
+    // SEC-08: a paired device can't do what can't be undone from the device itself, or what would hand
+    // the stored API key to another server. Those stay on the host computer.
+    if (await hostOnly(c, device.id)) return c.json({ error: "This can only be done on the computer Mea runs on.", code: "host_only" }, 403);
     return next();
   });
 
@@ -107,6 +99,8 @@ export function createApp() {
   // Android share sheet → import a card (MOB-05). Same auth as the API.
   app.post("/share-target", async (c) => {
     if (isLocked()) return c.redirect("/", 303);
+    // SEC-09: the share sheet posts from Mea's own page; another site can't make this computer import a file.
+    if (!sameSite(c)) return c.text("Cross-site request blocked", 403);
     const authorized = isTrustedLocal(c) || Boolean(deviceForToken(getCookie(c, DEVICE_COOKIE)));
     if (!authorized) return c.redirect("/pair", 303);
     const form = await c.req.formData();
@@ -149,7 +143,10 @@ export function createApp() {
       }
     }
     const index = webFile("index.html");
-    if (index && (await index.exists())) return new Response(index, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } });
+    if (index && (await index.exists())) {
+      const html = await index.text();
+      return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", "Content-Security-Policy": contentPolicy(html) } });
+    }
     return c.html(
       `<!doctype html><meta charset="utf-8"><title>Mea</title><body style="font-family:system-ui;background:#FBF6F1;color:#43363D;padding:3rem">
        <h1>Mea's server is running ✿</h1><p>The web app isn't built yet. Run <code>bun run build</code>, or use <code>bun run dev</code> while developing.</p></body>`,
@@ -157,6 +154,66 @@ export function createApp() {
   });
 
   return app;
+}
+
+/** Rejects cross-site writes (cookie auth + JSON API): the Origin, when sent, must be this server. */
+function sameSite(c: Context): boolean {
+  const site = c.req.header("sec-fetch-site");
+  if (site === "same-origin" || site === "none") return true;
+  if (site === "cross-site") return false;
+  const origin = c.req.header("origin");
+  if (!origin) return true;
+  const allowed = new Set([c.req.header("host"), c.req.header("x-forwarded-host")].filter(Boolean));
+  let originHost = "";
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    originHost = "";
+  }
+  return allowed.has(originHost);
+}
+
+/** SEC-08: actions a paired device can't take. A device may still revoke itself. */
+async function hostOnly(c: Context, deviceId: string): Promise<boolean> {
+  const p = c.req.path;
+  const m = c.req.method;
+  if (m === "POST" && /^\/api\/vault\/(enable|disable|passphrase)$/.test(p)) return true;
+  if (m === "POST" && /^\/api\/backups\/[^/]+\/restore$/.test(p)) return true;
+  if (m === "PUT" && p === "/api/backups/mirror") return true;
+  if (m === "POST" && (p === "/api/trash/empty" || p === "/api/system/shutdown")) return true;
+  if (m === "DELETE" && p.startsWith("/api/devices/")) return p.slice("/api/devices/".length) !== deviceId;
+  // A new base URL for a saved connection would send its stored key there; it needs the key typed again.
+  if (m === "PUT" && /^\/api\/connections\/[^/]+$/.test(p)) {
+    const input = (await c.req.json().catch(() => null)) as { baseUrl?: unknown; apiKey?: unknown } | null;
+    return Boolean(input && input.baseUrl !== undefined && !input.apiKey);
+  }
+  return false;
+}
+
+/** SEC-10: a Content-Security-Policy for the app page; inline scripts in index.html are allowed by hash. */
+const policies = new Map<string, string>();
+function contentPolicy(html: string): string {
+  let policy = policies.get(html);
+  if (policy) return policy;
+  const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((m) => `'sha256-${new Bun.CryptoHasher("sha256").update(m[1]!).digest("base64")}'`);
+  policy = [
+    "default-src 'self'",
+    `script-src 'self' 'wasm-unsafe-eval'${hashes.length ? " " + hashes.join(" ") : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+  policies.clear();
+  policies.set(html, policy);
+  return policy;
 }
 
 /** A web app file: embedded in mea.exe when compiled (ARCH-14), else read from web/dist. */

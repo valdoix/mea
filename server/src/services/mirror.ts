@@ -53,7 +53,7 @@ export function updateMirror(input: { dir?: string; encrypt?: boolean; keep?: nu
     }
   }
   const encrypt = input.encrypt ?? cur.encrypt;
-  if (encrypt && !(secretId && getSecret(secretId))) throw badRequest("Set a passphrase to encrypt the copies");
+  if (dir && encrypt && !(secretId && getSecret(secretId))) throw badRequest("Set a passphrase to encrypt the copies, or turn encryption off");
   setSetting("backup.mirror", { ...cur, dir, encrypt, keep: Math.max(1, Math.min(90, input.keep ?? cur.keep)), secretId });
   return mirrorSettings();
 }

@@ -1,8 +1,9 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, fsyncSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { config, paths } from "../config";
 import { db, dbMode, one, openDb, openDbFromBytes } from "../db/db";
+import { subscribe } from "./events";
 import { badRequest, HttpError } from "./http";
 
 /**
@@ -49,11 +50,21 @@ function unseal(data: Buffer, pass?: string): { bytes: Buffer; key: Buffer; salt
   return { bytes: Buffer.concat([decipher.update(data.subarray(48)), decipher.final()]), key: k, salt: s };
 }
 
+/** Writes to a temp file, flushes it to disk, then renames it over the old one, so a power cut leaves one or the other. */
 function writeAtomic(file: string, data: Uint8Array) {
   const tmp = `${file}.tmp`;
-  writeFileSync(tmp, data);
+  const fd = openSync(tmp, "w");
+  try {
+    writeSync(fd, data);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
   renameSync(tmp, file);
 }
+
+/** The previous good copy of the encrypted database, kept for when the newest one can't be read. */
+const prevFile = () => `${vaultFile}.prev`;
 
 const removeQuietly = (f: string) => {
   try {
@@ -74,17 +85,28 @@ export function lockUntilUnlocked(handler: (bytes: Buffer) => void) {
 }
 
 // Wrong passphrases are slowed down (scrypt already costs ~0.1 s; this caps guessing further).
-const attempts: number[] = [];
-export function unlockVault(passphrase: string) {
+// The host computer and everyone else count separately, so guesses through the tunnel never lock the host out.
+const attempts: Record<"host" | "remote", number[]> = { host: [], remote: [] };
+export function unlockVault(passphrase: string, fromHost = true) {
   if (!locked) return { ok: true, already: true };
   const t = Date.now();
-  while (attempts.length && t - attempts[0]! > 60_000) attempts.shift();
-  if (attempts.length >= 5) throw new HttpError(429, "Too many tries. Wait a minute and try again.");
-  let r: ReturnType<typeof unseal>;
-  try {
-    r = unseal(readFileSync(vaultFile), passphrase);
-  } catch {
-    attempts.push(t);
+  const tries = attempts[fromHost ? "host" : "remote"];
+  while (tries.length && t - tries[0]! > 60_000) tries.shift();
+  if (tries.length >= 5) throw new HttpError(429, "Too many tries. Wait a minute and try again.");
+  let r: ReturnType<typeof unseal> | null = null;
+  // The newest file first; if it was cut short (a power cut mid-write), the previous good copy.
+  for (const f of [vaultFile, prevFile()]) {
+    if (!existsSync(f)) continue;
+    try {
+      r = unseal(readFileSync(f), passphrase);
+      if (f !== vaultFile) console.error("[mea] the encrypted database couldn't be read; opened the previous copy instead.");
+      break;
+    } catch {
+      // wrong passphrase, or a damaged file: try the next
+    }
+  }
+  if (!r) {
+    tries.push(t);
     throw new HttpError(401, "That passphrase doesn't open Mea.");
   }
   key = r.key;
@@ -112,10 +134,25 @@ export function persistVault(force = false) {
   if (!vaultActive()) return false;
   const n = changes();
   if (!force && n === lastChanges) return false;
+  if (existsSync(vaultFile)) copyFileSync(vaultFile, prevFile());
   writeAtomic(vaultFile, seal(db().serialize(), key!, salt!));
   lastChanges = n;
   return true;
 }
+
+// SEC-05: a finished reply is saved within a few seconds, not only on the 30-second timer.
+let soon: ReturnType<typeof setTimeout> | null = null;
+subscribe((e) => {
+  if (e.type !== "gen.end" || !vaultActive() || soon) return;
+  soon = setTimeout(() => {
+    soon = null;
+    try {
+      persistVault();
+    } catch (err) {
+      console.error("[mea] couldn't save the encrypted database:", (err as Error).message);
+    }
+  }, 3000);
+});
 
 export function startVaultTimer() {
   stopVaultTimer();
@@ -189,6 +226,7 @@ export function disableVault(passphrase: string) {
   const bytes = db().serialize();
   writeAtomic(paths.db, bytes);
   removeQuietly(vaultFile);
+  removeQuietly(prevFile());
   for (const f of backupFiles(".db.enc")) {
     const p = join(paths.backups, f);
     try {
@@ -213,6 +251,8 @@ export function changeVaultPassphrase(current: string, next: string) {
   salt = randomBytes(16);
   key = derive(next, salt);
   persistVault(true);
+  // The previous copy is sealed with the old passphrase; it mustn't outlive the change.
+  removeQuietly(prevFile());
   for (const f of backupFiles(".db.enc")) {
     const p = join(paths.backups, f);
     try {
@@ -236,5 +276,6 @@ export function resetVaultState() {
   salt = null;
   locked = false;
   onUnlock = null;
-  attempts.length = 0;
+  attempts.host.length = 0;
+  attempts.remote.length = 0;
 }

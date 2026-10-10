@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
+import { isTrustedLocal } from "../services/auth";
 import { changeVaultPassphrase, disableVault, enableVault, isLocked, unlockVault, vaultEnabled } from "../lib/vault";
 
 /** Database encryption at rest (SEC-05): status, unlock, and switching it on or off. */
@@ -13,7 +14,7 @@ vault.get("/vault/status", (c) => c.json({ enabled: vaultEnabled(), locked: isLo
 /** Works while locked (it's how you get in); slowed after a few wrong tries. */
 vault.post("/vault/unlock", async (c) => {
   const input = await body(c, z.object({ passphrase: pass }));
-  return c.json(unlockVault(input.passphrase));
+  return c.json(unlockVault(input.passphrase, isTrustedLocal(c)));
 });
 
 vault.post("/vault/enable", async (c) => {

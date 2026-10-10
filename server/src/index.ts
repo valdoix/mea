@@ -1,4 +1,5 @@
 import { createApp } from "./app";
+import { onShutdown } from "./lib/lifecycle";
 import { config } from "./config";
 import { closeDb, dbMode } from "./db/db";
 import { persistVault, stopVaultTimer } from "./lib/vault";
@@ -57,3 +58,8 @@ function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+onShutdown(shutdown);
+
+// One failed background task must never take Mea down for every device (Bun exits on these by default).
+process.on("unhandledRejection", (err) => console.error("[mea] unhandled rejection:", err));
+process.on("uncaughtException", (err) => console.error("[mea] uncaught exception:", err));
