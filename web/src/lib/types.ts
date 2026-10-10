@@ -1526,6 +1526,10 @@ export interface WorldPerson {
   id: string;
   name: string;
   ring: "onstage" | "offstage" | "unmet";
+  /** story: in the story's records; cast: a profile you added; lore: only a lorebook entry. */
+  source: "story" | "cast" | "lore";
+  role: string | null;
+  description: string | null;
   standing: string;
   where: string | null;
   reach: string;

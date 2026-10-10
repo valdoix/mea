@@ -1,11 +1,12 @@
 <script lang="ts">
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
-  import { get, patch, post, put } from "../lib/api";
+  import { del, get, patch, post, put } from "../lib/api";
+  import { confirm } from "../lib/dialogs.svelte";
   import { onEvent } from "../lib/events";
-  import { ArrowLeft, Dices, Plus, Settings } from "../lib/icons";
+  import { ArrowLeft, Dices, Merge, Pencil, Plus, Settings, Trash } from "../lib/icons";
   import { errorToast, toast } from "../lib/state.svelte";
-  import type { Arc, ArcForce, WorldConfig, WorldViewData } from "../lib/types";
+  import type { Arc, ArcForce, WorldConfig, WorldPerson, WorldViewData } from "../lib/types";
 
   let { id }: { id: string } = $props();
   let w = $state<WorldViewData | null>(null);
@@ -92,6 +93,64 @@
     await act(`/api/chats/${id}/world/arcs/${encodeURIComponent(editArc.id)}`, { action: "edit", ...arcForm });
     editArc = null;
   }
+  // ---------- editing people (the same cast endpoints the Story page's Cast uses) ----------
+  let person = $state<WorldPerson | null>(null);
+  let personForm = $state({ name: "", role: "", where: "", description: "" });
+  let mergeInto = $state("");
+  function openPerson(p: WorldPerson) {
+    person = p;
+    personForm = { name: p.name, role: p.role ?? "", where: p.where ?? "", description: p.description ?? "" };
+    mergeInto = "";
+  }
+  /** Who this person can fold into: someone in the story (a cast-only profile can also join another profile). */
+  const mergeTargets = $derived((w?.people ?? []).filter((x) => person && x.id !== person.id && (x.source === "story" || (person.source === "cast" && x.source === "cast"))));
+  async function savePerson() {
+    const p = person;
+    if (!p || !personForm.name.trim()) return;
+    const f = $state.snapshot(personForm);
+    const name = p.source === "lore" ? p.name : f.name.trim();
+    try {
+      const changed: Record<string, string> = {};
+      if (name !== p.name) changed.name = name;
+      if (f.role.trim() !== (p.role ?? "")) changed.role = f.role.trim();
+      if (f.description.trim() !== (p.description ?? "")) changed.description = f.description.trim();
+      if (Object.keys(changed).length) await put(`/api/chats/${id}/cast/${encodeURIComponent(p.name)}`, changed);
+      if (f.where.trim() && f.where.trim() !== (p.where ?? "")) await setPerson(name, { where: f.where.trim() });
+      else await load();
+      person = null;
+      toast("Saved", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function mergePerson() {
+    const p = person;
+    const into = (w?.people ?? []).find((x) => x.id === mergeInto);
+    if (!p || !into) return;
+    if (!(await confirm({ title: `Merge ${p.name} into ${into.name}?`, message: `Everything the story knows about ${p.name} (bonds, things, secrets, traits) moves to ${into.name}, and "${p.name}" becomes another name for them.`, confirmLabel: "Merge" }))) return;
+    try {
+      await post(`/api/chats/${id}/cast/merge`, { from: p.source === "story" ? p.id : p.name, into: into.source === "story" ? into.id : into.name });
+      person = null;
+      toast(`${p.name} is now part of ${into.name}`, { kind: "ok" });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function deletePerson() {
+    const p = person;
+    if (!p) return;
+    if (!(await confirm({ title: `Delete ${p.name}?`, message: "They leave the cast and the story's records, with their bonds. If the story names them again, they come back fresh.", confirmLabel: "Delete", danger: true }))) return;
+    try {
+      await del(`/api/chats/${id}/cast/${encodeURIComponent(p.name)}?forget=1`);
+      person = null;
+      toast(`${p.name} is gone`, { kind: "ok" });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   async function setPerson(name: string, body: Record<string, unknown>) {
     try {
       w = await put<WorldViewData>(`/api/chats/${id}/world/people/${encodeURIComponent(name)}`, body);
@@ -271,11 +330,14 @@
           <div class="ppl">
             {#each list as typeof rings.onstage as p (p.id)}
               <div class="pp">
-                <div class="small"><b>{p.name}</b> {#if p.standing !== "here"}<span class="chip tiny">{p.standing}</span>{/if}{#if p.flag}<span class="chip tiny">{p.flag}</span>{/if}</div>
+                <div class="row between name-row">
+                  <div class="small"><b>{p.name}</b> {#if p.standing !== "here"}<span class="chip tiny">{p.standing}</span>{/if}{#if p.flag}<span class="chip tiny">{p.flag}</span>{/if}</div>
+                  <button class="btn ghost icon tiny-icon" onclick={() => openPerson(p)} aria-label="Edit, merge or delete {p.name}" title="Edit, merge or delete"><Pencil size={14} /></button>
+                </div>
                 <div class="tiny muted">{p.where ?? ""}{p.travel != null && p.ring !== "onstage" ? ` · ${p.travel < 60 ? `${p.travel} min` : `${Math.round(p.travel / 60)} h`} away` : ""}{p.arcs.length ? ` · ${p.arcs.length} subplot${p.arcs.length > 1 ? "s" : ""}` : ""}</div>
                 {#if director && p.ties.length}<div class="tiny faint">Tied to {p.ties.map((t) => `${t.name} (${["", "slight", "some", "close", "strong", "deep"][Math.min(5, Math.max(0, Math.round(t.strength)))] || "slight"})`).join(", ")}</div>{/if}
                 {#if p.ring !== "onstage"}
-                  <div class="row">
+                  <div class="row wrap picks">
                     <select class="select tiny pick" value={p.standing} onchange={(e) => setPerson(p.name, { standing: e.currentTarget.value })} aria-label="Standing">
                       <option value="here">around</option><option value="away">away</option><option value="captive">captive</option><option value="changed">can't act</option><option value="dead">dead</option><option value="companion">companion</option><option value="construct">construct</option>
                     </select>
@@ -302,6 +364,36 @@
     <label class="field"><span class="label">Their story</span><textarea class="textarea" rows="3" bind:value={author.premise} placeholder="Joss wants to buy back his father's boat before the Guild sells it."></textarea><span class="hint">In your words. The engine picks the kind, grounds it, and starts it at once; it never rewrites what you wrote.</span></label>
   </div>
   {#snippet footer()}<button class="btn ghost" onclick={() => (authorOpen = false)}>Cancel</button><button class="btn primary" onclick={giveStory} disabled={!author.name.trim() || author.premise.trim().length < 5}>Start it</button>{/snippet}
+</Modal>
+
+<Modal open={Boolean(person)} onclose={() => (person = null)} title={person ? `About ${person.name}` : ""} size="md">
+  {#if person}
+    <div class="stack">
+      <label class="field"><span class="label">Name</span><input class="input" bind:value={personForm.name} disabled={person.source === "lore"} />{#if person.source === "story"}<span class="hint">A new name: the story calls them that from now on.</span>{/if}</label>
+      <label class="field"><span class="label">Role</span><input class="input" bind:value={personForm.role} placeholder="the harbourmaster, her older brother" /></label>
+      <label class="field"><span class="label">Where they are</span><input class="input" bind:value={personForm.where} placeholder="Old Town › Bakery" /></label>
+      <label class="field"><span class="label">About them</span><textarea class="textarea" rows="3" bind:value={personForm.description}></textarea></label>
+      {#if person.source === "lore"}
+        <p class="tiny muted">{person.name} comes from a lorebook entry, so their name, merging and deleting live there. "Leave out" on their card keeps them out of the world.</p>
+      {:else}
+        <div class="field">
+          <span class="label">The same person as</span>
+          <div class="row wrap merge">
+            <select class="select grow" bind:value={mergeInto} aria-label="The same person as">
+              <option value="">Pick someone…</option>
+              {#each mergeTargets as x (x.id)}<option value={x.id}>{x.name}</option>{/each}
+            </select>
+            <button class="btn small" disabled={!mergeInto} onclick={mergePerson}><Merge size={14} /> Merge</button>
+          </div>
+          <span class="hint">{person.name} folds into who you pick and becomes another name for them.</span>
+        </div>
+      {/if}
+    </div>
+  {/if}
+  {#snippet footer()}
+    {#if person && person.source !== "lore"}<button class="btn ghost danger start" onclick={deletePerson}><Trash size={14} /> Delete</button>{/if}
+    <button class="btn ghost" onclick={() => (person = null)}>Cancel</button><button class="btn primary" onclick={savePerson} disabled={!personForm.name.trim()}>Save</button>
+  {/snippet}
 </Modal>
 
 <Modal open={Boolean(editArc)} onclose={() => (editArc = null)} title="Edit subplot" size="md">
@@ -436,9 +528,32 @@
     display: grid;
     gap: 0.2rem;
   }
-  .pp .select {
+  .pp .select.pick {
+    /* Room on the right for the select's arrow, so "simulate as usual" isn't cut off under it. */
     width: auto;
-    padding: 0.15rem 0.4rem;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0.15rem 1.7rem 0.15rem 0.5rem;
+    background-position: right 0.4rem center;
+    text-overflow: ellipsis;
+  }
+  .picks {
+    gap: 0.3rem;
+  }
+  .name-row {
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+  .tiny-icon {
+    padding: 0.15rem;
+    min-height: 0;
+    flex: none;
+  }
+  .merge {
+    gap: 0.4rem;
+  }
+  .start {
+    margin-right: auto;
   }
   .grid {
     display: grid;
