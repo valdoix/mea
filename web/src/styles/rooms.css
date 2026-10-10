@@ -1543,8 +1543,10 @@
   width: 56px;
   background: none;
   box-shadow: none;
+  place-items: center;
   color: var(--nt-pink) !important;
-  font: 400 2.1rem/1 var(--font-script);
+  font: 400 1.55rem/1 var(--font-script);
+  white-space: nowrap;
   text-shadow: var(--tube-glow);
   animation: mq-flick 6s infinite;
 }

@@ -239,11 +239,17 @@
   }
   .list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.5rem;
     align-content: start;
+    min-width: 0;
   }
   .head {
+    flex-wrap: wrap;
     margin-bottom: 0.2rem;
+  }
+  .head h1 {
+    margin-right: auto;
   }
   .item {
     display: flex;
