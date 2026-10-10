@@ -189,7 +189,20 @@ export function indexCoverage(chatId: string) {
   const t = getSetting("routing.embeddings");
   const total = (one<{ n: number }>("SELECT COUNT(*) AS n FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'", chatId)?.n ?? 0) +
     (one<{ n: number }>("SELECT COUNT(*) AS n FROM summaries WHERE chat_id = ? AND level IN ('scene', 'chapter') AND state = 'ready' AND content != ''", chatId)?.n ?? 0);
-  const have = one<{ n: number }>("SELECT COUNT(*) AS n FROM embeddings WHERE chat_id = ? AND model = ? AND dims = ?", chatId, t.model, t.dims)?.n ?? 0;
+  // M31: only vectors of live memories and summaries count.
+  const have =
+    (one<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM embeddings e JOIN memories m ON m.id = e.owner_id WHERE e.owner_type = 'memory' AND e.chat_id = ? AND e.model = ? AND e.dims = ? AND m.deleted_at IS NULL AND m.status != 'superseded'",
+      chatId,
+      t.model,
+      t.dims,
+    )?.n ?? 0) +
+    (one<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM embeddings e JOIN summaries s ON s.id = e.owner_id WHERE e.owner_type = 'summary' AND e.chat_id = ? AND e.model = ? AND e.dims = ? AND s.level IN ('scene', 'chapter') AND s.state = 'ready' AND s.content != ''",
+      chatId,
+      t.model,
+      t.dims,
+    )?.n ?? 0);
   return total ? Math.min(1, have / total) : 1;
 }
 

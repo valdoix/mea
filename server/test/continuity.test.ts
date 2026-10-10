@@ -13,7 +13,7 @@ import { addMessage, addSwipe, createChat, editMessage, onLedgerEdit, restoreMes
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { previewPrompt } from "../src/services/generation";
 import { registerJob } from "../src/services/jobs";
-import { purgeTrash } from "../src/services/trash";
+import { purgeTrash, sweepOrphans } from "../src/services/trash";
 import { worldAfterReply } from "../src/sim/service";
 import { afterUpdate, trackerLedgerHook } from "../src/trackers/service";
 import { parseStoryTime } from "../src/trackers/clock";
@@ -246,6 +246,16 @@ describe("H7, M34: emptying the trash", () => {
     // Even an event left behind by an older purge stays out of the fold.
     run("INSERT INTO tracker_events (id, chat_id, message_id, swipe_idx, source, ord, op, created_at) VALUES ('orphan', ?, 'gone-message', -1, 'user', 1, ?, ?)", chatId, JSON.stringify(linesToOps(["clock: +3d"]).ops[0]), now());
     expect(branchEvents(chatId).some((e) => e.id === "orphan")).toBe(false);
+  });
+
+  test("M31: vectors of memories that are gone and old usage rows are swept", async () => {
+    const { chatId } = await setup(1);
+    run("INSERT INTO embeddings (owner_type, owner_id, chat_id, model, dims, hash, vector, created_at) VALUES ('memory', 'gone', ?, 'm', 1, 'h', x'00', ?)", chatId, now());
+    run("INSERT INTO memory_usage (generation_id, chat_id, owner_type, owner_id, slot, created_at) VALUES ('g1', ?, 'memory', 'x', 'recent', ?)", chatId, now() - 400 * 24 * 3600_000);
+    run("INSERT INTO memory_usage (generation_id, chat_id, owner_type, owner_id, slot, created_at) VALUES ('g2', ?, 'memory', 'x', 'recent', ?)", chatId, now());
+    sweepOrphans();
+    expect(one("SELECT 1 FROM embeddings WHERE owner_id = 'gone'")).toBeFalsy();
+    expect(all("SELECT generation_id FROM memory_usage WHERE chat_id = ?", chatId)).toEqual([{ generation_id: "g2" }]);
   });
 
   test("a trashed character that a live chat uses isn't purged", async () => {

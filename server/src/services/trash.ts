@@ -38,5 +38,22 @@ export function purgeTrash(olderThan = now() - RETENTION_MS) {
     run("DELETE FROM lorebooks WHERE deleted_at IS NOT NULL AND deleted_at < ?", olderThan);
     run("DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?", olderThan);
   });
+  sweepOrphans();
   return purgeUnreferencedImages();
+}
+
+/** Which memories each reply used is kept for the inspector and reinforcement this long (M31). */
+const USAGE_MS = 180 * 24 * 3600_000;
+
+/**
+ * M31: rows whose owner is gone (these tables have no foreign keys), and reply-by-reply usage older
+ * than half a year, which otherwise grows by dozens of rows a reply forever. Runs with the daily purge.
+ */
+export function sweepOrphans(usageOlderThan = now() - USAGE_MS) {
+  tx(() => {
+    run("DELETE FROM embeddings WHERE owner_type = 'memory' AND owner_id NOT IN (SELECT id FROM memories)");
+    run("DELETE FROM embeddings WHERE owner_type = 'summary' AND owner_id NOT IN (SELECT id FROM summaries)");
+    run("DELETE FROM memory_usage WHERE created_at < ? OR chat_id NOT IN (SELECT id FROM chats)", usageOlderThan);
+    run("DELETE FROM lore_hits WHERE chat_id NOT IN (SELECT id FROM chats)");
+  });
 }
