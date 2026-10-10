@@ -3,9 +3,10 @@ import type { CardData } from "../cards/card";
 import { newId } from "../db/db";
 import { countTokens } from "../lib/tokens";
 import { callJson, callText } from "../services/llm";
-import { type CardIssue, checkExamples, checkGreeting, checkProse } from "./checks";
+import { type CardIssue, checkExamples, checkGreeting, checkPersona, checkProse } from "./checks";
 import { GREETING_RULES } from "./creator";
 import { CRAFT, tidy } from "./expand";
+import { unslipPersona, WHO_IS_WHO } from "./smarts";
 
 /**
  * Card tools for the regular editors (CHAR-11…15, CHAR-17, PER-04). Every tool works on the card
@@ -89,10 +90,11 @@ export async function fieldAssist(input: { kind: ToolKind; field: string; action
     system: [
       `Field: ${label}`,
       `You edit one field of ${input.kind === "persona" ? "the user's persona" : "a character card"} for interactive fiction: the ${label}. ${ACTIONS[input.action](input)}`,
+      input.kind === "persona" ? WHO_IS_WHO.persona : "",
       isGreeting(input.field) ? GREETING_RULES({ pov: input.pov ?? "third", tense: input.tense ?? "present" }) : "",
       input.field === "mes_example" ? 'Keep the "<START>" separators and the "{{user}}:" / "{{char}}:" speaker labels.' : "",
       `Craft rules:\n- ${CRAFT}`,
-      "Stay consistent with the rest of the card. Keep macros like {{user}} and {{char}} exactly.",
+      input.kind === "persona" ? "Stay consistent with the rest of the persona. Call them by name." : "Stay consistent with the rest of the card. Keep macros like {{user}} and {{char}} exactly.",
       "Reply with the new text of the field only: no label, no commentary.",
     ]
       .filter(Boolean)
@@ -107,7 +109,7 @@ export async function fieldAssist(input: { kind: ToolKind; field: string; action
       return null;
     },
   });
-  const text = tidy(r.text);
+  const text = input.kind === "persona" ? unslipPersona(tidy(r.text), input.card.name) : tidy(r.text);
   return { text, tokens: { before: countTokens(input.text), after: countTokens(text) } };
 }
 
@@ -134,11 +136,14 @@ export async function sortNotes(input: { kind: ToolKind; notes: string; card: Ca
     schema: sortSchema,
     system: [
       `You sort an author's messy notes into the fields of ${input.kind === "persona" ? "the user's persona" : "a character card"} for interactive fiction.`,
+      input.kind === "persona" ? `${WHO_IS_WHO.persona} Notes meant for a card (a greeting, dialogue samples, a scenario) go to "leftover".` : "",
       `Fields: ${fields.map((f) => `"${f}" (${f === "name" ? "name" : LABEL[f]})`).join(", ")}.`,
-      "For each field the notes have material for, write the full new text of that field: what the card already says there, merged with the notes, as clean prose (dialogue samples go to example dialogue in <START> blocks with {{user}}:/{{char}}: labels). Keep the author's words and every fact; don't invent anything that isn't in the notes or the card. Leave out fields the notes don't touch.",
+      `For each field the notes have material for, write the full new text of that field: what the ${input.kind === "persona" ? "persona" : "card"} already says there, merged with the notes, as clean prose${input.kind === "persona" ? "" : " (dialogue samples go to example dialogue in <START> blocks with {{user}}:/{{char}}: labels)"}. Keep the author's words and every fact; don't invent anything that isn't in the notes or the ${input.kind === "persona" ? "persona" : "card"}. Leave out fields the notes don't touch.`,
       '"placements": for each piece of the notes, a few words quoting it, the field it went to, and why. "leftover": anything that fits no field (meta notes, ideas for lore).',
       'Reply with JSON only: {"fields": {"field": "full new text"}, "placements": [{"piece": "…", "field": "…", "why": "…"}], "leftover": ["…"]}',
-    ].join("\n\n"),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     user: [cardContext(input.kind, input.card), `THE NOTES:\n${input.notes.slice(0, 40_000)}`].join("\n\n"),
     maxTokens: 6000,
   });
@@ -155,8 +160,8 @@ export function checkCardFields(kind: ToolKind, card: CardLike, pov: Pov = "thir
   const issues: Record<string, CardIssue[]> = {};
   const add = (f: string, list: CardIssue[]) => list.length && (issues[f] = [...(issues[f] ?? []), ...list]);
   if (kind === "persona") {
-    add("description", checkProse(card.description ?? "", { maxTokens: 350 }));
-    for (const f of ["appearance", "personality", "background"] as const) if (card[f]?.trim()) add(f, checkProse(card[f]!, { maxTokens: 400 }));
+    add("description", [...checkProse(card.description ?? "", { maxTokens: 350 }), ...checkPersona(card.description ?? "")]);
+    for (const f of ["appearance", "personality", "background"] as const) if (card[f]?.trim()) add(f, [...checkProse(card[f]!, { maxTokens: 400 }), ...checkPersona(card[f]!)]);
     return issues;
   }
   add("description", checkProse(card.description ?? "", { maxTokens: 1100, minTokens: 120 }));
@@ -178,7 +183,7 @@ export async function reviewCard(kind: ToolKind, card: CardLike) {
     kind: "assist:review",
     name: "card_review",
     schema: reviewSchema,
-    system: `Review this ${kind === "persona" ? "persona" : "character card"} like a demanding editor of interactive fiction. Find: generic choices (stock names, tropes played straight, purple prose, traits told instead of shown); contradictions between fields; missing essentials (a distinct voice, a concrete want, a real flaw, ${kind === "character" ? "what they want from {{user}}, a greeting that opens a scene, " : ""}tension that drives scenes); a greeting that writes {{user}}'s actions or feelings; point-of-view or tense that shifts. Each issue names the field (${fields.join(", ")}), states the problem in one sentence, and gives a concrete fix the author could apply as an edit instruction. Only real issues, at most 8, most important first. Reply with JSON only: {"issues": [{"field": "…", "problem": "…", "fix": "…"}]}`,
+    system: `Review this ${kind === "persona" ? "persona" : "character card"} like a demanding editor of interactive fiction. ${kind === "persona" ? `${WHO_IS_WHO.persona} Find: anything written as if it were a character card ({{char}}, chat lines, a relationship "with {{user}}", text that decides what they feel or choose); generic choices (stock names, tropes played straight, purple prose, traits told instead of shown); contradictions between fields; missing essentials (a distinct voice, a concrete want, a real limit or flaw, what others notice first); point-of-view or tense that shifts.` : "Find: generic choices (stock names, tropes played straight, purple prose, traits told instead of shown); contradictions between fields; missing essentials (a distinct voice, a concrete want, a real flaw, what they want from {{user}}, a greeting that opens a scene, tension that drives scenes); a greeting that writes {{user}}'s actions or feelings; point-of-view or tense that shifts."} Each issue names the field (${fields.join(", ")}), states the problem in one sentence, and gives a concrete fix the author could apply as an edit instruction. Only real issues, at most 8, most important first. Reply with JSON only: {"issues": [{"field": "…", "problem": "…", "fix": "…"}]}`,
     user: cardContext(kind, card),
     maxTokens: 1600,
   });

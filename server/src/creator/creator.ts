@@ -10,9 +10,9 @@ import { createCharacter, getCard, getCharacterRow, updateCharacter } from "../s
 import { Deferred, enqueue, type JobContext } from "../services/jobs";
 import { callJson, callText } from "../services/llm";
 import { createPersona, getPersona, updatePersona } from "../services/personas";
-import { type CardIssue, checkExamples, checkGreeting, checkProse } from "./checks";
+import { type CardIssue, checkExamples, checkGreeting, checkPersona, checkProse } from "./checks";
 import { applyExpansionPatch, CRAFT, deepenSection, type Expansion, type ExpansionPatch, expandIdea, expansionBlock, tidy } from "./expand";
-import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChange, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, LOOKUP_FIELD, newProposal, type Proposal, type ProposedChange, shortHash, SUGGEST_RULE, withLookups } from "./smarts";
+import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChange, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, LOOKUP_FIELD, newProposal, personaSlip, type Proposal, type ProposedChange, shortHash, SUGGEST_RULE, unslipPersona, whoIsWho, withLookups } from "./smarts";
 import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "./research";
 import { worldContext } from "./world";
 
@@ -91,6 +91,10 @@ export interface CreatorDraft {
   proposal: Proposal | null;
   /** Canon gathered from the web about the work and this person, distilled into a brief. */
   research: Research | null;
+  /** The read-back thinks the material describes the other kind (a persona written as a card, or the reverse). */
+  kindHint: { kind: CreatorKind; why: string } | null;
+  /** You said the kind is right: the read-back stops suggesting the other. */
+  kindSure: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -265,6 +269,8 @@ function hydrate(r: Row): CreatorDraft {
     chat: d.chat ?? [],
     proposal: d.proposal ?? null,
     research: d.research ?? null,
+    kindHint: d.kindHint ?? null,
+    kindSure: d.kindSure ?? false,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -392,6 +398,8 @@ export function createCreatorDraft(input: CreatorInput): CreatorDraft {
     chat: [],
     proposal: null,
     research: null,
+    kindHint: null,
+    kindSure: false,
     createdAt: t,
     updatedAt: t,
   };
@@ -464,6 +472,8 @@ export interface CreatorPatch {
   bible?: Record<string, string>;
   fields?: Record<string, string>;
   basedOn?: string;
+  /** "It's right as it is": hides the read-back's other-kind suggestion. */
+  dismissKindHint?: boolean;
 }
 
 export function patchCreator(id: string, p: CreatorPatch) {
@@ -495,12 +505,45 @@ export function patchCreator(id: string, p: CreatorPatch) {
         f.basis = fieldBasis(d, key);
       }
     if (p.basedOn !== undefined) d.basedOn = p.basedOn.trim();
+    if (p.dismissKindHint) {
+      d.kindHint = null;
+      d.kindSure = true;
+    }
+  });
+}
+
+/**
+ * "This is me, not someone for the AI to play" (or the reverse): the draft becomes the other kind in
+ * place. What both kinds share (the idea, the concept, answers, matching bible sections) stays;
+ * the read-back, written fields and editor's notes are redone for the new kind.
+ */
+export function switchCreatorKind(id: string, kind: CreatorKind) {
+  return mutateCreator(id, (d) => {
+    if (d.kind === kind) return;
+    if (d.savedId || d.baseId) throw badRequest(`It's already saved as a ${d.kind === "persona" ? "persona" : "character"}. Use "Make a ${kind} from this" instead.`);
+    const keys = new Map(BIBLE[kind].map((b) => [b.key, b.label]));
+    d.kind = kind;
+    d.bible = d.bible.filter((b) => keys.has(b.key) && b.text.trim()).map((b) => ({ ...b, label: keys.get(b.key)! }));
+    d.fields = syncFields(kind, d.options, []);
+    d.readback = null;
+    // Questions asked for the other kind go; your answers stay.
+    d.questions = d.questions.filter((q) => q.answer.trim());
+    d.bibleCheck = null;
+    d.fieldCheck = null;
+    d.proposal = null;
+    d.kindHint = null;
+    d.kindSure = true;
+    if (/^New (character|persona)$/.test(d.name)) d.name = kind === "persona" ? "New persona" : "New character";
+    if (d.stage === "write" || d.stage === "done") d.stage = d.bible.length ? "bible" : "questions";
   });
 }
 
 // ---------- context ----------
 
 const LABEL: Record<CreatorKind, string> = { character: "a character card for interactive fiction (roleplay)", persona: "the user's own character (a persona) for interactive fiction (roleplay)" };
+
+/** Who the draft is in a chat (a card the AI plays, a narrator, or the player's own persona), for every step. */
+const who = (d: CreatorDraft) => whoIsWho(d.kind, d.options.mode);
 
 function world(d: CreatorDraft, budget = 2500) {
   return worldContext({ bookIds: d.worldBookIds, loreDraftId: d.loreDraftId }, budget);
@@ -538,7 +581,7 @@ function baseBlocks(d: CreatorDraft, opts: { world?: number } = {}) {
 }
 
 export function expandContext(d: CreatorDraft) {
-  return { idea: [d.name && !/^New (character|persona)$/.test(d.name) ? `Name: ${d.name}` : "", d.idea].filter(Boolean).join("\n"), answers: answers(d), world: world(d, 2000), tone: d.options.tone, style: d.options.style };
+  return { idea: [d.name && !/^New (character|persona)$/.test(d.name) ? `Name: ${d.name}` : "", d.idea].filter(Boolean).join("\n"), answers: answers(d), world: world(d, 2000), tone: d.options.tone, style: d.options.style, who: who(d) };
 }
 
 // ---------- model steps ----------
@@ -564,7 +607,20 @@ const readbackSchema = z.object({
   missing: z.array(z.string()).default([]),
   basedOn: z.string().default(""),
   questions: z.array(z.object({ q: z.string(), why: z.string().default(""), suggestions: z.array(z.string()).default([]) })).default([]),
+  /** What the material reads as: someone for the AI to play ("character") or the player themself ("persona"). */
+  reads: z.string().default(""),
+  readsWhy: z.string().default(""),
 });
+
+/** What the read-back asks about, per kind: a persona is asked what the player needs to play them, never about {{user}}. */
+const ASK: Record<CreatorKind, string> = {
+  character: "Ask what makes them specific and alive: the contradiction, the want, the wound, the voice, what they want from {{user}}, the line they won't cross.",
+  persona:
+    "Ask what the player needs to step into this person: what kind of stories they want to play them in, what others notice first, what they're good and bad at, the past and people they carry in, how they talk, and the line they won't cross. Never ask about greetings, scenarios, or what they want \"from {{user}}\": they are {{user}}.",
+};
+
+const READS_RULE = (kind: CreatorKind) =>
+  `"reads": "persona" if the material describes the author's own character (the person they will play: "I", "me", "my persona", "who I play", "self-insert"), "character" if it describes someone for the AI to play opposite them (a card, a love interest, a companion, a narrator), or "" if it could be either. This draft is a ${kind}; only say the other when the material clearly is. "readsWhy": one short sentence quoting what tells you, or "".`;
 
 /** Read-back + Interview (CHAR-08): what the model understood, and pointed questions with why they matter. */
 export async function creatorReadback(id: string, count = 4) {
@@ -574,7 +630,7 @@ export async function creatorReadback(id: string, count = 4) {
     kind: `creator:readback`,
     name: "creator_readback",
     schema: readbackSchema,
-    system: `You help an author create ${LABEL[d.kind]}. Read their material, then reply with: "understood": 2–4 sentences on who you understood this to be (be concrete); "missing": up to 4 short phrases naming what's still unclear; ${BASED_ON_RULE} "questions": up to ${count} pointed questions, most important first, each with "why" (one short sentence on what the answer changes) and ${SUGGEST_RULE} Ask what makes them specific and alive: the contradiction, the want, the wound, the voice, ${d.kind === "character" ? "what they want from {{user}}, " : ""}the line they won't cross. Never ask what the material (or canon, for an existing work) already answers, and never ask trivia. Reply with JSON only: {"understood": "…", "missing": ["…"], "basedOn": "", "questions": [{"q": "…", "why": "…", "suggestions": ["…", "…", "…"]}]}`,
+    system: `You help an author create ${LABEL[d.kind]}. ${who(d)} Read their material, then reply with: "understood": 2–4 sentences on who you understood this to be (be concrete); "missing": up to 4 short phrases naming what's still unclear; ${BASED_ON_RULE} "questions": up to ${count} pointed questions, most important first, each with "why" (one short sentence on what the answer changes) and ${SUGGEST_RULE} ${ASK[d.kind]} Never ask what the material (or canon, for an existing work) already answers, and never ask trivia. ${READS_RULE(d.kind)} Reply with JSON only: {"understood": "…", "missing": ["…"], "basedOn": "", "questions": [{"q": "…", "why": "…", "suggestions": ["…", "…", "…"]}], "reads": "", "readsWhy": ""}`,
     user: baseBlocks(d, { world: 1200 }).join("\n\n"),
     maxTokens: 2000,
     temperature: 0.6,
@@ -585,6 +641,10 @@ export async function creatorReadback(id: string, count = 4) {
     const have = new Set(kept.map((q) => q.q.trim().toLowerCase()));
     cur.questions = [...kept, ...r.data.questions.filter((q) => q.q.trim() && !have.has(q.q.trim().toLowerCase())).slice(0, count).map((q) => ({ id: newId(), q: q.q.trim(), why: q.why.trim(), answer: "", suggestions: q.suggestions.map((x) => x.trim()).filter(Boolean).slice(0, 3) }))];
     if (!cur.basedOn && r.data.basedOn.trim().length > 2) cur.basedOn = r.data.basedOn.trim().slice(0, 160);
+    // Only a fresh draft is worth switching; a rework or a twin already knows what it is.
+    const reads = r.data.reads.trim().toLowerCase();
+    if ((reads === "persona" || reads === "character") && reads !== cur.kind && !cur.kindSure && !cur.baseId && !cur.origin?.fromDraftId && !cur.savedId) cur.kindHint = { kind: reads, why: r.data.readsWhy.trim().slice(0, 300) };
+    else cur.kindHint = null;
     if (cur.stage === "idea") cur.stage = "questions";
   });
 }
@@ -630,10 +690,13 @@ export async function writeBible(id: string, steer = "") {
     name: "creator_bible",
     schema: z.object({ name: z.string().default("") }).catchall(z.unknown()),
     system: [
-      `You write the bible for ${LABEL[d.kind]}: the single source of truth every card field will be written from. ${rework ? "Rework the current bible: keep what the author wrote or edited into it, and change what they ask." : ""}`,
+      `You write the bible for ${LABEL[d.kind]}: the single source of truth every ${d.kind === "persona" ? "persona" : "card"} field will be written from. ${rework ? "Rework the current bible: keep what the author wrote or edited into it, and change what they ask." : ""}`,
+      who(d),
       `Craft rules:\n- ${CRAFT}`,
       canonRule(d.basedOn),
-      "Character craft: one clear contradiction at the core; a concrete want that drives scenes and a deeper need under it; flaws with teeth; a voice you'd recognise without a name tag; a past that explains the present; relationships with names and current tension. Nothing that only sounds good: every line must be usable in a scene.",
+      d.kind === "persona"
+        ? "Persona craft: a person the player can step into and steer: a clear contradiction, a want and a need, real limits and flaws, a recognisable voice, a past that explains the present, and named people with current tension. Give the storyteller what it needs to react to them; leave every choice in a scene to the player. Nothing that only sounds good: every line must be usable in a story."
+        : "Character craft: one clear contradiction at the core; a concrete want that drives scenes and a deeper need under it; flaws with teeth; a voice you'd recognise without a name tag; a past that explains the present; relationships with names and current tension. Nothing that only sounds good: every line must be usable in a scene.",
       `Sections (40–160 words each; sample lines in quotes where asked):\n${spec.map((s) => `- "${s.key}" (${s.label}): ${s.ask}`).join("\n")}`,
       steer.trim() ? `The author asks: ${steer.trim()}` : "",
       `Reply with JSON only: ${JSON.stringify(shape)}`,
@@ -646,9 +709,11 @@ export async function writeBible(id: string, steer = "") {
   });
   const data = r.data as Record<string, unknown>;
   return mutateCreator(id, (cur) => {
-    cur.bible = spec.map((s) => ({ key: s.key, label: s.label, text: typeof data[s.key] === "string" ? tidy(data[s.key] as string) : (cur.bible.find((b) => b.key === s.key)?.text ?? "") }));
     const name = typeof data.name === "string" ? data.name.trim() : "";
     if (name && name.length <= 60 && (/^New (character|persona)$/.test(cur.name) || !cur.name.trim())) cur.name = name;
+    // A persona is never {{char}}: a slipped macro becomes their name.
+    const clean = (t: string) => (cur.kind === "persona" ? unslipPersona(tidy(t), cur.name) : tidy(t));
+    cur.bible = spec.map((s) => ({ key: s.key, label: s.label, text: typeof data[s.key] === "string" ? clean(data[s.key] as string) : (cur.bible.find((b) => b.key === s.key)?.text ?? "") }));
     cur.bibleCheck = null;
     if (cur.stage === "idea" || cur.stage === "questions") cur.stage = "bible";
   });
@@ -665,21 +730,25 @@ export async function rewriteBibleSection(id: string, key: string, steer = "") {
     kind: "creator:bible-section",
     system: [
       `Rewrite one section of the bible for ${LABEL[d.kind]}: "${s.label}" (${ask}).`,
+      who(d),
       steer.trim() ? `The author asks: ${steer.trim()}` : "Make it sharper, more specific and more playable, keeping every fact already in it.",
       "40–180 words, consistent with the other sections.",
       `Craft rules:\n- ${CRAFT}`,
       canonRule(d.basedOn),
       "Reply with the section text only: no heading, no preamble.",
-    ].join("\n\n"),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     user: [...baseBlocks(d, { world: 1500 }), `THE BIBLE:\n${bibleText(d)}`, `THE SECTION: ${s.label}\n${"text" in s ? s.text : ""}`].join("\n\n"),
     maxTokens: 1200,
     temperature: 0.75,
-    validate: (t) => (tidy(t).length < 20 ? "That was empty. Write the section text." : null),
+    validate: (t) => (tidy(t).length < 20 ? "That was empty. Write the section text." : d.kind === "persona" ? personaSlip(unslipPersona(tidy(t), d.name)) : null),
   });
   return mutateCreator(id, (cur) => {
+    const text = cur.kind === "persona" ? unslipPersona(tidy(r.text), cur.name) : tidy(r.text);
     const sec = cur.bible.find((b) => b.key === key);
-    if (sec) sec.text = tidy(r.text);
-    else cur.bible.push({ key, label: s.label, text: tidy(r.text) });
+    if (sec) sec.text = text;
+    else cur.bible.push({ key, label: s.label, text });
     if (cur.bibleCheck) cur.bibleCheck = cur.bibleCheck.filter((i) => i.section !== key);
   });
 }
@@ -696,7 +765,7 @@ export async function checkBible(id: string) {
     kind: "creator:bible-check",
     name: "creator_bible_check",
     schema: checkSchema,
-    system: `Review this bible for ${LABEL[d.kind]} like a demanding editor. Find: generic choices (stock names, tropes played straight with no twist, purple prose, traits told instead of shown); contradictions between sections or with the world; missing essentials (a distinct voice, a concrete want, a real flaw, ${d.kind === "character" ? "what they want from {{user}}, " : ""}tension that drives scenes); anything that would play flat. Each issue names the section by key (${keys.join(", ")}), states the problem in one sentence, and gives a concrete fix the author could accept as is. Only real issues, at most 8, most important first. If it's strong, return none. Reply with JSON only: {"issues": [{"section": "…", "problem": "…", "fix": "…"}]}`,
+    system: `Review this bible for ${LABEL[d.kind]} like a demanding editor. ${who(d)} Find: ${d.kind === "persona" ? "anything written as if they were a character card (greetings, {{char}}, a relationship \"with {{user}}\", scenes that decide what they feel or choose); " : ""}generic choices (stock names, tropes played straight with no twist, purple prose, traits told instead of shown); contradictions between sections or with the world; missing essentials (a distinct voice, a concrete want, a real flaw, ${d.kind === "character" ? "what they want from {{user}}, " : ""}tension that drives scenes); anything that would play flat. Each issue names the section by key (${keys.join(", ")}), states the problem in one sentence, and gives a concrete fix the author could accept as is. Only real issues, at most 8, most important first. If it's strong, return none. Reply with JSON only: {"issues": [{"section": "…", "problem": "…", "fix": "…"}]}`,
     user: [...baseBlocks(d, { world: 1500 }), `THE BIBLE:\n${d.bible.map((b) => `[${b.key}] ${b.label}\n${b.text.trim()}`).join("\n\n")}`].join("\n\n"),
     maxTokens: 1600,
   });
@@ -784,8 +853,9 @@ export async function writeField(d: CreatorDraft, f: CardField, job?: JobContext
     system: [
       `Field: ${f.label}`,
       `You write one field of ${LABEL[d.kind]}${name ? ` for ${name}` : ""}, from its bible. ${fieldAsk(d.kind, f.key, d.options, f.label)}`,
+      who(d),
       `Craft rules:\n- ${CRAFT}`,
-      d.kind === "character" ? "Use the macros exactly: {{user}} for the player's character, {{char}} only where the format asks for it." : "",
+      d.kind === "character" ? "Use the macros exactly: {{user}} for the player's character, {{char}} only where the format asks for it." : `Call them by name${name ? ` (${name})` : ""}; no {{char}} or {{user}} macros.`,
       "Stay faithful to the bible and the world: every name, age, place and fact must match. Don't invent anything that contradicts them.",
       canonRule(d.basedOn),
       f.steer.trim() && f.value.trim() ? "Rewrite the current version as the author asks; keep what works." : "",
@@ -810,12 +880,15 @@ export async function writeField(d: CreatorDraft, f: CardField, job?: JobContext
       if (!text) return "That was empty. Write the field.";
       if (isGreeting(f.key) && checkGreeting(text, d.options.pov).some((i) => i.kind === "puppets-user")) return "The greeting writes {{user}}'s actions, words or feelings. Rewrite it so {{user}} only perceives; leave every choice to them.";
       if (f.key === "mes_example" && !/<START>/i.test(text)) return 'Use "<START>" lines to separate the exchanges, and "{{user}}:" / "{{char}}:" speaker labels.';
+      // A slipped {{char}} is fixed below; chat lines can't be, so they're sent back.
+      if (d.kind === "persona" && f.key !== "pronouns") return personaSlip(unslipPersona(text, name));
       return null;
     },
   });
   let text = tidy(r.text);
   if (f.key === "tags") text = [...new Set(text.split(/[,\n]/).map((s) => s.replace(/^[-#*\s]+/, "").trim().toLowerCase()).filter((s) => s && s.length <= 30))].slice(0, 10).join(", ");
   if (f.key === "pronouns") text = text.split("\n")[0]!.replace(/[.]+$/, "").slice(0, 40);
+  if (d.kind === "persona") text = unslipPersona(text, name);
   return text;
 }
 
@@ -881,8 +954,10 @@ export async function critiqueFields(id: string) {
     name: "creator_critique",
     schema: fieldCheckSchema,
     system: [
-      `You are a demanding editor reviewing ${LABEL[d.kind]} before it's used. Read the written fields against the bible and find what would make the roleplay worse:`,
-      "a voice that doesn't match the bible's sample lines; generic or purple prose; traits told instead of shown; contradictions between fields or with the bible and world; greetings that are static, play {{user}}'s actions or feelings, or don't give {{user}} something to answer; greetings that repeat each other; example dialogue that doesn't show range; rules that are generic instead of specific to this character; a description missing the want, the flaw or the relationship to {{user}}.",
+      `You are a demanding editor reviewing ${LABEL[d.kind]} before it's used. ${who(d)} Read the written fields against the bible and find what would make the roleplay worse:`,
+      d.kind === "persona"
+        ? "anything written as if this were a character card (greetings, scenes, {{char}} or {{user}} macros, a relationship \"with {{user}}\"); text that decides what they feel, say or choose instead of describing who they are; generic or purple prose; traits told instead of shown; contradictions between fields or with the bible and world; a description that wouldn't tell a storyteller who it's talking to (role, look, manner, what others notice first); pronouns that don't match the bible."
+        : "a voice that doesn't match the bible's sample lines; generic or purple prose; traits told instead of shown; contradictions between fields or with the bible and world; greetings that are static, play {{user}}'s actions or feelings, or don't give {{user}} something to answer; greetings that repeat each other; example dialogue that doesn't show range; rules that are generic instead of specific to this character; a description missing the want, the flaw or the relationship to {{user}}.",
       canonRule(d.basedOn) ? `${canonRule(d.basedOn)} Flag canon mistakes too.` : "",
       `Each issue names the field by key (${keys.join(", ")}), states the problem in one sentence, and gives "fix": an instruction a writer could follow as is. At most 10, most important first; if it's strong, return few.`,
       'Reply with JSON only: {"issues": [{"field": "…", "problem": "…", "fix": "…"}]}',
@@ -918,15 +993,70 @@ const cowriteSchema = z.object({
   changes: z.array(z.object({ kind: z.string(), key: z.string().default(""), section: z.string().default(""), text: z.string().default(""), steer: z.string().default("") })).default([]),
 });
 
+/** The shape options the co-writer may change, with what each accepts. */
+const OPTION_VALUES: Record<string, readonly string[] | "text" | "count"> = {
+  tone: "text",
+  style: "text",
+  length: ["lean", "standard", "rich"],
+  pov: ["first", "second", "third"],
+  tense: ["present", "past"],
+  mode: ["companion", "narrator"],
+  greetings: "count",
+};
+/** A persona has no point of view, tense, card type or greetings to set. */
+const optionKeys = (kind: CreatorKind) => (kind === "persona" ? ["tone", "style", "length"] : Object.keys(OPTION_VALUES));
+
+/** An option value the co-writer proposed, made valid (null if it isn't). */
+function optionValue(key: string, raw: string): string | number | null {
+  const want = OPTION_VALUES[key];
+  const v = raw.trim();
+  if (!want) return null;
+  if (want === "text") return v.slice(0, key === "tone" ? 300 : 600);
+  if (want === "count") {
+    const n = Number.parseInt(v, 10);
+    return Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : null;
+  }
+  const hit = want.find((x) => v.toLowerCase().startsWith(x));
+  return hit ?? null;
+}
+
+/**
+ * What the co-writer should know is off: the automatic checks, fields written from an older bible,
+ * the editors' notes, and open questions. So "fix what's wrong" and "what's missing?" just work.
+ */
+function stateBlock(d: CreatorDraft) {
+  const lines: string[] = [];
+  const open = d.questions.map((q, i) => ({ q, n: i + 1 })).filter(({ q }) => !q.answer.trim());
+  if (open.length) lines.push(`Open questions (answer one with {"kind": "answer", "key": "<number>"}):\n${open.map(({ q, n }) => `  ${n}. ${q.q}`).join("\n")}`);
+  if (d.readback?.missing.length) lines.push(`Still unclear: ${d.readback.missing.join("; ")}`);
+  if (d.bibleCheck?.length) lines.push(`Bible editor's notes:\n${d.bibleCheck.map((i) => `  [${i.section}] ${i.problem}${i.fix ? ` Fix: ${i.fix}` : ""}`).join("\n")}`);
+  if (d.fieldCheck?.length) lines.push(`Card editor's notes:\n${d.fieldCheck.map((i) => `  [${i.field}] ${i.problem}${i.fix ? ` Fix: ${i.fix}` : ""}`).join("\n")}`);
+  if (d.fields.some((f) => f.value.trim())) {
+    const r = reviewCreator(d.id);
+    const stale = Object.entries(r.stale as Record<string, string[]>).map(([k, why]) => `  [${k}] written before ${why.join(", ")} changed`);
+    if (stale.length) lines.push(`Out of date:\n${stale.join("\n")}`);
+    const warn = Object.entries(r.issues).flatMap(([k, list]) => list.filter((i) => i.severity === "warn").map((i) => `  [${k}] ${i.message}`));
+    if (warn.length) lines.push(`Automatic checks:\n${warn.slice(0, 12).join("\n")}`);
+  }
+  const empty = d.fields.filter((f) => !f.value.trim() && f.status !== "queued" && f.status !== "writing").map((f) => f.key);
+  if (d.bible.length && empty.length) lines.push(`Not written yet: ${empty.join(", ")}`);
+  const writing = d.fields.filter((f) => f.status === "queued" || f.status === "writing").map((f) => f.key);
+  if (writing.length) lines.push(`Being written right now (don't edit these): ${writing.join(", ")}`);
+  return lines.length ? `THE STATE OF THE DRAFT (stage: ${d.stage}):\n${lines.join("\n")}` : `THE STATE OF THE DRAFT (stage: ${d.stage}): nothing flagged.`;
+}
+
 /**
  * "Make her five years older and give her a sister in the navy": the co-writer reads the whole
- * draft (idea, answers, bible, every field) and proposes exact edits to the bible sections and card
- * fields it touches, or background rewrites, for you to accept or reject one by one.
+ * draft (idea, answers, bible, every field, and what's flagged) and proposes exact edits to the
+ * bible sections and fields it touches, background rewrites, answers to open questions, the
+ * draft's shape and canon, or writing what's left, for you to accept or reject one by one.
  */
 export async function cowriteCreator(id: string, message: string) {
   const d = mustCreator(id);
   const sections = d.bible.map((b) => b.key);
   const fields = d.fields.map((f) => f.key);
+  const persona = d.kind === "persona";
+  const opts = optionKeys(d.kind);
   // The co-writer can read the wiki before it answers.
   const wikis = await wikisFor(d.research, d.basedOn);
   const ask = async (looked: string) => (await callJson({
@@ -936,14 +1066,19 @@ export async function cowriteCreator(id: string, message: string) {
     schema: cowriteSchema,
     system: [
       COWRITER,
-      `The draft is ${LABEL[d.kind]}: a bible (the source of truth) and the card fields written from it. Changes you can propose:`,
+      who(d),
+      `The draft is ${LABEL[d.kind]}: a bible (the source of truth) and the ${persona ? "persona's" : "card's"} fields written from it. Changes you can propose:`,
       `{"kind": "bible", "key": "<section key>", "text": "the whole new section"} (keys: ${sections.join(", ") || "none yet"});`,
       `{"kind": "field", "key": "<field key>", "text": "the whole new field"} for a precise edit to a written field (keys: ${fields.join(", ")});`,
-      '{"kind": "rewrite", "key": "<field key>", "steer": "what to change"} when a long field (a greeting, the description) needs rewriting rather than a small edit;',
+      `{"kind": "rewrite", "key": "<field key>", "steer": "what to change"} when a long field (${persona ? "the description, the background" : "a greeting, the description"}) needs rewriting rather than a small edit;`,
       '{"kind": "name", "text": "the new name"};',
       IDEA_CHANGES,
+      d.questions.length ? '{"kind": "answer", "key": "<question number>", "text": "the answer, in the author\'s voice"} to answer an open interview question with what you agreed;' : "",
+      `{"kind": "option", "key": "<${opts.join("|")}>", "text": "the new value"} to change the draft's shape (length: lean|standard|rich${persona ? "" : "; pov: first|second|third; tense: present|past; mode: companion|narrator; greetings: 0–5 alternate greetings"});`,
+      '{"kind": "basedOn", "text": "the work and its medium, or empty for an original"} when what it\'s based on changes;',
+      d.bible.some((b) => b.text.trim()) ? '{"kind": "write", "key": "empty" or "all"} to have the writer draft every empty field (or redo all of them) from the bible in the background, when they ask you to write the rest;' : "",
       "Before there's a bible, the idea and the expanded concept are the draft: brainstorm there.",
-      "When a fact changes, change it in the bible AND in every written field that states it. Keep the macros {{user}} and {{char}} as they are. At most 16 changes.",
+      `When a fact changes, change it in the bible AND in every written field that states it. ${persona ? "Call the persona by name; never use {{char}} for them." : "Keep the macros {{user}} and {{char}} as they are."} Use THE STATE OF THE DRAFT to answer "what's wrong" or "what's missing" and to fix it when asked. At most 16 changes.`,
       canonRule(d.basedOn),
       looked ? "" : LOOKUP_FIELD,
       'Reply with JSON only: {"reply": "…", "lookup": [], "changes": [ … ]}',
@@ -955,6 +1090,8 @@ export async function cowriteCreator(id: string, message: string) {
       ideaBlock(d.idea, d.expansion),
       d.bible.length ? `THE BIBLE:\n${d.bible.map((b) => `[${b.key}] ${b.label}\n${b.text.trim()}`).join("\n\n")}` : "",
       ...d.fields.filter((f) => f.value.trim()).map((f) => `FIELD [${f.key}] ${f.label}:\n${f.value.trim().slice(0, 5000)}`),
+      `THE SHAPE: ${opts.map((k) => `${k}: ${String(d.options[k as keyof CreatorOptions]) || "(none)"}`).join("; ")}`,
+      stateBlock(d),
       chatBlock(d.chat),
       looked,
       `THE AUTHOR SAYS: ${message.trim()}`,
@@ -971,7 +1108,7 @@ export async function cowriteCreator(id: string, message: string) {
     const kind = c.kind.trim().toLowerCase();
     const sec = d.bible.find((b) => b.key === c.key) ?? (kind === "bible" ? BIBLE[d.kind].find((b) => b.key === c.key) : undefined);
     const f = d.fields.find((x) => x.key === c.key);
-    const text = tidy(c.text);
+    const text = persona ? unslipPersona(tidy(c.text), d.name) : tidy(c.text);
     if (kind === "bible" && sec && text && text !== ("text" in sec ? sec.text.trim() : "")) changes.push({ kind, target: c.key, label: `Bible · ${sec.label}`, before: "text" in sec ? sec.text : "", after: text });
     else if (kind === "field" && f && text && text !== f.value.trim()) changes.push({ kind, target: f.key, label: f.label, before: f.value, after: text });
     else if (kind === "rewrite" && f && (c.steer.trim() || text)) changes.push({ kind, target: f.key, label: `${f.label} · ${f.value.trim() ? "rewrite" : "write"}`, before: f.value, after: "", steer: c.steer.trim() || `Use this: ${text}` });
@@ -979,6 +1116,18 @@ export async function cowriteCreator(id: string, message: string) {
     else if (kind === "idea" || kind === "section") {
       const ch = ideaChange({ ...c, text }, d.idea, d.expansion);
       if (ch) changes.push(ch);
+    } else if (kind === "answer") {
+      const q = d.questions[Number.parseInt(c.key, 10) - 1] ?? d.questions.find((x) => x.id === c.key);
+      if (q && text && text !== q.answer.trim()) changes.push({ kind, target: q.id, label: `Answer · ${q.q.slice(0, 80)}`, before: q.answer, after: text });
+    } else if (kind === "option" && opts.includes(c.key)) {
+      const v = optionValue(c.key, c.text);
+      const was = d.options[c.key as keyof CreatorOptions];
+      if (v !== null && v !== was) changes.push({ kind, target: c.key, label: `Shape · ${c.key}`, before: String(was), after: String(v) });
+    } else if (kind === "basedon" && c.text.trim() !== d.basedOn.trim()) changes.push({ kind: "basedOn", target: "basedOn", label: "Based on", before: d.basedOn, after: c.text.trim().slice(0, 200) });
+    else if (kind === "write" && d.bible.some((b) => b.text.trim())) {
+      const all = c.key.trim().toLowerCase() === "all";
+      const keys = all ? d.fields.map((f) => f.label) : d.fields.filter((f) => !f.value.trim()).map((f) => f.label);
+      if (keys.length && !changes.some((x) => x.kind === "write")) changes.push({ kind, target: all ? "all" : "empty", label: all ? "Write every field again" : "Write the empty fields", before: "", after: keys.join(", ") });
     }
   }
   const proposal = newProposal(message.trim(), r.data.reply.trim() || (changes.length ? "Here's what I'd change." : "Nothing to change for that."), changes);
@@ -994,6 +1143,7 @@ export function applyCreatorCowrite(id: string, accept: string[]) {
   if (!p) throw badRequest("There's nothing to apply");
   const ok = p.changes.filter((c) => accept.includes(c.id));
   const rewrites: { key: string; steer: string }[] = [];
+  let writeAll: "empty" | "all" | null = null;
   const d = mutateCreator(id, (d) => {
     for (const c of ok) {
       if (c.kind === "bible") {
@@ -1013,6 +1163,14 @@ export function applyCreatorCowrite(id: string, accept: string[]) {
       } else if (c.kind === "name") d.name = c.after;
       else if (c.kind === "idea" || c.kind === "section") applyIdeaChange(d, c, (t) => (d.idea = t));
       else if (c.kind === "rewrite") rewrites.push({ key: c.target, steer: c.steer ?? "" });
+      else if (c.kind === "answer") {
+        const q = d.questions.find((x) => x.id === c.target);
+        if (q) q.answer = c.after;
+      } else if (c.kind === "option") {
+        const v = optionValue(c.target, c.after);
+        if (v !== null) d.options = { ...d.options, [c.target]: v };
+      } else if (c.kind === "basedOn") d.basedOn = c.after;
+      else if (c.kind === "write") writeAll = c.target === "all" ? "all" : "empty";
     }
     // Fields edited here match the bible as it now stands.
     for (const c of ok) if (c.kind === "field") {
@@ -1023,7 +1181,8 @@ export function applyCreatorCowrite(id: string, accept: string[]) {
     if (ok.length) d.chat = addTurns(d.chat, { role: "mea", text: `Applied ${ok.length} of ${p.changes.length} change${p.changes.length === 1 ? "" : "s"}.` });
   });
   for (const w of rewrites) queueFields(id, { keys: [w.key], steer: w.steer });
-  return rewrites.length ? mustCreator(id) : d;
+  if (writeAll) queueFields(id, writeAll === "all" ? { all: true } : {});
+  return rewrites.length || writeAll ? mustCreator(id) : d;
 }
 
 export function dismissCreatorCowrite(id: string) {
@@ -1055,6 +1214,7 @@ export function reviewCreator(id: string) {
     else if (f.key === "personality") issues[f.key] = checkProse(f.value, { maxTokens: d.kind === "persona" ? 200 : 140 });
     else if (f.key === "tags" || f.key === "pronouns") issues[f.key] = [];
     else issues[f.key] = checkProse(f.value);
+    if (d.kind === "persona" && f.key !== "pronouns") issues[f.key]!.push(...checkPersona(f.value));
   }
   // Greetings that open the same way read as one greeting three times.
   const greetings = d.fields.filter((f) => isGreeting(f.key) && f.value.trim());

@@ -1784,6 +1784,9 @@ export interface CreatorDraft {
   chat: ChatTurn[];
   proposal: Proposal | null;
   research: Research | null;
+  /** The read-back thinks the material describes the other kind (a persona written as a card, or the reverse). */
+  kindHint?: { kind: CreatorKind; why: string } | null;
+  kindSure?: boolean;
   createdAt: number;
   updatedAt: number;
 }

@@ -538,7 +538,8 @@ const PURPOSE: Record<SourceKind, string> = {
   idea: "Build it from the author's idea and answers.",
   character:
     "This is a companion lorebook for a character card: the events of their past, the people in their life, the places they know, the things they own or want, and the parts of their world their story needs. Don't make an entry for the character themself: the card covers them. Stay consistent with the card.",
-  persona: "This is a lorebook for the user's own persona: the people, places, history and possessions around them, so stories can draw on their past. Don't make an entry for the persona themself. Stay consistent with the persona.",
+  persona:
+    "This is a lorebook for the user's own persona: the people, places, history and possessions around them, so stories can draw on their past. The persona is the person the human player plays ({{user}} in a chat), not a character the AI plays: don't make an entry for the persona themself, mention them by name, never as {{char}}, and never decide what they feel or do. Stay consistent with the persona.",
   document: "Turn the author's document into entries. Use only what the document says.",
   book: "Grow an existing lorebook: propose entries it lacks. Never repeat an entry it has.",
 };
@@ -1256,7 +1257,7 @@ export async function cowriteLore(id: string, message: string) {
     schema: cowriteSchema,
     system: [
       COWRITER,
-      "The draft is a lorebook, grown from the author's idea and its expanded concept. Changes you can propose:",
+      `The draft is a lorebook, grown from ${d.source.kind === "idea" ? "the author's idea and its expanded concept" : "its source"}.${d.source.kind === "character" || d.source.kind === "persona" ? ` ${PURPOSE[d.source.kind]}` : ""} Changes you can propose:`,
       IDEA_CHANGES,
       '{"kind": "overview", "text": "the whole new overview"};',
       '{"kind": "entry", "entry": "<exact title>", "content": "the whole new text", "keys": ["…"]} for a written entry whose text needs a small, exact edit (keys only if they change);',
