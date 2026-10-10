@@ -1,7 +1,7 @@
 import { parseJson } from "../db/db";
 import type { PromptExtra } from "../prompt/assemble";
 import { characterSettings } from "../services/charsettings";
-import { type ChatSettings, mustChat } from "../services/chats";
+import { type ChatSettings, getChatRow } from "../services/chats";
 
 /**
  * The style profile (STEER-04): a prose guide, words to avoid, how actions are written, and how
@@ -12,7 +12,9 @@ import { type ChatSettings, mustChat } from "../services/chats";
 export type StyleProfile = NonNullable<ChatSettings["style"]>;
 
 export function styleFor(chatId: string): StyleProfile {
-  const chat = mustChat(chatId);
+  // C2: a chat deleted while its reply streams has no style left, not an error.
+  const chat = getChatRow(chatId);
+  if (!chat || chat.deleted_at) return { banned: [] };
   const own = parseJson<ChatSettings>(chat.settings, {}).style ?? {};
   const base = characterSettings(chat.character_id).style ?? {};
   const pick = <K extends keyof StyleProfile>(k: K) => {

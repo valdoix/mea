@@ -19,12 +19,13 @@ import { scheduleMemory } from "../memory/scheduler";
 import { setMemState } from "../memory/store";
 import { type AssembleKind, type AssembleResult, assemblePrompt } from "../prompt/assemble";
 import { expandMacros } from "../prompt/macros";
-import { contextLimitFromError, ProviderError, type CacheHint, type GenerationParams, type Usage } from "../providers/types";
+import { contextLimitFromError, INCOMPLETE, ProviderError, type CacheHint, type GenerationParams, type Usage } from "../providers/types";
 import { getCard, getCharacterRow, touchCharacter } from "./characters";
 import {
   addMessage,
   addSwipe,
   type ChatSettings,
+  getChatRow,
   getMessageRow,
   getSwipes,
   historyForPrompt,
@@ -54,6 +55,18 @@ import { applyGuards } from "../accuracy/guards";
 import { advisorExtra, markPlanUsed, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
+
+/** M18: a stream that sends nothing new for this long is treated as stalled. */
+const IDLE_MS = 90_000;
+/** M18: the longest Retry-After Mea waits before its one quick retry. */
+const RETRY_AFTER_CAP_MS = 30_000;
+
+/** M17: a leading <think>…</think> block (inline reasoning from OpenAI-style routes) moves out of the story. */
+export function splitThink(text: string): { text: string; reasoning: string } {
+  const m = text.match(/^\s*<(think|thinking)>([\s\S]*?)(?:<\/\1>|$)\s*/i);
+  if (!m) return { text, reasoning: "" };
+  return { text: text.slice(m[0].length), reasoning: m[2]!.trim() };
+}
 
 interface ActiveGeneration {
   id: string;
@@ -157,9 +170,11 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   // One length hint, not two: the chat's own length setting replaces the preset's.
   const preset = settings.length ? { ...basePreset, simple: { ...basePreset.simple, length: "normal" as const } } : basePreset;
   // PROMPT-08: prompt-only regex scripts change what the model is sent, never what's stored.
+  // M33: results are cached per message text, and a script that runs long is skipped for this prompt.
   const scripts = getSetting("regex.scripts");
+  const regexPass = { slow: new Set<string>() };
   const history = historyForPrompt(chatId, { excludeMessageId: opts.excludeMessageId }).map((m) =>
-    m.role === "system" ? m : { ...m, content: applyRegex(m.content, scripts, { role: m.role === "user" ? "user" : "ai", mode: "prompt", characterId: chat.character_id }) },
+    m.role === "system" ? m : { ...m, content: applyRegex(m.content, scripts, { role: m.role === "user" ? "user" : "ai", mode: "prompt", characterId: chat.character_id }, regexPass) },
   );
   const cfg = memoryConfig();
   lap();
@@ -206,6 +221,10 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const loreMs = lap();
 
   const contextTarget = Math.floor(resolved.contextTarget * (opts.targetScale ?? 1));
+  // Preset samplers are defaults; the profile's tuning for this model wins.
+  const samplers: GenerationParams = { ...preset.samplers, ...resolved.params };
+  // H3: room for the reply as it will really be asked for (the profile's max_tokens, plus thinking).
+  const reserve = resolved.provider.outputTokens?.(resolved.modelId, samplers) ?? samplers.max_tokens ?? 1200;
   // STEER-01: the advisor's private plan for this turn (usually written while you typed).
   const plan = kind === "story" ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise) }) : null;
   const style = styleExtra(chatId);
@@ -228,6 +247,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     swipe: kind === "story" && opts.excludeMessageId ? { rejected: rejectedTake(opts.excludeMessageId) } : undefined,
     lore,
     contextTarget,
+    reserve,
     modelId: resolved.modelId,
     vars: parseJson<Record<string, string>>(chat.vars, {}),
     seed: chatId,
@@ -265,8 +285,6 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   retrievalMs = Math.round((retrievalMs + memoryMs) * 10) / 10;
   const timing: Timing = { totalMs: Math.round((performance.now() - t0) * 10) / 10, trackersMs, retrievalMs, loreMs, advisorMs, assemblyMs: Math.max(0, Math.round((assembled_ - memoryMs) * 10) / 10) };
 
-  // Preset samplers are defaults; the profile's tuning for this model wins.
-  const samplers: GenerationParams = { ...preset.samplers, ...resolved.params };
   const cache: CacheHint | undefined = resolved.cacheMode
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
@@ -346,7 +364,8 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
   const gen: ActiveGeneration = { id: generationId, chatId, messageId, swipeIdx, abort: new AbortController(), text: baseText, reasoning: "" };
   active.set(generationId, gen);
   publish({ type: "gen.start", chatId, messageId, swipeIdx, generationId });
-  void runStory(gen, prepared, action, baseText, opts.feedback, opts.auto);
+  // C2: a failure after the reply must never become an unhandled rejection (Bun exits on those).
+  void runStory(gen, prepared, action, baseText, opts.feedback, opts.auto).catch((e) => console.error("[mea] reply failed:", e));
   return { generationId, messageId, swipeIdx };
 }
 
@@ -354,6 +373,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   const startedAt = now();
   let p = first;
   let firstTokenAt: number | null = null;
+  let lastDeltaAt = now();
   let pendingText = "";
   let pendingReasoning = "";
   let first_ = true;
@@ -364,7 +384,13 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     pendingReasoning = "";
   };
   const flushTimer = setInterval(flush, 50);
-  const saveTimer = setInterval(() => updateSwipe(gen.messageId, gen.swipeIdx, { content: gen.text, reasoning: gen.reasoning || null }), 1000);
+  const saveTimer = setInterval(() => {
+    try {
+      updateSwipe(gen.messageId, gen.swipeIdx, { content: gen.text, reasoning: gen.reasoning || null });
+    } catch (e) {
+      console.error("[mea] couldn't save the reply so far:", e);
+    }
+  }, 1000);
 
   let status: "done" | "stopped" | "error" = "done";
   let error: string | undefined;
@@ -389,6 +415,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       // First-token timeout (CONN-05): a stuck route moves on to the next model.
       const attempt = new AbortController();
       let timedOut = false;
+      let stalled = false;
       const onUserAbort = () => attempt.abort();
       gen.abort.signal.addEventListener("abort", onUserAbort);
       const timeoutMs = getSetting("routing.timeouts").story * 1000;
@@ -398,11 +425,19 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           attempt.abort();
         }
       }, timeoutMs);
+      // M18: once text flows, a stream that goes quiet for too long is cut off with what it wrote.
+      const idle = setInterval(() => {
+        if (firstTokenAt != null && now() - lastDeltaAt > IDLE_MS) {
+          stalled = true;
+          attempt.abort();
+        }
+      }, 5000);
       try {
         const result = await p.resolved.provider.stream(
           { model: p.resolved.modelId, messages: p.assembled.messages, params: p.samplers, signal: attempt.signal, cache: p.cache },
           (d) => {
             firstTokenAt ??= now();
+            lastDeltaAt = now();
             if (d.reasoning) {
               gen.reasoning += d.reasoning;
               pendingReasoning += d.reasoning;
@@ -441,10 +476,15 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
           continue;
         }
+        // M18: the stream ended without its end marker: keep what arrived, marked as cut off.
+        if (finishReason === INCOMPLETE) {
+          status = "stopped";
+          notes.push("the connection dropped before the reply finished");
+        }
         break;
       } catch (e) {
         if (gen.abort.signal.aborted) throw e;
-        const err = timedOut ? new ProviderError(`No reply within ${Math.round(timeoutMs / 1000)} s`) : e;
+        const err = timedOut ? new ProviderError(`No reply within ${Math.round(timeoutMs / 1000)} s`) : stalled ? new ProviderError(`The reply stalled: nothing new for ${IDLE_MS / 1000} s`) : e;
         const nothingYet = firstTokenAt == null && !gen.text.slice(baseText.length);
         if (!(err instanceof ProviderError) || !nothingYet) throw err;
         // CTX-08: the provider says the prompt is too long. Learn the limit, shrink, and retry once.
@@ -453,11 +493,12 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           const limit = contextLimitFromError(`${err.message} ${err.body ?? ""}`);
           if (limit) learnContextLimit(p.resolved.connection.id, p.resolved.modelId, limit);
           finishRequest(requestId, { status: "error", error: err.message });
+          // H3: always smaller than the prompt that failed, whether or not a limit was learned.
           p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", {
             excludeMessageId: action === "swipe" ? gen.messageId : undefined,
             feedback,
             profileId: p.resolved.profile.id,
-            targetScale: limit ? undefined : 0.75,
+            targetScale: 0.75,
           });
           notes.push("prompt shrunk after a length error");
           requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
@@ -467,7 +508,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (err.retryable && !backedOff && getSetting("chat.retry").serverErrors) {
           backedOff = true;
           finishRequest(requestId, { status: "error", error: err.message });
-          await Bun.sleep(1500);
+          // M18: a rate limit says how long to wait (capped); otherwise a short pause.
+          await Bun.sleep(err.retryAfterMs ? Math.min(err.retryAfterMs, RETRY_AFTER_CAP_MS) : 1500);
           if (gen.abort.signal.aborted) throw err;
           notes.push(`retried after: ${err.message.slice(0, 60)}`);
           requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
@@ -485,6 +527,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         throw err;
       } finally {
         clearTimeout(timer);
+        clearInterval(idle);
         gen.abort.signal.removeEventListener("abort", onUserAbort);
       }
     }
@@ -502,112 +545,143 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     for (const [k, g] of active) if (g === gen) active.delete(k);
   }
 
+  // C2: the chat can be deleted while the reply streams; nothing after this point may throw out.
+  const chatAlive = () => {
+    const c = getChatRow(gen.chatId);
+    return c && !c.deleted_at ? c : null;
+  };
   let text = gen.text.trimEnd();
+  let reasoning = gen.reasoning;
   // Inline trackers: the <ledger> block comes out of the reply before it's saved.
   let ledgerRaw: string | null = null;
   const inline = p.trackers?.inline && status !== "error";
-  if (inline) {
-    const at = text.search(/<ledger\b/i);
-    if (at >= 0) {
-      ledgerRaw = text.slice(at);
-      text = text.slice(0, at).trimEnd();
-    }
-  }
-  // CHAT-14: a reply cut off by the length limit is trimmed to its last sentence, or continued.
   const cutoff = getSetting("chat.cutoff");
   const cutOff = status === "done" && finishReason === "length";
-  if (cutOff && cutoff === "trim") text = trimUnfinished(text);
-  // PROMPT-08: persistent regex scripts change the stored reply.
-  if (status !== "error") text = applyRegex(text, getSetting("regex.scripts"), { role: "ai", mode: "persistent", characterId: p.characterId });
-  // CHAT-19: banned phrases.
-  // CHAT-19 + STEER-04: banned phrases (yours, and this story's style profile).
-  const style = styleFor(gen.chatId);
-  const banned = status !== "error" ? applyBanned(text, style.banned ?? []) : { text, hits: [], replaced: 0 };
-  text = banned.text;
-  if (status !== "error" && style.quotes && style.quotes !== "any") text = normalizeQuotes(text, style.quotes);
-  // CON-04 / CON-05: names corrected and puppeting cut, when you chose those actions.
-  const original = text;
-  const guarded = status !== "error" && text.trim() ? applyGuards(gen.chatId, text, { seq: getMessageRow(gen.messageId)?.seq ?? 0, messageId: gen.messageId }) : null;
-  if (guarded) {
-    text = guarded.text;
-    notes.push(...guarded.notes);
-  }
-  const finalStatus = status === "error" && action === "continue" ? "done" : status === "error" && text ? "stopped" : status;
-  updateSwipe(gen.messageId, gen.swipeIdx, {
-    content: text,
-    reasoning: gen.reasoning || null,
-    status: finalStatus,
-    error: status === "error" ? (error ?? "Unknown error") : null,
-    meta: {
-      generationId: requestId,
-      model: p.resolved.modelId,
-      connectionId: p.resolved.connection.id,
-      connectionName: p.resolved.connection.name,
-      profileId: p.resolved.profile.id,
-      profileName: p.resolved.profile.name,
-      presetId: p.presetId,
-      billing: p.resolved.billing,
-      promptTokens: usage?.promptTokens ?? null,
-      completionTokens: usage?.completionTokens ?? null,
-      cachedTokens: usage?.cachedTokens ?? null,
-      estPromptTokens: p.assembled.estPromptTokens,
-      ttftMs: firstTokenAt ? firstTokenAt - startedAt : null,
-      durationMs: now() - startedAt,
-      // PERF-10: the timing breakdown for the inspector.
-      timing: {
-        ...p.timing,
-        ttftMs: firstTokenAt ? firstTokenAt - startedAt : null,
-        tokensPerSec: usage?.completionTokens && firstTokenAt && now() > firstTokenAt ? Math.round((usage.completionTokens / ((now() - firstTokenAt) / 1000)) * 10) / 10 : null,
-        cacheHit: usage?.promptTokens ? Math.round(((usage.cachedTokens ?? 0) / usage.promptTokens) * 1000) / 1000 : null,
-      },
-      finishReason: finishReason ?? null,
-      ...(notes.length ? { notes } : {}),
-      ...(feedback ? { feedback } : {}),
-      ...(banned.hits.length ? { banned: banned.hits } : {}),
-      ...(ledgerRaw ? { ledger: ledgerRaw.slice(0, 6000) } : {}),
-      ...(cutOff ? { cutOff: true } : {}),
-      ...(guarded && text !== original ? { guard: { ...guarded.meta, original: original.slice(0, 20_000) } } : {}),
-    },
-  });
-  finishRequest(requestId, { status, error, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
-  publish({ type: "gen.end", chatId: gen.chatId, messageId: gen.messageId, generationId: requestId, status: finalStatus, error });
-  publish({ type: "message.changed", chatId: gen.chatId, messageId: gen.messageId });
-
-  if (status !== "error") {
-    try {
-      consumeOnce(gen.chatId);
-      if (inline) fileInlineLedger(gen.chatId, gen.messageId, gen.swipeIdx, ledgerRaw);
-      else if (status === "done") scheduleTrackers(gen.chatId, gen.messageId, gen.swipeIdx);
-    } catch (e) {
-      console.error("[mea] after-reply step failed:", e);
-    }
-    saveLoreState(gen.chatId, p.lore.stateUpdates);
-    recordLoreHits(gen.chatId, p.lore.activated.map((a) => a.entry.id));
-    setChatVars(gen.chatId, p.assembled.vars);
-    recordMemoryUsage(requestId, gen.chatId, p);
-    // STEER-02: the advisor remembers which of its plans a reply was written with.
-    if (p.planKey) markPlanUsed(gen.chatId, p.planKey, requestId);
-    // CON-02 / CON-06: check the reply against the story's facts, in the background.
-    if (status === "done" && checksOn(gen.chatId)) enqueue("accuracy.check", { chatId: gen.chatId, messageId: gen.messageId, swipeIdx: gen.swipeIdx }, { delayMs: 2500, chatId: gen.chatId, dedupeKey: `accuracy.check:${gen.messageId}:${gen.swipeIdx}` });
-    // MEM-19: the memories this reply drew on gain weight.
-    if (status === "done" && memoryConfig().reinforcement) {
-      try {
-        reinforce(gen.chatId, requestId, text, getMessageRow(gen.messageId)?.seq ?? 0);
-      } catch (e) {
-        console.error("[mea] reinforcement failed:", e);
+  let banned: ReturnType<typeof applyBanned> = { text, hits: [], replaced: 0 };
+  let guarded: ReturnType<typeof applyGuards> | null = null;
+  let original = text;
+  try {
+    // M17: inline reasoning (<think>…</think>) from OpenAI-style routes goes to the reasoning field.
+    if (action !== "continue") {
+      const think = splitThink(text);
+      if (think.reasoning) {
+        text = think.text;
+        reasoning = [reasoning, think.reasoning].filter(Boolean).join("\n\n");
       }
     }
-    // CON-10: every few replies, measure the character's voice against their samples.
-    if (status === "done") scheduleDrift(gen.chatId);
-    // STEER-03: the post-pass editor, when it's on (not for a reply about to be written again).
-    if (status === "done" && !guarded?.retry) scheduleEditor(gen.chatId, gen.messageId, gen.swipeIdx);
-    const chat = mustChat(gen.chatId);
-    if (chat.character_id) touchCharacter(chat.character_id);
+    if (inline) {
+      const at = text.search(/<ledger\b/i);
+      if (at >= 0) {
+        ledgerRaw = text.slice(at);
+        text = text.slice(0, at).trimEnd();
+      }
+    }
+    // CHAT-14: a reply cut off by the length limit is trimmed to its last sentence, or continued.
+    if (cutOff && cutoff === "trim") text = trimUnfinished(text);
+    // PROMPT-08: persistent regex scripts change the stored reply.
+    if (status !== "error") text = applyRegex(text, getSetting("regex.scripts"), { role: "ai", mode: "persistent", characterId: p.characterId });
+    // CHAT-19 + STEER-04: banned phrases (yours, and this story's style profile).
+    const style = styleFor(gen.chatId);
+    banned = status !== "error" ? applyBanned(text, style.banned ?? []) : { text, hits: [], replaced: 0 };
+    text = banned.text;
+    if (status !== "error" && style.quotes && style.quotes !== "any") text = normalizeQuotes(text, style.quotes);
+    // CON-04 / CON-05: names corrected and puppeting cut, when you chose those actions.
+    original = text;
+    guarded = status !== "error" && text.trim() && chatAlive() ? applyGuards(gen.chatId, text, { seq: getMessageRow(gen.messageId)?.seq ?? 0, messageId: gen.messageId }) : null;
+    if (guarded) {
+      text = guarded.text;
+      notes.push(...guarded.notes);
+    }
+  } catch (e) {
+    console.error("[mea] after-reply clean-up failed:", e);
   }
-  if (usage?.promptTokens) recordCalibration(p.resolved.connection.id, p.resolved.modelId, p.assembled.estPromptTokens, usage.promptTokens);
-  if (p.resolved.billing === "subscription") enqueue("quota.refresh", {}, { dedupeKey: "quota.refresh", delayMs: 3000 });
-  // A finished turn may have settled older messages: let memory catch up in the background (SUM-07).
-  scheduleMemory(gen.chatId);
+  const finalStatus = status === "error" && action === "continue" ? "done" : status === "error" && text ? "stopped" : status;
+  try {
+    updateSwipe(gen.messageId, gen.swipeIdx, {
+      content: text,
+      reasoning: reasoning || null,
+      status: finalStatus,
+      error: status === "error" ? (error ?? "Unknown error") : null,
+      meta: {
+        generationId: requestId,
+        model: p.resolved.modelId,
+        connectionId: p.resolved.connection.id,
+        connectionName: p.resolved.connection.name,
+        profileId: p.resolved.profile.id,
+        profileName: p.resolved.profile.name,
+        presetId: p.presetId,
+        billing: p.resolved.billing,
+        promptTokens: usage?.promptTokens ?? null,
+        completionTokens: usage?.completionTokens ?? null,
+        cachedTokens: usage?.cachedTokens ?? null,
+        estPromptTokens: p.assembled.estPromptTokens,
+        ttftMs: firstTokenAt ? firstTokenAt - startedAt : null,
+        durationMs: now() - startedAt,
+        // PERF-10: the timing breakdown for the inspector.
+        timing: {
+          ...p.timing,
+          ttftMs: firstTokenAt ? firstTokenAt - startedAt : null,
+          tokensPerSec: usage?.completionTokens && firstTokenAt && now() > firstTokenAt ? Math.round((usage.completionTokens / ((now() - firstTokenAt) / 1000)) * 10) / 10 : null,
+          cacheHit: usage?.promptTokens ? Math.round(((usage.cachedTokens ?? 0) / usage.promptTokens) * 1000) / 1000 : null,
+        },
+        finishReason: finishReason ?? null,
+        ...(finishReason === INCOMPLETE ? { incomplete: true } : {}),
+        ...(notes.length ? { notes } : {}),
+        ...(feedback ? { feedback } : {}),
+        ...(banned.hits.length ? { banned: banned.hits } : {}),
+        ...(ledgerRaw ? { ledger: ledgerRaw.slice(0, 6000) } : {}),
+        ...(cutOff ? { cutOff: true } : {}),
+        ...(guarded && text !== original ? { guard: { ...guarded.meta, original: original.slice(0, 20_000) } } : {}),
+      },
+    });
+    finishRequest(requestId, { status, error, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+  } catch (e) {
+    console.error("[mea] couldn't save the finished reply:", e);
+  } finally {
+    publish({ type: "gen.end", chatId: gen.chatId, messageId: gen.messageId, generationId: requestId, status: finalStatus, error });
+    publish({ type: "message.changed", chatId: gen.chatId, messageId: gen.messageId });
+  }
+
+  const chat = chatAlive();
+  if (!chat) return;
+  try {
+    if (status !== "error") {
+      try {
+        consumeOnce(gen.chatId);
+        if (inline) fileInlineLedger(gen.chatId, gen.messageId, gen.swipeIdx, ledgerRaw);
+        else if (status === "done") scheduleTrackers(gen.chatId, gen.messageId, gen.swipeIdx);
+      } catch (e) {
+        console.error("[mea] after-reply step failed:", e);
+      }
+      saveLoreState(gen.chatId, p.lore.stateUpdates);
+      recordLoreHits(gen.chatId, p.lore.activated.map((a) => a.entry.id));
+      setChatVars(gen.chatId, p.assembled.vars);
+      recordMemoryUsage(requestId, gen.chatId, p);
+      // STEER-02: the advisor remembers which of its plans a reply was written with.
+      if (p.planKey) markPlanUsed(gen.chatId, p.planKey, requestId);
+      // CON-02 / CON-06: check the reply against the story's facts, in the background.
+      if (status === "done" && checksOn(gen.chatId)) enqueue("accuracy.check", { chatId: gen.chatId, messageId: gen.messageId, swipeIdx: gen.swipeIdx }, { delayMs: 2500, chatId: gen.chatId, dedupeKey: `accuracy.check:${gen.messageId}:${gen.swipeIdx}` });
+      // MEM-19: the memories this reply drew on gain weight.
+      if (status === "done" && memoryConfig().reinforcement) {
+        try {
+          reinforce(gen.chatId, requestId, text, getMessageRow(gen.messageId)?.seq ?? 0);
+        } catch (e) {
+          console.error("[mea] reinforcement failed:", e);
+        }
+      }
+      // CON-10: every few replies, measure the character's voice against their samples.
+      if (status === "done") scheduleDrift(gen.chatId);
+      // STEER-03: the post-pass editor, when it's on (not for a reply about to be written again).
+      if (status === "done" && !guarded?.retry) scheduleEditor(gen.chatId, gen.messageId, gen.swipeIdx);
+      if (chat.character_id) touchCharacter(chat.character_id);
+    }
+    if (usage?.promptTokens) recordCalibration(p.resolved.connection.id, p.resolved.modelId, p.assembled.estPromptTokens, usage.promptTokens);
+    if (p.resolved.billing === "subscription") enqueue("quota.refresh", {}, { dedupeKey: "quota.refresh", delayMs: 3000 });
+    // A finished turn may have settled older messages: let memory catch up in the background (SUM-07).
+    scheduleMemory(gen.chatId);
+  } catch (e) {
+    console.error("[mea] after-reply work failed:", e);
+  }
   // CHAT-14 / CHAT-19: follow-ups that start a new generation once this one is saved.
   if (status === "done" && cutOff && cutoff === "continue" && auto !== "continue") {
     setTimeout(() => void startStory(gen.chatId, "continue", { messageId: gen.messageId, auto: "continue" }).catch(() => {}), 50);
@@ -615,7 +689,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     setTimeout(() => void startStory(gen.chatId, "swipe", { messageId: gen.messageId, auto: "banned" }).catch(() => {}), 50);
   } else if (status === "done" && guarded?.retry && !auto) {
     // CON-04: the reply wrote for you; one more try with a note.
-    setTimeout(() => void startStory(gen.chatId, "swipe", { messageId: gen.messageId, auto: "guard", feedback: guarded.retry! }).catch(() => {}), 50);
+    setTimeout(() => void startStory(gen.chatId, "swipe", { messageId: gen.messageId, auto: "guard", feedback: guarded!.retry! }).catch(() => {}), 50);
   }
   if (status === "done" && !isChatWatched(gen.chatId)) {
     void sendPush({ title: p.card.name, body: text.replace(/\s+/g, " ").slice(0, 140), url: `/chat/${gen.chatId}`, tag: gen.chatId }).catch(() => {});
@@ -634,10 +708,22 @@ export async function* streamDraft(chatId: string, kind: "impersonate" | "expand
   let usage: Usage | undefined;
   let firstTokenAt: number | null = null;
   const abort = new AbortController();
-  signal.addEventListener("abort", () => abort.abort());
+  const onAbort = () => abort.abort();
+  signal.addEventListener("abort", onAbort);
+  // M18: the same first-token timeout as a reply, and the idle cut-off once text flows.
+  const timeoutMs = getSetting("routing.timeouts").story * 1000;
+  let lastDeltaAt = now();
+  let timedOut: string | null = null;
+  const watch = setInterval(() => {
+    if (firstTokenAt == null ? now() - lastDeltaAt > timeoutMs : now() - lastDeltaAt > IDLE_MS) {
+      timedOut = firstTokenAt == null ? `No reply within ${Math.round(timeoutMs / 1000)} s` : `The draft stalled: nothing new for ${IDLE_MS / 1000} s`;
+      abort.abort();
+    }
+  }, 1000);
   const params: GenerationParams = { ...p.samplers, max_tokens: Math.min(p.samplers.max_tokens ?? 600, 800) };
   p.resolved.provider
     .stream({ model: p.resolved.modelId, messages: p.assembled.messages, params, signal: abort.signal, cache: p.cache }, (d) => {
+      lastDeltaAt = now();
       if (d.text) {
         firstTokenAt ??= now();
         queue.push(d.text);
@@ -646,9 +732,12 @@ export async function* streamDraft(chatId: string, kind: "impersonate" | "expand
     })
     .then((r) => (usage = r.usage))
     .catch((e) => {
-      if ((e as Error).name !== "AbortError") failure = (e as Error).message;
+      if (timedOut) failure = timedOut;
+      else if ((e as Error).name !== "AbortError") failure = (e as Error).message;
     })
     .finally(() => {
+      clearInterval(watch);
+      signal.removeEventListener("abort", onAbort);
       finished = true;
       wake?.();
     });
