@@ -6,6 +6,8 @@
   import Rail from "./components/Rail.svelte";
   import BottomNav from "./components/BottomNav.svelte";
   import Sky from "./components/Sky.svelte";
+  import Ambience from "./components/Ambience.svelte";
+  import { isRoom } from "./lib/themes";
   import { layout, railShown, setFocus, toggleRail } from "./lib/layout.svelte";
   import Toasts from "./components/Toasts.svelte";
   import { get, setSourceHandler, setUnpairedHandler } from "./lib/api";
@@ -147,8 +149,9 @@
   const bare = $derived(route.name === "pair" || route.name === "welcome" || route.name === "read");
   const fullBleed = $derived(route.name === "chat");
 
-  // Lantern: the night-garden shell (a slim rail, the sky, a bottom dock on the phone).
-  const lantern = $derived(app.theme === "lantern");
+  // The Lantern shell (a slim rail, a living backdrop, a bottom dock on the phone), worn by Lantern
+  // and the four rooms.
+  const lantern = $derived(app.shell === "lantern");
   const showRail = $derived(railShown(route.name === "chat"));
   $effect(() => {
     if (route.name !== "chat") setFocus(false);
@@ -185,7 +188,7 @@
     {#await import("./views/ReadView.svelte") then v}<v.default id={route.params.id!} />{/await}
   {:else}<Welcome />{/if}
 {:else}
-  {#if lantern}<Sky />{/if}
+  {#if app.theme === "lantern"}<Sky />{:else if isRoom(app.theme)}<Ambience theme={app.theme} />{/if}
   <div class="shell" class:full={fullBleed} class:lantern class:no-rail={lantern && !showRail} class:focus={lantern && layout.focus} class:with-bottom={lantern && app.isMobile && !fullBleed}>
     {#if !app.isMobile}
       {#if lantern}
@@ -373,10 +376,10 @@
     border-radius: 0 14px 14px 0;
     display: grid;
     place-items: center;
-    background: rgb(36 26 60 / 80%);
+    background: var(--reveal-bg, rgb(36 26 60 / 80%));
     box-shadow:
-      inset -1px 0 0 rgb(255 255 255 / 10%),
-      0 10px 30px rgb(0 0 0 / 40%);
+      inset -1px 0 0 color-mix(in srgb, var(--hi) 10%, transparent),
+      0 10px 30px color-mix(in srgb, var(--lo) 40%, transparent);
     color: var(--lamp);
     font-size: 12px;
     cursor: pointer;

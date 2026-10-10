@@ -123,8 +123,8 @@
   .up .lbl {
     display: inline !important;
   }
-  :global([data-theme="lantern"]) .pop {
-    background: rgb(30 22 50 / 97%);
+  :global([data-shell="lantern"]) .pop {
+    background: color-mix(in srgb, var(--pop) 97%, transparent);
   }
   .pop {
     position: absolute;

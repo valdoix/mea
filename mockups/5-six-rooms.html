@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mea · Six Rooms</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Pinyon+Script&family=Lora:ital,wght@0,400;0,500;1,400&family=Quicksand:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Shippori+Mincho:wght@400;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Serif+Display:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Figtree:wght@400;500;600;700;800&family=Cinzel+Decorative:wght@400;700&family=IM+Fell+English:ital@0;1&family=UnifrakturMaguntia&family=Alegreya+Sans:wght@400;500;700&family=Monoton&family=Neonderthaw&family=Sora:wght@400;500;600;700;800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;1,7..72,400&display=swap" rel="stylesheet" />
+<style>
+/* =========================================================================
+   Mea · Six Rooms — six proposed themes, each with a day and a night.
+   The gallery chrome is neutral; every app mock is driven by Mea's own
+   token names (--bg, --surface, --dialogue, --thought, --accent …), so a
+   room's token set drops straight into web/src/styles/tokens.css.
+   ========================================================================= */
+
+/* ---------- gallery chrome ---------- */
+:root {
+  color-scheme: light;
+  --g-bg: #f3f1ec; --g-wall: #ebe8e1; --g-card: #fbfaf7; --g-ink: #1a1917; --g-muted: #6a665e; --g-faint: #77736b;
+  --g-line: #dcd7cd; --g-shadow: 0 50px 90px -50px rgb(40 30 15 / 45%), 0 2px 6px rgb(40 30 15 / 6%);
+  --g-pill: #1a1917; --g-on-pill: #fbfaf7;
+  --ease: cubic-bezier(.22, 1, .36, 1); --spring: cubic-bezier(.34, 1.45, .64, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --g-bg: #121211; --g-wall: #181816; --g-card: #1c1b19; --g-ink: #edebe6; --g-muted: #a7a297; --g-faint: #8a857c;
+    --g-line: #2c2a27; --g-shadow: 0 50px 90px -40px rgb(0 0 0 / 80%), 0 2px 6px rgb(0 0 0 / 30%);
+    --g-pill: #edebe6; --g-on-pill: #121211;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --g-bg: #121211; --g-wall: #181816; --g-card: #1c1b19; --g-ink: #edebe6; --g-muted: #a7a297; --g-faint: #8a857c;
+  --g-line: #2c2a27; --g-shadow: 0 50px 90px -40px rgb(0 0 0 / 80%), 0 2px 6px rgb(0 0 0 / 30%);
+  --g-pill: #edebe6; --g-on-pill: #121211;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 70px; }
+body { margin: 0; background: var(--g-bg); color: var(--g-ink); font: 15px/1.5 "Manrope", system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; transition: background .6s var(--ease), color .6s var(--ease); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; }
+::selection { background: rgb(214 160 70 / 35%); }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+
+.topbar { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); background: color-mix(in srgb, var(--g-bg) 82%, transparent); border-bottom: 1px solid var(--g-line); }
+.topbar .wrap { display: flex; align-items: center; gap: 18px; height: 58px; }
+.brand { font: 400 24px/1 "Instrument Serif", Georgia, serif; text-decoration: none; white-space: nowrap; }
+.brand i { font-style: italic; color: var(--g-muted); }
+.toc { display: flex; gap: 2px; margin-left: 8px; overflow-x: auto; scrollbar-width: none; }
+.toc a { text-decoration: none; font-size: 12.5px; font-weight: 700; color: var(--g-muted); padding: 6px 10px; border-radius: 999px; white-space: nowrap; transition: all .25s var(--ease); }
+.toc a:hover { color: var(--g-ink); background: color-mix(in srgb, var(--g-ink) 7%, transparent); }
+.toc a b { font: italic 400 15px "Instrument Serif", serif; margin-right: 4px; }
+.grow { flex: 1; }
+.gseg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid var(--g-line); background: var(--g-card); flex-shrink: 0; }
+.gseg button { padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--g-muted); white-space: nowrap; transition: all .3s var(--ease); }
+.gseg button:hover { color: var(--g-ink); }
+.gseg button.on { background: var(--g-pill); color: var(--g-on-pill); }
+.gseg button:focus-visible, .copy:focus-visible, .toc a:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 2px; }
+
+/* ---------- hero ---------- */
+.hero { padding-block: clamp(70px, 12vh, 140px) 60px; text-align: center; }
+.eyebrow { font-size: 11px; font-weight: 800; letter-spacing: .28em; text-transform: uppercase; color: var(--g-faint); }
+.hero h1 { font: 400 clamp(68px, 14vw, 196px)/.84 "Instrument Serif", Georgia, serif; letter-spacing: -.025em; margin: 26px 0 26px; }
+.hero h1 em { font-style: italic; }
+.hero .lede { max-width: 640px; margin: 0 auto; font: 400 clamp(17px, 2vw, 20px)/1.55 "Newsreader", Georgia, serif; color: var(--g-muted); }
+.hero .lede b { color: var(--g-ink); font-weight: 500; }
+.index { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin-top: 64px; text-align: left; }
+.card { text-decoration: none; display: grid; border-radius: 4px; overflow: hidden; background: var(--g-card); border: 1px solid var(--g-line); transition: transform .5s var(--spring), box-shadow .5s var(--ease); }
+.card:hover { transform: translateY(-6px) rotate(-.4deg); box-shadow: var(--g-shadow); }
+.card .sw { aspect-ratio: 4 / 3; position: relative; background: linear-gradient(135deg, var(--l) 0 50%, var(--d) 50% 100%); }
+.card .sw i { position: absolute; width: 26%; aspect-ratio: 1; border-radius: 50%; }
+.card .sw i:nth-child(1) { left: 12%; top: 16%; background: var(--la); box-shadow: 18px 10px 0 -4px var(--lb); }
+.card .sw i:nth-child(2) { right: 12%; bottom: 16%; background: var(--da); box-shadow: -18px -10px 0 -4px var(--db); }
+.card .sw b { position: absolute; left: 50%; top: 50%; translate: -50% -50%; font: 400 30px/1 var(--f); color: var(--lt); mix-blend-mode: difference; filter: invert(1) grayscale(1) contrast(9); white-space: nowrap; }
+.card .cap { padding: 12px 14px 14px; display: grid; gap: 2px; }
+.card .cap small { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; font-weight: 800; color: var(--g-faint); }
+.card .cap span { font: 400 22px/1.1 var(--f); }
+.card .cap em { font: italic 400 14px/1.3 "Newsreader", serif; color: var(--g-muted); }
+.how { margin-top: 26px; font-size: 13px; color: var(--g-faint); }
+
+/* ---------- rooms ---------- */
+.room { padding-block: clamp(70px, 10vh, 110px) 30px; border-top: 1px solid var(--g-line); }
+.room-head { display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: 22px; margin-bottom: 26px; }
+.numeral { font: italic 400 clamp(74px, 10vw, 132px)/.8 "Instrument Serif", serif; color: var(--g-faint); opacity: .55; }
+.rname { font: 400 clamp(46px, 7vw, 78px)/.92 var(--td); margin: 8px 0 6px; letter-spacing: -.01em; }
+.motto { margin: 0; font: italic 400 19px/1.3 "Newsreader", serif; color: var(--g-muted); }
+.frame { padding: clamp(8px, 1.5vw, 20px); background: var(--g-card); border: 1px solid var(--g-line); border-radius: 3px; box-shadow: var(--g-shadow); }
+.layers { position: relative; --x: 100%; overflow: hidden; border-radius: 2px; touch-action: pan-y; }
+.layers > .app.dk { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--x)); transition: clip-path .9s var(--ease); }
+.layers.dragging > .app.dk { transition: none; }
+.handle { position: absolute; top: 0; bottom: 0; left: var(--x); width: 0; z-index: 30; display: none; transition: left .9s var(--ease); }
+.layers.dragging .handle { transition: none; }
+.room[data-mode="compare"] .handle { display: block; }
+.handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / 25%), 0 0 22px rgb(0 0 0 / 35%); }
+.handle span { position: absolute; top: 50%; left: 0; translate: -50% -50%; width: 46px; height: 46px; border-radius: 50%; background: #fff; color: #111; display: grid; place-items: center; font-size: 18px; font-weight: 800; box-shadow: 0 6px 24px rgb(0 0 0 / 35%); cursor: ew-resize; }
+.below { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: clamp(28px, 5vw, 64px); margin-top: 40px; }
+.wall p { font: 400 19px/1.6 "Newsreader", Georgia, serif; margin: 0 0 22px; max-width: 56ch; }
+.wall p::first-letter { font: 400 3.2em/.8 var(--td); float: left; margin: 6px 10px 0 0; }
+.wall dl { display: grid; grid-template-columns: 110px 1fr; gap: 9px 16px; margin: 0; font-size: 13.5px; border-top: 1px solid var(--g-line); padding-top: 18px; }
+.wall dt { font-size: 10.5px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: var(--g-faint); padding-top: 3px; }
+.wall dd { margin: 0; color: var(--g-muted); }
+.specs h4 { margin: 0 0 10px; font-size: 10.5px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: var(--g-faint); }
+.swrow { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+.swrow + h4 { margin-top: 16px; }
+.swatch { display: grid; gap: 4px; font-size: 10.5px; line-height: 1.2; color: var(--g-muted); min-width: 0; }
+.swatch i { aspect-ratio: 1; border-radius: 3px; border: 1px solid color-mix(in srgb, var(--g-ink) 12%, transparent); transition: transform .4s var(--spring); }
+.swatch:hover i { transform: scale(1.08) rotate(-3deg); }
+.swatch b { font-weight: 700; color: var(--g-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.swatch code { font: 10px/1.2 ui-monospace, "SF Mono", Consolas, monospace; color: var(--g-faint); }
+.ctable { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
+.ctable th { text-align: left; font-size: 10.5px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: var(--g-faint); padding: 0 0 8px; }
+.ctable td { padding: 7px 0; border-top: 1px solid var(--g-line); color: var(--g-muted); }
+.ctable td:first-child { color: var(--g-ink); font-weight: 600; }
+.ctable .pair { display: inline-flex; align-items: center; gap: 7px; }
+.ctable .pair i { width: 22px; height: 16px; border-radius: 3px; display: grid; place-items: center; font: 700 10px/1 "Manrope", sans-serif; font-style: normal; border: 1px solid color-mix(in srgb, var(--g-ink) 12%, transparent); }
+.badge { font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 2px 6px; border-radius: 999px; border: 1px solid currentColor; opacity: .8; }
+.copy { margin-top: 20px; padding: 11px 18px; border-radius: 999px; background: var(--g-pill); color: var(--g-on-pill); font-size: 13px; font-weight: 800; transition: transform .4s var(--spring); }
+.copy:hover { transform: translateY(-2px); }
+.copy small { font-weight: 600; opacity: .65; margin-left: 6px; }
+.colophon { text-align: center; padding: 80px 16px 100px; font: italic 400 16px/1.5 "Newsreader", serif; color: var(--g-faint); border-top: 1px solid var(--g-line); }
+
+@media (max-width: 1000px) {
+  .index { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .below { grid-template-columns: 1fr; }
+  .room-head { grid-template-columns: auto 1fr; }
+  .room-head .gseg { grid-column: 1 / -1; justify-self: start; }
+  .toc { display: none; }
+}
+@media (max-width: 640px) {
+  .index { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topbar .gseg button { padding: 6px 9px; }
+  .brand i { display: none; }
+  .swrow { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .room-head .gseg { max-width: 100%; overflow-x: auto; }
+  .wall dl { grid-template-columns: 1fr; gap: 2px; }
+  .wall dd { margin-bottom: 10px; }
+}
+
+/* =========================================================================
+   The app mock — every colour comes from Mea token names
+   ========================================================================= */
+.app {
+  --r-sm: 10px; --r: 16px; --r-lg: 22px; --r-pill: 999px; --bw: 1px;
+  position: relative; isolation: isolate; display: grid; grid-template-columns: 62px minmax(0, 1fr) 292px; gap: 12px; padding: 12px;
+  height: 780px; background: var(--bg); color: var(--text); font-family: var(--f-ui); font-size: 13.5px; line-height: 1.45; overflow: hidden;
+  -webkit-font-smoothing: antialiased; text-align: left;
+}
+.app::before, .app::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.app > * { position: relative; z-index: 1; }
+.app .i { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.app .chip .i { width: 12px; height: 12px; }
+.app ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+.rail { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; background: var(--rail-bg, var(--surface)); color: var(--rail-ink, var(--text-muted)); border: var(--bw) solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
+.rail .logo { width: 42px; height: 42px; display: grid; place-items: center; margin-bottom: 8px; color: var(--accent-ink); }
+.rail .nav { width: 40px; height: 40px; border-radius: var(--r-sm); display: grid; place-items: center; position: relative; transition: all .25s var(--ease); }
+.rail .nav:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.rail .nav.on { background: var(--surface-2); color: var(--text); }
+.rail .badge { position: absolute; top: 3px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--accent); color: var(--on-accent); font: 800 9.5px/16px var(--f-ui); text-align: center; }
+.rail hr { width: 26px; border: 0; border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent); margin: 8px 0; }
+.rail .grow { flex: 1; }
+
+.orb { --s: 40px; width: var(--s); height: var(--s); flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: var(--orb-w); color: var(--orb-ink); font: 600 calc(var(--s) * .44)/1 var(--f-display); position: relative; }
+.orb[data-c="ash"] { background: var(--orb-a); }
+.orb.sm { --s: 32px; }
+.orb.lg { --s: 46px; }
+
+.stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); border: var(--bw) solid var(--border); border-radius: var(--r-lg); overflow: hidden; position: relative; box-shadow: var(--shadow-1); }
+.stage > :not(.decor) { position: relative; z-index: 1; }
+.decor { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.chat-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.who { min-width: 0; }
+.who .name { font: 500 20px/1.1 var(--f-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who .name em { font: 500 12.5px var(--f-ui); font-style: normal; color: var(--text-muted); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--text-muted); font-size: 11.5px; font-weight: 600; border: 1px solid var(--border); white-space: nowrap; }
+.chip.hot { background: var(--tint-char); color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.tools { margin-left: auto; display: flex; gap: 2px; align-items: center; }
+.ib { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--text-muted); transition: all .2s var(--ease); }
+.ib:hover { color: var(--text); background: var(--surface-2); }
+.mseg { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-2); border-radius: var(--r-pill); border: 1px solid var(--border); margin-right: 6px; }
+.mseg button { padding: 4px 10px; border-radius: var(--r-pill); font-size: 11.5px; font-weight: 700; color: var(--text-muted); }
+.mseg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+
+.scrub { display: flex; gap: 0; margin: 0 16px; padding: 7px 0 0; position: relative; height: 32px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: var(--text-faint); }
+.scrub::before, .scrub .fill { content: ""; position: absolute; left: 0; right: 0; bottom: 8px; height: 2px; border-radius: 2px; background: var(--surface-3); }
+.scrub .fill { right: 14%; background: var(--accent); }
+.scrub .ch { flex: 1; }
+.scrub .ch.now { color: var(--accent-ink); text-align: right; }
+
+.feed { flex: 1; overflow-y: auto; padding: 14px 22px 22px; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; min-height: 0; }
+.feed-in { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.recap { padding: 12px 15px; border-radius: var(--r); background: var(--tint-note); font: 400 14.5px/1.55 var(--f-story); color: var(--text-muted); }
+.recap .lbl { font: 700 10.5px/1 var(--f-meta); letter-spacing: .16em; text-transform: uppercase; color: var(--warn); margin-bottom: 6px; }
+.chapter { text-align: center; padding: 14px 0 4px; }
+.chapter .num { font: 600 10.5px/1 var(--f-meta); letter-spacing: .3em; text-transform: uppercase; color: var(--text-faint); }
+.chapter h2 { font: 500 42px/1 var(--f-display); margin: 8px 0 6px; }
+.chapter .epi { font: italic 400 14.5px/1.4 var(--f-story); color: var(--text-muted); margin: 0; }
+.scene-h { display: flex; align-items: center; gap: 10px; color: var(--text-faint); font-size: 11.5px; }
+.scene-h .ln { flex: 1; height: 1px; background: var(--border); }
+.scene-h .sc { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.scene-h b { color: var(--text-muted); font-weight: 700; }
+
+.msg { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 12px; align-items: start; }
+.msg .body { background: var(--tint-char); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 16px 14px; position: relative; box-shadow: var(--shadow-1); }
+.msg.user .body { background: var(--tint-user); }
+.mh { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; min-height: 22px; }
+.mh .nm { font: 600 17px/1 var(--f-display); }
+.mh .when { font-size: 11.5px; color: var(--text-faint); }
+.mh .sw { margin-left: auto; font-size: 11.5px; color: var(--text-faint); display: inline-flex; align-items: center; gap: 6px; }
+.mh .acts { display: inline-flex; gap: 0; opacity: .7; }
+.mh .acts .ib { width: 26px; height: 26px; }
+.mh .acts .i { width: 15px; height: 15px; }
+.tx { font: 400 15.5px/1.62 var(--f-story); color: var(--text); }
+.tx p { margin: 0 0 .55em; } .tx p:last-child { margin: 0; }
+.tx .a { color: var(--action); }
+.tx .d { color: var(--dialogue); }
+.tx .t { color: var(--thought); font-style: italic; }
+.tx mark { background: none; color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 70%, transparent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.mf { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.chip.keep { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-ink); border-color: transparent; }
+.ribbon { position: absolute; top: -9px; right: 14px; height: 20px; padding: 0 8px; border-radius: var(--r-pill); background: var(--accent); color: var(--on-accent); font: 800 10.5px/20px var(--f-ui); letter-spacing: .06em; }
+.flag { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--r); background: var(--warn-bg); color: var(--warn); font-size: 12.5px; line-height: 1.4; border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent); }
+.flag span { flex: 1; } .flag b { font-weight: 800; }
+.btn { height: 28px; padding: 0 12px; border-radius: var(--r-pill); font-weight: 700; font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); white-space: nowrap; transition: transform .3s var(--spring); }
+.btn:hover { transform: translateY(-1px); }
+.btn.pri { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.caret { display: inline-block; width: 2px; height: 1.05em; background: var(--accent); vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.composer { padding: 10px 16px 14px; }
+.capsule { max-width: 640px; margin: 0 auto; display: flex; gap: 8px; align-items: center; padding: 6px 6px 6px 8px; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--r-pill); }
+.capsule .ph { flex: 1; color: var(--text-faint); font: 400 15px var(--f-story); }
+.send { width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; transition: transform .35s var(--spring); }
+.send:hover { transform: scale(1.08) rotate(-8deg); }
+
+.dock { background: var(--surface); border: var(--bw) solid var(--border); border-radius: var(--r-lg); display: flex; flex-direction: column; overflow: hidden; min-height: 0; box-shadow: var(--shadow-1); }
+.tabs { display: flex; gap: 2px; padding: 8px; border-bottom: 1px solid var(--border); }
+.tabs button { flex: 1; padding: 6px 0 5px; font-size: 11px; font-weight: 700; color: var(--text-muted); border-radius: var(--r-sm); display: grid; place-items: center; gap: 3px; transition: all .25s var(--ease); }
+.tabs button:hover { color: var(--text); }
+.tabs button.on { background: var(--surface-2); color: var(--text); }
+.pane { padding: 14px; display: none; flex-direction: column; gap: 9px; overflow-y: auto; scrollbar-width: thin; }
+.pane.on { display: flex; animation: paneIn .45s var(--ease); }
+@keyframes paneIn { from { opacity: 0; transform: translateY(6px); } }
+.ph2 { display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px; }
+.ph2 h3 { font: 500 19px/1.1 var(--f-display); margin: 0; }
+.ph2 small { font-size: 11.5px; color: var(--text-faint); }
+.atom { display: grid; grid-template-columns: 16px 1fr; gap: 8px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.42; }
+.atom .s { color: var(--accent-ink); font-weight: 800; }
+.atom small { display: block; color: var(--text-faint); font-size: 11px; margin-top: 3px; }
+.gauge { display: grid; gap: 5px; padding: 2px 0; }
+.gauge .row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+.gauge .row span { color: var(--text-faint); font-weight: 500; }
+.bar { height: 7px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.bar i { display: block; height: 100%; width: var(--v); background: var(--c, var(--accent)); border-radius: inherit; }
+.tide { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: var(--r-sm); background: var(--surface-2); font-size: 12.5px; }
+.tide b { font: 500 34px/1 var(--f-display); color: var(--accent-ink); }
+.tide small { display: block; color: var(--text-faint); font-size: 11px; }
+.kv { display: grid; grid-template-columns: 70px 1fr; gap: 6px 10px; margin: 0; font-size: 12.5px; padding: 12px; border-radius: var(--r-sm); background: var(--surface-2); }
+.kv dt { color: var(--text-faint); } .kv dd { margin: 0; }
+.setrow { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface-2); font-size: 12.5px; }
+.setrow div { flex: 1; } .setrow b { display: block; font-weight: 700; } .setrow small { color: var(--text-faint); font-size: 11px; }
+.switch { width: 34px; height: 20px; border-radius: 99px; background: var(--surface-3); border: 1px solid var(--border-strong); position: relative; flex-shrink: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-faint); transition: all .3s var(--spring); }
+.switch.on { background: var(--accent); border-color: transparent; }
+.switch.on::after { left: 16px; background: var(--on-accent); }
+
+@media (max-width: 1080px) { .app { grid-template-columns: 62px minmax(0, 1fr); } .app .dock { display: none; } }
+@media (max-width: 680px) {
+  .app { grid-template-columns: minmax(0, 1fr); height: 700px; padding: 8px; }
+  .app .rail { display: none; }
+  .app .hide-s { display: none !important; }
+  .feed { padding: 12px 12px 18px; }
+  .msg { grid-template-columns: 1fr; gap: 6px; }
+  .msg > .orb { display: none; }
+  .chat-head { padding: 10px 12px; }
+  .who .name em { display: none; }
+  .chapter h2 { font-size: 34px; }
+  .app[data-t="marq"] .who .name { font-size: 27px; }
+  .app[data-t="marq"] .decor .sign { display: none; }
+}
+
+/* =========================================================================
+   I · WILDFLOWER — a meadow in pastel
+   ========================================================================= */
+.app[data-t="wild"] { --r-sm: 14px; --r: 22px; --r-lg: 28px; }
+.app[data-t="wild"]::before {
+  background:
+    radial-gradient(42% 36% at 6% 2%, color-mix(in srgb, var(--sig2) 55%, transparent), transparent 70%),
+    radial-gradient(40% 42% at 98% 98%, color-mix(in srgb, var(--sig1) 60%, transparent), transparent 70%),
+    radial-gradient(30% 30% at 72% 6%, color-mix(in srgb, var(--lavender) 40%, transparent), transparent 70%),
+    radial-gradient(26% 30% at 20% 96%, color-mix(in srgb, var(--peach) 40%, transparent), transparent 70%);
+}
+.app[data-t="wild"] .stage {
+  background:
+    radial-gradient(55% 38% at 100% 0%, color-mix(in srgb, var(--sig2) 26%, transparent), transparent 72%),
+    radial-gradient(50% 40% at 0% 100%, color-mix(in srgb, var(--sig1) 30%, transparent), transparent 72%),
+    var(--surface);
+}
+.app[data-t="wild"] .stage, .app[data-t="wild"] .dock, .app[data-t="wild"] .rail { border-color: var(--border); }
+.app[data-t="wild"] .decor .bq { position: absolute; width: 250px; height: 250px; opacity: .9; }
+.app[data-t="wild"][data-mode="dark"] .decor .bq { opacity: .7; }
+.app[data-t="wild"] .decor .bq.bl { width: 210px; height: 210px; left: -40px; bottom: 6px; transform-origin: 0 100%; animation: breeze 7s ease-in-out infinite alternate; }
+.app[data-t="wild"] .decor .bq.tr { right: -40px; top: 140px; transform: scale(-1, -1); }
+@keyframes breeze { from { transform: rotate(-1.5deg); } to { transform: rotate(2deg); } }
+.app[data-t="wild"] .stem { fill: none; stroke: var(--leaf); stroke-width: 1.6; stroke-linecap: round; }
+.app[data-t="wild"] .lf { fill: var(--leaf); opacity: .85; }
+.app[data-t="wild"] .lf2 { fill: var(--sig1); }
+.app[data-t="wild"] .p1 { fill: var(--sig2); }
+.app[data-t="wild"] .p2 { fill: color-mix(in srgb, var(--sig2) 55%, var(--surface)); }
+.app[data-t="wild"] .p3 { fill: var(--lavender); }
+.app[data-t="wild"] .p4 { fill: var(--peach); }
+.app[data-t="wild"] .fc { fill: var(--butter); }
+.app[data-t="wild"] .bud { fill: var(--sig2); }
+.app[data-t="wild"] .petal { position: absolute; top: -24px; width: 11px; height: 15px; border-radius: 80% 0 80% 0; background: var(--sig2); opacity: .75; animation: fall 15s linear infinite; }
+.app[data-t="wild"] .petal:nth-child(3) { left: 18%; animation-duration: 17s; animation-delay: -3s; }
+.app[data-t="wild"] .petal:nth-child(4) { left: 41%; animation-duration: 13s; animation-delay: -9s; width: 8px; height: 11px; background: var(--sig1); }
+.app[data-t="wild"] .petal:nth-child(5) { left: 63%; animation-duration: 19s; animation-delay: -5s; }
+.app[data-t="wild"] .petal:nth-child(6) { left: 82%; animation-duration: 14s; animation-delay: -12s; width: 9px; height: 12px; background: var(--lavender); }
+.app[data-t="wild"] .petal:nth-child(7) { left: 30%; animation-duration: 21s; animation-delay: -15s; width: 7px; height: 10px; }
+.app[data-t="wild"] .petal:nth-child(8) { left: 92%; animation-duration: 16s; animation-delay: -1s; background: var(--sig1); }
+@keyframes fall { 0% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(34px, 220px) rotate(110deg); } 50% { transform: translate(-8px, 430px) rotate(200deg); } 75% { transform: translate(30px, 640px) rotate(290deg); } 100% { transform: translate(0, 860px) rotate(380deg); } }
+.app[data-t="wild"] .who .name { font-style: italic; font-weight: 600; font-size: 24px; color: var(--accent-ink); }
+.app[data-t="wild"] .who .name em { color: var(--text-muted); }
+.app[data-t="wild"] .chip { background: color-mix(in srgb, var(--sig1) 34%, transparent); color: var(--thought); border-color: transparent; }
+.app[data-t="wild"] .chip.hot, .app[data-t="wild"] .chip.keep { background: color-mix(in srgb, var(--sig2) 42%, transparent); color: var(--accent-ink); }
+.app[data-t="wild"] .mh .nm { font-style: italic; font-size: 22px; color: var(--accent-ink); }
+.app[data-t="wild"] .msg.user .mh .nm { color: var(--thought); }
+.app[data-t="wild"] .msg .body { border-color: color-mix(in srgb, var(--sig2) 45%, var(--border)); padding: 14px 18px 16px; }
+.app[data-t="wild"] .msg.user .body { border-color: color-mix(in srgb, var(--sig1) 60%, var(--border)); }
+.app[data-t="wild"] .msg.best .body { border: 1.5px solid transparent; background: linear-gradient(var(--tint-char), var(--tint-char)) padding-box, linear-gradient(135deg, var(--sig2), var(--lavender) 50%, var(--sig1)) border-box; }
+.app[data-t="wild"] .ribbon { background: linear-gradient(90deg, var(--sig2), var(--sig1)); color: #3d3340; font: 700 10.5px/20px var(--f-ui); letter-spacing: .04em; }
+.app[data-t="wild"] .tx mark { text-decoration: none; background: linear-gradient(transparent 58%, color-mix(in srgb, var(--sig2) 55%, transparent) 58% 94%, transparent 94%); color: inherit; }
+.app[data-t="wild"] .orb { color: var(--orb-ink); font-style: italic; box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--sig2); }
+.app[data-t="wild"] .orb[data-c="ash"] { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--sig1); }
+.app[data-t="wild"] .orb:not(.sm)::after { content: ""; position: absolute; right: -5px; bottom: -3px; width: 18px; height: 18px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='%23f7a8c6' stroke='%23fff' stroke-width='1.5'%3E%3Ccircle cx='20' cy='10' r='8.5'/%3E%3Ccircle cx='29.5' cy='16.9' r='8.5'/%3E%3Ccircle cx='25.9' cy='28.1' r='8.5'/%3E%3Ccircle cx='14.1' cy='28.1' r='8.5'/%3E%3Ccircle cx='10.5' cy='16.9' r='8.5'/%3E%3C/g%3E%3Ccircle cx='20' cy='20' r='5.5' fill='%23ffe08a'/%3E%3C/svg%3E") center / contain no-repeat; }
+.app[data-t="wild"] .orb[data-c="ash"]:not(.sm)::after { filter: hue-rotate(150deg) saturate(.8); }
+.app[data-t="wild"] .chapter .wreath { display: block; width: 230px; height: 64px; margin: 0 auto -4px; }
+.app[data-t="wild"] .chapter .num { font: 400 30px/1 var(--f-script); text-transform: none; letter-spacing: 0; color: var(--thought); }
+.app[data-t="wild"] .chapter h2 { font-style: italic; font-weight: 600; font-size: 56px; line-height: 1.05; margin: 2px 0 4px; color: var(--accent-ink); text-shadow: 0 2px 18px color-mix(in srgb, var(--sig2) 60%, transparent); }
+.app[data-t="wild"] .recap { border: 1px dashed color-mix(in srgb, var(--leaf) 70%, transparent); }
+.app[data-t="wild"] .recap .lbl { color: var(--thought); font-weight: 700; }
+.app[data-t="wild"] .scene-h .ln { background: linear-gradient(90deg, transparent, var(--sig2)); height: 1.5px; }
+.app[data-t="wild"] .scene-h .ln:last-child { background: linear-gradient(270deg, transparent, var(--sig1)); }
+.app[data-t="wild"] .scene-h .sc { color: var(--accent-ink); }
+.app[data-t="wild"] .capsule { background: var(--surface); border: 1.5px solid color-mix(in srgb, var(--sig2) 75%, transparent); box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--accent-ink) 50%, transparent); }
+.app[data-t="wild"] .send { width: 44px; height: 44px; border-radius: 0; background: var(--accent); color: var(--on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='9.5' r='9.5'/%3E%3Ccircle cx='30' cy='16.8' r='9.5'/%3E%3Ccircle cx='26.2' cy='28.5' r='9.5'/%3E%3Ccircle cx='13.8' cy='28.5' r='9.5'/%3E%3Ccircle cx='10' cy='16.8' r='9.5'/%3E%3Ccircle cx='20' cy='20' r='11'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='9.5' r='9.5'/%3E%3Ccircle cx='30' cy='16.8' r='9.5'/%3E%3Ccircle cx='26.2' cy='28.5' r='9.5'/%3E%3Ccircle cx='13.8' cy='28.5' r='9.5'/%3E%3Ccircle cx='10' cy='16.8' r='9.5'/%3E%3Ccircle cx='20' cy='20' r='11'/%3E%3C/svg%3E") center / contain no-repeat; }
+.app[data-t="wild"] .send:hover { transform: rotate(36deg) scale(1.08); }
+.app[data-t="wild"] .bar { height: 8px; }
+.app[data-t="wild"] .bar i { background: linear-gradient(90deg, var(--sig2), var(--c, var(--sig1))); }
+.app[data-t="wild"] .rail .nav.on, .app[data-t="wild"] .tabs button.on { background: color-mix(in srgb, var(--sig2) 40%, transparent); color: var(--accent-ink); }
+.app[data-t="wild"] .mseg button.on { background: color-mix(in srgb, var(--sig2) 45%, var(--surface)); color: var(--accent-ink); }
+.app[data-t="wild"] .atom { background: color-mix(in srgb, var(--sig1) 18%, var(--surface-2)); }
+.app[data-t="wild"] .atom .s { color: var(--accent-ink); }
+.app[data-t="wild"] .ph2 h3 { font-style: italic; font-weight: 600; font-size: 21px; }
+.app[data-t="wild"] .scrub .fill { background: linear-gradient(90deg, var(--sig2), var(--sig1)); height: 3px; }
+.app[data-t="wild"] .logo svg { width: 34px; height: 34px; }
+.app[data-t="wild"] .switch.on { background: linear-gradient(90deg, var(--sig2), var(--accent)); }
+
+/* =========================================================================
+   II · OVERPRINT — two inks, one pass, a little off
+   ========================================================================= */
+.app[data-t="riso"] { --r-sm: 9px; --r: 14px; --r-lg: 16px; --bw: 2px; }
+.app[data-t="riso"]::before {
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 38%, transparent) 1.3px, transparent 1.8px) 0 0 / 9px 9px,
+    radial-gradient(circle, color-mix(in srgb, var(--sig2) 34%, transparent) 1.3px, transparent 1.8px) 4px 4px / 9px 9px;
+  -webkit-mask: radial-gradient(120% 90% at 0% 0%, #000 0 8%, transparent 46%), radial-gradient(120% 90% at 100% 100%, #000 0 6%, transparent 40%);
+  mask: radial-gradient(120% 90% at 0% 0%, #000 0 8%, transparent 46%), radial-gradient(120% 90% at 100% 100%, #000 0 6%, transparent 40%);
+}
+.app[data-t="riso"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: .13; mix-blend-mode: multiply; z-index: 5; }
+.app[data-t="riso"][data-mode="dark"]::after { mix-blend-mode: screen; opacity: .07; }
+.app[data-t="riso"] .stage, .app[data-t="riso"] .dock, .app[data-t="riso"] .rail { border-color: var(--border-strong); box-shadow: 5px 5px 0 color-mix(in srgb, var(--sig2) 80%, transparent); }
+.app[data-t="riso"] .rail { box-shadow: 5px 5px 0 color-mix(in srgb, var(--accent) 80%, transparent); }
+.app[data-t="riso"] .decor i { position: absolute; border-radius: 50%; mix-blend-mode: multiply; opacity: .2; }
+.app[data-t="riso"][data-mode="dark"] .decor i { mix-blend-mode: screen; opacity: .16; }
+.app[data-t="riso"][data-mode="dark"] .decor i:nth-child(3) { opacity: .14; }
+.app[data-t="riso"] .decor i:nth-child(1) { width: 300px; height: 300px; right: -90px; top: 90px; background: var(--accent); }
+.app[data-t="riso"] .decor i:nth-child(2) { width: 220px; height: 220px; right: 40px; top: 230px; background: var(--sig2); }
+.app[data-t="riso"] .decor i:nth-child(3) { width: 160px; height: 160px; left: -50px; bottom: 60px; background: var(--sig1); opacity: .35; }
+.app[data-t="riso"] .who .name { font-weight: 800; letter-spacing: -.02em; text-shadow: 2px 1.5px 0 color-mix(in srgb, var(--accent) 65%, transparent); }
+.app[data-t="riso"] .who .name em { text-shadow: none; font-family: var(--f-meta); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.app[data-t="riso"] .chip { font: 700 10px/1 var(--f-meta); text-transform: uppercase; background: var(--surface); color: var(--text); border: 1.5px solid var(--border-strong); }
+.app[data-t="riso"] .chip.hot { background: var(--sig1); color: #1d2763; border-color: #1d2763; transform: rotate(-2deg); }
+.app[data-t="riso"] .chip.keep { background: var(--accent); color: var(--on-accent); border-color: var(--border-strong); }
+.app[data-t="riso"] .msg .body { border: 2px solid var(--border-strong); box-shadow: 4px 4px 0 var(--accent); }
+.app[data-t="riso"] .msg.user .body { box-shadow: -4px 4px 0 var(--sig2); }
+.app[data-t="riso"] .mh .nm { font-weight: 800; text-transform: uppercase; font-size: 16px; letter-spacing: .02em; text-shadow: 1.5px 1.5px 0 color-mix(in srgb, var(--accent) 60%, transparent); }
+.app[data-t="riso"] .msg.user .mh .nm { text-shadow: 1.5px 1.5px 0 color-mix(in srgb, var(--sig2) 60%, transparent); }
+.app[data-t="riso"] .tx mark { text-decoration: none; background: linear-gradient(transparent 52%, color-mix(in srgb, var(--sig1) 85%, transparent) 52% 92%, transparent 92%); color: inherit; padding: 0 2px; }
+.app[data-t="riso"][data-mode="dark"] .tx mark { background: linear-gradient(transparent 58%, color-mix(in srgb, var(--sig1) 42%, transparent) 58% 92%, transparent 92%); }
+.app[data-t="riso"] .ribbon { background: var(--sig1); color: #1d2763; border: 2px solid #1d2763; transform: rotate(6deg); top: -12px; height: 24px; line-height: 20px; font: 800 11px/20px var(--f-display); letter-spacing: .04em; }
+.app[data-t="riso"] .orb { color: var(--text); font: 800 18px/1 var(--f-display); border: 2px solid var(--border-strong); }
+.app[data-t="riso"] .orb::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--accent); translate: 3px 2px; mix-blend-mode: multiply; opacity: .8; }
+.app[data-t="riso"][data-mode="dark"] .orb::after { mix-blend-mode: screen; }
+.app[data-t="riso"] .chapter { display: flex; align-items: center; justify-content: center; gap: 18px; text-align: left; }
+.app[data-t="riso"] .chapter .big { font: 800 112px/.8 var(--f-display); letter-spacing: -.06em; color: transparent; -webkit-text-stroke: 2px var(--sig2); text-shadow: 5px 4px 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+.app[data-t="riso"] .chapter h2 { font-weight: 800; font-size: 46px; letter-spacing: -.035em; text-shadow: 3px 2px 0 color-mix(in srgb, var(--accent) 55%, transparent); margin: 6px 0; }
+.app[data-t="riso"] .recap { background: var(--tint-note); border: 2px dashed var(--border-strong); }
+.app[data-t="riso"] .recap .lbl { color: var(--accent-ink); }
+.app[data-t="riso"] .flag { border: 2px solid var(--border-strong); }
+.app[data-t="riso"] .btn { border-width: 2px; border-color: var(--border-strong); }
+.app[data-t="riso"] .btn.pri { border-color: var(--border-strong); box-shadow: 2px 2px 0 var(--border-strong); }
+.app[data-t="riso"] .capsule { border: 2px solid var(--border-strong); background: var(--surface); box-shadow: 4px 4px 0 var(--sig1); }
+.app[data-t="riso"] .send { width: 46px; height: 46px; margin: -6px -4px -6px 0; border-radius: 0; clip-path: polygon(50% 0%, 61% 18%, 82% 10%, 80% 32%, 100% 40%, 85% 56%, 96% 76%, 74% 79%, 68% 100%, 50% 87%, 32% 100%, 26% 79%, 4% 76%, 15% 56%, 0% 40%, 20% 32%, 18% 10%, 39% 18%); animation: spin 14s linear infinite; }
+.app[data-t="riso"] .send .i { animation: spin 14s linear infinite reverse; }
+@keyframes spin { to { rotate: 360deg; } }
+.app[data-t="riso"] .bar { height: 12px; border-radius: 3px; border: 1.5px solid var(--border-strong); background: var(--surface); }
+.app[data-t="riso"] .bar i { border-radius: 0; background: radial-gradient(circle, var(--c, var(--accent)) 1.6px, transparent 2px) 0 0 / 5px 5px, color-mix(in srgb, var(--c, var(--accent)) 35%, transparent); }
+.app[data-t="riso"] .tabs button.on, .app[data-t="riso"] .rail .nav.on { background: var(--text); color: var(--bg); }
+.app[data-t="riso"] .mseg button.on { background: var(--text); color: var(--bg); box-shadow: none; }
+.app[data-t="riso"] .logo b { font: 800 19px/1 var(--f-display); letter-spacing: -.04em; color: var(--text); text-shadow: 2px 1.5px 0 var(--accent), -1px -1px 0 color-mix(in srgb, var(--sig2) 70%, transparent); }
+.app[data-t="riso"] .scrub { font-family: var(--f-meta); text-transform: uppercase; }
+.app[data-t="riso"] .scrub .fill { background: repeating-linear-gradient(90deg, var(--accent) 0 8px, var(--sig2) 8px 16px); height: 4px; bottom: 7px; }
+
+/* =========================================================================
+   III · KINTSUGI — mended with gold
+   ========================================================================= */
+.app[data-t="kin"] { --r-sm: 4px; --r: 6px; --r-lg: 8px; --r-pill: 4px; }
+.app[data-t="kin"]::before {
+  background: var(--text);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.01 .22' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E") 0 0 / 320px 320px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.01 .22' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E") 0 0 / 320px 320px;
+  opacity: .06;
+}
+.app[data-t="kin"][data-mode="dark"]::before { background: radial-gradient(120% 70% at 25% -10%, rgb(255 236 200 / 7%), transparent 60%), radial-gradient(80% 50% at 100% 110%, rgb(221 82 51 / 7%), transparent 60%); -webkit-mask: none; mask: none; opacity: 1; }
+.app[data-t="kin"] .stage, .app[data-t="kin"] .dock, .app[data-t="kin"] .rail { box-shadow: var(--shadow-1); }
+.app[data-t="kin"][data-mode="dark"] .stage, .app[data-t="kin"][data-mode="dark"] .dock, .app[data-t="kin"][data-mode="dark"] .rail { background-image: linear-gradient(170deg, rgb(255 255 255 / 3.5%), transparent 30%); box-shadow: inset 0 1px 0 rgb(255 240 210 / 6%), var(--shadow-1); }
+.app[data-t="kin"] .decor svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.app[data-t="kin"] .seam { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+.app[data-t="kin"] .glint { fill: none; stroke: #fff8e6; stroke-width: 2.2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-dasharray: 26 1400; animation: glint 7s ease-in-out infinite; opacity: .85; }
+@keyframes glint { from { stroke-dashoffset: 1430; } to { stroke-dashoffset: 0; } }
+.app[data-t="kin"] .who .name, .app[data-t="kin"] .mh .nm { font-weight: 600; letter-spacing: .02em; }
+.app[data-t="kin"] .chip { background: transparent; border-color: var(--border-strong); }
+.app[data-t="kin"] .chip.hot { color: var(--sig1); border-color: color-mix(in srgb, var(--sig1) 45%, transparent); background: transparent; }
+.app[data-t="kin"] .msg .body { border-color: var(--border); border-top: 1px solid color-mix(in srgb, var(--sig2) 70%, transparent); }
+.app[data-t="kin"] .msg.best .body { border-color: color-mix(in srgb, var(--sig2) 55%, transparent); }
+.app[data-t="kin"] .msg.best .body .cseam { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.app[data-t="kin"] .msg.best .body > :not(.cseam) { position: relative; z-index: 1; }
+.app[data-t="kin"] .msg.best .body > .ribbon { position: absolute; }
+.app[data-t="kin"] .ribbon { width: 28px; height: 28px; padding: 0; top: 10px; right: 12px; border-radius: 3px; background: var(--sig1); color: #fff6ea; font: 600 14px/28px var(--f-display); text-align: center; transform: rotate(4deg); box-shadow: inset 0 0 0 2px color-mix(in srgb, #fff 18%, transparent); }
+.app[data-t="kin"] .mh .sw { margin-right: 34px; }
+.app[data-t="kin"] .orb { color: var(--accent-ink); }
+.app[data-t="kin"] .orb::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: conic-gradient(from 210deg, transparent 0 7%, var(--sig2) 10%, var(--sig2) 80%, color-mix(in srgb, var(--sig2) 40%, transparent) 92%, transparent 96%);
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 2.6px), #000 calc(50% - 2.4px)); mask: radial-gradient(circle, transparent calc(50% - 2.6px), #000 calc(50% - 2.4px)); }
+.app[data-t="kin"] .chapter { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 20px; text-align: left; padding: 18px 8px 8px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.app[data-t="kin"] .chapter .vert { writing-mode: vertical-rl; font: 600 22px/1 var(--f-display); letter-spacing: .25em; color: var(--sig1); padding-left: 18px; border-right: 1px solid color-mix(in srgb, var(--sig2) 60%, transparent); padding-right: 18px; }
+.app[data-t="kin"] .chapter h2 { font-weight: 600; font-size: 40px; }
+.app[data-t="kin"] .chapter .meta { margin-top: 8px; font-size: 11.5px; color: var(--text-faint); letter-spacing: .12em; }
+.app[data-t="kin"] .hanko { width: 50px; height: 50px; border-radius: 6px; background: var(--sig1); color: #fff4e6; font: 600 28px/50px var(--f-display); text-align: center; transform: rotate(-6deg); box-shadow: inset 0 0 0 3px color-mix(in srgb, #fff 22%, transparent); filter: url(#rough); }
+.app[data-t="kin"] .logo .hanko { width: 36px; height: 36px; font-size: 20px; line-height: 36px; transform: rotate(-4deg); }
+.app[data-t="kin"] .recap { background: var(--surface); border-left: 2px solid var(--sig2); border-radius: 0; }
+.app[data-t="kin"] .chapter { background: var(--surface); }
+.app[data-t="kin"] .scene-h .sc { background: var(--surface); padding: 0 6px; }
+.app[data-t="kin"] .recap .lbl { color: var(--sig1); letter-spacing: .2em; }
+.app[data-t="kin"] .scene-h .ln { background: linear-gradient(90deg, transparent, var(--sig2)); }
+.app[data-t="kin"] .scene-h .ln:last-child { background: linear-gradient(270deg, transparent, var(--sig2)); }
+.app[data-t="kin"] .capsule { background: transparent; border: 0; border-bottom: 1px solid var(--sig2); border-radius: 0; padding-left: 0; }
+.app[data-t="kin"] .send { border-radius: 4px; background: var(--sig1); color: #fff6ea; }
+.app[data-t="kin"] .bar { height: 3px; background: var(--border); }
+.app[data-t="kin"] .bar i { background: linear-gradient(90deg, color-mix(in srgb, var(--c, var(--sig2)) 50%, transparent), var(--c, var(--sig2))); box-shadow: 0 0 10px color-mix(in srgb, var(--sig2) 50%, transparent); }
+.app[data-t="kin"] .scrub .fill { background: linear-gradient(90deg, var(--sig2), color-mix(in srgb, var(--sig2) 50%, #fff)); height: 1px; }
+.app[data-t="kin"] .scrub::before { height: 1px; }
+.app[data-t="kin"] .tabs button.on { background: transparent; color: var(--sig1); box-shadow: inset 0 -1px 0 var(--sig2); border-radius: 0; }
+.app[data-t="kin"] .rail .nav.on { background: transparent; color: var(--sig1); box-shadow: inset 2px 0 0 var(--sig2); border-radius: 0; }
+
+/* =========================================================================
+   IV · DELFT — cobalt on tin glaze
+   ========================================================================= */
+.app[data-t="delft"] { --r-sm: 12px; --r: 18px; --r-lg: 24px; --tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Crect x='.5' y='.5' width='59' height='59' fill='none' stroke='%23000' stroke-width='1'/%3E%3Cpath d='M0 0H9A9 9 0 0 1 0 9ZM60 0H51A9 9 0 0 0 60 9ZM0 60H9A9 9 0 0 0 0 51ZM60 60H51A9 9 0 0 1 60 51Z'/%3E%3Cg transform='translate(30 30)'%3E%3Ccircle r='2.6'/%3E%3Cellipse cy='-8' rx='2.4' ry='5'/%3E%3Cellipse cy='8' rx='2.4' ry='5'/%3E%3Cellipse cx='-8' rx='5' ry='2.4'/%3E%3Cellipse cx='8' rx='5' ry='2.4'/%3E%3Cg opacity='.55'%3E%3Ccircle cx='-9' cy='-9' r='1.4'/%3E%3Ccircle cx='9' cy='-9' r='1.4'/%3E%3Ccircle cx='-9' cy='9' r='1.4'/%3E%3Ccircle cx='9' cy='9' r='1.4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+.app[data-t="delft"]::before {
+  background: var(--tile-ink);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Crect x='.5' y='.5' width='59' height='59' fill='none' stroke='%23000' stroke-width='1'/%3E%3Cpath d='M0 0H9A9 9 0 0 1 0 9ZM60 0H51A9 9 0 0 0 60 9ZM0 60H9A9 9 0 0 0 0 51ZM60 60H51A9 9 0 0 1 60 51Z'/%3E%3Cg transform='translate(30 30)'%3E%3Ccircle r='2.6'/%3E%3Cellipse cy='-8' rx='2.4' ry='5'/%3E%3Cellipse cy='8' rx='2.4' ry='5'/%3E%3Cellipse cx='-8' rx='5' ry='2.4'/%3E%3Cellipse cx='8' rx='5' ry='2.4'/%3E%3Cg opacity='.55'%3E%3Ccircle cx='-9' cy='-9' r='1.4'/%3E%3Ccircle cx='9' cy='-9' r='1.4'/%3E%3Ccircle cx='-9' cy='9' r='1.4'/%3E%3Ccircle cx='9' cy='9' r='1.4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") 0 0 / 66px 66px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Crect x='.5' y='.5' width='59' height='59' fill='none' stroke='%23000' stroke-width='1'/%3E%3Cpath d='M0 0H9A9 9 0 0 1 0 9ZM60 0H51A9 9 0 0 0 60 9ZM0 60H9A9 9 0 0 0 0 51ZM60 60H51A9 9 0 0 1 60 51Z'/%3E%3Cg transform='translate(30 30)'%3E%3Ccircle r='2.6'/%3E%3Cellipse cy='-8' rx='2.4' ry='5'/%3E%3Cellipse cy='8' rx='2.4' ry='5'/%3E%3Cellipse cx='-8' rx='5' ry='2.4'/%3E%3Cellipse cx='8' rx='5' ry='2.4'/%3E%3Cg opacity='.55'%3E%3Ccircle cx='-9' cy='-9' r='1.4'/%3E%3Ccircle cx='9' cy='-9' r='1.4'/%3E%3Ccircle cx='-9' cy='9' r='1.4'/%3E%3Ccircle cx='9' cy='9' r='1.4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") 0 0 / 66px 66px;
+  opacity: .16;
+}
+.app[data-t="delft"] .stage, .app[data-t="delft"] .dock, .app[data-t="delft"] .rail { border-color: var(--border-strong); background-image: linear-gradient(165deg, var(--glaze), transparent 26%); box-shadow: inset 0 0 0 5px var(--surface), inset 0 0 0 6px var(--border), var(--shadow-1); }
+.app[data-t="delft"] .decor { background: var(--tile-ink); opacity: .07; -webkit-mask: var(--tile) 0 0 / 72px 72px; mask: var(--tile) 0 0 / 72px 72px; }
+.app[data-t="delft"] .rail .nav { border-radius: 7px; background: radial-gradient(circle at 0 0, currentColor 0 3px, transparent 3.5px), radial-gradient(circle at 100% 0, currentColor 0 3px, transparent 3.5px), radial-gradient(circle at 0 100%, currentColor 0 3px, transparent 3.5px), radial-gradient(circle at 100% 100%, currentColor 0 3px, transparent 3.5px); border: 1px solid color-mix(in srgb, currentColor 35%, transparent); color: var(--text-muted); transition: transform .5s var(--spring); }
+.app[data-t="delft"] .rail .nav:hover { transform: rotate(90deg); }
+.app[data-t="delft"] .rail .nav.on { background-color: var(--accent); color: var(--on-accent); border-color: transparent; }
+.app[data-t="delft"] .who .name, .app[data-t="delft"] .mh .nm { font-weight: 400; }
+.app[data-t="delft"] .mh .nm { font-size: 19px; }
+.app[data-t="delft"] .chip { background: var(--surface); border-color: var(--border-strong); color: var(--accent-ink); }
+.app[data-t="delft"] .chip.hot { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.app[data-t="delft"] .msg .body { border-color: var(--border-strong); background-image: linear-gradient(165deg, var(--glaze), transparent 30%); box-shadow: inset 0 0 0 4px var(--tint-char), inset 0 0 0 5.5px color-mix(in srgb, var(--accent) 38%, transparent), var(--shadow-1); padding: 15px 19px 17px; }
+.app[data-t="delft"] .msg.user .body { box-shadow: inset 0 0 0 4px var(--tint-user), inset 0 0 0 5.5px color-mix(in srgb, var(--thought) 38%, transparent), var(--shadow-1); }
+.app[data-t="delft"] .orb { color: var(--accent-ink); font-style: italic; box-shadow: var(--shadow-1); }
+.app[data-t="delft"] .orb[data-c="ash"] { color: var(--thought); }
+.app[data-t="delft"] .ribbon { background: var(--accent); color: var(--on-accent); width: 30px; height: 30px; padding: 0; border-radius: 50%; text-align: center; font-size: 14px; line-height: 30px; top: -12px; box-shadow: 0 0 0 3px var(--tint-char), 0 0 0 4.5px var(--accent); }
+.app[data-t="delft"] .scene-h .sc { background: var(--surface); padding: 0 8px; border-radius: 99px; }
+.app[data-t="delft"] .chapter .cart { display: inline-flex; align-items: center; gap: 14px; padding: 14px 30px 12px; border: 1.5px solid var(--accent); border-radius: 999px / 60%; box-shadow: 0 0 0 4px var(--surface), 0 0 0 5.5px color-mix(in srgb, var(--accent) 45%, transparent); background: var(--tint-char); }
+.app[data-t="delft"] .chapter .cart svg { width: 30px; height: 40px; color: var(--accent); flex-shrink: 0; }
+.app[data-t="delft"] .chapter .cart svg:last-child { transform: scaleX(-1); }
+.app[data-t="delft"] .chapter h2 { font-style: italic; font-weight: 400; font-size: 40px; margin: 6px 0 0; color: var(--accent-ink); }
+.app[data-t="delft"] .chapter .epi { margin-top: 14px; }
+.app[data-t="delft"] .recap { border: 1px solid color-mix(in srgb, var(--sig1) 45%, transparent); }
+.app[data-t="delft"] .recap .lbl { color: var(--warn); }
+.app[data-t="delft"] .capsule { background: var(--surface); box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--border); }
+.app[data-t="delft"] .send { box-shadow: 0 0 0 3px var(--surface), 0 0 0 4.5px var(--accent); }
+.app[data-t="delft"] .bar { height: 10px; background: repeating-linear-gradient(90deg, var(--surface-3) 0 calc(10% - 2px), transparent calc(10% - 2px) 10%); border-radius: 2px; }
+.app[data-t="delft"] .bar i { border-radius: 2px; background: repeating-linear-gradient(90deg, var(--c, var(--accent)) 0 calc(10% - 2px), transparent calc(10% - 2px) 10%); background-size: calc(100% * 100 / var(--n)) 100%; }
+.app[data-t="delft"] .logo svg { width: 30px; height: 36px; }
+.app[data-t="delft"] .logo { border-radius: 50%; box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 4px var(--surface), inset 0 0 0 5px var(--accent); }
+.app[data-t="delft"] .tabs button.on { background: var(--accent); color: var(--on-accent); }
+
+/* =========================================================================
+   V · CITADEL — chronicled by candlelight (for a roleplay set in Westeros)
+   ========================================================================= */
+.app[data-t="cit"] { --r-sm: 2px; --r: 3px; --r-lg: 3px; --r-pill: 2px; background: radial-gradient(130% 95% at 50% 40%, transparent 55%, color-mix(in srgb, var(--text) 22%, transparent)), var(--bg); }
+.app[data-t="cit"]::before {
+  background: var(--sig1);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='5' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.4 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E") 0 0 / 420px 420px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='5' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.4 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E") 0 0 / 420px 420px;
+  opacity: .24;
+}
+.app[data-t="cit"][data-mode="dark"]::before { background: var(--sig2); opacity: .1; }
+.app[data-t="cit"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: .1; mix-blend-mode: multiply; z-index: 5; }
+.app[data-t="cit"][data-mode="dark"]::after { mix-blend-mode: screen; opacity: .04; }
+.app[data-t="cit"] .rail { border: 0; border-radius: 0; padding-bottom: 36px; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 24px), 50% 100%, 0 calc(100% - 24px)); box-shadow: inset 0 0 0 4px var(--rail-bg), inset 0 0 0 5px color-mix(in srgb, var(--sig1) 75%, transparent); background-image: linear-gradient(90deg, rgb(0 0 0 / 18%), transparent 20%, transparent 80%, rgb(0 0 0 / 18%)); }
+.app[data-t="cit"] .rail .nav.on { background: color-mix(in srgb, var(--rail-ink) 18%, transparent); color: var(--rail-ink); }
+.app[data-t="cit"] .rail .badge { background: var(--accent); color: var(--on-accent); }
+.app[data-t="cit"] .rail hr { border-top-color: color-mix(in srgb, var(--rail-ink) 40%, transparent); }
+.app[data-t="cit"] .seal, .app[data-t="cit"] .ribbon, .app[data-t="cit"] .send {
+  border-radius: 50%; color: var(--on-accent); filter: url(#rough);
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent) 52%, color-mix(in srgb, var(--accent) 70%, #000));
+  box-shadow: 0 2px 5px rgb(0 0 0 / 35%), inset 0 0 0 3px color-mix(in srgb, var(--accent) 75%, #000);
+}
+.app[data-t="cit"] .seal { width: 40px; height: 40px; display: grid; place-items: center; font: 700 17px/1 var(--f-display); }
+.app[data-t="cit"] .stage, .app[data-t="cit"] .dock { border-color: var(--border-strong); box-shadow: inset 0 0 0 5px var(--surface), inset 0 0 0 6px color-mix(in srgb, var(--sig1) 60%, transparent), var(--shadow-1); }
+.app[data-t="cit"] .chat-head { border-bottom: 0; padding-bottom: 6px; }
+.app[data-t="cit"] .chain { display: flex; justify-content: center; align-items: center; overflow: hidden; padding: 2px 16px 4px; flex-shrink: 0; }
+.app[data-t="cit"] .chain i { --m: #c9a227; flex-shrink: 0; width: 17px; height: 9px; border: 2.2px solid var(--m); border-radius: 6px; margin: 0 -3px; box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%); }
+.app[data-t="cit"] .chain i:nth-child(even) { width: 13px; height: 3.5px; border: 0; background: var(--m); border-radius: 2px; margin: 0 -2px; position: relative; z-index: 1; }
+.app[data-t="cit"] .chain i:nth-child(6n+2) { --m: #c0c4c8; }
+.app[data-t="cit"] .chain i:nth-child(6n+3) { --m: #66696e; }
+.app[data-t="cit"] .chain i:nth-child(6n+4) { --m: #b8734a; }
+.app[data-t="cit"] .chain i:nth-child(6n+5) { --m: #a7803e; }
+.app[data-t="cit"] .chain i:nth-child(6n+6) { --m: #3f4650; }
+.app[data-t="cit"][data-mode="dark"] .chain i:nth-child(6n+3) { --m: #7d8189; }
+.app[data-t="cit"][data-mode="dark"] .chain i:nth-child(6n+6) { --m: #5a6472; }
+.app[data-t="cit"] .who .name { font: 700 19px/1.15 var(--f-display); letter-spacing: .02em; }
+.app[data-t="cit"] .who .name em { font: italic 400 14px var(--f-story); letter-spacing: 0; }
+.app[data-t="cit"] .chip { font-variant: small-caps; text-transform: lowercase; font-size: 12.5px; letter-spacing: .05em; background: transparent; border-color: var(--border-strong); }
+.app[data-t="cit"] .chip.hot { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.app[data-t="cit"] .chip.keep { background: transparent; border: 1px solid var(--sig1); color: var(--warn); }
+.app[data-t="cit"] .mh .nm { font: 700 15px/1 var(--f-display); letter-spacing: .03em; color: var(--accent-ink); }
+.app[data-t="cit"] .msg.user .mh .nm { color: var(--thought); }
+.app[data-t="cit"] .msg .body { border-color: var(--border-strong); box-shadow: inset 0 0 0 4px var(--tint-char), inset 0 0 0 5px color-mix(in srgb, var(--sig1) 55%, transparent), var(--shadow-1); padding: 15px 19px 17px; }
+.app[data-t="cit"] .msg.user .body { box-shadow: inset 0 0 0 4px var(--tint-user), inset 0 0 0 5px color-mix(in srgb, var(--thought) 35%, transparent), var(--shadow-1); }
+.app[data-t="cit"] .msg.ai .tx p:first-child::first-letter { font: 400 3.2em/.82 var(--f-initial); float: left; margin: 4px 9px 0 0; padding: 6px 7px 4px; color: var(--accent); background: color-mix(in srgb, var(--sig1) 18%, transparent); border: 1px solid color-mix(in srgb, var(--sig1) 75%, transparent); }
+.app[data-t="cit"] .ribbon { width: 40px; height: 40px; padding: 0; top: -14px; right: 14px; font: 400 19px/40px var(--f-display); text-align: center; }
+.app[data-t="cit"] .msg.best .mh .sw { margin-right: 44px; }
+.app[data-t="cit"] .chapter .num { font: italic 400 16px/1 var(--f-story); text-transform: none; letter-spacing: 0; color: var(--accent-ink); }
+.app[data-t="cit"] .chapter h2 { font: 700 40px/1.05 var(--f-display); margin: 8px 0 4px; }
+.app[data-t="cit"] .chapter .orn { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--sig1); font-size: 18px; margin: 2px 0 8px; }
+.app[data-t="cit"] .chapter .orn span { width: 90px; height: 1px; background: linear-gradient(90deg, transparent, var(--sig1)); }
+.app[data-t="cit"] .chapter .orn span:last-child { background: linear-gradient(270deg, transparent, var(--sig1)); }
+.app[data-t="cit"] .chapter .chain { margin-top: 14px; }
+.app[data-t="cit"] .recap { background: var(--tint-note); border-top: 3px double var(--sig1); border-bottom: 3px double var(--sig1); border-radius: 0; }
+.app[data-t="cit"] .recap .lbl { font-family: var(--f-display); font-weight: 700; color: var(--accent-ink); letter-spacing: .14em; }
+.app[data-t="cit"] .scene-h b { font: 700 12.5px var(--f-display); }
+.app[data-t="cit"] .capsule { background: var(--tint-char); border-color: var(--border-strong); }
+.app[data-t="cit"] .capsule .ph { font-style: italic; }
+.app[data-t="cit"] .send { width: 40px; height: 40px; }
+.app[data-t="cit"] .bar { height: 6px; border-radius: 0; background: var(--surface-3); }
+.app[data-t="cit"] .bar i { border-radius: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--c, var(--accent)) 55%, transparent), var(--c, var(--accent))); }
+.app[data-t="cit"] .tabs button { font-variant: small-caps; text-transform: lowercase; font-size: 12.5px; letter-spacing: .05em; }
+.app[data-t="cit"] .tabs button.on { background: var(--accent); color: var(--on-accent); }
+.app[data-t="cit"] .ph2 h3 { font: 700 15px var(--f-display); letter-spacing: .03em; }
+.app[data-t="cit"] .tide b { font: 700 24px/1 var(--f-display); }
+.app[data-t="cit"] .decor .glow { position: absolute; left: -120px; top: -120px; width: 520px; height: 520px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--sig1) 30%, transparent), transparent 65%); animation: flicker 3.4s ease-in-out infinite; }
+.app[data-t="cit"][data-mode="dark"] .decor .glow { background: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%); left: auto; right: -160px; top: auto; bottom: -160px; }
+@keyframes flicker { 0%, 100% { opacity: 1; } 38% { opacity: .82; } 41% { opacity: .96; } 66% { opacity: .78; } 70% { opacity: .92; } }
+.app[data-t="cit"] .decor .snow { position: absolute; inset: 0; display: none; background-image: radial-gradient(2px 2px at 20px 30px, #ffffffb0, transparent), radial-gradient(1.6px 1.6px at 90px 130px, #ffffff90, transparent), radial-gradient(2.4px 2.4px at 160px 60px, #ffffffa0, transparent), radial-gradient(1.4px 1.4px at 210px 190px, #ffffff80, transparent), radial-gradient(1.8px 1.8px at 60px 210px, #ffffff90, transparent); background-size: 240px 240px; animation: snow 16s linear infinite; }
+.app[data-t="cit"] .decor .snow.s2 { background-size: 380px 380px; animation-duration: 26s; opacity: .6; filter: blur(.6px); }
+.app[data-t="cit"][data-mode="dark"] .decor .snow { display: block; }
+@keyframes snow { to { background-position: 0 240px; } }
+.app[data-t="cit"] .decor .snow.s2 { animation-name: snow2; }
+@keyframes snow2 { to { background-position: 0 380px; } }
+
+/* =========================================================================
+   VI · MARQUEE — every name in lights
+   ========================================================================= */
+.app[data-t="marq"] { --r-sm: 10px; --r: 14px; --r-lg: 18px; }
+.app[data-t="marq"]::before {
+  background:
+    radial-gradient(45% 40% at 0% 0%, color-mix(in srgb, var(--n2) 24%, transparent), transparent 70%),
+    radial-gradient(45% 45% at 100% 100%, color-mix(in srgb, var(--n1) 22%, transparent), transparent 70%),
+    radial-gradient(40% 30% at 62% 0%, color-mix(in srgb, var(--n3) 18%, transparent), transparent 70%);
+}
+.app[data-t="marq"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='44'%3E%3Cpath d='M0 .5H48M0 22.5H48M.5 0V22M24.5 22V44' fill='none' stroke='%23fff' stroke-opacity='.045'/%3E%3C/svg%3E"); }
+.app[data-t="marq"][data-mode="light"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='44'%3E%3Cpath d='M0 .5H48M0 22.5H48M.5 0V22M24.5 22V44' fill='none' stroke='%231b1630' stroke-opacity='.05'/%3E%3C/svg%3E"); }
+.app[data-t="marq"] .stage, .app[data-t="marq"] .dock, .app[data-t="marq"] .rail {
+  --tube: var(--n1);
+  border: 1.5px solid var(--tube-core, var(--tube));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tube) 30%, transparent), 0 0 calc(24px * var(--gl)) color-mix(in srgb, var(--tube) 55%, transparent), inset 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--tube) 22%, transparent);
+}
+.app[data-t="marq"] .rail { --tube: var(--n2); }
+.app[data-t="marq"] .dock { --tube: var(--n3); }
+.app[data-t="marq"][data-mode="dark"] .stage, .app[data-t="marq"][data-mode="dark"] .dock, .app[data-t="marq"][data-mode="dark"] .rail { --tube-core: color-mix(in srgb, var(--tube) 55%, #fff); }
+.app[data-t="marq"] .neon, .app[data-t="marq"] .who .name, .app[data-t="marq"] .mh .nm, .app[data-t="marq"] .chapter .num, .app[data-t="marq"] .chapter h2 {
+  --ng: var(--n2); color: var(--nt-pink);
+  text-shadow: 0 0 calc(3px * var(--gl)) var(--ng), 0 0 calc(10px * var(--gl)) var(--ng), 0 0 calc(24px * var(--gl)) color-mix(in srgb, var(--ng) 65%, transparent), 0 0 calc(44px * var(--gl)) color-mix(in srgb, var(--ng) 40%, transparent);
+}
+.app[data-t="marq"] .logo .neon { font: 400 23px/1 var(--f-script); animation: flick 6s infinite; }
+@keyframes flick { 0%, 30%, 32%, 34%, 72%, 74%, 100% { opacity: 1; } 31%, 33%, 73% { opacity: .35; } }
+.app[data-t="marq"] .who .name { font: 400 36px/1 var(--f-script); padding-top: 2px; overflow: visible; }
+.app[data-t="marq"] .who .name em { font: 500 12.5px var(--f-ui); color: var(--text-muted); text-shadow: none; }
+.app[data-t="marq"] .mh .nm { font: 400 30px/.8 var(--f-script); }
+.app[data-t="marq"] .msg.user .mh .nm { --ng: var(--n1); color: var(--nt-cyan); }
+.app[data-t="marq"] .chip { background: transparent; color: var(--text); border: 1px solid color-mix(in srgb, var(--n1) 75%, transparent); box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n1) 30%, transparent); }
+.app[data-t="marq"] .chip.hot, .app[data-t="marq"] .chip.keep { border-color: var(--n2); color: var(--nt-pink); box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent), inset 0 0 calc(8px * var(--gl)) color-mix(in srgb, var(--n2) 25%, transparent); }
+.app[data-t="marq"] .msg.best .body { border-color: var(--n2); box-shadow: 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent), inset 0 0 calc(16px * var(--gl)) color-mix(in srgb, var(--n2) 14%, transparent); }
+.app[data-t="marq"] .ribbon { background: var(--surface); border: 1.5px solid var(--n2); color: var(--nt-pink); font: 800 9.5px/17px var(--f-ui); letter-spacing: .22em; text-transform: uppercase; box-shadow: 0 0 calc(14px * var(--gl)) var(--n2); }
+.app[data-t="marq"] .tx mark { text-decoration: none; color: inherit; background: color-mix(in srgb, var(--n2) 18%, transparent); box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n2) 30%, transparent); border-radius: 3px; padding: 0 2px; }
+.app[data-t="marq"] .orb { color: var(--orb-ink); font-family: var(--f-ui); font-weight: 800; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--n2), 0 0 calc(16px * var(--gl)) var(--n2); }
+.app[data-t="marq"] .orb[data-c="ash"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--n1), 0 0 calc(16px * var(--gl)) var(--n1); }
+.app[data-t="marq"] .chapter .marq { position: relative; display: inline-block; padding: 30px 48px 24px; border-radius: 16px; background: var(--surface-2); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sig1) 45%, transparent), 0 0 calc(40px * var(--gl)) -8px color-mix(in srgb, var(--sig1) 60%, transparent); }
+.app[data-t="marq"] .bulbs { position: absolute; display: flex; justify-content: space-between; }
+.app[data-t="marq"] .bulbs.t, .app[data-t="marq"] .bulbs.b { left: 14px; right: 14px; }
+.app[data-t="marq"] .bulbs.t { top: 8px; } .app[data-t="marq"] .bulbs.b { bottom: 8px; }
+.app[data-t="marq"] .bulbs.l, .app[data-t="marq"] .bulbs.r { top: 24px; bottom: 24px; flex-direction: column; }
+.app[data-t="marq"] .bulbs.l { left: 9px; } .app[data-t="marq"] .bulbs.r { right: 9px; }
+.app[data-t="marq"] .bulbs i { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--sig1) 30%, var(--surface-2)); animation: chase 1.2s linear infinite; }
+.app[data-t="marq"] .bulbs i:nth-child(3n+2) { animation-delay: -.4s; }
+.app[data-t="marq"] .bulbs i:nth-child(3n+3) { animation-delay: -.8s; }
+@keyframes chase { 0%, 32% { background: var(--sig1); box-shadow: 0 0 5px var(--sig1), 0 0 12px color-mix(in srgb, var(--sig1) 70%, transparent); } 34%, 100% { background: color-mix(in srgb, var(--sig1) 28%, var(--surface-2)); box-shadow: none; } }
+.app[data-t="marq"] .chapter .num { --ng: var(--n1); color: var(--nt-cyan); font: 400 32px/1 var(--f-script); text-transform: none; letter-spacing: 0; }
+.app[data-t="marq"] .chapter h2 { --ng: var(--sig1); color: var(--nt-amber); font: 400 38px/1.1 var(--f-display); margin: 8px 0 0; letter-spacing: .02em; }
+.app[data-t="marq"] .chapter .epi { margin-top: 14px; }
+.app[data-t="marq"] .recap { border: 1px solid color-mix(in srgb, var(--sig1) 45%, transparent); }
+.app[data-t="marq"] .recap .lbl { color: var(--warn); }
+.app[data-t="marq"] .scene-h .ln { height: 1.5px; background: var(--n1); box-shadow: 0 0 calc(8px * var(--gl)) var(--n1); opacity: .7; }
+.app[data-t="marq"] .scene-h .ln:last-child { background: var(--n2); box-shadow: 0 0 calc(8px * var(--gl)) var(--n2); }
+.app[data-t="marq"] .capsule { background: var(--surface); border: 1.5px solid var(--n1); box-shadow: 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--n1) 40%, transparent); }
+.app[data-t="marq"] .send { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), 0 0 calc(20px * var(--gl)) var(--accent); animation: pulse 2.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent), 0 0 calc(30px * var(--gl)) var(--accent); } }
+.app[data-t="marq"] .ph2 h3 { font: 400 27px/1 var(--f-script); color: var(--nt-pink); text-shadow: 0 0 calc(3px * var(--gl)) var(--n2), 0 0 calc(10px * var(--gl)) var(--n2), 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--n2) 60%, transparent); }
+.app[data-t="marq"] .bar { height: 4px; background: var(--surface-3); overflow: visible; }
+.app[data-t="marq"] .bar i { background: var(--c, var(--n1)); box-shadow: 0 0 calc(10px * var(--gl)) var(--c, var(--n1)); }
+.app[data-t="marq"] .rail .nav.on { background: color-mix(in srgb, var(--n2) 16%, transparent); color: var(--nt-pink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--n2) 60%, transparent), 0 0 calc(12px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent); }
+.app[data-t="marq"] .tabs button.on, .app[data-t="marq"] .mseg button.on { background: color-mix(in srgb, var(--n3) 18%, transparent); color: var(--text); box-shadow: inset 0 -2px 0 var(--n3), 0 4px calc(12px * var(--gl)) -4px var(--n3); }
+.app[data-t="marq"] .scrub .fill { background: linear-gradient(90deg, var(--n2), var(--n1)); box-shadow: 0 0 calc(8px * var(--gl)) var(--n1); }
+.app[data-t="marq"] .decor .sign { position: absolute; right: 12px; top: 330px; width: 70px; text-align: center; font: 400 34px/.9 var(--f-script); --ng: var(--n3); color: var(--nt-violet); rotate: -9deg; opacity: .5; text-shadow: 0 0 calc(4px * var(--gl)) var(--ng), 0 0 calc(14px * var(--gl)) var(--ng), 0 0 calc(30px * var(--gl)) var(--ng); animation: flick 9s infinite -3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="2" /><feDisplacementMap in="SourceGraphic" scale="1.6" /></filter>
+</svg>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top">Mea <i>· Six Rooms</i></a>
+    <nav class="toc" id="toc" aria-label="Rooms"></nav>
+    <div class="grow"></div>
+    <div class="gseg" id="global-seg" role="radiogroup" aria-label="Every room">
+      <button data-m="light" role="radio">☀ Day</button><button data-m="dark" role="radio">☾ Night</button><button data-m="compare" role="radio">◐ Compare</button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <div class="eyebrow">Mea · Proposed themes · Catalogue No. 5</div>
+    <h1>Six <em>Rooms</em></h1>
+    <p class="lede">Six new ways for Mea to look, each borrowed from a different wing of the museum. Every room has <b>a day and a night</b>, the same evening by the sea inside (one of them in Westeros), and <b>a token set</b> that drops straight into <i>tokens.css</i>.</p>
+    <div class="index" id="index"></div>
+    <p class="how">Switch any room between day and night, or choose Compare and drag the seam across the app.</p>
+  </section>
+  <div id="rooms"></div>
+  <p class="colophon">Mea · Six Rooms · a mockup, not wired to data.<br />The same evening in every room, so the only thing that changes is the room.</p>
+</main>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Themes. Token names match web/src/styles/tokens.css one for one;
+   sig1, sig2, orb-*, rail-*, glaze and tile-ink are the theme's own extras.
+--------------------------------------------------------------------------- */
+const THEMES = [
+  {
+    id: "wildflower", key: "wild", no: "I", name: "Wildflower", wing: "Glasshouse", motto: "A meadow in pastel",
+    modes: { light: "Meadow", dark: "Moon Garden" },
+    sigNames: ["Mint", "Rose"],
+    fonts: { display: "'Cormorant Garamond', Georgia, serif", story: "'Lora', Georgia, serif", ui: "'Quicksand', system-ui, sans-serif", meta: "'Quicksand', system-ui, sans-serif", script: "'Pinyon Script', 'Cormorant Garamond', cursive" },
+    wall: "A spring meadow in rose and mint. Watercolour washes bloom in the corners, sprays of wildflowers lean in from the edges and petals drift down through the story. Portraits wear a little flower, the send button is a blossom, and the best line of the night is marked with a ribbon. After dark it becomes a moon garden: deep sage, with the same blossoms still glowing.",
+    dl: [["Palette", "Rose, mint, lavender, peach and butter on petal white"], ["Type", "Cormorant Garamond italic, Pinyon Script for chapters, Lora for the story, Quicksand for the interface"], ["Shape", "Soft 22px petals, pill chips, a blossom-shaped send button"], ["Texture", "Watercolour washes and drifting petals"], ["Signature", "A wreath of leaves and flowers over every chapter title"]],
+    light: {
+      bg: "#fbf3f3", surface: "#fffbfa", "surface-2": "#f7ecee", "surface-3": "#efdfe3", border: "#f0dce2", "border-strong": "#e0c0cb",
+      text: "#3d3340", "text-muted": "#6b5c6e", "text-faint": "#7a6a80", dialogue: "#b0346a", thought: "#357556", action: "#55485a",
+      accent: "#f4a9c4", "accent-strong": "#ec8fb2", "accent-ink": "#a8305f", "on-accent": "#4a2238",
+      lavender: "#ddd0f2", mint: "#c8ecd9", peach: "#fdd5c2", butter: "#fbe4a0", sky: "#cfe3f4",
+      "tint-char": "#fffafb", "tint-user": "#f4fbf7", "tint-note": "#eef8f1",
+      danger: "#b13a4e", "danger-bg": "#fde4e8", ok: "#2f7457", "ok-bg": "#e2f4ea", warn: "#7a5a12", "warn-bg": "#fdf3d6",
+      "shadow-1": "0 1px 2px rgb(176 52 106 / 5%), 0 14px 32px -18px rgb(176 52 106 / 28%)", "shadow-2": "0 26px 56px -24px rgb(176 52 106 / 32%)",
+      sig1: "#a9dcbf", sig2: "#f7b9cf", leaf: "#86c49f", "orb-ink": "#7a2a50",
+      "orb-w": "radial-gradient(circle at 30% 25%, #ffffff, #fbd3e2 55%, #f0a3c1)", "orb-a": "radial-gradient(circle at 30% 25%, #ffffff, #d3f1e1 55%, #9fd3b6)"
+    },
+    dark: {
+      bg: "#111916", surface: "#18211d", "surface-2": "#202b26", "surface-3": "#29352f", border: "#2c3a33", "border-strong": "#45584f",
+      text: "#f6eef1", "text-muted": "#c3b8bf", "text-faint": "#98a39c", dialogue: "#f7b4cc", thought: "#a8e2c4", action: "#ddd3d8",
+      accent: "#f5aac6", "accent-strong": "#f7bfd4", "accent-ink": "#f9c4d7", "on-accent": "#2b1320",
+      lavender: "#a99cc8", mint: "#8fcdb0", peach: "#e3a993", butter: "#e8d08a", sky: "#93b8d6",
+      "tint-char": "#1b2521", "tint-user": "#19251f", "tint-note": "#1a2a22",
+      danger: "#f59aaa", "danger-bg": "#3d1e27", ok: "#9fe0c0", "ok-bg": "#173328", warn: "#ecd08a", "warn-bg": "#2c2a1b",
+      "shadow-1": "0 1px 2px rgb(0 0 0 / 30%), 0 14px 30px -16px rgb(0 0 0 / 60%)", "shadow-2": "0 28px 60px -22px rgb(0 0 0 / 70%)",
+      sig1: "#8fd1b0", sig2: "#f2a7c3", leaf: "#6fb58e", "orb-ink": "#ffffff",
+      "orb-w": "radial-gradient(circle at 30% 25%, #ffe3ee, #e690b3 60%, #a55279)", "orb-a": "radial-gradient(circle at 30% 25%, #e3fff1, #7cc4a0 60%, #3e7d5f)"
+    }
+  },
+  {
+    id: "overprint", key: "riso", no: "II", name: "Overprint", wing: "Print studio", motto: "Two inks, one pass, a little off",
+    modes: { light: "Newsprint", dark: "Blacklight" },
+    sigNames: ["Yellow", "Blue ink"],
+    fonts: { display: "'Bricolage Grotesque', 'Arial Black', sans-serif", story: "'Newsreader', Georgia, serif", ui: "'Space Grotesk', system-ui, sans-serif", meta: "'Space Mono', ui-monospace, monospace" },
+    wall: "A risograph zine table: fluorescent pink and medium blue laid over newsprint, never quite in register, always warm with grain. Names print twice, a hair apart. Cards cast flat ink shadows, the best line gets a highlighter and the send button is a spinning starburst. At night the paper turns black and the inks glow like a blacklight poster.",
+    dl: [["Palette", "Fluorescent pink, medium blue, yellow, navy ink on newsprint"], ["Type", "Bricolage Grotesque, Space Grotesk and Space Mono, with Newsreader for the story"], ["Shape", "2px ink outlines and flat offset shadows"], ["Texture", "Halftone dots in two colours, plus print grain"], ["Signature", "Misregistered headlines that print a little off"]],
+    light: {
+      bg: "#f2eee2", surface: "#fbf8ef", "surface-2": "#eee8d6", "surface-3": "#e4dcc6", border: "#d3cab3", "border-strong": "#1d2763",
+      text: "#1d2763", "text-muted": "#4a538c", "text-faint": "#676d99", dialogue: "#c2006b", thought: "#2c4fb8", action: "#3c4680",
+      accent: "#ff4fb3", "accent-strong": "#f22a9e", "accent-ink": "#c2006b", "on-accent": "#1d2763",
+      lavender: "#c8c3f6", mint: "#9fe2cd", peach: "#ffc4a3", butter: "#ffe47a", sky: "#a9c5ff",
+      "tint-char": "#fffaf2", "tint-user": "#eef1fe", "tint-note": "#fff4c4",
+      danger: "#c2123d", "danger-bg": "#ffe0e7", ok: "#0f7558", "ok-bg": "#d5f2e6", warn: "#6f5000", "warn-bg": "#fff0b0",
+      "shadow-1": "none", "shadow-2": "6px 6px 0 #1d2763",
+      sig1: "#ffe14a", sig2: "#3a5bd9", "orb-ink": "#1d2763",
+      "orb-w": "radial-gradient(#ff4fb3 1.3px, transparent 1.8px) 0 0 / 5px 5px, #ffe0ef", "orb-a": "radial-gradient(#3a5bd9 1.3px, transparent 1.8px) 0 0 / 5px 5px, #dfe6ff"
+    },
+    dark: {
+      bg: "#12101b", surface: "#1b1827", "surface-2": "#242033", "surface-3": "#2d283f", border: "#393251", "border-strong": "#c9c1ea",
+      text: "#f6f1e5", "text-muted": "#c0b9d0", "text-faint": "#9a93b0", dialogue: "#ff7fcf", thought: "#a3b4ff", action: "#d6d0e2",
+      accent: "#ff4fb3", "accent-strong": "#ff6fc2", "accent-ink": "#ff8fd3", "on-accent": "#12101b",
+      lavender: "#9a8fe0", mint: "#5fd6b6", peach: "#ff9f78", butter: "#ffe14a", sky: "#7fa3ff",
+      "tint-char": "#1f1a2b", "tint-user": "#1b1d34", "tint-note": "#29240f",
+      danger: "#ff7a95", "danger-bg": "#3e1627", ok: "#6fe0b9", "ok-bg": "#12322a", warn: "#ffe14a", "warn-bg": "#2e2914",
+      "shadow-1": "none", "shadow-2": "6px 6px 0 #ff4fb3",
+      sig1: "#ffe14a", sig2: "#5b78ff", "orb-ink": "#f6f1e5",
+      "orb-w": "radial-gradient(#ff4fb3 1.3px, transparent 1.8px) 0 0 / 5px 5px, #3a1630", "orb-a": "radial-gradient(#7f98ff 1.3px, transparent 1.8px) 0 0 / 5px 5px, #1a2150"
+    }
+  },
+  {
+    id: "kintsugi", key: "kin", no: "III", name: "Kintsugi", wing: "Lacquerware", motto: "Mended with gold",
+    modes: { light: "Washi", dark: "Urushi" },
+    sigNames: ["Vermilion", "Gold"],
+    fonts: { display: "'Shippori Mincho', 'Yu Mincho', Georgia, serif", story: "'Shippori Mincho', 'Yu Mincho', Georgia, serif", ui: "'Zen Kaku Gothic New', system-ui, sans-serif", meta: "'Zen Kaku Gothic New', system-ui, sans-serif" },
+    wall: "Kintsugi repairs a broken bowl with lacquer and gold, so the break becomes the loveliest part of it. Here a single gold seam runs through the whole story, with a glint that travels along it now and then. Chapters are titled down the page, and a vermilion seal signs each one. By day it is fibrous washi; by night, deep urushi black.",
+    dl: [["Palette", "Sumi ink, washi, gold, shu vermilion, celadon"], ["Type", "Shippori Mincho for names and story, Zen Kaku Gothic New for the interface"], ["Shape", "Near-square corners, gold top edges, underlined composer"], ["Texture", "Washi fibres by day, a lacquer sheen by night"], ["Signature", "A gold seam with a travelling glint, an ensō around every portrait"]],
+    light: {
+      bg: "#f0eadd", surface: "#f9f5ec", "surface-2": "#ebe3d3", "surface-3": "#e0d6c2", border: "#d9cfba", "border-strong": "#bfb196",
+      text: "#1d1915", "text-muted": "#5a5148", "text-faint": "#766c60", dialogue: "#a32f1b", thought: "#2c5a53", action: "#4a423a",
+      accent: "#b08326", "accent-strong": "#9a7020", "accent-ink": "#7f5a10", "on-accent": "#1d1915",
+      lavender: "#cdc4d8", mint: "#c3d6cc", peach: "#ecc9b2", butter: "#ecd9a1", sky: "#c3d1d8",
+      "tint-char": "#fbf8f1", "tint-user": "#f2efe6", "tint-note": "#f4ead2",
+      danger: "#a32f1b", "danger-bg": "#f5dcd3", ok: "#2e6a4e", "ok-bg": "#dce9df", warn: "#765510", "warn-bg": "#f2e4c3",
+      "shadow-1": "0 1px 2px rgb(29 25 21 / 6%), 0 8px 22px -14px rgb(29 25 21 / 25%)", "shadow-2": "0 24px 50px -24px rgb(29 25 21 / 35%)",
+      sig1: "#c13b25", sig2: "#c4972f", "orb-ink": "#7f5a10",
+      "orb-w": "radial-gradient(circle at 30% 25%, #fff6e8, #e9d7bf 60%, #c9ad8a)", "orb-a": "radial-gradient(circle at 30% 25%, #eef2ec, #b9cbc2 60%, #7d9890)"
+    },
+    dark: {
+      bg: "#0b0908", surface: "#14100e", "surface-2": "#1c1714", "surface-3": "#241d19", border: "#2d241f", "border-strong": "#4b3b27",
+      text: "#f0e7d6", "text-muted": "#b3a690", "text-faint": "#8f8370", dialogue: "#e7c378", thought: "#9cc6b6", action: "#cdbfa7",
+      accent: "#d6a94f", "accent-strong": "#e7c378", "accent-ink": "#efcf8a", "on-accent": "#120d09",
+      lavender: "#8d84a0", mint: "#7aa898", peach: "#c49478", butter: "#cfb56f", sky: "#7c97a3",
+      "tint-char": "#17120f", "tint-user": "#141413", "tint-note": "#1f1910",
+      danger: "#ec8a74", "danger-bg": "#3a1a12", ok: "#92cfb2", "ok-bg": "#15291f", warn: "#e7c378", "warn-bg": "#241d10",
+      "shadow-1": "0 1px 2px rgb(0 0 0 / 40%), 0 14px 30px -16px rgb(0 0 0 / 80%)", "shadow-2": "0 30px 60px -20px rgb(0 0 0 / 85%)",
+      sig1: "#dd5233", sig2: "#e2b75e", "orb-ink": "#efcf8a",
+      "orb-w": "radial-gradient(circle at 30% 25%, #3a2a1c, #1c1410 70%)", "orb-a": "radial-gradient(circle at 30% 25%, #22332e, #121a17 70%)"
+    }
+  },
+  {
+    id: "delft", key: "delft", no: "IV", name: "Delft", wing: "Ceramics", motto: "Cobalt on tin glaze",
+    modes: { light: "Tin Glaze", dark: "Bleu Persan" },
+    sigNames: ["Ochre", "Brick"],
+    fonts: { display: "'DM Serif Display', Georgia, serif", story: "'Source Serif 4', Georgia, serif", ui: "'Figtree', system-ui, sans-serif", meta: "'Figtree', system-ui, sans-serif" },
+    wall: "Seventeenth-century Dutch tiles: a white tin glaze, one cobalt brush, and manganese purple for the shadows. The wall is tiled, the rail icons are tiles that turn a quarter when you touch them, and every card sits like a plate with a painted rim. At night it flips to bleu persan, the deep blue ground that Nevers potters painted in white and gold.",
+    dl: [["Palette", "Tin-glaze white, cobalt, manganese purple, ochre"], ["Type", "DM Serif Display italic, Source Serif 4 for the story, Figtree for the interface"], ["Shape", "Soft glazed corners with a painted inner rim"], ["Texture", "A wall of tiles with corner motifs, plus a glaze sheen"], ["Signature", "Chapter titles in a cartouche between two tulips"]],
+    light: {
+      bg: "#edf0f6", surface: "#fbfcfe", "surface-2": "#e8edf6", "surface-3": "#dbe2f0", border: "#d0d9eb", "border-strong": "#9fb0d6",
+      text: "#10215a", "text-muted": "#42548a", "text-faint": "#5f6e99", dialogue: "#1d45b4", thought: "#6a3d8f", action: "#34477f",
+      accent: "#244aae", "accent-strong": "#1c3c93", "accent-ink": "#1c3c93", "on-accent": "#ffffff",
+      lavender: "#d2c8ea", mint: "#c5e1d8", peach: "#f2cdb4", butter: "#f2dea0", sky: "#c6d6f3",
+      "tint-char": "#fcfdff", "tint-user": "#f1f4fb", "tint-note": "#fbf5e2",
+      danger: "#b23a2c", "danger-bg": "#fbe3de", ok: "#1f6b55", "ok-bg": "#dcefe8", warn: "#7a5810", "warn-bg": "#f8ebc6",
+      "shadow-1": "0 1px 2px rgb(16 33 90 / 6%), 0 10px 24px -14px rgb(16 33 90 / 25%)", "shadow-2": "0 24px 50px -22px rgb(16 33 90 / 35%)",
+      sig1: "#d39d33", sig2: "#c8553a", "orb-ink": "#1c3c93", glaze: "rgb(255 255 255 / 75%)", "tile-ink": "#244aae",
+      "orb-w": "radial-gradient(circle, #fbfcfe 0 45%, #244aae 46% 50%, #fbfcfe 51% 60%, #9fb4e6 61% 100%)", "orb-a": "radial-gradient(circle, #fbfcfe 0 45%, #6a3d8f 46% 50%, #fbfcfe 51% 60%, #c7b5e0 61% 100%)"
+    },
+    dark: {
+      bg: "#0a1538", surface: "#0f1e4f", "surface-2": "#15285e", "surface-3": "#1c326f", border: "#233879", "border-strong": "#4a62ad",
+      text: "#f1f4fc", "text-muted": "#b6c2e6", "text-faint": "#94a2cf", dialogue: "#f6d47c", thought: "#d5c4ff", action: "#dce3f6",
+      accent: "#eef2ff", "accent-strong": "#ffffff", "accent-ink": "#f6d47c", "on-accent": "#0f1e4f",
+      lavender: "#a99be0", mint: "#79b8a8", peach: "#e9a98e", butter: "#f6d47c", sky: "#8fb0ff",
+      "tint-char": "#112258", "tint-user": "#0f1d4c", "tint-note": "#1d2848",
+      danger: "#ff9c88", "danger-bg": "#3c1e33", ok: "#8fdcc0", "ok-bg": "#12324a", warn: "#f6d47c", "warn-bg": "#22294a",
+      "shadow-1": "0 1px 2px rgb(0 0 0 / 30%), 0 12px 28px -14px rgb(0 0 10 / 60%)", "shadow-2": "0 30px 60px -20px rgb(0 0 10 / 70%)",
+      sig1: "#f6d47c", sig2: "#ff9a7a", "orb-ink": "#f6d47c", glaze: "rgb(255 255 255 / 6%)", "tile-ink": "#eef2ff",
+      "orb-w": "radial-gradient(circle, #15285e 0 45%, #f6d47c 46% 50%, #15285e 51% 60%, #eef2ff 61% 100%)", "orb-a": "radial-gradient(circle, #15285e 0 45%, #d5c4ff 46% 50%, #15285e 51% 60%, #8fb0ff 61% 100%)"
+    }
+  },
+  {
+    id: "citadel", key: "cit", no: "V", name: "Citadel", wing: "Manuscripts", motto: "Chronicled by candlelight",
+    modes: { light: "Parchment", dark: "Long Night" },
+    sigNames: ["Gilt", "Iron"],
+    fonts: { display: "'Cinzel Decorative', 'Cinzel', Georgia, serif", story: "'IM Fell English', Georgia, serif", ui: "'Alegreya Sans', system-ui, sans-serif", meta: "'Alegreya Sans', system-ui, sans-serif", initial: "'UnifrakturMaguntia', 'Cinzel Decorative', serif" },
+    story: "westeros",
+    wall: "Built for a story set in Westeros. The page is a maester's chronicle: vellum and iron-gall ink, red rubrics and a gilt blackletter capital opening each reply. The rail hangs like a house banner, a maester's chain of gold, silver, iron, copper and bronze runs under the header, and the best moment is sealed in red wax. On the Long Night the parchment goes cold and snow falls past the window.",
+    dl: [["Palette", "Vellum, iron-gall ink, rubric red, lapis, gilt and cold iron"], ["Type", "Cinzel Decorative, IM Fell English for the story, UnifrakturMaguntia capitals, Alegreya Sans for the interface"], ["Shape", "Square folios with gilt inner rules, a pennant banner rail"], ["Texture", "Mottled vellum by candlelight; falling snow on the Long Night"], ["Signature", "A maester's chain of six metals and red wax seals"]],
+    light: {
+      bg: "#e6d7b8", surface: "#f2e6cc", "surface-2": "#e8d9b9", "surface-3": "#dcc9a3", border: "#cfba90", "border-strong": "#a88c5f",
+      text: "#2a2018", "text-muted": "#5e4d3b", "text-faint": "#6e5c48", dialogue: "#8a1c1c", thought: "#27466b", action: "#45372a",
+      accent: "#8a1c1c", "accent-strong": "#721414", "accent-ink": "#7a1818", "on-accent": "#f7ead0",
+      lavender: "#c9bfcf", mint: "#bfcdb3", peach: "#e3b99a", butter: "#e6cf96", sky: "#b9c7cf",
+      "tint-char": "#f5ead3", "tint-user": "#ede3cc", "tint-note": "#ecdcb8",
+      danger: "#8a1c1c", "danger-bg": "#f0d4c4", ok: "#2f5a3a", "ok-bg": "#d9e2c8", warn: "#6e4f10", "warn-bg": "#ead7a8",
+      "shadow-1": "0 1px 2px rgb(42 32 24 / 10%), 0 12px 26px -16px rgb(42 32 24 / 40%)", "shadow-2": "0 26px 50px -24px rgb(42 32 24 / 50%)",
+      sig1: "#b08a3a", sig2: "#4b4f55", "rail-bg": "#2e2b29", "rail-ink": "#d9b765", "orb-ink": "#f7ead0",
+      "orb-w": "radial-gradient(circle at 40% 35%, #c9574a, #7a1818 75%)", "orb-a": "radial-gradient(circle at 40% 35%, #6f8fb3, #27466b 75%)"
+    },
+    dark: {
+      bg: "#0b0e12", surface: "#12171d", "surface-2": "#192028", "surface-3": "#212a33", border: "#26303a", "border-strong": "#3d4b59",
+      text: "#e9e4d8", "text-muted": "#b0b3b4", "text-faint": "#8b939b", dialogue: "#f2a272", thought: "#a9cdee", action: "#d3d0c6",
+      accent: "#b84d28", "accent-strong": "#d6653a", "accent-ink": "#f2a272", "on-accent": "#fbf1e2",
+      lavender: "#8e8aa8", mint: "#7fa39a", peach: "#c99377", butter: "#cdb57a", sky: "#7f9cb8",
+      "tint-char": "#141a21", "tint-user": "#121820", "tint-note": "#1a1d1c",
+      danger: "#f2a272", "danger-bg": "#3a1d14", ok: "#9cc9a3", "ok-bg": "#17281d", warn: "#e2bd6a", "warn-bg": "#26221a",
+      "shadow-1": "0 1px 2px rgb(0 0 0 / 40%), 0 14px 30px -16px rgb(0 0 0 / 80%)", "shadow-2": "0 30px 60px -20px rgb(0 0 0 / 85%)",
+      sig1: "#d4b065", sig2: "#8a96a3", "rail-bg": "#06080b", "rail-ink": "#d4b065", "orb-ink": "#fbf1e2",
+      "orb-w": "radial-gradient(circle at 40% 35%, #e07a52, #8a2c14 75%)", "orb-a": "radial-gradient(circle at 40% 35%, #a9cdee, #36597d 75%)"
+    }
+  },
+  {
+    id: "marquee", key: "marq", no: "VI", name: "Marquee", wing: "Signage", motto: "Every name in lights",
+    modes: { light: "Matinee", dark: "Late Show" },
+    sigNames: ["Bulb", "Violet"],
+    fonts: { display: "'Monoton', 'Bricolage Grotesque', sans-serif", story: "'Literata', Georgia, serif", ui: "'Sora', system-ui, sans-serif", meta: "'Sora', system-ui, sans-serif", script: "'Neonderthaw', 'Pinyon Script', cursive" },
+    wall: "A late-night strip of signs: names bent from glass tube, panels outlined in cyan, pink and violet light, and chapter titles framed by a theatre marquee whose bulbs chase around the edge. The logo flickers now and then, and an “open late” sign hums on the back wall. By day the tubes are switched down to a soft glow on lilac white; after dark they burn against wet brick.",
+    dl: [["Palette", "Cyan, hot pink, violet and bulb amber on black brick or lilac white"], ["Type", "Neonderthaw tube script, Monoton marquee capitals, Literata for the story, Sora for the interface"], ["Shape", "Glowing tube outlines, round bulbs, pill chips"], ["Texture", "Brick wall and coloured light spill"], ["Signature", "A marquee of chasing bulbs around every chapter title"]],
+    light: {
+      bg: "#f3f0fa", surface: "#fdfcff", "surface-2": "#f0ecf8", "surface-3": "#e4def2", border: "#e0d9ef", "border-strong": "#b9aedb",
+      text: "#1b1630", "text-muted": "#4d4668", "text-faint": "#665f82", dialogue: "#c2177a", thought: "#0a7489", action: "#3a3456",
+      accent: "#087891", "accent-strong": "#066a80", "accent-ink": "#076f86", "on-accent": "#ffffff",
+      lavender: "#d9ccff", mint: "#b8f2e0", peach: "#ffd1bd", butter: "#ffe9a8", sky: "#bfe9ff",
+      "tint-char": "#ffffff", "tint-user": "#f6f3ff", "tint-note": "#fff7e0",
+      danger: "#c21f45", "danger-bg": "#ffe2ea", ok: "#0f7a5c", "ok-bg": "#d9f5ea", warn: "#765400", "warn-bg": "#fff1c2",
+      "shadow-1": "0 1px 2px rgb(27 22 48 / 6%), 0 12px 28px -16px rgb(80 40 160 / 28%)", "shadow-2": "0 26px 56px -24px rgb(80 40 160 / 35%)",
+      sig1: "#f2a900", sig2: "#7a3fe0", n1: "#19d3f0", n2: "#ff3fa4", n3: "#8b5cff", gl: ".45",
+      "nt-pink": "#c2177a", "nt-cyan": "#0a6f84", "nt-amber": "#9a6400", "nt-violet": "#6a35c9", "orb-ink": "#1b1630",
+      "orb-w": "radial-gradient(circle at 35% 30%, #ffffff, #ffb3dc 60%, #ff5fb4)", "orb-a": "radial-gradient(circle at 35% 30%, #ffffff, #a8f3ff 60%, #3fd9f2)"
+    },
+    dark: {
+      bg: "#07060d", surface: "#0f0d1a", "surface-2": "#171427", "surface-3": "#201c35", border: "#2a2545", "border-strong": "#4a4075",
+      text: "#f5f2ff", "text-muted": "#bdb5dc", "text-faint": "#958eb3", dialogue: "#ff7ad0", thought: "#6ff4ff", action: "#d6d0ee",
+      accent: "#3ee8ff", "accent-strong": "#7df0ff", "accent-ink": "#6ff4ff", "on-accent": "#04121a",
+      lavender: "#a58cff", mint: "#6ff0c0", peach: "#ff9f80", butter: "#ffd166", sky: "#7fd1ff",
+      "tint-char": "#120f1f", "tint-user": "#0f1122", "tint-note": "#1a160c",
+      danger: "#ff7a9b", "danger-bg": "#3a1222", ok: "#6ff0c0", "ok-bg": "#0f2a22", warn: "#ffd166", "warn-bg": "#241e0c",
+      "shadow-1": "0 1px 2px rgb(0 0 0 / 40%), 0 14px 30px -16px rgb(0 0 0 / 80%)", "shadow-2": "0 30px 60px -20px rgb(0 0 0 / 85%)",
+      sig1: "#ffc94a", sig2: "#b77bff", n1: "#3ee8ff", n2: "#ff4fb0", n3: "#b77bff", gl: "1",
+      "nt-pink": "#ffe0f2", "nt-cyan": "#dcfdff", "nt-amber": "#fff1cc", "nt-violet": "#efe3ff", "orb-ink": "#ffffff",
+      "orb-w": "radial-gradient(circle at 35% 30%, #ffd6ef, #ff4fb0 55%, #5c0f3a)", "orb-a": "radial-gradient(circle at 35% 30%, #d6fbff, #1fb8d4 55%, #0b4a5c)"
+    }
+  }
+];
+
+/* ---------- icons ---------- */
+const ICONS = {
+  home: '<path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .8 3 3 3 6"/>',
+  wand: '<path d="M5 19 16 8"/><path d="M15 3v2M15 11v2M11 7h2M19 7h2M17.8 4.2l-1.2 1.2M12.4 9.6l-1.2 1.2"/>',
+  book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/>',
+  pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  inbox: '<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 2h6l1-2h5"/>',
+  cog: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+  sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+  send: '<path d="M4 12 20 4l-6 16-3-7z"/><path d="M11 13l9-9"/>',
+  star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/>',
+  dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  redo: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  pin: '<path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/>',
+  sparkles: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+  alert: '<path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>',
+  brain: '<path d="M9.5 4.5A2.5 2.5 0 0 0 7 7a3 3 0 0 0-2 5 3 3 0 0 0 2 5 2.5 2.5 0 0 0 5 1V6a2 2 0 0 0-2.5-1.5zM14.5 4.5A2.5 2.5 0 0 1 17 7a3 3 0 0 1 2 5 3 3 0 0 1-2 5 2.5 2.5 0 0 1-5 1"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/>',
+  panelR: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M15 4.5v15"/>',
+  focus: '<path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/>',
+  bookopen: '<path d="M3 5c3-1 6-1 9 1 3-2 6-2 9-1v14c-3-1-6-1-9 1-3-2-6-2-9-1z"/><path d="M12 6v14"/>'
+};
+const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+
+/* ---------- drawn ornaments ---------- */
+function flower(cx, cy, r, n, cls, rot = 0) {
+  let s = "";
+  for (let i = 0; i < n; i++) s += `<ellipse cx="${cx}" cy="${(cy - r * 0.52).toFixed(1)}" rx="${(r * 0.36).toFixed(1)}" ry="${(r * 0.54).toFixed(1)}" class="${cls}" transform="rotate(${(rot + (i * 360) / n).toFixed(1)} ${cx} ${cy})"/>`;
+  return s + `<circle cx="${cx}" cy="${cy}" r="${(r * 0.24).toFixed(1)}" class="fc"/>`;
+}
+const leafPath = (x, y, len, ang, cls = "lf") => `<path class="${cls}" d="M0 0C${len * 0.35} ${-len * 0.3} ${len * 0.75} ${-len * 0.22} ${len} 0C${len * 0.75} ${len * 0.22} ${len * 0.35} ${len * 0.3} 0 0Z" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ang.toFixed(1)})"/>`;
+function spray(cls) {
+  // A corner spray of wildflowers: stems fan out from the bottom-left corner, leaves along them, blooms at the tips.
+  const stems = [[150, 46, "p1", 24, 5], [206, 118, "p2", 19, 6], [92, 28, "p3", 15, 5], [226, 190, "p4", 13, 5], [58, 84, "p1", 12, 6], [180, 168, "p2", 9, 5]];
+  let s = "";
+  stems.forEach(([x, y, c, r, n], i) => {
+    const qx = x * 0.28, qy = y + (250 - y) * 0.36;
+    s += `<path class="stem" d="M0 250Q${qx.toFixed(0)} ${qy.toFixed(0)} ${x} ${y}"/>`;
+    for (const t of [0.42, 0.68]) {
+      const px = 2 * (1 - t) * t * qx + t * t * x, py = (1 - t) * (1 - t) * 250 + 2 * (1 - t) * t * qy + t * t * y;
+      const dir = Math.atan2(y - qy, x - qx) * 180 / Math.PI;
+      s += leafPath(px, py, 22 - i, dir + (t < 0.5 ? -55 : 50), t < 0.5 ? "lf" : "lf2");
+    }
+  });
+  stems.forEach(([x, y, c, r, n], i) => { s += flower(x, y, r, n, c, i * 17); });
+  [[120, 96], [34, 150], [196, 80]].forEach(([x, y]) => { s += `<circle class="bud" cx="${x}" cy="${y}" r="4.5"/><circle class="fc" cx="${x}" cy="${y}" r="1.6"/>`; });
+  return `<svg class="bq ${cls}" viewBox="0 0 250 250" aria-hidden="true">${s}</svg>`;
+}
+function wreath() {
+  // An arch of leaves with three blooms, sitting over the chapter title.
+  let s = `<path class="stem" d="M12 60Q115 -6 218 60"/>`;
+  for (let i = 1; i < 18; i++) {
+    const t = i / 18, x = (1 - t) * (1 - t) * 12 + 2 * (1 - t) * t * 115 + t * t * 218, y = (1 - t) * (1 - t) * 60 + 2 * (1 - t) * t * -6 + t * t * 60;
+    const tan = Math.atan2(2 * (1 - t) * (-66) + 2 * t * 66, 2 * (1 - t) * 103 + 2 * t * 103) * 180 / Math.PI;
+    if (Math.abs(t - 0.5) < 0.06 || Math.abs(t - 0.22) < 0.03 || Math.abs(t - 0.78) < 0.03) continue;
+    s += leafPath(x, y, 15, tan + (i % 2 ? -40 : 40) + (t > 0.5 ? 180 : 0), i % 3 ? "lf" : "lf2");
+  }
+  s += flower(115, 27, 17, 6, "p1") + flower(64, 39, 11, 5, "p3", 20) + flower(166, 39, 11, 5, "p4", 40);
+  s += `<circle class="bud" cx="38" cy="50" r="3.5"/><circle class="bud" cx="192" cy="50" r="3.5"/>`;
+  return `<svg class="wreath" viewBox="0 0 230 64" aria-hidden="true">${s}</svg>`;
+}
+const BLOOM = `<svg viewBox="0 0 40 40" aria-hidden="true">${flower(20, 21, 17, 5, "p1")}<circle class="bud" cx="34" cy="7" r="2.6"/></svg>`;
+const TULIP = `<svg viewBox="0 0 24 32" aria-hidden="true" fill="currentColor"><path d="M12 31V13" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M12 26c-4 0-7-3-8-7 4 0 7 2 8 7zM12 22c3 0 6-2.5 7-6-3.5 0-6 2-7 6z" opacity=".75"/><path d="M6 4c0 6 2.6 9 6 9s6-3 6-9l-3.2 2.8L12 1 9.2 6.8z"/><circle cx="3" cy="30" r="1.2" opacity=".6"/><circle cx="21" cy="30" r="1.2" opacity=".6"/></svg>`;
+function seam(uid) {
+  // A branching gold crack that runs across the whole stage, with a glint travelling along it.
+  const main = "M-20 128 L70 150 L132 134 L196 176 L250 162 L318 214 L402 206 L452 262 L540 252 L604 304 L700 330 L820 318";
+  const branch = "M318 214 L336 268 L322 320 L352 392 M540 252 L566 214 L640 200 M604 304 L596 360 L630 430 L612 520 L660 600 L640 700 L700 800";
+  return `<svg viewBox="0 0 800 780" preserveAspectRatio="none" aria-hidden="true">
+    <defs><linearGradient id="g-${uid}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" style="stop-color:var(--sig2)"/><stop offset=".45" style="stop-color:color-mix(in srgb, var(--sig2) 55%, #fff6dc)"/><stop offset="1" style="stop-color:var(--sig2)"/>
+    </linearGradient></defs>
+    <path class="seam" d="${main}" stroke="url(#g-${uid})"/><path class="seam" d="${branch}" stroke="url(#g-${uid})" opacity=".8"/>
+    <path class="glint" d="${main}"/></svg>`;
+}
+const cardSeam = (uid) => `<svg class="cseam" viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true"><path class="seam" d="M300 -2 L318 30 L306 58 L340 90 L332 118 L356 142 M318 30 L356 40 L402 34" stroke="url(#g-${uid})"/></svg>`;
+const chain = (n) => `<div class="chain" aria-hidden="true">${"<i></i>".repeat(n)}</div>`;
+const bulbs = (c, n) => `<div class="bulbs ${c}" aria-hidden="true">${"<i></i>".repeat(n)}</div>`;
+
+/* ---------- the story inside each room ---------- */
+const STORIES = {
+  lighthouse: {
+    char: "Wren", full: "Wren Halloway", place: "The Lamp at Gull's Reach", you: "Ash", when: "night · 2nd bell",
+    chips: ["Lamp room", "Night · 2nd bell", "North-east gale"],
+    scrub: ["I · The Light", "II · The Logbook", "III · Oil &amp; Salt"],
+    recap: "The ferry stopped running after the equinox gale. Ash promised to find lamp oil before the long dark, and Wren pretended not to care whether he came back.",
+    title: "Oil &amp; Salt", epi: "in which a parcel is delivered, and a vote is postponed", meta: "Day 9 · three scenes",
+    scene1: ["The lamp room", "night, second bell"], scene2: ["By the stove", "later, the kettle sings"],
+    m1: `<p><span class="a">The lamp room hums as the great lens turns, throwing its slow gold arm across the black water.</span> <span class="d">“You came back,”</span> <span class="a">she says, not looking up from the brass she's polishing.</span> <span class="d">“Most people only climb those stairs once.”</span></p><p><span class="t">He's soaked through. Again. Of course he is.</span></p>`,
+    m2: `<p><span class="a">I shake the rain off my coat and set the oilskin parcel on her workbench, next to the tide tables.</span> <span class="d">“Your oil. The ferryman wouldn't come past the rocks, so I rowed it.”</span></p>`,
+    m3: `<p><span class="a">Her hands go still on the cloth.</span> <span class="d">“You rowed. In this.”</span> <span class="a">She finally turns, and the lamplight catches the salt drying in her hair.</span> <span class="d">“That's either <mark>very brave or very stupid</mark>, and I haven't decided which I'd prefer.”</span></p><p><span class="a">She crosses to the stove before he can answer, and the kettle goes on with a clatter that is louder than it needs to be.</span></p>`,
+    flag: "Wren said she's <b>never</b> left the island, but in chapter I she sold eggs at the mainland market.",
+    m4: `<p><span class="a">I take the chair by the stove without arguing, which seems to surprise her more than anything.</span> <span class="d">“Brave. Definitely brave. I'll take the vote when you've had a cup.”</span></p>`,
+    m5: `<p><span class="a">She sets two mugs down, and one of them is chipped, and she gives him the good one without seeming to think about it.</span> <span class="d">“The vote,”</span> <span class="a">she says,</span> <span class="d">“is still out. But you can stay until the tide turns.”</span><span class="caret"></span></p>`,
+    chatSub: "Gull's Reach",
+    mem: [["★", "Ash rowed the oil across in a gale.", "just now · pinned"], ["●", "Her brother Tamsin left on the last ferry and never wrote.", "chapter I · she won't raise it"], ["●", "She calls the Fresnel lens “the Old Eye.”", "chapter I"]],
+    threads: [["Why did Tamsin leave?", "opened chapter I · simmering"], ["The second key on Wren's ring.", "opened chapter II"]],
+    notes: ["Ash finds Tamsin's oilskin in the boathouse?", "No confession before chapter V."],
+    clock: ["11:40", "High tide, turning", "the rocks show at two bells"],
+    kv: [["Where", "Lamp room, top of 112 stairs"], ["When", "Night, second bell · day 9"], ["Weather", "North-east gale, rising"], ["Ferry", "Suspended"]],
+    offstage: ["Offstage: the harbourmaster counts the boats and comes up one short.", "may reach the scene by morning"]
+  },
+  westeros: {
+    char: "Wren", full: "Lady Wren Mallister", place: "The Beacon at Seagard", you: "Ser Ash", when: "hour of the wolf",
+    chips: ["Beacon tower", "Hour of the wolf", "Storm off the bay"],
+    scrub: ["I · The Watch", "II · Ravens", "III · Oil &amp; Salt"],
+    recap: "Longships were sighted in the Bay of Crabs at the turn of the moon. Ser Ash swore to bring oil for the beacon before the storm closed the roads, and Lady Wren pretended not to care whether he kept his word.",
+    title: "Oil &amp; Salt", epi: "in which a knight keeps his word, and a lady keeps her counsel", meta: "299 AC · seventh moon",
+    scene1: ["The beacon tower", "hour of the wolf"], scene2: ["By the brazier", "later, the storm eases"],
+    m1: `<p><span class="a">Wind howls through the arrow slits as the great fire gutters in its iron cage, throwing red light across the black water.</span> <span class="d">“You came back,”</span> <span class="a">she says, not looking up from the bow she's waxing.</span> <span class="d">“Most knights only climb these stairs once.”</span></p><p><span class="t">Soaked through. Again. Seven save me from brave men.</span></p>`,
+    m2: `<p><span class="a">I shake the rain from my cloak and set the oilskins down beside the signal horn.</span> <span class="d">“Your oil, my lady. The ferryman wouldn't cross the bay, so I rowed it.”</span></p>`,
+    m3: `<p><span class="a">Her hands go still on the bowstring.</span> <span class="d">“You rowed. In this.”</span> <span class="a">She finally turns, and the firelight catches the salt drying in her braid.</span> <span class="d">“That's either <mark>very brave or very stupid</mark>, ser, and I haven't decided which I'd prefer.”</span></p><p><span class="a">She crosses to the brazier before he can answer and sets the wine to mull with a clatter that is louder than it needs to be.</span></p>`,
+    flag: "Wren said she's <b>never</b> left Seagard, but in chapter I she rode to Riverrun for the harvest feast.",
+    m4: `<p><span class="a">I take the stool by the brazier without arguing, which seems to surprise her more than anything.</span> <span class="d">“Brave. Definitely brave. You may judge me when you've had a cup.”</span></p>`,
+    m5: `<p><span class="a">She pours two cups, and one of them is chipped, and she hands him the good one without seeming to think about it.</span> <span class="d">“The judgement,”</span> <span class="a">she says,</span> <span class="d">“is still out. But you may stay until the tide turns.”</span><span class="caret"></span></p>`,
+    chatSub: "Seagard",
+    mem: [["★", "Ser Ash rowed the oil across the bay in a storm.", "just now · pinned"], ["●", "Her brother rode south with the king's host and has not written since.", "chapter I · she won't raise it"], ["●", "She calls the beacon fire “the Old Eye.”", "chapter I"]],
+    threads: [["Why did her brother stop writing?", "opened chapter I · simmering"], ["The second key on Wren's ring.", "opened chapter II"]],
+    notes: ["Ash finds her brother's sigil ring in the armory?", "No confession before chapter V."],
+    clock: ["299 AC", "Seventh moon, waning", "the year of the red comet"],
+    kv: [["Where", "Beacon tower, Seagard"], ["When", "Hour of the wolf · day 9"], ["Weather", "Storm off the bay, easing"], ["Roads", "Closed to Riverrun"]],
+    offstage: ["Offstage: a raven from Riverrun waits unread in the maester's turret.", "may reach the scene by morning"]
+  }
+};
+
+/* ---------- per-theme slots ---------- */
+const SLOTS = {
+  wild: {
+    logo: () => BLOOM, decor: () => spray("bl") + spray("tr") + `<i class="petal"></i>`.repeat(6), recap: "❀ Previously, in the meadow", ribbon: "✿ in bloom",
+    chapter: (st) => `<header class="chapter">${wreath()}<div class="num">Chapter three</div><h2>${st.title}</h2><p class="epi">${st.epi}</p></header>`
+  },
+  riso: {
+    logo: () => `<b>Mea</b>`, decor: () => `<i></i><i></i><i></i>`, recap: "Previously on…", ribbon: "BEST ★",
+    chapter: (st) => `<header class="chapter"><div class="big">03</div><div><div class="num">Chapter three</div><h2>${st.title}</h2><p class="epi">${st.epi}</p></div></header>`
+  },
+  kin: {
+    logo: () => `<span class="hanko">め</span>`, decor: (uid) => seam(uid), recap: "前回 · Previously", ribbon: "金",
+    chapter: (st) => `<header class="chapter"><div class="vert">第三章</div><div><div class="num">Chapter III</div><h2>${st.title}</h2><p class="epi">${st.epi}</p><div class="meta">${st.meta.toUpperCase()}</div></div><span class="hanko">灯</span></header>`,
+    best: (uid) => cardSeam(uid)
+  },
+  delft: {
+    logo: () => TULIP, decor: () => "", recap: "Previously", ribbon: "★",
+    chapter: (st) => `<header class="chapter"><div class="cart">${TULIP}<div><div class="num">Chapter III</div><h2>${st.title}</h2></div>${TULIP}</div><p class="epi">${st.epi}</p></header>`
+  },
+  cit: {
+    logo: () => `<span class="seal">M</span>`, decor: () => `<div class="glow"></div><div class="snow"></div><div class="snow s2"></div>`, recap: "From the maester's chronicle", ribbon: "♜",
+    afterHead: () => chain(64),
+    chapter: (st) => `<header class="chapter"><div class="num">The third chapter</div><h2>${st.title}</h2><div class="orn"><span></span>⚜︎<span></span></div><p class="epi">${st.epi}</p>${chain(15)}</header>`
+  },
+  marq: {
+    logo: () => `<b class="neon">Mea</b>`, decor: () => `<span class="sign">open late</span>`, recap: "Previously on the late show", ribbon: "★ Encore",
+    chapter: (st) => `<header class="chapter"><div class="marq">${bulbs("t", 17)}${bulbs("b", 17)}${bulbs("l", 4)}${bulbs("r", 4)}<div class="num">Chapter three</div><h2>${st.title}</h2></div><p class="epi">${st.epi}</p></header>`
+  }
+};
+
+/* ---------- the app mock ---------- */
+function appHTML(t, mode, uid) {
+  const S = SLOTS[t.key], st = STORIES[t.story || "lighthouse"];
+  const i0 = st.char[0], iy = st.you.replace("Ser ", "")[0];
+  const acts = (a) => `<span class="acts">${a.map((n) => `<button class="ib" aria-label="${n}">${ic(n)}</button>`).join("")}</span>`;
+  const msgAI = (cls, body, sw, extra = "", foot = "") => `<article class="msg ai ${cls}"><span class="orb" data-c="wren">${i0}</span><div class="body">${extra}
+        <div class="mh"><span class="nm">${st.char}</span><span class="when">${cls === "live" ? "writing…" : st.when}</span><span class="sw">${sw}</span>${cls ? "" : acts(["star", "pen", "dots"])}</div>
+        <div class="tx">${body}</div>${foot}</div></article>`;
+  const msgYou = (body, a) => `<article class="msg user"><span class="orb" data-c="ash">${iy}</span><div class="body">
+        <div class="mh"><span class="nm">${st.you}</span><span class="when">${st.when}</span>${a ? `<span class="sw"></span>${acts(["pen"])}` : ""}</div>
+        <div class="tx">${body}</div></div></article>`;
+  return `<div class="app ${mode === "dark" ? "dk" : "lt"}" data-t="${t.key}" data-mode="${mode}" ${mode === "dark" ? 'aria-hidden="true"' : ""}>
+  <nav class="rail" aria-label="Main">
+    <div class="logo">${S.logo()}</div>
+    <a class="nav on" title="Home">${ic("home")}</a><a class="nav" title="Personas">${ic("users")}</a><a class="nav" title="Studio">${ic("wand")}</a>
+    <a class="nav" title="Lorebooks">${ic("book")}</a><a class="nav" title="Notebook">${ic("pen")}</a><a class="nav" title="Review inbox">${ic("inbox")}<span class="badge">4</span></a>
+    <hr /><span class="orb sm" data-c="wren">${i0}</span>
+    <div class="grow"></div>
+    <a class="nav" title="Jump to anything">${ic("search")}</a><a class="nav" title="Settings">${ic("cog")}</a>
+    <span class="orb sm" data-c="ash" style="margin-top:6px">${iy}</span>
+  </nav>
+  <main class="stage">
+    <div class="decor" aria-hidden="true">${S.decor(uid)}</div>
+    <header class="chat-head">
+      <span class="orb lg" data-c="wren">${i0}</span>
+      <div class="who"><div class="name">${st.full} <em>· ${st.place}</em></div>
+        <div class="chips"><span class="chip hot">♥ flustered</span><span class="chip">${ic("pin")}${st.chips[0]}</span><span class="chip hide-s">${ic("moon")}${st.chips[1]}</span><span class="chip hide-s">${ic("wind")}${st.chips[2]}</span></div></div>
+      <div class="tools"><div class="mseg hide-s"><button class="on">Cards</button><button>Book</button><button>Bubbles</button></div>
+        <button class="ib" aria-label="Search">${ic("search")}</button><button class="ib hide-s" aria-label="Read as a book">${ic("bookopen")}</button><button class="ib hide-s" aria-label="Side panel">${ic("panelR")}</button><button class="ib" aria-label="Focus">${ic("focus")}</button></div>
+    </header>
+    ${S.afterHead ? S.afterHead() : ""}
+    <div class="scrub"><span class="ch">${st.scrub[0]}</span><span class="ch">${st.scrub[1]}</span><span class="ch now">${st.scrub[2]}</span><i class="fill"></i></div>
+    <div class="feed"><div class="feed-in">
+      <div class="recap"><div class="lbl">${S.recap}</div>${st.recap}</div>
+      ${S.chapter(st)}
+      <div class="scene-h"><span class="ln"></span><span class="sc">${ic("pin")}<b>${st.scene1[0]}</b>· ${st.scene1[1]}</span><span class="ln"></span></div>
+      ${msgAI("", st.m1, "‹ 1 / 1 ›")}
+      ${msgYou(st.m2, true)}
+      ${msgAI("best", st.m3, "‹ 2 / 3 ›", (S.best ? S.best(uid) : "") + `<span class="ribbon">${S.ribbon}</span>`,
+        `<div class="mf"><span class="chip keep">${ic("sparkles")}${st.char} will remember this</span><span class="chip">96 words</span><span class="chip hide-s">Wayfarer 12B</span></div>`)}
+      <div class="flag">${ic("alert")}<span>${st.flag}</span><button class="btn hide-s">Keep both</button><button class="btn pri">Fix it</button></div>
+      ${msgYou(st.m4, false)}
+      <div class="scene-h"><span class="ln"></span><span class="sc">${ic("moon")}<b>${st.scene2[0]}</b>· ${st.scene2[1]}</span><span class="ln"></span></div>
+      ${msgAI("live", st.m5, `<button class="btn" style="height:24px">Stop</button>`)}
+    </div></div>
+    <div class="composer"><div class="capsule"><button class="ib" aria-label="Persona, model, steering">${ic("sliders")}</button><span class="ph">Speak as ${st.you}…</span><button class="send" aria-label="Send">${ic("send")}</button></div></div>
+  </main>
+  <aside class="dock">
+    <div class="tabs">
+      <button data-p="chat">${ic("sliders")}Chat</button><button data-p="memory" class="on">${ic("brain")}Memory</button><button data-p="story">${ic("heart")}Story</button><button data-p="world">${ic("globe")}World</button>
+    </div>
+    <section class="pane" data-p="chat">
+      <div class="ph2"><h3>This chat</h3><small>${st.chatSub}</small></div>
+      <div class="setrow"><div><b>Model</b><small>NanoGPT · subscription</small></div><span class="chip">Wayfarer 12B</span></div>
+      <div class="setrow"><div><b>Preset</b><small>Samplers and prompt layers</small></div><span class="chip hot">Slow Burn Prose</span></div>
+      <div class="setrow"><div><b>Keep ${st.char} in character</b><small>Re-anchor when her voice drifts</small></div><span class="switch on"></span></div>
+      <div class="setrow"><div><b>Don't write for ${st.you}</b><small>Catch puppeting before it lands</small></div><span class="switch on"></span></div>
+      <div class="setrow"><div><b>Ambience</b><small>Rain on glass, low</small></div><span class="switch"></span></div>
+    </section>
+    <section class="pane on" data-p="memory">
+      <div class="ph2"><h3>What ${st.char} remembers</h3><small>14 →</small></div>
+      ${st.mem.map(([s, a, b]) => `<div class="atom"><span class="s">${s}</span><div>${a}<small>${b}</small></div></div>`).join("")}
+      <div class="ph2" style="margin-top:10px"><h3>Between them</h3><small>measured</small></div>
+      <div class="gauge"><div class="row">Trust <span>thawing</span></div><div class="bar"><i style="--v:62%;--n:62"></i></div></div>
+      <div class="gauge"><div class="row">Warmth <span>hidden, badly</span></div><div class="bar"><i style="--v:48%;--n:48;--c:var(--dialogue)"></i></div></div>
+      <div class="gauge"><div class="row">Tension <span>rising</span></div><div class="bar"><i style="--v:71%;--n:71;--c:var(--thought)"></i></div></div>
+    </section>
+    <section class="pane" data-p="story">
+      <div class="ph2"><h3>Threads</h3><small>2 open</small></div>
+      ${st.threads.map(([a, b]) => `<div class="atom"><span class="s">?</span><div>${a}<small>${b}</small></div></div>`).join("")}
+      <div class="ph2" style="margin-top:10px"><h3>Notes</h3><small>yours</small></div>
+      ${st.notes.map((a) => `<div class="atom"><span class="s">✎</span><div>${a}</div></div>`).join("")}
+    </section>
+    <section class="pane" data-p="world">
+      <div class="ph2"><h3>Outside</h3><small>the world →</small></div>
+      <div class="tide"><b>${st.clock[0]}</b><div>${st.clock[1]}<small>${st.clock[2]}</small></div></div>
+      <dl class="kv">${st.kv.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>
+      <div class="atom"><span class="s">✦</span><div>${st.offstage[0]}<small>${st.offstage[1]}</small></div></div>
+    </section>
+  </aside>
+</div>`;
+}
+
+/* ---------- contrast ---------- */
+function lum(hex) {
+  const n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const PAIRS = [["Story text", "text", "tint-char"], ["Narration", "action", "tint-char"], ["Dialogue", "dialogue", "tint-char"], ["Thoughts", "thought", "tint-char"], ["Your lines", "dialogue", "tint-user"], ["Muted", "text-muted", "surface"], ["Faint", "text-faint", "surface"], ["Button", "on-accent", "accent"]];
+const verdict = (r) => r >= 7 ? "AAA" : r >= 4.5 ? "AA" : r >= 3 ? "AA large" : "low";
+
+/* ---------- tokens.css export ---------- */
+function tokensCSS(t) {
+  const block = (sel, mode, tok) => {
+    const lines = Object.entries(tok).map(([k, v]) => `  --${k}: ${v};`);
+    return `:root[data-theme="${sel}"] {\n  color-scheme: ${mode};\n  /* ${t.name} · ${t.modes[mode]} */\n${lines.join("\n")}\n  --font-ui: ${t.fonts.ui};\n  --font-story: ${t.fonts.story};\n  --font-display: ${t.fonts.display};\n}`;
+  };
+  return `/* ${t.name} — ${t.motto}. Generated from Mea · Six Rooms. */\n${block(t.id, "light", t.light)}\n\n${block(t.id + "-night", "dark", t.dark)}\n`;
+}
+
+/* ---------- build the page ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+$("#toc").innerHTML = THEMES.map((t) => `<a href="#${t.id}"><b>${t.no}</b>${t.name}</a>`).join("");
+$("#index").innerHTML = THEMES.map((t) => `<a class="card" href="#${t.id}" style="--l:${t.light.bg};--d:${t.dark.bg};--la:${t.light.accent};--lb:${t.light.sig1};--da:${t.dark.accent};--db:${t.dark.sig1};--f:${t.fonts.display.replace(/"/g, "'")}">
+  <div class="sw"><i></i><i></i></div>
+  <div class="cap"><small>Room ${t.no} · ${t.wing}</small><span>${t.name}</span><em>${t.motto}</em></div></a>`).join("");
+
+$("#rooms").innerHTML = THEMES.map((t) => `<section class="room wrap" id="${t.id}" data-mode="light" aria-labelledby="${t.id}-h">
+  <header class="room-head">
+    <div class="numeral" aria-hidden="true">${t.no}</div>
+    <div><div class="eyebrow">Room ${t.no} · ${t.wing}</div><h2 class="rname" id="${t.id}-h">${t.name}</h2><p class="motto">${t.motto}</p></div>
+    <div class="gseg" role="radiogroup" aria-label="${t.name} mode"><button data-m="light" role="radio">☀ ${t.modes.light}</button><button data-m="dark" role="radio">☾ ${t.modes.dark}</button><button data-m="compare" role="radio">◐ Compare</button></div>
+  </header>
+  <div class="frame"><div class="layers">${appHTML(t, "light", t.key + "L")}${appHTML(t, "dark", t.key + "D")}<div class="handle"><span aria-hidden="true">⟷</span></div></div></div>
+  <div class="below">
+    <div class="wall"><p>${t.wall}</p><dl>${t.dl.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl></div>
+    <div class="specs"></div>
+  </div>
+</section>`).join("");
+
+THEMES.forEach((t) => {
+  const room = document.getElementById(t.id);
+  room.style.setProperty("--td", t.fonts.display);
+  $$(".app", room).forEach((app) => {
+    const tok = t[app.dataset.mode];
+    for (const [k, v] of Object.entries(tok)) app.style.setProperty("--" + k, v);
+    app.style.setProperty("--f-display", t.fonts.display);
+    app.style.setProperty("--f-story", t.fonts.story);
+    app.style.setProperty("--f-ui", t.fonts.ui);
+    app.style.setProperty("--f-meta", t.fonts.meta);
+    if (t.fonts.script) app.style.setProperty("--f-script", t.fonts.script);
+    if (t.fonts.initial) app.style.setProperty("--f-initial", t.fonts.initial);
+    app.style.colorScheme = app.dataset.mode;
+  });
+
+  const keys = [["bg", "Ground"], ["surface", "Surface"], ["text", "Ink"], ["dialogue", "Dialogue"], ["thought", "Thought"], ["accent", "Accent"], ["sig1", t.sigNames[0]], ["sig2", t.sigNames[1]]];
+  const row = (mode) => `<h4>${mode === "light" ? "☀" : "☾"} ${t.modes[mode]}</h4><div class="swrow">${keys.map(([k, label]) => `<div class="swatch"><i style="background:${t[mode][k]}"></i><b>${label}</b><code>${t[mode][k]}</code></div>`).join("")}</div>`;
+  const cell = (mode, fg, bg) => {
+    const r = ratio(t[mode][fg], t[mode][bg]);
+    return `<td><span class="pair"><i style="background:${t[mode][bg]};color:${t[mode][fg]}">Aa</i>${r.toFixed(1)} <span class="badge">${verdict(r)}</span></span></td>`;
+  };
+  $(".specs", room).innerHTML = row("light") + row("dark") +
+    `<table class="ctable"><thead><tr><th>Contrast</th><th>${t.modes.light}</th><th>${t.modes.dark}</th></tr></thead><tbody>${PAIRS.map(([label, fg, bg]) => `<tr><td>${label}</td>${cell("light", fg, bg)}${cell("dark", fg, bg)}</tr>`).join("")}</tbody></table>
+    <button class="copy">Copy tokens for tokens.css<small>${t.id} · ${t.id}-night</small></button>`;
+
+  $(".copy", room).addEventListener("click", async (e) => {
+    const btn = e.currentTarget, css = tokensCSS(t);
+    try { await navigator.clipboard.writeText(css); }
+    catch { const ta = document.createElement("textarea"); ta.value = css; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove(); }
+    const old = btn.innerHTML; btn.textContent = "Copied ✓"; setTimeout(() => (btn.innerHTML = old), 1600);
+  });
+});
+
+/* ---------- day / night / compare ---------- */
+function setRoomMode(room, m) {
+  room.dataset.mode = m;
+  const layers = $(".layers", room);
+  layers.style.setProperty("--x", m === "light" ? "100%" : m === "dark" ? "0%" : "50%");
+  $$(".room-head .gseg button", room).forEach((b) => { b.classList.toggle("on", b.dataset.m === m); b.setAttribute("aria-checked", b.dataset.m === m); });
+  // Only the visible layer takes clicks, except in Compare where each side keeps its own half.
+  const [lt, dk] = $$(".app", layers);
+  lt.toggleAttribute("inert", m === "dark");
+  dk.toggleAttribute("inert", m === "light");
+}
+function setGlobal(m) {
+  $$("#global-seg button").forEach((b) => { b.classList.toggle("on", b.dataset.m === m); b.setAttribute("aria-checked", b.dataset.m === m); });
+  if (m !== "compare") document.documentElement.dataset.theme = m;
+  $$(".room").forEach((r) => setRoomMode(r, m));
+}
+$$("#global-seg button").forEach((b) => b.addEventListener("click", () => setGlobal(b.dataset.m)));
+$$(".room").forEach((room) => {
+  $$(".room-head .gseg button", room).forEach((b) => b.addEventListener("click", () => setRoomMode(room, b.dataset.m)));
+
+  // Drag the seam in Compare.
+  const layers = $(".layers", room), handle = $(".handle", room);
+  const move = (x) => { const r = layers.getBoundingClientRect(); const p = Math.max(0, Math.min(100, ((x - r.left) / r.width) * 100)); layers.style.setProperty("--x", p + "%"); };
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); layers.classList.add("dragging"); handle.setPointerCapture(e.pointerId);
+    const mv = (ev) => move(ev.clientX);
+    const up = () => { layers.classList.remove("dragging"); handle.removeEventListener("pointermove", mv); handle.removeEventListener("pointerup", up); };
+    handle.addEventListener("pointermove", mv); handle.addEventListener("pointerup", up);
+  });
+
+  // Keep both layers in step: dock tabs and feed scroll.
+  const apps = $$(".app", room);
+  apps.forEach((app) => {
+    $$(".tabs button", app).forEach((b) => b.addEventListener("click", () => apps.forEach((a) => {
+      $$(".tabs button", a).forEach((x) => x.classList.toggle("on", x.dataset.p === b.dataset.p));
+      $$(".pane", a).forEach((x) => x.classList.toggle("on", x.dataset.p === b.dataset.p));
+    })));
+    const feed = $(".feed", app);
+    feed.addEventListener("scroll", () => apps.forEach((a) => { const f = $(".feed", a); if (f !== feed && Math.abs(f.scrollTop - feed.scrollTop) > 1) f.scrollTop = feed.scrollTop; }), { passive: true });
+  });
+});
+
+const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
+setGlobal(prefersDark ? "dark" : "light");
+</script>
+</body>
+</html>

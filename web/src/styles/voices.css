@@ -5,7 +5,7 @@
   --voice-mix: 58%;
 }
 :root[data-theme="dark"],
-:root[data-theme="lantern"] {
+:root[data-shell="lantern"] {
   --voice-mix: 88%;
 }
 

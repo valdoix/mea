@@ -1043,43 +1043,43 @@
   .gap {
     gap: 0.3rem;
   }
-  :global([data-theme="lantern"]) .tray {
-    background: rgb(30 22 50 / 94%);
+  :global([data-shell="lantern"]) .tray {
+    background: color-mix(in srgb, var(--pop) 94%, transparent);
   }
-  :global([data-theme="lantern"]) .opt {
-    background: rgb(255 255 255 / 4%);
+  :global([data-shell="lantern"]) .opt {
+    background: color-mix(in srgb, var(--hi) 4%, transparent);
     border-color: var(--edge);
   }
-  :global([data-theme="lantern"]) .opt .ic {
+  :global([data-shell="lantern"]) .opt .ic {
     box-shadow: 0 0 16px -6px var(--lamp);
   }
-  :global([data-theme="lantern"]) .composer {
-    background: rgb(32 23 54 / 80%);
+  :global([data-shell="lantern"]) .composer {
+    background: color-mix(in srgb, var(--pop) 80%, transparent);
     border-radius: 24px;
     padding: 0.45rem;
   }
-  :global([data-theme="lantern"]) .composer:focus-within {
+  :global([data-shell="lantern"]) .composer:focus-within {
     box-shadow:
-      0 0 0 4px rgb(255 158 192 / 10%),
-      0 24px 60px -20px rgb(0 0 0 / 70%),
-      0 0 40px -10px rgb(255 158 192 / 35%);
+      0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent),
+      0 24px 60px -20px color-mix(in srgb, var(--lo) 70%, transparent),
+      0 0 40px -10px color-mix(in srgb, var(--accent) 35%, transparent);
   }
-  :global([data-theme="lantern"]) .send {
+  :global([data-shell="lantern"]) .send {
     border-radius: 16px;
     width: 2.9rem;
     min-height: 2.9rem;
   }
-  :global([data-theme="lantern"]) .send:not(:disabled):hover {
+  :global([data-shell="lantern"]) .send:not(:disabled):hover {
     transform: scale(1.06) rotate(-8deg);
   }
-  :global([data-theme="lantern"]) .tool {
+  :global([data-shell="lantern"]) .tool {
     color: var(--text-muted);
   }
-  :global([data-theme="lantern"]) .tool.on {
+  :global([data-shell="lantern"]) .tool.on {
     color: var(--text);
-    background: rgb(255 255 255 / 10%);
+    background: color-mix(in srgb, var(--hi) 10%, transparent);
   }
-  :global([data-theme="lantern"]) textarea::placeholder {
+  :global([data-shell="lantern"]) textarea::placeholder {
     color: var(--text-faint);
     font-style: italic;
   }

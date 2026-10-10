@@ -454,83 +454,83 @@
   .shine {
     display: none;
   }
-  :global([data-theme="lantern"]) .home {
+  :global([data-shell="lantern"]) .home {
     gap: 1.8rem;
   }
-  :global([data-theme="lantern"]) .hello h1 {
+  :global([data-shell="lantern"]) .hello h1 {
     font-size: clamp(2.6rem, 6vw, 4.4rem);
     line-height: 0.95;
     margin: 0.5rem 0 0.4rem;
   }
-  :global([data-theme="lantern"]) .hello .spark {
+  :global([data-shell="lantern"]) .hello .spark {
     margin-left: 0.25em;
     font-size: 0.45em;
     vertical-align: middle;
     color: var(--lamp);
     text-shadow: 0 0 16px var(--lamp);
   }
-  :global([data-theme="lantern"]) .hello p {
+  :global([data-shell="lantern"]) .hello p {
     font-size: 1.02rem;
   }
-  :global([data-theme="lantern"]) .continue {
+  :global([data-shell="lantern"]) .continue {
     position: relative;
     overflow: hidden;
     gap: 1.6rem;
     padding: 1.3rem 1.6rem 1.3rem 1.3rem;
     border-radius: 30px;
     background:
-      radial-gradient(500px 240px at 0% 0%, rgb(255 208 143 / 14%), transparent 70%),
-      linear-gradient(135deg, rgb(255 255 255 / 8%), rgb(255 158 192 / 5%) 60%, rgb(199 180 255 / 6%));
-    border-color: rgb(255 208 143 / 28%);
+      radial-gradient(500px 240px at 0% 0%, color-mix(in srgb, var(--lamp) 14%, transparent), transparent 70%),
+      linear-gradient(135deg, color-mix(in srgb, var(--hi) 8%, transparent), color-mix(in srgb, var(--accent) 5%, transparent) 60%, color-mix(in srgb, var(--lavender) 6%, transparent));
+    border-color: color-mix(in srgb, var(--lamp) 28%, transparent);
   }
-  :global([data-theme="lantern"]) .continue:hover {
+  :global([data-shell="lantern"]) .continue:hover {
     transform: translateY(-3px);
-    box-shadow: 0 30px 60px -24px rgb(0 0 0 / 80%), 0 0 40px -16px rgb(255 208 143 / 45%);
+    box-shadow: 0 30px 60px -24px color-mix(in srgb, var(--lo) 80%, transparent), 0 0 40px -16px color-mix(in srgb, var(--lamp) 45%, transparent);
   }
-  :global([data-theme="lantern"]) .hero-pic {
+  :global([data-shell="lantern"]) .hero-pic {
     display: inline-flex;
     border-radius: 24px;
     box-shadow:
       0 0 0 2px var(--bg),
-      0 0 0 3.5px rgb(255 208 143 / 60%),
-      0 20px 40px -14px rgb(0 0 0 / 75%);
+      0 0 0 3.5px color-mix(in srgb, var(--lamp) 60%, transparent),
+      0 20px 40px -14px color-mix(in srgb, var(--lo) 75%, transparent);
   }
-  :global([data-theme="lantern"]) .hero-pic :global(.avatar) {
+  :global([data-shell="lantern"]) .hero-pic :global(.avatar) {
     border-radius: 24px !important;
   }
-  :global([data-theme="lantern"]) .continue .eyebrow {
+  :global([data-shell="lantern"]) .continue .eyebrow {
     color: var(--lamp);
     letter-spacing: 0.2em;
   }
-  :global([data-theme="lantern"]) .continue .title {
+  :global([data-shell="lantern"]) .continue .title {
     font-size: clamp(1.8rem, 3.4vw, 2.6rem);
     font-weight: 400;
     line-height: 1.05;
     margin: 0.2rem 0 0.3rem;
   }
-  :global([data-theme="lantern"]) .continue .recapline {
+  :global([data-shell="lantern"]) .continue .recapline {
     font: italic 400 1.05rem/1.55 var(--font-story);
-    color: #f0e2d6;
+    color: var(--recap-ink, #f0e2d6);
     padding-left: 0.9rem;
     border-left: 2px solid var(--lamp);
   }
-  :global([data-theme="lantern"]) .continue .go {
+  :global([data-shell="lantern"]) .continue .go {
     background: var(--grad-warm);
-    color: #2b1724;
+    color: var(--on-warm, #2b1724);
     min-height: 3rem;
     padding: 0 1.3rem;
   }
-  :global([data-theme="lantern"]) .mini {
+  :global([data-shell="lantern"]) .mini {
     border-radius: 18px;
   }
-  :global([data-theme="lantern"]) .toolbar h2 {
+  :global([data-shell="lantern"]) .toolbar h2 {
     font-size: 2rem;
   }
-  :global([data-theme="lantern"]) .grid {
+  :global([data-shell="lantern"]) .grid {
     grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
     gap: 1.1rem;
   }
-  :global([data-theme="lantern"]) .char {
+  :global([data-shell="lantern"]) .char {
     position: relative;
     border-radius: 26px;
     transform-style: preserve-3d;
@@ -538,52 +538,52 @@
       transform 0.5s var(--ease),
       box-shadow 0.4s;
   }
-  :global([data-theme="lantern"]) .char .portrait {
+  :global([data-shell="lantern"]) .char .portrait {
     aspect-ratio: 3 / 4.1;
   }
-  :global([data-theme="lantern"]) .char .portrait :global(.avatar img) {
+  :global([data-shell="lantern"]) .char .portrait :global(.avatar img) {
     transition: transform 0.8s var(--ease);
   }
-  :global([data-theme="lantern"]) .char:hover .portrait :global(.avatar img) {
+  :global([data-shell="lantern"]) .char:hover .portrait :global(.avatar img) {
     transform: scale(1.06);
   }
-  :global([data-theme="lantern"]) .char .meta {
+  :global([data-shell="lantern"]) .char .meta {
     position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
     padding: 3.2rem 0.95rem 0.95rem;
-    background: linear-gradient(180deg, transparent, rgb(14 10 24 / 78%) 45%, rgb(14 10 24 / 95%));
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--bg) 78%, transparent) 45%, color-mix(in srgb, var(--bg) 95%, transparent));
   }
-  :global([data-theme="lantern"]) .char .name {
+  :global([data-shell="lantern"]) .char .name {
     font: 400 1.65rem/1.05 var(--font-display);
     white-space: normal;
   }
-  :global([data-theme="lantern"]) .shine {
+  :global([data-shell="lantern"]) .shine {
     display: block;
     position: absolute;
     inset: 0;
     z-index: 2;
     pointer-events: none;
-    background: radial-gradient(circle at var(--mx, 50%) var(--my, 0%), rgb(255 255 255 / 16%), transparent 45%);
+    background: radial-gradient(circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--hi) 16%, transparent), transparent 45%);
     opacity: 0;
     transition: opacity 0.3s;
   }
-  :global([data-theme="lantern"]) .char:hover .shine {
+  :global([data-shell="lantern"]) .char:hover .shine {
     opacity: 1;
   }
-  :global([data-theme="lantern"]) .fav {
+  :global([data-shell="lantern"]) .fav {
     z-index: 3;
-    background: rgb(0 0 0 / 35%);
+    background: color-mix(in srgb, var(--lo) 35%, transparent);
     color: var(--accent);
   }
 
   @media (max-width: 760px) {
-    :global([data-theme="lantern"]) .grid {
+    :global([data-shell="lantern"]) .grid {
       grid-template-columns: repeat(2, 1fr);
       gap: 0.75rem;
     }
-    :global([data-theme="lantern"]) .char .name {
+    :global([data-shell="lantern"]) .char .name {
       font-size: 1.3rem;
     }
     .home {

@@ -470,7 +470,9 @@ export interface LivingPage {
 
 export interface Settings {
   "routing.story": string | null;
-  "appearance.theme": "system" | "light" | "dark" | "lantern";
+  "appearance.theme": "system" | "light" | "dark" | "lantern" | "wildflower" | "overprint" | "citadel" | "marquee";
+  /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
+  "appearance.themeMode": "system" | "day" | "night";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
   "appearance.fontScale": number;
   "appearance.storyFont": StoryFontId;

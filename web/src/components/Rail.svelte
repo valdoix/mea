@@ -9,6 +9,7 @@
   import type { ChatListItem } from "../lib/types";
   import Avatar from "./Avatar.svelte";
   import QuotaRing from "./QuotaRing.svelte";
+  import { BLOOM } from "../lib/ornaments";
 
   // Lantern: the slim navigation rail. Recent stories sit in it as portraits.
   let chats = $state<ChatListItem[]>([]);
@@ -59,7 +60,9 @@
 </script>
 
 <nav class="rail" aria-label="Main">
-  <a href="/" class="logo" title="Mea">✿</a>
+  <a href="/" class="logo" title="Mea">
+    {#if app.theme === "wildflower"}{@html BLOOM}{:else if app.theme === "overprint"}<span>M</span>{:else if app.theme === "citadel"}M{:else if app.theme === "marquee"}Mea{:else}✿{/if}
+  </a>
   {#each nav as item (item.href)}
     <a href={item.href} class="nav" class:on={item.match.includes(route.name)} aria-label={item.label}>
       <item.icon size={20} />
@@ -99,13 +102,13 @@
     gap: 4px;
     padding: 14px 0 12px;
     border-radius: 26px;
-    background: linear-gradient(160deg, rgb(255 255 255 / 8.5%), rgb(255 255 255 / 2.5%));
-    border: 1px solid rgb(255 255 255 / 9%);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--hi) 8.5%, transparent), color-mix(in srgb, var(--hi) 2.5%, transparent));
+    border: 1px solid color-mix(in srgb, var(--hi) 9%, transparent);
     backdrop-filter: blur(24px) saturate(150%);
     -webkit-backdrop-filter: blur(24px) saturate(150%);
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 7%),
-      0 24px 60px -24px rgb(0 0 0 / 65%);
+      inset 0 1px 0 color-mix(in srgb, var(--hi) 7%, transparent),
+      0 24px 60px -24px color-mix(in srgb, var(--lo) 65%, transparent);
   }
   .logo {
     flex: none;
@@ -116,10 +119,10 @@
     place-items: center;
     margin-bottom: 10px;
     background: var(--grad);
-    color: #2a1838 !important;
+    color: var(--on-accent) !important;
     font-size: 22px;
     text-decoration: none !important;
-    box-shadow: 0 0 26px rgb(255 158 192 / 45%);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 45%, transparent);
     animation: breathe 5s ease-in-out infinite;
     transition: transform 0.6s var(--spring);
   }
@@ -128,7 +131,7 @@
   }
   @keyframes breathe {
     50% {
-      box-shadow: 0 0 42px rgb(199 180 255 / 70%);
+      box-shadow: 0 0 42px color-mix(in srgb, var(--lavender) 70%, transparent);
     }
   }
   .nav {
@@ -150,14 +153,14 @@
       transform 0.3s var(--spring);
   }
   .nav:hover {
-    background: rgb(255 255 255 / 10%);
+    background: color-mix(in srgb, var(--hi) 10%, transparent);
     color: var(--text) !important;
     transform: translateY(-1px);
   }
   .nav.on {
     color: var(--text) !important;
-    background: rgb(255 255 255 / 11%);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
+    background: color-mix(in srgb, var(--hi) 11%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hi) 10%, transparent);
   }
   .nav.on::before {
     content: "";
@@ -179,7 +182,7 @@
     padding: 0 4px;
     border-radius: 99px;
     background: var(--accent);
-    color: #2a1838;
+    color: var(--on-accent);
     font: 800 10px/17px var(--font-ui);
     text-align: center;
     box-shadow: 0 0 12px var(--accent);
@@ -192,10 +195,10 @@
     white-space: nowrap;
     padding: 6px 10px;
     border-radius: 10px;
-    background: #2a2142;
+    background: var(--pop);
     box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 10%),
-      0 10px 30px rgb(0 0 0 / 40%);
+      inset 0 0 0 1px color-mix(in srgb, var(--hi) 10%, transparent),
+      0 10px 30px color-mix(in srgb, var(--lo) 40%, transparent);
     font: 500 12.5px var(--font-ui);
     color: var(--text);
     opacity: 0;
@@ -214,7 +217,7 @@
     width: 30px;
     border: 0;
     height: 1px;
-    background: rgb(255 255 255 / 10%);
+    background: color-mix(in srgb, var(--hi) 10%, transparent);
     margin: 8px 0;
     flex: none;
   }
@@ -238,13 +241,13 @@
   }
   .story :global(.avatar) {
     border-radius: 50% !important;
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 14%);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--hi) 14%, transparent);
   }
   .story.on :global(.avatar) {
     box-shadow:
       0 0 0 2px var(--bg),
       0 0 0 3.5px var(--lamp),
-      0 0 16px rgb(255 208 143 / 50%);
+      0 0 16px color-mix(in srgb, var(--lamp) 50%, transparent);
   }
   .story .tip {
     left: 54px;

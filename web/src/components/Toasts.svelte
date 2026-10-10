@@ -59,7 +59,7 @@
     color: #fff;
   }
   :global([data-theme="dark"]) .toast.error,
-  :global([data-theme="lantern"]) .toast.error {
+  :global([data-shell="lantern"]) .toast.error {
     color: #2a1f2c;
   }
   .msg {

@@ -17,10 +17,17 @@
       // Apply the theme before first paint to avoid a flash.
       try {
         var t = localStorage.getItem("mea.theme") || "lantern";
-        var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.dataset.theme = t === "lantern" ? "lantern" : dark ? "dark" : "light";
+        var m = localStorage.getItem("mea.themeMode") || "system";
+        var d = document.documentElement;
+        var sysDark = matchMedia("(prefers-color-scheme: dark)").matches;
+        var rooms = ["wildflower", "overprint", "citadel", "marquee"];
+        var shell = t === "lantern" || rooms.indexOf(t) >= 0;
+        d.dataset.theme = shell ? t : t === "dark" || (t === "system" && sysDark) ? "dark" : "light";
+        d.dataset.shell = shell ? "lantern" : "cozy";
+        if (rooms.indexOf(t) >= 0) d.dataset.mode = m === "night" || (m !== "day" && sysDark) ? "night" : "day";
       } catch (e) {
         document.documentElement.dataset.theme = "lantern";
+        document.documentElement.dataset.shell = "lantern";
       }
     </script>
   </head>

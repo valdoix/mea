@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { THEMES, isRoom, themeInfo } from "../lib/themes";
   import { fade, fly } from "svelte/transition";
   import type { Component } from "svelte";
   import { get, post } from "../lib/api";
@@ -83,7 +84,11 @@
   const settingItems: Item[] = settingsTabs.map(([tab, label, kw]) => ({ id: `set:${tab}`, label: `Settings: ${label}`, group: "Settings", icon: Settings, keywords: kw, run: () => navigate(`/settings/${tab}`) }));
   const actions = $derived<Item[]>([
     { id: "act:new", label: "New character", group: "Actions", icon: Plus, run: () => navigate("/creator") },
-    { id: "act:theme", label: app.theme === "lantern" ? "Mea Cozy theme" : app.theme === "light" ? "Cozy Night theme" : "Lantern theme", group: "Actions", icon: Moon, keywords: "night day theme lantern cozy", run: () => saveSetting("appearance.theme", app.theme === "lantern" ? "light" : app.theme === "light" ? "dark" : "lantern") },
+    ...(isRoom(app.theme)
+      ? [{ id: "act:mode", label: `${app.night ? themeInfo(app.theme)?.day : themeInfo(app.theme)?.night} (${app.night ? "day" : "night"})`, group: "Actions" as const, icon: Moon, keywords: "night day dark light mode", run: () => saveSetting("appearance.themeMode", app.night ? "day" : "night") }]
+      : []),
+    ...THEMES.filter((t) => t.id !== app.theme).map((t) => ({ id: `act:theme:${t.id}`, label: `${t.name} theme`, hint: t.motto, group: "Actions" as const, icon: Moon, keywords: "theme look colours", run: () => saveSetting("appearance.theme", t.id) })),
+    ...(app.shell === "lantern" ? [{ id: "act:theme:cozy", label: "Mea Cozy theme", group: "Actions" as const, icon: Moon, keywords: "theme light cozy", run: () => saveSetting("appearance.theme", "light") }] : []),
     { id: "act:discreet", label: device.discreet ? "Leave discreet mode" : "Discreet mode", group: "Actions", icon: Eye, keywords: "privacy blur", run: () => setDevice("discreet", !device.discreet) },
     ...(route.name === "chat" && route.params.id
       ? [

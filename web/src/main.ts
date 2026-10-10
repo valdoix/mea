@@ -21,6 +21,7 @@ import "@fontsource/unifrakturmaguntia/400.css";
 import "@fontsource/vt323/400.css";
 import "./styles/artifacts.css";
 import "./styles/voices.css";
+import "./styles/rooms.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { registerServiceWorker } from "./lib/push";
