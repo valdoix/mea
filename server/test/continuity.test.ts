@@ -9,11 +9,13 @@ import { povAllows } from "../src/memory/recall";
 import { ledgerChangedAfterReply, onLedgerChange, queueBuilds, segmentChat } from "../src/memory/scheduler";
 import { getSummary, levelRows, memState, storyRow } from "../src/memory/store";
 import { createCharacter } from "../src/services/characters";
-import { addMessage, createChat, editMessage, onLedgerEdit, restoreMessages, rewindAfter, softDeleteMessage } from "../src/services/chats";
+import { addMessage, addSwipe, createChat, editMessage, onLedgerEdit, restoreMessage, restoreMessages, rewindAfter, setActiveSwipe, softDeleteMessage, updateSwipe } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { previewPrompt } from "../src/services/generation";
 import { registerJob } from "../src/services/jobs";
 import { purgeTrash } from "../src/services/trash";
+import { worldAfterReply } from "../src/sim/service";
+import { afterUpdate, trackerLedgerHook } from "../src/trackers/service";
 import { branchEvents, linesToOps, writeEvents } from "../src/trackers/store";
 import { freshDb } from "./helpers";
 
@@ -256,5 +258,47 @@ describe("M25, L13: names", () => {
     expect(povAllows({ known_by: JSON.stringify(["Mira's sister"]) }, pov)).toBe(false);
     expect(povAllows({ known_by: JSON.stringify(["Captain Mira"]) }, pov)).toBe(true);
     expect(povAllows({ known_by: JSON.stringify(["mira"]) }, pov)).toBe(true);
+  });
+});
+
+describe("H5, H6: what the trackers and the world make follows the swipe", () => {
+  let chatId = "";
+  let msg = "";
+  beforeAll(async () => {
+    ({ chatId } = await setup(1));
+    onLedgerEdit(trackerLedgerHook);
+    writeEvents(chatId, { messageId: null, swipeIdx: 0 }, linesToOps(["clock: Day 1 20:00", "at: Port Ellis › Lighthouse", "cast: Mira@spot · Tom@spot"]).ops, "init");
+    msg = addMessage(chatId, "assistant", "Tom slipped and fell from the tower.", { name: "Mira" });
+  });
+  const tomDied = () => all<{ id: string }>("SELECT id FROM memories WHERE chat_id = ? AND content LIKE 'Tom died%' AND deleted_at IS NULL", chatId);
+
+  test("a memory made from a tracker change goes when its swipe does, and comes back with it", () => {
+    writeEvents(chatId, { messageId: msg, swipeIdx: 0 }, linesToOps(["dead Tom — fell from the tower", "clock: +6h"]).ops, "model");
+    afterUpdate(chatId, msg, 0);
+    expect(tomDied()).toHaveLength(1);
+    // A new swipe: generation calls this when it ends.
+    const idx = addSwipe(msg, "done");
+    updateSwipe(msg, idx, { content: "Tom caught the railing just in time." });
+    ledgerChangedAfterReply(chatId, msg);
+    expect(tomDied()).toHaveLength(0);
+    setActiveSwipe(msg, 0);
+    expect(tomDied()).toHaveLength(1);
+    softDeleteMessage(msg);
+    expect(tomDied()).toHaveLength(0);
+    restoreMessage(msg);
+    expect(tomDied()).toHaveLength(1);
+  });
+
+  test("the world's turn after a reply belongs to the swipe that was read", () => {
+    const engine = (idx: number) => all("SELECT 1 FROM tracker_events WHERE message_id = ? AND source = 'engine' AND swipe_idx = ?", msg, idx).length;
+    worldAfterReply(chatId, msg, 0);
+    const n = engine(0);
+    expect(n).toBeGreaterThan(0);
+    expect(engine(-1)).toBe(0);
+    // Reading the same swipe again replaces its turn instead of adding another.
+    worldAfterReply(chatId, msg, 0);
+    expect(engine(0)).toBe(n);
+    setActiveSwipe(msg, 1);
+    expect(branchEvents(chatId).some((e) => e.messageId === msg && e.source === "engine")).toBe(false);
   });
 });

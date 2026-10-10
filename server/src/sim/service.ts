@@ -106,10 +106,17 @@ function simOps(ops: SimOp[]): Op[] {
 
 // ---------- after each reply ----------
 
-/** Runs after the trackers read a reply: deliveries are confirmed, then the world takes its turn if the clock moved enough. */
-export function worldAfterReply(chatId: string, messageId: string) {
+/**
+ * Runs after the trackers read a reply: deliveries are confirmed, then the world takes its turn if the clock moved enough.
+ * H6: what the world does after a reply belongs to the version the trackers read (`swipeIdx`), replacing what it
+ * did after an earlier reading of it; another swipe gets its own turn. Without one (your edits, a time skip) it rides every swipe.
+ */
+export function worldAfterReply(chatId: string, messageId: string, swipeIdx?: number) {
   const cfg = worldConfig(chatId);
   if (cfg.mode === "off") return;
+  const anchor = { messageId, swipeIdx: swipeIdx ?? -1 };
+  if (swipeIdx != null && one("SELECT 1 FROM tracker_events WHERE message_id = ? AND swipe_idx = ? AND source = 'engine'", messageId, swipeIdx))
+    writeEvents(chatId, anchor, [], "engine", { replace: ["engine"] });
   const fold = currentFold(chatId).result;
   const st = fold.state;
   if (!st.time) return;
@@ -119,13 +126,13 @@ export function worldAfterReply(chatId: string, messageId: string) {
   const lane = elsewhereLane({ arrivals: Object.values(st.sim.arrivals), state: st, roster, now: st.time.minutes, userName: fc.userName, arcs: Object.values(st.sim.arcs) });
   const castNames = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri").map((c) => c.name);
   const confirmed = confirmArrivals({ arrivals: Object.values(st.sim.arrivals), offered: lane.offered, prose, now: st.time.minutes, castNames });
-  if (confirmed.length) writeEvents(chatId, { messageId, swipeIdx: -1 }, simOps(confirmed), "engine", { replace: [] });
+  if (confirmed.length) writeEvents(chatId, anchor, simOps(confirmed), "engine", { replace: [] });
   const from = st.sim.lastTickAt;
   if (from != null && st.time.minutes - from < cfg.step) return;
-  runTick(chatId, messageId, false);
+  runTick(chatId, messageId, false, swipeIdx);
 }
 
-export function runTick(chatId: string, messageId: string | null, forced: boolean) {
+export function runTick(chatId: string, messageId: string | null, forced: boolean, swipeIdx?: number) {
   const cfg = worldConfig(chatId);
   if (cfg.mode === "off") throw badRequest("The world simulation is off for this chat");
   const st = currentFold(chatId).result.state;
@@ -152,8 +159,9 @@ export function runTick(chatId: string, messageId: string | null, forced: boolea
   };
   const res = tick(inp);
   const anchor = messageId ?? lastMessage(chatId)?.id ?? null;
-  writeEvents(chatId, { messageId: anchor, swipeIdx: anchor ? -1 : 0 }, [...simOps(res.sim), ...res.ledger], "engine");
-  if (cfg.telling === "model" && res.cards.length) enqueue("world.tell", { chatId, messageId: anchor, cards: res.cards }, { priority: 2, chatId });
+  const idx = anchor ? (messageId && swipeIdx != null ? swipeIdx : -1) : 0;
+  writeEvents(chatId, { messageId: anchor, swipeIdx: idx }, [...simOps(res.sim), ...res.ledger], "engine");
+  if (cfg.telling === "model" && res.cards.length) enqueue("world.tell", { chatId, messageId: anchor, swipeIdx: idx, cards: res.cards }, { priority: 2, chatId });
   return res;
 }
 
@@ -175,7 +183,7 @@ export function worldLane(chatId: string): string | undefined {
 
 // ---------- telling ----------
 
-export async function runTelling(p: { chatId: string; messageId: string | null; cards: BeatCard[] }, job?: JobContext) {
+export async function runTelling(p: { chatId: string; messageId: string | null; swipeIdx?: number; cards: BeatCard[] }, job?: JobContext) {
   const st = currentFold(p.chatId).result.state;
   const fc = foldConfigFor(p.chatId);
   const chat = mustChat(p.chatId);
@@ -192,7 +200,7 @@ export async function runTelling(p: { chatId: string; messageId: string | null; 
     if (problem) continue;
     ops.push({ type: "arc.tell", id: card.arc, at: card.at, text: b.text.trim() });
   }
-  if (ops.length) writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.messageId ? -1 : 0 }, simOps(ops), "engine");
+  if (ops.length) writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.messageId ? (p.swipeIdx ?? -1) : 0 }, simOps(ops), "engine");
 }
 
 // ---------- your controls ----------

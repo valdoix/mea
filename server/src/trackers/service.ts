@@ -2,11 +2,12 @@ import { z } from "zod";
 import { all, one } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest } from "../lib/http";
-import { insertAtom, isDuplicate } from "../memory/atoms";
+import { dropAtoms, insertAtom, isDuplicate } from "../memory/atoms";
+import { touchMemory } from "../memory/store";
 import { detectBoundary } from "../memory/segment";
 import { cleanText } from "../memory/text";
 import { getCard } from "../services/characters";
-import { addMessage, getMessageRow, getSwipes, lastMessage, mustChat, updateSwipe } from "../services/chats";
+import { addMessage, getMessageRow, getSwipes, lastMessage, type LedgerChange, mustChat, updateSwipe } from "../services/chats";
 import { enqueue, type JobContext } from "../services/jobs";
 import { callJson, callText } from "../services/llm";
 import { getDefaultPersona, getPersona, personaPrompt } from "../services/personas";
@@ -133,6 +134,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
       });
       if (!gate.data.changed) {
         writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, [{ op: "clock", args: { plus: 2 }, raw: "clock: +2m" }], "model", { replace: ["model"] });
+        syncTrackerMemories(p.chatId, p.messageId);
         return;
       }
     } catch {
@@ -164,36 +166,68 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   const now = getMessageRow(p.messageId);
   if (!now || now.deleted_at || now.active_swipe !== p.swipeIdx) return;
   writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, parsed.ops, "model", { replace: ["model"] });
-  afterUpdate(p.chatId, p.messageId);
+  afterUpdate(p.chatId, p.messageId, p.swipeIdx);
 }
 
-/** Significant changes become memories (TRK-13); the off-page world takes its turn. */
-export function afterUpdate(chatId: string, messageId: string) {
-  const fold = currentFold(chatId);
-  const changes = (fold.result.changes[messageId] ?? []).filter((c) => c.memory && c.source !== "user" && c.source !== "init");
-  const msg = getMessageRow(messageId);
-  if (msg) for (const c of changes) rememberChange(chatId, c, { id: messageId, seq: msg.seq });
+/**
+ * Significant changes become memories (TRK-13); the off-page world takes its turn. `swipeIdx` is the
+ * version the trackers just read (H6: the world's turn belongs to it); none for your edits and time skips.
+ */
+export function afterUpdate(chatId: string, messageId: string, swipeIdx?: number) {
+  syncTrackerMemories(chatId, messageId);
   for (const h of afterUpdateHooks) {
     try {
-      h(chatId, messageId);
+      h(chatId, messageId, swipeIdx);
     } catch (e) {
       console.error("[mea] tracker hook failed:", e);
     }
   }
 }
 
-const afterUpdateHooks: ((chatId: string, messageId: string) => void)[] = [];
+type AfterUpdateHook = (chatId: string, messageId: string, swipeIdx?: number) => void;
+const afterUpdateHooks: AfterUpdateHook[] = [];
 /** The world simulation registers here to tick once the story clock has moved. */
-export function onTrackerUpdate(fn: (chatId: string, messageId: string) => void) {
+export function onTrackerUpdate(fn: AfterUpdateHook) {
   afterUpdateHooks.push(fn);
 }
 
+/** H5: memories the trackers made carry this confidence (there's no column to mark them by). */
+const TRACKER_CONFIDENCE = 0.85;
+const changeContent = (c: Change) => `${c.text}${c.reason ? ` (${c.reason})` : ""}`.replace(/\s+/g, " ").trim();
+
+/**
+ * H5: the memories the trackers made from a message follow the version of it the story shows now.
+ * Ones its fold no longer has go (a swipe, an edit read again, a delete); ones it has come (back).
+ * Memories you edited or pinned stay.
+ */
+export function syncTrackerMemories(chatId: string, messageId: string) {
+  const own = all<{ id: string; content: string }>(
+    `SELECT m.id, m.content FROM memories m WHERE m.chat_id = ? AND m.scene_id IS NULL AND m.user_edited = 0 AND m.pinned = 0 AND m.confidence = ?
+       AND EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = m.id AND s.message_id = ?)
+       AND NOT EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = m.id AND s.message_id != ?)`,
+    chatId,
+    TRACKER_CONFIDENCE,
+    messageId,
+    messageId,
+  );
+  if (!own.length && !one("SELECT 1 FROM tracker_events WHERE message_id = ?", messageId)) return;
+  const msg = getMessageRow(messageId);
+  const wanted = msg && !msg.deleted_at ? (currentFold(chatId).result.changes[messageId] ?? []).filter((c) => c.memory && c.source !== "user" && c.source !== "init") : [];
+  const keep = new Set(wanted.map(changeContent));
+  const gone = own.filter((a) => !keep.has(a.content));
+  if (gone.length) dropAtoms(`id IN (${gone.map(() => "?").join(",")})`, ...gone.map((a) => a.id));
+  const have = new Set(own.map((a) => a.content));
+  let added = 0;
+  for (const c of wanted) if (!have.has(changeContent(c)) && rememberChange(chatId, c, { id: messageId, seq: msg!.seq })) added++;
+  if (gone.length || added) touchMemory(chatId);
+}
+
 function rememberChange(chatId: string, c: Change, source: { id: string; seq: number }) {
-  const content = `${c.text}${c.reason ? ` (${c.reason})` : ""}`.replace(/\s+/g, " ").trim();
-  if (isDuplicate(chatId, content)) return;
+  const content = changeContent(c);
+  if (isDuplicate(chatId, content)) return false;
   const type = c.kind === "bond" || c.kind === "romance" ? "relationship" : c.kind === "promise" ? "promise" : c.kind === "secret" ? "secret" : "event";
-  insertAtom(chatId, null, { type, content, entities: c.subject ? [c.subject] : [], importance: c.kind === "death" || c.kind === "romance" ? 9 : 7, confidence: 0.85 }, [source]);
-  publish({ type: "memory.changed", chatId });
+  insertAtom(chatId, null, { type, content, entities: c.subject ? [c.subject] : [], importance: c.kind === "death" || c.kind === "romance" ? 9 : 7, confidence: TRACKER_CONFIDENCE }, [source]);
+  return true;
 }
 
 // ---------- starting state (TRK-09) ----------
@@ -237,7 +271,7 @@ export function fileInlineLedger(chatId: string, messageId: string, swipeIdx: nu
   const parsed = ledger ? parseLedger(ledger) : null;
   if (parsed?.ops.length) {
     writeEvents(chatId, { messageId, swipeIdx }, parsed.ops, "inline", { replace: ["inline", "model"] });
-    afterUpdate(chatId, messageId);
+    afterUpdate(chatId, messageId, swipeIdx);
   } else enqueue("tracker.update", { chatId, messageId, swipeIdx }, { dedupeKey: `tracker.update:${messageId}:${swipeIdx}`, priority: 5, chatId });
 }
 
@@ -312,8 +346,19 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
  * A message changed (edit, delete, restore, swipe, hide): the fold is recomputed. An edited reply
  * whose tracker lines are older than its text is read again (TRK-04: edits roll state back).
  */
-export function trackerLedgerHook(chatId: string, messageId: string) {
+export function trackerLedgerHook(chatId: string, messageId: string, change?: LedgerChange) {
   onTrackerLedgerEdit(chatId);
+  // H5: memories made from these messages follow them (a rewind drops the ones of the messages it took).
+  if (change?.rewoundTo != null) {
+    for (const r of all<{ message_id: string }>(
+      `SELECT DISTINCT s.message_id FROM memory_sources s JOIN memories mm ON mm.id = s.memory_id JOIN messages m ON m.id = s.message_id
+       WHERE mm.chat_id = ? AND mm.scene_id IS NULL AND mm.confidence = ? AND m.deleted_at IS NOT NULL`,
+      chatId,
+      TRACKER_CONFIDENCE,
+    ))
+      syncTrackerMemories(chatId, r.message_id);
+  }
+  for (const id of change?.restored ?? [messageId]) syncTrackerMemories(chatId, id);
   const m = getMessageRow(messageId);
   if (!m || m.deleted_at || m.role !== "assistant") return;
   const swipe = getSwipes(messageId).find((s) => s.idx === m.active_swipe);

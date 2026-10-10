@@ -8,6 +8,7 @@ import { shouldShed } from "../services/quota";
 import { dropAtoms, markAtomsStaleForMessage } from "./atoms";
 import { buildSummary, chatNames, confirmBoundary, storyNeedsRebuild } from "./build";
 import { embeddingsEnabled } from "./embed";
+import { syncTrackerMemories } from "../trackers/service";
 import { currentFold } from "../trackers/store";
 import { autoTitle } from "../services/stories";
 import { reconcileScene } from "./reconcile";
@@ -256,9 +257,12 @@ export function onLedgerChange(chatId: string, messageId: string, change?: Ledge
 /**
  * C3: a swipe or continue finished on a message memory was already built from (after a rewind, the
  * newest message can be one): its scene and the rows above it are rebuilt as after an edit.
- * Generation calls this when a swipe or continue ends; it does nothing for messages memory hasn't reached.
+ * Generation calls this when a swipe or continue ends; it does nothing for messages memory hasn't reached
+ * (besides H5: the trackers' memories follow the swipe now shown).
  */
 export function ledgerChangedAfterReply(chatId: string, messageId: string) {
+  // H5: a new swipe is shown now; memories the trackers made from the one before go.
+  syncTrackerMemories(chatId, messageId);
   const m = getMessageRow(messageId);
   if (!m || m.seq > memState(chatId).segmentedThrough) return;
   onLedgerChange(chatId, messageId);
