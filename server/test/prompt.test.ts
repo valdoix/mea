@@ -154,6 +154,7 @@ describe("Mea's default preset", () => {
     expect(p).toContain("are judged fairly");
     expect(p).toContain("World texture: insistent");
     expect(p).toContain("[BEFORE YOU WRITE]");
+    expect(p).toContain("open your reasoning with the [BEFORE YOU WRITE] pass");
     expect(p).not.toContain("{{");
   });
 
@@ -163,6 +164,23 @@ describe("Mea's default preset", () => {
     expect(p).toContain("Your last reply opened «Mira set the lantern");
     expect(p).toContain("Avoid above all:");
     expect(all({ kind: "impersonate" })).not.toContain("[THIS REPLY]");
+  });
+
+  test("the rules agree with each other: OOC answers, the inline ledger, planning only for story replies", () => {
+    const p = all();
+    expect(p).toContain("an out-of-character question from the player gets a short answer before the story");
+    expect(p).not.toContain("the <ledger> block follows the story");
+    expect(all({ extras: [{ id: "ledger", name: "Ledger", content: "LEDGER", depth: 0 }] })).toContain("the <ledger> block follows the story");
+    expect(all({ kind: "impersonate" })).not.toContain("[BEFORE YOU WRITE]");
+  });
+
+  test("no card greeting: no reply is told the opening came from the card", () => {
+    const noGreeting = [
+      { id: "1", role: "user" as const, content: "I step inside." },
+      { id: "2", role: "assistant" as const, content: long },
+      { id: "3", role: "user" as const, content: "I sit." },
+    ];
+    expect(assemblePrompt(base({ history: noGreeting })).messages.map((m) => m.content).join("\n")).not.toContain("keep its facts, not its habits");
   });
 
   test("a swipe opens differently from the take it replaces", () => {

@@ -241,7 +241,9 @@ describe("memory pipeline with the mock provider", () => {
     const p = await previewPrompt(chatId);
     const all = p.messages.map((m) => m.content).join("\n");
     expect(all).toContain("CANON 5 · story so far");
-    expect(all).toContain("Canon order.");
+    // Mea's Charter states the canon order itself, so the separate rule isn't repeated.
+    expect(all).toContain("What decides, highest first:");
+    expect(all).not.toContain("Canon order.");
     expect(p.trace.memory?.evictedThrough).toBeGreaterThan(0);
     expect(p.trace.memory?.telescope.length).toBeGreaterThan(0);
     // nothing recalled from inside the verbatim window (MEM-13)

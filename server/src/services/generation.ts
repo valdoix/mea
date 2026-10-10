@@ -280,7 +280,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     filterDepth: cfg.filterDepth,
     extras: [
       // CON-01: one stable rule for which source wins when they disagree.
-      ...(cfg.enabled || tp?.note ? [{ id: "canon", name: "Canon order", content: CANON_RULE, prefix: true } satisfies PromptExtra] : []),
+      // Mea's own Charter states the same order, so it isn't said twice (unless a card prompt replaced the Charter).
+      ...((cfg.enabled || tp?.note) && !(preset.builtin === "mea" && preset.blocks.find((b) => b.id === "main")?.enabled && !card.system_prompt?.trim()) ? [{ id: "canon", name: "Canon order", content: CANON_RULE, prefix: true } satisfies PromptExtra] : []),
       ...(tp?.note ? [{ id: "trackers", name: "Story state (trackers)", content: tp.note.text, depth: 1 } satisfies PromptExtra] : []),
       ...(tp?.inline ? [{ id: "ledger", name: "Ledger instructions", content: tp.inline, depth: 0 } satisfies PromptExtra] : []),
       ...chatExtras(chatId, kind, tp?.state ?? null),
