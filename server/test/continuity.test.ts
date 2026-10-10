@@ -16,6 +16,11 @@ import { registerJob } from "../src/services/jobs";
 import { purgeTrash } from "../src/services/trash";
 import { worldAfterReply } from "../src/sim/service";
 import { afterUpdate, trackerLedgerHook } from "../src/trackers/service";
+import { parseStoryTime } from "../src/trackers/clock";
+import { parseLine } from "../src/trackers/dsl";
+import { nightMinutes } from "../src/trackers/drift";
+import { foldEvents, type TrackerEvent } from "../src/trackers/fold";
+import { STARTER_TEMPLATES } from "../src/trackers/schema";
 import { branchEvents, linesToOps, writeEvents } from "../src/trackers/store";
 import { freshDb } from "./helpers";
 
@@ -300,5 +305,30 @@ describe("H5, H6: what the trackers and the world make follows the swipe", () =>
     expect(engine(0)).toBe(n);
     setActiveSwipe(msg, 1);
     expect(branchEvents(chatId).some((e) => e.messageId === msg && e.source === "engine")).toBe(false);
+  });
+});
+
+describe("M26: the clock keeps its form", () => {
+  const cfg = { userName: "Alex", mainName: "Mira", sealedPersona: true, romance: "slow" as const, strictness: "lenient" as const, limits: true, templates: STARTER_TEMPLATES };
+  const ev = (rows: [string, TrackerEvent["source"]][]): TrackerEvent[] => rows.map(([l, source], i) => ({ id: `c${i}`, messageId: `m${i + 1}`, seq: i + 1, source, op: parseLine(l)! }));
+
+  test("a model can't switch Day N to a date; you can, without a 2,900-year drift", () => {
+    const r = foldEvents(ev([["clock: Day 3 08:00", "init"], ["clock: 2026-03-14 09:00", "model"]]), cfg);
+    expect(Object.values(r.verdicts)[1]!.ok).toBe(false);
+    expect(r.state.time!.form).toBe("day");
+    const t0 = performance.now();
+    const u = foldEvents(ev([["clock: Day 3 08:00", "init"], ["cast: Mira@spot", "init"], ["clock: 2026-03-14 09:00", "user"], ["clock: +1h", "model"]]), cfg);
+    expect(performance.now() - t0).toBeLessThan(500);
+    expect(u.state.time!.form).toBe("date");
+    expect(Object.values(u.verdicts).every((v) => v.ok)).toBe(true);
+  });
+
+  test("dates are checked; night minutes are exact over any span", () => {
+    expect(parseStoryTime("2026-02-30 10:00")).toBeNull();
+    expect(parseStoryTime("2024-02-29 10:00")?.form).toBe("date");
+    expect(nightMinutes(0, 1440)).toBe(480);
+    expect(nightMinutes(22 * 60, 32 * 60)).toBe(480);
+    expect(nightMinutes(8 * 60, 9 * 60)).toBe(0);
+    expect(nightMinutes(0, 1440 * 365 * 2900)).toBe(480 * 365 * 2900);
   });
 });
