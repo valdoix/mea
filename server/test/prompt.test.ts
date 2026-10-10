@@ -154,7 +154,12 @@ describe("Mea's default preset", () => {
     expect(p).toContain("are judged fairly");
     expect(p).toContain("World texture: insistent");
     expect(p).toContain("[BEFORE YOU WRITE]");
-    expect(p).toContain("open your reasoning with the [BEFORE YOU WRITE] pass");
+    // Planning is always on: in a <think> block by default, in the model's own reasoning when the route reasons.
+    expect(p).toContain("Begin with <think>, run the [BEFORE YOU WRITE] pass");
+    expect(p).toContain("the <think> planning block opens the reply");
+    const native = all({ providerReasoning: true });
+    expect(native).toContain("Open your reasoning with the [BEFORE YOU WRITE] pass");
+    expect(native).not.toContain("<think>");
     expect(p).not.toContain("{{");
   });
 
