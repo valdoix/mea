@@ -1,8 +1,50 @@
+import type { Database } from "bun:sqlite";
+
 /**
  * Schema migrations. Embedded as strings so a compiled `mea.exe` carries them.
  * Never edit a shipped migration; add a new one.
  */
-export const migrations: { id: number; name: string; sql: string }[] = [
+/**
+ * M20: the triggers that keep fold_marks (migration 13). Kept here because a migration that rebuilds
+ * messages or tracker_events drops their triggers and must create them again.
+ */
+const EVENT_MARK = (row: "new" | "old") =>
+  `INSERT INTO fold_marks (chat_id, seq) SELECT ${row}.chat_id, s FROM (SELECT CASE WHEN ${row}.message_id IS NULL THEN 0 ELSE (SELECT seq FROM messages WHERE id = ${row}.message_id) END AS s) WHERE s IS NOT NULL;`;
+export const FOLD_MARK_MESSAGE_TRIGGERS = /* sql */ `
+CREATE TRIGGER IF NOT EXISTS fold_marks_msg_ai AFTER INSERT ON messages BEGIN
+  INSERT INTO fold_marks (chat_id, seq) VALUES (new.chat_id, new.seq);
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_msg_au AFTER UPDATE OF chat_id, seq, active_swipe, updated_at, deleted_at ON messages BEGIN
+  INSERT INTO fold_marks (chat_id, seq) VALUES (old.chat_id, MIN(old.seq, new.seq));
+  INSERT INTO fold_marks (chat_id, seq) SELECT new.chat_id, new.seq WHERE new.chat_id IS NOT old.chat_id;
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_msg_ad AFTER DELETE ON messages BEGIN
+  INSERT INTO fold_marks (chat_id, seq) VALUES (old.chat_id, old.seq);
+END;
+`;
+export const FOLD_MARK_EVENT_TRIGGERS = /* sql */ `
+CREATE TRIGGER IF NOT EXISTS fold_marks_ev_ai AFTER INSERT ON tracker_events BEGIN
+  ${EVENT_MARK("new")}
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_ev_au AFTER UPDATE ON tracker_events BEGIN
+  ${EVENT_MARK("old")}
+  ${EVENT_MARK("new")}
+END;
+CREATE TRIGGER IF NOT EXISTS fold_marks_ev_ad AFTER DELETE ON tracker_events BEGIN
+  ${EVENT_MARK("old")}
+END;
+`;
+const FOLD_MARK_TRIGGERS = FOLD_MARK_MESSAGE_TRIGGERS + FOLD_MARK_EVENT_TRIGGERS;
+
+export interface Migration {
+  id: number;
+  name: string;
+  sql?: string;
+  /** Steps SQL alone can't say safely (checks before ALTERs, table rebuilds); runs after `sql`, in the same transaction. */
+  up?: (db: Database) => void;
+}
+
+export const migrations: Migration[] = [
   {
     id: 1,
     name: "initial",
@@ -789,4 +831,241 @@ CREATE INDEX IF NOT EXISTS generations_job ON generations(job_id) WHERE job_id I
 CREATE INDEX IF NOT EXISTS jobs_chat ON jobs(chat_id, status) WHERE chat_id IS NOT NULL;
 `,
   },
+  {
+    id: 13,
+    name: "fold marks",
+    sql: /* sql */ `
+-- M20: tracker folds start from in-memory snapshots. Every change that can alter a fold (a message
+-- written, edited, deleted, restored, purged or switched to another swipe; a tracker event written,
+-- renumbered or removed) leaves a mark with the earliest seq it touches, whatever code path made it.
+-- A snapshot at seq S stays good while no newer mark has a seq at or before S. AUTOINCREMENT: ids
+-- never come back after old marks are pruned.
+CREATE TABLE IF NOT EXISTS fold_marks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id TEXT NOT NULL,
+  seq INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fold_marks_chat ON fold_marks(chat_id, id);
+${FOLD_MARK_TRIGGERS}
+`,
+  },
+  {
+    id: 14,
+    name: "memory marks",
+    sql: /* sql */ `
+-- M20: the entity sync reads only the memories that changed since it last ran. Every memory
+-- written, deleted, or changed in what the sync reads (names, seqs, status, deletion) leaves a mark.
+CREATE TABLE IF NOT EXISTS memory_marks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id TEXT NOT NULL,
+  memory_id TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS memory_marks_chat ON memory_marks(chat_id, id);
+CREATE TRIGGER IF NOT EXISTS memory_marks_ai AFTER INSERT ON memories BEGIN
+  INSERT INTO memory_marks (chat_id, memory_id) VALUES (new.chat_id, new.id);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_marks_au AFTER UPDATE OF id, chat_id, entities, min_seq, max_seq, status, deleted_at, created_at ON memories BEGIN
+  INSERT INTO memory_marks (chat_id, memory_id) VALUES (old.chat_id, old.id);
+  INSERT INTO memory_marks (chat_id, memory_id) SELECT new.chat_id, new.id WHERE new.chat_id IS NOT old.chat_id OR new.id IS NOT old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS memory_marks_ad AFTER DELETE ON memories BEGIN
+  INSERT INTO memory_marks (chat_id, memory_id) VALUES (old.chat_id, old.id);
+END;
+`,
+  },
+  {
+    id: 15,
+    name: "memory origin and lore firing message",
+    up: (db) => {
+      // M31: who made a memory, instead of guessing tracker-made ones from confidence 0.85, no scene and one source.
+      if (!hasColumn(db, "memories", "origin")) db.exec("ALTER TABLE memories ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai'");
+      if (!hasColumn(db, "memories", "swipe_idx")) db.exec("ALTER TABLE memories ADD COLUMN swipe_idx INTEGER");
+      // Backfill with the old heuristic: tracker memories follow the swipe their message shows.
+      db.exec(`UPDATE memories SET origin = 'tracker',
+          swipe_idx = (SELECT m.active_swipe FROM memory_sources s JOIN messages m ON m.id = s.message_id WHERE s.memory_id = memories.id)
+        WHERE origin = 'ai' AND scene_id IS NULL AND confidence = 0.85
+          AND (SELECT COUNT(*) FROM memory_sources s WHERE s.memory_id = memories.id) = 1`);
+      // Memories outside any scene that you wrote or edited are yours.
+      db.exec("UPDATE memories SET origin = 'user' WHERE origin = 'ai' AND scene_id IS NULL AND user_edited = 1");
+      db.exec("CREATE INDEX IF NOT EXISTS memories_origin ON memories(chat_id, origin) WHERE origin != 'ai'");
+
+      // M31/M32: the message whose reply fired a lore entry, and where it stood then, instead of inferring it from the count.
+      if (!hasColumn(db, "lore_state", "fired_at")) db.exec("ALTER TABLE lore_state ADD COLUMN fired_at TEXT");
+      if (!hasColumn(db, "lore_state", "fired_pos")) db.exec("ALTER TABLE lore_state ADD COLUMN fired_pos INTEGER");
+      const rows = db
+        .query<{ chat_id: string; entry_id: string; sticky_until: number | null; cooldown_until: number | null; data: string | null }, []>(
+          "SELECT ls.chat_id, ls.entry_id, ls.sticky_until, ls.cooldown_until, e.data FROM lore_state ls LEFT JOIN lorebook_entries e ON e.id = ls.entry_id WHERE ls.fired_at IS NULL",
+        )
+        .all();
+      const live = new Map<string, { id: string; role: string }[]>();
+      const setFired = db.query("UPDATE lore_state SET fired_at = ?, fired_pos = ? WHERE chat_id = ? AND entry_id = ?");
+      const drop = db.query("DELETE FROM lore_state WHERE chat_id = ? AND entry_id = ?");
+      for (const r of rows) {
+        let entry: { sticky?: number; cooldown?: number } = {};
+        try {
+          entry = r.data ? JSON.parse(r.data) : {};
+        } catch {
+          // a broken entry can't be timed
+        }
+        const sticky = Number(entry.sticky) || 0;
+        const cooldown = Number(entry.cooldown) || 0;
+        // The live-message count the entry fired at (as M32 inferred it).
+        const count = r.sticky_until != null && sticky > 0 ? r.sticky_until - sticky : r.cooldown_until != null && cooldown > 0 ? r.cooldown_until - cooldown : null;
+        let msgs = live.get(r.chat_id);
+        if (!msgs) live.set(r.chat_id, (msgs = db.query<{ id: string; role: string }, [string]>("SELECT id, role FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq").all(r.chat_id)));
+        // The reply it fired for: written right after that count (a new reply), or at it (a swipe or continue).
+        const pick = count == null ? -1 : msgs[count]?.role === "assistant" ? count : msgs[count - 1]?.role === "assistant" ? count - 1 : msgs[count] ? count : count - 1;
+        const m = pick >= 0 ? msgs[pick] : undefined;
+        // No entry, no count, or its message is gone (rewound or deleted): the state can't hold anything back.
+        if (!m) drop.run(r.chat_id, r.entry_id);
+        else setFired.run(m.id, pick + 1, r.chat_id, r.entry_id);
+      }
+    },
+  },
+  {
+    id: 16,
+    name: "foreign keys for message and chat rows",
+    up: (db) => {
+      // M31: vectors go with their memory or summary in the same statement, however it's deleted
+      // (a rebuild, a purge, a chat's cascade). Owners are polymorphic, so triggers instead of a foreign key.
+      db.exec(`
+CREATE TRIGGER IF NOT EXISTS embeddings_memory_gone AFTER DELETE ON memories BEGIN
+  DELETE FROM embeddings WHERE owner_type = 'memory' AND owner_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS embeddings_summary_gone AFTER DELETE ON summaries BEGIN
+  DELETE FROM embeddings WHERE owner_type = 'summary' AND owner_id = old.id;
+END;`);
+      // Memories made only from messages that are gone for good go too (as a purge does), unless you edited or pinned them.
+      db.exec(`DELETE FROM memories WHERE user_edited = 0 AND pinned = 0
+        AND EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = memories.id)
+        AND NOT EXISTS (SELECT 1 FROM memory_sources s JOIN messages m ON m.id = s.message_id WHERE s.memory_id = memories.id)`);
+      // M31: rows tied to a message go when it's purged, rows tied to a chat when it is. SQLite can't add a
+      // foreign key to a table, so each is rebuilt: new table, the rows that still have a parent, swap, indexes.
+      const chat = "chat_id IN (SELECT id FROM chats)";
+      const message = "message_id IN (SELECT id FROM messages)";
+      rebuildTable(db, "tracker_events", {
+        create: `CREATE TABLE tracker_events (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,
+  swipe_idx INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL,
+  ord INTEGER NOT NULL,
+  op TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+)`,
+        keep: `${chat} AND (message_id IS NULL OR ${message})`,
+        after: `CREATE INDEX IF NOT EXISTS tracker_events_chat ON tracker_events(chat_id, message_id, swipe_idx, ord);
+CREATE INDEX IF NOT EXISTS tracker_events_message ON tracker_events(message_id, swipe_idx);
+${FOLD_MARK_EVENT_TRIGGERS}`,
+      });
+      rebuildTable(db, "memory_sources", {
+        create: `CREATE TABLE memory_sources (
+  memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+  message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL,
+  PRIMARY KEY (memory_id, message_id)
+)`,
+        keep: `memory_id IN (SELECT id FROM memories) AND ${message}`,
+        after: "CREATE INDEX IF NOT EXISTS memory_sources_message ON memory_sources(message_id);",
+      });
+      rebuildTable(db, "continuity_flags", {
+        create: `CREATE TABLE continuity_flags (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  swipe_idx INTEGER NOT NULL,
+  issues TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (message_id, swipe_idx)
+)`,
+        keep: `${chat} AND ${message}`,
+        after: "CREATE INDEX IF NOT EXISTS continuity_chat ON continuity_flags(chat_id, status);",
+      });
+      rebuildTable(db, "highlights", {
+        create: `CREATE TABLE highlights (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+)`,
+        keep: `${chat} AND ${message}`,
+        after: `CREATE INDEX IF NOT EXISTS highlights_chat ON highlights(chat_id, created_at);
+CREATE INDEX IF NOT EXISTS highlights_message ON highlights(message_id);`,
+      });
+      rebuildTable(db, "memory_usage", {
+        create: `CREATE TABLE memory_usage (
+  generation_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  owner_type TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (generation_id, owner_type, owner_id)
+)`,
+        keep: chat,
+        after: `CREATE INDEX IF NOT EXISTS memory_usage_owner ON memory_usage(owner_type, owner_id, created_at);
+CREATE INDEX IF NOT EXISTS memory_usage_chat ON memory_usage(chat_id, created_at);`,
+      });
+      rebuildTable(db, "lore_hits", {
+        create: `CREATE TABLE lore_hits (
+  entry_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  count INTEGER NOT NULL DEFAULT 0,
+  last_at INTEGER NOT NULL,
+  PRIMARY KEY (entry_id, chat_id)
+)`,
+        keep: chat,
+        // A chat's delete finds its rows by chat.
+        after: "CREATE INDEX IF NOT EXISTS lore_hits_chat ON lore_hits(chat_id);",
+      });
+      rebuildTable(db, "inbox_dismissed", {
+        create: `CREATE TABLE inbox_dismissed (
+  key TEXT PRIMARY KEY,
+  chat_id TEXT REFERENCES chats(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL
+)`,
+        keep: `chat_id IS NULL OR ${chat}`,
+        after: "CREATE INDEX IF NOT EXISTS inbox_dismissed_chat ON inbox_dismissed(chat_id) WHERE chat_id IS NOT NULL;",
+      });
+      // Every row left must have its parent, or the migration (and its transaction) fails.
+      for (const t of ["tracker_events", "memory_sources", "continuity_flags", "highlights", "memory_usage", "lore_hits", "inbox_dismissed"]) {
+        const bad = db.query(`PRAGMA foreign_key_check(${t})`).all();
+        if (bad.length) throw new Error(`Migration 16: ${bad.length} rows of ${t} still lack a parent`);
+      }
+    },
+  },
 ];
+
+const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+
+/**
+ * Rebuilds a table with a new definition (SQLite can't add constraints in place): creates it under a
+ * temporary name, copies the rows `keep` selects, drops the old one, renames the new one, then runs
+ * `after` (indexes and triggers, which went with the old table). Safe to run again: a half-made temp
+ * table from an earlier try is dropped first, and a table already rebuilt (its definition matches) is left alone.
+ */
+function rebuildTable(db: Database, name: string, spec: { create: string; keep: string; after?: string }) {
+  const tmp = `${name}_rebuild`;
+  const current = db.query<{ sql: string }, [string]>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(name)?.sql;
+  const squash = (s: string) => s.replace(/\s+/g, " ").replace(/"/g, "").trim();
+  if (current && squash(current) === squash(spec.create)) {
+    if (spec.after) db.exec(spec.after);
+    return;
+  }
+  db.exec(`DROP TABLE IF EXISTS ${tmp}`);
+  db.exec(spec.create.replace(`CREATE TABLE ${name} (`, `CREATE TABLE ${tmp} (`));
+  const newCols = db.query<{ name: string }, []>(`PRAGMA table_info(${tmp})`).all().map((c) => c.name);
+  const oldCols = db.query<{ name: string }, []>(`PRAGMA table_info(${name})`).all().map((c) => c.name);
+  const lost = oldCols.filter((c) => !newCols.includes(c));
+  if (lost.length) throw new Error(`Rebuilding ${name} would lose columns: ${lost.join(", ")}`);
+  const cols = newCols.filter((c) => oldCols.includes(c)).join(", ");
+  db.exec(`INSERT INTO ${tmp} (${cols}) SELECT ${cols} FROM ${name} WHERE ${spec.keep}`);
+  db.exec(`DROP TABLE ${name}`);
+  db.exec(`ALTER TABLE ${tmp} RENAME TO ${name}`);
+  if (spec.after) db.exec(spec.after);
+}

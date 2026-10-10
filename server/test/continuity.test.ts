@@ -243,8 +243,10 @@ describe("H7, M34: emptying the trash", () => {
     purgeTrash(now() + 1000);
     expect(one("SELECT 1 FROM messages WHERE id = ?", ids[3]!)).toBeFalsy();
     expect(all("SELECT 1 FROM tracker_events WHERE message_id = ?", ids[3]!)).toHaveLength(0);
-    // Even an event left behind by an older purge stays out of the fold.
-    run("INSERT INTO tracker_events (id, chat_id, message_id, swipe_idx, source, ord, op, created_at) VALUES ('orphan', ?, 'gone-message', -1, 'user', 1, ?, ?)", chatId, JSON.stringify(linesToOps(["clock: +3d"]).ops[0]), now());
+    // M31: an event can't be left without its message any more (a foreign key; older ones were dropped by migration 16).
+    expect(() =>
+      run("INSERT INTO tracker_events (id, chat_id, message_id, swipe_idx, source, ord, op, created_at) VALUES ('orphan', ?, 'gone-message', -1, 'user', 1, ?, ?)", chatId, JSON.stringify(linesToOps(["clock: +3d"]).ops[0]), now()),
+    ).toThrow(/FOREIGN KEY/);
     expect(branchEvents(chatId).some((e) => e.id === "orphan")).toBe(false);
   });
 
@@ -298,6 +300,8 @@ describe("H5, H6: what the trackers and the world make follows the swipe", () =>
     writeEvents(chatId, { messageId: msg, swipeIdx: 0 }, linesToOps(["dead Tom — fell from the tower", "clock: +6h"]).ops, "model");
     afterUpdate(chatId, msg, 0);
     expect(tomDied()).toHaveLength(1);
+    // M31: marked as the trackers' (and which swipe's) by its columns, not by its confidence.
+    expect(one<{ origin: string; swipe_idx: number }>("SELECT origin, swipe_idx FROM memories WHERE id = ?", tomDied()[0]!.id)).toEqual({ origin: "tracker", swipe_idx: 0 });
     // A new swipe: generation calls this when it ends.
     const idx = addSwipe(msg, "done");
     updateSwipe(msg, idx, { content: "Tom caught the railing just in time." });

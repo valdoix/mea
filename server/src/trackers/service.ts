@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { all, one } from "../db/db";
+import { all, one, run } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest } from "../lib/http";
 import { dropAtoms, insertAtom, isDuplicate } from "../memory/atoms";
@@ -192,7 +192,7 @@ export function onTrackerUpdate(fn: AfterUpdateHook) {
   afterUpdateHooks.push(fn);
 }
 
-/** H5: memories the trackers made carry this confidence (there's no column to mark them by). */
+/** H5: how sure a memory the trackers made is (M31: they're marked by origin, not by this). */
 const TRACKER_CONFIDENCE = 0.85;
 const changeContent = (c: Change) => `${c.text}${c.reason ? ` (${c.reason})` : ""}`.replace(/\s+/g, " ").trim();
 
@@ -202,13 +202,10 @@ const changeContent = (c: Change) => `${c.text}${c.reason ? ` (${c.reason})` : "
  * Memories you edited or pinned stay.
  */
 export function syncTrackerMemories(chatId: string, messageId: string) {
-  const own = all<{ id: string; content: string }>(
-    `SELECT m.id, m.content FROM memories m WHERE m.chat_id = ? AND m.scene_id IS NULL AND m.user_edited = 0 AND m.pinned = 0 AND m.confidence = ?
-       AND EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = m.id AND s.message_id = ?)
-       AND NOT EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = m.id AND s.message_id != ?)`,
+  const own = all<{ id: string; content: string; swipe_idx: number | null }>(
+    `SELECT m.id, m.content, m.swipe_idx FROM memories m WHERE m.chat_id = ? AND m.origin = 'tracker' AND m.user_edited = 0 AND m.pinned = 0
+       AND EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = m.id AND s.message_id = ?)`,
     chatId,
-    TRACKER_CONFIDENCE,
-    messageId,
     messageId,
   );
   if (!own.length && !one("SELECT 1 FROM tracker_events WHERE message_id = ?", messageId)) return;
@@ -217,17 +214,22 @@ export function syncTrackerMemories(chatId: string, messageId: string) {
   const keep = new Set(wanted.map(changeContent));
   const gone = own.filter((a) => !keep.has(a.content));
   if (gone.length) dropAtoms(`id IN (${gone.map(() => "?").join(",")})`, ...gone.map((a) => a.id));
+  // Ones the swipe shown now has too follow it (M31: the swipe they belong to).
+  const kept = own.filter((a) => keep.has(a.content) && a.swipe_idx !== msg!.active_swipe);
+  if (kept.length) run(`UPDATE memories SET swipe_idx = ? WHERE id IN (${kept.map(() => "?").join(",")})`, msg!.active_swipe, ...kept.map((a) => a.id));
   const have = new Set(own.map((a) => a.content));
   let added = 0;
-  for (const c of wanted) if (!have.has(changeContent(c)) && rememberChange(chatId, c, { id: messageId, seq: msg!.seq })) added++;
+  for (const c of wanted) if (!have.has(changeContent(c)) && rememberChange(chatId, c, { id: messageId, seq: msg!.seq, swipeIdx: msg!.active_swipe })) added++;
   if (gone.length || added) touchMemory(chatId);
 }
 
-function rememberChange(chatId: string, c: Change, source: { id: string; seq: number }) {
+function rememberChange(chatId: string, c: Change, source: { id: string; seq: number; swipeIdx: number }) {
   const content = changeContent(c);
   if (isDuplicate(chatId, content)) return false;
   const type = c.kind === "bond" || c.kind === "romance" ? "relationship" : c.kind === "promise" ? "promise" : c.kind === "secret" ? "secret" : "event";
-  insertAtom(chatId, null, { type, content, entities: c.subject ? [c.subject] : [], importance: c.kind === "death" || c.kind === "romance" ? 9 : 7, confidence: TRACKER_CONFIDENCE }, [source]);
+  insertAtom(chatId, null, { type, content, entities: c.subject ? [c.subject] : [], importance: c.kind === "death" || c.kind === "romance" ? 9 : 7, confidence: TRACKER_CONFIDENCE, origin: "tracker", swipeIdx: source.swipeIdx },
+    [{ id: source.id, seq: source.seq }],
+  );
   return true;
 }
 
@@ -350,14 +352,15 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
  * whose tracker lines are older than its text is read again (TRK-04: edits roll state back).
  */
 export function trackerLedgerHook(chatId: string, messageId: string, change?: LedgerChange) {
-  onTrackerLedgerEdit(chatId);
+  // M20: fold snapshots before the message stay good (a restore names its earliest message; a rewind, where it ends).
+  const at = one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", messageId)?.seq;
+  onTrackerLedgerEdit(chatId, at == null ? undefined : change?.rewoundTo != null ? Math.min(at, change.rewoundTo + 1) : at);
   // H5: memories made from these messages follow them (a rewind drops the ones of the messages it took).
   if (change?.rewoundTo != null) {
     for (const r of all<{ message_id: string }>(
       `SELECT DISTINCT s.message_id FROM memory_sources s JOIN memories mm ON mm.id = s.memory_id JOIN messages m ON m.id = s.message_id
-       WHERE mm.chat_id = ? AND mm.scene_id IS NULL AND mm.confidence = ? AND m.deleted_at IS NOT NULL`,
+       WHERE mm.chat_id = ? AND mm.origin = 'tracker' AND m.deleted_at IS NOT NULL`,
       chatId,
-      TRACKER_CONFIDENCE,
     ))
       syncTrackerMemories(chatId, r.message_id);
   }

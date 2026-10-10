@@ -1,4 +1,4 @@
-import { all, newId, now, one, parseJson, run, tx } from "../db/db";
+import { all, dbGeneration, newId, now, one, parseJson, run, tx } from "../db/db";
 import { badRequest, notFound } from "../lib/http";
 import { publish } from "../lib/events";
 import { type AtomRow, sourcesLive } from "./atoms";
@@ -194,6 +194,143 @@ interface Seen {
 
 const synced = new Map<string, string>();
 
+const NOT_NAMES = new Set(["you", "i", "me", "we", "they", "he", "she", "it", "everyone", "nobody", "user", "char"]);
+/** A name as the sync keeps it, and its key; null for what isn't a name. */
+function entityKey(name: string): { clean: string; key: string } | null {
+  const clean = name.replace(/\s+/g, " ").trim();
+  if (clean.length < 2 || clean.length > 80) return null;
+  const key = norm(clean);
+  if (!key || NOT_NAMES.has(key)) return null;
+  return { clean, key };
+}
+
+// ---------- the names memories carry (M20) ----------
+//
+// The sync used to read and parse every memory of the chat each turn. Now each chat keeps what each
+// live memory names, read once; triggers (migration 14) leave a mark in memory_marks for every memory
+// written, deleted or changed in what this reads, and a sync reads just the memories marked since
+// it last looked. The totals are rebuilt from that in memory, in the memories' order.
+
+interface MemoryNames {
+  id: string;
+  created: number;
+  first: number | null;
+  last: number | null;
+  names: { key: string; clean: string; kind: EntityKind }[];
+}
+interface NameTotal {
+  clean: string;
+  kind: EntityKind;
+  first: number | null;
+  last: number | null;
+  count: number;
+}
+interface MemoryNameCache {
+  checked: number;
+  rows: Map<string, MemoryNames>;
+  totals: Map<string, NameTotal> | null;
+  /** The memory read last into the totals. */
+  last: MemoryNames | null;
+}
+const memoryCaches = new Map<string, MemoryNameCache>();
+let memoryCacheDb = -1;
+let syncsSincePrune = 0;
+
+type NameRow = Pick<AtomRow, "id" | "entities" | "min_seq" | "max_seq" | "created_at">;
+const LIVE = "deleted_at IS NULL AND status != 'superseded'";
+const readNames = (r: NameRow): MemoryNames => ({
+  id: r.id,
+  created: r.created_at,
+  first: r.min_seq,
+  last: r.max_seq,
+  names: parseJson<string[]>(r.entities, []).flatMap((n) => {
+    const k = entityKey(n);
+    return k ? [{ ...k, kind: guessKind(n) }] : [];
+  }),
+});
+const topMemoryMark = () => one<{ id: number | null }>("SELECT MAX(id) AS id FROM memory_marks")?.id ?? 0;
+
+/** Memory marks no chat's names need any more go. */
+export function pruneMemoryMarks() {
+  if (memoryCacheDb !== dbGeneration()) memoryCaches.clear();
+  run("DELETE FROM memory_marks WHERE id <= ?", Math.min(topMemoryMark(), ...[...memoryCaches.values()].map((c) => c.checked)));
+}
+
+/** Tests: forget what the syncs know, so the next one reads everything again. */
+export function forgetEntitySync(chatId?: string) {
+  if (chatId) {
+    memoryCaches.delete(chatId);
+    synced.delete(chatId);
+  } else {
+    memoryCaches.clear();
+    synced.clear();
+  }
+}
+
+/** Every name the chat's live memories carry, totalled per key, in order of first appearance. */
+function memoryNames(chatId: string): Map<string, NameTotal> {
+  if (memoryCacheDb !== dbGeneration()) {
+    memoryCaches.clear();
+    memoryCacheDb = dbGeneration();
+  }
+  let c = memoryCaches.get(chatId);
+  if (!c) {
+    const checked = topMemoryMark();
+    const rows = all<NameRow>(`SELECT id, entities, min_seq, max_seq, created_at FROM memories WHERE chat_id = ? AND ${LIVE}`, chatId);
+    c = { checked, rows: new Map(rows.map((r) => [r.id, readNames(r)])), totals: null, last: null };
+  } else {
+    const marked = all<{ memory_id: string; top: number }>("SELECT memory_id, MAX(id) AS top FROM memory_marks WHERE chat_id = ? AND id > ? GROUP BY memory_id", chatId, c.checked);
+    // The usual turn only adds memories after all the others: their names add to the totals as they are.
+    let append = c.totals != null && c.last != null;
+    const added: MemoryNames[] = [];
+    for (let i = 0; i < marked.length; i += 500) {
+      const ids = marked.slice(i, i + 500).map((m) => m.memory_id);
+      for (const id of ids) if (c.rows.delete(id)) append = false;
+      for (const r of all<NameRow>(`SELECT id, entities, min_seq, max_seq, created_at FROM memories WHERE chat_id = ? AND ${LIVE} AND id IN (${ids.map(() => "?").join(",")})`, chatId, ...ids)) {
+        const m = readNames(r);
+        c.rows.set(r.id, m);
+        added.push(m);
+      }
+    }
+    if (marked.length) {
+      c.checked = Math.max(...marked.map((m) => m.top));
+      added.sort(memoryOrder);
+      if (append && added.length && memoryOrder(added[0]!, c.last!) > 0) {
+        for (const m of added) addNames(c.totals!, m);
+        c.last = added.at(-1)!;
+      } else if (!append || added.length) c.totals = null;
+    }
+  }
+  memoryCaches.delete(chatId);
+  memoryCaches.set(chatId, c);
+  if (memoryCaches.size > 20) memoryCaches.delete(memoryCaches.keys().next().value!);
+  if (++syncsSincePrune >= 200) {
+    syncsSincePrune = 0;
+    pruneMemoryMarks();
+  }
+  if (!c.totals) {
+    const totals = new Map<string, NameTotal>();
+    const order = [...c.rows.values()].sort(memoryOrder);
+    for (const m of order) addNames(totals, m);
+    c.totals = totals;
+    c.last = order.at(-1) ?? null;
+  }
+  return c.totals;
+}
+
+/** The order memories are read in: oldest first (the first spelling of a name wins). */
+const memoryOrder = (a: MemoryNames, b: MemoryNames) => a.created - b.created || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+function addNames(totals: Map<string, NameTotal>, m: MemoryNames) {
+  for (const n of m.names) {
+    let t = totals.get(n.key);
+    if (!t) totals.set(n.key, (t = { clean: n.clean, kind: n.kind, first: null, last: null, count: 0 }));
+    if (m.first != null) t.first = t.first == null ? m.first : Math.min(t.first, m.first);
+    if (m.last != null) t.last = t.last == null ? m.last : Math.max(t.last, m.last);
+    t.count++;
+  }
+}
+
 type TrackerState = import("../trackers/types").WorldState;
 function trackerStateOf(chatId: string): { state: TrackerState; stamp: string } | null {
   try {
@@ -217,10 +354,9 @@ export function syncEntities(chatId: string, force = false) {
 
   const seen = new Map<string, Seen>();
   const add = (name: string, kind: EntityKind, o: Partial<Omit<Seen, "aliases" | "sources" | "data">> & { aliases?: string[]; source: string; data?: EntityData; seq?: number | null }) => {
-    const clean = name.replace(/\s+/g, " ").trim();
-    if (clean.length < 2 || clean.length > 80) return;
-    const key = norm(clean);
-    if (!key || ["you", "i", "me", "we", "they", "he", "she", "it", "everyone", "nobody", "user", "char"].includes(key)) return;
+    const k = entityKey(name);
+    if (!k) return;
+    const { clean, key } = k;
     let s = seen.get(key);
     // Join an existing record through its aliases ("the stranger" → Kael).
     if (!s) for (const a of o.aliases ?? []) s = s ?? seen.get(norm(a));
@@ -277,8 +413,18 @@ export function syncEntities(chatId: string, force = false) {
     for (const n of d.locations ?? []) add(n, "place", { first: s.start_seq, last: s.end_seq ?? s.start_seq, source: "scenes", strong: true });
   }
 
-  for (const a of all<Pick<AtomRow, "entities" | "min_seq" | "max_seq">>("SELECT entities, min_seq, max_seq FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status != 'superseded'", chatId)) {
-    for (const n of parseJson<string[]>(a.entities, [])) add(n, guessKind(n), { first: a.min_seq, last: a.max_seq, source: "memories" });
+  // M20: what every live memory names, summed per name (kept up to date from the memories that changed).
+  // The same as adding each name of each memory in turn: a name new here takes its first spelling and guessed kind.
+  for (const [key, g] of memoryNames(chatId)) {
+    let s = seen.get(key);
+    if (!s) {
+      s = { name: g.clean, kind: g.kind, aliases: new Set(), first: null, last: null, mentions: 0, data: {}, sources: new Set(), strong: false };
+      seen.set(key, s);
+    }
+    if (g.first != null) s.first = s.first == null ? g.first : Math.min(s.first, g.first);
+    if (g.last != null) s.last = s.last == null ? g.last : Math.max(s.last, g.last);
+    s.mentions += g.count;
+    s.sources.add("memories");
   }
 
   // Lore that names an entity describes it (its essentials, or its first sentence).

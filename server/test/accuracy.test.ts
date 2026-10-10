@@ -97,6 +97,19 @@ describe("checking a reply", () => {
     const done = dismissIssue(flag.id, null);
     expect(done.status).toBe("resolved");
   });
+  test("M28: accepting a model issue stores the checker's whole sentence, not the quoted words", async () => {
+    const m = addMessage(chatId, "assistant", "Mira sets the lantern down somewhere new. MOCK_CONTRADICTION", { name: "Mira" });
+    const issues = await checkReply(chatId, m, 0);
+    const model = issues!.find((i) => i.by === "model")!;
+    expect(model.canon?.memory).toBe("Mira keeps the brass lantern in the cellar.");
+    const flag = flagsFor(chatId, { messageIds: [m] })[0]!;
+    acceptIssue(flag.id, model.id);
+    const row = one<{ importance: number; user_edited: number; status: string }>("SELECT importance, user_edited, status FROM memories WHERE chat_id = ? AND content = ?", chatId, "Mira keeps the brass lantern in the cellar.");
+    expect(row).toMatchObject({ importance: 9, user_edited: 1, status: "active" });
+    expect(one("SELECT 1 FROM memories WHERE chat_id = ? AND content LIKE '%MOCK_CONTRADICTION%'", chatId)).toBeFalsy();
+    const src = one<{ message_id: string }>("SELECT s.message_id FROM memory_sources s JOIN memories mm ON mm.id = s.memory_id WHERE mm.content = ?", "Mira keeps the brass lantern in the cellar.");
+    expect(src?.message_id).toBe(m);
+  });
   test("your tracker edits count even when they're anchored to the reply being checked", async () => {
     const m = addMessage(chatId, "assistant", "Joss grins, his grey eyes crinkling.", { name: "Mira" });
     // A trait you set now lands on the latest message: the reply itself.
