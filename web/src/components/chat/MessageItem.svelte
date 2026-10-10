@@ -337,6 +337,15 @@
     content-visibility: auto;
     contain-intrinsic-size: auto 8em;
   }
+  /* Message prose is justified, with hyphenation so lines don't open wide gaps; list items stay ragged. */
+  .body > .prose :global(p) {
+    text-align: justify;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+  }
+  .body > .prose :global(li p) {
+    text-align: start;
+  }
   .banned {
     color: var(--warn);
     margin-top: 0.3rem;
