@@ -770,4 +770,12 @@ CREATE INDEX highlights_message ON highlights(message_id);
 ALTER TABLE images ADD COLUMN variants TEXT NOT NULL DEFAULT '{}';
 `,
   },
+  {
+    id: 11,
+    name: "deleted codex entries",
+    sql: /* sql */ `
+-- A codex entry you deleted stays as a tombstone, so a sync doesn't bring it back.
+ALTER TABLE entities ADD COLUMN deleted_at INTEGER;
+`,
+  },
 ];

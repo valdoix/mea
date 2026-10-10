@@ -35,6 +35,7 @@ export interface EntityRow {
   mentions: number;
   user_edited: number;
   merged_into: string | null;
+  deleted_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -100,7 +101,7 @@ export function getEntityRow(id: string) {
 }
 
 function liveRows(chatId: string) {
-  return all<EntityRow>("SELECT * FROM entities WHERE chat_id = ? AND merged_into IS NULL ORDER BY mentions DESC, name", chatId);
+  return all<EntityRow>("SELECT * FROM entities WHERE chat_id = ? AND merged_into IS NULL AND deleted_at IS NULL ORDER BY mentions DESC, name", chatId);
 }
 
 /** Name and alias → entity, for one chat. Merged entities resolve to the one they became. */
@@ -290,7 +291,8 @@ export function syncEntities(chatId: string, force = false) {
   const cast = castOf(chatId);
   for (const [name, p] of Object.entries(cast)) if (p.description) add(name, "person", { description: p.description, descSource: "cast", source: "cast", strong: true });
 
-  const rows = all<EntityRow>("SELECT * FROM entities WHERE chat_id = ?", chatId);
+  // Deleted entries still answer to their names (after the live ones), so a sync doesn't bring them back.
+  const rows = all<EntityRow>("SELECT * FROM entities WHERE chat_id = ? ORDER BY deleted_at IS NOT NULL", chatId);
   const res = new Resolver(rows.filter((r) => !r.merged_into));
   const byId = new Map(rows.map((r) => [r.id, r]));
   const follow = (r: EntityRow | undefined) => {
@@ -410,7 +412,7 @@ export function syncEntities(chatId: string, force = false) {
 
 export function listEntities(chatId: string, f: { kind?: string; q?: string; merged?: boolean } = {}) {
   syncEntities(chatId);
-  let rows = f.merged ? all<EntityRow>("SELECT * FROM entities WHERE chat_id = ? ORDER BY mentions DESC, name", chatId) : liveRows(chatId);
+  let rows = f.merged ? all<EntityRow>("SELECT * FROM entities WHERE chat_id = ? AND deleted_at IS NULL ORDER BY mentions DESC, name", chatId) : liveRows(chatId);
   if (f.kind) rows = rows.filter((r) => r.kind === f.kind);
   if (f.q?.trim()) {
     const q = norm(f.q);
@@ -589,6 +591,26 @@ export function unmergeEntity(id: string) {
     const kept = parseJson<string[]>(into.aliases, []).filter((a) => !drop.has(norm(a)));
     run("UPDATE entities SET aliases = ?, updated_at = ? WHERE id = ?", JSON.stringify(kept), now(), into.id);
   }
+  synced.delete(r.chat_id);
+  publish({ type: "memory.changed", chatId: r.chat_id });
+  return entityOut(getEntityRow(id)!);
+}
+
+/**
+ * Delete a codex entry. It stays behind as a tombstone that keeps its names, so the trackers and
+ * memories that still mention it don't bring it back. The memories themselves are untouched.
+ */
+export function deleteEntity(id: string) {
+  const r = mustEntity(id);
+  if (!r.deleted_at) run("UPDATE entities SET deleted_at = ?, updated_at = ? WHERE id = ?", now(), now(), id);
+  synced.delete(r.chat_id);
+  publish({ type: "memory.changed", chatId: r.chat_id });
+  return { ok: true };
+}
+
+export function restoreEntity(id: string) {
+  const r = mustEntity(id);
+  if (r.deleted_at) run("UPDATE entities SET deleted_at = NULL, updated_at = ? WHERE id = ?", now(), id);
   synced.delete(r.chat_id);
   publish({ type: "memory.changed", chatId: r.chat_id });
   return entityOut(getEntityRow(id)!);
