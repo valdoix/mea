@@ -293,7 +293,7 @@
           <label class="field">
             <span class="label">Reasoning effort</span>
             <select class="select" value={p.params.reasoning_effort ?? ""} onchange={(e) => ((p.params.reasoning_effort = e.currentTarget.value || undefined), saveProfile(p))}>
-              <option value="">Model default</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="max">Max</option>
+              <option value="">Off (Mea plans in the reply)</option><option value="model">Model default</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="max">Max</option>
             </select>
           </label>
         </div>

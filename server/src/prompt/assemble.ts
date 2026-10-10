@@ -60,6 +60,8 @@ export interface AssembleInput {
    * go in at a depth.
    */
   extras?: PromptExtra[];
+  /** The route reasons natively, so planning goes in its reasoning rather than a <think> block. */
+  providerReasoning?: boolean;
   /** PROMPT-07: the active preset controls, already rendered. */
   controls?: string;
   /** Every control's value, readable in blocks as {{ctl.id}}. */
@@ -169,7 +171,7 @@ interface DepthItem {
 /**
  * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
- * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), and {{ctl.id}} for every preset control.
+ * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{providerReasoning}} (the route reasons natively), and {{ctl.id}} for every preset control.
  */
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
@@ -190,6 +192,7 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     persona,
     userSealed: persona === "director" || persona === "full_cast" ? "" : "yes",
     ledger: input.extras?.some((e) => e.id === "ledger") ? "yes" : "",
+    providerReasoning: input.providerReasoning ? "yes" : "",
     ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),
   };
 }

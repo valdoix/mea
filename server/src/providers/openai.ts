@@ -79,6 +79,13 @@ export class OpenAIProvider implements Provider {
       if ((e as Error).name === "AbortError") throw e;
       throw new ProviderError(`Couldn't reach the provider: ${(e as Error).message}`);
     }
+    if (!res.ok && res.status === 400 && body.reasoning_effort === "none") {
+      // A model that can't stop reasoning rejects "none": ask again with its default.
+      const text = await res.text().catch(() => "");
+      if (!/reason/i.test(text)) throw httpError(res, describeError(res.status, text), text);
+      delete body.reasoning_effort;
+      res = await fetch(this.url("/chat/completions"), { method: "POST", headers: { ...this.headers(), Accept: "text/event-stream" }, body: JSON.stringify(body), signal: req.signal });
+    }
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => "");
       throw httpError(res, describeError(res.status, text), text);

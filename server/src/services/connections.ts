@@ -396,6 +396,29 @@ export function cacheModeFor(conn: Pick<ConnectionRow, "kind" | "extra" | "billi
 
 export type ResolvedProfile = ReturnType<typeof resolveProfile>;
 
+/** Reasoning effort "model": send nothing and let the model do what it does by default. */
+export const MODEL_DEFAULT_EFFORT = "model";
+
+/**
+ * Turns a profile's reasoning effort into what is sent, and says whether the route will reason.
+ * Unset (or "none") is the default: no provider reasoning, so Mea's preset has the model plan in
+ * a <think> block instead. A model that reasons by itself is asked to stop where it can be: on
+ * OpenAI-style routes when its listed efforts allow "none" (or it lists none at all).
+ */
+export function applyReasoning(params: GenerationParams, conn: Pick<ConnectionRow, "kind" | "extra">, caps: Record<string, unknown> | undefined): boolean {
+  const effort = params.reasoning_effort;
+  const efforts = Array.isArray(caps?.reasoning_efforts) ? (caps.reasoning_efforts as unknown[]).map(String) : null;
+  const reasons = Boolean(caps?.reasoning) || Boolean(efforts?.length);
+  if (effort && effort !== "none" && effort !== MODEL_DEFAULT_EFFORT) return true;
+  delete params.reasoning_effort;
+  if (effort === MODEL_DEFAULT_EFFORT) return reasons;
+  if (!reasons) return false;
+  if (connectionFormat(conn) === "anthropic") return false;
+  if (efforts && !efforts.includes("none")) return true;
+  params.reasoning_effort = "none";
+  return false;
+}
+
 /** Resolves everything needed to call a model for a profile. */
 /**
  * A profile ready to use. `override` (CONN-07, the header's quick switcher) swaps the model and
@@ -416,6 +439,7 @@ export function resolveProfile(profileId?: string | null, override?: { connectio
   delete (params as Record<string, unknown>).context_target;
   delete (params as Record<string, unknown>).cache;
   delete (params as Record<string, unknown>).prefill;
+  const reasoning = applyReasoning(params, conn, model?.capabilities);
   return {
     profile,
     /** PROMPT-10: this model's prefill; undefined means "use the preset's". */
@@ -429,7 +453,7 @@ export function resolveProfile(profileId?: string | null, override?: { connectio
     /** Provider tokens per estimated token, learned from usage (CTX-03). */
     tokenRatio: model?.calibration ?? 1,
     /** M15: this route reasons (asked to, or the model does by itself), so thinking shares max_tokens. */
-    reasoning: Boolean(params.reasoning_effort) || Boolean(model?.capabilities?.reasoning),
+    reasoning,
     cacheMode: cacheModeFor(conn, profile.modelId, profile.params.cache),
     structured: Boolean(model?.capabilities?.structured_output),
     pricing: model?.pricing ?? {},
@@ -452,7 +476,12 @@ export function resolveTaskChain(task: Task, primaryId?: string | null): Resolve
   const own = primaryId ?? (task === "story" ? story : (routing[task] ?? (BORROWS[task] ? routing[BORROWS[task]!] : null)));
   const out: ResolvedProfile[] = [resolveProfile(own ?? story)];
   // M15: a helper borrowing the story's profile doesn't borrow its reasoning effort (its own profile can set one).
-  if (!own && task !== "story") delete out[0]!.params.reasoning_effort;
+  if (!own && task !== "story") {
+    const r = out[0]!;
+    delete r.params.reasoning_effort;
+    const model = getModel(r.connection.id, r.modelId);
+    r.reasoning = applyReasoning(r.params, r.connection, model?.capabilities);
+  }
   const seen = new Set([out[0]!.profile.id]);
   for (const id of fallbacks[task] ?? (BORROWS[task] ? fallbacks[BORROWS[task]!] : []) ?? []) {
     let r: ResolvedProfile;
