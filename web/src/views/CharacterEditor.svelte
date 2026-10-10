@@ -237,14 +237,24 @@
 
   async function deleteChat(c: ChatListItem) {
     if (!(await confirm({ title: "Move this chat to the trash?", message: "You can restore it from the trash for 30 days.", confirmLabel: "Move to trash", danger: true }))) return;
-    await del(`/api/chats/${c.id}`);
+    try {
+      await del(`/api/chats/${c.id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     chats = chats.filter((x) => x.id !== c.id);
     toast("Chat moved to trash", { action: { label: "Undo", run: async () => (await post(`/api/chats/${c.id}/restore`), void load()) } });
   }
 
   async function deleteCharacter() {
     if (!(await confirm({ title: `Move ${character?.name} to the trash?`, message: "Their chats stay; you can restore the character for 30 days.", confirmLabel: "Move to trash", danger: true }))) return;
-    await del(`/api/characters/${id}`);
+    try {
+      await del(`/api/characters/${id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     toast(`${character?.name} moved to trash`, { action: { label: "Undo", run: async () => (await post(`/api/characters/${id}/restore`), navigate(`/character/${id}`)) } });
     navigate("/");
   }

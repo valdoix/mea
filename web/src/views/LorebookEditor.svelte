@@ -104,7 +104,12 @@
   async function removeEntry(e: LoreEntry) {
     if (!book) return;
     if (!(await confirm({ title: "Delete this entry?", message: e.comment || e.keys.join(", "), confirmLabel: "Delete", danger: true }))) return;
-    await del(`/api/lorebooks/${id}/entries/${e.id}`);
+    try {
+      await del(`/api/lorebooks/${id}/entries/${e.id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     book.entries = book.entries.filter((x) => x.id !== e.id);
   }
 
@@ -128,7 +133,12 @@
 
   async function removeBook() {
     if (!book || !(await confirm({ title: `Move “${book.name}” to the trash?`, confirmLabel: "Move to trash", danger: true }))) return;
-    await del(`/api/lorebooks/${id}`);
+    try {
+      await del(`/api/lorebooks/${id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     toast("Lorebook moved to trash", { action: { label: "Undo", run: () => void post(`/api/lorebooks/${id}/restore`).then(() => navigate(`/lorebooks/${id}`)) } });
     navigate("/lorebooks");
   }

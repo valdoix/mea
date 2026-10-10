@@ -57,7 +57,12 @@
 
   async function revoke(d: (typeof devices)[number]) {
     if (!(await confirm({ title: `Unpair ${d.name}?`, message: "It will need a new code to connect again.", confirmLabel: "Unpair", danger: true }))) return;
-    await del(`/api/devices/${d.id}`);
+    try {
+      await del(`/api/devices/${d.id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     await load();
   }
 
