@@ -125,7 +125,7 @@ export async function consolidate(chatId: string, job?: JobContext) {
       const id = insertAtom(
         chatId,
         sceneId,
-        { type: "event", content: digest, entities: [...new Set(list.flatMap((a) => parseJson<string[]>(a.entities, [])))], importance: 3, confidence: 0.85 },
+        { type: "event", content: digest, entities: [...new Set(list.flatMap((a) => parseJson<string[]>(a.entities, [])))], importance: 3, confidence: 0.85, origin: "consolidation" },
         sources.map((s) => ({ id: s.message_id, seq: s.seq })),
       );
       for (const a of list) supersede(a.id, id);
