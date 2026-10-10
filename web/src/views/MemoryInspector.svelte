@@ -276,7 +276,7 @@
           </div>
         </div>
         {#each atoms as a (a.id)}
-          <AtomItem atom={a} chatId={id} selectable bind:selected={selected[a.id]} onchange={() => (loadAtoms(), loadOverview())} />
+          <AtomItem atom={a} chatId={id} selectable bind:selected={() => selected[a.id] ?? false, (v) => (selected[a.id] = v)} onchange={() => (loadAtoms(), loadOverview())} />
         {:else}
           <p class="muted small center">No memories match.</p>
         {/each}
