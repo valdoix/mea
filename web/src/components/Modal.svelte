@@ -35,10 +35,25 @@
     onclose?.();
   }
 
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+
   function onkey(e: KeyboardEvent) {
     if (e.key === "Escape") {
       e.stopPropagation();
       close();
+    } else if (e.key === "Tab" && panel) {
+      // M41: Tab cycles inside the dialog.
+      const f = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.getClientRects().length);
+      const first = f[0];
+      const last = f.at(-1);
+      if (!first || !last) return void e.preventDefault();
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   }
 
@@ -46,12 +61,23 @@
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // M41: the rest of the app is inert while the dialog is open, and focus goes back where it was after.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const muted: HTMLElement[] = [];
     queueMicrotask(() => {
+      const own = panel?.closest<HTMLElement>(".portal");
+      for (const el of document.body.children) {
+        if (!(el instanceof HTMLElement) || el === own || el.inert || el.hasAttribute("data-live-layer") || el.tagName === "SCRIPT") continue;
+        el.inert = true;
+        muted.push(el);
+      }
       const target = panel?.querySelector<HTMLElement>("[autofocus], input:not([type=hidden]), textarea, select") ?? panel;
       target?.focus({ preventScroll: true });
     });
     return () => {
       document.body.style.overflow = prev;
+      for (const el of muted) el.inert = false;
+      if (opener?.isConnected && !opener.closest("[inert]")) opener.focus({ preventScroll: true });
     };
   });
 

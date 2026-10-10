@@ -3,9 +3,11 @@
   import { flip } from "svelte/animate";
   import { app, dismissToast } from "../lib/state.svelte";
   import { Check, CircleAlert, X } from "../lib/icons";
+  import { portal } from "../lib/gestures";
 </script>
 
-<div class="toasts" aria-live="polite">
+<!-- M41: outside the app, so an open dialog (which makes the app inert) leaves Undo reachable. -->
+<div class="toasts" aria-live="polite" use:portal data-live-layer>
   {#each app.toasts as t (t.id)}
     <div class="toast {t.kind}" in:fly={{ y: 16, duration: 220 }} out:fly={{ y: 8, duration: 160 }} animate:flip={{ duration: 200 }}>
       {#if t.kind === "ok"}<Check size={16} />{:else if t.kind === "error"}<CircleAlert size={16} />{/if}

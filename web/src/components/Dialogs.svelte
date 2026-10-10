@@ -28,9 +28,11 @@
   <Modal bind:open={confirmOpen} title={dialogs.confirm.title} size="sm" onclose={() => answer(false)}>
     {#if dialogs.confirm.message}<p class="muted">{dialogs.confirm.message}</p>{/if}
     {#snippet footer()}
-      <button class="btn ghost" onclick={() => answer(false)}>Cancel</button>
+      <!-- M41: a destructive confirm starts on Cancel, so a stray Enter doesn't delete. -->
       <!-- svelte-ignore a11y_autofocus -->
-      <button class="btn {dialogs.confirm?.danger ? 'danger solid' : 'primary'}" onclick={() => answer(true)} autofocus>{dialogs.confirm?.confirmLabel}</button>
+      <button class="btn ghost" onclick={() => answer(false)} autofocus={Boolean(dialogs.confirm?.danger)}>Cancel</button>
+      <!-- svelte-ignore a11y_autofocus -->
+      <button class="btn {dialogs.confirm?.danger ? 'danger solid' : 'primary'}" onclick={() => answer(true)} autofocus={!dialogs.confirm?.danger}>{dialogs.confirm?.confirmLabel}</button>
     {/snippet}
   </Modal>
 {/if}

@@ -32,22 +32,40 @@
     const r = anchor?.getBoundingClientRect();
     const x = point?.x ?? (r ? r.right : 0);
     const y = point?.y ?? (r ? r.bottom + 4 : 0);
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const itemsEl = () => [...(menu?.querySelectorAll<HTMLButtonElement>("button.item:not(:disabled)") ?? [])];
     queueMicrotask(() => {
       const w = menu?.offsetWidth ?? 220;
       const h = menu?.offsetHeight ?? 200;
       pos = { left: Math.max(8, Math.min(x - (point ? 0 : w), innerWidth - w - 8)), top: Math.min(y, innerHeight - h - 8) };
+      // M41: the menu takes focus as it opens, so arrow keys work right away.
+      itemsEl()[0]?.focus({ preventScroll: true });
     });
     const onDown = (e: PointerEvent) => {
       if (menu && !menu.contains(e.target as Node) && !anchor?.contains(e.target as Node)) open = false;
     };
+    let byKey = false;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") open = false;
+      if (e.key === "Escape") {
+        byKey = true;
+        open = false;
+        return;
+      }
+      if (e.key === "Tab") return void (open = false);
+      const list = itemsEl();
+      if (!list.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      e.preventDefault();
+      const i = list.indexOf(document.activeElement as HTMLButtonElement);
+      const next = e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : e.key === "ArrowDown" ? (i + 1) % list.length : (i - 1 + list.length) % list.length;
+      list[next]!.focus();
     };
     setTimeout(() => window.addEventListener("pointerdown", onDown), 0);
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("keydown", onKey);
+      // Closed from the keyboard, focus goes back to the button that opened it.
+      if (byKey && opener?.isConnected) opener.focus({ preventScroll: true });
     };
   });
 
@@ -71,9 +89,9 @@
     </div>
   </Modal>
 {:else if open}
-  <div class="menu card" use:portal bind:this={menu} style:top="{pos.top}px" style:left="{pos.left}px" role="menu" in:scale={{ start: 0.96, duration: 140 }} out:fade={{ duration: 100 }}>
+  <div class="menu card" use:portal bind:this={menu} aria-label={title || undefined} style:top="{pos.top}px" style:left="{pos.left}px" role="menu" in:scale={{ start: 0.96, duration: 140 }} out:fade={{ duration: 100 }}>
     {#each items as item (item.label)}
-      <button class="item" class:danger={item.danger} disabled={item.disabled} onclick={() => pick(item)} role="menuitem">
+      <button class="item" class:danger={item.danger} disabled={item.disabled} onclick={() => pick(item)} role="menuitem" tabindex="-1">
         {#if item.icon}<item.icon size={16} />{/if}
         <span class="grow">{item.label}</span>
         {#if item.hint}<kbd>{item.hint}</kbd>{/if}
