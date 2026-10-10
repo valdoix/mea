@@ -728,14 +728,55 @@
     if (paging || jumping || !messages.length) return;
     // M21: pinned to the latest for a long while, the oldest pages are let go (they load again on the way up).
     if (stick && messages.length > WINDOW + PAGE) {
-      await keepPlace(() => {
-        messages = messages.slice(-WINDOW);
-        hasMore = true;
-      });
+      const start = trimStart(messages);
+      if (start > 0)
+        await keepPlace(() => {
+          messages = messages.slice(start);
+          hasMore = true;
+        });
       return;
     }
     if (scroller.scrollTop < 400 && hasMore) await pageOlder();
     else if (fromBottom < 400 && hasNewer) await pageNewer();
+  }
+
+  /**
+   * Messages that must stay mounted however far away they are: one being edited, one holding the
+   * text selection, or one with focus inside (an open menu). The window grows past WINDOW meanwhile.
+   */
+  function pinnedSeqs() {
+    const pinned = new Set<number>();
+    if (!scroller) return pinned;
+    const add = (el: Element | null | undefined) => {
+      const seq = Number((el?.closest("article.msg") as HTMLElement | null)?.dataset.seq);
+      if (seq) pinned.add(seq);
+    };
+    for (const el of scroller.querySelectorAll("article.msg.editing")) add(el);
+    if (document.activeElement && scroller.contains(document.activeElement)) add(document.activeElement);
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) {
+      for (let i = 0; i < sel.rangeCount; i++) {
+        const r = sel.getRangeAt(i);
+        for (const el of scroller.querySelectorAll("article.msg")) if (r.intersectsNode(el)) add(el);
+      }
+    }
+    return pinned;
+  }
+  /** Where to cut the top so about WINDOW remain, never above a pinned message. */
+  function trimStart(list: Message[]) {
+    let start = Math.max(0, list.length - WINDOW);
+    if (!start) return 0;
+    const pinned = pinnedSeqs();
+    const i = list.findIndex((m) => pinned.has(m.seq));
+    if (i >= 0) start = Math.min(start, i);
+    return start;
+  }
+  /** Where to cut the bottom so about WINDOW remain, never below a pinned message. */
+  function trimEnd(list: Message[]) {
+    if (list.length <= WINDOW) return list.length;
+    const pinned = pinnedSeqs();
+    const i = list.findLastIndex((m) => pinned.has(m.seq));
+    return Math.max(WINDOW, i + 1);
   }
 
   /** An older page on top; past the window's size, the newest pages (far below the view) are let go. */
@@ -749,8 +790,9 @@
       await keepPlace(() => {
         const next = [...page.messages, ...messages];
         hasMore = page.hasMore;
-        if (next.length > WINDOW) {
-          next.length = WINDOW;
+        const end = trimEnd(next);
+        if (end < next.length) {
+          next.length = end;
           hasNewer = true;
           stick = false;
         }
@@ -775,8 +817,9 @@
       if (mine !== win) return;
       await keepPlace(() => {
         let next = [...messages, ...page.messages.filter((m) => m.seq > last)];
-        if (next.length > WINDOW) {
-          next = next.slice(next.length - WINDOW);
+        const start = trimStart(next);
+        if (start > 0) {
+          next = next.slice(start);
           hasMore = true;
         }
         messages = next;
