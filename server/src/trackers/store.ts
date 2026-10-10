@@ -261,11 +261,11 @@ export function hasBase(chatId: string) {
   return Boolean(one("SELECT 1 FROM tracker_events WHERE chat_id = ? AND message_id IS NULL", chatId));
 }
 
-/** The events of the chat's current branch, in story order (TRK-04): active swipes only, deleted messages left out. */
+/** The events of the chat's current branch, in story order (TRK-04): active swipes only, deleted (and purged, H7) messages left out. */
 export function branchEvents(chatId: string, opts: { uptoSeq?: number; excludeMessageId?: string } = {}): TrackerEvent[] {
   const rows = all<EventRow & { seq: number | null }>(
     `SELECT e.*, m.seq FROM tracker_events e LEFT JOIN messages m ON m.id = e.message_id
-     WHERE e.chat_id = ? AND (e.message_id IS NULL OR (m.deleted_at IS NULL AND (e.swipe_idx = -1 OR e.swipe_idx = m.active_swipe)))
+     WHERE e.chat_id = ? AND (e.message_id IS NULL OR (m.id IS NOT NULL AND m.deleted_at IS NULL AND (e.swipe_idx = -1 OR e.swipe_idx = m.active_swipe)))
      ${opts.uptoSeq != null ? "AND (m.seq IS NULL OR m.seq <= ?)" : ""}
      ORDER BY COALESCE(m.seq, 0), e.ord`,
     ...(opts.uptoSeq != null ? [chatId, opts.uptoSeq] : [chatId]),
