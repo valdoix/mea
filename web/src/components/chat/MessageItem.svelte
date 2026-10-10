@@ -53,6 +53,7 @@
     oncontinue,
     onedit,
     ondelete,
+    ondeleteswipe,
     onflag,
     oninspect,
     oncompare,
@@ -101,6 +102,8 @@
     oncontinue: () => void;
     onedit: (content: string) => Promise<void>;
     ondelete: () => void;
+    /** Deletes the version on screen, when there is more than one. */
+    ondeleteswipe?: () => void;
     onflag: (flags: { hidden?: boolean; bookmarked?: boolean }) => void;
     oninspect: () => void;
     oncompare: () => void;
@@ -194,6 +197,7 @@
       list.push({ label: "Continue", icon: StepForward, onclick: oncontinue, disabled: !canGenerate || !message.content });
     }
     if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: ScrollText, onclick: oncompare });
+    if (message.role === "assistant" && message.swipeCount > 1 && ondeleteswipe) list.push({ label: "Delete this version", icon: Trash, danger: true, onclick: ondeleteswipe, disabled: streaming });
     list.push({ label: message.bookmarked ? "Remove bookmark" : "Bookmark", icon: Bookmark, onclick: () => onflag({ bookmarked: !message.bookmarked }) });
     list.push({ label: message.hidden ? "Include in prompt" : "Hide from prompt", icon: message.hidden ? Eye : EyeOff, onclick: () => onflag({ hidden: !message.hidden }) });
     if (message.meta?.generationId) list.push({ label: "What the model received", icon: ScrollText, onclick: oninspect });
@@ -306,6 +310,7 @@
             disabled={streaming || (!isLast && message.activeSwipe >= message.swipeCount - 1) || (isLast && message.activeSwipe >= message.swipeCount - 1 && !canGenerate)}
             aria-label={isLast && message.activeSwipe >= message.swipeCount - 1 ? "Write a new version" : "Next version"}><ChevronRight size={16} /></button
           >
+          {#if message.swipeCount > 1 && ondeleteswipe}<button class="btn ghost icon small drop" onclick={ondeleteswipe} disabled={streaming} aria-label="Delete this version" title="Delete this version"><Trash size={14} /></button>{/if}
         {/if}
         {#if isLast && !streaming}
           <button class="btn ghost small" onclick={() => onregen()} disabled={!canGenerate} title="Regenerate (Alt+R)"><RotateCcw size={14} /> <span class="hide-sm">Regenerate</span></button>
@@ -507,6 +512,13 @@
     gap: 0.15rem;
     margin: 0.4rem -0.4rem -0.3rem;
     flex-wrap: wrap;
+  }
+  .drop {
+    opacity: 0.55;
+  }
+  .drop:hover:not(:disabled) {
+    opacity: 1;
+    color: var(--danger);
   }
   .count {
     min-width: 2.2rem;

@@ -20,7 +20,7 @@
   import MessageItem from "../components/chat/MessageItem.svelte";
   import Modal from "../components/Modal.svelte";
   import { ApiError, del, get, imageUrl, patch, post, put } from "../lib/api";
-  import { promptText } from "../lib/dialogs.svelte";
+  import { confirm, promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessageQuestion, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
   import { DOCK_MIN, dockMax, layout, setDockWidth, setFocus, toggleDock, toggleRail } from "../lib/layout.svelte";
@@ -714,6 +714,18 @@
     }
   }
 
+  /** Deletes the version on screen for good; the others stay. */
+  async function removeSwipe(m: Message) {
+    const idx = m.activeSwipe;
+    if (!(await confirm({ title: `Delete version ${idx + 1} of ${m.swipeCount}?`, message: "This version is gone for good. The others stay.", confirmLabel: "Delete", danger: true }))) return;
+    try {
+      upsert(await del<Message>(`/api/messages/${m.id}/swipes/${idx}`));
+      refreshPreview();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   /** CHAT-16: delete everything after this message, with undo. */
   async function rewind(m: Message) {
     try {
@@ -924,6 +936,7 @@
               oncontinue={() => continueMsg(m)}
               onedit={(c) => edit(m, c)}
               ondelete={() => remove(m)}
+              ondeleteswipe={() => removeSwipe(m)}
               onflag={(f) => flag(m, f)}
               oninspect={() => openInspector(m.meta?.generationId ?? null)}
               highlighted={highlight === m.seq}

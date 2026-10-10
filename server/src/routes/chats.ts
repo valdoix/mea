@@ -14,6 +14,7 @@ import {
   addMessage,
   chatSettingsSchema,
   createChat,
+  deleteSwipe,
   editMessage,
   getChat,
   getMessage,
@@ -142,7 +143,11 @@ chats.post("/messages/:id/continue", async (c) => {
   return c.json(await startStory(m.chat_id, "continue", { messageId: m.id, profileId: input.profileId }));
 });
 
-chats.get("/messages/:id", (c) => c.json(must(getMessage(c.req.param("id")), "Message not found")));
+// A deleted message reads as gone, so an open chat drops it instead of drawing it back in.
+chats.get("/messages/:id", (c) => {
+  const m = getMessageRow(c.req.param("id"));
+  return c.json(must(m && !m.deleted_at ? getMessage(m.id) : undefined, "Message not found"));
+});
 
 chats.put("/messages/:id", async (c) => {
   const { content } = await body(c, z.object({ content: z.string().max(200_000) }));
@@ -160,6 +165,12 @@ chats.delete("/messages/:id", (c) => {
   for (const g of activeGenerations(m.chat_id)) if (g.messageId === m.id) stopGeneration(g.generationId);
   softDeleteMessage(m.id);
   return c.json({ ok: true });
+});
+
+chats.delete("/messages/:id/swipes/:idx", (c) => {
+  const idx = Number(c.req.param("idx"));
+  if (!Number.isInteger(idx) || idx < 0) throw badRequest("No such swipe");
+  return c.json(deleteSwipe(c.req.param("id"), idx));
 });
 
 chats.post("/messages/:id/restore", (c) => c.json(restoreMessage(c.req.param("id"))));
