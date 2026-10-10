@@ -91,6 +91,13 @@ describe("lore activation", () => {
     expect(r2.activated[0]?.reason).toContain("sticky");
     const r3 = run([sticky], ["the moon"], { messageCount: 13, state: r1.stateUpdates });
     expect(r3.trace[0]?.reason).toContain("cooldown");
+    // M32: another swipe of the same turn isn't held back by its own firing...
+    const cool = entry({ keys: ["moon"], cooldown: 3 });
+    const c1 = run([cool], ["the moon"], { messageCount: 10 });
+    expect(run([cool], ["the moon"], { messageCount: 10, state: c1.stateUpdates }).activated).toHaveLength(1);
+    // ...nor, after a rewind, by a firing from the messages that went.
+    expect(run([cool], ["the moon"], { messageCount: 6, state: c1.stateUpdates }).activated).toHaveLength(1);
+    expect(run([cool], ["the moon"], { messageCount: 12, state: c1.stateUpdates }).activated).toHaveLength(0);
     const delayed = entry({ keys: ["moon"], delay: 5 });
     expect(run([delayed], ["moon"], { messageCount: 2 }).trace[0]?.reason).toContain("delayed");
   });
