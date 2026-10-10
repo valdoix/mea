@@ -4,7 +4,7 @@ import { all, now, one, run } from "../src/db/db";
 import { defaultMemoryConfig, setSetting } from "../src/lib/settings";
 import { createAtom, deleteAtom, getAtom, restoreAtom, supersede } from "../src/memory/atoms";
 import { buildSummary, storyNeedsRebuild } from "../src/memory/build";
-import { entityFacts, norm, resolver, titlesClash } from "../src/memory/entities";
+import { createEntity, deleteEntity, entityFacts, norm, resolver, titlesClash } from "../src/memory/entities";
 import { povAllows } from "../src/memory/recall";
 import { ledgerChangedAfterReply, onLedgerChange, queueBuilds, segmentChat } from "../src/memory/scheduler";
 import { getSummary, levelRows, memState, storyRow } from "../src/memory/store";
@@ -24,6 +24,11 @@ import { STARTER_TEMPLATES } from "../src/trackers/schema";
 import { branchEvents, linesToOps, writeEvents } from "../src/trackers/store";
 import { acceptIssue } from "../src/accuracy/checker";
 import { correctMemory } from "../src/memory/remember";
+import { exportMemory, runMemoryImport } from "../src/memory/transfer";
+import { createNote } from "../src/services/notebook";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { freshDb } from "./helpers";
 
 const kinds = ["memory.segment", "memory.build", "memory.embed", "memory.journal", "memory.consolidate", "lore.chronicle", "quota.refresh", "cache.probe", "tracker.update", "tracker.init"];
@@ -362,5 +367,30 @@ describe("M27, M28, L14: corrections", () => {
     expect(all("SELECT 1 FROM memories WHERE chat_id = ? AND content = ? AND status = 'active' AND deleted_at IS NULL", chatId, wrong.content)).toHaveLength(0);
     await buildSummary(scene.id);
     expect(all("SELECT 1 FROM memories WHERE chat_id = ? AND content = ?", chatId, wrong.content)).toHaveLength(1);
+  });
+});
+
+describe("M30: memory import", () => {
+  test("replace keeps your tracker edits once, a re-run adds nothing, deleted entries stay deleted", async () => {
+    const { chatId, ids } = await setup(4);
+    writeEvents(chatId, { messageId: null, swipeIdx: 0 }, linesToOps(["clock: Day 1 08:00"]).ops, "init");
+    writeEvents(chatId, { messageId: ids[1]!, swipeIdx: -1 }, linesToOps(["clock: +2h"]).ops, "user");
+    createNote({ chatId, title: "Plans", body: "Visit the harbor." });
+    const gone = createEntity(chatId, { name: "Joss", kind: "person" });
+    deleteEntity(gone.id);
+    const file = join(tmpdir(), `mea-import-${Date.now()}.json`);
+    const write = () => writeFileSync(file, JSON.stringify(exportMemory(chatId)));
+    const count = (sql: string) => one<{ n: number }>(sql, chatId)!.n;
+    write();
+    await runMemoryImport({ chatId, file, mode: "replace" });
+    expect(count("SELECT COUNT(*) AS n FROM tracker_events WHERE chat_id = ? AND source = 'user'")).toBe(1);
+    expect(count("SELECT COUNT(*) AS n FROM tracker_events WHERE chat_id = ? AND source = 'init'")).toBe(1);
+    expect(count("SELECT COUNT(*) AS n FROM entities WHERE chat_id = ? AND name = 'Joss' AND deleted_at IS NULL")).toBe(0);
+    write();
+    await runMemoryImport({ chatId, file, mode: "merge" });
+    write();
+    await runMemoryImport({ chatId, file, mode: "merge" });
+    expect(count("SELECT COUNT(*) AS n FROM notes WHERE chat_id = ? AND deleted_at IS NULL")).toBe(1);
+    expect(count("SELECT COUNT(*) AS n FROM tracker_events WHERE chat_id = ? AND source = 'user'")).toBe(1);
   });
 });
