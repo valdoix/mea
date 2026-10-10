@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 2;
+export const MEA_PRESET_VERSION = 3;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -199,7 +199,8 @@ const FAVOUR_DECK = ["hands and held things", "sound and interruption", "doors, 
 
 const rotate = (deck: string[]) => `{{rotate::${deck.join("::")}}}`;
 
-const TURN = `{{if kind == story}}[THIS REPLY]{{if isFirst}}
+const TURN = `{{if kind == story}}[THIS REPLY]{{if ctl.planning != off}}
+If you reason before replying and no advisor's plan is present, open your reasoning with the [BEFORE YOU WRITE] pass, step by step, sized as it says; a one-line outline is not the pass. The pass stays in your reasoning, never in the reply.{{/if}}{{if isFirst}}
 The opening message came from the card: keep its facts, not its habits.{{/if}}{{if isSwipe}}
 A fresh take on the same moment: a different first line and a different shape. Keep what these people would truly do, and change a decision only where another is just as true to them.{{if rejectedOpening}} The take being replaced opened «{{rejectedOpening}}…» — don't open that way or reuse its images.{{/if}}{{/if}}{{if lastOpening}}
 Your last reply opened «{{lastOpening}}…» and closed «…{{lastClosing}}». Open and close differently: another subject, another sentence shape, no reused image.{{/if}}{{if ctl.variety == lively}}

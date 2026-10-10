@@ -145,6 +145,7 @@ describe("Mea's default preset", () => {
     expect(p).toContain("are judged fairly");
     expect(p).toContain("World texture: insistent");
     expect(p).toContain("[BEFORE YOU WRITE]");
+    expect(p).toContain("open your reasoning with the [BEFORE YOU WRITE] pass");
     expect(p).not.toContain("{{");
   });
 
