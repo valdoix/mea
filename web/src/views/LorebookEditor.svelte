@@ -315,7 +315,7 @@
   .link {
     border: 0;
     background: none;
-    color: var(--accent);
+    color: var(--accent-ink);
     cursor: pointer;
     padding: 0 0.25rem;
   }

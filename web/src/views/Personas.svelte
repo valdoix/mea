@@ -271,7 +271,7 @@
     box-shadow: 0 0 0 2px var(--accent);
   }
   .item :global(.star) {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
   }
   .editor {
     min-width: 0;

@@ -367,7 +367,7 @@
     border: 0;
     background: none;
     padding: 0 0.2rem;
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     font: inherit;
     text-decoration: underline;
     cursor: pointer;
@@ -453,7 +453,7 @@
     color: var(--accent-ink);
   }
   .head :global(.bm) {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
   }
   .time {
     font-size: 0.72rem;

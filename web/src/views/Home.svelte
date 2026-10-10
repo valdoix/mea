@@ -269,7 +269,7 @@
     font-size: clamp(1.7rem, 3vw, 2.2rem);
   }
   .spark {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     font-size: 0.7em;
   }
   .continue {
@@ -575,7 +575,7 @@
   :global([data-shell="lantern"]) .fav {
     z-index: 3;
     background: color-mix(in srgb, var(--lo) 35%, transparent);
-    color: var(--accent);
+    color: var(--accent-ink);
   }
 
   @media (max-width: 760px) {

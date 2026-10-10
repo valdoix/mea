@@ -281,7 +281,7 @@
   }
   .heart {
     font-size: 2.4rem;
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     animation: pulse 1.4s ease-in-out infinite;
   }
   .shell {
@@ -324,7 +324,7 @@
     text-decoration: none !important;
   }
   .brand span {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     font-size: 0.8em;
     margin-left: 0.15em;
   }

@@ -757,7 +757,7 @@
     background: color-mix(in srgb, var(--butter) 18%, var(--surface));
   }
   .tool.on {
-    color: var(--accent);
+    color: var(--accent-ink);
   }
   .spell {
     display: flex;

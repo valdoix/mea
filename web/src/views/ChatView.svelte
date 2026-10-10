@@ -1217,7 +1217,7 @@
   }
   .heart {
     font-size: 2rem;
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     animation: pulse 1.4s infinite;
   }
   .chat {

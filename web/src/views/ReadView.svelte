@@ -219,7 +219,7 @@
   .orn {
     display: block;
     text-align: center;
-    color: var(--accent-strong);
+    color: var(--accent-ink);
   }
   .chapter {
     font-family: var(--font-display);

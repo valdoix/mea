@@ -155,7 +155,7 @@
     text-align: center;
   }
   .brand span {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     font-size: 0.75em;
     margin-left: 0.15em;
   }

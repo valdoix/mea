@@ -131,7 +131,7 @@
   }
   .chip.on {
     border-color: var(--accent);
-    color: var(--accent);
+    color: var(--accent-ink);
   }
   .chip.ghost {
     background: none;

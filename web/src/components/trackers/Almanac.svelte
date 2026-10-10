@@ -554,7 +554,7 @@
     color: var(--text-muted);
   }
   .tag.hot {
-    color: var(--accent);
+    color: var(--accent-ink);
     border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   }
   .people {
