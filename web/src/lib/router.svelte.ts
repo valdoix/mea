@@ -89,15 +89,20 @@ export function back(fallback = "/") {
 
 window.addEventListener("popstate", update);
 
+const inShell = /\bMeaApp\//.test(navigator.userAgent) || "__TAURI_INTERNALS__" in window;
+
 // Intercept same-origin <a href> clicks so links don't reload the page.
 document.addEventListener("click", (e) => {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   const a = (e.target as HTMLElement).closest?.("a");
   if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
   // L15: a link to another site (`https://…` or `//host`) opens beside Mea instead of replacing it.
+  // The desktop and Android apps already send other sites to the system browser (and own their links).
   if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) {
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
+    if (!inShell) {
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+    }
     return;
   }
   const href = a.getAttribute("href");
