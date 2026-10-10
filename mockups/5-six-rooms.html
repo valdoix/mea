@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Mea · Five Rooms</title>
+<title>Mea · Six Rooms</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Shippori+Mincho:wght@400;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Serif+Display:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Figtree:wght@400;500;600;700;800&family=Cinzel:wght@400;500;600;700&family=Alegreya:ital,wght@0,400;0,500;1,400&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Pinyon+Script&family=Lora:ital,wght@0,400;0,500;1,400&family=Quicksand:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Shippori+Mincho:wght@400;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Serif+Display:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Figtree:wght@400;500;600;700;800&family=Cinzel+Decorative:wght@400;700&family=IM+Fell+English:ital@0;1&family=UnifrakturMaguntia&family=Alegreya+Sans:wght@400;500;700&family=Monoton&family=Neonderthaw&family=Sora:wght@400;500;600;700;800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;1,7..72,400&display=swap" rel="stylesheet" />
 <style>
 /* =========================================================================
-   Mea · Five Rooms — five proposed themes, each with a day and a night.
+   Mea · Six Rooms — six proposed themes, each with a day and a night.
    The gallery chrome is neutral; every app mock is driven by Mea's own
    token names (--bg, --surface, --dialogue, --thought, --accent …), so a
    room's token set drops straight into web/src/styles/tokens.css.
@@ -67,7 +67,7 @@ a { color: inherit; }
 .hero h1 em { font-style: italic; }
 .hero .lede { max-width: 640px; margin: 0 auto; font: 400 clamp(17px, 2vw, 20px)/1.55 "Newsreader", Georgia, serif; color: var(--g-muted); }
 .hero .lede b { color: var(--g-ink); font-weight: 500; }
-.index { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 64px; text-align: left; }
+.index { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin-top: 64px; text-align: left; }
 .card { text-decoration: none; display: grid; border-radius: 4px; overflow: hidden; background: var(--g-card); border: 1px solid var(--g-line); transition: transform .5s var(--spring), box-shadow .5s var(--ease); }
 .card:hover { transform: translateY(-6px) rotate(-.4deg); box-shadow: var(--g-shadow); }
 .card .sw { aspect-ratio: 4 / 3; position: relative; background: linear-gradient(135deg, var(--l) 0 50%, var(--d) 50% 100%); }
@@ -279,45 +279,88 @@ a { color: inherit; }
   .chat-head { padding: 10px 12px; }
   .who .name em { display: none; }
   .chapter h2 { font-size: 34px; }
+  .app[data-t="marq"] .who .name { font-size: 27px; }
+  .app[data-t="marq"] .decor .sign { display: none; }
 }
 
 /* =========================================================================
-   I · HERBARIUM — a drawer of pressed things
+   I · WILDFLOWER — a meadow in pastel
    ========================================================================= */
-.app[data-t="herb"] { --r-sm: 3px; --r: 4px; --r-lg: 6px; --r-pill: 3px; }
-.app[data-t="herb"]::before {
-  background-image: linear-gradient(color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px);
-  background-size: 22px 22px; opacity: .55;
+.app[data-t="wild"] { --r-sm: 14px; --r: 22px; --r-lg: 28px; }
+.app[data-t="wild"]::before {
+  background:
+    radial-gradient(42% 36% at 6% 2%, color-mix(in srgb, var(--sig2) 55%, transparent), transparent 70%),
+    radial-gradient(40% 42% at 98% 98%, color-mix(in srgb, var(--sig1) 60%, transparent), transparent 70%),
+    radial-gradient(30% 30% at 72% 6%, color-mix(in srgb, var(--lavender) 40%, transparent), transparent 70%),
+    radial-gradient(26% 30% at 20% 96%, color-mix(in srgb, var(--peach) 40%, transparent), transparent 70%);
 }
-.app[data-t="herb"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: .07; mix-blend-mode: multiply; z-index: 5; }
-.app[data-t="herb"][data-mode="dark"]::after { mix-blend-mode: screen; opacity: .05; }
-.app[data-t="herb"] .stage, .app[data-t="herb"] .dock, .app[data-t="herb"] .rail { border-color: var(--border-strong); }
-.app[data-t="herb"] .chip { font: 500 10px/1 var(--f-meta); text-transform: uppercase; letter-spacing: .07em; background: transparent; border-color: var(--border-strong); }
-.app[data-t="herb"] .chip.hot { background: var(--tint-char); }
-.app[data-t="herb"] .who .name, .app[data-t="herb"] .mh .nm { font-style: italic; }
-.app[data-t="herb"] .mh .nm { font-size: 20px; font-weight: 600; }
-.app[data-t="herb"] .msg .body { border-color: var(--border-strong); box-shadow: inset 0 0 0 3px var(--tint-char), inset 0 0 0 4px var(--border), var(--shadow-1); padding: 14px 18px 16px; }
-.app[data-t="herb"] .msg.user .body { box-shadow: inset 0 0 0 3px var(--tint-user), inset 0 0 0 4px var(--border), var(--shadow-1); }
-.app[data-t="herb"] .msg.best .body::before, .app[data-t="herb"] .msg.best .body::after { content: ""; position: absolute; width: 64px; height: 18px; background: color-mix(in srgb, var(--butter) 62%, transparent); top: -8px; left: 22px; transform: rotate(-5deg); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
-.app[data-t="herb"] .msg.best .body::after { left: auto; right: 22px; top: auto; bottom: -8px; transform: rotate(4deg); }
-.app[data-t="herb"] .ribbon { background: none; color: var(--sig2); border: 1px solid currentColor; font: 500 9.5px/18px var(--f-meta); height: 20px; letter-spacing: .1em; text-transform: uppercase; transform: rotate(3deg); top: 10px; right: 12px; border-radius: 2px; background: var(--tint-char); }
-.app[data-t="herb"] .mh .sw { margin-right: 76px; }
-.app[data-t="herb"] .orb { border-radius: 50% / 56%; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border-strong); font-style: italic; }
-.app[data-t="herb"] .chapter h2 { font-style: italic; font-size: 50px; font-weight: 500; }
-.app[data-t="herb"] .spec { display: inline-grid; grid-template-columns: auto auto; gap: 2px 18px; margin-top: 14px; padding: 9px 14px; border: 1px solid var(--text); text-align: left; font: 400 10px/1.4 var(--f-meta); letter-spacing: .04em; color: var(--text-muted); background: var(--tint-char); box-shadow: 3px 3px 0 var(--border); }
-.app[data-t="herb"] .spec b { grid-column: 1 / -1; font: 600 10px/1.4 var(--f-meta); letter-spacing: .22em; color: var(--text); border-bottom: 1px solid var(--border-strong); padding-bottom: 4px; margin-bottom: 3px; }
-.app[data-t="herb"] .sprig { display: block; margin: 0 auto 6px; width: 42px; height: 42px; color: var(--accent); }
-.app[data-t="herb"] .recap { background: transparent; border: 1px dashed var(--border-strong); }
-.app[data-t="herb"] .recap .lbl { color: var(--sig2); }
-.app[data-t="herb"] .bar { height: 5px; border-radius: 0; background: repeating-linear-gradient(90deg, var(--border-strong) 0 1px, transparent 1px 10%); background-color: var(--surface-2); }
-.app[data-t="herb"] .bar i { border-radius: 0; }
-.app[data-t="herb"] .decor svg { position: absolute; right: -40px; bottom: -30px; width: 340px; height: 420px; color: var(--accent); opacity: .13; transform-origin: 70% 100%; animation: sway 9s ease-in-out infinite alternate; }
-@keyframes sway { from { transform: rotate(-2deg); } to { transform: rotate(2.5deg); } }
-.app[data-t="herb"] .send { border-radius: 3px; }
-.app[data-t="herb"] .capsule { border-radius: 4px; background: var(--tint-char); }
-.app[data-t="herb"] .scrub { font-family: var(--f-meta); font-weight: 500; text-transform: uppercase; letter-spacing: .1em; font-size: 9.5px; }
-.app[data-t="herb"] .scrub .fill, .app[data-t="herb"] .scrub::before { height: 1px; }
-.app[data-t="herb"] .logo svg { width: 34px; height: 34px; }
+.app[data-t="wild"] .stage {
+  background:
+    radial-gradient(55% 38% at 100% 0%, color-mix(in srgb, var(--sig2) 26%, transparent), transparent 72%),
+    radial-gradient(50% 40% at 0% 100%, color-mix(in srgb, var(--sig1) 30%, transparent), transparent 72%),
+    var(--surface);
+}
+.app[data-t="wild"] .stage, .app[data-t="wild"] .dock, .app[data-t="wild"] .rail { border-color: var(--border); }
+.app[data-t="wild"] .decor .bq { position: absolute; width: 250px; height: 250px; opacity: .9; }
+.app[data-t="wild"][data-mode="dark"] .decor .bq { opacity: .7; }
+.app[data-t="wild"] .decor .bq.bl { width: 210px; height: 210px; left: -40px; bottom: 6px; transform-origin: 0 100%; animation: breeze 7s ease-in-out infinite alternate; }
+.app[data-t="wild"] .decor .bq.tr { right: -40px; top: 140px; transform: scale(-1, -1); }
+@keyframes breeze { from { transform: rotate(-1.5deg); } to { transform: rotate(2deg); } }
+.app[data-t="wild"] .stem { fill: none; stroke: var(--leaf); stroke-width: 1.6; stroke-linecap: round; }
+.app[data-t="wild"] .lf { fill: var(--leaf); opacity: .85; }
+.app[data-t="wild"] .lf2 { fill: var(--sig1); }
+.app[data-t="wild"] .p1 { fill: var(--sig2); }
+.app[data-t="wild"] .p2 { fill: color-mix(in srgb, var(--sig2) 55%, var(--surface)); }
+.app[data-t="wild"] .p3 { fill: var(--lavender); }
+.app[data-t="wild"] .p4 { fill: var(--peach); }
+.app[data-t="wild"] .fc { fill: var(--butter); }
+.app[data-t="wild"] .bud { fill: var(--sig2); }
+.app[data-t="wild"] .petal { position: absolute; top: -24px; width: 11px; height: 15px; border-radius: 80% 0 80% 0; background: var(--sig2); opacity: .75; animation: fall 15s linear infinite; }
+.app[data-t="wild"] .petal:nth-child(3) { left: 18%; animation-duration: 17s; animation-delay: -3s; }
+.app[data-t="wild"] .petal:nth-child(4) { left: 41%; animation-duration: 13s; animation-delay: -9s; width: 8px; height: 11px; background: var(--sig1); }
+.app[data-t="wild"] .petal:nth-child(5) { left: 63%; animation-duration: 19s; animation-delay: -5s; }
+.app[data-t="wild"] .petal:nth-child(6) { left: 82%; animation-duration: 14s; animation-delay: -12s; width: 9px; height: 12px; background: var(--lavender); }
+.app[data-t="wild"] .petal:nth-child(7) { left: 30%; animation-duration: 21s; animation-delay: -15s; width: 7px; height: 10px; }
+.app[data-t="wild"] .petal:nth-child(8) { left: 92%; animation-duration: 16s; animation-delay: -1s; background: var(--sig1); }
+@keyframes fall { 0% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(34px, 220px) rotate(110deg); } 50% { transform: translate(-8px, 430px) rotate(200deg); } 75% { transform: translate(30px, 640px) rotate(290deg); } 100% { transform: translate(0, 860px) rotate(380deg); } }
+.app[data-t="wild"] .who .name { font-style: italic; font-weight: 600; font-size: 24px; color: var(--accent-ink); }
+.app[data-t="wild"] .who .name em { color: var(--text-muted); }
+.app[data-t="wild"] .chip { background: color-mix(in srgb, var(--sig1) 34%, transparent); color: var(--thought); border-color: transparent; }
+.app[data-t="wild"] .chip.hot, .app[data-t="wild"] .chip.keep { background: color-mix(in srgb, var(--sig2) 42%, transparent); color: var(--accent-ink); }
+.app[data-t="wild"] .mh .nm { font-style: italic; font-size: 22px; color: var(--accent-ink); }
+.app[data-t="wild"] .msg.user .mh .nm { color: var(--thought); }
+.app[data-t="wild"] .msg .body { border-color: color-mix(in srgb, var(--sig2) 45%, var(--border)); padding: 14px 18px 16px; }
+.app[data-t="wild"] .msg.user .body { border-color: color-mix(in srgb, var(--sig1) 60%, var(--border)); }
+.app[data-t="wild"] .msg.best .body { border: 1.5px solid transparent; background: linear-gradient(var(--tint-char), var(--tint-char)) padding-box, linear-gradient(135deg, var(--sig2), var(--lavender) 50%, var(--sig1)) border-box; }
+.app[data-t="wild"] .ribbon { background: linear-gradient(90deg, var(--sig2), var(--sig1)); color: #3d3340; font: 700 10.5px/20px var(--f-ui); letter-spacing: .04em; }
+.app[data-t="wild"] .tx mark { text-decoration: none; background: linear-gradient(transparent 58%, color-mix(in srgb, var(--sig2) 55%, transparent) 58% 94%, transparent 94%); color: inherit; }
+.app[data-t="wild"] .orb { color: var(--orb-ink); font-style: italic; box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--sig2); }
+.app[data-t="wild"] .orb[data-c="ash"] { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--sig1); }
+.app[data-t="wild"] .orb:not(.sm)::after { content: ""; position: absolute; right: -5px; bottom: -3px; width: 18px; height: 18px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='%23f7a8c6' stroke='%23fff' stroke-width='1.5'%3E%3Ccircle cx='20' cy='10' r='8.5'/%3E%3Ccircle cx='29.5' cy='16.9' r='8.5'/%3E%3Ccircle cx='25.9' cy='28.1' r='8.5'/%3E%3Ccircle cx='14.1' cy='28.1' r='8.5'/%3E%3Ccircle cx='10.5' cy='16.9' r='8.5'/%3E%3C/g%3E%3Ccircle cx='20' cy='20' r='5.5' fill='%23ffe08a'/%3E%3C/svg%3E") center / contain no-repeat; }
+.app[data-t="wild"] .orb[data-c="ash"]:not(.sm)::after { filter: hue-rotate(150deg) saturate(.8); }
+.app[data-t="wild"] .chapter .wreath { display: block; width: 230px; height: 64px; margin: 0 auto -4px; }
+.app[data-t="wild"] .chapter .num { font: 400 30px/1 var(--f-script); text-transform: none; letter-spacing: 0; color: var(--thought); }
+.app[data-t="wild"] .chapter h2 { font-style: italic; font-weight: 600; font-size: 56px; line-height: 1.05; margin: 2px 0 4px; color: var(--accent-ink); text-shadow: 0 2px 18px color-mix(in srgb, var(--sig2) 60%, transparent); }
+.app[data-t="wild"] .recap { border: 1px dashed color-mix(in srgb, var(--leaf) 70%, transparent); }
+.app[data-t="wild"] .recap .lbl { color: var(--thought); font-weight: 700; }
+.app[data-t="wild"] .scene-h .ln { background: linear-gradient(90deg, transparent, var(--sig2)); height: 1.5px; }
+.app[data-t="wild"] .scene-h .ln:last-child { background: linear-gradient(270deg, transparent, var(--sig1)); }
+.app[data-t="wild"] .scene-h .sc { color: var(--accent-ink); }
+.app[data-t="wild"] .capsule { background: var(--surface); border: 1.5px solid color-mix(in srgb, var(--sig2) 75%, transparent); box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--accent-ink) 50%, transparent); }
+.app[data-t="wild"] .send { width: 44px; height: 44px; border-radius: 0; background: var(--accent); color: var(--on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='9.5' r='9.5'/%3E%3Ccircle cx='30' cy='16.8' r='9.5'/%3E%3Ccircle cx='26.2' cy='28.5' r='9.5'/%3E%3Ccircle cx='13.8' cy='28.5' r='9.5'/%3E%3Ccircle cx='10' cy='16.8' r='9.5'/%3E%3Ccircle cx='20' cy='20' r='11'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='9.5' r='9.5'/%3E%3Ccircle cx='30' cy='16.8' r='9.5'/%3E%3Ccircle cx='26.2' cy='28.5' r='9.5'/%3E%3Ccircle cx='13.8' cy='28.5' r='9.5'/%3E%3Ccircle cx='10' cy='16.8' r='9.5'/%3E%3Ccircle cx='20' cy='20' r='11'/%3E%3C/svg%3E") center / contain no-repeat; }
+.app[data-t="wild"] .send:hover { transform: rotate(36deg) scale(1.08); }
+.app[data-t="wild"] .bar { height: 8px; }
+.app[data-t="wild"] .bar i { background: linear-gradient(90deg, var(--sig2), var(--c, var(--sig1))); }
+.app[data-t="wild"] .rail .nav.on, .app[data-t="wild"] .tabs button.on { background: color-mix(in srgb, var(--sig2) 40%, transparent); color: var(--accent-ink); }
+.app[data-t="wild"] .mseg button.on { background: color-mix(in srgb, var(--sig2) 45%, var(--surface)); color: var(--accent-ink); }
+.app[data-t="wild"] .atom { background: color-mix(in srgb, var(--sig1) 18%, var(--surface-2)); }
+.app[data-t="wild"] .atom .s { color: var(--accent-ink); }
+.app[data-t="wild"] .ph2 h3 { font-style: italic; font-weight: 600; font-size: 21px; }
+.app[data-t="wild"] .scrub .fill { background: linear-gradient(90deg, var(--sig2), var(--sig1)); height: 3px; }
+.app[data-t="wild"] .logo svg { width: 34px; height: 34px; }
+.app[data-t="wild"] .switch.on { background: linear-gradient(90deg, var(--sig2), var(--accent)); }
 
 /* =========================================================================
    II · OVERPRINT — two inks, one pass, a little off
@@ -467,52 +510,144 @@ a { color: inherit; }
 .app[data-t="delft"] .tabs button.on { background: var(--accent); color: var(--on-accent); }
 
 /* =========================================================================
-   V · POMPEII — red walls, black rooms
+   V · CITADEL — chronicled by candlelight (for a roleplay set in Westeros)
    ========================================================================= */
-.app[data-t="pomp"] { --r-sm: 2px; --r: 3px; --r-lg: 3px; --r-pill: 2px; }
-.app[data-t="pomp"]::before {
+.app[data-t="cit"] { --r-sm: 2px; --r: 3px; --r-lg: 3px; --r-pill: 2px; background: radial-gradient(130% 95% at 50% 40%, transparent 55%, color-mix(in srgb, var(--text) 22%, transparent)), var(--bg); }
+.app[data-t="cit"]::before {
   background: var(--sig1);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='5' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.4 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E") 0 0 / 420px 420px;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='5' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.4 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E") 0 0 / 420px 420px;
-  opacity: .22;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='5' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.4 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E") 0 0 / 420px 420px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='5' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.4 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E") 0 0 / 420px 420px;
+  opacity: .24;
 }
-.app[data-t="pomp"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: .09; mix-blend-mode: multiply; z-index: 5; }
-.app[data-t="pomp"][data-mode="dark"]::after { mix-blend-mode: screen; opacity: .04; }
-.app[data-t="pomp"] .rail { border: 0; box-shadow: inset 0 0 0 4px var(--rail-bg), inset 0 0 0 5px color-mix(in srgb, var(--sig1) 70%, transparent), var(--shadow-1); }
-.app[data-t="pomp"] .rail .nav.on { background: color-mix(in srgb, var(--rail-ink) 18%, transparent); color: var(--rail-ink); }
-.app[data-t="pomp"] .rail .badge { background: var(--sig1); color: #1d1410; }
-.app[data-t="pomp"] .rail .logo { color: var(--rail-ink); font: 600 26px/1 var(--f-display); }
-.app[data-t="pomp"] .stage, .app[data-t="pomp"] .dock { border-color: var(--border-strong); box-shadow: inset 0 0 0 6px var(--surface), inset 0 0 0 7px color-mix(in srgb, var(--sig1) 55%, transparent), var(--shadow-1); }
-.app[data-t="pomp"] .chat-head { border-bottom: 0; padding-bottom: 20px; }
-.app[data-t="pomp"] .chat-head::after, .app[data-t="pomp"] .meander { content: ""; position: absolute; left: 14px; right: 14px; bottom: 4px; height: 12px; background: var(--accent);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M0 22H24M0 1.5H24M20 22V5H4V18H16V9H8V14H12' fill='none' stroke='%23000' stroke-width='2.2'/%3E%3C/svg%3E") 0 0 / 12px 12px repeat-x;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M0 22H24M0 1.5H24M20 22V5H4V18H16V9H8V14H12' fill='none' stroke='%23000' stroke-width='2.2'/%3E%3C/svg%3E") 0 0 / 12px 12px repeat-x; }
-.app[data-t="pomp"] .meander { position: relative; display: block; left: auto; right: auto; bottom: auto; width: 62%; margin: 16px auto 0; height: 14px; -webkit-mask-size: 14px 14px; mask-size: 14px 14px; background: var(--sig1); }
-.app[data-t="pomp"] .who .name { text-transform: uppercase; font-size: 16px; letter-spacing: .1em; font-weight: 600; }
-.app[data-t="pomp"] .who .name em { text-transform: none; letter-spacing: 0; font-family: var(--f-story); font-style: italic; font-size: 14px; }
-.app[data-t="pomp"] .chip { font-variant: small-caps; text-transform: lowercase; font-size: 12.5px; letter-spacing: .06em; background: transparent; border-color: var(--border-strong); }
-.app[data-t="pomp"] .chip.hot { background: var(--accent); color: var(--on-accent); border-color: transparent; }
-.app[data-t="pomp"] .chip.keep { background: transparent; border: 1px solid var(--sig1); color: var(--warn); }
-.app[data-t="pomp"] .mh .nm { text-transform: uppercase; font-size: 13.5px; letter-spacing: .14em; }
-.app[data-t="pomp"] .msg .body { border-color: var(--border-strong); box-shadow: inset 0 0 0 5px var(--tint-char), inset 0 0 0 6px color-mix(in srgb, var(--sig1) 60%, transparent), var(--shadow-1); padding: 15px 19px 17px; }
-.app[data-t="pomp"] .msg.user .body { box-shadow: inset 0 0 0 5px var(--tint-user), inset 0 0 0 6px color-mix(in srgb, var(--thought) 40%, transparent), var(--shadow-1); }
-.app[data-t="pomp"] .orb { color: var(--on-accent); font-weight: 600; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--sig1); }
-.app[data-t="pomp"] .ribbon { background: var(--accent); color: var(--on-accent); font: 600 9.5px/20px var(--f-display); letter-spacing: .18em; padding: 0 10px; top: -10px; }
-.app[data-t="pomp"] .chapter .num { font: 600 12px/1 var(--f-display); letter-spacing: .4em; color: var(--accent-ink); }
-.app[data-t="pomp"] .chapter .hrow { display: flex; align-items: center; justify-content: center; gap: 12px; }
-.app[data-t="pomp"] .chapter .hrow svg { width: 46px; height: 46px; color: var(--sig1); flex-shrink: 0; }
-.app[data-t="pomp"] .chapter .hrow svg:last-child { transform: scaleX(-1); }
-.app[data-t="pomp"] .chapter h2 { text-transform: uppercase; font-size: 34px; letter-spacing: .08em; font-weight: 500; margin: 10px 0; }
-.app[data-t="pomp"] .recap { background: transparent; border: 1px solid var(--border-strong); box-shadow: inset 0 0 0 4px var(--surface), inset 0 0 0 5px color-mix(in srgb, var(--sig1) 40%, transparent); }
-.app[data-t="pomp"] .recap .lbl { font-family: var(--f-display); color: var(--accent-ink); letter-spacing: .3em; }
-.app[data-t="pomp"] .send { border-radius: 2px; }
-.app[data-t="pomp"] .capsule { background: var(--tint-char); }
-.app[data-t="pomp"] .bar { height: 6px; border-radius: 0; background: var(--surface-3); }
-.app[data-t="pomp"] .bar i { border-radius: 0; }
-.app[data-t="pomp"] .tabs button { font-variant: small-caps; text-transform: lowercase; font-size: 12.5px; letter-spacing: .05em; }
-.app[data-t="pomp"] .tabs button.on { background: var(--accent); color: var(--on-accent); }
-.app[data-t="pomp"] .ph2 h3 { text-transform: uppercase; font-size: 14px; letter-spacing: .14em; font-weight: 600; }
-.app[data-t="pomp"] .tide b { font-size: 28px; }
+.app[data-t="cit"][data-mode="dark"]::before { background: var(--sig2); opacity: .1; }
+.app[data-t="cit"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: .1; mix-blend-mode: multiply; z-index: 5; }
+.app[data-t="cit"][data-mode="dark"]::after { mix-blend-mode: screen; opacity: .04; }
+.app[data-t="cit"] .rail { border: 0; border-radius: 0; padding-bottom: 36px; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 24px), 50% 100%, 0 calc(100% - 24px)); box-shadow: inset 0 0 0 4px var(--rail-bg), inset 0 0 0 5px color-mix(in srgb, var(--sig1) 75%, transparent); background-image: linear-gradient(90deg, rgb(0 0 0 / 18%), transparent 20%, transparent 80%, rgb(0 0 0 / 18%)); }
+.app[data-t="cit"] .rail .nav.on { background: color-mix(in srgb, var(--rail-ink) 18%, transparent); color: var(--rail-ink); }
+.app[data-t="cit"] .rail .badge { background: var(--accent); color: var(--on-accent); }
+.app[data-t="cit"] .rail hr { border-top-color: color-mix(in srgb, var(--rail-ink) 40%, transparent); }
+.app[data-t="cit"] .seal, .app[data-t="cit"] .ribbon, .app[data-t="cit"] .send {
+  border-radius: 50%; color: var(--on-accent); filter: url(#rough);
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent) 52%, color-mix(in srgb, var(--accent) 70%, #000));
+  box-shadow: 0 2px 5px rgb(0 0 0 / 35%), inset 0 0 0 3px color-mix(in srgb, var(--accent) 75%, #000);
+}
+.app[data-t="cit"] .seal { width: 40px; height: 40px; display: grid; place-items: center; font: 700 17px/1 var(--f-display); }
+.app[data-t="cit"] .stage, .app[data-t="cit"] .dock { border-color: var(--border-strong); box-shadow: inset 0 0 0 5px var(--surface), inset 0 0 0 6px color-mix(in srgb, var(--sig1) 60%, transparent), var(--shadow-1); }
+.app[data-t="cit"] .chat-head { border-bottom: 0; padding-bottom: 6px; }
+.app[data-t="cit"] .chain { display: flex; justify-content: center; align-items: center; overflow: hidden; padding: 2px 16px 4px; flex-shrink: 0; }
+.app[data-t="cit"] .chain i { --m: #c9a227; flex-shrink: 0; width: 17px; height: 9px; border: 2.2px solid var(--m); border-radius: 6px; margin: 0 -3px; box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%); }
+.app[data-t="cit"] .chain i:nth-child(even) { width: 13px; height: 3.5px; border: 0; background: var(--m); border-radius: 2px; margin: 0 -2px; position: relative; z-index: 1; }
+.app[data-t="cit"] .chain i:nth-child(6n+2) { --m: #c0c4c8; }
+.app[data-t="cit"] .chain i:nth-child(6n+3) { --m: #66696e; }
+.app[data-t="cit"] .chain i:nth-child(6n+4) { --m: #b8734a; }
+.app[data-t="cit"] .chain i:nth-child(6n+5) { --m: #a7803e; }
+.app[data-t="cit"] .chain i:nth-child(6n+6) { --m: #3f4650; }
+.app[data-t="cit"][data-mode="dark"] .chain i:nth-child(6n+3) { --m: #7d8189; }
+.app[data-t="cit"][data-mode="dark"] .chain i:nth-child(6n+6) { --m: #5a6472; }
+.app[data-t="cit"] .who .name { font: 700 19px/1.15 var(--f-display); letter-spacing: .02em; }
+.app[data-t="cit"] .who .name em { font: italic 400 14px var(--f-story); letter-spacing: 0; }
+.app[data-t="cit"] .chip { font-variant: small-caps; text-transform: lowercase; font-size: 12.5px; letter-spacing: .05em; background: transparent; border-color: var(--border-strong); }
+.app[data-t="cit"] .chip.hot { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.app[data-t="cit"] .chip.keep { background: transparent; border: 1px solid var(--sig1); color: var(--warn); }
+.app[data-t="cit"] .mh .nm { font: 700 15px/1 var(--f-display); letter-spacing: .03em; color: var(--accent-ink); }
+.app[data-t="cit"] .msg.user .mh .nm { color: var(--thought); }
+.app[data-t="cit"] .msg .body { border-color: var(--border-strong); box-shadow: inset 0 0 0 4px var(--tint-char), inset 0 0 0 5px color-mix(in srgb, var(--sig1) 55%, transparent), var(--shadow-1); padding: 15px 19px 17px; }
+.app[data-t="cit"] .msg.user .body { box-shadow: inset 0 0 0 4px var(--tint-user), inset 0 0 0 5px color-mix(in srgb, var(--thought) 35%, transparent), var(--shadow-1); }
+.app[data-t="cit"] .msg.ai .tx p:first-child::first-letter { font: 400 3.2em/.82 var(--f-initial); float: left; margin: 4px 9px 0 0; padding: 6px 7px 4px; color: var(--accent); background: color-mix(in srgb, var(--sig1) 18%, transparent); border: 1px solid color-mix(in srgb, var(--sig1) 75%, transparent); }
+.app[data-t="cit"] .ribbon { width: 40px; height: 40px; padding: 0; top: -14px; right: 14px; font: 400 19px/40px var(--f-display); text-align: center; }
+.app[data-t="cit"] .msg.best .mh .sw { margin-right: 44px; }
+.app[data-t="cit"] .chapter .num { font: italic 400 16px/1 var(--f-story); text-transform: none; letter-spacing: 0; color: var(--accent-ink); }
+.app[data-t="cit"] .chapter h2 { font: 700 40px/1.05 var(--f-display); margin: 8px 0 4px; }
+.app[data-t="cit"] .chapter .orn { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--sig1); font-size: 18px; margin: 2px 0 8px; }
+.app[data-t="cit"] .chapter .orn span { width: 90px; height: 1px; background: linear-gradient(90deg, transparent, var(--sig1)); }
+.app[data-t="cit"] .chapter .orn span:last-child { background: linear-gradient(270deg, transparent, var(--sig1)); }
+.app[data-t="cit"] .chapter .chain { margin-top: 14px; }
+.app[data-t="cit"] .recap { background: var(--tint-note); border-top: 3px double var(--sig1); border-bottom: 3px double var(--sig1); border-radius: 0; }
+.app[data-t="cit"] .recap .lbl { font-family: var(--f-display); font-weight: 700; color: var(--accent-ink); letter-spacing: .14em; }
+.app[data-t="cit"] .scene-h b { font: 700 12.5px var(--f-display); }
+.app[data-t="cit"] .capsule { background: var(--tint-char); border-color: var(--border-strong); }
+.app[data-t="cit"] .capsule .ph { font-style: italic; }
+.app[data-t="cit"] .send { width: 40px; height: 40px; }
+.app[data-t="cit"] .bar { height: 6px; border-radius: 0; background: var(--surface-3); }
+.app[data-t="cit"] .bar i { border-radius: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--c, var(--accent)) 55%, transparent), var(--c, var(--accent))); }
+.app[data-t="cit"] .tabs button { font-variant: small-caps; text-transform: lowercase; font-size: 12.5px; letter-spacing: .05em; }
+.app[data-t="cit"] .tabs button.on { background: var(--accent); color: var(--on-accent); }
+.app[data-t="cit"] .ph2 h3 { font: 700 15px var(--f-display); letter-spacing: .03em; }
+.app[data-t="cit"] .tide b { font: 700 24px/1 var(--f-display); }
+.app[data-t="cit"] .decor .glow { position: absolute; left: -120px; top: -120px; width: 520px; height: 520px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--sig1) 30%, transparent), transparent 65%); animation: flicker 3.4s ease-in-out infinite; }
+.app[data-t="cit"][data-mode="dark"] .decor .glow { background: radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%); left: auto; right: -160px; top: auto; bottom: -160px; }
+@keyframes flicker { 0%, 100% { opacity: 1; } 38% { opacity: .82; } 41% { opacity: .96; } 66% { opacity: .78; } 70% { opacity: .92; } }
+.app[data-t="cit"] .decor .snow { position: absolute; inset: 0; display: none; background-image: radial-gradient(2px 2px at 20px 30px, #ffffffb0, transparent), radial-gradient(1.6px 1.6px at 90px 130px, #ffffff90, transparent), radial-gradient(2.4px 2.4px at 160px 60px, #ffffffa0, transparent), radial-gradient(1.4px 1.4px at 210px 190px, #ffffff80, transparent), radial-gradient(1.8px 1.8px at 60px 210px, #ffffff90, transparent); background-size: 240px 240px; animation: snow 16s linear infinite; }
+.app[data-t="cit"] .decor .snow.s2 { background-size: 380px 380px; animation-duration: 26s; opacity: .6; filter: blur(.6px); }
+.app[data-t="cit"][data-mode="dark"] .decor .snow { display: block; }
+@keyframes snow { to { background-position: 0 240px; } }
+.app[data-t="cit"] .decor .snow.s2 { animation-name: snow2; }
+@keyframes snow2 { to { background-position: 0 380px; } }
+
+/* =========================================================================
+   VI · MARQUEE — every name in lights
+   ========================================================================= */
+.app[data-t="marq"] { --r-sm: 10px; --r: 14px; --r-lg: 18px; }
+.app[data-t="marq"]::before {
+  background:
+    radial-gradient(45% 40% at 0% 0%, color-mix(in srgb, var(--n2) 24%, transparent), transparent 70%),
+    radial-gradient(45% 45% at 100% 100%, color-mix(in srgb, var(--n1) 22%, transparent), transparent 70%),
+    radial-gradient(40% 30% at 62% 0%, color-mix(in srgb, var(--n3) 18%, transparent), transparent 70%);
+}
+.app[data-t="marq"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='44'%3E%3Cpath d='M0 .5H48M0 22.5H48M.5 0V22M24.5 22V44' fill='none' stroke='%23fff' stroke-opacity='.045'/%3E%3C/svg%3E"); }
+.app[data-t="marq"][data-mode="light"]::after { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='44'%3E%3Cpath d='M0 .5H48M0 22.5H48M.5 0V22M24.5 22V44' fill='none' stroke='%231b1630' stroke-opacity='.05'/%3E%3C/svg%3E"); }
+.app[data-t="marq"] .stage, .app[data-t="marq"] .dock, .app[data-t="marq"] .rail {
+  --tube: var(--n1);
+  border: 1.5px solid var(--tube-core, var(--tube));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tube) 30%, transparent), 0 0 calc(24px * var(--gl)) color-mix(in srgb, var(--tube) 55%, transparent), inset 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--tube) 22%, transparent);
+}
+.app[data-t="marq"] .rail { --tube: var(--n2); }
+.app[data-t="marq"] .dock { --tube: var(--n3); }
+.app[data-t="marq"][data-mode="dark"] .stage, .app[data-t="marq"][data-mode="dark"] .dock, .app[data-t="marq"][data-mode="dark"] .rail { --tube-core: color-mix(in srgb, var(--tube) 55%, #fff); }
+.app[data-t="marq"] .neon, .app[data-t="marq"] .who .name, .app[data-t="marq"] .mh .nm, .app[data-t="marq"] .chapter .num, .app[data-t="marq"] .chapter h2 {
+  --ng: var(--n2); color: var(--nt-pink);
+  text-shadow: 0 0 calc(3px * var(--gl)) var(--ng), 0 0 calc(10px * var(--gl)) var(--ng), 0 0 calc(24px * var(--gl)) color-mix(in srgb, var(--ng) 65%, transparent), 0 0 calc(44px * var(--gl)) color-mix(in srgb, var(--ng) 40%, transparent);
+}
+.app[data-t="marq"] .logo .neon { font: 400 23px/1 var(--f-script); animation: flick 6s infinite; }
+@keyframes flick { 0%, 30%, 32%, 34%, 72%, 74%, 100% { opacity: 1; } 31%, 33%, 73% { opacity: .35; } }
+.app[data-t="marq"] .who .name { font: 400 36px/1 var(--f-script); padding-top: 2px; overflow: visible; }
+.app[data-t="marq"] .who .name em { font: 500 12.5px var(--f-ui); color: var(--text-muted); text-shadow: none; }
+.app[data-t="marq"] .mh .nm { font: 400 30px/.8 var(--f-script); }
+.app[data-t="marq"] .msg.user .mh .nm { --ng: var(--n1); color: var(--nt-cyan); }
+.app[data-t="marq"] .chip { background: transparent; color: var(--text); border: 1px solid color-mix(in srgb, var(--n1) 75%, transparent); box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n1) 30%, transparent); }
+.app[data-t="marq"] .chip.hot, .app[data-t="marq"] .chip.keep { border-color: var(--n2); color: var(--nt-pink); box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent), inset 0 0 calc(8px * var(--gl)) color-mix(in srgb, var(--n2) 25%, transparent); }
+.app[data-t="marq"] .msg.best .body { border-color: var(--n2); box-shadow: 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent), inset 0 0 calc(16px * var(--gl)) color-mix(in srgb, var(--n2) 14%, transparent); }
+.app[data-t="marq"] .ribbon { background: var(--surface); border: 1.5px solid var(--n2); color: var(--nt-pink); font: 800 9.5px/17px var(--f-ui); letter-spacing: .22em; text-transform: uppercase; box-shadow: 0 0 calc(14px * var(--gl)) var(--n2); }
+.app[data-t="marq"] .tx mark { text-decoration: none; color: inherit; background: color-mix(in srgb, var(--n2) 18%, transparent); box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n2) 30%, transparent); border-radius: 3px; padding: 0 2px; }
+.app[data-t="marq"] .orb { color: var(--orb-ink); font-family: var(--f-ui); font-weight: 800; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--n2), 0 0 calc(16px * var(--gl)) var(--n2); }
+.app[data-t="marq"] .orb[data-c="ash"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--n1), 0 0 calc(16px * var(--gl)) var(--n1); }
+.app[data-t="marq"] .chapter .marq { position: relative; display: inline-block; padding: 30px 48px 24px; border-radius: 16px; background: var(--surface-2); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sig1) 45%, transparent), 0 0 calc(40px * var(--gl)) -8px color-mix(in srgb, var(--sig1) 60%, transparent); }
+.app[data-t="marq"] .bulbs { position: absolute; display: flex; justify-content: space-between; }
+.app[data-t="marq"] .bulbs.t, .app[data-t="marq"] .bulbs.b { left: 14px; right: 14px; }
+.app[data-t="marq"] .bulbs.t { top: 8px; } .app[data-t="marq"] .bulbs.b { bottom: 8px; }
+.app[data-t="marq"] .bulbs.l, .app[data-t="marq"] .bulbs.r { top: 24px; bottom: 24px; flex-direction: column; }
+.app[data-t="marq"] .bulbs.l { left: 9px; } .app[data-t="marq"] .bulbs.r { right: 9px; }
+.app[data-t="marq"] .bulbs i { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--sig1) 30%, var(--surface-2)); animation: chase 1.2s linear infinite; }
+.app[data-t="marq"] .bulbs i:nth-child(3n+2) { animation-delay: -.4s; }
+.app[data-t="marq"] .bulbs i:nth-child(3n+3) { animation-delay: -.8s; }
+@keyframes chase { 0%, 32% { background: var(--sig1); box-shadow: 0 0 5px var(--sig1), 0 0 12px color-mix(in srgb, var(--sig1) 70%, transparent); } 34%, 100% { background: color-mix(in srgb, var(--sig1) 28%, var(--surface-2)); box-shadow: none; } }
+.app[data-t="marq"] .chapter .num { --ng: var(--n1); color: var(--nt-cyan); font: 400 32px/1 var(--f-script); text-transform: none; letter-spacing: 0; }
+.app[data-t="marq"] .chapter h2 { --ng: var(--sig1); color: var(--nt-amber); font: 400 38px/1.1 var(--f-display); margin: 8px 0 0; letter-spacing: .02em; }
+.app[data-t="marq"] .chapter .epi { margin-top: 14px; }
+.app[data-t="marq"] .recap { border: 1px solid color-mix(in srgb, var(--sig1) 45%, transparent); }
+.app[data-t="marq"] .recap .lbl { color: var(--warn); }
+.app[data-t="marq"] .scene-h .ln { height: 1.5px; background: var(--n1); box-shadow: 0 0 calc(8px * var(--gl)) var(--n1); opacity: .7; }
+.app[data-t="marq"] .scene-h .ln:last-child { background: var(--n2); box-shadow: 0 0 calc(8px * var(--gl)) var(--n2); }
+.app[data-t="marq"] .capsule { background: var(--surface); border: 1.5px solid var(--n1); box-shadow: 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--n1) 40%, transparent); }
+.app[data-t="marq"] .send { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), 0 0 calc(20px * var(--gl)) var(--accent); animation: pulse 2.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent), 0 0 calc(30px * var(--gl)) var(--accent); } }
+.app[data-t="marq"] .ph2 h3 { font: 400 27px/1 var(--f-script); color: var(--nt-pink); text-shadow: 0 0 calc(3px * var(--gl)) var(--n2), 0 0 calc(10px * var(--gl)) var(--n2), 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--n2) 60%, transparent); }
+.app[data-t="marq"] .bar { height: 4px; background: var(--surface-3); overflow: visible; }
+.app[data-t="marq"] .bar i { background: var(--c, var(--n1)); box-shadow: 0 0 calc(10px * var(--gl)) var(--c, var(--n1)); }
+.app[data-t="marq"] .rail .nav.on { background: color-mix(in srgb, var(--n2) 16%, transparent); color: var(--nt-pink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--n2) 60%, transparent), 0 0 calc(12px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent); }
+.app[data-t="marq"] .tabs button.on, .app[data-t="marq"] .mseg button.on { background: color-mix(in srgb, var(--n3) 18%, transparent); color: var(--text); box-shadow: inset 0 -2px 0 var(--n3), 0 4px calc(12px * var(--gl)) -4px var(--n3); }
+.app[data-t="marq"] .scrub .fill { background: linear-gradient(90deg, var(--n2), var(--n1)); box-shadow: 0 0 calc(8px * var(--gl)) var(--n1); }
+.app[data-t="marq"] .decor .sign { position: absolute; right: 12px; top: 330px; width: 70px; text-align: center; font: 400 34px/.9 var(--f-script); --ng: var(--n3); color: var(--nt-violet); rotate: -9deg; opacity: .5; text-shadow: 0 0 calc(4px * var(--gl)) var(--ng), 0 0 calc(14px * var(--gl)) var(--ng), 0 0 calc(30px * var(--gl)) var(--ng); animation: flick 9s infinite -3s; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -526,7 +661,7 @@ a { color: inherit; }
 
 <header class="topbar">
   <div class="wrap">
-    <a class="brand" href="#top">Mea <i>· Five Rooms</i></a>
+    <a class="brand" href="#top">Mea <i>· Six Rooms</i></a>
     <nav class="toc" id="toc" aria-label="Rooms"></nav>
     <div class="grow"></div>
     <div class="gseg" id="global-seg" role="radiogroup" aria-label="Every room">
@@ -538,13 +673,13 @@ a { color: inherit; }
 <main id="top">
   <section class="hero wrap">
     <div class="eyebrow">Mea · Proposed themes · Catalogue No. 5</div>
-    <h1>Five <em>Rooms</em></h1>
-    <p class="lede">Five new ways for Mea to look, each borrowed from a different wing of the museum. Every room has <b>a day and a night</b>, the same evening at Gull's Reach inside, and <b>a token set</b> that drops straight into <i>tokens.css</i>.</p>
+    <h1>Six <em>Rooms</em></h1>
+    <p class="lede">Six new ways for Mea to look, each borrowed from a different wing of the museum. Every room has <b>a day and a night</b>, the same evening by the sea inside (one of them in Westeros), and <b>a token set</b> that drops straight into <i>tokens.css</i>.</p>
     <div class="index" id="index"></div>
     <p class="how">Switch any room between day and night, or choose Compare and drag the seam across the app.</p>
   </section>
   <div id="rooms"></div>
-  <p class="colophon">Mea · Five Rooms · a mockup, not wired to data.<br />Same story in every room, so the only thing that changes is the room.</p>
+  <p class="colophon">Mea · Six Rooms · a mockup, not wired to data.<br />The same evening in every room, so the only thing that changes is the room.</p>
 </main>
 
 <script>
@@ -554,33 +689,33 @@ a { color: inherit; }
 --------------------------------------------------------------------------- */
 const THEMES = [
   {
-    id: "herbarium", key: "herb", no: "I", name: "Herbarium", wing: "Natural history", motto: "A drawer of pressed things",
-    modes: { light: "Bone Paper", dark: "Moth Hour" },
-    sigNames: ["Ochre", "Rust"],
-    fonts: { display: "'Cormorant Garamond', Georgia, serif", story: "'EB Garamond', Georgia, serif", ui: "'IBM Plex Sans', system-ui, sans-serif", meta: "'IBM Plex Mono', ui-monospace, monospace" },
-    wall: "Borrowed from the collector's cabinet: bone paper, green-black field ink and a specimen label for every chapter. The story is filed like a folio, hairline-ruled and quietly alive, with a pressed fern leaning in the margin. At night the drawer becomes a moth-lit glasshouse, all lichen and rosehip.",
-    dl: [["Palette", "Bone paper, fern green, rosehip red, cornflower ink"], ["Type", "Cormorant Garamond italic for names, EB Garamond for the story, IBM Plex for labels"], ["Shape", "Hairline double rules, 3px corners, strips of paper tape"], ["Texture", "A faint field-book grid and paper grain"], ["Signature", "Each chapter is catalogued: number, locality, collector"]],
+    id: "wildflower", key: "wild", no: "I", name: "Wildflower", wing: "Glasshouse", motto: "A meadow in pastel",
+    modes: { light: "Meadow", dark: "Moon Garden" },
+    sigNames: ["Mint", "Rose"],
+    fonts: { display: "'Cormorant Garamond', Georgia, serif", story: "'Lora', Georgia, serif", ui: "'Quicksand', system-ui, sans-serif", meta: "'Quicksand', system-ui, sans-serif", script: "'Pinyon Script', 'Cormorant Garamond', cursive" },
+    wall: "A spring meadow in rose and mint. Watercolour washes bloom in the corners, sprays of wildflowers lean in from the edges and petals drift down through the story. Portraits wear a little flower, the send button is a blossom, and the best line of the night is marked with a ribbon. After dark it becomes a moon garden: deep sage, with the same blossoms still glowing.",
+    dl: [["Palette", "Rose, mint, lavender, peach and butter on petal white"], ["Type", "Cormorant Garamond italic, Pinyon Script for chapters, Lora for the story, Quicksand for the interface"], ["Shape", "Soft 22px petals, pill chips, a blossom-shaped send button"], ["Texture", "Watercolour washes and drifting petals"], ["Signature", "A wreath of leaves and flowers over every chapter title"]],
     light: {
-      bg: "#eeeadd", surface: "#f9f7ef", "surface-2": "#ebe6d6", "surface-3": "#e0d9c5", border: "#d6cdb6", "border-strong": "#b9ad8f",
-      text: "#1f2c1d", "text-muted": "#536050", "text-faint": "#6b7462", dialogue: "#8c2e3b", thought: "#3a5487", action: "#465342",
-      accent: "#57794a", "accent-strong": "#48683c", "accent-ink": "#3b5a30", "on-accent": "#fbfaf3",
-      lavender: "#cdc6df", mint: "#c6dabd", peach: "#ecc9ae", butter: "#ebdca3", sky: "#c3d4dd",
-      "tint-char": "#fbf9f2", "tint-user": "#f1f1e4", "tint-note": "#f3ead0",
-      danger: "#9a3030", "danger-bg": "#f3ddd6", ok: "#3c6a37", "ok-bg": "#e0ead5", warn: "#765510", "warn-bg": "#f1e4c2",
-      "shadow-1": "0 1px 0 rgb(31 44 29 / 5%), 0 10px 24px -16px rgb(31 44 29 / 30%)", "shadow-2": "0 24px 50px -24px rgb(31 44 29 / 40%)",
-      sig1: "#b58a2c", sig2: "#a5532d", "orb-ink": "#fff8ee",
-      "orb-w": "radial-gradient(circle at 35% 30%, #f3d2bd, #b8725a 68%, #7d3f30)", "orb-a": "radial-gradient(circle at 35% 30%, #dbe5c9, #7d9868 68%, #46613b)"
+      bg: "#fbf3f3", surface: "#fffbfa", "surface-2": "#f7ecee", "surface-3": "#efdfe3", border: "#f0dce2", "border-strong": "#e0c0cb",
+      text: "#3d3340", "text-muted": "#6b5c6e", "text-faint": "#7a6a80", dialogue: "#b0346a", thought: "#357556", action: "#55485a",
+      accent: "#f4a9c4", "accent-strong": "#ec8fb2", "accent-ink": "#a8305f", "on-accent": "#4a2238",
+      lavender: "#ddd0f2", mint: "#c8ecd9", peach: "#fdd5c2", butter: "#fbe4a0", sky: "#cfe3f4",
+      "tint-char": "#fffafb", "tint-user": "#f4fbf7", "tint-note": "#eef8f1",
+      danger: "#b13a4e", "danger-bg": "#fde4e8", ok: "#2f7457", "ok-bg": "#e2f4ea", warn: "#7a5a12", "warn-bg": "#fdf3d6",
+      "shadow-1": "0 1px 2px rgb(176 52 106 / 5%), 0 14px 32px -18px rgb(176 52 106 / 28%)", "shadow-2": "0 26px 56px -24px rgb(176 52 106 / 32%)",
+      sig1: "#a9dcbf", sig2: "#f7b9cf", leaf: "#86c49f", "orb-ink": "#7a2a50",
+      "orb-w": "radial-gradient(circle at 30% 25%, #ffffff, #fbd3e2 55%, #f0a3c1)", "orb-a": "radial-gradient(circle at 30% 25%, #ffffff, #d3f1e1 55%, #9fd3b6)"
     },
     dark: {
-      bg: "#0e1511", surface: "#141e18", "surface-2": "#1b271f", "surface-3": "#223027", border: "#2a382d", "border-strong": "#3d4f40",
-      text: "#e8eadb", "text-muted": "#a6b09b", "text-faint": "#848f7b", dialogue: "#f0a596", thought: "#b2c2ee", action: "#c2c9b5",
-      accent: "#a7c78a", "accent-strong": "#94b876", "accent-ink": "#bcd8a2", "on-accent": "#11200f",
-      lavender: "#8e88ad", mint: "#7da57f", peach: "#bf917a", butter: "#c4b474", sky: "#7e9fb1",
-      "tint-char": "#18231c", "tint-user": "#1a2522", "tint-note": "#23211a",
-      danger: "#f09a8e", "danger-bg": "#3a1f1b", ok: "#a6d596", "ok-bg": "#1c3320", warn: "#e8c66a", "warn-bg": "#2f2817",
-      "shadow-1": "0 1px 0 rgb(0 0 0 / 30%), 0 12px 28px -14px rgb(0 0 0 / 60%)", "shadow-2": "0 24px 60px -20px rgb(0 0 0 / 70%)",
-      sig1: "#dcb65e", sig2: "#e08a62", "orb-ink": "#fff4e6",
-      "orb-w": "radial-gradient(circle at 35% 30%, #e8b39c, #9a5442 68%, #552a20)", "orb-a": "radial-gradient(circle at 35% 30%, #cfe0bd, #658255 68%, #2c4227)"
+      bg: "#111916", surface: "#18211d", "surface-2": "#202b26", "surface-3": "#29352f", border: "#2c3a33", "border-strong": "#45584f",
+      text: "#f6eef1", "text-muted": "#c3b8bf", "text-faint": "#98a39c", dialogue: "#f7b4cc", thought: "#a8e2c4", action: "#ddd3d8",
+      accent: "#f5aac6", "accent-strong": "#f7bfd4", "accent-ink": "#f9c4d7", "on-accent": "#2b1320",
+      lavender: "#a99cc8", mint: "#8fcdb0", peach: "#e3a993", butter: "#e8d08a", sky: "#93b8d6",
+      "tint-char": "#1b2521", "tint-user": "#19251f", "tint-note": "#1a2a22",
+      danger: "#f59aaa", "danger-bg": "#3d1e27", ok: "#9fe0c0", "ok-bg": "#173328", warn: "#ecd08a", "warn-bg": "#2c2a1b",
+      "shadow-1": "0 1px 2px rgb(0 0 0 / 30%), 0 14px 30px -16px rgb(0 0 0 / 60%)", "shadow-2": "0 28px 60px -22px rgb(0 0 0 / 70%)",
+      sig1: "#8fd1b0", sig2: "#f2a7c3", leaf: "#6fb58e", "orb-ink": "#ffffff",
+      "orb-w": "radial-gradient(circle at 30% 25%, #ffe3ee, #e690b3 60%, #a55279)", "orb-a": "radial-gradient(circle at 30% 25%, #e3fff1, #7cc4a0 60%, #3e7d5f)"
     }
   },
   {
@@ -644,7 +779,7 @@ const THEMES = [
     }
   },
   {
-    id: "delft", key: "delft", no: "IV", name: "Delft", wing: "Decorative arts", motto: "Cobalt on tin glaze",
+    id: "delft", key: "delft", no: "IV", name: "Delft", wing: "Ceramics", motto: "Cobalt on tin glaze",
     modes: { light: "Tin Glaze", dark: "Bleu Persan" },
     sigNames: ["Ochre", "Brick"],
     fonts: { display: "'DM Serif Display', Georgia, serif", story: "'Source Serif 4', Georgia, serif", ui: "'Figtree', system-ui, sans-serif", meta: "'Figtree', system-ui, sans-serif" },
@@ -674,33 +809,66 @@ const THEMES = [
     }
   },
   {
-    id: "pompeii", key: "pomp", no: "V", name: "Pompeii", wing: "Antiquities", motto: "Red walls, black rooms",
-    modes: { light: "Fresco", dark: "Third Style" },
-    sigNames: ["Ochre", "Lamp black"],
-    fonts: { display: "'Cinzel', 'Trajan Pro', Georgia, serif", story: "'Alegreya', Georgia, serif", ui: "'Alegreya Sans', system-ui, sans-serif", meta: "'Alegreya Sans', system-ui, sans-serif" },
-    wall: "The painted villas under Vesuvius: cinnabar walls, ochre borders, terre-verte figures and names carved in Roman capitals. The rail is a red wall panel, a meander runs under the header, and each card hangs like a fresco inside its own painted frame. By night the room turns to the Third Style: black walls hung with thin gold lines.",
-    dl: [["Palette", "Pompeian red, ochre, terre verte, lamp black on lime plaster"], ["Type", "Cinzel inscriptions, Alegreya for the story, Alegreya Sans small caps for the interface"], ["Shape", "Square panels with inset painted frames"], ["Texture", "Mottled lime plaster with grit"], ["Signature", "A meander border and laurel wreaths around each chapter"]],
+    id: "citadel", key: "cit", no: "V", name: "Citadel", wing: "Manuscripts", motto: "Chronicled by candlelight",
+    modes: { light: "Parchment", dark: "Long Night" },
+    sigNames: ["Gilt", "Iron"],
+    fonts: { display: "'Cinzel Decorative', 'Cinzel', Georgia, serif", story: "'IM Fell English', Georgia, serif", ui: "'Alegreya Sans', system-ui, sans-serif", meta: "'Alegreya Sans', system-ui, sans-serif", initial: "'UnifrakturMaguntia', 'Cinzel Decorative', serif" },
+    story: "westeros",
+    wall: "Built for a story set in Westeros. The page is a maester's chronicle: vellum and iron-gall ink, red rubrics and a gilt blackletter capital opening each reply. The rail hangs like a house banner, a maester's chain of gold, silver, iron, copper and bronze runs under the header, and the best moment is sealed in red wax. On the Long Night the parchment goes cold and snow falls past the window.",
+    dl: [["Palette", "Vellum, iron-gall ink, rubric red, lapis, gilt and cold iron"], ["Type", "Cinzel Decorative, IM Fell English for the story, UnifrakturMaguntia capitals, Alegreya Sans for the interface"], ["Shape", "Square folios with gilt inner rules, a pennant banner rail"], ["Texture", "Mottled vellum by candlelight; falling snow on the Long Night"], ["Signature", "A maester's chain of six metals and red wax seals"]],
     light: {
-      bg: "#eadac2", surface: "#f6ebd8", "surface-2": "#ead9bd", "surface-3": "#dfc9a8", border: "#d3bb95", "border-strong": "#b3946a",
-      text: "#2a1811", "text-muted": "#604939", "text-faint": "#7d6553", dialogue: "#992413", thought: "#365a42", action: "#4a3628",
-      accent: "#a62e1b", "accent-strong": "#8c2414", "accent-ink": "#8c2414", "on-accent": "#fbf0de",
-      lavender: "#cdbfcc", mint: "#c0d0b6", peach: "#e8bd98", butter: "#eacf96", sky: "#bccbcf",
-      "tint-char": "#f8eedd", "tint-user": "#f1e6d2", "tint-note": "#f1dfbd",
-      danger: "#992413", "danger-bg": "#f3d6c8", ok: "#2f5f3e", "ok-bg": "#dbe6d0", warn: "#74520f", "warn-bg": "#efdcb2",
-      "shadow-1": "0 1px 2px rgb(42 24 17 / 8%), 0 10px 24px -16px rgb(42 24 17 / 30%)", "shadow-2": "0 24px 50px -24px rgb(42 24 17 / 40%)",
-      sig1: "#c58a2b", sig2: "#1d1410", "rail-bg": "#9f2c1a", "rail-ink": "#f6e3c6", "orb-ink": "#fbf0de",
-      "orb-w": "radial-gradient(circle at 40% 35%, #d98b6f, #a62e1b 75%)", "orb-a": "radial-gradient(circle at 40% 35%, #8fae8f, #3f6248 75%)"
+      bg: "#e6d7b8", surface: "#f2e6cc", "surface-2": "#e8d9b9", "surface-3": "#dcc9a3", border: "#cfba90", "border-strong": "#a88c5f",
+      text: "#2a2018", "text-muted": "#5e4d3b", "text-faint": "#6e5c48", dialogue: "#8a1c1c", thought: "#27466b", action: "#45372a",
+      accent: "#8a1c1c", "accent-strong": "#721414", "accent-ink": "#7a1818", "on-accent": "#f7ead0",
+      lavender: "#c9bfcf", mint: "#bfcdb3", peach: "#e3b99a", butter: "#e6cf96", sky: "#b9c7cf",
+      "tint-char": "#f5ead3", "tint-user": "#ede3cc", "tint-note": "#ecdcb8",
+      danger: "#8a1c1c", "danger-bg": "#f0d4c4", ok: "#2f5a3a", "ok-bg": "#d9e2c8", warn: "#6e4f10", "warn-bg": "#ead7a8",
+      "shadow-1": "0 1px 2px rgb(42 32 24 / 10%), 0 12px 26px -16px rgb(42 32 24 / 40%)", "shadow-2": "0 26px 50px -24px rgb(42 32 24 / 50%)",
+      sig1: "#b08a3a", sig2: "#4b4f55", "rail-bg": "#2e2b29", "rail-ink": "#d9b765", "orb-ink": "#f7ead0",
+      "orb-w": "radial-gradient(circle at 40% 35%, #c9574a, #7a1818 75%)", "orb-a": "radial-gradient(circle at 40% 35%, #6f8fb3, #27466b 75%)"
     },
     dark: {
-      bg: "#110c0a", surface: "#1a1310", "surface-2": "#231a15", "surface-3": "#2c211b", border: "#36281f", "border-strong": "#5c412d",
-      text: "#f2e4cf", "text-muted": "#bba48a", "text-faint": "#958069", dialogue: "#f0907a", thought: "#a6c6ab", action: "#d7c5ad",
-      accent: "#b9412a", "accent-strong": "#d0553b", "accent-ink": "#f0907a", "on-accent": "#fbf0de",
-      lavender: "#8f8191", mint: "#7e9a80", peach: "#c08d70", butter: "#d1b071", sky: "#7e9399",
-      "tint-char": "#1d1512", "tint-user": "#191411", "tint-note": "#241a10",
-      danger: "#f0907a", "danger-bg": "#3a1a13", ok: "#9cc9a3", "ok-bg": "#1b2b1e", warn: "#e0b062", "warn-bg": "#2a1f12",
+      bg: "#0b0e12", surface: "#12171d", "surface-2": "#192028", "surface-3": "#212a33", border: "#26303a", "border-strong": "#3d4b59",
+      text: "#e9e4d8", "text-muted": "#b0b3b4", "text-faint": "#8b939b", dialogue: "#f2a272", thought: "#a9cdee", action: "#d3d0c6",
+      accent: "#b84d28", "accent-strong": "#d6653a", "accent-ink": "#f2a272", "on-accent": "#fbf1e2",
+      lavender: "#8e8aa8", mint: "#7fa39a", peach: "#c99377", butter: "#cdb57a", sky: "#7f9cb8",
+      "tint-char": "#141a21", "tint-user": "#121820", "tint-note": "#1a1d1c",
+      danger: "#f2a272", "danger-bg": "#3a1d14", ok: "#9cc9a3", "ok-bg": "#17281d", warn: "#e2bd6a", "warn-bg": "#26221a",
       "shadow-1": "0 1px 2px rgb(0 0 0 / 40%), 0 14px 30px -16px rgb(0 0 0 / 80%)", "shadow-2": "0 30px 60px -20px rgb(0 0 0 / 85%)",
-      sig1: "#e0b062", sig2: "#000000", "rail-bg": "#080605", "rail-ink": "#e0b062", "orb-ink": "#fbf0de",
-      "orb-w": "radial-gradient(circle at 40% 35%, #d9694f, #8a2414 75%)", "orb-a": "radial-gradient(circle at 40% 35%, #8fae95, #34503b 75%)"
+      sig1: "#d4b065", sig2: "#8a96a3", "rail-bg": "#06080b", "rail-ink": "#d4b065", "orb-ink": "#fbf1e2",
+      "orb-w": "radial-gradient(circle at 40% 35%, #e07a52, #8a2c14 75%)", "orb-a": "radial-gradient(circle at 40% 35%, #a9cdee, #36597d 75%)"
+    }
+  },
+  {
+    id: "marquee", key: "marq", no: "VI", name: "Marquee", wing: "Signage", motto: "Every name in lights",
+    modes: { light: "Matinee", dark: "Late Show" },
+    sigNames: ["Bulb", "Violet"],
+    fonts: { display: "'Monoton', 'Bricolage Grotesque', sans-serif", story: "'Literata', Georgia, serif", ui: "'Sora', system-ui, sans-serif", meta: "'Sora', system-ui, sans-serif", script: "'Neonderthaw', 'Pinyon Script', cursive" },
+    wall: "A late-night strip of signs: names bent from glass tube, panels outlined in cyan, pink and violet light, and chapter titles framed by a theatre marquee whose bulbs chase around the edge. The logo flickers now and then, and an “open late” sign hums on the back wall. By day the tubes are switched down to a soft glow on lilac white; after dark they burn against wet brick.",
+    dl: [["Palette", "Cyan, hot pink, violet and bulb amber on black brick or lilac white"], ["Type", "Neonderthaw tube script, Monoton marquee capitals, Literata for the story, Sora for the interface"], ["Shape", "Glowing tube outlines, round bulbs, pill chips"], ["Texture", "Brick wall and coloured light spill"], ["Signature", "A marquee of chasing bulbs around every chapter title"]],
+    light: {
+      bg: "#f3f0fa", surface: "#fdfcff", "surface-2": "#f0ecf8", "surface-3": "#e4def2", border: "#e0d9ef", "border-strong": "#b9aedb",
+      text: "#1b1630", "text-muted": "#4d4668", "text-faint": "#665f82", dialogue: "#c2177a", thought: "#0a7489", action: "#3a3456",
+      accent: "#087891", "accent-strong": "#066a80", "accent-ink": "#076f86", "on-accent": "#ffffff",
+      lavender: "#d9ccff", mint: "#b8f2e0", peach: "#ffd1bd", butter: "#ffe9a8", sky: "#bfe9ff",
+      "tint-char": "#ffffff", "tint-user": "#f6f3ff", "tint-note": "#fff7e0",
+      danger: "#c21f45", "danger-bg": "#ffe2ea", ok: "#0f7a5c", "ok-bg": "#d9f5ea", warn: "#765400", "warn-bg": "#fff1c2",
+      "shadow-1": "0 1px 2px rgb(27 22 48 / 6%), 0 12px 28px -16px rgb(80 40 160 / 28%)", "shadow-2": "0 26px 56px -24px rgb(80 40 160 / 35%)",
+      sig1: "#f2a900", sig2: "#7a3fe0", n1: "#19d3f0", n2: "#ff3fa4", n3: "#8b5cff", gl: ".45",
+      "nt-pink": "#c2177a", "nt-cyan": "#0a6f84", "nt-amber": "#9a6400", "nt-violet": "#6a35c9", "orb-ink": "#1b1630",
+      "orb-w": "radial-gradient(circle at 35% 30%, #ffffff, #ffb3dc 60%, #ff5fb4)", "orb-a": "radial-gradient(circle at 35% 30%, #ffffff, #a8f3ff 60%, #3fd9f2)"
+    },
+    dark: {
+      bg: "#07060d", surface: "#0f0d1a", "surface-2": "#171427", "surface-3": "#201c35", border: "#2a2545", "border-strong": "#4a4075",
+      text: "#f5f2ff", "text-muted": "#bdb5dc", "text-faint": "#958eb3", dialogue: "#ff7ad0", thought: "#6ff4ff", action: "#d6d0ee",
+      accent: "#3ee8ff", "accent-strong": "#7df0ff", "accent-ink": "#6ff4ff", "on-accent": "#04121a",
+      lavender: "#a58cff", mint: "#6ff0c0", peach: "#ff9f80", butter: "#ffd166", sky: "#7fd1ff",
+      "tint-char": "#120f1f", "tint-user": "#0f1122", "tint-note": "#1a160c",
+      danger: "#ff7a9b", "danger-bg": "#3a1222", ok: "#6ff0c0", "ok-bg": "#0f2a22", warn: "#ffd166", "warn-bg": "#241e0c",
+      "shadow-1": "0 1px 2px rgb(0 0 0 / 40%), 0 14px 30px -16px rgb(0 0 0 / 80%)", "shadow-2": "0 30px 60px -20px rgb(0 0 0 / 85%)",
+      sig1: "#ffc94a", sig2: "#b77bff", n1: "#3ee8ff", n2: "#ff4fb0", n3: "#b77bff", gl: "1",
+      "nt-pink": "#ffe0f2", "nt-cyan": "#dcfdff", "nt-amber": "#fff1cc", "nt-violet": "#efe3ff", "orb-ink": "#ffffff",
+      "orb-w": "radial-gradient(circle at 35% 30%, #ffd6ef, #ff4fb0 55%, #5c0f3a)", "orb-a": "radial-gradient(circle at 35% 30%, #d6fbff, #1fb8d4 55%, #0b4a5c)"
     }
   }
 ];
@@ -735,35 +903,44 @@ const ICONS = {
 const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 
 /* ---------- drawn ornaments ---------- */
-function fern() {
-  // A pressed fern frond: a curving rachis with paired pinnae that shrink toward the tip.
-  const pts = [], n = 15;
-  for (let i = 0; i <= n; i++) {
-    const t = i / n, x = 60 + 70 * t + 18 * Math.sin(t * 2.6), y = 410 - 380 * t;
-    pts.push([x, y, t]);
-  }
-  let s = `<path d="M${pts.map((p) => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L")}" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>`;
-  pts.slice(1, -1).forEach(([x, y, t]) => {
-    const len = 92 * (1 - t) + 14, w = 15 * (1 - t) + 5;
-    for (const side of [-1, 1]) {
-      const ang = side === -1 ? 200 - 25 * t : -20 + 25 * t;
-      s += `<ellipse cx="${(x + side * len / 2).toFixed(1)}" cy="${y.toFixed(1)}" rx="${(len / 2).toFixed(1)}" ry="${w.toFixed(1)}" fill="currentColor" transform="rotate(${(side === -1 ? ang - 180 : ang).toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
+function flower(cx, cy, r, n, cls, rot = 0) {
+  let s = "";
+  for (let i = 0; i < n; i++) s += `<ellipse cx="${cx}" cy="${(cy - r * 0.52).toFixed(1)}" rx="${(r * 0.36).toFixed(1)}" ry="${(r * 0.54).toFixed(1)}" class="${cls}" transform="rotate(${(rot + (i * 360) / n).toFixed(1)} ${cx} ${cy})"/>`;
+  return s + `<circle cx="${cx}" cy="${cy}" r="${(r * 0.24).toFixed(1)}" class="fc"/>`;
+}
+const leafPath = (x, y, len, ang, cls = "lf") => `<path class="${cls}" d="M0 0C${len * 0.35} ${-len * 0.3} ${len * 0.75} ${-len * 0.22} ${len} 0C${len * 0.75} ${len * 0.22} ${len * 0.35} ${len * 0.3} 0 0Z" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ang.toFixed(1)})"/>`;
+function spray(cls) {
+  // A corner spray of wildflowers: stems fan out from the bottom-left corner, leaves along them, blooms at the tips.
+  const stems = [[150, 46, "p1", 24, 5], [206, 118, "p2", 19, 6], [92, 28, "p3", 15, 5], [226, 190, "p4", 13, 5], [58, 84, "p1", 12, 6], [180, 168, "p2", 9, 5]];
+  let s = "";
+  stems.forEach(([x, y, c, r, n], i) => {
+    const qx = x * 0.28, qy = y + (250 - y) * 0.36;
+    s += `<path class="stem" d="M0 250Q${qx.toFixed(0)} ${qy.toFixed(0)} ${x} ${y}"/>`;
+    for (const t of [0.42, 0.68]) {
+      const px = 2 * (1 - t) * t * qx + t * t * x, py = (1 - t) * (1 - t) * 250 + 2 * (1 - t) * t * qy + t * t * y;
+      const dir = Math.atan2(y - qy, x - qx) * 180 / Math.PI;
+      s += leafPath(px, py, 22 - i, dir + (t < 0.5 ? -55 : 50), t < 0.5 ? "lf" : "lf2");
     }
   });
-  return `<svg viewBox="0 0 240 430" aria-hidden="true">${s}</svg>`;
+  stems.forEach(([x, y, c, r, n], i) => { s += flower(x, y, r, n, c, i * 17); });
+  [[120, 96], [34, 150], [196, 80]].forEach(([x, y]) => { s += `<circle class="bud" cx="${x}" cy="${y}" r="4.5"/><circle class="fc" cx="${x}" cy="${y}" r="1.6"/>`; });
+  return `<svg class="bq ${cls}" viewBox="0 0 250 250" aria-hidden="true">${s}</svg>`;
 }
-const SPRIG = `<svg class="sprig" viewBox="0 0 40 40" aria-hidden="true" fill="currentColor"><path d="M20 38C20 26 21 14 25 3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>${[[20.4, 30, 1], [20.8, 24, .85], [21.6, 18, .7], [22.8, 12, .55], [24, 7, .4]].map(([x, y, s]) => `<ellipse cx="${x - 6 * s}" cy="${y}" rx="${7 * s}" ry="${2.6 * s}" transform="rotate(-24 ${x} ${y})"/><ellipse cx="${x + 6 * s}" cy="${y - 1}" rx="${7 * s}" ry="${2.6 * s}" transform="rotate(24 ${x} ${y})"/>`).join("")}</svg>`;
-const TULIP = `<svg viewBox="0 0 24 32" aria-hidden="true" fill="currentColor"><path d="M12 31V13" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M12 26c-4 0-7-3-8-7 4 0 7 2 8 7zM12 22c3 0 6-2.5 7-6-3.5 0-6 2-7 6z" opacity=".75"/><path d="M6 4c0 6 2.6 9 6 9s6-3 6-9l-3.2 2.8L12 1 9.2 6.8z"/><circle cx="3" cy="30" r="1.2" opacity=".6"/><circle cx="21" cy="30" r="1.2" opacity=".6"/></svg>`;
-function laurel() {
-  let s = `<path d="M38 42C18 38 8 24 10 6" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>`;
-  for (let i = 0; i < 6; i++) {
-    const t = i / 6, a = Math.PI * (0.5 + 0.45 * t);
-    const cx = 38 - 28 * Math.sin(a - Math.PI / 2) - 2 * t, cy = 42 - 36 * t;
-    s += `<ellipse cx="${(cx - 4).toFixed(1)}" cy="${(cy - 1).toFixed(1)}" rx="5.2" ry="2.2" transform="rotate(${(-40 - 30 * t).toFixed(0)} ${cx.toFixed(1)} ${cy.toFixed(1)})" fill="currentColor"/>`;
-    s += `<ellipse cx="${(cx + 4).toFixed(1)}" cy="${(cy - 2).toFixed(1)}" rx="5.2" ry="2.2" transform="rotate(${(30 - 20 * t).toFixed(0)} ${cx.toFixed(1)} ${cy.toFixed(1)})" fill="currentColor" opacity=".8"/>`;
+function wreath() {
+  // An arch of leaves with three blooms, sitting over the chapter title.
+  let s = `<path class="stem" d="M12 60Q115 -6 218 60"/>`;
+  for (let i = 1; i < 18; i++) {
+    const t = i / 18, x = (1 - t) * (1 - t) * 12 + 2 * (1 - t) * t * 115 + t * t * 218, y = (1 - t) * (1 - t) * 60 + 2 * (1 - t) * t * -6 + t * t * 60;
+    const tan = Math.atan2(2 * (1 - t) * (-66) + 2 * t * 66, 2 * (1 - t) * 103 + 2 * t * 103) * 180 / Math.PI;
+    if (Math.abs(t - 0.5) < 0.06 || Math.abs(t - 0.22) < 0.03 || Math.abs(t - 0.78) < 0.03) continue;
+    s += leafPath(x, y, 15, tan + (i % 2 ? -40 : 40) + (t > 0.5 ? 180 : 0), i % 3 ? "lf" : "lf2");
   }
-  return `<svg viewBox="0 0 48 48" aria-hidden="true">${s}</svg>`;
+  s += flower(115, 27, 17, 6, "p1") + flower(64, 39, 11, 5, "p3", 20) + flower(166, 39, 11, 5, "p4", 40);
+  s += `<circle class="bud" cx="38" cy="50" r="3.5"/><circle class="bud" cx="192" cy="50" r="3.5"/>`;
+  return `<svg class="wreath" viewBox="0 0 230 64" aria-hidden="true">${s}</svg>`;
 }
+const BLOOM = `<svg viewBox="0 0 40 40" aria-hidden="true">${flower(20, 21, 17, 5, "p1")}<circle class="bud" cx="34" cy="7" r="2.6"/></svg>`;
+const TULIP = `<svg viewBox="0 0 24 32" aria-hidden="true" fill="currentColor"><path d="M12 31V13" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M12 26c-4 0-7-3-8-7 4 0 7 2 8 7zM12 22c3 0 6-2.5 7-6-3.5 0-6 2-7 6z" opacity=".75"/><path d="M6 4c0 6 2.6 9 6 9s6-3 6-9l-3.2 2.8L12 1 9.2 6.8z"/><circle cx="3" cy="30" r="1.2" opacity=".6"/><circle cx="21" cy="30" r="1.2" opacity=".6"/></svg>`;
 function seam(uid) {
   // A branching gold crack that runs across the whole stage, with a glint travelling along it.
   const main = "M-20 128 L70 150 L132 134 L196 176 L250 162 L318 214 L402 206 L452 262 L540 252 L604 304 L700 330 L820 318";
@@ -776,102 +953,147 @@ function seam(uid) {
     <path class="glint" d="${main}"/></svg>`;
 }
 const cardSeam = (uid) => `<svg class="cseam" viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true"><path class="seam" d="M300 -2 L318 30 L306 58 L340 90 L332 118 L356 142 M318 30 L356 40 L402 34" stroke="url(#g-${uid})"/></svg>`;
+const chain = (n) => `<div class="chain" aria-hidden="true">${"<i></i>".repeat(n)}</div>`;
+const bulbs = (c, n) => `<div class="bulbs ${c}" aria-hidden="true">${"<i></i>".repeat(n)}</div>`;
+
+/* ---------- the story inside each room ---------- */
+const STORIES = {
+  lighthouse: {
+    char: "Wren", full: "Wren Halloway", place: "The Lamp at Gull's Reach", you: "Ash", when: "night · 2nd bell",
+    chips: ["Lamp room", "Night · 2nd bell", "North-east gale"],
+    scrub: ["I · The Light", "II · The Logbook", "III · Oil &amp; Salt"],
+    recap: "The ferry stopped running after the equinox gale. Ash promised to find lamp oil before the long dark, and Wren pretended not to care whether he came back.",
+    title: "Oil &amp; Salt", epi: "in which a parcel is delivered, and a vote is postponed", meta: "Day 9 · three scenes",
+    scene1: ["The lamp room", "night, second bell"], scene2: ["By the stove", "later, the kettle sings"],
+    m1: `<p><span class="a">The lamp room hums as the great lens turns, throwing its slow gold arm across the black water.</span> <span class="d">“You came back,”</span> <span class="a">she says, not looking up from the brass she's polishing.</span> <span class="d">“Most people only climb those stairs once.”</span></p><p><span class="t">He's soaked through. Again. Of course he is.</span></p>`,
+    m2: `<p><span class="a">I shake the rain off my coat and set the oilskin parcel on her workbench, next to the tide tables.</span> <span class="d">“Your oil. The ferryman wouldn't come past the rocks, so I rowed it.”</span></p>`,
+    m3: `<p><span class="a">Her hands go still on the cloth.</span> <span class="d">“You rowed. In this.”</span> <span class="a">She finally turns, and the lamplight catches the salt drying in her hair.</span> <span class="d">“That's either <mark>very brave or very stupid</mark>, and I haven't decided which I'd prefer.”</span></p><p><span class="a">She crosses to the stove before he can answer, and the kettle goes on with a clatter that is louder than it needs to be.</span></p>`,
+    flag: "Wren said she's <b>never</b> left the island, but in chapter I she sold eggs at the mainland market.",
+    m4: `<p><span class="a">I take the chair by the stove without arguing, which seems to surprise her more than anything.</span> <span class="d">“Brave. Definitely brave. I'll take the vote when you've had a cup.”</span></p>`,
+    m5: `<p><span class="a">She sets two mugs down, and one of them is chipped, and she gives him the good one without seeming to think about it.</span> <span class="d">“The vote,”</span> <span class="a">she says,</span> <span class="d">“is still out. But you can stay until the tide turns.”</span><span class="caret"></span></p>`,
+    chatSub: "Gull's Reach",
+    mem: [["★", "Ash rowed the oil across in a gale.", "just now · pinned"], ["●", "Her brother Tamsin left on the last ferry and never wrote.", "chapter I · she won't raise it"], ["●", "She calls the Fresnel lens “the Old Eye.”", "chapter I"]],
+    threads: [["Why did Tamsin leave?", "opened chapter I · simmering"], ["The second key on Wren's ring.", "opened chapter II"]],
+    notes: ["Ash finds Tamsin's oilskin in the boathouse?", "No confession before chapter V."],
+    clock: ["11:40", "High tide, turning", "the rocks show at two bells"],
+    kv: [["Where", "Lamp room, top of 112 stairs"], ["When", "Night, second bell · day 9"], ["Weather", "North-east gale, rising"], ["Ferry", "Suspended"]],
+    offstage: ["Offstage: the harbourmaster counts the boats and comes up one short.", "may reach the scene by morning"]
+  },
+  westeros: {
+    char: "Wren", full: "Lady Wren Mallister", place: "The Beacon at Seagard", you: "Ser Ash", when: "hour of the wolf",
+    chips: ["Beacon tower", "Hour of the wolf", "Storm off the bay"],
+    scrub: ["I · The Watch", "II · Ravens", "III · Oil &amp; Salt"],
+    recap: "Longships were sighted in the Bay of Crabs at the turn of the moon. Ser Ash swore to bring oil for the beacon before the storm closed the roads, and Lady Wren pretended not to care whether he kept his word.",
+    title: "Oil &amp; Salt", epi: "in which a knight keeps his word, and a lady keeps her counsel", meta: "299 AC · seventh moon",
+    scene1: ["The beacon tower", "hour of the wolf"], scene2: ["By the brazier", "later, the storm eases"],
+    m1: `<p><span class="a">Wind howls through the arrow slits as the great fire gutters in its iron cage, throwing red light across the black water.</span> <span class="d">“You came back,”</span> <span class="a">she says, not looking up from the bow she's waxing.</span> <span class="d">“Most knights only climb these stairs once.”</span></p><p><span class="t">Soaked through. Again. Seven save me from brave men.</span></p>`,
+    m2: `<p><span class="a">I shake the rain from my cloak and set the oilskins down beside the signal horn.</span> <span class="d">“Your oil, my lady. The ferryman wouldn't cross the bay, so I rowed it.”</span></p>`,
+    m3: `<p><span class="a">Her hands go still on the bowstring.</span> <span class="d">“You rowed. In this.”</span> <span class="a">She finally turns, and the firelight catches the salt drying in her braid.</span> <span class="d">“That's either <mark>very brave or very stupid</mark>, ser, and I haven't decided which I'd prefer.”</span></p><p><span class="a">She crosses to the brazier before he can answer and sets the wine to mull with a clatter that is louder than it needs to be.</span></p>`,
+    flag: "Wren said she's <b>never</b> left Seagard, but in chapter I she rode to Riverrun for the harvest feast.",
+    m4: `<p><span class="a">I take the stool by the brazier without arguing, which seems to surprise her more than anything.</span> <span class="d">“Brave. Definitely brave. You may judge me when you've had a cup.”</span></p>`,
+    m5: `<p><span class="a">She pours two cups, and one of them is chipped, and she hands him the good one without seeming to think about it.</span> <span class="d">“The judgement,”</span> <span class="a">she says,</span> <span class="d">“is still out. But you may stay until the tide turns.”</span><span class="caret"></span></p>`,
+    chatSub: "Seagard",
+    mem: [["★", "Ser Ash rowed the oil across the bay in a storm.", "just now · pinned"], ["●", "Her brother rode south with the king's host and has not written since.", "chapter I · she won't raise it"], ["●", "She calls the beacon fire “the Old Eye.”", "chapter I"]],
+    threads: [["Why did her brother stop writing?", "opened chapter I · simmering"], ["The second key on Wren's ring.", "opened chapter II"]],
+    notes: ["Ash finds her brother's sigil ring in the armory?", "No confession before chapter V."],
+    clock: ["299 AC", "Seventh moon, waning", "the year of the red comet"],
+    kv: [["Where", "Beacon tower, Seagard"], ["When", "Hour of the wolf · day 9"], ["Weather", "Storm off the bay, easing"], ["Roads", "Closed to Riverrun"]],
+    offstage: ["Offstage: a raven from Riverrun waits unread in the maester's turret.", "may reach the scene by morning"]
+  }
+};
 
 /* ---------- per-theme slots ---------- */
-const EPI = "in which a parcel is delivered, and a vote is postponed";
 const SLOTS = {
-  herb: {
-    logo: () => SPRIG, decor: () => fern(), recap: "Field notes · previously", ribbon: "Pressed",
-    chapter: () => `<header class="chapter">${SPRIG}<div class="num">Chapter III</div><h2>Oil &amp; Salt</h2><p class="epi">${EPI}</p>
-      <div class="spec"><b>HERB. MEA · No. 0412</b><span>Coll. night, 2nd bell</span><span>Loc. Gull's Reach</span><span>Det. Wren &amp; Ash</span><span>Day 9 · 3 scenes</span></div></header>`
+  wild: {
+    logo: () => BLOOM, decor: () => spray("bl") + spray("tr") + `<i class="petal"></i>`.repeat(6), recap: "❀ Previously, in the meadow", ribbon: "✿ in bloom",
+    chapter: (st) => `<header class="chapter">${wreath()}<div class="num">Chapter three</div><h2>${st.title}</h2><p class="epi">${st.epi}</p></header>`
   },
   riso: {
     logo: () => `<b>Mea</b>`, decor: () => `<i></i><i></i><i></i>`, recap: "Previously on…", ribbon: "BEST ★",
-    chapter: () => `<header class="chapter"><div class="big">03</div><div><div class="num">Chapter three</div><h2>Oil &amp; Salt</h2><p class="epi">${EPI}</p></div></header>`
+    chapter: (st) => `<header class="chapter"><div class="big">03</div><div><div class="num">Chapter three</div><h2>${st.title}</h2><p class="epi">${st.epi}</p></div></header>`
   },
   kin: {
     logo: () => `<span class="hanko">め</span>`, decor: (uid) => seam(uid), recap: "前回 · Previously", ribbon: "金",
-    chapter: () => `<header class="chapter"><div class="vert">第三章</div><div><div class="num">Chapter III</div><h2>Oil &amp; Salt</h2><p class="epi">${EPI}</p><div class="meta">DAY 9 · THREE SCENES</div></div><span class="hanko">灯</span></header>`,
+    chapter: (st) => `<header class="chapter"><div class="vert">第三章</div><div><div class="num">Chapter III</div><h2>${st.title}</h2><p class="epi">${st.epi}</p><div class="meta">${st.meta.toUpperCase()}</div></div><span class="hanko">灯</span></header>`,
     best: (uid) => cardSeam(uid)
   },
   delft: {
     logo: () => TULIP, decor: () => "", recap: "Previously", ribbon: "★",
-    chapter: () => `<header class="chapter"><div class="cart">${TULIP}<div><div class="num">Chapter III</div><h2>Oil &amp; Salt</h2></div>${TULIP}</div><p class="epi">${EPI}</p></header>`
+    chapter: (st) => `<header class="chapter"><div class="cart">${TULIP}<div><div class="num">Chapter III</div><h2>${st.title}</h2></div>${TULIP}</div><p class="epi">${st.epi}</p></header>`
   },
-  pomp: {
-    logo: () => "M", decor: () => "", recap: "Antea · previously", ribbon: "OPTIMVM",
-    chapter: () => `<header class="chapter"><div class="num">Capitvlvm · III</div><div class="hrow">${laurel()}<h2>Oil &amp; Salt</h2>${laurel()}</div><p class="epi">${EPI}</p><span class="meander"></span></header>`
+  cit: {
+    logo: () => `<span class="seal">M</span>`, decor: () => `<div class="glow"></div><div class="snow"></div><div class="snow s2"></div>`, recap: "From the maester's chronicle", ribbon: "♜",
+    afterHead: () => chain(64),
+    chapter: (st) => `<header class="chapter"><div class="num">The third chapter</div><h2>${st.title}</h2><div class="orn"><span></span>⚜︎<span></span></div><p class="epi">${st.epi}</p>${chain(15)}</header>`
+  },
+  marq: {
+    logo: () => `<b class="neon">Mea</b>`, decor: () => `<span class="sign">open late</span>`, recap: "Previously on the late show", ribbon: "★ Encore",
+    chapter: (st) => `<header class="chapter"><div class="marq">${bulbs("t", 17)}${bulbs("b", 17)}${bulbs("l", 4)}${bulbs("r", 4)}<div class="num">Chapter three</div><h2>${st.title}</h2></div><p class="epi">${st.epi}</p></header>`
   }
 };
 
-/* ---------- the app mock (identical story in every room) ---------- */
+/* ---------- the app mock ---------- */
 function appHTML(t, mode, uid) {
-  const S = SLOTS[t.key];
+  const S = SLOTS[t.key], st = STORIES[t.story || "lighthouse"];
+  const i0 = st.char[0], iy = st.you.replace("Ser ", "")[0];
   const acts = (a) => `<span class="acts">${a.map((n) => `<button class="ib" aria-label="${n}">${ic(n)}</button>`).join("")}</span>`;
+  const msgAI = (cls, body, sw, extra = "", foot = "") => `<article class="msg ai ${cls}"><span class="orb" data-c="wren">${i0}</span><div class="body">${extra}
+        <div class="mh"><span class="nm">${st.char}</span><span class="when">${cls === "live" ? "writing…" : st.when}</span><span class="sw">${sw}</span>${cls ? "" : acts(["star", "pen", "dots"])}</div>
+        <div class="tx">${body}</div>${foot}</div></article>`;
+  const msgYou = (body, a) => `<article class="msg user"><span class="orb" data-c="ash">${iy}</span><div class="body">
+        <div class="mh"><span class="nm">${st.you}</span><span class="when">${st.when}</span>${a ? `<span class="sw"></span>${acts(["pen"])}` : ""}</div>
+        <div class="tx">${body}</div></div></article>`;
   return `<div class="app ${mode === "dark" ? "dk" : "lt"}" data-t="${t.key}" data-mode="${mode}" ${mode === "dark" ? 'aria-hidden="true"' : ""}>
   <nav class="rail" aria-label="Main">
     <div class="logo">${S.logo()}</div>
     <a class="nav on" title="Home">${ic("home")}</a><a class="nav" title="Personas">${ic("users")}</a><a class="nav" title="Studio">${ic("wand")}</a>
     <a class="nav" title="Lorebooks">${ic("book")}</a><a class="nav" title="Notebook">${ic("pen")}</a><a class="nav" title="Review inbox">${ic("inbox")}<span class="badge">4</span></a>
-    <hr /><span class="orb sm" data-c="wren">W</span>
+    <hr /><span class="orb sm" data-c="wren">${i0}</span>
     <div class="grow"></div>
     <a class="nav" title="Jump to anything">${ic("search")}</a><a class="nav" title="Settings">${ic("cog")}</a>
-    <span class="orb sm" data-c="ash" style="margin-top:6px">A</span>
+    <span class="orb sm" data-c="ash" style="margin-top:6px">${iy}</span>
   </nav>
   <main class="stage">
     <div class="decor" aria-hidden="true">${S.decor(uid)}</div>
     <header class="chat-head">
-      <span class="orb lg" data-c="wren">W</span>
-      <div class="who"><div class="name">Wren Halloway <em>· The Lamp at Gull's Reach</em></div>
-        <div class="chips"><span class="chip hot">♥ flustered</span><span class="chip">${ic("pin")}Lamp room</span><span class="chip hide-s">${ic("moon")}Night · 2nd bell</span><span class="chip hide-s">${ic("wind")}North-east gale</span></div></div>
+      <span class="orb lg" data-c="wren">${i0}</span>
+      <div class="who"><div class="name">${st.full} <em>· ${st.place}</em></div>
+        <div class="chips"><span class="chip hot">♥ flustered</span><span class="chip">${ic("pin")}${st.chips[0]}</span><span class="chip hide-s">${ic("moon")}${st.chips[1]}</span><span class="chip hide-s">${ic("wind")}${st.chips[2]}</span></div></div>
       <div class="tools"><div class="mseg hide-s"><button class="on">Cards</button><button>Book</button><button>Bubbles</button></div>
         <button class="ib" aria-label="Search">${ic("search")}</button><button class="ib hide-s" aria-label="Read as a book">${ic("bookopen")}</button><button class="ib hide-s" aria-label="Side panel">${ic("panelR")}</button><button class="ib" aria-label="Focus">${ic("focus")}</button></div>
     </header>
-    <div class="scrub"><span class="ch">I · The Light</span><span class="ch">II · The Logbook</span><span class="ch now">III · Oil &amp; Salt</span><i class="fill"></i></div>
+    ${S.afterHead ? S.afterHead() : ""}
+    <div class="scrub"><span class="ch">${st.scrub[0]}</span><span class="ch">${st.scrub[1]}</span><span class="ch now">${st.scrub[2]}</span><i class="fill"></i></div>
     <div class="feed"><div class="feed-in">
-      <div class="recap"><div class="lbl">${S.recap}</div>The ferry stopped running after the equinox gale. Ash promised to find lamp oil before the long dark, and Wren pretended not to care whether he came back.</div>
-      ${S.chapter()}
-      <div class="scene-h"><span class="ln"></span><span class="sc">${ic("pin")}<b>The lamp room</b>· night, second bell</span><span class="ln"></span></div>
-      <article class="msg ai"><span class="orb" data-c="wren">W</span><div class="body">
-        <div class="mh"><span class="nm">Wren</span><span class="when">night · 2nd bell</span><span class="sw">‹ 1 / 1 ›</span>${acts(["star", "pen", "dots"])}</div>
-        <div class="tx"><p><span class="a">The lamp room hums as the great lens turns, throwing its slow gold arm across the black water.</span> <span class="d">“You came back,”</span> <span class="a">she says, not looking up from the brass she's polishing.</span> <span class="d">“Most people only climb those stairs once.”</span></p>
-        <p><span class="t">He's soaked through. Again. Of course he is.</span></p></div></div></article>
-      <article class="msg user"><span class="orb" data-c="ash">A</span><div class="body">
-        <div class="mh"><span class="nm">Ash</span><span class="when">night · 2nd bell</span><span class="sw"></span>${acts(["pen"])}</div>
-        <div class="tx"><p><span class="a">I shake the rain off my coat and set the oilskin parcel on her workbench, next to the tide tables.</span> <span class="d">“Your oil. The ferryman wouldn't come past the rocks, so I rowed it.”</span></p></div></div></article>
-      <article class="msg ai best"><span class="orb" data-c="wren">W</span><div class="body">${S.best ? S.best(uid) : ""}<span class="ribbon">${S.ribbon}</span>
-        <div class="mh"><span class="nm">Wren</span><span class="when">night · 2nd bell</span><span class="sw">‹ 2 / 3 ›</span></div>
-        <div class="tx"><p><span class="a">Her hands go still on the cloth.</span> <span class="d">“You rowed. In this.”</span> <span class="a">She finally turns, and the lamplight catches the salt drying in her hair.</span> <span class="d">“That's either <mark>very brave or very stupid</mark>, and I haven't decided which I'd prefer.”</span></p>
-        <p><span class="a">She crosses to the stove before he can answer, and the kettle goes on with a clatter that is louder than it needs to be.</span></p></div>
-        <div class="mf"><span class="chip keep">${ic("sparkles")}Wren will remember this</span><span class="chip">96 words</span><span class="chip hide-s">Wayfarer 12B</span></div></div></article>
-      <div class="flag">${ic("alert")}<span>Wren said she's <b>never</b> left the island, but in chapter I she sold eggs at the mainland market.</span><button class="btn hide-s">Keep both</button><button class="btn pri">Fix it</button></div>
-      <article class="msg user"><span class="orb" data-c="ash">A</span><div class="body">
-        <div class="mh"><span class="nm">Ash</span><span class="when">night · 2nd bell</span></div>
-        <div class="tx"><p><span class="a">I take the chair by the stove without arguing, which seems to surprise her more than anything.</span> <span class="d">“Brave. Definitely brave. I'll take the vote when you've had a cup.”</span></p></div></div></article>
-      <div class="scene-h"><span class="ln"></span><span class="sc">${ic("moon")}<b>By the stove</b>· later, the kettle sings</span><span class="ln"></span></div>
-      <article class="msg ai"><span class="orb" data-c="wren">W</span><div class="body">
-        <div class="mh"><span class="nm">Wren</span><span class="when">writing…</span><span class="sw"><button class="btn" style="height:24px">Stop</button></span></div>
-        <div class="tx"><p><span class="a">She sets two mugs down, and one of them is chipped, and she gives him the good one without seeming to think about it.</span> <span class="d">“The vote,”</span> <span class="a">she says,</span> <span class="d">“is still out. But you can stay until the tide turns.”</span><span class="caret"></span></p></div></div></article>
+      <div class="recap"><div class="lbl">${S.recap}</div>${st.recap}</div>
+      ${S.chapter(st)}
+      <div class="scene-h"><span class="ln"></span><span class="sc">${ic("pin")}<b>${st.scene1[0]}</b>· ${st.scene1[1]}</span><span class="ln"></span></div>
+      ${msgAI("", st.m1, "‹ 1 / 1 ›")}
+      ${msgYou(st.m2, true)}
+      ${msgAI("best", st.m3, "‹ 2 / 3 ›", (S.best ? S.best(uid) : "") + `<span class="ribbon">${S.ribbon}</span>`,
+        `<div class="mf"><span class="chip keep">${ic("sparkles")}${st.char} will remember this</span><span class="chip">96 words</span><span class="chip hide-s">Wayfarer 12B</span></div>`)}
+      <div class="flag">${ic("alert")}<span>${st.flag}</span><button class="btn hide-s">Keep both</button><button class="btn pri">Fix it</button></div>
+      ${msgYou(st.m4, false)}
+      <div class="scene-h"><span class="ln"></span><span class="sc">${ic("moon")}<b>${st.scene2[0]}</b>· ${st.scene2[1]}</span><span class="ln"></span></div>
+      ${msgAI("live", st.m5, `<button class="btn" style="height:24px">Stop</button>`)}
     </div></div>
-    <div class="composer"><div class="capsule"><button class="ib" aria-label="Persona, model, steering">${ic("sliders")}</button><span class="ph">Speak as Ash…</span><button class="send" aria-label="Send">${ic("send")}</button></div></div>
+    <div class="composer"><div class="capsule"><button class="ib" aria-label="Persona, model, steering">${ic("sliders")}</button><span class="ph">Speak as ${st.you}…</span><button class="send" aria-label="Send">${ic("send")}</button></div></div>
   </main>
   <aside class="dock">
     <div class="tabs">
       <button data-p="chat">${ic("sliders")}Chat</button><button data-p="memory" class="on">${ic("brain")}Memory</button><button data-p="story">${ic("heart")}Story</button><button data-p="world">${ic("globe")}World</button>
     </div>
     <section class="pane" data-p="chat">
-      <div class="ph2"><h3>This chat</h3><small>Gull's Reach</small></div>
+      <div class="ph2"><h3>This chat</h3><small>${st.chatSub}</small></div>
       <div class="setrow"><div><b>Model</b><small>NanoGPT · subscription</small></div><span class="chip">Wayfarer 12B</span></div>
       <div class="setrow"><div><b>Preset</b><small>Samplers and prompt layers</small></div><span class="chip hot">Slow Burn Prose</span></div>
-      <div class="setrow"><div><b>Keep Wren in character</b><small>Re-anchor when her voice drifts</small></div><span class="switch on"></span></div>
-      <div class="setrow"><div><b>Don't write for Ash</b><small>Catch puppeting before it lands</small></div><span class="switch on"></span></div>
+      <div class="setrow"><div><b>Keep ${st.char} in character</b><small>Re-anchor when her voice drifts</small></div><span class="switch on"></span></div>
+      <div class="setrow"><div><b>Don't write for ${st.you}</b><small>Catch puppeting before it lands</small></div><span class="switch on"></span></div>
       <div class="setrow"><div><b>Ambience</b><small>Rain on glass, low</small></div><span class="switch"></span></div>
     </section>
     <section class="pane on" data-p="memory">
-      <div class="ph2"><h3>What Wren remembers</h3><small>14 →</small></div>
-      <div class="atom"><span class="s">★</span><div>Ash rowed the oil across in a gale.<small>just now · pinned</small></div></div>
-      <div class="atom"><span class="s">●</span><div>Her brother Tamsin left on the last ferry and never wrote.<small>chapter I · she won't raise it</small></div></div>
-      <div class="atom"><span class="s">●</span><div>She calls the Fresnel lens “the Old Eye.”<small>chapter I</small></div></div>
+      <div class="ph2"><h3>What ${st.char} remembers</h3><small>14 →</small></div>
+      ${st.mem.map(([s, a, b]) => `<div class="atom"><span class="s">${s}</span><div>${a}<small>${b}</small></div></div>`).join("")}
       <div class="ph2" style="margin-top:10px"><h3>Between them</h3><small>measured</small></div>
       <div class="gauge"><div class="row">Trust <span>thawing</span></div><div class="bar"><i style="--v:62%;--n:62"></i></div></div>
       <div class="gauge"><div class="row">Warmth <span>hidden, badly</span></div><div class="bar"><i style="--v:48%;--n:48;--c:var(--dialogue)"></i></div></div>
@@ -879,17 +1101,15 @@ function appHTML(t, mode, uid) {
     </section>
     <section class="pane" data-p="story">
       <div class="ph2"><h3>Threads</h3><small>2 open</small></div>
-      <div class="atom"><span class="s">?</span><div>Why did Tamsin leave?<small>opened chapter I · simmering</small></div></div>
-      <div class="atom"><span class="s">?</span><div>The second key on Wren's ring.<small>opened chapter II</small></div></div>
+      ${st.threads.map(([a, b]) => `<div class="atom"><span class="s">?</span><div>${a}<small>${b}</small></div></div>`).join("")}
       <div class="ph2" style="margin-top:10px"><h3>Notes</h3><small>yours</small></div>
-      <div class="atom"><span class="s">✎</span><div>Ash finds Tamsin's oilskin in the boathouse?</div></div>
-      <div class="atom"><span class="s">✎</span><div>No confession before chapter V.</div></div>
+      ${st.notes.map((a) => `<div class="atom"><span class="s">✎</span><div>${a}</div></div>`).join("")}
     </section>
     <section class="pane" data-p="world">
       <div class="ph2"><h3>Outside</h3><small>the world →</small></div>
-      <div class="tide"><b>11:40</b><div>High tide, turning<small>the rocks show at two bells</small></div></div>
-      <dl class="kv"><dt>Where</dt><dd>Lamp room, top of 112 stairs</dd><dt>When</dt><dd>Night, second bell · day 9</dd><dt>Weather</dt><dd>North-east gale, rising</dd><dt>Ferry</dt><dd>Suspended</dd></dl>
-      <div class="atom"><span class="s">✦</span><div>Offstage: the harbourmaster counts the boats and comes up one short.<small>may reach the scene by morning</small></div></div>
+      <div class="tide"><b>${st.clock[0]}</b><div>${st.clock[1]}<small>${st.clock[2]}</small></div></div>
+      <dl class="kv">${st.kv.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>
+      <div class="atom"><span class="s">✦</span><div>${st.offstage[0]}<small>${st.offstage[1]}</small></div></div>
     </section>
   </aside>
 </div>`;
@@ -910,7 +1130,7 @@ function tokensCSS(t) {
     const lines = Object.entries(tok).map(([k, v]) => `  --${k}: ${v};`);
     return `:root[data-theme="${sel}"] {\n  color-scheme: ${mode};\n  /* ${t.name} · ${t.modes[mode]} */\n${lines.join("\n")}\n  --font-ui: ${t.fonts.ui};\n  --font-story: ${t.fonts.story};\n  --font-display: ${t.fonts.display};\n}`;
   };
-  return `/* ${t.name} — ${t.motto}. Generated from Mea · Five Rooms. */\n${block(t.id, "light", t.light)}\n\n${block(t.id + "-night", "dark", t.dark)}\n`;
+  return `/* ${t.name} — ${t.motto}. Generated from Mea · Six Rooms. */\n${block(t.id, "light", t.light)}\n\n${block(t.id + "-night", "dark", t.dark)}\n`;
 }
 
 /* ---------- build the page ---------- */
@@ -918,7 +1138,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 $("#toc").innerHTML = THEMES.map((t) => `<a href="#${t.id}"><b>${t.no}</b>${t.name}</a>`).join("");
-$("#index").innerHTML = THEMES.map((t) => `<a class="card" href="#${t.id}" style="--l:${t.light.bg};--d:${t.dark.bg};--la:${t.light.accent};--lb:${t.light.dialogue};--da:${t.dark.accent};--db:${t.dark.dialogue};--f:${t.fonts.display.replace(/"/g, "'")}">
+$("#index").innerHTML = THEMES.map((t) => `<a class="card" href="#${t.id}" style="--l:${t.light.bg};--d:${t.dark.bg};--la:${t.light.accent};--lb:${t.light.sig1};--da:${t.dark.accent};--db:${t.dark.sig1};--f:${t.fonts.display.replace(/"/g, "'")}">
   <div class="sw"><i></i><i></i></div>
   <div class="cap"><small>Room ${t.no} · ${t.wing}</small><span>${t.name}</span><em>${t.motto}</em></div></a>`).join("");
 
@@ -945,6 +1165,8 @@ THEMES.forEach((t) => {
     app.style.setProperty("--f-story", t.fonts.story);
     app.style.setProperty("--f-ui", t.fonts.ui);
     app.style.setProperty("--f-meta", t.fonts.meta);
+    if (t.fonts.script) app.style.setProperty("--f-script", t.fonts.script);
+    if (t.fonts.initial) app.style.setProperty("--f-initial", t.fonts.initial);
     app.style.colorScheme = app.dataset.mode;
   });
 
