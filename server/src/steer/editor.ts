@@ -70,8 +70,11 @@ Reply with JSON only: {"changed":true,"text":"the full edited reply","notes":["â
   // The reply changed while the editor worked (you edited or swiped): drop the proposal.
   const now_ = one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", p.messageId, p.swipeIdx);
   if (!now_ || hashText(now_.content) !== hashText(sw.content)) return;
+  // L12: the edit belongs to the swipe it read: once you've moved to another, it waits there as a suggestion.
+  const cur = getMessageRow(p.messageId);
+  if (!cur || cur.deleted_at) return;
   const proposal: EditProposal = { status: "proposed", text, notes: r.data.notes.slice(0, 8), original: sw.content, at: Date.now() };
-  if (cfg.editorApply === "auto") {
+  if (cfg.editorApply === "auto" && cur.active_swipe === p.swipeIdx) {
     editMessage(p.messageId, text);
     updateSwipe(p.messageId, p.swipeIdx, { meta: { edit: { ...proposal, status: "applied" } } });
   } else updateSwipe(p.messageId, p.swipeIdx, { meta: { edit: proposal } });

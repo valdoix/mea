@@ -38,15 +38,50 @@ export function compileFind(find: string): RegExp | null {
   return re;
 }
 
-export function applyRegex(text: string, scripts: RegexScript[], scope: { role: "ai" | "user"; mode: RegexScript["mode"]; characterId?: string | null }) {
+/** M33: a prompt pass's shared state: scripts that ran too long are skipped for the rest of it. */
+export interface RegexPass {
+  slow: Set<string>;
+}
+
+/** M33: a script slower than this on one message is skipped for the rest of the pass. */
+export const SCRIPT_BUDGET_MS = 50;
+
+/** M33: prompt-pass results by scripts + scope + text; the history barely changes from turn to turn. */
+const results = new Map<string, string>();
+const RESULT_CAP = 5000;
+
+export function applyRegex(text: string, scripts: RegexScript[], scope: { role: "ai" | "user"; mode: RegexScript["mode"]; characterId?: string | null }, pass?: RegexPass) {
+  const active = scripts.filter(
+    (s) => s.enabled && s.mode === scope.mode && s.targets.includes(scope.role) && (!s.characterIds.length || (scope.characterId != null && s.characterIds.includes(scope.characterId))),
+  );
+  if (!active.length) return text;
+  const key = pass ? `${Bun.hash(JSON.stringify(active.map((s) => [s.find, s.replace])))}:${scope.role}:${text.length}:${Bun.hash(text)}` : "";
+  if (pass) {
+    const hit = results.get(key);
+    if (hit !== undefined) return hit;
+  }
   let out = text;
-  for (const s of scripts) {
-    if (!s.enabled || s.mode !== scope.mode || !s.targets.includes(scope.role)) continue;
-    if (s.characterIds.length && (!scope.characterId || !s.characterIds.includes(scope.characterId))) continue;
+  let skipped = false;
+  for (const s of active) {
+    if (pass?.slow.has(s.id)) {
+      skipped = true;
+      continue;
+    }
     const re = compileFind(s.find);
     if (!re) continue;
     re.lastIndex = 0;
+    const t0 = performance.now();
     out = out.replace(re, s.replace.replace(/\{\{match\}\}/gi, "$$&"));
+    const ms = performance.now() - t0;
+    if (ms > SCRIPT_BUDGET_MS) {
+      console.warn(`[mea] regex script "${s.name}" took ${Math.round(ms)} ms on one message${pass ? "; skipped for the rest of this prompt" : ""}`);
+      pass?.slow.add(s.id);
+    }
+  }
+  // A pass that skipped a slow script isn't the real result: it's worked out again next time.
+  if (pass && !skipped) {
+    results.set(key, out);
+    if (results.size > RESULT_CAP) results.delete(results.keys().next().value!);
   }
   return out;
 }
