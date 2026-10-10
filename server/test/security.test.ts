@@ -14,7 +14,7 @@ async function call(method: string, path: string, opts: { body?: unknown; server
 }
 
 async function pairedCookie() {
-  const pairing = await (await call("POST", "/api/devices/pairing", { body: {} })).json();
+  const pairing = (await (await call("POST", "/api/devices/pairing", { body: {} })).json()) as { code: string };
   const ok = await call("POST", "/api/pair", { body: { code: pairing.code, name: "Phone" }, server: remote });
   return ok.headers.get("set-cookie")!.split(";")[0]!;
 }
@@ -60,7 +60,7 @@ describe("security (SEC-07..10)", () => {
   });
 
   test("only the newest pairing code works", async () => {
-    const first = await (await call("POST", "/api/devices/pairing", { body: {} })).json();
+    const first = (await (await call("POST", "/api/devices/pairing", { body: {} })).json()) as { code: string };
     await call("POST", "/api/devices/pairing", { body: {} });
     expect((await call("POST", "/api/pair", { body: { code: first.code, name: "Old" }, server: remote })).status).toBe(400);
   });
