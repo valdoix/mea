@@ -11,7 +11,7 @@
   import { layout, railShown, setFocus, toggleRail } from "./lib/layout.svelte";
   import Toasts from "./components/Toasts.svelte";
   import { get, setSourceHandler, setUnpairedHandler } from "./lib/api";
-  import { flushOutbox, outbox } from "./lib/outbox.svelte";
+  import { clearOutbox, flushOutbox, outbox } from "./lib/outbox.svelte";
   import { connectEvents } from "./lib/events";
   import { onEdgeSwipe } from "./lib/gestures";
   import { Menu, WifiOff } from "./lib/icons";
@@ -71,8 +71,21 @@
 
   setUnpairedHandler(() => {
     app.authorized = false;
+    forgetDevice();
     if (route.name !== "pair") navigate("/pair", { replace: true });
   });
+
+  /** M7: unpaired or revoked: the saved chats, images, drafts and waiting messages leave this device. */
+  function forgetDevice() {
+    navigator.serviceWorker?.controller?.postMessage({ type: "purge" });
+    if ("caches" in window) void Promise.all(["mea-api-v1", "mea-images-v2"].map((c) => caches.delete(c))).catch(() => {});
+    clearOutbox();
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith("mea.draft.")) localStorage.removeItem(k);
+    } catch {
+      // storage unavailable
+    }
+  }
 
   onMount(() => {
     void boot();
@@ -119,6 +132,7 @@
       app.local = who.local;
       app.authorized = who.authorized;
       if (!who.authorized) {
+        forgetDevice();
         if (route.name !== "pair") navigate("/pair", { replace: true });
         ready = true;
         return;
