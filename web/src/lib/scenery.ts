@@ -175,7 +175,8 @@ export class ScenePainter {
       if (this.visible && !document.hidden) this.frame(this.still ? 0 : dt);
       this.raf = requestAnimationFrame(loop);
     };
-    this.raf = requestAnimationFrame(loop);
+    // L15: with reduced motion the scene is drawn once (on resize and on each change), not 60 times a second.
+    if (!this.still) this.raf = requestAnimationFrame(loop);
   }
 
   destroy() {
@@ -195,6 +196,7 @@ export class ScenePainter {
     if (this.still) {
       this.cur = { ...WX[this.wx] };
       this.pm = 1;
+      this.frame(0);
     }
   }
 

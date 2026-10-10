@@ -67,9 +67,16 @@ img {
 }
 
 :focus-visible {
-  outline: none;
+  /* M41: a transparent outline, not none: forced-colors mode drops the shadow but paints the outline. */
+  outline: 2px solid transparent;
   box-shadow: var(--focus);
   border-radius: var(--r-sm);
+}
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+  }
 }
 
 /* ---------- Scrollbars ---------- */

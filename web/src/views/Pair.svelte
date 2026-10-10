@@ -52,7 +52,7 @@
     font-weight: 600;
   }
   .logo span {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
     font-size: 0.75em;
   }
   .code {

@@ -51,11 +51,41 @@ function highlightDialogue(root: HTMLElement) {
   }
 }
 
+/** A value that would load something from outside the message: a remote image, or a request to Mea's API. */
+const REMOTE_REF = /(?:image-set|\bsrc)\s*\(|url\(\s*["']?(?!data:)/i;
+
+/**
+ * M5: tames one block of declarations (a card's CSS rule, or an inline style=) in place: nothing
+ * pinned over the app, no huge z-index, nothing loaded from elsewhere.
+ */
+function tameStyle(style: CSSStyleDeclaration, pinnedTo?: string) {
+  if (/fixed|sticky/i.test(style.position)) {
+    if (pinnedTo) style.position = pinnedTo;
+    else style.removeProperty("position");
+  }
+  if (Math.abs(parseInt(style.zIndex, 10)) > 50) style.removeProperty("z-index");
+  for (const prop of Array.from(style)) if (REMOTE_REF.test(style.getPropertyValue(prop))) style.removeProperty(prop);
+}
+
 /** Scopes card-provided CSS to one message using the browser's own CSS parser. */
 function scopeCss(css: string, scope: string): string {
   try {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
+    // M5: keyframes get the message's own prefix, so a card can't redefine the app's animations.
+    const names = new Map<string, string>();
+    const collect = (rules: CSSRuleList) => {
+      for (const rule of Array.from(rules)) {
+        if (rule instanceof CSSKeyframesRule) names.set(rule.name, `${scope.slice(1)}-${rule.name.replace(/[^\w-]/g, "_")}`);
+        else if (rule instanceof CSSMediaRule) collect(rule.cssRules);
+      }
+    };
+    collect(sheet.cssRules);
+    const rename = (list: string) =>
+      list
+        .split(",")
+        .map((n) => names.get(n.trim()) ?? n.trim())
+        .join(", ");
     const out: string[] = [];
     const walk = (rules: CSSRuleList, wrap?: (s: string) => string) => {
       for (const rule of Array.from(rules)) {
@@ -64,22 +94,61 @@ function scopeCss(css: string, scope: string): string {
             .split(",")
             .map((s) => `${scope} ${s.trim().replace(/^(html|body|:root)\b/, "")}`)
             .join(", ");
-          const body = rule.style.cssText.replace(/position\s*:\s*fixed/gi, "position: absolute");
-          const r = `${sel} { ${body} }`;
+          tameStyle(rule.style, "absolute");
+          if (rule.style.animationName) rule.style.animationName = rename(rule.style.animationName);
+          const r = `${sel} { ${rule.style.cssText} }`;
           out.push(wrap ? wrap(r) : r);
         } else if (rule instanceof CSSMediaRule) {
           walk(rule.cssRules, (r) => `@media ${rule.conditionText} { ${r} }`);
         } else if (rule instanceof CSSKeyframesRule) {
-          out.push(rule.cssText);
+          rule.name = names.get(rule.name) ?? `${scope.slice(1)}-kf`;
+          for (const k of Array.from(rule.cssRules)) if (k instanceof CSSKeyframeRule) tameStyle(k.style, "absolute");
+          const r = rule.cssText;
+          out.push(wrap ? wrap(r) : r);
         }
       }
     };
     walk(sheet.cssRules);
-    return out.join("\n").replace(/url\(\s*["']?(?!data:)[^)]*\)/gi, "none");
+    const scoped = out.join("\n").replace(/url\(\s*["']?(?!data:)[^)]*\)/gi, "none");
+    // C1: this text goes back into HTML inside <style>, where any "<" (the CSS parser turns an escaped
+    // "<\/style>" in a string into a real one) could close the element early and inject markup. So no
+    // "<" survives: each becomes the CSS escape \3c, which means the same character to CSS.
+    return scoped.replace(/</g, "\\3c ");
   } catch {
     return "";
   }
 }
+
+/** M5: images and media in a message load only from data: URLs and Mea's own images (or its own files). */
+function localSrc(value: string) {
+  const v = value.trim();
+  if (/^data:/i.test(v)) return true;
+  try {
+    const u = new URL(v, location.href);
+    return u.origin === location.origin && (!u.pathname.startsWith("/api/") || u.pathname.startsWith("/api/images/"));
+  } catch {
+    return false;
+  }
+}
+
+/** Its own DOMPurify, so these hooks don't touch other uses in the app. */
+const purify = DOMPurify(window);
+const scratch = document.createElement("div");
+purify.addHook("uponSanitizeAttribute", (_node, data) => {
+  if (data.attrName !== "style") return;
+  scratch.setAttribute("style", data.attrValue);
+  tameStyle(scratch.style);
+  data.attrValue = scratch.style.cssText;
+});
+purify.addHook("afterSanitizeAttributes", (node) => {
+  const tag = node.nodeName.toLowerCase();
+  for (const attr of ["src", "poster", "background", "href", "xlink:href"]) {
+    // Links stay links; everywhere else an href loads something (SVG <image>, <use>, <feImage>).
+    if ((attr === "href" || attr === "xlink:href") && (tag === "a" || tag === "area")) continue;
+    const v = node.getAttribute(attr);
+    if (v !== null && !localSrc(v)) node.removeAttribute(attr);
+  }
+});
 
 export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean } = {}): string {
   const dressed = opts.artifacts !== false;
@@ -95,8 +164,8 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
     return "";
   });
   const raw = marked.parse(withoutStyles, { async: false }) as string;
-  const clean = DOMPurify.sanitize(raw, {
-    FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select", "link", "meta", "base"],
+  const clean = purify.sanitize(raw, {
+    FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select", "link", "meta", "base"],
     FORBID_ATTR: ["srcset", "action", "formaction"],
     ALLOW_DATA_ATTR: false,
   });
@@ -120,7 +189,7 @@ export function renderStreaming(input: string, opts: { artifacts?: boolean } = {
   // Inline trackers: the hidden <ledger> the story model writes never shows while it streams.
   const { text, found } = extractArtifacts(input.replace(/<ledger\b[\s\S]*$/i, ""));
   const raw = marked.parse(text, { async: false }) as string;
-  const clean = DOMPurify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "form", "input", "button"] });
+  const clean = purify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "link", "meta", "base"], FORBID_ATTR: ["srcset"] });
   const tpl = document.createElement("template");
   tpl.innerHTML = clean;
   const container = document.createElement("div");

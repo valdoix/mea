@@ -2,7 +2,12 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "The splash screen may ask the app to find or start Mea. Mea's own pages get no app access.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "local": true,
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "allow-ensure-mea"
+  ]
 }

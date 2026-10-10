@@ -25,24 +25,7 @@
   <p id="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></p>
   <button id="retry" hidden>Try again</button>
 </main>
-<script>
-  const status = document.getElementById("status");
-  const retry = document.getElementById("retry");
-  async function go() {
-    retry.hidden = true;
-    status.className = "";
-    status.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-    try {
-      const url = await window.__TAURI__.core.invoke("ensure_mea");
-      location.replace(url);
-    } catch (e) {
-      status.className = "err";
-      status.textContent = String(e);
-      retry.hidden = false;
-    }
-  }
-  retry.onclick = go;
-  go();
-</script>
+<!-- A file, not inline, for the window's Content-Security-Policy (tauri.conf.json). -->
+<script src="splash.js"></script>
 </body>
 </html>

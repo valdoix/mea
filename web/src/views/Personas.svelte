@@ -99,7 +99,12 @@
     if (!current) return;
     if (!(await confirm({ title: `Move ${current.name} to the trash?`, confirmLabel: "Move to trash", danger: true }))) return;
     const id = current.id;
-    await del(`/api/personas/${id}`);
+    try {
+      await del(`/api/personas/${id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     toast("Persona moved to trash", { action: { label: "Undo", run: () => void post(`/api/personas/${id}/restore`).then(() => navigate(`/personas/${id}`)) } });
     current = null;
     navigate("/personas");
@@ -266,7 +271,7 @@
     box-shadow: 0 0 0 2px var(--accent);
   }
   .item :global(.star) {
-    color: var(--accent-strong);
+    color: var(--accent-ink);
   }
   .editor {
     min-width: 0;

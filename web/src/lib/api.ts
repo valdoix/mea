@@ -4,9 +4,20 @@ export class ApiError extends Error {
     public status: number,
     public code?: string,
     public details?: unknown,
+    /** The whole JSON body of the error answer, when there was one. */
+    public body?: any,
   ) {
     super(message);
   }
+}
+
+/**
+ * H8 / M38: whether a failed send still added your message to the chat. The server says so with
+ * `stored`; older servers only include the stored `userMessage`.
+ */
+export function storedMessage(e: unknown): boolean {
+  if (!(e instanceof ApiError) || !e.body || typeof e.body !== "object") return false;
+  return typeof e.body.stored === "boolean" ? e.body.stored : Boolean(e.body.userMessage);
 }
 
 let onUnpaired: (() => void) | null = null;
@@ -47,7 +58,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
     if (res.status === 401 && data?.code === "unpaired") onUnpaired?.();
     // SEC-05: Mea restarted with an encrypted database; the boot screen asks for the passphrase.
     if (res.status === 423 && data?.code === "locked") location.reload();
-    throw new ApiError(data?.error ?? `Request failed (${res.status})`, res.status, data?.code, data?.details);
+    throw new ApiError(data?.error ?? `Request failed (${res.status})`, res.status, data?.code, data?.details, data);
   }
   return data as T;
 }

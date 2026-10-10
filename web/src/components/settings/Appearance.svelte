@@ -36,15 +36,23 @@
   // MOB-11
   let pin = $state("");
   let pin2 = $state("");
+  // M6: changing or turning off the lock asks for the PIN in use.
+  let currentPin = $state("");
+  let changing = $state(false);
   async function savePin() {
     if (!/^\d{4,12}$/.test(pin)) return toast("Use 4 to 12 digits", { kind: "error" });
     if (pin !== pin2) return toast("The two PINs don't match", { kind: "error" });
-    await setPin(pin);
-    pin = pin2 = "";
-    toast("App lock is on for this device", { kind: "ok" });
+    const wasOn = lock.enabled;
+    if (!(await setPin(pin, currentPin))) return toast("That isn't the current PIN", { kind: "error" });
+    pin = pin2 = currentPin = "";
+    changing = false;
+    toast(wasOn ? "PIN changed" : "App lock is on for this device", { kind: "ok" });
   }
   async function turnOffLock() {
-    if (await confirm({ title: "Turn the app lock off?", message: "Mea opens on this device without a PIN again.", confirmLabel: "Turn off" })) removeLock();
+    if (!currentPin) return toast("Enter the current PIN first", { kind: "error" });
+    if (!(await confirm({ title: "Turn the app lock off?", message: "Mea opens on this device without a PIN again.", confirmLabel: "Turn off" }))) return;
+    if (!(await removeLock(currentPin))) return toast("That isn't the current PIN", { kind: "error" });
+    currentPin = "";
   }
   async function addBiometrics() {
     try {
@@ -307,10 +315,23 @@
             <option value="60">An hour</option>
           </select>
         </label>
+        <label class="field narrow"><span class="label">Current PIN</span><input class="input" type="password" inputmode="numeric" autocomplete="current-password" bind:value={currentPin} placeholder="Needed to change or turn off" /></label>
+        {#if changing}
+          <div class="grid">
+            <label class="field"><span class="label">New PIN</span><input class="input" type="password" inputmode="numeric" autocomplete="new-password" bind:value={pin} placeholder="4 to 12 digits" /></label>
+            <label class="field"><span class="label">Again</span><input class="input" type="password" inputmode="numeric" autocomplete="new-password" bind:value={pin2} /></label>
+          </div>
+        {/if}
         <div class="row wrap">
           {#if biometricsAvailable() && !lock.biometric}<button class="btn small" onclick={addBiometrics}>Use fingerprint or face too</button>{/if}
           {#if lock.biometric}<span class="chip mint">Fingerprint or face on</span>{/if}
-          <button class="btn small danger" onclick={turnOffLock}>Turn off</button>
+          {#if changing}
+            <button class="btn small" onclick={savePin} disabled={pin.length < 4 || currentPin.length < 4}>Save new PIN</button>
+            <button class="btn small ghost" onclick={() => ((changing = false), (pin = pin2 = ""))}>Cancel</button>
+          {:else}
+            <button class="btn small" onclick={() => (changing = true)}>Change PIN</button>
+          {/if}
+          <button class="btn small danger" onclick={turnOffLock} disabled={currentPin.length < 4}>Turn off</button>
         </div>
       {:else}
         <p class="tiny muted">A PIN for this device, so someone picking up your phone doesn't land in your stories. It's a privacy screen: pairing still decides which devices can reach Mea at all.</p>

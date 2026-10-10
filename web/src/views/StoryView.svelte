@@ -567,7 +567,7 @@
     gap: 0.7rem;
   }
   .btn.on {
-    color: var(--accent);
+    color: var(--accent-ink);
   }
   .sub {
     margin: 0.4rem 0 0;

@@ -142,6 +142,11 @@
 </div>
 
 <style>
+  /* M5: a message's own HTML stays inside its paragraph block. */
+  section.prose {
+    contain: layout paint;
+    overflow-clip-margin: 1rem;
+  }
   .reader {
     --page-bg: var(--bg);
     --page-text: var(--text);
@@ -214,7 +219,7 @@
   .orn {
     display: block;
     text-align: center;
-    color: var(--accent-strong);
+    color: var(--accent-ink);
   }
   .chapter {
     font-family: var(--font-display);

@@ -1,6 +1,14 @@
 /** Touch gestures as Svelte actions (MOB-03). */
 import { buzz } from "./device.svelte";
 
+/** L15: a touch that starts in something that scrolls sideways (a wide table, code) is scrolling it, not swiping. */
+function inSideScroller(target: EventTarget | null, root: HTMLElement) {
+  for (let el = target instanceof Element ? target : null; el && el !== root; el = el.parentElement) {
+    if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
+  }
+  return false;
+}
+
 export function swipe(node: HTMLElement, params: { onLeft?: () => void; onRight?: () => void; enabled?: boolean }) {
   let p = params;
   let startX = 0,
@@ -10,7 +18,7 @@ export function swipe(node: HTMLElement, params: { onLeft?: () => void; onRight?
     locked: "x" | "y" | null = null;
 
   const start = (e: TouchEvent) => {
-    if (p.enabled === false || e.touches.length !== 1) return;
+    if (p.enabled === false || e.touches.length !== 1 || inSideScroller(e.target, node)) return;
     startX = e.touches[0]!.clientX;
     startY = e.touches[0]!.clientY;
     dx = 0;

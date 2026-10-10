@@ -190,7 +190,12 @@
   }
   async function remove() {
     if (!(await confirm({ title: "Move this chat to the trash?", message: "You can restore it for 30 days.", confirmLabel: "Move to trash", danger: true }))) return;
-    await del(`/api/chats/${detail.chat.id}`);
+    try {
+      await del(`/api/chats/${detail.chat.id}`);
+    } catch (err) {
+      errorToast(err);
+      return;
+    }
     const id = detail.chat.id;
     toast("Chat moved to trash", { action: { label: "Undo", run: () => void post(`/api/chats/${id}/restore`).then(() => navigate(`/chat/${id}`)) } });
     navigate(detail.character ? `/character/${detail.character.id}` : "/");
