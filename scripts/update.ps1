@@ -53,11 +53,14 @@ function Finish([bool]$ok, [bool]$updated, [string]$message) {
     @{ ok = $ok; updated = $updated; message = $message } | ConvertTo-Json | Set-Content -Path $ResultFile -Encoding UTF8
   }
   if ($ShowResult) {
-    Add-Type -AssemblyName System.Windows.Forms
-    $owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }
-    $icon = if ($ok) { [System.Windows.Forms.MessageBoxIcon]::Information } else { [System.Windows.Forms.MessageBoxIcon]::Warning }
-    [void][System.Windows.Forms.MessageBox]::Show($owner, $message, "Update Mea", [System.Windows.Forms.MessageBoxButtons]::OK, $icon)
-    $owner.Dispose()
+    # The box runs in its own process so this script exits now: the desktop app waits for it,
+    # and its menu says "Updating" until then. ServiceNotification puts the box on top even
+    # though nothing here has a visible window.
+    $kind = if ($ok) { "Information" } else { "Warning" }
+    $text = $message.Replace("'", "''")
+    $show = "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('$text', 'Update Mea', 'OK', '$kind', 'Button1', 'ServiceNotification')"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($show))
+    Start-Process powershell.exe -WindowStyle Hidden -ArgumentList "-NoProfile -EncodedCommand $encoded"
   }
   Pop-Location
   exit $(if ($ok) { 0 } else { 1 })
@@ -125,8 +128,14 @@ function Restart-Mea {
 }
 
 # 2. Packages and build. The web build happens while Mea runs, so it's only down for the restart.
-Invoke-Logged $bun @("install", "--frozen-lockfile") | Out-Null
-if ($LASTEXITCODE -ne 0) { Undo-Pull "installing packages" }
+# Packages only need installing when the update changed them.
+$changed = @(& $git diff --name-only $before $after 2>$null)
+if ($Force -or ($changed -match '(^|/)(package\.json|bun\.lockb?)$') -or -not (Test-Path (Join-Path $root "node_modules"))) {
+  Invoke-Logged $bun @("install", "--frozen-lockfile") | Out-Null
+  if ($LASTEXITCODE -ne 0) { Undo-Pull "installing packages" }
+} else {
+  Write-Log "Packages unchanged; skipping bun install."
+}
 
 if ($exeMode) {
   # mea.exe can't be replaced while it runs, so stop it first.
