@@ -73,6 +73,8 @@ export const chatSettingsSchema = z.object({
   director: z.boolean().optional(),
   /** CONN-07: a model picked in the header, with this chat's profile settings. */
   modelOverride: z.object({ connectionId: z.string(), modelId: z.string() }).nullable().optional(),
+  /** Meus (docs/13-meus.md): apply record and time fixes without the card (still with Undo). */
+  meus: z.object({ autoApply: z.boolean() }).partial().optional(),
   /** Story truths: your rules for this story, sent every turn. */
   truths: z.array(short(300)).max(30).optional(),
   /** PROMPT-07: this chat's preset control values (over the character's and the preset's). */

@@ -833,6 +833,21 @@ CREATE INDEX IF NOT EXISTS jobs_chat ON jobs(chat_id, status) WHERE chat_id IS N
   },
   {
     id: 13,
+    name: "meus",
+    sql: /* sql */ `
+-- Meus in a chat: the conversation, the change card waiting for you, and the change sets you
+-- applied (with what undoes each). One row per chat; never part of the roleplay.
+CREATE TABLE meus (
+  chat_id TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+  turns TEXT NOT NULL DEFAULT '[]',
+  proposal TEXT,
+  sets TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
+  {
+    id: 14,
     name: "fold marks",
     sql: /* sql */ `
 -- M20: tracker folds start from in-memory snapshots. Every change that can alter a fold (a message
@@ -850,7 +865,7 @@ ${FOLD_MARK_TRIGGERS}
 `,
   },
   {
-    id: 14,
+    id: 15,
     name: "memory marks",
     sql: /* sql */ `
 -- M20: the entity sync reads only the memories that changed since it last ran. Every memory
@@ -874,7 +889,7 @@ END;
 `,
   },
   {
-    id: 15,
+    id: 16,
     name: "memory origin and lore firing message",
     up: (db) => {
       // M31: who made a memory, instead of guessing tracker-made ones from confidence 0.85, no scene and one source.
@@ -923,7 +938,7 @@ END;
     },
   },
   {
-    id: 16,
+    id: 17,
     name: "foreign keys for message and chat rows",
     up: (db) => {
       // M31: vectors go with their memory or summary in the same statement, however it's deleted
@@ -1035,7 +1050,7 @@ CREATE INDEX IF NOT EXISTS memory_usage_chat ON memory_usage(chat_id, created_at
       // Every row left must have its parent, or the migration (and its transaction) fails.
       for (const t of ["tracker_events", "memory_sources", "continuity_flags", "highlights", "memory_usage", "lore_hits", "inbox_dismissed"]) {
         const bad = db.query(`PRAGMA foreign_key_check(${t})`).all();
-        if (bad.length) throw new Error(`Migration 16: ${bad.length} rows of ${t} still lack a parent`);
+        if (bad.length) throw new Error(`Migration 17: ${bad.length} rows of ${t} still lack a parent`);
       }
     },
   },

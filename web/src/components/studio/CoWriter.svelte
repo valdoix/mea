@@ -76,18 +76,18 @@
     else next.add(id);
     picked = next;
   }
-  const KIND: Record<string, string> = { idea: "your idea", section: "concept", bible: "bible", field: "field", rewrite: "rewrite", name: "name", overview: "overview", entry: "edit", plan: "plan", add: "new", remove: "leave out" };
+  const KIND: Record<string, string> = { idea: "your idea", section: "concept", bible: "bible", field: "field", rewrite: "rewrite", name: "name", overview: "overview", entry: "edit", plan: "plan", add: "new", remove: "leave out", answer: "answer", option: "shape", basedOn: "canon", write: "write" };
   const long = (c: ProposedChange) => c.before.length + c.after.length > 1400;
-  // Mea's replies can brainstorm in lists and bold; rendered safely.
+  // Meus's replies can brainstorm in lists and bold; rendered safely.
   const md = (t: string) => DOMPurify.sanitize(marked.parse(t, { async: false, breaks: true }) as string, { FORBID_TAGS: ["style", "script", "img", "iframe", "form", "input"] });
   const lastIsMea = $derived(chat.at(-1)?.role === "mea");
 </script>
 
 <button class="fab btn" class:pending={Boolean(proposal)} onclick={() => (cowriter.open = true)} aria-label="Co-writer">
-  <MessagesSquare size={16} /> Brainstorm with Mea{#if proposal}<span class="badge">{proposal.changes.length}</span>{/if}
+  <MessagesSquare size={16} /> Brainstorm with Meus{#if proposal}<span class="badge">{proposal.changes.length}</span>{/if}
 </button>
 
-<Modal bind:open={cowriter.open} title="Mea, your co-writer" side="right" size="lg">
+<Modal bind:open={cowriter.open} title="Meus, your co-writer" side="right" size="lg">
   <div class="cw">
     <div class="log" bind:this={log}>
       {#if !chat.length}
@@ -129,6 +129,8 @@
               </span>
               {#if c.kind === "rewrite"}
                 <span class="small">Rewritten in the background: <i>{c.steer}</i></span>
+              {:else if c.kind === "write"}
+                <span class="small">Written in the background from the bible: <i>{c.after}</i></span>
               {:else if c.kind === "remove"}
                 <span class="small muted">Left out of the lorebook (you can tick it back in).</span>
               {:else if c.kind === "add"}

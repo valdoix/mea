@@ -206,6 +206,47 @@ function helperJson(name: string, user: string): unknown {
       if (/concept/i.test(says)) changes.push({ kind: "section", section: "Central tension", text: `Sharper: ${says}` }, { kind: "section", section: "Weather", text: "The fog has a will." });
       return { reply: changes.length ? `Done: ${says}` : "That all looks consistent.", changes };
     }
+    case "meus_turn": {
+      const says = user.match(/^THE PLAYER SAYS: (.*)$/m)?.[1] ?? "";
+      const looked = /^WHAT YOU LOOKED UP/m.test(user);
+      const changes: Record<string, unknown>[] = [];
+      const lookup: string[] = [];
+      let m = says.match(/merge (.+?) into (.+?)[.!]?$/i);
+      if (m) changes.push({ kind: "merge", from: m[1], into: m[2] });
+      m = says.match(/(?:clock|time) (?:to|is|should be) (.+?)(?: from #(\d+))?[.!]?$/i);
+      if (m) changes.push({ kind: "ledger", lines: [`clock: ${m[1]}`], ...(m[2] ? { at: Number(m[2]) } : {}), why: "Fix the clock" });
+      m = says.match(/codex: (.+?) is (dead|missing|gone)/i);
+      if (m) changes.push({ kind: "codex", id: m[1], status: m[2] });
+      m = says.match(/codex fact: (.+?) — (.+)$/i);
+      if (m) changes.push({ kind: "codex", id: m[1], facts: [m[2]] });
+      m = says.match(/fix message #(\d+): (.+)$/i);
+      if (m) changes.push({ kind: "message", message: Number(m[1]), text: m[2] });
+      m = says.match(/remember (.+)$/i);
+      if (m) changes.push({ kind: "memory_add", text: m[1], pin: true });
+      m = says.match(/cue: (.+)$/i);
+      if (m) changes.push({ kind: "cue", text: m[1] });
+      if (/nonsense change/i.test(says)) changes.push({ kind: "ledger", lines: ["bond Nobody>Noone: trust +1"] }, { kind: "merge", from: "Ghost", into: "Nobody" });
+      m = says.match(/^split (.+?) from (.+?)[.!]?$/i);
+      if (m) changes.push({ kind: "split", from: m[2], name: m[1], lines: [`mood ${m[1]}: wary`] });
+      m = says.match(/^note: (.+?) — (.+)$/i);
+      if (m) changes.push({ kind: "note", title: m[1], body: m[2] });
+      if (/^steer: slow/i.test(says)) changes.push({ kind: "steer", pacing: "slow", guidance_once: ["Slow down"], story: { tone: "tender" } });
+      m = says.match(/^hide #(\d+)/i);
+      if (m) changes.push({ kind: "hide", message: Number(m[1]), hidden: true });
+      m = says.match(/^lore: (.+?) — (.+)$/i);
+      if (m) changes.push({ kind: "lore_add", comment: m[1], keys: [m[1]], content: m[2] });
+      m = says.match(/^world arc: (.+?) — (.+)$/i);
+      if (m) changes.push({ kind: "world_arc", lead: m[1], premise: m[2] });
+      m = says.match(/^card: (.+)$/i);
+      if (m) changes.push({ kind: "studio", card: "character", request: m[1] });
+      m = says.match(/who is (.+?)\?/i);
+      if (m && !looked) lookup.push(`person: ${m[1]}`);
+      m = says.match(/^look up (\w+): (.+)$/i);
+      if (m && !looked) lookup.push(`${m[1]}: ${m[2]}`);
+      const first = user.match(/^\[1\] \([^)]*\) (.*)$/m)?.[1];
+      if (lookup.length) return { reply: "", cites: [], lookup, changes: [] };
+      return { reply: changes.length ? `Done: ${says}` : looked ? `From what I read: ${user.match(/^### (.+)$/m)?.[1] ?? "nothing"}.` : first ? `The story says [1]: ${firstSentence(first)}` : "Let's think about it.", cites: first && !changes.length ? [1] : [], lookup: [], changes };
+    }
     case "creator_critique":
       return { issues: /\[first_mes\]/.test(user) ? [{ field: "first_mes", problem: "The greeting is static.", fix: "Open in motion." }] : [] };
     case "creator_cowrite": {
@@ -215,6 +256,11 @@ function helperJson(name: string, user: string): unknown {
       if (older) changes.push({ kind: "bible", key: "identity", text: `Now ${older} years old.` }, { kind: "field", key: "description", text: `She is ${older}.` }, { kind: "rewrite", key: "first_mes", steer: `She is ${older} now.` });
       if (/rename/i.test(says)) changes.push({ kind: "name", text: "Wren Vale" });
       if (/concept/i.test(says)) changes.push({ kind: "section", section: "Voice", text: `Brainstormed: ${says}` });
+      if (/answer/i.test(says) && /Open questions/.test(user)) changes.push({ kind: "answer", key: user.match(/^ {2}(\d+)\. /m)?.[1] ?? "1", text: "To be forgiven by her sister." });
+      if (/shorter/i.test(says)) changes.push({ kind: "option", key: "length", text: "lean" }, { kind: "option", key: "pov", text: "first person" });
+      if (/canon/i.test(says)) changes.push({ kind: "basedOn", text: "Mock Show (TV)" });
+      if (/write the rest/i.test(says)) changes.push({ kind: "write", key: "empty" });
+      if (/flagged/i.test(says)) changes.push({ kind: "field", key: "description", text: /Out of date:[\s\S]*\[description\]/.test(user) ? "Fixed: {{char}} is up to date." : "Nothing flagged." });
       return { reply: changes.length ? "Updated her age everywhere it shows." : "Nothing contradicts that.", changes };
     }
     case "studio_consistency": {
@@ -231,6 +277,8 @@ function helperJson(name: string, user: string): unknown {
     }
     case "creator_readback":
       return {
+        reads: /\bI'm\b|\bmy persona\b/.test(user) ? "persona" : /MOCK_CARD/.test(user) ? "character" : "",
+        readsWhy: /\bI'm\b/.test(user) ? 'It says "I\'m".' : "",
         understood: `Someone built from ${names(user).slice(0, 2).join(" and ") || "the author's idea"}.`,
         missing: ["their voice", "what they want"],
         questions: [
@@ -301,7 +349,7 @@ function mockPlainText(system: string, user: string): string | null {
     else if (field === "Example dialogue") text = `<START>\n{{user}}: Hello.\n{{char}}: "Hello yourself." ${name} doesn't look up from the ledger.\n<START>\n{{user}}: Are you angry?\n{{char}}: "Angry is for people with time." ${name} snaps the book shut.`;
     else if (field === "Tags") text = "Fantasy, Harbour, mystery, slow burn";
     else if (field === "Pronouns") text = "she/her";
-    else text = `${field} of ${name}: ${name} keeps the harbour light and keeps her promises, and the people of Port Ellis know both cost her something. She talks in short, dry sentences and laughs only when she's tired.`;
+    else text = `${field} of ${name}: ${name} keeps the harbour light and keeps her promises, and the people of Port Ellis know both cost her something. She talks in short, dry sentences and laughs only when she's tired.${/MOCK_SLIP/.test(user) ? " {{char}} hides it well." : ""}`;
     return asks ? `${text} (${asks})` : text;
   }
   if (/^Go deeper on one section/.test(system)) {

@@ -66,9 +66,9 @@ The trackers re-fold their history, so existing chats clean up by themselves.
 ### In both studios
 
 - **Suggested answers.** Every interview question comes with three answers to tap. Follow-ups build on what you've answered.
-- **Mea, the co-writer** ("Brainstorm with Mea") is a companion chat.
+- **Meus, the co-writer** ("Brainstorm with Meus"; it was called Mea before it came to chats too, see [13-meus.md](13-meus.md)) is a companion chat.
   - **Brainstorming.** It riffs, offers options, pushes back and knows the fandom. It changes the draft only when you ask or agree.
-  - **In "Expand my idea".** Mea reads your idea and every expanded section by heading. It can rewrite a section, add a new one, or (rarely) your idea itself. **Brainstorm** on the panel opens the chat; the speech-bubble button on a section starts the message for you ("Let's brainstorm the Central tension section: ").
+  - **In "Expand my idea".** Meus reads your idea and every expanded section by heading. It can rewrite a section, add a new one, or (rarely) your idea itself. **Brainstorm** on the panel opens the chat; the speech-bubble button on a section starts the message for you ("Let's brainstorm the Central tension section: ").
   - **Looking things up.** When it needs facts it searches the wiki (one round), and the pages it read show under its reply.
   - **Changes.** Proposed changes appear as diffs you tick or untick:
     - **Creator:** idea and concept sections, bible sections, fields, background rewrites, the name.
@@ -105,3 +105,24 @@ The trackers re-fold their history, so existing chats clean up by themselves.
   - the co-writer's lookup round;
   - the census, Everything and coverage;
   - suggested answers, stale entries and fields, the editor's pass, and the co-writer in both studios.
+
+## Who is who (personas are not cards)
+
+**What went wrong.** Every step treated a persona like a character card. The co-writer offered "Make the greeting start in the middle of an argument" on a persona, the editor's pass looked for greetings and rules, and models slipped in `{{char}}` or "her relationship with {{user}}" for someone who *is* {{user}}.
+
+**The fix:**
+
+- **`WHO_IS_WHO`** (`creator/smarts.ts`) says what a card, a narrator and a persona each are in a chat. Every creator step (expand, deepen, read-back, bible, section rewrites, the bible check, fields, the editor's pass, the co-writer), the persona card tools and the Lore Studio's persona lorebooks read it. It's exported for anything else that works on a chat (Meus).
+- **Persona prompts** ask what the player needs to step into this person, never about greetings or "what they want from {{user}}". The editor's pass for a persona looks for card habits and scripted choices instead of greetings and rules.
+- **Slips are fixed.** A `{{char}}` in persona text becomes their name (`unslipPersona`). Chat lines are sent back for one more try (`personaSlip`). Review flags any that remain (`checkPersona`, "card-words").
+- **The wrong kind is noticed.** The read-back says when the material reads as the other kind ("I'm a night nurse…" in a character draft). Questions shows "Make it a persona" (`POST /creator/:id/kind`, which switches in place and asks again) or "keep it" (`dismissKindHint`, never asked again).
+- **Examples in the co-writer** follow the kind: a persona never gets card prompts.
+
+## A more capable co-writer
+
+- **It sees what's flagged.** `THE STATE OF THE DRAFT` lists open questions, what's still unclear, both editors' notes, out-of-date fields, the automatic checks' warnings, what's not written yet and what's being written. "What's wrong?" and "Fix what's flagged" work.
+- **New changes it can propose:**
+  - `answer`: answers an open interview question.
+  - `option`: the draft's shape (tone, style, length; for cards also point of view, tense, card type and greetings). Values are checked, so "first person" becomes `first`.
+  - `basedOn`: what it's based on.
+  - `write`: writes every empty field (or all of them) from the bible in the background.

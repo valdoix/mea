@@ -68,6 +68,67 @@ export function splitThink(text: string): { text: string; reasoning: string } {
   return { text: text.slice(m[0].length), reasoning: m[2]!.trim() };
 }
 
+const THINK_OPEN = ["<think>", "<thinking>"];
+
+/**
+ * Mea's preset has models without provider reasoning plan inside a leading <think> block. This
+ * routes that block to the reasoning field while the reply streams, so it never shows in the story.
+ * Call it with each text chunk; `end()` returns whatever is still held back when the stream ends.
+ */
+export function thinkRouter() {
+  let state: "start" | "in" | "out" = "start";
+  let buf = "";
+  let close = "";
+  const push = (chunk: string): { text: string; reasoning: string } => {
+    if (state === "out") return { text: chunk, reasoning: "" };
+    buf += chunk;
+    if (state === "start") {
+      const lead = buf.replace(/^\s+/, "");
+      const lower = lead.toLowerCase();
+      const open = THINK_OPEN.find((t) => lower.startsWith(t));
+      if (open) {
+        state = "in";
+        close = `</${open.slice(1)}`;
+        buf = lead.slice(open.length);
+      } else if (!lead || THINK_OPEN.some((t) => t.startsWith(lower))) {
+        return { text: "", reasoning: "" };
+      } else {
+        state = "out";
+        const t = buf;
+        buf = "";
+        return { text: t, reasoning: "" };
+      }
+    }
+    const at = buf.toLowerCase().indexOf(close);
+    if (at >= 0) {
+      const reasoning = buf.slice(0, at);
+      const text = buf.slice(at + close.length).replace(/^\s+/, "");
+      state = "out";
+      buf = "";
+      return { text, reasoning };
+    }
+    // Hold back what could be the start of the closing tag.
+    let keep = 0;
+    for (let n = Math.min(close.length - 1, buf.length); n > 0; n--) {
+      if (close.startsWith(buf.slice(-n).toLowerCase())) {
+        keep = n;
+        break;
+      }
+    }
+    const reasoning = buf.slice(0, buf.length - keep);
+    buf = buf.slice(buf.length - keep);
+    return { text: "", reasoning };
+  };
+  const end = (): { text: string; reasoning: string } => {
+    const rest = buf;
+    buf = "";
+    if (state === "in") return { text: "", reasoning: rest };
+    state = "out";
+    return { text: rest, reasoning: "" };
+  };
+  return { push, end };
+}
+
 const PLAN_HEADER = /^\s*(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*[—–:-]/;
 
 /**
@@ -273,6 +334,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     contextTarget,
     reserve,
     modelId: resolved.modelId,
+    providerReasoning: resolved.reasoning,
     vars: parseJson<Record<string, string>>(chat.vars, {}),
     seed: chatId,
     draft: opts.draft,
@@ -457,30 +519,43 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           attempt.abort();
         }
       }, 5000);
+      // The preset's <think> planning block goes to reasoning as it streams (not when continuing).
+      const think = action === "continue" ? null : thinkRouter();
+      const addReasoning = (r: string) => {
+        gen.reasoning += r;
+        pendingReasoning += r;
+      };
+      const addText = (text: string) => {
+        let t = text;
+        if (first_ && action === "continue") {
+          if (baseText && !/\s$/.test(baseText) && /^[\p{L}\p{N}"'*(]/u.test(t)) t = ` ${t}`;
+          first_ = false;
+        } else if (first_) {
+          t = t.replace(/^\s+/, "");
+          if (t) first_ = false;
+        }
+        gen.text += t;
+        pendingText += t;
+      };
+      const route = (out: { text: string; reasoning: string }) => {
+        if (out.reasoning) addReasoning(out.reasoning);
+        if (out.text) addText(out.text);
+      };
       try {
         const result = await p.resolved.provider.stream(
           { model: p.resolved.modelId, messages: p.assembled.messages, params: p.samplers, signal: attempt.signal, cache: p.cache },
           (d) => {
             firstTokenAt ??= now();
             lastDeltaAt = now();
-            if (d.reasoning) {
-              gen.reasoning += d.reasoning;
-              pendingReasoning += d.reasoning;
-            }
+            if (d.reasoning) addReasoning(d.reasoning);
             if (d.text) {
-              let t = d.text;
-              if (first_ && action === "continue") {
-                if (baseText && !/\s$/.test(baseText) && /^[\p{L}\p{N}"'*(]/u.test(t)) t = ` ${t}`;
-                first_ = false;
-              } else if (first_) {
-                t = t.replace(/^\s+/, "");
-                if (t) first_ = false;
-              }
-              gen.text += t;
-              pendingText += t;
+              if (think) route(think.push(d.text));
+              else addText(d.text);
             }
           },
         );
+        // Text still held back (a tag cut short at the end) belongs to the reply or its reasoning.
+        if (think) route(think.end());
         usage = result.usage;
         finishReason = result.finishReason;
         sentBody = result.sentBody;

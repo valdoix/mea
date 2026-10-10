@@ -62,7 +62,7 @@ describe("research", () => {
     expect(asked.length).toBe(2);
     expect(asked[1]).toContain("She flies the plane.");
     expect(r.data.reply).toBe("In canon she dies in the lake.");
-    expect(r.sources).toEqual([{ title: "Laura Lee (Wiki)", url: "https://x.fandom.com/wiki/Laura_Lee" }]);
+    expect(r.sources.map((p) => ({ title: p.title, url: p.url }))).toEqual([{ title: "Laura Lee (Wiki)", url: "https://x.fandom.com/wiki/Laura_Lee" }]);
   });
 });
 

@@ -54,3 +54,13 @@ export function checkProse(text: string, opts: { maxTokens?: number; minTokens?:
   if (opts.minTokens && tokens < opts.minTokens) out.push({ kind: "thin", severity: "info", message: `Only ${tokens} tokens; there's little here for the model to hold on to.` });
   return out;
 }
+
+/** A persona written like a character card: {{char}}, chat lines, or a relationship "with {{user}}" (the persona is {{user}}). */
+export function checkPersona(text: string): CardIssue[] {
+  if (!text.trim()) return [];
+  const out: CardIssue[] = [];
+  if (/\{\{\s*char\s*\}\}/i.test(text)) out.push({ kind: "card-words", severity: "warn", message: "Uses {{char}}, but a persona is you, not the AI's character. Call them by name." });
+  if (/^\s*<START>/im.test(text) || /^\s*\{\{\s*(?:user|char)\s*\}\}\s*:/im.test(text)) out.push({ kind: "card-words", severity: "warn", message: "Has chat lines like example dialogue. A persona describes who you play; the story writes the scenes." });
+  else if (/\bwith \{\{\s*user\s*\}\}|\{\{\s*user\s*\}\}'s\b|\bto \{\{\s*user\s*\}\}/i.test(text)) out.push({ kind: "card-words", severity: "warn", message: "Talks about them and {{user}} as two people, but the persona is {{user}}. Write about them by name." });
+  return out;
+}

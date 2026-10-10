@@ -21,6 +21,7 @@ import {
   patchCreator,
   queueFields,
   restoreField,
+  switchCreatorKind,
   reviewCreator,
   rewriteBibleSection,
   saveCreator,
@@ -96,6 +97,7 @@ creator.put("/creator/:id", async (c) => {
       bible: z.record(z.string(), z.string().max(20_000)).optional(),
       fields: z.record(z.string(), z.string().max(40_000)).optional(),
       basedOn: z.string().max(200).optional(),
+      dismissKindHint: z.boolean().optional(),
     }),
   );
   return c.json(d(patchCreator(c.req.param("id"), input)));
@@ -104,6 +106,12 @@ creator.put("/creator/:id", async (c) => {
 creator.delete("/creator/:id", (c) => {
   deleteCreatorDraft(c.req.param("id"));
   return c.json({ ok: true });
+});
+
+/** The draft becomes the other kind (a persona, or a character card) in place. */
+creator.post("/creator/:id/kind", async (c) => {
+  const input = await body(c, z.object({ kind: z.enum(["character", "persona"]) }));
+  return c.json(d(switchCreatorKind(c.req.param("id"), input.kind)));
 });
 
 creator.post("/creator/:id/expand", async (c) => c.json(d(await expandCreator(c.req.param("id"), (await opts(c, steer)).steer))));

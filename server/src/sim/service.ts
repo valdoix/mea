@@ -205,9 +205,10 @@ export async function runTelling(p: { chatId: string; messageId: string | null; 
 
 // ---------- your controls ----------
 
-function control(chatId: string, ops: SimOp[], ledger: Op[] = []) {
+/** Your controls write "user" events at the newest message; returns their ids (Meus undoes by them). */
+function control(chatId: string, ops: SimOp[], ledger: Op[] = []): string[] {
   const last = lastMessage(chatId);
-  writeEvents(chatId, { messageId: last?.id ?? null, swipeIdx: last ? -1 : 0 }, [...simOps(ops), ...ledger], "user");
+  return writeEvents(chatId, { messageId: last?.id ?? null, swipeIdx: last ? -1 : 0 }, [...simOps(ops), ...ledger], "user");
 }
 
 function mustArc(st: WorldState, id: string): Arc {
@@ -222,7 +223,7 @@ export function arcAction(chatId: string, id: string, action: "hold" | "resume" 
   const now = st.time?.minutes ?? 0;
   const p: Partial<Arc> =
     action === "hold" ? { status: "held" } : action === "resume" ? { status: "running" } : action === "nudge" ? { push: true, nextAt: now } : action === "bringIn" ? { bringIn: true, push: true, nextAt: now } : action === "drop" ? { status: "dropped" } : { ...patch, locked: true };
-  control(chatId, [{ type: "arc.set", id: arc.id, patch: p }]);
+  return control(chatId, [{ type: "arc.set", id: arc.id, patch: p }]);
 }
 
 /** "Give someone a story": a premise in your words, started at once (it locks). */
@@ -238,8 +239,8 @@ export function authorArc(chatId: string, name: string, premise: string) {
   const cfg = worldConfig(chatId);
   const inp = { chatId, state: st, roster, mode: cfg.mode === "off" ? "living" : cfg.mode, now: st.time.minutes } as unknown as TickInput;
   const arc = newArc({ kind, lead: lead.id, leadName: lead.name, cast: others.map((a) => a.id), target: others[0]?.id, premise: premise.trim(), want: want ? `to ${want.trim()}` : undefined, grounds: ["player"], score: 1, why: "your story", key: `${lead.id}|${kind}|player` }, inp);
-  control(chatId, [{ type: "arc.new", arc: { ...arc, by: "player", locked: true, push: true, nextAt: st.time.minutes } }]);
-  return arc;
+  const ids = control(chatId, [{ type: "arc.new", arc: { ...arc, by: "player", locked: true, push: true, nextAt: st.time.minutes } }]);
+  return { ...arc, eventIds: ids };
 }
 
 export function decideProposal(chatId: string, id: string, accept: boolean) {
@@ -253,7 +254,7 @@ export function decideProposal(chatId: string, id: string, accept: boolean) {
     const arc = newArc({ kind: p.kind, lead: p.lead, leadName: p.leadName, cast: p.cast, target: p.cast[0], premise: p.premise, want: p.want, fear: p.fear, grounds: p.grounds, score: 1, why: p.why, key: p.key }, inp);
     ops.push({ type: "arc.new", arc: { ...arc, push: true, nextAt: st.time.minutes } });
   }
-  control(chatId, ops);
+  return control(chatId, ops);
 }
 
 /** Fates (ALMANAC 09 §12): accept the ending, soften it, or keep it for a scene on the page. */
@@ -276,7 +277,7 @@ export function decideFate(chatId: string, id: string, choice: "accept" | "softe
       if (t) ledger.push({ op: "body", subject: t.name, args: { meters: [], injuries: [{ where: "a grave wound", severity: "serious" }], flags: [], clear: [] }, cause: text, raw: `body ${t.name}: injury: a grave wound, serious` });
     }
   }
-  control(chatId, [{ type: "arc.end", id, result, text, at: st.time.minutes }], ledger);
+  return control(chatId, [{ type: "arc.end", id, result, text, at: st.time.minutes }], ledger);
 }
 
 export function setActor(chatId: string, name: string, patch: { standing?: string; where?: string; flag?: "out" | "hold" | "wake" | null }) {
@@ -284,7 +285,7 @@ export function setActor(chatId: string, name: string, patch: { standing?: strin
   const roster = rosterFor(chatId, st);
   const a = roster.byName(name);
   const id = a?.id ?? slug(name);
-  control(chatId, [
+  return control(chatId, [
     {
       type: "actor.set",
       actor: {

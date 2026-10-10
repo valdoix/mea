@@ -8,7 +8,8 @@
   import { del, get, post, put } from "../lib/api";
   import { diffLines, editLine } from "../lib/dataedit";
   import { confirm } from "../lib/dialogs.svelte";
-  import { ArrowLeft, Merge, Pin, Trash, Upload } from "../lib/icons";
+  import { ArrowLeft, Merge, MessagesSquare, Pin, Trash, Upload } from "../lib/icons";
+  import { openMeusIn } from "../lib/meus.svelte";
   import { trackerEdit } from "../lib/trackers.svelte";
   import { uploadImage } from "../lib/images";
   import { navigate } from "../lib/router.svelte";
@@ -186,6 +187,13 @@
       errorToast(e);
     }
   }
+  /** Meus reads the story and proposes the merge (or split) that's right, cast, Codex and all. */
+  function askMeusAbout(name: string) {
+    editOpen = false;
+    openMeusIn(id, `Is ${name} the same person as someone else in the cast, or two people under one name? Check the story and sort it out.`, true);
+    navigate(`/chat/${id}`);
+  }
+
   async function mergePerson() {
     const into = mergeInto === "__user" ? { name: userName, id: "user" } : people.find((x) => x.key === mergeInto);
     if (!editing || !into) return;
@@ -453,6 +461,7 @@
         </select>
         <button class="btn small" disabled={!mergeInto} onclick={mergePerson}><Merge size={14} /> Merge</button>
         <button class="btn ghost small danger" onclick={forgetPerson}><Trash size={14} /> Forget</button>
+        <button class="btn ghost small" onclick={() => editing && askMeusAbout(editing.name)}><MessagesSquare size={14} /> Ask Meus to sort these out</button>
       </div>
     {/if}
   </div>

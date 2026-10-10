@@ -207,7 +207,7 @@ function entityKey(name: string): { clean: string; key: string } | null {
 // ---------- the names memories carry (M20) ----------
 //
 // The sync used to read and parse every memory of the chat each turn. Now each chat keeps what each
-// live memory names, read once; triggers (migration 14) leave a mark in memory_marks for every memory
+// live memory names, read once; triggers (migration 15) leave a mark in memory_marks for every memory
 // written, deleted or changed in what this reads, and a sync reads just the memories marked since
 // it last looked. The totals are rebuilt from that in memory, in the memories' order.
 

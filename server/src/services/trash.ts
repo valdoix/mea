@@ -26,7 +26,7 @@ export function purgeTrash(olderThan = now() - RETENTION_MS) {
     const orphaned = `SELECT m.id FROM memories m WHERE m.user_edited = 0 AND m.pinned = 0
       AND EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = m.id)
       AND NOT EXISTS (SELECT 1 FROM memory_sources s WHERE s.memory_id = m.id AND s.message_id NOT IN (${gone}))`;
-    // (Their vectors go with them: a trigger, migration 16.)
+    // (Their vectors go with them: a trigger, migration 17.)
     run(`DELETE FROM memories WHERE id IN (${orphaned})`, olderThan);
     // M31: tracker events, memory sources, continuity flags and highlights go with their message (foreign keys).
     run("DELETE FROM messages WHERE deleted_at IS NOT NULL AND deleted_at < ?", olderThan);

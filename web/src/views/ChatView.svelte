@@ -9,7 +9,8 @@
   import WorldPanel from "../components/world/WorldPanel.svelte";
   import DisplayMenu from "../components/chat/DisplayMenu.svelte";
   import ChatSearch from "../components/chat/ChatSearch.svelte";
-  import ArchivistPanel from "../components/chat/ArchivistPanel.svelte";
+  import MeusPanel from "../components/chat/MeusPanel.svelte";
+  import { meus, meusFor } from "../lib/meus.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
@@ -23,7 +24,7 @@
   import { ApiError, del, get, imageUrl, patch, post, put, storedMessage } from "../lib/api";
   import { confirm, promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
-  import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessageQuestion, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessagesSquare, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
   import { DOCK_MIN, dockMax, layout, setDockWidth, setFocus, toggleDock, toggleRail } from "../lib/layout.svelte";
   import "../styles/studio.css";
   import { renderMessage } from "../lib/render";
@@ -73,14 +74,16 @@
   let stick = $state(true);
   let editSignals = $state<Record<string, number>>({});
   let error = $state("");
-  type DockTab = "chat" | "memory" | "story" | "world" | "ask" | "notes";
-  let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "ask", "notes"].includes(localStorage.getItem("mea.dockTab") ?? "") ? localStorage.getItem("mea.dockTab") : "chat") as DockTab);
+  type DockTab = "chat" | "memory" | "story" | "world" | "meus" | "notes";
+  // Meus took the Ask tab's place, so a remembered "ask" opens Meus.
+  const savedDock = localStorage.getItem("mea.dockTab") === "ask" ? "meus" : localStorage.getItem("mea.dockTab");
+  let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "meus", "notes"].includes(savedDock ?? "") ? savedDock : "chat") as DockTab);
   const dockOptions = [
     { value: "chat" as const, label: "Chat", icon: SlidersHorizontal },
     { value: "memory" as const, label: "Memory", icon: Brain },
     { value: "story" as const, label: "Story", icon: Heart },
     { value: "world" as const, label: "World", icon: Globe },
-    { value: "ask" as const, label: "Ask", icon: MessageQuestion },
+    { value: "meus" as const, label: "Meus", icon: MessagesSquare },
     { value: "notes" as const, label: "Notes", icon: NotebookPen },
   ];
   function pickDock(v: DockTab) {
@@ -1052,6 +1055,28 @@
     }
   }
 
+  // "Ask Meus" from anywhere in the chat opens its tab.
+  let meusWant = meus.want;
+  function openMeusTab() {
+    pickDock("meus");
+    if (app.isMobile) sheetOpen = true;
+    else {
+      if (layout.focus) setFocus(false);
+      if (!layout.dock) toggleDock();
+    }
+  }
+  $effect(() => {
+    if (meus.want === meusWant) return;
+    meusWant = meus.want;
+    openMeusTab();
+  });
+  // …and from other pages (the inbox, Cast, the Codex, the command palette), once this chat is open.
+  $effect(() => {
+    if (!meusFor.chatId || meusFor.chatId !== id) return;
+    meusFor.chatId = "";
+    openMeusTab();
+  });
+
   function togglePanel() {
     if (app.isMobile) sheetOpen = true;
     else {
@@ -1274,7 +1299,7 @@
         <div class="dock-scroll studio">
           {@render dockTabs()}
           {#key dockTab}<div class="dock-pane">
-            {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+            {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
           </div>{/key}
         </div>
       </aside>
@@ -1285,7 +1310,7 @@
     <Modal bind:open={sheetOpen} title="This chat">
       <div class="studio sheet-desk">
       {@render dockTabs()}
-      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "ask"}<ArchivistPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
+      {#if dockTab === "memory"}<MemoryPanel chatId={id} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
       </div>
     </Modal>
   {/if}

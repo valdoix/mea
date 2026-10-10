@@ -282,10 +282,18 @@ export function fileInlineLedger(chatId: string, messageId: string, swipeIdx: nu
 
 /** Lines you wrote (or the panel wrote for you): anchored to the newest message, on every swipe of it. */
 export function userEdit(chatId: string, ops: Op[]) {
-  mustChat(chatId);
-  const last = lastMessage(chatId);
-  writeEvents(chatId, { messageId: last?.id ?? null, swipeIdx: last ? -1 : 0 }, ops, "user");
+  userEditAt(chatId, ops);
   return currentFold(chatId).result;
+}
+
+/**
+ * Your edit lines, anchored to the newest message (on every swipe of it), or to an earlier one
+ * when a correction holds from that point on ("the time went wrong at #180"). Returns the event ids.
+ */
+export function userEditAt(chatId: string, ops: Op[], messageId?: string | null) {
+  mustChat(chatId);
+  const anchor = messageId ?? lastMessage(chatId)?.id ?? null;
+  return writeEvents(chatId, { messageId: anchor, swipeIdx: anchor ? -1 : 0 }, ops, "user");
 }
 
 // ---------- time skips (TRK-10) ----------

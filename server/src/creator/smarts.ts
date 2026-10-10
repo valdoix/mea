@@ -1,4 +1,4 @@
-import { newId, now } from "../db/db";
+import { newId } from "../db/db";
 import type { Expansion } from "./expand";
 
 /**
@@ -17,6 +17,39 @@ export function shortHash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+// ---------- who is who ----------
+
+/**
+ * What a card or a persona IS in a chat, said the same way to every step that writes or talks about
+ * one (both studios, the card tools, and any assistant that works on a chat). Models default to
+ * treating everything as a character card for the AI to play; a persona is the opposite: the person
+ * the user plays. Without this they write a persona greetings, {{char}} macros, "what she wants from
+ * {{user}}", or a scene where the persona's choices are made for them.
+ */
+export const WHO_IS_WHO = {
+  persona: [
+    "WHO IS WHO: This is a PERSONA, the user's own character: the person the human player plays in the story. In a chat the persona IS {{user}}; the AI storyteller never voices, plays or decides for them. It is NOT a character card.",
+    "So: never write a persona greetings, a scenario, example dialogue, rules or creator notes; never call them {{char}}, and never describe their relationship \"with {{user}}\" (they are {{user}}). Write about them by name, in third person, as a reference the storyteller reads so it knows who it is talking to: who they are, how they look, sound and carry themselves, their past, skills and limits, and the people in their life.",
+    "Describe; don't script. Give tendencies and history, never decide what they will feel, say or choose in a scene: those belong to the player.",
+    "Authors often write about their persona in first person (\"I'm a nurse\", \"my sister\"): that is the persona, not a separate character and not the author talking about someone else.",
+    "The other people they meet (AI characters, the cast of a world) are someone else, even when the world's lore is full of them. Never merge the persona with a character card from the world.",
+  ].join(" "),
+  character: "WHO IS WHO: This is a CHARACTER CARD: someone the AI plays (as {{char}}) opposite the human player, whose own character is {{user}} (their persona). Write {{char}}'s side only; {{user}} belongs to the player.",
+  narrator: "WHO IS WHO: This is a NARRATOR CARD: the AI is a storyteller running a world and voicing its whole cast; the human player is {{user}} (their persona). The narrator plays everyone except {{user}}.",
+} as const;
+
+export const whoIsWho = (kind: "character" | "persona", mode?: "companion" | "narrator") => (kind === "persona" ? WHO_IS_WHO.persona : mode === "narrator" ? WHO_IS_WHO.narrator : WHO_IS_WHO.character);
+
+/** Card vocabulary a persona text must never carry, with what to tell the model when it slips. */
+export function personaSlip(text: string): string | null {
+  if (/\{\{\s*char\s*\}\}/i.test(text)) return "A persona is never {{char}}: they are the player's own character. Write about them by name, with no {{char}} macro.";
+  if (/^\s*<START>/im.test(text) || /^\s*\{\{\s*user\s*\}\}\s*:/im.test(text)) return "A persona has no example dialogue or chat lines. Write a description of them by name.";
+  return null;
+}
+
+/** A persona text with the card macros a model slipped in replaced by the persona's name. */
+export const unslipPersona = (text: string, name: string) => (name.trim() ? text.replace(/\{\{\s*char\s*\}\}/gi, name.trim()) : text);
+
 /** For a world or character based on an existing work: canon is the floor, the author's changes the ceiling. */
 export const canonRule = (basedOn: string) =>
   basedOn.trim()
@@ -31,73 +64,9 @@ export const SUGGEST_RULE =
 
 export const BASED_ON_RULE = '"basedOn": if the material is fan fiction, an AU, or set in an existing show, book, film or game, name that work and its medium (like "Yellowjackets (TV series, 2021)"); else "".';
 
-export interface ChatTurn {
-  role: "user" | "mea";
-  text: string;
-  at: number;
-  /** Pages the co-writer looked up for this answer. */
-  sources?: { title: string; url: string }[];
-}
-
-export interface ProposedChange {
-  id: string;
-  /** What it touches, in the studio's own terms ("bible", "field", "entry", "overview", "add", "remove", "rewrite"…). */
-  kind: string;
-  /** The section, field or item it applies to. */
-  target: string;
-  /** Shown on the card: "Voice", "Natalie Scatorccio · content". */
-  label: string;
-  before: string;
-  after: string;
-  /** For a background rewrite: what to ask the writer. */
-  steer?: string;
-  /** Anything else the change carries (a new entry's type and pitch, keys). */
-  data?: Record<string, unknown>;
-}
-
-export interface Proposal {
-  id: string;
-  message: string;
-  reply: string;
-  changes: ProposedChange[];
-  at: number;
-}
-
-export function addTurns(chat: ChatTurn[], ...turns: Omit<ChatTurn, "at">[]): ChatTurn[] {
-  return [...chat, ...turns.filter((t) => t.text.trim()).map((t) => ({ ...t, text: t.text.trim().slice(0, 8000), at: now() }))].slice(-40);
-}
-
-/**
- * The co-writer's turn: ask, and if it wants wiki pages first, look them up and ask once more
- * with them. Returns the final reply and the pages it read.
- */
-export async function withLookups<T extends { lookup?: string[] }>(
-  ask: (looked: string) => Promise<T>,
-  find: ((query: string) => Promise<{ title: string; url: string; text: string } | null>) | null,
-): Promise<{ data: T; sources: { title: string; url: string }[] }> {
-  const first = await ask("");
-  const wants = (first.lookup ?? []).map((q) => q.trim()).filter(Boolean).slice(0, 3);
-  if (!wants.length || !find) return { data: first, sources: [] };
-  const pages = (await Promise.all(wants.map((q) => find(q).catch(() => null)))).filter((p): p is NonNullable<typeof p> => Boolean(p));
-  if (!pages.length) return { data: first, sources: [] };
-  const looked = `PAGES YOU LOOKED UP (use them; don't ask to look these up again):\n${pages.map((p) => `### ${p.title}\n${p.text}`).join("\n\n")}`;
-  const second = await ask(looked);
-  return { data: { ...second, lookup: [] }, sources: pages.map((p) => ({ title: p.title, url: p.url })) };
-}
-
-export const chatBlock = (chat: ChatTurn[]) =>
-  chat.length ? `THE CONVERSATION SO FAR:\n${chat.slice(-14).map((t) => `${t.role === "user" ? "AUTHOR" : "YOU"}: ${t.text.slice(0, 2000)}`).join("\n")}` : "";
-
-export const newProposal = (message: string, reply: string, changes: Omit<ProposedChange, "id">[]): Proposal => ({ id: newId(), message, reply, changes: changes.map((c) => ({ ...c, id: newId() })), at: now() });
-
-/** The co-writer's manner, the same in both studios: a companion to think out loud with, who can also make the edits. */
-export const COWRITER = [
-  "You are Mea, the author's co-writer and creative companion inside a writing studio: warm, curious, opinionated, and genuinely invested in their story. Talk like a friend who knows craft and knows the fandom, not like a form.",
-  "Brainstorm freely: riff on their ideas, offer two or three distinct options with what each would do to the story, push back when something is flat or contradicts canon, notice what's exciting, and ask the one question that would unlock the next idea. Use what you know of canon and fanon (popular ships, interpretations, tropes) and say which is which.",
-  "Only propose changes to the draft when they ask for a change, agree to an idea you offered (\"yes\", \"do that\", \"go with the second one\"), or a fix is obviously wanted. While you're still exploring, propose none. When you do: change only what the request needs, and everything it needs (if she gets older, every section and field that states or implies her age changes). Keep every other word as it is.",
-  'Your "reply" is conversational and can run a few short paragraphs when brainstorming (light Markdown is fine: lists, bold); keep it to a couple of sentences when you\'re just applying edits. Never paste whole edited texts into the reply: they go in "changes".',
-  'If you need facts you don\'t have (what happens to a character in canon, a place, an episode), list up to 3 wiki searches in "lookup" and propose nothing yet; you\'ll get the pages back.',
-].join(" ");
+// The conversation, the proposals and the voice are Meus's, shared with the chat (assistant/core.ts).
+export { addTurns, chatBlock, COWRITER, newProposal, withLookups, type ChatTurn, type Proposal, type ProposedChange } from "../assistant/core";
+import type { ProposedChange } from "../assistant/core";
 
 /** The idea and its expansion ("Expand my idea") as the co-writer sees them, every section by heading. */
 export function ideaBlock(idea: string, expansion: Expansion | null) {

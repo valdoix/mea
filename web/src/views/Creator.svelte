@@ -34,6 +34,20 @@
   ];
   const at = $derived(draft ? (draft.stage === "done" ? 3 : STEPS.findIndex((s) => s.stage === draft.stage)) : 0);
 
+  // What to try with Meus, for this kind and stage: a persona is the one you play, so it never gets card prompts.
+  const examples = $derived.by(() => {
+    if (!draft) return [];
+    const who = draft.name && !/^New (character|persona)$/.test(draft.name) ? draft.name : "them";
+    const early = draft.stage === "idea" || draft.stage === "questions";
+    if (draft.kind === "persona")
+      return early
+        ? ["What kind of stories would I enjoy playing as them?", "Brainstorm the contradiction at their core", "Give them a past that opens doors in a story", `What would people notice first about ${who}?`]
+        : [`What's flat or missing in ${who}?`, "Give them a skill and a limit that cost something", draft.basedOn ? `How close is this to canon ${draft.basedOn}?` : "Brainstorm three people from their past", "Fix what the checks flagged"];
+    return early
+      ? ["Brainstorm the contradiction at their core", "What's the most interesting secret they could keep?", "Push the Voice section: give them three habits", `What would make ${who} unforgettable?`]
+      : [`What makes ${who} interesting to play opposite?`, "Brainstorm a secret that would change everything", draft.basedOn ? `How close is this to canon ${draft.basedOn}?` : "Fix what the checks flagged", "Make the greeting start in the middle of an argument"];
+  });
+
   function go(stage: CreatorStage) {
     if (!session?.draft) return;
     session.draft.stage = stage;
@@ -84,7 +98,7 @@
       chat={draft.chat ?? []}
       proposal={draft.proposal ?? null}
       busy={session.busy === "cowrite"}
-      examples={draft.stage === "idea" || draft.stage === "questions" ? ["Brainstorm the contradiction at their core", "What's the most interesting secret they could keep?", "Push the Voice section: give them three habits", `What would make ${draft.name || "them"} unforgettable?`] : [`What makes ${draft.name || "them"} interesting to play opposite?`, "Brainstorm a secret that would change everything", draft.basedOn ? `How close is this to canon ${draft.basedOn}?` : "Give them a contradiction at their core", "Make the greeting start in the middle of an argument"]}
+      examples={examples}
       onsend={(message) => session.act("cowrite", "/cowrite", { message })}
       onapply={(accept) => session.act("cowrite", "/cowrite/apply", { accept })}
       ondismiss={() => session.act("cowrite", "/cowrite/dismiss")}

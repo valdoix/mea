@@ -18,8 +18,8 @@ import { emptyCard } from "../src/cards/card";
 import { tellingPrompt } from "../src/sim/telling";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
-import { createConnection, createProfile, listModels, resolveTaskChain, syncModels } from "../src/services/connections";
-import { splitThink } from "../src/services/generation";
+import { applyReasoning, createConnection, createProfile, listModels, resolveTaskChain, syncModels } from "../src/services/connections";
+import { splitThink, thinkRouter } from "../src/services/generation";
 import { registerJob } from "../src/services/jobs";
 import { callJson } from "../src/services/llm";
 import { purgeTrash } from "../src/services/trash";
@@ -209,6 +209,39 @@ describe("helper prompts and calls (M14, M15, M16, M17, M18, M33, L3)", () => {
   test("a leading think block moves out of the story (M17)", () => {
     expect(splitThink("<think>plan the beat</think>\n\nShe smiled.")).toEqual({ text: "She smiled.", reasoning: "plan the beat" });
     expect(splitThink("She smiled. <think>no</think>")).toEqual({ text: "She smiled. <think>no</think>", reasoning: "" });
+  });
+
+  test("the <think> planning block goes to reasoning while it streams, even split mid-tag", () => {
+    const run = (chunks: string[]) => {
+      const r = thinkRouter();
+      const out = { text: "", reasoning: "" };
+      for (const c of [...chunks.map((x) => r.push(x)), r.end()]) {
+        out.text += c.text;
+        out.reasoning += c.reasoning;
+      }
+      return out;
+    };
+    expect(run(["\n<thi", "nk>NOW — dusk", "; SEAL — said</th", "ink>\n\nShe smiled."])).toEqual({ text: "She smiled.", reasoning: "NOW — dusk; SEAL — said" });
+    expect(run(["<thinking>plan</thinking>Rain."])).toEqual({ text: "Rain.", reasoning: "plan" });
+    expect(run(["She ", "smiled. <think>x</think>"])).toEqual({ text: "She smiled. <think>x</think>", reasoning: "" });
+    expect(run(["<", "b>Bold</b> move"])).toEqual({ text: "<b>Bold</b> move", reasoning: "" });
+    expect(run(["<think>never closed"])).toEqual({ text: "", reasoning: "never closed" });
+  });
+
+  test("no provider reasoning by default: reasoning models are asked to stop where they can", () => {
+    const openai = { kind: "openai", extra: null } as never;
+    const anthropic = { kind: "openai", extra: JSON.stringify({ format: "anthropic" }) } as never;
+    const check = (effort: string | undefined, conn: never, caps: Record<string, unknown> | undefined) => {
+      const params: { reasoning_effort?: string } = effort === undefined ? {} : { reasoning_effort: effort };
+      return { reasons: applyReasoning(params, conn, caps), sent: params.reasoning_effort };
+    };
+    expect(check(undefined, openai, {})).toEqual({ reasons: false, sent: undefined });
+    expect(check(undefined, openai, { reasoning: true })).toEqual({ reasons: false, sent: "none" });
+    expect(check(undefined, openai, { reasoning_efforts: ["none", "low", "high"] })).toEqual({ reasons: false, sent: "none" });
+    expect(check(undefined, openai, { reasoning_efforts: ["low", "high"] })).toEqual({ reasons: true, sent: undefined });
+    expect(check(undefined, anthropic, { reasoning: true })).toEqual({ reasons: false, sent: undefined });
+    expect(check("model", openai, { reasoning: true })).toEqual({ reasons: true, sent: undefined });
+    expect(check("high", openai, {})).toEqual({ reasons: true, sent: "high" });
   });
 
   test("a stream with no end marker is incomplete; Retry-After is kept (M18)", async () => {

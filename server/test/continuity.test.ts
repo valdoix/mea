@@ -243,7 +243,7 @@ describe("H7, M34: emptying the trash", () => {
     purgeTrash(now() + 1000);
     expect(one("SELECT 1 FROM messages WHERE id = ?", ids[3]!)).toBeFalsy();
     expect(all("SELECT 1 FROM tracker_events WHERE message_id = ?", ids[3]!)).toHaveLength(0);
-    // M31: an event can't be left without its message any more (a foreign key; older ones were dropped by migration 16).
+    // M31: an event can't be left without its message any more (a foreign key; older ones were dropped by migration 17).
     expect(() =>
       run("INSERT INTO tracker_events (id, chat_id, message_id, swipe_idx, source, ord, op, created_at) VALUES ('orphan', ?, 'gone-message', -1, 'user', 1, ?, ?)", chatId, JSON.stringify(linesToOps(["clock: +3d"]).ops[0]), now()),
     ).toThrow(/FOREIGN KEY/);

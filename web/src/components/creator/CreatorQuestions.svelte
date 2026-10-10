@@ -4,7 +4,7 @@
   import Suggestions from "../studio/Suggestions.svelte";
   import type { CreatorSession } from "../../lib/creator.svelte";
   import { autosize } from "../../lib/gestures";
-  import { MessageQuestion, NotebookPen, Sparkles } from "../../lib/icons";
+  import { MessageQuestion, NotebookPen, Sparkles, UserPen, Users } from "../../lib/icons";
 
   let { session }: { session: CreatorSession } = $props();
   const draft = $derived(session.draft!);
@@ -12,6 +12,17 @@
 </script>
 
 <section class="stack">
+  {#if draft.kindHint && draft.kindHint.kind !== draft.kind}
+    {@const toPersona = draft.kindHint.kind === "persona"}
+    <div class="panel stack tight hint">
+      <span class="label">{#if toPersona}<UserPen size={14} />{:else}<Users size={14} />{/if} {toPersona ? "This sounds like you, not someone for the AI to play" : "This sounds like someone for the AI to play, not you"}</span>
+      <p class="small">{toPersona ? "A persona is the character you play yourself: the story talks to them and never speaks for them. A character card is someone the AI plays opposite you." : "A character card is someone the AI plays opposite you. A persona is the character you play yourself."}{#if draft.kindHint.why} <span class="muted">{draft.kindHint.why}</span>{/if}</p>
+      <div class="row wrap">
+        <button class="btn small primary" onclick={async () => (await session.act("kind", "/kind", { kind: draft.kindHint!.kind })) && (await session.act("readback", "/readback"))} disabled={Boolean(session.busy)}>{toPersona ? "Make it a persona" : "Make it a character card"}</button>
+        <button class="btn small ghost" onclick={() => { session.draft!.kindHint = null; session.save({ dismissKindHint: true }, "kindHint", 0); }}>{draft.kind === "persona" ? "It's my persona" : "It's a character"}, keep it</button>
+      </div>
+    </div>
+  {/if}
   {#if draft.readback}
     <div class="panel stack tight">
       <span class="label"><Sparkles size={14} /> What Mea understood</span>
@@ -24,7 +35,7 @@
   {/if}
   <label class="field">
     <span class="label">Based on <span class="faint">a character from an existing show, book or game: their canon fills in what you don't change</span></span>
-    <input class="input" bind:value={draft.basedOn} oninput={() => session.save({ basedOn: draft.basedOn }, "basedOn")} placeholder="Yellowjackets (TV series) · leave empty for an original character" />
+    <input class="input" bind:value={draft.basedOn} oninput={() => session.save({ basedOn: draft.basedOn }, "basedOn")} placeholder={draft.kind === "persona" ? "Yellowjackets (TV series) · leave empty for an original persona" : "Yellowjackets (TV series) · leave empty for an original character"} />
   </label>
   {#if draft.basedOn || draft.research}
     <ResearchPanel research={draft.research} basedOn={draft.basedOn} busy={session.busy === "research"} onresearch={(urls) => session.act("research", "/research", { urls })} />
@@ -50,6 +61,9 @@
 </section>
 
 <style>
+  .hint {
+    border-left: 3px solid var(--accent);
+  }
   .question {
     padding: 0.9rem 1rem;
   }

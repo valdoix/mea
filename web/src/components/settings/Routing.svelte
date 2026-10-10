@@ -7,13 +7,14 @@
 
   let { profiles, connections }: { profiles: Profile[]; connections: Connection[] } = $props();
 
-  type Task = "story" | "summarizer" | "helper" | "tracker" | "world";
+  type Task = "story" | "summarizer" | "helper" | "tracker" | "world" | "assistant";
   const taskInfo: { id: Task; label: string; hint: string }[] = [
     { id: "story", label: "Story replies", hint: "uses the story default above, or the chat's own profile" },
     { id: "summarizer", label: "Memory summaries", hint: "scene records, verification, chapter and arc rollups" },
     { id: "helper", label: "Small helper checks", hint: "unclear scene breaks, /ask, and other short questions" },
     { id: "tracker", label: "Trackers", hint: "reads each reply for what changed (unset: the helper's profile)" },
     { id: "world", label: "The world off the page", hint: "tells what happened between scenes (unset: the summarizer's profile)" },
+    { id: "assistant", label: "Meus", hint: "the companion in chats and the studios: brainstorming, answers and fixes (unset: the summarizer's profile)" },
   ];
 
   const s = $derived(app.settings);
@@ -101,7 +102,7 @@
           <div><b>{t.label}</b><div class="tiny muted">{t.hint}</div></div>
           {#if t.id !== "story"}
             <select class="select narrow" value={s["routing.tasks"][t.id] ?? ""} onchange={(e) => setTask(t.id as Exclude<Task, "story">, e.currentTarget.value)}>
-              <option value="">{t.id === "tracker" ? "Same as helper checks" : t.id === "world" ? "Same as memory summaries" : "Same as story"}</option>
+              <option value="">{t.id === "tracker" ? "Same as helper checks" : t.id === "world" || t.id === "assistant" ? "Same as memory summaries" : "Same as story"}</option>
               {#each profiles as p (p.id)}<option value={p.id}>{p.name}{billingOf(p) === "paygo" ? " (paid)" : ""}</option>{/each}
             </select>
           {/if}

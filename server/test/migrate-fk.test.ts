@@ -16,14 +16,14 @@ function insert(table: string, values: Record<string, unknown>) {
   run(`INSERT INTO ${table} (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`, ...(keys.map((k) => row[k]) as never[]));
 }
 
-describe("M31: migrations 15 and 16 on an older database", () => {
+describe("M31: migrations 16 and 17 on an older database", () => {
   test("keep live rows, drop orphans, mark tracker memories, and cascade from then on", () => {
     ensureDirs();
     setMasterKey(randomBytes(32));
     const dir = mkdtempSync(join(tmpdir(), "mea-mig-"));
     const file = join(dir, "old.db");
     try {
-      openDb(file, { backupDir: dir, upTo: 14 });
+      openDb(file, { backupDir: dir, upTo: 15 });
       // The old schema had no foreign keys on these tables: orphans could pile up.
       db().exec("PRAGMA foreign_keys = OFF");
       insert("chats", { id: "c1" });
@@ -44,7 +44,7 @@ describe("M31: migrations 15 and 16 on an older database", () => {
       closeDb();
 
       openDb(file, { backupDir: dir });
-      expect(all<{ id: number }>("SELECT id FROM _migrations WHERE id IN (15, 16)")).toHaveLength(2);
+      expect(all<{ id: number }>("SELECT id FROM _migrations WHERE id IN (16, 17)")).toHaveLength(2);
       expect(all<{ id: string }>("SELECT id FROM tracker_events")).toEqual([{ id: "ev-live" }]);
       expect(all<{ generation_id: string }>("SELECT generation_id FROM memory_usage")).toEqual([{ generation_id: "g1" }]);
       expect(all("SELECT 1 FROM lore_hits")).toHaveLength(0);
