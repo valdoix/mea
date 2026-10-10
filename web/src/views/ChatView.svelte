@@ -10,7 +10,7 @@
   import DisplayMenu from "../components/chat/DisplayMenu.svelte";
   import ChatSearch from "../components/chat/ChatSearch.svelte";
   import MeusPanel from "../components/chat/MeusPanel.svelte";
-  import { meus } from "../lib/meus.svelte";
+  import { meus, meusFor } from "../lib/meus.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
@@ -846,15 +846,24 @@
 
   // "Ask Meus" from anywhere in the chat opens its tab.
   let meusWant = meus.want;
-  $effect(() => {
-    if (meus.want === meusWant) return;
-    meusWant = meus.want;
+  function openMeusTab() {
     pickDock("meus");
     if (app.isMobile) sheetOpen = true;
     else {
       if (layout.focus) setFocus(false);
       if (!layout.dock) toggleDock();
     }
+  }
+  $effect(() => {
+    if (meus.want === meusWant) return;
+    meusWant = meus.want;
+    openMeusTab();
+  });
+  // …and from other pages (the inbox, Cast, the Codex, the command palette), once this chat is open.
+  $effect(() => {
+    if (!meusFor.chatId || meusFor.chatId !== id) return;
+    meusFor.chatId = "";
+    openMeusTab();
   });
 
   function togglePanel() {

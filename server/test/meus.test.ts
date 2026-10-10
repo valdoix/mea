@@ -3,9 +3,12 @@ import { normalizeCard } from "../src/cards/card";
 import { all, newId, now, one, run } from "../src/db/db";
 import { getEntityRow, resolver } from "../src/memory/entities";
 import { buildBrief } from "../src/meus/brief";
+import { applyChange, checkChanges, undoStep } from "../src/meus/changes";
 import { applyMeus, meusTurn, meusView, undoMeus } from "../src/meus/meus";
+import { createAtom, getAtom } from "../src/memory/atoms";
+import { createLorebook } from "../src/lore/service";
 import { createCharacter } from "../src/services/characters";
-import { addMessage, createChat, getChat, getMessage } from "../src/services/chats";
+import { addMessage, createChat, getChat, getMessage, updateChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { previewPrompt } from "../src/services/generation";
 import { createPersona } from "../src/services/personas";
@@ -141,5 +144,125 @@ describe("Meus in a chat", () => {
     run("INSERT INTO archivist (id, chat_id, question, answer, citations, created_at) VALUES (?, ?, ?, ?, ?, ?)", newId(), other, "Where is the ball?", "With Shauna [1].", JSON.stringify({ citations: [], confidence: "sure", all: [] }), now());
     const v = meusView(other);
     expect(v.turns.map((t) => t.text)).toEqual(["Where is the ball?", "With Shauna [1]."]);
+  });
+
+  test("one cast entry that is really two people is split, and undo joins them again", async () => {
+    const m = await meusTurn(chatId, "merge Jax into Jackie Taylor");
+    const merged = applyMeus(chatId, [m.proposal!.changes[0]!.id]);
+    expect(named("Jax")).toBeUndefined();
+    const v = await meusTurn(chatId, "split Jax from Jackie Taylor");
+    const c = v.proposal!.changes[0]!;
+    expect(c.kind).toBe("split");
+    const a = applyMeus(chatId, [c.id]);
+    expect(named("Jax")).toBeTruthy();
+    expect(named("Jax")!.mood?.name).toBe("wary");
+    expect(named("Jackie Taylor")!.aliases).not.toContain("Jax");
+    undoMeus(chatId, a.setId!);
+    expect(named("Jax")).toBeUndefined();
+    undoMeus(chatId, merged.setId!);
+    expect(named("Jax")).toBeTruthy();
+  });
+
+  test("steering, notes and hiding a message, each undone", async () => {
+    const v = await meusTurn(chatId, "steer: slow");
+    const a = applyMeus(chatId, v.proposal!.changes.map((c) => c.id));
+    let s = getChat(chatId)!.settings;
+    expect(s.pacing).toBe("slow");
+    expect(s.guidance?.once).toContain("g-slow");
+    expect(s.story?.tone).toBe("tender");
+    undoMeus(chatId, a.setId!);
+    s = getChat(chatId)!.settings;
+    expect(s.pacing ?? null).toBeNull();
+    expect(s.guidance?.once ?? []).not.toContain("g-slow");
+    expect(s.story?.tone ?? "").toBe("");
+
+    const n = await meusTurn(chatId, "note: Lake plot — Jax hid the ball by the boathouse");
+    const na = applyMeus(chatId, [n.proposal!.changes[0]!.id]);
+    expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM notes WHERE chat_id = ? AND deleted_at IS NULL AND body LIKE '%boathouse%'", chatId)!.n).toBe(1);
+    undoMeus(chatId, na.setId!);
+    expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM notes WHERE chat_id = ? AND deleted_at IS NULL AND body LIKE '%boathouse%'", chatId)!.n).toBe(0);
+
+    const h = await meusTurn(chatId, `hide #${seqOf(2)}`);
+    const ha = applyMeus(chatId, [h.proposal!.changes[0]!.id]);
+    expect(getMessage(msgs[2]!)!.hidden).toBe(true);
+    undoMeus(chatId, ha.setId!);
+    expect(getMessage(msgs[2]!)!.hidden).toBe(false);
+  });
+
+  test("lore entries in this chat's lorebooks: looked up, added, and taken back", async () => {
+    createLorebook({ name: "Yellowjackets", entries: [], links: [{ target_type: "chat", target_id: chatId }] });
+    const v = await meusTurn(chatId, "lore: The lake — It freezes over every winter.");
+    const c = v.proposal!.changes[0]!;
+    expect(c.kind).toBe("lore_add");
+    const a = applyMeus(chatId, [c.id]);
+    const l = await meusTurn(chatId, "look up lore: lake freezes");
+    expect(l.turns.at(-1)!.reads).toEqual(["Lore · lake freezes"]);
+    undoMeus(chatId, a.setId!);
+    expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM lorebook_entries WHERE data LIKE '%freezes%'")!.n).toBe(0);
+  });
+
+  test("memories are merged and split, and undo puts them back", () => {
+    const x = createAtom(chatId, { type: "fact", content: "Jax owns a red scarf", importance: 5 });
+    const y = createAtom(chatId, { type: "fact", content: "The scarf was her mother's", importance: 5 });
+    const { changes } = checkChanges(chatId, [{ kind: "memory_merge", ids: [x.id, y.id], text: "Jax owns her mother's red scarf" }]);
+    const steps = applyChange(chatId, { ...changes[0]!, id: "m" });
+    expect(getAtom(x.id)!.content).toBe("Jax owns her mother's red scarf");
+    expect(getAtom(y.id)!.status).toBe("superseded");
+    for (const st of [...steps].reverse()) undoStep(chatId, st);
+    expect(getAtom(x.id)!.content).toBe("Jax owns a red scarf");
+    expect(getAtom(y.id)!.status).toBe("active");
+
+    const sp = checkChanges(chatId, [{ kind: "memory_split", id: x.id, parts: ["Jax owns a scarf", "The scarf is red"] }]);
+    const ss = applyChange(chatId, { ...sp.changes[0]!, id: "s" });
+    expect(getAtom(x.id)!.content).toBe("Jax owns a scarf");
+    for (const st of [...ss].reverse()) undoStep(chatId, st);
+    expect(getAtom(x.id)!.content).toBe("Jax owns a red scarf");
+    expect(all("SELECT id FROM memories WHERE chat_id = ? AND content = 'The scarf is red' AND deleted_at IS NULL", chatId).length).toBe(0);
+  });
+
+  test("a subplot off the page is started, and undo takes it back", async () => {
+    const before = Object.keys(state().sim.arcs).length;
+    const v = await meusTurn(chatId, "world arc: Jackie Taylor — wants to win the cup");
+    const c = v.proposal!.changes[0]!;
+    expect(c.kind).toBe("world_arc");
+    const a = applyMeus(chatId, [c.id]);
+    expect(Object.keys(state().sim.arcs).length).toBe(before + 1);
+    undoMeus(chatId, a.setId!);
+    expect(Object.keys(state().sim.arcs).length).toBe(before);
+  });
+
+  test("Meus reads the app's checks, the inbox, summaries and the world when asked", async () => {
+    const asks: [string, string][] = [
+      ["checks", "Checks · what's flagged"],
+      ["inbox", "Continuity inbox"],
+      ["world", "World · off the page"],
+    ];
+    for (const [kind, title] of asks) {
+      const v = await meusTurn(chatId, `look up ${kind}: all`);
+      expect(v.turns.at(-1)!.reads).toEqual([title]);
+    }
+  });
+
+  test("a change to the card itself is handed to the Studio, not made here", async () => {
+    const v = await meusTurn(chatId, "card: make Jackie two years older");
+    expect(v.proposal).toBeNull();
+    const h = v.turns.at(-1)!.handoff!;
+    expect(h.card).toBe("character");
+    expect(h.name).toBe("Jackie Taylor");
+    expect(h.request).toBe("make Jackie two years older");
+  });
+
+  test("with small fixes on, a clock fix applies right away, and undo still works", async () => {
+    updateChat(chatId, { settings: { meus: { autoApply: true } } });
+    const v = (await meusTurn(chatId, "the time should be Day 1 11:00")) as ReturnType<typeof meusView> & { auto?: boolean; setId?: string | null };
+    expect(v.auto).toBe(true);
+    expect(v.proposal).toBeNull();
+    expect(formatStoryTime(state().time!)).toBe("Day 1 11:00");
+    undoMeus(chatId, v.setId!);
+    expect(formatStoryTime(state().time!)).toBe("Day 1 09:15");
+    // Riskier changes still come as a card.
+    const w = await meusTurn(chatId, "merge Jax into Jackie Taylor");
+    expect(w.proposal!.changes[0]!.kind).toBe("merge");
+    updateChat(chatId, { settings: { meus: { autoApply: false } } });
   });
 });

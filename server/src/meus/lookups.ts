@@ -6,6 +6,14 @@ import { embedQueries, embeddingsEnabled } from "../memory/embed";
 import { type EntityRow, entityCard, entityFacts, getEntityRow, listEntities, resolver } from "../memory/entities";
 import { cleanText } from "../memory/text";
 import { gatherSources } from "../accuracy/archivist";
+import { inboxItems } from "../accuracy/inbox";
+import { lookup as wikiLookup, type Research, wikisFor } from "../creator/research";
+import { listJournals } from "../memory/journals";
+import { allRows } from "../memory/store";
+import { reconcileIssues } from "../memory/reconcile";
+import { scanEntriesFor } from "../lore/service";
+import { mustChat } from "../services/chats";
+import { worldView } from "../sim/service";
 import type { Looked } from "../assistant/core";
 import { castKey, castProfiles, currentFold } from "../trackers/store";
 import type { Character, WorldState } from "../trackers/types";
@@ -23,7 +31,14 @@ export const LOOKUPS = [
   '"timeline: clock" how the story clock moved, message by message;',
   '"message: <number>" one message in full;',
   '"codex: <name>" a Codex page with its id, aliases, status and facts (or "codex: all" for the list);',
-  '"memories: <words>" memories that mention these words, with their ids.',
+  '"memories: <words>" memories that mention these words, with their ids;',
+  '"summaries: all" the scene and chapter summaries with their ids (or "summaries: <words>");',
+  '"journal: <name>" a character\'s journal;',
+  '"world: all" the world off the page: subplots, proposals, fates waiting, and where people are;',
+  '"lore: <words>" entries in the lorebooks this chat uses, with their ids (or "lore: all" for the list);',
+  '"inbox: all" the notes waiting in the continuity inbox, with their keys;',
+  '"wiki: <page or question>" the fandom wiki (canon);',
+  '"checks: all" what the app\'s own checks already flagged: continuity issues in replies, and scene records that disagree with the story state (read this first for "what\'s inconsistent?").',
 ].join(" ");
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -158,6 +173,84 @@ async function recallTopic(chatId: string, topic: string): Promise<Looked | null
   return { title: `Recall · ${topic}`, text: s.map((x) => `(${x.type}${x.seq != null ? `, #${x.seq}` : ""}${x.type === "memory" && x.ownerId ? `, id ${x.ownerId}` : ""}) ${clip(x.excerpt, 500)}`).join("\n") };
 }
 
+function summaries(chatId: string, what: string): Looked | null {
+  const rows = allRows(chatId).filter((r) => r.level === "scene" || r.level === "chapter" || r.level === "arc");
+  const q = /^(all|list|\*)$/i.test(what) ? "" : what.toLowerCase();
+  const hit = rows.filter((r) => !q || `${r.title} ${r.content}`.toLowerCase().includes(q));
+  if (!hit.length) return null;
+  return { title: `Summaries · ${what}`, text: hit.slice(-30).map((r) => `[${r.id}] ${r.level} #${r.start_seq}–${r.end_seq ?? "now"}${r.user_edited ? " (edited by the player)" : ""} ${r.title}: ${clip(r.content.replace(/\s+/g, " "), q ? 1500 : 300)}`).join("\n") };
+}
+
+function journal(chatId: string, name: string): Looked | null {
+  const k = castKey(name);
+  const j = listJournals(chatId).find((x) => castKey(x.name) === k) ?? listJournals(chatId).find((x) => castKey(x.name).includes(k));
+  if (!j) return { title: `Journal · ${name}`, text: `There's no journal for ${name}. Journals: ${listJournals(chatId).map((x) => x.name).join(", ") || "none yet"}.` };
+  return { title: `Journal · ${j.name}`, text: `[${j.id}]\n${clip(j.content, 6000)}` };
+}
+
+function world(chatId: string): Looked | null {
+  const v = worldView(chatId);
+  const L = [`The world off the page is ${v.config.mode === "off" ? "OFF for this chat (subplots don't move on their own)" : `on (${v.config.mode})`}.`];
+  for (const a of v.arcs.slice(0, 25))
+    L.push(`subplot [${a.id}] ${a.leadName} · ${a.kind} · ${a.status}${a.fate ? ` · WAITING ON A FATE: ${a.fate.text}` : ""}: ${a.premise}${a.want ? ` (wants ${a.want})` : ""}${a.beats.length ? ` · last: ${clip(a.beats.at(-1)!.text ?? "", 160)}` : ""}`);
+  for (const p of v.proposals) L.push(`proposal [${p.id}] ${p.leadName}: ${p.premise}`);
+  for (const p of v.people.slice(0, 30)) if (p.where || p.standing || p.flag) L.push(`person ${p.name}: ${[p.where ? `at ${p.where}` : "", p.standing, p.flag ? `flag ${p.flag}` : ""].filter(Boolean).join(", ")}`);
+  for (const n of v.news.slice(0, 6)) L.push(`news: ${typeof n === "string" ? n : JSON.stringify(n)}`);
+  return { title: "World · off the page", text: clip(L.join("\n"), 7000) };
+}
+
+function lore(chatId: string, what: string): Looked | null {
+  const chat = mustChat(chatId);
+  const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId });
+  if (!entries.length) return { title: "Lore", text: "This chat uses no lorebooks." };
+  const books = [...new Map(entries.map((e) => [e.bookId, e.bookName]))].map(([id, n]) => `[${id}] ${n}`).join(", ");
+  if (/^(all|list|\*)$/i.test(what)) return { title: "Lore · every entry", text: `Books: ${books}\n${entries.slice(0, 150).map((e) => `[${e.id}] ${e.bookName} · ${e.comment || e.keys[0] || "(untitled)"}${e.keys.length ? ` (keys: ${e.keys.slice(0, 5).join(", ")})` : ""}${e.enabled ? "" : " (off)"}`).join("\n")}` };
+  const words = what.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  const score = (e: (typeof entries)[number]) => words.filter((w) => `${e.comment} ${e.keys.join(" ")} ${e.content}`.toLowerCase().includes(w)).length;
+  const hits = entries.map((e) => ({ e, n: score(e) })).filter((x) => x.n).sort((a, b) => b.n - a.n).slice(0, 6);
+  if (!hits.length) return { title: `Lore · ${what}`, text: `No entry mentions that. Books: ${books}` };
+  return { title: `Lore · ${what}`, text: hits.map(({ e }) => `[${e.id}] ${e.bookName} · ${e.comment || "(untitled)"}\nkeys: ${e.keys.join(", ")}\n${clip(e.content, 1500)}`).join("\n\n") };
+}
+
+function inbox(chatId: string): Looked | null {
+  const items = inboxItems({ chatId });
+  return { title: "Continuity inbox", text: items.length ? items.slice(0, 20).map((i) => `[${i.key}] ${i.kind} · ${i.title} · ${i.why}${i.before ? `\n  now: ${clip(i.before, 400)}` : ""}\n  proposed: ${clip(i.after, 400)}`).join("\n") : "Nothing is waiting in the inbox." };
+}
+
+function checks(chatId: string): Looked | null {
+  const L: string[] = [];
+  const flags = all<{ issues: string; seq: number }>(
+    "SELECT f.issues, m.seq FROM continuity_flags f JOIN messages m ON m.id = f.message_id AND m.active_swipe = f.swipe_idx WHERE f.chat_id = ? AND f.status = 'open' AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 15",
+    chatId,
+  );
+  for (const f of flags) for (const i of parseJson<{ message?: string; text?: string; kind?: string }[]>(f.issues, [])) L.push(`#${f.seq} ${i.kind ? `(${i.kind}) ` : ""}${i.message ?? i.text ?? JSON.stringify(i)}`);
+  for (const r of reconcileIssues(chatId)) for (const i of r.issues) L.push(`scene "${r.title}" (#${r.startSeq}–${r.endSeq ?? "now"}) [${r.id}]: ${i.message}`);
+  return { title: "Checks · what's flagged", text: L.length ? clip(L.join("\n"), 6000) : "The app's checks haven't flagged anything; compare the latest messages with the records yourself." };
+}
+
+/** What the Studio researched for this chat's card, if it was made there; else its name and tags. */
+async function wikisForChat(chatId: string) {
+  const chat = mustChat(chatId);
+  let research: Research | null = null;
+  let basedOn = "";
+  if (chat.character_id) {
+    for (const r of all<{ data: string }>("SELECT data FROM creator_drafts ORDER BY updated_at DESC LIMIT 200")) {
+      const d = parseJson<{ savedId?: string | null; baseId?: string | null; research?: Research | null; basedOn?: string }>(r.data, {});
+      if (d.savedId === chat.character_id || d.baseId === chat.character_id) {
+        research = d.research ?? null;
+        basedOn = d.basedOn ?? research?.basedOn ?? "";
+        break;
+      }
+    }
+  }
+  return wikisFor(research, basedOn);
+}
+
+async function wiki(chatId: string, what: string): Promise<Looked | null> {
+  const page = await wikiLookup(await wikisForChat(chatId), what, 5000).catch(() => null);
+  return page ? { title: `Wiki · ${page.title}`, text: `${page.url}\n${page.text}`, url: page.url } : null;
+}
+
 /** One "kind: what" lookup. Unknown kinds search the story's words. */
 export async function lookup(chatId: string, query: string): Promise<Looked | null> {
   const m = query.match(/^\s*([a-z]+)\s*:\s*(.+)$/i);
@@ -186,6 +279,28 @@ export async function lookup(chatId: string, query: string): Promise<Looked | nu
       return memories(chatId, what);
     case "recall":
       return recallTopic(chatId, what);
+    case "summaries":
+    case "summary":
+    case "scenes":
+      return summaries(chatId, what);
+    case "journal":
+    case "journals":
+      return journal(chatId, what);
+    case "world":
+    case "subplots":
+      return world(chatId);
+    case "lore":
+    case "lorebook":
+      return lore(chatId, what);
+    case "inbox":
+      return inbox(chatId);
+    case "wiki":
+    case "canon":
+      return wiki(chatId, what);
+    case "checks":
+    case "check":
+    case "flags":
+      return checks(chatId);
     default:
       return search(chatId, what);
   }

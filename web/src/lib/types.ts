@@ -107,6 +107,7 @@ export interface ChatSettings {
   director?: boolean;
   modelOverride?: { connectionId: string; modelId: string } | null;
   truths?: string[];
+  meus?: { autoApply?: boolean };
   controls?: ControlValues;
   variantId?: string | null;
   personaVariantId?: string | null;
@@ -1654,6 +1655,7 @@ export interface MeusTurn extends ChatTurn {
   reads?: string[];
   seq?: number;
   setId?: string;
+  handoff?: { card: "character" | "persona"; id: string; name: string; request: string };
 }
 export interface MeusSet {
   id: string;
@@ -1667,6 +1669,8 @@ export interface MeusView {
   proposal: Proposal | null;
   sets: MeusSet[];
   header: { seq: number; time: string | null; place: string | null } | null;
+  autoApply: boolean;
+  auto?: boolean;
 }
 
 export interface CensusEntry {

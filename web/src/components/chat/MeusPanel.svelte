@@ -3,7 +3,9 @@
   import DOMPurify from "dompurify";
   import { marked } from "marked";
   import { tick } from "svelte";
-  import { del, get, post } from "../../lib/api";
+  import { del, get, patch, post } from "../../lib/api";
+  import { brainstorm } from "../../lib/cowriter.svelte";
+  import { navigate } from "../../lib/router.svelte";
   import { wordDiff } from "../../lib/diff";
   import { onEvent } from "../../lib/events";
   import { autosize } from "../../lib/gestures";
@@ -80,7 +82,12 @@
     // Show the message right away; the answer replaces the view.
     if (view) view.turns = [...view.turns, { role: "user", text: t, at: Date.now() }];
     try {
-      view = await post<MeusView>(`/api/chats/${chatId}/meus`, { message: t });
+      const r = await post<MeusView & { applied?: number; setId?: string | null }>(`/api/chats/${chatId}/meus`, { message: t });
+      view = r;
+      if (r.auto && r.setId) {
+        const setId = r.setId;
+        toast(`Applied ${r.applied} small fix${r.applied === 1 ? "" : "es"}`, { kind: "ok", action: { label: "Undo", run: () => void undo(setId) } });
+      }
     } catch (e) {
       meus.draft = t;
       errorToast(e);
@@ -127,6 +134,25 @@
       errorToast(e);
     }
   }
+  /** A change to the card itself: Meus in the Studio, with the request already typed. */
+  async function toStudio(h: NonNullable<MeusTurn["handoff"]>) {
+    try {
+      const r = await post<{ draft: { id: string } }>("/api/creator", { kind: h.card, baseId: h.id });
+      brainstorm(h.request);
+      navigate(`/creator/${r.draft.id}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function setAuto(on: boolean) {
+    try {
+      await patch(`/api/chats/${chatId}`, { settings: { meus: { autoApply: on } } });
+      if (view) view.autoApply = on;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   function toggle(id: string) {
     const next = new Set(picked);
     if (next.has(id)) next.delete(id);
@@ -165,9 +191,29 @@
     ooc: "note",
     truth: "truth",
     timeskip: "time",
+    memory_merge: "memory",
+    memory_split: "memory",
+    summary: "summary",
+    journal: "journal",
+    hide: "message",
+    scene_end: "scenes",
+    chapter: "scenes",
+    steer: "steering",
+    split: "cast",
+    world: "world",
+    world_arc: "world",
+    world_proposal: "world",
+    world_fate: "world",
+    world_person: "world",
+    lore: "lore",
+    lore_add: "lore",
+    note: "note",
+    inbox: "inbox",
   };
   const long = (c: ProposedChange) => c.before.length + c.after.length > 1400;
-  const showsDiff = (c: ProposedChange) => ["codex", "memory_fix", "message", "cue"].includes(c.kind) && c.before;
+  const showsDiff = (c: ProposedChange) => ["codex", "memory_fix", "message", "cue", "summary", "journal", "lore", "memory_merge", "memory_split", "world", "inbox"].includes(c.kind) && c.before;
+  // The story was rewound (or a reply deleted) since Meus last read it: older answers may not hold.
+  const readTo = $derived(Math.max(0, ...(view?.turns ?? []).filter((t) => t.role === "mea" && t.seq != null).map((t) => t.seq!)));
   const lastIsMeus = $derived(view?.turns.at(-1)?.role === "mea");
   const START = ["Catch me up", "What's inconsistent right now?", "Three ways the next scene could go", "Who's in the scene, and what do they want?"];
 </script>
@@ -177,6 +223,7 @@
     <p class="st-lcd where" title="What Meus is looking at">
       <span class="st-led"></span> READING TO #{view.header.seq}{view.header.time ? ` · ${view.header.time}` : ""}{view.header.place ? ` · ${view.header.place}` : ""}
     </p>
+    {#if readTo > view.header.seq}<p class="tiny muted rewound">The story went back to #{view.header.seq} since I last read it (up to #{readTo}), so some of what I said earlier may not hold.</p>{/if}
   {/if}
 
   <div class="log" bind:this={log}>
@@ -200,6 +247,10 @@
                 </button>
               {/each}
             </details>
+          {/if}
+          {#if t.handoff}
+            {@const h = t.handoff}
+            <button class="st-key small ghost undo" type="button" onclick={() => toStudio(h)}>Open {h.name} in the Studio</button>
           {/if}
           {#if t.setId}
             {@const set = view?.sets.find((s) => s.id === t.setId)}
@@ -232,8 +283,8 @@
               <b class="grow">{c.label}</b>
               <span class="st-chip tiny">{KIND[c.kind] ?? c.kind}</span>
             </span>
-            {#if c.data?.risky}<span class="tiny warn">The story can't redo this by itself; Undo can.</span>{/if}
-            {#if c.kind === "ledger"}
+            {#if c.data?.risky && !c.data?.noUndo}<span class="tiny warn">The story can't redo this by itself; Undo can.</span>{/if}
+            {#if c.kind === "ledger" || c.kind === "steer" || c.kind === "world_person"}
               <ul class="lines">{#each c.after.split("\n") as l, i (i)}<li>{l}</li>{/each}</ul>
             {:else if c.kind === "merge" || c.kind === "codex_merge" || c.kind === "codex_unmerge"}
               <span class="small">{c.before} → {c.after}</span>
@@ -284,7 +335,10 @@
     ></textarea>
     <button class="send" type="button" onclick={() => send()} disabled={busy || !meus.draft.trim()} aria-label="Send"><Send size={16} /></button>
   </div>
-  {#if view?.turns.length}<button class="st-link clear" type="button" onclick={clear} disabled={busy}><Trash size={12} /> Clear the conversation</button>{/if}
+  <div class="foot">
+    {#if view}<label class="switch tiny" title="Story-record and clock fixes skip the card; Undo still works"><input type="checkbox" checked={view.autoApply} onchange={(e) => setAuto(e.currentTarget.checked)} /> Apply small fixes right away</label>{/if}
+    {#if view?.turns.length}<button class="st-link clear" type="button" onclick={clear} disabled={busy}><Trash size={12} /> Clear the conversation</button>{/if}
+  </div>
 </div>
 
 <style>
@@ -549,8 +603,17 @@
     opacity: 0.45;
     cursor: default;
   }
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .rewound {
+    margin: 0;
+  }
   .clear {
-    justify-self: start;
     display: inline-flex;
     align-items: center;
     gap: 4px;

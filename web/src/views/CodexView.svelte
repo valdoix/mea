@@ -3,7 +3,9 @@
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
   import { get, post } from "../lib/api";
-  import { ArrowLeft, BookOpen, Check, GraduationCap, Merge, MapPin, Package, RefreshCw, ShieldCheck, Sparkles, Users, X } from "../lib/icons";
+  import { ArrowLeft, BookOpen, Check, GraduationCap, Merge, MapPin, MessagesSquare, Package, RefreshCw, ShieldCheck, Sparkles, Users, X } from "../lib/icons";
+  import { openMeusIn } from "../lib/meus.svelte";
+  import { navigate } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
   import type { ChronicleProposal, Codex, CodexEntity, Entity, Journal, PromiseEntry, QuizRun, SecretEntry } from "../lib/types";
 
@@ -122,6 +124,12 @@
     } catch (e) {
       errorToast(e);
     }
+  }
+
+  /** Meus checks each pair against the story and proposes the merges that are real. */
+  function askAboutDupes() {
+    openMeusIn(id, `The Codex thinks these might be the same: ${dupes.map((d) => `${d.merge.name} ≈ ${d.keep.name}`).join("; ")}. Check each against the story and sort them out (merge the cast entries and pages that really are one).`, true);
+    navigate(`/chat/${id}`);
   }
 
   // ---------- checks: quiz (MEM-46), sleep (MEM-42), reconcile (SUM-22), duplicates (MEM-28) ----------
@@ -405,6 +413,7 @@
       {:else}
         <p class="tiny muted">No likely duplicates.</p>
       {/each}
+      {#if dupes.length}<button class="btn ghost small" onclick={askAboutDupes}><MessagesSquare size={14} /> Ask Meus to sort these out</button>{/if}
     </section>
   {/if}
 </div>

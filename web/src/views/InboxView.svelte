@@ -4,8 +4,9 @@
   import { wordDiff } from "../lib/diff";
   import { onEvent } from "../lib/events";
   import { autosize } from "../lib/gestures";
-  import { Check, ExternalLink, Pencil, X } from "../lib/icons";
-  import { route } from "../lib/router.svelte";
+  import { Check, ExternalLink, MessagesSquare, Pencil, X } from "../lib/icons";
+  import { openMeusIn } from "../lib/meus.svelte";
+  import { navigate, route } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
   import type { InboxItem } from "../lib/types";
 
@@ -49,6 +50,12 @@
     return c;
   });
   const shown = $derived((items ?? []).filter((i) => filter === "all" || i.kind === filter));
+
+  /** The note goes to Meus in its chat, which reads it with the story around it. */
+  function talkItThrough(item: InboxItem) {
+    openMeusIn(item.chatId, `About this inbox note [${item.key}] "${item.title}": ${item.why} Is it right? What would you do with it?`, true);
+    navigate(`/chat/${item.chatId}`);
+  }
 
   async function act(item: InboxItem, action: "accept" | "reject") {
     busy = item.key;
@@ -117,6 +124,7 @@
             {#if item.editable && editing !== item.key}<button class="btn ghost small" onclick={() => startEdit(item)}><Pencil size={14} /> Edit</button>{/if}
             {#if editing === item.key}<button class="btn ghost small" onclick={() => (editing = null)}>Cancel edit</button>{/if}
             <button class="btn ghost small" onclick={() => act(item, "reject")} disabled={busy === item.key}><X size={14} /> {item.kind === "merge" ? "Not the same" : "Reject"}</button>
+            <button class="btn ghost small" onclick={() => talkItThrough(item)}><MessagesSquare size={14} /> Talk it through with Meus</button>
           </div>
         </article>
       {/each}

@@ -4,7 +4,8 @@
   import type { Component } from "svelte";
   import { get, post } from "../lib/api";
   import { device, setDevice } from "../lib/device.svelte";
-  import { BookOpen, Eye, House, Inbox, MessageHeart, Moon, NotebookPen, Plus, Search, Settings, SlidersHorizontal, Trash, UserPen, Users, WandSparkles } from "../lib/icons";
+  import { BookOpen, Eye, House, Inbox, MessageHeart, MessagesSquare, Moon, NotebookPen, Plus, Search, Settings, SlidersHorizontal, Trash, UserPen, Users, WandSparkles } from "../lib/icons";
+  import { askMeus, sendToMeus } from "../lib/meus.svelte";
   import { navigate, route } from "../lib/router.svelte";
   import { palette } from "../lib/palette.svelte";
   import { app, errorToast, saveSetting } from "../lib/state.svelte";
@@ -92,6 +93,7 @@
     { id: "act:discreet", label: device.discreet ? "Leave discreet mode" : "Discreet mode", group: "Actions", icon: Eye, keywords: "privacy blur", run: () => setDevice("discreet", !device.discreet) },
     ...(route.name === "chat" && route.params.id
       ? [
+          { id: "act:meus", label: "Meus…", hint: "ask, brainstorm or fix something in this story", group: "Actions" as const, icon: MessagesSquare, keywords: "ask assistant brainstorm fix help", run: () => askMeus() },
           { id: "act:read", label: "Read this story", hint: "reading mode", group: "Actions" as const, icon: BookOpen, run: () => navigate(`/chat/${route.params.id}/read`) },
           { id: "act:memory", label: "This chat's memory", group: "Actions" as const, icon: NotebookPen, run: () => navigate(`/chat/${route.params.id}/memory`) },
         ]
@@ -113,12 +115,20 @@
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     const all = [...actions, ...chats, ...characters, ...screens, ...settingItems];
     if (!words.length) return [...actions, ...chats.slice(0, 5), ...screens].slice(0, 14);
-    return all
-      .map((i) => ({ i, s: score(i, words) }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 14)
-      .map((x) => x.i);
+    // In a chat, whatever you typed can go straight to Meus.
+    const ask: Item[] =
+      route.name === "chat" && route.params.id && q.trim().length > 2
+        ? [{ id: "act:meus:ask", label: `Ask Meus: ${q.trim()}`, group: "Actions", icon: MessagesSquare, run: () => sendToMeus(q.trim()) }]
+        : [];
+    return [
+      ...all
+        .map((i) => ({ i, s: score(i, words) }))
+        .filter((x) => x.s >= 0)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, 13)
+        .map((x) => x.i),
+      ...ask,
+    ];
   });
   $effect(() => {
     void q;
