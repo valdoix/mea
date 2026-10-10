@@ -49,7 +49,7 @@ export interface Issue {
   citations: Citation[];
   fix: string;
   /** What "accept and update canon" writes: a confirmed memory, and a tracker line if it helps. */
-  canon?: { memory: string; wrong?: string; trackerLine?: string };
+  canon?: { memory?: string; wrong?: string; trackerLine?: string };
   by: "rules" | "model";
   dismissed?: boolean;
 }
@@ -262,6 +262,7 @@ const modelSchema = z.object({
         conflict: z.string(),
         cites: z.array(z.string()).default([]),
         fix: z.string().default(""),
+        canon: z.string().optional(),
       }),
     )
     .default([]),
@@ -377,7 +378,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           jobId: opts.job?.id,
           name: "continuity_check",
           schema: modelSchema,
-          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…"}]}`,
+          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
           user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content).slice(0, 6000)}`,
           maxTokens: 800,
         });
@@ -392,7 +393,8 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
             conflict: i.conflict.slice(0, 400),
             citations,
             fix: i.fix || i.conflict,
-            canon: { memory: i.claim.slice(0, 300), wrong: citations.find((c) => c.type === "memory")?.label },
+            // M28: what's kept is a whole sentence, never the reply's quoted fragment.
+            canon: i.canon?.trim() ? { memory: i.canon.trim().slice(0, 300), wrong: citations.find((c) => c.type === "memory")?.label } : undefined,
             by: "model",
           });
         }
@@ -459,7 +461,11 @@ export function acceptIssue(flagId: string, issueId: string) {
   const issues = parseJson<Issue[]>(r.issues, []);
   const issue = issues.find((i) => i.id === issueId);
   if (!issue) throw notFound("Issue not found");
-  if (issue.canon?.memory) correctMemory(r.chat_id, { wrong: issue.canon.wrong ?? issue.conflict, right: issue.canon.memory, messageId: r.message_id });
+  // M27: only the memories the issue cites are replaced, never ones that merely share a word.
+  if (issue.canon?.memory && issue.kind !== "timeline") {
+    const cited = issue.citations.filter((c) => c.type === "memory" && c.id).map((c) => c.id!);
+    correctMemory(r.chat_id, { wrong: issue.canon.wrong ?? issue.conflict, right: issue.canon.memory, messageId: r.message_id, memoryIds: cited, exact: true });
+  }
   if (issue.canon?.trackerLine) {
     const { ops } = linesToOps([issue.canon.trackerLine]);
     if (ops.length) userEdit(r.chat_id, ops);

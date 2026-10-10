@@ -153,6 +153,17 @@ interface MatchResult {
   score: number;
 }
 
+/**
+ * M32: timing belongs to the turn that fired the entry. A state written at this very message count is
+ * another take of the same turn (a swipe, a continue), and one from a later count is from messages
+ * since deleted or rewound: neither holds the entry back now.
+ */
+function timedState(st: TimedState | undefined, e: { sticky: number; cooldown: number }, messageCount: number): TimedState | undefined {
+  if (!st) return st;
+  const firedAt = st.stickyUntil != null ? st.stickyUntil - e.sticky : st.cooldownUntil != null ? st.cooldownUntil - e.cooldown : null;
+  return firedAt != null && firedAt >= messageCount ? undefined : st;
+}
+
 /** Runs SillyTavern-compatible World Info activation (LORE-01) and explains every decision (LORE-04). */
 export function activateLore(input: ActivationInput): ActivationResult {
   const { defaults, messageCount } = input;
@@ -217,7 +228,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
       setTrace(e, "inactive", "empty content");
       continue;
     }
-    const st = input.state[e.id];
+    const st = timedState(input.state[e.id], e, messageCount);
     if (e.delay > 0 && messageCount < e.delay) {
       setTrace(e, "inactive", `delayed until message ${e.delay}`);
       continue;

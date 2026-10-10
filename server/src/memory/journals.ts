@@ -114,9 +114,12 @@ export async function updateJournal(chatId: string, name: string, opts: { job?: 
     if (row && scenes.length) run("UPDATE journals SET through_seq = ?, updated_at = ? WHERE id = ?", scenes.at(-1)!.end_seq ?? through, now(), row.id);
     return row ? journalOut(rowFor(chatId, name)!) : null;
   }
-  const batch = mine.slice(-8);
-  const endSeq = scenes.at(-1)!.end_seq ?? batch.at(-1)!.end_seq ?? 0;
-  const prev = opts.fromScratch ? "" : (row?.proposal ? parseJson<{ content: string }>(row.proposal, { content: "" }).content : row?.content) || "";
+  // M24: eight scenes at a time, oldest first, until it has caught up (a backlog is never skipped).
+  const batch = mine.slice(0, 8);
+  const more = mine.length > batch.length;
+  const endSeq = (more ? batch.at(-1)!.end_seq : scenes.at(-1)!.end_seq) ?? batch.at(-1)!.end_seq ?? 0;
+  // Progress back at 0 (a rewind) means it's written again from the scenes left.
+  const prev = opts.fromScratch || through === 0 ? "" : (row?.proposal ? parseJson<{ content: string }>(row.proposal, { content: "" }).content : row?.content) || "";
   const user = [
     `PERSON: ${name}${isMain ? " (the main character)" : ""}. The player's character is ${names.user}.`,
     prev ? `${name.toUpperCase()}'S JOURNAL SO FAR:\n${prev}` : `${name} has no journal yet.`,
@@ -155,6 +158,7 @@ Reply with JSON only: {"journal": "…"}`,
     run("UPDATE journals SET content = ?, through_seq = ?, updated_at = ? WHERE id = ?", content, endSeq, t, row.id);
   }
   publish({ type: "memory.changed", chatId });
+  if (more && !opts.signal?.aborted) return updateJournal(chatId, name, { ...opts, fromScratch: false });
   return journalOut(rowFor(chatId, name)!);
 }
 

@@ -1,7 +1,7 @@
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { badRequest, notFound } from "../lib/http";
 import { publish } from "../lib/events";
-import type { AtomRow } from "./atoms";
+import { type AtomRow, sourcesLive } from "./atoms";
 import { scanEntriesFor } from "../lore/service";
 import { castProfiles, currentFold } from "../trackers/store";
 import { memState } from "./store";
@@ -69,6 +69,13 @@ export const norm = (s: string) =>
 /** Titles and articles that don't make a name different ("Captain Mira" is Mira). */
 const TITLES = new Set(["the", "a", "an", "old", "young", "lady", "lord", "sir", "dame", "mr", "mrs", "ms", "miss", "dr", "doctor", "captain", "capt", "master", "mistress", "father", "mother", "brother", "sister", "aunt", "uncle", "king", "queen", "prince", "princess"]);
 export const core = (s: string) => norm(s).split(" ").filter((w) => !TITLES.has(w)).join(" ");
+/** M25: two different titles make two people ("Mr" and "Mrs Smith", "King" and "Prince Edward", "Old" and "Young Tom"). */
+const titlesOf = (s: string) => norm(s).split(" ").filter((w) => TITLES.has(w) && w !== "the" && w !== "a" && w !== "an").join(" ");
+export function titlesClash(a: string, b: string) {
+  const ta = titlesOf(a);
+  const tb = titlesOf(b);
+  return Boolean(ta && tb && ta !== tb);
+}
 
 export function entityOut(r: EntityRow) {
   const data = parseJson<EntityData>(r.data, {});
@@ -107,7 +114,7 @@ function liveRows(chatId: string) {
 /** Name and alias → entity, for one chat. Merged entities resolve to the one they became. */
 export class Resolver {
   private byName = new Map<string, EntityRow>();
-  private byCore = new Map<string, EntityRow>();
+  private byCore = new Map<string, { r: EntityRow; name: string }>();
   readonly rows: EntityRow[];
   constructor(rows: EntityRow[]) {
     this.rows = rows;
@@ -116,14 +123,22 @@ export class Resolver {
         const k = norm(n);
         if (k && !this.byName.has(k)) this.byName.set(k, r);
         const c = core(n);
-        if (c && c.length >= 3 && !this.byCore.has(c)) this.byCore.set(c, r);
+        if (c && c.length >= 3 && !this.byCore.has(c)) this.byCore.set(c, { r, name: n });
       }
     }
   }
   find(name: string): EntityRow | undefined {
     const k = norm(name);
     if (!k) return undefined;
-    return this.byName.get(k) ?? this.byCore.get(core(name));
+    const exact = this.byName.get(k);
+    if (exact) return exact;
+    const c = this.byCore.get(core(name));
+    return c && !titlesClash(name, c.name) ? c.r : undefined;
+  }
+  /** By a name or alias as written, without dropping titles (M25). */
+  findExact(name: string): EntityRow | undefined {
+    const k = norm(name);
+    return k ? this.byName.get(k) : undefined;
   }
   /** Every name and alias an entity goes by. */
   namesOf(r: EntityRow) {
@@ -307,7 +322,9 @@ export function syncEntities(chatId: string, force = false) {
   // Several names can be one entity (an old name and an alias): fold them together first.
   const groups = new Map<string, { row: EntityRow | undefined; s: Seen }>();
   for (const s of seen.values()) {
-    const row = res.find(s.name) ?? [...s.aliases].map((a) => res.find(a)).find(Boolean) ?? follow(mergedNames.get(norm(s.name)));
+    // M25: a tracker character joins a record only by its own name or alias; a title-only match is a suggestion, not a merge.
+    const look = (n: string) => (s.sources.has("tracker") ? res.findExact(n) : res.find(n));
+    const row = look(s.name) ?? [...s.aliases].map(look).find(Boolean) ?? follow(mergedNames.get(norm(s.name)));
     const key = row ? row.id : `new:${norm(s.name)}`;
     const g = groups.get(key);
     if (!g) {
@@ -421,13 +438,17 @@ export function listEntities(chatId: string, f: { kind?: string; q?: string; mer
   return rows.map(entityOut);
 }
 
-/** Atoms about an entity (by any of its names), most important and newest first. */
-export function entityFacts(chatId: string, r: EntityRow, limit = 12) {
+/**
+ * Atoms about an entity (by any of its names), most important and newest first.
+ * M20: recall passes the memories and resolver it already has, instead of loading the chat's again per entity.
+ */
+export function entityFacts(chatId: string, r: EntityRow, limit = 12, have?: { atoms: AtomRow[]; res: Resolver }) {
   const names = new Set([r.name, ...parseJson<string[]>(r.aliases, [])].map(norm));
-  const res = new Resolver(liveRows(chatId));
-  return all<AtomRow>("SELECT * FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status IN ('active', 'disputed') ORDER BY importance DESC, COALESCE(max_seq, 0) DESC", chatId)
-    .filter((a) => parseJson<string[]>(a.entities, []).some((n) => names.has(norm(n)) || res.find(n)?.id === r.id))
-    .slice(0, limit);
+  const res = have?.res ?? new Resolver(liveRows(chatId));
+  const pool = have
+    ? [...have.atoms].sort((a, b) => b.importance - a.importance || (b.max_seq ?? 0) - (a.max_seq ?? 0))
+    : all<AtomRow>(`SELECT * FROM memories WHERE chat_id = ? AND deleted_at IS NULL AND status IN ('active', 'disputed') AND ${sourcesLive("memories")} ORDER BY importance DESC, COALESCE(max_seq, 0) DESC`, chatId);
+  return pool.filter((a) => parseJson<string[]>(a.entities, []).some((n) => names.has(norm(n)) || res.find(n)?.id === r.id)).slice(0, limit);
 }
 
 /** One line for the prompt or the codex: who or what it is, as far as the story knows. */
@@ -656,7 +677,7 @@ export function duplicateSuggestions(chatId: string) {
       if (a.kind !== b.kind && !(a.kind === "concept" || b.kind === "concept")) continue;
       const ca = core(a.name);
       const cb = core(b.name);
-      if (!ca || !cb) continue;
+      if (!ca || !cb || titlesClash(a.name, b.name)) continue;
       let reason = "";
       if (ca === cb) reason = "same name";
       else if (a.kind === "person" && b.kind === "person" && (ca.split(" ").includes(cb) || cb.split(" ").includes(ca)) && Math.min(ca.length, cb.length) >= 3) reason = "one name inside the other";

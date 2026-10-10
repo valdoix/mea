@@ -79,7 +79,8 @@ export function atomDetail(id: string) {
   if (!a) return undefined;
   // History of what this fact replaced (MEM-07), newest first.
   const history = all<AtomRow>("SELECT * FROM memories WHERE superseded_by = ? ORDER BY updated_at DESC", id).map((x) => atomOut(x));
-  const successor = a.superseded_by ? one<AtomRow>("SELECT * FROM memories WHERE id = ?", a.superseded_by) : undefined;
+  // M23: a fact revived when its successor was deleted still remembers it, but nothing replaces it now.
+  const successor = a.status === "superseded" && a.superseded_by ? one<AtomRow>("SELECT * FROM memories WHERE id = ?", a.superseded_by) : undefined;
   return { atom: atomOut(a, { sources: atomSources(id) }), replaced: history, supersededBy: successor ? atomOut(successor) : null, usage: usageOf("memory", id) };
 }
 

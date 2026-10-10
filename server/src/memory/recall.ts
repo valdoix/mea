@@ -1,10 +1,10 @@
 import { all, parseJson } from "../db/db";
 import type { MemoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
-import type { AtomRow } from "./atoms";
+import { type AtomRow, sourcesLive } from "./atoms";
 import { deepSearch, RECALL_CUE } from "./deep";
 import { chatVectors, cosine } from "./embed";
-import { entityCard, entityFacts, norm, resolver, type EntityRow } from "./entities";
+import { core, entityCard, entityFacts, norm, resolver, type EntityRow } from "./entities";
 import type { RecallItem, TimeIndex } from "./format";
 import type { SummaryRow } from "./store";
 import { contentWords, ftsQuery, overlap } from "./text";
@@ -75,9 +75,13 @@ const EVERYONE = new Set(["everyone", "everybody", "all", "public", "common know
 /** MEM-16: a memory with a known-by list is recalled only if the point-of-view character is on it. */
 export function povAllows(a: Pick<AtomRow, "known_by">, pov: PovFilter | null) {
   if (!pov) return true;
-  const kb = parseJson<string[]>(a.known_by, []).map(norm).filter(Boolean);
+  const kb = parseJson<string[]>(a.known_by, []).filter((k) => norm(k));
   if (!kb.length) return true;
-  return kb.some((k) => EVERYONE.has(k) || pov.names.has(k) || [...pov.names].some((n) => n.length >= 3 && (k === n || k.split(" ").includes(n))));
+  // L13: a whole name, maybe under a title ("Captain Mira" is Mira); "Mira's sister" isn't Mira.
+  return kb.some((raw) => {
+    const k = norm(raw);
+    return EVERYONE.has(k) || pov.names.has(k) || (!/['’]s\b/.test(raw) && pov.names.has(core(k)));
+  });
 }
 
 /** MEM-19: what use has made of a memory. Core memories (pinned, edited, 9+) never fade. */
@@ -138,7 +142,7 @@ export function recall(input: RecallInput) {
   const res = resolver(chatId);
 
   const pinnedRows = all<AtomRow>("SELECT * FROM memories WHERE chat_id = ? AND pinned = 1 AND deleted_at IS NULL AND status IN ('active', 'disputed') ORDER BY COALESCE(min_seq, 0)", chatId);
-  const pinned: RecallItem[] = pinnedRows.map((a) => ({
+  const allPinned: RecallItem[] = pinnedRows.map((a) => ({
     ownerType: "memory",
     id: a.id,
     type: a.type,
@@ -150,11 +154,13 @@ export function recall(input: RecallInput) {
     seq: a.max_seq,
     confirmed: Boolean(a.user_edited),
   }));
-  const pinnedTokens = pinned.reduce((n, p) => n + p.tokens, 0);
+  // L13: pinned memories fill the budget at most, so they never push out the recent dialogue.
+  let pinnedTokens = 0;
+  const pinned = allPinned.filter((p) => pinnedTokens + p.tokens <= budget && (pinnedTokens += p.tokens) > 0);
 
   // MEM-13: never recall what is already verbatim in the window. MEM-16: filter before ranking.
   const allAtoms = all<AtomRow>(
-    "SELECT * FROM memories WHERE chat_id = ? AND pinned = 0 AND deleted_at IS NULL AND status IN ('active', 'disputed') AND COALESCE(min_seq, 0) <= ?",
+    `SELECT * FROM memories WHERE chat_id = ? AND pinned = 0 AND deleted_at IS NULL AND status IN ('active', 'disputed') AND COALESCE(min_seq, 0) <= ? AND ${sourcesLive("memories")}`,
     chatId,
     evicted,
   );
@@ -182,8 +188,16 @@ export function recall(input: RecallInput) {
     const fts = ftsQuery(q.text);
     const tag = input.queries.length > 1 ? ` (${q.label})` : "";
     if (fts && atoms.length) {
-      all<{ id: string }>("SELECT id FROM memories_fts WHERE memories_fts MATCH ? AND chat_id = ? ORDER BY bm25(memories_fts) LIMIT 80", fts, chatId)
+      // L13: filtered before the top 80 are taken, so pinned, deleted or later memories don't crowd them out.
+      all<{ id: string }>(
+        `SELECT f.id FROM memories_fts f JOIN memories m ON m.id = f.id WHERE memories_fts MATCH ? AND f.chat_id = ? AND m.pinned = 0 AND m.deleted_at IS NULL
+           AND m.status IN ('active', 'disputed') AND COALESCE(m.min_seq, 0) <= ? ORDER BY bm25(memories_fts) LIMIT 200`,
+        fts,
+        chatId,
+        evicted,
+      )
         .filter((h) => atomById.has(h.id))
+        .slice(0, 80)
         .forEach((h, i) => bump(`memory:${h.id}`, rrf(i) * q.weight, `keywords${tag}`, true));
     }
     if (fts && sums.length) {
@@ -210,13 +224,20 @@ export function recall(input: RecallInput) {
   const mentioned = res.mentionedIn(strongText);
   const mentionedIds = new Set(mentioned.map((e) => e.id));
   const lowerQ = ` ${strongText.toLowerCase()} `;
+  // M20: each name is looked up once per turn, not once per memory.
+  const named = new Map<string, boolean>();
+  const isNamed = (n: string) => {
+    let hit = named.get(n);
+    if (hit === undefined) {
+      const e = res.find(n);
+      hit = Boolean(e && mentionedIds.has(e.id)) || (n.length >= 3 && new RegExp(`[^\\p{L}]${n.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^\\p{L}]`, "u").test(lowerQ));
+      named.set(n, hit);
+    }
+    return hit;
+  };
   for (const a of atoms) {
     const names = parseJson<string[]>(a.entities, []);
-    const hits = names.filter((n) => {
-      const e = res.find(n);
-      if (e && mentionedIds.has(e.id)) return true;
-      return n.length >= 3 && new RegExp(`[^\\p{L}]${n.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^\\p{L}]`, "u").test(lowerQ);
-    });
+    const hits = names.filter(isNamed);
     if (hits.length) bump(`memory:${a.id}`, rrf(0) * 0.8 * Math.min(2, hits.length), `mentions ${hits.slice(0, 2).join(", ")}`, true);
   }
   // Recency and importance break ties among matches.
@@ -326,7 +347,7 @@ export function recall(input: RecallInput) {
       ({ e }) => !seenIds.has(e.id) && seenIds.add(e.id) && !res.namesOf(e).some((n) => input.skipCards.has(norm(n))) && (e.kind === "person" || e.kind === "group" || e.kind === "object" || e.kind === "place"),
     );
     for (const { e, why } of targets.slice(0, 4)) {
-      const facts = entityFacts(chatId, e, 8).filter((f) => atomById.has(f.id));
+      const facts = entityFacts(chatId, e, 8, { atoms, res });
       const card = entityCard(e);
       if (card.length > e.name.length + 2) {
         const tokens = countTokens(card) + 4;
@@ -416,7 +437,8 @@ export function recall(input: RecallInput) {
   const weak = (relevant[0]?.[1].score ?? 0) < 0.03;
   if (cfg.deepSearch && evicted > 0 && (RECALL_CUE.test(primary) || (weak && evicted > 200))) {
     const hits = deepSearch(chatId, { query: input.queries.map((q) => q.text).join("\n"), qvec: input.qvecs[0] ?? null, beforeSeq: evicted, quotes: 3, excerptSize: 240 });
-    const cap = Math.max(carry, rest * 0.3);
+    // L13: quotes use what the other slots left, never more than the budget.
+    const cap = Math.max(0, carry);
     let used = 0;
     for (const [i, h] of hits.entries()) {
       let content = `${h.speaker} (#${h.seq}): "${h.excerpt}"`;

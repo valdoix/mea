@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { all, now, one, run, tx } from "../db/db";
+import { all, now, one, run } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, body, must } from "../lib/http";
-import { getMessageRow, getMessage, mustChat } from "../services/chats";
+import { getMessageRow, getMessage, mustChat, restoreMessages, rewindAfter } from "../services/chats";
 import { quickAnswer } from "../accuracy/archivist";
 import { autoRecap, recapFor } from "../memory/recap";
 
@@ -12,20 +12,15 @@ export const tools = new Hono<{ Variables: { deviceId: string | null } }>();
 
 // ---------- rewind (CHAT-16) ----------
 
-/** "Delete everything after this message": the rest goes to the trash and can be undone. */
+/** "Delete everything after this message": the rest goes to the trash and can be undone (C3: memory follows). */
 tools.post("/messages/:id/rewind", (c) => {
   const m = must(getMessageRow(c.req.param("id")), "Message not found");
-  const ids = all<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND seq > ? AND deleted_at IS NULL ORDER BY seq", m.chat_id, m.seq).map((r) => r.id);
-  if (!ids.length) return c.json({ deleted: [] });
-  const t = now();
-  tx(() => {
-    for (const id of ids) run("UPDATE messages SET deleted_at = ? WHERE id = ?", t, id);
-    run("UPDATE chats SET message_count = (SELECT COUNT(*) FROM messages WHERE chat_id = ? AND deleted_at IS NULL), updated_at = ? WHERE id = ?", m.chat_id, t, m.chat_id);
-  });
-  publish({ type: "chat.changed", chatId: m.chat_id });
-  publish({ type: "trackers.changed", chatId: m.chat_id });
-  publish({ type: "memory.changed", chatId: m.chat_id });
-  return c.json({ deleted: ids });
+  const deleted = rewindAfter(m.id);
+  if (deleted.length) {
+    publish({ type: "trackers.changed", chatId: m.chat_id });
+    publish({ type: "memory.changed", chatId: m.chat_id });
+  }
+  return c.json({ deleted });
 });
 
 /** Undo a rewind. */
@@ -33,13 +28,9 @@ tools.post("/chats/:id/restore-messages", async (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
   const input = await body(c, z.object({ ids: z.array(z.string()).min(1).max(5000) }));
-  tx(() => {
-    for (const id of input.ids) run("UPDATE messages SET deleted_at = NULL WHERE id = ? AND chat_id = ?", id, chatId);
-    run("UPDATE chats SET message_count = (SELECT COUNT(*) FROM messages WHERE chat_id = ? AND deleted_at IS NULL), updated_at = ? WHERE id = ?", chatId, now(), chatId);
-  });
-  publish({ type: "chat.changed", chatId });
+  const restored = restoreMessages(chatId, input.ids);
   publish({ type: "trackers.changed", chatId });
-  return c.json({ restored: input.ids.length });
+  return c.json({ restored });
 });
 
 // ---------- drafts that follow you (CHAT-17) ----------

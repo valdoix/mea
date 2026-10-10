@@ -8,7 +8,7 @@ import { cachedQuota } from "../services/connections";
 import { trackerPrompt } from "../trackers/service";
 import { chatNames } from "./build";
 import { ledger, lastSeq, levelRows, memState, setMemState, storyRow } from "./store";
-import { cleanText } from "./text";
+import { cleanText, hashText } from "./text";
 
 /**
  * "Previously on…" (SUM-15): a short recap card when you come back to a chat after a while, and
@@ -20,6 +20,8 @@ export interface Recap {
   text: string;
   seq: number;
   at: number;
+  /** L13: what it was written from, so an edit or a swipe of an older message writes it again. */
+  hash?: string;
 }
 
 function storyContext(chatId: string) {
@@ -47,7 +49,9 @@ function storyContext(chatId: string) {
 export async function recapFor(chatId: string, opts: { force?: boolean } = {}): Promise<Recap & { cached: boolean }> {
   const seq = lastSeq(chatId);
   const cur = memState(chatId).recap;
-  if (cur && cur.seq === seq && !opts.force) return { ...cur, cached: true };
+  const user = storyContext(chatId);
+  const hash = hashText(user);
+  if (cur && cur.seq === seq && cur.hash === hash && !opts.force) return { ...cur, cached: true };
   const res = await callJson({
     task: "summarizer",
     kind: "recap",
@@ -56,10 +60,10 @@ export async function recapFor(chatId: string, opts: { force?: boolean } = {}): 
     schema: z.object({ recap: z.string() }),
     system:
       'Write a warm, readable "previously on…" recap of this roleplay for the player picking it back up: the main events in order, where things stand now (who is where, what just happened), and what\'s unresolved. Three short paragraphs at most. Use only what the material establishes. Reply with JSON only: {"recap": "…"}',
-    user: storyContext(chatId),
+    user,
     maxTokens: 900,
   });
-  const recap: Recap = { text: res.data.recap.trim(), seq, at: now() };
+  const recap: Recap = { text: res.data.recap.trim(), seq, at: now(), hash };
   setMemState(chatId, { recap });
   return { ...recap, cached: false };
 }
