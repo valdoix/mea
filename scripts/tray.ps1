@@ -4,6 +4,7 @@
   Shows whether Mea is running, how many background jobs it has, and when it last made a backup,
   with "Open Mea", "Restart", "Update Mea" and "View logs" in its menu. It only talks to Mea's local health
   endpoint (http://127.0.0.1:<port>/api/health); it never needs a password or a pairing.
+  "Open Mea" opens the desktop app when it's installed, and the browser otherwise.
 
   install-service.ps1 -Tray starts it at every sign-in. To run it by hand:
     powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File scripts\tray.ps1
@@ -68,8 +69,26 @@ $logsItem = $menu.Items.Add("View logs")
 $quitItem = $menu.Items.Add("Hide this icon")
 $tray.ContextMenuStrip = $menu
 
-$openItem.add_Click({ Start-Process $base })
-$tray.add_MouseClick({ param($s, $e) if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) { Start-Process $base } })
+# The desktop app installs per user (NSIS currentUser), so look in its default folder, then in
+# its uninstall entry in case it went somewhere else. Checked on every click, so installing or
+# removing the app needs no tray restart. It's single-instance: a second launch just shows its window.
+function Get-DesktopApp {
+  $exe = Join-Path $env:LOCALAPPDATA "Mea\mea-desktop.exe"
+  if (Test-Path $exe) { return $exe }
+  $entry = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+    Where-Object { $_.DisplayName -eq "Mea" -and $_.DisplayIcon } | Select-Object -First 1
+  if ($entry) {
+    $exe = $entry.DisplayIcon.Trim('"')
+    if (Test-Path $exe) { return $exe }
+  }
+  return $null
+}
+function Open-Mea {
+  $app = Get-DesktopApp
+  if ($app) { Start-Process $app } else { Start-Process $base }
+}
+$openItem.add_Click({ Open-Mea })
+$tray.add_MouseClick({ param($s, $e) if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) { Open-Mea } })
 $statusPage.add_Click({ Start-Process "$base/settings/status" })
 $logsItem.add_Click({
   $logs = Join-Path $DataDir "logs"
