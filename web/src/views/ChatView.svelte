@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { regexScope } from "../lib/regex.svelte";
   import Avatar from "../components/Avatar.svelte";
   import ChatPanel from "../components/chat/ChatPanel.svelte";
@@ -242,8 +242,12 @@
       error = e instanceof Error ? e.message : String(e);
     }
   }
+  // Loads once per chat: a link within it (?at=, ?m=) changes the route but not the chat, so it only
+  // jumps (below) instead of reloading the end and then jumping as well (M21).
+  const chatKey = $derived(id);
   $effect(() => {
-    void load();
+    void chatKey;
+    untrack(() => void load());
   });
 
   /** Replies being written right now, from the chat's detail: their text so far, and their generation. */
