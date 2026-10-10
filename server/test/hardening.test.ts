@@ -1,10 +1,17 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { strToU8, zipSync } from "fflate";
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createApp } from "../src/app";
+import { normalizeCard } from "../src/cards/card";
 import { CHARX_LIMITS, parseCardFile } from "../src/cards/io";
+import { createCharacter } from "../src/services/characters";
+import { createChat } from "../src/services/chats";
+import { deletedImagesDir, getImage, imagePath, mirrorImages, purgeUnreferencedImages, saveImage, sweepDeletedImages } from "../src/services/images";
+import { storageReport } from "../src/services/storage";
+import { saveCastProfile } from "../src/trackers/store";
 import { paths } from "../src/config";
 import { one, openDb, run } from "../src/db/db";
 import type { HttpError } from "../src/lib/http";
@@ -69,6 +76,14 @@ describe("H9: template import with a long key", () => {
     expect((await api("POST", "/api/tracker-templates/import", "{nope")).status).toBe(400);
     expect((await api("POST", "/api/tracker-templates", { key: "Bad Key", name: "x", schema })).status).toBe(400);
     expect((await api("POST", "/api/tracker-templates", "{nope")).status).toBe(400);
+    const send = async (path: string, form: FormData) => (await app.fetch(new Request(`http://localhost${path}`, { method: "POST", body: form }), local)).status;
+    const lore = new FormData();
+    lore.append("file", new File(["not json"], "book.json"));
+    expect(await send("/api/lorebooks/import", lore)).toBe(400);
+    const img = new FormData();
+    img.append("file", new File([placeholderAvatar(8, 8)], "a.png"));
+    img.append("palette", "{bad");
+    expect(await send("/api/images", img)).toBe(400);
   });
 });
 
@@ -171,5 +186,47 @@ describe("H11: restoring a bad backup", () => {
     await Bun.sleep(20);
     expect(status(() => restoreBackup(snap.file))).toBe(200);
     expect(marker()).toBe('"snap"');
+  });
+});
+
+describe("H12 / M36: the image purge", () => {
+  const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  const age = () => run("UPDATE images SET created_at = ?", Date.now() - 3 * 24 * 3600_000);
+
+  test("cast portraits survive; purged files wait in deleted/ and come back with a restore", async () => {
+    const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", first_mes: "Hi." } });
+    const chatId = createChat({ characterId: createCharacter(data) }).id;
+    const portrait = await saveImage(PNG);
+    saveCastProfile(chatId, "Tom", { avatarId: portrait });
+    const loose = await saveImage(PNG);
+    const looseFile = getImage(loose)!.file;
+    const snap = createBackup("manual"); // still has the loose image's row
+    age();
+    expect(storageReport().reclaimable.images.count).toBe(1);
+    purgeUnreferencedImages();
+    expect(getImage(portrait)).toBeTruthy();
+    expect(getImage(loose)).toBeUndefined();
+    expect(existsSync(imagePath(looseFile))).toBe(false);
+    expect(existsSync(join(deletedImagesDir(), looseFile))).toBe(true);
+
+    restoreBackup(snap.file);
+    expect(getImage(loose)).toBeTruthy();
+    expect(existsSync(imagePath(looseFile))).toBe(true);
+  });
+
+  test("parked files are unlinked after the grace period; the mirror gets each image once", async () => {
+    const id = await saveImage(PNG);
+    const file = getImage(id)!.file;
+    age();
+    purgeUnreferencedImages();
+    expect(sweepDeletedImages(0).removed).toBeGreaterThanOrEqual(1);
+    expect(existsSync(join(deletedImagesDir(), file))).toBe(false);
+
+    const dir = mkdtempSync(join(tmpdir(), "mea-mirror-"));
+    const first = mirrorImages(dir);
+    expect(first.copied).toBeGreaterThan(0);
+    expect(readdirSync(join(dir, "images"))).not.toContain("deleted");
+    expect(mirrorImages(dir).copied).toBe(0);
+    expect(mirrorImages(dir, (b) => Buffer.concat([Buffer.from("x"), b])).copied).toBe(first.copied);
   });
 });

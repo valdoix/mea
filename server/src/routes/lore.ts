@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { stash } from "../services/undo";
 import { z } from "zod";
 import { one } from "../db/db";
-import { body, must } from "../lib/http";
+import { badRequest, body, HttpError, must } from "../lib/http";
 import {
   createEntry,
   createLorebook,
@@ -205,7 +205,21 @@ lore.post("/lorebooks/import", async (c) => {
   const form = await c.req.formData();
   const file = form.get("file");
   if (!(file instanceof File)) return c.json({ error: "No file" }, 400);
-  const id = importLorebookJson(JSON.parse(await file.text()), file.name.replace(/\.json$/i, ""));
+  // L2: a file that isn't JSON (or isn't a lorebook) is a 400, not a 500.
+  let json: unknown;
+  try {
+    json = JSON.parse(await file.text());
+  } catch {
+    throw badRequest("That file isn't JSON");
+  }
+  if (!json || typeof json !== "object") throw badRequest("That file isn't a lorebook");
+  let id: string;
+  try {
+    id = importLorebookJson(json as Parameters<typeof importLorebookJson>[0], file.name.replace(/\.json$/i, ""));
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw badRequest(`That file isn't a lorebook: ${(e as Error).message}`);
+  }
   return c.json(getLorebook(id), 201);
 });
 
