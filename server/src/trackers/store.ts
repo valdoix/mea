@@ -207,8 +207,9 @@ interface EventRow {
 }
 
 /** Writes ops for a message (replacing that message+swipe's earlier ops from the same sources). */
-export function writeEvents(chatId: string, anchor: { messageId: string | null; swipeIdx: number }, ops: Op[], source: EventSource, opts: { replace?: EventSource[] } = {}) {
+export function writeEvents(chatId: string, anchor: { messageId: string | null; swipeIdx: number }, ops: Op[], source: EventSource, opts: { replace?: EventSource[] } = {}): string[] {
   const t = now();
+  const ids: string[] = [];
   tx(() => {
     if (opts.replace?.length) {
       run(
@@ -221,9 +222,11 @@ export function writeEvents(chatId: string, anchor: { messageId: string | null; 
     }
     let ord = (one<{ o: number | null }>("SELECT MAX(ord) AS o FROM tracker_events WHERE chat_id = ? AND message_id IS ?", chatId, anchor.messageId)?.o ?? 0) + 1;
     for (const op of ops) {
+      const id = newId();
+      ids.push(id);
       run(
         "INSERT INTO tracker_events (id, chat_id, message_id, swipe_idx, source, ord, op, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        newId(),
+        id,
         chatId,
         anchor.messageId,
         anchor.swipeIdx,
@@ -236,6 +239,7 @@ export function writeEvents(chatId: string, anchor: { messageId: string | null; 
   });
   invalidate(chatId);
   publish({ type: "trackers.changed", chatId });
+  return ids;
 }
 
 export function deleteEvent(chatId: string, id: string) {
@@ -401,6 +405,22 @@ export function foldAt(chatId: string, opts: { uptoSeq?: number; excludeMessageI
   return result;
 }
 const atCache = new Map<string, { version: string; result: FoldResult }>();
+
+/**
+ * What your edit lines would do, without writing them: the branch is folded with them added as your
+ * events (after a chosen message's own, or at the end), and each line's verdict and change chips come
+ * back in order. Meus checks every proposed change this way before showing it.
+ */
+export function dryRunOps(chatId: string, ops: Op[], at?: { messageId: string; seq: number }) {
+  const events = branchEvents(chatId);
+  const cut = at ? events.findIndex((e) => e.seq > at.seq) : -1;
+  const pos = cut < 0 ? events.length : cut;
+  const seq = at?.seq ?? (events.at(-1)?.seq ?? 0);
+  const fake = ops.map((op, i) => ({ id: `dry:${i}`, messageId: `dry:${i}`, seq, source: "user" as EventSource, op }));
+  const f = new Folder(foldConfigFor(chatId));
+  for (const ev of [...events.slice(0, pos), ...fake, ...events.slice(pos)]) f.apply(ev);
+  return { results: fake.map((e) => ({ verdict: f.verdicts[e.id]!, changes: f.changes[e.messageId] ?? [] })), state: f.state };
+}
 
 /** Called when a message changes (edit, delete, restore, swipe): the cached fold is stale. */
 export function onTrackerLedgerEdit(chatId: string) {

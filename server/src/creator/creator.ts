@@ -1060,7 +1060,7 @@ export async function cowriteCreator(id: string, message: string) {
   // The co-writer can read the wiki before it answers.
   const wikis = await wikisFor(d.research, d.basedOn);
   const ask = async (looked: string) => (await callJson({
-    task: "summarizer",
+    task: "assistant",
     kind: "creator:cowrite",
     name: "creator_cowrite",
     schema: cowriteSchema,
@@ -1132,7 +1132,7 @@ export async function cowriteCreator(id: string, message: string) {
   }
   const proposal = newProposal(message.trim(), r.data.reply.trim() || (changes.length ? "Here's what I'd change." : "Nothing to change for that."), changes);
   return mutateCreator(id, (cur) => {
-    cur.chat = addTurns(cur.chat, { role: "user", text: message }, { role: "mea", text: proposal.reply, ...(sources.length ? { sources } : {}) });
+    cur.chat = addTurns(cur.chat, { role: "user", text: message }, { role: "mea", text: proposal.reply, ...(sources.length ? { sources: sources.map((p) => ({ title: p.title, url: p.url })) } : {}) });
     cur.proposal = changes.length ? proposal : null;
   });
 }

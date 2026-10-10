@@ -21,6 +21,7 @@ import { studio } from "./routes/studio";
 import { creator } from "./routes/creator";
 import { cardtools } from "./routes/cardtools";
 import { steer } from "./routes/steer";
+import { meus } from "./routes/meus";
 import { data } from "./routes/data";
 import { vault } from "./routes/vault";
 import { isLocked } from "./lib/vault";
@@ -92,6 +93,7 @@ export function createApp() {
   app.route("/api", accuracy);
   app.route("/api", stories);
   app.route("/api", steer);
+  app.route("/api", meus);
   app.route("/api", data);
   app.route("/api", vault);
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

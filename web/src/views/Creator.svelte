@@ -34,7 +34,7 @@
   ];
   const at = $derived(draft ? (draft.stage === "done" ? 3 : STEPS.findIndex((s) => s.stage === draft.stage)) : 0);
 
-  // What to try with Mea, for this kind and stage: a persona is the one you play, so it never gets card prompts.
+  // What to try with Meus, for this kind and stage: a persona is the one you play, so it never gets card prompts.
   const examples = $derived.by(() => {
     if (!draft) return [];
     const who = draft.name && !/^New (character|persona)$/.test(draft.name) ? draft.name : "them";

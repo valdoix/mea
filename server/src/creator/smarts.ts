@@ -1,4 +1,4 @@
-import { newId, now } from "../db/db";
+import { newId } from "../db/db";
 import type { Expansion } from "./expand";
 
 /**
@@ -64,73 +64,9 @@ export const SUGGEST_RULE =
 
 export const BASED_ON_RULE = '"basedOn": if the material is fan fiction, an AU, or set in an existing show, book, film or game, name that work and its medium (like "Yellowjackets (TV series, 2021)"); else "".';
 
-export interface ChatTurn {
-  role: "user" | "mea";
-  text: string;
-  at: number;
-  /** Pages the co-writer looked up for this answer. */
-  sources?: { title: string; url: string }[];
-}
-
-export interface ProposedChange {
-  id: string;
-  /** What it touches, in the studio's own terms ("bible", "field", "entry", "overview", "add", "remove", "rewrite"…). */
-  kind: string;
-  /** The section, field or item it applies to. */
-  target: string;
-  /** Shown on the card: "Voice", "Natalie Scatorccio · content". */
-  label: string;
-  before: string;
-  after: string;
-  /** For a background rewrite: what to ask the writer. */
-  steer?: string;
-  /** Anything else the change carries (a new entry's type and pitch, keys). */
-  data?: Record<string, unknown>;
-}
-
-export interface Proposal {
-  id: string;
-  message: string;
-  reply: string;
-  changes: ProposedChange[];
-  at: number;
-}
-
-export function addTurns(chat: ChatTurn[], ...turns: Omit<ChatTurn, "at">[]): ChatTurn[] {
-  return [...chat, ...turns.filter((t) => t.text.trim()).map((t) => ({ ...t, text: t.text.trim().slice(0, 8000), at: now() }))].slice(-40);
-}
-
-/**
- * The co-writer's turn: ask, and if it wants wiki pages first, look them up and ask once more
- * with them. Returns the final reply and the pages it read.
- */
-export async function withLookups<T extends { lookup?: string[] }>(
-  ask: (looked: string) => Promise<T>,
-  find: ((query: string) => Promise<{ title: string; url: string; text: string } | null>) | null,
-): Promise<{ data: T; sources: { title: string; url: string }[] }> {
-  const first = await ask("");
-  const wants = (first.lookup ?? []).map((q) => q.trim()).filter(Boolean).slice(0, 3);
-  if (!wants.length || !find) return { data: first, sources: [] };
-  const pages = (await Promise.all(wants.map((q) => find(q).catch(() => null)))).filter((p): p is NonNullable<typeof p> => Boolean(p));
-  if (!pages.length) return { data: first, sources: [] };
-  const looked = `PAGES YOU LOOKED UP (use them; don't ask to look these up again):\n${pages.map((p) => `### ${p.title}\n${p.text}`).join("\n\n")}`;
-  const second = await ask(looked);
-  return { data: { ...second, lookup: [] }, sources: pages.map((p) => ({ title: p.title, url: p.url })) };
-}
-
-export const chatBlock = (chat: ChatTurn[]) =>
-  chat.length ? `THE CONVERSATION SO FAR:\n${chat.slice(-14).map((t) => `${t.role === "user" ? "AUTHOR" : "YOU"}: ${t.text.slice(0, 2000)}`).join("\n")}` : "";
-
-export const newProposal = (message: string, reply: string, changes: Omit<ProposedChange, "id">[]): Proposal => ({ id: newId(), message, reply, changes: changes.map((c) => ({ ...c, id: newId() })), at: now() });
-
-/** The co-writer's manner, the same in both studios: a companion to think out loud with, who can also make the edits. */
-export const COWRITER = [
-  "You are Mea, the author's co-writer and creative companion inside a writing studio: warm, curious, opinionated, and genuinely invested in their story. Talk like a friend who knows craft and knows the fandom, not like a form.",
-  "Brainstorm freely: riff on their ideas, offer two or three distinct options with what each would do to the story, push back when something is flat or contradicts canon, notice what's exciting, and ask the one question that would unlock the next idea. Use what you know of canon and fanon (popular ships, interpretations, tropes) and say which is which.",
-  "Only propose changes to the draft when they ask for a change, agree to an idea you offered (\"yes\", \"do that\", \"go with the second one\"), or a fix is obviously wanted. While you're still exploring, propose none. When you do: change only what the request needs, and everything it needs (if she gets older, every section and field that states or implies her age changes). Keep every other word as it is.",
-  'Your "reply" is conversational and can run a few short paragraphs when brainstorming (light Markdown is fine: lists, bold); keep it to a couple of sentences when you\'re just applying edits. Never paste whole edited texts into the reply: they go in "changes".',
-  'If you need facts you don\'t have (what happens to a character in canon, a place, an episode), list up to 3 wiki searches in "lookup" and propose nothing yet; you\'ll get the pages back.',
-].join(" ");
+// The conversation, the proposals and the voice are Meus's, shared with the chat (assistant/core.ts).
+export { addTurns, chatBlock, COWRITER, newProposal, withLookups, type ChatTurn, type Proposal, type ProposedChange } from "../assistant/core";
+import type { ProposedChange } from "../assistant/core";
 
 /** The idea and its expansion ("Expand my idea") as the co-writer sees them, every section by heading. */
 export function ideaBlock(idea: string, expansion: Expansion | null) {

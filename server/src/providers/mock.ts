@@ -202,6 +202,32 @@ function helperJson(name: string, user: string): unknown {
       if (/concept/i.test(says)) changes.push({ kind: "section", section: "Central tension", text: `Sharper: ${says}` }, { kind: "section", section: "Weather", text: "The fog has a will." });
       return { reply: changes.length ? `Done: ${says}` : "That all looks consistent.", changes };
     }
+    case "meus_turn": {
+      const says = user.match(/^THE PLAYER SAYS: (.*)$/m)?.[1] ?? "";
+      const looked = /^WHAT YOU LOOKED UP/m.test(user);
+      const changes: Record<string, unknown>[] = [];
+      const lookup: string[] = [];
+      let m = says.match(/merge (.+?) into (.+?)[.!]?$/i);
+      if (m) changes.push({ kind: "merge", from: m[1], into: m[2] });
+      m = says.match(/(?:clock|time) (?:to|is|should be) (.+?)(?: from #(\d+))?[.!]?$/i);
+      if (m) changes.push({ kind: "ledger", lines: [`clock: ${m[1]}`], ...(m[2] ? { at: Number(m[2]) } : {}), why: "Fix the clock" });
+      m = says.match(/codex: (.+?) is (dead|missing|gone)/i);
+      if (m) changes.push({ kind: "codex", id: m[1], status: m[2] });
+      m = says.match(/codex fact: (.+?) — (.+)$/i);
+      if (m) changes.push({ kind: "codex", id: m[1], facts: [m[2]] });
+      m = says.match(/fix message #(\d+): (.+)$/i);
+      if (m) changes.push({ kind: "message", message: Number(m[1]), text: m[2] });
+      m = says.match(/remember (.+)$/i);
+      if (m) changes.push({ kind: "memory_add", text: m[1], pin: true });
+      m = says.match(/cue: (.+)$/i);
+      if (m) changes.push({ kind: "cue", text: m[1] });
+      if (/nonsense change/i.test(says)) changes.push({ kind: "ledger", lines: ["bond Nobody>Noone: trust +1"] }, { kind: "merge", from: "Ghost", into: "Nobody" });
+      m = says.match(/who is (.+?)\?/i);
+      if (m && !looked) lookup.push(`person: ${m[1]}`);
+      const first = user.match(/^\[1\] \([^)]*\) (.*)$/m)?.[1];
+      if (lookup.length) return { reply: "", cites: [], lookup, changes: [] };
+      return { reply: changes.length ? `Done: ${says}` : looked ? `From what I read: ${user.match(/^### (.+)$/m)?.[1] ?? "nothing"}.` : first ? `The story says [1]: ${firstSentence(first)}` : "Let's think about it.", cites: first && !changes.length ? [1] : [], lookup: [], changes };
+    }
     case "creator_critique":
       return { issues: /\[first_mes\]/.test(user) ? [{ field: "first_mes", problem: "The greeting is static.", fix: "Open in motion." }] : [] };
     case "creator_cowrite": {

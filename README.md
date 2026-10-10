@@ -20,6 +20,7 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/10-default-preset.md](docs/10-default-preset.md) | Strengths and weaknesses of 21 community presets (ALMANAC in depth), and the design of Mea's default preset |
 | [docs/11-living-page.md](docs/11-living-page.md) | The living page: speaker colours, in-story artifacts, the scene window, the Almanac, private thoughts, and story calendars (Gregorian, Westeros) |
 | [docs/12-smarter-studios.md](docs/12-smarter-studios.md) | One person per cast entry (merge, edit any record, Story → Data), forgiving dialogue colours, and smarter studios: census and canon research, suggested answers, Mea the co-writer, out-of-date tracking, the editor's pass |
+| [docs/13-meus.md](docs/13-meus.md) | Meus, the one assistant: the studios' co-writer and the story companion in every chat, which answers with sources, brainstorms, and fixes the cast, the clock, the records, the Codex, memory and past messages, with undo |
 
 ## Running Mea
 

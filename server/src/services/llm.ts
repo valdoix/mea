@@ -10,7 +10,7 @@ import { Deferred } from "./jobs";
 import { QuotaExhausted, assertQuota } from "./quota";
 import { finishRequest, startRequest } from "./requests";
 
-export type HelperTask = "summarizer" | "helper" | "tracker" | "world";
+export type HelperTask = "summarizer" | "helper" | "tracker" | "world" | "assistant";
 
 export interface JsonCall<T extends z.ZodType> {
   task: HelperTask;

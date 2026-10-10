@@ -460,10 +460,10 @@ export function resolveProfile(profileId?: string | null, override?: { connectio
   };
 }
 
-export type Task = "story" | "summarizer" | "helper" | "tracker" | "world";
+export type Task = "story" | "summarizer" | "helper" | "tracker" | "world" | "assistant";
 
-/** Unset helper tasks borrow another task's profile: trackers the helper's, the world the summarizer's. */
-const BORROWS: Partial<Record<Task, "summarizer" | "helper">> = { tracker: "helper", world: "summarizer" };
+/** Unset helper tasks borrow another task's profile: trackers the helper's, the world and Meus the summarizer's. */
+const BORROWS: Partial<Record<Task, "summarizer" | "helper">> = { tracker: "helper", world: "summarizer", assistant: "summarizer" };
 
 /**
  * The profiles to try for a task, in order (CONN-03, CONN-05). Helpers fall back to the story

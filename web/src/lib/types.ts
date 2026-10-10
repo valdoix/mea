@@ -486,9 +486,9 @@ export interface Settings {
   "backup.dailyKeep": number;
   "onboarding.done": boolean;
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
-  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null };
-  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[] };
-  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number };
+  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null };
+  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[] };
+  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number; assistant?: number };
   "routing.embeddings": { connectionId: string | null; model: string; dims: number };
   "memory.config": MemoryConfig;
   "quota.degradeAt": number;
@@ -666,6 +666,7 @@ export type MeaEvent =
   | { type: "studio.changed"; draftId: string }
   | { type: "creator.changed"; draftId: string }
   | { type: "inbox.changed" }
+  | { type: "meus.changed"; chatId: string }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   | { type: "reconnected" };
 
@@ -1645,6 +1646,27 @@ export interface Proposal {
   reply: string;
   changes: ProposedChange[];
   at: number;
+}
+
+/** Meus in a chat (docs/13-meus.md). */
+export interface MeusTurn extends ChatTurn {
+  cites?: ArchiveCitation[];
+  reads?: string[];
+  seq?: number;
+  setId?: string;
+}
+export interface MeusSet {
+  id: string;
+  at: number;
+  labels: string[];
+  failed: string[];
+  undone: boolean;
+}
+export interface MeusView {
+  turns: MeusTurn[];
+  proposal: Proposal | null;
+  sets: MeusSet[];
+  header: { seq: number; time: string | null; place: string | null } | null;
 }
 
 export interface CensusEntry {
