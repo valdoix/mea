@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import AtomItem from "../components/memory/AtomItem.svelte";
   import CoverageMap from "../components/memory/CoverageMap.svelte";
   import SummaryCard from "../components/memory/SummaryCard.svelte";
@@ -8,6 +9,7 @@
   import { onEvent } from "../lib/events";
   import { compact, debounce, timeAgo } from "../lib/format";
   import { ArrowLeft, Brain, Merge, Pause, Play, Plus, RefreshCw, Search } from "../lib/icons";
+  import { route } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
   import { ATOM_TYPES, type Atom, type ChatDetail, type JobRow, type MemoryOverview, type RebuildEstimate, type RebuildProgress, type RequestRow, type Summary } from "../lib/types";
 
@@ -31,6 +33,27 @@
   let requests = $state<RequestRow[]>([]);
   let error = $state("");
 
+  // A Status tile in the chat's side panel opens this page with ?show=… to start on just what it counted.
+  type Focus = "" | "review" | "stale" | "error" | "gaps";
+  const FOCUS: Record<Exclude<Focus, "">, string> = { review: "Updates to review", stale: "Stale after edits", error: "Failed summaries", gaps: "Gaps in memory" };
+  let focus = $state<Focus>("");
+  let routed = false;
+  $effect(() => {
+    const f = route.query.show ?? "";
+    if (!(f in FOCUS)) return;
+    untrack(() => {
+      focus = f as Focus;
+      routed = false;
+      tab = "story";
+      attention = focus !== "gaps";
+      staleOnly = focus === "stale";
+    });
+  });
+  function clearFocus() {
+    focus = "";
+    if (route.query.show) history.replaceState(history.state, "", location.pathname);
+  }
+
   async function loadOverview() {
     try {
       const [d, o, s] = await Promise.all([
@@ -41,6 +64,11 @@
       detail = d;
       overview = o;
       summaries = s.summaries;
+      // "Stale after edits" counts memories too: with no stale summary, those are what to open.
+      if (focus === "stale" && !routed) {
+        routed = true;
+        if (!s.summaries.some((x) => x.state === "stale") && o.stats.stale) tab = "memories";
+      }
     } catch (e) {
       error = (e as Error).message;
     }
@@ -96,7 +124,9 @@
   const arcs = $derived(summaries.filter((s) => s.level === "arc").sort((a, b) => a.startSeq - b.startSeq));
   const chapters = $derived(summaries.filter((s) => s.level === "chapter").sort((a, b) => a.startSeq - b.startSeq));
   const scenes = $derived(summaries.filter((s) => s.level === "scene").sort((a, b) => a.startSeq - b.startSeq));
-  const needs = (s: Summary) => s.state === "stale" || s.state === "review" || s.state === "error";
+  const needs = (s: Summary) => (focus && focus !== "gaps" ? s.state === focus : s.state === "stale" || s.state === "review" || s.state === "error");
+  const staleSummaries = $derived(summaries.filter((s) => s.state === "stale").length);
+  const staleMemories = $derived(Math.max(0, (overview?.stats.stale ?? 0) - staleSummaries));
   const scenesOf = (c: Summary) => scenes.filter((s) => s.startSeq >= c.startSeq && (c.endSeq == null || s.startSeq <= c.endSeq));
   const arcOf = (c: Summary) => [...arcs].reverse().find((a) => a.startSeq <= c.startSeq);
   const pickedIds = $derived(Object.entries(selected).filter(([, v]) => v).map(([k]) => k));
@@ -233,9 +263,36 @@
         ]}
       />
       {#if tab === "story"}
-        <label class="switch tiny"><input type="checkbox" bind:checked={attention} /> Only what needs attention</label>
+        <label class="switch tiny"><input type="checkbox" bind:checked={attention} onchange={() => !attention && clearFocus()} /> Only what needs attention</label>
       {/if}
     </div>
+
+    {#if focus}
+      <div class="notice tiny row between wrap focus">
+        <span>
+          Showing <b>{FOCUS[focus].toLowerCase()}</b>.
+          {#if focus === "stale" && tab === "story" && staleMemories}<button class="link" onclick={() => (tab = "memories")}>{staleMemories} stale memor{staleMemories === 1 ? "y" : "ies"} →</button>{/if}
+          {#if focus === "stale" && tab === "memories" && staleSummaries}<button class="link" onclick={() => (tab = "story")}>{staleSummaries} stale summar{staleSummaries === 1 ? "y" : "ies"} →</button>{/if}
+        </span>
+        <button class="btn small ghost" onclick={() => (clearFocus(), (attention = false), staleOnly && ((staleOnly = false), void loadAtoms()))}>Show everything</button>
+      </div>
+    {/if}
+
+    {#if focus === "gaps" && tab === "story"}
+      <section class="panel stack tight">
+        <h3>Gaps in memory</h3>
+        <p class="tiny muted">Stretches of the story the prompt no longer sends word for word and no summary covers yet. Catch up fills them; a failed one can be retried from its scene.</p>
+        {#each overview.gaps as g (g.startSeq)}
+          <div class="row between tiny gaprow">
+            <span><b>#{g.startSeq}–#{g.endSeq}</b> · {g.reason}</span>
+            <a class="btn small ghost" href="/chat/{id}?at={g.startSeq}">Read it</a>
+          </div>
+        {:else}
+          <p class="tiny muted">No gaps right now.</p>
+        {/each}
+        {#if overview.gaps.length}<div class="row end"><button class="btn small" onclick={run}><RefreshCw size={14} /> Catch up</button></div>{/if}
+      </section>
+    {/if}
 
     {#if tab === "story"}
       <div class="stack tight">
@@ -248,13 +305,14 @@
             <div class="chapter">
               {#if !attention || needs(c)}<SummaryCard summary={c} chatId={id} open={i === chapters.length - 1} onchange={loadOverview} />{/if}
               <div class="scenes stack tight">
-                {#each kids.filter((s) => !attention || needs(s)) as s (s.id)}<SummaryCard summary={s} chatId={id} onchange={loadOverview} />{/each}
+                {#each kids.filter((s) => !attention || needs(s)) as s (s.id)}<SummaryCard summary={s} chatId={id} open={!!focus && focus !== "gaps"} onchange={loadOverview} />{/each}
               </div>
             </div>
           {/if}
         {:else}
           <p class="muted small center">Nothing is summarized yet. Scenes are recorded in the background once the story moves past them.</p>
         {/each}
+        {#if attention && chapters.length && !summaries.some(needs)}<p class="muted small center">Nothing here needs attention right now.</p>{/if}
         <div class="row end"><button class="btn small ghost danger" onclick={rebuildAll}><RefreshCw size={14} /> Rebuild everything…</button></div>
       </div>
     {:else if tab === "memories"}
@@ -276,7 +334,7 @@
           </div>
         </div>
         {#each atoms as a (a.id)}
-          <AtomItem atom={a} chatId={id} selectable bind:selected={selected[a.id]} onchange={() => (loadAtoms(), loadOverview())} />
+          <AtomItem atom={a} chatId={id} selectable bind:selected={() => selected[a.id] ?? false, (v) => (selected[a.id] = v)} onchange={() => (loadAtoms(), loadOverview())} />
         {:else}
           <p class="muted small center">No memories match.</p>
         {/each}
@@ -324,6 +382,23 @@
 </div>
 
 <style>
+  .focus {
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-ink);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .gaprow {
+    align-items: center;
+    gap: 0.5rem;
+  }
   .headline {
     margin: 0 0 0.3rem;
     text-align: center;

@@ -9,7 +9,8 @@
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { CoverageRow, MemoryOverview, Summary, SummaryLevel } from "../../lib/types";
 
-  let { chatId }: { chatId: string } = $props();
+  // onjump: scroll the chat to a message (the continuity tile); without it the tile links to the chat.
+  let { chatId, onjump }: { chatId: string; onjump?: (messageId: string) => void } = $props();
 
   let overview = $state<MemoryOverview | null>(null);
   let story = $state<Summary | null>(null);
@@ -31,11 +32,13 @@
 
   // Phase 3: open continuity notes and Chronicle proposals waiting for you.
   let openNotes = $state(0);
+  let noteMessages = $state<string[]>([]);
   let proposals = $state(0);
   async function loadPhase3() {
     try {
-      const [f, c] = await Promise.all([get<{ flags: { open: number }[] }>(`/api/chats/${chatId}/continuity?open=1`), get<{ proposals: unknown[] }>(`/api/chats/${chatId}/chronicle`)]);
+      const [f, c] = await Promise.all([get<{ flags: { open: number; messageId: string }[] }>(`/api/chats/${chatId}/continuity?open=1`), get<{ proposals: unknown[] }>(`/api/chats/${chatId}/chronicle`)]);
       openNotes = f.flags.reduce((n, x) => n + x.open, 0);
+      noteMessages = f.flags.filter((x) => x.open).map((x) => x.messageId);
       proposals = c.proposals.length;
     } catch {
       // optional
@@ -52,6 +55,15 @@
     await post(`/api/chats/${chatId}/memory/run`).catch(errorToast);
     toast("Catching up in the background…");
     setTimeout(() => (catching = false), 1200);
+  }
+
+  // The continuity tile walks the replies that carry an open note, newest first, one per click.
+  let noteAt = 0;
+  function nextNote() {
+    if (!noteMessages.length) return;
+    const m = noteMessages[noteAt++ % noteMessages.length]!;
+    if (onjump) onjump(m);
+    else navigate(`/chat/${chatId}?m=${m}`);
   }
 
   const busy = $derived(overview?.jobs.filter((j) => j.status !== "failed").reduce((n, j) => n + j.n, 0) ?? 0);
@@ -79,15 +91,16 @@
   const memTokens = $derived(overview?.stats.memoryTokens ?? overview?.stats.telescopeTokens ?? overview?.stats.sceneSummaryTokens ?? 0);
   const ratio = $derived(kept && memTokens ? kept / memTokens : 0);
 
-  const lamps = $derived(
+  type Lamp = { n: number; label: string; tone: "amber" | "red" | "blue"; href?: string; onclick?: () => void; title?: string };
+  const lamps = $derived<Lamp[]>(
     overview
       ? [
-          { n: overview.stats.review, label: `update${overview.stats.review === 1 ? "" : "s"} to review`, tone: "amber", href: `/chat/${chatId}/memory` },
-          { n: overview.stats.stale, label: "stale after edits", tone: "amber", href: `/chat/${chatId}/memory` },
-          { n: overview.stats.errors, label: `failed summar${overview.stats.errors === 1 ? "y" : "ies"}`, tone: "red", href: `/chat/${chatId}/memory` },
-          { n: overview.gaps.length, label: overview.gaps.length ? `gap${overview.gaps.length === 1 ? "" : "s"} · ${overview.gaps.map((g) => `#${g.startSeq}–${g.endSeq}`).join(", ")}` : "gaps", tone: "red", href: `/chat/${chatId}/memory`, title: overview.gaps.map((g) => `#${g.startSeq}–#${g.endSeq}: ${g.reason}`).join("\n") },
-          { n: openNotes, label: `continuity note${openNotes === 1 ? "" : "s"}`, tone: "amber", href: null, title: "On recent replies: see under the messages" },
-          { n: proposals, label: "lore for the Chronicle", tone: "blue", href: `/chat/${chatId}/codex?tab=chronicle` },
+          { n: overview.stats.review, label: `update${overview.stats.review === 1 ? "" : "s"} to review`, tone: "amber", href: `/chat/${chatId}/memory?show=review`, title: "Open the summaries waiting for your OK" },
+          { n: overview.stats.stale, label: "stale after edits", tone: "amber", href: `/chat/${chatId}/memory?show=stale`, title: "Open what changed under its summary or memory" },
+          { n: overview.stats.errors, label: `failed summar${overview.stats.errors === 1 ? "y" : "ies"}`, tone: "red", href: `/chat/${chatId}/memory?show=error`, title: "Open the summaries that failed" },
+          { n: overview.gaps.length, label: overview.gaps.length ? `gap${overview.gaps.length === 1 ? "" : "s"} · ${overview.gaps.map((g) => `#${g.startSeq}–${g.endSeq}`).join(", ")}` : "gaps", tone: "red", href: `/chat/${chatId}/memory?show=gaps`, title: overview.gaps.map((g) => `#${g.startSeq}–#${g.endSeq}: ${g.reason}`).join("\n") },
+          { n: openNotes, label: `continuity note${openNotes === 1 ? "" : "s"}`, tone: "amber", onclick: nextNote, title: noteMessages.length > 1 ? "Jump to the next reply with a note" : "Jump to the reply with the note" },
+          { n: proposals, label: "lore for the Chronicle", tone: "blue", href: `/chat/${chatId}/codex?tab=chronicle`, title: "Open the Chronicle proposals" },
         ]
       : [],
   );
@@ -180,8 +193,10 @@
         {#each lamps as l (l.label)}
           {#if l.href && l.n}
             <a class="lamp {l.tone}" href={l.href} title={l.title}><span class="st-led" class:warm={l.tone === "amber"} class:bad={l.tone === "red"} class:on={l.tone === "blue"}></span><b>{l.n}</b>{l.label}</a>
+          {:else if l.onclick && l.n}
+            <button type="button" class="lamp {l.tone}" onclick={l.onclick} title={l.title}><span class="st-led" class:warm={l.tone === "amber"} class:bad={l.tone === "red"} class:on={l.tone === "blue"}></span><b>{l.n}</b>{l.label}</button>
           {:else}
-            <div class="lamp" class:amber={l.n && l.tone === "amber"} class:red={l.n && l.tone === "red"} class:blue={l.n && l.tone === "blue"} title={l.title}><span class="st-led" class:warm={l.n && l.tone === "amber"}></span><b>{l.n}</b>{l.label}</div>
+            <div class="lamp" class:amber={l.n && l.tone === "amber"} class:red={l.n && l.tone === "red"} class:blue={l.n && l.tone === "blue"} title={l.n ? l.title : undefined}><span class="st-led" class:warm={l.n && l.tone === "amber"}></span><b>{l.n}</b>{l.label}</div>
           {/if}
         {/each}
       </div>
@@ -518,6 +533,9 @@
     line-height: 1.2;
     text-decoration: none;
     overflow-wrap: anywhere;
+    border: 0;
+    font-family: inherit;
+    text-align: start;
   }
   .lamp b {
     font: 400 calc(15px * var(--st-lcd-k)) / 1 var(--st-lcd);
@@ -556,8 +574,18 @@
   .lamp.blue b {
     color: var(--accent-ink);
   }
-  a.lamp:hover {
+  a.lamp,
+  button.lamp {
+    cursor: pointer;
+  }
+  a.lamp:hover,
+  button.lamp:hover {
     filter: brightness(1.06);
+  }
+  a.lamp:focus-visible,
+  button.lamp:focus-visible {
+    outline: 1.5px solid var(--text);
+    outline-offset: 1px;
   }
 
   /* story so far: liner notes */
