@@ -1,5 +1,8 @@
 import { all, parseJson } from "../db/db";
 import { inboxCount } from "../accuracy/inbox";
+import { getSetting } from "../lib/settings";
+import { scanEntriesFor } from "../lore/service";
+import { listJournals } from "../memory/journals";
 import { chatNames } from "../memory/build";
 import { duplicateSuggestions, listEntities } from "../memory/entities";
 import { promises, secrets } from "../memory/ledgers";
@@ -63,6 +66,15 @@ export function whoIsWho(chatId: string, st: WorldState | null) {
   return L.join("\n");
 }
 
+/** The guidance chips, so "slow down" can switch on the right one. */
+function guidanceLine(settings: ChatSettings) {
+  const chips = getSetting("chat.guidance");
+  if (!chips.length) return "";
+  const on = new Set(settings.guidance?.active ?? []);
+  const once = new Set(settings.guidance?.once ?? []);
+  return `Guidance chips (name: what it asks${on.size || once.size ? "; ON = switched on" : ""}): ${chips.map((g) => `${g.name}${on.has(g.id) ? " (ON)" : once.has(g.id) ? " (next reply)" : ""}: ${clip(g.text, 80)}`).join(" | ")}`;
+}
+
 export function buildBrief(chatId: string): { text: string; header: BriefHeader } {
   const chat = mustChat(chatId);
   const settings = parseJson<ChatSettings>(chat.settings, {});
@@ -85,6 +97,8 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     settings.cue ? `Cue for the next reply: ${settings.cue}` : "",
     settings.length ? `Reply length: ${settings.length}` : "",
     settings.pacing ? `Pacing: ${settings.pacing}` : "",
+    settings.authorsNote?.content ? `Author's note: ${clip(settings.authorsNote.content, 400)}` : "",
+    guidanceLine(settings),
   ].filter(Boolean);
   if (steer.length) blocks.push(`HOW THE STORY IS STEERED:\n${steer.join("\n")}`);
 
@@ -125,6 +139,15 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
   toc.push(`memory ledgers: ${promises(chatId).length} promises, ${secrets(chatId).length} secrets`);
   const inbox = inboxCount(chatId);
   if (inbox) toc.push(`continuity inbox ${inbox} waiting`);
+  if (st) {
+    const arcs = Object.values(st.sim.arcs);
+    const live = arcs.filter((a) => a.status === "running" || a.status === "held" || a.status === "fate");
+    if (arcs.length || Object.keys(st.sim.proposals).length) toc.push(`world off the page: ${live.length} subplots${arcs.some((a) => a.fate) ? " (a fate is waiting)" : ""}, ${Object.keys(st.sim.proposals).length} proposals`);
+  }
+  const lore = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId });
+  if (lore.length) toc.push(`lore: ${new Set(lore.map((e) => e.bookId)).size} books, ${lore.length} entries`);
+  const journals = listJournals(chatId);
+  if (journals.length) toc.push(`journals: ${journals.map((j) => j.name).join(", ")}`);
   blocks.push(`WHAT ELSE YOU CAN LOOK UP: ${toc.join(" · ")}`);
 
   const seq = recent.at(-1)?.seq ?? 0;

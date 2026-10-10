@@ -5,7 +5,9 @@ import { badRequest, notFound } from "../lib/http";
 import { type ArchiveCitation, gatherSources } from "../accuracy/archivist";
 import { addTurns, ASSISTANT_NAME, CHANGE_DISCIPLINE, type ChatTurn, chatBlock, type Proposal, newProposal, withLookups } from "../assistant/core";
 import { GRAMMAR } from "../trackers/prompts";
-import { mustChat } from "../services/chats";
+import { type ChatSettings, mustChat } from "../services/chats";
+import { getDefaultPersona, getPersona } from "../services/personas";
+import { getCharacterRow } from "../services/characters";
 import { callJson } from "../services/llm";
 import { buildBrief, type BriefHeader } from "./brief";
 import { applyChange, CHANGE_KINDS, checkChanges, type UndoStep, undoStep } from "./changes";
@@ -27,6 +29,8 @@ export interface MeusTurn extends ChatTurn {
   seq?: number;
   /** A change set this turn applied or undid. */
   setId?: string;
+  /** A change to the character card or persona card itself, handed to Meus in the Studio. */
+  handoff?: { card: "character" | "persona"; id: string; name: string; request: string };
 }
 
 export interface MeusSet {
@@ -80,6 +84,7 @@ export function meusView(chatId: string) {
     proposal: s.proposal,
     sets: s.sets.slice(-10).reverse().map(({ undo: _u, ...rest }) => rest),
     header,
+    autoApply: Boolean(parseJson<ChatSettings>(mustChat(chatId).settings, {}).meus?.autoApply),
   };
 }
 
@@ -97,7 +102,7 @@ const SYSTEM = [
   "Read WHO IS WHO first and keep it straight: the player's persona is the player's own character, never the character card, and never someone the AI plays. Merging, editing or describing people, always say whose side they're on.",
   CHANGE_DISCIPLINE,
   "Every change you propose is shown to the player as a card they tick and apply, with Undo; they see exactly what will change. Use the ids in [brackets] and the exact names from the cast. When a fact changes, change it everywhere it's kept (the records, the Codex page, memory) in one proposal.",
-  "You can't change the character card or the persona card from here (only this chat): for a change to a card itself, say so and suggest Meus in the Studio. Facts about people in THIS story go in the story's records.",
+  'You can\'t change the character card or the persona card from here (only this chat). For a change to a card itself, say so and add {"kind": "studio", "card": "character|persona", "request": "what to change, in the player\'s words"} to "changes": the player gets an "Open in the Studio" button with the request typed into Meus there. Facts about people in THIS story go in the story\'s records.',
   `Changes you can propose: ${CHANGE_KINDS}`,
   `THE LEDGER GRAMMAR (for "ledger" lines):\n${GRAMMAR}`,
   `If you need to read more before answering, list up to 3 lookups in "lookup" and propose nothing yet; you'll get them back. Lookups: ${LOOKUPS}`,
@@ -133,20 +138,47 @@ export async function meusTurn(chatId: string, message: string) {
       })
     ).data;
   const { data, sources: read } = await withLookups(ask, (q) => lookup(chatId, q), { rounds: 3, heading: "WHAT YOU LOOKED UP (use it; don't look these up again)" });
-  const { changes, dropped } = checkChanges(chatId, data.changes);
+  const handoff = studioHandoff(chatId, data.changes);
+  const { changes, dropped } = checkChanges(chatId, data.changes.filter((c) => String(c.kind ?? "").toLowerCase() !== "studio"));
   const cited = new Set([...data.cites, ...[...data.reply.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]))]);
   const cites = sources.filter((x) => cited.has(x.n)).map(({ key: _k, ...x }) => x);
   let reply = data.reply.trim() || (changes.length ? "Here's what I'd change." : "I'm not sure what to say to that yet.");
   if (dropped.length) reply += `\n\n_Left out: ${dropped.slice(0, 6).join("; ")}._`;
   const proposal = changes.length ? newProposal(text, reply, changes) : null;
-  s.turns = addTurns<MeusTurn>(s.turns, { role: "user", text, seq: brief.header.seq }, { role: "mea", text: reply, seq: brief.header.seq, ...(cites.length ? { cites } : {}), ...(read.length ? { reads: read.map((p) => p.title) } : {}) });
+  s.turns = addTurns<MeusTurn>(
+    s.turns,
+    { role: "user", text, seq: brief.header.seq },
+    { role: "mea", text: reply, seq: brief.header.seq, ...(cites.length ? { cites } : {}), ...(read.length ? { reads: read.map((p) => p.title) } : {}), ...(handoff ? { handoff } : {}) },
+  );
   s.proposal = proposal;
   save(chatId, s);
+  // "Let Meus apply small fixes right away": record and time fixes skip the card (Undo still works).
+  if (proposal && autoApplies(chatId, proposal)) return { ...applyMeus(chatId, proposal.changes.map((c) => c.id), true), auto: true };
   return meusView(chatId);
 }
 
+/** Small fixes: story records and the clock, with nothing on the card to look at twice. */
+function autoApplies(chatId: string, p: Proposal) {
+  const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
+  return Boolean(s.meus?.autoApply) && p.changes.every((c) => c.kind === "ledger" && !c.data?.note && !c.data?.risky);
+}
+
+/** A change to a card itself goes to Meus in the Studio, with the request already typed. */
+function studioHandoff(chatId: string, raw: Record<string, unknown>[]): MeusTurn["handoff"] | undefined {
+  const c = raw.find((x) => String(x.kind ?? "").toLowerCase() === "studio");
+  const request = typeof c?.request === "string" ? c.request.trim() : "";
+  if (!c || !request) return undefined;
+  const chat = mustChat(chatId);
+  if (c.card === "persona") {
+    const p = getPersona(chat.persona_id) ?? getDefaultPersona();
+    return p ? { card: "persona", id: p.id, name: p.name, request: request.slice(0, 2000) } : undefined;
+  }
+  const ch = chat.character_id ? getCharacterRow(chat.character_id) : undefined;
+  return ch ? { card: "character", id: ch.id, name: ch.name, request: request.slice(0, 2000) } : undefined;
+}
+
 /** Applies the ticked changes, in order; one set, one Undo. */
-export function applyMeus(chatId: string, accept: string[]) {
+export function applyMeus(chatId: string, accept: string[], auto = false) {
   const s = load(chatId);
   const p = s.proposal;
   if (!p) throw badRequest("There's nothing to apply");
@@ -162,7 +194,7 @@ export function applyMeus(chatId: string, accept: string[]) {
   }
   s.proposal = null;
   if (set.labels.length) s.sets.push(set);
-  const note = `Applied ${set.labels.length} of ${p.changes.length} change${p.changes.length === 1 ? "" : "s"}.${set.failed.length ? ` Couldn't apply: ${set.failed.join("; ")}.` : ""}`;
+  const note = `${auto ? "Applied right away (small fixes are on): " : "Applied "}${auto ? set.labels.join("; ") : `${set.labels.length} of ${p.changes.length} change${p.changes.length === 1 ? "" : "s"}`}.${set.failed.length ? ` Couldn't apply: ${set.failed.join("; ")}.` : ""}`;
   s.turns = addTurns<MeusTurn>(s.turns, { role: "mea", text: note, ...(set.labels.length ? { setId: set.id } : {}) });
   save(chatId, s);
   return { ...meusView(chatId), applied: set.labels.length, setId: set.labels.length ? set.id : null };

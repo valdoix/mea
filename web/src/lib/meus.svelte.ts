@@ -15,3 +15,13 @@ export function sendToMeus(text: string) {
   meus.queued = text;
   meus.want++;
 }
+
+/** Where a shortcut from another page wants Meus opened (the chat opens its tab on arrival). */
+export const meusFor = $state({ chatId: "" });
+
+/** From outside the chat (the inbox, Cast, the Codex, the command palette): go there and open Meus. */
+export function openMeusIn(chatId: string, text = "", send = false) {
+  if (send && text) meus.queued = text;
+  else if (text && !meus.draft.trim()) meus.draft = text;
+  meusFor.chatId = chatId;
+}

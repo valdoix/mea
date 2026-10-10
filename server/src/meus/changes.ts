@@ -1,11 +1,21 @@
-import { newId, now, one, parseJson, run } from "../db/db";
+import { all, newId, now, one, parseJson, run } from "../db/db";
 import { badRequest } from "../lib/http";
 import { publish } from "../lib/events";
-import { createAtom, deleteAtom, getAtom, restoreAtom, updateAtom } from "../memory/atoms";
+import { inboxItems, actOnInbox } from "../accuracy/inbox";
+import { createAtom, deleteAtom, getAtom, mergeAtoms, restoreAtom, splitAtom, updateAtom } from "../memory/atoms";
+import { editJournal, listJournals } from "../memory/journals";
+import { editSummary } from "../memory/build";
+import { endSceneAfter, newChapterAt } from "../memory/scheduler";
+import { getSummary } from "../memory/store";
+import { getSetting } from "../lib/settings";
+import { createEntry, deleteEntry, scanEntriesFor, updateEntry } from "../lore/service";
+import type { LoreEntry } from "../lore/types";
+import { createNote, deleteNote } from "../services/notebook";
+import { arcAction, authorArc, decideFate, decideProposal, setActor } from "../sim/service";
 import { createEntity, deleteEntity, ENTITY_KINDS, type EntityKind, type EntityRow, type EntityStatus, getEntityRow, mergeEntities, resolver, restoreEntity, unmergeEntity, updateEntity } from "../memory/entities";
 import { correctMemory } from "../memory/remember";
 import type { ProposedChange } from "../assistant/core";
-import { type ChatSettings, editMessage, mustChat, softDeleteMessage, updateChat } from "../services/chats";
+import { type ChatSettings, editMessage, getMessageRow, mustChat, setMessageFlags, softDeleteMessage, updateChat } from "../services/chats";
 import { userEditAt, timeskip } from "../trackers/service";
 import { castKey, castProfiles, currentFold, deleteEvent, dryRunOps, linesToOps, moveCastProfile, saveCastProfile } from "../trackers/store";
 import { parseDuration } from "../trackers/clock";
@@ -23,8 +33,20 @@ export const CHANGE_KINDS = [
   '{"kind": "codex_add", "name": "…", "entityKind": "…", "aliases": [], "description": "…"}; {"kind": "codex_merge", "keep": "<page>", "merge": ["<page>", …]}; {"kind": "codex_unmerge", "id": "<page>"}; {"kind": "codex_delete", "id": "<page>"};',
   '{"kind": "memory_fix", "wrong": "what memory gets wrong", "right": "what is true", "ids": ["memory ids, if you know them"]} corrects memories; {"kind": "memory_add", "text": "…", "pin": false}; {"kind": "memory_pin", "id": "…", "pin": true}; {"kind": "memory_forget", "id": "…"};',
   '{"kind": "message", "message": <number>, "text": "the whole corrected message"} fixes a past message (keep every other word as it is);',
-  '{"kind": "cue", "text": "…"} a one-time instruction for the next reply; {"kind": "ooc", "text": "…"} a standing out-of-character note; {"kind": "truth", "text": "…"} a story truth sent every turn; {"kind": "timeskip", "duration": "3 days", "note": "…"}.',
+  '{"kind": "memory_merge", "ids": ["…", "…"], "text": "the merged memory"}; {"kind": "memory_split", "id": "…", "parts": ["first", "second"]};',
+  '{"kind": "summary", "id": "<summary id>", "text": "the whole corrected summary"} fixes a scene or chapter summary; {"kind": "journal", "name": "<whose journal>", "text": "the whole corrected journal"};',
+  '{"kind": "message", "message": <number>, "text": "the whole corrected message"} fixes a past message (keep every other word as it is); {"kind": "hide", "message": <number>, "hidden": true} hides a message from the story (the player still sees it); {"kind": "scene_end", "message": <number>} ends the scene after that message; {"kind": "chapter", "message": <number>} starts a new chapter at it;',
+  '{"kind": "cue", "text": "…"} a one-time instruction for the next reply; {"kind": "ooc", "text": "…"} a standing out-of-character note; {"kind": "truth", "text": "…"} a story truth sent every turn; {"kind": "timeskip", "duration": "3 days", "note": "…"};',
+  '{"kind": "steer", "length": "short|normal|long", "pacing": "slow|normal|fast", "guidance": ["chip names to switch on"], "guidance_off": ["chip names"], "guidance_once": ["chip names, for the next reply only"], "authors_note": "…", "story": {"genre", "tone", "pov", "tense", "style", "intensity", "language"}} (only what changes);',
+  '{"kind": "split", "from": "<cast name>", "name": "<the other person>", "aliases": ["names that belong to the other person"], "lines": ["ledger lines about the other person, after they exist"]} when one cast entry is really two people;',
+  '{"kind": "world", "arc": "<subplot id>", "action": "hold|resume|nudge|bring_in|drop|edit", "premise": "…", "want": "…", "fear": "…"}; {"kind": "world_arc", "lead": "<name>", "premise": "…"} a new subplot off the page; {"kind": "world_proposal", "id": "…", "accept": true}; {"kind": "world_fate", "arc": "<id>", "choice": "accept|soften|page"}; {"kind": "world_person", "name": "…", "where": "Town › Place", "standing": "…", "flag": "out|hold|wake|none"};',
+  '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"};',
+  '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
+  '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox.',
 ].join(" ");
+
+/** Kinds the story can't redo by itself, or that Undo can't take back: never pre-ticked. */
+const NO_UNDO = "Undo can't take this one back.";
 
 export type UndoStep =
   | { t: "events"; ids: string[] }
@@ -40,7 +62,14 @@ export type UndoStep =
   | { t: "atomPin"; id: string; pinned: boolean }
   | { t: "message"; id: string; content: string }
   | { t: "settings"; patch: Partial<ChatSettings> }
-  | { t: "messageDelete"; id: string };
+  | { t: "messageDelete"; id: string }
+  | { t: "row"; table: "summaries" | "journals" | "memories"; id: string; cols: Record<string, string | number | null> }
+  | { t: "atomUnmerge"; keep: string; others: string[]; sources: string[] }
+  | { t: "hidden"; id: string; hidden: boolean }
+  | { t: "lore"; id: string; entry: LoreEntry }
+  | { t: "loreDrop"; id: string }
+  | { t: "noteDrop"; id: string }
+  | { t: "undismiss"; key: string };
 
 type Raw = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
@@ -228,9 +257,259 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
         continue;
       }
       out.push({ kind, target: "", label: `Time skip · ${duration}`, before: "", after: str(c.note) || `${duration} later.`, data: { duration, note: str(c.note), why } });
+    } else if (kind === "memory_merge") {
+      const ids = (strs(c.ids) ?? []).filter((id) => {
+        const a = getAtom(id);
+        return a && a.chat_id === chatId && !a.deleted_at && a.status !== "superseded";
+      });
+      if (ids.length < 2) {
+        dropped.push("a memory merge needs two memories that exist");
+        continue;
+      }
+      const rows = ids.map((id) => getAtom(id)!);
+      out.push({ kind, target: ids[0]!, label: `Memory · merge ${ids.length}`, before: rows.map((r) => r.content).join("\n"), after: str(c.text) || rows.map((r) => r.content).join(" "), data: { ids, why } });
+    } else if (kind === "memory_split") {
+      const a = getAtom(str(c.id));
+      const parts = strs(c.parts) ?? [];
+      if (!a || a.chat_id !== chatId || a.deleted_at) {
+        dropped.push(`there's no memory ${str(c.id)}`);
+        continue;
+      }
+      if (parts.length !== 2) continue;
+      out.push({ kind, target: a.id, label: "Memory · split in two", before: a.content, after: parts.join("\n"), data: { parts, why } });
+    } else if (kind === "summary") {
+      const r = getSummary(str(c.id));
+      const text = str(c.text);
+      if (!r || r.chat_id !== chatId) {
+        dropped.push(`there's no summary ${str(c.id)}`);
+        continue;
+      }
+      if (!text || text === r.content.trim()) continue;
+      out.push({ kind, target: r.id, label: `Summary · ${r.title || r.level}`, before: r.content, after: text, data: { why } });
+    } else if (kind === "journal") {
+      const want = castKey(str(c.name) || str(c.id));
+      const j = listJournals(chatId).find((x) => x.id === str(c.id) || castKey(x.name) === want);
+      const text = str(c.text);
+      if (!j) {
+        dropped.push(`there's no journal for ${str(c.name) || str(c.id)}`);
+        continue;
+      }
+      if (!text || text === j.content.trim()) continue;
+      out.push({ kind, target: j.id, label: `Journal · ${j.name}`, before: j.content, after: text, data: { why } });
+    } else if (kind === "hide" || kind === "scene_end" || kind === "chapter") {
+      const m = messageBySeq(chatId, c.message);
+      if (!m) {
+        dropped.push(`there's no message #${str(c.message)}`);
+        continue;
+      }
+      if (kind === "hide") {
+        const hidden = c.hidden !== false;
+        if (Boolean(getMessageRow(m.id)?.hidden) === hidden) continue;
+        out.push({ kind, target: m.id, label: `${hidden ? "Hide" : "Show"} #${m.seq} ${hidden ? "from" : "to"} the story`, before: "", after: clipText(m.content, 160), data: { hidden, seq: m.seq, why } });
+      } else
+        out.push({ kind, target: m.id, label: kind === "scene_end" ? `End the scene after #${m.seq}` : `New chapter at #${m.seq}`, before: "", after: clipText(m.content, 160), data: { seq: m.seq, risky: true, note: NO_UNDO, noUndo: true, why } });
+    } else if (kind === "steer") {
+      const patch: Partial<ChatSettings> = {};
+      const prev: Record<string, unknown> = {};
+      const shown: string[] = [];
+      const len = str(c.length).toLowerCase();
+      if (["short", "normal", "long"].includes(len) && len !== (settings.length ?? "normal")) {
+        patch.length = len as "short";
+        shown.push(`Reply length: ${settings.length ?? "normal"} → ${len}`);
+      }
+      const pace = str(c.pacing).toLowerCase();
+      if (["slow", "normal", "fast"].includes(pace) && pace !== (settings.pacing ?? "normal")) {
+        patch.pacing = pace as "slow";
+        shown.push(`Pacing: ${settings.pacing ?? "normal"} → ${pace}`);
+      }
+      const chips = getSetting("chat.guidance");
+      const chip = (n: string) => chips.find((g) => g.id === n || g.name.toLowerCase() === n.toLowerCase());
+      const on = (strs(c.guidance) ?? []).map(chip).filter((g): g is NonNullable<typeof g> => Boolean(g));
+      const off = (strs(c.guidance_off) ?? []).map(chip).filter((g): g is NonNullable<typeof g> => Boolean(g));
+      const once = (strs(c.guidance_once) ?? []).map(chip).filter((g): g is NonNullable<typeof g> => Boolean(g));
+      for (const n of [...(strs(c.guidance) ?? []), ...(strs(c.guidance_off) ?? []), ...(strs(c.guidance_once) ?? [])]) if (!chip(n)) dropped.push(`there's no guidance chip "${n}"`);
+      if (on.length || off.length || once.length) {
+        const active = new Set(settings.guidance?.active ?? []);
+        for (const g of on) active.add(g.id);
+        for (const g of off) active.delete(g.id);
+        patch.guidance = { active: [...active], once: [...new Set([...(settings.guidance?.once ?? []), ...once.map((g) => g.id)])] };
+        if (on.length) shown.push(`Guidance on: ${on.map((g) => g.name).join(", ")}`);
+        if (off.length) shown.push(`Guidance off: ${off.map((g) => g.name).join(", ")}`);
+        if (once.length) shown.push(`Guidance for the next reply: ${once.map((g) => g.name).join(", ")}`);
+      }
+      if (typeof c.authors_note === "string" && c.authors_note.trim() !== (settings.authorsNote?.content ?? "").trim()) {
+        patch.authorsNote = { content: c.authors_note.trim(), depth: settings.authorsNote?.depth ?? 4, role: settings.authorsNote?.role ?? "system" };
+        shown.push(`Author's note: ${c.authors_note.trim() || "(cleared)"}`);
+      }
+      if (c.story && typeof c.story === "object") {
+        const allowed = { genre: 60, tone: 60, pov: 40, tense: 20, style: 200, intensity: 40, language: 30 } as const;
+        const next = { ...(settings.story ?? {}) } as Record<string, string>;
+        for (const [k, v] of Object.entries(c.story as Raw)) {
+          const max = allowed[k as keyof typeof allowed];
+          const val = str(v).slice(0, max);
+          if (max && val !== (next[k] ?? "")) {
+            shown.push(`Story ${k}: ${next[k] || "(none)"} → ${val || "(none)"}`);
+            next[k] = val;
+          }
+        }
+        if (JSON.stringify(next) !== JSON.stringify(settings.story ?? {})) patch.story = next;
+      }
+      if (!shown.length) continue;
+      for (const k of Object.keys(patch)) prev[k] = (settings as Record<string, unknown>)[k] ?? (k === "story" || k === "guidance" ? {} : null);
+      out.push({ kind, target: "", label: "How the story is steered", before: "", after: shown.join("\n"), data: { patch, prev, why } });
+    } else if (kind === "split") {
+      const from = castChar(chatId, str(c.from));
+      const name = str(c.name);
+      if (!from) {
+        dropped.push(`there's no ${str(c.from)} in the cast`);
+        continue;
+      }
+      if (!name || castKey(name) === castKey(from.name)) continue;
+      const other = castChar(chatId, name);
+      if (other && other.id !== from.id) {
+        dropped.push(`${name} is already in the cast on their own`);
+        continue;
+      }
+      const moving = new Set([castKey(name), ...(strs(c.aliases) ?? []).map(castKey)]);
+      const keep = from.aliases.filter((a) => !moving.has(castKey(a)));
+      const movedAliases = from.aliases.filter((a) => moving.has(castKey(a)) && castKey(a) !== castKey(name));
+      // First the two entries; then the other person's own names and lines, by their new id.
+      const base = [`edit ${JSON.stringify(["chars", from.id, "aliases"])} = ${JSON.stringify(keep)}`, `cast: ${name}@${from.tier === "spot" || from.tier === "peri" ? from.tier : "left"}`];
+      const first = dryRunOps(chatId, linesToOps(base).ops).state;
+      const born = Object.values(first.chars).find((x) => castKey(x.name) === castKey(name));
+      const lines = [...base, ...(born && movedAliases.length ? [`edit ${JSON.stringify(["chars", born.id, "aliases"])} = ${JSON.stringify(movedAliases)}`] : []), ...(strs(c.lines) ?? []).slice(0, 20)];
+      const { ops, bad } = linesToOps(lines);
+      for (const b of bad) dropped.push(`couldn't read "${b}"`);
+      const { results } = dryRunOps(chatId, ops);
+      const good = ops.filter((_, i) => results[i]!.verdict.ok);
+      results.forEach((r, i) => !r.verdict.ok && dropped.push(`"${ops[i]!.raw}": ${r.verdict.reason ?? "it wouldn't apply"}`));
+      if (!results[0]?.verdict.ok || !results[1]?.verdict.ok) {
+        dropped.push(`couldn't split ${name} from ${from.name}`);
+        continue;
+      }
+      const page = one<EntityRow>("SELECT * FROM entities WHERE chat_id = ? AND merged_into IS NOT NULL AND deleted_at IS NULL AND lower(name) = lower(?)", chatId, name);
+      out.push({
+        kind,
+        target: from.id,
+        label: `Split ${name} from ${from.name}`,
+        before: [from.name, ...from.aliases].join(", "),
+        after: `${[from.name, ...keep].join(", ")}\n${[name, ...movedAliases].join(", ")}`,
+        data: { lines: good.map((o) => o.raw), unmerge: page?.id ?? null, why, note: "Past messages stay with the first person in the story's history; from here on they are two people." },
+      });
+    } else if (kind === "world" || kind === "world_arc" || kind === "world_proposal" || kind === "world_fate" || kind === "world_person") {
+      const st = currentFold(chatId).result.state;
+      if (kind === "world") {
+        const arc = st.sim.arcs[str(c.arc) || str(c.id)];
+        const action = str(c.action).toLowerCase().replace("bring_in", "bringIn").replace("bringin", "bringIn");
+        if (!arc) {
+          dropped.push(`there's no subplot ${str(c.arc) || str(c.id)}`);
+          continue;
+        }
+        if (!["hold", "resume", "nudge", "bringIn", "drop", "edit"].includes(action)) continue;
+        const patch = { ...(str(c.premise) ? { premise: str(c.premise) } : {}), ...(str(c.want) ? { want: str(c.want) } : {}), ...(str(c.fear) ? { fear: str(c.fear) } : {}) };
+        if (action === "edit" && !Object.keys(patch).length) continue;
+        const verb = { hold: "Hold", resume: "Resume", nudge: "Nudge", bringIn: "Bring onto the page", drop: "Drop", edit: "Rewrite" }[action];
+        out.push({ kind, target: arc.id, label: `World · ${verb}: ${arc.leadName}'s subplot`, before: action === "edit" ? arc.premise : "", after: action === "edit" ? (patch.premise ?? arc.premise) : arc.premise, data: { action, patch, why } });
+      } else if (kind === "world_arc") {
+        const lead = str(c.lead);
+        const premise = str(c.premise);
+        if (!lead || !premise) continue;
+        if (!st.time) {
+          dropped.push("the world off the page starts once the story clock is set");
+          continue;
+        }
+        out.push({ kind, target: lead, label: `World · a subplot for ${lead}`, before: "", after: premise, data: { lead, premise, why } });
+      } else if (kind === "world_proposal") {
+        const p = st.sim.proposals[str(c.id)];
+        if (!p) {
+          dropped.push(`there's no world proposal ${str(c.id)}`);
+          continue;
+        }
+        const accept = c.accept !== false;
+        out.push({ kind, target: p.id, label: `World · ${accept ? "start" : "turn down"} ${p.leadName}'s subplot`, before: "", after: p.premise, data: { accept, why } });
+      } else if (kind === "world_fate") {
+        const arc = st.sim.arcs[str(c.arc) || str(c.id)];
+        const choice = str(c.choice).toLowerCase();
+        if (!arc?.fate) {
+          dropped.push(`nothing is waiting on subplot ${str(c.arc) || str(c.id)}`);
+          continue;
+        }
+        if (!["accept", "soften", "page"].includes(choice)) continue;
+        out.push({ kind, target: arc.id, label: `World · ${choice === "accept" ? "let it happen" : choice === "soften" ? "soften it" : "keep it for the page"}: ${arc.leadName}`, before: "", after: arc.fate.text, data: { choice, ...(choice === "accept" ? { risky: true } : {}), why } });
+      } else {
+        const name = str(c.name);
+        if (!name) continue;
+        const flag = str(c.flag).toLowerCase();
+        const patch = { ...(str(c.where) ? { where: str(c.where) } : {}), ...(str(c.standing) ? { standing: str(c.standing) } : {}), ...(["out", "hold", "wake"].includes(flag) ? { flag } : flag === "none" ? { flag: null } : {}) };
+        if (!Object.keys(patch).length) continue;
+        out.push({ kind, target: name, label: `World · ${name} off the page`, before: "", after: Object.entries(patch).map(([k, v]) => `${k}: ${v ?? "none"}`).join("\n"), data: { name, patch, why } });
+      }
+    } else if (kind === "lore" || kind === "lore_add") {
+      const chat = mustChat(chatId);
+      const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId });
+      if (kind === "lore") {
+        const e = entries.find((x) => x.id === str(c.id));
+        if (!e) {
+          dropped.push(`there's no lore entry ${str(c.id)} in this chat's lorebooks`);
+          continue;
+        }
+        const next = { ...e, ...(str(c.comment) ? { comment: str(c.comment) } : {}), ...(strs(c.keys)?.length ? { keys: strs(c.keys)! } : {}), ...(typeof c.content === "string" ? { content: c.content.trim() } : {}) };
+        const text = (x: { comment: string; keys: string[]; content: string }) => `${x.comment}\nkeys: ${x.keys.join(", ")}\n${x.content}`;
+        if (text(next) === text(e)) continue;
+        out.push({ kind, target: e.id, label: `Lore · ${e.bookName}: ${e.comment || e.keys[0] || "entry"}`, before: text(e), after: text(next), data: { comment: next.comment, keys: next.keys, content: next.content, why } });
+      } else {
+        const books = new Map(entries.map((x) => [x.bookId, x.bookName]));
+        const chatBooks = all<{ id: string; name: string }>("SELECT b.id, b.name FROM lorebooks b JOIN lorebook_links l ON l.lorebook_id = b.id WHERE b.deleted_at IS NULL AND ((l.target_type = 'chat' AND l.target_id = ?) OR (l.target_type = 'character' AND l.target_id = ?) OR (l.target_type = 'persona' AND l.target_id = ?))", chatId, chat.character_id ?? "", chat.persona_id ?? "");
+        for (const b of chatBooks) books.set(b.id, b.name);
+        const ref = str(c.book);
+        const book = [...books].find(([id, name]) => id === ref || name.toLowerCase() === ref.toLowerCase()) ?? (books.size === 1 ? [...books][0] : undefined);
+        const content = str(c.content);
+        if (!book) {
+          dropped.push(ref ? `this chat doesn't use a lorebook called ${ref}` : "say which lorebook the entry goes in");
+          continue;
+        }
+        if (!content) continue;
+        const keys = strs(c.keys) ?? [];
+        out.push({ kind, target: book[0], label: `Lore · new entry in ${book[1]}: ${str(c.comment) || keys[0] || "entry"}`, before: "", after: `${str(c.comment)}\nkeys: ${keys.join(", ")}\n${content}`, data: { comment: str(c.comment), keys, content, why } });
+      }
+    } else if (kind === "note") {
+      const body = str(c.body);
+      if (!body) continue;
+      out.push({ kind, target: "", label: `Note · ${str(c.title) || "from Meus"}`, before: "", after: body, data: { title: str(c.title).slice(0, 200), why } });
+    } else if (kind === "inbox") {
+      const item = inboxItems({ chatId }).find((x) => x.key === str(c.key));
+      const action = str(c.action).toLowerCase() === "reject" ? "reject" : "accept";
+      if (!item) {
+        dropped.push(`there's no inbox note ${str(c.key)}`);
+        continue;
+      }
+      const text = item.editable ? str(c.text) : "";
+      const undoable = ["summary", "journal", "disputed", "merge", "world"].includes(item.kind);
+      out.push({
+        kind,
+        target: item.key,
+        label: `Inbox · ${action === "accept" ? "accept" : "reject"}: ${item.title}`,
+        before: item.before ?? "",
+        after: text || item.after,
+        data: { action, text, item: item.kind, ...(undoable ? {} : { risky: true, noUndo: true, note: NO_UNDO }), why },
+      });
     } else if (kind) dropped.push(`Meus can't make "${kind}" changes yet`);
   }
   return { changes: out, dropped };
+}
+
+const clipText = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** The columns a row step restores. */
+const ROW_COLS = {
+  summaries: ["title", "content", "tokens", "user_edited", "state", "proposal"],
+  journals: ["content", "user_edited", "proposal"],
+  memories: ["content", "entities", "importance", "pinned", "user_edited", "status", "superseded_by", "min_seq", "max_seq", "stale", "deleted_at"],
+} as const;
+
+function rowStep(table: keyof typeof ROW_COLS, id: string): UndoStep {
+  const r = one<Record<string, string | number | null>>(`SELECT ${ROW_COLS[table].join(", ")} FROM ${table} WHERE id = ?`, id);
+  return { t: "row", table, id, cols: r ?? {} };
 }
 
 function snapshotProfiles(chatId: string, names: string[]) {
@@ -336,6 +615,102 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
     }
     case "timeskip":
       return [{ t: "messageDelete", id: timeskip(chatId, String(d.duration), String(d.note ?? "") || undefined).messageId }];
+    case "memory_merge": {
+      const ids = (d.ids as string[]).filter((id) => getAtom(id) && !getAtom(id)!.deleted_at);
+      if (ids.length < 2) throw badRequest("Those memories are gone");
+      const steps: UndoStep[] = [rowStep("memories", ids[0]!)];
+      const sources = all<{ message_id: string }>("SELECT message_id FROM memory_sources WHERE memory_id = ?", ids[0]!).map((r) => r.message_id);
+      mergeAtoms(ids, c.after);
+      steps.push({ t: "atomUnmerge", keep: ids[0]!, others: ids.slice(1), sources });
+      return steps;
+    }
+    case "memory_split": {
+      const step = rowStep("memories", c.target);
+      const [, second] = splitAtom(c.target, d.parts as [string, string]);
+      return [step, { t: "atomDelete", id: second!.id }];
+    }
+    case "summary": {
+      const step = rowStep("summaries", c.target);
+      if (!editSummary(c.target, { content: c.after })) throw badRequest("That summary is gone");
+      return [step];
+    }
+    case "journal": {
+      const step = rowStep("journals", c.target);
+      editJournal(c.target, c.after);
+      return [step];
+    }
+    case "hide": {
+      const m = getMessageRow(c.target);
+      if (!m) throw badRequest("That message is gone");
+      setMessageFlags(c.target, { hidden: Boolean(d.hidden) });
+      return [{ t: "hidden", id: c.target, hidden: Boolean(m.hidden) }];
+    }
+    case "scene_end":
+      endSceneAfter(chatId, c.target);
+      return [];
+    case "chapter":
+      newChapterAt(chatId, c.target);
+      return [];
+    case "steer":
+      updateChat(chatId, { settings: d.patch as ChatSettings });
+      return [{ t: "settings", patch: d.prev as Partial<ChatSettings> }];
+    case "split": {
+      const { ops } = linesToOps((d.lines as string[]) ?? []);
+      const steps: UndoStep[] = [{ t: "events", ids: userEditAt(chatId, ops) }];
+      const page = d.unmerge as string | null;
+      if (page && getEntityRow(page)?.merged_into) {
+        const keep = getEntityRow(page)!.merged_into!;
+        unmergeEntity(page);
+        steps.push({ t: "remerge", keep, id: page });
+      }
+      return steps;
+    }
+    case "world": {
+      const action = String(d.action) as Parameters<typeof arcAction>[2];
+      return [{ t: "events", ids: arcAction(chatId, c.target, action, (d.patch as { premise?: string }) ?? {}) }];
+    }
+    case "world_arc":
+      return [{ t: "events", ids: authorArc(chatId, String(d.lead), String(d.premise)).eventIds }];
+    case "world_proposal":
+      return [{ t: "events", ids: decideProposal(chatId, c.target, Boolean(d.accept)) }];
+    case "world_fate":
+      return [{ t: "events", ids: decideFate(chatId, c.target, String(d.choice) as "accept") }];
+    case "world_person":
+      return [{ t: "events", ids: setActor(chatId, String(d.name), d.patch as Parameters<typeof setActor>[2]) }];
+    case "lore": {
+      const r = one<{ data: string }>("SELECT data FROM lorebook_entries WHERE id = ?", c.target);
+      if (!r) throw badRequest("That lore entry is gone");
+      const before = parseJson<LoreEntry>(r.data, {} as LoreEntry);
+      updateEntry(c.target, { ...before, comment: String(d.comment ?? before.comment), keys: (d.keys as string[]) ?? before.keys, content: String(d.content ?? before.content) });
+      return [{ t: "lore", id: c.target, entry: before }];
+    }
+    case "lore_add":
+      return [{ t: "loreDrop", id: createEntry(c.target, { comment: String(d.comment ?? ""), keys: (d.keys as string[]) ?? [], content: String(d.content ?? "") }).id }];
+    case "note":
+      return [{ t: "noteDrop", id: createNote({ chatId, title: String(d.title ?? ""), body: c.after }).id }];
+    case "inbox": {
+      const key = c.target;
+      const [ik, ...rest] = key.split(":");
+      const id = rest.join(":");
+      const action = d.action === "reject" ? "reject" : "accept";
+      const text = (d.text as string) || undefined;
+      if (ik === "world") {
+        const [, ...pid] = id.split(":");
+        const ids = decideProposal(chatId, pid.join(":"), action === "accept");
+        publish({ type: "inbox.changed" });
+        return [{ t: "events", ids }];
+      }
+      const steps: UndoStep[] = [];
+      if (ik === "summary") steps.push(rowStep("summaries", id));
+      else if (ik === "journal") steps.push(rowStep("journals", id));
+      else if (ik === "disputed") steps.push(rowStep("memories", id));
+      actOnInbox(key, action, text);
+      if (ik === "merge") {
+        const [, merge] = id.split("|");
+        steps.push(action === "accept" ? { t: "unmerge", id: merge! } : { t: "undismiss", key });
+      }
+      return steps;
+    }
   }
   return [];
 }
@@ -404,6 +779,37 @@ export function undoStep(chatId: string, s: UndoStep) {
       return;
     case "messageDelete":
       softDeleteMessage(s.id);
+      return;
+    case "row": {
+      const cols = Object.keys(s.cols).filter((k) => (ROW_COLS[s.table] as readonly string[]).includes(k));
+      if (!cols.length) return;
+      run(`UPDATE ${s.table} SET ${cols.map((k) => `${k} = ?`).join(", ")}, updated_at = ? WHERE id = ?`, ...cols.map((k) => s.cols[k] ?? null), now(), s.id);
+      publish({ type: "memory.changed", chatId });
+      publish({ type: "inbox.changed" });
+      return;
+    }
+    case "atomUnmerge": {
+      // The merged-away memories stand again; the kept one loses the sources the merge gave it.
+      for (const id of s.others) run("UPDATE memories SET status = 'active', superseded_by = NULL, updated_at = ? WHERE id = ? AND superseded_by = ?", now(), id, s.keep);
+      if (s.sources.length) run(`DELETE FROM memory_sources WHERE memory_id = ? AND message_id NOT IN (${s.sources.map(() => "?").join(",")})`, s.keep, ...s.sources);
+      publish({ type: "memory.changed", chatId });
+      return;
+    }
+    case "hidden":
+      if (getMessageRow(s.id)) setMessageFlags(s.id, { hidden: s.hidden });
+      return;
+    case "lore":
+      updateEntry(s.id, s.entry);
+      return;
+    case "loreDrop":
+      deleteEntry(s.id);
+      return;
+    case "noteDrop":
+      deleteNote(s.id);
+      return;
+    case "undismiss":
+      run("DELETE FROM inbox_dismissed WHERE key = ?", s.key);
+      publish({ type: "inbox.changed" });
       return;
   }
 }
