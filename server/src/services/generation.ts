@@ -15,7 +15,7 @@ import { reinforce } from "../memory/reinforce";
 import { anySemantic, semanticScorer } from "../lore/semantic";
 import { recordLoreHits } from "../lore/health";
 import { warmMemory } from "../memory/warm";
-import { scheduleMemory } from "../memory/scheduler";
+import { ledgerChangedAfterReply, scheduleMemory } from "../memory/scheduler";
 import { setMemState } from "../memory/store";
 import { type AssembleKind, type AssembleResult, assemblePrompt } from "../prompt/assemble";
 import { expandMacros } from "../prompt/macros";
@@ -704,6 +704,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     if (usage?.promptTokens) recordCalibration(p.resolved.connection.id, p.resolved.modelId, p.assembled.estPromptTokens, usage.promptTokens);
     if (p.resolved.billing === "subscription") enqueue("quota.refresh", {}, { dedupeKey: "quota.refresh", delayMs: 3000 });
     // A finished turn may have settled older messages: let memory catch up in the background (SUM-07).
+    // C3 / H5: a swipe or continue changed a reply memory may already have read.
+    if (action !== "new" && status !== "error") ledgerChangedAfterReply(gen.chatId, gen.messageId);
     scheduleMemory(gen.chatId);
   } catch (e) {
     console.error("[mea] after-reply work failed:", e);
