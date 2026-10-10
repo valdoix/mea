@@ -1168,6 +1168,8 @@
   .chat {
     display: grid;
     grid-template-columns: 1fr;
+    /* one row as tall as the screen, so the chat and the side panel each scroll on their own */
+    grid-template-rows: minmax(0, 1fr);
     height: 100dvh;
   }
   .chat.with-panel {
@@ -1338,6 +1340,7 @@
   .dock {
     position: relative;
     min-width: 0;
+    min-height: 0;
     border-left: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface-2) 45%, var(--bg));
     height: 100dvh;
