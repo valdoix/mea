@@ -326,6 +326,14 @@
 <Menu bind:open={menuOpen} {items} anchor={menuBtn} point={menuPoint} title={displayName} />
 
 <style>
+  /* M5: whatever a message's HTML positions stays inside the message, so it can't cover or fake the app.
+     M21: a long chat only lays out and paints the messages near the view. */
+  .body > .prose {
+    contain: layout paint;
+    overflow-clip-margin: 1rem;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 8em;
+  }
   .banned {
     color: var(--warn);
     margin-top: 0.3rem;
