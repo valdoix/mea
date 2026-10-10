@@ -1,6 +1,9 @@
 <script lang="ts">
+  import Module from "../desk/Module.svelte";
+  import Flip from "../desk/Flip.svelte";
+  import Knob from "../desk/Knob.svelte";
   import { imageUrl, patch } from "../../lib/api";
-  import { Palette, X } from "../../lib/icons";
+  import { ImageIcon, X } from "../../lib/icons";
   import { uploadImage } from "../../lib/images";
   import { errorToast } from "../../lib/state.svelte";
   import type { Ambience, ChatDetail } from "../../lib/types";
@@ -37,54 +40,86 @@
       errorToast(e);
     }
   }
+  const peek = $derived([a.accent && palette.length ? "Portrait accent" : "", a.imageId ? "Background" : ""].filter(Boolean).join(" · ") || "Off");
 </script>
 
-<details class="amb">
-  <summary class="label"><Palette size={14} /> Ambience</summary>
-  <div class="stack tight">
-    <label class="switch">
-      <input type="checkbox" checked={a.accent} disabled={!palette.length} onchange={(e) => save({ accent: e.currentTarget.checked })} />
-      Accent color from {detail.character?.name ?? "the character"}'s portrait
-      {#if palette[0]}<span class="dot" style:background={palette[0]}></span>{/if}
-    </label>
-    {#if !palette.length}<span class="tiny muted">The character needs a portrait first.</span>{/if}
-    <div class="row wrap">
-      {#if a.imageId}<span class="thumb" style:background-image="url({imageUrl(a.imageId, 's')})"></span>{/if}
-      <button class="btn small" onclick={() => input?.click()}>{a.imageId ? "Change background" : "Background image"}</button>
-      {#if a.imageId}<button class="btn ghost small icon" onclick={() => save({ imageId: null })} aria-label="Remove background"><X size={14} /></button>{/if}
-      <input type="file" accept="image/*" hidden bind:this={input} onchange={(e) => pick(e.currentTarget.files)} />
-    </div>
-    {#if a.imageId}
-      <label class="field"><span class="label">Blur <span class="faint">{a.blur}px</span></span><input type="range" min="0" max="30" step="1" value={a.blur} oninput={(e) => save({ blur: Number(e.currentTarget.value) }, 400)} /></label>
-      <label class="field"><span class="label">Dim <span class="faint">{Math.round((a.dim ?? 0) * 100)}%</span></span><input type="range" min="0" max="0.9" step="0.05" value={a.dim} oninput={(e) => save({ dim: Number(e.currentTarget.value) }, 400)} /></label>
-      <label class="field"><span class="label">Text panels <span class="faint">{Math.round((a.panel ?? 1) * 100)}% solid</span></span><input type="range" min="0.4" max="1" step="0.02" value={a.panel} oninput={(e) => save({ panel: Number(e.currentTarget.value) }, 400)} /></label>
-      <label class="switch"><input type="checkbox" checked={a.vignette} onchange={(e) => save({ vignette: e.currentTarget.checked })} /> Vignette</label>
-    {/if}
+<Module title="Ambience" fold open={false} led={a.accent || a.imageId ? "on" : null} {peek}>
+  <div class="flips">
+    <Flip checked={Boolean(a.accent)} disabled={!palette.length} onchange={(on) => save({ accent: on })}>
+      Accent from {detail.character?.name ?? "the character"}'s portrait
+      {#if palette[0]}<span class="sw" style:--sw={palette[0]}></span>{/if}
+    </Flip>
+    {#if !palette.length}<p class="st-hint first">The character needs a portrait first.</p>{/if}
   </div>
-</details>
+  <div class="bgrow">
+    <span class="thumb" class:empty={!a.imageId} style:background-image={a.imageId ? `url(${imageUrl(a.imageId, "s")})` : undefined} style:--b="{Math.min(4, (a.blur ?? 0) / 4)}px" aria-hidden="true"></span>
+    <span class="st-keys keys">
+      <button class="st-key" type="button" onclick={() => input?.click()}><ImageIcon size={14} /> {a.imageId ? "Change background" : "Background image"}</button>
+      {#if a.imageId}<button class="st-key sq" type="button" onclick={() => save({ imageId: null })} aria-label="Remove background" title="Remove background"><X size={14} /></button>{/if}
+    </span>
+    <input type="file" accept="image/*" hidden bind:this={input} onchange={(e) => pick(e.currentTarget.files)} />
+  </div>
+  {#if a.imageId}
+    <div class="knobs">
+      <Knob label="Blur" value={a.blur ?? 6} min={0} max={30} format={(v) => `${v}px`} onchange={(v) => save({ blur: v }, 400)} />
+      <Knob label="Dim" value={a.dim ?? 0.25} min={0} max={0.9} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onchange={(v) => save({ dim: v }, 400)} />
+      <Knob label="Text panels" value={a.panel ?? 0.86} min={0.4} max={1} step={0.02} format={(v) => `${Math.round(v * 100)}%`} onchange={(v) => save({ panel: v }, 400)} />
+    </div>
+    <div class="flips vig">
+      <Flip checked={Boolean(a.vignette)} onchange={(on) => save({ vignette: on })}>Vignette</Flip>
+    </div>
+  {/if}
+</Module>
 
 <style>
-  summary {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    cursor: pointer;
-    margin-bottom: 0.5rem;
+  .flips {
+    display: grid;
+    gap: 10px;
   }
-  .dot {
-    display: inline-block;
-    width: 0.8rem;
-    height: 0.8rem;
+  .first {
+    margin-top: -4px;
+  }
+  .sw {
+    flex: 0 0 auto;
+    width: 13px;
+    height: 13px;
     border-radius: 50%;
-    border: 1px solid var(--border);
-    vertical-align: middle;
+    background: var(--sw);
+    box-shadow:
+      0 0 0 2px var(--surface),
+      0 0 0 3px var(--st-edge),
+      0 0 10px var(--sw);
+  }
+  .bgrow {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    margin: 12px 0 4px;
   }
   .thumb {
-    width: 2.6rem;
-    height: 2.6rem;
-    border-radius: 8px;
-    background-size: cover;
-    background-position: center;
-    border: 1px solid var(--border);
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: center / cover no-repeat;
+    box-shadow:
+      0 0 0 2px var(--surface),
+      0 0 0 3px var(--st-edge);
+    filter: blur(var(--b, 0));
+  }
+  .thumb.empty {
+    filter: none;
+    background: repeating-linear-gradient(135deg, var(--st-fill) 0 6px, transparent 6px 12px), var(--st-well);
+  }
+  .keys {
+    margin: 0;
+  }
+  .knobs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .vig {
+    margin-top: 12px;
   }
 </style>

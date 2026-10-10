@@ -1,10 +1,11 @@
 <script lang="ts">
-  import Segmented from "../Segmented.svelte";
+  import "../../styles/studio.css";
+  import Rocker from "../desk/Rocker.svelte";
   import { del, get, patch, post, put } from "../../lib/api";
   import { onEvent } from "../../lib/events";
   import { autosize } from "../../lib/gestures";
   import { timeAgo } from "../../lib/format";
-  import { Bookmark, Heart, NotebookPen, Pin, PinOff, Plus, Trash, X } from "../../lib/icons";
+  import { Bookmark, Heart, NotebookPen, Pin, PinOff, Plus, Search, Trash, X } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
 
   /**
@@ -155,138 +156,281 @@
   const excerpt = (t: string, n = 260) => (t.length > n ? `${t.slice(0, n).trimEnd()}…` : t);
 </script>
 
-<div class="stack notes">
-  <div class="row between wrap">
-    <Segmented
-      bind:value={tab}
-      small
-      options={[
-        { value: "notes", label: `Notes${notes.length ? ` · ${notes.length}` : ""}` },
-        { value: "moments", label: `Best moments${moments.length ? ` · ${moments.length}` : ""}` },
-      ]}
-    />
-    <input class="input search" type="search" bind:value={filter} placeholder="Filter" aria-label="Filter notes and moments" />
-  </div>
+<div class="studio st-stack nb">
+  <Rocker
+    label="Notes or best moments"
+    value={tab}
+    options={[
+      { value: "notes", label: "Notes", sub: notes.length ? `${notes.length} on the board` : "nothing yet" },
+      { value: "moments", label: "Best moments", sub: moments.length ? `${moments.length} kept` : "nothing yet" },
+    ]}
+    onchange={(v) => (tab = v)}
+  />
+  <label class="find"><Search size={14} /><input type="search" bind:value={filter} placeholder="Filter" aria-label="Filter notes and moments" /></label>
 
   {#if tab === "notes"}
-    <div class="row wrap">
-      <button class="btn small primary" onclick={() => add(false)}><Plus size={14} /> {chatId ? "Note for this chat" : "New note"}</button>
-      {#if chatId}<button class="btn small" onclick={() => add(true)}><Plus size={14} /> Global note</button>{/if}
+    <div class="st-keys">
+      <button class="st-key small primary" type="button" onclick={() => add(false)}><Plus size={14} /> {chatId ? "Note for this chat" : "New note"}</button>
+      {#if chatId}<button class="st-key small" type="button" onclick={() => add(true)}><Plus size={14} /> Global note</button>{/if}
     </div>
-    <p class="tiny muted">Plans, ideas and what-ifs. Never sent to the model. Write <code>[[Name]]</code> to link a person, place or lore entry.</p>
+    <p class="st-hint top">Plans, ideas and what-ifs. Never sent to the model. Write <code>[[Name]]</code> to link a person, place or lore entry.</p>
     {#each shownNotes as n (n.id)}
-      <article class="note card" class:pinned={n.pinned}>
+      <article class="ix" class:pinned={n.pinned} class:editing={openId === n.id}>
+        {#if n.pinned}<span class="tack" aria-hidden="true"></span>{/if}
         {#if openId === n.id}
-          <div class="row">
-            <input class="input title" value={n.title} placeholder="Title" oninput={(e) => edit(n, { title: e.currentTarget.value })} />
-            <button class="btn ghost icon small" onclick={() => close(n)} aria-label="Close note"><X size={15} /></button>
+          <div class="ix-h">
+            <input class="ix-title" value={n.title} placeholder="Title" aria-label="Title" oninput={(e) => edit(n, { title: e.currentTarget.value })} />
+            <button class="ix-btn" type="button" onclick={() => close(n)} aria-label="Close note" title="Close"><X size={15} /></button>
           </div>
-          <textarea class="textarea" use:autosize={{ max: 520, value: n.body }} use:focusEnd value={n.body} placeholder="What if [[Mira]] already knew?" oninput={(e) => edit(n, { body: e.currentTarget.value })}></textarea>
+          <textarea class="ix-body" use:autosize={{ max: 520, value: n.body }} use:focusEnd value={n.body} placeholder="What if [[Mira]] already knew?" aria-label="Note" oninput={(e) => edit(n, { body: e.currentTarget.value })}></textarea>
         {:else}
-          <button class="open" onclick={() => (openId = n.id)} aria-label="Open note {n.title || 'untitled'}">
-            <b class="small">{n.title || n.body.split("\n")[0]?.slice(0, 80) || "Empty note"}</b>
-            {#if n.body && n.title}<span class="tiny muted body">{excerpt(n.body, 180)}</span>{/if}
+          <button class="ix-open" type="button" onclick={() => (openId = n.id)} aria-label="Open note {n.title || 'untitled'}">
+            <b>{n.title || n.body.split("\n")[0]?.slice(0, 80) || "Empty note"}</b>
+            {#if n.body && n.title}<span>{excerpt(n.body, 180)}</span>{/if}
           </button>
         {/if}
         {#if n.links.length}
-          <div class="row wrap links">
+          <div class="st-tags">
             {#each n.links as l (l.text)}
-              {#if l.href}<a class="chip {l.kind === 'lore' ? 'lavender' : 'mint'}" href={l.href}>{l.text}</a>{:else}<span class="chip faint" title="Nothing by this name yet">{l.text}</span>{/if}
+              {#if l.href}<a class="st-chip {l.kind === 'lore' ? 'lav' : 'mint'} lnk" href={l.href}>{l.text}</a>{:else}<span class="st-chip faint" title="Nothing by this name yet">{l.text}</span>{/if}
             {/each}
           </div>
         {/if}
-        <div class="row tiny muted meta">
-          <span class="grow">{n.chatId ? (chatId ? "This chat" : "A chat") : "Global"} · {timeAgo(n.updatedAt)}</span>
-          <button class="btn ghost icon small" onclick={() => edit(n, { pinned: !n.pinned })} aria-label={n.pinned ? "Unpin" : "Pin"} title={n.pinned ? "Unpin" : "Pin to the top"}>{#if n.pinned}<PinOff size={13} />{:else}<Pin size={13} />{/if}</button>
-          <button class="btn ghost icon small" onclick={() => remove(n)} aria-label="Delete note"><Trash size={13} /></button>
+        <div class="ix-meta">
+          <span class="st-grow">{n.chatId ? (chatId ? "This chat" : "A chat") : "Global"} · {timeAgo(n.updatedAt)}</span>
+          <button class="ix-btn" type="button" onclick={() => edit(n, { pinned: !n.pinned })} aria-label={n.pinned ? "Unpin" : "Pin"} title={n.pinned ? "Unpin" : "Pin to the top"}>{#if n.pinned}<PinOff size={13} />{:else}<Pin size={13} />{/if}</button>
+          <button class="ix-btn" type="button" onclick={() => remove(n)} aria-label="Delete note" title="Delete"><Trash size={13} /></button>
         </div>
       </article>
     {:else}
-      <div class="empty"><NotebookPen size={22} /><p class="small muted">{q ? "No notes match." : "No notes yet. Jot down where the story could go ✿"}</p></div>
+      <div class="st-empty"><NotebookPen size={22} /><p>{q ? "No notes match." : "No notes yet. Jot down where the story could go ✿"}</p></div>
     {/each}
   {:else}
-    <p class="tiny muted">Bookmarked messages and passages you highlighted (select text in a message → Highlight). Memory treats them as important.</p>
+    <p class="st-hint top">Bookmarked messages and passages you highlighted (select text in a message → Highlight). Memory treats them as important.</p>
     {#each shownMoments as m (`${m.kind}:${m.id}`)}
-      <article class="moment card">
-        <div class="row tiny muted">
+      <article class="clip" class:hl={m.kind === "highlight"}>
+        <div class="clip-h">
           {#if m.kind === "bookmark"}<Bookmark size={12} />{:else}<Heart size={12} />{/if}
-          <span class="grow truncate">{m.who}{#if !chatId} · {m.chatTitle}{/if}</span>
+          <span class="st-grow who">{m.who}{#if !chatId} · {m.chatTitle}{/if}</span>
           <span>{timeAgo(m.at)}</span>
         </div>
-        <blockquote class="small">{excerpt(m.text, m.kind === "bookmark" ? 360 : 600)}</blockquote>
-        {#if m.note}<p class="tiny muted">{m.note}</p>{/if}
-        <div class="row">
+        <blockquote>{excerpt(m.text, m.kind === "bookmark" ? 360 : 600)}</blockquote>
+        {#if m.note}<p class="clip-note">{m.note}</p>{/if}
+        <div class="st-keys">
           {#if chatId && onjump}
-            <button class="btn ghost small" onclick={() => onjump?.(m.seq)}>Go to it</button>
+            <button class="st-key small ghost" type="button" onclick={() => onjump?.(m.seq)}>Go to it</button>
           {:else}
-            <a class="btn ghost small" href="/chat/{m.chatId}?at={m.seq}">Go to it</a>
+            <a class="st-key small ghost" href="/chat/{m.chatId}?at={m.seq}">Go to it</a>
           {/if}
-          <span class="grow"></span>
-          <button class="btn ghost icon small" onclick={() => unmark(m)} aria-label="Remove from moments"><X size={14} /></button>
+          <span class="st-grow"></span>
+          <button class="ix-btn" type="button" onclick={() => unmark(m)} aria-label="Remove from moments" title="Remove"><X size={14} /></button>
         </div>
       </article>
     {:else}
-      <div class="empty"><Heart size={22} /><p class="small muted">{q ? "Nothing matches." : "No moments yet. Bookmark a message or highlight a line you love."}</p></div>
+      <div class="st-empty"><Heart size={22} /><p>{q ? "Nothing matches." : "No moments yet. Bookmark a message or highlight a line you love."}</p></div>
     {/each}
   {/if}
 </div>
 
 <style>
-  .notes {
-    gap: 0.7rem;
+  .find {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-radius: var(--r-sm);
+    background: var(--st-well);
+    box-shadow: var(--st-inset-sm);
+    color: var(--text-faint);
   }
-  .search {
-    max-width: 11rem;
-    padding-block: 0.3rem;
+  .find input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--text);
+    font: 13px/1.3 var(--font-ui);
   }
-  .note,
-  .moment {
+  /* the wrapper (or the open card) shows the focus instead */
+  .find input:focus-visible,
+  .ix-title:focus-visible,
+  .ix-body:focus-visible {
+    box-shadow: none;
+  }
+  .find:focus-within {
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  .top {
+    margin-top: -4px;
+  }
+  .top code {
+    font-size: 11.5px;
+  }
+
+  /* notes as ruled index cards */
+  .ix {
+    position: relative;
     display: grid;
-    gap: 0.4rem;
-    padding: 0.65rem 0.8rem;
+    gap: 8px;
+    padding: 12px 14px 10px;
+    border-radius: 4px 4px var(--r-sm) var(--r-sm);
+    background: var(--surface);
+    border: var(--st-bw) solid var(--st-edge);
+    box-shadow: var(--st-card);
   }
-  .note.pinned {
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  .ix.pinned {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--st-edge));
   }
-  .open {
+  .ix.editing {
+    box-shadow:
+      var(--st-card),
+      0 0 0 1.5px var(--accent);
+  }
+  .tack {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    margin-left: -7px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, color-mix(in srgb, #fff 55%, var(--accent)), var(--accent) 60%, color-mix(in srgb, var(--accent) 60%, #000));
+    box-shadow: 0 2px 3px rgb(0 0 0 / 30%);
+  }
+  /* the red rule under the title, then blue ruled lines that follow the text */
+  .ix-h,
+  .ix-open b {
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  }
+  .ix-body,
+  .ix-open span {
+    background: repeating-linear-gradient(transparent 0 21px, color-mix(in srgb, var(--st-cool) 24%, transparent) 21px 22px);
+  }
+  .ix-h {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ix-title {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--text);
+    font: 600 calc(15px * var(--st-hs)) / 1.2 var(--st-head);
+  }
+  .ix-body {
+    width: 100%;
+    min-height: 66px;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--text);
+    font: 14px/22px var(--st-story);
+    resize: none;
+  }
+  .ix-open {
     all: unset;
+    display: grid;
+    gap: 4px;
     cursor: pointer;
-    display: grid;
-    gap: 0.2rem;
   }
-  .open:focus-visible {
+  .ix-open:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: 4px;
+    outline-offset: 3px;
+    border-radius: 3px;
   }
-  .body {
+  .ix-open b {
+    font: 600 calc(15px * var(--st-hs)) / 1.25 var(--st-head);
+  }
+  .ix-open span {
+    margin-top: 2px;
+    font: 13.5px/22px var(--st-story);
+    color: var(--text-muted);
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
-  .title {
-    font-weight: 600;
+  .ix-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font: 700 9.5px/1.3 var(--st-meta);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
   }
-  .links {
-    gap: 0.3rem;
-  }
-  .links a {
-    text-decoration: none;
-  }
-  .meta {
-    gap: 0.2rem;
-  }
-  blockquote {
-    margin: 0;
-    padding-left: 0.7rem;
-    border-left: 3px solid color-mix(in srgb, var(--accent) 50%, transparent);
-    font-family: var(--font-story);
-    white-space: pre-wrap;
-  }
-  .empty {
+  .ix-btn {
     display: grid;
-    justify-items: center;
-    gap: 0.3rem;
-    padding: 1.5rem 0.5rem;
-    text-align: center;
-    color: var(--text-muted, inherit);
+    place-items: center;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-faint);
+    cursor: pointer;
+  }
+  .ix-btn:hover {
+    background: var(--st-fill);
+    color: var(--text);
+  }
+  :root .studio a.lnk {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  /* moments as clippings */
+  .clip {
+    display: grid;
+    gap: 8px;
+    padding: 12px 14px 10px;
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    border: var(--st-bw) solid var(--st-edge);
+    box-shadow: var(--st-card);
+  }
+  .clip-h {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font: 700 9.5px/1.3 var(--st-meta);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+  }
+  .clip-h :global(svg) {
+    flex: 0 0 auto;
+    color: var(--accent-ink);
+  }
+  .who {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .clip blockquote {
+    margin: 0;
+    padding: 2px 0 2px 12px;
+    border-left: 3px solid var(--accent);
+    font: 14px/1.55 var(--st-story);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .clip.hl blockquote {
+    border-left-color: var(--st-warm);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--st-warm) 16%, transparent), transparent 70%);
+  }
+  .clip-note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
   }
 </style>
