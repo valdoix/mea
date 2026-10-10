@@ -101,10 +101,21 @@ chats.post("/chats/:id/restore", (c) => {
 
 chats.get("/chats/:id/messages", (c) => {
   mustChat(c.req.param("id"));
+  const limit = Number(c.req.query("limit")) || undefined;
+  // M21: a window centred on one message (a far jump): half the limit at or before it, the rest after.
+  // `hasMore` means older messages remain, `hasNewer` newer ones.
+  const around = Number(c.req.query("around"));
+  if (c.req.query("around") && Number.isFinite(around)) {
+    const total = Math.min(400, limit ?? 100);
+    const at = Math.max(0, Math.floor(around));
+    const older = listMessages(c.req.param("id"), { before: at + 1, limit: Math.ceil(total / 2) });
+    const newer = listMessages(c.req.param("id"), { after: at, limit: Math.max(1, Math.floor(total / 2)) });
+    return c.json({ messages: [...older.messages, ...newer.messages], hasMore: older.hasMore, hasNewer: newer.hasMore });
+  }
   const before = Number(c.req.query("before")) || undefined;
   const afterQ = c.req.query("after");
   const after = afterQ !== undefined && afterQ !== "" && Number.isFinite(Number(afterQ)) ? Number(afterQ) : undefined;
-  return c.json(listMessages(c.req.param("id"), { before, after, limit: Number(c.req.query("limit")) || undefined }));
+  return c.json(listMessages(c.req.param("id"), { before, after, limit }));
 });
 
 /**
