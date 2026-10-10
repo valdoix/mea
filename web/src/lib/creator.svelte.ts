@@ -17,6 +17,7 @@ type Patch = Partial<{
   bible: Record<string, string>;
   fields: Record<string, string>;
   basedOn: string;
+  dismissKindHint: boolean;
 }>;
 
 /** One open character or persona draft: same rules as the Lore Studio's (see StudioSession). */

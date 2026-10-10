@@ -87,6 +87,8 @@ export interface ExpandContext {
   world?: string;
   tone?: string;
   style?: string;
+  /** Who this is in a chat (a card, a narrator, the player's own persona): see WHO_IS_WHO. */
+  who?: string;
   /** Lore Studio or creator id, for request history. */
   kindLabel?: string;
 }
@@ -118,6 +120,7 @@ export async function expandIdea(kind: ExpandKind, c: ExpandContext, opts: { pre
     schema: expandSchema,
     system: [
       `You are a seasoned story developer. ${rework ? "Rework" : "Expand"} the author's idea for a ${LABEL[kind]} into a fully fleshed-out concept, section by section.`,
+      c.who ?? "",
       `Craft rules:\n- ${CRAFT}`,
       `Write these sections, in this order, 70–170 words each (Places, People and Story hooks may be short lines):\n${outline.map((o) => `- ${o.heading}: ${o.ask}`).join("\n")}`,
       rework ? "Keep what the current version does well and everything the author edited into it; change what the author asks." : "",
@@ -150,11 +153,14 @@ export async function deepenSection(kind: ExpandKind, c: ExpandContext, e: Expan
     kind: `expand:${kind}:deepen`,
     system: [
       `Go deeper on one section of a fleshed-out ${LABEL[kind]}: "${s.heading}".`,
+      c.who ?? "",
       steer.trim() ? `The author asks: ${steer.trim()}` : "Keep everything it already says and add depth: specifics, consequences, connections to the other sections, the detail a scene would use.",
       "150–350 words. Stay consistent with the other sections and the author's idea.",
       `Craft rules:\n- ${CRAFT}`,
       "Reply with the new text of this section only: no heading, no preamble.",
-    ].join("\n\n"),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     user: [contextBlock(kind, c), `THE WHOLE CONCEPT:\n${expansionText(e)}`, `THE SECTION TO DEEPEN: ${s.heading}\n${s.text}`].join("\n\n"),
     maxTokens: 1500,
     validate: (t) => (tidy(t).length < 40 ? "That was empty or too short. Write the section text." : null),

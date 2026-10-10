@@ -211,6 +211,11 @@ function helperJson(name: string, user: string): unknown {
       if (older) changes.push({ kind: "bible", key: "identity", text: `Now ${older} years old.` }, { kind: "field", key: "description", text: `She is ${older}.` }, { kind: "rewrite", key: "first_mes", steer: `She is ${older} now.` });
       if (/rename/i.test(says)) changes.push({ kind: "name", text: "Wren Vale" });
       if (/concept/i.test(says)) changes.push({ kind: "section", section: "Voice", text: `Brainstormed: ${says}` });
+      if (/answer/i.test(says) && /Open questions/.test(user)) changes.push({ kind: "answer", key: user.match(/^ {2}(\d+)\. /m)?.[1] ?? "1", text: "To be forgiven by her sister." });
+      if (/shorter/i.test(says)) changes.push({ kind: "option", key: "length", text: "lean" }, { kind: "option", key: "pov", text: "first person" });
+      if (/canon/i.test(says)) changes.push({ kind: "basedOn", text: "Mock Show (TV)" });
+      if (/write the rest/i.test(says)) changes.push({ kind: "write", key: "empty" });
+      if (/flagged/i.test(says)) changes.push({ kind: "field", key: "description", text: /Out of date:[\s\S]*\[description\]/.test(user) ? "Fixed: {{char}} is up to date." : "Nothing flagged." });
       return { reply: changes.length ? "Updated her age everywhere it shows." : "Nothing contradicts that.", changes };
     }
     case "studio_consistency": {
@@ -227,6 +232,8 @@ function helperJson(name: string, user: string): unknown {
     }
     case "creator_readback":
       return {
+        reads: /\bI'm\b|\bmy persona\b/.test(user) ? "persona" : /MOCK_CARD/.test(user) ? "character" : "",
+        readsWhy: /\bI'm\b/.test(user) ? 'It says "I\'m".' : "",
         understood: `Someone built from ${names(user).slice(0, 2).join(" and ") || "the author's idea"}.`,
         missing: ["their voice", "what they want"],
         questions: [
@@ -297,7 +304,7 @@ function mockPlainText(system: string, user: string): string | null {
     else if (field === "Example dialogue") text = `<START>\n{{user}}: Hello.\n{{char}}: "Hello yourself." ${name} doesn't look up from the ledger.\n<START>\n{{user}}: Are you angry?\n{{char}}: "Angry is for people with time." ${name} snaps the book shut.`;
     else if (field === "Tags") text = "Fantasy, Harbour, mystery, slow burn";
     else if (field === "Pronouns") text = "she/her";
-    else text = `${field} of ${name}: ${name} keeps the harbour light and keeps her promises, and the people of Port Ellis know both cost her something. She talks in short, dry sentences and laughs only when she's tired.`;
+    else text = `${field} of ${name}: ${name} keeps the harbour light and keeps her promises, and the people of Port Ellis know both cost her something. She talks in short, dry sentences and laughs only when she's tired.${/MOCK_SLIP/.test(user) ? " {{char}} hides it well." : ""}`;
     return asks ? `${text} (${asks})` : text;
   }
   if (/^Go deeper on one section/.test(system)) {

@@ -17,6 +17,39 @@ export function shortHash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+// ---------- who is who ----------
+
+/**
+ * What a card or a persona IS in a chat, said the same way to every step that writes or talks about
+ * one (both studios, the card tools, and any assistant that works on a chat). Models default to
+ * treating everything as a character card for the AI to play; a persona is the opposite: the person
+ * the user plays. Without this they write a persona greetings, {{char}} macros, "what she wants from
+ * {{user}}", or a scene where the persona's choices are made for them.
+ */
+export const WHO_IS_WHO = {
+  persona: [
+    "WHO IS WHO: This is a PERSONA, the user's own character: the person the human player plays in the story. In a chat the persona IS {{user}}; the AI storyteller never voices, plays or decides for them. It is NOT a character card.",
+    "So: never write a persona greetings, a scenario, example dialogue, rules or creator notes; never call them {{char}}, and never describe their relationship \"with {{user}}\" (they are {{user}}). Write about them by name, in third person, as a reference the storyteller reads so it knows who it is talking to: who they are, how they look, sound and carry themselves, their past, skills and limits, and the people in their life.",
+    "Describe; don't script. Give tendencies and history, never decide what they will feel, say or choose in a scene: those belong to the player.",
+    "Authors often write about their persona in first person (\"I'm a nurse\", \"my sister\"): that is the persona, not a separate character and not the author talking about someone else.",
+    "The other people they meet (AI characters, the cast of a world) are someone else, even when the world's lore is full of them. Never merge the persona with a character card from the world.",
+  ].join(" "),
+  character: "WHO IS WHO: This is a CHARACTER CARD: someone the AI plays (as {{char}}) opposite the human player, whose own character is {{user}} (their persona). Write {{char}}'s side only; {{user}} belongs to the player.",
+  narrator: "WHO IS WHO: This is a NARRATOR CARD: the AI is a storyteller running a world and voicing its whole cast; the human player is {{user}} (their persona). The narrator plays everyone except {{user}}.",
+} as const;
+
+export const whoIsWho = (kind: "character" | "persona", mode?: "companion" | "narrator") => (kind === "persona" ? WHO_IS_WHO.persona : mode === "narrator" ? WHO_IS_WHO.narrator : WHO_IS_WHO.character);
+
+/** Card vocabulary a persona text must never carry, with what to tell the model when it slips. */
+export function personaSlip(text: string): string | null {
+  if (/\{\{\s*char\s*\}\}/i.test(text)) return "A persona is never {{char}}: they are the player's own character. Write about them by name, with no {{char}} macro.";
+  if (/^\s*<START>/im.test(text) || /^\s*\{\{\s*user\s*\}\}\s*:/im.test(text)) return "A persona has no example dialogue or chat lines. Write a description of them by name.";
+  return null;
+}
+
+/** A persona text with the card macros a model slipped in replaced by the persona's name. */
+export const unslipPersona = (text: string, name: string) => (name.trim() ? text.replace(/\{\{\s*char\s*\}\}/gi, name.trim()) : text);
+
 /** For a world or character based on an existing work: canon is the floor, the author's changes the ceiling. */
 export const canonRule = (basedOn: string) =>
   basedOn.trim()

@@ -76,7 +76,7 @@
     else next.add(id);
     picked = next;
   }
-  const KIND: Record<string, string> = { idea: "your idea", section: "concept", bible: "bible", field: "field", rewrite: "rewrite", name: "name", overview: "overview", entry: "edit", plan: "plan", add: "new", remove: "leave out" };
+  const KIND: Record<string, string> = { idea: "your idea", section: "concept", bible: "bible", field: "field", rewrite: "rewrite", name: "name", overview: "overview", entry: "edit", plan: "plan", add: "new", remove: "leave out", answer: "answer", option: "shape", basedOn: "canon", write: "write" };
   const long = (c: ProposedChange) => c.before.length + c.after.length > 1400;
   // Mea's replies can brainstorm in lists and bold; rendered safely.
   const md = (t: string) => DOMPurify.sanitize(marked.parse(t, { async: false, breaks: true }) as string, { FORBID_TAGS: ["style", "script", "img", "iframe", "form", "input"] });
@@ -129,6 +129,8 @@
               </span>
               {#if c.kind === "rewrite"}
                 <span class="small">Rewritten in the background: <i>{c.steer}</i></span>
+              {:else if c.kind === "write"}
+                <span class="small">Written in the background from the bible: <i>{c.after}</i></span>
               {:else if c.kind === "remove"}
                 <span class="small muted">Left out of the lorebook (you can tick it back in).</span>
               {:else if c.kind === "add"}
