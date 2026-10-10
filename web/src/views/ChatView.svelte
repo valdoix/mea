@@ -196,17 +196,7 @@
       messages = page.messages;
       hasMore = page.hasMore;
       hasModel = profiles.profiles.some((p) => p.connectionId && p.modelId);
-      const g: Record<string, string> = {};
-      for (const a of d.active) {
-        g[a.messageId] = a.generationId;
-        const m = messages.find((x) => x.id === a.messageId);
-        if (m) {
-          m.status = "streaming";
-          m.content = a.text;
-          m.reasoning = a.reasoning || m.reasoning;
-        }
-      }
-      gens = g;
+      applyActive(d);
       if (!recapChecked) {
         recapChecked = true;
         void maybeRecap(d).finally(markSeen);
@@ -231,6 +221,46 @@
   $effect(() => {
     void load();
   });
+
+  /** Replies being written right now, from the chat's detail: their text so far, and their generation. */
+  function applyActive(d: ChatDetail) {
+    const g: Record<string, string> = {};
+    for (const a of d.active) {
+      g[a.messageId] = a.generationId;
+      const m = messages.find((x) => x.id === a.messageId);
+      if (m) {
+        m.status = "streaming";
+        m.content = a.text;
+        m.reasoning = a.reasoning || m.reasoning;
+      }
+    }
+    gens = g;
+  }
+
+  /**
+   * M37: back from a dropped connection (an app switch on a phone): fetch only the end of the chat and
+   * merge it in, keeping the older pages you loaded and your place.
+   */
+  async function catchUp() {
+    if (!detail || !messages.length) return void load();
+    try {
+      // The last few are read again too: they may have been edited, swiped or deleted meanwhile.
+      const from = messages[Math.max(0, messages.length - 10)]!.seq - 1;
+      const [d, page] = await Promise.all([get<ChatDetail>(`/api/chats/${id}`), get<{ messages: Message[]; hasMore: boolean }>(`/api/chats/${id}/messages?after=${from}&limit=200`)]);
+      if (page.hasMore) return void load();
+      detail = d;
+      gens = {};
+      const fresh = new Set(page.messages.map((m) => m.id));
+      messages = messages.filter((m) => m.seq <= from || fresh.has(m.id));
+      for (const m of page.messages) upsert(m);
+      applyActive(d);
+      void loadBoundaries();
+      void loadFlags();
+      refreshPreview();
+    } catch {
+      // the next reconnect tries again
+    }
+  }
 
   // A link to another message of this chat (?at= or ?m=) jumps there without reloading.
   let lastJump = `${route.query.at ?? ""}|${route.query.m ?? ""}`;
@@ -484,7 +514,7 @@
   $effect(() =>
     onEvent((e) => {
       if (e.type === "reconnected") {
-        void load();
+        void catchUp();
         return;
       }
       if (!("chatId" in e) || e.chatId !== id) return;
