@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { strToU8, zipSync } from "fflate";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createApp } from "../src/app";
@@ -9,7 +9,8 @@ import { normalizeCard } from "../src/cards/card";
 import { CHARX_LIMITS, parseCardFile } from "../src/cards/io";
 import { htmlToText, privateIp, publicUrl } from "../src/creator/research";
 import { createCharacter } from "../src/services/characters";
-import { createChat } from "../src/services/chats";
+import { addMessage, addSwipe, createChat, softDeleteMessage, updateSwipe } from "../src/services/chats";
+import { exportChatJsonl } from "../src/services/export";
 import { deletedImagesDir, getImage, imagePath, mirrorImages, purgeUnreferencedImages, saveImage, sweepDeletedImages } from "../src/services/images";
 import { storageReport } from "../src/services/storage";
 import { saveCastProfile } from "../src/trackers/store";
@@ -17,8 +18,8 @@ import { paths } from "../src/config";
 import { one, openDb, run } from "../src/db/db";
 import type { HttpError } from "../src/lib/http";
 import { placeholderAvatar } from "../src/lib/png-encode";
-import { createBackup, listBackups, restoreBackup } from "../src/services/backup";
-import { enqueue, registerJob, runningJobCount } from "../src/services/jobs";
+import { createBackup, listBackups, restoreBackup, scheduledBackup } from "../src/services/backup";
+import { enqueue, registerJob, retryJob, runningJobCount } from "../src/services/jobs";
 import { freshDb } from "./helpers";
 
 /** Regression tests for the audit's data-layer findings (H9–H12). */
@@ -252,5 +253,47 @@ describe("H12 / M36: the image purge", () => {
     expect(readdirSync(join(dir, "images"))).not.toContain("deleted");
     expect(mirrorImages(dir).copied).toBe(0);
     expect(mirrorImages(dir, (b) => Buffer.concat([Buffer.from("x"), b])).copied).toBe(first.copied);
+  });
+});
+
+describe("L5: long-running work", () => {
+  test("chat export keeps each message's swipes and skips deleted messages", () => {
+    const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", first_mes: "Hi." } });
+    const chatId = createChat({ characterId: createCharacter(data) }).id;
+    const a = addMessage(chatId, "assistant", "first");
+    updateSwipe(a, addSwipe(a, "done"), { content: "second" });
+    const gone = addMessage(chatId, "user", "deleted line");
+    softDeleteMessage(gone);
+    const lines = exportChatJsonl(chatId)!.trim().split("\n").map((l) => JSON.parse(l));
+    const swiped = lines.find((l) => l.swipes);
+    expect(swiped.swipes).toEqual(["first", "second"]);
+    expect(swiped.mes).toBe("second");
+    expect(lines.some((l) => l.mes === "deleted line")).toBe(false);
+  });
+
+  test("the hourly snapshot isn't retaken right after a restart", () => {
+    createBackup("daily");
+    const count = () => listBackups().length;
+    const before = count();
+    scheduledBackup();
+    expect(count()).toBe(before);
+    for (const b of listBackups()) utimesSync(join(paths.backups, b.file), new Date(Date.now() - 2 * 3600_000), new Date(Date.now() - 2 * 3600_000));
+    scheduledBackup();
+    expect(listBackups().some((b) => b.kind === "hourly")).toBe(true);
+  });
+});
+
+describe("L17: retrying a job whose dedupe key is taken again", () => {
+  test("is a no-op instead of a unique-index error", async () => {
+    let release = () => {};
+    registerJob("t.l17", () => new Promise<void>((r) => (release = r)));
+    const failed = enqueue("t.l17", {}, { dedupeKey: "l17" })!;
+    run("UPDATE jobs SET status = 'failed' WHERE id = ?", failed);
+    const again = enqueue("t.l17", {}, { dedupeKey: "l17" });
+    expect(again).toBeTruthy();
+    expect(() => retryJob(failed)).not.toThrow();
+    expect(one<{ status: string }>("SELECT status FROM jobs WHERE id = ?", failed)?.status).toBe("failed");
+    release();
+    await Bun.sleep(20);
   });
 });

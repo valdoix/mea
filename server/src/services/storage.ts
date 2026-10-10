@@ -2,6 +2,8 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { paths } from "../config";
 import { all, db, now, one, run } from "../db/db";
+import { HttpError } from "../lib/http";
+import { activeGenerations } from "./generation";
 import { purgeTrash } from "./trash";
 import { deletedImagesDir, IMAGE_UNREFERENCED, purgeUnreferencedImages } from "./images";
 
@@ -93,6 +95,8 @@ export function storageReport() {
 
 /** Compacts the database file (and folds the write-ahead log back in). */
 export function vacuum() {
+  // L5: VACUUM holds the server until it's done, so not in the middle of a reply.
+  if (activeGenerations().length) throw new HttpError(409, "A reply is being written. Compact the database once it's done.");
   const before = fileBytes(paths.db) + fileBytes(`${paths.db}-wal`);
   db().exec("PRAGMA wal_checkpoint(TRUNCATE)");
   db().exec("VACUUM");

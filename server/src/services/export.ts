@@ -28,9 +28,15 @@ function loadChat(chatId: string) {
     "SELECT id, role, name, active_swipe, created_at FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq",
     chatId,
   );
-  const swipes = all<SwipeRow>("SELECT s.* FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? ORDER BY s.idx", chatId);
+  // L5: swipes of live messages grouped once (a filter per message was quadratic on long chats).
+  const byMessage = new Map<string, SwipeRow[]>();
+  for (const s of all<SwipeRow>("SELECT s.* FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.deleted_at IS NULL ORDER BY s.idx", chatId)) {
+    const list = byMessage.get(s.message_id);
+    if (list) list.push(s);
+    else byMessage.set(s.message_id, [s]);
+  }
   const messages: ExportMessage[] = msgs.map((m) => {
-    const ss = swipes.filter((s) => s.message_id === m.id);
+    const ss = byMessage.get(m.id) ?? [];
     return {
       role: m.role,
       name: m.role === "user" ? userName : m.role === "assistant" ? (m.name ?? charName) : "Note",

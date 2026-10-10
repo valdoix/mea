@@ -9,7 +9,7 @@ import { badRequest, HttpError } from "../lib/http";
 import { getSetting } from "../lib/settings";
 import { activeGenerations, stopGeneration } from "./generation";
 import { sweepDeletedImages } from "./images";
-import { pauseJobs, runningJobCount } from "./jobs";
+import { Deferred, pauseJobs, runningJobCount } from "./jobs";
 import { mirrorBackup } from "./mirror";
 
 /**
@@ -82,10 +82,15 @@ function fingerprint() {
 
 /** Hourly job: snapshot only if something changed; one daily snapshot per day. */
 export function scheduledBackup() {
+  // L5: a snapshot blocks the server for a moment, so it waits until no reply is streaming.
+  if (activeGenerations().length) throw new Deferred("waiting for replies to finish", 2 * 60_000);
   const fp = fingerprint();
   const backups = listBackups();
   const today = stamp().slice(0, 8);
-  if (!backups.some((b) => b.kind === "daily" && b.file.includes(`-${today}-`))) {
+  const hasDaily = backups.some((b) => b.kind === "daily" && b.file.includes(`-${today}-`));
+  // L5: right after a restart, a snapshot from the last hour will do; the next run takes a fresh one.
+  if (hasDaily && !lastFingerprint && backups[0] && Date.now() - backups[0].createdAt < 50 * 60_000) return;
+  if (!hasDaily) {
     const daily = createBackup("daily");
     // DATA-08: the daily snapshot also goes off this machine. A failure is shown in settings.
     try {
