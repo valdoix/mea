@@ -18,7 +18,7 @@ import {
   updateCharacter,
 } from "../services/characters";
 import { characterSettingsSchema } from "../services/charsettings";
-import { getImage, imageFileFor, imagePath, saveImage, setThumbnail } from "../services/images";
+import { getImage, imageFileFor, liveImagePath, saveImage, setThumbnail } from "../services/images";
 import { importFile } from "../services/importer";
 import { detectMode } from "../services/mode";
 import { createPersona, getPersona, listPersonas, restorePersona, softDeletePersona, updatePersona } from "../services/personas";
@@ -162,16 +162,30 @@ library.post("/images", async (c) => {
   const file = form.get("file");
   if (!(file instanceof File)) throw badRequest("No file uploaded");
   const thumb = form.get("thumb");
-  const palette = form.get("palette");
   const id = await saveImage(new Uint8Array(await file.arrayBuffer()), {
     width: Number(form.get("width")) || undefined,
     height: Number(form.get("height")) || undefined,
-    palette: typeof palette === "string" ? (JSON.parse(palette) as string[]) : undefined,
+    palette: paletteOf(form),
     thumb: thumb instanceof File ? new Uint8Array(await thumb.arrayBuffer()) : undefined,
     variants: await variantsOf(form),
   });
   return c.json({ id }, 201);
 });
+
+/** L2: a palette form field, checked (a bad one is a 400, not a 500). */
+function paletteOf(form: FormData): string[] | undefined {
+  const raw = form.get("palette");
+  if (typeof raw !== "string") return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw badRequest("The palette must be JSON");
+  }
+  const parsed = z.array(z.string().max(32)).max(32).safeParse(value);
+  if (!parsed.success) throw badRequest("The palette must be a list of colours");
+  return parsed.data;
+}
 
 /** PERF-08: the small and large sizes the browser made, if it sent them. */
 async function variantsOf(form: FormData) {
@@ -187,8 +201,7 @@ library.post("/images/:id/thumb", async (c) => {
   const form = await c.req.formData();
   const thumb = form.get("thumb");
   if (!(thumb instanceof File)) throw badRequest("No thumbnail");
-  const palette = form.get("palette");
-  await setThumbnail(c.req.param("id"), new Uint8Array(await thumb.arrayBuffer()), typeof palette === "string" ? JSON.parse(palette) : undefined, await variantsOf(form));
+  await setThumbnail(c.req.param("id"), new Uint8Array(await thumb.arrayBuffer()), paletteOf(form), await variantsOf(form));
   return c.json({ ok: true });
 });
 
@@ -197,7 +210,7 @@ library.get("/images/:id", async (c) => {
   // PERF-08: ?size=s|m|l picks a WebP size (?thumb=1 is the medium one); the original otherwise.
   const q = c.req.query("size") ?? (c.req.query("thumb") === "1" ? "m" : null);
   const pick = imageFileFor(img, q === "s" || q === "m" || q === "l" ? q : null);
-  const file = Bun.file(imagePath(pick.file));
+  const file = Bun.file(liveImagePath(pick.file));
   if (!(await file.exists())) throw badRequest("Image file missing");
   return new Response(file, {
     headers: {

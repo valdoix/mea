@@ -8,10 +8,14 @@ import { openSealed, persistVault, sealSnapshot, vaultActive, vaultMigrationBack
 import { badRequest, HttpError } from "../lib/http";
 import { getSetting } from "../lib/settings";
 import { activeGenerations, stopGeneration } from "./generation";
+import { sweepDeletedImages } from "./images";
 import { pauseJobs, runningJobCount } from "./jobs";
 import { mirrorBackup } from "./mirror";
 
-/** Rolling SQLite snapshots (DATA-03). Images are append-only on disk, so the DB snapshot is the backup. */
+/**
+ * Rolling SQLite snapshots (DATA-03). Images are immutable on disk; purged ones wait in images/deleted/
+ * for a grace period (M36), so a restored snapshot gets its pictures back.
+ */
 export type BackupKind = "hourly" | "daily" | "manual" | "pre-restore" | "pre-migration";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -118,6 +122,12 @@ function recoverRestored() {
        WHERE status = 'streaming'`);
   run("UPDATE generations SET status = 'error', error = 'interrupted by restart' WHERE status = 'running'");
   run("UPDATE jobs SET status = 'queued' WHERE status = 'running'");
+  // M36: images the snapshot still uses come back from images/deleted/.
+  try {
+    sweepDeletedImages();
+  } catch (e) {
+    console.error("[mea] couldn't bring back purged images:", (e as Error).message);
+  }
 }
 
 const removeSidecars = (file: string) => {

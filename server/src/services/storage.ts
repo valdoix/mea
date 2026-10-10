@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { paths } from "../config";
 import { all, db, now, one, run } from "../db/db";
 import { purgeTrash } from "./trash";
-import { purgeUnreferencedImages } from "./images";
+import { deletedImagesDir, IMAGE_UNREFERENCED, purgeUnreferencedImages } from "./images";
 
 /**
  * The storage dashboard (DATA-06): what takes space (per chat and per character), what can be
@@ -68,15 +68,14 @@ export function storageReport() {
     now() - 7 * day,
   )!;
   const trashed = chats.filter((c) => c.deleted);
-  const orphanImages = one<{ n: number; bytes: number }>(`SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS bytes FROM images i WHERE
-      NOT EXISTS (SELECT 1 FROM characters c WHERE c.avatar_id = i.id OR c.gallery LIKE '%' || i.id || '%' OR c.settings LIKE '%' || i.id || '%')
-      AND NOT EXISTS (SELECT 1 FROM personas p WHERE p.avatar_id = i.id)
-      AND NOT EXISTS (SELECT 1 FROM chats ch WHERE ch.cover_image_id = i.id OR ch.settings LIKE '%' || i.id || '%')
-      AND NOT EXISTS (SELECT 1 FROM variants v WHERE v.avatar_id = i.id)`)!;
+  // H12: the same reference check the purge uses.
+  const orphanImages = one<{ n: number; bytes: number }>(`SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS bytes FROM images i WHERE ${IMAGE_UNREFERENCED}`)!;
 
   return {
     database: { bytes: dbBytes, wal: fileBytes(`${paths.db}-wal`), freeBytes: free * page },
     images: dirSize(paths.images),
+    // M36: purged images waiting out their grace period.
+    imagesDeleted: dirSize(deletedImagesDir()),
     backups: dirSize(paths.backups),
     logs: dirSize(paths.logs),
     chats: chats

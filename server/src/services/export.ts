@@ -119,7 +119,8 @@ export function exportLibraryZip(): Uint8Array {
     "mea.db": snapshot,
     "manifest.json": strToU8(JSON.stringify({ app: "mea", format: 1, exportedAt: new Date().toISOString(), note: "API keys are encrypted with this machine's key file and won't work elsewhere." }, null, 2)),
   };
-  for (const f of readdirSync(paths.images)) files[`images/${f}`] = [readFileSync(join(paths.images, f)), { level: 0 }];
+  // Files only: images/deleted/ (M36) holds purged images and isn't part of the library.
+  for (const f of readdirSync(paths.images, { withFileTypes: true })) if (f.isFile()) files[`images/${f.name}`] = [readFileSync(join(paths.images, f.name)), { level: 0 }];
   return zipSync(files as Parameters<typeof zipSync>[0], { level: 6 });
 }
 
