@@ -66,7 +66,7 @@ The trackers re-fold their history, so existing chats clean up by themselves.
 ### In both studios
 
 - **Suggested answers.** Every interview question comes with three answers to tap. Follow-ups build on what you've answered.
-- **Meus, the co-writer** ("Brainstorm with Meus"; it was called Mea before it came to chats too) is a companion chat.
+- **Meus, the co-writer** ("Brainstorm with Meus"; it was called Mea before it came to chats too, see [13-meus.md](13-meus.md)) is a companion chat.
   - **Brainstorming.** It riffs, offers options, pushes back and knows the fandom. It changes the draft only when you ask or agree.
   - **In "Expand my idea".** Meus reads your idea and every expanded section by heading. It can rewrite a section, add a new one, or (rarely) your idea itself. **Brainstorm** on the panel opens the chat; the speech-bubble button on a section starts the message for you ("Let's brainstorm the Central tension section: ").
   - **Looking things up.** When it needs facts it searches the wiki (one round), and the pages it read show under its reply.

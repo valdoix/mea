@@ -1,7 +1,8 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import { del, post } from "../../lib/api";
-  import { Bookmark, BookmarkPlus, CircleAlert, Heart } from "../../lib/icons";
+  import { Bookmark, BookmarkPlus, CircleAlert, Heart, MessagesSquare } from "../../lib/icons";
+  import { askMeus } from "../../lib/meus.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import { delight } from "../../lib/delight";
   import type { Atom } from "../../lib/types";
@@ -97,6 +98,14 @@
       errorToast(e);
     }
   }
+  /** Talk it over with Meus: the passage and where it's from start the message. */
+  function toMeus() {
+    if (!sel) return;
+    const seq = (window.getSelection()?.anchorNode?.parentElement?.closest("article.msg") as HTMLElement | null)?.dataset.seq;
+    askMeus(`About this${seq ? ` (in #${seq})` : ""}: “${sel.text.slice(0, 600)}” `);
+    window.getSelection()?.removeAllRanges();
+    sel = null;
+  }
   function toggle(id: string) {
     const next = new Set(picked);
     if (next.has(id)) next.delete(id);
@@ -111,6 +120,7 @@
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={() => remember(false)}><BookmarkPlus size={14} /> Remember</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={() => remember(true)}><Bookmark size={14} /> Pin</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={startFix}><CircleAlert size={14} /> That's wrong</button>
+    <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={toMeus}><MessagesSquare size={14} /> Ask Meus</button>
   </div>
 {/if}
 

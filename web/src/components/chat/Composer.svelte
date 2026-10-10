@@ -8,6 +8,7 @@
   import Segmented from "../Segmented.svelte";
   import { compact } from "../../lib/format";
   import { app, errorToast, toast } from "../../lib/state.svelte";
+  import { askMeus, sendToMeus } from "../../lib/meus.svelte";
   import { buzz, device as prefs } from "../../lib/device.svelte";
   import { delight } from "../../lib/delight";
   import type { SpellIssue } from "../../lib/spell";
@@ -177,6 +178,10 @@
         return done(await actions.remember(arg, cmd.toLowerCase() === "pin"));
       case "ask":
         return done(await actions.ask(arg));
+      case "meus":
+        if (arg) sendToMeus(arg);
+        else askMeus();
+        return "ok";
       case "director":
         return done(await actions.director());
       case "truth":

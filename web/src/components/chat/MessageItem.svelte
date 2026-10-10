@@ -27,7 +27,9 @@
     Flag,
     Info,
     Undo,
+    MessagesSquare,
   } from "../../lib/icons";
+  import { askMeus } from "../../lib/meus.svelte";
   import { renderMessage, renderStreaming } from "../../lib/render";
   import { applyRegex, regexScope } from "../../lib/regex.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
@@ -202,6 +204,7 @@
     list.push({ label: message.hidden ? "Include in prompt" : "Hide from prompt", icon: message.hidden ? Eye : EyeOff, onclick: () => onflag({ hidden: !message.hidden }) });
     if (message.meta?.generationId) list.push({ label: "What the model received", icon: ScrollText, onclick: oninspect });
     if (onmemory) list.push({ label: "What memory knows", icon: Brain, onclick: onmemory });
+    list.push({ label: "Fix with Meus", icon: MessagesSquare, onclick: () => askMeus(`Something's wrong in #${message.seq}: `) });
     if (onendscene) list.push({ label: "End the scene after this", icon: Milestone, onclick: onendscene });
     if (onnewchapter) list.push({ label: "Start a new chapter here", icon: Flag, onclick: onnewchapter });
     if (onrewind && !isLast) list.push({ label: "Rewind to here", icon: Undo, onclick: onrewind, hint: "deletes what comes after" });
