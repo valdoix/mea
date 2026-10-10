@@ -1,5 +1,7 @@
 import { all, newId, now, one, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
+import { badRequest } from "../lib/http";
+import { z } from "zod";
 import { getSetting, setSetting } from "../lib/settings";
 import { MEA_PRESET_VERSION, meaPreset } from "../prompt/mea";
 import { defaultPreset, ensureMemoryBlocks, type Preset, presetSchema } from "../prompt/preset";
@@ -32,9 +34,16 @@ export function getPreset(id: string | null | undefined): (Preset & { id: string
   return r ? { ...parsePreset(r.data), id: r.id } : undefined;
 }
 
+/** L2: an invalid preset (e.g. an odd import) is a 400, not a 500. */
+function checkPreset(preset: Preset): Preset {
+  const r = presetSchema.safeParse(preset);
+  if (!r.success) throw badRequest(`That preset isn't valid: ${z.prettifyError(r.error).slice(0, 300)}`);
+  return r.data;
+}
+
 /** Copies never carry the built-in mark: only Mea's own installed preset does. */
 export function createPreset(preset: Preset, opts: { builtin?: boolean } = {}): string {
-  const p = presetSchema.parse(preset);
+  const p = checkPreset(preset);
   if (!opts.builtin) delete p.builtin;
   const id = newId();
   const t = now();
@@ -44,7 +53,7 @@ export function createPreset(preset: Preset, opts: { builtin?: boolean } = {}): 
 }
 
 export function updatePreset(id: string, preset: Preset) {
-  const p = presetSchema.parse(preset);
+  const p = checkPreset(preset);
   // The built-in mark stays with the preset it was installed on, whatever the editor sends.
   const was = getPreset(id)?.builtin;
   if (was) p.builtin = was;

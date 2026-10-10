@@ -80,8 +80,12 @@ export function enqueue(kind: string, payload: Record<string, unknown> = {}, opt
 }
 
 function activity() {
-  const queued = one<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued'")?.n ?? 0;
-  publish({ type: "jobs.activity", running: running.size, queued });
+  try {
+    const queued = one<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued'")?.n ?? 0;
+    publish({ type: "jobs.activity", running: running.size, queued });
+  } catch {
+    // H11: the database may be mid-restore; the next tick reports again.
+  }
 }
 
 async function runJob(job: JobRow) {
@@ -123,14 +127,32 @@ async function runJob(job: JobRow) {
   }
 }
 
+/** H11: while paused (a backup restore swapping the database), no new job starts. */
+let paused = false;
+export function pauseJobs(on: boolean) {
+  paused = on;
+  if (!on) queueMicrotask(tick);
+}
+export const runningJobCount = () => running.size;
+
 function tick() {
-  if (running.size >= CONCURRENCY) return;
-  const ready = all<JobRow>(
-    "SELECT * FROM jobs WHERE status = 'queued' AND run_after <= ? ORDER BY priority DESC, run_after LIMIT ?",
-    now(),
-    CONCURRENCY - running.size,
-  );
-  for (const job of ready) if (!running.has(job.id)) void runJob(job);
+  if (paused || running.size >= CONCURRENCY) return;
+  // H11: a tick runs from a timer; an error here (e.g. no database) must not kill the process.
+  try {
+    const ready = all<JobRow>(
+      "SELECT * FROM jobs WHERE status = 'queued' AND run_after <= ? ORDER BY priority DESC, run_after LIMIT ?",
+      now(),
+      CONCURRENCY - running.size,
+    );
+    for (const job of ready)
+      if (!running.has(job.id))
+        runJob(job).catch((e) => {
+          running.delete(job.id);
+          console.error(`[mea] job ${job.kind} couldn't be recorded:`, (e as Error)?.message ?? e);
+        });
+  } catch (e) {
+    console.error("[mea] job tick failed:", (e as Error)?.message ?? e);
+  }
 }
 
 export function startJobs() {
@@ -157,7 +179,11 @@ export function schedule(kind: string, everyMs: number, opts: { runNow?: boolean
       for (const s of schedules) {
         if (t - s.last >= s.everyMs) {
           s.last = t;
-          enqueue(s.kind, s.payload ?? {}, { dedupeKey: `schedule:${s.kind}` });
+          try {
+            enqueue(s.kind, s.payload ?? {}, { dedupeKey: `schedule:${s.kind}` });
+          } catch (e) {
+            console.error(`[mea] couldn't schedule ${s.kind}:`, (e as Error)?.message ?? e);
+          }
         }
       }
     }, 15_000);
@@ -216,6 +242,10 @@ export function listJobs(opts: { status?: string; chatId?: string; limit?: numbe
 }
 
 export function retryJob(id: string) {
+  // L17: a failed job whose dedupe key is already queued/running again would hit the unique index;
+  // the newer copy covers it, so there is nothing to retry.
+  const job = one<{ dedupe_key: string | null; status: string }>("SELECT dedupe_key, status FROM jobs WHERE id = ?", id);
+  if (job?.dedupe_key && job.status === "failed" && one("SELECT 1 FROM jobs WHERE dedupe_key = ? AND status IN ('queued', 'running') AND id != ?", job.dedupe_key, id)) return;
   run("UPDATE jobs SET status = 'queued', attempts = 0, run_after = ?, updated_at = ? WHERE id = ? AND status IN ('failed', 'queued')", now(), now(), id);
   queueMicrotask(tick);
 }

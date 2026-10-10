@@ -15,6 +15,14 @@ import { clean, storageReport, vacuum } from "../services/storage";
 /** Phase 5 data: book export, memory export/import, storage, the notebook, highlights, request logs. */
 export const data = new Hono();
 
+/**
+ * H10/L17: the largest single upload Mea accepts, and the request body limit index.ts should pass to
+ * Bun.serve as `maxRequestBodySize` (a little over, for multipart overhead). Bun's default is 128 MB,
+ * so the old 200 MB check here could never fire.
+ */
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const MAX_REQUEST_BODY_BYTES = MAX_UPLOAD_BYTES + 8 * 1024 * 1024;
+
 const download = (name: string, ext: string) => ({ "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(`${name}.${ext}`)}` });
 
 // ---------- Book export (DATA-04) ----------
@@ -53,7 +61,7 @@ data.post("/chats/:id/memory/import", async (c) => {
     const form = await c.req.formData();
     const f = form.get("file");
     if (!(f instanceof File)) throw badRequest("No file uploaded");
-    if (f.size > 200 * 1024 * 1024) throw badRequest("That file is too big (200 MB at most)");
+    if (f.size > MAX_UPLOAD_BYTES) throw badRequest("That file is too big (100 MB at most)");
     text = await f.text();
     mode = form.get("mode") === "replace" ? "replace" : "merge";
   } else {

@@ -40,7 +40,7 @@ export const chats = new Hono();
 
 chats.get("/chats", (c) => {
   const q = c.req.query();
-  return c.json({ chats: listChats({ characterId: q.characterId, archived: q.archived === "1", deleted: q.deleted === "1", limit: Number(q.limit) || undefined, collectionId: q.collection || undefined }) });
+  return c.json({ chats: listChats({ characterId: q.characterId, archived: q.archived === "1", deleted: q.deleted === "1", limit: Number(q.limit) || undefined, offset: Number(q.offset) || undefined, collectionId: q.collection || undefined }) });
 });
 
 chats.post("/chats", async (c) => {

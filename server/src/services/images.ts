@@ -1,4 +1,4 @@
-import { existsSync, unlinkSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pngSize } from "../cards/png";
 import { paths } from "../config";
@@ -116,10 +116,24 @@ export function imagePath(file: string) {
   return join(paths.images, file);
 }
 
+/** M36: purged files wait here for a grace period before they are really deleted. */
+export const deletedImagesDir = () => join(paths.images, "deleted");
+export const IMAGE_GRACE_MS = 30 * 24 * 3600_000;
+
+/** The path of an image file, moving it back from deleted/ if it was purged but is wanted again. */
+export function liveImagePath(file: string) {
+  const p = imagePath(file);
+  if (!existsSync(p)) {
+    const parked = join(deletedImagesDir(), file);
+    if (existsSync(parked)) renameSync(parked, p);
+  }
+  return p;
+}
+
 export async function readImage(id: string): Promise<{ bytes: Uint8Array; mime: string } | undefined> {
   const img = getImage(id);
   if (!img) return undefined;
-  const f = Bun.file(imagePath(img.file));
+  const f = Bun.file(liveImagePath(img.file));
   if (!(await f.exists())) return undefined;
   return { bytes: new Uint8Array(await f.arrayBuffer()), mime: img.mime };
 }
@@ -129,22 +143,94 @@ export function imagePalette(id: string | null | undefined): string[] {
   return parseJson(getImage(id)?.palette, []);
 }
 
-/** Deletes images no longer referenced anywhere (run by the trash purge job). */
-export function purgeUnreferencedImages(): number {
-  const rows = all<ImageRow>(`
-    SELECT * FROM images i WHERE
+/**
+ * H12: the one place that knows where image ids are stored. An SQL condition, true when image `i`
+ * is used by nothing: characters (portrait, gallery, settings), personas, chats (cover, settings such
+ * as the ambience background), variants, and cast portraits (cast_profiles.data.avatarId).
+ * Used by both the purge and the storage report.
+ */
+export const IMAGE_UNREFERENCED = `
       NOT EXISTS (SELECT 1 FROM characters c WHERE c.avatar_id = i.id OR c.gallery LIKE '%' || i.id || '%' OR c.settings LIKE '%' || i.id || '%')
-      AND NOT EXISTS (SELECT 1 FROM personas p WHERE p.avatar_id = i.id)
+      AND NOT EXISTS (SELECT 1 FROM personas p WHERE p.avatar_id = i.id OR p.data LIKE '%' || i.id || '%')
       AND NOT EXISTS (SELECT 1 FROM chats ch WHERE ch.cover_image_id = i.id OR ch.settings LIKE '%' || i.id || '%')
       AND NOT EXISTS (SELECT 1 FROM variants v WHERE v.avatar_id = i.id)
-      AND i.created_at < ?`, now() - 24 * 3600 * 1000);
+      AND NOT EXISTS (SELECT 1 FROM cast_profiles cp WHERE cp.data LIKE '%' || i.id || '%')`;
+
+const filesOf = (r: Pick<ImageRow, "file" | "thumb_file" | "variants">) =>
+  [r.file, r.thumb_file, ...Object.values(parseJson<Record<string, string>>(r.variants, {}))].filter(Boolean) as string[];
+
+/**
+ * Removes images no longer referenced anywhere (run by the trash purge job). M36: the files move to
+ * images/deleted/ and are only unlinked after IMAGE_GRACE_MS, so a restored backup gets them back.
+ */
+export function purgeUnreferencedImages(): number {
+  const rows = all<ImageRow>(`SELECT * FROM images i WHERE ${IMAGE_UNREFERENCED} AND i.created_at < ?`, now() - 24 * 3600 * 1000);
+  if (rows.length) mkdirSync(deletedImagesDir(), { recursive: true });
+  const t = new Date();
   for (const r of rows) {
-    for (const f of [r.file, r.thumb_file, ...Object.values(parseJson<Record<string, string>>(r.variants, {}))]) {
-      if (!f) continue;
+    for (const f of filesOf(r)) {
       const p = imagePath(f);
-      if (existsSync(p)) unlinkSync(p);
+      if (!existsSync(p)) continue;
+      const parked = join(deletedImagesDir(), f);
+      renameSync(p, parked);
+      utimesSync(parked, t, t); // the grace period starts now
     }
     run("DELETE FROM images WHERE id = ?", r.id);
   }
+  sweepDeletedImages();
   return rows.length;
+}
+
+/**
+ * M36: files in images/deleted/ whose image row exists again (after a backup restore) go back;
+ * the rest are unlinked once their grace period is over.
+ */
+export function sweepDeletedImages(grace = IMAGE_GRACE_MS) {
+  const dir = deletedImagesDir();
+  if (!existsSync(dir)) return { revived: 0, removed: 0 };
+  const known = new Set(all<{ id: string }>("SELECT id FROM images").map((r) => r.id));
+  let revived = 0;
+  let removed = 0;
+  for (const f of readdirSync(dir)) {
+    const p = join(dir, f);
+    try {
+      if (known.has(f.split(".")[0]!)) {
+        if (!existsSync(imagePath(f))) renameSync(p, imagePath(f));
+        else unlinkSync(p);
+        revived++;
+      } else if (statSync(p).mtimeMs <= now() - grace) {
+        unlinkSync(p);
+        removed++;
+      }
+    } catch {
+      // vanished or locked: the next sweep tries again
+    }
+  }
+  return { revived, removed };
+}
+
+/**
+ * M36: copies the image files the mirror folder doesn't have yet into `<dir>/images`. Images are
+ * immutable and named by id, so a file already there is never copied again. With `seal`, each file
+ * is encrypted and the copy is named `<file>.enc`.
+ */
+export function mirrorImages(dir: string, seal?: (bytes: Buffer) => Buffer) {
+  const target = join(dir, "images");
+  mkdirSync(target, { recursive: true });
+  const have = new Set(readdirSync(target));
+  let copied = 0;
+  for (const f of readdirSync(paths.images)) {
+    const name = seal ? `${f}.enc` : f;
+    if (have.has(name)) continue;
+    const source = imagePath(f);
+    try {
+      if (!statSync(source).isFile()) continue;
+      if (seal) writeFileSync(join(target, name), seal(readFileSync(source)));
+      else copyFileSync(source, join(target, name));
+      copied++;
+    } catch {
+      // vanished: the next run copies what's left
+    }
+  }
+  return { copied };
 }
