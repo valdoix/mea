@@ -188,7 +188,10 @@
   });
 </script>
 
-{#if !ready}
+<!-- M6: while locked, only the lock is drawn: nothing behind it to tab to, read aloud or trigger. -->
+{#if lock.locked}
+  <AppLock />
+{:else if !ready}
   <div class="boot"><span class="heart">✿</span></div>
 {:else if unreachable}
   <div class="boot">
@@ -254,10 +257,12 @@
   {/if}
 {/if}
 
-<Toasts />
-<Dialogs />
-{#if ready && !unreachable && !vaultLocked && !bare && app.authorized && !lock.locked}<CommandPalette />{/if}
-{#if lock.locked}<AppLock />{/if}
+{#if !lock.locked}
+  <Toasts />
+  <Dialogs />
+  {#if ready && !unreachable && !vaultLocked && !bare && app.authorized}<CommandPalette />{/if}
+  {#if lock.covered}<div class="privacy-cover" aria-hidden="true"><span class="heart">✿</span></div>{/if}
+{/if}
 
 <style>
   .boot {
@@ -265,6 +270,14 @@
     display: grid;
     place-items: center;
     padding: 2rem;
+  }
+  .privacy-cover {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
   }
   .heart {
     font-size: 2.4rem;
