@@ -45,10 +45,13 @@
   let answer = $state<{ title: string; text: string; citations?: { n: number; type: string; excerpt: string; seq: number | null }[] } | null>(null);
   let answerOpen = $state(false);
 
+  async function patchSettings(patchBody: Partial<ChatSettings>) {
+    await patch(`/api/chats/${chatId}`, { settings: patchBody });
+    onchange();
+  }
   async function saveSettings(patchBody: Partial<ChatSettings>) {
     try {
-      await patch(`/api/chats/${chatId}`, { settings: patchBody });
-      onchange();
+      await patchSettings(patchBody);
     } catch (e) {
       errorToast(e);
     }
@@ -62,25 +65,28 @@
       .then((r) => r.messages.at(-1))
       .catch(() => undefined);
   }
-  async function act(fn: () => Promise<void>) {
+  /** M38: false when the action failed, so what you typed for it is kept. */
+  async function act(fn: () => Promise<void>): Promise<boolean> {
     try {
       await fn();
+      return true;
     } catch (e) {
       errorToast(e);
+      return false;
     }
   }
   const actions = {
     ooc: (note: string) =>
       act(async () => {
         if (!note.trim()) return;
-        await saveSettings({ ooc: [...(settings.ooc ?? []), { id: crypto.randomUUID().slice(0, 8), text: note.trim() }] });
+        await patchSettings({ ooc: [...(settings.ooc ?? []), { id: crypto.randomUUID().slice(0, 8), text: note.trim() }] });
         toast("Out-of-character note added", { kind: "ok" });
       }),
-    clearOoc: () => act(async () => void (await saveSettings({ ooc: [] }))),
+    clearOoc: () => act(async () => void (await patchSettings({ ooc: [] }))),
     cue: (nudge: string) =>
       act(async () => {
         if (!nudge.trim()) return;
-        await saveSettings({ cue: nudge.trim() });
+        await patchSettings({ cue: nudge.trim() });
         toast("Cue set for the next reply", { kind: "ok" });
       }),
     endScene: () =>
@@ -104,7 +110,7 @@
       }),
     timeskip: (duration: string, note: string) =>
       act(async () => {
-        if (!duration.trim()) return void errorToast("Say how long, like “3 days”");
+        if (!duration.trim()) throw new Error("Say how long, like “3 days”");
         await post(`/api/chats/${chatId}/timeskip`, { duration: duration.trim(), note: note.trim() || undefined });
         toast("Time skipped", { kind: "ok" });
       }),
@@ -132,59 +138,51 @@
       }),
     director: () =>
       act(async () => {
-        await saveSettings({ director: !director });
+        await patchSettings({ director: !director });
         toast(director ? "Director mode off" : "Director mode on: your messages are stage directions", { kind: "ok" });
       }),
     truth: (rule: string) =>
       act(async () => {
         if (!rule.trim()) return;
-        await saveSettings({ truths: [...(settings.truths ?? []), rule.trim()] });
+        await patchSettings({ truths: [...(settings.truths ?? []), rule.trim()] });
         toast("Story truth added", { kind: "ok" });
       }),
   };
 
-  async function runCommand(raw: string): Promise<boolean> {
+  /** Runs a typed command: "unknown" when it isn't one, "failed" when it didn't work (M38: the text stays). */
+  async function runCommand(raw: string): Promise<"ok" | "failed" | "unknown"> {
     const m = raw.trim().match(/^\/(\w+)\s*([\s\S]*)$/);
-    if (!m) return false;
+    if (!m) return "unknown";
     const [, cmd, rest] = m as unknown as [string, string, string];
     const arg = rest.trim();
+    const done = (ok: boolean) => (ok ? "ok" : "failed");
     switch (cmd.toLowerCase()) {
       case "ooc":
-        await (/^clear$/i.test(arg) ? actions.clearOoc() : actions.ooc(arg));
-        return true;
+        return done(await (/^clear$/i.test(arg) ? actions.clearOoc() : actions.ooc(arg)));
       case "cue":
-        await actions.cue(arg);
-        return true;
+        return done(await actions.cue(arg));
       case "scene":
-        await actions.endScene();
-        return true;
+        return done(await actions.endScene());
       case "chapter":
-        await actions.chapter(arg);
-        return true;
+        return done(await actions.chapter(arg));
       case "timeskip": {
         const mm = arg.match(/^((?:an?|\d+(?:\.\d+)?)\s*\w+)\s*(.*)$/i);
-        if (!mm) return (errorToast("Say how long, like “3 days”"), true);
-        await actions.timeskip(mm[1]!, mm[2] ?? "");
-        return true;
+        if (!mm) return (errorToast("Say how long, like “3 days”"), "failed");
+        return done(await actions.timeskip(mm[1]!, mm[2] ?? ""));
       }
       case "recap":
-        await actions.recap();
-        return true;
+        return done(await actions.recap());
       case "remember":
       case "pin":
-        await actions.remember(arg, cmd.toLowerCase() === "pin");
-        return true;
+        return done(await actions.remember(arg, cmd.toLowerCase() === "pin"));
       case "ask":
-        await actions.ask(arg);
-        return true;
+        return done(await actions.ask(arg));
       case "director":
-        await actions.director();
-        return true;
+        return done(await actions.director());
       case "truth":
-        await actions.truth(arg);
-        return true;
+        return done(await actions.truth(arg));
     }
-    return false;
+    return "unknown";
   }
 
   // ---------- the tray: writing tools, steering and story actions, one button away ----------
@@ -197,8 +195,8 @@
     const t = e.target as Node;
     if (trayOpen && trayEl && !trayEl.contains(t) && !optsBtn?.contains(t)) trayOpen = false;
   }
-  async function trayDo(fn: () => Promise<void>, reset?: (keyof typeof f)[], close = false) {
-    await fn();
+  async function trayDo(fn: () => Promise<unknown>, reset?: (keyof typeof f)[], close = false) {
+    if ((await fn()) === false) return;
     for (const k of reset ?? []) f[k] = "";
     if (close) trayOpen = false;
   }
@@ -425,9 +423,14 @@
     if (/^\/\w+/.test(content.trim())) {
       text = "";
       refit();
-      if (await runCommand(content)) return;
-      text = content;
-      errorToast(`Unknown command ${content.trim().split(/\s/)[0]}`);
+      const ran = await runCommand(content);
+      if (ran === "ok") return;
+      // A command that failed, or isn't one, gives the text back (if nothing new was typed meanwhile).
+      if (!text) {
+        text = content;
+        refit();
+      }
+      if (ran === "unknown") errorToast(`Unknown command ${content.trim().split(/\s/)[0]}`);
       return;
     }
     text = "";

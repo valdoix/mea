@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import Dialogs from "./components/Dialogs.svelte";
   import Modal from "./components/Modal.svelte";
   import Sidebar from "./components/Sidebar.svelte";
@@ -56,11 +56,15 @@
 
   // ARCH-11: reading from this device's saved copy, and sending what waited once Mea is back.
   setSourceHandler((fromCache) => (app.offlineCopy = fromCache));
+  // H8: only the connection and the queue's length start a flush; what the flush itself changes doesn't.
+  let wasConnected = false;
   $effect(() => {
-    if (app.connected && outbox.items.length) void flushOutbox();
+    const back = app.connected && !wasConnected;
+    wasConnected = app.connected;
+    if (app.connected && outbox.items.length) untrack(() => void flushOutbox({ now: back }));
   });
   onMount(() => {
-    const online = () => void flushOutbox();
+    const online = () => void flushOutbox({ now: true });
     window.addEventListener("online", online);
     return () => window.removeEventListener("online", online);
   });

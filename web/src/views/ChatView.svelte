@@ -19,7 +19,7 @@
   import Inspector from "../components/chat/Inspector.svelte";
   import MessageItem from "../components/chat/MessageItem.svelte";
   import Modal from "../components/Modal.svelte";
-  import { ApiError, del, get, imageUrl, patch, post, put } from "../lib/api";
+  import { ApiError, del, get, imageUrl, patch, post, put, storedMessage } from "../lib/api";
   import { confirm, promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
   import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessageQuestion, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
@@ -608,7 +608,9 @@
       scrollToBottom();
       return true;
     } catch (e) {
-      if (offerQuotaChoice(e, async (profileId) => void (await send("", true, false, profileId)))) {
+      // M38: only a message the server says it kept leaves the composer; otherwise the text comes back.
+      const stored = storedMessage(e);
+      if ((stored || !content.trim()) && offerQuotaChoice(e, async (profileId) => void (await send("", true, false, profileId)))) {
         await load();
         return true;
       }
@@ -619,9 +621,9 @@
         return true;
       }
       if (e instanceof ApiError && e.status !== 0) {
-        await load();
+        if (stored) await load();
         toast(e.message, { kind: "error", action: !hasModel ? { label: "Set up a model", run: () => navigate("/settings/models") } : undefined });
-        return true;
+        return stored;
       }
       errorToast(e);
       return false;
