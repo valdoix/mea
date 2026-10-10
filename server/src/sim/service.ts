@@ -15,9 +15,9 @@ import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
 import { buildRoster, type Roster } from "./roster";
 import { climateFrom, forecast, latitudeFrom, skyLine, type SkyInput } from "./sky";
-import { type BeatCard, consequences, MODES, newArc, type SimMode, tick, type TickInput } from "./storyteller";
+import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, type SimMode, tick, type TickInput } from "./storyteller";
 import { tellingPrompt, tellingSchema, validateTelling } from "./telling";
-import type { Arc, EndResult, SimOp, Standing } from "./types";
+import type { Arc, EndResult, Force, SimOp, Standing } from "./types";
 
 export interface ResolvedWorldConfig {
   mode: "off" | SimMode;
@@ -137,10 +137,20 @@ export function runTick(chatId: string, messageId: string | null, forced: boolea
   if (cfg.mode === "off") throw badRequest("The world simulation is off for this chat");
   const st = currentFold(chatId).result.state;
   if (!st.time) throw badRequest("The story clock isn't set yet; the world starts once the trackers have read a reply");
-  const roster = rosterFor(chatId, st);
+  const inp = tickInput(chatId, st, rosterFor(chatId, st), forced);
+  const res = tick(inp);
+  const anchor = messageId ?? lastMessage(chatId)?.id ?? null;
+  const idx = anchor ? (messageId && swipeIdx != null ? swipeIdx : -1) : 0;
+  writeEvents(chatId, { messageId: anchor, swipeIdx: idx }, [...simOps(res.sim), ...res.ledger], "engine");
+  if (cfg.telling === "model" && res.cards.length) enqueue("world.tell", { chatId, messageId: anchor, swipeIdx: idx, cards: res.cards }, { priority: 2, chatId });
+  return res;
+}
+
+function tickInput(chatId: string, st: WorldState, roster: Roster, forced: boolean): TickInput {
+  const cfg = worldConfig(chatId);
   const sky = skyInput(chatId, st, cfg);
   const weather = sky ? skyLine(sky, st.weather?.now ?? null).weather.text : undefined;
-  const inp: TickInput = {
+  return {
     chatId,
     state: st,
     roster,
@@ -151,18 +161,12 @@ export function runTick(chatId: string, messageId: string | null, forced: boolea
     genres: cfg.genres,
     tech: cfg.tech,
     from: st.sim.lastTickAt,
-    now: st.time.minutes,
+    now: st.time!.minutes,
     recent: recentNames(chatId),
     forced,
     weather,
     namedDay: null,
   };
-  const res = tick(inp);
-  const anchor = messageId ?? lastMessage(chatId)?.id ?? null;
-  const idx = anchor ? (messageId && swipeIdx != null ? swipeIdx : -1) : 0;
-  writeEvents(chatId, { messageId: anchor, swipeIdx: idx }, [...simOps(res.sim), ...res.ledger], "engine");
-  if (cfg.telling === "model" && res.cards.length) enqueue("world.tell", { chatId, messageId: anchor, swipeIdx: idx, cards: res.cards }, { priority: 2, chatId });
-  return res;
 }
 
 /** The ELSEWHERE lane and the sky, for the story-state note. */
@@ -224,6 +228,35 @@ export function arcAction(chatId: string, id: string, action: "hold" | "resume" 
   const p: Partial<Arc> =
     action === "hold" ? { status: "held" } : action === "resume" ? { status: "running" } : action === "nudge" ? { push: true, nextAt: now } : action === "bringIn" ? { bringIn: true, push: true, nextAt: now } : action === "drop" ? { status: "dropped" } : { ...patch, locked: true };
   return control(chatId, [{ type: "arc.set", id: arc.id, patch: p }]);
+}
+
+/**
+ * Call a subplot's next beat (win, at a cost, loss, a twist, or a reversal). When the subplot can
+ * move off the page now, the beat lands at once, so the next reply already has it on its way to the
+ * scene; otherwise the call waits on the subplot and its next beat takes it. null clears a waiting call.
+ */
+export function forceOutcome(chatId: string, id: string, outcome: Force | null): { landed: boolean; eventIds: string[] } {
+  const cfg = worldConfig(chatId);
+  const st = currentFold(chatId).result.state;
+  const arc = mustArc(st, id);
+  if (arc.status !== "running" && arc.status !== "held") throw badRequest("This subplot isn't moving any more");
+  if (outcome === null) return { landed: false, eventIds: control(chatId, [{ type: "arc.set", id, patch: { force: null } }]) };
+  if (cfg.mode !== "off" && st.time) {
+    const roster = rosterFor(chatId, st);
+    if (canStep(arc, roster)) {
+      // The fold's state is shared: the call rides on a copy of this one subplot.
+      const called: WorldState = { ...st, sim: { ...st.sim, arcs: { ...st.sim.arcs, [id]: { ...arc, force: outcome } } } };
+      const res = forcedStep(tickInput(chatId, called, roster, true), id);
+      const eventIds = control(chatId, res.sim, res.ledger);
+      if (cfg.telling === "model" && res.cards.length) {
+        const last = lastMessage(chatId);
+        enqueue("world.tell", { chatId, messageId: last?.id ?? null, swipeIdx: last ? -1 : 0, cards: res.cards }, { priority: 2, chatId });
+      }
+      return { landed: true, eventIds };
+    }
+  }
+  const now = st.time?.minutes ?? arc.nextAt;
+  return { landed: false, eventIds: control(chatId, [{ type: "arc.set", id, patch: { force: outcome, ...(arc.status === "running" ? { push: true, nextAt: now } : {}) } }]) };
 }
 
 /** "Give someone a story": a premise in your words, started at once (it locks). */

@@ -5,7 +5,7 @@
   import { onEvent } from "../lib/events";
   import { ArrowLeft, Dices, Plus, Settings } from "../lib/icons";
   import { errorToast, toast } from "../lib/state.svelte";
-  import type { Arc, WorldConfig, WorldViewData } from "../lib/types";
+  import type { Arc, ArcForce, WorldConfig, WorldViewData } from "../lib/types";
 
   let { id }: { id: string } = $props();
   let w = $state<WorldViewData | null>(null);
@@ -53,6 +53,18 @@
       errorToast(e);
     }
   }
+  /** Call a subplot's next beat (null clears a waiting call). */
+  async function callBeat(a: Arc, outcome: ArcForce | null) {
+    try {
+      const r = await post<WorldViewData & { landed: boolean }>(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}/force`, { outcome });
+      w = r;
+      if (outcome === null) toast("Call cleared: the dice decide again", { kind: "ok" });
+      else if (r.landed) toast(`Done: ${a.leadName}'s next step ${FORCES.find((f) => f.value === outcome)!.said}`, { kind: "ok" });
+      else toast(`Called. It lands at ${a.leadName}'s next step.`, { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   async function saveConfig(over?: Partial<WorldConfig>) {
     try {
       await patch(`/api/chats/${id}`, { settings: { world: over ?? $state.snapshot(cfg) } });
@@ -91,6 +103,14 @@
   const arcs = $derived((w?.arcs ?? []).filter((a) => (filter === "all" ? true : filter === "live" ? ["running", "held", "fate", "crossed"].includes(a.status) : ["resolved", "dropped"].includes(a.status))));
   const director = $derived(w?.config.view !== "surprise");
   const STAGES = ["hook", "rising", "reversal", "crisis", "climax"] as const;
+  const FORCES: { value: ArcForce; label: string; title: string; said: string }[] = [
+    { value: "win", label: "Win", title: "Their next step goes their way", said: "went their way" },
+    { value: "cost", label: "At a cost", title: "It works, but they pay for it", said: "worked, at a price" },
+    { value: "loss", label: "Loss", title: "Their next step goes wrong", said: "went wrong" },
+    { value: "twist", label: "Twist", title: "Something unplanned gets into it: a tie, the weather, an object, a slip, another subplot", said: "took a twist" },
+    { value: "reversal", label: "Reversal", title: "It turns against how it's been going", said: "turned around" },
+  ];
+  const FORCE_LABEL = Object.fromEntries(FORCES.map((f) => [f.value, f.label])) as Record<ArcForce, string>;
   const resultWord = { win: "went their way", cost: "worked, at a price", loss: "went wrong" } as Record<string, string>;
   const routeIcon: Record<string, string> = { carrier: "🗣", signal: "📨", ambient: "📣", trace: "👣", entrance: "🚪", omen: "🌘" };
   const chart = $derived.by(() => {
@@ -191,9 +211,9 @@
           {/if}
           {#if a.beats.length}
             <ol class="beats">
-              {#each a.beats.slice(-6) as b (b.at)}
+              {#each a.beats.slice(-6) as b, i (`${b.at}:${i}`)}
                 <li>
-                  <span class="tiny faint">{b.stage}{director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && b.why.length ? ` (${b.why.join(", ")})` : ""}</span>
+                  <span class="tiny faint">{b.stage}{b.forced ? ` · your call${director ? ` → ${resultWord[b.result]}` : ""}` : director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && !b.forced && b.why.length ? ` (${b.why.join(", ")})` : ""}</span>
                   <div class="small">{b.text}</div>
                 </li>
               {/each}
@@ -207,6 +227,16 @@
               <button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "bringIn" })} title="Offer a way into your scene next turn">Bring in</button>
               <button class="btn ghost small" onclick={() => ((editArc = a), (arcForm = { premise: a.premise, want: a.want, fear: a.fear }))}>Edit</button>
               <button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "drop" })}>Drop</button>
+            </div>
+            <div class="row wrap ctl call" role="group" aria-label="Call the next beat">
+              <span class="tiny muted">Next beat:</span>
+              {#each FORCES as f (f.value)}
+                <button class="btn ghost small" class:on={a.force === f.value} title={f.title} aria-pressed={a.force === f.value} onclick={() => callBeat(a, f.value)}>{f.label}</button>
+              {/each}
+              {#if a.force}
+                <span class="tiny muted">{FORCE_LABEL[a.force]} called; it lands {a.status === "held" ? "once you resume it" : "when they're off the page and free to act"}.</span>
+                <button class="btn ghost small" onclick={() => callBeat(a, null)}>Clear</button>
+              {/if}
             </div>
           {/if}
         </article>
@@ -386,6 +416,13 @@
   }
   .ctl {
     gap: 0.2rem;
+  }
+  .call {
+    align-items: center;
+  }
+  .call .btn.on {
+    border-color: var(--accent);
+    color: var(--accent);
   }
   .ppl {
     display: grid;

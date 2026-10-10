@@ -6,7 +6,7 @@ import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/
 import { spreadNews } from "../src/sim/news";
 import { buildRoster, readStanding } from "../src/sim/roster";
 import { forecast, weatherAt } from "../src/sim/sky";
-import { tick, type TickInput } from "../src/sim/storyteller";
+import { canStep, forcedStep, tick, type TickInput } from "../src/sim/storyteller";
 import { validateTelling } from "../src/sim/telling";
 import { parseLine } from "../src/trackers/dsl";
 import { foldEvents, type FoldConfig } from "../src/trackers/fold";
@@ -127,6 +127,50 @@ describe("storyteller", () => {
     mira.sim.arcs[arcId] = { ...Object.values(st.sim.arcs)[0]!, id: arcId, lead: "mira", leadName: "Mira", push: true, nextAt: 0, status: "running", beats: [], clock: { cur: 0, max: 4 } };
     const res = tick(r);
     expect(res.sim.some((op) => op.type === "arc.beat" && op.id === arcId)).toBe(false);
+  });
+
+  test("a called beat lands with the outcome you chose, then the dice decide again", () => {
+    let st = world(base);
+    st = advance(st, tick(input(st, { forced: true })));
+    const roster = input(st).roster;
+    const joss = roster.byName("Joss")!;
+    st.sim.arcs.y = {
+      id: "y", kind: "pursuit", lead: joss.id, leadName: "Joss", cast: [], premise: "Joss wants his boat back.", want: "to buy back the boat", fear: "the Guild sells it", grounds: ["player"], secrecy: "private",
+      clock: { cur: 1, max: 8 }, tally: { win: 2, cost: 0, loss: 0 }, heat: 1, stage: "rising", beats: [], nextAt: 0, status: "running", by: "player", createdAt: 0, seq: 1,
+    };
+    expect(canStep(st.sim.arcs.y!, roster)).toBe(true);
+    for (const outcome of ["win", "cost", "loss"] as const) {
+      st.sim.arcs.y!.force = outcome;
+      const res = forcedStep(input(st), "y");
+      const beat = res.sim.find((o) => o.type === "arc.beat");
+      expect(beat?.type === "arc.beat" && beat.beat.result).toBe(outcome);
+      expect(beat?.type === "arc.beat" && beat.beat.forced).toBe(outcome);
+      // Nothing else in the world moves on a call.
+      expect(res.sim.every((o) => (o.type === "arc.beat" || o.type === "arc.set" || o.type === "arrival.new" ? ("id" in o ? o.id === "y" : o.arrival.arc === "y") : false))).toBe(true);
+      st = advance(st, res);
+      expect(st.sim.arcs.y!.force).toBeNull();
+    }
+    // A reversal turns a winning subplot; a twist always brings one.
+    st.sim.arcs.y!.tally = { win: 3, cost: 0, loss: 0 };
+    st.sim.arcs.y!.force = "reversal";
+    let res = forcedStep(input(st), "y");
+    let beat: (typeof res.sim)[number] | undefined = res.sim.find((o) => o.type === "arc.beat");
+    expect(beat?.type === "arc.beat" && [beat.beat.result, beat.beat.twist]).toEqual(["loss", "reversal"]);
+    st = advance(st, res);
+    st.sim.arcs.y!.force = "twist";
+    res = forcedStep(input(st), "y");
+    beat = res.sim.find((o) => o.type === "arc.beat");
+    expect(beat?.type === "arc.beat" && !!beat.beat.twist).toBe(true);
+    // A queued call is honoured by the ordinary tick too.
+    st = advance(st, res);
+    st.sim.arcs.y!.force = "loss";
+    st.sim.arcs.y!.push = true;
+    res = tick(input(st, { from: st.sim.lastTickAt }));
+    beat = res.sim.find((o) => o.type === "arc.beat" && o.id === "y");
+    expect(beat?.type === "arc.beat" && beat.beat.result).toBe("loss");
+    // Someone in the scene can't take a step off the page.
+    const mira = input(st).roster.byName("Mira")!;
+    expect(canStep({ ...st.sim.arcs.y!, lead: mira.id }, input(st).roster)).toBe(false);
   });
 
   test("seeding 'ask' writes proposals, not subplots", () => {

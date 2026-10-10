@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { mustChat } from "../services/chats";
-import { arcAction, authorArc, decideFate, decideProposal, runTick, setActor, worldView } from "../sim/service";
+import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, runTick, setActor, worldView } from "../sim/service";
+import { FORCES } from "../sim/types";
 
 /** The world off the page: subplots, arrivals, news, the director, your controls. */
 export const world = new Hono();
@@ -30,6 +31,13 @@ world.post("/chats/:id/world/arcs/:arcId", async (c) => {
   );
   arcAction(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.action, input);
   return c.json(worldView(c.req.param("id")));
+});
+
+/** Call a subplot's next beat: win, at a cost, loss, a twist or a reversal (null clears a waiting call). */
+world.post("/chats/:id/world/arcs/:arcId/force", async (c) => {
+  const input = await body(c, z.object({ outcome: z.enum(FORCES).nullable() }));
+  const res = forceOutcome(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.outcome);
+  return c.json({ ...worldView(c.req.param("id")), landed: res.landed });
 });
 
 /** "Give someone a story." */
