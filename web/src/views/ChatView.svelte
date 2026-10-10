@@ -14,6 +14,7 @@
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
   import { delight } from "../lib/delight";
+  import { lock } from "../lib/applock.svelte";
   import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
   import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
   import Inspector from "../components/chat/Inspector.svelte";
@@ -789,6 +790,9 @@
       return;
     }
     if (!lastMsg || lastMsg.role !== "assistant") return;
+    // M39: Option/Alt+arrows move by word in a text field; a dialog or the lock has the keyboard.
+    const t = e.target as HTMLElement | null;
+    if (t?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])") || document.querySelector("[aria-modal='true']") || lock.locked) return;
     if (e.altKey && e.key.toLowerCase() === "r" && !generating) {
       e.preventDefault();
       void regen(lastMsg);
