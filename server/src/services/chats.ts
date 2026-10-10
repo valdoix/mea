@@ -488,6 +488,39 @@ export function setActiveSwipe(id: string, idx: number) {
   return getMessage(id)!;
 }
 
+/**
+ * Deletes one version of a message for good. The versions after it move down one place, along
+ * with the story-state events and continuity notes tied to them, so the count stays 1…n.
+ */
+export function deleteSwipe(id: string, idx: number) {
+  const m = getMessageRow(id);
+  if (!m || m.deleted_at) throw notFound("Message not found");
+  const swipes = getSwipes(id);
+  const target = swipes.find((s) => s.idx === idx);
+  if (!target) throw notFound("No such swipe");
+  if (swipes.length < 2) throw badRequest("This is the only version; delete the message instead");
+  if (swipes.some((s) => s.status === "streaming")) throw badRequest("Wait for the reply to finish before deleting a version");
+  const remaining = swipes.length - 1;
+  // The version after the deleted one takes its place; deleting the last one shows the one before.
+  const active = m.active_swipe > idx ? m.active_swipe - 1 : m.active_swipe === idx ? Math.min(idx, remaining - 1) : m.active_swipe;
+  const t = now();
+  tx(() => {
+    run("DELETE FROM swipes WHERE id = ?", target.id);
+    run("DELETE FROM tracker_events WHERE message_id = ? AND swipe_idx = ?", id, idx);
+    run("DELETE FROM continuity_flags WHERE message_id = ? AND swipe_idx = ?", id, idx);
+    // One row at a time, lowest first, so (message_id, idx) stays unique at every step.
+    for (const s of swipes) if (s.idx > idx) run("UPDATE swipes SET idx = ? WHERE id = ?", s.idx - 1, s.id);
+    for (const f of all<{ id: string; swipe_idx: number }>("SELECT id, swipe_idx FROM continuity_flags WHERE message_id = ? AND swipe_idx > ? ORDER BY swipe_idx", id, idx))
+      run("UPDATE continuity_flags SET swipe_idx = ? WHERE id = ?", f.swipe_idx - 1, f.id);
+    run("UPDATE tracker_events SET swipe_idx = swipe_idx - 1 WHERE message_id = ? AND swipe_idx > ?", id, idx);
+    run("UPDATE messages SET active_swipe = ?, updated_at = ? WHERE id = ?", active, t, id);
+  });
+  msgChanged(m.chat_id, id);
+  publish({ type: "continuity.changed", chatId: m.chat_id, messageId: id });
+  ledgerEdited(m.chat_id, id);
+  return getMessage(id)!;
+}
+
 export function setMessageFlags(id: string, flags: { hidden?: boolean; bookmarked?: boolean }) {
   const m = getMessageRow(id);
   if (!m) throw notFound("Message not found");

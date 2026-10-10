@@ -139,6 +139,41 @@ describe("API end to end (mock provider)", () => {
     expect(after.length).toBeGreaterThan(before.length);
   });
 
+  test("delete a swipe: later versions move down, the last one stays", async () => {
+    const last = (await api("GET", `/api/chats/${chatId}/last`)).json;
+    const ended = waitFor((e) => e.type === "gen.end");
+    expect((await api("POST", `/api/messages/${last.id}/swipe`, {})).status).toBe(200);
+    await ended;
+    const three = (await api("GET", `/api/messages/${last.id}`)).json;
+    expect(three.swipeCount).toBe(3);
+    const texts = three.swipes.map((s: any) => s.content as string);
+
+    await api("PATCH", `/api/messages/${last.id}`, { activeSwipe: 1 });
+    const two = await api("DELETE", `/api/messages/${last.id}/swipes/1`);
+    expect(two.status).toBe(200);
+    expect(two.json.swipeCount).toBe(2);
+    expect(two.json.swipes.map((s: any) => s.idx)).toEqual([0, 1]);
+    expect(two.json.swipes.map((s: any) => s.content)).toEqual([texts[0], texts[2]]);
+    expect(two.json.activeSwipe).toBe(1);
+    expect(two.json.content).toBe(texts[2]);
+
+    const one = await api("DELETE", `/api/messages/${last.id}/swipes/0`);
+    expect(one.json.swipeCount).toBe(1);
+    expect(one.json.activeSwipe).toBe(0);
+    expect(one.json.content).toBe(texts[2]);
+
+    expect((await api("DELETE", `/api/messages/${last.id}/swipes/5`)).status).toBe(404);
+    expect((await api("DELETE", `/api/messages/${last.id}/swipes/0`)).status).toBe(400);
+  });
+
+  test("a deleted message reads as gone, so open chats drop it", async () => {
+    const last = (await api("GET", `/api/chats/${chatId}/last`)).json;
+    await api("DELETE", `/api/messages/${last.id}`);
+    expect((await api("GET", `/api/messages/${last.id}`)).status).toBe(404);
+    await api("POST", `/api/messages/${last.id}/restore`);
+    expect((await api("GET", `/api/messages/${last.id}`)).status).toBe(200);
+  });
+
   test("edit, hide, delete and restore", async () => {
     const last = (await api("GET", `/api/chats/${chatId}/last`)).json;
     const edited = await api("PUT", `/api/messages/${last.id}`, { content: "Edited reply." });
