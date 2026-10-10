@@ -609,6 +609,12 @@
     if (!scroller) return;
     trackView();
     stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 140;
+    // M21: back at the latest after a long jump, the far pages are let go (they load again on the way up).
+    if (stick && messages.length > 600) {
+      messages = messages.slice(-200);
+      hasMore = true;
+      return;
+    }
     if (scroller.scrollTop < 400 && hasMore && !loadingOlder && messages.length) {
       loadingOlder = true;
       const prevHeight = scroller.scrollHeight;

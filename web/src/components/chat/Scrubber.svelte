@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * UI-10: the timeline scrubber. A thin strip on the chat's edge: chapter marks, bookmarks and
-   * highlights, and where you are. Drag (or tap) anywhere to jump, even in a 10,000-message story.
+   * highlights, and where you are. Drag anywhere to jump, even in a 10,000-message story.
+   * M21: only a drag jumps (on release); a stray tap on the edge doesn't load the whole story.
    */
   let {
     max,
@@ -17,6 +18,8 @@
 
   let strip = $state<HTMLDivElement | null>(null);
   let drag = $state<{ seq: number; y: number } | null>(null);
+  let startY = 0;
+  let moved = false;
 
   const pct = (seq: number) => `${Math.min(100, Math.max(0, ((seq - 1) / Math.max(1, max - 1)) * 100))}%`;
 
@@ -32,14 +35,18 @@
   }
   function down(e: PointerEvent) {
     strip?.setPointerCapture(e.pointerId);
+    startY = e.clientY;
+    moved = false;
     drag = seqAt(e.clientY);
   }
   function move(e: PointerEvent) {
-    if (drag) drag = seqAt(e.clientY);
+    if (!drag) return;
+    if (Math.abs(e.clientY - startY) > 6) moved = true;
+    drag = seqAt(e.clientY);
   }
   function up() {
     if (!drag) return;
-    onjump(snap(drag.seq));
+    if (moved) onjump(snap(drag.seq));
     drag = null;
   }
   const label = $derived.by(() => {
