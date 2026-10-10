@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { createApp } from "../src/app";
 import { normalizeCard } from "../src/cards/card";
 import { CHARX_LIMITS, parseCardFile } from "../src/cards/io";
+import { htmlToText, privateIp, publicUrl } from "../src/creator/research";
 import { createCharacter } from "../src/services/characters";
 import { createChat } from "../src/services/chats";
 import { deletedImagesDir, getImage, imagePath, mirrorImages, purgeUnreferencedImages, saveImage, sweepDeletedImages } from "../src/services/images";
@@ -84,6 +85,29 @@ describe("H9: template import with a long key", () => {
     img.append("file", new File([placeholderAvatar(8, 8)], "a.png"));
     img.append("palette", "{bad");
     expect(await send("/api/images", img)).toBe(400);
+  });
+});
+
+describe("M8: research URLs", () => {
+  test("HTML stripping is linear on hostile input and keeps its output", () => {
+    const hostile = ["<script", "<table class=\"navbox\"", "<span class=\"mw-editsection\">", "<main", "<title>"].map((t) => t.repeat(40_000)).join("");
+    const t0 = performance.now();
+    htmlToText(hostile);
+    expect(performance.now() - t0).toBeLessThan(1500);
+    const html = `<p>A <b>b</b></p><table class="navbox"><tr><td>nav</td></tr></table><span class="mw-editsection"><span>[</span>edit<span>]</span></span><h2>Story</h2><ul><li>one</li></ul><p>x</p>`;
+    const text = htmlToText(html);
+    expect(text).toContain("A b");
+    expect(text).not.toContain("nav");
+    expect(text).not.toContain("edit");
+    expect(text).toContain("## Story");
+    expect(text).toContain("- one");
+  });
+
+  test("private addresses are refused in every spelling", () => {
+    for (const bad of ["http://[::ffff:127.0.0.1]/", "http://[::ffff:7f00:1]/", "http://[::ffff:a00:1]/", "http://0x7f.1/", "http://2130706433/", "http://[fd00::1]/", "http://[64:ff9b::c0a8:101]/", "http://100.64.0.1/", "http://0.0.0.0/"]) expect(publicUrl(bad)).toBeNull();
+    for (const ok of ["https://en.wikipedia.org/wiki/X", "http://8.8.8.8/", "http://[2606:4700::1111]/"]) expect(publicUrl(ok)).not.toBeNull();
+    expect(privateIp("::ffff:192.168.1.1")).toBe(true);
+    expect(privateIp("93.184.216.34")).toBe(false);
   });
 });
 

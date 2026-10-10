@@ -1,3 +1,5 @@
+import { lookup as dnsLookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { now } from "../db/db";
 
 /**
@@ -47,6 +49,37 @@ export interface Gathered {
 
 // ---------- fetching, safely ----------
 
+/** M8: true for an address on this machine, the local network, or a reserved range (IPv4 or IPv6). */
+export function privateIp(ip: string): boolean {
+  const a = ip.toLowerCase().replace(/^\[|\]$/g, "").replace(/%.*$/, "");
+  if (isIP(a) === 6) {
+    // IPv4-mapped / -compatible / NAT64 forms carry an IPv4 address: check that.
+    const tail = a.match(/^(?:::ffff:(?:0:)?|::|64:ff9b::)(\d+\.\d+\.\d+\.\d+)$/)?.[1];
+    if (tail) return privateIp(tail);
+    const hex = a.match(/^(?:::ffff:(?:0:)?|::|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (hex) {
+      const hi = parseInt(hex[1]!, 16);
+      const lo = parseInt(hex[2]!, 16);
+      return privateIp(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+    }
+    if (a === "::" || a === "::1") return true;
+    const first = parseInt(a.split(":")[0] || "0", 16);
+    // fc00::/7 unique local, fe80::/10 link-local, fec0::/10 site-local, ff00::/8 multicast.
+    return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xffc0) === 0xfec0 || (first & 0xff00) === 0xff00;
+  }
+  if (isIP(a) !== 4) return true; // not an address: treat as unsafe
+  const [p, q] = a.split(".").map(Number) as [number, number];
+  return (
+    p === 0 || p === 10 || p === 127 || p >= 224 ||
+    (p === 100 && q >= 64 && q <= 127) ||
+    (p === 169 && q === 254) ||
+    (p === 172 && q >= 16 && q <= 31) ||
+    (p === 192 && (q === 168 || a.startsWith("192.0.0.") || a.startsWith("192.0.2."))) ||
+    (p === 198 && (q === 18 || q === 19 || q === 51)) ||
+    (p === 203 && a.startsWith("203.0.113."))
+  );
+}
+
 /** Only public http(s) pages: never this machine or the local network. */
 export function publicUrl(raw: string): URL | null {
   let u: URL;
@@ -57,21 +90,78 @@ export function publicUrl(raw: string): URL | null {
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h === "0.0.0.0" || h === "::1" || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) return null;
-  if (/^(127|10)\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h)) return null;
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return null;
+  // M8: address literals (the URL parser has already normalised "0x7f.1" and the like).
+  if (isIP(h) && privateIp(h)) return null;
   if (/^\d+$/.test(h)) return null;
   return u;
 }
 
-async function fetchText(url: string, accept = "application/json"): Promise<string | null> {
-  if (!publicUrl(url) || process.env.MEA_OFFLINE === "1") return null;
+/** M8: the host must also resolve only to public addresses (catches names like 127.0.0.1.nip.io). */
+async function resolvesPublic(u: URL): Promise<boolean> {
+  const h = u.hostname.replace(/^\[|\]$/g, "");
+  if (isIP(h)) return !privateIp(h);
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: accept }, signal: AbortSignal.timeout(TIMEOUT), redirect: "follow" });
-    if (!res.ok) return null;
-    // Redirects can't lead somewhere private either.
-    if (res.url && !publicUrl(res.url)) return null;
-    const text = await res.text();
-    return text.slice(0, 3_000_000);
+    const addrs = await dnsLookup(h, { all: true, verbatim: true });
+    return addrs.length > 0 && addrs.every((x) => !privateIp(x.address));
+  } catch {
+    return false;
+  }
+}
+
+const MAX_BODY = 3_000_000;
+const MAX_HOPS = 5;
+
+/** M8: reads at most `max` bytes of a body, then stops the download. */
+async function readCapped(res: Response, max = MAX_BODY): Promise<string> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (size < max) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const part = value.subarray(0, max - size);
+      chunks.push(part);
+      size += part.length;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    all.set(c, at);
+    at += c.length;
+  }
+  return new TextDecoder().decode(all);
+}
+
+async function fetchText(url: string, accept = "application/json"): Promise<string | null> {
+  if (process.env.MEA_OFFLINE === "1") return null;
+  const signal = AbortSignal.timeout(TIMEOUT);
+  try {
+    // M8: redirects are followed by hand, and every hop is checked before it's fetched.
+    let next = url;
+    for (let hop = 0; hop <= MAX_HOPS; hop++) {
+      const u = publicUrl(next);
+      if (!u || !(await resolvesPublic(u))) return null;
+      const res = await fetch(u.href, { headers: { "User-Agent": UA, Accept: accept }, signal, redirect: "manual" });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        await res.body?.cancel().catch(() => {});
+        if (!loc) return null;
+        next = new URL(loc, u).href;
+        continue;
+      }
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      return await readCapped(res);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -90,16 +180,87 @@ async function api<T = any>(wiki: Wiki, params: Record<string, string>): Promise
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'", mdash: "—", ndash: "–", hellip: "…" };
 
+const SKIPPED = new Set(["script", "style", "noscript", "nav", "footer", "header", "aside", "figure", "sup"]);
+const LINE_ENDS = new Set(["p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"]);
+
+/**
+ * M8: tags out, in one pass. Skipped elements (scripts, navigation boxes, references, edit links)
+ * are dropped with their content, nesting counted; block ends become line breaks. No regex here
+ * scans past the tag it's looking at, so this is linear even on hostile HTML (unclosed tags).
+ */
+function stripTags(html: string): string {
+  const out: string[] = [];
+  const n = html.length;
+  let i = 0;
+  let skip: string | null = null;
+  let depth = 0;
+  while (i < n) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0) {
+      if (!skip) out.push(html.slice(i));
+      break;
+    }
+    if (!skip && lt > i) out.push(html.slice(i, lt));
+    if (html.startsWith("<!--", lt)) {
+      const end = html.indexOf("-->", lt + 4);
+      i = end < 0 ? n : end + 3;
+      continue;
+    }
+    const gt = html.indexOf(">", lt + 1);
+    if (gt < 0) break; // an unclosed tag: the rest is markup
+    const tag = html.slice(lt + 1, Math.min(gt, lt + 400));
+    i = gt + 1;
+    const m = /^(\/?)([a-zA-Z][a-zA-Z0-9]*)/.exec(tag);
+    if (!m) {
+      if (!skip) out.push(" ");
+      continue;
+    }
+    const closing = m[1] === "/";
+    const name = m[2]!.toLowerCase();
+    const selfClosing = html[gt - 1] === "/";
+    if (skip) {
+      if (name === skip && !selfClosing) depth += closing ? -1 : 1;
+      if (depth === 0) {
+        skip = null;
+        out.push(" ");
+      }
+      continue;
+    }
+    if (!closing && !selfClosing) {
+      const cls = name === "table" || name === "span" ? (/class\s*=\s*["']?([^"'>]*)/i.exec(tag)?.[1] ?? "") : "";
+      if (SKIPPED.has(name) || (name === "table" && /navbox|infobox|metadata|ambox/i.test(cls)) || (name === "span" && cls.startsWith("mw-editsection"))) {
+        skip = name;
+        depth = 1;
+        continue;
+      }
+    }
+    if (name === "br" || (closing && LINE_ENDS.has(name))) out.push("\n");
+    else if (!closing && name === "li") out.push("\n- ");
+    else if (!closing && /^h\d$/.test(name)) out.push("\n\n## ");
+    else out.push(" ");
+  }
+  return out.join("");
+}
+
+/** The first <name …>…</name> element of a page (lower-cased copy for searching), linear time. */
+function firstElement(html: string, lower: string, names: string[]): { start: number; inner: number; end: number } | null {
+  let best: { start: number; name: string } | null = null;
+  for (const name of names) {
+    let at = lower.indexOf(`<${name}`);
+    // "<main" must not match "<mainframe": the next character ends the tag name.
+    while (at >= 0 && /[a-z0-9]/.test(lower[at + name.length + 1] ?? "")) at = lower.indexOf(`<${name}`, at + 1);
+    if (at >= 0 && (!best || at < best.start)) best = { start: at, name };
+  }
+  if (!best) return null;
+  const inner = html.indexOf(">", best.start);
+  const end = lower.indexOf(`</${best.name}>`, best.start);
+  if (inner < 0 || end < 0) return null;
+  return { start: best.start, inner: inner + 1, end: end + best.name.length + 3 };
+}
+
 /** Readable text from a page's HTML: no scripts, navigation boxes, references or edit links. */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style|noscript|nav|footer|header|aside|figure|sup|table class="(?:navbox|infobox)[^"]*")[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<table[\s\S]*?<\/table>/gi, (t) => (/navbox|metadata|ambox/i.test(t.slice(0, 200)) ? " " : t))
-    .replace(/<span class="mw-editsection[\s\S]*?<\/span>\s*<\/span>/gi, " ")
-    .replace(/<(br|\/p|\/div|\/li|\/h\d|\/tr)[^>]*>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "\n- ")
-    .replace(/<h(\d)[^>]*>/gi, "\n\n## ")
-    .replace(/<[^>]+>/g, " ")
+  return stripTags(html)
     .replace(/&(#?\w+);/g, (m, e: string) => ENTITIES[e.toLowerCase()] ?? (e.startsWith("#") ? String.fromCharCode(Number(e.slice(1)) || 32) : m))
     .replace(/\[(\d+|edit|citation needed)\]/gi, "")
     .replace(/[ \t]+/g, " ")
@@ -183,8 +344,12 @@ async function anyPage(raw: string, max = 12_000): Promise<{ source: Source; tex
   }
   const html = await fetchText(u.href, "text/html,application/xhtml+xml");
   if (!html) return null;
-  const title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() || u.hostname;
-  const main = html.match(/<(main|article)[\s\S]*?<\/\1>/i)?.[0] ?? html;
+  // M8: found with indexOf, not backtracking regexes.
+  const lower = html.replace(/[A-Z]+/g, (s) => s.toLowerCase()); // ASCII only, so indexes line up
+  const t = firstElement(html, lower, ["title"]);
+  const title = (t ? html.slice(t.inner, Math.min(t.end - "</title>".length, t.inner + 1000)) : "").replace(/<[^>]*>/g, "").trim().slice(0, 200) || u.hostname;
+  const m = firstElement(html, lower, ["main", "article"]);
+  const main = m ? html.slice(m.start, m.end) : html;
   const text = htmlToText(main).slice(0, max);
   return text.length > 200 ? { source: { title, url: u.href, kind: "web", chars: text.length }, text } : null;
 }
