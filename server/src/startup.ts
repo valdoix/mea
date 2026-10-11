@@ -19,6 +19,7 @@ import { exposureAfterReply } from "./trackers/exposure";
 import { pressuresAfterReply } from "./trackers/pressures";
 import { promisesAfterReply } from "./trackers/promises";
 import { asidesAfterReply } from "./accuracy/asides";
+import { musicAfterReply } from "./music/director";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
@@ -115,6 +116,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(promisesAfterReply);
   // F3: what your own message states about you (things you have, your birthday), each a chip.
   onTrackerUpdate(asidesAfterReply);
+  // J3: the soundtrack changes on story beats (YouTube Music, only when you've turned it on).
+  onTrackerUpdate(musicAfterReply);
   registerJob("accuracy.drift", async (p, job) => runDriftJob(String(p.chatId), job));
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));

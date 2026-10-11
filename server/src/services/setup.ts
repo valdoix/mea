@@ -120,7 +120,7 @@ export function prefill(chatId: string): SetupAnswers {
     },
     canon: { source: canon.source ?? fandom ?? "", point: canon.point ?? "" },
     trackers: { mode: settings.trackers?.mode ?? "helper", sections: Object.fromEntries(TRACKER_SECTIONS.map((k) => [k, settings.trackers?.sections?.[k] !== false])) },
-    look: { accent: settings.ambience?.accent ?? true, music: false },
+    look: { accent: settings.ambience?.accent ?? true, music: settings.music?.on ?? false },
   };
 }
 
@@ -178,6 +178,8 @@ export function applySetup(chatId: string, input: SetupAnswers) {
       trackers: { ...(settings.trackers ?? {}), ...(answers.trackers.mode ? { mode: answers.trackers.mode } : {}), ...(answers.trackers.sections ? { sections: { ...(settings.trackers?.sections ?? {}), ...answers.trackers.sections } } : {}), ...(answers.world.calendar ? { calendar: answers.world.calendar } : {}) },
       world: { ...(settings.world ?? {}), genres: answers.genres, ...(answers.world.climate ? { climate: answers.world.climate } : {}), ...(answers.world.tech ? { tech: answers.world.tech } : {}) },
       ambience: { ...(settings.ambience ?? {}), ...(answers.look.accent != null ? { accent: answers.look.accent } : {}) },
+      // J3: Session Zero › Look › Music on.
+      ...(answers.look.music != null ? { music: { ...(settings.music ?? {}), on: answers.look.music } } : {}),
     },
   });
   if (answers.canon.source != null && (answers.canon.source !== (canonOf(chatId).source ?? "") || (answers.canon.point ?? "") !== (canonOf(chatId).point ?? ""))) setCanon(chatId, { ...canonOf(chatId), source: answers.canon.source, point: answers.canon.point ?? "" });

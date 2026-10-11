@@ -13,7 +13,8 @@
   import Regex from "../components/settings/Regex.svelte";
   import Guards from "../components/settings/Guards.svelte";
   import Privacy from "../components/settings/Privacy.svelte";
-  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, HardDrive, ListChecks, Palette, ScrollText, ShieldCheck, Slash, Smartphone } from "../lib/icons";
+  import MusicSettings from "../components/settings/Music.svelte";
+  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, HardDrive, ListChecks, Music, Palette, ScrollText, ShieldCheck, Slash, Smartphone } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
 
   let { tab = "models" }: { tab?: string } = $props();
@@ -27,6 +28,7 @@
     { id: "prompts", label: "Helper prompts", icon: ScrollText },
     { id: "regex", label: "Regex", icon: Slash },
     { id: "appearance", label: "Appearance", icon: Palette },
+    { id: "music", label: "Music", icon: Music },
     { id: "devices", label: "Devices", icon: Smartphone },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "data", label: "Backups & data", icon: Database },
@@ -51,6 +53,7 @@
     {:else if tab === "prompts"}<Prompts />
     {:else if tab === "regex"}<Regex />
     {:else if tab === "appearance"}<Appearance />
+    {:else if tab === "music"}<MusicSettings />
     {:else if tab === "devices"}<Devices />
     {:else if tab === "notifications"}<Notifications />
     {:else if tab === "data"}<Data />
