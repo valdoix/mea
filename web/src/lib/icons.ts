@@ -150,3 +150,5 @@ export { default as DoorOpen } from "@lucide/svelte/icons/door-open";
 export { default as Mail } from "@lucide/svelte/icons/mail";
 export { default as Footprints } from "@lucide/svelte/icons/footprints";
 export { default as Mic } from "@lucide/svelte/icons/mic";
+export { default as Columns2 } from "@lucide/svelte/icons/columns-2";
+export { default as Shuffle } from "@lucide/svelte/icons/shuffle";

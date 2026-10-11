@@ -15,10 +15,12 @@
   import { sugg, watchSuggestions } from "../lib/suggestions.svelte";
   import { watchFilings } from "../lib/filings.svelte";
   import { watchLessons } from "../lib/lessons.svelte";
+  import type { Angle } from "../lib/angles";
   import { dockRequest, openDock, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
+  import SwipeCompare from "../components/chat/SwipeCompare.svelte";
   import { delight } from "../lib/delight";
   import { lock } from "../lib/applock.svelte";
   import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
@@ -895,7 +897,7 @@
     }
   }
 
-  async function regen(m: Message, withNote = false) {
+  async function regen(m: Message, withNote = false, angle?: Angle) {
     let feedback: string | undefined;
     if (withNote) {
       const note = await promptText({ title: "What should change?", label: "A note for this attempt only", placeholder: "More dialogue · slower pace · she wouldn't say that…", multiline: true, confirmLabel: "Regenerate" });
@@ -903,7 +905,21 @@
       feedback = note.trim() || undefined;
     }
     const go = async (profileId?: string) => {
-      const r = await post<{ generationId: string; messageId: string; swipeIdx: number }>(`/api/messages/${m.id}/swipe`, { feedback, profileId });
+      const r = await post<{ generationId: string; messageId: string; swipeIdx: number }>(`/api/messages/${m.id}/swipe`, { feedback, profileId, angle });
+      gens[r.messageId] = r.generationId;
+      stick = true;
+    };
+    try {
+      await go();
+    } catch (e) {
+      if (!offerQuotaChoice(e, (p) => go(p).catch(errorToast))) errorToast(e);
+    }
+  }
+
+  /** A2: "Keep this, redo the rest". */
+  async function redoFrom(messageId: string, keep: string) {
+    const go = async (profileId?: string) => {
+      const r = await post<{ generationId: string; messageId: string }>(`/api/messages/${messageId}/redo`, { keep, profileId });
       gens[r.messageId] = r.generationId;
       stick = true;
     };
@@ -1241,6 +1257,7 @@
               editSignal={editSignals[m.id] ?? 0}
               onswipe={(dir) => swipeTo(m, dir)}
               onregen={(note) => regen(m, note)}
+              onangle={(a) => regen(m, false, a)}
               oncontinue={() => continueMsg(m)}
               onedit={(c) => edit(m, c)}
               ondelete={() => remove(m)}
@@ -1357,7 +1374,14 @@
 
   <Inspector bind:open={inspectorOpen} chatId={id} generationId={inspectGen} />
 
-  <SelectionMenu chatId={id} root={scroller} idForSeq={(seq) => messages.find((x) => x.seq === seq)?.id ?? null} onhighlight={loadHighlights} />
+  <SelectionMenu
+    chatId={id}
+    root={scroller}
+    idForSeq={(seq) => messages.find((x) => x.seq === seq)?.id ?? null}
+    onhighlight={loadHighlights}
+    canKeep={(mid) => mid === lastMsg?.id && lastMsg?.role === "assistant" && !generating && hasModel}
+    onkeep={(mid, text) => void redoFrom(mid, text)}
+  />
 
   {#if glossPick}
     <button class="gloss-scrim" onclick={() => (glossPick = null)} aria-label="Close"></button>
@@ -1426,23 +1450,7 @@
     {/if}
   </Modal>
 
-  <Modal bind:open={compareOpen} title="Compare versions" size="xl">
-    {#if compare?.swipes}
-      <div class="compare">
-        {#each compare.swipes as s (s.idx)}
-          <div class="cmp card" class:current={s.idx === compare.activeSwipe}>
-            <div class="row between tiny muted"><b>Version {s.idx + 1}</b><span>{s.meta?.model ?? ""}</span></div>
-            <div class="prose small">{@html renderMessage(s.content, `cmp-${s.idx}`)}</div>
-            {#if s.idx !== compare.activeSwipe}
-              <button class="btn small" onclick={() => { if (compare) void setSwipe(compare, s.idx); compareOpen = false; }}>Use this one</button>
-            {:else}
-              <span class="chip rose">Current</span>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
-  </Modal>
+  <SwipeCompare bind:open={compareOpen} message={compare} onkeep={(idx) => compare && void setSwipe(compare, idx)} />
 {:else}
   <div class="center"><span class="heart">✿</span></div>
 {/if}

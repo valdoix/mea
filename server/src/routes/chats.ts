@@ -39,6 +39,7 @@ import { getDefaultPersona, getPersona } from "../services/personas";
 import { statusTiles } from "../services/status";
 import { filingsFor, undoFiling } from "../services/filings";
 import { noteEdit, noteKeptSwipe } from "../steer/lessons";
+import { type Angle, ANGLES } from "../steer/swipes";
 
 export const chats = new Hono();
 
@@ -187,9 +188,16 @@ chats.post("/chats/:id/send", async (c) => {
 });
 
 chats.post("/messages/:id/swipe", async (c) => {
-  const input = await body(c, z.object({ feedback: z.string().max(2000).optional(), profileId: z.string().nullable().optional() }));
+  const input = await body(c, z.object({ feedback: z.string().max(2000).optional(), profileId: z.string().nullable().optional(), angle: z.enum(Object.keys(ANGLES) as [Angle, ...Angle[]]).optional() }));
   const m = must(getMessageRow(c.req.param("id")), "Message not found");
-  return c.json(await startStory(m.chat_id, "swipe", { messageId: m.id, feedback: input.feedback, profileId: input.profileId }));
+  return c.json(await startStory(m.chat_id, "swipe", { messageId: m.id, feedback: input.feedback, profileId: input.profileId, angle: input.angle }));
+});
+
+/** A2: "Keep this, redo the rest": a new take that keeps the reply up to the selected sentence. */
+chats.post("/messages/:id/redo", async (c) => {
+  const input = await body(c, z.object({ keep: z.string().trim().min(2).max(4000), feedback: z.string().max(2000).optional(), profileId: z.string().nullable().optional() }));
+  const m = must(getMessageRow(c.req.param("id")), "Message not found");
+  return c.json(await startStory(m.chat_id, "redo", { messageId: m.id, keep: input.keep, feedback: input.feedback, profileId: input.profileId }));
 });
 
 chats.post("/messages/:id/continue", async (c) => {
