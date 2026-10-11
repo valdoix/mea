@@ -3,7 +3,7 @@ import { onEvent } from "./events";
 import type { InboxSource } from "./types";
 
 /**
- * P1: the suggestions waiting in the Inbox for the open chat (lessons, canon, playbooks…), for the
+ * P1: the suggestions waiting in the Inbox for the open chat (lessons, canon, pressures…), for the
  * side dock's badge and the Chat tab's Status tile. Refreshed when the Inbox changes.
  */
 export const sugg = $state<{ chatId: string | null; count: number; bySource: Partial<Record<InboxSource, number>> }>({ chatId: null, count: 0, bySource: {} });

@@ -148,7 +148,9 @@ describe("status tiles and dice (P1)", () => {
 describe("migration 18 (P1)", () => {
   test("the new tables and the setup column exist", () => {
     const tables = all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'").map((t) => t.name);
-    for (const t of ["lessons", "secrets_offpage", "playbooks", "calendars_custom", "filings"]) expect(tables).toContain(t);
+    for (const t of ["lessons", "secrets_offpage", "calendars_custom", "filings"]) expect(tables).toContain(t);
+    // Playbooks were dropped from the plan (migration 19).
+    expect(tables).not.toContain("playbooks");
     expect(all<{ name: string }>("PRAGMA table_info(chats)").map((c) => c.name)).toContain("chat_setup");
     expect(one<{ id: number }>("SELECT id FROM _migrations WHERE id = 18")).toBeTruthy();
   });

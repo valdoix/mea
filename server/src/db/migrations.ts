@@ -1144,6 +1144,14 @@ CREATE INDEX filings_message ON filings(message_id) WHERE message_id IS NOT NULL
       if (!hasColumn(db, "chats", "chat_setup")) db.exec("ALTER TABLE chats ADD COLUMN chat_setup TEXT");
     },
   },
+  {
+    id: 19,
+    name: "no playbooks",
+    sql: /* sql */ `
+-- Playbooks (Almanac C2) were dropped from the plan; migration 18's table was never used.
+DROP TABLE IF EXISTS playbooks;
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
