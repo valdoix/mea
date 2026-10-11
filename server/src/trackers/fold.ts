@@ -943,7 +943,8 @@ export class Folder {
         }
         const toChar = a.to ? this.findChar(a.to) ?? (looksLikePerson(a.to) ? this.person(a.to, seq) : undefined) : undefined;
         const holder = toChar?.id ?? (a.to ? `place:${clip(a.to, 80)}` : it.holder);
-        const was = it.holder;
+        // G2: a first hand-off says who it came from ("item key: Mira → Joss"), for the object's trail.
+        const was = it.holder ?? (a.from ? this.findChar(a.from)?.id : undefined);
         it.gone = false;
         it.holder = holder;
         if (a.where) it.where = clip(a.where, 60);

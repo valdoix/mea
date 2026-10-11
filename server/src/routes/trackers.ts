@@ -229,16 +229,32 @@ trackers.get("/chats/:id/trackers/graph", (c) => {
     mood: ch.mood?.name ?? null,
     avatarId: profiles[castKey(ch.name)]?.avatarId ?? null,
     color: profiles[castKey(ch.name)]?.color ?? null,
+    // G2: the group they stand best with (the factions layer).
+    faction: Object.values(st.rep).filter((r) => r.who === ch.id && r.score > 0).sort((a, b) => b.score - a.score)[0]?.group ?? null,
   }));
   const edges = Object.values(st.bonds).map((b) => {
     const a = b.axes;
     const warmth = ((a.trust ?? 0) + (a.affection ?? 0) + (a.respect ?? 0) + (a.comfort ?? 0)) / 4;
     const heat = Math.max(a.attraction ?? 0, a.fear ?? 0, a.resentment ?? 0, a.rivalry ?? 0);
-    return { from: b.from, to: b.to, label: b.label ?? null, axes: b.axes, tags: b.tags, warmth, heat, ladder: st.ladders[`${b.from}>${b.to}`]?.tier ?? null };
+    // G2: the bond's history, for "click a line" (each change with Jump to the message).
+    const history = b.history.slice(-24).map((h) => ({ axis: h.axis, delta: h.delta, to: h.to, cause: h.cause ?? null, seq: h.seq }));
+    return { from: b.from, to: b.to, label: b.label ?? null, axes: b.axes, tags: b.tags, warmth, heat, ladder: st.ladders[`${b.from}>${b.to}`]?.tier ?? null, history };
   });
-  for (const l of Object.values(st.ladders)) if (!edges.some((e) => e.from === l.from && e.to === l.to)) edges.push({ from: l.from, to: l.to, label: null, axes: {}, tags: [], warmth: 0, heat: 0, ladder: l.tier });
+  for (const l of Object.values(st.ladders)) if (!edges.some((e) => e.from === l.from && e.to === l.to)) edges.push({ from: l.from, to: l.to, label: null, axes: {}, tags: [], warmth: 0, heat: 0, ladder: l.tier, history: [] });
+  // G2 layers: who knows each secret, and the trail each important object took between people.
+  const secrets = Object.values(st.facts)
+    .filter((f) => f.secret || Object.values(f.stances).some((x) => x.status === "unaware"))
+    .map((f) => ({
+      key: f.key,
+      statement: f.statement,
+      knows: Object.entries(f.stances).filter(([, x]) => ["knows", "believes", "suspects"].includes(x.status)).map(([id]) => id),
+      unaware: Object.entries(f.stances).filter(([, x]) => x.status === "unaware").map(([id]) => id),
+    }));
+  const trails = Object.values(st.items)
+    .map((i) => ({ id: i.id, name: i.name, gift: i.gift ?? null, steps: i.custody.filter((h) => h.to && st.chars[h.to]).map((h) => ({ from: h.from && st.chars[h.from] ? h.from : null, to: h.to!, seq: h.seq, at: h.at ?? null })) }))
+    .filter((t) => t.steps.length >= 1 && t.steps.some((x) => x.from));
   const maxSeq = one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.s ?? 0;
-  return c.json({ nodes, edges, seq: seq ?? maxSeq, maxSeq });
+  return c.json({ nodes, edges, secrets, trails, seq: seq ?? maxSeq, maxSeq });
 });
 
 /** TRK-12: is this condition readable, and does it hold now? */

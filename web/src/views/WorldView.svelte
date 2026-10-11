@@ -2,6 +2,7 @@
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
   import type { PressurePerson } from "../components/trackers/PressureCard.svelte";
+  import RelGraph from "../components/world/RelGraph.svelte";
   import { del, get, patch, post, put } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { onEvent } from "../lib/events";
@@ -22,6 +23,8 @@
 
   // E1: dramatic irony: what each person carries, and what you know that they don't.
   let irony = $state(false);
+  // G2: the people as a list, or as the relationship graph.
+  let peopleView = $state<"list" | "graph">("list");
   let carried = $state<Record<string, PressurePerson>>({});
   async function loadIrony() {
     try {
@@ -367,8 +370,14 @@
     <section class="panel stack tight">
       <div class="row between">
         <h2>People</h2>
-        <label class="switch small" title="What each person carries and hasn't said, and what you know that they don't"><input type="checkbox" bind:checked={irony} /> Dramatic irony</label>
+        <div class="row">
+          <Segmented bind:value={peopleView} small options={[{ value: "list" as const, label: "List" }, { value: "graph" as const, label: "Graph" }]} />
+          {#if peopleView === "list"}<label class="switch small" title="What each person carries and hasn't said, and what you know that they don't"><input type="checkbox" bind:checked={irony} /> Dramatic irony</label>{/if}
+        </div>
       </div>
+      {#if peopleView === "graph"}
+        <RelGraph chatId={id} />
+      {:else}
       {#each [["Here", rings.onstage], ["Seen before", rings.offstage], ["Not met yet", rings.unmet]] as [label, list] (label)}
         {#if (list as typeof rings.onstage).length}
           <div class="tiny muted">{label}</div>
@@ -401,6 +410,7 @@
           </div>
         {/if}
       {/each}
+      {/if}
     </section>
   {/if}
 </div>
