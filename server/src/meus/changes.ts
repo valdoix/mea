@@ -19,6 +19,7 @@ import { type ChatSettings, editMessage, getMessageRow, mustChat, setMessageFlag
 import { userEditAt, timeskip } from "../trackers/service";
 import { castKey, castProfiles, currentFold, deleteEvent, dryRunOps, linesToOps, moveCastProfile, saveCastProfile } from "../trackers/store";
 import { parseDuration } from "../trackers/clock";
+import { addLesson, deleteLesson, getLesson, lessonsFor, updateLesson } from "../steer/lessons";
 
 /**
  * What Meus can change in a chat, each through the tool the app already uses for it, so swipes,
@@ -42,7 +43,8 @@ export const CHANGE_KINDS = [
   '{"kind": "world", "arc": "<subplot id>", "action": "hold|resume|nudge|bring_in|drop|edit", "premise": "…", "want": "…", "fear": "…"}; {"kind": "world_arc", "lead": "<name>", "premise": "…"} a new subplot off the page; {"kind": "world_proposal", "id": "…", "accept": true}; {"kind": "world_fate", "arc": "<id>", "choice": "accept|soften|page"}; {"kind": "world_person", "name": "…", "where": "Town › Place", "standing": "…", "flag": "out|hold|wake|none"};',
   '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"};',
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
-  '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox.',
+  '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
+  '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off.',
 ].join(" ");
 
 /** Kinds the story can't redo by itself, or that Undo can't take back: never pre-ticked. */
@@ -69,7 +71,9 @@ export type UndoStep =
   | { t: "lore"; id: string; entry: LoreEntry }
   | { t: "loreDrop"; id: string }
   | { t: "noteDrop"; id: string }
-  | { t: "undismiss"; key: string };
+  | { t: "undismiss"; key: string }
+  | { t: "lessonDrop"; id: string }
+  | { t: "lessonStatus"; id: string; status: "kept" | "off" | "suggested" | "rejected" };
 
 type Raw = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
@@ -493,6 +497,25 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
         after: text || item.after,
         data: { action, text, item: item.kind, ...(undoable ? {} : { risky: true, noUndo: true, note: NO_UNDO }), why },
       });
+    } else if (kind === "lesson") {
+      // A1: keep a new lesson, or switch one on or off.
+      const ref = str(c.id);
+      if (ref) {
+        const l = lessonsFor(chatId).find((x) => x.id === ref);
+        const status = str(c.status).toLowerCase() === "off" ? "off" : "kept";
+        if (!l) {
+          dropped.push(`there's no lesson ${ref}`);
+          continue;
+        }
+        if (l.status === status) continue;
+        out.push({ kind, target: l.id, label: `Lesson · ${status === "kept" ? "keep" : "switch off"}`, before: l.text, after: l.text, data: { status, prev: l.status, why } });
+        continue;
+      }
+      const text = str(c.text).slice(0, 300);
+      if (!text) continue;
+      const sc = str(c.scope).toLowerCase();
+      const scope = sc === "character" || sc === "everywhere" ? sc : "story";
+      out.push({ kind, target: "", label: `Lesson · ${scope === "story" ? "this story" : scope === "character" ? "this character, in every chat" : "every story"}`, before: "", after: text, data: { scope, why } });
     } else if (kind) dropped.push(`Meus can't make "${kind}" changes yet`);
   }
   return { changes: out, dropped };
@@ -688,6 +711,14 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       return [{ t: "loreDrop", id: createEntry(c.target, { comment: String(d.comment ?? ""), keys: (d.keys as string[]) ?? [], content: String(d.content ?? "") }).id }];
     case "note":
       return [{ t: "noteDrop", id: createNote({ chatId, title: String(d.title ?? ""), body: c.after }).id }];
+    case "lesson": {
+      if (c.target) {
+        const prev = String(d.prev ?? "kept") as "kept";
+        updateLesson(c.target, { status: d.status === "off" ? "off" : "kept", chatId });
+        return [{ t: "lessonStatus", id: c.target, status: prev }];
+      }
+      return [{ t: "lessonDrop", id: addLesson(chatId, { text: c.after, scope: (d.scope as "story") ?? "story", why: String(d.why ?? ""), by: "user", from: "meus" }).id }];
+    }
     case "inbox": {
       const key = c.target;
       const [ik, ...rest] = key.split(":");
@@ -810,6 +841,15 @@ export function undoStep(chatId: string, s: UndoStep) {
     case "undismiss":
       run("DELETE FROM inbox_dismissed WHERE key = ?", s.key);
       publish({ type: "inbox.changed" });
+      return;
+    case "lessonDrop":
+      if (getLesson(s.id)) deleteLesson(s.id);
+      return;
+    case "lessonStatus":
+      if (getLesson(s.id)) {
+        run("UPDATE lessons SET status = ?, updated_at = ? WHERE id = ?", s.status, now(), s.id);
+        publish({ type: "lessons.changed", chatId });
+      }
       return;
   }
 }

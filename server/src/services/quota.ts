@@ -12,7 +12,7 @@ const DAY = 24 * 3600_000;
  * Trackers, the summarizer, and the story reply are kept until the quota is gone.
  * Phase 1 runs "gates" (scene-break checks) and "verification"; the rest arrive later.
  */
-export const SHED_ORDER = ["advisor", "editor", "librarian", "gates", "drift", "continuity", "verification"] as const;
+export const SHED_ORDER = ["lessons", "advisor", "editor", "librarian", "gates", "drift", "continuity", "verification"] as const;
 export type Sheddable = (typeof SHED_ORDER)[number];
 
 export interface QuotaState {

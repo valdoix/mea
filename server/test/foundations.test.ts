@@ -36,8 +36,10 @@ beforeAll(async () => {
 });
 
 describe("the slip registry (P1)", () => {
-  test("every existing check is in it, once", () => {
-    expect(SLIPS.map((s) => s.id)).toEqual(["trait", "dead", "time", "name", "leak", "puppet", "pov", "tense", "timeline"]);
+  test("every existing check is in it, once (later parts add theirs after)", () => {
+    const ids = SLIPS.map((s) => s.id);
+    expect(ids.slice(0, 9)).toEqual(["trait", "dead", "time", "name", "leak", "puppet", "pov", "tense", "timeline"]);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   test("a reply is checked through the registry, with the same findings as before", async () => {
@@ -93,17 +95,17 @@ describe("the suggestions queue (P1)", () => {
   test("a provider's suggestions carry their source, and deciding one goes back to it", () => {
     const decided: string[] = [];
     registerInboxProvider({
-      kind: "lesson",
+      kind: "test-suggestion",
       source: "lesson",
-      items: (chats) => (chats.some((c) => c.id === chatId) && !decided.length ? [{ key: "lesson:l1", chatId, chatTitle: "", title: "A lesson", why: "From your swipes", before: null, after: "Wren doesn't apologise easily.", editable: true, createdAt: 1, link: "/" }] : []),
+      items: (chats) => (chats.some((c) => c.id === chatId) && !decided.length ? [{ key: "test-suggestion:l1", chatId, chatTitle: "", title: "A lesson", why: "From your swipes", before: null, after: "Wren doesn't apologise easily.", editable: true, createdAt: 1, link: "/" }] : []),
       act: (id, action) => (decided.push(`${id}:${action}`), chatId),
     });
-    const item = inboxItems({ chatId }).find((i) => i.key === "lesson:l1");
-    expect(item).toMatchObject({ kind: "lesson", source: "lesson" });
+    const item = inboxItems({ chatId }).find((i) => i.key === "test-suggestion:l1");
+    expect(item).toMatchObject({ kind: "test-suggestion", source: "lesson" });
     expect(inboxCounts(chatId).lesson).toBe(1);
-    actOnInbox("lesson:l1", "accept");
+    actOnInbox("test-suggestion:l1", "accept");
     expect(decided).toEqual(["l1:accept"]);
-    expect(inboxItems({ chatId }).some((i) => i.key === "lesson:l1")).toBe(false);
+    expect(inboxItems({ chatId }).some((i) => i.key === "test-suggestion:l1")).toBe(false);
   });
   test("the original kinds have sources too", () => {
     for (const i of inboxItems()) expect(i.source).toBeTruthy();

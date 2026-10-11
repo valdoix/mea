@@ -10,9 +10,9 @@
   let open = $state(false);
   const issues = $derived(flag.issues.filter((i) => !i.dismissed));
   const major = $derived(issues.some((i) => i.severity === "major"));
-  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline" };
+  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept" };
   /** A citation that points somewhere (guard notes cite a rule, not a source). */
-  const opens = (c: Citation) => Boolean(c.messageId || c.seq != null || c.id);
+  const opens = (c: Citation) => Boolean(c.messageId || c.seq != null || c.id || c.type === "lesson");
 
   async function act(path: string, body: unknown, done?: string) {
     try {

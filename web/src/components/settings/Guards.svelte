@@ -106,6 +106,21 @@
     </section>
 
     <section class="panel stack">
+      <h2>Lessons from swipes</h2>
+      <p class="tiny muted">When you swipe past takes and keep one, or edit a reply by hand, Mea suggests what to learn from it, under the reply. Lessons you keep go to the model every turn. The rules cost nothing; the helper model compares the takes when you choose it (and is skipped when the quota runs low).</p>
+      <Segmented
+        value={g.lessons ?? "rules"}
+        small
+        options={[
+          { value: "off", label: "Off" },
+          { value: "rules", label: "Rules only" },
+          { value: "model", label: "Rules + model" },
+        ]}
+        onchange={(v) => set({ lessons: v })}
+      />
+    </section>
+
+    <section class="panel stack">
       <h2>Timeline</h2>
       <p class="tiny muted">Once the trackers have read a reply, the story clock before and after is compared: time running backwards, a big jump nothing in the reply mentions, or a reply that moves to the next day while the clock barely moved.</p>
       <label class="switch"><input type="checkbox" checked={g.timeline} onchange={(e) => set({ timeline: e.currentTarget.checked })} /> Check the timeline</label>

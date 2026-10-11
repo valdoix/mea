@@ -1,3 +1,4 @@
+import { lessonsFor } from "../steer/lessons";
 import { all, parseJson } from "../db/db";
 import { inboxCount } from "../accuracy/inbox";
 import { getSetting } from "../lib/settings";
@@ -99,6 +100,7 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     settings.pacing ? `Pacing: ${settings.pacing}` : "",
     settings.authorsNote?.content ? `Author's note: ${clip(settings.authorsNote.content, 400)}` : "",
     guidanceLine(settings),
+    lessonLines(chatId),
   ].filter(Boolean);
   if (steer.length) blocks.push(`HOW THE STORY IS STEERED:\n${steer.join("\n")}`);
 
@@ -155,4 +157,18 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     text: blocks.join("\n\n"),
     header: { seq, time: st?.time ? formatStoryTime(st.time) : null, place: st?.place.length ? st.place.join(" › ") : null },
   };
+}
+
+/** A1: the lessons this story keeps (and suggests), with ids so Meus can switch them. */
+function lessonLines(chatId: string) {
+  try {
+    const list = lessonsFor(chatId).filter((l) => l.status !== "rejected");
+    if (!list.length) return "";
+    return `Lessons (rules learned from the player's swipes and edits):\n${list
+      .slice(0, 20)
+      .map((l) => `  - [${l.id}] ${l.text} (${l.status === "kept" ? (l.resting ? "kept, resting" : "kept") : l.status}${l.scope !== "story" ? `, ${l.scope}` : ""})`)
+      .join("\n")}`;
+  } catch {
+    return "";
+  }
 }
