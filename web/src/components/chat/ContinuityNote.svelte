@@ -1,6 +1,6 @@
 <script lang="ts">
   import { post } from "../../lib/api";
-  import { Check, Pencil, RotateCcw, ShieldAlert, X } from "../../lib/icons";
+  import { Check, GraduationCap, Pencil, RotateCcw, ShieldAlert, X } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { Citation, ContinuityFlag } from "../../lib/types";
 
@@ -10,7 +10,9 @@
   let open = $state(false);
   const issues = $derived(flag.issues.filter((i) => !i.dismissed));
   const major = $derived(issues.some((i) => i.severity === "major"));
-  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page", canon: "later canon" };
+  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page", canon: "later canon", nothere: "someone not in the scene", clockback: "the clock going back", planning: "planning left in", past: "an invented past" };
+  /** D1: findings about the whole reply (its voice, its time, planning in it) aren't one sentence to fix. */
+  const WHOLE = new Set(["pov", "tense", "timeline", "planning"]);
   /** A citation that points somewhere (guard notes cite a rule, not a source). */
   const opens = (c: Citation) => Boolean(c.messageId || c.seq != null || c.id || c.type === "lesson" || c.type === "secret");
 
@@ -35,6 +37,15 @@
       errorToast(e);
     } finally {
       fixing = null;
+    }
+  }
+  /** D1: the finding kept as a lesson (sent every turn, and checked). */
+  async function makeLesson(issueId: string) {
+    try {
+      await post(`/api/continuity/${flag.id}/lesson`, { issueId });
+      toast("Kept as a lesson: it goes to the model every turn", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
     }
   }
   async function regenerate() {
@@ -63,9 +74,10 @@
               {#if i.by === "model"}<span class="tiny faint">checked by the helper model</span>{/if}
             </div>
             <div class="row wrap">
-              {#if i.kind === "offpage" || i.kind === "canon"}<button class="btn ghost small" onclick={() => fixSentence(i.id)} disabled={fixing === i.id} title="Rewrite only this sentence; every other word stays"><Pencil size={13} /> {fixing === i.id ? "Rewording…" : "Reword this sentence"}</button>{/if}
+              {#if !WHOLE.has(i.kind)}<button class="btn ghost small" onclick={() => fixSentence(i.id)} disabled={fixing === i.id} title="Rewrite only this sentence; every other word stays"><Pencil size={13} /> {fixing === i.id ? "Fixing…" : i.kind === "offpage" || i.kind === "canon" ? "Reword this sentence" : "Fix this sentence"}</button>{/if}
               {#if i.canon}<button class="btn ghost small" onclick={() => act("accept", { issueId: i.id }, "Canon updated: the reply's version is now confirmed")} title="The reply is right: update memory (and the trackers) to match"><Check size={13} /> Accept & update canon</button>{/if}
               <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id })}><X size={13} /> Dismiss</button>
+              {#if i.kind !== "lesson"}<button class="btn ghost small" onclick={() => makeLesson(i.id)} title="Keep this as a rule for the story; replies are checked against it"><GraduationCap size={13} /> Make it a lesson</button>{/if}
             </div>
           </div>
         {/each}

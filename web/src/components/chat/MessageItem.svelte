@@ -2,7 +2,7 @@
   import ContinuityNote from "./ContinuityNote.svelte";
   import { post } from "../../lib/api";
   import { wordDiff } from "../../lib/diff";
-  import { errorToast } from "../../lib/state.svelte";
+  import { errorToast, toast } from "../../lib/state.svelte";
   import { gloss } from "../../lib/glossary";
   import Avatar from "../Avatar.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
@@ -31,6 +31,7 @@
     GraduationCap,
     Columns2,
     Shuffle,
+    ShieldCheck,
   } from "../../lib/icons";
   import { ANGLES, type Angle } from "../../lib/angles";
   import { askMeus } from "../../lib/meus.svelte";
@@ -211,6 +212,8 @@
     }
     if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: Columns2, onclick: oncompare });
     if (isLast && message.role === "assistant" && onangle) list.push({ label: "Swipe with an angle…", icon: Shuffle, onclick: () => openAngles(null), disabled: !canGenerate });
+    // D1: run every check on this reply again.
+    if (message.role === "assistant" && onflagchange) list.push({ label: "Check again", icon: ShieldCheck, onclick: checkAgain, disabled: streaming });
     // A1: what the takes you passed over got wrong, as lessons.
     if (message.role === "assistant" && message.swipeCount > 1) list.push({ label: "Learn from this swipe", icon: GraduationCap, onclick: () => learnFrom(message.id), disabled: streaming });
     if (message.role === "assistant" && message.swipeCount > 1 && ondeleteswipe) list.push({ label: "Delete this version", icon: Trash, danger: true, onclick: ondeleteswipe, disabled: streaming });
@@ -225,6 +228,17 @@
     list.push({ label: "Delete", icon: Trash, danger: true, onclick: ondelete });
     return list;
   });
+
+  async function checkAgain() {
+    try {
+      const r = await post<{ issues: unknown[]; flags: ContinuityFlag[] }>(`/api/messages/${message.id}/check`);
+      const f = r.flags.find((x) => x.messageId === message.id) ?? null;
+      onflagchange?.(f);
+      toast(r.issues.length ? `${r.issues.length} note${r.issues.length === 1 ? "" : "s"} on this reply` : "Nothing to note ✿", { kind: r.issues.length ? "info" : "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
 
   // A2: the angle chips on the → arrow.
   let angleOpen = $state(false);

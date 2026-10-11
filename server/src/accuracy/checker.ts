@@ -16,7 +16,7 @@ import { shouldShed } from "../services/quota";
 import { userEdit } from "../trackers/service";
 import { flagAllowed, guardsFor, puppetScope, type PuppetScope } from "./guards";
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
-import { runSlips, slipContext } from "./slips";
+import { runSlips, slipAllowed, slipContext } from "./slips";
 import { currentFold, foldAt, linesToOps } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 
@@ -215,16 +215,17 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           jobId: opts.job?.id,
           name: "continuity_check",
           schema: modelSchema,
-          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
+          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
           user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content).slice(0, 6000)}`,
           maxTokens: 800,
         });
         for (const i of r.data.issues) {
           if (issues.some((x) => x.claim.includes(i.claim.slice(0, 40)) || i.claim.includes(x.claim.slice(0, 40)))) continue;
           const citations = i.cites.map((c) => sheet.cites.get(c.replace(/[[\]\s]/g, ""))).filter((c): c is Citation => Boolean(c));
-          if (!citations.length) continue; // an issue without a source is a guess
+          // An issue without a source is a guess, except an invented past (its point is that nothing holds it).
+          if (!citations.length && i.kind !== "past") continue;
           issues.push({
-            kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline", "lesson"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
+            kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline", "lesson", "past"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
             severity: i.severity,
             claim: i.claim.slice(0, 300),
             conflict: i.conflict.slice(0, 400),
