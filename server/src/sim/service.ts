@@ -239,7 +239,7 @@ export function arcAction(chatId: string, id: string, action: "hold" | "resume" 
  * move off the page now, the beat lands at once, so the next reply already has it on its way to the
  * scene; otherwise the call waits on the subplot and its next beat takes it. null clears a waiting call.
  */
-export function forceOutcome(chatId: string, id: string, outcome: Force | null): { landed: boolean; eventIds: string[] } {
+export function forceOutcome(chatId: string, id: string, outcome: Force | null, opts: { salt?: number; text?: string } = {}): { landed: boolean; eventIds: string[] } {
   const cfg = worldConfig(chatId);
   const st = currentFold(chatId).result.state;
   const arc = mustArc(st, id);
@@ -250,9 +250,11 @@ export function forceOutcome(chatId: string, id: string, outcome: Force | null):
     if (canStep(arc, roster)) {
       // The fold's state is shared: the call rides on a copy of this one subplot.
       const called: WorldState = { ...st, sim: { ...st.sim, arcs: { ...st.sim.arcs, [id]: { ...arc, force: outcome } } } };
-      const res = forcedStep(tickInput(chatId, called, roster, true), id);
-      const eventIds = control(chatId, res.sim, res.ledger);
-      if (cfg.telling === "model" && res.cards.length) {
+      const res = forcedStep(tickInput(chatId, called, roster, true), id, opts.salt ?? 0);
+      // G3: the words you accepted (or edited) in the preview tell it; no second telling.
+      const told = opts.text?.trim() && res.cards[0] ? [{ type: "arc.tell" as const, id, at: res.cards[0].at, text: opts.text.trim().slice(0, 1200) }] : [];
+      const eventIds = control(chatId, [...res.sim, ...told], res.ledger);
+      if (!told.length && cfg.telling === "model" && res.cards.length) {
         const last = lastMessage(chatId);
         enqueue("world.tell", { chatId, messageId: last?.id ?? null, swipeIdx: last ? -1 : 0, cards: res.cards }, { priority: 2, chatId });
       }
@@ -261,6 +263,60 @@ export function forceOutcome(chatId: string, id: string, outcome: Force | null):
   }
   const now = st.time?.minutes ?? arc.nextAt;
   return { landed: false, eventIds: control(chatId, [{ type: "arc.set", id, patch: { force: outcome, ...(arc.status === "running" ? { push: true, nextAt: now } : {}) } }]) };
+}
+
+export interface BeatPreview {
+  /** False: the subplot can't move off the page right now, so the call would wait for its next step. */
+  landsNow: boolean;
+  outcome: Force;
+  salt: number;
+  result: string | null;
+  stage: string | null;
+  /** How it reaches the scene, in words: the engine's (free), or one cheap call in model-telling mode. */
+  text: string;
+  told: "engine" | "model";
+  /** The ways it could reach the scene (a messenger, a letter, word going round…). */
+  arrivals: { route: string; text: string; carrier: string | null }[];
+  why: string[];
+}
+
+/**
+ * G3: how a called beat would land, before anything commits: the forced step runs on a copy of the
+ * story, seeded by the salt, so Accept (with the same salt) lands exactly this. Reroll is a new salt.
+ */
+export async function previewOutcome(chatId: string, id: string, outcome: Force, salt = 0): Promise<BeatPreview> {
+  const cfg = worldConfig(chatId);
+  const st = currentFold(chatId).result.state;
+  const arc = mustArc(st, id);
+  if (arc.status !== "running" && arc.status !== "held") throw badRequest("This subplot isn't moving any more");
+  const none: BeatPreview = { landsNow: false, outcome, salt, result: null, stage: null, text: "", told: "engine", arrivals: [], why: [] };
+  if (cfg.mode === "off" || !st.time) return none;
+  const roster = rosterFor(chatId, st);
+  if (!canStep(arc, roster)) return none;
+  const copy = structuredClone(st);
+  copy.sim.arcs[id] = { ...copy.sim.arcs[id]!, force: outcome };
+  const res = forcedStep(tickInput(chatId, copy, roster, true), id, salt);
+  const beat = res.sim.find((o): o is Extract<SimOp, { type: "arc.beat" }> => o.type === "arc.beat" && o.id === id)?.beat;
+  const arrivals = res.sim.filter((o): o is Extract<SimOp, { type: "arrival.new" }> => o.type === "arrival.new").map((o) => ({ route: o.arrival.route, text: o.arrival.text, carrier: o.arrival.carrier ? (roster.actors.get(o.arrival.carrier)?.name ?? o.arrival.carrier) : null }));
+  const engineText = beat?.text ?? res.cards[0]?.template ?? res.summary.join(" ");
+  let text = engineText;
+  let told: BeatPreview["told"] = "engine";
+  if (cfg.telling === "model" && res.cards.length) {
+    try {
+      const fc = foldConfigFor(chatId);
+      const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
+      const { system, user } = tellingPrompt(res.cards.slice(0, 1), { userName: fc.userName, truths: s.truths ?? [], genres: cfg.genres });
+      const r = await callJson({ task: "world", kind: "world:telling", chatId, name: "world_telling", schema: tellingSchema, system, user, maxTokens: 500 });
+      const b = r.data.beats.find((x) => x.card === res.cards[0]!.id) ?? r.data.beats[0];
+      if (b?.text.trim()) {
+        text = b.text.trim();
+        told = "model";
+      }
+    } catch {
+      // The engine's words stand in.
+    }
+  }
+  return { landsNow: true, outcome, salt, result: beat?.result ?? null, stage: beat?.stage ?? null, text, told, arrivals, why: beat?.why ?? [] };
 }
 
 /** "Give someone a story": a premise in your words, started at once (it locks). */

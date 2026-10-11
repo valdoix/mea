@@ -74,10 +74,42 @@
       errorToast(e);
     }
   }
-  /** Call a subplot's next beat (null clears a waiting call). */
-  async function callBeat(a: Arc, outcome: ArcForce | null) {
+  // ---------- G3: next beat previews ----------
+  interface BeatPreview {
+    landsNow: boolean;
+    outcome: ArcForce;
+    salt: number;
+    result: string | null;
+    stage: string | null;
+    text: string;
+    told: "engine" | "model";
+    arrivals: { route: string; text: string; carrier: string | null }[];
+    why: string[];
+  }
+  let preview = $state<{ arc: Arc; data: BeatPreview; editing: boolean; text: string; busy: boolean } | null>(null);
+  /** How the called beat would reach the scene, before anything commits. */
+  async function previewBeat(a: Arc, outcome: ArcForce, salt = 0) {
+    preview = { arc: a, data: preview?.arc.id === a.id ? preview.data : ({ outcome, salt, text: "", landsNow: true } as BeatPreview), editing: false, text: "", busy: true };
     try {
-      const r = await post<WorldViewData & { landed: boolean }>(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}/force`, { outcome });
+      const data = await post<BeatPreview>(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}/preview`, { outcome, salt });
+      preview = { arc: a, data, editing: false, text: data.text, busy: false };
+    } catch (e) {
+      preview = null;
+      errorToast(e);
+    }
+  }
+  async function acceptBeat() {
+    if (!preview) return;
+    const { arc, data, text } = preview;
+    const edited = text.trim() && (text.trim() !== data.text.trim() || data.told === "model");
+    preview = null;
+    await callBeat(arc, data.outcome, { salt: data.salt, ...(edited ? { text: text.trim() } : {}) });
+  }
+
+  /** Call a subplot's next beat (null clears a waiting call). */
+  async function callBeat(a: Arc, outcome: ArcForce | null, extra: { salt?: number; text?: string } = {}) {
+    try {
+      const r = await post<WorldViewData & { landed: boolean }>(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}/force`, { outcome, ...extra });
       w = r;
       if (outcome === null) toast("Call cleared: the dice decide again", { kind: "ok" });
       else if (r.landed) toast(`Done: ${a.leadName}'s next step ${FORCES.find((f) => f.value === outcome)!.said}`, { kind: "ok" });
@@ -335,13 +367,41 @@
             <div class="row wrap ctl call" role="group" aria-label="Call the next beat">
               <span class="tiny muted">Next beat:</span>
               {#each FORCES as f (f.value)}
-                <button class="btn ghost small" class:on={a.force === f.value} title={f.title} aria-pressed={a.force === f.value} onclick={() => callBeat(a, f.value)}>{f.label}</button>
+                <button class="btn ghost small" class:on={a.force === f.value || (preview?.arc.id === a.id && preview.data.outcome === f.value)} title={f.title} aria-pressed={a.force === f.value} onclick={() => previewBeat(a, f.value)}>{f.label}</button>
               {/each}
               {#if a.force}
                 <span class="tiny muted">{FORCE_LABEL[a.force]} called; it lands {a.status === "held" ? "once you resume it" : "when they're off the page and free to act"}.</span>
                 <button class="btn ghost small" onclick={() => callBeat(a, null)}>Clear</button>
               {/if}
             </div>
+            {#if preview?.arc.id === a.id}
+              {@const pv = preview}
+              <div class="beatpreview card" aria-live="polite">
+                {#if pv.busy}
+                  <p class="tiny muted">Seeing how it would land…</p>
+                {:else if !pv.data.landsNow}
+                  <p class="small">{a.leadName} can't move off the page right now, so there's nothing to preview yet: the call would wait for their next step.</p>
+                  <div class="row wrap">
+                    <button class="btn small" onclick={() => ((preview = null), callBeat(a, pv.data.outcome))}>Call it anyway</button>
+                    <button class="btn ghost small" onclick={() => (preview = null)}>Cancel</button>
+                  </div>
+                {:else}
+                  <div class="tiny muted">{FORCE_LABEL[pv.data.outcome]}{pv.data.result && pv.data.result !== pv.data.outcome ? ` · comes out as ${pv.data.result}` : ""}{pv.data.stage ? ` · ${pv.data.stage}` : ""}{pv.data.told === "model" ? " · written by the model" : ""}</div>
+                  {#if pv.editing}
+                    <textarea class="textarea" rows="3" bind:value={pv.text} maxlength="1200" aria-label="How it reaches the scene"></textarea>
+                  {:else}
+                    <p class="small">{pv.text}</p>
+                  {/if}
+                  {#if pv.data.arrivals.length}<div class="tiny faint">On its way: {pv.data.arrivals.map((x) => `${routeIcon[x.route] ?? "•"} ${x.text}`).join(" · ")}</div>{/if}
+                  <div class="row wrap">
+                    <button class="btn small primary" onclick={acceptBeat}>Accept</button>
+                    <button class="btn ghost small" onclick={() => previewBeat(a, pv.data.outcome, pv.data.salt + 1)} title="Another roll with the same call">Reroll</button>
+                    <button class="btn ghost small" onclick={() => (pv.editing = !pv.editing)}>{pv.editing ? "Done editing" : "Edit"}</button>
+                    <button class="btn ghost small" onclick={() => (preview = null)}>Cancel</button>
+                  </div>
+                {/if}
+              </div>
+            {/if}
           {/if}
         </article>
       {:else}
@@ -493,6 +553,13 @@
 </Modal>
 
 <style>
+  .beatpreview {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.6rem 0.7rem;
+    margin-top: 0.3rem;
+    border: 1px dashed color-mix(in srgb, var(--accent) 50%, var(--border));
+  }
   .irony {
     color: var(--lavender, var(--accent));
     font-style: italic;
