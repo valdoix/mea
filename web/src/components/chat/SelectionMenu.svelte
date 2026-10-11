@@ -1,7 +1,9 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import { del, post } from "../../lib/api";
-  import { Bookmark, BookmarkPlus, CircleAlert, Heart, MessagesSquare, Scissors } from "../../lib/icons";
+  import { Bookmark, BookmarkPlus, CircleAlert, EyeOff, Heart, Lock, MessagesSquare, Scissors } from "../../lib/icons";
+  import Menu, { type MenuItem } from "../Menu.svelte";
+  import { editOffpage, kept, neverSay } from "../../lib/offpage.svelte";
   import { askMeus } from "../../lib/meus.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import { delight } from "../../lib/delight";
@@ -28,7 +30,8 @@
     onkeep?: (messageId: string, text: string) => void;
   } = $props();
 
-  let sel = $state<{ text: string; messageId: string; x: number; y: number } | null>(null);
+  /** `y` is where the bar's bottom edge sits above the selection, or (`below`) its top edge under it. */
+  let sel = $state<{ text: string; messageId: string; x: number; y: number; below?: boolean } | null>(null);
   let fixOpen = $state(false);
   let wrong = $state("");
   let right = $state("");
@@ -37,6 +40,7 @@
   let fixMessage = $state<string | null>(null);
   let timer: ReturnType<typeof setTimeout>;
 
+  const BAR = 640;
   function read() {
     const s = window.getSelection();
     if (!s || s.isCollapsed || !root) return (sel = null);
@@ -48,7 +52,9 @@
     const id = idForSeq(Number(msg.dataset.seq));
     if (!id) return (sel = null);
     const rect = s.getRangeAt(0).getBoundingClientRect();
-    sel = { text, messageId: id, x: Math.min(window.innerWidth - 180, Math.max(8, rect.left + rect.width / 2 - 90)), y: Math.max(8, rect.top - 46) };
+    // The bar wraps to at most BAR wide (two rows on narrow screens), centred over the selection.
+    const w = Math.min(BAR, window.innerWidth - 16);
+    sel = { text, messageId: id, x: Math.min(window.innerWidth - w - 8, Math.max(8, rect.left + rect.width / 2 - w / 2)), ...(rect.top < 110 ? { y: rect.bottom + 6, below: true } : { y: rect.top - 6 }) };
   }
   $effect(() => {
     const onChange = () => {
@@ -121,6 +127,35 @@
     window.getSelection()?.removeAllRanges();
     sel = null;
   }
+  // B1: "Never say this" (the selected words join a secret kept off the page) and "Keep off the page".
+  let pickOpen = $state(false);
+  let pickPoint = $state<{ x: number; y: number } | null>(null);
+  let pickItems = $state<MenuItem[]>([]);
+  function neverSayThis() {
+    if (!sel) return;
+    const word = sel.text.slice(0, 60);
+    const messageId = sel.messageId;
+    const list = kept();
+    const done = () => {
+      window.getSelection()?.removeAllRanges();
+      sel = null;
+    };
+    if (!list.length) {
+      editOffpage(null, { neverSay: [word], messageId });
+      return done();
+    }
+    pickItems = [...list.map((o) => ({ label: o.label.slice(0, 70), onclick: () => void neverSay(o, word, messageId) })), { label: "A new secret…", onclick: () => editOffpage(null, { neverSay: [word], messageId }) }];
+    pickPoint = { x: sel.x, y: sel.y + 4 };
+    pickOpen = true;
+    done();
+  }
+  function keepOffPage() {
+    if (!sel) return;
+    editOffpage(null, { label: sel.text.slice(0, 300), neverSay: sel.text.split(/\s+/).length <= 3 ? [sel.text.slice(0, 60)] : [], messageId: sel.messageId });
+    window.getSelection()?.removeAllRanges();
+    sel = null;
+  }
+
   /** A2: a new take that keeps the reply up to (and including) the selected sentence. */
   function keepThis() {
     if (!sel || !onkeep) return;
@@ -137,15 +172,19 @@
 </script>
 
 {#if sel && !fixOpen}
-  <div class="selbar card" style:left="{sel.x}px" style:top="{sel.y}px" role="toolbar" aria-label="Selected text">
+  <div class="selbar card" class:below={sel.below} style:left="{sel.x}px" style:top="{sel.y}px" role="toolbar" aria-label="Selected text">
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={highlight}><Heart size={14} /> Highlight</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={() => remember(false)}><BookmarkPlus size={14} /> Remember</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={() => remember(true)}><Bookmark size={14} /> Pin</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={startFix}><CircleAlert size={14} /> That's wrong</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={toMeus}><MessagesSquare size={14} /> Ask Meus</button>
+    <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={neverSayThis} title="Add these words to a secret kept off the page"><EyeOff size={14} /> Never say this</button>
+    <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepOffPage} title="Hold this back from the narration"><Lock size={14} /> Keep off the page</button>
     {#if onkeep && canKeep?.(sel.messageId)}<button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepThis} title="A new take that keeps everything up to here"><Scissors size={14} /> Keep this, redo the rest</button>{/if}
   </div>
 {/if}
+
+<Menu bind:open={pickOpen} items={pickItems} point={pickPoint} title="Never say this, for which secret?" />
 
 <Modal bind:open={fixOpen} title="Correct what memory knows" size="md">
   <div class="stack">
@@ -174,9 +213,16 @@
     position: fixed;
     z-index: 60;
     display: flex;
+    flex-wrap: wrap;
+    max-width: min(640px, calc(100vw - 16px));
     gap: 0.1rem;
     padding: 0.2rem;
     box-shadow: var(--shadow-2, 0 4px 18px rgb(0 0 0 / 0.15));
+    /* It wraps to two rows on narrow screens: anchored by its bottom edge, above the selection. */
+    transform: translateY(-100%);
+  }
+  .selbar.below {
+    transform: none;
   }
   .match {
     display: flex;

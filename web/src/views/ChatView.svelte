@@ -15,6 +15,8 @@
   import { sugg, watchSuggestions } from "../lib/suggestions.svelte";
   import { watchFilings } from "../lib/filings.svelte";
   import { watchLessons } from "../lib/lessons.svelte";
+  import { watchOffpage } from "../lib/offpage.svelte";
+  import OffpageEditor from "../components/chat/OffpageEditor.svelte";
   import type { Angle } from "../lib/angles";
   import { dockRequest, openDock, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
@@ -96,6 +98,7 @@
   $effect(() => watchSuggestions(id));
   $effect(() => watchFilings(id));
   $effect(() => watchLessons(id));
+  $effect(() => watchOffpage(id));
   function pickDock(v: DockTab) {
     dockTab = v;
     localStorage.setItem("mea.dockTab", v);
@@ -423,6 +426,7 @@
     if (seq != null) return void jumpTo(seq);
     // A1: a lesson opens the Story tab's Lessons.
     if (c.type === "lesson") return openDock("story", "lessons");
+    if (c.type === "secret") return openDock("story", "offpage");
     if (c.type === "lore" && "id" in c && c.id) {
       try {
         const r = await get<{ bookId: string }>(`/api/lore/entries/${c.id}/locate`);
@@ -1450,6 +1454,7 @@
     {/if}
   </Modal>
 
+  <OffpageEditor chatId={id} />
   <SwipeCompare bind:open={compareOpen} message={compare} onkeep={(idx) => compare && void setSwipe(compare, idx)} />
 {:else}
   <div class="center"><span class="heart">✿</span></div>

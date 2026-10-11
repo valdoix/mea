@@ -14,6 +14,7 @@ import { embedChat } from "./memory/embed";
 import { consolidate } from "./memory/consolidate";
 import { recordTimeline, runCheckJob } from "./accuracy/checker";
 import { runLessonsJob } from "./steer/lessons";
+import { runRewordJob } from "./accuracy/offpage";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
@@ -106,6 +107,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   // A1: lessons from the takes you kept and the replies you edited.
   registerJob("lessons.learn", async (p, job) => runLessonsJob(p as { chatId: string; messageId: string }, job));
+  // B1: the helper's rewording of memory and lore that state a secret kept off the page.
+  registerJob("offpage.reword", async (p, job) => runRewordJob(p as { chatId: string; key: string; text: string }, job));
   registerJob("lessons.edit", async (p, job) => runLessonsJob(p as { chatId: string; messageId: string; before: string; after: string }, job));
   // DATA-05 / PERF-11: memory files come in as a chunked background job.
   registerJob("memory.import", async (p, job) => runMemoryImport(p as { chatId: string; file: string; mode: "merge" | "replace" }, job));

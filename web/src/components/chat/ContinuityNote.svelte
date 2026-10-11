@@ -1,6 +1,6 @@
 <script lang="ts">
   import { post } from "../../lib/api";
-  import { Check, RotateCcw, ShieldAlert, X } from "../../lib/icons";
+  import { Check, Pencil, RotateCcw, ShieldAlert, X } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { Citation, ContinuityFlag } from "../../lib/types";
 
@@ -10,9 +10,9 @@
   let open = $state(false);
   const issues = $derived(flag.issues.filter((i) => !i.dismissed));
   const major = $derived(issues.some((i) => i.severity === "major"));
-  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept" };
+  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page" };
   /** A citation that points somewhere (guard notes cite a rule, not a source). */
-  const opens = (c: Citation) => Boolean(c.messageId || c.seq != null || c.id || c.type === "lesson");
+  const opens = (c: Citation) => Boolean(c.messageId || c.seq != null || c.id || c.type === "lesson" || c.type === "secret");
 
   async function act(path: string, body: unknown, done?: string) {
     try {
@@ -21,6 +21,20 @@
       if (done) toast(done, { kind: "ok" });
     } catch (e) {
       errorToast(e);
+    }
+  }
+  /** B1: only the quoted sentence is rewritten (D1 widens this to every finding). */
+  let fixing = $state<string | null>(null);
+  async function fixSentence(issueId: string) {
+    fixing = issueId;
+    try {
+      const r = await post<{ flag: ContinuityFlag; before: string; after: string }>(`/api/continuity/${flag.id}/fix`, { issueId });
+      onchange(r.flag);
+      toast("Reworded that sentence", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      fixing = null;
     }
   }
   async function regenerate() {
@@ -49,6 +63,7 @@
               {#if i.by === "model"}<span class="tiny faint">checked by the helper model</span>{/if}
             </div>
             <div class="row wrap">
+              {#if i.kind === "offpage"}<button class="btn ghost small" onclick={() => fixSentence(i.id)} disabled={fixing === i.id} title="Rewrite only this sentence; every other word stays"><Pencil size={13} /> {fixing === i.id ? "Rewording…" : "Reword this sentence"}</button>{/if}
               {#if i.canon}<button class="btn ghost small" onclick={() => act("accept", { issueId: i.id }, "Canon updated: the reply's version is now confirmed")} title="The reply is right: update memory (and the trackers) to match"><Check size={13} /> Accept & update canon</button>{/if}
               <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id })}><X size={13} /> Dismiss</button>
             </div>

@@ -315,6 +315,25 @@ function helperJson(name: string, user: string): unknown {
     }
     case "creator_bible_check":
       return { issues: /MOCK_ISSUE/.test(user) ? [{ section: "voice", problem: "The voice is flat.", fix: "Give them a verbal habit." }] : [] };
+    // B1: the text with every sentence that uses a never-say word left out.
+    case "offpage_reword": {
+      const words = [...user.matchAll(/never say: ([^)\n]*)\)/g)].flatMap((m) => m[1]!.split(",").map((w) => w.trim().toLowerCase())).filter(Boolean);
+      const text = user.split("TEXT:\n")[1] ?? "";
+      return { text: (text.match(/[^.!?\n]+[.!?]*/g) ?? []).filter((s) => !words.some((w) => s.toLowerCase().includes(w))).join("").trim() || "(nothing to say)" };
+    }
+    // B1 / D1: the sentence with the words the instruction quotes taken out.
+    case "fix_sentence": {
+      const sentence = user.match(/THE SENTENCE:\n([\s\S]*?)\n\nINSTRUCTION:/)?.[1] ?? "";
+      const quoted = [...(user.split("INSTRUCTION:")[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+      let out = sentence;
+      for (const q of quoted) out = out.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "something");
+      return { sentence: out === sentence ? `${sentence} (fixed)` : out };
+    }
+    // A1: a lesson only when the takes ask for one (MOCK_LESSON), so other tests stay quiet.
+    case "lessons_from_swipes":
+      return { lessons: /MOCK_LESSON/.test(user) ? [{ text: "Keep the storm in every scene.", why: "The kept take kept the storm.", quote: "calm night" }] : [] };
+    case "lesson_from_edit":
+      return /MOCK_LESSON/.test(user) ? { lesson: "Mira doesn't apologise easily.", why: "You cut her apology." } : { lesson: "", why: "" };
     default:
       return {};
   }

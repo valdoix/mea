@@ -1,4 +1,5 @@
 import { lessonsFor } from "../steer/lessons";
+import { listOffpage } from "../accuracy/offpage";
 import { all, parseJson } from "../db/db";
 import { inboxCount } from "../accuracy/inbox";
 import { getSetting } from "../lib/settings";
@@ -101,6 +102,7 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     settings.authorsNote?.content ? `Author's note: ${clip(settings.authorsNote.content, 400)}` : "",
     guidanceLine(settings),
     lessonLines(chatId),
+    offpageLines(chatId),
   ].filter(Boolean);
   if (steer.length) blocks.push(`HOW THE STORY IS STEERED:\n${steer.join("\n")}`);
 
@@ -168,6 +170,17 @@ function lessonLines(chatId: string) {
       .slice(0, 20)
       .map((l) => `  - [${l.id}] ${l.text} (${l.status === "kept" ? (l.resting ? "kept, resting" : "kept") : l.status}${l.scope !== "story" ? `, ${l.scope}` : ""})`)
       .join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
+/** B1: secrets kept off the page, with ids so Meus can reveal or change them. */
+function offpageLines(chatId: string) {
+  try {
+    const list = listOffpage(chatId);
+    if (!list.length) return "";
+    return `Secrets kept off the page (the narration doesn't state them yet):\n${list.map((o) => `  - [${o.id}] ${o.label}${o.neverSay.length ? ` · never say: ${o.neverSay.join(", ")}` : ""} (${o.status}${o.due ? ", ready to come out" : ""})`).join("\n")}`;
   } catch {
     return "";
   }

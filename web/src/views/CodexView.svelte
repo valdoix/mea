@@ -1,4 +1,6 @@
 <script lang="ts">
+  import OffpageEditor from "../components/chat/OffpageEditor.svelte";
+  import { editOffpage, offpageAction, offpageFor, watchOffpage } from "../lib/offpage.svelte";
   import EntityPage from "../components/codex/EntityPage.svelte";
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
@@ -191,6 +193,8 @@
     else if (tab === "checks") void loadChecks();
   });
   const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
+  // B1: secrets kept off the page, from here too.
+  $effect(() => watchOffpage(id));
 </script>
 
 <div class="page">
@@ -313,6 +317,7 @@
       {/each}
       <h2>Secrets</h2>
       {#each secrets as s (s.key)}
+        {@const op = offpageFor(s.key)}
         <div class="card ledger">
           <div class="grow">
             <div class="small">{s.statement}</div>
@@ -322,6 +327,11 @@
             </div>
             {#if s.knows.length}<div class="tiny faint">{s.knows.map((k) => `${k.name}: ${k.status}`).join(" · ")}</div>{/if}
           </div>
+          <label class="switch tiny offp" title="Hold it back from the narration itself">
+            <input type="checkbox" checked={Boolean(op)} onchange={(e) => (e.currentTarget.checked ? editOffpage(null, { label: s.statement, ref: s.key }) : op && void offpageAction(op, "delete"))} />
+            {op ? "🔒 Off the page" : "Keep off the page"}
+          </label>
+          {#if op}<button class="btn ghost small" onclick={() => editOffpage(op)}>Words &amp; reveal</button>{/if}
           <button class="btn ghost small" onclick={() => ((revealing = s), (revealTo = ""))}>Revealed…</button>
         </div>
       {:else}
@@ -417,6 +427,8 @@
     </section>
   {/if}
 </div>
+
+<OffpageEditor chatId={id} />
 
 <EntityPage chatId={id} bind:entityId={open} others={everyone} onchange={load} />
 

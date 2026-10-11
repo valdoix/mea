@@ -32,7 +32,7 @@ import type { WorldState } from "../trackers/types";
 
 export interface Citation {
   ref: string;
-  type: "tracker" | "memory" | "lore" | "card" | "message" | "lesson";
+  type: "tracker" | "memory" | "lore" | "card" | "message" | "lesson" | "secret";
   label: string;
   id?: string;
   messageId?: string | null;

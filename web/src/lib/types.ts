@@ -628,7 +628,7 @@ export interface GuardsView {
 }
 
 /** P1: where an Inbox suggestion comes from. */
-export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar";
+export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar" | "secret";
 
 export interface InboxItem {
   key: string;
@@ -674,6 +674,8 @@ export interface PromptTrace {
   lore: LoreTrace[];
   budget: { contextTarget: number; reserve: number; fixed: number; history: number; total: number; memory?: number; recall?: number; lore?: number; ratio?: number; effectiveTarget?: number };
   memory?: MemoryTrace;
+  /** B1: memory and lore reworded to keep a secret off the page. */
+  reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
 }
 
 export type MeaEvent =
@@ -695,6 +697,7 @@ export type MeaEvent =
   | { type: "meus.changed"; chatId: string }
   | { type: "filings.changed"; chatId: string }
   | { type: "lessons.changed"; chatId: string }
+  | { type: "offpage.changed"; chatId: string }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   | { type: "reconnected" };
 
@@ -988,7 +991,7 @@ export interface SecretEntry {
 }
 export interface Citation {
   ref: string;
-  type: "tracker" | "memory" | "lore" | "card" | "message" | "lesson";
+  type: "tracker" | "memory" | "lore" | "card" | "message" | "lesson" | "secret";
   label: string;
   id?: string;
   messageId?: string | null;

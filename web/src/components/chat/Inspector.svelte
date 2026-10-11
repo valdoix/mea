@@ -141,6 +141,18 @@
           </details>
         {/if}
 
+        {#if data.trace.reworded?.length}
+          <details>
+            <summary><b>Reworded for the secret</b> <span class="tiny muted">{data.trace.reworded.length} block{data.trace.reworded.length === 1 ? "" : "s"} kept off the page</span></summary>
+            {#each data.trace.reworded as r, i (i)}
+              <div class="lane">
+                <p class="tiny muted">{r.where} · {r.by === "model" ? "reworded by the helper" : "sentences left out by the rules (the helper's rewording comes next time)"}</p>
+                <pre class="lane-t">{r.after || "(nothing left)"}</pre>
+              </div>
+            {/each}
+          </details>
+        {/if}
+
         {#if mem}
           <details open>
             <summary>

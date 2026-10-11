@@ -49,6 +49,7 @@ import { evalCondition } from "../trackers/condition";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
 import { gatherLanes } from "../prompt/lanes";
+import { offpageFilter } from "../accuracy/offpage";
 import { angleNote, type Angle, digestNote, keptPrefix, rejectedDigest, takeShape as rejectedShape } from "../steer/swipes";
 import { finishRequest, getRequest, startRequest } from "./requests";
 import { anchorExtra } from "../accuracy/anchor";
@@ -312,6 +313,23 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     all: entries,
   });
   const loreMs = lap();
+  // B1: memory and lore that state a secret kept off the page are reworded before the prompt.
+  const offpage = offpageFilter(chatId);
+  if (offpage) {
+    const pl = lore.placements;
+    const each = (xs: string[], where: string) => xs.map((x) => offpage(x, where));
+    lore.placements = {
+      ...pl,
+      before_char: each(pl.before_char, "lore"),
+      after_char: each(pl.after_char, "lore"),
+      an_top: each(pl.an_top, "lore"),
+      an_bottom: each(pl.an_bottom, "lore"),
+      ex_top: each(pl.ex_top, "lore"),
+      ex_bottom: each(pl.ex_bottom, "lore"),
+      triggered: each(pl.triggered, "lore"),
+      depth: pl.depth.map((d) => ({ ...d, content: offpage(d.content, "lore") })),
+    };
+  }
 
   const contextTarget = Math.floor(resolved.contextTarget * (opts.targetScale ?? 1));
   // Preset samplers are defaults; the profile's tuning for this model wins.
@@ -378,9 +396,10 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
         seed: `${chatId}:${messageCountOf(chatId)}`,
       });
       memoryMs += performance.now() - s;
-      return m;
+      return offpage ? { ...m, story: offpage(m.story, "the Story So Far"), recall: offpage(m.recall, "recalled memories") } : m;
     },
   });
+  if (offpage?.reworded.length) assembled.trace.reworded = offpage.reworded;
   const assembled_ = lap();
   retrievalMs = Math.round((retrievalMs + memoryMs) * 10) / 10;
   const timing: Timing = { totalMs: Math.round((performance.now() - t0) * 10) / 10, trackersMs, retrievalMs, loreMs, advisorMs, assemblyMs: Math.max(0, Math.round((assembled_ - memoryMs) * 10) / 10) };
