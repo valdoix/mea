@@ -132,7 +132,7 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
 /** Writes (or returns the cached) plan for a turn. Never throws: no plan just means no guidance. */
 export async function runAdvisor(chatId: string, opts: { history?: HistoryMessage[]; draft?: string; signal?: AbortSignal } = {}): Promise<Plan | null> {
   const cfg = steerFor(chatId);
-  if (!cfg.advisorOn || shouldShed("advisor")) return null;
+  if (!cfg.advisorOn || shouldShed("advisor", chatId)) return null;
   const history = opts.history ?? historyForPrompt(chatId);
   const key = turnKey(history, opts.draft);
   const cached = planFor(chatId, key);

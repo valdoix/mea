@@ -59,7 +59,7 @@ export function scheduleEditor(chatId: string, messageId: string, swipeIdx: numb
 
 export async function runEditorJob(p: { chatId: string; messageId: string; swipeIdx: number }, job?: JobContext) {
   const cfg = steerFor(p.chatId);
-  if (cfg.editor === "off" || shouldShed("editor")) return;
+  if (cfg.editor === "off" || shouldShed("editor", p.chatId)) return;
   const m = getMessageRow(p.messageId);
   if (!m || m.deleted_at || m.active_swipe !== p.swipeIdx) return;
   const sw = one<{ content: string; meta: string }>("SELECT content, meta FROM swipes WHERE message_id = ? AND idx = ?", p.messageId, p.swipeIdx);

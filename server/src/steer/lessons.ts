@@ -239,7 +239,7 @@ const modelSchema = z.object({ lessons: z.array(z.object({ text: z.string(), why
 
 /** The model source: a helper compares the takes you passed over with the one you kept. */
 async function modelCandidates(chatId: string, kept: string, rejected: { idx: number; content: string }[], job?: JobContext): Promise<Candidate[]> {
-  if (shouldShed("lessons")) return [];
+  if (shouldShed("lessons", chatId)) return [];
   const names = chatNames(chatId);
   const r = await callJson({
     task: "helper",
@@ -326,7 +326,7 @@ export async function learnFromEdit(chatId: string, messageId: string, before: s
   const cands: Candidate[] = slipsIn(chatId, messageId, before)
     .filter((i) => !keptSlips.has(slipKey({ kind: i.kind, subject: subjectOf(i) })))
     .map((i) => ({ text: ruleFor(i, names), why: `You edited this out: ${i.conflict}`, quote: i.claim, by: "edit" as const, slip: { kind: i.kind, subject: subjectOf(i) } }));
-  if (opts.model && !shouldShed("lessons")) {
+  if (opts.model && !shouldShed("lessons", chatId)) {
     try {
       const r = await callJson({
         task: "helper",

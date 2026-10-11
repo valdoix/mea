@@ -100,7 +100,7 @@ export async function consolidate(chatId: string, job?: JobContext) {
   for (const [sceneId, list] of byScene) {
     if (list.length < 3) continue;
     let digest = list.map((a) => a.content.replace(/[.!?]+$/, "")).join("; ");
-    if (!shouldShed("verification") && digest.length > 240) {
+    if (!shouldShed("verification", chatId) && digest.length > 240) {
       try {
         const r = await callJson({
           task: "summarizer",
@@ -136,7 +136,7 @@ export async function consolidate(chatId: string, job?: JobContext) {
 
   // 3. Entity descriptions, refreshed from their facts (never over yours).
   const res = resolver(chatId);
-  if (!shouldShed("verification")) {
+  if (!shouldShed("verification", chatId)) {
     const stale = res.rows
       .filter((e) => ["person", "place", "group", "object"].includes(e.kind))
       .filter((e) => {

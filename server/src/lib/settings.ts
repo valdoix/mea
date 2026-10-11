@@ -54,6 +54,8 @@ export interface Settings {
   "memory.config": MemoryConfig;
   /** Shed optional helpers above this share of the quota (CONN-20). */
   "quota.degradeAt": number;
+  /** H2: warn when one chat's background calls pass this share of the day's quota. */
+  "quota.chatShare": number;
   /** Measured share of cached input tokens that counts toward the quota (CONN-22). */
   "quota.calibration": { cachedWeight: number | null; samples: number; updatedAt: number | null };
   /** Off-machine backup copy (DATA-08). */
@@ -362,6 +364,7 @@ export const defaults: Settings = {
   "routing.embeddings": { connectionId: null, model: "text-embedding-3-large", dims: 1024 },
   "memory.config": defaultMemoryConfig,
   "quota.degradeAt": 0.9,
+  "quota.chatShare": 0.25,
   "quota.calibration": { cachedWeight: null, samples: 0, updatedAt: null },
   "backup.mirror": { dir: "", encrypt: true, keep: 14, lastAt: null, lastError: null, secretId: null },
   "trackers.defaults": {},
@@ -429,6 +432,7 @@ export const clientKeys: (keyof Settings)[] = [
   "routing.embeddings",
   "memory.config",
   "quota.degradeAt",
+  "quota.chatShare",
   "trackers.defaults",
   "world.defaults",
   "chat.guidance",

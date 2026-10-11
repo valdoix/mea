@@ -70,7 +70,7 @@ export async function rewriteQuery(chatId: string, ctx: string, draft = "", sign
   const key = rwKey(chatId, ctx);
   const cur = rewrites.get(key);
   if (fresh(cur, draft)) return cur!.value;
-  if (shouldShed("librarian")) return cur?.value ?? null;
+  if (shouldShed("librarian", chatId)) return cur?.value ?? null;
   const running = inflight.get(`rw:${key}`) as Promise<string | null> | undefined;
   if (running) return running;
   const p = (async () => {
@@ -107,7 +107,7 @@ export async function runLibrarian(chatId: string, ctx: string, draft: string, c
   const key = libKey(chatId, ctx);
   const cur = verdicts.get(key);
   if (fresh(cur, draft)) return cur!.value;
-  if (candidates.length < 4 || shouldShed("librarian")) return cur?.value ?? null;
+  if (candidates.length < 4 || shouldShed("librarian", chatId)) return cur?.value ?? null;
   const running = inflight.get(`lib:${key}`) as Promise<LibrarianVerdict | null> | undefined;
   if (running) return running;
   const p = (async () => {

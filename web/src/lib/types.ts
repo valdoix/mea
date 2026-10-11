@@ -93,6 +93,10 @@ export interface Ambience {
 }
 
 export interface ChatSettings {
+  /** H2: no optional model reads in this chat. */
+  budgetMode?: boolean;
+  /** H1: blocks this chat never cuts to fit the ceiling. */
+  promptKeep?: string[];
   authorsNote?: { content: string; depth: number; role: Role };
   profileId?: string | null;
   presetId?: string | null;

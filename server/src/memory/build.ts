@@ -118,7 +118,7 @@ async function runScenePass(row: SummaryRow, ctx: { job?: JobContext; instructio
 
   // SUM-12: check the record against its source; repair once if it found real problems.
   if (cfg.verify) {
-    if (shouldShed("verification")) verification = { verdict: "ok", unsupported: [], omissions: [], skipped: "quota" };
+    if (shouldShed("verification", row.chat_id)) verification = { verdict: "ok", unsupported: [], omissions: [], skipped: "quota" };
     else {
       const check = await callJson({
         task: "summarizer",

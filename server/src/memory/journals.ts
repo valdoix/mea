@@ -164,7 +164,7 @@ Reply with JSON only: {"journal": "…"}`,
 
 /** Background job after scenes close: every journal subject catches up. */
 export async function runJournalJob(chatId: string, job?: JobContext) {
-  if (!memoryConfig().journals || shouldShed("verification")) return;
+  if (!memoryConfig().journals || shouldShed("verification", chatId)) return;
   for (const name of journalSubjects(chatId)) await updateJournal(chatId, name, { job });
 }
 

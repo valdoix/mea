@@ -41,8 +41,23 @@ export function quotaState(q: Quota | null = cachedQuota()): QuotaState {
   return { known: true, used, exhausted, resetAt: w?.resetAt ?? null, window, degradeAt, shed: exhausted ? [...SHED_ORDER] : shed };
 }
 
-export function shouldShed(feature: Sheddable) {
+/**
+ * Whether to skip an optional helper now: the quota is running low, or (H2) this chat is in
+ * Budget mode, which turns off every optional model read for that chat only.
+ */
+export function shouldShed(feature: Sheddable, chatId?: string | null) {
+  if (chatId && budgetMode(chatId)) return true;
   return quotaState().shed.includes(feature);
+}
+
+/** H2: the chat's Budget mode (its own setting; read straight from the row to stay light). */
+export function budgetMode(chatId: string): boolean {
+  const r = one<{ settings: string }>("SELECT settings FROM chats WHERE id = ?", chatId);
+  try {
+    return Boolean(r && (JSON.parse(r.settings) as { budgetMode?: boolean }).budgetMode);
+  } catch {
+    return false;
+  }
 }
 
 export class QuotaExhausted extends HttpError {
