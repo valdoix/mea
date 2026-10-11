@@ -3,6 +3,7 @@
   import Module from "../desk/Module.svelte";
   import SceneWindow from "./SceneWindow.svelte";
   import TrackerSettings from "./TrackerSettings.svelte";
+  import LessonsPanel from "./LessonsPanel.svelte";
   import { living } from "../../lib/living";
   import { readClock } from "../../lib/storytime";
   import { app } from "../../lib/state.svelte";
@@ -136,6 +137,7 @@
       <p class="st-hint first">Trackers are off for this chat.</p>
       <div class="st-keys"><button class="st-key" type="button" onclick={() => (settingsOpen = true)}><Settings size={14} /> Tracker settings</button></div>
     </Module>
+    <LessonsPanel {chatId} />
   </div>
 {:else if st}
   <div class="studio st-stack">
@@ -374,6 +376,8 @@
         {#each Object.values(st.motifs) as m (m.id)}<div class="listrow ic"><Repeat size={13} /><span>{m.text}</span><small>×{m.uses}</small></div>{/each}
       </Module>
     {/if}
+
+    <LessonsPanel {chatId} />
 
     {#if sec?.custom}
       {#each d.templates as t (t.id)}

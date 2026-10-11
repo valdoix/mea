@@ -32,7 +32,7 @@ import type { WorldState } from "../trackers/types";
 
 export interface Citation {
   ref: string;
-  type: "tracker" | "memory" | "lore" | "card" | "message";
+  type: "tracker" | "memory" | "lore" | "card" | "message" | "lesson";
   label: string;
   id?: string;
   messageId?: string | null;
@@ -41,7 +41,8 @@ export interface Citation {
 
 export interface Issue {
   id: string;
-  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak" | "pov" | "tense" | "puppet" | "timeline";
+  /** A slip registry id (slips.ts), or what the helper model called it. */
+  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak" | "pov" | "tense" | "puppet" | "timeline" | "lesson" | (string & {});
   severity: "minor" | "major";
   claim: string;
   conflict: string;
@@ -140,7 +141,21 @@ function factSheet(chatId: string, reply: string, st: WorldState | null) {
   const chat = mustChat(chatId);
   const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).filter((e) => e.enabled && (e.constant || e.keys.some((k) => keyMatches(k, reply, false, true))));
   for (const e of entries.slice(0, 8)) add("L", { type: "lore", label: e.comment || e.keys[0] || "lore", id: e.id }, e.content.replace(/\s+/g, " ").slice(0, 400));
-  return { lines, cites };
+  // A1 (and later parts): rules the reply must keep, cited as R1, R2…
+  let rules = 0;
+  for (const fn of sheetRules)
+    for (const r of fn(chatId)) {
+      add("R", { type: r.type, label: r.label, id: r.id }, `Story RULE: ${r.text}`);
+      rules++;
+    }
+  return { lines, cites, rules };
+}
+
+/** Rules the helper pass also checks a reply against (kept lessons, A1). */
+type SheetRule = { type: Citation["type"]; label: string; id?: string; text: string };
+const sheetRules: ((chatId: string) => SheetRule[])[] = [];
+export function registerSheetRules(fn: (chatId: string) => SheetRule[]) {
+  sheetRules.push(fn);
 }
 
 /**
@@ -200,7 +215,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           jobId: opts.job?.id,
           name: "continuity_check",
           schema: modelSchema,
-          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
+          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
           user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content).slice(0, 6000)}`,
           maxTokens: 800,
         });
@@ -209,7 +224,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           const citations = i.cites.map((c) => sheet.cites.get(c.replace(/[[\]\s]/g, ""))).filter((c): c is Citation => Boolean(c));
           if (!citations.length) continue; // an issue without a source is a guess
           issues.push({
-            kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
+            kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline", "lesson"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
             severity: i.severity,
             claim: i.claim.slice(0, 300),
             conflict: i.conflict.slice(0, 400),

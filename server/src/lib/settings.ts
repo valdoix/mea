@@ -150,6 +150,8 @@ export interface GuardsConfig {
   maxJumpHours: number;
   /** P1: checks in the slip registry switched off (id → false); missing means on. */
   slips: Record<string, boolean>;
+  /** A1: suggest lessons from the takes you swipe past and the replies you edit. */
+  lessons: "off" | "rules" | "model";
 }
 
 export const guardsSchema = z.object({
@@ -167,6 +169,7 @@ export const guardsSchema = z.object({
   timeline: z.boolean(),
   maxJumpHours: z.number().min(1).max(24 * 365),
   slips: z.record(z.string().max(40), z.boolean()),
+  lessons: z.enum(["off", "rules", "model"]),
 });
 
 export const defaultGuards: GuardsConfig = {
@@ -184,6 +187,7 @@ export const defaultGuards: GuardsConfig = {
   timeline: true,
   maxJumpHours: 12,
   slips: {},
+  lessons: "rules",
 };
 
 export interface TrackerDefaults {

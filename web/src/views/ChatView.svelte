@@ -14,7 +14,8 @@
   import { meus, meusFor } from "../lib/meus.svelte";
   import { sugg, watchSuggestions } from "../lib/suggestions.svelte";
   import { watchFilings } from "../lib/filings.svelte";
-  import { dockRequest, type DockTab } from "../lib/dock.svelte";
+  import { watchLessons } from "../lib/lessons.svelte";
+  import { dockRequest, openDock, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
@@ -92,6 +93,7 @@
   // P1: suggestions waiting in the Inbox for this chat, as a badge on the Chat tab.
   $effect(() => watchSuggestions(id));
   $effect(() => watchFilings(id));
+  $effect(() => watchLessons(id));
   function pickDock(v: DockTab) {
     dockTab = v;
     localStorage.setItem("mea.dockTab", v);
@@ -417,6 +419,8 @@
       }
     }
     if (seq != null) return void jumpTo(seq);
+    // A1: a lesson opens the Story tab's Lessons.
+    if (c.type === "lesson") return openDock("story", "lessons");
     if (c.type === "lore" && "id" in c && c.id) {
       try {
         const r = await get<{ bookId: string }>(`/api/lore/entries/${c.id}/locate`);

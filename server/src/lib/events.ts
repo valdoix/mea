@@ -21,6 +21,7 @@ export type MeaEvent =
   | { type: "inbox.changed" }
   | { type: "meus.changed"; chatId: string }
   | { type: "filings.changed"; chatId: string }
+  | { type: "lessons.changed"; chatId: string }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string };
 
 type Listener = (event: MeaEvent) => void;

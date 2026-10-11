@@ -38,6 +38,7 @@ import { getDefaultPersona, getPersona } from "../services/personas";
 
 import { statusTiles } from "../services/status";
 import { filingsFor, undoFiling } from "../services/filings";
+import { noteEdit, noteKeptSwipe } from "../steer/lessons";
 
 export const chats = new Hono();
 
@@ -163,6 +164,12 @@ chats.post("/chats/:id/send", async (c) => {
     const persona = getPersona(chat.personaId) ?? getDefaultPersona();
     userMessageId = addMessage(chatId, "user", applyRegex(input.content.trim(), getSetting("regex.scripts"), { role: "user", mode: "persistent", characterId: mustChat(chatId).character_id }), { name: persona?.name ?? "You", meta: input.director ? { director: true } : undefined });
     if (key) rememberClientId(key, userMessageId);
+    // A1: the reply before it was swiped and kept; learn from the takes passed over.
+    try {
+      noteKeptSwipe(chatId, userMessageId);
+    } catch (e) {
+      console.error("[mea] lessons:", e);
+    }
   }
   if (!input.generate) return c.json({ userMessage: userMessageId && getMessage(userMessageId) });
   try {
@@ -200,7 +207,17 @@ chats.get("/messages/:id", (c) => {
 
 chats.put("/messages/:id", async (c) => {
   const { content } = await body(c, z.object({ content: z.string().max(200_000) }));
-  return c.json(editMessage(c.req.param("id"), content));
+  const before = getMessage(c.req.param("id"));
+  const out = editMessage(c.req.param("id"), content);
+  // A1: your edit to a reply can teach a lesson.
+  if (before?.role === "assistant") {
+    try {
+      noteEdit(before.chatId, before.id, before.content, content);
+    } catch (e) {
+      console.error("[mea] lessons:", e);
+    }
+  }
+  return c.json(out);
 });
 
 chats.patch("/messages/:id", async (c) => {

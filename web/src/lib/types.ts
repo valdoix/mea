@@ -589,6 +589,8 @@ export interface GuardsConfig {
   maxJumpHours: number;
   /** P1: checks switched off here (id → false). */
   slips?: Record<string, boolean>;
+  /** A1: suggest lessons from swipes and edits. */
+  lessons?: "off" | "rules" | "model";
 }
 
 /** P1: one check in the slip registry, as Chat › Guards lists it. */
@@ -692,6 +694,7 @@ export type MeaEvent =
   | { type: "inbox.changed" }
   | { type: "meus.changed"; chatId: string }
   | { type: "filings.changed"; chatId: string }
+  | { type: "lessons.changed"; chatId: string }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   | { type: "reconnected" };
 
@@ -985,7 +988,7 @@ export interface SecretEntry {
 }
 export interface Citation {
   ref: string;
-  type: "tracker" | "memory" | "lore" | "card" | "message";
+  type: "tracker" | "memory" | "lore" | "card" | "message" | "lesson";
   label: string;
   id?: string;
   messageId?: string | null;
@@ -993,7 +996,7 @@ export interface Citation {
 }
 export interface ContinuityIssue {
   id: string;
-  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak" | "pov" | "tense" | "puppet" | "timeline";
+  kind: "trait" | "dead" | "name" | "time" | "place" | "fact" | "leak" | "pov" | "tense" | "puppet" | "timeline" | "lesson" | (string & {});
   severity: "minor" | "major";
   claim: string;
   conflict: string;

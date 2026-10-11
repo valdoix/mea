@@ -28,6 +28,8 @@ export interface SlipContext {
   continuity: boolean;
   /** CON-06: the knowledge-leak guard is on for this chat. */
   leaks: boolean;
+  /** What the checks before this one found in this pass (a later check can build on them). */
+  found?: Found[];
   /** Shared, lazily built inputs for the rules and the guards. */
   rules: () => RuleInput;
   guard: () => GuardInput;
@@ -98,6 +100,7 @@ export function slipContext(o: Omit<SlipContext, "rules" | "guard">): SlipContex
  */
 export function runSlips(ctx: SlipContext, phase: Slip["phase"], onError?: (id: string, e: Error) => void): Found[] {
   const out: Found[] = [];
+  ctx.found = out;
   for (const s of SLIPS) {
     if (s.phase !== phase || !slipAllowed(s.id, ctx.guards) || !s.on(ctx)) continue;
     try {

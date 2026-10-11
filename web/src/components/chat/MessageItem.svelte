@@ -28,6 +28,7 @@
     Info,
     Undo,
     MessagesSquare,
+    GraduationCap,
   } from "../../lib/icons";
   import { askMeus } from "../../lib/meus.svelte";
   import { renderMessage, renderStreaming } from "../../lib/render";
@@ -35,6 +36,8 @@
   import { storyStyle } from "../../lib/storystyle.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
   import FiledChips from "./FiledChips.svelte";
+  import LessonChip from "./LessonChip.svelte";
+  import { learnFrom } from "../../lib/lessons.svelte";
   import ThoughtsDrawer from "../trackers/ThoughtsDrawer.svelte";
   import { trk } from "../../lib/trackers.svelte";
   import { living } from "../../lib/living";
@@ -201,6 +204,8 @@
       list.push({ label: "Continue", icon: StepForward, onclick: oncontinue, disabled: !canGenerate || !message.content });
     }
     if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: ScrollText, onclick: oncompare });
+    // A1: what the takes you passed over got wrong, as lessons.
+    if (message.role === "assistant" && message.swipeCount > 1) list.push({ label: "Learn from this swipe", icon: GraduationCap, onclick: () => learnFrom(message.id), disabled: streaming });
     if (message.role === "assistant" && message.swipeCount > 1 && ondeleteswipe) list.push({ label: "Delete this version", icon: Trash, danger: true, onclick: ondeleteswipe, disabled: streaming });
     list.push({ label: message.bookmarked ? "Remove bookmark" : "Bookmark", icon: Bookmark, onclick: () => onflag({ bookmarked: !message.bookmarked }) });
     list.push({ label: message.hidden ? "Include in prompt" : "Hide from prompt", icon: message.hidden ? Eye : EyeOff, onclick: () => onflag({ hidden: !message.hidden }) });
@@ -302,6 +307,7 @@
 
     {#if chips.length && !editing && !streaming}<ChangeChips changes={chips} />{/if}
     {#if !editing && !streaming}<FiledChips messageId={message.id} />{/if}
+    {#if !editing && !streaming && !isUser}<LessonChip messageId={message.id} />{/if}
     {#if !isUser && !editing && !streaming && page.thoughts !== "never"}<ThoughtsDrawer changes={chips} open={page.thoughts === "always"} />{/if}
     {#if flag && !editing && !streaming && onflagchange && oncite}<ContinuityNote {flag} canRegenerate={isLast && canGenerate} onchange={onflagchange} {oncite} />{/if}
 
