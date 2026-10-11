@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../src/app";
 import { htmlToText, publicUrl, workName } from "../src/creator/research";
-import { covers, splitPeople, withLookups } from "../src/creator/smarts";
+import { covers, ideaChanges, lastPerSection, misfiledSections, splitPeople, withDropNote, withLookups } from "../src/creator/smarts";
 import { createCreatorDraft, getCreatorDraft, patchCreator, reviewCreator, runCreatorJob, writeBible, queueFields } from "../src/creator/creator";
 import { createDraft, getDraft, namesInText, patchDraft, planOutline, queueWrite, reviewDraft, runStudioJob, uncovered } from "../src/lore/studio";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
@@ -131,6 +131,43 @@ describe("the Lore Studio plans everyone", () => {
 });
 
 describe("brainstorming the expanded idea", () => {
+  const exp = {
+    use: true,
+    steer: "",
+    sections: [
+      { id: "p", heading: "Premise", text: "Old premise." },
+      { id: "f", heading: "Powers and Factions", text: "The Trio build devices." },
+      { id: "h", heading: "Story Hooks", text: "Old hooks." },
+    ],
+  };
+  test("section changes survive how the model happens to write them", () => {
+    // The text in "content", the heading in "entry", spelled a little differently.
+    expect(ideaChanges({ kind: "section", text: "", content: "No Trio.", entry: "**[Powers & Factions]**" }, "", exp)).toMatchObject([{ kind: "section", target: "f", label: "Concept · Powers and Factions", after: "No Trio." }]);
+    // A section that repeats its heading loses it; an unknown heading is a new section; the same text is no change.
+    expect(ideaChanges({ kind: "concept", section: "Premise", text: "[Premise]\nNew premise." }, "", exp)).toMatchObject([{ target: "p", after: "New premise." }]);
+    expect(ideaChanges({ kind: "section", section: "Weather", text: "Fog." }, "", exp)).toMatchObject([{ target: "", label: "Concept · Weather (new)" }]);
+    expect(ideaChanges({ kind: "section", section: "Premise", text: "Old premise." }, "", exp)).toEqual([]);
+  });
+  test("every section in one block is split back into one change per section, wherever it was filed", () => {
+    const block = "---\n\n**[Premise]**\nBuffy claws out of her grave.\n\n**Gabriel** finds her.\n\n## Powers & Factions\nNo Trio.\n\nStory Hooks\nThe grave scene opens it.\n\n---";
+    const want = [
+      { target: "p", after: "Buffy claws out of her grave.\n\n**Gabriel** finds her." },
+      { target: "f", after: "No Trio." },
+      { target: "h", after: "The grave scene opens it." },
+    ];
+    expect(ideaChanges({ kind: "section", section: "Overview", text: block }, "", exp)).toMatchObject(want);
+    expect(ideaChanges({ kind: "idea", text: block }, "An idea.", exp)).toMatchObject(want);
+    expect(misfiledSections(block, exp)).toMatchObject(want);
+    // A real overview stays an overview.
+    expect(misfiledSections("Buffy is back.\n\nPremise\nIt opens at the grave.", exp)).toEqual([]);
+  });
+  test("the last change to a section wins, and dropped changes are owned up to", () => {
+    const one = ideaChanges({ kind: "section", section: "Premise", text: "First." }, "", exp);
+    const two = ideaChanges({ kind: "section", section: "premise", text: "Second." }, "", exp);
+    expect(lastPerSection([...one, ...two]).map((c) => c.after)).toEqual(["Second."]);
+    expect(withDropNote("Done.", 2, 2)).toBe("Done.");
+    expect(withDropNote("Done.", 3, 0)).toContain("nothing to apply");
+  });
   test("the co-writer changes and adds sections of 'Expand my idea' in both studios", async () => {
     const lore = createDraft({ kind: "idea", text: "Port Ellis, a fog-bound harbour." });
     await api("POST", `/api/lore-studio/${lore.id}/expand`);

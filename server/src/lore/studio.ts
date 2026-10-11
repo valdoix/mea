@@ -8,7 +8,7 @@ import { embeddingsEnabled } from "../memory/embed";
 import { getCard } from "../services/characters";
 import { Deferred, enqueue, type JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
-import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChange, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, covers, LOOKUP_FIELD, newProposal, type Proposal, type ProposedChange, shortHash, splitPeople, SUGGEST_RULE, withLookups } from "../creator/smarts";
+import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChanges, isIdeaKind, lastPerSection, misfiledSections, withDropNote, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, covers, LOOKUP_FIELD, newProposal, type Proposal, type ProposedChange, shortHash, splitPeople, SUGGEST_RULE, withLookups } from "../creator/smarts";
 import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "../creator/research";
 import { callText } from "../services/llm";
 import { applyExpansionPatch, deepenSection, type Expansion, type ExpansionPatch, expandIdea, expansionBlock } from "../creator/expand";
@@ -1382,12 +1382,14 @@ export async function cowriteLore(id: string, message: string) {
   for (const c of r.data.changes.slice(0, 20)) {
     const kind = c.kind.trim().toLowerCase();
     const it = c.entry ? find(c.entry) : undefined;
-    if (kind === "idea" || kind === "section") {
-      const ch = kind === "idea" && d.source.kind !== "idea" ? null : ideaChange(c, d.source.text, d.expansion);
-      if (ch) changes.push(ch);
+    if (isIdeaKind(kind)) {
+      // A lorebook from a card or a story has no idea of its own to rewrite.
+      changes.push(...ideaChanges(c, d.source.text, d.expansion).filter((x) => x.kind !== "idea" || d.source.kind === "idea"));
       continue;
     }
-    if (kind === "overview" && c.text.trim() && c.text.trim() !== d.overview.trim()) changes.push({ kind, target: "overview", label: "Overview", before: d.overview, after: c.text.trim() });
+    const misfiled = kind === "overview" ? misfiledSections(c.text || c.content, d.expansion) : [];
+    if (misfiled.length) changes.push(...misfiled);
+    else if (kind === "overview" && c.text.trim() && c.text.trim() !== d.overview.trim()) changes.push({ kind, target: "overview", label: "Overview", before: d.overview, after: c.text.trim() });
     else if (kind === "entry" && it?.entry && c.content.trim() && c.content.trim() !== it.entry.content.trim())
       changes.push({ kind, target: it.id, label: `${it.title} · text`, before: it.entry.content, after: c.content.trim(), data: c.keys.length ? { keys: c.keys } : undefined });
     else if ((kind === "rewrite" || (kind === "entry" && it && !it.entry)) && it && (c.steer.trim() || c.content.trim()))
@@ -1398,10 +1400,11 @@ export async function cowriteLore(id: string, message: string) {
       changes.push({ kind, target: "", label: `New: ${cleanTitle(c.title)}`, before: "", after: `${cleanTitle(c.title)}${asType(c.type) ? ` (${asType(c.type)})` : ""}: ${c.pitch.trim()}`, data: { title: cleanTitle(c.title), type: asType(c.type), pitch: c.pitch.trim() } });
     else if (kind === "remove" && it && it.keep) changes.push({ kind, target: it.id, label: `Leave out ${it.title}`, before: it.title, after: "" });
   }
-  const proposal = newProposal(message.trim(), r.data.reply.trim() || (changes.length ? "Here's what I'd change." : "Nothing to change for that."), changes);
+  const kept = lastPerSection(changes);
+  const proposal = newProposal(message.trim(), withDropNote(r.data.reply.trim() || (kept.length ? "Here's what I'd change." : "Nothing to change for that."), r.data.changes.length, kept.length), kept);
   return mutate(id, (cur) => {
     cur.chat = addTurns(cur.chat, { role: "user", text: message }, { role: "mea", text: proposal.reply, ...(sources.length ? { sources: sources.map((p) => ({ title: p.title, url: p.url })) } : {}) });
-    cur.proposal = changes.length ? proposal : null;
+    cur.proposal = kept.length ? proposal : null;
   });
 }
 

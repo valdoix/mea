@@ -80,21 +80,97 @@ export function ideaBlock(idea: string, expansion: Expansion | null) {
 
 /** What the co-writer can propose for the idea and the expanded concept, in either studio. */
 export const IDEA_CHANGES =
-  '{"kind": "idea", "text": "the whole new idea"} to rewrite the author\'s idea (rarely; their words are canon); {"kind": "section", "section": "<exact heading, or a new heading to add one>", "text": "the whole new section"} to change or add a section of the expanded concept;';
+  '{"kind": "idea", "text": "the whole new idea"} to rewrite the author\'s idea (rarely; their words are canon); {"kind": "section", "section": "<exact heading, without the brackets, or a new heading to add one>", "text": "the whole new section"} to change or add a section of the expanded concept (one change per section; to change several sections, propose one "section" change for each);';
 
-/** A proposed idea or section change, checked against the draft (null if it changes nothing). */
-export function ideaChange(c: { kind: string; text: string; section?: string }, idea: string, expansion: Expansion | null): Omit<ProposedChange, "id"> | null {
-  const kind = c.kind.trim().toLowerCase();
-  const text = c.text.trim();
-  if (!text) return null;
-  if (kind === "idea" && text !== idea.trim()) return { kind, target: "idea", label: "Your idea", before: idea, after: text };
-  if (kind === "section" && c.section?.trim()) {
-    const want = c.section.trim().replace(/^\[|\]$/g, "");
-    const s = expansion?.sections.find((x) => x.heading.toLowerCase() === want.toLowerCase() || x.id === want);
-    if (s && text === s.text.trim()) return null;
-    return { kind, target: s?.id ?? "", label: `Concept · ${s?.heading ?? want}${s ? "" : " (new)"}`, before: s?.text ?? "", after: text, data: { heading: s?.heading ?? want } };
+/** A heading compared loosely: "**[Powers & Factions]:**" ↔ "Powers and Factions". */
+const headingKey = (s: string) => s.toLowerCase().replace(/&/g, " and ").replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").replace(/^the /, "").trim();
+
+/** The expanded concept's section for a heading the model wrote a little differently, if any. */
+function findSection(expansion: Expansion | null, want: string) {
+  const sections = expansion?.sections ?? [];
+  const k = headingKey(want);
+  if (!k) return undefined;
+  const exact = sections.find((x) => x.id === want.trim() || headingKey(x.heading) === k);
+  if (exact) return exact;
+  const near = sections.filter((x) => {
+    const h = headingKey(x.heading);
+    return h && (h.includes(k) || k.includes(h));
+  });
+  return near.length === 1 ? near[0] : undefined;
+}
+
+/** A line that is only a heading: "[Premise]", "**[Premise]**", "## Premise", or an existing heading on its own. */
+function headingLine(line: string, expansion: Expansion | null): string | null {
+  const t = line.trim();
+  if (!t || t.length > 80) return null;
+  const bare = t.replace(/^#{1,6}\s*/, "").replace(/^(\*\*|__)|(\*\*|__)$/g, "").trim().replace(/:$/, "").trim();
+  const bracketed = /^\[([^\]]{1,60})\]$/.exec(bare);
+  if (bracketed) return bracketed[1]!.trim();
+  if (/^#{1,6}\s/.test(t)) return bare;
+  // A bold or bare line counts only when it is an existing heading, so bold text inside a section stays text.
+  const known = findSection(expansion, bare);
+  return known && headingKey(bare) === headingKey(known.heading) ? bare : null;
+}
+
+/** Several sections written as one block ("[Premise]\n…\n\n[The Setting]\n…"), split back into sections; null if it isn't one. */
+function splitSections(text: string, expansion: Expansion | null): { heading: string; text: string }[] | null {
+  const parts: { heading: string; lines: string[] }[] = [];
+  for (const line of text.split("\n")) {
+    const h = headingLine(line, expansion);
+    if (h) parts.push({ heading: h, lines: [] });
+    else if (parts.length) parts.at(-1)!.lines.push(line);
+    else if (line.trim() && !/^[-*_]{3,}$/.test(line.trim())) return null;
   }
-  return null;
+  const out = parts.map((p) => ({ heading: p.heading, text: p.lines.join("\n").replace(/\n\s*[-*_]{3,}\s*$/, "").trim() })).filter((p) => p.text);
+  return out.length >= 2 && out.filter((p) => findSection(expansion, p.heading)).length >= 2 ? out : null;
+}
+
+/** One section's change (null if it changes nothing). */
+function sectionChange(heading: string, text: string, expansion: Expansion | null): Omit<ProposedChange, "id"> | null {
+  const want = heading.trim().replace(/^\[|\]$/g, "").trim();
+  // A section's text that repeats its own heading on the first line loses it.
+  const first = text.split("\n")[0] ?? "";
+  const body = headingLine(first, expansion) && headingKey(headingLine(first, expansion)!) === headingKey(want) ? text.slice(first.length).trim() : text.trim();
+  if (!want || !body) return null;
+  const s = findSection(expansion, want);
+  if (s && body === s.text.trim()) return null;
+  return { kind: "section", target: s?.id ?? "", label: `Concept · ${s?.heading ?? want}${s ? "" : " (new)"}`, before: s?.text ?? "", after: body, data: { heading: s?.heading ?? want } };
+}
+
+/** The kinds a model uses for a change to the expanded concept. */
+const SECTION_KINDS = new Set(["section", "sections", "concept", "expansion", "expanded"]);
+export const isIdeaKind = (kind: string) => kind.trim().toLowerCase() === "idea" || SECTION_KINDS.has(kind.trim().toLowerCase());
+
+/**
+ * Proposed idea or section changes, checked against the draft (empty if they change nothing). Lenient
+ * about how the model wrote them: the text in "content", the heading in "entry", "title" or "key", a
+ * heading spelled a little differently, or every section in one block, which is split back up.
+ */
+export function ideaChanges(
+  c: { kind: string; text: string; content?: string; section?: string; entry?: string; title?: string; key?: string },
+  idea: string,
+  expansion: Expansion | null,
+): Omit<ProposedChange, "id">[] {
+  const kind = c.kind.trim().toLowerCase();
+  const text = (c.text.trim() || c.content?.trim() || "").trim();
+  if (!text) return [];
+  const split = splitSections(text, expansion);
+  if (split) return split.map((p) => sectionChange(p.heading, p.text, expansion)).filter((x): x is Omit<ProposedChange, "id"> => Boolean(x));
+  if (kind === "idea") return text !== idea.trim() ? [{ kind, target: "idea", label: "Your idea", before: idea, after: text }] : [];
+  if (SECTION_KINDS.has(kind)) {
+    const ch = sectionChange(c.section?.trim() || c.entry?.trim() || c.title?.trim() || c.key?.trim() || "", text, expansion);
+    return ch ? [ch] : [];
+  }
+  return [];
+}
+
+/** A text the model labelled something else (the overview) that is really every section of the expanded concept. */
+export const misfiledSections = (text: string, expansion: Expansion | null) => (splitSections(text.trim(), expansion) ? ideaChanges({ kind: "section", text }, "", expansion) : []);
+
+/** Several changes to one section keep the last; the rest are dropped. */
+export function lastPerSection<T extends { kind: string; target: string; data?: Record<string, unknown> }>(changes: T[]): T[] {
+  const key = (c: T) => (c.kind === "section" ? `s:${c.target || headingKey(String(c.data?.heading ?? ""))}` : "");
+  return changes.filter((c, i) => !key(c) || !changes.slice(i + 1).some((x) => key(x) === key(c)));
 }
 
 /** Applies an accepted idea or section change. */
@@ -135,4 +211,13 @@ export function covers(names: string[], name: string): boolean {
     const inside = (a: string[], b: string[]) => a.length <= b.length && b.join(" ").includes(a.join(" ")) && (a.length > 1 || b[0] === a[0] || b.at(-1) === a[0]);
     return inside(words, kw) || inside(kw, words);
   });
+}
+
+/** A reply whose proposed changes didn't all fit the draft says so, so it never claims changes the card doesn't have. */
+export function withDropNote(reply: string, proposed: number, kept: number) {
+  if (proposed <= kept) return reply;
+  const n = proposed - kept;
+  return kept
+    ? `${reply}\n\n(${n} of the changes I wrote didn't match anything in the draft and were left out.)`
+    : `${reply}\n\n(The changes I wrote didn't match anything in the draft, so there's nothing to apply. Try naming the section or entry exactly.)`;
 }

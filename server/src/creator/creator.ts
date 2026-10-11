@@ -12,7 +12,7 @@ import { callJson, callText } from "../services/llm";
 import { createPersona, getPersona, updatePersona } from "../services/personas";
 import { type CardIssue, checkExamples, checkGreeting, checkPersona, checkProse } from "./checks";
 import { applyExpansionPatch, CRAFT, deepenSection, type Expansion, type ExpansionPatch, expandIdea, expansionBlock, tidy } from "./expand";
-import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChange, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, LOOKUP_FIELD, newProposal, personaSlip, type Proposal, type ProposedChange, shortHash, SUGGEST_RULE, unslipPersona, whoIsWho, withLookups } from "./smarts";
+import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChanges, isIdeaKind, lastPerSection, withDropNote, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, LOOKUP_FIELD, newProposal, personaSlip, type Proposal, type ProposedChange, shortHash, SUGGEST_RULE, unslipPersona, whoIsWho, withLookups } from "./smarts";
 import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "./research";
 import { worldContext } from "./world";
 
@@ -1113,10 +1113,8 @@ export async function cowriteCreator(id: string, message: string) {
     else if (kind === "field" && f && text && text !== f.value.trim()) changes.push({ kind, target: f.key, label: f.label, before: f.value, after: text });
     else if (kind === "rewrite" && f && (c.steer.trim() || text)) changes.push({ kind, target: f.key, label: `${f.label} · ${f.value.trim() ? "rewrite" : "write"}`, before: f.value, after: "", steer: c.steer.trim() || `Use this: ${text}` });
     else if (kind === "name" && text && text.length <= 60 && text !== d.name) changes.push({ kind, target: "name", label: "Name", before: d.name, after: text });
-    else if (kind === "idea" || kind === "section") {
-      const ch = ideaChange({ ...c, text }, d.idea, d.expansion);
-      if (ch) changes.push(ch);
-    } else if (kind === "answer") {
+    else if (isIdeaKind(kind)) changes.push(...ideaChanges({ ...c, text }, d.idea, d.expansion));
+    else if (kind === "answer") {
       const q = d.questions[Number.parseInt(c.key, 10) - 1] ?? d.questions.find((x) => x.id === c.key);
       if (q && text && text !== q.answer.trim()) changes.push({ kind, target: q.id, label: `Answer · ${q.q.slice(0, 80)}`, before: q.answer, after: text });
     } else if (kind === "option" && opts.includes(c.key)) {
@@ -1130,10 +1128,11 @@ export async function cowriteCreator(id: string, message: string) {
       if (keys.length && !changes.some((x) => x.kind === "write")) changes.push({ kind, target: all ? "all" : "empty", label: all ? "Write every field again" : "Write the empty fields", before: "", after: keys.join(", ") });
     }
   }
-  const proposal = newProposal(message.trim(), r.data.reply.trim() || (changes.length ? "Here's what I'd change." : "Nothing to change for that."), changes);
+  const kept = lastPerSection(changes);
+  const proposal = newProposal(message.trim(), withDropNote(r.data.reply.trim() || (kept.length ? "Here's what I'd change." : "Nothing to change for that."), r.data.changes.length, kept.length), kept);
   return mutateCreator(id, (cur) => {
     cur.chat = addTurns(cur.chat, { role: "user", text: message }, { role: "mea", text: proposal.reply, ...(sources.length ? { sources: sources.map((p) => ({ title: p.title, url: p.url })) } : {}) });
-    cur.proposal = changes.length ? proposal : null;
+    cur.proposal = kept.length ? proposal : null;
   });
 }
 
