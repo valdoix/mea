@@ -17,6 +17,7 @@
   import { watchLessons } from "../lib/lessons.svelte";
   import { watchOffpage } from "../lib/offpage.svelte";
   import OffpageEditor from "../components/chat/OffpageEditor.svelte";
+  import SessionZero from "../components/chat/SessionZero.svelte";
   import type { Angle } from "../lib/angles";
   import { dockRequest, openDock, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
@@ -1455,6 +1456,7 @@
   </Modal>
 
   <OffpageEditor chatId={id} />
+  {#key id}<SessionZero chatId={id} onapplied={() => void load()} />{/key}
   <SwipeCompare bind:open={compareOpen} message={compare} onkeep={(idx) => compare && void setSwipe(compare, idx)} />
 {:else}
   <div class="center"><span class="heart">✿</span></div>

@@ -381,6 +381,8 @@ function mockPlainText(system: string, user: string): string | null {
     return `${section.split("\n").slice(1).join(" ").trim()} Deeper: the harbourmaster keeps a second ledger, and the Salt Guild pays for the pages that go missing.`;
   }
   if (/^Rewrite one section of the bible/.test(system)) return `Rewritten: sharper, more specific, and playable.${/The author asks: (.*)/.exec(system)?.[1] ? ` ${/The author asks: (.*)/.exec(system)![1]}` : ""}`;
+  // F1: Session Zero's live preview echoes the tone it was asked for.
+  if (/^You rewrite one opening paragraph of a roleplay to show a tone/.test(system)) return `(${user.match(/^TONE: (.+)$/m)?.[1] ?? "?"}) ${(user.split("OPENING:\n")[1] ?? "").trim().slice(0, 200)}`;
   if (/^Push the author's draft answer further/.test(system)) return `${(user.split("THE AUTHOR'S DRAFT:\n")[1] ?? "").trim()} She keeps the key on a cord around her wrist, and never lets anyone see her use it.`;
   return null;
 }
