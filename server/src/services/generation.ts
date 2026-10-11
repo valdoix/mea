@@ -369,6 +369,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     forcePlan: opts.forcePlan,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
+    // H1: one ceiling for what Mea adds, cut in the order set in Settings › Memory.
+    ceiling: { tokens: cfg.ceiling > 0 ? cfg.ceiling : null, order: cfg.cutOrder, keep: parseJson<ChatSettings>(chat.settings, {}).promptKeep ?? [] },
     extras: [
       // CON-01: one stable rule for which source wins when they disagree.
       // Mea's own Charter states the same order, so it isn't said twice (unless a card prompt replaced the Charter).
