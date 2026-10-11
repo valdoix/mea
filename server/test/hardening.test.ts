@@ -197,8 +197,10 @@ describe("H11: restoring a bad backup", () => {
   });
 
   test("a restore waits for running jobs, then works", async () => {
+    // One gate for every run of the job, so none is left waiting after release().
     let release = () => {};
-    registerJob("t.h11", () => new Promise<void>((r) => (release = r)));
+    const gate = new Promise<void>((r) => (release = r));
+    registerJob("t.h11", () => gate);
     run("UPDATE settings SET value = '\"snap\"' WHERE key = 'test.h11'");
     const snap = createBackup("manual");
     run("UPDATE settings SET value = '\"live\"' WHERE key = 'test.h11'");
@@ -286,7 +288,8 @@ describe("L5: long-running work", () => {
 describe("L17: retrying a job whose dedupe key is taken again", () => {
   test("is a no-op instead of a unique-index error", async () => {
     let release = () => {};
-    registerJob("t.l17", () => new Promise<void>((r) => (release = r)));
+    const gate = new Promise<void>((r) => (release = r));
+    registerJob("t.l17", () => gate);
     const failed = enqueue("t.l17", {}, { dedupeKey: "l17" })!;
     run("UPDATE jobs SET status = 'failed' WHERE id = ?", failed);
     const again = enqueue("t.l17", {}, { dedupeKey: "l17" });
