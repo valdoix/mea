@@ -108,9 +108,11 @@ export interface SteerConfig {
   editorApply: "suggest" | "auto";
   /** SUM-15: show a "previously on…" card when you come back after this many hours (0 = off). */
   recapAfterHours: number;
+  /** D2: the adaptive craft coach (three habits to avoid, one technique to try). */
+  craft: boolean;
 }
 
-export const defaultSteer: SteerConfig = { advisor: false, advisorMemory: 3, advisorWait: 6, editor: "off", editorApply: "suggest", recapAfterHours: 6 };
+export const defaultSteer: SteerConfig = { advisor: false, advisorMemory: 3, advisorWait: 6, editor: "off", editorApply: "suggest", recapAfterHours: 6, craft: true };
 
 export const steerSchema = z.object({
   advisor: z.boolean(),
@@ -119,6 +121,7 @@ export const steerSchema = z.object({
   editor: z.enum(["off", "flagged", "every"]),
   editorApply: z.enum(["suggest", "auto"]),
   recapAfterHours: z.number().min(0).max(24 * 60),
+  craft: z.boolean(),
 });
 
 /** SUM-10: how much each summary level keeps. */

@@ -133,7 +133,8 @@ describe("status tiles and dice (P1)", () => {
       throw new Error("no");
     });
     registerStatusTile((id) => (id === chatId ? { id: "a", n: 0, label: "first", tone: "blue", order: 10 } : null));
-    expect(statusTiles(chatId).map((t) => t.id)).toEqual(["a", "b"]);
+    // (Features' own tiles may show too; these two keep their order.)
+    expect(statusTiles(chatId).map((t) => t.id).filter((id) => id === "a" || id === "b")).toEqual(["a", "b"]);
   });
   test("seeded dice agree for the same chat, message and salt", () => {
     const a = seeded("c1", 12, "pressure");

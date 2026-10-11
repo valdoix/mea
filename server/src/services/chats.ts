@@ -112,6 +112,8 @@ export const chatSettingsSchema = z.object({
     })
     .partial()
     .optional(),
+  /** D2: the craft coach in this chat: paused, and the habits you said are fine. */
+  craft: z.object({ paused: z.boolean(), ignored: z.array(z.string().max(120)).max(60) }).partial().optional(),
   /** C1: where the story stands in its source, and what hasn't happened yet. */
   canon: canonSchema.optional(),
   /** STEER-04: the style profile, over the character's. */
