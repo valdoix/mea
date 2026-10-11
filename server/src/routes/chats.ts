@@ -36,6 +36,9 @@ import { activeGenerations, getGeneration, prefetch, previewPrompt, startStory, 
 import { HttpError } from "../lib/http";
 import { getDefaultPersona, getPersona } from "../services/personas";
 
+import { statusTiles } from "../services/status";
+import { filingsFor, undoFiling } from "../services/filings";
+
 export const chats = new Hono();
 
 chats.get("/chats", (c) => {
@@ -224,6 +227,22 @@ chats.post("/messages/:id/restore", (c) => c.json(restoreMessage(c.req.param("id
 chats.post("/generations/:id/stop", (c) => c.json({ stopped: stopGeneration(c.req.param("id")) }));
 
 chats.get("/generations/:id", (c) => c.json(must(getGeneration(c.req.param("id")), "Generation not found")));
+
+/** P1: what Mea filed from messages (chips with Undo). */
+chats.get("/chats/:id/filings", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ filings: filingsFor(c.req.param("id")) });
+});
+chats.post("/filings/:id/undo", async (c) => {
+  const b = await body(c, z.object({ notMeant: z.boolean().optional() }));
+  return c.json({ filing: undoFiling(c.req.param("id"), b.notMeant ? "notMeant" : "undo") });
+});
+
+/** P1: the Chat tab's Status tiles (services/status.ts). */
+chats.get("/chats/:id/status", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ tiles: statusTiles(c.req.param("id")) });
+});
 
 chats.get("/chats/:id/prompt-preview", async (c) => c.json(await previewPrompt(c.req.param("id"))));
 

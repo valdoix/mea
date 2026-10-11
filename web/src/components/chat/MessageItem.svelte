@@ -34,6 +34,7 @@
   import { applyRegex, regexScope } from "../../lib/regex.svelte";
   import { storyStyle } from "../../lib/storystyle.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
+  import FiledChips from "./FiledChips.svelte";
   import ThoughtsDrawer from "../trackers/ThoughtsDrawer.svelte";
   import { trk } from "../../lib/trackers.svelte";
   import { living } from "../../lib/living";
@@ -300,6 +301,7 @@
     {/if}
 
     {#if chips.length && !editing && !streaming}<ChangeChips changes={chips} />{/if}
+    {#if !editing && !streaming}<FiledChips messageId={message.id} />{/if}
     {#if !isUser && !editing && !streaming && page.thoughts !== "never"}<ThoughtsDrawer changes={chips} open={page.thoughts === "always"} />{/if}
     {#if flag && !editing && !streaming && onflagchange && oncite}<ContinuityNote {flag} canRegenerate={isLast && canGenerate} onchange={onflagchange} {oncite} />{/if}
 

@@ -25,6 +25,7 @@
   let data = $state<Data | null>(null);
   let showLore = $state<"active" | "all">("active");
   let expanded = $state<Record<number, boolean>>({});
+  let laneOpen = $state<Record<string, boolean>>({});
 
   $effect(() => {
     if (!open) return;
@@ -124,6 +125,21 @@
             </tbody>
           </table>
         </details>
+
+        {@const lanes = data.trace.blocks.filter((x) => x.lane && x.included)}
+        {#if lanes.length}
+          <details open>
+            <summary><b>Lanes</b> <span class="tiny muted">what Mea's story features added this turn · {compact(lanes.reduce((n, x) => n + x.tokens, 0))} tokens</span></summary>
+            {#each lanes as l (l.id)}
+              <div class="lane">
+                <button type="button" class="lane-h" onclick={() => (laneOpen = { ...laneOpen, [l.id]: !laneOpen[l.id] })} aria-expanded={Boolean(laneOpen[l.id])}>
+                  <span>{l.name}</span><span class="tiny muted">{l.tokens} tokens{l.depth != null ? ` · depth ${l.depth}` : ""}</span>
+                </button>
+                {#if laneOpen[l.id] && l.text}<pre class="lane-t">{l.text}</pre>{/if}
+              </div>
+            {/each}
+          </details>
+        {/if}
 
         {#if mem}
           <details open>
@@ -242,6 +258,31 @@
   }
   .summary {
     gap: 0.4rem;
+  }
+  .lane {
+    border-top: 1px solid var(--border);
+  }
+  .lane-h {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.35rem 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: start;
+    cursor: pointer;
+  }
+  .lane-t {
+    margin: 0 0 0.5rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    font-size: 0.78rem;
+    white-space: pre-wrap;
   }
   .budget {
     display: flex;

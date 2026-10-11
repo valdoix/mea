@@ -18,7 +18,8 @@ import { fixNames, nameSlips } from "./names";
 export function guardsFor(chatId: string): GuardsConfig {
   const global = { ...defaultGuards, ...getSetting("guards.config") };
   const own = parseJson<ChatSettings>(mustChat(chatId).settings, {}).guards ?? {};
-  return { ...global, ...own };
+  // A chat's own check switches go over the global ones, one by one.
+  return { ...global, ...own, slips: { ...global.slips, ...own.slips } };
 }
 
 type GuardIssue = Omit<Issue, "id">;
@@ -193,60 +194,86 @@ function names(chatId: string) {
   return { n, userNames: [...new Set(userNames.filter(Boolean))], charNames: [...new Set(charNames.filter(Boolean))] };
 }
 
-/** The guard issues for one reply (CON-04, CON-05). */
-export function guardIssues(chatId: string, text: string, o: { seq: number; messageId?: string; cfg?: GuardsConfig }): GuardIssue[] {
-  const cfg = o.cfg ?? guardsFor(chatId);
-  const { n, userNames, charNames } = names(chatId);
-  const out: GuardIssue[] = [];
-  const exp = cfg.pov || cfg.tense || cfg.puppet ? expected(chatId, o.seq, charNames, userNames) : null;
+/** What one reply's guard checks share: its text, the names, and (computed once, when first asked) what the story expects. */
+export interface GuardInput {
+  chatId: string;
+  text: string;
+  seq: number;
+  messageId?: string;
+  cfg: GuardsConfig;
+  n: ReturnType<typeof chatNames>;
+  userNames: string[];
+  charNames: string[];
+  exp: () => ReturnType<typeof expected>;
+}
 
-  if (cfg.puppet) {
-    const persona = storyDials(mustChat(chatId)).persona;
-    const hits = scoped(puppetHits(text, userNames, { second: exp?.address !== "third" }), scopeOf(persona));
-    if (hits.length) {
-      const h = hits.find((x) => x.speech) ?? hits[0]!;
-      const continuity = persona === "continuity";
-      out.push({
-        kind: "puppet",
-        severity: hits.some((x) => x.speech) ? "major" : "minor",
-        claim: h.sentence.slice(0, 240),
-        conflict: `The reply writes ${n.user}'s ${hits.some((x) => x.speech) ? "words" : "actions"}${hits.length > 1 ? ` (${hits.length} places)` : ""}. ${continuity ? `Under Persona: Continuity it may only finish an action ${n.user} began.` : `Only you write ${n.user}.`}`,
-        citations: [{ ref: "R", type: "card", label: continuity ? "Persona: Continuity" : "Your character is yours to write" }],
-        fix: continuity
-          ? `Don't write ${n.user}'s words, thoughts or decisions, or start an action for them; finishing an action ${n.user} began is fine.`
-          : `Don't write ${n.user}'s words, actions, thoughts or decisions; stop where ${n.user} would respond.`,
-        by: "rules",
-      });
-    }
-  }
-  if (cfg.pov && exp) {
-    const v = voiceOf(text, charNames, userNames);
-    const why = exp.fromSettings.pov ? "the story settings" : "the recent replies";
-    if (v.narrator && exp.narrator && v.narrator !== exp.narrator)
-      out.push({
-        kind: "pov",
-        severity: "major",
-        claim: sentences(cleanText(text))[0]?.slice(0, 240) ?? "",
-        conflict: `This reply narrates in the ${v.narrator} person; ${why} use the ${exp.narrator} person.`,
-        citations: [{ ref: "S", type: "card", label: `Point of view: ${exp.narrator} person` }],
-        fix: `Narrate in the ${exp.narrator} person${exp.narrator === "first" ? ` as ${n.char} ("I")` : ""}.`,
-        by: "rules",
-      });
-    if (v.address && exp.address && v.address !== exp.address)
-      out.push({
-        kind: "pov",
-        severity: "minor",
-        claim: sentences(cleanText(text))[0]?.slice(0, 240) ?? "",
-        conflict: `This reply calls ${n.user} ${v.address === "second" ? '"you"' : `by name`}; ${why} ${exp.address === "second" ? 'say "you"' : "use the name"}.`,
-        citations: [{ ref: "S", type: "card", label: `${n.user} is ${exp.address === "second" ? '"you"' : "named"} in the narration` }],
-        fix: exp.address === "second" ? `Address ${n.user} as "you" in the narration.` : `Refer to ${n.user} by name in the narration, not as "you".`,
-        by: "rules",
-      });
-  }
-  if (cfg.tense && exp) {
-    const t = tenseOf(text, charNames);
-    if (t.tense && exp.tense && t.tense !== exp.tense)
-      out.push({
+export function guardInput(chatId: string, text: string, o: { seq: number; messageId?: string; cfg?: GuardsConfig }): GuardInput {
+  const { n, userNames, charNames } = names(chatId);
+  let memo: ReturnType<typeof expected> | null = null;
+  return { chatId, text, seq: o.seq, messageId: o.messageId, cfg: o.cfg ?? guardsFor(chatId), n, userNames, charNames, exp: () => (memo ??= expected(chatId, o.seq, charNames, userNames)) };
+}
+
+/** CON-04: the reply writes the user's character. */
+export function puppetGuard(g: GuardInput): GuardIssue[] {
+  const { chatId, text, n, userNames } = g;
+  const persona = storyDials(mustChat(chatId)).persona;
+  const hits = scoped(puppetHits(text, userNames, { second: g.exp().address !== "third" }), scopeOf(persona));
+  if (!hits.length) return [];
+  const h = hits.find((x) => x.speech) ?? hits[0]!;
+  const continuity = persona === "continuity";
+  return [
+    {
+      kind: "puppet",
+      severity: hits.some((x) => x.speech) ? "major" : "minor",
+      claim: h.sentence.slice(0, 240),
+      conflict: `The reply writes ${n.user}'s ${hits.some((x) => x.speech) ? "words" : "actions"}${hits.length > 1 ? ` (${hits.length} places)` : ""}. ${continuity ? `Under Persona: Continuity it may only finish an action ${n.user} began.` : `Only you write ${n.user}.`}`,
+      citations: [{ ref: "R", type: "card", label: continuity ? "Persona: Continuity" : "Your character is yours to write" }],
+      fix: continuity
+        ? `Don't write ${n.user}'s words, thoughts or decisions, or start an action for them; finishing an action ${n.user} began is fine.`
+        : `Don't write ${n.user}'s words, actions, thoughts or decisions; stop where ${n.user} would respond.`,
+      by: "rules",
+    },
+  ];
+}
+
+/** CON-04: who narrates, and how the user is addressed. */
+export function povGuard(g: GuardInput): GuardIssue[] {
+  const { text, n, charNames, userNames } = g;
+  const exp = g.exp();
+  const out: GuardIssue[] = [];
+  const v = voiceOf(text, charNames, userNames);
+  const why = exp.fromSettings.pov ? "the story settings" : "the recent replies";
+  if (v.narrator && exp.narrator && v.narrator !== exp.narrator)
+    out.push({
+      kind: "pov",
+      severity: "major",
+      claim: sentences(cleanText(text))[0]?.slice(0, 240) ?? "",
+      conflict: `This reply narrates in the ${v.narrator} person; ${why} use the ${exp.narrator} person.`,
+      citations: [{ ref: "S", type: "card", label: `Point of view: ${exp.narrator} person` }],
+      fix: `Narrate in the ${exp.narrator} person${exp.narrator === "first" ? ` as ${n.char} ("I")` : ""}.`,
+      by: "rules",
+    });
+  if (v.address && exp.address && v.address !== exp.address)
+    out.push({
+      kind: "pov",
+      severity: "minor",
+      claim: sentences(cleanText(text))[0]?.slice(0, 240) ?? "",
+      conflict: `This reply calls ${n.user} ${v.address === "second" ? '"you"' : `by name`}; ${why} ${exp.address === "second" ? 'say "you"' : "use the name"}.`,
+      citations: [{ ref: "S", type: "card", label: `${n.user} is ${exp.address === "second" ? '"you"' : "named"} in the narration` }],
+      fix: exp.address === "second" ? `Address ${n.user} as "you" in the narration.` : `Refer to ${n.user} by name in the narration, not as "you".`,
+      by: "rules",
+    });
+  return out;
+}
+
+/** CON-04: the narration's tense. */
+export function tenseGuard(g: GuardInput): GuardIssue[] {
+  const { text, charNames } = g;
+  const exp = g.exp();
+  const t = tenseOf(text, charNames);
+  if (t.tense && exp.tense && t.tense !== exp.tense)
+    return [
+      {
         kind: "tense",
         severity: "minor",
         claim: sentences(cleanText(text))[0]?.slice(0, 240) ?? "",
@@ -254,9 +281,11 @@ export function guardIssues(chatId: string, text: string, o: { seq: number; mess
         citations: [{ ref: "S", type: "card", label: `Tense: ${exp.tense}` }],
         fix: `Narrate in the ${exp.tense} tense.`,
         by: "rules",
-      });
-    else if (!t.tense && t.past >= 4 && t.present >= 4 && Math.min(t.past, t.present) / Math.max(t.past, t.present) >= 0.5)
-      out.push({
+      },
+    ];
+  if (!t.tense && t.past >= 4 && t.present >= 4 && Math.min(t.past, t.present) / Math.max(t.past, t.present) >= 0.5)
+    return [
+      {
         kind: "tense",
         severity: "minor",
         claim: sentences(cleanText(text))[0]?.slice(0, 240) ?? "",
@@ -264,21 +293,28 @@ export function guardIssues(chatId: string, text: string, o: { seq: number; mess
         citations: [{ ref: "S", type: "card", label: exp.tense ? `Tense: ${exp.tense}` : "One tense per reply" }],
         fix: `Keep the narration in one tense${exp.tense ? ` (${exp.tense})` : ""}.`,
         by: "rules",
-      });
-  }
-  if (cfg.names !== "off") {
-    for (const s of nameSlips(chatId, text, { messageId: o.messageId }))
-      out.push({
-        kind: "name",
-        severity: "minor",
-        claim: s.word,
-        conflict: `Did you mean ${s.canonical}?`,
-        citations: [{ ref: "N", type: s.entry.source === "lore" ? "lore" : s.entry.source === "card" || s.entry.source === "persona" ? "card" : "memory", label: `${s.entry.name} (${s.entry.source === "lore" ? "lorebook" : s.entry.source === "entity" ? "known to the story" : s.entry.source})` }],
-        fix: `The name is spelled "${s.canonical}".`,
-        by: "rules",
-      });
-  }
-  return out;
+      },
+    ];
+  return [];
+}
+
+/** CON-05: the name registry's slips, as the guards report them. */
+export function nameGuard(g: GuardInput): GuardIssue[] {
+  return nameSlips(g.chatId, g.text, { messageId: g.messageId }).map((s) => ({
+    kind: "name" as const,
+    severity: "minor" as const,
+    claim: s.word,
+    conflict: `Did you mean ${s.canonical}?`,
+    citations: [{ ref: "N", type: s.entry.source === "lore" ? ("lore" as const) : s.entry.source === "card" || s.entry.source === "persona" ? ("card" as const) : ("memory" as const), label: `${s.entry.name} (${s.entry.source === "lore" ? "lorebook" : s.entry.source === "entity" ? "known to the story" : s.entry.source})` }],
+    fix: `The name is spelled "${s.canonical}".`,
+    by: "rules" as const,
+  }));
+}
+
+/** The guard issues for one reply (CON-04, CON-05). */
+export function guardIssues(chatId: string, text: string, o: { seq: number; messageId?: string; cfg?: GuardsConfig }): GuardIssue[] {
+  const g = guardInput(chatId, text, o);
+  return [...(g.cfg.puppet ? puppetGuard(g) : []), ...(g.cfg.pov ? povGuard(g) : []), ...(g.cfg.tense ? tenseGuard(g) : []), ...(g.cfg.names !== "off" ? nameGuard(g) : [])];
 }
 
 export interface GuardResult {
