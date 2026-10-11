@@ -1,4 +1,5 @@
 import { get, put } from "./api";
+import { applyRoomColors } from "./roomcolors";
 import { applyFonts } from "./fonts";
 import { isRoom, isShellTheme, loadThemeFonts, themeInfo, type ThemeId } from "./themes";
 import type { Quota, Settings } from "./types";
@@ -136,6 +137,8 @@ export function applyAppearance() {
   } catch {
     // storage may be unavailable
   }
+  // J2: your colours for this room, by day or by night.
+  applyRoomColors(root, s?.["appearance.colors"], shown, night || dark);
   if (s) {
     applyFonts(root, s["appearance.storyFont"], s["appearance.typography"]?.uiFont);
     root.style.setProperty("--scale", String(s["appearance.fontScale"] || 1));

@@ -22,6 +22,8 @@ export interface Settings {
   /** Profile used for story generation (CONN-03). */
   "routing.story": string | null;
   "appearance.theme": "system" | "light" | "dark" | "lantern" | "wildflower" | "overprint" | "citadel" | "marquee";
+  /** J2: your own colours for each room, by day and by night (CSS token → colour). */
+  "appearance.colors": Record<string, { day?: Record<string, string>; night?: Record<string, string> }>;
   /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
   "appearance.themeMode": "system" | "day" | "night";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
@@ -342,6 +344,7 @@ export const defaultMemoryConfig: MemoryConfig = {
 export const defaults: Settings = {
   "routing.story": null,
   "appearance.theme": "lantern",
+  "appearance.colors": {},
   "appearance.themeMode": "system",
   "appearance.chatStyle": "cards",
   "appearance.fontScale": 1,
@@ -413,6 +416,7 @@ export const clientKeys: (keyof Settings)[] = [
   "prompts.active",
   "routing.story",
   "appearance.theme",
+  "appearance.colors",
   "appearance.themeMode",
   "appearance.chatStyle",
   "appearance.fontScale",

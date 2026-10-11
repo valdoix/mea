@@ -52,6 +52,7 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
   "appearance.storyFont": z.enum(["theme", "newsreader", "lora", "literata", "ebgaramond", "cormorant", "crimson", "sourceserif", "merriweather", "alegreya", "spectral", "nunito", "inter", "atkinson", "lexend"]),
   "appearance.theme": z.enum(["lantern", "system", "light", "dark", "wildflower", "overprint", "citadel", "marquee"]),
   "appearance.themeMode": z.enum(["system", "day", "night"]),
+  "appearance.colors": z.record(z.string().max(20), z.object({ day: z.partialRecord(z.enum(["bg", "text", "text-muted", "border", "accent", "ok", "warn", "danger"]), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional(), night: z.partialRecord(z.enum(["bg", "text", "text-muted", "border", "accent", "ok", "warn", "danger"]), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional() })),
   "appearance.living": z.object({ voices: z.enum(["ink", "ribbon", "halo", "off"]), artifacts: z.boolean(), window: z.boolean(), thoughts: z.enum(["never", "drawer", "always"]) }),
   "privacy.requestLog": z.object({ bodiesDays: z.number().int().min(1).max(3650), rowsDays: z.number().int().min(0).max(36500), fileLog: z.boolean(), fileDays: z.number().int().min(1).max(3650) }),
   "routing.story": z.string().max(200).nullable(),
