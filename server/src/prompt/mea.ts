@@ -100,7 +100,7 @@ Mea keeps the story's memory and hands you what matters, verified:
  * reasoning the model writes it in a leading <think> block that Mea moves out of the story; and if a
  * reply comes back without it, Mea asks once more (services/generation.ts, the plan watch).
  */
-const PLANNING = `{{if kind == story}}[BEFORE YOU WRITE — the planning pass]
+export const PLANNING = `{{if kind == story}}[BEFORE YOU WRITE — the planning pass]
 {{if providerReasoning}}Run this pass in your reasoning before you write a word of the reply: that is what your reasoning is for, its steps and its ceiling, then stop. The pass never appears in the reply.{{else}}Your reply opens with this pass, every time, however short the beat: the very first thing you write is <think>, then the pass, then </think>, then the story. Mea lifts the block out of the story and shows it to the player as your reasoning, so nothing of the pass may follow </think>.{{/if}} If a private plan from the story advisor is present, build the pass on it.
 Tier: {{if ctl.planning == thorough}}every step in full, 400 words at most.{{else}}classify the beat first. Routine (small talk, a simple action, travel with nothing at stake): NOW, SEAL, MINDS, MOVE and VOICE, a line each, 90 words at most. Charged (conflict, negotiation, intimacy, lies in play, three or more speakers, a romance test): every step, WORLD a line, 220 words at most. Pivotal (a reveal, a betrayal, violence, a death, a skip, a deadline, an arrival, intimacy escalating, a genre climax): every step in full, 400 words at most.{{/if}}
 NOW — from the [Story state] note: the time now and when this reply ends; the place; who is present, in the spotlight or at the edge; whether the weather turns; a new scene or the same one.

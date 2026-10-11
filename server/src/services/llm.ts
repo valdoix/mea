@@ -10,7 +10,7 @@ import { Deferred } from "./jobs";
 import { QuotaExhausted, assertQuota } from "./quota";
 import { finishRequest, startRequest } from "./requests";
 
-export type HelperTask = "summarizer" | "helper" | "tracker" | "world" | "assistant";
+export type HelperTask = "summarizer" | "helper" | "tracker" | "world" | "assistant" | "planner";
 
 export interface JsonCall<T extends z.ZodType> {
   task: HelperTask;
@@ -26,6 +26,8 @@ export interface JsonCall<T extends z.ZodType> {
   /** Creative helpers (the Lore Studio) run warmer than extraction does. */
   temperature?: number;
   signal?: AbortSignal;
+  /** H3: a profile to try first (a chat's own planner model), ahead of the task's routing. */
+  profileId?: string | null;
 }
 
 export interface JsonResult<T> {
@@ -156,7 +158,7 @@ const cutOff = (res: { finishReason?: string }) => res.finishReason === "length"
  * A subscription quota that is used up defers the job until the reset instead of failing.
  */
 export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<JsonResult<z.infer<T>>> {
-  const chain = resolveTaskChain(call.task);
+  const chain = resolveTaskChain(call.task, call.profileId ?? undefined);
   let lastError: unknown = null;
   for (const r of chain) {
     try {

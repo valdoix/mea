@@ -6,7 +6,9 @@ import { deleteCustomCalendar, listCustomCalendars, saveCustomCalendar } from ".
 import { bondsReport, deskCue, deskView, recapSince, secretsReport, storyAudit, threadsReport } from "../steer/desk";
 import { body } from "../lib/http";
 import { applySetup, previewOpening, saveUsual, setupSchema, setupView, skipSetup, usual } from "../services/setup";
-import { mustChat } from "../services/chats";
+import { historyForPrompt, mustChat } from "../services/chats";
+import { one } from "../db/db";
+import { editPlan, turnKey } from "../steer/advisor";
 
 /** F1: Session Zero; F2: the Director's Desk (same router). */
 export const setup = new Hono();
@@ -113,3 +115,14 @@ desk.post("/cost/cheaper", (c) => c.json(cheaperForBackground()));
 
 /** The Inspector's cost per reply: writer, planner and background. */
 desk.get("/generations/:gid/cost", (c) => c.json({ cost: replyCost(c.req.param("gid")) }));
+
+// ---------- H3: the separate planner ----------
+
+/** "Edit the plan and regenerate": the plan the reply was written with becomes your edit (the regenerated take uses it). */
+desk.post("/chats/:id/plan", async (c) => {
+  const chatId = c.req.param("id");
+  const b = await body(c, z.object({ generationId: z.string(), text: z.string().min(1).max(6000) }));
+  const g = one<{ message_id: string | null }>("SELECT message_id FROM generations WHERE id = ? AND chat_id = ?", b.generationId, chatId);
+  const key = g?.message_id ? turnKey(historyForPrompt(chatId).filter((m) => m.id !== g.message_id)) : undefined;
+  return c.json({ ok: editPlan(chatId, b.generationId, b.text, key) });
+});

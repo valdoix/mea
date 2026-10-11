@@ -1379,7 +1379,7 @@
     </div>
   {/snippet}
 
-  <Inspector bind:open={inspectorOpen} chatId={id} generationId={inspectGen} />
+  <Inspector bind:open={inspectorOpen} chatId={id} generationId={inspectGen} onregenerate={() => { const last = messages.at(-1); if (last?.role === "assistant") void regen(last); }} />
 
   <SelectionMenu
     chatId={id}

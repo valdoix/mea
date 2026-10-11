@@ -75,6 +75,14 @@
   const advisorDefault = $derived(steer?.advisor ? "on" : "off");
   const advisorOn = $derived(settings.advisor ?? Boolean(steer?.advisor));
   const editorDefault = $derived(steer?.editor === "off" ? "off" : steer?.editor === "flagged" ? "when the guards find something" : "after every reply");
+  // H3: the profiles a separate planner can use.
+  let profiles = $state<{ id: string; name: string }[]>([]);
+  $effect(() => {
+    if (settings.planning !== "planner" || profiles.length) return;
+    void get<{ profiles: { id: string; name: string }[] }>("/api/profiles")
+      .then((r) => (profiles = r.profiles))
+      .catch(() => {});
+  });
 </script>
 
 <Module title="Steering" fold open={Boolean(settings.advisor || settings.editor || settings.style)} led={advisorOn ? "ok" : null} peek={advisorOn ? "Advisor on" : "Advisor off"}>
@@ -92,6 +100,28 @@
     />
   </div>
   <p class="st-hint">A private plan for each reply, written before it.</p>
+  <div class="st-seg-row">
+    <span class="st-k">Planning</span>
+    <Seg
+      label="Who plans each reply"
+      value={settings.planning ?? "reply"}
+      options={[
+        { value: "reply", label: "In the reply" },
+        { value: "planner", label: "Separate planner" },
+      ]}
+      onchange={(v) => onupdate({ settings: { planning: v as "reply" | "planner" } })}
+    />
+  </div>
+  {#if settings.planning === "planner"}
+    <label class="st-seg-row">
+      <span class="st-k">Planner model</span>
+      <select class="select" value={settings.plannerProfileId ?? ""} onchange={(e) => onupdate({ settings: { plannerProfileId: e.currentTarget.value || null } })}>
+        <option value="">From Settings › Routing</option>
+        {#each profiles as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+      </select>
+    </label>
+    <p class="st-hint">A strong reasoning model writes the plan (while you type); your writing model writes only the prose. If the planner is late (20 s) or fails, the writer plans for itself.</p>
+  {/if}
   {#if on}
     <div class="screen">
       <div class="st-lcd top">

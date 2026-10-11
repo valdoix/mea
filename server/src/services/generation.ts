@@ -369,6 +369,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     forcePlan: opts.forcePlan,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
+    // H3: a separate planner planned this reply: the writer's own planning pass is left out.
+    skipBlocks: plan?.planner ? ["mea-planning"] : undefined,
     // H1: one ceiling for what Mea adds, cut in the order set in Settings › Memory.
     ceiling: { tokens: cfg.ceiling > 0 ? cfg.ceiling : null, order: cfg.cutOrder, keep: parseJson<ChatSettings>(chat.settings, {}).promptKeep ?? [] },
     extras: [
@@ -380,7 +382,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       ...chatExtras(chatId, kind, tp?.state ?? null),
       // STEER-04: the style profile joins the stable prefix.
       ...(style ? [style] : []),
-      ...(plan ? [plan] : []),
+      ...(plan ? [(({ planner: _p, ...x }) => x)(plan)] : []),
       // A2: a swipe hears what every earlier take of this reply did, so it doesn't drift back to one.
       ...(kind === "story" && opts.excludeMessageId ? [{ id: "swipe-digest", name: "Earlier takes", content: digestNote(rejectedDigest(opts.excludeMessageId)), depth: 0 } satisfies PromptExtra] : []),
       // P1: the Almanac features' prompt lanes (prompt/lanes.ts), each named in the Inspector.

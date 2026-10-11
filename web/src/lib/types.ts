@@ -93,6 +93,9 @@ export interface Ambience {
 }
 
 export interface ChatSettings {
+  /** H3: who plans each reply: the writer itself, or a separate planner model. */
+  planning?: "reply" | "planner";
+  plannerProfileId?: string | null;
   /** H2: no optional model reads in this chat. */
   budgetMode?: boolean;
   /** H1: blocks this chat never cuts to fit the ceiling. */
@@ -495,9 +498,9 @@ export interface Settings {
   "backup.dailyKeep": number;
   "onboarding.done": boolean;
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
-  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null };
-  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[] };
-  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number; assistant?: number };
+  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null; planner?: string | null };
+  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[]; planner?: string[] };
+  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number; assistant?: number; planner?: number };
   "routing.embeddings": { connectionId: string | null; model: string; dims: number };
   "memory.config": MemoryConfig;
   "quota.degradeAt": number;

@@ -60,6 +60,8 @@ export interface AssembleInput {
    * go in at a depth.
    */
   extras?: PromptExtra[];
+  /** H3: preset blocks left out for this request (the writer's own planning pass, when a separate planner planned). */
+  skipBlocks?: string[];
   /** H1: one ceiling for everything Mea adds (null tokens: automatic), cut in this order; `keep` is never cut. */
   ceiling?: { tokens: number | null; order: string[]; keep?: string[] };
   /** The route reasons natively, so planning goes in its reasoning rather than a <think> block. */
@@ -271,6 +273,10 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   preset.blocks.forEach((block: PromptBlock, index) => {
     const trace: BlockTrace = { id: block.id, name: block.name, kind: block.kind, role: block.role, tokens: 0, included: false };
     blocks.push(trace);
+    if (input.skipBlocks?.includes(block.id)) {
+      trace.note = "the separate planner planned this reply";
+      return;
+    }
     if (!block.enabled) {
       trace.note = "disabled";
       return;
@@ -371,7 +377,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
       role: e.role ?? "system",
       tokens: content ? tok(content) : 0,
       included: Boolean(content),
-      ...(e.lane ? { lane: e.lane, text: content.slice(0, 4000) } : {}),
+      ...(e.lane ? { lane: e.lane, text: content.slice(0, 4000) } : e.id === "advisor" ? { text: content.slice(0, 6000) } : {}),
     };
     blocks.push(trace);
     if (!content) continue;
