@@ -18,6 +18,7 @@ import { runRewordJob } from "./accuracy/offpage";
 import { exposureAfterReply } from "./trackers/exposure";
 import { pressuresAfterReply } from "./trackers/pressures";
 import { promisesAfterReply } from "./trackers/promises";
+import { asidesAfterReply } from "./accuracy/asides";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
@@ -112,6 +113,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(pressuresAfterReply);
   // E3: promises said in the reply or your message become ledger lines, with a chip and Undo.
   onTrackerUpdate(promisesAfterReply);
+  // F3: what your own message states about you (things you have, your birthday), each a chip.
+  onTrackerUpdate(asidesAfterReply);
   registerJob("accuracy.drift", async (p, job) => runDriftJob(String(p.chatId), job));
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
