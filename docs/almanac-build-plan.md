@@ -55,7 +55,7 @@ These were checked in the code, so the plan builds on them instead of duplicatin
 |---|---|---|
 | **1** | Foundations | P1 shared building blocks |
 | **2** | Swipes that teach | A1 Lessons · A2 Swipe with an angle |
-| **3** | Secrets and canon | B1 Off the page · B2 Exposure clocks · C1 Canon cutoff · C2 Playbooks |
+| **3** | Secrets and canon | B1 Off the page · B2 Exposure clocks · C1 Canon cutoff · ~~C2 Playbooks~~ (dropped) |
 | **4** | Quality | D1 More reply checks · D2 Adaptive craft coach · D3 Story health |
 | **5** | People | E1 Hidden pressures · E2 Belongings and rooms · E3 Promises on the clock |
 | **6** | Control | F1 Session Zero · F2 Director's Desk · F3 Selection asides · F4 Meus runs the Desk |
@@ -170,6 +170,8 @@ Shared pieces that several features need, built once.
 **How it's built:** `server/src/accuracy/canoncut.ts`, a `[CANON]` lane, a `canon` slip check, and research reuse. It's stored in chat settings.
 
 ### C2. Playbooks
+
+> **Dropped** (October 11, 2026): playbooks are not being built. The playbook parts of I1 (Upcoming and Scene entries becoming playbooks) and the `[PLAYBOOK]` lane are dropped with it; migration 19 removes the unused table.
 
 **What you get:** lorebook entries that script future scenes ("When Buffy learns…") are no longer read as things that already happened.
 

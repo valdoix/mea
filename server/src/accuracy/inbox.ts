@@ -23,7 +23,7 @@ export type InboxKind = "summary" | "journal" | "chronicle" | "merge" | "dispute
  * P1: where a suggestion comes from, for the Inbox's filter. The first three are the original
  * kinds; the rest are the Almanac features' suggestions, each added by a provider below.
  */
-export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "playbook" | "pressure" | "calendar";
+export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar";
 
 const SOURCE_OF: Record<InboxKind, InboxSource> = { summary: "memory", journal: "memory", disputed: "memory", merge: "memory", chronicle: "lore", world: "world" };
 

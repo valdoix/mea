@@ -628,7 +628,7 @@ export interface GuardsView {
 }
 
 /** P1: where an Inbox suggestion comes from. */
-export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "playbook" | "pressure" | "calendar";
+export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar";
 
 export interface InboxItem {
   key: string;

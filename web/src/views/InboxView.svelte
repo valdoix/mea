@@ -45,8 +45,8 @@
     }),
   );
 
-  const KIND: Record<string, string> = { summary: "Summary", journal: "Journal", chronicle: "New lore", merge: "Duplicate", disputed: "Disputed memory", world: "Subplot", lesson: "Lesson", canon: "Canon", playbook: "Playbook", pressure: "Pressure", calendar: "Calendar" };
-  const SOURCE: Record<InboxSource, string> = { memory: "Memory", lore: "Lore", world: "World", lesson: "Lessons", canon: "Canon", playbook: "Playbooks", pressure: "Pressures", calendar: "Calendar" };
+  const KIND: Record<string, string> = { summary: "Summary", journal: "Journal", chronicle: "New lore", merge: "Duplicate", disputed: "Disputed memory", world: "Subplot", lesson: "Lesson", canon: "Canon", pressure: "Pressure", calendar: "Calendar" };
+  const SOURCE: Record<InboxSource, string> = { memory: "Memory", lore: "Lore", world: "World", lesson: "Lessons", canon: "Canon", pressure: "Pressures", calendar: "Calendar" };
   const counts = $derived.by(() => {
     const c = new Map<InboxSource, number>();
     for (const i of items ?? []) c.set(i.source, (c.get(i.source) ?? 0) + 1);
