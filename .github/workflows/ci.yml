@@ -39,3 +39,6 @@ jobs:
 
       - name: Budgets
         run: bun run budgets
+
+      - name: Golden scenarios
+        run: bun run golden

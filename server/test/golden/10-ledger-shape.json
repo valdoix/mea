@@ -1,0 +1,31 @@
+{
+  "name": "ledger-shape",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Ledger shape: the lines a tracker writes read and apply; nonsense is refused.",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "ledgerShape": [
+    {
+      "lines": [
+        "clock: +20m",
+        "mood Mira: wistful — the storm",
+        "bond Mira>Ash: trust +1 — he came back"
+      ],
+      "ok": true
+    },
+    {
+      "lines": [
+        "the weather is nice today"
+      ],
+      "ok": false
+    }
+  ]
+}

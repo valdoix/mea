@@ -1,0 +1,27 @@
+{
+  "name": "weather",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Weather: the storm the records hold reaches the prompt.",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I listen to the wind."
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "storm"
+    ],
+    "lacks": []
+  }
+}

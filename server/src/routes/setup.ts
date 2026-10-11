@@ -1,6 +1,7 @@
 import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
+import { runGolden } from "../golden/run";
 import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicConfigSchema, musicView, saveMusicConfig } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
@@ -168,4 +169,12 @@ desk.get("/chats/:id/music", (c) => {
 desk.post("/chats/:id/music", async (c) => {
   const b = await body(c, z.object({ action: z.enum(["on", "off", "playPause", "skip", "up", "down", "notForScene"]) }));
   return c.json(await musicAction(c.req.param("id"), b.action));
+});
+
+// ---------- K1: golden scenarios ----------
+
+/** Settings › Status › Run story checks: the golden scenarios, on their own replies or written by your story model. */
+desk.post("/golden/run", async (c) => {
+  const b = await body(c, z.object({ model: z.boolean().default(false) }));
+  return c.json(await runGolden({ model: b.model }));
 });

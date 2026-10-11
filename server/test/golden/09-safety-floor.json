@@ -1,0 +1,32 @@
+{
+  "name": "safety-floor",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "The safety floor: hard limits are in every prompt, whatever else is set.",
+  "settings": {
+    "controls": {
+      "limits": "graphic gore, harm to children"
+    }
+  },
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I sit down."
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "graphic gore, harm to children"
+    ],
+    "lacks": []
+  }
+}

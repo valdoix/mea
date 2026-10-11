@@ -1,0 +1,34 @@
+{
+  "name": "separate-planner",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Planning with a separate planner: the writer gets <director-plan> and no planning pass of its own.",
+  "settings": {
+    "planning": "planner"
+  },
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I ask her why she stays."
+    }
+  ],
+  "runPlanner": true,
+  "prompt": {
+    "contains": [
+      "<director-plan>",
+      "Don't plan again"
+    ],
+    "lacks": [
+      "[BEFORE YOU WRITE"
+    ]
+  }
+}

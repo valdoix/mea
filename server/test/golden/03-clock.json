@@ -1,0 +1,33 @@
+{
+  "name": "clock",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Clock: it's night by the story clock; the reply doesn't say morning.",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I look out of the window."
+    }
+  ],
+  "reply": "Outside, the night is black and the rain drives against the glass.",
+  "forbid": [
+    "time"
+  ],
+  "bad": [
+    {
+      "reply": "The morning sun spills across the floor, bright and warm.",
+      "expect": [
+        "time"
+      ]
+    }
+  ]
+}

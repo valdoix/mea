@@ -1,0 +1,33 @@
+{
+  "name": "planner-fallback",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Planning fallback: when the separate planner fails, the writer plans for itself as before.",
+  "settings": {
+    "planning": "planner"
+  },
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "MOCK_PLANNER_FAIL Why do you stay?"
+    }
+  ],
+  "runPlanner": true,
+  "prompt": {
+    "contains": [
+      "[BEFORE YOU WRITE"
+    ],
+    "lacks": [
+      "<director-plan>"
+    ]
+  }
+}

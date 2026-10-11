@@ -1,0 +1,34 @@
+{
+  "name": "people-present",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "People act on each other only when they're here: someone who left doesn't act.",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot",
+    "cast: Joss@left(→ Port Ellis › Harbour)"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I sit by the fire."
+    }
+  ],
+  "reply": "Mira pours two mugs of tea and sets one beside you.",
+  "forbid": [
+    "nothere"
+  ],
+  "bad": [
+    {
+      "reply": "Joss says, \"Pour me some of that tea, Mira.\"",
+      "expect": [
+        "nothere"
+      ]
+    }
+  ]
+}
