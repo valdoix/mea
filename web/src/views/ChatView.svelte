@@ -21,6 +21,7 @@
   import { openDesk } from "../lib/desk.svelte";
   import ScenePlate, { type PlaceKind } from "../components/chat/ScenePlate.svelte";
   import { device } from "../lib/device.svelte";
+  import NowPlaying from "../components/chat/NowPlaying.svelte";
   import type { Angle } from "../lib/angles";
   import { dockRequest, openDock, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
@@ -1219,6 +1220,7 @@
             </div>
             <span class="sep hide-sm"></span>
             <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" title="Search this chat" class:on={searchOpen}><Search size={18} /></button>
+            <NowPlaying chatId={id} />
             {#if app.isMobile}<button class="btn ghost icon" onclick={openDesk} aria-label="Director's Desk" title="Director's Desk"><Clapperboard size={18} /></button>{/if}
             <a class="btn ghost icon hide-sm" href="/chat/{id}/codex" aria-label="Codex: people, places, timeline" title="Codex"><Library size={18} /></a>
             <a class="btn ghost icon" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>

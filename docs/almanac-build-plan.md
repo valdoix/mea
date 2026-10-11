@@ -473,6 +473,8 @@ Every Desk button and selection aside has a Meus change kind (`timeskip` exists;
 
 **How it's built:** `server/src/music/` (cue from tracker state, picker, director), with a `web/src/components/chat/NowPlaying.svelte` player. Network access is only to the chosen service, and it's off by default.
 
+> **Decision (build):** the soundtrack supports **YouTube Music only** (the desktop app's local Companion Server). Spotify and the local music folder player are not built. With no search API, the picker chooses from your library (tracks you add and tag), leitmotifs and taste.
+
 ---
 
 ## Phase 11 · Safety net

@@ -1,6 +1,7 @@
 import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
+import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicConfigSchema, musicView, saveMusicConfig } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -151,3 +152,20 @@ desk.post("/chats/:id/lorebook/draft", async (c) => {
 // ---------- J1: scene plates ----------
 
 desk.get("/chats/:id/plates", (c) => c.json(scenePlates(c.req.param("id"))));
+
+// ---------- J3: the soundtrack (YouTube Music) ----------
+
+desk.get("/music", (c) => c.json(musicView()));
+desk.put("/music", async (c) => c.json(saveMusicConfig(await body(c, musicConfigSchema.partial()))));
+desk.post("/music/connect", async (c) => c.json(await connectStart()));
+desk.post("/music/connect/finish", async (c) => c.json(await connectFinish((await body(c, z.object({ code: z.string().min(1).max(40) }))).code)));
+desk.post("/music/disconnect", (c) => c.json(disconnect()));
+desk.post("/music/library", async (c) => c.json(await addTrack(await body(c, z.object({ link: z.string().max(300).optional(), moods: z.array(z.enum(MOODS)).optional(), instrumental: z.boolean().optional(), title: z.string().max(200).optional(), artist: z.string().max(120).optional() })))));
+desk.get("/chats/:id/music", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json(chatMusicView(c.req.param("id")));
+});
+desk.post("/chats/:id/music", async (c) => {
+  const b = await body(c, z.object({ action: z.enum(["on", "off", "playPause", "skip", "up", "down", "notForScene"]) }));
+  return c.json(await musicAction(c.req.param("id"), b.action));
+});

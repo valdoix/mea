@@ -113,6 +113,18 @@ export const chatSettingsSchema = z.object({
     })
     .partial()
     .optional(),
+  /** J3: this chat's soundtrack: on or off, your thumbs, "not for this scene", what's playing. */
+  music: z
+    .object({
+      on: z.boolean(),
+      votes: z.record(z.string(), z.number()),
+      notFor: z.record(z.string(), z.array(z.string())),
+      recent: z.array(z.string()).max(20),
+      lastKey: z.string().max(200),
+      now: z.object({ videoId: z.string(), title: z.string(), artist: z.string(), key: z.string(), why: z.string(), at: z.number() }).nullable(),
+    })
+    .partial()
+    .optional(),
   /** J1: "This place is…": your correction of a place's kind for its scene plate (by place name). */
   placeKinds: z.record(z.string().max(120), z.string().max(30)).optional(),
   /** H3: who plans each reply: the writer itself ("reply"), or a separate planner model. */
