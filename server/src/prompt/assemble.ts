@@ -82,6 +82,8 @@ export interface PromptExtra {
   depth?: number;
   role?: Role;
   prefix?: boolean;
+  /** P1: a prompt lane (prompt/lanes.ts); the Inspector lists it by name, with its text. */
+  lane?: string;
 }
 
 export interface BlockTrace {
@@ -93,6 +95,9 @@ export interface BlockTrace {
   included: boolean;
   note?: string;
   depth?: number;
+  /** P1: the lane this block is, and (clipped) what it said. */
+  lane?: string;
+  text?: string;
 }
 
 export interface PromptTrace {
@@ -349,7 +354,15 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
 
   for (const [i, e] of (input.extras ?? []).entries()) {
     const content = e.content.trim();
-    const trace: BlockTrace = { id: `extra:${e.id}`, name: e.name, kind: "extra", role: e.role ?? "system", tokens: content ? tok(content) : 0, included: Boolean(content) };
+    const trace: BlockTrace = {
+      id: `extra:${e.id}`,
+      name: e.name,
+      kind: e.lane ? "lane" : "extra",
+      role: e.role ?? "system",
+      tokens: content ? tok(content) : 0,
+      included: Boolean(content),
+      ...(e.lane ? { lane: e.lane, text: content.slice(0, 4000) } : {}),
+    };
     blocks.push(trace);
     if (!content) continue;
     if (e.prefix) {

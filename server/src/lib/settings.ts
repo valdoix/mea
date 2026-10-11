@@ -148,6 +148,8 @@ export interface GuardsConfig {
   timeline: boolean;
   /** A forward jump bigger than this, with nothing in the reply saying time passed, is flagged. */
   maxJumpHours: number;
+  /** P1: checks in the slip registry switched off (id → false); missing means on. */
+  slips: Record<string, boolean>;
 }
 
 export const guardsSchema = z.object({
@@ -164,6 +166,7 @@ export const guardsSchema = z.object({
   driftThreshold: z.number().min(0.05).max(1),
   timeline: z.boolean(),
   maxJumpHours: z.number().min(1).max(24 * 365),
+  slips: z.record(z.string().max(40), z.boolean()),
 });
 
 export const defaultGuards: GuardsConfig = {
@@ -180,6 +183,7 @@ export const defaultGuards: GuardsConfig = {
   driftThreshold: 0.45,
   timeline: true,
   maxJumpHours: 12,
+  slips: {},
 };
 
 export interface TrackerDefaults {

@@ -8,6 +8,7 @@
   import Fader from "../desk/Fader.svelte";
   import ControlDesk from "../presets/ControlDesk.svelte";
   import ChatGuards from "./ChatGuards.svelte";
+  import ChatStatus from "./ChatStatus.svelte";
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
   import AmbienceEditor from "./AmbienceEditor.svelte";
@@ -293,6 +294,8 @@
       </div>
     {/if}
   </Module>
+
+  <ChatStatus chatId={detail.chat.id} />
 
   <!-- mode and routing -->
   <Module title="Mode">

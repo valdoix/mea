@@ -12,6 +12,9 @@
   import ChatSearch from "../components/chat/ChatSearch.svelte";
   import MeusPanel from "../components/chat/MeusPanel.svelte";
   import { meus, meusFor } from "../lib/meus.svelte";
+  import { sugg, watchSuggestions } from "../lib/suggestions.svelte";
+  import { watchFilings } from "../lib/filings.svelte";
+  import { dockRequest, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
   import NotesPanel from "../components/notes/NotesPanel.svelte";
   import Scrubber from "../components/chat/Scrubber.svelte";
@@ -75,7 +78,6 @@
   let stick = $state(true);
   let editSignals = $state<Record<string, number>>({});
   let error = $state("");
-  type DockTab = "chat" | "memory" | "story" | "world" | "meus" | "notes";
   // Meus took the Ask tab's place, so a remembered "ask" opens Meus.
   const savedDock = localStorage.getItem("mea.dockTab") === "ask" ? "meus" : localStorage.getItem("mea.dockTab");
   let dockTab = $state<DockTab>((["chat", "memory", "story", "world", "meus", "notes"].includes(savedDock ?? "") ? savedDock : "chat") as DockTab);
@@ -87,6 +89,9 @@
     { value: "meus" as const, label: "Meus", icon: MessagesSquare },
     { value: "notes" as const, label: "Notes", icon: NotebookPen },
   ];
+  // P1: suggestions waiting in the Inbox for this chat, as a badge on the Chat tab.
+  $effect(() => watchSuggestions(id));
+  $effect(() => watchFilings(id));
   function pickDock(v: DockTab) {
     dockTab = v;
     localStorage.setItem("mea.dockTab", v);
@@ -1009,6 +1014,17 @@
     }
   }
 
+  // P1: a Status tile or a chip asked for a tab.
+  $effect(() => {
+    if (!dockRequest.seq || !dockRequest.tab) return;
+    const tab = dockRequest.tab;
+    untrack(() => {
+      pickDock(tab);
+      if (app.isMobile) sheetOpen = true;
+      else if (!layout.dock) toggleDock();
+    });
+  });
+
   function openStory() {
     pickDock("story");
     if (app.isMobile) sheetOpen = true;
@@ -1328,7 +1344,9 @@
   {#snippet dockTabs()}
     <div class="st-selector" role="tablist" aria-label="Side panel">
       {#each dockOptions as o (o.value)}
-        <button type="button" role="tab" aria-selected={dockTab === o.value} onclick={() => pickDock(o.value)}><o.icon size={17} /><span>{o.label}</span></button>
+        <button type="button" role="tab" aria-selected={dockTab === o.value} onclick={() => pickDock(o.value)}
+          ><o.icon size={17} /><span>{o.label}</span>{#if o.value === "chat" && sugg.count}<b class="dock-badge" aria-label="{sugg.count} suggestions waiting">{sugg.count > 99 ? "99+" : sugg.count}</b>{/if}</button
+        >
       {/each}
     </div>
   {/snippet}
@@ -1426,6 +1444,19 @@
 {/if}
 
 <style>
+  .dock-badge {
+    position: absolute;
+    top: 3px;
+    right: 6px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font: 800 9px/15px var(--font-ui);
+    letter-spacing: 0;
+  }
   .gloss-scrim {
     position: fixed;
     inset: 0;

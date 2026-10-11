@@ -1054,6 +1054,96 @@ CREATE INDEX IF NOT EXISTS memory_usage_chat ON memory_usage(chat_id, created_at
       }
     },
   },
+  {
+    id: 18,
+    name: "almanac foundations",
+    sql: /* sql */ `
+-- Almanac plan P1. Lessons from swipes (A1): a rule the story learned from the takes you passed
+-- over, for this story, this character or every story. scope: story | character | everywhere;
+-- status: suggested | kept | off | rejected.
+CREATE TABLE lessons (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT REFERENCES chats(id) ON DELETE CASCADE,
+  character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,
+  scope TEXT NOT NULL DEFAULT 'story',
+  text TEXT NOT NULL,
+  why TEXT NOT NULL DEFAULT '',
+  quote TEXT NOT NULL DEFAULT '',
+  message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'suggested',
+  strength REAL NOT NULL DEFAULT 1,
+  by TEXT NOT NULL DEFAULT 'rules',
+  last_broken_seq INTEGER,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX lessons_chat ON lessons(chat_id, status);
+CREATE INDEX lessons_character ON lessons(character_id, status) WHERE character_id IS NOT NULL;
+CREATE INDEX lessons_message ON lessons(message_id) WHERE message_id IS NOT NULL;
+
+-- Secrets kept off the page (B1): held back from the narration itself. ref: the tracker fact key
+-- (or a Codex/lore reference). status: kept | revealed.
+CREATE TABLE secrets_offpage (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  ref TEXT NOT NULL DEFAULT '',
+  label TEXT NOT NULL,
+  never_say TEXT NOT NULL DEFAULT '[]',
+  hint_as TEXT NOT NULL DEFAULT '',
+  hints TEXT NOT NULL DEFAULT 'rarely',
+  reveal TEXT NOT NULL DEFAULT '{"when":"say"}',
+  status TEXT NOT NULL DEFAULT 'kept',
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX secrets_offpage_chat ON secrets_offpage(chat_id, status);
+
+-- Playbooks (C2): lore entries that script a future scene. status: waiting | next | held | played | not.
+-- played_message_id ties "played" to a message, so swiping it away un-retires the playbook.
+CREATE TABLE playbooks (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  entry_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'waiting',
+  played_message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (chat_id, entry_id)
+);
+
+-- Calendars you build (G1), usable in any chat.
+CREATE TABLE calendars_custom (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- What Mea filed from a message (a lesson, a promise, a truth, a calendar day…), shown as a chip
+-- on it with Undo. kind names the feature that knows how to undo it; data holds what it needs.
+CREATE TABLE filings (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  label TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'filed',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX filings_chat ON filings(chat_id, status);
+CREATE INDEX filings_message ON filings(message_id) WHERE message_id IS NOT NULL;
+`,
+    up: (db) => {
+      // Session Zero (F1): a chat's setup answers. NULL until the setup window has been seen.
+      if (!hasColumn(db, "chats", "chat_setup")) db.exec("ALTER TABLE chats ADD COLUMN chat_setup TEXT");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

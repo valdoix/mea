@@ -47,6 +47,7 @@ import { applyBanned, chatExtras, consumeOnce, looksLikeRefusal, trimUnfinished 
 import { evalCondition } from "../trackers/condition";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
+import { gatherLanes } from "../prompt/lanes";
 import { finishRequest, getRequest, startRequest } from "./requests";
 import { anchorExtra } from "../accuracy/anchor";
 import { checksOn } from "../accuracy/checker";
@@ -357,6 +358,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       // STEER-04: the style profile joins the stable prefix.
       ...(style ? [style] : []),
       ...(plan ? [plan] : []),
+      // P1: the Almanac features' prompt lanes (prompt/lanes.ts), each named in the Inspector.
+      ...gatherLanes({ chatId, kind, state: tp?.state ?? null, history, excludeMessageId: opts.excludeMessageId, characterId: chat.character_id }),
       // CON-03: who the character is, near the end of the prompt (stronger while the voice drifts).
       ...(kind === "story" || kind === "continue" ? [anchorExtra(chatId, card, userName, chat.character_id)].filter((x): x is PromptExtra => Boolean(x)) : []),
     ],

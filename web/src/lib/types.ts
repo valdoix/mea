@@ -587,6 +587,21 @@ export interface GuardsConfig {
   driftThreshold: number;
   timeline: boolean;
   maxJumpHours: number;
+  /** P1: checks switched off here (id → false). */
+  slips?: Record<string, boolean>;
+}
+
+/** P1: one check in the slip registry, as Chat › Guards lists it. */
+export interface SlipInfo {
+  id: string;
+  label: string;
+  description: string;
+  phase: "reply" | "trackers";
+  /** The guard setting that also governs it. */
+  setting: keyof GuardsConfig | null;
+  on: boolean;
+  /** It will run on the next reply (switched on, and nothing else stops it). */
+  runs: boolean;
 }
 
 export interface DriftReading {
@@ -607,11 +622,16 @@ export interface GuardsView {
   own: Partial<GuardsConfig>;
   anchor: { active: boolean; strong: boolean; text: string };
   drift: { history: DriftReading[]; samples: number; source: "voice lab" | "examples" | "both" | "none" };
+  slips: SlipInfo[];
 }
+
+/** P1: where an Inbox suggestion comes from. */
+export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "playbook" | "pressure" | "calendar";
 
 export interface InboxItem {
   key: string;
-  kind: "summary" | "journal" | "chronicle" | "merge" | "disputed" | "world";
+  kind: "summary" | "journal" | "chronicle" | "merge" | "disputed" | "world" | (string & {});
+  source: InboxSource;
   chatId: string;
   chatTitle: string;
   title: string;
@@ -639,6 +659,9 @@ export interface BlockTrace {
   included: boolean;
   note?: string;
   depth?: number;
+  /** P1: a prompt lane ([LESSONS], [CANON]…), with what it said. */
+  lane?: string;
+  text?: string;
 }
 
 export interface PromptTrace {
@@ -668,6 +691,7 @@ export type MeaEvent =
   | { type: "creator.changed"; draftId: string }
   | { type: "inbox.changed" }
   | { type: "meus.changed"; chatId: string }
+  | { type: "filings.changed"; chatId: string }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   | { type: "reconnected" };
 

@@ -35,3 +35,12 @@ export function weighted<T>(r: () => number, items: { item: T; w: number }[]): T
   }
   return items.at(-1)?.item;
 }
+
+/**
+ * P1: dice for one point in one chat. Pressures, Next beat previews and the soundtrack draw from
+ * `seeded(chatId, seq, salt)`, so every swipe of the same reply (and every reroll with the same
+ * salt) agrees, while a new salt rolls again.
+ */
+export function seeded(chatId: string, seq: number, salt: string | number = ""): () => number {
+  return rng(`${chatId}:${seq}:${salt}`);
+}

@@ -19,9 +19,19 @@ import { currentFold } from "../trackers/store";
 
 export type InboxKind = "summary" | "journal" | "chronicle" | "merge" | "disputed" | "world";
 
+/**
+ * P1: where a suggestion comes from, for the Inbox's filter. The first three are the original
+ * kinds; the rest are the Almanac features' suggestions, each added by a provider below.
+ */
+export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "playbook" | "pressure" | "calendar";
+
+const SOURCE_OF: Record<InboxKind, InboxSource> = { summary: "memory", journal: "memory", disputed: "memory", merge: "memory", chronicle: "lore", world: "world" };
+
 export interface InboxItem {
   key: string;
-  kind: InboxKind;
+  /** One of InboxKind, or a provider's own kind. */
+  kind: InboxKind | (string & {});
+  source: InboxSource;
   chatId: string;
   chatTitle: string;
   title: string;
@@ -42,6 +52,24 @@ function liveChats(chatId?: string): ChatLite[] {
   return all<ChatLite>("SELECT id, title FROM chats WHERE deleted_at IS NULL AND archived_at IS NULL ORDER BY COALESCE(last_message_at, updated_at) DESC LIMIT 40");
 }
 
+/**
+ * P1: a feature that puts suggestions in the Inbox. `items` lists them for the given chats (keys
+ * start with `kind:`), and `act` decides one, returning its chat.
+ */
+export interface InboxProvider {
+  kind: string;
+  source: InboxSource;
+  items: (chats: { id: string; title: string }[]) => Omit<InboxItem, "kind" | "source">[];
+  act: (id: string, action: "accept" | "reject", edited?: string) => string | null;
+  /** Approving it can be taken back from a Meus card. */
+  undoable?: boolean;
+}
+const providers = new Map<string, InboxProvider>();
+export function registerInboxProvider(p: InboxProvider) {
+  providers.set(p.kind, p);
+}
+export const inboxProvider = (kind: string) => providers.get(kind);
+
 const dismissed = (key: string) => Boolean(one("SELECT 1 FROM inbox_dismissed WHERE key = ?", key));
 
 const LEVEL: Record<string, string> = { scene: "Scene", chapter: "Chapter", arc: "Arc", story: "The Story So Far" };
@@ -52,7 +80,7 @@ export function inboxItems(opts: { chatId?: string } = {}): InboxItem[] {
   const ids = chats.map((c) => c.id);
   if (!ids.length) return [];
   const inChats = `(${ids.map(() => "?").join(",")})`;
-  const out: InboxItem[] = [];
+  const out: (Omit<InboxItem, "source"> & { source?: InboxSource })[] = [];
 
   // Rebuilds of summaries you edited (MEM-10), and ones waiting because memory asks first.
   for (const r of all<SummaryRow>(`SELECT * FROM summaries WHERE chat_id IN ${inChats} AND state = 'review' AND proposal IS NOT NULL`, ...ids)) {
@@ -165,12 +193,26 @@ export function inboxItems(opts: { chatId?: string } = {}): InboxItem[] {
       // trackers off for this chat
     }
   }
-  return out.sort((a, b) => b.createdAt - a.createdAt);
+  for (const p of providers.values()) {
+    try {
+      for (const i of p.items(chats)) out.push({ ...i, chatTitle: i.chatTitle || title.get(i.chatId) || "", kind: p.kind, source: p.source });
+    } catch (e) {
+      console.error(`[mea] inbox suggestions (${p.kind}) failed:`, e);
+    }
+  }
+  return out.map((i) => ({ ...i, source: i.source ?? SOURCE_OF[i.kind as InboxKind] ?? "memory" })).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** The number for the sidebar badge. */
 export function inboxCount(chatId?: string) {
   return inboxItems({ chatId }).length;
+}
+
+/** P1: how many wait from each source (the side dock's badge and the Inbox filter). */
+export function inboxCounts(chatId?: string) {
+  const out: Partial<Record<InboxSource, number>> = {};
+  for (const i of inboxItems({ chatId })) out[i.source] = (out[i.source] ?? 0) + 1;
+  return out;
 }
 
 export function actOnInbox(key: string, action: "accept" | "reject", edited?: string) {
@@ -224,8 +266,11 @@ export function actOnInbox(key: string, action: "accept" | "reject", edited?: st
       decideProposal(cid, pid.join(":"), action === "accept");
       break;
     }
-    default:
-      throw badRequest("Unknown inbox item");
+    default: {
+      const p = providers.get(kind!);
+      if (!p) throw badRequest("Unknown inbox item");
+      chatId = p.act(id, action, text);
+    }
   }
   if (chatId) publish({ type: "memory.changed", chatId });
   publish({ type: "inbox.changed" });

@@ -8,7 +8,7 @@
   import { openMeusIn } from "../lib/meus.svelte";
   import { navigate, route } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
-  import type { InboxItem } from "../lib/types";
+  import type { InboxItem, InboxSource } from "../lib/types";
 
   /**
    * The review inbox (CON-09): every change to canon Mea proposes, as a diff you approve, edit
@@ -18,7 +18,9 @@
   let editing = $state<string | null>(null);
   let draft = $state("");
   let busy = $state<string | null>(null);
-  let filter = $state<InboxItem["kind"] | "all">("all");
+  // P1: the filter is by source (?source= opens on one).
+  // svelte-ignore state_referenced_locally
+  let filter = $state<InboxSource | "all">((route.query.source as InboxSource) || "all");
   const chat = $derived(route.query.chat || "");
 
   async function load() {
@@ -43,13 +45,14 @@
     }),
   );
 
-  const KIND: Record<InboxItem["kind"], string> = { summary: "Summaries", journal: "Journals", chronicle: "New lore", merge: "Duplicates", disputed: "Disputed memories", world: "Subplots" };
+  const KIND: Record<string, string> = { summary: "Summary", journal: "Journal", chronicle: "New lore", merge: "Duplicate", disputed: "Disputed memory", world: "Subplot", lesson: "Lesson", canon: "Canon", playbook: "Playbook", pressure: "Pressure", calendar: "Calendar" };
+  const SOURCE: Record<InboxSource, string> = { memory: "Memory", lore: "Lore", world: "World", lesson: "Lessons", canon: "Canon", playbook: "Playbooks", pressure: "Pressures", calendar: "Calendar" };
   const counts = $derived.by(() => {
-    const c = new Map<string, number>();
-    for (const i of items ?? []) c.set(i.kind, (c.get(i.kind) ?? 0) + 1);
+    const c = new Map<InboxSource, number>();
+    for (const i of items ?? []) c.set(i.source, (c.get(i.source) ?? 0) + 1);
     return c;
   });
-  const shown = $derived((items ?? []).filter((i) => filter === "all" || i.kind === filter));
+  const shown = $derived((items ?? []).filter((i) => filter === "all" || i.source === filter));
 
   /** The note goes to Meus in its chat, which reads it with the story around it. */
   function talkItThrough(item: InboxItem) {
@@ -95,14 +98,14 @@
   {:else}
     <div class="row wrap filters">
       <button class="chip" class:on={filter === "all"} onclick={() => (filter = "all")}>All {items.length}</button>
-      {#each [...counts] as [k, n] (k)}<button class="chip" class:on={filter === k} onclick={() => (filter = k as InboxItem["kind"])}>{KIND[k as InboxItem["kind"]]} {n}</button>{/each}
+      {#each [...counts] as [k, n] (k)}<button class="chip" class:on={filter === k} onclick={() => (filter = k)}>{SOURCE[k] ?? k} {n}</button>{/each}
       {#if shown.filter((x) => x.kind !== "merge").length > 1}<button class="btn ghost small" onclick={acceptAll}>Approve all shown</button>{/if}
     </div>
     <div class="list">
       {#each shown as item (item.key)}
         <article class="card item">
           <div class="row between wrap">
-            <span class="chip tiny">{KIND[item.kind]}</span>
+            <span class="chip tiny">{KIND[item.kind] ?? item.kind}</span>
             <a class="tiny muted" href={item.link}>{item.chatTitle} <ExternalLink size={11} /></a>
           </div>
           <h3>{item.title}</h3>

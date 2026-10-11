@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { askArchivist, deleteArchive, listArchive, pushArchive } from "../accuracy/archivist";
-import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor } from "../accuracy/checker";
+import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor, leakGuardOn } from "../accuracy/checker";
+import { slipCatalog } from "../accuracy/slips";
+import { memoryConfig } from "../lib/settings";
 import { codex, codexEntry } from "../accuracy/codex";
 import { quizRuns, runQuiz } from "../accuracy/quiz";
 import { body } from "../lib/http";
@@ -11,7 +13,7 @@ import { startStory } from "../services/generation";
 import { anchorExtra, buildAnchor } from "../accuracy/anchor";
 import { checkDrift, driftHistory, voiceSamples } from "../accuracy/drift";
 import { guardsFor } from "../accuracy/guards";
-import { actOnInbox, inboxCount, inboxItems } from "../accuracy/inbox";
+import { actOnInbox, inboxCount, inboxCounts, inboxItems } from "../accuracy/inbox";
 import { nameRegistry } from "../accuracy/names";
 import { parseJson } from "../db/db";
 import { getCard } from "../services/characters";
@@ -74,6 +76,8 @@ accuracy.get("/chats/:id/guards", (c) => {
       text: active?.content ?? (card ? buildAnchor({ card, userName: names.user, characterId: chat.character_id, persona: storyDials(chat).persona }) : ""),
     },
     drift: { history: driftHistory(id), samples: samples.lines.length, source: samples.source },
+    // P1: every check in the slip registry, with this chat's switch.
+    slips: slipCatalog(id, guardsFor(id), { continuity: memoryConfig().continuity, leaks: leakGuardOn(id) }),
   });
 });
 
@@ -92,7 +96,10 @@ accuracy.get("/chats/:id/names", (c) => {
 // ---------- the review inbox (CON-09) ----------
 
 accuracy.get("/inbox", (c) => c.json({ items: inboxItems({ chatId: c.req.query("chat") || undefined }) }));
-accuracy.get("/inbox/count", (c) => c.json({ count: inboxCount(c.req.query("chat") || undefined) }));
+accuracy.get("/inbox/count", (c) => {
+  const chat = c.req.query("chat") || undefined;
+  return c.json({ count: inboxCount(chat), bySource: inboxCounts(chat) });
+});
 accuracy.post("/inbox/act", async (c) => {
   const input = await body(c, z.object({ key: z.string().min(3).max(300), action: z.enum(["accept", "reject"]), edited: z.string().max(40_000).optional() }));
   return c.json(actOnInbox(input.key, input.action, input.edited));

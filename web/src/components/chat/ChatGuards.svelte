@@ -5,7 +5,7 @@
   import { onEvent } from "../../lib/events";
   import { RefreshCw } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
-  import type { ChatSettings, GuardsConfig, GuardsView } from "../../lib/types";
+  import type { ChatSettings, GuardsConfig, GuardsView, SlipInfo } from "../../lib/types";
 
   /** Phase 5 guards for one chat: the re-anchor (CON-03), voice drift (CON-10), and this chat's own switches. */
   let { chatId, settings, onupdate }: { chatId: string; settings: ChatSettings; onupdate: (patch: { settings: Partial<ChatSettings> }) => Promise<void> | void } = $props();
@@ -36,6 +36,23 @@
     const next: Partial<GuardsConfig> = { ...own };
     if (v === "") delete next[k];
     else next[k] = v as GuardsConfig[K];
+    await onupdate({ settings: { guards: next } });
+    void load();
+  }
+
+  /** P1: a check's switch. Checks with their own guard setting flip it; the rest flip `slips`. */
+  async function toggleSlip(sl: SlipInfo) {
+    const next: Partial<GuardsConfig> = { ...own };
+    const slips = { ...(own.slips ?? {}) };
+    if (sl.setting && typeof view?.config[sl.setting] === "boolean") {
+      (next as Record<string, unknown>)[sl.setting] = !sl.on;
+      delete slips[sl.id];
+    } else if (sl.setting === "names" && !sl.on && view?.config.names === "off") {
+      next.names = "flag";
+      delete slips[sl.id];
+    } else if (sl.on) slips[sl.id] = false;
+    else delete slips[sl.id];
+    next.slips = slips;
     await onupdate({ settings: { guards: next } });
     void load();
   }
@@ -179,6 +196,16 @@
         onchange={(v) => setOwn("names", v as GuardsConfig["names"] | "")}
       />
     </div>
+    <hr class="st-divider" />
+    <span class="st-k">Checks · run on every reply</span>
+    <div class="st-keys checks" role="group" aria-label="Reply checks">
+      {#each view.slips as sl (sl.id)}
+        <button class="st-key" type="button" aria-pressed={sl.on} onclick={() => toggleSlip(sl)} title={`${sl.description}${sl.on && !sl.runs ? " Waiting on another setting (the continuity checker or the leak guard)." : ""}`}>
+          <span class="st-led" class:on={sl.runs} class:warm={sl.on && !sl.runs}></span>{sl.label}
+        </button>
+      {/each}
+    </div>
+    {#if view.slips.some((x) => x.on && !x.runs)}<p class="st-hint">An amber light is switched on but waits on another setting: the continuity checker, or the leak guard (Settings › Memory).</p>{/if}
     <p class="st-hint"><a href="/settings/guards">All guard settings →</a></p>
   {/if}
 </Module>
@@ -276,5 +303,9 @@
   }
   .gap {
     margin-top: 12px;
+  }
+  .checks {
+    flex-wrap: wrap;
+    margin-top: 6px;
   }
 </style>
