@@ -290,7 +290,9 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
       const obj = PREP.test(text.slice(Math.max(0, at - 24), at));
       if (m[1]) {
         const v = byName.get(m[1]);
-        if (v) out.push(v.isUser ? { kind: "you", at, obj } : { kind: "name", v, at, obj });
+        // "Shauna's." on its own points at her things, not at her doing something.
+        const owns = /^['\u2019]s\b/.test(text.slice(at + m[1].length)) && /^['\u2019]s\s*[.,;!?\u2026\u2014]/.test(text.slice(at + m[1].length));
+        if (v) out.push(v.isUser ? { kind: "you", at, obj: obj || owns } : { kind: "name", v, at, obj: obj || owns });
       } else if (m[2]) out.push({ kind: "you", at, obj });
       else if (m[3]) out.push({ kind: "self", at, obj: obj || m[3] === "me" });
       else if (m[4]) {
@@ -312,6 +314,8 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
   };
   /** Who the last sentence of narration was about: "she" leans to them first. */
   let subject: Voice | undefined;
+  /** People the line being read talks about ("Have you seen Shauna?"): whoever says it, it isn't them. */
+  let notThem = new Set<Voice>();
   /**
    * "She" or "he": a person the prose has called that beats one it hasn't; among equals the last
    * subject wins, or `prefer` (whoever was just spoken to) when the caller says a reply is likelier.
@@ -323,7 +327,7 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
     const order = [...(subject ? [subject] : []), ...recent.slice().reverse()].filter((v, i, a) => a.indexOf(v) === i);
     const fit = (v: Voice) => (!t.g ? 1 : genderOf(v) === t.g ? 2 : genderOf(v) ? 0 : 1);
     let best: Voice | undefined;
-    for (const v of order) if (fit(v) && (!best || fit(v) > fit(best))) best = v;
+    for (const v of order) if (fit(v) && !notThem.has(v) && (!best || fit(v) > fit(best))) best = v;
     if (best && prefer && prefer !== best && fit(prefer) === fit(best) && order.includes(prefer)) return prefer;
     return best;
   };
@@ -413,7 +417,7 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
       for (const t of ts) {
         if (t.obj) continue;
         const v = resolve(t, prefer);
-        if (!v) continue;
+        if (!v || notThem.has(v)) continue;
         if (v.isUser && !own) continue;
         return v;
       }
@@ -463,9 +467,11 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
       const after = (segs[i + 1] && !segs[i + 1]!.span ? segs[i + 1]!.text : "").trim();
       const head = sentences(before).at(-1)!.slice(-200);
       const tail = after.split(/[.!?;:\u2026]\s|[.!?;:\u2026]$/)[0]!.slice(0, 120);
-      const called = vocativeIn(seg.span.textContent ?? "");
+      const line = seg.span.textContent ?? "";
+      const called = vocativeIn(line);
+      notThem = new Set(tokens(line).flatMap((t) => (t.kind === "name" ? [t.v] : [])));
       // Whoever was just spoken to is the likelier speaker when a new paragraph or a reply verb is ambiguous.
-      const answers = owedBy([lastSpeaker, called]);
+      const answers = owedBy([lastSpeaker, ...notThem]);
       const prefer = named ? undefined : answers;
       // The tag says how it was said; failing that, the beat before it. A shared tag splits at
       // "then"/"and": "she muttered, then louder," gives the first line the muttering.
@@ -473,20 +479,26 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
       const tag = tagSpeaker(after, answers);
       let who = tag.who;
       let cue = who ? tail : "";
-      if (!who && head) {
-        who = subjectOf(head, first ? prefer : undefined);
-        if (who) cue = head;
+      // The beat just before; when it's only about someone the line mentions, the sentence before that.
+      for (const beat of sentences(before).slice(-3).reverse()) {
+        if (who || !beat.trim()) break;
+        who = subjectOf(beat.slice(-200), first ? prefer : undefined);
+        if (who) cue = beat;
+        if (!notThem.size) break;
       }
       // A beat right after a line that opens its paragraph: "“Fine.” Wren turned away."
       if (!who && !blockSpeaker && tail && first) {
         who = subjectOf(tail, prefer);
         if (who) cue = tail;
       }
-      if (who && who === called && who !== STRANGER) who = undefined; // nobody calls their own name
-      if (!who && blockSpeaker && blockSpeaker !== called) who = blockSpeaker;
+      // Nobody calls their own name or asks where they are, unless a tag plainly says so.
+      if (who && !tag.who && notThem.has(who)) who = undefined;
+      if (who && who === called && who !== STRANGER) who = undefined;
+      if (!who && blockSpeaker && !notThem.has(blockSpeaker)) who = blockSpeaker;
       if (!who && first && answers) who = answers; // answering whoever was just spoken to
-      if (!who && lastSpeaker && prevSpeaker && lastSpeaker !== prevSpeaker && prevSpeaker !== called) who = prevSpeaker; // back and forth
-      if (!who) who = self !== called ? self : undefined;
+      if (!who && lastSpeaker && prevSpeaker && lastSpeaker !== prevSpeaker && !notThem.has(prevSpeaker)) who = prevSpeaker; // back and forth
+      if (!who && self && !notThem.has(self)) who = self;
+      notThem = new Set();
       if (!who) return;
       const tex = texture(how);
       if (who === STRANGER) {
