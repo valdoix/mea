@@ -71,6 +71,12 @@ function skyAt(t: number): [RGB, RGB] {
   return [SKY[0]![1], SKY[0]![2]];
 }
 
+/** J1: the sky's top and horizon colours at an hour (0–24), for the scene plates. */
+export function skyColors(hour: number): [string, string] {
+  const [a, b] = skyAt(((hour % 24) + 24) % 24);
+  return [rgb(a), rgb(b)];
+}
+
 const WX: Record<Weather, Record<"cloud" | "rain" | "snow" | "fog" | "storm" | "wind", number>> = {
   clear: { cloud: 0.08, rain: 0, snow: 0, fog: 0, storm: 0, wind: 0.1 },
   cloudy: { cloud: 0.85, rain: 0, snow: 0, fog: 0.1, storm: 0, wind: 0.25 },
