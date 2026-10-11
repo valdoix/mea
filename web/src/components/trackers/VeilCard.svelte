@@ -7,7 +7,7 @@
    * what they show; their latest thought stays blurred until held; their drives point like a
    * compass; their journal is a diary to page through.
    */
-  let { char, color, calendar = "gregorian" }: { char: TrackerCharacter; color: string; calendar?: "gregorian" | "westeros" } = $props();
+  let { char, color, calendar = "gregorian" }: { char: TrackerCharacter; color: string; calendar?: string } = $props();
 
   let lift = $state(0);
   let held = $state(0);

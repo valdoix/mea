@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
+  import CalendarBuilder from "../trackers/CalendarBuilder.svelte";
   import { get, post } from "../../lib/api";
   import { ArrowLeft, Sparkles } from "../../lib/icons";
   import { setupState } from "../../lib/setup.svelte";
@@ -19,7 +20,7 @@
     difficulty: string;
     intimacy: string;
     limits: string[];
-    world: { calendar?: "gregorian" | "westeros"; climate?: string; tech?: "modern" | "historic" | "fantasy" | "future"; start?: string };
+    world: { calendar?: string; climate?: string; tech?: "modern" | "historic" | "fantasy" | "future"; start?: string };
     canon: { source?: string; point?: string };
     trackers: { mode?: "helper" | "inline" | "off"; sections?: Record<string, boolean> };
     look: { accent?: boolean; music?: boolean };
@@ -30,7 +31,7 @@
     done: boolean;
     show: boolean;
     usual: boolean;
-    options: { genres: Opt[]; tones: string[]; persona: Opt[]; romance: Opt[]; difficulty: Opt[]; intimacy: Opt[]; limits: string[]; sections: string[] };
+    options: { genres: Opt[]; tones: string[]; persona: Opt[]; romance: Opt[]; difficulty: Opt[]; intimacy: Opt[]; limits: string[]; sections: string[]; calendars: Opt[] };
   }
   let { chatId, onapplied }: { chatId: string; onapplied?: () => void } = $props();
 
@@ -41,6 +42,27 @@
   let preview = $state("");
   let previewing = $state(false);
   let customLimit = $state("");
+  // G1: build a calendar right from the World page.
+  let building = $state(false);
+  let away = false;
+  function startBuild() {
+    // One sheet at a time: setup steps aside while the builder is open, then comes back.
+    away = true;
+    setupState.open = false;
+    building = true;
+  }
+  $effect(() => {
+    if (!building && away) {
+      away = false;
+      setupState.chatId = chatId;
+      setupState.open = true;
+    }
+  });
+  function built(c: { id: string; name: string }) {
+    if (!view || !a) return;
+    view.options.calendars = [...view.options.calendars.filter((x) => x.value !== `custom:${c.id}`), { value: `custom:${c.id}`, label: c.name }];
+    a.world.calendar = `custom:${c.id}`;
+  }
 
   const PAGES = ["Genres", "Tone and pace", "Who writes your character", "Romance pace", "Difficulty", "Intimacy and hard limits", "World", "Canon", "Trackers to show", "Look"] as const;
   const SECTION_LABEL: Record<string, string> = { scene: "Scene", cast: "People here", body: "Bodies", bonds: "Bonds", romance: "Romance", knowledge: "Who knows what", items: "Things", threads: "Threads", stakes: "Stakes", calendar: "Calendar", motifs: "Motifs" };
@@ -145,7 +167,7 @@
   const hint = (label: string) => label.split(" — ")[1] ?? "";
 </script>
 
-<Modal bind:open={open.value} title={view?.done ? "Story setup" : "Let's set up the story"} size="md" onclose={() => view && !view.done && void post(`/api/chats/${chatId}/setup/skip`, {}).catch(() => {})}>
+<Modal bind:open={open.value} title={view?.done ? "Story setup" : "Let's set up the story"} size="md" onclose={() => !away && view && !view.done && void post(`/api/chats/${chatId}/setup/skip`, {}).catch(() => {})}>
   {#if a && view}
     <div class="sz">
       <div class="steps" role="tablist" aria-label="Setup pages">
@@ -187,11 +209,14 @@
         <div class="row"><input class="input grow" bind:value={customLimit} placeholder="Another limit" maxlength="60" onkeydown={(e) => e.key === "Enter" && addLimit()} aria-label="Another hard limit" /><button type="button" class="btn small" onclick={addLimit} disabled={!customLimit.trim()}>Add</button></div>
       {:else if page === 6}
         <span class="label">Calendar</span>
-        <div class="chips">{#each [["gregorian", "Our calendar"], ["westeros", "Westeros"]] as [v, l] (v)}<button type="button" class="chip" class:on={a.world.calendar === v} aria-pressed={a.world.calendar === v} onclick={() => a && (a.world.calendar = v as "gregorian")}>{l}</button>{/each}</div>
+        <div class="chips">
+          {#each view.options.calendars as cal (cal.value)}<button type="button" class="chip" class:on={a.world.calendar === cal.value} aria-pressed={a.world.calendar === cal.value} onclick={() => a && (a.world.calendar = cal.value)}>{cal.label}</button>{/each}
+          <button type="button" class="chip add" onclick={startBuild}>+ Build my own</button>
+        </div>
         <span class="label">The world</span>
         <div class="chips">{#each [["modern", "Modern"], ["historic", "Historic"], ["fantasy", "Fantasy"], ["future", "Future"]] as [v, l] (v)}<button type="button" class="chip" class:on={a.world.tech === v} aria-pressed={a.world.tech === v} onclick={() => a && (a.world.tech = v as "modern")}>{l}</button>{/each}</div>
         <label class="field"><span class="label">Climate</span><input class="input" bind:value={a.world.climate} placeholder="maritime, desert, subarctic…" maxlength="80" /></label>
-        <label class="field"><span class="label">The story starts</span><input class="input" bind:value={a.world.start} placeholder="Day 1 20:00, or 14 March 1889 09:00" maxlength="60" /></label>
+        <label class="field"><span class="label">The story starts</span><input class="input" bind:value={a.world.start} placeholder={a.world.calendar?.startsWith("custom:") ? "14 Thaw 1372 09:00 (in this calendar)" : "Day 1 20:00, or 14 March 1889 09:00"} maxlength="60" /></label>
       {:else if page === 7}
         <p class="tiny muted">For a story set in a book, show or game: where it stands, so later events aren't spoiled.</p>
         <label class="field"><span class="label">Source</span><input class="input" bind:value={a.canon.source} placeholder="Leave empty for an original story" maxlength="120" /></label>
@@ -222,6 +247,8 @@
     <button class="btn primary" onclick={finish} disabled={saving}>{view?.done ? "Save" : "Done"}</button>
   {/snippet}
 </Modal>
+
+<CalendarBuilder bind:open={building} onsaved={built} />
 
 <style>
   .sz {
@@ -269,6 +296,9 @@
     padding: 0.3rem 0.65rem;
     border-radius: 999px;
     font-size: 0.85rem;
+  }
+  .chip.add {
+    border-style: dashed;
   }
   .chip.on {
     background: var(--accent);

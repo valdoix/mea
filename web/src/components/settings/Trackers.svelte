@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { calendars, loadCalendars } from "../../lib/customcal.svelte";
   import Modal from "../Modal.svelte";
   import Segmented from "../Segmented.svelte";
   import { api, del, download, get, post, put } from "../../lib/api";
@@ -104,6 +105,9 @@
       errorToast(e);
     }
   }
+  $effect(() => {
+    void loadCalendars();
+  });
 </script>
 
 <div class="stack">
@@ -140,6 +144,7 @@
         <span class="label">Calendar</span>
         <select class="select" value={defaults.calendar ?? "gregorian"} onchange={(e) => setDefault("calendar", e.currentTarget.value as TrackerConfig["calendar"])}>
           <option value="gregorian">Gregorian</option><option value="westeros">Westeros (AC, moons)</option>
+          {#each calendars.list as c (c.id)}<option value={`custom:${c.id}`}>{c.name}</option>{/each}
         </select>
         <span class="hint">how story dates read; a chat or character can change it</span>
       </label>

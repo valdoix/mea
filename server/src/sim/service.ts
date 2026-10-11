@@ -1,4 +1,6 @@
 import { one, parseJson } from "../db/db";
+import { customOf } from "../trackers/customcal";
+import { trackerConfig } from "../trackers/store";
 import { badRequest, notFound } from "../lib/http";
 import { getSetting } from "../lib/settings";
 import { scanEntriesFor } from "../lore/service";
@@ -90,7 +92,8 @@ export function rosterFor(chatId: string, state: WorldState): Roster {
 function skyInput(chatId: string, state: WorldState, cfg: ResolvedWorldConfig): SkyInput | null {
   if (!state.time) return null;
   const anchorSeq = state.weather?.seq;
-  return { seed: chatId, minutes: state.time.minutes, form: state.time.form, climate: cfg.climate, latitude: cfg.latitude, anchor: state.weather && anchorSeq != null ? { minutes: state.time.minutes - 30, text: state.weather.now } : null };
+  const custom = customOf(trackerConfig(chatId).calendar);
+  return { seed: chatId, minutes: state.time.minutes, form: state.time.form, climate: cfg.climate, latitude: cfg.latitude, anchor: state.weather && anchorSeq != null ? { minutes: state.time.minutes - 30, text: state.weather.now } : null, ...(custom?.moons.length ? { moons: custom.moons } : {}) };
 }
 
 function recentNames(chatId: string): Set<string> {

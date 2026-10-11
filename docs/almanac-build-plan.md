@@ -353,6 +353,8 @@ Every Desk button and selection aside has a Meus change kind (`timeskip` exists;
 
 **How it's built:** extend `CalendarId` into data-driven definitions in `trackers/calendars.ts` and `web/src/lib/storytime.ts`, stored in `calendars_custom`. Moon phases feed `sim/sky.ts`.
 
+> **Decision (build):** the shipped fantasy calendar stays **Westeros only**. Roshar, Harptos and Shire Reckoning are not added; the calendar builder covers any other world (`trackers/customcal.ts`, `custom:<id>` calendars).
+
 ### G2. Relationship graph with a time slider
 
 **What you get:** the server already builds `entityGraph(chatId, { atSeq })`. This gives it a screen.

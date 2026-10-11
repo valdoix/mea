@@ -28,7 +28,8 @@ export const trackerConfigSchema = z.object({
   budget: z.number().int().min(100).max(4000).optional(),
   quietAfter: z.number().int().min(5).max(500).optional(),
   nudges: z.boolean().optional(),
-  calendar: z.enum(["gregorian", "westeros"]).optional(),
+  /** Gregorian, Westeros, or one you built (G1: "custom:<id>"). */
+  calendar: z.union([z.enum(["gregorian", "westeros"]), z.string().regex(/^custom:[\w-]{1,40}$/)]).optional(),
   /** Westeros seasons last for years, so the chat states its own ("a long summer, its ninth year"). */
   season: z.string().max(80).optional(),
 });

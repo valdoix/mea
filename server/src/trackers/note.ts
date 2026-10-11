@@ -203,7 +203,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   // NOW
   if (on(o, "scene")) {
     const now: string[] = [];
-    if (st.time && o.calendar === "westeros") now.push(noteTime(st.time, "westeros", o.season));
+    const named = st.time && o.calendar && o.calendar !== "gregorian" ? noteTime(st.time, o.calendar, o.season) : "";
+    if (named) now.push(named);
     else if (st.time) now.push(`${shortStoryTime(formatStoryTime(st.time))}${timeOfDay(formatStoryTime(st.time)) ? ` (${timeOfDay(formatStoryTime(st.time))})` : ""}`);
     if (st.weather) now.push(st.weather.now);
     if (st.place.length) now.push(st.place.join(" › "));

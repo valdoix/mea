@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
+import { deleteCustomCalendar, listCustomCalendars, saveCustomCalendar } from "../trackers/customcal";
 import { bondsReport, deskCue, deskView, recapSince, secretsReport, storyAudit, threadsReport } from "../steer/desk";
 import { body } from "../lib/http";
 import { applySetup, previewOpening, saveUsual, setupSchema, setupView, skipSetup, usual } from "../services/setup";
@@ -87,4 +88,14 @@ desk.post("/chats/:id/aside", async (c) => {
     }),
   );
   return c.json({ filing: fileAside(c.req.param("id"), b) });
+});
+
+// ---------- G1: calendars you build ----------
+
+desk.get("/calendars", (c) => c.json({ calendars: listCustomCalendars() }));
+desk.post("/calendars", async (c) => c.json({ calendar: saveCustomCalendar(await c.req.json()) }));
+desk.put("/calendars/:cid", async (c) => c.json({ calendar: saveCustomCalendar(await c.req.json(), c.req.param("cid")) }));
+desk.delete("/calendars/:cid", (c) => {
+  deleteCustomCalendar(c.req.param("cid"));
+  return c.json({ ok: true });
 });

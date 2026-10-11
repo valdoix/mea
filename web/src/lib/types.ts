@@ -1370,7 +1370,7 @@ export interface TrackerConfig {
   budget: number;
   quietAfter: number;
   nudges: boolean;
-  calendar: "gregorian" | "westeros";
+  calendar: "gregorian" | "westeros" | `custom:${string}`;
   season: string;
   /** Settings the chat's preset decides through its Persona and Romance pace controls. */
   dialed?: ("sealed" | "romance")[];
@@ -1393,7 +1393,7 @@ export interface CastProfile {
 }
 
 export interface StoryWhen {
-  calendar: "gregorian" | "westeros";
+  calendar: "gregorian" | "westeros" | `custom:${string}`;
   form: "date" | "day";
   label: string;
   date: string;

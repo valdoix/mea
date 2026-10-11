@@ -119,7 +119,7 @@ Write nothing else: no commentary, no code fences, no headings. If nothing chang
 export function initPrompt(o: { userName: string; charName: string; card: string; persona: string; greeting: string; templates: Template[]; sealed: boolean; calendar?: CalendarId }) {
   const system = `You set up the starting state of a roleplay's story ledger from the character card and the opening message. ${o.userName} is the user's character; ${o.charName} is the card's character.
 Write the STARTING STATE as ledger lines:
-- clock (an absolute time: a date if the story gives one, else Day 1 with the likely hour${o.calendar === "westeros" ? "; " + calendarHint("westeros") : ""}), wx, at, cast (who is present in the opening), scene title.
+- clock (an absolute time: a date if the story gives one, else Day 1 with the likely hour${o.calendar && o.calendar !== "gregorian" ? "; " + calendarHint(o.calendar) : ""}), wx, at, cast (who is present in the opening), scene title.
 - For each person present: mood, look, trait (only lasting features the card states: eyes, hair, build, scars, voice, age), drive (their want and fear).
 - Bonds the card establishes (with axes and a label), the romance rung if the card states one, items people carry, open threads the premise sets up, secrets the card states.
 ${o.templates.length ? `- Custom trackers: set every field you can infer (${o.templates.map((t) => t.key).join(", ")}).\n` : ""}- Causes for starting lines may be "from the card".${o.sealed ? `\n- Never write ${o.userName}'s mood, thoughts or feelings.` : ""}

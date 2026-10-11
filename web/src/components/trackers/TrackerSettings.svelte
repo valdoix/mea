@@ -1,4 +1,6 @@
 <script lang="ts">
+  import CalendarBuilder from "./CalendarBuilder.svelte";
+  import { calendarDef, calendars, type CustomCalendar, loadCalendars } from "../../lib/customcal.svelte";
   import Modal from "../Modal.svelte";
   import Segmented from "../Segmented.svelte";
   import { get, patch, post, put } from "../../lib/api";
@@ -83,6 +85,12 @@
       errorToast(e);
     }
   }
+  // G1: calendars you build.
+  let building = $state(false);
+  let editingCal = $state<(CustomCalendar & { id: string }) | null>(null);
+  $effect(() => {
+    void loadCalendars();
+  });
 </script>
 
 <Modal bind:open title="Trackers for this chat" size="md">
@@ -131,9 +139,14 @@
             <select class="select" bind:value={cfg.calendar} onchange={save}>
               <option value="gregorian">Gregorian</option>
               <option value="westeros">Westeros (AC, moons)</option>
+              {#each calendars.list as c (c.id)}<option value={`custom:${c.id}`}>{c.name}</option>{/each}
             </select>
+            <span class="row">
+              <button type="button" class="btn ghost small" onclick={() => ((editingCal = null), (building = true))}>Build my own</button>
+              {#if calendarDef(cfg.calendar)}<button type="button" class="btn ghost small" onclick={() => ((editingCal = calendarDef(cfg?.calendar)), (building = true))}>Edit this calendar</button>{/if}
+            </span>
           </label>
-          {#if cfg.calendar === "westeros"}
+          {#if cfg.calendar === "westeros" || calendarDef(cfg.calendar)?.storySeasons}
             <label class="field"><span class="label">Season</span><input class="input" bind:value={cfg.season} maxlength="80" placeholder="a long summer, its ninth year" onchange={save} /><span class="hint">Westeros seasons last for years, so say which one it is</span></label>
           {/if}
           <label class="field"><span class="label">Prompt budget</span><input class="input" type="number" min="100" max="4000" step="50" bind:value={cfg.budget} onchange={save} /><span class="hint">tokens{note ? ` · now ${note.tokens}` : ""}</span></label>
@@ -176,6 +189,8 @@
     <button class="btn primary small" onclick={() => (open = false)}>Done</button>
   {/snippet}
 </Modal>
+
+<CalendarBuilder bind:open={building} initial={editingCal} onsaved={(c) => cfg && ((cfg.calendar = `custom:${c.id}`), save())} />
 
 <style>
   .grid {

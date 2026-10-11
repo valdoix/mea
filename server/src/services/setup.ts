@@ -6,6 +6,7 @@ import { controlValues } from "../prompt/preset";
 import { canonOf, setCanon } from "../accuracy/canoncut";
 import { shortStoryTime, formatStoryTime } from "../trackers/clock";
 import { currentFold, linesToOps } from "../trackers/store";
+import { customOf, listCustomCalendars, parseCustomDate } from "../trackers/customcal";
 import { userEditAt } from "../trackers/service";
 import { getCard } from "./characters";
 import { type ChatSettings, mustChat, updateChat } from "./chats";
@@ -32,7 +33,7 @@ export const setupSchema = z.object({
   difficulty: s(30),
   intimacy: s(30),
   limits: z.array(s(60)).max(20),
-  world: z.object({ calendar: z.enum(["gregorian", "westeros"]), climate: s(80), tech: z.enum(["modern", "historic", "fantasy", "future"]), start: s(60) }).partial(),
+  world: z.object({ calendar: z.union([z.enum(["gregorian", "westeros"]), z.string().regex(/^custom:[\w-]{1,40}$/)]), climate: s(80), tech: z.enum(["modern", "historic", "fantasy", "future"]), start: s(60) }).partial(),
   canon: z.object({ source: s(120), point: s(200) }).partial(),
   trackers: z.object({ mode: z.enum(["helper", "inline", "off"]), sections: z.record(z.string(), z.boolean()) }).partial(),
   look: z.object({ accent: z.boolean(), music: z.boolean() }).partial(),
@@ -73,6 +74,7 @@ export function setupOptions(chatId: string) {
     intimacy: choices("intimacy"),
     limits: LIMIT_CHIPS,
     sections: TRACKER_SECTIONS,
+    calendars: [{ value: "gregorian", label: "Our calendar" }, { value: "westeros", label: "Westeros" }, ...listCustomCalendars().map((c) => ({ value: `custom:${c.id}`, label: c.name }))],
   };
 }
 
@@ -180,7 +182,12 @@ export function applySetup(chatId: string, input: SetupAnswers) {
   });
   if (answers.canon.source != null && (answers.canon.source !== (canonOf(chatId).source ?? "") || (answers.canon.point ?? "") !== (canonOf(chatId).point ?? ""))) setCanon(chatId, { ...canonOf(chatId), source: answers.canon.source, point: answers.canon.point ?? "" });
   const lines: string[] = [];
-  if (answers.world.start && answers.world.start !== before.answers.world.start) lines.push(`clock: ${answers.world.start}`);
+  if (answers.world.start && answers.world.start !== before.answers.world.start) {
+    // G1: a start date in a calendar you built is read in that calendar.
+    const custom = customOf(answers.world.calendar);
+    const at = custom ? parseCustomDate(custom, answers.world.start) : null;
+    lines.push(`clock: ${at != null ? formatStoryTime({ minutes: at, form: "date" }) : answers.world.start}`);
+  }
   // After the start, each change is a card on the story's timeline.
   if (before.done) for (const c of changes(before.answers, answers, before.options)) lines.push(`milestone: Story setup · ${c}`);
   if (lines.length) {

@@ -2,6 +2,8 @@
  * Story-clock arithmetic in the browser (mirrors server/src/trackers/clock.ts): minutes since
  * 0001-01-01 in "date" form. Westeros shares the same days; only the names differ.
  */
+import { calendarDef, customDate, customDateText } from "./customcal.svelte";
+
 const YEAR1 = (() => {
   const d = new Date(Date.UTC(2000, 0, 1));
   d.setUTCFullYear(1);
@@ -37,11 +39,18 @@ export function weekdayOf(year: number, month: number, day: number): number {
 export const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** A stored clock string ("0299-10-14 23:10", "Day 3 21:40") as the chat's calendar reads it. */
-export function readClock(s: string | null | undefined, calendar: "gregorian" | "westeros" = "gregorian"): string {
+export function readClock(s: string | null | undefined, calendar: string = "gregorian"): string {
   if (!s) return "";
   const m = s.match(/^(\d{1,4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}))?$/);
   if (!m) return s;
   const [y, mo, d, t] = [Number(m[1]), Number(m[2]), Number(m[3]), m[4]];
+  // G1: a calendar you built names the same day its own way.
+  const custom = calendarDef(calendar);
+  if (custom) {
+    const day = Math.round((utc(y, mo, d).getTime() - YEAR1) / 86_400_000);
+    const text = customDateText(custom, customDate(custom, day));
+    return t ? `${text} · ${t}` : text;
+  }
   const date = calendar === "westeros" ? `${ordinal(d)} of the ${ordinal(mo)} moon, ${y} AC` : `${d} ${MONTH_NAMES[mo - 1]?.slice(0, 3)} ${y}`;
   return t ? `${date} · ${t}` : date;
 }
