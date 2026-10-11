@@ -72,6 +72,13 @@ beforeAll(() => {
         const content = n % 2 ? story : `${plan}${story}`;
         return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
       }
+      if (body.model === "planonly") {
+        // The plan-only watch: the first try writes its plan out (no tags) and stops; the second writes the story.
+        const plan = "NOW — night, the lighthouse, Mira and Ash.\n\nSEAL — Ash stepped in. Reply ends on her offer.\n\nMINDS — Mira wary, hopeful.\n\nMOVE — she offers tea.\n\nVOICE — short, quiet.";
+        const story = "Mira sets the kettle on the stove without asking, and the lamp above them ticks as it turns.";
+        const content = n % 2 ? plan : story;
+        return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+      }
       if (body.model === "nodone") return sse([{ choices: [{ delta: { content: "Half a sent" } }] }]);
       if (body.model === "truncated") {
         const content = n === 1 ? '{"items":["a","b",' : '{"items":["a"]}';
@@ -416,6 +423,27 @@ describe("sending (H8, C2, H3)", () => {
     expect(reply.content).not.toContain("<think>");
     expect(reply.reasoning).toContain("MOVE — she offers tea");
     expect(JSON.parse(reply.meta).notes).toContain("asked again: the first try skipped its plan");
+  });
+
+  test("the plan-only watch: a reply that stops at its plan is written again from that plan", async () => {
+    const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    setSetting("routing.story", createProfile({ name: "Plan only", connectionId: conn, modelId: "planonly", params: {} }));
+    const chatId = newChat();
+    counts.delete("planonly");
+    const end = waitFor((e) => e.type === "gen.end" && (e as any).chatId === chatId);
+    const r = await api("POST", `/api/chats/${chatId}/send`, { content: "I step inside." });
+    expect(r.status).toBe(200);
+    expect(((await end) as any).status).toBe("done");
+    expect(counts.get("planonly")).toBe(2);
+    const bodies = all<{ request: string }>("SELECT request FROM generations WHERE chat_id = ? AND task = 'story' ORDER BY started_at", chatId).map((g) => g.request);
+    expect(bodies[1]).toContain("<director-plan>");
+    expect(bodies[1]).toContain("MOVE — she offers tea");
+    expect(bodies[1]).not.toContain("[BEFORE YOU WRITE");
+    const reply = all<{ content: string; reasoning: string | null; meta: string }>("SELECT s.content, s.reasoning, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
+    expect(reply.content).toBe("Mira sets the kettle on the stove without asking, and the lamp above them ticks as it turns.");
+    expect(reply.reasoning).toContain("MOVE — she offers tea");
+    expect(JSON.parse(reply.meta).notes).toContain("the first try wrote only its plan: the story was written from it");
   });
 
   test("the overflow retry always sends a smaller prompt (H3)", async () => {

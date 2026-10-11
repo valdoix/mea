@@ -5,7 +5,8 @@ import { setSetting, defaultMemoryConfig } from "../src/lib/settings";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat, historyForPrompt, updateChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
-import { previewPrompt } from "../src/services/generation";
+import { subscribe } from "../src/lib/events";
+import { previewPrompt, startStory } from "../src/services/generation";
 import { pauseJobs, registerJob } from "../src/services/jobs";
 import { editPlan, planFor, plannerSteps, runAdvisor, steerFor, turnKey } from "../src/steer/advisor";
 import { freshDb } from "./helpers";
@@ -58,6 +59,23 @@ describe("a separate planner model (H3)", () => {
     expect(adv?.text).toContain("<director-plan>");
     expect(adv?.text).toContain("don't open with <think>");
     expect(one<{ kind: string }>("SELECT kind FROM generations WHERE chat_id = ? AND task = 'planner'", chatId)?.kind).toBe("planner");
+  });
+
+  test("separate planner: the reply shows the planner's pass as its reasoning", async () => {
+    const ended = new Promise<void>((resolve) => {
+      const off = subscribe((e) => {
+        if (e.type === "gen.end" && e.chatId === chatId) {
+          off();
+          resolve();
+        }
+      });
+    });
+    const { messageId } = await startStory(chatId, "new");
+    await ended;
+    const s = one<{ content: string; reasoning: string | null }>("SELECT content, reasoning FROM swipes WHERE message_id = ?", messageId)!;
+    expect(s.reasoning).toStartWith("NOW — the lamp room");
+    expect(s.content).not.toContain("NOW — the lamp room");
+    run("DELETE FROM messages WHERE id = ?", messageId);
   });
 
   test("Edit the plan: the regenerated take is written from your edit", async () => {

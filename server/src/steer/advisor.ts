@@ -232,7 +232,7 @@ export function planText(p: Plan) {
  * The plan for the reply being prepared. With `wait`, a plan that isn't ready yet is waited for
  * up to the configured few seconds; without it (the inspector's preview), only a ready plan is used.
  */
-export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean }): Promise<(PromptExtra & { planner?: boolean }) | null> {
+export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean }): Promise<(PromptExtra & { planner?: boolean; pass?: string }) | null> {
   const cfg = steerFor(chatId);
   if (!cfg.advisorOn) return null;
   const key = turnKey(history);
@@ -248,7 +248,7 @@ export async function advisorExtra(chatId: string, history: HistoryMessage[], op
     if (r) plan = parseJson<Plan>(r.plan, planSchema.parse({}));
   }
   if (!plan) return null;
-  if (cfg.planner && plan.pass.trim()) return { id: "advisor", name: "Director's plan", content: directorPlanText(plan), depth: 0, planner: true };
+  if (cfg.planner && plan.pass.trim()) return { id: "advisor", name: "Director's plan", content: directorPlanText(plan), depth: 0, planner: true, pass: plan.pass.trim() };
   return { id: "advisor", name: "Advisor's plan", content: planText(plan), depth: 0 };
 }
 

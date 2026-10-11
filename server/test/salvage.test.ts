@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { vetPattern } from "../src/lib/regex";
-import { splitLeakedPlan } from "../src/services/generation";
+import { planOnly, splitLeakedPlan } from "../src/services/generation";
 import { salvageJson } from "../src/services/llm";
 import { parseEditorReply } from "../src/steer/editor";
 
@@ -40,6 +40,22 @@ describe("M17: a written-out plan leaves the story", () => {
   });
   test("ordinary prose is left alone", () => {
     for (const t of ["Now — she said — we wait.", "NOW — the bell rings.\nMira runs.", "Mira waits.\nMOVE — later"]) expect(splitLeakedPlan(t).reasoning).toBe("");
+  });
+});
+
+describe("the plan-only watch: a reply that is only its plan", () => {
+  const pass = "NOW — dusk, the lighthouse, Mira and Ash.\n\nSEAL — SAID: hello. Reply ends on her question.\n\nMOVE — she offers tea, warily.\n\nVOICE — short, quiet, no recap.";
+  test("a written-out plan, a <think> plan or the provider's reasoning with no story after it", () => {
+    expect(planOnly(pass, "")).toBe(pass);
+    expect(planOnly(`<think>${pass}</think>\n\n`, "")).toBe(pass);
+    expect(planOnly(`${pass}\n</think>`, "")).toBe(pass);
+    expect(planOnly("", pass)).toBe(pass);
+  });
+  test("a story after the plan, or a token plan, is not one", () => {
+    expect(planOnly(`${pass}\n\nMira looks up from the logbook.`, "")).toBeNull();
+    expect(planOnly("<think>NOW — dusk.</think>", "")).toBeNull();
+    expect(planOnly("", "")).toBeNull();
+    expect(planOnly("Mira looks up from the logbook.", pass)).toBeNull();
   });
 });
 

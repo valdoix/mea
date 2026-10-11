@@ -57,7 +57,7 @@ import { anchorExtra } from "../accuracy/anchor";
 import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
-import { advisorExtra, markPlanUsed, runAdvisor, turnKey } from "../steer/advisor";
+import { advisorExtra, directorPlanText, markPlanUsed, planSchema, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
 
@@ -160,6 +160,25 @@ export function splitLeakedPlan(text: string): { text: string; reasoning: string
   return { text: lines.slice(end + 1).join("\n").replace(/^\s+/, ""), reasoning: lines.slice(0, end + 1).join("\n").trim() };
 }
 
+/**
+ * The plan-only watch: a reply that is nothing but its planning pass (in <think>, written out, or
+ * in the provider's reasoning) and no story. Returns that plan, or null when there is a story.
+ */
+export function planOnly(text: string, reasoning: string): string | null {
+  let story = text;
+  let plan = reasoning;
+  for (const split of [splitThink, splitLeakedPlan]) {
+    const out = split(story);
+    if (out.reasoning) {
+      story = out.text;
+      plan = [plan, out.reasoning].filter(Boolean).join("\n\n");
+    }
+  }
+  if (story.replace(/^\s*<\/(?:think|thinking|plan|reasoning)>/i, "").trim()) return null;
+  plan = plan.trim();
+  return plan.split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS ? plan : null;
+}
+
 interface ActiveGeneration {
   id: string;
   chatId: string;
@@ -202,6 +221,8 @@ interface Prepared {
   trackers: { tokens: number; lanes: { name: string; tokens: number; dropped?: boolean }[]; inline: boolean } | null;
   /** STEER-01: the turn the advisor's plan was for (marked used once the reply is written). */
   planKey: string | null;
+  /** H3: the planning pass this reply is written from (the separate planner's, or the writer's own from a try that stopped at its plan): shown as its reasoning. */
+  plannedPass: string | null;
   /** PERF-10: where the time went before the request was sent, in ms. */
   timing: Timing;
 }
@@ -225,6 +246,8 @@ export interface PrepareOptions {
   excludeMessageId?: string;
   /** The plan watch: the last try skipped its planning pass, so this one is told plainly to start with it. */
   forcePlan?: boolean;
+  /** The plan-only watch: the last try wrote only its plan, so this one writes the story from it. */
+  writtenPlan?: string;
   draft?: string;
   feedback?: string;
   /** Use this profile instead of the chat's (fallbacks, or a paid reply you tapped for). */
@@ -338,7 +361,12 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   // H3: room for the reply as it will really be asked for (the profile's max_tokens, plus thinking).
   const reserve = resolved.provider.outputTokens?.(resolved.modelId, samplers) ?? samplers.max_tokens ?? 1200;
   // STEER-01: the advisor's private plan for this turn (usually written while you typed).
-  const plan = kind === "story" ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise) }) : null;
+  const plan =
+    kind === "story" && opts.writtenPlan
+      ? { id: "advisor", name: "Its own plan", content: directorPlanText(planSchema.parse({ pass: opts.writtenPlan })), depth: 0, planner: true, pass: opts.writtenPlan }
+      : kind === "story"
+        ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise) })
+        : null;
   const style = styleExtra(chatId);
   const advisorMs = lap();
   let memoryMs = 0;
@@ -369,7 +397,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     forcePlan: opts.forcePlan,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
-    // H3: a separate planner planned this reply: the writer's own planning pass is left out.
+    // H3: a separate planner (or the writer's last try) planned this reply: the writer's own planning pass is left out.
     skipBlocks: plan?.planner ? ["mea-planning"] : undefined,
     // H1: one ceiling for what Mea adds, cut in the order set in Settings › Memory.
     ceiling: { tokens: cfg.ceiling > 0 ? cfg.ceiling : null, order: cfg.cutOrder, keep: parseJson<ChatSettings>(chat.settings, {}).promptKeep ?? [] },
@@ -382,7 +410,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       ...chatExtras(chatId, kind, tp?.state ?? null),
       // STEER-04: the style profile joins the stable prefix.
       ...(style ? [style] : []),
-      ...(plan ? [(({ planner: _p, ...x }) => x)(plan)] : []),
+      ...(plan ? [(({ planner: _p, pass: _q, ...x }) => x)(plan)] : []),
       // A2: a swipe hears what every earlier take of this reply did, so it doesn't drift back to one.
       ...(kind === "story" && opts.excludeMessageId ? [{ id: "swipe-digest", name: "Earlier takes", content: digestNote(rejectedDigest(opts.excludeMessageId)), depth: 0 } satisfies PromptExtra] : []),
       // P1: the Almanac features' prompt lanes (prompt/lanes.ts), each named in the Inspector.
@@ -415,7 +443,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan ? turnKey(history) : null, timing };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -565,6 +593,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   let overflowRetried = false;
   let smartRetried = false;
   let planRetried = false;
+  let planOnlyRetried = false;
   let backedOff = false;
   const notes: string[] = [];
 
@@ -628,6 +657,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (out.reasoning) addReasoning(out.reasoning);
         if (out.text) addText(out.text);
       };
+      // H3: a reply written from a finished plan shows that plan as its reasoning.
+      if (p.plannedPass && !gen.reasoning.trim()) addReasoning(`${p.plannedPass}\n\n`);
       try {
         const result = await p.resolved.provider.stream(
           { model: p.resolved.modelId, messages: p.assembled.messages, params: p.samplers, signal: attempt.signal, cache: p.cache },
@@ -649,8 +680,27 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         usage = result.usage;
         finishReason = result.finishReason;
         sentBody = result.sentBody;
-        // CONN-09: an empty reply or a refusal gets one more try (the next model in the chain if there is one).
         const written = gen.text.slice(baseText.length);
+        // The plan-only watch: the writer planned and stopped there, with no story. Once, the story
+        // is asked for again with that plan as the finished plan, so the next try writes only prose.
+        const planned = action !== "continue" && p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included);
+        const leftover = planned && !planOnlyRetried && !gen.abort.signal.aborted ? planOnly(written, gen.reasoning) : null;
+        if (leftover) {
+          planOnlyRetried = true;
+          finishRequest(requestId, { status: "error", error: "retried: the reply was only its plan", usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+          p = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, writtenPlan: leftover });
+          notes.push("the first try wrote only its plan: the story was written from it");
+          gen.text = baseText;
+          gen.reasoning = `${leftover}\n\n`;
+          pendingText = "";
+          pendingReasoning = "";
+          first_ = true;
+          firstTokenAt = null;
+          publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reasoning: gen.reasoning, reset: true });
+          requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
+          continue;
+        }
+        // CONN-09: an empty reply or a refusal gets one more try (the next model in the chain if there is one).
         const retry = getSetting("chat.retry");
         const why = !written.trim() && retry.empty ? "empty reply" : retry.refusal && looksLikeRefusal(written) ? "refusal" : null;
         if (why && !smartRetried && !gen.abort.signal.aborted) {
@@ -806,7 +856,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   try {
     updateSwipe(gen.messageId, gen.swipeIdx, {
       content: text,
-      reasoning: reasoning || null,
+      reasoning: reasoning.trim() || null,
       status: finalStatus,
       error: status === "error" ? (error ?? "Unknown error") : null,
       meta: {

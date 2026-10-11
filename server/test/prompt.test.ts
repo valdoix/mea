@@ -174,7 +174,7 @@ describe("Mea's default preset", () => {
   test("per-model notes follow the model's family", () => {
     expect(all({ modelId: "claude-sonnet-5" })).toContain("Write the <think> block first, in plain fragments");
     expect(all({ modelId: "anthropic/claude-opus-4-7", providerReasoning: true })).toContain("Extended thinking is the planning pass");
-    expect(all({ modelId: "deepseek-r1" })).toContain("stop at VOICE");
+    expect(all({ modelId: "deepseek-r1" })).toContain("end the plan at VOICE, then write the story");
     expect(all({ modelId: "qwen3-235b" })).toContain("never in a code fence");
     expect(all({ modelId: "test" })).not.toContain("[MODEL]");
     expect(all({ kind: "impersonate", modelId: "claude-sonnet-5" })).not.toContain("[MODEL]");
