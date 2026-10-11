@@ -113,6 +113,8 @@ export interface ChatSettings {
   personaVariantId?: string | null;
   /** Phase 5: this chat's own guard settings over the global ones. */
   guards?: Partial<GuardsConfig>;
+  /** C1: the canon cutoff (edited in the Chat tab's Canon card). */
+  canon?: Record<string, unknown>;
   /** STEER-01 / STEER-03 (null = the global default). */
   advisor?: boolean | null;
   editor?: "off" | "flagged" | "every" | null;

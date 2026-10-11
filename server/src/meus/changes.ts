@@ -20,6 +20,7 @@ import { userEditAt, timeskip } from "../trackers/service";
 import { castKey, castProfiles, currentFold, deleteEvent, dryRunOps, linesToOps, moveCastProfile, saveCastProfile } from "../trackers/store";
 import { parseDuration } from "../trackers/clock";
 import { addLesson, deleteLesson, getLesson, lessonsFor, updateLesson } from "../steer/lessons";
+import { canonOf, type CanonSettings, laterItem, setCanon } from "../accuracy/canoncut";
 import { createOffpage, deleteOffpage, getOffpage, type HintBudget, listOffpage, updateOffpage } from "../accuracy/offpage";
 
 /**
@@ -46,7 +47,8 @@ export const CHANGE_KINDS = [
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
   '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off;',
-  '{"kind": "secret_offpage", "label": "the secret, in a sentence", "never_say": ["words the narration must not use yet"], "hint_as": "how the story may hint at it", "hints": "never|rarely|building"} keeps a secret off the page (the narration doesn’t state it); {"kind": "secret_offpage", "id": "<off-page id>", "status": "revealed|kept", "never_say": […]} reveals one, or changes it.',
+  '{"kind": "secret_offpage", "label": "the secret, in a sentence", "never_say": ["words the narration must not use yet"], "hint_as": "how the story may hint at it", "hints": "never|rarely|building"} keeps a secret off the page (the narration doesn’t state it); {"kind": "secret_offpage", "id": "<off-page id>", "status": "revealed|kept", "never_say": […]} reveals one, or changes it;',
+  '{"kind": "canon", "source": "the work", "point": "where the story stands in it", "later": [{"kind": "event|character|reveal|term", "text": "…", "terms": ["words that give it away"]}], "wont": ["canon events that won’t happen in this story"], "remove": ["text of a later or wont item"]} changes the canon cutoff (only what changes).',
 ].join(" ");
 
 /** Kinds the story can't redo by itself, or that Undo can't take back: never pre-ticked. */
@@ -545,6 +547,38 @@ ${status}` : ""}`, data: { patch, why } });
       out.push({ kind, target: "", label: "Keep a secret off the page", before: "", after: `${label}${never?.length ? `
 never say: ${never.join(", ")}` : ""}${str(c.hint_as) ? `
 may hint as: ${str(c.hint_as)}` : ""}`, data: { label, neverSay: never ?? [], hintAs: str(c.hint_as), hints: hints ?? "rarely", why } });
+    } else if (kind === "canon") {
+      // C1: the canon cutoff, as a whole new value (Undo puts the old one back).
+      const cur = canonOf(chatId);
+      const next = { ...cur };
+      const shown: string[] = [];
+      if (str(c.source) && str(c.source) !== (cur.source ?? "")) {
+        next.source = str(c.source).slice(0, 120);
+        shown.push(`Source: ${next.source}`);
+      }
+      if (str(c.point) && str(c.point) !== (cur.point ?? "")) {
+        next.point = str(c.point).slice(0, 200);
+        shown.push(`Stands at: ${next.point}`);
+      }
+      const adds = (Array.isArray(c.later) ? c.later : []).map((x) => (typeof x === "string" ? { kind: "event", text: x } : (x as Raw))).filter((x) => str(x.text));
+      if (adds.length) {
+        next.later = [...(cur.later ?? []), ...adds.slice(0, 20).map((x) => laterItem((["event", "character", "reveal", "term"].includes(str(x.kind)) ? str(x.kind) : "event") as "event", str(x.text), strs(x.terms) ?? []))];
+        shown.push(...adds.slice(0, 20).map((x) => `Hasn't happened: ${str(x.text)}`));
+      }
+      const wont = strs(c.wont) ?? [];
+      if (wont.length) {
+        next.wont = [...(cur.wont ?? []), ...wont.map((t) => ({ id: newId().slice(0, 8), text: t.slice(0, 300) }))];
+        shown.push(...wont.map((t) => `Won't happen here: ${t}`));
+      }
+      const remove = (strs(c.remove) ?? []).map((t) => t.toLowerCase());
+      if (remove.length) {
+        const hit = (i: { id: string; text: string }) => remove.includes(i.id.toLowerCase()) || remove.includes(i.text.toLowerCase());
+        next.later = (next.later ?? []).filter((i) => !hit(i));
+        next.wont = (next.wont ?? []).filter((i) => !hit(i));
+        shown.push(`Removed: ${remove.join(", ")}`);
+      }
+      if (!shown.length) continue;
+      out.push({ kind, target: "", label: "Canon cutoff", before: "", after: shown.join("\n"), data: { next, why } });
     } else if (kind) dropped.push(`Meus can't make "${kind}" changes yet`);
   }
   return { changes: out, dropped };
@@ -747,6 +781,11 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
         return [{ t: "lessonStatus", id: c.target, status: prev }];
       }
       return [{ t: "lessonDrop", id: addLesson(chatId, { text: c.after, scope: (d.scope as "story") ?? "story", why: String(d.why ?? ""), by: "user", from: "meus" }).id }];
+    }
+    case "canon": {
+      const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
+      setCanon(chatId, d.next as CanonSettings);
+      return [{ t: "settings", patch: { canon: s.canon ?? {}, truths: s.truths ?? [] } }];
     }
     case "secret_offpage": {
       if (c.target) {

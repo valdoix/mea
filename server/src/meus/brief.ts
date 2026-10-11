@@ -1,5 +1,6 @@
 import { lessonsFor } from "../steer/lessons";
 import { listOffpage } from "../accuracy/offpage";
+import { canonOf } from "../accuracy/canoncut";
 import { all, parseJson } from "../db/db";
 import { inboxCount } from "../accuracy/inbox";
 import { getSetting } from "../lib/settings";
@@ -103,6 +104,7 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     guidanceLine(settings),
     lessonLines(chatId),
     offpageLines(chatId),
+    canonLine(chatId),
   ].filter(Boolean);
   if (steer.length) blocks.push(`HOW THE STORY IS STEERED:\n${steer.join("\n")}`);
 
@@ -181,6 +183,17 @@ function offpageLines(chatId: string) {
     const list = listOffpage(chatId);
     if (!list.length) return "";
     return `Secrets kept off the page (the narration doesn't state them yet):\n${list.map((o) => `  - [${o.id}] ${o.label}${o.neverSay.length ? ` · never say: ${o.neverSay.join(", ")}` : ""} (${o.status}${o.due ? ", ready to come out" : ""})`).join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
+/** C1: the canon cutoff, briefly. */
+function canonLine(chatId: string) {
+  try {
+    const c = canonOf(chatId);
+    if (!c.source?.trim() && !c.later?.length && !c.wont?.length) return "";
+    return `Canon cutoff: ${c.source ?? "?"}${c.point ? `, at ${c.point}` : ""}${c.later?.length ? `; hasn't happened yet: ${c.later.map((i) => i.text).slice(0, 15).join("; ")}` : ""}${c.wont?.length ? `; won't happen here: ${c.wont.map((w) => w.text).join("; ")}` : ""}`;
   } catch {
     return "";
   }

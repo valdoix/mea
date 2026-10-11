@@ -50,6 +50,19 @@ export const worldConfigSchema = z.object({
 });
 export type WorldConfig = z.infer<typeof worldConfigSchema>;
 
+/** C1: the canon cutoff (accuracy/canoncut.ts). */
+const canonItem = z.object({ id: z.string().max(40), kind: z.enum(["event", "character", "reveal", "term"]), text: z.string().max(300), terms: z.array(z.string().max(60)).max(12), source: z.string().max(200).optional() });
+export const canonSchema = z
+  .object({
+    source: z.string().max(120),
+    point: z.string().max(200),
+    later: z.array(canonItem).max(150),
+    wont: z.array(z.object({ id: z.string().max(40), text: z.string().max(300) })).max(60),
+    proposed: z.array(canonItem).max(150),
+    notYet: z.array(z.string().max(40)).max(150),
+  })
+  .partial();
+
 export const chatSettingsSchema = z.object({
   authorsNote: z.object({ content: z.string(), depth: z.number().int().min(0).max(100), role: z.enum(["system", "user", "assistant"]) }).optional(),
   profileId: z.string().nullable().optional(),
@@ -99,6 +112,8 @@ export const chatSettingsSchema = z.object({
     })
     .partial()
     .optional(),
+  /** C1: where the story stands in its source, and what hasn't happened yet. */
+  canon: canonSchema.optional(),
   /** STEER-04: the style profile, over the character's. */
   style: z
     .object({
