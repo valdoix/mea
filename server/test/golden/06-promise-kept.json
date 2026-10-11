@@ -1,0 +1,33 @@
+{
+  "name": "promise-kept",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "A promise kept: a meeting with both there in time is kept, and trust rises.",
+  "ledger": [
+    "clock: Day 1 20:00",
+    "at: Port Ellis › The Bronze",
+    "cast: Mira@spot · Ash@spot",
+    "promise Mira>Ash: be at the Bronze | meet @ The Bronze [due Day 1 21:00]"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I wait at the Bronze."
+    }
+  ],
+  "after": {
+    "lines": [
+      "clock: Day 1 20:55",
+      "cast: Mira@spot"
+    ],
+    "expect": [
+      {
+        "path": "obligations.*.status",
+        "equals": "kept"
+      }
+    ]
+  }
+}

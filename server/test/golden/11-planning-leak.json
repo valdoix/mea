@@ -1,0 +1,41 @@
+{
+  "name": "planning-leak",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Planning: the writer's planning pass is in the prompt, and never leaks into the reply.",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I ask her why she stays."
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "[BEFORE YOU WRITE"
+    ],
+    "lacks": [
+      "<director-plan>"
+    ]
+  },
+  "reply": "Mira turns the mug in her hands. \"Someone has to keep the light,\" she says.",
+  "forbid": [
+    "planning"
+  ],
+  "bad": [
+    {
+      "reply": "[BEFORE YOU WRITE]\nNOW — the lamp room, night.\nSEAL — Ash asked a question.\nMOVE — answer honestly.\nVOICE — short.\n\nMira turns the mug in her hands.",
+      "expect": [
+        "planning"
+      ]
+    }
+  ]
+}

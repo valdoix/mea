@@ -1,0 +1,33 @@
+{
+  "name": "agency",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Agency: the reply never writes the player's character.",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I shake the rain off my coat."
+    }
+  ],
+  "reply": "Mira looks up from the logbook. \"You're soaked,\" she says, and slides a towel across the table.",
+  "forbid": [
+    "puppet"
+  ],
+  "bad": [
+    {
+      "reply": "Ash nods and takes the towel. Ash says, \"Thank you,\" and sits down by the fire.",
+      "expect": [
+        "puppet"
+      ]
+    }
+  ]
+}

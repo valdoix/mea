@@ -1,0 +1,46 @@
+{
+  "name": "canon-cutoff",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Canon cutoff: what hasn't happened yet in the source stays out.",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot"
+  ],
+  "canon": {
+    "source": "The Harbour Saga",
+    "point": "Book one",
+    "later": [
+      {
+        "kind": "reveal",
+        "text": "Joss is the harbourmaster's son",
+        "terms": [
+          "harbourmaster's son"
+        ]
+      }
+    ]
+  },
+  "history": [
+    {
+      "role": "user",
+      "content": "Who is Joss, really?"
+    }
+  ],
+  "reply": "Mira shakes her head. \"A fisherman. That's all I know.\"",
+  "forbid": [
+    "canon"
+  ],
+  "bad": [
+    {
+      "reply": "\"Joss? He's the harbourmaster's son,\" Mira says.",
+      "expect": [
+        "canon"
+      ]
+    }
+  ]
+}

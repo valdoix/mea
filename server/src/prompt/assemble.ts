@@ -201,7 +201,7 @@ export function modelFamily(model: string | undefined): string {
 /**
  * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
- * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{providerReasoning}} (the route reasons natively), {{modelFamily}}, and {{ctl.id}} for every preset control.
+ * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{planned}} (a separate planner planned it), {{providerReasoning}} (the route reasons natively), {{modelFamily}}, and {{ctl.id}} for every preset control.
  */
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
@@ -222,6 +222,8 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     persona,
     userSealed: persona === "director" || persona === "full_cast" ? "" : "yes",
     ledger: input.extras?.some((e) => e.id === "ledger") ? "yes" : "",
+    // H3: a separate planner planned this reply (the writer's own pass is left out).
+    planned: input.skipBlocks?.includes("mea-planning") ? "yes" : "",
     providerReasoning: input.providerReasoning ? "yes" : "",
     modelFamily: modelFamily(input.modelId),
     ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import StoryChecks from "./StoryChecks.svelte";
   import { get, post } from "../../lib/api";
   import { bytes, compact, timeAgo } from "../../lib/format";
   import { RefreshCw, RotateCcw, X } from "../../lib/icons";
@@ -71,6 +72,8 @@
     {/each}
   </section>
 {/if}
+
+<StoryChecks />
 
 <section class="panel stack tight jobs">
   <div class="row between wrap">

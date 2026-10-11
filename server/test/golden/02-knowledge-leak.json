@@ -1,0 +1,36 @@
+{
+  "name": "knowledge-leak",
+  "card": {
+    "name": "Mira",
+    "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
+    "first_mes": "The lamp hums."
+  },
+  "about": "Knowledge: nobody uses a secret they don't know.",
+  "mode": "narrator",
+  "ledger": [
+    "clock: Day 1 23:00",
+    "at: Port Ellis › Lighthouse › Lamp room",
+    "wx: storm",
+    "cast: Mira@spot · Ash@spot",
+    "cast: Joss@spot",
+    "secret #ledger: Mira hid the harbour ledger | kept by Mira · from Joss"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I ask Joss what brought him up here."
+    }
+  ],
+  "reply": "Joss shrugs, water dripping from his hat. \"The storm. And the company.\"",
+  "forbid": [
+    "leak"
+  ],
+  "bad": [
+    {
+      "reply": "Joss leans in and says he knows Mira hid the harbour ledger.",
+      "expect": [
+        "leak"
+      ]
+    }
+  ]
+}
