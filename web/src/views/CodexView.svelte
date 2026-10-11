@@ -1,5 +1,6 @@
 <script lang="ts">
   import OffpageEditor from "../components/chat/OffpageEditor.svelte";
+  import ExposureDial, { type ExposureView } from "../components/codex/ExposureDial.svelte";
   import { editOffpage, offpageAction, offpageFor, watchOffpage } from "../lib/offpage.svelte";
   import EntityPage from "../components/codex/EntityPage.svelte";
   import Modal from "../components/Modal.svelte";
@@ -36,11 +37,14 @@
   // ---------- ledgers (MEM-30, MEM-31) ----------
   let promises = $state<PromiseEntry[]>([]);
   let secrets = $state<SecretEntry[]>([]);
+  // B2: exposure clocks, by the secret's key here ("tracker:<fact key>").
+  let exposure = $state<Record<string, ExposureView>>({});
   async function loadLedgers() {
     try {
-      const r = await get<{ promises: PromiseEntry[]; secrets: SecretEntry[] }>(`/api/chats/${id}/ledgers`);
+      const [r, x] = await Promise.all([get<{ promises: PromiseEntry[]; secrets: SecretEntry[] }>(`/api/chats/${id}/ledgers`), get<{ secrets: ExposureView[] }>(`/api/chats/${id}/exposure`).catch(() => ({ secrets: [] }))]);
       promises = r.promises;
       secrets = r.secrets;
+      exposure = Object.fromEntries(x.secrets.map((e) => [`tracker:${e.key}`, e]));
     } catch (e) {
       errorToast(e);
     }
@@ -326,6 +330,7 @@
               {#each s.revealed as r, i (i)} · revealed to {r.to.join(", ")}{#if r.messageId} (<a href="/chat/{id}?m={r.messageId}">#{r.seq}</a>){/if}{/each}
             </div>
             {#if s.knows.length}<div class="tiny faint">{s.knows.map((k) => `${k.name}: ${k.status}`).join(" · ")}</div>{/if}
+            {#if exposure[s.key]}<ExposureDial chatId={id} x={exposure[s.key]!} onchange={loadLedgers} />{/if}
           </div>
           <label class="switch tiny offp" title="Hold it back from the narration itself">
             <input type="checkbox" checked={Boolean(op)} onchange={(e) => (e.currentTarget.checked ? editOffpage(null, { label: s.statement, ref: s.key }) : op && void offpageAction(op, "delete"))} />

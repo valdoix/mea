@@ -15,6 +15,7 @@ import { consolidate } from "./memory/consolidate";
 import { recordTimeline, runCheckJob } from "./accuracy/checker";
 import { runLessonsJob } from "./steer/lessons";
 import { runRewordJob } from "./accuracy/offpage";
+import { exposureAfterReply } from "./trackers/exposure";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
@@ -102,6 +103,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(worldAfterReply);
   // Phase 5 guards: the timeline check once the clock has moved (CON-12), the voice now and then (CON-10).
   onTrackerUpdate(recordTimeline);
+  // B2: secrets' exposure clocks move for what the reply showed.
+  onTrackerUpdate(exposureAfterReply);
   registerJob("accuracy.drift", async (p, job) => runDriftJob(String(p.chatId), job));
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));

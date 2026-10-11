@@ -7,6 +7,7 @@ import { badRequest, body, must } from "../lib/http";
 import { mustChat } from "../services/chats";
 import { fileItem } from "../services/filings";
 import { parseStoryTime } from "../trackers/clock";
+import { exposureFor, nudgeExposure } from "../trackers/exposure";
 
 /** B1: secrets kept off the page, and the one-sentence fix. */
 export const offpage = new Hono();
@@ -67,6 +68,18 @@ offpage.delete("/offpage/:id", (c) => {
 
 offpage.post("/offpage/:id/reveal", (c) => c.json({ secret: revealOffpage(c.req.param("id")) }));
 offpage.post("/offpage/:id/hold", (c) => c.json({ secret: holdOffpage(c.req.param("id")) }));
+
+/** B2: the exposure clocks of this chat's secrets. */
+offpage.get("/chats/:id/exposure", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ secrets: exposureFor(c.req.param("id")) });
+});
+
+/** B2: + / −, Raise the stakes (+1 and a cue for the next scene), Cool it down (−1). */
+offpage.post("/chats/:id/exposure/:key", async (c) => {
+  const b = await body(c, z.object({ delta: z.number().int().min(-6).max(6), how: z.enum(["set", "raise", "cool"]).default("set") }));
+  return c.json(nudgeExposure(c.req.param("id"), c.req.param("key"), b.delta, b.how));
+});
 
 /** "Never say this": the selected word joins a secret's list. */
 offpage.post("/offpage/:id/never-say", async (c) => {

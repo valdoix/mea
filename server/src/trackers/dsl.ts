@@ -13,7 +13,7 @@ import type { Op, OpName } from "./types";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit", "expose",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
@@ -311,6 +311,16 @@ export function parseLine(raw: string): Op | null {
         if (k) a.keepers = k[1]!.split(/\s*(?:&|and)\s*/);
         else if (f) a.from = f[1]!.split(/\s*(?:&|and)\s*/);
       }
+      break;
+    }
+    case "expose": {
+      // B2: "expose #key: +1 | Willow — kept in earshot" or "expose #key: 4" (never the model's).
+      a.key = subject?.replace(/^#/, "");
+      const [main, ...meta] = body.split("|");
+      const rel = (main ?? "").trim().match(/^([+-]\s*\d+)/);
+      a.delta = rel ? num(rel[1]) : undefined;
+      a.cur = rel ? undefined : num((main ?? "").trim().match(/^(\d+)/)?.[1]);
+      a.who = meta.join("|").trim() || undefined;
       break;
     }
     case "reveal": {
