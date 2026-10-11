@@ -3,6 +3,7 @@
   import DataEditor from "../components/trackers/DataEditor.svelte";
   import PressureCard, { type PressurePerson } from "../components/trackers/PressureCard.svelte";
   import Belongings from "../components/trackers/Belongings.svelte";
+  import RelGraph from "../components/world/RelGraph.svelte";
   import TagInput from "../components/TagInput.svelte";
   import Avatar from "../components/Avatar.svelte";
   import Modal from "../components/Modal.svelte";
@@ -63,46 +64,14 @@
     return d + "H100";
   }
 
-  // ---------- relationship web (TRK-29) ----------
-  interface Graph {
-    nodes: { id: string; name: string; isUser: boolean; isMain: boolean; present: boolean; dead: boolean; mood: string | null; avatarId: string | null; color: string | null }[];
-    edges: { from: string; to: string; label: string | null; axes: Record<string, number>; tags: string[]; warmth: number; heat: number; ladder: number | null }[];
-    seq: number;
-    maxSeq: number;
+  // ---------- relationship graph (TRK-29, G2) ----------
+  let webFocus = $state<string | null>(null);
+  /** G2: "See their web": the graph, focused on one person. */
+  function seeWeb(p: CastPerson) {
+    editOpen = false;
+    webFocus = p.char?.id ?? null;
+    tab = "web";
   }
-  let graph = $state<Graph | null>(null);
-  let scrub = $state<number | null>(null);
-  let selected = $state<string | null>(null);
-  let gTimer: ReturnType<typeof setTimeout>;
-  async function loadGraph(seq?: number) {
-    try {
-      graph = await get<Graph>(`/api/chats/${id}/trackers/graph${seq != null ? `?seq=${seq}` : ""}`);
-      if (scrub == null) scrub = graph.maxSeq;
-    } catch (e) {
-      errorToast(e);
-    }
-  }
-  function onScrub() {
-    clearTimeout(gTimer);
-    gTimer = setTimeout(() => void loadGraph(scrub ?? undefined), 150);
-  }
-  const layout = $derived.by(() => {
-    if (!graph) return new Map<string, { x: number; y: number }>();
-    const nodes = graph.nodes.filter((n) => graph!.edges.some((e) => e.from === n.id || e.to === n.id) || n.isUser || n.isMain);
-    const m = new Map<string, { x: number; y: number }>();
-    const center = nodes.find((n) => n.isUser) ?? nodes[0];
-    const ring = nodes.filter((n) => n !== center);
-    if (center) m.set(center.id, { x: 50, y: 50 });
-    ring.forEach((n, i) => {
-      const a = (i / Math.max(1, ring.length)) * Math.PI * 2 - Math.PI / 2;
-      const r = ring.length > 8 ? 40 : 34;
-      m.set(n.id, { x: 50 + Math.cos(a) * r, y: 50 + Math.sin(a) * r });
-    });
-    return m;
-  });
-  const LADDER = ["Strangers", "Aware", "Interested", "Charged", "Tested", "Spoken", "Together", "Established"];
-  const nodeName = (nid: string) => graph?.nodes.find((n) => n.id === nid)?.name ?? nid;
-  const edgeColor = (w: number) => (w > 0.5 ? "var(--mint)" : w < -0.5 ? "var(--danger)" : "var(--lavender)");
 
   // ---------- cast (CHAT-26, CHAT-27) ----------
   let people = $state<CastPerson[]>([]);
@@ -256,7 +225,6 @@
 
   $effect(() => {
     if (tab === "timeline") void loadTimeline();
-    else if (tab === "web") void loadGraph(scrub ?? undefined);
     else if (tab === "cast") void loadCast();
   });
   const STAMINA = [
@@ -324,54 +292,7 @@
       {/each}
     </div>
   {:else if tab === "web"}
-    {#if graph}
-      <div class="graph card">
-        <svg viewBox="0 0 100 100" role="img" aria-label="Relationship web">
-          <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--text-muted)" /></marker>
-          </defs>
-          {#each graph.edges as e (`${e.from}>${e.to}`)}
-            {@const a = layout.get(e.from)}
-            {@const b = layout.get(e.to)}
-            {#if a && b}
-              {@const back = graph.edges.some((x) => x.from === e.to && x.to === e.from)}
-              {@const off = back ? 2.2 : 0}
-              {@const dx = b.x - a.x}
-              {@const dy = b.y - a.y}
-              {@const len = Math.hypot(dx, dy) || 1}
-              {@const nx = (-dy / len) * off}
-              {@const ny = (dx / len) * off}
-              <line x1={a.x + nx + (dx / len) * 5} y1={a.y + ny + (dy / len) * 5} x2={b.x + nx - (dx / len) * 6} y2={b.y + ny - (dy / len) * 6} stroke={edgeColor(e.warmth)} stroke-width={0.35 + Math.abs(e.warmth) * 0.25 + e.heat * 0.12} marker-end="url(#arrow)" opacity={selected && selected !== e.from && selected !== e.to ? 0.15 : 0.9} />
-              {#if e.label || e.ladder}
-                <text x={(a.x + b.x) / 2 + nx * 2} y={(a.y + b.y) / 2 + ny * 2} class="elabel" text-anchor="middle">{e.ladder ? `💗${e.ladder} ` : ""}{e.label ?? ""}</text>
-              {/if}
-            {/if}
-          {/each}
-          {#each graph.nodes as n (n.id)}
-            {@const p = layout.get(n.id)}
-            {#if p}
-              <g class="node" class:dim={selected && selected !== n.id} onclick={() => (selected = selected === n.id ? null : n.id)} role="button" tabindex="0" onkeydown={(ev) => ev.key === "Enter" && (selected = n.id)}>
-                <circle cx={p.x} cy={p.y} r={n.isUser || n.isMain ? 4.4 : 3.6} fill={n.color ?? (n.isUser ? "var(--lavender)" : n.isMain ? "var(--accent)" : "var(--surface-2)")} stroke={n.present ? "var(--accent)" : "var(--border)"} stroke-width="0.5" />
-                <text x={p.x} y={p.y + 7} text-anchor="middle" class="nlabel">{n.name}{n.dead ? " †" : ""}</text>
-              </g>
-            {/if}
-          {/each}
-        </svg>
-      </div>
-      <label class="field scrub">
-        <span class="label">As of message #{scrub ?? graph.maxSeq} <span class="faint">drag to see how it changed</span></span>
-        <input type="range" min="1" max={graph.maxSeq} bind:value={scrub} oninput={onScrub} />
-      </label>
-      {#if selected}
-        <div class="card details">
-          <b>{nodeName(selected)}</b>
-          {#each graph.edges.filter((e) => e.from === selected || e.to === selected) as e (`${e.from}>${e.to}`)}
-            <div class="small">{nodeName(e.from)} → {nodeName(e.to)}{e.label ? ` · “${e.label}”` : ""}{e.ladder != null ? ` · ${LADDER[e.ladder]}` : ""}</div>
-            <div class="tiny muted">{Object.entries(e.axes).filter(([, v]) => v).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).join(" · ")}{e.tags.length ? ` · ${e.tags.join(", ")}` : ""}</div>
-          {/each}
-        </div>
-      {/if}
-    {/if}
+    <RelGraph chatId={id} bind:focus={webFocus} />
   {:else}
     <div class="row between">
       <p class="tiny muted">Everyone the story has met, plus anyone you add. Voice notes go into the prompt only when that person is in the scene; pinned people are always kept in mind.</p>
@@ -461,6 +382,7 @@
         <label class="field"><span class="label">Tell</span><input class="input" bind:value={story.mask.tell} /></label>
       </div>
       <label class="switch"><input type="checkbox" bind:checked={story.dead} /> Dead</label>
+      <button class="btn ghost small start" onclick={() => editing && seeWeb(editing)}>See their web</button>
       <h3 class="sub">Rooms and belongings</h3>
       <Belongings chatId={id} charId={editing.char.id} name={editing.name} people={[...people.filter((x) => x.char && !x.dead).map((x) => x.name), ...(userName ? [userName] : [])]} />
       <button class="btn ghost small start" onclick={() => editing && allFields(editing)}>Every field (meters, injuries, journal…)</button>
@@ -545,33 +467,6 @@
   .seq {
     width: 3rem;
     flex: none;
-  }
-  .graph {
-    padding: 0.5rem;
-  }
-  .graph svg {
-    width: 100%;
-    max-height: 70vh;
-    display: block;
-  }
-  .nlabel {
-    font: 600 2.6px var(--font-ui);
-    fill: var(--text);
-  }
-  .elabel {
-    font: 2.1px var(--font-ui);
-    fill: var(--text-muted);
-  }
-  .node {
-    cursor: pointer;
-  }
-  .node.dim {
-    opacity: 0.35;
-  }
-  .details {
-    padding: 0.7rem;
-    display: grid;
-    gap: 0.25rem;
   }
   .cast {
     display: grid;
