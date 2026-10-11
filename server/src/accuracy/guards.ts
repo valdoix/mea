@@ -37,22 +37,46 @@ export interface PuppetHit {
   speech: boolean;
 }
 
-/** Sentences where the reply writes the user's character speaking or acting (CON-04). */
+/** Quoted speech blanked out over the whole text (a quote can hold several sentences); an unclosed quote runs to the paragraph's end. */
+const maskSpeech = (t: string) => t.replace(/"[^"\n]*(?:"|(?=\n|$))|“[^”\n]*(?:”|(?=\n|$))/g, (m) => " ".repeat(m.length));
+
+const ap = (words: string) => words.replace(/'/g, "['’]");
+/** Words before the name that make it a mention, not the reply acting: "what Alex said", "did you say", "remembers Alex asked". */
+const MENTION = new RegExp(
+  `(?:^|[^\\p{L}'’])(?:${ap(
+    "what|whatever|how|why|where|whether|if|unless|until|before|everything|all|anything|something|nothing|do|does|did|don't|doesn't|didn't|would|wouldn't|could|couldn't|should|shouldn't|will|won't|can|can't|might|may|must|remember|remembers|remembered|recall|recalls|recalled|hear|hears|heard|know|knows|knew|forget|forgets|forgot|swear|swears|swore",
+  )})(?:\\s+that)?\\s+$`,
+  "iu",
+);
+/** And words that make a speech verb a reference to something already said: "as you said", "when you said that". */
+const SAID_BEFORE = /(?:^|[^\p{L}'’])(?:as|like|when|whenever|after|since|once|because)(?:\s+that)?\s+$/iu;
+
+/** Sentences where the reply writes the user's character speaking or acting (CON-04). Mentions, reported speech and earlier lines don't count. */
 export function puppetHits(text: string, userNames: string[], opts: { second: boolean }): PuppetHit[] {
   const names = userNames.filter((n) => n.trim().length >= 2).map(esc);
   const subj = [...names, ...(opts.second ? ["you", "You"] : [])];
   if (!subj.length) return [];
-  const verb = (v: string) => new RegExp(`(?:^|[^\\p{L}])(?:${subj.join("|")})(?:\\s+(?:\\w+ly|then|just|finally|quietly|slowly))?\\s+(?:${v})\\b`, "u");
+  const verb = (v: string) => new RegExp(`(?<=^|[^\\p{L}])(?:${subj.join("|")})(?:\\s+(?:\\w+ly|then|just|finally|quietly|slowly))?\\s+(?:${v})\\b`, "gu");
   const speech = verb(SPEECH);
   const act = verb(ACT);
+  const writes = (re: RegExp, n: string, isSpeech: boolean) =>
+    [...n.matchAll(re)].some((m) => {
+      const before = n.slice(Math.max(0, m.index - 40), m.index);
+      return !MENTION.test(before) && !(isSpeech && SAID_BEFORE.test(before));
+    });
   const lineSpeaker = names.length ? new RegExp(`^\\s*(?:\\*\\*)?(?:${names.join("|")})(?:\\*\\*)?\\s*:\\s*\\S`, "m") : null;
+  const clean = cleanText(text);
+  const masked = maskSpeech(clean);
   const out: PuppetHit[] = [];
-  for (const s of sentences(cleanText(text))) {
+  let from = 0;
+  for (const s of sentences(clean)) {
+    const at = clean.indexOf(s, from);
+    from = at + s.length;
     // Out-of-character asides in parentheses aren't the story writing for anyone.
-    const n = narration(s).replace(/\([^)]*\)/g, " ");
+    const n = masked.slice(at, at + s.length).replace(/\([^)]*\)/g, " ");
     if (lineSpeaker?.test(s)) out.push({ sentence: s.trim(), speech: true });
-    else if (speech.test(n)) out.push({ sentence: s.trim(), speech: true });
-    else if (act.test(n)) out.push({ sentence: s.trim(), speech: false });
+    else if (writes(speech, n, true)) out.push({ sentence: s.trim(), speech: true });
+    else if (writes(act, n, false)) out.push({ sentence: s.trim(), speech: false });
   }
   return out;
 }

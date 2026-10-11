@@ -67,6 +67,33 @@ describe("puppeting, point of view and tense (CON-04)", () => {
     // An out-of-character aside isn't the story writing for you.
     expect(puppetHits('(You said: "I shake the rain off my coat.")', ["Alex"], { second: true })).toHaveLength(0);
   });
+  test("mentions of the persona and earlier lines aren't puppeting", () => {
+    const quiet = (t: string, names = ["James"]) => expect(puppetHits(t, names, { second: true })).toHaveLength(0);
+    // Reported speech inside a quote that runs over several sentences.
+    quiet('"I don\'t believe it. That\'s what James said." Mira folds her arms.');
+    quiet("“Fine. Whatever. That’s what James said, anyway.” She shrugs.");
+    // A quote opened and left running to the end of the paragraph.
+    quiet('Mira turns. "I heard you. James said it twice already.\nShe sighs.');
+    // Narration that mentions or recalls what the persona said or did.
+    quiet("That's what James said, and Mira hasn't forgotten it.");
+    quiet("Mira remembers James said he'd be back by dawn.");
+    quiet("She knew that James asked for this.");
+    quiet("As you said, the road is closed.");
+    quiet("When you said that, something in her chest went tight.");
+    quiet("Did James say where he was going?");
+    quiet("She waits to see if James nods.");
+    quiet("Mira won't move until you answer.");
+    quiet("It was everything James promised.");
+    quiet("James had said as much the night before.");
+  });
+  test("still flags the persona's own new words and actions", () => {
+    const hit = (t: string, speech: boolean) => expect(puppetHits(t, ["James"], { second: true })[0]?.speech).toBe(speech);
+    hit('"I don\'t know. Maybe." James says, and looks away.', true);
+    hit('Mira smiles. "Then come." James nods and follows her out.', false);
+    hit("When James finally nods, she leads him upstairs.", false);
+    hit("As you step inside, the door clicks shut.", false);
+    hit("James: I'll stay.", true);
+  });
   test("trims only when the slip is late in the reply", () => {
     const text = "Mira sets down the lamp and studies the storm through the glass for a long moment, saying nothing at all. Then she turns. Alex nods and follows her up the stairs.";
     const cut = trimPuppeting(text, puppetHits(text, ["Alex"], { second: true }));
