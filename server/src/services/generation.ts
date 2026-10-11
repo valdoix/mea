@@ -27,6 +27,7 @@ import {
   type ChatSettings,
   getChatRow,
   getMessageRow,
+  deleteSwipe,
   getSwipes,
   historyForPrompt,
   lastMessage,
@@ -48,6 +49,7 @@ import { evalCondition } from "../trackers/condition";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
 import { gatherLanes } from "../prompt/lanes";
+import { angleNote, type Angle, digestNote, keptPrefix, rejectedDigest, takeShape as rejectedShape } from "../steer/swipes";
 import { finishRequest, getRequest, startRequest } from "./requests";
 import { anchorExtra } from "../accuracy/anchor";
 import { checksOn } from "../accuracy/checker";
@@ -358,6 +360,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       // STEER-04: the style profile joins the stable prefix.
       ...(style ? [style] : []),
       ...(plan ? [plan] : []),
+      // A2: a swipe hears what every earlier take of this reply did, so it doesn't drift back to one.
+      ...(kind === "story" && opts.excludeMessageId ? [{ id: "swipe-digest", name: "Earlier takes", content: digestNote(rejectedDigest(opts.excludeMessageId)), depth: 0 } satisfies PromptExtra] : []),
       // P1: the Almanac features' prompt lanes (prompt/lanes.ts), each named in the Inspector.
       ...gatherLanes({ chatId, kind, state: tp?.state ?? null, history, excludeMessageId: opts.excludeMessageId, characterId: chat.character_id }),
       // CON-03: who the character is, near the end of the prompt (stronger while the voice drifts).
@@ -420,20 +424,49 @@ function recordMemoryUsage(generationId: string, chatId: string, p: Prepared) {
   for (const r of m.recall) ins(r.ownerType, r.id, r.slot);
 }
 
-export type StoryAction = "new" | "swipe" | "continue";
+/** "redo": A2's "Keep this, redo the rest": a new take that starts with the kept part of the current one. */
+export type StoryAction = "new" | "swipe" | "continue" | "redo";
 
 /** Starts a story generation and returns once it's running; tokens arrive over the event stream (ARCH-02, ARCH-06). */
-export async function startStory(chatId: string, action: StoryAction, opts: { messageId?: string; feedback?: string; profileId?: string | null; auto?: string } = {}) {
+export async function startStory(chatId: string, action: StoryAction, opts: { messageId?: string; feedback?: string; profileId?: string | null; auto?: string; angle?: Angle; keep?: string } = {}) {
   if (activeGenerations(chatId).length) throw new HttpError(409, "A reply is already being written in this chat");
   const last = lastMessage(chatId);
   if (action !== "new" && (!last || last.id !== opts.messageId || last.role !== "assistant")) throw new HttpError(400, "Only the latest reply can be swiped or continued");
+  // A2: an angle is a one-shot note for this take.
+  if (opts.angle) opts = { ...opts, feedback: [angleNote(opts.angle, last?.name ?? getCard(mustChat(chatId).character_id ?? "")?.name ?? "the character"), opts.feedback].filter(Boolean).join(" ") };
+  // A2: "Keep this, redo the rest": the new take starts as the kept part, then is continued.
+  let redo: { idx: number; prefix: string; previous: string } | null = null;
+  if (action === "redo") {
+    const current = getSwipes(last!.id).find((s) => s.idx === last!.active_swipe);
+    const prefix = current ? keptPrefix(current.content, opts.keep ?? "") : null;
+    if (!current || !prefix) throw new HttpError(400, "Select a sentence in the latest reply to keep");
+    if (current.status === "streaming") throw new HttpError(409, "Wait for the reply to finish");
+    const idx = addSwipe(last!.id, "done");
+    updateSwipe(last!.id, idx, { content: prefix, status: "done", meta: { keptFrom: current.idx } });
+    redo = { idx, prefix, previous: current.content.slice(prefix.length).trim() };
+    const rest = takeShapeNote(redo.previous);
+    opts = { ...opts, feedback: [`Everything up to here is kept word for word; write the rest anew${rest ? `, not as the earlier take went on (${rest})` : ""}.`, opts.feedback].filter(Boolean).join(" ") };
+  }
 
-  const prepared =
-    action === "new"
-      ? await prepare(chatId, "story", { feedback: opts.feedback, profileId: opts.profileId, advise: true })
-      : action === "swipe"
-        ? await prepare(chatId, "story", { excludeMessageId: last!.id, feedback: opts.feedback, profileId: opts.profileId, advise: true })
-        : await prepare(chatId, "continue", { feedback: opts.feedback, profileId: opts.profileId });
+  let prepared: Prepared;
+  try {
+    prepared =
+      action === "new"
+        ? await prepare(chatId, "story", { feedback: opts.feedback, profileId: opts.profileId, advise: true })
+        : action === "swipe"
+          ? await prepare(chatId, "story", { excludeMessageId: last!.id, feedback: opts.feedback, profileId: opts.profileId, advise: true })
+          : await prepare(chatId, "continue", { feedback: opts.feedback, profileId: opts.profileId });
+  } catch (e) {
+    // The kept part waits for a take that never started: put the reply back as it was.
+    if (redo) {
+      try {
+        deleteSwipe(last!.id, redo.idx);
+      } catch {
+        // it stays as a short take you can delete
+      }
+    }
+    throw e;
+  }
   // A used-up subscription quota is explained plainly, with paid options only on your tap (CONN-20).
   assertQuota(prepared.resolved.billing);
   if (activeGenerations(chatId).length) throw new HttpError(409, "A reply is already being written in this chat");
@@ -448,8 +481,9 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
     messageId = last!.id;
     swipeIdx = addSwipe(last!.id);
   } else {
+    // continue, or redo (whose new take already holds the kept part)
     messageId = last!.id;
-    swipeIdx = last!.active_swipe;
+    swipeIdx = redo ? redo.idx : last!.active_swipe;
     baseText = getSwipes(last!.id).find((s) => s.idx === swipeIdx)?.content ?? "";
     updateSwipe(messageId, swipeIdx, { status: "streaming" });
   }
@@ -461,7 +495,8 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
   active.set(generationId, gen);
   publish({ type: "gen.start", chatId, messageId, swipeIdx, generationId });
   // C2: a failure after the reply must never become an unhandled rejection (Bun exits on those).
-  void runStory(gen, prepared, action, baseText, opts.feedback, opts.auto).catch((e) => console.error("[mea] reply failed:", e));
+  // A redo streams exactly like a continue of its new take.
+  void runStory(gen, prepared, action === "redo" ? "continue" : action, baseText, opts.feedback, opts.auto).catch((e) => console.error("[mea] reply failed:", e));
   return { generationId, messageId, swipeIdx };
 }
 
@@ -941,4 +976,11 @@ export function getGeneration(id: string) {
 export function messageIsStreaming(messageId: string) {
   const m = getMessageRow(messageId);
   return Boolean(m && [...active.values()].some((g) => g.messageId === messageId));
+}
+
+/** What the rest of the earlier take did, in a few words (for "Keep this, redo the rest"). */
+function takeShapeNote(rest: string) {
+  if (!rest.trim()) return "";
+  const t = rejectedShape(rest);
+  return [t.opening && `it went «${t.opening}»`, t.beat && `with «${t.beat}»`].filter(Boolean).join(" ");
 }

@@ -29,7 +29,10 @@
     Undo,
     MessagesSquare,
     GraduationCap,
+    Columns2,
+    Shuffle,
   } from "../../lib/icons";
+  import { ANGLES, type Angle } from "../../lib/angles";
   import { askMeus } from "../../lib/meus.svelte";
   import { renderMessage, renderStreaming } from "../../lib/render";
   import { applyRegex, regexScope } from "../../lib/regex.svelte";
@@ -49,6 +52,7 @@
   import type { Message } from "../../lib/types";
 
   let {
+    onangle,
     message,
     isLast,
     canGenerate,
@@ -114,6 +118,8 @@
     onflag: (flags: { hidden?: boolean; bookmarked?: boolean }) => void;
     oninspect: () => void;
     oncompare: () => void;
+    /** A2: swipe with an angle (right-click or hold the → arrow). */
+    onangle?: (angle: Angle) => void;
   } = $props();
 
   let editing = $state(false);
@@ -203,7 +209,8 @@
       list.push({ label: "Regenerate with a note…", icon: Feather, onclick: () => onregen(true), disabled: !canGenerate });
       list.push({ label: "Continue", icon: StepForward, onclick: oncontinue, disabled: !canGenerate || !message.content });
     }
-    if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: ScrollText, onclick: oncompare });
+    if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: Columns2, onclick: oncompare });
+    if (isLast && message.role === "assistant" && onangle) list.push({ label: "Swipe with an angle…", icon: Shuffle, onclick: () => openAngles(null), disabled: !canGenerate });
     // A1: what the takes you passed over got wrong, as lessons.
     if (message.role === "assistant" && message.swipeCount > 1) list.push({ label: "Learn from this swipe", icon: GraduationCap, onclick: () => learnFrom(message.id), disabled: streaming });
     if (message.role === "assistant" && message.swipeCount > 1 && ondeleteswipe) list.push({ label: "Delete this version", icon: Trash, danger: true, onclick: ondeleteswipe, disabled: streaming });
@@ -218,6 +225,18 @@
     list.push({ label: "Delete", icon: Trash, danger: true, onclick: ondelete });
     return list;
   });
+
+  // A2: the angle chips on the → arrow.
+  let angleOpen = $state(false);
+  let angleBtn = $state<HTMLButtonElement | null>(null);
+  let anglePoint = $state<{ x: number; y: number } | null>(null);
+  const angleItems = $derived<MenuItem[]>(ANGLES.map((a) => ({ label: a.label, onclick: () => onangle?.(a.id), disabled: !canGenerate })));
+  const canAngle = $derived(Boolean(onangle) && isLast && message.role === "assistant" && !streaming);
+  function openAngles(p: { x: number; y: number } | null) {
+    if (!canAngle) return;
+    anglePoint = p;
+    angleOpen = true;
+  }
 
   function openMenuAt(p: { x: number; y: number }) {
     menuPoint = p;
@@ -318,10 +337,21 @@
           <span class="tiny muted count">{message.activeSwipe + 1}/{message.swipeCount}</span>
           <button
             class="btn ghost icon small"
+            bind:this={angleBtn}
+            oncontextmenu={(e) => {
+              if (!canAngle) return;
+              e.preventDefault();
+              e.stopPropagation();
+              openAngles({ x: e.clientX, y: e.clientY });
+            }}
+            ontouchstart={(e) => canAngle && e.stopPropagation()}
+            use:longpress={{ onLong: (p) => openAngles(p) }}
+            title={canAngle ? "Next version · right-click or hold for an angle" : undefined}
             onclick={() => onswipe(1)}
             disabled={streaming || (!isLast && message.activeSwipe >= message.swipeCount - 1) || (isLast && message.activeSwipe >= message.swipeCount - 1 && !canGenerate)}
             aria-label={isLast && message.activeSwipe >= message.swipeCount - 1 ? "Write a new version" : "Next version"}><ChevronRight size={16} /></button
           >
+          {#if message.swipeCount > 1}<button class="btn ghost small" onclick={oncompare} disabled={streaming} title="Compare two versions side by side"><Columns2 size={14} /> <span class="hide-sm">Compare</span></button>{/if}
           {#if message.swipeCount > 1 && ondeleteswipe}<button class="btn ghost icon small drop" onclick={ondeleteswipe} disabled={streaming} aria-label="Delete this version" title="Delete this version"><Trash size={14} /></button>{/if}
         {/if}
         {#if isLast && !streaming}
@@ -336,6 +366,7 @@
 </article>
 
 <Menu bind:open={menuOpen} {items} anchor={menuBtn} point={menuPoint} title={displayName} />
+<Menu bind:open={angleOpen} items={angleItems} anchor={angleBtn} point={anglePoint} title="A new take, with an angle" />
 
 <style>
   /* M5: whatever a message's HTML positions stays inside the message, so it can't cover or fake the app.

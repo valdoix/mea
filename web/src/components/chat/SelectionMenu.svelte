@@ -1,7 +1,7 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import { del, post } from "../../lib/api";
-  import { Bookmark, BookmarkPlus, CircleAlert, Heart, MessagesSquare } from "../../lib/icons";
+  import { Bookmark, BookmarkPlus, CircleAlert, Heart, MessagesSquare, Scissors } from "../../lib/icons";
   import { askMeus } from "../../lib/meus.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import { delight } from "../../lib/delight";
@@ -11,7 +11,22 @@
    * "Remember this" / "That's wrong" (MEM-41): select text in any message and turn it into a
    * memory, pin it, or correct what memory got wrong, in two taps.
    */
-  let { chatId, root, idForSeq, onhighlight }: { chatId: string; root: HTMLElement | null; idForSeq: (seq: number) => string | null; onhighlight?: () => void } = $props();
+  let {
+    chatId,
+    root,
+    idForSeq,
+    onhighlight,
+    canKeep,
+    onkeep,
+  }: {
+    chatId: string;
+    root: HTMLElement | null;
+    idForSeq: (seq: number) => string | null;
+    onhighlight?: () => void;
+    /** A2: "Keep this, redo the rest" works on the latest reply only. */
+    canKeep?: (messageId: string) => boolean;
+    onkeep?: (messageId: string, text: string) => void;
+  } = $props();
 
   let sel = $state<{ text: string; messageId: string; x: number; y: number } | null>(null);
   let fixOpen = $state(false);
@@ -106,6 +121,13 @@
     window.getSelection()?.removeAllRanges();
     sel = null;
   }
+  /** A2: a new take that keeps the reply up to (and including) the selected sentence. */
+  function keepThis() {
+    if (!sel || !onkeep) return;
+    onkeep(sel.messageId, sel.text);
+    window.getSelection()?.removeAllRanges();
+    sel = null;
+  }
   function toggle(id: string) {
     const next = new Set(picked);
     if (next.has(id)) next.delete(id);
@@ -121,6 +143,7 @@
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={() => remember(true)}><Bookmark size={14} /> Pin</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={startFix}><CircleAlert size={14} /> That's wrong</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={toMeus}><MessagesSquare size={14} /> Ask Meus</button>
+    {#if onkeep && canKeep?.(sel.messageId)}<button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepThis} title="A new take that keeps everything up to here"><Scissors size={14} /> Keep this, redo the rest</button>{/if}
   </div>
 {/if}
 
