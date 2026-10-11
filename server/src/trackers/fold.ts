@@ -768,6 +768,32 @@ export class Folder {
         this.push(ctx, { kind: "secret", text: `Revealed to ${to.map((x) => this.nameOf(x)).join(", ") || "someone"}: ${clip(f.statement, 60)}`, path: `facts.${f.key}`, reason: op.cause, tone: "warn", memory: true });
         return;
       }
+      case "pressure": {
+        // E1: drawn by the engine, or set by you; the model never writes them (they're hidden from it as text to play, not to report).
+        if (ctx.ev.source !== "engine" && ctx.ev.source !== "user") return this.reject(ctx, "pressures are drawn by Mea, not the ledger");
+        const c = this.person(op.subject, seq);
+        if (!c || c.isUser) return this.reject(ctx, "whose pressure?");
+        const cur = c.pressure;
+        if (cur?.locked && ctx.ev.source === "engine" && a.lock !== false) return;
+        const stage = (["hidden", "growing", "cracking", "head", "resolved"].includes(a.stage) ? a.stage : undefined) as NonNullable<typeof c.pressure>["stage"] | undefined;
+        const text = a.text ? clip(a.text, 200) : cur?.text;
+        if (!text) return this.reject(ctx, "write pressure Name: what they carry | stage: hidden");
+        const next = {
+          text,
+          stage: stage ?? (a.text && a.text !== cur?.text ? "hidden" : (cur?.stage ?? "hidden")),
+          by: (["deck", "grounded", "you"].includes(a.by) ? a.by : (cur?.by ?? "you")) as "deck" | "grounded" | "you",
+          locked: a.lock != null ? Boolean(a.lock) : cur?.locked,
+          scene: st.sceneNo,
+          seq,
+          draws: Number(a.draw) || cur?.draws || 1,
+          history: [...(cur?.history ?? [])],
+        };
+        if (cur && cur.text === next.text && cur.stage === next.stage && cur.locked === next.locked) return;
+        next.history.push({ stage: next.stage, ...(next.text !== cur?.text ? { text: next.text } : {}), seq });
+        c.pressure = next;
+        this.push(ctx, { kind: "pressure", text: next.stage === "resolved" ? `${c.name}'s pressure eases` : !cur || cur.text !== next.text ? `${c.name} carries something` : `${c.name}: pressure ${next.stage}`, path: `chars.${c.id}.pressure`, reason: op.cause, tone: next.stage === "cracking" || next.stage === "head" ? "warn" : undefined });
+        return;
+      }
       case "expose": {
         // B2: only the engine (rules after each reply) and you move a secret's exposure clock.
         if (ctx.ev.source !== "engine" && ctx.ev.source !== "user") return this.reject(ctx, "exposure is moved by Mea, not the ledger");

@@ -8,6 +8,7 @@ import { badRequest, body, must } from "../lib/http";
 import { fileItem } from "../services/filings";
 import { parseStoryTime } from "../trackers/clock";
 import { exposureFor, nudgeExposure } from "../trackers/exposure";
+import { pressureAction, pressuresView } from "../trackers/pressures";
 import { canonOf, laterItem, moveCutoff, queueSuggest, setCanon } from "../accuracy/canoncut";
 import { canonSchema, mustChat } from "../services/chats";
 
@@ -124,4 +125,17 @@ offpage.post("/chats/:id/canon/move/:item", (c) => c.json({ canon: moveCutoff(c.
 offpage.post("/continuity/:id/lesson", async (c) => {
   const b = await body(c, z.object({ issueId: z.string() }));
   return c.json({ lesson: issueToLesson(c.req.param("id"), b.issueId) });
+});
+
+// ---------- E1: hidden pressures ----------
+
+offpage.get("/chats/:id/pressures", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ people: pressuresView(c.req.param("id")) });
+});
+
+/** Redraw, Write my own, Lock / Unlock, Bring it to a head, Resolve. */
+offpage.post("/chats/:id/pressures/:char", async (c) => {
+  const b = await body(c, z.object({ action: z.enum(["redraw", "write", "lock", "unlock", "head", "resolve"]), text: z.string().max(200).optional() }));
+  return c.json(pressureAction(c.req.param("id"), c.req.param("char"), b.action, b.text));
 });

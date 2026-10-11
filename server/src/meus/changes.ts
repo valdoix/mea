@@ -20,6 +20,7 @@ import { userEditAt, timeskip } from "../trackers/service";
 import { castKey, castProfiles, currentFold, deleteEvent, dryRunOps, linesToOps, moveCastProfile, saveCastProfile } from "../trackers/store";
 import { parseDuration } from "../trackers/clock";
 import { addLesson, deleteLesson, getLesson, lessonsFor, updateLesson } from "../steer/lessons";
+import { pressureAction, type PressureAction } from "../trackers/pressures";
 import { canonOf, type CanonSettings, laterItem, setCanon } from "../accuracy/canoncut";
 import { createOffpage, deleteOffpage, getOffpage, type HintBudget, listOffpage, updateOffpage } from "../accuracy/offpage";
 
@@ -48,7 +49,8 @@ export const CHANGE_KINDS = [
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
   '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off;',
   '{"kind": "secret_offpage", "label": "the secret, in a sentence", "never_say": ["words the narration must not use yet"], "hint_as": "how the story may hint at it", "hints": "never|rarely|building"} keeps a secret off the page (the narration doesn’t state it); {"kind": "secret_offpage", "id": "<off-page id>", "status": "revealed|kept", "never_say": […]} reveals one, or changes it;',
-  '{"kind": "canon", "source": "the work", "point": "where the story stands in it", "later": [{"kind": "event|character|reveal|term", "text": "…", "terms": ["words that give it away"]}], "wont": ["canon events that won’t happen in this story"], "remove": ["text of a later or wont item"]} changes the canon cutoff (only what changes).',
+  '{"kind": "canon", "source": "the work", "point": "where the story stands in it", "later": [{"kind": "event|character|reveal|term", "text": "…", "terms": ["words that give it away"]}], "wont": ["canon events that won’t happen in this story"], "remove": ["text of a later or wont item"]} changes the canon cutoff (only what changes);',
+  '{"kind": "pressure", "name": "<cast name>", "action": "redraw|write|lock|unlock|head|resolve", "text": "for write: what they carry and haven’t said"} a person’s hidden pressure (head: the next scene tests it; resolve: it eases, and moves a bond).',
 ].join(" ");
 
 /** Kinds the story can't redo by itself, or that Undo can't take back: never pre-ticked. */
@@ -579,6 +581,22 @@ may hint as: ${str(c.hint_as)}` : ""}`, data: { label, neverSay: never ?? [], hi
       }
       if (!shown.length) continue;
       out.push({ kind, target: "", label: "Canon cutoff", before: "", after: shown.join("\n"), data: { next, why } });
+    } else if (kind === "pressure") {
+      // E1: a hidden pressure, through the same actions as the Story page's card.
+      const who = castChar(chatId, str(c.name));
+      const action = str(c.action).toLowerCase();
+      if (!who || who.isUser) {
+        dropped.push(`there's no ${str(c.name)} in the cast`);
+        continue;
+      }
+      if (!["redraw", "write", "lock", "unlock", "head", "resolve"].includes(action)) continue;
+      if (action === "write" && !str(c.text)) continue;
+      if (action !== "redraw" && action !== "write" && !who.pressure) {
+        dropped.push(`${who.name} has no pressure yet`);
+        continue;
+      }
+      const verb = { redraw: "redraw", write: "set", lock: "lock", unlock: "unlock", head: "bring to a head", resolve: "resolve" }[action];
+      out.push({ kind, target: who.id, label: `Pressure · ${verb}: ${who.name}`, before: who.pressure?.text ?? "", after: action === "write" ? str(c.text) : (who.pressure?.text ?? "(a new draw)"), data: { action, text: str(c.text), why } });
     } else if (kind) dropped.push(`Meus can't make "${kind}" changes yet`);
   }
   return { changes: out, dropped };
@@ -782,6 +800,8 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       }
       return [{ t: "lessonDrop", id: addLesson(chatId, { text: c.after, scope: (d.scope as "story") ?? "story", why: String(d.why ?? ""), by: "user", from: "meus" }).id }];
     }
+    case "pressure":
+      return [{ t: "events", ids: pressureAction(chatId, c.target, String(d.action) as PressureAction, String(d.text ?? "")).ids }];
     case "canon": {
       const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
       setCanon(chatId, d.next as CanonSettings);
