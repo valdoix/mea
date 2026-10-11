@@ -329,6 +329,11 @@ function helperJson(name: string, user: string): unknown {
       for (const q of quoted) out = out.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), "something");
       return { sentence: out === sentence ? `${sentence} (fixed)` : out };
     }
+    // C1: what comes later in the source (only for MOCK_CANON works, so other tests stay quiet).
+    case "canon_later":
+      return /MOCK_CANON/.test(user)
+        ? { later: [{ kind: "character", text: "Dawn", terms: ["Dawn"], source: "Dawn Summers (Buffyverse Wiki)" }, { kind: "event", text: "Buffy dies saving Dawn", terms: ["The Gift", "swan dive"], source: "The Gift (Buffyverse Wiki)" }] }
+        : { later: [] };
     // A1: a lesson only when the takes ask for one (MOCK_LESSON), so other tests stay quiet.
     case "lessons_from_swipes":
       return { lessons: /MOCK_LESSON/.test(user) ? [{ text: "Keep the storm in every scene.", why: "The kept take kept the storm.", quote: "calm night" }] : [] };

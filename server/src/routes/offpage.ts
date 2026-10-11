@@ -4,10 +4,11 @@ import { addNeverSay, createOffpage, deleteOffpage, getOffpage, holdOffpage, lis
 import { fixIssueSentence } from "../accuracy/fixes";
 import { one } from "../db/db";
 import { badRequest, body, must } from "../lib/http";
-import { mustChat } from "../services/chats";
 import { fileItem } from "../services/filings";
 import { parseStoryTime } from "../trackers/clock";
 import { exposureFor, nudgeExposure } from "../trackers/exposure";
+import { canonOf, laterItem, moveCutoff, queueSuggest, setCanon } from "../accuracy/canoncut";
+import { canonSchema, mustChat } from "../services/chats";
 
 /** B1: secrets kept off the page, and the one-sentence fix. */
 export const offpage = new Hono();
@@ -94,3 +95,26 @@ offpage.post("/continuity/:id/fix", async (c) => {
   const b = await body(c, z.object({ issueId: z.string() }));
   return c.json(await fixIssueSentence(c.req.param("id"), b.issueId));
 });
+
+// ---------- C1: the canon cutoff ----------
+
+offpage.get("/chats/:id/canon", (c) => c.json({ canon: canonOf(c.req.param("id")) }));
+
+/** The whole canon cutoff, as the Chat tab's Canon card edits it. */
+offpage.put("/chats/:id/canon", async (c) => {
+  const b = await body(c, canonSchema);
+  return c.json({ canon: setCanon(c.req.param("id"), b) });
+});
+
+/** One more "hasn't happened" or "won't happen here" line, typed in. */
+offpage.post("/chats/:id/canon/items", async (c) => {
+  const id = c.req.param("id");
+  const b = await body(c, z.object({ list: z.enum(["later", "wont"]), kind: z.enum(["event", "character", "reveal", "term"]).default("event"), text: z.string().trim().min(1).max(300), terms: z.array(z.string().max(60)).max(12).optional() }));
+  const cur = canonOf(id);
+  const next = b.list === "later" ? { ...cur, later: [...(cur.later ?? []), laterItem(b.kind, b.text, b.terms ?? [])] } : { ...cur, wont: [...(cur.wont ?? []), { id: crypto.randomUUID().slice(0, 8), text: b.text }] };
+  return c.json({ canon: setCanon(id, next) });
+});
+
+/** "Suggest from the wiki": in the background; the suggestions arrive in the Inbox. */
+offpage.post("/chats/:id/canon/suggest", (c) => c.json({ jobId: queueSuggest(c.req.param("id")) }));
+offpage.post("/chats/:id/canon/move/:item", (c) => c.json({ canon: moveCutoff(c.req.param("id"), c.req.param("item")) }));

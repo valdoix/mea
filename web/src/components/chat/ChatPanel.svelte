@@ -9,6 +9,7 @@
   import ControlDesk from "../presets/ControlDesk.svelte";
   import ChatGuards from "./ChatGuards.svelte";
   import ChatStatus from "./ChatStatus.svelte";
+  import CanonPanel from "./CanonPanel.svelte";
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
   import AmbienceEditor from "./AmbienceEditor.svelte";
@@ -451,6 +452,8 @@
     {/if}
     <label class="st-addline"><Plus size={14} /><input bind:value={newOoc} placeholder="Don't speak for my character. Enter to add" maxlength="600" onkeydown={(e) => e.key === "Enter" && addOoc()} aria-label="Add a standing note" /></label>
   </Module>
+
+  <CanonPanel chatId={detail.chat.id} />
 
   <ChatSteer chatId={detail.chat.id} settings={detail.chat.settings} characterStyle={detail.defaults?.characterStyle ?? null} onupdate={(b) => update(b)} />
   <ChatGuards chatId={detail.chat.id} settings={detail.chat.settings} onupdate={(b) => update(b)} />
