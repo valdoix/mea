@@ -15,7 +15,8 @@ body Name: fatigue 3; hunger +1; soaked; injury: left arm, wound, bandaged; heal
 look Name: what they wear and visible marks now
 trait Name: green eyes; red hair in a braid   (only lasting features, first time described)
 drive Name: want: …; fear: …; need: …; tactic: …      mask Name: shown: calm; felt: panic; tell: …
-think Name: "their private thought now"       journal Name: "a turning point, in their own slant"
+think Name: "Damn it, not now. If she finds the letter I'm finished."       journal Name: "a turning point, in their own slant"
+   (think: first person, in their own head-voice: their words, slang, oaths, grudges and worries, only what they know, about what's in front of them; a raw reaction, not narration, summary or poetry)
 dead Name — cause
 bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${AXES.join(", ")}; usually ±1, ±2 major)
 ladder A>B: 3 — evidence   (romance rungs: ${LADDER.map((n, i) => `${i} ${n}`).join(", ")})
