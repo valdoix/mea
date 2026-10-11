@@ -28,6 +28,15 @@
   let laneOpen = $state<Record<string, boolean>>({});
   // H1: "Keep this next time" pins a block for this chat: it's never cut to fit the ceiling.
   let kept = $state<string[]>([]);
+  // H2: cost per reply (writer + planner + background).
+  let cost = $state<{ writer: { tokens: number }; planner: { tokens: number } | null; background: { tokens: number } | null; total: { tokens: number; cost: number } } | null>(null);
+  $effect(() => {
+    cost = null;
+    if (!open || !generationId) return;
+    void get<{ cost: typeof cost }>(`/api/generations/${generationId}/cost`)
+      .then((r) => (cost = r.cost))
+      .catch(() => {});
+  });
   $effect(() => {
     if (!open) return;
     void get<{ chat: { settings: { promptKeep?: string[] } } }>(`/api/chats/${chatId}`)
@@ -97,6 +106,7 @@
         {#if data.promptTokens}<span class="chip butter">{compact(data.promptTokens)} reported by provider</span>{/if}
         {#if data.cachedTokens}<span class="chip sky">{compact(data.cachedTokens)} cached</span>{/if}
         {#if data.trace}<span class="chip">{data.trace.history.included}/{data.trace.history.total} messages in context</span>{/if}
+        {#if cost}<span class="chip" title="The writer, the planner and the background work this reply set off">cost: writer {compact(cost.writer.tokens)}{cost.planner?.tokens ? ` + planner ${compact(cost.planner.tokens)}` : ""}{cost.background?.tokens ? ` + background ${compact(cost.background.tokens)}` : ""} = {compact(cost.total.tokens)} tokens{cost.total.cost ? ` · $${cost.total.cost.toFixed(4)}` : ""}</span>{/if}
       </div>
 
       {#if data.trace?.timing || data.ttftMs != null}

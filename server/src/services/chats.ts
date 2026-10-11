@@ -113,6 +113,8 @@ export const chatSettingsSchema = z.object({
     })
     .partial()
     .optional(),
+  /** H2: Budget mode: no optional model reads for this chat (checks, lessons, the advisor, the editor…). */
+  budgetMode: z.boolean().optional(),
   /** H1: what this chat never cuts when the prompt is over its ceiling ("Keep this next time"). */
   promptKeep: z.array(z.string().max(40)).max(30).optional(),
   /** D2: the craft coach in this chat: paused, and the habits you said are fine. */

@@ -25,6 +25,7 @@ import { meus } from "./routes/meus";
 import { lessons } from "./routes/lessons";
 import { offpage } from "./routes/offpage";
 import { setup } from "./routes/setup";
+import "./services/chatcost";
 import { data } from "./routes/data";
 import { vault } from "./routes/vault";
 import { isLocked } from "./lib/vault";

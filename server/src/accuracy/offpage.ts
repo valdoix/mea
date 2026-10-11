@@ -296,7 +296,7 @@ const rewordSchema = z.object({ text: z.string() });
 export async function runRewordJob(p: { chatId: string; key: string; text: string }, job?: JobContext) {
   if (one("SELECT 1 FROM offpage_cache WHERE key = ?", p.key)) return;
   const list = keptOffpage(p.chatId).filter((o) => o.neverSay.length);
-  if (!list.length || shouldShed("offpage")) return;
+  if (!list.length || shouldShed("offpage", p.chatId)) return;
   const r = await callJson({
     task: "helper",
     kind: "offpage",

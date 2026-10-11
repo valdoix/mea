@@ -120,7 +120,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   if (!messages) return;
 
   // CONN-14: an optional cheap check skips updates when nothing changed (off under maximum accuracy).
-  if (cfg.gate || shouldShed("gates")) {
+  if (cfg.gate || shouldShed("gates", p.chatId)) {
     try {
       const gate = await callJson({
         task: "helper",

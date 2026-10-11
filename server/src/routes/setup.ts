@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
+import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
 import { deleteCustomCalendar, listCustomCalendars, saveCustomCalendar } from "../trackers/customcal";
 import { bondsReport, deskCue, deskView, recapSince, secretsReport, storyAudit, threadsReport } from "../steer/desk";
 import { body } from "../lib/http";
@@ -99,3 +100,16 @@ desk.delete("/calendars/:cid", (c) => {
   deleteCustomCalendar(c.req.param("cid"));
   return c.json({ ok: true });
 });
+
+// ---------- H2: per-chat cost guard ----------
+
+desk.get("/chats/:id/cost", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ ...chatCostToday(c.req.param("id")), cheaper: cheaperProfile() });
+});
+
+/** "Use a cheaper model for these": background work (summaries, helpers, trackers, the world) moves to it. */
+desk.post("/cost/cheaper", (c) => c.json(cheaperForBackground()));
+
+/** The Inspector's cost per reply: writer, planner and background. */
+desk.get("/generations/:gid/cost", (c) => c.json({ cost: replyCost(c.req.param("gid")) }));

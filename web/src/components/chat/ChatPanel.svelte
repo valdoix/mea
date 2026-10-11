@@ -12,6 +12,7 @@
   import HealthPanel from "./HealthPanel.svelte";
   import CanonPanel from "./CanonPanel.svelte";
   import CraftPanel from "./CraftPanel.svelte";
+  import CostPanel from "./CostPanel.svelte";
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
   import AmbienceEditor from "./AmbienceEditor.svelte";
@@ -460,6 +461,7 @@
   </Module>
 
   <CraftPanel chatId={detail.chat.id} />
+  <CostPanel chatId={detail.chat.id} budgetMode={Boolean((detail.chat.settings as ChatSettings).budgetMode)} {onchange} />
   <CanonPanel chatId={detail.chat.id} />
 
   <ChatSteer chatId={detail.chat.id} settings={detail.chat.settings} characterStyle={detail.defaults?.characterStyle ?? null} onupdate={(b) => update(b)} />

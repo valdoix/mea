@@ -80,7 +80,7 @@ export async function runChronicle(chatId: string, job?: JobContext, opts: { max
       content: [entityCard(e), ...facts.map((f) => f.content)].filter(Boolean).join("\n").slice(0, 1500),
       extra: { type: TYPE[e.kind], aliases: parseJson<string[]>(e.aliases, []), entity: e.name, essentials: entityCard(e).slice(0, 240) },
     };
-    if (!shouldShed("verification") && facts.length >= 2) {
+    if (!shouldShed("verification", chatId) && facts.length >= 2) {
       try {
         const r = await callJson({
           task: "summarizer",

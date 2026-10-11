@@ -203,7 +203,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   // CON-12: the timeline check runs once the trackers have read the reply; keep what it found.
   const earlier = one<FlagRow>("SELECT * FROM continuity_flags WHERE message_id = ? AND swipe_idx = ?", messageId, swipeIdx);
   issues.push(...parseJson<Issue[]>(earlier?.issues, []).filter((i) => i.kind === "timeline").map(({ id: _id, ...rest }) => rest));
-  const useModel = cfg.continuity && (opts.model ?? (cfg.checkerModel && !shouldShed("continuity")));
+  const useModel = cfg.continuity && (opts.model ?? (cfg.checkerModel && !shouldShed("continuity", chatId)));
   if (useModel) {
     const sheet = factSheet(chatId, sw.content, st);
     if (sheet.lines.length) {

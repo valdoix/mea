@@ -107,7 +107,7 @@ export async function segmentChat(chatId: string, job?: JobContext) {
           cut = `${signal.kind}: ${signal.detail}`;
           chapter = signal.kind === "chapter";
         } else if (signal) {
-          if (cfg.boundaryCheck && !shouldShed("gates")) {
+          if (cfg.boundaryCheck && !shouldShed("gates", chatId)) {
             try {
               const verdict = await confirmBoundary(chatId, formatLedger(sceneRows.slice(-3), names), formatLedger([m], names));
               if (verdict.newScene) cut = `${signal.kind}: ${signal.detail} (confirmed)`;
