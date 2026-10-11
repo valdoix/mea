@@ -175,7 +175,7 @@ interface Candidate {
   rejectedIdx?: number;
 }
 
-const SUBJECT: Record<string, RegExp> = { dead: /^(.+?) is dead\b/, trait: /^(.+?) has /, leak: /^(.+?) doesn't know/ };
+const SUBJECT: Record<string, RegExp> = { dead: /^(.+?) is dead\b/, trait: /^(.+?) has /, leak: /^(.+?) doesn't know/, nothere: /^(.+?) isn't in this scene/ };
 function subjectOf(i: Found) {
   const re = SUBJECT[i.kind];
   return (re ? i.conflict.match(re)?.[1] : undefined) ?? (i.kind === "name" ? i.claim : undefined);

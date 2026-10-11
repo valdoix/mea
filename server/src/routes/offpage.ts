@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { addNeverSay, createOffpage, deleteOffpage, getOffpage, holdOffpage, listOffpage, type RevealPlan, revealOffpage, updateOffpage } from "../accuracy/offpage";
 import { fixIssueSentence } from "../accuracy/fixes";
+import { issueToLesson } from "../accuracy/moreslips";
 import { one } from "../db/db";
 import { badRequest, body, must } from "../lib/http";
 import { fileItem } from "../services/filings";
@@ -118,3 +119,9 @@ offpage.post("/chats/:id/canon/items", async (c) => {
 /** "Suggest from the wiki": in the background; the suggestions arrive in the Inbox. */
 offpage.post("/chats/:id/canon/suggest", (c) => c.json({ jobId: queueSuggest(c.req.param("id")) }));
 offpage.post("/chats/:id/canon/move/:item", (c) => c.json({ canon: moveCutoff(c.req.param("id"), c.req.param("item")) }));
+
+/** D1: "Make it a lesson": a finding kept as a rule for this story. */
+offpage.post("/continuity/:id/lesson", async (c) => {
+  const b = await body(c, z.object({ issueId: z.string() }));
+  return c.json({ lesson: issueToLesson(c.req.param("id"), b.issueId) });
+});
