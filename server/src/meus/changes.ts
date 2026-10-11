@@ -16,7 +16,9 @@ import { createEntity, deleteEntity, ENTITY_KINDS, type EntityKind, type EntityR
 import { correctMemory } from "../memory/remember";
 import type { ProposedChange } from "../assistant/core";
 import { type ChatSettings, editMessage, getMessageRow, mustChat, setMessageFlags, softDeleteMessage, updateChat } from "../services/chats";
-import { userEditAt, timeskip } from "../trackers/service";
+import { userEditAt, timeskip, untilMinutes } from "../trackers/service";
+import { promisesFor, type PromiseVerdict, setPromise } from "../trackers/promises";
+import { bondsReport, deskCue, secretsReport, threadsReport } from "../steer/desk";
 import { castKey, castProfiles, currentFold, deleteEvent, dryRunOps, linesToOps, moveCastProfile, saveCastProfile } from "../trackers/store";
 import { parseDuration } from "../trackers/clock";
 import { addLesson, deleteLesson, getLesson, lessonsFor, updateLesson } from "../steer/lessons";
@@ -50,7 +52,8 @@ export const CHANGE_KINDS = [
   '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off;',
   '{"kind": "secret_offpage", "label": "the secret, in a sentence", "never_say": ["words the narration must not use yet"], "hint_as": "how the story may hint at it", "hints": "never|rarely|building"} keeps a secret off the page (the narration doesn’t state it); {"kind": "secret_offpage", "id": "<off-page id>", "status": "revealed|kept", "never_say": […]} reveals one, or changes it;',
   '{"kind": "canon", "source": "the work", "point": "where the story stands in it", "later": [{"kind": "event|character|reveal|term", "text": "…", "terms": ["words that give it away"]}], "wont": ["canon events that won’t happen in this story"], "remove": ["text of a later or wont item"]} changes the canon cutoff (only what changes);',
-  '{"kind": "pressure", "name": "<cast name>", "action": "redraw|write|lock|unlock|head|resolve", "text": "for write: what they carry and haven’t said"} a person’s hidden pressure (head: the next scene tests it; resolve: it eases, and moves a bond).',
+  '{"kind": "pressure", "name": "<cast name>", "action": "redraw|write|lock|unlock|head|resolve", "text": "for write: what they carry and haven’t said"} a person’s hidden pressure (head: the next scene tests it; resolve: it eases, and moves a bond);',
+  '{"kind": "report", "report": "bonds|threads|secrets|knows", "name": "<for knows: whose>"} shows the player a report from the story’s records (changes nothing); {"kind": "cut_to", "to": "<person or place>"} the next reply cuts there; {"kind": "promise", "id": "<promise id>", "verdict": "kept|broken|excused|forgiven"} settles a promise, or {"kind": "promise", "who": "<name>", "whom": "<name>", "what": "…", "due": "Day 3 21:00", "meet": "<place, for a meeting>"} records one; {"kind": "calendar_add", "title": "…", "when": "19 January", "event_kind": "birthday|anniversary|holiday|appointment"}; {"kind": "room", "name": "<cast name>", "place": "Town › Place", "room_kind": "room|home|shop", "keeps": ["item @ place"]} whose place it is, and what they keep where.',
 ].join(" ");
 
 /** Kinds the story can't redo by itself, or that Undo can't take back: never pre-ticked. */
@@ -112,6 +115,36 @@ function castChar(chatId: string, name: string) {
 const entityText = (r: { name: string; kind: string; status: string; aliases: string[]; description: string; facts: string[] }) =>
   [`${r.name} · ${r.kind} · ${r.status}`, r.aliases.length ? `also: ${r.aliases.join(", ")}` : "", r.description, ...r.facts.map((f) => `• ${f}`)].filter(Boolean).join("\n");
 const rowView = (r: EntityRow) => ({ name: r.name, kind: r.kind, status: r.status, aliases: parseJson<string[]>(r.aliases, []), description: r.description, facts: parseJson<string[]>(r.facts, []) });
+
+/** Free text going into a ledger line: no pipes or brackets (they'd be read as the line's own parts). */
+const clean = (s: string) => s.replace(/[|[\]]/g, " ").replace(/\s+/g, " ").trim();
+
+/** F4: a report as text for Meus's card (null: no such report, or no such person). */
+function reportText(chatId: string, which: string, name: string): string | null {
+  if (which === "bonds") {
+    const r = bondsReport(chatId);
+    return r.bonds.length ? r.bonds.map((b) => `${b.from} → ${b.to}: ${b.changes.length ? b.changes.map((x) => `${x.axis} ${x.delta > 0 ? "↑" : "↓"}${Math.abs(x.delta)} (now ${x.now})`).join(", ") : "no change this chapter"}`).join("\n") : "No bonds recorded yet.";
+  }
+  if (which === "threads") {
+    const r = threadsReport(chatId);
+    return r.threads.length ? r.threads.map((t) => `[${t.state}] ${t.title}${t.latest ? ` — ${t.latest}` : ""}`).join("\n") : "No open threads.";
+  }
+  if (which === "secrets") {
+    const r = secretsReport(chatId);
+    const lines = [...r.clocks.map((x) => `${x.statement} — exposure ${x.cur}/${x.max}${x.near.length ? `; closest: ${x.near.map((n) => n.name).join(", ")}` : ""}`), ...r.offpage.map((o) => `Kept off the page: ${o.label}`)];
+    return lines.length ? lines.join("\n") : "No secrets in play.";
+  }
+  if (which === "knows") {
+    const who = castChar(chatId, name);
+    if (!who) return null;
+    const st = currentFold(chatId).result.state;
+    const facts = Object.values(st.facts);
+    const knows = facts.filter((f) => ["knows", "believes", "suspects"].includes(f.stances[who.id]?.status ?? "")).map((f) => `${f.stances[who.id]!.status}: ${f.statement}`);
+    const not = facts.filter((f) => f.stances[who.id]?.status === "unaware" || f.secret?.from.includes(who.id)).map((f) => `doesn't know: ${f.statement}`);
+    return [...knows, ...not].join("\n") || `Nothing recorded about what ${who.name} knows yet.`;
+  }
+  return null;
+}
 
 /**
  * Turns what the model proposed into checked changes for the card. Anything that wouldn't apply
@@ -264,7 +297,13 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
       out.push({ kind, target: "", label: kind === "cue" ? "Cue for the next reply" : kind === "ooc" ? "Standing OOC note" : "Story truth", before, after: text, data: { why } });
     } else if (kind === "timeskip") {
       const duration = str(c.duration);
-      if (!parseDuration(duration)) {
+      let until: number | null = null;
+      try {
+        until = untilMinutes(duration, currentFold(chatId).result.state.time?.minutes ?? null);
+      } catch {
+        until = null;
+      }
+      if (!until && !parseDuration(duration)) {
         dropped.push(`couldn't read the time skip "${duration}"`);
         continue;
       }
@@ -597,6 +636,58 @@ may hint as: ${str(c.hint_as)}` : ""}`, data: { label, neverSay: never ?? [], hi
       }
       const verb = { redraw: "redraw", write: "set", lock: "lock", unlock: "unlock", head: "bring to a head", resolve: "resolve" }[action];
       out.push({ kind, target: who.id, label: `Pressure · ${verb}: ${who.name}`, before: who.pressure?.text ?? "", after: action === "write" ? str(c.text) : (who.pressure?.text ?? "(a new draw)"), data: { action, text: str(c.text), why } });
+    } else if (kind === "report") {
+      // F4: a report card from the story's records; it changes nothing.
+      const which = str(c.report).toLowerCase();
+      const text = reportText(chatId, which, str(c.name));
+      if (text == null) {
+        dropped.push(which === "knows" ? `there's no ${str(c.name)} in the cast` : `there's no "${which}" report`);
+        continue;
+      }
+      out.push({ kind, target: "", label: `Report · ${which === "knows" ? `what ${str(c.name)} knows` : which}`, before: "", after: text, data: { readOnly: true, why } });
+    } else if (kind === "cut_to") {
+      const to = str(c.to).slice(0, 120);
+      if (!to) continue;
+      out.push({ kind, target: "", label: `Cut to ${to.split(" › ").at(-1)}`, before: settings.cue ?? "", after: `The next reply cuts to ${to}.`, data: { to, why } });
+    } else if (kind === "promise") {
+      if (str(c.id) || str(c.verdict)) {
+        const verdict = str(c.verdict).toLowerCase();
+        const p = promisesFor(chatId).find((x) => x.id === str(c.id) || (str(c.what) !== "" && x.what.toLowerCase().includes(str(c.what).toLowerCase())));
+        if (!p || !["kept", "broken", "excused", "forgiven", "open"].includes(verdict)) {
+          dropped.push("couldn't find that promise");
+          continue;
+        }
+        out.push({ kind, target: p.id, label: `Promise · ${verdict === "excused" ? "they had a reason" : verdict}: ${p.what}`, before: p.status, after: verdict, data: { verdict, why } });
+      } else {
+        const who = castChar(chatId, str(c.who));
+        const whom = castChar(chatId, str(c.whom));
+        const what = clean(str(c.what)).slice(0, 160);
+        if (!who || !whom || !what) {
+          dropped.push("a promise needs who, to whom, and what");
+          continue;
+        }
+        const meta = str(c.meet) ? ` | meet @ ${clean(str(c.meet))}` : "";
+        const line = `promise ${who.name}>${whom.name}: ${what}${meta}${str(c.due) ? ` [due ${clean(str(c.due))}]` : ""}${why ? ` — ${why}` : ""}`;
+        out.push({ kind, target: "", label: `Promise · ${who.name} → ${whom.name}`, before: "", after: line, data: { line, why } });
+      }
+    } else if (kind === "calendar_add") {
+      const title = clean(str(c.title)).replace(/:/g, " ").slice(0, 80);
+      const when = clean(str(c.when)).slice(0, 60);
+      if (!title || !when) continue;
+      const ek = str(c.event_kind).toLowerCase();
+      const line = `event ${title}: ${when}${["birthday", "anniversary", "holiday", "appointment"].includes(ek) ? ` | ${ek}` : ""}`;
+      out.push({ kind, target: "", label: `Calendar · ${title}`, before: "", after: `${title} · ${when}`, data: { line, why } });
+    } else if (kind === "room") {
+      const who = castChar(chatId, str(c.name));
+      if (!who) {
+        dropped.push(`there's no ${str(c.name)} in the cast`);
+        continue;
+      }
+      const lines: string[] = [];
+      if (str(c.place)) lines.push(`room ${who.name}: ${clean(str(c.place))} | ${clean(str(c.room_kind)) || "room"}`);
+      for (const k of strs(c.keeps) ?? []) if (k.includes("@")) lines.push(`keeps ${who.name}: ${clean(k)}`);
+      if (!lines.length) continue;
+      out.push({ kind, target: who.id, label: `Rooms and belongings · ${who.name}`, before: "", after: lines.join("\n"), data: { lines, why } });
     } else if (kind) dropped.push(`Meus can't make "${kind}" changes yet`);
   }
   return { changes: out, dropped };
@@ -800,6 +891,20 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       }
       return [{ t: "lessonDrop", id: addLesson(chatId, { text: c.after, scope: (d.scope as "story") ?? "story", why: String(d.why ?? ""), by: "user", from: "meus" }).id }];
     }
+    case "report":
+      return [];
+    case "cut_to": {
+      const prev = parseJson<ChatSettings>(mustChat(chatId).settings, {}).cue ?? null;
+      deskCue(chatId, { kind: "cut", to: String(d.to) });
+      return [{ t: "settings", patch: { cue: prev } }];
+    }
+    case "promise":
+      if (d.verdict) return [{ t: "events", ids: setPromise(chatId, c.target, String(d.verdict) as PromiseVerdict).ids }];
+      return [{ t: "events", ids: userEditAt(chatId, linesToOps([String(d.line)]).ops) }];
+    case "calendar_add":
+      return [{ t: "events", ids: userEditAt(chatId, linesToOps([String(d.line)]).ops) }];
+    case "room":
+      return [{ t: "events", ids: userEditAt(chatId, linesToOps(d.lines as string[]).ops) }];
     case "pressure":
       return [{ t: "events", ids: pressureAction(chatId, c.target, String(d.action) as PressureAction, String(d.text ?? "")).ids }];
     case "canon": {
