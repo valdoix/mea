@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RoomColors from "./RoomColors.svelte";
   import Segmented from "../Segmented.svelte";
   import { biometricsAvailable, lock, removeLock, setPin, setupBiometrics } from "../../lib/applock.svelte";
   import { confirm } from "../../lib/dialogs.svelte";
@@ -121,6 +122,10 @@
           />
         </div>
       {/if}
+      <details class="colors">
+        <summary class="small"><b>Customise colours</b> <span class="muted">for this room, by day and by night</span></summary>
+        <RoomColors />
+      </details>
     </section>
 
     <section class="panel stack">
