@@ -1,4 +1,5 @@
 import { applySim } from "../sim/fold";
+import { itemsAt } from "./belongings";
 import type { SimOp } from "../sim/types";
 import { formatStoryTime, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
@@ -19,6 +20,7 @@ import {
   METERS,
   type Meter,
   type Op,
+  type Place,
   type Trait,
   type TraitKind,
   type Truth,
@@ -297,6 +299,23 @@ export class Folder {
     this.dueChecks(ctx);
   }
 
+  /** E2: where and when the story is, for an object's history. */
+  private where() {
+    return { ...(this.state.place.length ? { at: this.state.place.join(" › ") } : {}), ...(this.state.time ? { time: this.state.time.minutes } : {}) };
+  }
+
+  /** E2: the known place a path names (the same place written in full or by its last part). */
+  placeAt(path: string[]): Place | undefined {
+    if (!path.length) return undefined;
+    const exact = this.state.places[slug(path.join(" "))];
+    if (exact) return exact;
+    const tail = path.map(norm);
+    return Object.values(this.state.places).find((p) => {
+      const pp = p.path.map(norm);
+      return tail.length <= pp.length ? tail.every((x, i) => x === pp[pp.length - tail.length + i]) : pp.every((x, i) => x === tail[tail.length - pp.length + i]);
+    });
+  }
+
   private newScene(seq: number) {
     this.state.sceneNo++;
     this.state.sceneStartSeq = seq;
@@ -399,6 +418,9 @@ export class Folder {
         if (this.isLocked("place") && this.ai(ctx)) return this.reject(ctx, "the place is locked");
         const before = st.place;
         if (before.join(" › ").toLowerCase() === path.join(" › ").toLowerCase()) return;
+        // E2: what was in the place you're leaving, for "what's changed since you were last here".
+        const left = this.placeAt(before);
+        if (left) left.seen = itemsAt(st, left).map((i) => i.id);
         st.place = path;
         const id = slug(path.join(" "));
         const p = (st.places[id] ??= { id, name: path.at(-1)!, path, visits: 0, lastSeq: seq });
@@ -835,8 +857,11 @@ export class Folder {
           it.gone = true;
           const was = it.holder;
           it.holder = undefined;
-          it.custody.push({ from: was, how: a.gone, seq });
-          this.push(ctx, { kind: "item", text: `${name}: ${a.gone}`, path: `items.${id}`, reason: op.cause, tone: "down" });
+          it.custody.push({ from: was, how: a.gone, seq, ...this.where() });
+          // E2: a lost gift is noticed (it goes to memory, and the note tells the giver's scenes).
+          const from = it.gift ? this.findChar(it.gift) : undefined;
+          this.push(ctx, { kind: "item", text: it.gift ? `${name} (a gift from ${it.gift}): ${a.gone}` : `${name}: ${a.gone}`, path: `items.${id}`, reason: op.cause, tone: "down", ...(from ? { memory: true } : {}) });
+          if (from && it.owner && it.owner !== from.id) it.lostGift = seq;
           return;
         }
         const toChar = a.to ? this.findChar(a.to) ?? (looksLikePerson(a.to) ? this.person(a.to, seq) : undefined) : undefined;
@@ -845,14 +870,56 @@ export class Folder {
         it.gone = false;
         it.holder = holder;
         if (a.where) it.where = clip(a.where, 60);
+        let gave: Character | undefined;
         if (a.gift) {
-          it.gift = this.findChar(a.gift)?.name ?? clip(a.gift, 60);
+          gave = this.findChar(a.gift);
+          const fresh = !it.gift;
+          it.gift = gave?.name ?? clip(a.gift, 60);
           if (toChar) it.owner = toChar.id;
+          if (!fresh) gave = undefined;
         }
         if (!it.owner && toChar) it.owner = toChar.id;
-        it.custody.push({ from: was, to: holder, how: op.cause, seq });
+        it.lostGift = undefined;
+        it.custody.push({ from: was, to: holder, how: op.cause, seq, ...this.where() });
         const nm = (h?: string) => (h ? (h.startsWith("place:") ? h.slice(6) : this.nameOf(h)) : "");
         this.push(ctx, { kind: "item", text: was && was !== holder ? `${name}: ${nm(was)} → ${nm(holder)}` : `${name} → ${nm(holder)}`, path: `items.${id}`, reason: op.cause, from: nm(was), to: nm(holder), memory: Boolean(a.gift) });
+        // E2: a gift moves a bond: the one who got it warms to the one who gave it.
+        if (gave && toChar && gave.id !== toChar.id) this.applyOp({ op: "bond", subject: toChar.name, object: gave.name, args: { moves: [{ axis: "affection", delta: 1 }] }, cause: `a gift: ${name}`, raw: "" }, ctx);
+        return;
+      }
+      case "room": {
+        // E2: whose place this is, and what kind of place.
+        const who = this.person(op.subject, seq);
+        const path = ((a.path ?? []) as string[]).map((x) => clip(x, 60)).filter(Boolean);
+        if (!who || !path.length) return this.reject(ctx, "write room A: Town › Place | room");
+        const p = this.placeAt(path) ?? (st.places[slug(path.join(" "))] ??= { id: slug(path.join(" ")), name: path.at(-1)!, path, visits: 0, lastSeq: seq });
+        const kind = a.kind ? clip(a.kind, 30) : (p.kind ?? "room");
+        if (p.owner === who.id && p.kind === kind) return;
+        if (this.isLocked(`places.${p.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
+        p.owner = who.id;
+        p.kind = kind;
+        this.push(ctx, { kind: "place", text: `${p.name}: ${who.isUser ? this.cfg.userName || "your" : who.name}'s ${kind}`, path: `places.${p.id}`, reason: op.cause });
+        return;
+      }
+      case "keeps": {
+        // E2: something of theirs, kept somewhere ("keeps Mira: the ledger @ Lamp room").
+        const who = this.person(op.subject, seq);
+        const name = clip(a.item, 80);
+        if (!who || !name) return this.reject(ctx, "write keeps A: item @ place");
+        const id = slug(name);
+        const it = (st.items[id] ??= { id, name, custody: [], lastSeq: seq });
+        if (this.isLocked(`items.${id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
+        const holder = a.place ? `place:${clip(a.place, 80)}` : it.holder;
+        if (it.owner === who.id && it.holder === holder && !it.gone) return;
+        const was = it.holder;
+        it.owner = who.id;
+        it.gone = false;
+        it.lastSeq = seq;
+        if (holder !== was) {
+          it.holder = holder;
+          it.custody.push({ from: was, to: holder, how: op.cause ?? "kept there", seq, ...this.where() });
+        }
+        this.push(ctx, { kind: "item", text: `${name}: ${who.isUser ? this.cfg.userName || "yours" : who.name}'s${holder?.startsWith("place:") ? `, kept at ${holder.slice(6)}` : ""}`, path: `items.${id}`, reason: op.cause });
         return;
       }
       case "thread": {

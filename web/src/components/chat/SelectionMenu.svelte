@@ -1,7 +1,8 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
-  import { del, post } from "../../lib/api";
-  import { Bookmark, BookmarkPlus, CircleAlert, EyeOff, Heart, Lock, MessagesSquare, Scissors } from "../../lib/icons";
+  import { del, get, post } from "../../lib/api";
+  import { Bookmark, BookmarkPlus, CircleAlert, EyeOff, Heart, Lock, MessagesSquare, Package, Scissors } from "../../lib/icons";
+  import { trackerEdit } from "../../lib/trackers.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
   import { editOffpage, kept, neverSay } from "../../lib/offpage.svelte";
   import { askMeus } from "../../lib/meus.svelte";
@@ -131,6 +132,7 @@
   let pickOpen = $state(false);
   let pickPoint = $state<{ x: number; y: number } | null>(null);
   let pickItems = $state<MenuItem[]>([]);
+  let pickTitle = $state("");
   function neverSayThis() {
     if (!sel) return;
     const word = sel.text.slice(0, 60);
@@ -145,9 +147,28 @@
       return done();
     }
     pickItems = [...list.map((o) => ({ label: o.label.slice(0, 70), onclick: () => void neverSay(o, word, messageId) })), { label: "A new secret…", onclick: () => editOffpage(null, { neverSay: [word], messageId }) }];
+    pickTitle = "Never say this, for which secret?";
     pickPoint = { x: sel.x, y: sel.y + 4 };
     pickOpen = true;
     done();
+  }
+  /** E2: "This belongs to…": the selected thing becomes someone's, in the story's records. */
+  async function belongsTo() {
+    if (!sel) return;
+    const thing = sel.text.trim().replace(/[.,;:!?]+$/, "").slice(0, 80);
+    const at = { x: sel.x, y: sel.y + 4 };
+    window.getSelection()?.removeAllRanges();
+    sel = null;
+    try {
+      const r = await get<{ people: { name: string; dead: boolean }[]; userName: string }>(`/api/chats/${chatId}/cast`);
+      const own = (name: string) => () => void trackerEdit(chatId, [`item ${thing}: owner ${name}`]).then((ok) => ok && toast(`${thing}: ${name}'s`, { kind: "ok" }));
+      pickItems = [...r.people.filter((x) => !x.dead).map((x) => ({ label: x.name, onclick: own(x.name) })), ...(r.userName ? [{ label: `${r.userName} (you)`, onclick: own(r.userName) }] : [])];
+      pickTitle = `Whose is “${thing.slice(0, 30)}”?`;
+      pickPoint = at;
+      pickOpen = true;
+    } catch (e) {
+      errorToast(e);
+    }
   }
   function keepOffPage() {
     if (!sel) return;
@@ -179,12 +200,13 @@
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={startFix}><CircleAlert size={14} /> That's wrong</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={toMeus}><MessagesSquare size={14} /> Ask Meus</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={neverSayThis} title="Add these words to a secret kept off the page"><EyeOff size={14} /> Never say this</button>
+    {#if sel.text.trim().split(/\s+/).length <= 8}<button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={belongsTo} title="Make this thing someone's"><Package size={14} /> This belongs to…</button>{/if}
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepOffPage} title="Hold this back from the narration"><Lock size={14} /> Keep off the page</button>
     {#if onkeep && canKeep?.(sel.messageId)}<button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepThis} title="A new take that keeps everything up to here"><Scissors size={14} /> Keep this, redo the rest</button>{/if}
   </div>
 {/if}
 
-<Menu bind:open={pickOpen} items={pickItems} point={pickPoint} title="Never say this, for which secret?" />
+<Menu bind:open={pickOpen} items={pickItems} point={pickPoint} title={pickTitle} />
 
 <Modal bind:open={fixOpen} title="Correct what memory knows" size="md">
   <div class="stack">

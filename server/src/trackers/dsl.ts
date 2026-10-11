@@ -13,7 +13,7 @@ import type { Op, OpName } from "./types";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
@@ -313,6 +313,20 @@ export function parseLine(raw: string): Op | null {
       }
       break;
     }
+    case "room": {
+      // E2: "room Mira: Port Ellis › Lighthouse › Lamp room | shop" (whose place it is, and what kind)
+      const [where, kind] = body.split("|").map((x) => x.trim());
+      a.path = (where ?? "").split(/\s*(?:›|>|»|\/)\s*/).map((s) => s.trim()).filter(Boolean);
+      a.kind = kind?.toLowerCase() || undefined;
+      break;
+    }
+    case "keeps": {
+      // E2: "keeps Mira: the ledger @ Lamp room" (hers, kept there)
+      const m = body.match(/^(.+?)\s*@\s*(.+)$/);
+      a.item = (m?.[1] ?? body).trim();
+      a.place = m?.[2]?.trim();
+      break;
+    }
     case "pressure": {
       // E1: "pressure Mira: is grieving and has told no one | stage: hidden | by: deck" (the engine and you only)
       const [main, ...meta] = body.split("|").map((x) => x.trim());
@@ -349,8 +363,10 @@ export function parseLine(raw: string): Op | null {
       if (own) a.owner = own[1]!.trim();
       else if (cond) a.condition = cond[1]!.trim();
       else {
-        const where = body.match(/\(([^)]+)\)\s*$/);
-        const b = body.replace(/\(([^)]+)\)\s*$/, "").trim();
+        // E2: "(gift from A)" / ", gift from A" says who gave it, not where it is.
+        const plain = body.replace(/\s*[,;(]?\s*\bgift(?:ed)?\s+from\s+[^;)]+\)?\s*$/i, "").trim();
+        const where = plain.match(/\(([^)]+)\)\s*$/);
+        const b = plain.replace(/\(([^)]+)\)\s*$/, "").trim();
         if (/^\+/.test(b)) a.to = b.slice(1).trim();
         else {
           const [from, to] = arrow(b);

@@ -14,6 +14,8 @@ export type OpName =
   | "expose"
   // E1: a character's hidden pressure (the engine and you, never the model)
   | "pressure"
+  // E2: whose room a place is, and what they keep where
+  | "room" | "keeps"
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 
@@ -179,7 +181,10 @@ export interface Item {
   condition?: string;
   gone?: boolean;
   gift?: string;
-  custody: { from?: string; to?: string; how?: string; seq: number }[];
+  /** E2: the seq a gift was lost at (until it turns up again). */
+  lostGift?: number;
+  /** Who held it, and (E2) where the story was and when, for the object's history. */
+  custody: { from?: string; to?: string; how?: string; seq: number; at?: string; time?: number }[];
   lastSeq: number;
 }
 
@@ -293,6 +298,11 @@ export interface Place {
   path: string[];
   visits: number;
   lastSeq: number;
+  /** E2: whose it is (a character id) and what kind of place (room, home, shop…). */
+  owner?: string;
+  kind?: string;
+  /** E2: the item ids that were here when you last left, for "what's changed since". */
+  seen?: string[];
 }
 
 export interface WorldState {
