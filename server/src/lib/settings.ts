@@ -249,6 +249,10 @@ export interface MemoryConfig {
   onEdit: "auto" | "ask";
   /** Shares of the prompt target (CTX-01). */
   budget: { summaries: number; recall: number };
+  /** H1: one ceiling, in tokens, for everything Mea adds to the prompt (0: automatic, from the model's room). */
+  ceiling: number;
+  /** H1: what goes first when space is short (lane or block ids; anything not listed is never cut). */
+  cutOrder: string[];
   /** Recall budget split (MEM-12). */
   slots: { recent: number; relevant: number; serendipity: number };
   /** Strip markup and reasoning from messages older than this depth (CTX-07). */
@@ -307,6 +311,8 @@ export const defaultMemoryConfig: MemoryConfig = {
   autoRepair: true,
   onEdit: "auto",
   budget: { summaries: 0.12, recall: 0.06 },
+  ceiling: 0,
+  cutOrder: ["craft", "slips", "swipe-digest", "pressures", "promises", "style", "recall", "lessons", "advisor", "anchor", "trackers", "memory"],
   slots: { recent: 0.35, relevant: 0.5, serendipity: 0.15 },
   filterDepth: 6,
   lowWater: 0.7,

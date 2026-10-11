@@ -1,6 +1,6 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
-  import { get } from "../../lib/api";
+  import { get, patch } from "../../lib/api";
   import { compact } from "../../lib/format";
   import { Copy } from "../../lib/icons";
   import { toast } from "../../lib/state.svelte";
@@ -26,6 +26,25 @@
   let showLore = $state<"active" | "all">("active");
   let expanded = $state<Record<number, boolean>>({});
   let laneOpen = $state<Record<string, boolean>>({});
+  // H1: "Keep this next time" pins a block for this chat: it's never cut to fit the ceiling.
+  let kept = $state<string[]>([]);
+  $effect(() => {
+    if (!open) return;
+    void get<{ chat: { settings: { promptKeep?: string[] } } }>(`/api/chats/${chatId}`)
+      .then((d) => (kept = d.chat.settings.promptKeep ?? []))
+      .catch(() => {});
+  });
+  async function keepNext(key: string) {
+    try {
+      const d = await get<{ chat: { settings: { promptKeep?: string[] } } }>(`/api/chats/${chatId}`);
+      const next = [...new Set([...(d.chat.settings.promptKeep ?? []), key])];
+      await patch(`/api/chats/${chatId}`, { settings: { promptKeep: next } });
+      kept = next;
+      toast("Kept: it won't be cut in this chat", { kind: "ok" });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't keep it");
+    }
+  }
 
   $effect(() => {
     if (!open) return;
@@ -152,6 +171,20 @@
             <span title="Share of the text in dialogue{c.baselineDialogue != null ? `; usually ${Math.round(c.baselineDialogue * 100)}%` : ''}">dialogue {Math.round(c.dialogue * 100)}%{c.baselineDialogue != null ? ` (usually ${Math.round(c.baselineDialogue * 100)}%)` : ""}</span>
             {#if c.topOpening}<span title="The most common first word of a sentence">“{c.topOpening.word}” opens {Math.round(c.topOpening.share * 100)}%</span>{/if}
           </div>
+        {/if}
+
+        {#if data.trace.ceiling}
+          {@const cl = data.trace.ceiling}
+          <details open={cl.cuts.length > 0}>
+            <summary><b>Ceiling</b> <span class="tiny muted">what Mea adds: {compact(cl.after)} of {compact(cl.tokens)} tokens{cl.auto ? " (automatic)" : ""}{cl.cuts.length ? ` · ${cl.cuts.length} cut to fit (${compact(cl.before - cl.after)} tokens)` : " · nothing cut"}</span></summary>
+            {#each cl.cuts as c (c.key)}
+              <div class="row between cut">
+                <span class="small">{c.name} <span class="tiny faint">{compact(c.tokens)} tokens</span></span>
+                {#if kept.includes(c.key)}<span class="tiny muted">kept from next time</span>{:else}<button type="button" class="btn ghost small" onclick={() => keepNext(c.key)}>Keep this next time</button>{/if}
+              </div>
+            {/each}
+            <p class="tiny faint">The order is in Settings › Memory › What goes first when space is short.</p>
+          </details>
         {/if}
 
         {#if data.trace.reworded?.length}

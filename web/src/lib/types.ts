@@ -682,6 +682,8 @@ export interface PromptTrace {
   memory?: MemoryTrace;
   /** B1: memory and lore reworded to keep a secret off the page. */
   reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
+  /** H1: the ceiling on what Mea adds, and what was cut to fit it this turn. */
+  ceiling?: { tokens: number; auto: boolean; before: number; after: number; cuts: { key: string; name: string; tokens: number }[] };
   /** D2: the craft coach's numbers for this turn. */
   craft?: { replies: number; filter: number; emdash: number; ellipsis: number; triads: number; dialogue: number; baselineDialogue: number | null; topOpening: { word: string; share: number } | null };
 }
@@ -907,6 +909,9 @@ export interface MemoryConfig {
   autoRepair: boolean;
   onEdit: "auto" | "ask";
   budget: { summaries: number; recall: number };
+  /** H1: one ceiling for what Mea adds (0: automatic) and what goes first when space is short. */
+  ceiling: number;
+  cutOrder: string[];
   slots: { recent: number; relevant: number; serendipity: number };
   filterDepth: number;
   lowWater: number;

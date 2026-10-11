@@ -20,6 +20,15 @@
   });
 
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // H1: the cut order, top goes first.
+  const CUT_LABEL: Record<string, string> = { craft: "Craft coach notes", slips: "Last slips", "swipe-digest": "Earlier takes (on a swipe)", pressures: "Hidden pressures", promises: "Promises", style: "Style profile", recall: "Recalled memories", lessons: "Lessons", advisor: "Advisor's plan", anchor: "Who the character is (re-anchor)", trackers: "Story-state note", memory: "The Story So Far" };
+  function moveCut(from: number, to: number) {
+    if (!cfg || to < 0 || to >= cfg.cutOrder.length || from === to) return;
+    const order = [...cfg.cutOrder];
+    const [k] = order.splice(from, 1);
+    order.splice(to, 0, k!);
+    set({ cutOrder: order });
+  }
   function set(patch: Partial<MemoryConfig>) {
     if (!cfg) return;
     const next = { ...$state.snapshot(cfg), ...patch } as MemoryConfig;
@@ -167,6 +176,25 @@
         />
         <span class="hint">Flags a character mentioning a secret they don't know.</span>
       </div>
+    </section>
+
+    <section class="panel stack">
+      <h2>What goes first when space is short</h2>
+      <p class="tiny muted">Everything Mea adds to the prompt (the story-state note, lanes, the Story So Far, recalled memories) shares one ceiling. Over it, these go first, top to bottom; anything not listed, and the lanes that keep secrets and later canon off the page, are never cut.</p>
+      <label class="field">
+        <span class="label">Ceiling <span class="faint">{cfg.ceiling > 0 ? `${cfg.ceiling} tokens` : "automatic"}</span></span>
+        <input class="input narrow" type="number" min="0" max="200000" step="100" value={cfg.ceiling} onchange={(e) => set({ ceiling: num(e.currentTarget.value, 0, 200000) })} />
+        <span class="hint">0 sets it from the model's room once the reply's is set aside (about a third of it)</span>
+      </label>
+      <ol class="cutorder">
+        {#each cfg.cutOrder as k, i (k)}
+          <li draggable="true" ondragstart={(e) => e.dataTransfer?.setData("text/plain", String(i))} ondragover={(e) => e.preventDefault()} ondrop={(e) => (e.preventDefault(), moveCut(Number(e.dataTransfer?.getData("text/plain")), i))}>
+            <span class="grow">{CUT_LABEL[k] ?? k}</span>
+            <button type="button" class="btn ghost icon small" onclick={() => moveCut(i, i - 1)} disabled={i === 0} aria-label="Earlier">↑</button>
+            <button type="button" class="btn ghost icon small" onclick={() => moveCut(i, i + 1)} disabled={i === cfg.cutOrder.length - 1} aria-label="Later">↓</button>
+          </li>
+        {/each}
+      </ol>
     </section>
 
     <section class="panel stack">
@@ -328,6 +356,24 @@
 {/if}
 
 <style>
+  .cutorder {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding-left: 1.4rem;
+  }
+  .cutorder li {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.3rem;
+    border-radius: 8px;
+    background: var(--surface-2);
+    cursor: grab;
+  }
+  .cutorder .grow {
+    flex: 1;
+  }
   .profiles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));

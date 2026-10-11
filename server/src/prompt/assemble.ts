@@ -60,6 +60,8 @@ export interface AssembleInput {
    * go in at a depth.
    */
   extras?: PromptExtra[];
+  /** H1: one ceiling for everything Mea adds (null tokens: automatic), cut in this order; `keep` is never cut. */
+  ceiling?: { tokens: number | null; order: string[]; keep?: string[] };
   /** The route reasons natively, so planning goes in its reasoning rather than a <think> block. */
   providerReasoning?: boolean;
   /** The plan watch's second try: a last line insists the reply open with its <think> plan. */
@@ -122,6 +124,8 @@ export interface PromptTrace {
   craft?: Record<string, unknown>;
   /** B1: memory and lore reworded to keep a secret off the page. */
   reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
+  /** H1: the ceiling on what Mea adds, and what was cut to fit it this turn. */
+  ceiling?: { tokens: number; auto: boolean; before: number; after: number; cuts: { key: string; name: string; tokens: number }[] };
 }
 
 export interface AssembleResult {
@@ -356,6 +360,8 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     }
   });
 
+  // H1: what Mea adds, so the ceiling pass can cut it in order.
+  const added: { key: string; name: string; tokens: number; trace: BlockTrace; inline?: Inline; depth?: DepthItem }[] = [];
   for (const [i, e] of (input.extras ?? []).entries()) {
     const content = e.content.trim();
     const trace: BlockTrace = {
@@ -369,13 +375,18 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     };
     blocks.push(trace);
     if (!content) continue;
+    const key = e.lane ?? e.id;
     if (e.prefix) {
       // Stable blocks go just before the history so the cached prefix stays unchanged turn to turn.
       const at = inline.findIndex((x) => x.kind === "history");
-      inline.splice(at < 0 ? inline.length : at, 0, { kind: "msg", msg: { role: e.role ?? "system", content } });
+      const item: Inline = { kind: "msg", msg: { role: e.role ?? "system", content } };
+      inline.splice(at < 0 ? inline.length : at, 0, item);
+      added.push({ key, name: e.name, tokens: trace.tokens, trace, inline: item });
     } else {
       trace.depth = e.depth ?? 1;
-      depthItems.push({ depth: e.depth ?? 1, role: e.role ?? "system", content, order: 500 + i });
+      const item: DepthItem = { depth: e.depth ?? 1, role: e.role ?? "system", content, order: 500 + i };
+      depthItems.push(item);
+      added.push({ key, name: e.name, tokens: trace.tokens, trace, depth: item });
     }
   }
 
@@ -432,8 +443,52 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     recallItem.recall!.tokens = recallText ? tok(recallText) : 0;
     if (!recallText) recallItem.recall!.note = "nothing to recall";
   }
-  const memoryTokens = (storyText ? tok(storyText) : 0) + (recallMemory ? tok(recallMemory) : 0);
-  const historyBudget = Math.max(0, available - memoryTokens);
+  // H1: one ceiling for everything Mea adds (lanes, notes, the Story So Far, recalled memories).
+  // Over it, things go in your order; what you keep, and the safety lanes, never do. Freed room goes back to the history.
+  let freed = 0;
+  let ceilingTrace: PromptTrace["ceiling"];
+  let story = storyText;
+  let recallMem = recallMemory;
+  if (input.ceiling) {
+    const auto = input.ceiling.tokens == null || input.ceiling.tokens <= 0;
+    const cap = auto ? Math.round(effectiveTarget * 0.3) : input.ceiling.tokens!;
+    const keep = new Set([...(input.ceiling.keep ?? []), ...NEVER_CUT]);
+    const items: { key: string; name: string; tokens: number; cut: () => void }[] = [
+      ...added.map((a) => ({
+        key: a.key,
+        name: a.name,
+        tokens: a.tokens,
+        cut: () => {
+          if (a.inline) inline.splice(inline.indexOf(a.inline), 1);
+          if (a.depth) a.depth.content = "";
+          a.trace.included = false;
+          a.trace.note = "cut: over the ceiling";
+          freed += a.tokens;
+        },
+      })),
+      ...(story ? [{ key: "memory", name: "The Story So Far", tokens: tok(story), cut: () => ((story = ""), memoryInline && ((memoryInline.trace.included = false), (memoryInline.trace.note = "cut: over the ceiling"))) }] : []),
+      ...(recallMem ? [{ key: "recall", name: "Recalled memories", tokens: tok(recallMem), cut: () => ((recallMem = ""), recallItem?.recall && ((recallItem.recall.included = false), (recallItem.recall.note = "cut: over the ceiling"))) }] : []),
+    ];
+    const before = items.reduce((n, x) => n + x.tokens, 0);
+    let total = before;
+    const cuts: { key: string; name: string; tokens: number }[] = [];
+    for (const key of input.ceiling.order) {
+      if (total <= cap) break;
+      if (keep.has(key)) continue;
+      for (const it of items.filter((x) => x.key === key)) {
+        it.cut();
+        total -= it.tokens;
+        cuts.push({ key: it.key, name: it.name, tokens: it.tokens });
+      }
+    }
+    if (recallItem && recallMem !== recallMemory) {
+      recallItem.content = [triggered, recallMem].filter(Boolean).join("\n\n");
+      recallItem.recall!.tokens = recallItem.content ? tok(recallItem.content) : 0;
+    }
+    ceilingTrace = { tokens: cap, auto, before, after: total, cuts };
+  }
+  const memoryTokens = (story ? tok(story) : 0) + (recallMem ? tok(recallMem) : 0);
+  const historyBudget = Math.max(0, available + freed - memoryTokens);
   const source = mem?.history ?? input.history;
 
   // Newest messages first until the budget is used; always keep the latest message.
@@ -477,7 +532,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
       tagged.push(...merged);
       placedHistory = true;
     } else if (item.kind === "memory") {
-      if (storyText) tagged.push({ role: item.role, content: storyText, tag: placedHistory ? "tail" : "prefix" });
+      if (story) tagged.push({ role: item.role, content: story, tag: placedHistory ? "tail" : "prefix" });
     } else tagged.push({ ...item.msg, tag: placedHistory ? "tail" : "prefix" });
   }
   if (!placedHistory) tagged.push(...merged);
@@ -523,13 +578,17 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
         fixed,
         history: historyTokens,
         total: estPromptTokens,
-        memory: storyText ? tok(storyText) : 0,
-        recall: recallMemory ? tok(recallMemory) : 0,
+        memory: story ? tok(story) : 0,
+        recall: recallMem ? tok(recallMem) : 0,
         lore: loreTokens,
         ratio,
         effectiveTarget,
       },
       memory: mem?.trace,
+      ...(ceilingTrace ? { ceiling: ceilingTrace } : {}),
     },
   };
 }
+
+/** H1: never cut, whatever the order says: the canon rule, inline ledger instructions, and the lanes that keep secrets and later canon off the page. */
+export const NEVER_CUT = ["canon", "offpage", "ledger"];
