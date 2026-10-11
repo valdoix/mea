@@ -115,6 +115,8 @@ export interface SkyInput {
   latitude: number;
   /** The story's own last weather line and when (minutes): the walk continues from it. */
   anchor?: { minutes: number; text: string } | null;
+  /** G1: a built calendar's moons (name, cycle in days, offset), in place of our one moon. */
+  moons?: { name: string; cycle: number; offset: number }[];
 }
 
 export interface SkyHour {
@@ -175,6 +177,11 @@ export function skyLine(inp: SkyInput, storyWeather: string | null): { line: str
   const w = weatherAt(inp);
   const s = sun(doy, inp.latitude);
   const m = moon(inp.minutes, inp.seed);
+  // G1: the moons of a calendar you built, each on its own cycle.
+  const own = (inp.moons ?? []).map((x) => {
+    const age = ((((inp.minutes / 1440 + x.offset) % x.cycle) + x.cycle) % x.cycle) / x.cycle;
+    return { name: x.name, phase: MOON[Math.floor(age * 8 + 0.5) % 8]!, illumination: Math.round(((1 - Math.cos(2 * Math.PI * age)) / 2) * 100) };
+  });
   const mod = (((inp.minutes % 1440) + 1440) % 1440);
   const bits: string[] = [];
   if (!storyWeather) bits.push(`${w.text}, ${w.tempC}°C`);
@@ -182,9 +189,10 @@ export function skyLine(inp: SkyInput, storyWeather: string | null): { line: str
   if (s.rise != null && s.set != null) {
     if (mod < s.rise) bits.push(`sunrise ${hhmm(s.rise)}`);
     else if (mod < s.set) bits.push(s.set - mod <= 90 ? `sunset in ${s.set - mod} min` : `sunset ${hhmm(s.set)}`);
+    else if (own.length) bits.push(`dark since ${hhmm(s.set)}${own.filter((x) => x.illumination > 60).map((x) => `, ${x.name} ${x.phase.replace(/ moon$/, "")}`).join("")}`);
     else bits.push(`dark since ${hhmm(s.set)}${m.illumination > 60 ? `, ${m.phase}` : ""}`);
   }
   const season = seasonAt(doy, inp.latitude);
   bits.push(season);
-  return { line: `SKY: ${bits.join(" · ")}`, weather: w, season, sunrise: s.rise != null ? hhmm(s.rise) : null, sunset: s.set != null ? hhmm(s.set) : null, moon: m.phase };
+  return { line: `SKY: ${bits.join(" · ")}`, weather: w, season, sunrise: s.rise != null ? hhmm(s.rise) : null, sunset: s.set != null ? hhmm(s.set) : null, moon: own.length ? own.map((x) => `${x.name}: ${x.phase}`).join(", ") : m.phase };
 }

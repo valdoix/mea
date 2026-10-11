@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { calendarDef, customDay, loadCalendars, monthLength } from "../../lib/customcal.svelte";
   import SceneWindow from "./SceneWindow.svelte";
   import VeilCard from "./VeilCard.svelte";
   import { get } from "../../lib/api";
@@ -139,6 +140,11 @@
   // ---------- calendar ----------
   const when = $derived(d?.when ?? null);
   const westeros = $derived(when?.calendar === "westeros");
+  // G1: a calendar you built draws its own month.
+  $effect(() => {
+    void loadCalendars();
+  });
+  const custom = $derived(calendarDef(when?.calendar));
   const month = $derived(when?.form === "date" && when.year != null && when.month != null ? { year: when.year, month: when.month, day: when.day ?? 1 } : null);
   const events = $derived(st ? Object.values(st.calendar).filter((e) => !e.done) : []);
   function eventDay(e: (typeof events)[number]): number | null {
@@ -148,6 +154,11 @@
       return y.year === month.year && y.month === month.month ? y.day : null;
     }
     const w = e.when.toLowerCase();
+    if (custom) {
+      const mi = custom.months.findIndex((x) => w.includes(x.name.toLowerCase()));
+      const dd = w.match(/\b(\d{1,3})(?:st|nd|rd|th)?\b/);
+      return mi + 1 === month.month && dd ? Number(dd[1]) : null;
+    }
     let m = w.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(?:day\s+)?of\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\s+moon/);
     if (m) return Number(m[2]) === month.month ? Number(m[1]) : null;
     m = w.match(/^(?:\d{1,4}-)?(\d{2})-(\d{2})/);
@@ -158,8 +169,8 @@
   }
   const grid = $derived.by(() => {
     if (!month) return [];
-    const n = daysIn(month.year, month.month);
-    const lead = westeros ? 0 : weekdayOf(month.year, month.month, 1);
+    const n = custom ? monthLength(custom, month.year, month.month) : daysIn(month.year, month.month);
+    const lead = custom ? (custom.weekdays.length ? ((customDay(custom, month.year, month.month, 1) % custom.weekdays.length) + custom.weekdays.length) % custom.weekdays.length : 0) : westeros ? 0 : weekdayOf(month.year, month.month, 1);
     const cells: ({ day: number; evs: typeof events } | null)[] = Array.from({ length: lead }, () => null);
     for (let day = 1; day <= n; day++) cells.push({ day, evs: events.filter((e) => eventDay(e) === day) });
     return cells;
@@ -386,10 +397,10 @@
 
       {#if sec?.calendar && (month || events.length)}
         <section class="tile card cal-t">
-          <h3><span class="g">◷</span>Calendar<span class="k">{month ? (westeros ? `${ordinal(month.month)} moon, ${month.year} AC` : `${MONTH_NAMES[month.month - 1]} ${month.year}`) : "dates"}</span></h3>
+          <h3><span class="g">◷</span>Calendar<span class="k">{month ? (custom ? `${custom.months[month.month - 1]?.name ?? ""} ${month.year}${custom.era.name ? ` ${custom.era.name}` : ""}` : westeros ? `${ordinal(month.month)} moon, ${month.year} AC` : `${MONTH_NAMES[month.month - 1]} ${month.year}`) : "dates"}</span></h3>
           {#if month}
-            <div class="cal" class:moons={westeros}>
-              {#if !westeros}{#each ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as w (w)}<div class="dow">{w}</div>{/each}{/if}
+            <div class="cal" class:moons={westeros || (custom && !custom.weekdays.length)} style:--cols={custom?.weekdays.length ? Math.min(custom.weekdays.length, 10) : undefined}>
+              {#if custom}{#each custom.weekdays.slice(0, 10) as w (w)}<div class="dow">{w.slice(0, 2)}</div>{/each}{:else if !westeros}{#each ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as w (w)}<div class="dow">{w}</div>{/each}{/if}
               {#each grid as cell, i (i)}
                 {#if cell}
                   <div class="d" class:today={cell.day === month.day} class:past={cell.day < month.day} title={cell.evs.map((e) => e.title).join(", ") || undefined}>
@@ -1088,7 +1099,7 @@
   }
   .cal {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(var(--cols, 7), 1fr);
     gap: 0.3rem;
   }
   .dow {

@@ -126,6 +126,19 @@
     });
   }
   const herePeek = $derived(`${here.length} here${away.length ? ` · ${away.length} away` : ""}`);
+  // G1: Add a day (a birthday, a feast, an anniversary) to the story's calendar.
+  let addingDay = $state(false);
+  let dayForm = $state({ title: "", when: "", kind: "birthday" });
+  async function addDay() {
+    const t = dayForm.title.replace(/[|:]/g, " ").trim();
+    const w = dayForm.when.replace(/\|/g, " ").trim();
+    if (!t || !w) return;
+    if (await trackerEdit(chatId, [`event ${t}: ${w} | ${dayForm.kind}`])) {
+      toast(`${t} is on the calendar`, { kind: "ok" });
+      dayForm = { title: "", when: "", kind: "birthday" };
+      addingDay = false;
+    }
+  }
 </script>
 
 {#snippet lock(path: string, what: string)}
@@ -379,9 +392,21 @@
       </Module>
     {/if}
 
-    {#if (sec?.calendar && Object.keys(st.calendar).length) || (sec?.motifs && (Object.keys(st.motifs).length || st.milestones.length))}
+    {#if sec?.calendar || (sec?.motifs && (Object.keys(st.motifs).length || st.milestones.length))}
       <Module title="Calendar & moments" fold open={false} peek={String(Object.keys(st.calendar).length + Math.min(6, st.milestones.length) + Object.keys(st.motifs).length)}>
         {#each Object.values(st.calendar) as e (e.id)}<div class="listrow ic"><Calendar size={13} /><span>{e.title}</span><small>{e.when}</small></div>{/each}
+        {#if sec?.calendar}
+          {#if addingDay}
+            <form class="addday" onsubmit={(e) => (e.preventDefault(), void addDay())}>
+              <input class="input" bind:value={dayForm.title} placeholder="Mira's birthday" maxlength="80" aria-label="What" />
+              <input class="input" bind:value={dayForm.when} placeholder="19 January" maxlength="60" aria-label="Day" />
+              <select class="select" bind:value={dayForm.kind} aria-label="Kind"><option value="birthday">Birthday</option><option value="holiday">Feast or holiday</option><option value="anniversary">Anniversary</option><option value="appointment">Appointment</option></select>
+              <button class="st-key" type="submit" disabled={!dayForm.title.trim() || !dayForm.when.trim()}>Add</button>
+            </form>
+          {:else}
+            <div class="st-keys"><button class="st-key" type="button" onclick={() => (addingDay = true)}><Calendar size={14} /> Add a day</button></div>
+          {/if}
+        {/if}
         {#each st.milestones.slice(-6) as m, i (i)}<div class="listrow ic"><Star size={13} /><span>{m.text}</span><small>{m.at ? readClock(m.at, d.config.calendar) : ""}</small></div>{/each}
         {#each Object.values(st.motifs) as m (m.id)}<div class="listrow ic"><Repeat size={13} /><span>{m.text}</span><small>×{m.uses}</small></div>{/each}
       </Module>
@@ -447,6 +472,12 @@
 <TrackerSettings bind:open={settingsOpen} {chatId} />
 
 <style>
+  .addday {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
   .first {
     margin-top: 0;
   }

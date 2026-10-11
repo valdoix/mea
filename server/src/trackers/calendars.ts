@@ -1,4 +1,5 @@
 import type { StoryTime } from "./clock";
+import { customDate, customDateText, customOf } from "./customcal";
 
 /**
  * Story calendars (TRK-10): how the story clock reads to people. The clock itself stays one
@@ -8,7 +9,7 @@ import type { StoryTime } from "./clock";
  * Westeros counts years After the Conquest (AC) and months as moons. Its seasons run for years
  * at a time and can't be computed, so a chat states its season instead.
  */
-export type CalendarId = "gregorian" | "westeros";
+export type CalendarId = "gregorian" | "westeros" | `custom:${string}`;
 export const CALENDAR_IDS: CalendarId[] = ["gregorian", "westeros"];
 
 export interface CalendarInfo {
@@ -55,6 +56,7 @@ export function ordinal(n: number): string {
 }
 
 export function asCalendar(v: unknown): CalendarId {
+  if (typeof v === "string" && /^custom:[\w-]{1,40}$/.test(v) && customOf(v)) return v as CalendarId;
   return v === "westeros" ? "westeros" : "gregorian";
 }
 
@@ -87,11 +89,27 @@ export function describeWhen(t: StoryTime, calendar: CalendarId, season?: string
   const mm = rest % 60;
   const time = `${pad(hh)}:${pad(mm)}`;
   const hour = rest / 60;
+  const custom = customOf(calendar);
   const period = calendar === "westeros" ? westerosPeriod(hour) : plainPeriod(hour);
   const seasonText = season?.trim() || null;
   if (t.form === "day") {
     const day = Math.floor(t.minutes / DAY) + 1;
     return { calendar, form: "day", label: `Day ${day} · ${time}`, date: `Day ${day}`, time, short: `Day ${day} · ${time}`, hour, period, weekday: null, day, month: null, monthName: null, year: null, season: seasonText };
+  }
+  if (custom) {
+    // G1: a calendar you built names the same days its own way.
+    const c = customDate(custom, Math.floor(t.minutes / DAY));
+    const text = customDateText(custom, c);
+    const short = c.festival ?? `${ordinal(c.day)} ${c.monthName}`;
+    return {
+      calendar, form: "date",
+      label: `${c.weekday ? `${c.weekday}, ` : ""}${text[0]!.toUpperCase()}${text.slice(1)} · ${time}`,
+      date: `${c.weekday ? `${c.weekday.slice(0, 3)} ` : ""}${short}`,
+      time,
+      short: `${short} · ${time}`,
+      hour, period, weekday: c.weekday, day: c.day, month: c.month, monthName: c.monthName ?? c.festival, year: c.year,
+      season: custom.storySeasons ? seasonText : (c.season ?? seasonText),
+    };
   }
   const d = new Date(YEAR1 + t.minutes * 60_000);
   const day = d.getUTCDate();
@@ -139,6 +157,8 @@ export function spanLabel(from: StoryTime | null, to: StoryTime, calendar: Calen
  * in Westeros the year is the year AC and the month is the moon.
  */
 export function calendarHint(calendar: CalendarId): string {
+  const custom = customOf(calendar);
+  if (custom) return `Calendar: ${custom.name}, a calendar of this story's own. Its dates can't be written in the ledger: move the clock only by how long passed ("clock: +2h", "clock: +1d"), and never write a date, a Gregorian weekday or a Gregorian month.`;
   if (calendar === "westeros") return 'Calendar: Westeros. Dates use the same form with the year After the Conquest and the moon as the month: the 14th day of the 10th moon of 299 AC is "0299-10-14 21:40". Never write Gregorian weekdays or month names.';
   return "";
 }
@@ -146,6 +166,12 @@ export function calendarHint(calendar: CalendarId): string {
 /** For the story model's note: the date in the calendar's own words. */
 export function noteTime(t: StoryTime, calendar: CalendarId, season?: string | null): string {
   const w = describeWhen(t, calendar, season);
+  const custom = customOf(calendar);
+  if (custom && w.form === "date") {
+    const c = customDate(custom, Math.floor(t.minutes / DAY));
+    const moons = c.moons.map((m) => `${m.name}: ${m.phase}`).join(", ");
+    return `${w.weekday ? `${w.weekday}, ` : ""}${customDateText(custom, c)}, ${w.time} (${w.period})${c.holiday ? `; today: ${c.holiday}` : ""}${moons ? `; ${moons}` : ""}${w.season ? `; season: ${w.season}` : ""}`;
+  }
   if (calendar === "westeros") return `${w.form === "date" ? `${w.date}, ${w.year} AC, ` : `${w.date}, `}${w.time} (${w.period})${w.season ? `; season: ${w.season}` : ""}`;
   return "";
 }
