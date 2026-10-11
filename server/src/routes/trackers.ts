@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { stash } from "../services/undo";
 import { z } from "zod";
 import { all, one } from "../db/db";
-import { badRequest, body, must } from "../lib/http";
+import { badRequest, body, must, notFound } from "../lib/http";
+import { belongingsOf } from "../trackers/belongings";
 import { getCharacterRow } from "../services/characters";
 import { getMessageRow, mustChat, trackerConfigSchema } from "../services/chats";
 import { enqueue } from "../services/jobs";
@@ -265,6 +266,17 @@ const castInput = z.object({
   routine: z.string().max(400).optional(),
   role: z.string().max(200).optional(),
   out: z.boolean().optional(),
+});
+
+/** E2: a person's rooms and belongings, with each item's history. */
+trackers.get("/chats/:id/belongings/:char", (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const st = currentFold(chatId).result.state;
+  const who = st.chars[c.req.param("char")];
+  if (!who) throw notFound("Who?");
+  const places = Object.values(st.places).map((p) => ({ id: p.id, name: p.name, path: p.path.join(" › "), owner: p.owner ? (st.chars[p.owner]?.name ?? null) : null }));
+  return c.json({ ...belongingsOf(st, who), places });
 });
 
 trackers.get("/chats/:id/cast", (c) => {

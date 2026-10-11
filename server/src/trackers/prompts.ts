@@ -21,7 +21,8 @@ bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${A
 ladder A>B: 3 — evidence   (romance rungs: ${LADDER.map((n, i) => `${i} ${n}`).join(", ")})
 know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|unaware · true|false|partial
 secret #key: fact | kept by A · from B        reveal #key: to B — how
-item Name: A → B — how | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A
+item Name: A → B — how | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
+room A: Town › Place | room|home|shop (whose place it is)     keeps A: item @ place (theirs, kept there)
 thread Title: new|advance|complicate|stall(blocker)|resolve — detail
 owe A → B: what | open|paid [due Day 4]       promise A>B: what | open|kept|broken [due tomorrow 9:00]
 deadline Title: Day 3 18:00                   plant detail — possible payoff     payoff detail — how it paid off
@@ -78,7 +79,8 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   for (const g of Object.values(st.gauges)) L.push(`gauge ${g.name}: ${g.cur}/${g.max}`);
   for (const c of Object.values(st.clocks)) L.push(`clockf ${c.faction}: ${c.name} ${c.cur}/${c.max}`);
   const loose = Object.values(st.items).filter((i) => !i.gone && i.holder?.startsWith("place:")).slice(-6);
-  for (const i of loose) L.push(`item ${i.name}: at ${i.holder!.slice(6)}`);
+  for (const i of loose) L.push(`item ${i.name}: at ${i.holder!.slice(6)}${i.owner ? ` (${nm(i.owner)}'s)` : ""}`);
+  for (const p of Object.values(st.places).filter((x) => x.owner).slice(-6)) L.push(`room ${nm(p.owner!)}: ${p.path.join(" › ")} | ${p.kind ?? "room"}`);
   for (const t of o.templates) {
     const vals = st.custom[t.key] ?? {};
     L.push(`[${t.key}] ${t.name}: ${t.schema.fields.map((f) => `${f.key}=${fieldValue(f, vals[f.key])}`).join("; ")}`);

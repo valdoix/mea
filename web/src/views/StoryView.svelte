@@ -2,6 +2,7 @@
   import Almanac from "../components/trackers/Almanac.svelte";
   import DataEditor from "../components/trackers/DataEditor.svelte";
   import PressureCard, { type PressurePerson } from "../components/trackers/PressureCard.svelte";
+  import Belongings from "../components/trackers/Belongings.svelte";
   import TagInput from "../components/TagInput.svelte";
   import Avatar from "../components/Avatar.svelte";
   import Modal from "../components/Modal.svelte";
@@ -460,6 +461,8 @@
         <label class="field"><span class="label">Tell</span><input class="input" bind:value={story.mask.tell} /></label>
       </div>
       <label class="switch"><input type="checkbox" bind:checked={story.dead} /> Dead</label>
+      <h3 class="sub">Rooms and belongings</h3>
+      <Belongings chatId={id} charId={editing.char.id} name={editing.name} people={[...people.filter((x) => x.char && !x.dead).map((x) => x.name), ...(userName ? [userName] : [])]} />
       <button class="btn ghost small start" onclick={() => editing && allFields(editing)}>Every field (meters, injuries, journal…)</button>
     {/if}
     <label class="switch"><input type="checkbox" bind:checked={form.pinned} /> Always keep in mind (described in every prompt)</label>
