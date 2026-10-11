@@ -15,6 +15,7 @@
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
   import AmbienceEditor from "./AmbienceEditor.svelte";
+  import { openSetup } from "../../lib/setup.svelte";
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
@@ -302,6 +303,8 @@
   <HealthPanel chatId={detail.chat.id} />
 
   <!-- mode and routing -->
+  <div class="st-keys setup"><button class="st-key" type="button" onclick={() => openSetup(detail.chat.id)}><Sparkles size={14} /> Story setup</button></div>
+
   <Module title="Mode">
     <Rocker
       label="Mode"

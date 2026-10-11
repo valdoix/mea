@@ -79,6 +79,8 @@ export interface Settings {
   "guards.config": GuardsConfig;
   /** Phase 5 steering (STEER-01…03) and the "previously on" card (SUM-15). A chat's own switches win. */
   "steer.config": SteerConfig;
+  /** F1: Session Zero's "my usual" answers (null until saved). */
+  "setup.usual": import("../services/setup").SetupAnswers | null;
   /** SEC-06: how long the local request log keeps what. */
   "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
 }
@@ -391,6 +393,7 @@ export const defaults: Settings = {
   "prompts.active": null,
   "guards.config": defaultGuards,
   "steer.config": defaultSteer,
+  "setup.usual": null,
   "privacy.requestLog": { bodiesDays: 30, rowsDays: 0, fileLog: true, fileDays: 14 },
 };
 
