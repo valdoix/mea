@@ -36,6 +36,7 @@ export { default as Handshake } from "@lucide/svelte/icons/handshake";
 export { default as GitBranch } from "@lucide/svelte/icons/git-branch";
 export { default as Wind } from "@lucide/svelte/icons/wind";
 export { default as Zap } from "@lucide/svelte/icons/zap";
+export { default as FilePlus } from "@lucide/svelte/icons/file-plus";
 export { default as History } from "@lucide/svelte/icons/history";
 export { default as House } from "@lucide/svelte/icons/house";
 export { default as ImageIcon } from "@lucide/svelte/icons/image";

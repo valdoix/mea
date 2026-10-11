@@ -1,8 +1,8 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import { del, get, post } from "../../lib/api";
-  import { Bookmark, BookmarkPlus, CircleAlert, EyeOff, Heart, Lock, MessagesSquare, Package, Scissors } from "../../lib/icons";
-  import { trackerEdit } from "../../lib/trackers.svelte";
+  import { Bookmark, BookmarkPlus, CircleAlert, EyeOff, Heart, Lock, MessagesSquare, Scissors, FilePlus } from "../../lib/icons";
+  import { type Filing, filedToast } from "../../lib/filings.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
   import { editOffpage, kept, neverSay } from "../../lib/offpage.svelte";
   import { askMeus } from "../../lib/meus.svelte";
@@ -152,20 +152,67 @@
     pickOpen = true;
     done();
   }
-  /** E2: "This belongs to…": the selected thing becomes someone's, in the story's records. */
-  async function belongsTo() {
+  // ---------- F3: selection asides ----------
+  type AsideKind = "truth" | "motif" | "calendar" | "clock" | "plant" | "owner";
+  let asideForm = $state<{ kind: "calendar" | "clock"; text: string; messageId: string; when: string; title: string; eventKind: string } | null>(null);
+  let asideOpen = $state(false);
+
+  async function fileAside(kind: AsideKind, text: string, messageId: string, extra: Record<string, string> = {}) {
+    try {
+      const r = await post<{ filing: Filing }>(`/api/chats/${chatId}/aside`, { kind, text, messageId, ...extra });
+      filedToast(r.filing);
+      return true;
+    } catch (e) {
+      errorToast(e);
+      return false;
+    }
+  }
+  /** "File as…": Pin as truth, Running bit, Add to calendar, Set the clock, Plant this, This belongs to… */
+  async function asides() {
     if (!sel) return;
-    const thing = sel.text.trim().replace(/[.,;:!?]+$/, "").slice(0, 80);
+    const text = sel.text.trim().replace(/[.,;:!?]+$/, "");
+    const messageId = sel.messageId;
     const at = { x: sel.x, y: sel.y + 4 };
     window.getSelection()?.removeAllRanges();
     sel = null;
+    let hints: { date: string | null; kind: string | null; clock: string | null; title: string | null } = { date: null, kind: null, clock: null, title: null };
+    try {
+      hints = await get(`/api/chats/${chatId}/aside/hints?text=${encodeURIComponent(text.slice(0, 300))}`);
+    } catch {
+      // hints only pre-fill
+    }
+    const short = text.split(/\s+/).length <= 8;
+    pickItems = [
+      { label: "Pin as truth", hint: "A rule for this story, sent every turn", onclick: () => void fileAside("truth", text, messageId) },
+      { label: "Running bit", hint: "A callback the story can return to", onclick: () => void fileAside("motif", text, messageId) },
+      { label: "Add to calendar", hint: hints.date ?? "Pick the day", onclick: () => openAside("calendar", text, messageId, hints) },
+      ...(hints.clock ? [{ label: "Set the clock", hint: hints.clock, onclick: () => openAside("clock", text, messageId, hints) }] : []),
+      { label: "Plant this", hint: "Something to pay off later", onclick: () => void fileAside("plant", text, messageId) },
+      ...(short ? [{ label: "This belongs to…", onclick: () => void belongsTo(text, messageId, at) }] : []),
+    ];
+    pickTitle = `File “${text.slice(0, 30)}${text.length > 30 ? "…" : ""}” as`;
+    pickPoint = at;
+    pickOpen = true;
+  }
+  function openAside(kind: "calendar" | "clock", text: string, messageId: string, hints: { date: string | null; kind: string | null; clock: string | null; title: string | null }) {
+    asideForm = { kind, text, messageId, when: (kind === "calendar" ? hints.date : hints.clock) ?? "", title: hints.title ?? text.slice(0, 80), eventKind: hints.kind ?? "" };
+    asideOpen = true;
+  }
+  async function saveAside() {
+    if (!asideForm) return;
+    const f = asideForm;
+    const ok = await fileAside(f.kind, f.kind === "calendar" ? `${f.title}, ${f.when}` : f.text, f.messageId, { when: f.when, ...(f.eventKind ? { eventKind: f.eventKind } : {}) });
+    if (ok) asideOpen = false;
+  }
+  /** E2: "This belongs to…": the selected thing becomes someone's, in the story's records. */
+  async function belongsTo(thing: string, messageId: string, at: { x: number; y: number }) {
     try {
       const r = await get<{ people: { name: string; dead: boolean }[]; userName: string }>(`/api/chats/${chatId}/cast`);
-      const own = (name: string) => () => void trackerEdit(chatId, [`item ${thing}: owner ${name}`]).then((ok) => ok && toast(`${thing}: ${name}'s`, { kind: "ok" }));
+      const own = (name: string) => () => void fileAside("owner", thing.slice(0, 80), messageId, { owner: name });
       pickItems = [...r.people.filter((x) => !x.dead).map((x) => ({ label: x.name, onclick: own(x.name) })), ...(r.userName ? [{ label: `${r.userName} (you)`, onclick: own(r.userName) }] : [])];
       pickTitle = `Whose is “${thing.slice(0, 30)}”?`;
       pickPoint = at;
-      pickOpen = true;
+      setTimeout(() => (pickOpen = true), 0);
     } catch (e) {
       errorToast(e);
     }
@@ -200,13 +247,35 @@
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={startFix}><CircleAlert size={14} /> That's wrong</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={toMeus}><MessagesSquare size={14} /> Ask Meus</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={neverSayThis} title="Add these words to a secret kept off the page"><EyeOff size={14} /> Never say this</button>
-    {#if sel.text.trim().split(/\s+/).length <= 8}<button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={belongsTo} title="Make this thing someone's"><Package size={14} /> This belongs to…</button>{/if}
+    <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={asides} title="Pin as truth, running bit, calendar, clock, plant, belongs to…"><FilePlus size={14} /> File as…</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepOffPage} title="Hold this back from the narration"><Lock size={14} /> Keep off the page</button>
     {#if onkeep && canKeep?.(sel.messageId)}<button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepThis} title="A new take that keeps everything up to here"><Scissors size={14} /> Keep this, redo the rest</button>{/if}
   </div>
 {/if}
 
 <Menu bind:open={pickOpen} items={pickItems} point={pickPoint} title={pickTitle} />
+
+<Modal bind:open={asideOpen} title={asideForm?.kind === "calendar" ? "Add to the calendar" : "Set the story's clock"} size="sm">
+  {#if asideForm}
+    <div class="stack">
+      {#if asideForm.kind === "calendar"}
+        <label class="field"><span class="label">What</span><input class="input" bind:value={asideForm.title} maxlength="80" /></label>
+        <label class="field"><span class="label">Day</span><input class="input" bind:value={asideForm.when} placeholder="19 January" maxlength="60" /></label>
+        <label class="field">
+          <span class="label">Kind</span>
+          <select class="select" bind:value={asideForm.eventKind}><option value="">A day to remember</option><option value="birthday">Birthday</option><option value="anniversary">Anniversary</option><option value="holiday">Feast or holiday</option><option value="appointment">Appointment</option></select>
+        </label>
+      {:else}
+        <p class="small muted">“{asideForm.text.slice(0, 120)}”</p>
+        <label class="field"><span class="label">The time</span><input class="input" bind:value={asideForm.when} placeholder="21:00, next morning, Day 3 08:00" maxlength="60" /><span class="hint">The clock only moves forward from where the story is.</span></label>
+      {/if}
+    </div>
+  {/if}
+  {#snippet footer()}
+    <button class="btn ghost" onclick={() => (asideOpen = false)}>Cancel</button>
+    <button class="btn primary" onclick={saveAside} disabled={!asideForm?.when.trim()}>{asideForm?.kind === "calendar" ? "Add" : "Set the clock"}</button>
+  {/snippet}
+</Modal>
 
 <Modal bind:open={fixOpen} title="Correct what memory knows" size="md">
   <div class="stack">

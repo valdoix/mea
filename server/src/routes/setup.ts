@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { asideHints, fileAside } from "../accuracy/asides";
 import { bondsReport, deskCue, deskView, recapSince, secretsReport, storyAudit, threadsReport } from "../steer/desk";
 import { body } from "../lib/http";
 import { applySetup, previewOpening, saveUsual, setupSchema, setupView, skipSetup, usual } from "../services/setup";
@@ -66,4 +67,24 @@ desk.post("/chats/:id/desk/audit", async (c) => {
 desk.post("/chats/:id/recap/since", async (c) => {
   const b = await body(c, z.object({ since: z.number().int().min(0) }));
   return c.json(await recapSince(c.req.param("id"), b.since));
+});
+
+// ---------- F3: selection asides ----------
+
+/** What a selection could be (a date for the calendar, a time for the clock), to offer the right asides. */
+desk.get("/chats/:id/aside/hints", (c) => c.json(asideHints(c.req.query("text") ?? "")));
+
+desk.post("/chats/:id/aside", async (c) => {
+  const b = await body(
+    c,
+    z.object({
+      kind: z.enum(["truth", "motif", "calendar", "clock", "plant", "owner"]),
+      text: z.string().min(1).max(600),
+      messageId: z.string().nullable().optional(),
+      when: z.string().max(60).optional(),
+      eventKind: z.string().max(30).optional(),
+      owner: z.string().max(80).optional(),
+    }),
+  );
+  return c.json({ filing: fileAside(c.req.param("id"), b) });
 });
