@@ -15,7 +15,7 @@ import type { JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { userEdit } from "../trackers/service";
-import { guardIssues, guardsFor } from "./guards";
+import { flagAllowed, guardIssues, guardsFor, puppetScope, type PuppetScope } from "./guards";
 import { nameSlips } from "./names";
 import { timelineIssues } from "./timeline";
 import { currentFold, foldAt, linesToOps } from "../trackers/store";
@@ -421,9 +421,19 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   return withIds;
 }
 
-export function flagOut(r: FlagRow) {
-  const issues = parseJson<Issue[]>(r.issues, []);
-  return { id: r.id, messageId: r.message_id, swipeIdx: r.swipe_idx, status: r.status, issues, open: issues.filter((i) => !i.dismissed).length, updatedAt: r.updated_at };
+/** A reply's notes as shown: puppet flags follow the Persona control as it is now, not as it was when checked. */
+export function flagOut(r: FlagRow, scope: PuppetScope = scopeFor(r.chat_id)) {
+  const issues = parseJson<Issue[]>(r.issues, []).filter((i) => flagAllowed(i, scope));
+  const open = issues.filter((i) => !i.dismissed).length;
+  return { id: r.id, messageId: r.message_id, swipeIdx: r.swipe_idx, status: r.status === "open" && !open ? "clean" : r.status, issues, open, updatedAt: r.updated_at };
+}
+
+function scopeFor(chatId: string): PuppetScope {
+  try {
+    return puppetScope(chatId);
+  } catch {
+    return "all";
+  }
 }
 
 export function flagsFor(chatId: string, opts: { messageIds?: string[]; open?: boolean } = {}) {
@@ -432,8 +442,9 @@ export function flagsFor(chatId: string, opts: { messageIds?: string[]; open?: b
     const ids = new Set(opts.messageIds);
     rows = rows.filter((r) => ids.has(r.message_id));
   }
-  if (opts.open) rows = rows.filter((r) => r.status === "open");
-  return rows.map(flagOut);
+  const scope = scopeFor(chatId);
+  const out = rows.map((r) => flagOut(r, scope));
+  return opts.open ? out.filter((f) => f.status === "open") : out;
 }
 
 function mustFlag(id: string) {

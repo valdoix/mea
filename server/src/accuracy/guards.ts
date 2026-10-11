@@ -3,7 +3,7 @@ import { defaultGuards, getSetting, type GuardsConfig } from "../lib/settings";
 import { chatNames } from "../memory/build";
 import { cleanText } from "../memory/text";
 import { type ChatSettings, mustChat } from "../services/chats";
-import { layered, storyDials } from "../services/layers";
+import { layered, type PersonaMode, storyDials } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { Issue } from "./checker";
 import { fixNames, nameSlips } from "./names";
@@ -85,12 +85,19 @@ export function puppetHits(text: string, userNames: string[], opts: { second: bo
  * What counts as puppeting under the preset's Persona control: everything when sealed, only
  * words when the model may finish the player's started actions, nothing when it may write them.
  */
-function puppetScope(chatId: string): "all" | "speech" | "off" {
-  const persona = storyDials(mustChat(chatId)).persona;
-  return persona === "director" || persona === "full_cast" ? "off" : persona === "continuity" ? "speech" : "all";
+export type PuppetScope = "all" | "speech" | "off";
+const scopeOf = (persona: PersonaMode | null): PuppetScope => (persona === "director" || persona === "full_cast" ? "off" : persona === "continuity" ? "speech" : "all");
+export function puppetScope(chatId: string): PuppetScope {
+  return scopeOf(storyDials(mustChat(chatId)).persona);
 }
 
-const scoped = (hits: PuppetHit[], scope: "all" | "speech" | "off") => (scope === "off" ? [] : scope === "speech" ? hits.filter((h) => h.speech) : hits);
+/**
+ * Whether a stored flag still counts under the Persona control as it is now: a puppet flag saved
+ * while it was Sealed hides once you switch to Director or Full cast (and an actions-only one under Continuity).
+ */
+export const flagAllowed = (i: { kind: string; severity: string }, scope: PuppetScope) => i.kind !== "puppet" || scope === "all" || (scope === "speech" && i.severity === "major");
+
+const scoped = (hits: PuppetHit[], scope: PuppetScope) => (scope === "off" ? [] : scope === "speech" ? hits.filter((h) => h.speech) : hits);
 
 /** Cuts a reply where it starts writing for the user, when that's in its second half. */
 export function trimPuppeting(text: string, hits: PuppetHit[]): { text: string; cut: string } | null {
@@ -194,16 +201,20 @@ export function guardIssues(chatId: string, text: string, o: { seq: number; mess
   const exp = cfg.pov || cfg.tense || cfg.puppet ? expected(chatId, o.seq, charNames, userNames) : null;
 
   if (cfg.puppet) {
-    const hits = scoped(puppetHits(text, userNames, { second: exp?.address !== "third" }), puppetScope(chatId));
+    const persona = storyDials(mustChat(chatId)).persona;
+    const hits = scoped(puppetHits(text, userNames, { second: exp?.address !== "third" }), scopeOf(persona));
     if (hits.length) {
       const h = hits.find((x) => x.speech) ?? hits[0]!;
+      const continuity = persona === "continuity";
       out.push({
         kind: "puppet",
         severity: hits.some((x) => x.speech) ? "major" : "minor",
         claim: h.sentence.slice(0, 240),
-        conflict: `The reply writes ${n.user}'s ${hits.some((x) => x.speech) ? "words" : "actions"}${hits.length > 1 ? ` (${hits.length} places)` : ""}. Only you write ${n.user}.`,
-        citations: [{ ref: "R", type: "card", label: "Your character is yours to write" }],
-        fix: `Don't write ${n.user}'s words, actions, thoughts or decisions; stop where ${n.user} would respond.`,
+        conflict: `The reply writes ${n.user}'s ${hits.some((x) => x.speech) ? "words" : "actions"}${hits.length > 1 ? ` (${hits.length} places)` : ""}. ${continuity ? `Under Persona: Continuity it may only finish an action ${n.user} began.` : `Only you write ${n.user}.`}`,
+        citations: [{ ref: "R", type: "card", label: continuity ? "Persona: Continuity" : "Your character is yours to write" }],
+        fix: continuity
+          ? `Don't write ${n.user}'s words, thoughts or decisions, or start an action for them; finishing an action ${n.user} began is fine.`
+          : `Don't write ${n.user}'s words, actions, thoughts or decisions; stop where ${n.user} would respond.`,
         by: "rules",
       });
     }

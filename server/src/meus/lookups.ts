@@ -13,6 +13,7 @@ import { allRows } from "../memory/store";
 import { reconcileIssues } from "../memory/reconcile";
 import { scanEntriesFor } from "../lore/service";
 import { mustChat } from "../services/chats";
+import { flagAllowed, puppetScope } from "../accuracy/guards";
 import { worldView } from "../sim/service";
 import type { Looked } from "../assistant/core";
 import { castKey, castProfiles, currentFold } from "../trackers/store";
@@ -223,7 +224,8 @@ function checks(chatId: string): Looked | null {
     "SELECT f.issues, m.seq FROM continuity_flags f JOIN messages m ON m.id = f.message_id AND m.active_swipe = f.swipe_idx WHERE f.chat_id = ? AND f.status = 'open' AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 15",
     chatId,
   );
-  for (const f of flags) for (const i of parseJson<{ message?: string; text?: string; kind?: string }[]>(f.issues, [])) L.push(`#${f.seq} ${i.kind ? `(${i.kind}) ` : ""}${i.message ?? i.text ?? JSON.stringify(i)}`);
+  const scope = puppetScope(chatId);
+  for (const f of flags) for (const i of parseJson<{ message?: string; text?: string; kind?: string; severity?: string; dismissed?: boolean }[]>(f.issues, []).filter((x) => !x.dismissed && flagAllowed({ kind: x.kind ?? "", severity: x.severity ?? "" }, scope))) L.push(`#${f.seq} ${i.kind ? `(${i.kind}) ` : ""}${i.message ?? i.text ?? JSON.stringify(i)}`);
   for (const r of reconcileIssues(chatId)) for (const i of r.issues) L.push(`scene "${r.title}" (#${r.startSeq}–${r.endSeq ?? "now"}) [${r.id}]: ${i.message}`);
   return { title: "Checks · what's flagged", text: L.length ? clip(L.join("\n"), 6000) : "The app's checks haven't flagged anything; compare the latest messages with the records yourself." };
 }
