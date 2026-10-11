@@ -4,6 +4,8 @@
   import SceneWindow from "./SceneWindow.svelte";
   import TrackerSettings from "./TrackerSettings.svelte";
   import LessonsPanel from "./LessonsPanel.svelte";
+  import OffpagePanel from "./OffpagePanel.svelte";
+  import { editOffpage, offpageFor } from "../../lib/offpage.svelte";
   import { living } from "../../lib/living";
   import { readClock } from "../../lib/storytime";
   import { app } from "../../lib/state.svelte";
@@ -138,6 +140,7 @@
       <div class="st-keys"><button class="st-key" type="button" onclick={() => (settingsOpen = true)}><Settings size={14} /> Tracker settings</button></div>
     </Module>
     <LessonsPanel {chatId} />
+    <OffpagePanel />
   </div>
 {:else if st}
   <div class="studio st-stack">
@@ -355,8 +358,14 @@
     {#if sec?.knowledge && facts.length}
       <Module title="Knowledge" fold open={false} peek="{facts.length} fact{facts.length === 1 ? '' : 's'}">
         {#each facts.slice(0, 20) as f (f.key)}
+          {@const op = offpageFor(`tracker:${f.key}`)}
           <div class="fact">
-            <div>{#if f.secret}<ShieldAlert size={12} class="secret" />{/if} {f.statement}{f.truth !== "true" ? ` (${f.truth})` : ""}</div>
+            <div>
+              {#if f.secret}<ShieldAlert size={12} class="secret" />{/if}
+              {#if op}<span class="lock" title="Kept off the page">🔒</span>{/if}
+              {f.statement}{f.truth !== "true" ? ` (${f.truth})` : ""}
+              {#if f.secret}<button class="st-link" type="button" onclick={() => (op ? editOffpage(op) : editOffpage(null, { label: f.statement, ref: `tracker:${f.key}` }))}>{op ? "Edit · reveal" : "Keep off the page"}</button>{/if}
+            </div>
             <small>{Object.entries(f.stances).map(([id, s]) => `${nm(id)} ${s.status}`).join(" · ")}</small>
           </div>
         {/each}
@@ -378,6 +387,7 @@
     {/if}
 
     <LessonsPanel {chatId} />
+    <OffpagePanel />
 
     {#if sec?.custom}
       {#each d.templates as t (t.id)}

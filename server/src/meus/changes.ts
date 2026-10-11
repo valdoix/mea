@@ -20,6 +20,7 @@ import { userEditAt, timeskip } from "../trackers/service";
 import { castKey, castProfiles, currentFold, deleteEvent, dryRunOps, linesToOps, moveCastProfile, saveCastProfile } from "../trackers/store";
 import { parseDuration } from "../trackers/clock";
 import { addLesson, deleteLesson, getLesson, lessonsFor, updateLesson } from "../steer/lessons";
+import { createOffpage, deleteOffpage, getOffpage, type HintBudget, listOffpage, updateOffpage } from "../accuracy/offpage";
 
 /**
  * What Meus can change in a chat, each through the tool the app already uses for it, so swipes,
@@ -44,7 +45,8 @@ export const CHANGE_KINDS = [
   '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"};',
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
-  '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off.',
+  '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off;',
+  '{"kind": "secret_offpage", "label": "the secret, in a sentence", "never_say": ["words the narration must not use yet"], "hint_as": "how the story may hint at it", "hints": "never|rarely|building"} keeps a secret off the page (the narration doesn’t state it); {"kind": "secret_offpage", "id": "<off-page id>", "status": "revealed|kept", "never_say": […]} reveals one, or changes it.',
 ].join(" ");
 
 /** Kinds the story can't redo by itself, or that Undo can't take back: never pre-ticked. */
@@ -73,7 +75,9 @@ export type UndoStep =
   | { t: "noteDrop"; id: string }
   | { t: "undismiss"; key: string }
   | { t: "lessonDrop"; id: string }
-  | { t: "lessonStatus"; id: string; status: "kept" | "off" | "suggested" | "rejected" };
+  | { t: "lessonStatus"; id: string; status: "kept" | "off" | "suggested" | "rejected" }
+  | { t: "offpageDrop"; id: string }
+  | { t: "offpageRestore"; id: string; patch: { label: string; neverSay: string[]; hintAs: string; hints: HintBudget; status: "kept" | "revealed" } };
 
 type Raw = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
@@ -516,6 +520,31 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
       const sc = str(c.scope).toLowerCase();
       const scope = sc === "character" || sc === "everywhere" ? sc : "story";
       out.push({ kind, target: "", label: `Lesson · ${scope === "story" ? "this story" : scope === "character" ? "this character, in every chat" : "every story"}`, before: "", after: text, data: { scope, why } });
+    } else if (kind === "secret_offpage") {
+      // B1: keep a secret off the page, or reveal / change one.
+      const ref = str(c.id);
+      const hints = (["never", "rarely", "building"] as const).find((h) => h === str(c.hints).toLowerCase());
+      const never = strs(c.never_say);
+      if (ref) {
+        const o = listOffpage(chatId).find((x) => x.id === ref);
+        if (!o) {
+          dropped.push(`there's no off-page secret ${ref}`);
+          continue;
+        }
+        const status = str(c.status).toLowerCase() === "revealed" ? "revealed" : str(c.status).toLowerCase() === "kept" ? "kept" : o.status;
+        const patch = { ...(never ? { neverSay: never } : {}), ...(typeof c.hint_as === "string" ? { hintAs: str(c.hint_as) } : {}), ...(hints ? { hints } : {}), ...(status !== o.status ? { status } : {}) };
+        if (!Object.keys(patch).length) continue;
+        out.push({ kind, target: o.id, label: status === "revealed" && o.status !== "revealed" ? "Off the page · reveal" : "Off the page · change", before: `${o.label}
+never say: ${o.neverSay.join(", ")}`, after: `${o.label}
+never say: ${(never ?? o.neverSay).join(", ")}${status !== o.status ? `
+${status}` : ""}`, data: { patch, why } });
+        continue;
+      }
+      const label = str(c.label).slice(0, 300);
+      if (!label) continue;
+      out.push({ kind, target: "", label: "Keep a secret off the page", before: "", after: `${label}${never?.length ? `
+never say: ${never.join(", ")}` : ""}${str(c.hint_as) ? `
+may hint as: ${str(c.hint_as)}` : ""}`, data: { label, neverSay: never ?? [], hintAs: str(c.hint_as), hints: hints ?? "rarely", why } });
     } else if (kind) dropped.push(`Meus can't make "${kind}" changes yet`);
   }
   return { changes: out, dropped };
@@ -719,6 +748,15 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       }
       return [{ t: "lessonDrop", id: addLesson(chatId, { text: c.after, scope: (d.scope as "story") ?? "story", why: String(d.why ?? ""), by: "user", from: "meus" }).id }];
     }
+    case "secret_offpage": {
+      if (c.target) {
+        const o = getOffpage(c.target);
+        if (!o) throw badRequest("That secret is gone");
+        updateOffpage(o.id, d.patch as Parameters<typeof updateOffpage>[1]);
+        return [{ t: "offpageRestore", id: o.id, patch: { label: o.label, neverSay: o.neverSay, hintAs: o.hintAs, hints: o.hints, status: o.status } }];
+      }
+      return [{ t: "offpageDrop", id: createOffpage(chatId, { label: String(d.label), neverSay: (d.neverSay as string[]) ?? [], hintAs: String(d.hintAs ?? ""), hints: (d.hints as HintBudget) ?? "rarely" }).id }];
+    }
     case "inbox": {
       const key = c.target;
       const [ik, ...rest] = key.split(":");
@@ -841,6 +879,12 @@ export function undoStep(chatId: string, s: UndoStep) {
     case "undismiss":
       run("DELETE FROM inbox_dismissed WHERE key = ?", s.key);
       publish({ type: "inbox.changed" });
+      return;
+    case "offpageDrop":
+      if (getOffpage(s.id)) deleteOffpage(s.id);
+      return;
+    case "offpageRestore":
+      if (getOffpage(s.id)) updateOffpage(s.id, s.patch);
       return;
     case "lessonDrop":
       if (getLesson(s.id)) deleteLesson(s.id);

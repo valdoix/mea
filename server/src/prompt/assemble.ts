@@ -118,6 +118,8 @@ export interface PromptTrace {
     effectiveTarget: number;
   };
   memory?: MemoryTrace;
+  /** B1: memory and lore reworded to keep a secret off the page. */
+  reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
 }
 
 export interface AssembleResult {

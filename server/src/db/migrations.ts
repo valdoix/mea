@@ -1152,6 +1152,21 @@ CREATE INDEX filings_message ON filings(message_id) WHERE message_id IS NOT NULL
 DROP TABLE IF EXISTS playbooks;
 `,
   },
+  {
+    id: 20,
+    name: "off-page rewordings",
+    sql: /* sql */ `
+-- B1: the helper's rewordings of memory and lore that state a secret kept off the page, keyed by
+-- the text and the secrets it was reworded for, so the same block is reworded once.
+CREATE TABLE offpage_cache (
+  key TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX offpage_cache_chat ON offpage_cache(chat_id);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
