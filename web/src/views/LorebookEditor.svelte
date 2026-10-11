@@ -155,8 +155,54 @@
   const linkedChars = $derived(characters.filter((c) => book?.links.some((l) => l.type === "character" && l.id === c.id)));
   const linkedPersonas = $derived(personas.filter((p) => book?.links.some((l) => l.type === "persona" && l.id === p.id)));
   const chatLinks = $derived(book?.links.filter((l) => l.type === "chat").length ?? 0);
+  // ---------- I1: categories ----------
+  interface CatInfo {
+    id: string;
+    label: string;
+    hint: string;
+  }
+  let categories = $state<CatInfo[]>([]);
+  let guesses = $state<Record<string, { category: string; confidence: number; why: string; guessed: boolean }>>({});
+  let catFilter = $state("");
+  let sorting = $state(false);
+  const catOf = (e: LoreEntry) => (e.extra as { category?: string } | undefined)?.category ?? null;
+  const confOf = (e: LoreEntry) => (catOf(e) ? ((e.extra as { categoryConfidence?: number }).categoryConfidence ?? 1) : (guesses[e.id]?.confidence ?? 0));
+  const dot = (c: number) => (c >= 0.75 ? "high" : c >= 0.5 ? "mid" : "low");
+  async function loadGuesses() {
+    try {
+      const r = await post<{ entries: { entryId: string; category: string; confidence: number; why: string; guessed: boolean }[]; categories: CatInfo[] }>(`/api/lorebooks/${id}/autosort`, {});
+      categories = r.categories;
+      guesses = Object.fromEntries(r.entries.map((x) => [x.entryId, x]));
+    } catch {
+      // categories are optional
+    }
+  }
+  $effect(() => {
+    if (book?.id) void loadGuesses();
+  });
+  async function autoSort() {
+    sorting = true;
+    try {
+      const r = await post<{ entries: { guessed: boolean }[] }>(`/api/lorebooks/${id}/autosort`, { apply: true, defaults: true, onlyNew: true });
+      await load();
+      toast(`Sorted ${r.entries.filter((x) => x.guessed).length} entries; tap a category to correct it`, { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      sorting = false;
+    }
+  }
+  async function setCategory(entry: LoreEntry, category: string) {
+    try {
+      const r = await post<LoreEntry>(`/api/lorebooks/${id}/entries/${entry.id}/category`, { category, defaults: !catOf(entry) });
+      const i = book?.entries.findIndex((x) => x.id === entry.id) ?? -1;
+      if (book && i >= 0) book.entries[i] = { ...book.entries[i]!, ...r };
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   const visible = $derived(
-    (book?.entries ?? []).filter((e) => (!filter || `${e.comment} ${e.keys.join(" ")} ${e.content}`.toLowerCase().includes(filter.toLowerCase())) && (!folder || folderOf(e) === folder || folderOf(e).startsWith(`${folder} ›`))),
+    (book?.entries ?? []).filter((e) => (!filter || `${e.comment} ${e.keys.join(" ")} ${e.content}`.toLowerCase().includes(filter.toLowerCase())) && (!folder || folderOf(e) === folder || folderOf(e).startsWith(`${folder} ›`)) && (!catFilter || (catOf(e) ?? guesses[e.id]?.category) === catFilter)),
   );
 
   const exportItems: MenuItem[] = [
@@ -219,6 +265,10 @@
       <h2>Entries <span class="muted small">({book.entries.length})</span></h2>
       <div class="row wrap">
         <label class="search input"><Search size={15} /><input bind:value={filter} placeholder="Filter entries" /></label>
+        {#if categories.length}
+          <select class="select mini" bind:value={catFilter} aria-label="Category"><option value="">All categories</option>{#each categories as c (c.id)}<option value={c.id}>{c.label}</option>{/each}</select>
+          <button class="btn" onclick={autoSort} disabled={sorting || !book.entries.length} title="Guess a category for every entry without one, and give it that category's place and priority">{sorting ? "Sorting…" : "Auto-sort this book"}</button>
+        {/if}
         {#if folders.length}
           <select class="select mini" bind:value={folder} aria-label="Folder"><option value="">All folders</option>{#each folders as f (f)}<option value={f}>{f}</option>{/each}</select>
         {/if}
@@ -241,7 +291,15 @@
               </span>
             </button>
             {#if folderOf(entry)}<span class="chip tiny hide-sm"><Folder size={11} /> {folderOf(entry).split(" › ").at(-1)}</span>{/if}
-            {#if (entry.extra as { type?: string } | undefined)?.type}<span class="chip tiny hide-sm">{(entry.extra as { type?: string }).type}</span>{/if}
+            {#if categories.length}
+              {@const cur = catOf(entry)}
+              <label class="cat chip tiny" class:guess={!cur} title={cur ? (confOf(entry) < 1 ? `Auto-sorted (${guesses[entry.id]?.why ?? "a guess"}); tap to correct` : "Set by you") : `A guess from ${guesses[entry.id]?.why ?? "the entry"}; tap to set`}>
+                <i class="dot {dot(confOf(entry))}" aria-hidden="true"></i>
+                <select value={cur ?? guesses[entry.id]?.category ?? ""} onchange={(e) => setCategory(entry, e.currentTarget.value)} aria-label="Category of {entry.comment || 'this entry'}">
+                  {#each categories as c (c.id)}<option value={c.id} title={c.hint}>{c.label}</option>{/each}
+                </select>
+              </label>
+            {:else if (entry.extra as { type?: string } | undefined)?.type}<span class="chip tiny hide-sm">{(entry.extra as { type?: string }).type}</span>{/if}
             {#if entry.constant}<span class="chip butter">always</span>{/if}
             {#if !filter}
               <button class="btn ghost icon small" onclick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"><ArrowUp size={14} /></button>
@@ -305,6 +363,39 @@
 <Menu bind:open={exportOpen} items={exportItems} anchor={exportBtn} title="Export" />
 
 <style>
+  .cat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding-right: 0.2rem;
+  }
+  .cat select {
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    max-width: 8.5rem;
+  }
+  .cat.guess {
+    opacity: 0.65;
+    border-style: dashed;
+  }
+  .dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.high {
+    background: var(--mint, #82e3d3);
+  }
+  .dot.mid {
+    background: var(--warn, #ffb86b);
+  }
+  .dot.low {
+    background: var(--danger);
+  }
   .issue {
     border-top: 1px solid var(--border);
     padding-top: 0.35rem;
