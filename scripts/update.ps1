@@ -3,10 +3,11 @@
 
   It pulls the latest code, installs packages, rebuilds the web app (or mea.exe, when the "Mea"
   task runs that), then restarts the "Mea" Scheduled Task and waits for Mea to answer again.
-  If there's nothing new it stops there and Mea keeps running. If the build fails, the code goes
-  back to the version that's running, so the next update tries again.
+  It always rebuilds and restarts, even with nothing new to pull, so commits made right in this
+  folder reach the running Mea too. If the build fails, the code goes back to the version that's
+  running, so the next update tries again.
 
-  The tray's "Update Mea" item runs it. To run it by hand:
+  The tray's and the desktop app's "Update and rebuild" item runs it. To run it by hand:
     powershell -ExecutionPolicy Bypass -File scripts\update.ps1
 
   Everything it does goes to update.log in Mea's logs folder (the tray's "View logs").
@@ -19,6 +20,7 @@ param(
   [string]$DataDir = "",
   [string]$ResultFile = "",
   [switch]$ShowResult,
+  # Kept so older callers still work: every run rebuilds now. It also reinstalls packages.
   [switch]$Force
 )
 
@@ -99,8 +101,8 @@ if ($LASTEXITCODE -ne 0) {
   Finish $false $false "Couldn't update: $why. Mea is still running as before."
 }
 $after = (& $git rev-parse HEAD 2>$null | Select-Object -First 1)
-if ($after -eq $before -and -not $Force) {
-  Finish $true $false "Mea is already up to date ($branch, $($after.Substring(0, 7)))."
+if ($after -eq $before) {
+  Write-Log "Nothing new to pull; rebuilding $branch at $($after.Substring(0, 7)) anyway."
 }
 $count = (& $git rev-list --count "$before..$after" 2>$null | Select-Object -First 1)
 $subject = (& $git log -1 --format=%s 2>$null | Select-Object -First 1)
@@ -117,6 +119,7 @@ try {
 function Undo-Pull([string]$what) {
   # Puts the code back to the version that's running, keeping any local edits, so the next update retries.
   Invoke-Logged $git @("reset", "--keep", $before) | Out-Null
+  if ($after -eq $before) { Finish $false $false "The rebuild failed at $what, so Mea keeps running the build it had. Details are in update.log." }
   Finish $false $false "The update downloaded but $what failed, so Mea stays on the previous version. Details are in update.log."
 }
 
@@ -163,5 +166,5 @@ while ((Get-Date) -lt $deadline -and -not (Test-MeaUp)) { Start-Sleep -Seconds 1
 if (-not (Test-MeaUp)) {
   Finish $false $true "Updated to $version, but Mea didn't answer within a minute of restarting. Check the logs."
 }
-$changes = if ($count -eq "1") { "1 new change" } else { "$count new changes" }
-Finish $true $true "Mea is updated ($changes) and running again. Now on $version. Refresh Mea's page to see it."
+$changes = if ($count -eq "0") { "nothing new to pull" } elseif ($count -eq "1") { "1 new change" } else { "$count new changes" }
+Finish $true $true "Mea is rebuilt ($changes) and running again. Now on $version. Refresh Mea's page to see it."

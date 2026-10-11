@@ -2,7 +2,7 @@
   Mea's tray icon on Windows (ARCH-09).
 
   Shows whether Mea is running, how many background jobs it has, and when it last made a backup,
-  with "Open Mea", "Restart", "Update Mea" and "View logs" in its menu. It only talks to Mea's local health
+  with "Open Mea", "Restart", "Update and rebuild" and "View logs" in its menu. It only talks to Mea's local health
   endpoint (http://127.0.0.1:<port>/api/health); it never needs a password or a pairing.
   "Open Mea" opens the desktop app when it's installed, and the browser otherwise.
 
@@ -63,7 +63,7 @@ $openItem = $menu.Items.Add("Open Mea")
 $openItem.Font = New-Object System.Drawing.Font($openItem.Font, [System.Drawing.FontStyle]::Bold)
 $statusPage = $menu.Items.Add("Status and jobs")
 $restartItem = $menu.Items.Add("Restart")
-$updateItem = $menu.Items.Add("Update Mea")
+$updateItem = $menu.Items.Add("Update and rebuild")
 $logsItem = $menu.Items.Add("View logs")
 [void]$menu.Items.Add("-")
 $quitItem = $menu.Items.Add("Hide this icon")
@@ -117,7 +117,7 @@ $updateTimer.add_Tick({
   if (-not $script:updateProc -or -not $script:updateProc.HasExited) { return }
   $updateTimer.Stop()
   $script:updateProc = $null
-  $updateItem.Text = "Update Mea"
+  $updateItem.Text = "Update and rebuild"
   $updateItem.Enabled = $true
   $result = $null
   try { $result = Get-Content $script:updateResult -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
@@ -142,7 +142,7 @@ $updateItem.add_Click({
   }
   $updateItem.Text = "Updating…"
   $updateItem.Enabled = $false
-  $tray.ShowBalloonTip(5000, "Mea", "Updating Mea. This can take a minute or two; Mea restarts at the end.", [System.Windows.Forms.ToolTipIcon]::Info)
+  $tray.ShowBalloonTip(5000, "Mea", "Updating and rebuilding Mea. This can take a minute or two; Mea restarts at the end.", [System.Windows.Forms.ToolTipIcon]::Info)
   $updateTimer.Start()
 })
 $quitItem.add_Click({

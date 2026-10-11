@@ -127,7 +127,7 @@ fn update_mea(app: &AppHandle, item: MenuItem<Wry>) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
-        let _ = item.set_text("Updating Mea…");
+        let _ = item.set_text("Rebuilding Mea…");
         let _ = item.set_enabled(false);
         let port = port().to_string();
         let task = task_name();
@@ -146,7 +146,7 @@ fn update_mea(app: &AppHandle, item: MenuItem<Wry>) {
             // update.ps1 shows its own message box; without it, say where to look (no quotes: it's a PowerShell string).
             let msg = "Could not find the Mea folder to update. Set MEA_ROOT to it, or run scripts\\update.ps1 there.";
             let _ = Command::new("powershell")
-                .args(["-NoProfile", "-Command", &format!("Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('{msg}', 'Update Mea')")])
+                .args(["-NoProfile", "-Command", &format!("Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('{msg}', 'Update and rebuild')")])
                 .creation_flags(CREATE_NO_WINDOW)
                 .status();
         }
@@ -155,7 +155,7 @@ fn update_mea(app: &AppHandle, item: MenuItem<Wry>) {
                 let _ = w.eval("location.reload()");
             }
         }
-        let _ = item.set_text("Update Mea");
+        let _ = item.set_text("Update and rebuild");
         let _ = item.set_enabled(true);
         UPDATING.store(false, Ordering::SeqCst);
     });
@@ -210,7 +210,7 @@ fn main() {
             let open = MenuItem::with_id(app, "open", "Open Mea", true, None::<&str>)?;
             let reload = MenuItem::with_id(app, "reload", "Reload", true, None::<&str>)?;
             let restart = MenuItem::with_id(app, "restart", "Restart Mea", true, None::<&str>)?;
-            let update = MenuItem::with_id(app, "update", "Update Mea", true, None::<&str>)?;
+            let update = MenuItem::with_id(app, "update", "Update and rebuild", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Close this window (Mea keeps running)", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&open, &reload, &restart, &update, &sep, &quit])?;

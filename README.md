@@ -48,9 +48,9 @@ Then open http://127.0.0.1:7766. Data lives in `./data` (database, images, backu
 powershell -ExecutionPolicy Bypass -File scripts\install-service.ps1
 ```
 
-Add `-Tray` to also put Mea's icon in the notification area at every sign-in (ARCH-09): whether it's running, background jobs and the last backup, with Open (in the desktop app if it's installed, else the browser), Restart, Update Mea and View logs. To remove it: `scripts\uninstall-service.ps1` (your data stays).
+Add `-Tray` to also put Mea's icon in the notification area at every sign-in (ARCH-09): whether it's running, background jobs and the last backup, with Open (in the desktop app if it's installed, else the browser), Restart, Update and rebuild, and View logs. To remove it: `scripts\uninstall-service.ps1` (your data stays).
 
-**Updating:** choose **Update Mea** in the tray, or run `powershell -ExecutionPolicy Bypass -File scripts\update.ps1`. It pulls the latest code, installs packages, rebuilds, restarts the "Mea" task and tells you how it went. If there's nothing new, Mea keeps running untouched; if the build fails, the code goes back to the running version. The steps it took are in `update.log` in the logs folder.
+**Updating:** choose **Update and rebuild** in the tray, or run `powershell -ExecutionPolicy Bypass -File scripts\update.ps1`. It pulls the latest code, installs packages, rebuilds, restarts the "Mea" task and tells you how it went. It rebuilds and restarts even when there's nothing new to pull, so commits made right in Mea's folder reach the running app; if the build fails, the code goes back to the running version. The steps it took are in `update.log` in the logs folder.
 
 **As a single file** (ARCH-14): `bun run build:exe` makes `dist\mea.exe` with the web app inside. Run it anywhere; its data goes in a `data` folder next to it. To run the exe as the service, add `-Exe` to the install command above (copy your existing `data` folder to `dist\data` first).
 
@@ -58,7 +58,7 @@ Add `-Tray` to also put Mea's icon in the notification area at every sign-in (AR
 
 Mea runs on the PC (the service above). The apps are windows onto it, so every device always shows the same stories.
 
-**Windows:** `bun run app:desktop` builds an installer in `desktop/src-tauri/target/release/bundle/nsis`. The app opens Mea in its own window with a tray icon, and starts the "Mea" task if Mea isn't running. Its tray menu has Update Mea too. Closing the window leaves Mea running for your phone.
+**Windows:** `bun run app:desktop` builds an installer in `desktop/src-tauri/target/release/bundle/nsis`. The app opens Mea in its own window with a tray icon, and starts the "Mea" task if Mea isn't running. Its tray menu has Update and rebuild too. Closing the window leaves Mea running for your phone.
 
 **Android:** see [mobile/README.md](mobile/README.md). `bun run app:android` builds the APK to install on the phone.
 
