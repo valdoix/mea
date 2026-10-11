@@ -19,6 +19,8 @@
   import OffpageEditor from "../components/chat/OffpageEditor.svelte";
   import SessionZero from "../components/chat/SessionZero.svelte";
   import { openDesk } from "../lib/desk.svelte";
+  import ScenePlate, { type PlaceKind } from "../components/chat/ScenePlate.svelte";
+  import { device } from "../lib/device.svelte";
   import type { Angle } from "../lib/angles";
   import { dockRequest, openDock, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
@@ -154,6 +156,44 @@
   let searchOpen = $state(false);
   let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
+  // J1: the place, weather and hour over the story, for the scene plates.
+  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null }[]; kinds: Record<string, string> }>({ states: [], kinds: {} });
+  async function loadPlates() {
+    if (!device.plates) return;
+    try {
+      plates = await get(`/api/chats/${id}/plates`);
+    } catch {
+      plates = { states: [], kinds: {} };
+    }
+  }
+  /** The scene that starts at `seq`: how things stood there; the latest scene follows the clock. */
+  function plateAt(seq: number) {
+    const lastScene = Math.max(0, ...boundaries.map((b) => b.startSeq));
+    const s = plates.states;
+    if (seq >= lastScene) return s.at(-1) ?? null;
+    const next = boundaries.map((b) => b.startSeq).filter((x) => x > seq).sort((a, b) => a - b)[0] ?? Infinity;
+    // The state as the scene ran (its last change before the next scene), else what came before it.
+    return [...s].reverse().find((x) => x.seq >= seq && x.seq < next) ?? [...s].reverse().find((x) => x.seq <= seq) ?? null;
+  }
+  async function setPlaceKind(name: string, kind: PlaceKind) {
+    try {
+      const kinds = { ...plates.kinds, [name]: kind };
+      await patch(`/api/chats/${id}`, { settings: { placeKinds: kinds } });
+      plates = { ...plates, kinds };
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  $effect(() => {
+    void id;
+    void device.plates;
+    void loadPlates();
+  });
+  $effect(() =>
+    onEvent((e) => {
+      if (e.type === "trackers.changed" && e.chatId === id && !e.running) void loadPlates();
+    }),
+  );
   let highlight = $state<number | null>(null);
   let quotaChoice = $state<{ message: string; alternatives: { id: string; name: string; model: string }[]; retry: (profileId: string) => Promise<void> } | null>(null);
   let quotaOpen = $state(false);
@@ -1239,6 +1279,10 @@
                 </a>
               {:else}
                 {@const Icon = sceneIcon(b)}
+                {#if device.plates && plates.states.length}
+                  {@const ps = plateAt(b.startSeq)}
+                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={(plates.kinds[ps.place.at(-1) ?? ""] as PlaceKind | undefined) ?? null} title={b.title} onkind={setPlaceKind} />{/if}
+                {/if}
                 <a class="scene-h" href="/chat/{id}/memory" title="Open this scene in memory">
                   <span class="sc-line"></span>
                   <span class="sc-body">

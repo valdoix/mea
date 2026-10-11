@@ -1,5 +1,6 @@
 import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
+import { scenePlates } from "../trackers/plates";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -146,3 +147,7 @@ desk.post("/chats/:id/lorebook/draft", async (c) => {
   const d = storyBookDraft(c.req.param("id"), { uptoSeq: b.seq, spoilerSafe: b.spoilerSafe });
   return c.json({ draftId: d.id, entries: d.items.length }, 201);
 });
+
+// ---------- J1: scene plates ----------
+
+desk.get("/chats/:id/plates", (c) => c.json(scenePlates(c.req.param("id"))));

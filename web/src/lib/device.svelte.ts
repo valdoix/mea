@@ -31,10 +31,12 @@ export interface DevicePrefs {
   /** Lantern: drifting fireflies and a whisper of film grain behind everything. */
   fireflies: boolean;
   grain: boolean;
+  /** J1: a drawn plate at each new scene. */
+  plates: boolean;
 }
 
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", boxPadding: "cozy", fireflies: true, grain: true };
+const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", boxPadding: "cozy", fireflies: true, grain: true, plates: true };
 
 function read(): DevicePrefs {
   try {

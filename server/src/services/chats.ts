@@ -113,6 +113,8 @@ export const chatSettingsSchema = z.object({
     })
     .partial()
     .optional(),
+  /** J1: "This place is…": your correction of a place's kind for its scene plate (by place name). */
+  placeKinds: z.record(z.string().max(120), z.string().max(30)).optional(),
   /** H3: who plans each reply: the writer itself ("reply"), or a separate planner model. */
   planning: z.enum(["reply", "planner"]).optional(),
   plannerProfileId: z.string().nullable().optional(),
