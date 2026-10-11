@@ -113,6 +113,9 @@ export const chatSettingsSchema = z.object({
     })
     .partial()
     .optional(),
+  /** H3: who plans each reply: the writer itself ("reply"), or a separate planner model. */
+  planning: z.enum(["reply", "planner"]).optional(),
+  plannerProfileId: z.string().nullable().optional(),
   /** H2: Budget mode: no optional model reads for this chat (checks, lessons, the advisor, the editor…). */
   budgetMode: z.boolean().optional(),
   /** H1: what this chat never cuts when the prompt is over its ceiling ("Keep this next time"). */

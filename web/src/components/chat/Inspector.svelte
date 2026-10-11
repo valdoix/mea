@@ -1,12 +1,12 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
-  import { get, patch } from "../../lib/api";
+  import { get, patch, post } from "../../lib/api";
   import { compact } from "../../lib/format";
   import { Copy } from "../../lib/icons";
   import { toast } from "../../lib/state.svelte";
   import type { PromptTrace } from "../../lib/types";
 
-  let { open = $bindable(false), chatId, generationId = null }: { open?: boolean; chatId: string; generationId?: string | null } = $props();
+  let { open = $bindable(false), chatId, generationId = null, onregenerate }: { open?: boolean; chatId: string; generationId?: string | null; onregenerate?: () => void } = $props();
 
   interface Data {
     model?: string;
@@ -28,6 +28,22 @@
   let laneOpen = $state<Record<string, boolean>>({});
   // H1: "Keep this next time" pins a block for this chat: it's never cut to fit the ceiling.
   let kept = $state<string[]>([]);
+  // H3: the plan this reply was written from; edit it and regenerate.
+  const planBlock = $derived(data?.trace?.blocks.find((b) => b.id === "extra:advisor" && b.included) ?? null);
+  let editingPlan = $state(false);
+  let planDraft = $state("");
+  const planOf = (t: string) => (t.match(/<director-plan>\n?([\s\S]*?)\n?<\/director-plan>/)?.[1] ?? t.replace(/^\[Private plan[^\]]*\]\n?/, "")).trim();
+  async function savePlan() {
+    if (!generationId) return;
+    try {
+      await post(`/api/chats/${chatId}/plan`, { generationId, text: planDraft });
+      editingPlan = false;
+      open = false;
+      onregenerate?.();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't save the plan");
+    }
+  }
   // H2: cost per reply (writer + planner + background).
   let cost = $state<{ writer: { tokens: number }; planner: { tokens: number } | null; background: { tokens: number } | null; total: { tokens: number; cost: number } } | null>(null);
   $effect(() => {
@@ -181,6 +197,22 @@
             <span title="Share of the text in dialogue{c.baselineDialogue != null ? `; usually ${Math.round(c.baselineDialogue * 100)}%` : ''}">dialogue {Math.round(c.dialogue * 100)}%{c.baselineDialogue != null ? ` (usually ${Math.round(c.baselineDialogue * 100)}%)` : ""}</span>
             {#if c.topOpening}<span title="The most common first word of a sentence">“{c.topOpening.word}” opens {Math.round(c.topOpening.share * 100)}%</span>{/if}
           </div>
+        {/if}
+
+        {#if planBlock?.text}
+          <details open>
+            <summary><b>{planBlock.name}</b> <span class="tiny muted">{compact(planBlock.tokens)} tokens</span></summary>
+            {#if editingPlan}
+              <textarea class="textarea" rows="10" bind:value={planDraft} aria-label="The plan"></textarea>
+              <div class="row">
+                <button type="button" class="btn small primary" disabled={!planDraft.trim() || !generationId} onclick={savePlan}>Regenerate with this plan</button>
+                <button type="button" class="btn ghost small" onclick={() => (editingPlan = false)}>Cancel</button>
+              </div>
+            {:else}
+              <pre class="lane-t">{planBlock.text}</pre>
+              {#if generationId && onregenerate}<button type="button" class="btn ghost small" onclick={() => ((planDraft = planOf(planBlock.text ?? "")), (editingPlan = true))}>Edit the plan and regenerate</button>{/if}
+            {/if}
+          </details>
         {/if}
 
         {#if data.trace.ceiling}

@@ -11,6 +11,8 @@ import { type PersonaMode, storyDials } from "../services/layers";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { trackerPrompt } from "../trackers/service";
+import { gatherLanes } from "../prompt/lanes";
+import { PLANNING } from "../prompt/mea";
 import { currentFold } from "../trackers/store";
 
 /**
@@ -20,11 +22,16 @@ import { currentFold } from "../trackers/store";
  * It sees its own last few plans (STEER-02), so longer plotting stays coherent.
  */
 
-export function steerFor(chatId: string): SteerConfig & { advisorOn: boolean } {
+export function steerFor(chatId: string): SteerConfig & { advisorOn: boolean; planner: boolean; plannerProfileId: string | null } {
   const cfg = { ...defaultSteer, ...getSetting("steer.config") };
   const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
-  return { ...cfg, advisorOn: s.advisor ?? cfg.advisor, editor: s.editor ?? cfg.editor };
+  // H3: a separate planner is the advisor grown up: it always runs when the chat asks for it.
+  const planner = s.planning === "planner";
+  return { ...cfg, advisorOn: planner || (s.advisor ?? cfg.advisor), editor: s.editor ?? cfg.editor, planner, plannerProfileId: s.plannerProfileId ?? null };
 }
+
+/** H3: how long the writer waits for the planner before planning for itself. */
+export const PLANNER_WAIT_S = 20;
 
 export const planSchema = z.object({
   direction: z.string().default(""),
@@ -32,6 +39,8 @@ export const planSchema = z.object({
   threads: z.array(z.string()).default([]),
   reminders: z.array(z.string()).default([]),
   avoid: z.array(z.string()).default([]),
+  /** H3: the separate planner's whole planning pass (fragments), which the writer follows. */
+  pass: z.string().default(""),
 });
 export type Plan = z.infer<typeof planSchema>;
 
@@ -99,7 +108,30 @@ Plan the NEXT reply only:
 Stay consistent with your earlier plans unless the story moved somewhere else; ${userRule(user, persona)}.
 Reply with JSON only: {"direction":"…","beats":["…"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
 
-function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig) {
+/**
+ * H3: the separate planner gets Mea's full planning pass (prompt/mea.ts), resolved for this chat:
+ * the same steps the writer would run in its <think>, so the writer only writes the prose.
+ */
+export function plannerSteps(user: string, sealed: boolean) {
+  const lines = PLANNING.split("\n").filter((l) => /^(NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE|STOP RULE)\b/.test(l));
+  return lines
+    .join("\n")
+    .replace(/\{\{if userSealed\}\}(.*?)\{\{else\}\}(.*?)\{\{\/if\}\}/g, (_, a: string, b: string) => (sealed ? a : b))
+    .replace(/\{\{if [^}]*\}\}.*?\{\{\/if\}\}/g, "")
+    .replace(/\{\{user\}\}/g, user)
+    .replace(/\{\{[^}]*\}\}/g, "")
+    .replace(/[ \t]+/g, " ");
+}
+
+const PLANNER_SYSTEM = (char: string, user: string, persona: PersonaMode | null) => `You are the director of an ongoing roleplay between ${char} (written by the AI) and ${user} (the player's character). Before ${char}'s next reply, you run the planning pass below; a separate writer then writes only the prose from your plan. The player never sees it.
+
+The planning pass, step by step (fragments, not prose; never draft a line of the reply):
+${plannerSteps(user, persona !== "full_cast" && persona !== "director")}
+
+Stay consistent with your earlier plans unless the story moved somewhere else; ${userRule(user, persona)}.
+Reply with JSON only: {"pass":"the whole pass, NOW to VOICE, as labelled lines","direction":"one or two sentences","beats":["2–4 beats, in order"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
+
+function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig & { planner?: boolean }) {
   const names = chatNames(chatId);
   const parts: string[] = [];
   const story = storyRow(chatId);
@@ -126,6 +158,17 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
   const recent = history.slice(-8).map((m) => `${m.role === "user" ? names.user : m.role === "assistant" ? names.char : "Note"}: ${cleanText(m.content).slice(0, 1200)}`);
   parts.push(`RECENT MESSAGES:\n${recent.join("\n\n")}`);
   if (draft?.trim()) parts.push(`${names.user.toUpperCase()} IS ABOUT TO SAY:\n${draft.trim().slice(0, 2000)}`);
+  if (cfg.planner) {
+    // H3: the planner also sees the lanes (lessons, canon, pressures, promises…) the writer would.
+    try {
+      const st = currentFold(chatId).result.state;
+      const lanes = gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).map((l) => l.content.trim()).filter(Boolean);
+      if (lanes.length) parts.push(`WHAT MEA'S FEATURES ADD THIS TURN:\n${lanes.join("\n\n").slice(0, 5000)}`);
+    } catch {
+      // lanes are optional
+    }
+    return { system: PLANNER_SYSTEM(names.char, names.user, storyDials(chat).persona), user: parts.join("\n\n") };
+  }
   return { system: ADVISOR_SYSTEM(names.char, names.user, storyDials(chat).persona), user: parts.join("\n\n") };
 }
 
@@ -149,7 +192,9 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
   const p = (async () => {
     try {
       const { system, user } = advisorInput(chatId, history, opts.draft, cfg);
-      const r = await callJson({ task: "helper", kind: "advisor", chatId, name: "advisor_plan", schema: planSchema, system, user, maxTokens: 700, temperature: 0.6, signal: opts.signal });
+      const r = cfg.planner
+        ? await callJson({ task: "planner", kind: "planner", chatId, name: "planner_plan", schema: planSchema, system, user, maxTokens: 1800, temperature: 0.5, signal: opts.signal, profileId: cfg.plannerProfileId })
+        : await callJson({ task: "helper", kind: "advisor", chatId, name: "advisor_plan", schema: planSchema, system, user, maxTokens: 700, temperature: 0.6, signal: opts.signal });
       run("INSERT OR REPLACE INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, key, JSON.stringify(r.data), now());
       // Keep a short history per chat.
       run("DELETE FROM advisor_plans WHERE chat_id = ? AND id NOT IN (SELECT id FROM advisor_plans WHERE chat_id = ? ORDER BY created_at DESC LIMIT 40)", chatId, chatId);
@@ -163,6 +208,12 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
   })();
   running.set(`${chatId}:${key}`, p);
   return p;
+}
+
+/** H3: the separate planner's plan, as the writer gets it: the pass is done, so it writes only the prose. */
+export function directorPlanText(p: Plan) {
+  const body = [p.pass.trim(), p.direction ? `Direction: ${p.direction}` : "", p.beats.length ? `Beats:\n${p.beats.map((b) => `- ${b}`).join("\n")}` : "", p.reminders.length ? `Keep straight: ${p.reminders.join("; ")}` : "", p.avoid.length ? `Avoid: ${p.avoid.join("; ")}` : ""].filter(Boolean).join("\n");
+  return `<director-plan>\n${body}\n</director-plan>\nThe planning pass for this reply is done, above. Don't plan again and don't open with <think>: write only the reply, following the plan; never mention it.`;
 }
 
 export function planText(p: Plan) {
@@ -181,13 +232,15 @@ export function planText(p: Plan) {
  * The plan for the reply being prepared. With `wait`, a plan that isn't ready yet is waited for
  * up to the configured few seconds; without it (the inspector's preview), only a ready plan is used.
  */
-export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean }): Promise<PromptExtra | null> {
+export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean }): Promise<(PromptExtra & { planner?: boolean }) | null> {
   const cfg = steerFor(chatId);
   if (!cfg.advisorOn) return null;
   const key = turnKey(history);
   let plan = planFor(chatId, key);
-  if (!plan && opts.wait && cfg.advisorWait > 0) {
-    plan = await Promise.race([runAdvisor(chatId, { history }), Bun.sleep(cfg.advisorWait * 1000).then(() => null)]);
+  // H3: the planner gets a longer budget; if it's late or fails, the writer plans for itself.
+  const wait = cfg.planner ? PLANNER_WAIT_S : cfg.advisorWait;
+  if (!plan && opts.wait && wait > 0) {
+    plan = await Promise.race([runAdvisor(chatId, { history }), Bun.sleep(wait * 1000).then(() => null)]);
   }
   // L10: no plan for the words as sent: the newest one written for this turn while you typed will do.
   if (!plan) {
@@ -195,7 +248,21 @@ export async function advisorExtra(chatId: string, history: HistoryMessage[], op
     if (r) plan = parseJson<Plan>(r.plan, planSchema.parse({}));
   }
   if (!plan) return null;
+  if (cfg.planner && plan.pass.trim()) return { id: "advisor", name: "Director's plan", content: directorPlanText(plan), depth: 0, planner: true };
   return { id: "advisor", name: "Advisor's plan", content: planText(plan), depth: 0 };
+}
+
+/**
+ * H3: "Edit the plan and regenerate": the plan a reply was written with is replaced by your edit,
+ * and kept unused so the regenerated take (the same turn) is written from it.
+ */
+export function editPlan(chatId: string, generationId: string, text: string, key?: string) {
+  const plan: Plan = planSchema.parse({ pass: text.trim().slice(0, 6000) });
+  const row = one<PlanRow>("SELECT * FROM advisor_plans WHERE chat_id = ? AND generation_id = ?", chatId, generationId);
+  if (row) run("UPDATE advisor_plans SET plan = ?, used_at = NULL, generation_id = NULL WHERE id = ?", JSON.stringify(plan), row.id);
+  else if (key) run("INSERT OR REPLACE INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, key, JSON.stringify(plan), now());
+  else return false;
+  return true;
 }
 
 /** STEER-02: the plan a reply was written with counts as used, so later plans can build on it. */

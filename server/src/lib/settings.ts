@@ -44,11 +44,11 @@ export interface Settings {
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
   "quota.cache": unknown;
   /** Helper task routing (CONN-03): profile ids; null falls back to the story profile. */
-  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null };
+  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null; planner?: string | null };
   /** Fallback chains per task (CONN-05): profile ids tried in order. */
-  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[] };
+  "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[]; planner?: string[] };
   /** Timeouts per task in seconds. Story: time to the first token. */
-  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number; assistant?: number };
+  "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number; assistant?: number; planner?: number };
   /** Embeddings (MEM-11, ARCH-12): pay-as-you-go key, text-embedding-3-large @1024 by default. */
   "routing.embeddings": { connectionId: string | null; model: string; dims: number };
   "memory.config": MemoryConfig;
@@ -360,7 +360,7 @@ export const defaults: Settings = {
   "quota.cache": null,
   "routing.tasks": { summarizer: null, helper: null, tracker: null, world: null, assistant: null },
   "routing.fallbacks": { story: [], summarizer: [], helper: [], tracker: [], world: [], assistant: [] },
-  "routing.timeouts": { story: 120, summarizer: 300, helper: 90, tracker: 150, world: 180, assistant: 300 },
+  "routing.timeouts": { story: 120, summarizer: 300, helper: 90, tracker: 150, world: 180, assistant: 300, planner: 60 },
   "routing.embeddings": { connectionId: null, model: "text-embedding-3-large", dims: 1024 },
   "memory.config": defaultMemoryConfig,
   "quota.degradeAt": 0.9,

@@ -60,6 +60,10 @@ function helperJson(name: string, user: string): unknown {
       const said = user.split("IS ABOUT TO SAY:")[1]?.trim().split("\n")[0] ?? "";
       return { direction: `Answer what was just said${said ? ` ("${said.slice(0, 60)}")` : ""} and let the scene breathe.`, beats: ["A small gesture", "One honest line", "Leave room to respond"], threads: [], reminders: [], avoid: ["writing the player's actions"] };
     }
+    // H3: the separate planner returns the whole pass (and says whether it saw the lanes).
+    case "planner_plan":
+      if (/MOCK_PLANNER_FAIL/.test(user)) throw new Error("mock planner failure");
+      return { pass: `NOW — the lamp room, night.\nMOVE — she answers honestly.${/WHAT MEA'S FEATURES ADD/.test(user) ? "\nLANES — seen." : ""}\nVOICE — short, quiet.`, direction: "Answer honestly.", beats: ["A small gesture", "One honest line"], threads: [], reminders: [], avoid: [] };
     case "scene_boundary":
       return { newScene: !/MOCK_SAME_SCENE/.test(user), reason: "mock" };
     case "ask_answer":
