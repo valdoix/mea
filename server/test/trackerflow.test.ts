@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { all, one } from "../src/db/db";
 import { type MeaEvent, subscribe } from "../src/lib/events";
@@ -7,7 +7,7 @@ import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat, editMessage, getMessageRow, onLedgerEdit, setActiveSwipe, softDeleteMessage, updateChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { prepare, startStory } from "../src/services/generation";
-import { registerJob } from "../src/services/jobs";
+import { pauseJobs, registerJob } from "../src/services/jobs";
 import { evalCondition } from "../src/trackers/condition";
 import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, timeskip, trackerLedgerHook, userEdit } from "../src/trackers/service";
 import { worldAfterReply, worldLane, worldView } from "../src/sim/service";
@@ -56,6 +56,8 @@ async function reply(content: string) {
 
 beforeAll(async () => {
   freshDb();
+  // The tests run the tracker jobs themselves (drainTrackers), so the queue must not pick them up first.
+  pauseJobs(true);
   for (const kind of ["memory.segment", "memory.build", "memory.embed", "quota.refresh", "cache.probe"]) registerJob(kind, async () => {});
   onLedgerEdit(trackerLedgerHook);
   onTrackerUpdate(worldAfterReply);
@@ -66,6 +68,8 @@ beforeAll(async () => {
   const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", description: "Keeper of the lighthouse, with green eyes.", first_mes: "The lamp flickers. Mira looks up." } });
   chatId = createChat({ characterId: createCharacter(data) }).id;
 });
+
+afterAll(() => pauseJobs(false));
 
 describe("trackers end to end (mock)", () => {
   test("the starting state comes from the card (TRK-09)", async () => {

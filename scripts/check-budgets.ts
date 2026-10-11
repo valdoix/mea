@@ -1,12 +1,12 @@
 /**
  * Performance budgets (PERF-01): the JS and CSS needed for first load must stay small.
- * Reads web/dist/index.html, follows its scripts, styles and modulepreloads, and gzips them.
+ * Reads web/dist/index.html (or MEA_WEB_DIST), follows its scripts, styles and modulepreloads, and gzips them.
  */
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const dist = resolve(import.meta.dir, "../web/dist");
+const dist = resolve(process.env.MEA_WEB_DIST ?? resolve(import.meta.dir, "../web/dist"));
 const html = readFileSync(join(dist, "index.html"), "utf8");
 const refs = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g)].map((m) => m[1]!);
 
