@@ -17,6 +17,7 @@ import { runLessonsJob } from "./steer/lessons";
 import { runRewordJob } from "./accuracy/offpage";
 import { exposureAfterReply } from "./trackers/exposure";
 import { pressuresAfterReply } from "./trackers/pressures";
+import { promisesAfterReply } from "./trackers/promises";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
@@ -109,6 +110,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(exposureAfterReply);
   // E1: important people draw a hidden pressure, and it grows over scenes.
   onTrackerUpdate(pressuresAfterReply);
+  // E3: promises said in the reply or your message become ledger lines, with a chip and Undo.
+  onTrackerUpdate(promisesAfterReply);
   registerJob("accuracy.drift", async (p, job) => runDriftJob(String(p.chatId), job));
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));

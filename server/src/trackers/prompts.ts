@@ -25,6 +25,7 @@ item Name: A → B — how | item Name: +A (pocket) | item Name: → gone — bu
 room A: Town › Place | room|home|shop (whose place it is)     keeps A: item @ place (theirs, kept there)
 thread Title: new|advance|complicate|stall(blocker)|resolve — detail
 owe A → B: what | open|paid [due Day 4]       promise A>B: what | open|kept|broken [due tomorrow 9:00]
+promise A>B: be at the Bronze | meet @ the Bronze · minor|major|vital [due 21:00] [window 30m]   (a meeting: Mea checks who turns up)
 deadline Title: Day 3 18:00                   plant detail — possible payoff     payoff detail — how it paid off
 clue text → points to … | reliability: shaky gauge Name: 3/6 — cause            clockf Faction: project +1 (3/6)
 rep Name @ Group: -1 — deed                   event Title: 19 March | birthday | who: Name     plan Title: Day 5 19:00 | who: A, B

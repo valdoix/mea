@@ -239,7 +239,12 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
       if (ob.status !== "open" && ob.status !== "due") continue;
       const due = ob.due?.minutes;
       const soon = due != null && now != null && due - now <= 1440;
-      if (ob.status === "due" || soon || ob.kind === "owe") lines.push(`${ob.kind === "promise" ? "Promise" : "Debt"}: ${nm(ob.who)} → ${nm(ob.whom)}: ${ob.what}${ob.status === "due" ? " (due now)" : ob.due ? ` (due ${ob.due.text})` : ""}`);
+      if (!(ob.status === "due" || soon || ob.kind === "owe")) continue;
+      // E3: a reminder shortly before it's due ("You promised Willow: be at the Bronze at nine — in 40 min").
+      const left = due != null && now != null ? due - now : null;
+      const when = left != null && left >= 0 && left <= 180 ? ` — in ${left < 120 ? `${left} min` : `${Math.round(left / 60)} h`}` : ob.status === "due" ? " (due now)" : ob.due ? ` (due ${ob.due.text})` : "";
+      if (ob.kind === "promise") lines.push(`${ob.meet ? "Meeting" : "Promise"}: ${nm(ob.who)} promised ${nm(ob.whom)}: ${ob.what}${ob.meet ? ` (at ${ob.meet})` : ""}${when}`);
+      else lines.push(`Debt: ${nm(ob.who)} → ${nm(ob.whom)}: ${ob.what}${when}`);
     }
     for (const d of Object.values(st.deadlines)) {
       if (d.done) continue;

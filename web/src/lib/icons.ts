@@ -32,6 +32,7 @@ export { default as Globe } from "@lucide/svelte/icons/globe";
 export { default as GripVertical } from "@lucide/svelte/icons/grip-vertical";
 export { default as HardDrive } from "@lucide/svelte/icons/hard-drive";
 export { default as Heart } from "@lucide/svelte/icons/heart";
+export { default as Handshake } from "@lucide/svelte/icons/handshake";
 export { default as History } from "@lucide/svelte/icons/history";
 export { default as House } from "@lucide/svelte/icons/house";
 export { default as ImageIcon } from "@lucide/svelte/icons/image";
