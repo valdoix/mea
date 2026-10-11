@@ -207,11 +207,21 @@ export interface Obligation {
   who: string;
   whom?: string;
   what: string;
-  status: "open" | "due" | "kept" | "broken" | "paid" | "forgiven" | "lapsed";
+  status: "open" | "due" | "kept" | "broken" | "paid" | "forgiven" | "lapsed" | "excused";
   due?: { minutes: number | null; text: string };
   seq: number;
   /** Kept/broken already moved the bond. */
   felt?: boolean;
+  /** E3: a meeting (both there, at this place, in the window). */
+  meet?: string;
+  /** E3: minutes either side of the time (a meeting) or after it (a promise) before it's broken. */
+  window?: number;
+  /** E3: 1 minor, 2 (default), 3 vital: how far keeping or breaking it moves the bond. */
+  importance?: number;
+  /** E3: Mea's own verdict (from presence and the clock), which you can override. */
+  auto?: boolean;
+  /** E3: what the verdict moved on the bond, so an override can take it back. */
+  moves?: { axis: Axis; delta: number }[];
 }
 
 export interface Deadline {

@@ -19,6 +19,7 @@ import {
   type Ladder,
   METERS,
   type Meter,
+  type Obligation,
   type Op,
   type Place,
   type Trait,
@@ -243,6 +244,7 @@ export class Folder {
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
     try {
       this.applyOp(ev.op, ctx);
+      if (ev.op.op === "cast" || ev.op.op === "at" || ev.op.op === "clock") this.promiseChecks(ctx);
     } catch (e) {
       ctx.verdict = { raw: ev.op.raw, ok: false, reason: `couldn't apply: ${(e as Error).message}` };
     }
@@ -341,6 +343,79 @@ export class Folder {
     }
   }
 
+  /**
+   * E3: keeping a promise warms the bond and breaking one cools it, by how much it mattered. An
+   * override (Kept after Broken, They had a reason, Forgive) takes back what the last verdict moved;
+   * forgiving lets the resentment go but not the lost trust.
+   */
+  private feelPromise(o: Obligation, ctx: Ctx, seq: number) {
+    if (!o.whom) return;
+    const imp = o.importance ?? 2;
+    const kept: { axis: Axis; delta: number }[] = [];
+    for (const m of o.moves ?? []) {
+      if (o.status === "forgiven" && m.axis !== "resentment") {
+        kept.push(m);
+        continue;
+      }
+      this.nudgeBond(o.whom, o.who, m.axis, -m.delta, `${o.status}: ${o.what}`, ctx, seq);
+    }
+    o.moves = kept;
+    const moves: [Axis, number][] = o.status === "kept" ? [["trust", imp >= 3 ? 2 : 1]] : o.status === "broken" ? (imp <= 1 ? [["trust", -1]] : [["trust", imp >= 3 ? -2 : -1], ["resentment", imp >= 3 ? 2 : 1]]) : [];
+    for (const [axis, d] of moves) {
+      const moved = this.nudgeBond(o.whom, o.who, axis, d, `${o.status} a promise: ${o.what}`, ctx, seq);
+      if (moved) o.moves.push({ axis, delta: moved });
+    }
+    o.felt = true;
+  }
+
+  /** One bond axis, by d (clamped); returns what it actually moved. */
+  private nudgeBond(from: string, to: string, axis: Axis, d: number, cause: string, ctx: Ctx, seq: number) {
+    const st = this.state;
+    const key = `${from}>${to}`;
+    const b = (st.bonds[key] ??= { from, to, axes: {}, tags: [], history: [] });
+    const lo = (BIPOLAR_AXES as readonly string[]).includes(axis) ? -5 : 0;
+    const prev = b.axes[axis] ?? 0;
+    const next = Math.max(lo, Math.min(5, prev + d));
+    if (next === prev) return 0;
+    b.axes[axis] = next;
+    b.history.push({ axis, from: prev, to: next, delta: next - prev, cause, seq });
+    this.push(ctx, { kind: "bond", text: `${this.nameOf(from)} → ${this.nameOf(to)} · ${cap(axis)} ${next - prev > 0 ? "+" : ""}${next - prev}`, subject: this.nameOf(from), reason: cause, path: `bonds.${key}.${axis}`, tone: next > prev === (axis !== "resentment") ? "up" : "down" });
+    return next - prev;
+  }
+
+  /**
+   * E3: promises on the clock. A meeting is kept when both are there (and at the place, if it
+   * names one) inside its window, and broken once the window has passed without it; any promise
+   * with a time is broken a while after it (a day, or its own window) unless something kept it.
+   */
+  private promiseChecks(ctx: Ctx) {
+    const now = this.now();
+    if (now == null) return;
+    const st = this.state;
+    const here = (id: string) => {
+      const c = st.chars[id];
+      return Boolean(c && (c.isUser || c.tier === "spot" || c.tier === "peri"));
+    };
+    const at = (place: string) => {
+      const want = norm(place.replace(/^the\s+/i, ""));
+      return st.place.some((p) => norm(p.replace(/^the\s+/i, "")) === want);
+    };
+    for (const o of Object.values(st.obligations)) {
+      if (o.kind !== "promise" || (o.status !== "open" && o.status !== "due") || o.due?.minutes == null) continue;
+      const due = o.due.minutes;
+      const win = o.window ?? (o.meet ? 60 : 1440);
+      let verdict: "kept" | "broken" | null = null;
+      if (o.meet && o.whom && now >= due - win && now <= due + win && here(o.who) && here(o.whom) && at(o.meet)) verdict = "kept";
+      else if (now > due + win) verdict = "broken";
+      if (!verdict) continue;
+      o.status = verdict;
+      o.auto = true;
+      const who = this.nameOf(o.who);
+      this.push(ctx, { kind: "promise", text: verdict === "kept" ? `Promise kept: ${o.what}` : o.meet ? `${o.whom ? this.nameOf(o.whom) : "Someone"} was stood up: ${o.what}` : `Promise broken: ${o.what}`, subject: who, path: `obligations.${o.id}`, reason: verdict === "kept" ? "both were there in time" : "the time passed", tone: verdict === "kept" ? "up" : "down", memory: true });
+      this.feelPromise(o, ctx, ctx.ev.seq);
+    }
+  }
+
   /** "Day 4 06:00", "tomorrow", "tonight", "+2h", "in 3 days" → story minutes. */
   private when(text: string | undefined): number | null {
     if (!text) return null;
@@ -371,6 +446,8 @@ export class Folder {
     const nextDay = t.match(/\bnext\s+week\b/) ? now + 7 * 1440 : null;
     if (nextDay) return nextDay;
     const plain = at(day);
+    // E3: "around 9" (said without am or pm) is the next nine that comes, morning or evening.
+    if (plain != null && /^around\b/.test(t) && hm && !hm[3] && Number(hm[1]) < 12) return [plain, plain + 720, plain + 1440].find((x) => x >= now) ?? plain + 1440;
     return plain != null ? (plain < now ? plain + 1440 : plain) : null;
   }
 
@@ -966,28 +1043,19 @@ export class Folder {
         const id = this.obligationId(op.op, who.id, whom?.id, a.what);
         const o = (st.obligations[id] ??= { id, kind: op.op, who: who.id, whom: whom?.id, what: clip(a.what, 160), status: "open", seq });
         if (a.due) o.due = { minutes: this.when(a.due), text: a.due };
+        // E3: a meeting, its window, and how much it matters.
+        if (a.meet) o.meet = clip(a.meet, 80);
+        if (a.importance) o.importance = a.importance;
+        if (a.window) o.window = parseDuration(String(a.window).replace(/^(\d+)(\w)/, "$1 $2")) ?? o.window;
         const status = a.status as typeof o.status | undefined;
         const fresh = o.seq === seq && o.status === "open" && !o.felt;
         if (status && status !== o.status) {
           o.status = status;
+          o.auto = ctx.ev.source === "engine";
           this.push(ctx, { kind: op.op, text: `${cap(op.op === "owe" ? "debt" : "promise")} ${status}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause, tone: status === "kept" || status === "paid" ? "up" : status === "broken" ? "down" : "due", memory: status === "broken" || status === "kept" });
-          // Keeping a promise warms the bond; breaking one cools it (once).
-          if (op.op === "promise" && whom && !o.felt && (status === "kept" || status === "broken")) {
-            o.felt = true;
-            const key = `${whom.id}>${who.id}`;
-            const b = (st.bonds[key] ??= { from: whom.id, to: who.id, axes: {}, tags: [], history: [] });
-            const moves: [Axis, number][] = status === "kept" ? [["trust", 1]] : [["trust", -1], ["resentment", 1]];
-            for (const [axis, d] of moves) {
-              const lo = (BIPOLAR_AXES as readonly string[]).includes(axis) ? -5 : 0;
-              const prev = b.axes[axis] ?? 0;
-              const next = Math.max(lo, Math.min(5, prev + d));
-              if (next === prev) continue;
-              b.axes[axis] = next;
-              b.history.push({ axis, from: prev, to: next, delta: next - prev, cause: `${status} a promise: ${o.what}`, seq });
-              this.push(ctx, { kind: "bond", text: `${whom.name} → ${who.name} · ${cap(axis)} ${d > 0 ? "+" : ""}${d}`, subject: whom.name, reason: `${status} promise`, path: `bonds.${key}.${axis}`, tone: status === "kept" ? "up" : "down" });
-            }
-          }
-        } else if (fresh) this.push(ctx, { kind: op.op, text: `${op.op === "owe" ? `${who.name} owes ${whom?.name ?? "someone"}` : `${who.name} promised`}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause });
+          if (op.op === "promise" && whom) this.feelPromise(o, ctx, seq);
+        } else if (fresh) this.push(ctx, { kind: op.op, text: `${op.op === "owe" ? `${who.name} owes ${whom?.name ?? "someone"}` : `${who.name} ${o.meet ? `will meet ${whom?.name ?? "someone"} at ${o.meet}` : "promised"}`}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause });
+        this.promiseChecks(ctx);
         return;
       }
       case "deadline": {

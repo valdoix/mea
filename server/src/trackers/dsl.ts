@@ -396,10 +396,17 @@ export function parseLine(raw: string): Op | null {
     case "owe":
     case "promise": {
       // "Mira → Alex: a favour | open [due Day 4]"  (subject/object already split on > or →)
-      const [what, meta] = pipe(body.replace(/\[\s*due[^\]]*\]/i, ""));
+      const [what, meta] = pipe(body.replace(/\[\s*(?:due|window)[^\]]*\]/gi, ""));
       a.what = what.trim();
-      a.status = meta.find((m) => /^(open|due|kept|broken|paid|forgiven|lapsed)$/i.test(m))?.toLowerCase();
+      a.status = meta.find((m) => /^(open|due|kept|broken|paid|forgiven|lapsed|excused)$/i.test(m))?.toLowerCase();
       a.due = dueOf(body);
+      // E3: "meet @ the Bronze", "minor|major|vital", "[window 30m]"
+      const meet = meta.map((m) => m.match(/^meet(?:ing)?\s*(?:@|at)\s*(.+)$/i)).find(Boolean);
+      if (meet) a.meet = meet[1]!.trim();
+      const imp = meta.find((m) => /^(minor|major|vital)$/i.test(m))?.toLowerCase();
+      if (imp) a.importance = imp === "minor" ? 1 : imp === "vital" ? 3 : 2;
+      const win = body.match(/\[\s*window\s*[:=]?\s*([^\]]+)\]/i);
+      if (win) a.window = win[1]!.trim();
       break;
     }
     case "deadline": {

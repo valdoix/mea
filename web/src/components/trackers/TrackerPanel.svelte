@@ -5,6 +5,7 @@
   import TrackerSettings from "./TrackerSettings.svelte";
   import LessonsPanel from "./LessonsPanel.svelte";
   import OffpagePanel from "./OffpagePanel.svelte";
+  import PromisesPanel from "./PromisesPanel.svelte";
   import { editOffpage, offpageFor } from "../../lib/offpage.svelte";
   import { living } from "../../lib/living";
   import { readClock } from "../../lib/storytime";
@@ -88,7 +89,7 @@
   );
   const threads = $derived(st ? Object.values(st.threads).filter((t) => t.status !== "resolved").sort((a, b) => b.lastSeq - a.lastSeq) : []);
   const resolved = $derived(st ? Object.values(st.threads).filter((t) => t.status === "resolved") : []);
-  const obligations = $derived(st ? Object.values(st.obligations).filter((o) => o.status === "open" || o.status === "due") : []);
+  const obligations = $derived(st ? Object.values(st.obligations).filter((o) => o.kind !== "promise" && (o.status === "open" || o.status === "due")) : []);
   const deadlines = $derived(st ? Object.values(st.deadlines).filter((x) => !x.done) : []);
   const plants = $derived(st ? Object.values(st.plants).filter((p) => p.paidSeq == null) : []);
   const facts = $derived(st ? Object.values(st.facts).sort((a, b) => Number(Boolean(b.secret)) - Number(Boolean(a.secret)) || b.lastSeq - a.lastSeq) : []);
@@ -386,6 +387,7 @@
       </Module>
     {/if}
 
+    <PromisesPanel {chatId} />
     <LessonsPanel {chatId} />
     <OffpagePanel />
 

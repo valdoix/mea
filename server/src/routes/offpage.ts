@@ -9,6 +9,7 @@ import { fileItem } from "../services/filings";
 import { parseStoryTime } from "../trackers/clock";
 import { exposureFor, nudgeExposure } from "../trackers/exposure";
 import { pressureAction, pressuresView } from "../trackers/pressures";
+import { promisesFor, setPromise } from "../trackers/promises";
 import { canonOf, laterItem, moveCutoff, queueSuggest, setCanon } from "../accuracy/canoncut";
 import { canonSchema, mustChat } from "../services/chats";
 
@@ -138,4 +139,17 @@ offpage.get("/chats/:id/pressures", (c) => {
 offpage.post("/chats/:id/pressures/:char", async (c) => {
   const b = await body(c, z.object({ action: z.enum(["redraw", "write", "lock", "unlock", "head", "resolve"]), text: z.string().max(200).optional() }));
   return c.json(pressureAction(c.req.param("id"), c.req.param("char"), b.action, b.text));
+});
+
+// ---------- E3: promises on the clock ----------
+
+offpage.get("/chats/:id/promises", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ promises: promisesFor(c.req.param("id")) });
+});
+
+/** Kept, Broken, They had a reason, Forgive, or reopen. */
+offpage.post("/chats/:id/promises/:pid", async (c) => {
+  const b = await body(c, z.object({ verdict: z.enum(["kept", "broken", "excused", "forgiven", "open"]) }));
+  return c.json(setPromise(c.req.param("id"), c.req.param("pid"), b.verdict));
 });
