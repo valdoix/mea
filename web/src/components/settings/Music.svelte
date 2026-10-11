@@ -4,8 +4,8 @@
   import { errorToast, toast } from "../../lib/state.svelte";
 
   /**
-   * J3: the soundtrack, on YouTube Music. Mea talks only to the YouTube Music Desktop App on this
-   * PC (its Companion Server); there's no search, so the picker chooses from your library: tracks
+   * J3: the soundtrack, on YouTube Music. Mea talks only to a YouTube Music app on this PC: the
+   * YouTube Music Desktop App (its Companion Server) or th-ch's YouTube Music (its API Server); there's no search, so the picker chooses from your library: tracks
    * you add (a link, or what's playing now) and tag with moods, leitmotifs pinned to people and
    * bonds, and your taste. Off until you connect.
    */
@@ -55,7 +55,11 @@
   async function connect() {
     busy = true;
     try {
-      code = (await post<{ code: string }>("/api/music/connect", {})).code;
+      const r = await post<{ code?: string; connected?: Config }>("/api/music/connect", {});
+      if (r.connected) {
+        cfg = r.connected;
+        toast("YouTube Music is connected", { kind: "ok" });
+      } else code = r.code ?? null;
     } catch (e) {
       errorToast(e);
     } finally {
@@ -96,7 +100,7 @@
   <div class="stack">
     <section class="panel stack">
       <h2>Soundtrack</h2>
-      <p class="small muted">Music that fits the scene, on <b>YouTube Music</b>: it changes on story beats (a new scene, a change of mood or time of day, a big moment), not every reply. Mea talks only to the YouTube Music Desktop App on this PC; turn on its Companion Server in the app's settings.</p>
+      <p class="small muted">Music that fits the scene, on <b>YouTube Music</b>: it changes on story beats (a new scene, a change of mood or time of day, a big moment), not every reply. Mea talks only to a YouTube Music app on this PC: the YouTube Music Desktop App (turn on its Companion Server) or th-ch's YouTube Music (turn on its API Server plugin, then click Allow when it asks about Mea).</p>
       {#if cfg.connected}
         <div class="row wrap">
           <label class="switch"><input type="checkbox" checked={cfg.enabled} onchange={(e) => save({ enabled: e.currentTarget.checked })} /> On</label>
@@ -108,7 +112,7 @@
         <div class="row"><button class="btn primary" onclick={finish} disabled={busy}>{busy ? "Waiting…" : "I approved it"}</button><button class="btn ghost" onclick={() => (code = null)}>Cancel</button></div>
       {:else}
         <div class="row wrap">
-          <button class="btn primary" onclick={connect} disabled={busy}>Connect YouTube Music</button>
+          <button class="btn primary" onclick={connect} disabled={busy}>{busy ? "Check YouTube Music…" : "Connect YouTube Music"}</button>
           <label class="field port"><span class="label">Port</span><input class="input" type="number" min="1" max="65535" value={cfg.port} onchange={(e) => save({ port: Number(e.currentTarget.value) })} /></label>
         </div>
       {/if}

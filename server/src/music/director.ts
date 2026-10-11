@@ -6,7 +6,7 @@ import { type ChatSettings, mustChat, updateChat } from "../services/chats";
 import { storyDials } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
-import { command, playerState, requestCode, requestToken, videoIdOf, YtmError } from "./ytmusic";
+import { command, detectApp, playerState, requestCode, requestPearToken, requestToken, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
  * The soundtrack (Almanac plan J3), on YouTube Music: a cue read from the story (mood, intensity,
@@ -36,15 +36,15 @@ export const musicConfigSchema = z.object({
   leitmotifs: z.array(z.object({ who: z.string().max(120), videoId: z.string().regex(/^[\w-]{11}$/) })).max(100).default([]),
   taste: z.object({ preferred: z.array(z.string().max(80)).max(40).default([]), banned: z.array(z.string().max(80)).max(40).default([]), instrumentalInDialogue: z.boolean().default(false) }).default({ preferred: [], banned: [], instrumentalInDialogue: false }),
 });
-export type MusicConfig = z.infer<typeof musicConfigSchema> & { token?: string | null };
+export type MusicConfig = z.infer<typeof musicConfigSchema> & { token?: string | null; app?: YtmApp | null };
 
 export function musicConfig(): MusicConfig {
   const raw = getSetting("music.config") as Partial<MusicConfig> | null;
-  return { ...musicConfigSchema.parse(raw ?? {}), token: raw?.token ?? null };
+  return { ...musicConfigSchema.parse(raw ?? {}), token: raw?.token ?? null, app: raw?.app ?? null };
 }
 /** What the browser sees: everything but the token. */
 export function musicView() {
-  const { token, ...rest } = musicConfig();
+  const { token, app: _app, ...rest } = musicConfig();
   return { ...rest, connected: Boolean(token) };
 }
 export function saveMusicConfig(patch: Partial<z.infer<typeof musicConfigSchema>>) {
@@ -167,7 +167,7 @@ const dialogueHeavy = (text: string) => (text.match(/[“"][^”"]+[”"]/g) ?? 
 
 async function play(chatId: string, cfg: MusicConfig, pick: { track: Track; why: string }, key: string) {
   if (!cfg.token) return;
-  await command(cfg.port, cfg.token, { command: "changeVideo", data: { videoId: pick.track.videoId } });
+  await command(cfg, { command: "changeVideo", data: { videoId: pick.track.videoId } });
   const m = chatMusic(chatId);
   setChatMusic(chatId, { lastKey: key, recent: [pick.track.videoId, ...(m.recent ?? []).filter((v) => v !== pick.track.videoId)].slice(0, 6), now: { videoId: pick.track.videoId, title: pick.track.title, artist: pick.track.artist, key, why: pick.why, at: Date.now() } });
 }
@@ -208,7 +208,7 @@ export async function musicAction(chatId: string, action: MusicAction) {
   if (!cfg.token) throw badRequest("Connect YouTube Music first (Settings › Music)");
   const cue = cueFrom(currentFold(chatId).result.state, storyDials(mustChat(chatId)).genre);
   const cur = music.now?.videoId;
-  if (action === "playPause") await command(cfg.port, cfg.token, { command: "playPause" });
+  if (action === "playPause") await command(cfg, { command: "playPause" });
   else if (action === "up" || action === "down") {
     if (!cur) throw badRequest("Nothing Mea chose is playing");
     setChatMusic(chatId, { votes: { ...(music.votes ?? {}), [cur]: (music.votes?.[cur] ?? 0) + (action === "up" ? 1 : -1) } });
@@ -236,18 +236,23 @@ export function chatMusicView(chatId: string) {
 
 // ---------- connecting, and the library ----------
 
-export async function connectStart() {
+/** The Companion Server answers with a code to approve; th-ch's app asks you to allow Mea and connects right away. */
+export async function connectStart(): Promise<{ code: string } | { code?: undefined; connected: ReturnType<typeof musicView> }> {
   const cfg = musicConfig();
-  return { code: await requestCode(cfg.port) };
+  const app = await detectApp(cfg.port);
+  if (app === "ytmd") return { code: await requestCode(cfg.port) };
+  const token = await requestPearToken(cfg.port);
+  setSetting("music.config", { ...cfg, token, app, enabled: true } as never);
+  return { connected: musicView() };
 }
 export async function connectFinish(code: string) {
   const cfg = musicConfig();
   const token = await requestToken(cfg.port, code);
-  setSetting("music.config", { ...cfg, token, enabled: true } as never);
+  setSetting("music.config", { ...cfg, token, app: "ytmd", enabled: true } as never);
   return musicView();
 }
 export function disconnect() {
-  setSetting("music.config", { ...musicConfig(), token: null } as never);
+  setSetting("music.config", { ...musicConfig(), token: null, app: null } as never);
   return musicView();
 }
 
@@ -259,7 +264,7 @@ export async function addTrack(input: { link?: string; moods?: Mood[]; instrumen
   let artist = input.artist ?? "";
   if (!videoId) {
     if (!cfg.token) throw badRequest("Paste a YouTube Music link, or connect the app to add what's playing");
-    const s = await playerState(cfg.port, cfg.token);
+    const s = await playerState(cfg);
     if (!s.videoId) throw badRequest("Nothing is playing in YouTube Music");
     videoId = s.videoId;
     title ||= s.title ?? "";
