@@ -5,6 +5,8 @@
   import { autosize } from "../../lib/gestures";
   import { ArrowUp, Square, UserPen, WandSparkles, Send, Clapperboard, SlidersHorizontal, X, Milestone, Flag, Hourglass, History, Brain, Pin, MessageQuestion, ShieldCheck } from "../../lib/icons";
   import ModelSwitcher from "./ModelSwitcher.svelte";
+  import DirectorsDesk from "./DirectorsDesk.svelte";
+  import { deskRequest } from "../../lib/desk.svelte";
   import Segmented from "../Segmented.svelte";
   import { compact } from "../../lib/format";
   import { app, errorToast, toast } from "../../lib/state.svelte";
@@ -200,6 +202,13 @@
     const t = e.target as Node;
     if (trayOpen && trayEl && !trayEl.contains(t) && !optsBtn?.contains(t)) trayOpen = false;
   }
+  // F2: the Desk's header button on phones opens the tray on the Story side.
+  $effect(() => {
+    if (deskRequest.seq) {
+      trayTab = "story";
+      trayOpen = true;
+    }
+  });
   async function trayDo(fn: () => Promise<unknown>, reset?: (keyof typeof f)[], close = false) {
     if ((await fn()) === false) return;
     for (const k of reset ?? []) f[k] = "";
@@ -666,21 +675,10 @@
           </form>
         </div>
       {:else}
-        <div class="opts-grid">
-          <button class="opt" onclick={() => trayDo(actions.endScene, [], true)} disabled={!lastMessageId}>
-            <span class="ic"><Milestone size={17} /></span><span><b>End the scene here</b><small>The next message starts a new one</small></span>
-          </button>
-          <button class="opt" onclick={() => trayDo(actions.recap, [], true)}>
-            <span class="ic"><History size={17} /></span><span><b>Previously on…</b><small>A recap of the story so far</small></span>
-          </button>
-        </div>
+        <DirectorsDesk {chatId} {lastMessageId} onendscene={actions.endScene} onrecap={actions.recap} onanswer={(title, text) => ((answer = { title, text }), (answerOpen = true))} {onchange} onclose={() => (trayOpen = false)} />
         <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.chapter(f.chapter), ["chapter"], true))}>
           <span class="tlabel"><Flag size={12} /> Start a new chapter</span>
           <div class="inline"><input class="input" bind:value={f.chapter} placeholder="A title, or leave it for Mea to write" /><button class="btn small" disabled={!lastMessageId}>Begin</button></div>
-        </form>
-        <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.timeskip(f.skip, f.skipNote), ["skip", "skipNote"], true))}>
-          <span class="tlabel"><Hourglass size={12} /> Skip ahead in time</span>
-          <div class="inline"><input class="input short" bind:value={f.skip} placeholder="3 days" /><input class="input" bind:value={f.skipNote} placeholder="What happened meanwhile (optional)" /><button class="btn small" disabled={!f.skip.trim()}>Skip</button></div>
         </form>
         <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.remember(f.fact, false), ["fact"]))}>
           <span class="tlabel"><Brain size={12} /> Something to remember</span>
@@ -1014,9 +1012,6 @@
     flex: 1;
     min-width: 0;
     padding: 0.45rem 0.75rem;
-  }
-  .inline .input.short {
-    flex: 0 0 7rem;
   }
   .model-row {
     gap: 0.6rem;
