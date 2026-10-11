@@ -1,6 +1,7 @@
 <script lang="ts">
   import Almanac from "../components/trackers/Almanac.svelte";
   import DataEditor from "../components/trackers/DataEditor.svelte";
+  import PressureCard, { type PressurePerson } from "../components/trackers/PressureCard.svelte";
   import TagInput from "../components/TagInput.svelte";
   import Avatar from "../components/Avatar.svelte";
   import Modal from "../components/Modal.svelte";
@@ -113,8 +114,19 @@
       const r = await get<{ people: CastPerson[]; userName: string }>(`/api/chats/${id}/cast`);
       people = r.people;
       userName = r.userName;
+      void loadPressures();
     } catch (e) {
       errorToast(e);
+    }
+  }
+  // E1: hidden pressures, by character id (shown folded on each card).
+  let pressures = $state<Record<string, PressurePerson>>({});
+  async function loadPressures() {
+    try {
+      const r = await get<{ people: PressurePerson[] }>(`/api/chats/${id}/pressures`);
+      pressures = Object.fromEntries(r.people.map((x) => [x.id, x]));
+    } catch {
+      pressures = {};
     }
   }
   // What the story holds about them, as an editable copy (CHAT-26: you can correct anything).
@@ -384,6 +396,7 @@
           {#if p.traits.length}<div class="tiny"><span class="muted">Always</span> {p.traits.join(" · ")}</div>{/if}
           {#if p.profile?.voice}<div class="tiny"><span class="muted">Voice</span> {p.profile.voice}</div>{/if}
           {#if p.lastSeq}<a class="tiny" href="/chat/{id}?at={p.lastSeq}">Last seen at #{p.lastSeq}</a>{/if}
+          {#if pressures[p.id]}<PressureCard chatId={id} person={pressures[p.id]!} onchange={loadPressures} />{/if}
           <button class="btn ghost small" onclick={() => openEdit(p)}>Edit</button>
         </div>
       {:else}

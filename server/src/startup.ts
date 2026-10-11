@@ -16,6 +16,7 @@ import { recordTimeline, runCheckJob } from "./accuracy/checker";
 import { runLessonsJob } from "./steer/lessons";
 import { runRewordJob } from "./accuracy/offpage";
 import { exposureAfterReply } from "./trackers/exposure";
+import { pressuresAfterReply } from "./trackers/pressures";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
@@ -106,6 +107,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(recordTimeline);
   // B2: secrets' exposure clocks move for what the reply showed.
   onTrackerUpdate(exposureAfterReply);
+  // E1: important people draw a hidden pressure, and it grows over scenes.
+  onTrackerUpdate(pressuresAfterReply);
   registerJob("accuracy.drift", async (p, job) => runDriftJob(String(p.chatId), job));
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));

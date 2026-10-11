@@ -13,7 +13,7 @@ import type { Op, OpName } from "./types";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit", "expose",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
@@ -310,6 +310,18 @@ export function parseLine(raw: string): Op | null {
         const f = m.match(/^(?:kept )?from\s+(.+)$/i);
         if (k) a.keepers = k[1]!.split(/\s*(?:&|and)\s*/);
         else if (f) a.from = f[1]!.split(/\s*(?:&|and)\s*/);
+      }
+      break;
+    }
+    case "pressure": {
+      // E1: "pressure Mira: is grieving and has told no one | stage: hidden | by: deck" (the engine and you only)
+      const [main, ...meta] = body.split("|").map((x) => x.trim());
+      a.text = main && !/^(?:stage|by|lock|unlock|draws?)\b/i.test(main) ? main : undefined;
+      for (const m of main && !a.text ? [main, ...meta] : meta) {
+        const kv = m.match(/^(stage|by|draws?)\s*[:=]\s*(\S+)/i);
+        if (kv) a[kv[1]!.toLowerCase().replace(/s$/, "")] = kv[2]!.toLowerCase();
+        else if (/^lock$/i.test(m)) a.lock = true;
+        else if (/^unlock$/i.test(m)) a.lock = false;
       }
       break;
     }

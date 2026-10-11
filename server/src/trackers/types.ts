@@ -12,6 +12,8 @@ export type OpName =
   | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
   // B2: a secret's exposure clock (written by the engine and by you, never by the model)
   | "expose"
+  // E1: a character's hidden pressure (the engine and you, never the model)
+  | "pressure"
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 
@@ -91,6 +93,23 @@ export interface Character {
   stamina: string;
   /** Last clock reading drift was applied at. */
   driftAt?: number | null;
+  /** E1: what they carry and haven't told anyone. */
+  pressure?: Pressure;
+}
+
+/** E1: a hidden pressure: drawn (from the deck or from what the story says), yours, or locked. */
+export interface Pressure {
+  text: string;
+  /** hidden → growing → cracking (it nearly shows) → resolved; "head": the next scene tests it. */
+  stage: "hidden" | "growing" | "cracking" | "head" | "resolved";
+  by: "deck" | "grounded" | "you";
+  locked?: boolean;
+  /** The scene it last moved in (it grows over scenes, not replies). */
+  scene: number;
+  seq: number;
+  /** How many times it was drawn (Redraw rolls the next one). */
+  draws: number;
+  history: { stage: string; text?: string; seq: number }[];
 }
 
 export const BIPOLAR_AXES = ["trust", "affection", "respect", "comfort"] as const;

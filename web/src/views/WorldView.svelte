@@ -1,6 +1,7 @@
 <script lang="ts">
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
+  import type { PressurePerson } from "../components/trackers/PressureCard.svelte";
   import { del, get, patch, post, put } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { onEvent } from "../lib/events";
@@ -19,7 +20,23 @@
   let arcForm = $state({ premise: "", want: "", fear: "" });
   let cfg = $state<WorldConfig>({ mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", view: "director", climate: "maritime", latitude: 45, tech: "modern", genres: [], step: 120 });
 
+  // E1: dramatic irony: what each person carries, and what you know that they don't.
+  let irony = $state(false);
+  let carried = $state<Record<string, PressurePerson>>({});
+  async function loadIrony() {
+    try {
+      const r = await get<{ people: PressurePerson[] }>(`/api/chats/${id}/pressures`);
+      carried = Object.fromEntries(r.people.map((x) => [x.name.toLowerCase(), x]));
+    } catch {
+      carried = {};
+    }
+  }
+  $effect(() => {
+    if (irony) void loadIrony();
+  });
+
   async function load() {
+    if (irony) void loadIrony();
     try {
       w = await get<WorldViewData>(`/api/chats/${id}/world`);
     } catch (e) {
@@ -348,7 +365,10 @@
     </div>
 
     <section class="panel stack tight">
-      <h2>People</h2>
+      <div class="row between">
+        <h2>People</h2>
+        <label class="switch small" title="What each person carries and hasn't said, and what you know that they don't"><input type="checkbox" bind:checked={irony} /> Dramatic irony</label>
+      </div>
       {#each [["Here", rings.onstage], ["Seen before", rings.offstage], ["Not met yet", rings.unmet]] as [label, list] (label)}
         {#if (list as typeof rings.onstage).length}
           <div class="tiny muted">{label}</div>
@@ -360,6 +380,11 @@
                   <button class="btn ghost icon tiny-icon" onclick={() => openPerson(p)} aria-label="Edit, merge or delete {p.name}" title="Edit, merge or delete"><Pencil size={14} /></button>
                 </div>
                 <div class="tiny muted">{p.where ?? ""}{p.travel != null && p.ring !== "onstage" ? ` · ${p.travel < 60 ? `${p.travel} min` : `${Math.round(p.travel / 60)} h`} away` : ""}{p.arcs.length ? ` · ${p.arcs.length} subplot${p.arcs.length > 1 ? "s" : ""}` : ""}</div>
+                {#if irony && carried[p.name.toLowerCase()]}
+                  {@const c = carried[p.name.toLowerCase()]!}
+                  {#if c.pressure && c.pressure.stage !== "resolved"}<div class="tiny irony">Carries: {c.pressure.text} <span class="faint">({c.pressure.stage})</span></div>{/if}
+                  {#if c.youKnow.length}<div class="tiny irony">You know, they don't: {c.youKnow.join(" · ")}</div>{/if}
+                {/if}
                 {#if director && p.ties.length}<div class="tiny faint">Tied to {p.ties.map((t) => `${t.name} (${["", "slight", "some", "close", "strong", "deep"][Math.min(5, Math.max(0, Math.round(t.strength)))] || "slight"})`).join(", ")}</div>{/if}
                 {#if p.ring !== "onstage"}
                   <div class="row wrap picks">
@@ -458,6 +483,10 @@
 </Modal>
 
 <style>
+  .irony {
+    color: var(--lavender, var(--accent));
+    font-style: italic;
+  }
   .pick {
     width: auto;
     padding: 0.2rem 1.7rem 0.2rem 0.5rem;

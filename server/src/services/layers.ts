@@ -49,12 +49,14 @@ const ROMANCE = ["off", "slow", "measured", "fast", "established"] as const;
  * (re-anchor, puppet guard, tracker sealing) and the romance pace (tracker ladder). Null where
  * the preset has no such control, so the separate settings still apply.
  */
-export function storyDials(chat: { settings: string | null; character_id: string | null }): { persona: PersonaMode | null; romance: (typeof ROMANCE)[number] | null } {
+export function storyDials(chat: { settings: string | null; character_id: string | null }): { persona: PersonaMode | null; romance: (typeof ROMANCE)[number] | null; genre: string | null } {
   const settings = parseJson<ChatSettings>(chat.settings, {});
   const layers = layered(settings, chat.character_id);
   const preset = resolvePreset(layers.presetId);
   const values = controlValues(preset.controls, layers.controls);
   const persona = PERSONA_MODES.find((m) => m === values.persona) ?? null;
   const romance = ROMANCE.find((r) => r === values.romance) ?? null;
-  return { persona, romance };
+  // E1: the lead genre (the preset's control), for the pressure deck.
+  const genre = typeof values.genre === "string" && values.genre ? values.genre : null;
+  return { persona, romance, genre };
 }

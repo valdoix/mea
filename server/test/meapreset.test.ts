@@ -60,7 +60,7 @@ describe("the Persona and Romance controls drive the rest of Mea", () => {
   const speech = 'Mira sets the lamp down and watches the storm for a long while. "Fine," Alex says, and follows her upstairs.';
 
   test("continuity (the default): the model may finish actions, never speak for you", () => {
-    expect(storyDials(mustChat(chatId))).toEqual({ persona: "continuity", romance: "fast" });
+    expect(storyDials(mustChat(chatId))).toMatchObject({ persona: "continuity", romance: "fast" });
     expect(buildAnchor({ card: card(), userName: "Alex", characterId: charId, persona: "continuity" })).toContain("you may only finish an action Alex began");
     expect(guardIssues(chatId, action, { seq: 99 }).some((i) => i.kind === "puppet")).toBe(false);
     expect(guardIssues(chatId, speech, { seq: 99 }).some((i) => i.kind === "puppet")).toBe(true);
