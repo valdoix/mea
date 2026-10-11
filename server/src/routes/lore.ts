@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { CATEGORIES, CATEGORY_INFO, categoryOf, guessCategory, withCategory } from "../lore/format";
+import { createOffpage } from "../accuracy/offpage";
 import { stash } from "../services/undo";
 import { z } from "zod";
 import { one } from "../db/db";
@@ -18,6 +20,7 @@ import {
   softDeleteLorebook,
   unlinkLorebook,
   updateEntry,
+  getEntries,
   updateLorebook,
 } from "../lore/service";
 import { defaultEntry } from "../lore/types";
@@ -132,6 +135,39 @@ lore.put("/lorebooks/:id/entries/:entryId", async (c) => {
   must(updateEntry(c.req.param("entryId"), entry) || undefined, "Entry not found");
   reembed();
   return c.json({ ...entry, id: c.req.param("entryId") });
+});
+
+// ---------- I1: categories ----------
+
+/** Auto-sort this book: a category for every entry (with how sure), written when `apply`; `defaults` also moves each to its category's place. */
+lore.post("/lorebooks/:id/autosort", async (c) => {
+  const b = await body(c, z.object({ apply: z.boolean().default(false), defaults: z.boolean().default(false), onlyNew: z.boolean().default(true) }));
+  const book = must(getLorebook(c.req.param("id")), "Lorebook not found");
+  const out = getEntries(book.id).map((e) => {
+    const g = guessCategory(e, book.name);
+    const had = categoryOf(e);
+    const write = b.apply && (!b.onlyNew || !had);
+    if (write) updateEntry(e.id, withCategory(e, g.category, { defaults: b.defaults, confidence: g.confidence }));
+    return { entryId: e.id, title: e.comment || e.keys[0] || "(untitled)", category: write ? g.category : (had ?? g.category), confidence: had && !write ? 1 : g.confidence, why: had && !write ? "set by you" : g.why, guessed: !had || write };
+  });
+  return c.json({ entries: out, categories: Object.values(CATEGORY_INFO) });
+});
+
+/** One tap: this entry's category (and, with `defaults`, its place and priority). */
+lore.post("/lorebooks/:id/entries/:entryId/category", async (c) => {
+  const b = await body(c, z.object({ category: z.enum(CATEGORIES), defaults: z.boolean().default(false) }));
+  const e = must(getEntries(c.req.param("id")).find((x) => x.id === c.req.param("entryId")), "Entry not found");
+  const next = withCategory(e, b.category, { defaults: b.defaults });
+  updateEntry(e.id, next);
+  return c.json({ ...next, id: e.id });
+});
+
+/** A Secret entry, kept off the page in a chat (B1): the narration won't state it until it comes out. */
+lore.post("/lorebooks/:id/entries/:entryId/offpage", async (c) => {
+  const b = await body(c, z.object({ chatId: z.string() }));
+  const e = must(getEntries(c.req.param("id")).find((x) => x.id === c.req.param("entryId")), "Entry not found");
+  const label = (e.content.replace(/\s+/g, " ").match(/^[^.!?]{3,300}[.!?]?/)?.[0] ?? e.comment).trim();
+  return c.json(createOffpage(b.chatId, { ref: `lore:${e.id}`, label, neverSay: e.keys.slice(0, 6) }), 201);
 });
 
 // ---------- Phase 3: health, assist, templates, preview, glossary, Chronicle ----------
