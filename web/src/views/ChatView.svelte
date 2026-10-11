@@ -18,6 +18,7 @@
   import { watchOffpage } from "../lib/offpage.svelte";
   import OffpageEditor from "../components/chat/OffpageEditor.svelte";
   import SessionZero from "../components/chat/SessionZero.svelte";
+  import { openDesk } from "../lib/desk.svelte";
   import type { Angle } from "../lib/angles";
   import { dockRequest, openDock, type DockTab } from "../lib/dock.svelte";
   import SelectionMenu from "../components/chat/SelectionMenu.svelte";
@@ -34,7 +35,7 @@
   import { ApiError, del, get, imageUrl, patch, post, put, storedMessage } from "../lib/api";
   import { confirm, promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
-  import { ArrowDown, ArrowLeft, BookOpen, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessagesSquare, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, BookOpen, Clapperboard, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessagesSquare, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
   import { DOCK_MIN, dockMax, layout, setDockWidth, setFocus, toggleDock, toggleRail } from "../lib/layout.svelte";
   import "../styles/studio.css";
   import { renderMessage } from "../lib/render";
@@ -1178,6 +1179,7 @@
             </div>
             <span class="sep hide-sm"></span>
             <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" title="Search this chat" class:on={searchOpen}><Search size={18} /></button>
+            {#if app.isMobile}<button class="btn ghost icon" onclick={openDesk} aria-label="Director's Desk" title="Director's Desk"><Clapperboard size={18} /></button>{/if}
             <a class="btn ghost icon hide-sm" href="/chat/{id}/codex" aria-label="Codex: people, places, timeline" title="Codex"><Library size={18} /></a>
             <a class="btn ghost icon" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>
             <DisplayMenu />

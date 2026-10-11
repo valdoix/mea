@@ -1,10 +1,13 @@
 import { Hono } from "hono";
+import { z } from "zod";
+import { bondsReport, deskCue, deskView, recapSince, secretsReport, storyAudit, threadsReport } from "../steer/desk";
 import { body } from "../lib/http";
 import { applySetup, previewOpening, saveUsual, setupSchema, setupView, skipSetup, usual } from "../services/setup";
 import { mustChat } from "../services/chats";
 
-/** F1: Session Zero. */
+/** F1: Session Zero; F2: the Director's Desk (same router). */
 export const setup = new Hono();
+const desk = setup;
 
 setup.get("/chats/:id/setup", (c) => {
   mustChat(c.req.param("id"));
@@ -23,4 +26,44 @@ setup.get("/setup/usual", (c) => c.json({ answers: usual() }));
 setup.post("/setup/usual", async (c) => {
   saveUsual(await body(c, setupSchema));
   return c.json({ ok: true });
+});
+
+// ---------- F2: the Director's Desk ----------
+
+desk.get("/chats/:id/desk", (c) => c.json(deskView(c.req.param("id"))));
+
+desk.get("/chats/:id/desk/report/:kind", (c) => {
+  const id = c.req.param("id");
+  mustChat(id);
+  const kind = c.req.param("kind");
+  if (kind === "bonds") return c.json(bondsReport(id));
+  if (kind === "threads") return c.json(threadsReport(id));
+  if (kind === "secrets") return c.json(secretsReport(id));
+  return c.json({ error: "No such report" }, 404);
+});
+
+/** Cut to, Bring someone in, Push this thread, Raise the stakes, Breathe: a one-shot cue. */
+desk.post("/chats/:id/desk/cue", async (c) => {
+  const b = await body(
+    c,
+    z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("cut"), to: z.string().min(1).max(120) }),
+      z.object({ kind: z.literal("bring"), who: z.string().min(1).max(80) }),
+      z.object({ kind: z.literal("push"), thread: z.string().min(1).max(160) }),
+      z.object({ kind: z.literal("raise") }),
+      z.object({ kind: z.literal("breathe") }),
+    ]),
+  );
+  return c.json(deskCue(c.req.param("id"), b));
+});
+
+desk.post("/chats/:id/desk/audit", async (c) => {
+  const b = await body(c, z.object({ n: z.number().int().min(1).max(100).default(20) }));
+  return c.json(storyAudit(c.req.param("id"), b.n));
+});
+
+/** Previously on…, since I was away. */
+desk.post("/chats/:id/recap/since", async (c) => {
+  const b = await body(c, z.object({ since: z.number().int().min(0) }));
+  return c.json(await recapSince(c.req.param("id"), b.since));
 });

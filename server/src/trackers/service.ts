@@ -299,10 +299,23 @@ export function userEditAt(chatId: string, ops: Op[], messageId?: string | null)
 // ---------- time skips (TRK-10) ----------
 
 /** "/timeskip 3 days": the clock moves (bodies drift with it), the story gets a marker, trackers catch up. */
+/** F2: "until evening", "until morning", "next day": how long from the story's clock. */
+const UNTIL: Record<string, number> = { dawn: 6 * 60, morning: 8 * 60, noon: 12 * 60, afternoon: 14 * 60, evening: 18 * 60, dusk: 19 * 60, night: 22 * 60, midnight: 24 * 60 };
+export function untilMinutes(text: string, now: number | null): number | null {
+  const t = text.trim().toLowerCase();
+  if (/^(the )?next day$/.test(t)) return 1440;
+  const m = t.match(/^until (?:the )?(dawn|morning|noon|afternoon|evening|dusk|night|midnight)$/);
+  if (!m) return null;
+  if (now == null) throw badRequest("The story has no time yet: skip by a length, like “3 hours”");
+  const at = UNTIL[m[1]!]!;
+  const into = now % 1440;
+  return at > into ? at - into : at + 1440 - into;
+}
+
 export function timeskip(chatId: string, durationText: string, note?: string) {
-  const minutes = parseDuration(durationText);
-  if (!minutes || minutes <= 0) throw badRequest('Write how long, like "3 days", "2 hours" or "a week"');
   const st = currentFold(chatId).result.state;
+  const minutes = untilMinutes(durationText, st.time?.minutes ?? null) ?? parseDuration(durationText);
+  if (!minutes || minutes <= 0) throw badRequest('Write how long, like "3 days", "2 hours" or "a week"');
   const text = `*${describeMinutes(minutes).replace(/^1 days/, "One day")} later.*${note?.trim() ? ` ${note.trim()}` : ""}`;
   const messageId = addMessage(chatId, "system", text, { name: "Time skip", meta: { timeskip: minutes } });
   const ops: Op[] = st.time ? [{ op: "clock", args: { plus: minutes }, raw: `clock: +${minutes}m` }] : [];
