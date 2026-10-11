@@ -768,6 +768,25 @@ export class Folder {
         this.push(ctx, { kind: "secret", text: `Revealed to ${to.map((x) => this.nameOf(x)).join(", ") || "someone"}: ${clip(f.statement, 60)}`, path: `facts.${f.key}`, reason: op.cause, tone: "warn", memory: true });
         return;
       }
+      case "expose": {
+        // B2: only the engine (rules after each reply) and you move a secret's exposure clock.
+        if (ctx.ev.source !== "engine" && ctx.ev.source !== "user") return this.reject(ctx, "exposure is moved by Mea, not the ledger");
+        const f = a.key ? (st.facts[slug(a.key)] ?? Object.values(st.facts).find((x) => overlap(x.statement, a.key) > 0.6)) : undefined;
+        if (!f) return this.reject(ctx, "no such secret");
+        const e = ((st.exposure ??= {})[f.key] ??= { cur: 0, max: 6, history: [], near: {} });
+        const prev = e.cur;
+        e.cur = Math.max(0, Math.min(e.max, a.cur ?? prev + (a.delta ?? 0)));
+        const who = a.who ? this.person(a.who, seq) : undefined;
+        if (who && e.cur !== prev) {
+          const n = (e.near[who.id] ??= { score: 0, why: [] });
+          n.score = Math.max(0, n.score + (e.cur - prev));
+          if (e.cur > prev && op.cause) n.why = [...n.why.filter((w) => w !== op.cause), op.cause].slice(-4);
+        }
+        if (e.cur === prev) return;
+        e.history.push({ delta: e.cur - prev, v: e.cur, why: op.cause, who: who?.id, seq });
+        this.push(ctx, { kind: "secret", text: `Exposure ${e.cur}/${e.max}: ${clip(f.statement, 50)}`, path: `exposure.${f.key}`, reason: op.cause, from: prev, to: e.cur, tone: e.cur >= e.max ? "warn" : e.cur > prev ? "due" : undefined, memory: e.cur >= e.max });
+        return;
+      }
       case "item": {
         const name = clip(op.subject, 80);
         if (!name) return this.reject(ctx, "which item?");

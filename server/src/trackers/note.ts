@@ -256,6 +256,13 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
         else if (s.status === "suspects" || s.status === "doubts") lines.push(`${who} ${s.status}: ${f.statement}`);
       }
     }
+    // B2: a secret close to coming out (its exposure clock at 4 of 6 or more), and who is closest.
+    for (const [key, e] of Object.entries(st.exposure ?? {})) {
+      const f = st.facts[key];
+      if (!f || e.cur < 4 || e.cur >= e.max) continue;
+      const near = Object.entries(e.near).filter(([id]) => !st.chars[id]?.isUser).sort((a, b) => b[1].score - a[1].score)[0];
+      lines.unshift(`Close to coming out (${e.cur}/${e.max}): ${f.statement}${near ? `; ${st.chars[near[0]]?.name ?? near[0]} is closest` : ""}. Let it surface only through what people can see and infer.`);
+    }
     if (lines.length) lanes.push({ name: "knowledge", lines: ["KNOWLEDGE (act only on what each person knows):", ...lines.slice(0, 8).map((l) => `- ${l}`)], priority: 3 });
   }
 

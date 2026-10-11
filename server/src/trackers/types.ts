@@ -10,6 +10,8 @@ export type OpName =
   | "clock" | "wx" | "at" | "scene" | "mode" | "cast" | "mood" | "body" | "look" | "trait" | "drive" | "mask" | "think" | "journal" | "dead"
   | "bond" | "ladder" | "know" | "secret" | "reveal" | "item" | "thread" | "owe" | "promise" | "deadline" | "plant" | "payoff" | "clue"
   | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
+  // B2: a secret's exposure clock (written by the engine and by you, never by the model)
+  | "expose"
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 
@@ -138,6 +140,15 @@ export interface Fact {
   revealed: { to: string[]; seq: number; how?: string }[];
   firstSeq: number;
   lastSeq: number;
+}
+
+/** B2: how close a secret is to coming out (0–6), and who is closest to finding out, and why. */
+export interface Exposure {
+  cur: number;
+  max: number;
+  history: { delta: number; v: number; why?: string; who?: string; seq: number }[];
+  /** Per character id: how much has pointed them at it, and the reasons. */
+  near: Record<string, { score: number; why: string[] }>;
 }
 
 export interface Item {
@@ -277,6 +288,8 @@ export interface WorldState {
   bonds: Record<string, Bond>;
   ladders: Record<string, Ladder>;
   facts: Record<string, Fact>;
+  /** B2: exposure clocks, by fact key. */
+  exposure: Record<string, Exposure>;
   items: Record<string, Item>;
   threads: Record<string, Thread>;
   obligations: Record<string, Obligation>;
@@ -339,6 +352,7 @@ export function emptyWorld(): WorldState {
     bonds: {},
     ladders: {},
     facts: {},
+    exposure: {},
     items: {},
     threads: {},
     obligations: {},
