@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import Modal from "../Modal.svelte";
   import { del, post, put } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
@@ -20,13 +21,16 @@
   let weekText = $state("");
   let saving = $state(false);
 
+  // Opening starts from the calendar given (or a blank one); only `open` and `initial` are read here.
   $effect(() => {
-    if (open) {
-      c = initial ? JSON.parse(JSON.stringify(initial)) : blankCalendar();
-      previewYear = c.era.firstYear;
+    if (!open) return;
+    const fresh: CustomCalendar & { id?: string } = initial ? JSON.parse(JSON.stringify(initial)) : blankCalendar();
+    untrack(() => {
+      c = fresh;
+      previewYear = fresh.era.firstYear;
       previewMonth = 1;
-      weekText = c.weekdays.join(", ");
-    }
+      weekText = fresh.weekdays.join(", ");
+    });
   });
 
   const grid = $derived.by(() => {
