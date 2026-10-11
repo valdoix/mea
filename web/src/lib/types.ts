@@ -113,6 +113,8 @@ export interface ChatSettings {
   personaVariantId?: string | null;
   /** Phase 5: this chat's own guard settings over the global ones. */
   guards?: Partial<GuardsConfig>;
+  /** D2: the craft coach here. */
+  craft?: { paused?: boolean; ignored?: string[] };
   /** C1: the canon cutoff (edited in the Chat tab's Canon card). */
   canon?: Record<string, unknown>;
   /** STEER-01 / STEER-03 (null = the global default). */
@@ -518,6 +520,8 @@ export interface SteerConfig {
   editor: "off" | "flagged" | "every";
   editorApply: "suggest" | "auto";
   recapAfterHours: number;
+  /** D2 */
+  craft?: boolean;
 }
 
 export interface StyleProfile {
@@ -678,6 +682,8 @@ export interface PromptTrace {
   memory?: MemoryTrace;
   /** B1: memory and lore reworded to keep a secret off the page. */
   reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
+  /** D2: the craft coach's numbers for this turn. */
+  craft?: { replies: number; filter: number; emdash: number; ellipsis: number; triads: number; dialogue: number; baselineDialogue: number | null; topOpening: { word: string; share: number } | null };
 }
 
 export type MeaEvent =

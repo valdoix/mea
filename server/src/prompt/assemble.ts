@@ -118,6 +118,8 @@ export interface PromptTrace {
     effectiveTarget: number;
   };
   memory?: MemoryTrace;
+  /** D2: the craft coach's numbers for this turn. */
+  craft?: Record<string, unknown>;
   /** B1: memory and lore reworded to keep a secret off the page. */
   reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
 }

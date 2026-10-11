@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { body, must } from "../lib/http";
-import { getMessageRow, mustChat } from "../services/chats";
+import { type ChatSettings, getMessageRow, mustChat } from "../services/chats";
+import { parseJson } from "../db/db";
+import { banPhrase, craftOn, craftReport, setCraft } from "../steer/craft";
+
+const getChatSettings = (id: string) => parseJson<ChatSettings>(mustChat(id).settings, {});
 import { addLesson, deleteLesson, learnFromSwipes, lessonsFor, lessonsMode, updateLesson } from "../steer/lessons";
 
 /** A1: lessons from swipes. */
@@ -35,4 +39,27 @@ lessons.post("/messages/:id/learn", async (c) => {
   const m = must(getMessageRow(c.req.param("id")), "Message not found");
   const found = await learnFromSwipes(m.chat_id, m.id, { model: lessonsMode(m.chat_id) !== "off" });
   return c.json({ lessons: found });
+});
+
+// ---------- D2: the craft coach ----------
+
+lessons.get("/chats/:id/craft", (c) => {
+  const id = c.req.param("id");
+  mustChat(id);
+  const r = craftReport(id);
+  return c.json({ ...r, on: craftOn(id), paused: Boolean(getChatSettings(id).craft?.paused), ignored: getChatSettings(id).craft?.ignored ?? [] });
+});
+
+/** Pause coach, "It's fine" (ignore a habit here), or take that back. */
+lessons.post("/chats/:id/craft", async (c) => {
+  const b = await body(c, z.object({ paused: z.boolean().optional(), ignore: z.string().max(120).optional(), unignore: z.string().max(120).optional() }));
+  setCraft(c.req.param("id"), b);
+  return c.json({ ok: true });
+});
+
+/** "Ban it": a phrase that keeps coming back joins your banned phrases. */
+lessons.post("/craft/ban", async (c) => {
+  const b = await body(c, z.object({ phrase: z.string().trim().min(2).max(80) }));
+  banPhrase(b.phrase);
+  return c.json({ ok: true });
 });

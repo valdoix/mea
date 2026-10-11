@@ -89,6 +89,12 @@
     </section>
 
     <section class="panel stack">
+      <h2>Craft coach</h2>
+      <p class="tiny muted">Measures the last replies (repeated phrases, the same openings, filter words, dashes, lists of three, overused gestures and similes) against each story's own rhythm, and tells the model the three habits it leans on hardest plus one technique to try. No model calls. Each chat can pause it in its Chat tab.</p>
+      <label class="switch"><input type="checkbox" checked={s["steer.config"].craft !== false} onchange={(e) => setSteer({ craft: e.currentTarget.checked })} /> Coach every story</label>
+    </section>
+
+    <section class="panel stack">
       <h2>Previously on…</h2>
       <p class="tiny muted">When you come back to a chat after a while, a short recap card waits at the end of the story. It's written once per point in the story; /recap gives one any time.</p>
       <label class="field" style="max-width:18rem">

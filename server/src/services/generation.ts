@@ -50,6 +50,7 @@ import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/s
 import type { PromptExtra } from "../prompt/assemble";
 import { gatherLanes } from "../prompt/lanes";
 import { offpageFilter } from "../accuracy/offpage";
+import { craftOn, craftReport } from "../steer/craft";
 import { angleNote, type Angle, digestNote, keptPrefix, rejectedDigest, takeShape as rejectedShape } from "../steer/swipes";
 import { finishRequest, getRequest, startRequest } from "./requests";
 import { anchorExtra } from "../accuracy/anchor";
@@ -400,6 +401,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     },
   });
   if (offpage?.reworded.length) assembled.trace.reworded = offpage.reworded;
+  // D2: the craft coach's numbers for this turn (the Inspector's meter).
+  if ((kind === "story" || kind === "continue") && craftOn(chatId)) assembled.trace.craft = craftReport(chatId, { beforeSeq: opts.excludeMessageId ? getMessageRow(opts.excludeMessageId)?.seq : undefined }).meter;
   const assembled_ = lap();
   retrievalMs = Math.round((retrievalMs + memoryMs) * 10) / 10;
   const timing: Timing = { totalMs: Math.round((performance.now() - t0) * 10) / 10, trackersMs, retrievalMs, loreMs, advisorMs, assemblyMs: Math.max(0, Math.round((assembled_ - memoryMs) * 10) / 10) };

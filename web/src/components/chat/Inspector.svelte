@@ -141,6 +141,19 @@
           </details>
         {/if}
 
+        {#if data.trace.craft && data.trace.craft.replies >= 2}
+          {@const c = data.trace.craft}
+          <div class="row wrap tiny craft" aria-label="Craft meter">
+            <b>Craft</b>
+            <span title="Filter words (felt, noticed…) per 100 words, last {c.replies} replies">filter {c.filter}</span>
+            <span title="Em-dashes per 100 words">dashes {c.emdash}</span>
+            <span title="Ellipses per 100 words">ellipses {c.ellipsis}</span>
+            <span title="Lists of three per reply">threes {c.triads}</span>
+            <span title="Share of the text in dialogue{c.baselineDialogue != null ? `; usually ${Math.round(c.baselineDialogue * 100)}%` : ''}">dialogue {Math.round(c.dialogue * 100)}%{c.baselineDialogue != null ? ` (usually ${Math.round(c.baselineDialogue * 100)}%)` : ""}</span>
+            {#if c.topOpening}<span title="The most common first word of a sentence">“{c.topOpening.word}” opens {Math.round(c.topOpening.share * 100)}%</span>{/if}
+          </div>
+        {/if}
+
         {#if data.trace.reworded?.length}
           <details>
             <summary><b>Reworded for the secret</b> <span class="tiny muted">{data.trace.reworded.length} block{data.trace.reworded.length === 1 ? "" : "s"} kept off the page</span></summary>
@@ -270,6 +283,10 @@
   }
   .summary {
     gap: 0.4rem;
+  }
+  .craft {
+    gap: 0.4rem 0.9rem;
+    color: var(--text-muted);
   }
   .lane {
     border-top: 1px solid var(--border);
