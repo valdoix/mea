@@ -6,7 +6,7 @@
   import { onEvent } from "../lib/events";
   import { ArrowLeft, Dices, Merge, Pencil, Plus, Settings, Trash } from "../lib/icons";
   import { errorToast, toast } from "../lib/state.svelte";
-  import type { Arc, ArcForce, WorldConfig, WorldPerson, WorldViewData } from "../lib/types";
+  import type { Arc, ArcForce, ArcTies, WorldConfig, WorldPerson, WorldViewData } from "../lib/types";
 
   let { id }: { id: string } = $props();
   let w = $state<WorldViewData | null>(null);
@@ -171,6 +171,16 @@
   ];
   const FORCE_LABEL = Object.fromEntries(FORCES.map((f) => [f.value, f.label])) as Record<ArcForce, string>;
   const resultWord = { win: "went their way", cost: "worked, at a price", loss: "went wrong" } as Record<string, string>;
+  /** Which way a tied subplot pulls, in words. */
+  function stanceWord(t: ArcTies["ties"][number]): string {
+    if (t.dir === "theirs") return t.stance === "for" ? `on ${t.person}'s side` : `against ${t.person}`;
+    if (t.dir === "mine") return t.stance === "for" ? `${t.person}'s own story; this one is on their side` : `${t.person}'s own story; this one is against them`;
+    return `both involve ${t.person}`;
+  }
+  function jumpTo(arcId: string) {
+    filter = "all";
+    requestAnimationFrame(() => document.getElementById(arcId)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
   const routeIcon: Record<string, string> = { carrier: "🗣", signal: "📨", ambient: "📣", trace: "👣", entrance: "🚪", omen: "🌘" };
   const chart = $derived.by(() => {
     const t = w?.tension ?? [];
@@ -279,6 +289,21 @@
             </ol>
           {/if}
           {#if a.ending}<div class="small ending">Ending ({a.ending.result}): {a.ending.text}</div>{/if}
+          {#if a.ties.length || a.stands.length}
+            <div class="ties" aria-label="How other subplots bear on this one">
+              <div class="tiny muted">Tied to{#if director && a.pull} <span class="chip tiny" class:up={a.pull.mod > 0} class:down={a.pull.mod < 0}>{a.pull.mod > 0 ? "+1" : "−1"} to its next roll</span>{/if}</div>
+              {#each a.stands as c, i (i)}
+                <div class="tiny stands">{c.text} <span class="faint">(from {c.leadName}'s {w.kinds[c.kind]?.label.toLowerCase()})</span></div>
+              {/each}
+              {#each a.ties as t (t.id)}
+                <div class="tiny">
+                  <button class="linkish" onclick={() => jumpTo(t.id)}>{t.leadName}'s {w.kinds[t.kind]?.label.toLowerCase()}</button>
+                  <span class="faint">· {stanceWord(t)}{t.ending ? " · ended" : ""}{t.fresh ? " · since its last step" : ""}</span>: {t.text}
+                  {#if director && t.mod}<span class="faint"> ({t.mod > 0 ? "+1" : "−1"}: {t.pull})</span>{/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
           {#if ["running", "held"].includes(a.status)}
             <div class="row wrap ctl">
               {#if a.status === "running"}<button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "hold" })}>Hold</button>{:else}<button class="btn ghost small" onclick={() => act(`/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}`, { action: "resume" })}>Resume</button>{/if}
@@ -505,6 +530,31 @@
   }
   .ending {
     font-style: italic;
+  }
+  .ties {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.4rem 0.6rem;
+    border-left: 2px solid var(--border);
+  }
+  .ties .stands {
+    font-weight: 600;
+  }
+  .ties .chip.up {
+    color: var(--ok);
+  }
+  .ties .chip.down {
+    color: var(--danger);
+  }
+  .linkish {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .ctl {
     gap: 0.2rem;

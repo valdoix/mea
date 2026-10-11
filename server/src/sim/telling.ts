@@ -12,7 +12,8 @@ export const tellingSchema = z.object({
 
 export function tellingPrompt(cards: BeatCard[], o: { userName: string; truths: string[]; genres: string[] }) {
   const system = `You tell what happened off the page in a roleplay, between two story times. Each CARD is already decided: who, where, when, and how it turned out (WIN, COST, LOSS, or an ending: MET, PRICE, LOST). Tell each as two short, plain sentences: what happened (past tense, naming the actual people, places and news), then where it leaves things (present tense). At most 50 words per card.
-Keep the outcome. Add nothing the card doesn't allow. Name only the people on the card; anyone else is unnamed ("a clerk"). Never decide anything ${o.userName} (the user's character) does, says, thinks or knows. No dialogue.${o.genres.length ? `\nThe story's genre: ${o.genres.join(", ")}.` : ""}${o.truths.length ? `\nStory truths that hold here too: ${o.truths.join("; ")}` : ""}
+Keep the outcome. Add nothing the card doesn't allow. Name only the people on the card; anyone else is unnamed ("a clerk").
+Subplots bear on each other. MEANWHILE is what tied subplots did last: keep in step with it and never contradict it; a step marked [since this subplot's last step] is what this one answers. STANDS is settled about its people: this step can't undo it by itself. You may name the people in MEANWHILE and STANDS. Never decide anything ${o.userName} (the user's character) does, says, thinks or knows. No dialogue.${o.genres.length ? `\nThe story's genre: ${o.genres.join(", ")}.` : ""}${o.truths.length ? `\nStory truths that hold here too: ${o.truths.join("; ")}` : ""}
 Reply with JSON only: {"beats":[{"card":"<id>","text":"…"}]}`;
   const user = cards
     .map((c) =>
@@ -23,6 +24,8 @@ Reply with JSON only: {"beats":[{"card":"<id>","text":"…"}]}`;
         `PREMISE ${c.premise}`,
         `WANTS ${c.want} · FEARS ${c.fear}`,
         c.soFar.length ? `SO FAR ${c.soFar.join(" ")}` : "",
+        ...(c.meanwhile ?? []).map((l) => `MEANWHILE ${l}`),
+        ...(c.stands ?? []).map((l) => `STANDS ${l}`),
         `ENGINE'S WORDS ${c.template}`,
       ]
         .filter(Boolean)
@@ -43,7 +46,7 @@ export function validateTelling(text: string, card: BeatCard, o: { userName: str
   if (/["“”]/.test(text) && /\b(said|says|asked|told)\b/.test(text) && /["“][^"”]{10,}["”]/.test(text)) return "dialogue";
   const u = o.userName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (new RegExp(`\\b${u}\\s+(?:\\w+ed|\\w+s|was|is|had|felt|thought|knew|decided|agreed)\\b`, "i").test(text)) return "decided something for the user's character";
-  const allowed = new Set([card.lead, ...card.cast, o.userName, ...o.places].flatMap((n) => n.split(/[\s›]+/)).map((w) => w.replace(/[^\w'-]/g, "").toLowerCase()));
+  const allowed = new Set([card.lead, ...card.cast, ...(card.names ?? []), o.userName, ...o.places].flatMap((n) => n.split(/[\s›]+/)).map((w) => w.replace(/[^\w'-]/g, "").toLowerCase()));
   // Capitalised words not at the start of a sentence must be names the card allows.
   const tokens = text.match(/(?<![.!?]\s)(?<!^)\b[A-Z][a-z'’-]{2,}\b/g) ?? [];
   for (const t of tokens) {

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
-import { authorArc, forceOutcome } from "../src/sim/service";
+import { authorArc, forceOutcome, worldView } from "../src/sim/service";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat, updateChat } from "../src/services/chats";
 import { registerJob } from "../src/services/jobs";
@@ -45,5 +45,16 @@ describe("calling a subplot's next beat", () => {
     expect(state().sim.arcs[hers.id]!.force).toBe("twist");
     forceOutcome(chatId, hers.id, null);
     expect(state().sim.arcs[hers.id]!.force ?? null).toBeNull();
+  });
+});
+
+describe("the World page's ties", () => {
+  test("every subplot comes with what it's tied to", () => {
+    const v = worldView(chatId);
+    expect(v.arcs.length).toBeGreaterThan(0);
+    for (const a of v.arcs) {
+      expect(Array.isArray(a.ties)).toBe(true);
+      expect(Array.isArray(a.stands)).toBe(true);
+    }
   });
 });

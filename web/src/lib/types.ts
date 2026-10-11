@@ -1539,6 +1539,13 @@ export interface WorldPerson {
   arcs: string[];
 }
 
+/** How a live subplot is tied to the others: each tied subplot's latest step, which way it pulls, and what stands. */
+export interface ArcTies {
+  ties: { id: string; leadName: string; kind: string; stance: "for" | "against" | "shared"; dir: "theirs" | "mine" | null; person: string; ending: boolean; fresh: boolean; text: string; at: number; pull: string; mod: number }[];
+  stands: { text: string; leadName: string; kind: string; at: number }[];
+  pull: { mod: number; why: string[] } | null;
+}
+
 export interface WorldViewData {
   config: WorldConfig;
   personalities: Record<string, { label: string; about: string }>;
@@ -1546,7 +1553,7 @@ export interface WorldViewData {
   kinds: Record<string, { label: string; clock: number; hostile: boolean }>;
   time: string | null;
   sky: { line: string; weather: { text: string; tempC: number; level: number }; season: string; sunrise: string | null; sunset: string | null; moon: string; forecast: { minutes: number; text: string; tempC: number }[] } | null;
-  arcs: Arc[];
+  arcs: (Arc & ArcTies)[];
   arrivals: Arrival[];
   proposals: SimProposal[];
   news: SimState["news"];
