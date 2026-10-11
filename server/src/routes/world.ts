@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { mustChat } from "../services/chats";
-import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, runTick, setActor, worldView } from "../sim/service";
+import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, previewOutcome, runTick, setActor, worldView } from "../sim/service";
 import { FORCES } from "../sim/types";
 
 /** The world off the page: subplots, arrivals, news, the director, your controls. */
@@ -35,9 +35,15 @@ world.post("/chats/:id/world/arcs/:arcId", async (c) => {
 
 /** Call a subplot's next beat: win, at a cost, loss, a twist or a reversal (null clears a waiting call). */
 world.post("/chats/:id/world/arcs/:arcId/force", async (c) => {
-  const input = await body(c, z.object({ outcome: z.enum(FORCES).nullable() }));
-  const res = forceOutcome(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.outcome);
+  const input = await body(c, z.object({ outcome: z.enum(FORCES).nullable(), salt: z.number().int().min(0).max(1_000_000).optional(), text: z.string().max(1200).optional() }));
+  const res = forceOutcome(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.outcome, { salt: input.salt, text: input.text });
   return c.json({ ...worldView(c.req.param("id")), landed: res.landed });
+});
+
+/** G3: how a called beat would land (nothing commits); `salt` is the reroll. */
+world.post("/chats/:id/world/arcs/:arcId/preview", async (c) => {
+  const input = await body(c, z.object({ outcome: z.enum(FORCES), salt: z.number().int().min(0).max(1_000_000).default(0) }));
+  return c.json(await previewOutcome(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.outcome, input.salt));
 });
 
 /** "Give someone a story." */

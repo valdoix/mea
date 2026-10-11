@@ -302,7 +302,7 @@ export function canStep(arc: Arc, roster: Roster): boolean {
  * The player called a subplot's next beat (arc.force): it lands now, with the outcome they chose,
  * without moving anything else in the world. The caller checks canStep first.
  */
-export function forcedStep(inp: TickInput, arcId: string): TickResult {
+export function forcedStep(inp: TickInput, arcId: string, salt = 0): TickResult {
   const out: TickResult = { sim: [], ledger: [], cards: [], tension: 0, target: 0, summary: [] };
   const sim = inp.state.sim;
   const arc = sim.arcs[arcId];
@@ -313,7 +313,8 @@ export function forcedStep(inp: TickInput, arcId: string): TickResult {
   out.tension = tension;
   out.target = target;
   // Fresh dice for every call, even within the same story minute.
-  const r = rng(`${inp.chatId}:called:${arc.id}:${inp.now}:${sim.ticks}:${arc.beats.length}:${arc.clock.cur}`);
+  // G3: a reroll adds a salt, so a preview and its Accept land the same beat for everyone on this branch.
+  const r = rng(`${inp.chatId}:called:${arc.id}:${inp.now}:${sim.ticks}:${arc.beats.length}:${arc.clock.cur}${salt ? `:${salt}` : ""}`);
   const recentRoutes: Route[] = Object.values(sim.arrivals).sort((a, b) => a.at - b.at).slice(-6).map((a) => a.route);
   stepArc(arc, inp.roster.actors.get(arc.lead), inp, r, L, Object.values(sim.arcs), recentRoutes, out, { events: [], moved: new Set() });
   return out;
