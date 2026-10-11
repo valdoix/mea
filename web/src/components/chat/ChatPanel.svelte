@@ -15,6 +15,7 @@
   import CostPanel from "./CostPanel.svelte";
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
+  import LoreExport from "./LoreExport.svelte";
   import AmbienceEditor from "./AmbienceEditor.svelte";
   import { openSetup } from "../../lib/setup.svelte";
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
@@ -63,6 +64,7 @@
   let newOoc = $state("");
   const s = $derived(detail.chat.settings);
   let exportOpen = $state(false);
+  let loreOpen = $state(false);
 
   $effect(() => {
     void Promise.all([
@@ -505,10 +507,12 @@
       <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=html`)}><Download size={15} />HTML</button>
       <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=md`)}><Download size={15} />Markdown</button>
       <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=jsonl`)}><Download size={15} />JSONL</button>
+      <button class="st-key fmt" type="button" onclick={() => (loreOpen = true)} title="Save this story as a lorebook"><Library size={15} />As a lorebook</button>
     </div>
   </Module>
 
   <BookExport bind:open={exportOpen} chatId={detail.chat.id} />
+  <LoreExport bind:open={loreOpen} chatId={detail.chat.id} lastSeq={detail.chat.messageCount} />
 
   <Module>
     <div class="endrow">
