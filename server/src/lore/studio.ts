@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CATEGORIES, type Category, guessCategory, withCategory } from "./format";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -85,6 +86,20 @@ export interface StudioItem {
   research: { title: string; url: string; text: string } | null;
   /** A character or persona made from this entry in the creator (links both ways). */
   links: { creatorDraftId?: string; characterId?: string; personaId?: string };
+  /** I1/I2: the lore category (sets the saved entry's place and priority). */
+  category: Category | null;
+  /** I2: write a new entry, change one already in the book, or switch one off. */
+  action: "write" | "change" | "off";
+  /** I2: the book's entry a change or switch-off is for. */
+  targetEntryId: string | null;
+}
+
+/** I2: a numbered version of the plan, for "what changed" between versions. */
+export interface PlanVersion {
+  n: number;
+  at: number;
+  why: string;
+  items: { id: string; title: string; category: Category | null; pitch: string; keep: boolean; action: StudioItem["action"] }[];
 }
 
 export interface StudioQuestion {
@@ -141,6 +156,8 @@ export interface StudioDraft {
   proposal: Proposal | null;
   /** Canon gathered from the web (the source's wiki, Wikipedia, your links), distilled into a brief. */
   research: Research | null;
+  /** I2: the plan's numbered versions (each plan and each accepted change makes one). */
+  planVersions: PlanVersion[];
   createdAt: number;
   updatedAt: number;
 }
@@ -196,6 +213,7 @@ function hydrate(r: Row): StudioDraft {
     chat: d.chat ?? [],
     proposal: d.proposal ?? null,
     research: d.research ?? null,
+    planVersions: d.planVersions ?? [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -221,7 +239,70 @@ function normItem(i: Partial<StudioItem>): StudioItem {
     basis: i.basis ?? "",
     research: i.research ?? null,
     links: i.links ?? {},
+    category: i.category && (CATEGORIES as readonly string[]).includes(i.category) ? i.category : guessCategory({ comment: i.title ?? "", content: i.pitch ?? "", keys: [], constant: i.constant ?? false, extra: i.type ? { type: i.type } : {} }).category,
+    action: i.action === "change" || i.action === "off" ? i.action : "write",
+    targetEntryId: i.targetEntryId ?? null,
   };
+}
+
+/** I2: a new numbered version of the plan, unless nothing in it changed. */
+function snapshotPlan(d: StudioDraft, why: string) {
+  const items = d.items.map((i) => ({ id: i.id, title: i.title, category: i.category, pitch: i.pitch, keep: i.keep, action: i.action }));
+  const last = d.planVersions.at(-1);
+  if (last && JSON.stringify(last.items) === JSON.stringify(items)) return;
+  d.planVersions = [...d.planVersions, { n: (last?.n ?? 0) + 1, at: now(), why, items }].slice(-20);
+}
+
+/** I2: what changed from one version of the plan to the next (added, removed, renamed, recategorised, repitched). */
+export function planDiff(d: StudioDraft, n?: number) {
+  const vs = d.planVersions;
+  const cur = n ? vs.find((v) => v.n === n) : vs.at(-1);
+  if (!cur) return null;
+  const prev = vs[vs.indexOf(cur) - 1];
+  if (!prev) return { n: cur.n, why: cur.why, added: cur.items.map((i) => i.id), removed: [] as string[], renamed: [] as { id: string; from: string }[], recategorised: [] as { id: string; from: string | null }[], repitched: [] as string[] };
+  const before = new Map(prev.items.map((i) => [i.id, i]));
+  const now_ = new Set(cur.items.map((i) => i.id));
+  return {
+    n: cur.n,
+    why: cur.why,
+    added: cur.items.filter((i) => !before.has(i.id) || (i.keep && !before.get(i.id)!.keep)).map((i) => i.id),
+    removed: prev.items.filter((i) => !now_.has(i.id) || (i.keep && !cur.items.find((x) => x.id === i.id)?.keep)).map((i) => i.title),
+    renamed: cur.items.filter((i) => before.has(i.id) && before.get(i.id)!.title !== i.title).map((i) => ({ id: i.id, from: before.get(i.id)!.title })),
+    recategorised: cur.items.filter((i) => before.has(i.id) && before.get(i.id)!.category !== i.category).map((i) => ({ id: i.id, from: before.get(i.id)!.category })),
+    repitched: cur.items.filter((i) => before.has(i.id) && before.get(i.id)!.pitch !== i.pitch).map((i) => i.id),
+  };
+}
+
+/**
+ * I2: an entry already in the book joins the plan: "change" (rewritten from your words, keeping
+ * to what it says now) or "off" (switched off when you save).
+ */
+export function planExisting(id: string, entryId: string, action: "change" | "off", pitch = "") {
+  const d0 = mustDraft(id);
+  const book = d0.targetBookId ? getLorebook(d0.targetBookId) : undefined;
+  const e = book?.entries.find((x) => x.id === entryId);
+  if (!e) throw notFound("That entry isn't in the book this plan saves into");
+  return mutate(id, (d) => {
+    d.items = d.items.filter((i) => i.targetEntryId !== entryId);
+    const x = e.extra as { type?: EntryType; category?: Category };
+    d.items.push(
+      normItem({
+        title: e.comment || e.keys[0] || "Untitled",
+        type: x.type ?? null,
+        category: x.category ?? null,
+        pitch: action === "off" ? "Switch this entry off." : pitch.trim() || "Bring it up to date with the plan.",
+        // A change is a rewrite of what the entry says now, steered by your words.
+        entry: action === "change" ? { content: e.content, keys: e.keys, aliases: [], essentials: "", secrets: [] } : null,
+        steer: action === "change" ? pitch.trim() || "Bring it up to date with the plan." : "",
+        constant: e.constant,
+        action,
+        targetEntryId: entryId,
+        // A switch-off has nothing to write.
+        status: action === "off" ? "drafted" : "planned",
+      }),
+    );
+    snapshotPlan(d, action === "off" ? `switch off ${e.comment || "an entry"}` : `change ${e.comment || "an entry"}`);
+  });
 }
 
 function write(d: StudioDraft) {
@@ -365,6 +446,7 @@ export function createDraft(input: CreateInput): StudioDraft {
     id,
     title: input.title?.trim() || "",
     stage: "start",
+    planVersions: [],
     source: { kind: input.kind, text: input.text?.trim() ?? "", refId: input.refId ?? null, refName: "", fileName: input.fileName ?? "" },
     options,
     readback: null,
@@ -460,7 +542,7 @@ export function patchDraft(id: string, p: DraftPatch) {
   });
 }
 
-export type ItemPatch = Partial<Pick<StudioItem, "title" | "type" | "pitch" | "parent" | "folder" | "source" | "constant" | "keep" | "steer">> & { entry?: StudioEntry | null };
+export type ItemPatch = Partial<Pick<StudioItem, "title" | "type" | "pitch" | "parent" | "folder" | "source" | "constant" | "keep" | "steer" | "category">> & { entry?: StudioEntry | null };
 
 export function patchItem(id: string, itemId: string, p: ItemPatch) {
   return mutate(id, (d) => {
@@ -475,6 +557,7 @@ export function patchItem(id: string, itemId: string, p: ItemPatch) {
     if (p.constant !== undefined) it.constant = p.constant;
     if (p.keep !== undefined) it.keep = p.keep;
     if (p.steer !== undefined) it.steer = p.steer;
+    if (p.category !== undefined) it.category = p.category && (CATEGORIES as readonly string[]).includes(p.category) ? p.category : null;
     if (p.entry !== undefined) {
       it.entry = p.entry && { ...p.entry, keys: dedupe(p.entry.keys), aliases: dedupe(p.entry.aliases) };
       if (it.entry && it.status !== "queued" && it.status !== "writing") it.status = "drafted";
@@ -487,7 +570,7 @@ export function patchItem(id: string, itemId: string, p: ItemPatch) {
 export function addItem(id: string, p: ItemPatch) {
   let made: StudioItem | null = null;
   const d = mutate(id, (d) => {
-    made = normItem({ title: cleanTitle(p.title ?? "") || "New entry", type: p.type ?? null, pitch: p.pitch ?? "", parent: p.parent ?? "", folder: p.folder ?? "", source: p.source ?? "", constant: p.constant ?? false });
+    made = normItem({ title: cleanTitle(p.title ?? "") || "New entry", type: p.type ?? null, category: p.category ?? null, pitch: p.pitch ?? "", parent: p.parent ?? "", folder: p.folder ?? "", source: p.source ?? "", constant: p.constant ?? false });
     d.items.push(made);
   });
   return { draft: d, item: made! };
@@ -904,6 +987,7 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
       if (title.trim() && (cur.title === "Untitled world" || !cur.title.trim())) cur.title = cleanTitle(title);
     }
     if (cur.stage === "start" || cur.stage === "questions") cur.stage = "plan";
+    snapshotPlan(cur, more ? (opts.steer?.trim() ? `planned more: ${opts.steer.trim()}` : "planned more") : opts.steer?.trim() ? `planned: ${opts.steer.trim()}` : "the plan");
   });
 }
 
@@ -941,7 +1025,8 @@ export function queueWrite(id: string, opts: { itemIds?: string[]; steer?: strin
   const d = mutate(id, (d) => {
     const want = new Set(opts.itemIds ?? []);
     for (const it of d.items) {
-      const pick = opts.itemIds ? want.has(it.id) : opts.all ? it.keep : it.keep && !it.entry;
+      // I2: a planned change rewrites the book's entry; a switch-off has nothing to write.
+      const pick = it.action === "off" ? false : opts.itemIds ? want.has(it.id) : opts.all ? it.keep : it.keep && (!it.entry || (it.action === "change" && it.status === "planned"));
       if (!pick || it.status === "queued" || it.status === "writing") continue;
       it.status = "queued";
       it.error = "";
@@ -1349,6 +1434,7 @@ export function applyCowrite(id: string, accept: string[]) {
       else if (c.kind === "rewrite" && it) rewrites.push({ itemId: it.id, steer: c.steer ?? "" });
     }
     d.proposal = null;
+    if (ok.some((c) => c.kind === "plan" || c.kind === "add" || c.kind === "remove")) snapshotPlan(d, "asked for changes");
     if (ok.length) d.chat = addTurns(d.chat, { role: "mea", text: `Applied ${ok.length} of ${p.changes.length} change${p.changes.length === 1 ? "" : "s"}.` });
   });
   // Each rewrite carries its own steer.
@@ -1383,7 +1469,7 @@ export interface CommitInput {
 export function commitDraft(id: string, input: CommitInput = {}) {
   const d = mustDraft(id);
   const pick = input.itemIds ? new Set(input.itemIds) : null;
-  const items = d.items.filter((i) => i.keep && i.entry?.content.trim() && !i.savedEntryId && (!pick || pick.has(i.id)));
+  const items = d.items.filter((i) => i.keep && (i.action === "off" ? Boolean(i.targetEntryId) : i.entry?.content.trim()) && !i.savedEntryId && (!pick || pick.has(i.id)));
   const targetId = input.bookId === undefined ? d.targetBookId : input.bookId;
   const target = targetId ? getLorebook(targetId) : undefined;
   if (targetId && (!target || target.deletedAt)) throw notFound("Lorebook not found");
@@ -1399,10 +1485,24 @@ export function commitDraft(id: string, input: CommitInput = {}) {
       });
     for (const l of input.links ?? d.links) linkLorebook(bookId, l.type, l.id);
     if (wantOverview) createEntry(bookId, defaultEntry({ comment: `${d.title}: overview`, constant: true, content: d.overview.trim(), order: 150, extra: { type: "concept", essentials: firstSentences(d.overview) } }));
+    const inBook = new Map(getLorebook(bookId)!.entries.map((x) => [x.id, x]));
     for (const it of items) {
+      // I2: an entry already in the book is switched off, or changed in place.
+      const existing = it.targetEntryId ? inBook.get(it.targetEntryId) : undefined;
+      if (it.action !== "write" && existing) {
+        const { id: eid, ...data } = existing;
+        if (it.action === "off") updateEntry(eid, { ...data, enabled: false });
+        else updateEntry(eid, { ...data, content: it.entry!.content, keys: it.entry!.keys.length ? it.entry!.keys : data.keys, extra: { ...data.extra, ...(it.category ? { category: it.category } : {}) } });
+        saved.set(it.id, eid);
+        continue;
+      }
+      if (it.action !== "write") continue;
       const e = it.entry!;
       const extra: Record<string, unknown> = { ...(it.type ? { type: it.type } : {}), ...(e.aliases.length ? { aliases: e.aliases } : {}), ...(e.essentials ? { essentials: e.essentials } : {}), ...(e.secrets.length ? { secrets: e.secrets } : {}), ...(it.folder ? { folder: it.folder } : {}) };
-      const made = createEntry(bookId, defaultEntry({ comment: it.title, keys: e.keys, content: e.content, constant: it.constant, extra }));
+      let entry = defaultEntry({ comment: it.title, keys: e.keys, content: e.content, constant: it.constant, extra });
+      // I1: the category's place and priority (an always-on choice of yours stays).
+      if (it.category) entry = { ...withCategory(entry, it.category, { defaults: true }), ...(it.constant ? { constant: true } : {}) };
+      const made = createEntry(bookId, entry);
       saved.set(it.id, made.id);
     }
     // Second pass: parents point at real entries now that every entry has an id (LORE-10).

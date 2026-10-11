@@ -1,6 +1,7 @@
 <script lang="ts">
   import { get, post } from "../../../lib/api";
-  import { confirm } from "../../../lib/dialogs.svelte";
+  import { confirm, promptText } from "../../../lib/dialogs.svelte";
+  import { LORE_CATEGORIES } from "../../../lib/lorecats";
   import { autosize } from "../../../lib/gestures";
   import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ListTree, PenLine, Plus, RefreshCw, Trash, UserSearch } from "../../../lib/icons";
   import { LORE_TYPES, type StudioSession, typeMeta, uncovered } from "../../../lib/studio.svelte";
@@ -27,7 +28,51 @@
   // The census names no entry covers yet, most important first.
   const missing = $derived(uncovered(draft).sort((a, b) => ["core", "supporting", "minor"].indexOf(a.tier) - ["core", "supporting", "minor"].indexOf(b.tier)));
   const planNames = (names: string[]) => session.act("outline", "/outline", { mode: "more", names });
-  const unwritten = $derived(kept.filter((i) => !i.entry && i.status !== "queued" && i.status !== "writing"));
+  const unwritten = $derived(kept.filter((i) => i.action !== "off" && (!i.entry || (i.action === "change" && i.status === "planned")) && i.status !== "queued" && i.status !== "writing"));
+
+  // ---------- I2: versions of the plan, and what changed ----------
+  interface Diff {
+    n: number;
+    why: string;
+    added: string[];
+    removed: string[];
+    renamed: { id: string; from: string }[];
+    recategorised: { id: string; from: string | null }[];
+    repitched: string[];
+  }
+  let versions = $state<{ n: number; at: number; why: string; count: number }[]>([]);
+  let diff = $state<Diff | null>(null);
+  let showDiff = $state(true);
+  async function loadVersions(n?: number) {
+    try {
+      const r = await get<{ versions: typeof versions; diff: Diff | null }>(`/api/lore-studio/${session.id}/versions${n ? `?n=${n}` : ""}`);
+      versions = r.versions;
+      diff = r.diff;
+    } catch {
+      versions = [];
+    }
+  }
+  $effect(() => {
+    void draft.items.length;
+    void session.busy;
+    void loadVersions();
+  });
+  const isNew = (id: string) => showDiff && Boolean(diff?.added.includes(id)) && (versions.length > 1 || false);
+  const wasNamed = (id: string) => (showDiff ? diff?.renamed.find((r) => r.id === id)?.from : undefined);
+  const wasCat = (id: string) => (showDiff ? diff?.recategorised.find((r) => r.id === id) : undefined);
+
+  // ---------- I2: entries already in the book: change or switch off ----------
+  const inPlan = $derived(new Set(draft.items.map((i) => i.targetEntryId).filter(Boolean)));
+  const existing = $derived((book?.entries ?? []).filter((e) => e.enabled !== false && !inPlan.has(e.id) && !draft.items.some((i) => i.savedEntryId === e.id)));
+  async function planExisting(entryId: string, action: "change" | "off") {
+    let pitch: string | undefined;
+    if (action === "change") {
+      const t = await promptText({ title: "Change this entry", label: "What should change", placeholder: "It's lit again: Mira keeps it now.", multiline: true, confirmLabel: "Add to the plan" });
+      if (t === null) return;
+      pitch = t;
+    }
+    await session.act("existing", "/existing", { entryId, action, pitch });
+  }
   const depthOf = (i: StudioItem) => (i.parent && draft.items.some((x) => x.id === i.parent) ? 1 : 0);
   const parentOptions = (it: StudioItem) => [
     ...draft.items.filter((x) => x.id !== it.id && x.parent !== it.id).map((x) => ({ value: x.id, label: x.title })),
@@ -85,6 +130,20 @@
     <h2>Plan <span class="muted small">({kept.length} entries{draft.items.length > kept.length ? `, ${draft.items.length - kept.length} left out` : ""})</span></h2>
     <span class="tiny muted">Entries are written in this order; later ones see what earlier ones say.</span>
   </div>
+  {#if versions.length}
+    <div class="row wrap versions tiny">
+      <span class="muted">Version</span>
+      <select class="select mini" value={diff?.n ?? versions.at(-1)?.n} onchange={(e) => loadVersions(Number(e.currentTarget.value))} aria-label="Plan version">
+        {#each [...versions].reverse() as v (v.n)}<option value={v.n}>{v.n} · {v.why} ({v.count})</option>{/each}
+      </select>
+      {#if diff && versions.length > 1}
+        <label class="switch small"><input type="checkbox" bind:checked={showDiff} /> Show what changed</label>
+        {#if showDiff}
+          <span class="muted">{[diff.added.length ? `${diff.added.length} new` : "", diff.renamed.length ? `${diff.renamed.length} renamed` : "", diff.recategorised.length ? `${diff.recategorised.length} recategorised` : "", diff.repitched.length ? `${diff.repitched.length} rewritten` : "", diff.removed.length ? `left out: ${diff.removed.join(", ")}` : ""].filter(Boolean).join(" · ") || "no changes"}</span>
+        {/if}
+      {/if}
+    </div>
+  {/if}
 
   {#if !draft.items.length}
     <p class="muted small">No plan yet. {session.busy === "outline" ? "Planning…" : ""}</p>
@@ -93,14 +152,19 @@
   <div class="items">
     {#each draft.items as it, i (it.id)}
       {@const meta = typeMeta(it.type)}
-      <div class="item card" class:out={!it.keep} style:margin-left={depthOf(it) ? "1.4rem" : undefined}>
+      <div class="item card" class:out={!it.keep} class:new={isNew(it.id)} class:changed={Boolean(wasNamed(it.id) || wasCat(it.id) || (showDiff && diff?.repitched.includes(it.id)))} style:margin-left={depthOf(it) ? "1.4rem" : undefined}>
         <div class="irow">
           <input type="checkbox" checked={it.keep} onchange={(e) => edit(it, { keep: e.currentTarget.checked }, 0)} aria-label="Include {it.title}" title="Include in the lorebook" />
           <select class="select type" value={it.type ?? ""} onchange={(e) => edit(it, { type: (e.currentTarget.value || null) as LoreType | null }, 0)} aria-label="Kind">
             <option value="">Plain</option>
             {#each LORE_TYPES as t (t.value)}<option value={t.value}>{t.label}</option>{/each}
           </select>
-          <input class="input name" value={it.title} oninput={(e) => edit(it, { title: e.currentTarget.value })} aria-label="Title" />
+          <select class="select type" value={it.category ?? ""} onchange={(e) => edit(it, { category: e.currentTarget.value || null }, 0)} aria-label="Category" title={wasCat(it.id) ? `was ${wasCat(it.id)?.from ?? "none"}` : "Category: sets where the entry goes and how strongly"}>
+            <option value="">No category</option>
+            {#each LORE_CATEGORIES as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+          </select>
+          <input class="input name" value={it.title} oninput={(e) => edit(it, { title: e.currentTarget.value })} aria-label="Title" title={wasNamed(it.id) ? `was “${wasNamed(it.id)}”` : undefined} />
+          {#if it.action === "change"}<span class="chip tiny butter" title="Changes the entry already in the book">change</span>{:else if it.action === "off"}<span class="chip tiny rose" title="Switched off when you save">switch off</span>{/if}
           {#if STATUS[it.status]}<span class="chip tiny" class:mint={it.status === "drafted"} class:butter={it.status === "writing" || it.status === "queued"} class:rose={it.status === "error"}>{STATUS[it.status]}</span>{/if}
           {#if it.constant}<span class="chip tiny butter">always</span>{/if}
           <div class="tools">
@@ -150,6 +214,21 @@
     <div class="row"><button class="btn ghost small" onclick={() => session.act("census", "/census")} disabled={Boolean(session.busy)}><UserSearch size={14} /> {session.busy === "census" ? "Counting…" : "Check who's missing"}</button></div>
   {/if}
 
+  {#if existing.length}
+    <details class="panel stack tight">
+      <summary class="small"><b>Already in the book</b> <span class="muted">{existing.length} entries · change one or switch it off as part of this plan</span></summary>
+      {#each existing.slice(0, 80) as e (e.id)}
+        <div class="row between exist">
+          <span class="small truncate">{e.comment || e.keys[0] || "Untitled"}</span>
+          <span class="row">
+            <button class="btn ghost small" onclick={() => planExisting(e.id, "change")} disabled={Boolean(session.busy)}>Change it</button>
+            <button class="btn ghost small" onclick={() => planExisting(e.id, "off")} disabled={Boolean(session.busy)}>Switch it off</button>
+          </span>
+        </div>
+      {/each}
+    </details>
+  {/if}
+
   <div class="row wrap addrow">
     <select class="select type" bind:value={newType} aria-label="Kind of the new entry"><option value="">Plain</option>{#each LORE_TYPES as t (t.value)}<option value={t.value}>{t.label}</option>{/each}</select>
     <input class="input grow" bind:value={newTitle} placeholder="Add an entry by name" onkeydown={(e) => e.key === "Enter" && add()} />
@@ -191,6 +270,20 @@
   }
   .item.out {
     opacity: 0.55;
+  }
+  .item.new {
+    box-shadow: inset 3px 0 0 var(--mint, #82e3d3);
+  }
+  .item.changed {
+    box-shadow: inset 3px 0 0 var(--butter, #ffd08f);
+  }
+  .versions {
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .exist {
+    padding: 0.15rem 0;
+    border-bottom: 1px solid var(--border);
   }
   .irow {
     display: flex;

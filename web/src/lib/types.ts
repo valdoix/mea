@@ -1680,6 +1680,10 @@ export interface StudioItem {
   basis: string;
   research: { title: string; url: string; text: string } | null;
   links: { creatorDraftId?: string; characterId?: string; personaId?: string };
+  /** I1/I2: the lore category, and whether this writes a new entry or changes / switches off one in the book. */
+  category?: string | null;
+  action?: "write" | "change" | "off";
+  targetEntryId?: string | null;
 }
 
 /** The co-writer (both studios): the conversation, and the changes it proposes. */

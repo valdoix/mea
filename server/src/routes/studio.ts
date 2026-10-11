@@ -3,8 +3,11 @@ import { stash } from "../services/undo";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { parseDocument } from "../lore/ingest";
+import { CATEGORIES } from "../lore/format";
 import {
   addItem,
+  planDiff,
+  planExisting,
   applyCowrite,
   applyCritique,
   clearCowriteChat,
@@ -69,6 +72,8 @@ const itemSchema = z.object({
   keep: z.boolean(),
   steer: z.string().max(1000),
   entry: entrySchema.nullable(),
+  // I1/I2: the lore category.
+  category: z.enum(CATEGORIES).nullable(),
 });
 
 /** Actions whose options are all optional also accept an empty body. */
@@ -172,6 +177,19 @@ studio.post("/lore-studio/:id/census", async (c) => c.json(d(await takeCensus(c.
 studio.get("/lore-studio/:id/gaps", (c) => {
   const draft = mustDraft(c.req.param("id"));
   return c.json({ names: draft.source.kind === "book" && draft.source.refId ? missingNames(draft.source.refId) : [] });
+});
+
+/** I2: an entry already in the book joins the plan, to change or switch off. */
+studio.post("/lore-studio/:id/existing", async (c) => {
+  const b = await body(c, z.object({ entryId: z.string(), action: z.enum(["change", "off"]), pitch: z.string().max(600).optional() }));
+  return c.json({ draft: planExisting(c.req.param("id"), b.entryId, b.action, b.pitch) });
+});
+
+/** I2: the plan's numbered versions and what changed in one (the latest by default). */
+studio.get("/lore-studio/:id/versions", (c) => {
+  const d = mustDraft(c.req.param("id"));
+  const n = c.req.query("n") ? Number(c.req.query("n")) : undefined;
+  return c.json({ versions: d.planVersions.map((v) => ({ n: v.n, at: v.at, why: v.why, count: v.items.filter((i) => i.keep).length })), diff: planDiff(d, n) });
 });
 
 studio.post("/lore-studio/:id/items", async (c) => {
