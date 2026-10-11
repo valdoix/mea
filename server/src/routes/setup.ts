@@ -1,4 +1,5 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
+import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -125,4 +126,23 @@ desk.post("/chats/:id/plan", async (c) => {
   const g = one<{ message_id: string | null }>("SELECT message_id FROM generations WHERE id = ? AND chat_id = ?", b.generationId, chatId);
   const key = g?.message_id ? turnKey(historyForPrompt(chatId).filter((m) => m.id !== g.message_id)) : undefined;
   return c.json({ ok: editPlan(chatId, b.generationId, b.text, key) });
+});
+
+// ---------- I3: story → lorebook ----------
+
+const storyBookQuery = (c: Context) => ({ uptoSeq: c.req.query("seq") ? Number(c.req.query("seq")) : undefined, spoilerSafe: c.req.query("safe") === "1" });
+
+/** Download: a SillyTavern World Info book of the story, as of a message (spoiler-safe optional). */
+desk.get("/chats/:id/lorebook/export", (c) => {
+  const chatId = c.req.param("id");
+  const json = storyBookJson(chatId, storyBookQuery(c));
+  const file = `${json.name.replace(/[^\w\- ()]+/g, "").trim() || "story"}.json`;
+  return new Response(JSON.stringify(json, null, 2), { headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${file}"` } });
+});
+
+/** "As a lorebook": a Lore Studio draft with the plan pre-filled, to review and save into a book. */
+desk.post("/chats/:id/lorebook/draft", async (c) => {
+  const b = await body(c, z.object({ seq: z.number().int().min(1).optional(), spoilerSafe: z.boolean().default(false) }));
+  const d = storyBookDraft(c.req.param("id"), { uptoSeq: b.seq, spoilerSafe: b.spoilerSafe });
+  return c.json({ draftId: d.id, entries: d.items.length }, 201);
 });
