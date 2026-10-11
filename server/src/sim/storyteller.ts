@@ -6,6 +6,7 @@ import { beatTemplate, endTemplate, GENRE_LEAN, kindFromText, SPECS, stageOf } f
 import { spreadNews } from "./news";
 import { awakeAt, awakeSet, canAct, type RActor, type Roster } from "./roster";
 import type { Arc, ArcKind, Beat, EndResult, Proposal, Result, Route, SimOp, Twist } from "./types";
+import { type ArcEvent, bearingsOn, conditionsFor, eventsOf, meanwhileLines, peopleOf, standsLines, tied, touches, webMod } from "./web";
 
 /**
  * One tick of the world off the page (after ALMANAC 09 §6). Deterministic for a chat and a
@@ -62,6 +63,18 @@ export interface BeatCard {
   twist?: string;
   ending?: boolean;
   at: number;
+  /** What the subplots tied to this one did last (subplots bear on each other). */
+  meanwhile?: string[];
+  /** What is settled about its people, which this step can't undo by itself. */
+  stands?: string[];
+  /** Names the telling may use beyond the lead and cast: the people in MEANWHILE and STANDS. */
+  names?: string[];
+}
+
+/** What a tick has done so far: the steps taken (so later steps and every card see them) and who moved. */
+interface TickWeb {
+  events: ArcEvent[];
+  moved: Set<string>;
 }
 
 export interface TickResult {
@@ -119,11 +132,14 @@ export function tick(inp: TickInput): TickResult {
   const recentRoutes: Route[] = Object.values(sim.arrivals).sort((a, b) => a.at - b.at).slice(-6).map((a) => a.route);
 
   // ---------- beats ----------
+  const W: TickWeb = { events: [], moved: new Set() };
   let beats = 0;
   const moved: Arc[] = [];
   const order = [...running].sort((a, b) => Number(b.push) - Number(a.push) || arcReach(b, inp.roster) - arcReach(a, inp.roster));
   for (const arc of order) {
     if (beats >= M.perTick && !arc.push) break;
+    // It already moved this tick: another subplot ran into it.
+    if (W.moved.has(arc.id)) continue;
     const lead = inp.roster.actors.get(arc.lead);
     const isFaction = arc.lead.startsWith("faction:");
     if (!isFaction && (!lead || !canAct(lead))) {
@@ -156,19 +172,21 @@ export function tick(inp: TickInput): TickResult {
     }
     beats++;
     moved.push(arc);
-    stepArc(arc, lead, inp, r, L, arcs, recentRoutes, out);
+    stepArc(arc, lead, inp, r, L, arcs, recentRoutes, out, W);
   }
 
   // A forced step with nothing moved: the most overdue subplot moves anyway.
   if (inp.forced && !moved.length) {
-    const overdue = running.filter((a) => a.lead.startsWith("faction:") || ((l) => !!l && canAct(l) && l.ring !== "onstage")(inp.roster.actors.get(a.lead))).sort((a, b) => a.nextAt - b.nextAt)[0];
+    const overdue = running.filter((a) => !W.moved.has(a.id)).filter((a) => a.lead.startsWith("faction:") || ((l) => !!l && canAct(l) && l.ring !== "onstage")(inp.roster.actors.get(a.lead))).sort((a, b) => a.nextAt - b.nextAt)[0];
     if (overdue) {
       const r = R(`force:${overdue.id}`);
       const lead = inp.roster.actors.get(overdue.lead);
-      const b = rollBeat(overdue, lead, inp, r, L, arcs);
+      const b = rollBeat(overdue, lead, inp, r, L, arcs, W);
+      W.moved.add(overdue.id);
+      W.events.push(eventOf(overdue, b.beat));
       out.sim.push({ type: "arc.beat", id: overdue.id, beat: b.beat, nextAt: inp.now + Math.round((1 / SPECS[overdue.kind].base) * HOUR) });
-      out.cards.push(cardFor(overdue, b.beat, inp, false));
-      if (overdue.clock.cur + 1 >= overdue.clock.max) endArc({ ...overdue, clock: { ...overdue.clock, cur: overdue.clock.cur + 1 } }, lead, inp, r, out);
+      out.cards.push(cardFor(overdue, b.beat, inp, false, undefined, W));
+      if (overdue.clock.cur + 1 >= overdue.clock.max) endArc({ ...overdue, clock: { ...overdue.clock, cur: overdue.clock.cur + 1 } }, lead, inp, r, out, W);
     }
   }
 
@@ -232,12 +250,14 @@ export function tick(inp: TickInput): TickResult {
 }
 
 /** One subplot takes its step: the beat, how it could reach the scene, and its ending if the clock fills. */
-function stepArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => number, L: DirectorLean, arcs: Arc[], recentRoutes: Route[], out: TickResult) {
+function stepArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => number, L: DirectorLean, arcs: Arc[], recentRoutes: Route[], out: TickResult, W: TickWeb) {
   const spec = SPECS[arc.kind];
   const M = MODES[inp.mode];
-  const b = rollBeat(arc, lead, inp, r, L, arcs);
+  W.moved.add(arc.id);
+  const b = rollBeat(arc, lead, inp, r, L, arcs, W);
+  W.events.push(eventOf(arc, b.beat));
   out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: inp.now + Math.round((1 / spec.base) * HOUR * (0.6 + r() * 0.8)), ...(b.heat != null ? { heat: b.heat } : {}) });
-  out.cards.push(cardFor(arc, b.beat, inp, false));
+  out.cards.push(cardFor(arc, b.beat, inp, false, undefined, W));
   out.summary.push(`${arc.leadName} · ${spec.label} · ${b.beat.stage}: ${b.beat.result}${b.beat.twist ? ` (twist: ${b.beat.twist})` : ""}${b.beat.forced ? " (your call)" : ""}`);
   // How it could reach the scene. A beat you called always tries: you want to see it land.
   if (r() < M.arrivals * (arcReach(arc, inp.roster) >= 2 ? 1 : 0.5) || arc.bringIn || arc.force) {
@@ -250,8 +270,25 @@ function stepArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => nu
     }
   }
   // The clock fills: the subplot ends.
-  if (arc.clock.cur + 1 >= arc.clock.max) endArc({ ...arc, clock: { ...arc.clock, cur: arc.clock.cur + 1 }, tally: { ...arc.tally, [b.beat.result]: arc.tally[b.beat.result] + 1 } }, lead, inp, r, out);
+  if (arc.clock.cur + 1 >= arc.clock.max) endArc({ ...arc, clock: { ...arc.clock, cur: arc.clock.cur + 1 }, tally: { ...arc.tally, [b.beat.result]: arc.tally[b.beat.result] + 1 } }, lead, inp, r, out, W);
+  // Two subplots collided: the other one takes its step too, in the same moment.
+  if (b.collide && !W.moved.has(b.collide.id) && canStep(b.collide, inp.roster)) collideStep(b.collide, arc, inp, r, L, arcs, out, W);
 }
+
+/** The subplot another one ran into takes a step of its own: the collision is its twist. */
+function collideStep(arc: Arc, by: Arc, inp: TickInput, r: () => number, L: DirectorLean, arcs: Arc[], out: TickResult, W: TickWeb) {
+  const spec = SPECS[arc.kind];
+  const lead = inp.roster.actors.get(arc.lead);
+  W.moved.add(arc.id);
+  const b = rollBeat(arc, lead, inp, r, L, arcs, W, by);
+  W.events.push(eventOf(arc, b.beat));
+  out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: inp.now + Math.round((1 / spec.base) * HOUR * (0.6 + r() * 0.8)), heat: Math.min(3, arc.heat + 1) });
+  out.cards.push(cardFor(arc, b.beat, inp, false, undefined, W));
+  out.summary.push(`${arc.leadName} · ${spec.label} · ${b.beat.stage}: ${b.beat.result} (collided with ${by.leadName}'s ${SPECS[by.kind].label.toLowerCase()})`);
+  if (arc.clock.cur + 1 >= arc.clock.max) endArc({ ...arc, clock: { ...arc.clock, cur: arc.clock.cur + 1 }, tally: { ...arc.tally, [b.beat.result]: arc.tally[b.beat.result] + 1 } }, lead, inp, r, out, W);
+}
+
+const eventOf = (arc: Arc, b: Beat): ArcEvent => ({ arc: arc.id, lead: arc.lead, leadName: arc.leadName, kind: arc.kind, result: b.result, text: b.text, at: b.at });
 
 /** Can this subplot take a step off the page right now? (Its lead acts, and isn't in the scene.) */
 export function canStep(arc: Arc, roster: Roster): boolean {
@@ -278,13 +315,14 @@ export function forcedStep(inp: TickInput, arcId: string): TickResult {
   // Fresh dice for every call, even within the same story minute.
   const r = rng(`${inp.chatId}:called:${arc.id}:${inp.now}:${sim.ticks}:${arc.beats.length}:${arc.clock.cur}`);
   const recentRoutes: Route[] = Object.values(sim.arrivals).sort((a, b) => a.at - b.at).slice(-6).map((a) => a.route);
-  stepArc(arc, inp.roster.actors.get(arc.lead), inp, r, L, Object.values(sim.arcs), recentRoutes, out);
+  stepArc(arc, inp.roster.actors.get(arc.lead), inp, r, L, Object.values(sim.arcs), recentRoutes, out, { events: [], moved: new Set() });
   return out;
 }
 
 // ---------- one beat ----------
 
-function rollBeat(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => number, L: DirectorLean, all: Arc[]): { beat: Beat; heat?: number } {
+/** One beat's dice and words. `collidedWith`: another subplot ran into this one, and that is its twist. */
+function rollBeat(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => number, L: DirectorLean, all: Arc[], W: TickWeb, collidedWith?: Arc): { beat: Beat; heat?: number; collide?: Arc } {
   const spec = SPECS[arc.kind];
   const stage = stageOf(arc.clock.cur, arc.clock.max);
   const why: string[] = [];
@@ -311,11 +349,11 @@ function rollBeat(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => n
     m--;
     why.push("acting on a belief");
   }
-  // Subplots bear on each other: a tied subplot's latest step pulls this roll.
-  const pull = webPull(arc, all, inp.now);
+  // Subplots bear on each other: a tied subplot out to help or hurt this lead pulls the roll by how its latest step went.
+  const pull = webMod(bearingsOn(arc, all, inp.roster, inp.now, W.events));
   if (pull.mod) {
     m += pull.mod;
-    why.push(pull.why);
+    why.push(...pull.why);
   }
   const dm = spec.hostile ? L.hostileMod : L.kindMod;
   if (dm) {
@@ -328,6 +366,7 @@ function rollBeat(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => n
   let result: Result = total >= 10 ? "win" : total >= 7 ? "cost" : "loss";
   let twist: Twist | undefined;
   let twistText: string | undefined;
+  let collide: Arc | undefined;
   const force = arc.force ?? undefined;
   const turn = () => {
     // Against how it's been going: a lopsided tally flips; an even one turns from its last step.
@@ -336,48 +375,44 @@ function rollBeat(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => n
     twist = "reversal";
     twistText = result === "win" ? "Then, against the odds, it turned their way" : "Then everything turned";
   };
+  const draw = () => {
+    const t = drawTwist(arc, inp, r, W);
+    if (t) [twist, twistText, collide] = t;
+    return !!t;
+  };
+  if (collidedWith) {
+    twist = "collide";
+    twistText = `It ran into ${collidedWith.leadName}'s own business`;
+  }
   if (force === "win" || force === "cost" || force === "loss") {
     result = force;
   } else if (force === "reversal") {
     turn();
   } else if (force === "twist") {
-    const t = drawTwist(arc, inp, r);
-    if (t) [twist, twistText] = t;
-    else turn();
+    if (!collidedWith && !draw()) turn();
+  } else if (collidedWith) {
+    // The collision is this beat's twist; nothing else draws.
   } else if (stage === "reversal" && Math.abs(arc.tally.win - arc.tally.loss) >= 1 && r() < 0.4) {
     // The midpoint reversal: a lopsided subplot can turn on its head.
     turn();
   } else if (r() < MODES[inp.mode].twist + L.twist) {
-    const t = drawTwist(arc, inp, r);
-    if (t) [twist, twistText] = t;
+    draw();
   }
   if (result === "loss" && !force && L.soften && r() < 0.5) result = "cost";
   const price = pick(r, spec.prices);
   const worse = pick(r, spec.worse);
   const castName = target?.name ?? (arc.cast[0] ? (inp.roster.actors.get(arc.cast[0])?.name ?? arc.cast[0]) : undefined);
-  const text = beatTemplate({ kind: arc.kind, lead: arc.leadName, want: arc.want, stage, result, price, worse, cast: castName, town: inp.roster.town, place: arc.place?.join(" › "), premise: arc.premise, twist: twistText, group: arc.lead.startsWith("faction:") });
+  let text = beatTemplate({ kind: arc.kind, lead: arc.leadName, want: arc.want, stage, result, price, worse, cast: castName, town: inp.roster.town, place: arc.place?.join(" › "), premise: arc.premise, twist: twistText, group: arc.lead.startsWith("faction:") });
+  // Something another subplot took from someone in this one, that this one is about: the step starts from it.
+  const gone = conditionsFor(peopleOf(arc, inp.roster), [...all.flatMap(eventsOf), ...W.events], inp.now).find((c) => touches(arc, c.thing));
+  if (gone) text = `With ${gone.person}'s ${gone.thing} gone, ${text.replace(/^At /, "at ")}`;
   const heat = twist === "collide" || twist === "slip" ? Math.min(3, arc.heat + 1) : undefined;
-  return { beat: { at: inp.now, roll, mod: m, why, result, stage, ...(twist ? { twist } : {}), ...(force ? { forced: force } : {}), text, told: "template", seq: 0 }, heat };
+  return { beat: { at: inp.now, roll, mod: m, why, result, stage, ...(twist ? { twist } : {}), ...(force ? { forced: force } : {}), text, told: "template", seq: 0 }, heat, collide };
 }
 
-function webPull(arc: Arc, all: Arc[], now: number): { mod: number; why: string } {
-  for (const other of all) {
-    if (other.id === arc.id || other.status === "dropped") continue;
-    const last = other.beats.at(-1) ?? (other.ending ? { at: other.ending.at, result: other.ending.result === "lost" ? "loss" : "win" } : null);
-    if (!last || now - last.at > 2 * 1440) continue;
-    const otherSpec = SPECS[other.kind];
-    if (other.target === arc.lead && otherSpec.hostile) {
-      if (last.result === "win") return { mod: -1, why: `${other.leadName}'s ${otherSpec.label.toLowerCase()} is working against them` };
-      if (last.result === "loss") return { mod: 1, why: `${other.leadName}'s ${otherSpec.label.toLowerCase()} stumbled` };
-    }
-    if (other.target === arc.lead && !otherSpec.hostile && last.result === "win") return { mod: 1, why: `${other.leadName} is on their side` };
-  }
-  return { mod: 0, why: "" };
-}
-
-function drawTwist(arc: Arc, inp: TickInput, r: () => number): [Twist, string] | null {
+function drawTwist(arc: Arc, inp: TickInput, r: () => number, W: TickWeb): [Twist, string, Arc?] | null {
   const lead = inp.roster.actors.get(arc.lead);
-  const options: [Twist, string][] = [];
+  const options: [Twist, string, Arc?][] = [];
   const tie = lead ? [...lead.ties.entries()].filter(([id, s]) => s >= 2 && id !== arc.target && !arc.cast.includes(id)).map(([id]) => inp.roster.actors.get(id)).find((a) => a && !a.isUser && !a.dead) : undefined;
   if (tie) options.push(["tie", `${tie.name} got pulled into it`]);
   if (inp.weather && /storm|heavy|snow|fog/.test(inp.weather)) options.push(["weather", `The ${inp.weather.split(",")[0]} got in the way`]);
@@ -385,14 +420,16 @@ function drawTwist(arc: Arc, inp: TickInput, r: () => number): [Twist, string] |
   const item = Object.values(inp.state.items).find((i) => !i.gone && i.holder && (i.holder === arc.lead || arc.cast.includes(i.holder)));
   if (item) options.push(["object", `${item.name} turned out to matter`]);
   if (arc.secrecy !== "public") options.push(["slip", "Word of it slipped out"]);
-  const other = Object.values(inp.state.sim.arcs).find((o) => o.id !== arc.id && o.status === "running" && (o.lead === arc.target || o.cast.includes(arc.lead) || (o.place && arc.place && o.place.at(-1) === arc.place.at(-1))));
-  if (other) options.push(["collide", `It ran into ${other.leadName}'s own business`]);
+  // Another subplot it's tied to (or one at the same place) that hasn't moved yet: they collide, and it takes a step too.
+  const others = Object.values(inp.state.sim.arcs).filter((o) => o.id !== arc.id && o.status === "running" && !W.moved.has(o.id) && o.clock.cur < o.clock.max);
+  const other = others.find((o) => tied(arc, o, inp.roster).length) ?? others.find((o) => o.lead === arc.target || o.cast.includes(arc.lead) || (o.place && arc.place && o.place.at(-1) === arc.place.at(-1)));
+  if (other) options.push(["collide", `It ran into ${other.leadName}'s own business`, other]);
   return options.length ? pick(r, options) : null;
 }
 
 // ---------- endings ----------
 
-function endArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => number, out: TickResult) {
+function endArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => number, out: TickResult, W: TickWeb) {
   const spec = SPECS[arc.kind];
   const final = d6(r) + d6(r) + Math.max(-2, Math.min(2, arc.tally.win - arc.tally.loss));
   let result: EndResult = final >= 10 ? "met" : final >= 7 ? "price" : "lost";
@@ -412,9 +449,17 @@ function endArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => num
     return;
   }
   out.sim.push({ type: "arc.end", id: arc.id, result, text, at: inp.now });
-  out.cards.push(cardFor(arc, { at: inp.now, result: "win", stage: "climax", text, roll: [0, 0], mod: 0, why: [], told: "template", seq: 0 }, inp, true, result));
+  out.cards.push(cardFor(arc, { at: inp.now, result: "win", stage: "climax", text, roll: [0, 0], mod: 0, why: [], told: "template", seq: 0 }, inp, true, result, W));
   out.ledger.push(...consequences(arc, result, text, inp));
   out.summary.push(`${arc.leadName}'s ${spec.label.toLowerCase()} ended: ${result}`);
+  W.events.push({ arc: arc.id, lead: arc.lead, leadName: arc.leadName, kind: arc.kind, result, text, at: inp.now, ending: true });
+  // An ending shakes the subplots tied to it: they raise their stakes and answer it soon.
+  for (const o of Object.values(inp.state.sim.arcs)) {
+    if (o.id === arc.id || o.status !== "running" || W.moved.has(o.id) || o.clock.cur >= o.clock.max || !tied(arc, o, inp.roster).length) continue;
+    const soon = inp.now + 30 + Math.round(r() * 90);
+    out.sim.push({ type: "arc.set", id: o.id, patch: { nextAt: Math.min(o.nextAt, soon), heat: Math.min(3, o.heat + 1) } });
+    out.summary.push(`${o.leadName}'s ${SPECS[o.kind].label.toLowerCase()} is shaken by how ${arc.leadName}'s ended`);
+  }
   // Aftermath: one subplot grows out of another.
   if (r() < MODES[inp.mode].chain) {
     const follow = followOn(arc, result, inp);
@@ -601,7 +646,15 @@ export function newArc(c: Cand, inp: TickInput): Arc {
   };
 }
 
-function cardFor(arc: Arc, beat: Beat, inp: TickInput, ending: boolean, end?: EndResult): BeatCard {
+function cardFor(arc: Arc, beat: Beat, inp: TickInput, ending: boolean, end?: EndResult, W?: TickWeb): BeatCard {
+  // What the tied subplots did before this step (never this step itself), and what stands about its people.
+  const before = (W?.events ?? []).filter((e) => e.arc !== arc.id && e.at <= beat.at);
+  const all = Object.values(inp.state.sim.arcs);
+  const bs = bearingsOn(arc, all, inp.roster, beat.at, before);
+  const since = arc.beats.filter((b) => b.at < beat.at).at(-1)?.at ?? arc.createdAt;
+  const evs = [...all.flatMap(eventsOf).filter((e) => !(e.arc === arc.id && e.at >= beat.at)), ...before];
+  const cs = conditionsFor(peopleOf(arc, inp.roster), evs, beat.at);
+  const names = [...new Set([...bs.slice(0, 3).flatMap((b) => [b.leadName, b.person]), ...cs.slice(0, 3).flatMap((c) => [c.person, c.leadName])])];
   return {
     id: `${arc.id}@${beat.at}`,
     arc: arc.id,
@@ -619,6 +672,9 @@ function cardFor(arc: Arc, beat: Beat, inp: TickInput, ending: boolean, end?: En
     twist: beat.twist,
     ending,
     at: beat.at,
+    ...(bs.length ? { meanwhile: meanwhileLines(bs) } : {}),
+    ...(cs.length ? { stands: standsLines(cs, since, !arc.beats.some((b) => b.at < beat.at)) } : {}),
+    ...(names.length ? { names } : {}),
   };
 }
 

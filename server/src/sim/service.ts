@@ -18,6 +18,7 @@ import { climateFrom, forecast, latitudeFrom, skyLine, type SkyInput } from "./s
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, type SimMode, tick, type TickInput } from "./storyteller";
 import { tellingPrompt, tellingSchema, validateTelling } from "./telling";
 import type { Arc, EndResult, Force, SimOp, Standing } from "./types";
+import { bearingsOn, conditionsFor, eventsOf, peopleOf, pullWords, webMod } from "./web";
 
 export interface ResolvedWorldConfig {
   mode: "off" | SimMode;
@@ -360,9 +361,23 @@ export function worldView(chatId: string) {
       arcs: Object.values(st.sim.arcs).filter((x) => x.lead === a.id && (x.status === "running" || x.status === "held" || x.status === "fate")).map((x) => x.id),
     }));
   const surprise = cfg.view === "surprise";
-  const arcs = Object.values(st.sim.arcs)
+  const all = Object.values(st.sim.arcs);
+  const events = all.flatMap(eventsOf);
+  const now = st.time?.minutes ?? Math.max(0, ...events.map((e) => e.at));
+  // How a live subplot is tied to the others now: what they did, which way they pull, and what stands about its people.
+  const tiesOf = (a: Arc) => {
+    if (a.status !== "running" && a.status !== "held") return { ties: [], stands: [], pull: null };
+    const bs = bearingsOn(a, all, roster, now);
+    const pull = webMod(bs);
+    return {
+      ties: bs.slice(0, 4).map((b) => ({ id: b.arc, leadName: b.leadName, kind: b.kind, stance: b.stance, dir: b.dir ?? null, person: b.person, ending: b.ending, fresh: b.fresh, text: b.text, at: b.at, pull: b.mod && !surprise ? pullWords(b).replace(/^tied: /, "") : "", mod: surprise ? 0 : b.mod })),
+      stands: conditionsFor(peopleOf(a, roster), events, now).map((c) => ({ text: c.text, leadName: c.leadName, kind: c.kind, at: c.at })),
+      pull: pull.mod && !surprise ? pull : null,
+    };
+  };
+  const arcs = all
     .sort((a, b) => Number(b.status === "running") - Number(a.status === "running") || (b.beats.at(-1)?.at ?? b.createdAt) - (a.beats.at(-1)?.at ?? a.createdAt))
-    .map((a) => (surprise ? { ...a, beats: a.beats.map((b) => ({ ...b, roll: [0, 0] as [number, number], mod: 0, why: [] })) } : a));
+    .map((a) => ({ ...(surprise ? { ...a, beats: a.beats.map((b) => ({ ...b, roll: [0, 0] as [number, number], mod: 0, why: [] })) } : a), ...tiesOf(a) }));
   return {
     config: cfg,
     personalities: PERSONALITIES,
