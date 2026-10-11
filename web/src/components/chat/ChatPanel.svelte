@@ -9,6 +9,7 @@
   import ControlDesk from "../presets/ControlDesk.svelte";
   import ChatGuards from "./ChatGuards.svelte";
   import ChatStatus from "./ChatStatus.svelte";
+  import HealthPanel from "./HealthPanel.svelte";
   import CanonPanel from "./CanonPanel.svelte";
   import CraftPanel from "./CraftPanel.svelte";
   import ChatSteer from "./ChatSteer.svelte";
@@ -298,6 +299,7 @@
   </Module>
 
   <ChatStatus chatId={detail.chat.id} />
+  <HealthPanel chatId={detail.chat.id} />
 
   <!-- mode and routing -->
   <Module title="Mode">

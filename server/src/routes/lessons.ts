@@ -4,6 +4,7 @@ import { body, must } from "../lib/http";
 import { type ChatSettings, getMessageRow, mustChat } from "../services/chats";
 import { parseJson } from "../db/db";
 import { banPhrase, craftOn, craftReport, setCraft } from "../steer/craft";
+import { healthDot, storyHealth } from "../accuracy/health";
 
 const getChatSettings = (id: string) => parseJson<ChatSettings>(mustChat(id).settings, {});
 import { addLesson, deleteLesson, learnFromSwipes, lessonsFor, lessonsMode, updateLesson } from "../steer/lessons";
@@ -62,4 +63,14 @@ lessons.post("/craft/ban", async (c) => {
   const b = await body(c, z.object({ phrase: z.string().trim().min(2).max(80) }));
   banPhrase(b.phrase);
   return c.json({ ok: true });
+});
+
+// ---------- D3: story health ----------
+
+lessons.get("/chats/:id/story-health", (c) => c.json(storyHealth(c.req.param("id"))));
+
+/** The dots on Home's chat cards. */
+lessons.get("/story-health/dots", (c) => {
+  const ids = (c.req.query("ids") ?? "").split(",").filter(Boolean).slice(0, 100);
+  return c.json({ dots: Object.fromEntries(ids.map((id) => [id, healthDot(id)])) });
 });

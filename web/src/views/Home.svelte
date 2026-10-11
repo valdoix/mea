@@ -13,6 +13,7 @@
   let tags = $state<string[]>([]);
   let folders = $state<string[]>([]);
   let recent = $state<ChatListItem[]>([]);
+  let dots = $state<Record<string, { score: number; level: "good" | "fair" | "poor" } | null>>({});
   let loaded = $state(false);
   let q = $state("");
   let tag = $state("");
@@ -38,6 +39,8 @@
       tags = lib.tags;
       folders = lib.folders;
       recent = chats.chats;
+      // D3: a story-health dot on each recent chat (best effort).
+      if (recent.length) get<{ dots: Record<string, { score: number; level: "good" | "fair" | "poor" } | null> }>(`/api/story-health/dots?ids=${recent.map((c) => c.id).join(",")}`).then((r) => (dots = r.dots), () => {});
     } catch (e) {
       errorToast(e);
     }
@@ -164,7 +167,7 @@
     <a href="/chat/{latest.id}" class="continue card">
       <span class="hero-pic"><Avatar id={latest.avatarId} name={latest.characterName ?? ""} size={app.isMobile ? 64 : 112} portrait={!app.isMobile} shape="squircle" /></span>
       <div class="grow">
-        <div class="tiny muted eyebrow">Continue · {timeAgo(latest.lastMessageAt)}</div>
+        <div class="tiny muted eyebrow">Continue · {timeAgo(latest.lastMessageAt)}{#if dots[latest.id]}{@const d = dots[latest.id]!}<span class="hdot {d.level}" title="Story health {d.score}" aria-label="Story health {d.score}"></span>{/if}</div>
         <div class="title">{latest.characterName}{#if cont?.chapter}<span class="chapter"> · {cont.chapter.title}</span>{/if}</div>
         {#if cont?.line}<p class="recapline dz">{cont.line}</p>{/if}
         <p class="last prose dz">{latest.lastText || latest.title}</p>
@@ -177,6 +180,7 @@
           <a href="/chat/{c.id}" class="mini card">
             <Avatar id={c.avatarId} name={c.characterName ?? ""} size={36} />
             <span class="grow truncate"><b>{c.characterName}</b> <span class="muted">· {timeAgo(c.lastMessageAt)}</span></span>
+            {#if dots[c.id]}<span class="hdot {dots[c.id]!.level}" title="Story health {dots[c.id]!.score}" aria-label="Story health {dots[c.id]!.score}"></span>{/if}
           </a>
         {/each}
       </div>
@@ -258,6 +262,22 @@
 {/if}
 
 <style>
+  .hdot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 0.4rem;
+    border-radius: 50%;
+    vertical-align: middle;
+    background: var(--ok);
+    flex: 0 0 auto;
+  }
+  .hdot.fair {
+    background: var(--warn, #b7791f);
+  }
+  .hdot.poor {
+    background: var(--danger);
+  }
   .home {
     max-width: 72rem;
     margin: 0 auto;
