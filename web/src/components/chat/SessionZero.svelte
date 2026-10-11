@@ -102,7 +102,8 @@
 
   function toggleGenre(g: string) {
     if (!a) return;
-    a.genres = a.genres.includes(g) ? a.genres.filter((x) => x !== g) : [...a.genres, g].slice(0, 3);
+    // Full up, a new tap takes the last place: it never goes nowhere.
+    a.genres = a.genres.includes(g) ? a.genres.filter((x) => x !== g) : [...a.genres.slice(0, 2), g];
   }
   function toggleLimit(l: string) {
     if (!a) return;
@@ -300,7 +301,8 @@
   .chip.add {
     border-style: dashed;
   }
-  .chip.on {
+  /* :root outranks the themes' own chip colours (":root[data-theme=…][data-shell] .chip"), so a pick always shows. */
+  :global(:root) .sz .chip.on {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--on-accent, #fff);

@@ -93,6 +93,13 @@ describe("prompt assembly", () => {
     expect(assemblePrompt(base({ kind: "continue" })).messages.at(-1)!.content).toContain("Continue your last reply");
     expect(assemblePrompt(base({ kind: "impersonate" })).messages.at(-1)!.content).toContain("write Ash's next message");
     expect(assemblePrompt(base({ kind: "expand", draft: "smile, wave" })).messages.at(-1)!.content).toContain("smile, wave");
+    // A draft of the player's own message is the last turn, says not to reply to it, and skips the card's "never write Ash".
+    const card = { ...base().card, post_history_instructions: "Never write Ash's actions." };
+    const ex = assemblePrompt(base({ kind: "expand", draft: "smile, wave", card }));
+    expect(ex.messages.at(-1)).toMatchObject({ role: "user" });
+    expect(ex.messages.at(-1)!.content).toStartWith("[Stop playing Mira for this one message");
+    expect(ex.messages.some((m) => m.content.includes("Never write Ash's actions."))).toBe(false);
+    expect(assemblePrompt(base({ card })).messages.some((m) => m.content.includes("Never write Ash's actions."))).toBe(true);
     const fb = assemblePrompt(base({ feedback: "more dialogue" }));
     expect(fb.messages.some((m) => m.content === "[Note for this reply: more dialogue]")).toBe(true);
   });

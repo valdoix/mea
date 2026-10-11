@@ -22,6 +22,9 @@ export interface HistoryMessage {
   seq?: number;
 }
 
+/** Said before every "Expand my draft", whatever the preset's own wording: older presets lack it. */
+const DRAFT_TURN = "[Stop playing {{char}} for this one message: it is the exception to the persona rule. Don't reply to the draft below or continue the story: write {{user}}'s own message from it.]";
+
 export type AssembleKind = "story" | "continue" | "impersonate" | "expand";
 
 export interface AssembleInput {
@@ -347,6 +350,11 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
         content = [...(lore?.an_top ?? []), x(input.authorsNote?.content ?? block.content ?? ""), ...(lore?.an_bottom ?? [])].filter(Boolean).join("\n");
         break;
       case "post_history": {
+        // The card's last word is about {{char}}'s replies ("never write {{user}}…"): a draft of {{user}}'s own message skips it.
+        if (input.kind === "impersonate" || input.kind === "expand") {
+          trace.note = "not for a draft of your own message";
+          return;
+        }
         const phi = card.post_history_instructions.trim();
         content = phi ? x(phi.replace(/\{\{original\}\}/gi, block.content ?? "")) : x(block.content);
         break;
@@ -418,8 +426,9 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   const tail: ChatMessage[] = [];
   // L8: a story or continue request never ends on a reply already written (it would read as a prefill).
   if (input.kind === "continue") tail.push({ role: "system", content: x(preset.continuePrompt) || "[Continue your last reply from where it stopped.]" });
-  if (input.kind === "impersonate") tail.push({ role: "system", content: x(preset.impersonationPrompt) });
-  if (input.kind === "expand") tail.push({ role: "system", content: x(preset.expandPrompt) });
+  // A draft of {{user}}'s own message is asked for as the last turn, so the model doesn't take it as {{user}}'s message to answer.
+  if (input.kind === "impersonate") tail.push({ role: "user", content: x(preset.impersonationPrompt) });
+  if (input.kind === "expand") tail.push({ role: "user", content: [x(DRAFT_TURN), x(preset.expandPrompt)].join("\n") });
   // Nothing new from the player, and the last message is already a reply: the world moves on.
   if (input.kind === "story" && input.history.at(-1)?.role === "assistant") tail.push({ role: "system", content: x(preset.waitPrompt) || "[Continue the story.]" });
   if (input.kind === "story" && input.forcePlan) {
