@@ -4,7 +4,8 @@ import { badRequest, notFound } from "../lib/http";
 import { guardIssues } from "../accuracy/guards";
 import { chatNames } from "../memory/build";
 import { hashText } from "../memory/text";
-import { editMessage, getMessageRow, updateSwipe } from "../services/chats";
+import { editMessage, getMessageRow, mustChat, updateSwipe } from "../services/chats";
+import { type PersonaMode, storyDials } from "../services/layers";
 import { enqueue, type JobContext } from "../services/jobs";
 import { callText } from "../services/llm";
 import { shouldShed } from "../services/quota";
@@ -41,6 +42,15 @@ export function parseEditorReply(raw: string): { changed: boolean; text: string;
   return { changed: true, text: body.trim(), notes };
 }
 
+/** What the editor may do about the player's character: the preset's Persona control (sealed when unset). */
+export function personaFix(user: string, persona: PersonaMode | null): string {
+  const leave = `leave alone any line that only mentions ${user}, recalls or repeats what ${user} said or did earlier, or reacts to it ("That's what ${user} said" is fine);`;
+  if (persona === "full_cast") return `${user} is written by the story too (Persona: Full cast), so never cut or change ${user}'s words or actions;`;
+  if (persona === "director") return `${user}'s words and actions are allowed (Persona: Director) when they stay inside what the player directed: only cut invented consent or an irreversible step for ${user} the player didn't ask for; ${leave}`;
+  if (persona === "continuity") return `cut or rewrite a sentence that writes ${user}'s words, thoughts, feelings or decisions, or starts an action for them (only ${user}'s player writes those), but keep the plain finish of an action ${user} began (Persona: Continuity); ${leave}`;
+  return `cut or rewrite a sentence that writes ${user}'s words, actions or decisions (only ${user}'s player writes those), but ${leave}`;
+}
+
 export function scheduleEditor(chatId: string, messageId: string, swipeIdx: number) {
   const cfg = steerFor(chatId);
   if (cfg.editor === "off") return;
@@ -66,7 +76,7 @@ export async function runEditorJob(p: { chatId: string; messageId: string; swipe
     kind: "editor",
     chatId: p.chatId,
     jobId: job?.id,
-    system: `You are a careful copy editor for a roleplay. ${names.char}'s reply was just written. Make the smallest possible edits so it follows the rules below; change nothing else. Keep every event, every line of ${names.char}'s dialogue, the order and the length. Typical fixes: cut or rewrite a sentence that writes ${names.user}'s words, actions or decisions (only ${names.user}'s player writes those), but leave alone any line that only mentions ${names.user}, recalls or repeats what ${names.user} said or did earlier, or reacts to it ("That's what ${names.user} said" is fine); fix a slip in point of view or tense; replace a banned phrase; fix formatting (asterisks, quotes) to match the style.
+    system: `You are a careful copy editor for a roleplay. ${names.char}'s reply was just written. Make the smallest possible edits so it follows the rules below; change nothing else. Keep every event, every line of ${names.char}'s dialogue, the order and the length. Typical fixes: ${personaFix(names.user, storyDials(mustChat(p.chatId)).persona)} fix a slip in point of view or tense; replace a banned phrase; fix formatting (asterisks, quotes) to match the style.
 Reply in plain text. If nothing needs fixing, reply with the single word UNCHANGED. Otherwise reply with the full edited reply, then a line ---NOTES--- and one line per edit, a few words each.`,
     user: `${style ? `${style}\n\n` : ""}${problems.length ? `PROBLEMS FOUND:\n${problems.join("\n")}\n\n` : ""}REPLY:\n${sw.content}`,
     maxTokens: Math.min(6000, Math.ceil(sw.content.length / 2.5) + 400),

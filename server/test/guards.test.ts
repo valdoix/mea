@@ -17,6 +17,7 @@ import { patchCharacterSettings } from "../src/services/charsettings";
 import { addMessage, createChat, getMessage, updateChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { previewPrompt } from "../src/services/generation";
+import { personaFix } from "../src/steer/editor";
 import { registerJob } from "../src/services/jobs";
 import { createPersona } from "../src/services/personas";
 import { linesToOps, writeEvents } from "../src/trackers/store";
@@ -129,6 +130,36 @@ describe("puppeting, point of view and tense (CON-04)", () => {
     setSetting("guards.config", { ...defaultGuards, puppetAction: "regenerate" });
     expect(applyGuards(chatId, reply, { seq: 999, messageId: "x" }).retry).toContain("Alex");
     setSetting("guards.config", defaultGuards);
+  });
+  test("puppet flags follow the Persona control, even ones already saved", async () => {
+    const persona = (mode: string) => updateChat(chatId, { settings: { controls: { persona: mode } } });
+    const words = 'Mira opens the door. "Fine," Alex says.';
+    const acts = "Mira opens the door. Alex nods and follows her in.";
+    persona("sealed");
+    const id = addMessage(chatId, "assistant", acts, { name: "Mira" });
+    await checkReply(chatId, id, 0, { model: false });
+    const puppets = () => flagsFor(chatId, { messageIds: [id] })[0]?.issues.filter((i) => i.kind === "puppet") ?? [];
+    expect(puppets()).toHaveLength(1);
+    // Continuity may finish your actions: an actions-only flag hides, words still count.
+    persona("continuity");
+    expect(puppets()).toHaveLength(0);
+    expect(flagsFor(chatId, { messageIds: [id], open: true }).length).toBe(0);
+    expect(guardIssues(chatId, words, { seq: 999 }).find((i) => i.kind === "puppet")?.fix).toContain("finishing an action Alex began is fine");
+    // Director and Full cast let the story write your character: nothing is flagged.
+    for (const mode of ["director", "full_cast"]) {
+      persona(mode);
+      expect(guardIssues(chatId, words, { seq: 999 }).some((i) => i.kind === "puppet")).toBe(false);
+      expect(puppets()).toHaveLength(0);
+    }
+    persona("sealed");
+    expect(puppets()).toHaveLength(1);
+    updateChat(chatId, { settings: { controls: {} } });
+  });
+  test("the editor's persona rule follows the Persona control", () => {
+    expect(personaFix("Alex", null)).toContain("That's what Alex said");
+    expect(personaFix("Alex", "continuity")).toContain("keep the plain finish of an action Alex began");
+    expect(personaFix("Alex", "director")).toContain("allowed");
+    expect(personaFix("Alex", "full_cast")).toContain("never cut or change Alex's words");
   });
 });
 
