@@ -388,6 +388,10 @@
     border: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface) 80%, transparent);
     font: 400 var(--fs-xs) / 1.45 var(--font-ui);
+    /* The shared .chip is one clipped line; these carry whole sentences, so they wrap. */
+    align-items: flex-start;
+    overflow: visible;
+    white-space: normal;
     overflow-wrap: anywhere;
   }
   .chip.up {
