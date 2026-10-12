@@ -131,11 +131,16 @@ function Restart-Mea {
 }
 
 # 2. Packages and build. The web build happens while Mea runs, so it's only down for the restart.
-# Packages only need installing when the update changed them.
-$changed = @(& $git diff --name-only $before $after 2>$null)
-if ($Force -or ($changed -match '(^|/)(package\.json|bun\.lockb?)$') -or -not (Test-Path (Join-Path $root "node_modules"))) {
+# Packages only need installing when the lockfile differs from the one last installed. Comparing against
+# a stamp (not this pull's diff) also catches code that arrived by some other git pull.
+$lockFile = @("bun.lock", "bun.lockb") | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+$lockHash = if ($lockFile) { (Get-FileHash $lockFile -Algorithm SHA256).Hash } else { "" }
+$stamp = Join-Path $root "node_modules\.mea-installed-lock"
+$installedHash = if (Test-Path $stamp) { (Get-Content $stamp -Raw).Trim() } else { "" }
+if ($Force -or -not $lockHash -or $lockHash -ne $installedHash) {
   Invoke-Logged $bun @("install", "--frozen-lockfile") | Out-Null
   if ($LASTEXITCODE -ne 0) { Undo-Pull "installing packages" }
+  if ($lockHash) { Set-Content -Path $stamp -Value $lockHash -NoNewline }
 } else {
   Write-Log "Packages unchanged; skipping bun install."
 }
