@@ -8,7 +8,7 @@ import { createConnection, createProfile, syncModels } from "../src/services/con
 import { subscribe } from "../src/lib/events";
 import { previewPrompt, startStory } from "../src/services/generation";
 import { pauseJobs, registerJob } from "../src/services/jobs";
-import { editPlan, planFor, plannerSteps, runAdvisor, steerFor, turnKey } from "../src/steer/advisor";
+import { editPlan, planFor, plannerSteps, runAdvisor, steerFor, turnKey, undraft } from "../src/steer/advisor";
 import { freshDb } from "./helpers";
 
 let chatId = "";
@@ -38,6 +38,22 @@ describe("a separate planner model (H3)", () => {
     expect(steps).toContain("VOICE —");
     expect(steps).not.toContain("{{");
     expect(steps).toContain("Ash");
+  });
+
+  test("the planner's drafting is taken out: quoted lines, paragraph beats, a pass that's only a tag", () => {
+    const p = undraft({
+      pass: "NOW — dusk. MOVE — she says 'why did you go alone' and the 'black box' stays put.",
+      direction: "She asks \"where were you all night, then\".",
+      beats: ["His hand closes around hers and her cold red fingers tighten once, hard, then go slack like the grip used the last of whatever was holding her upright; her eyes go wet", "She didn't mean it"],
+      threads: [],
+      reminders: [],
+      avoid: [],
+    });
+    expect(p.pass).toBe("NOW — dusk. MOVE — she says (in their own words) and the 'black box' stays put.");
+    expect(p.direction).toBe("She asks (in their own words).");
+    expect(p.beats[0]).toBe("His hand closes around hers and her cold red fingers tighten once, hard");
+    expect(p.beats[1]).toBe("She didn't mean it");
+    expect(undraft({ ...p, pass: "normal" }).pass).toBe("");
   });
 
   test("in the reply (today): the writer keeps its own planning pass", async () => {

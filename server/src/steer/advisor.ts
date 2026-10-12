@@ -129,8 +129,47 @@ const PLANNER_SYSTEM = (char: string, user: string, persona: PersonaMode | null)
 The planning pass, step by step (fragments, not prose; never draft a line of the reply):
 ${plannerSteps(user, persona !== "full_cast" && persona !== "director")}
 
+You plan; you never write. The writer chooses every word, image and line of dialogue, so the plan says WHAT happens, never HOW it reads:
+- no quoted dialogue, not even part of a line: "she asks why he went alone", never "she asks 'why did you go alone'";
+- no imagery, metaphor or sensory description: "her composure cracks", never "her jaw does the soft twitch she can't control";
+- each beat is one fragment of 15 words at most: "she grips his hand, then lets go", never a paragraph;
+- no self-talk, no "Wait", no checking your own work: the pass is the labelled lines and nothing else.
+
 Stay consistent with your earlier plans unless the story moved somewhere else; ${userRule(user, persona)}.
-Reply with JSON only: {"pass":"the whole pass, NOW to VOICE, as labelled lines","direction":"one or two sentences","beats":["2–4 beats, in order"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
+Reply with JSON only: {"pass":"the whole pass as labelled lines, NOW — … through VOICE — … (never a one-word tag)","direction":"one sentence","beats":["2–4 short fragments, in order"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
+
+/** Planner beats longer than this are cut at a clause boundary (GLM writes paragraphs whatever it's told). */
+const BEAT_MAX_WORDS = 20;
+
+/**
+ * Quoted speech of four or more words: a drafted line of the reply. Single quotes skip apostrophes
+ * inside words ("didn't"); shorter quotes are names and terms ("black box").
+ */
+const QUOTED = /"([^"\n]+)"|“([^”\n]+)”|(?<!\w)'((?:[^'\n]|(?<=\w)'(?=\w))+?)'(?!\w)|‘([^’\n]+)’/g;
+const unquote = (s: string) => s.replace(QUOTED, (m, a, b, c, d) => ((a ?? b ?? c ?? d) as string).trim().split(/\s+/).length >= 4 ? "(in their own words)" : m);
+
+function clip(beat: string) {
+  const words = beat.trim().split(/\s+/);
+  if (words.length <= BEAT_MAX_WORDS) return beat.trim();
+  const head = words.slice(0, BEAT_MAX_WORDS).join(" ");
+  const cut = Math.max(head.lastIndexOf(" — "), head.lastIndexOf(";"), head.lastIndexOf(","));
+  return (cut > head.length / 3 ? head.slice(0, cut) : head).replace(/[\s,;—–-]+$/, "");
+}
+
+/**
+ * The separate planner's plan with the drafting taken out: quoted lines go, beats are cut to a
+ * fragment, and a pass that isn't the labelled steps (a tag like "normal", or self-talk) is dropped,
+ * so the writer plans for itself from the beats instead of following it.
+ */
+export function undraft(p: Plan): Plan {
+  const pass = unquote(p.pass).trim();
+  return {
+    ...p,
+    pass: /^(NOW|MOVE)\b/m.test(pass) ? pass : "",
+    direction: unquote(p.direction),
+    beats: p.beats.map((b) => clip(unquote(b))).filter(Boolean),
+  };
+}
 
 function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig & { planner?: boolean }) {
   const names = chatNames(chatId);
@@ -196,10 +235,11 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
       const r = cfg.planner
         ? await callJson({ task: "planner", kind: "planner", chatId, name: "planner_plan", schema: planSchema, system, user, maxTokens: 1800, temperature: 0.5, signal: opts.signal, profileId: cfg.plannerProfileId })
         : await callJson({ task: "helper", kind: "advisor", chatId, name: "advisor_plan", schema: planSchema, system, user, maxTokens: 700, temperature: 0.6, signal: opts.signal });
-      run("INSERT OR REPLACE INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, key, JSON.stringify(r.data), now());
+      const plan = cfg.planner ? undraft(r.data) : r.data;
+      run("INSERT OR REPLACE INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, key, JSON.stringify(plan), now());
       // Keep a short history per chat.
       run("DELETE FROM advisor_plans WHERE chat_id = ? AND id NOT IN (SELECT id FROM advisor_plans WHERE chat_id = ? ORDER BY created_at DESC LIMIT 40)", chatId, chatId);
-      return r.data;
+      return plan;
     } catch (e) {
       console.error("[mea] advisor failed:", (e as Error).message);
       return null;
@@ -214,7 +254,7 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
 /** H3: the separate planner's plan, as the writer gets it: the pass is done, so it writes only the prose. */
 export function directorPlanText(p: Plan) {
   const body = [p.pass.trim(), p.direction ? `Direction: ${p.direction}` : "", p.beats.length ? `Beats:\n${p.beats.map((b) => `- ${b}`).join("\n")}` : "", p.reminders.length ? `Keep straight: ${p.reminders.join("; ")}` : "", p.avoid.length ? `Avoid: ${p.avoid.join("; ")}` : ""].filter(Boolean).join("\n");
-  return `<director-plan>\n${body}\n</director-plan>\nThe planning pass for this reply is done, above. Don't plan again and don't open with <think>: write only the reply, following the plan; never mention it.`;
+  return `<director-plan>\n${body}\n</director-plan>\nThe planning pass for this reply is done, above. Don't plan again and don't open with <think>: write only the reply, following the plan; never mention it. The plan says what happens: every word, image and line of dialogue is yours.`;
 }
 
 export function planText(p: Plan) {
