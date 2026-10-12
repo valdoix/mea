@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { extractArtifacts, placeArtifacts } from "./artifacts";
+import { applyFx, extractArtifacts, pendingVisual, placeArtifacts } from "./artifacts";
 import { quoteIds, smartQuotes, straightQuotes } from "./quotes";
 
 /**
@@ -137,7 +137,7 @@ function markSpeakers(text: string, lines?: SpokenLine[] | null): string {
 }
 
 /** A value that would load something from outside the message: a remote image, or a request to Mea's API. */
-const REMOTE_REF = /(?:image-set|\bsrc)\s*\(|url\(\s*["']?(?!data:)/i;
+const REMOTE_REF = /(?:image-set|\bsrc)\s*\(|url\(\s*["']?(?!data:|#)/i;
 
 /**
  * M5: tames one block of declarations (a card's CSS rule, or an inline style=) in place: nothing
@@ -152,8 +152,11 @@ function tameStyle(style: CSSStyleDeclaration, pinnedTo?: string) {
   for (const prop of Array.from(style)) if (REMOTE_REF.test(style.getPropertyValue(prop))) style.removeProperty(prop);
 }
 
-/** Scopes card-provided CSS to one message using the browser's own CSS parser. */
-function scopeCss(css: string, scope: string): string {
+/**
+ * Scopes card-provided CSS to one message using the browser's own CSS parser. A visual of the
+ * model's own also gets its ids prefixed (`idPrefix`), as its markup's ids are.
+ */
+function scopeCss(css: string, scope: string, idPrefix?: string): string {
   try {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(css);
@@ -178,6 +181,7 @@ function scopeCss(css: string, scope: string): string {
           const sel = rule.selectorText
             .split(",")
             .map((s) => `${scope} ${s.trim().replace(/^(html|body|:root)\b/, "")}`)
+            .map((s) => (idPrefix ? s.replace(/#(-?[_a-zA-Z][\w-]*)/g, `#${idPrefix}$1`) : s))
             .join(", ");
           tameStyle(rule.style, "absolute");
           if (rule.style.animationName) rule.style.animationName = rename(rule.style.animationName);
@@ -194,7 +198,8 @@ function scopeCss(css: string, scope: string): string {
       }
     };
     walk(sheet.cssRules);
-    const scoped = out.join("\n").replace(/url\(\s*["']?(?!data:)[^)]*\)/gi, "none");
+    let scoped = out.join("\n").replace(/url\(\s*["']?(?!data:|#)[^)]*\)/gi, "none");
+    if (idPrefix) scoped = scoped.replace(/url\(\s*(["']?)#/g, `url($1#${idPrefix}`);
     // C1: this text goes back into HTML inside <style>, where any "<" (the CSS parser turns an escaped
     // "<\/style>" in a string into a real one) could close the element early and inject markup. So no
     // "<" survives: each becomes the CSS escape \3c, which means the same character to CSS.
@@ -235,13 +240,59 @@ purify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean; quotes?: QuoteStyle; speakers?: SpokenLine[] | null } = {}): string {
+/** A model-made visual's markup past this many characters shows as its words instead. */
+const VISUAL_MAX = 30000;
+
+/**
+ * Draws a visual the model designed itself (<vtk>): its HTML sanitized like a message's, its CSS
+ * scoped to the visual alone, its ids, labels and radio groups prefixed so two visuals never
+ * share one, and no inputs but checkboxes and radios (CSS-only state: tabs, reveals, flips).
+ */
+export function freeformVisual(body: string, scope: string): string | null {
+  if (!body.trim() || body.length > VISUAL_MAX) return null;
+  const styles: string[] = [];
+  const markup = body.replace(/<style[^>]*>([\s\S]*?)<\/style\s*>/gi, (_m, css: string) => {
+    styles.push(css);
+    return "";
+  });
+  const clean = purify.sanitize(markup, {
+    FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "button", "textarea", "select", "option", "link", "meta", "base", "audio", "video", "source", "track", "dialog", "template"],
+    FORBID_ATTR: ["srcset", "action", "formaction", "autofocus"],
+    ALLOW_DATA_ATTR: false,
+    ADD_ATTR: ["for", "tabindex"],
+  });
+  const tpl = document.createElement("template");
+  tpl.innerHTML = clean;
+  const root = tpl.content;
+  for (const input of Array.from(root.querySelectorAll("input"))) if (!/^(checkbox|radio)$/i.test(input.getAttribute("type") ?? "")) input.remove();
+  // An image whose outside source was stripped would only show as broken.
+  for (const img of Array.from(root.querySelectorAll("img"))) if (!img.getAttribute("src")) img.remove();
+  const p = `${scope}-`;
+  for (const el of Array.from(root.querySelectorAll("*"))) {
+    if (el.id) el.id = p + el.id;
+    for (const a of Array.from(el.attributes)) {
+      if (a.name === "for" || (a.name === "name" && el.tagName === "INPUT")) el.setAttribute(a.name, p + a.value);
+      else if ((a.name === "href" || a.name === "xlink:href") && a.value.startsWith("#")) el.setAttribute(a.name, `#${p}${a.value.slice(1)}`);
+      else if (/url\(\s*["']?#/.test(a.value)) el.setAttribute(a.name, a.value.replace(/url\(\s*(["']?)#/g, `url($1#${p}`));
+    }
+  }
+  const holder = document.createElement("div");
+  holder.appendChild(root);
+  if (!holder.textContent?.trim() && !holder.querySelector("svg, img, [style], [class]")) return null;
+  const css = styles.length ? scopeCss(styles.join("\n"), `.${scope}`, p) : "";
+  return `${css ? `<style>${css}</style>` : ""}${holder.innerHTML}`;
+}
+
+export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean; freeform?: boolean; quotes?: QuoteStyle; speakers?: SpokenLine[] | null } = {}): string {
   const dressed = opts.artifacts !== false;
-  const key = `${scopeClass}\u0000${dressed ? 1 : 0}\u0000${opts.quotes ?? ""}\u0000${opts.speakers?.length ? JSON.stringify(opts.speakers) : ""}\u0000${input}`;
+  const freeform = dressed && opts.freeform !== false;
+  const key = `${scopeClass}\u0000${dressed ? 1 : 0}${freeform ? 1 : 0}\u0000${opts.quotes ?? ""}\u0000${opts.speakers?.length ? JSON.stringify(opts.speakers) : ""}\u0000${input}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
-  // Artifacts (<letter>, <texts>…) are cut out before Markdown and drawn from escaped text.
-  const { text, found } = extractArtifacts(markSpeakers(input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, ""), opts.speakers));
+  // The visual toolkit's tags (<letter>, <texts>, <mind>…) are cut out before Markdown and drawn from escaped text.
+  const cut = extractArtifacts(markSpeakers(input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, ""), opts.speakers));
+  const found = cut.found;
+  const text = applyFx(cut.text, dressed);
 
   const styles: string[] = [];
   const withoutStyles = text.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_m, css: string) => {
@@ -253,7 +304,7 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
     FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select", "link", "meta", "base"],
     FORBID_ATTR: ["srcset", "action", "formaction"],
     ALLOW_DATA_ATTR: false,
-    ADD_ATTR: ["data-spk", "data-tone"],
+    ADD_ATTR: ["data-spk", "data-tone", "tabindex"],
   });
   const tpl = document.createElement("template");
   tpl.innerHTML = clean;
@@ -261,7 +312,7 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
   container.appendChild(tpl.content);
   typeset(container, opts.quotes ?? null);
   highlightDialogue(container);
-  let html = found.length ? placeArtifacts(container.innerHTML, found, dressed) : container.innerHTML;
+  let html = found.length ? placeArtifacts(container.innerHTML, found, dressed, freeform ? freeformVisual : null) : container.innerHTML;
   if (styles.length) {
     const scoped = scopeCss(styles.join("\n"), `.${scopeClass}`);
     if (scoped) html = `<style>${scoped}</style>${html}`;
@@ -272,16 +323,21 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
 }
 
 /** Cheap render for streaming text: re-rendered at most once per animation frame. */
-export function renderStreaming(input: string, opts: { artifacts?: boolean; quotes?: QuoteStyle } = {}): string {
-  // Inline trackers: the hidden <ledger> the story model writes never shows while it streams.
-  const { text, found } = extractArtifacts(markSpeakers(input.replace(/<ledger\b[\s\S]*$/i, "")));
+export function renderStreaming(input: string, opts: { artifacts?: boolean; freeform?: boolean; quotes?: QuoteStyle } = {}): string {
+  const dressed = opts.artifacts !== false;
+  // Inline trackers: the hidden <ledger> the story model writes never shows while it streams,
+  // and a visual of the model's own shows as a sketch until it closes.
+  const cut = extractArtifacts(pendingVisual(markSpeakers(input.replace(/<ledger\b[\s\S]*$/i, ""))));
+  const found = cut.found;
+  const text = applyFx(cut.text, dressed);
   const raw = marked.parse(text, { async: false }) as string;
-  const clean = purify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "link", "meta", "base"], FORBID_ATTR: ["srcset"], ADD_ATTR: ["data-spk", "data-tone"] });
+  const clean = purify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "link", "meta", "base"], FORBID_ATTR: ["srcset"], ADD_ATTR: ["data-spk", "data-tone", "tabindex"] });
   const tpl = document.createElement("template");
   tpl.innerHTML = clean;
   const container = document.createElement("div");
   container.appendChild(tpl.content);
   typeset(container, opts.quotes ?? null);
   highlightDialogue(container);
-  return found.length ? placeArtifacts(container.innerHTML, found, opts.artifacts !== false) : container.innerHTML;
+  const html = container.innerHTML;
+  return found.length || html.includes("MEAVTKPENDING") ? placeArtifacts(html, found, dressed, dressed && opts.freeform !== false ? freeformVisual : null) : html;
 }

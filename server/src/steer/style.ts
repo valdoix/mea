@@ -96,8 +96,8 @@ export function smartQuotes(text: string, skip?: Uint8Array) {
   return out;
 }
 
-/** Code and tags (artifact attributes like from="Wren") keep their straight marks. */
-const SKIP = /```[\s\S]*?(?:```|$)|`[^`\n]*`|<\/?[a-zA-Z][^<>]*>/g;
+/** Code, tags (artifact attributes like from="Wren") and CSS in a visual's <style> keep their straight marks. */
+const SKIP = /```[\s\S]*?(?:```|$)|`[^`\n]*`|<style\b[\s\S]*?(?:<\/style\s*>|$)|<\/?[a-zA-Z][^<>]*>/gi;
 
 function skipMask(text: string) {
   const mask = new Uint8Array(text.length);

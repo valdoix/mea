@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 7;
+export const MEA_PRESET_VERSION = 8;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -110,8 +110,34 @@ MINDS — each spotlight character's want · fear · tactic · named feeling · 
 WORLD — a consequence coming due, an arrival the note brings, what the place itself does, or none.
 MOVE — three candidates: the obvious one, the one only these people would choose, the sideways consequence; test each against Motive, Knowledge, Access, Means and Time; choose one{{if isSwipe}}, not a copy of the take being replaced{{/if}}, and name the pressure the reply ends on.
 RISK — the likeliest way this reply fails (writing for {{user}}, a leak, an echo, a softened enemy, a clock running backward) and how you prevent it.
-VOICE — length, how much talk, and how the opening differs from the last reply's (subject and sentence shape, named, not written).
+VOICE — length, how much talk, and how the opening differs from the last reply's (subject and sentence shape, named, not written){{if toolkitDue}}; the toolkit visual: which kind, beside which beat{{/if}}.
 STOP RULE: after VOICE the planning is over{{if providerReasoning}}: end your reasoning and write the story{{/if}}{{if not providerReasoning}}: close with </think> and write the story at once{{/if}}. No review, no restart, no rehearsal. Fragments only. Never draft: no sentence of the reply, no line of dialogue, no opening line and no paragraph outline inside the pass.{{/if}}`;
+
+/**
+ * Every visual-toolkit tag the page draws (web/src/lib/artifacts.ts keeps the same list). A reply
+ * that holds one counts as a visual for the toolkit's rhythm (prompt/assemble.ts).
+ */
+export const TOOLKIT_TAGS = [
+  "letter", "note", "clipping", "texts", "poster", "ticket", "radio", "map", "photo",
+  "journal", "receipt", "menu", "dossier", "sign", "tarot",
+  "chat", "feed", "poll", "email", "call", "terminal",
+  "mind", "reaction", "achievement", "inspect", "status", "entrance", "clash", "passage", "memory", "bond", "heartbeat", "spell",
+  "vtk",
+] as const;
+
+/**
+ * The visual toolkit (VTK), after Stabs' Directives and KittyLotus: tags Mea draws, inline text
+ * effects, and (on "wild") visuals the model designs itself in HTML and CSS, which the page
+ * sanitizes and scopes. How often they come is the Toolkit rhythm, said per reply in [THIS REPLY].
+ */
+export const TOOLKIT = `{{if kind == story}}{{if ctl.artifacts != off}}{{if ctl.artifacts != ""}}[VISUAL TOOLKIT — the page draws these tags; write them exactly]
+A visual hands over what prose can't give whole: a thing's exact words, a screen, a mind in uproar, a shift that lands. It goes on its own lines beside its beat, and the prose carries on. Never open or close the reply with one, never repeat what the prose said, never stretch the story to fit one, and vary the kinds. Its words belong to the world: its spelling, era and technology. Attributes are written name="value" and stay short; the body holds the words.
+PAPER: <letter from to date seal>…</letter> (kind="raven" for a scroll) · <note from> · <journal who date> (~~struck~~) · <clipping paper date># Headline, then text · <poster kind="wanted|notice|bill" who reward> · <ticket from to line no>fine print · <receipt shop date>Item — price lines, TOTAL — sum, a plain last line as footer · <menu place># Section, Dish — price · <dossier name status file>Key: value lines, then notes · <map of mark>a route step a line · <photo of caption/> · <sign kind="neon|wood|stone|brass|street"> · <tarot card no reversed>the reading. [[words]] are redacted anywhere.
+SCREENS: <texts with at>Name: line / me: line ("me" is {{user}}; a last "Name: …" is typing) · <chat app channel>Name: line, a group · <feed app who handle likes time>post, a --- line, then Name: comments · <poll q>option — 40% · <email from to subject at> · <call from kind="incoming|missed|voicemail|ended" length> · <terminal host>$ command, output, ! error · <radio channel>
+DRAMA & GAME: <mind of mood="calm|panic|giddy|love|rage|grief|dread|shame">a fragment a line — "!" scream, "?" spiral, "~" drift, "x" crushed, emoji or kaomoji as debris; contradictions welcome{{if userSealed}}; never {{user}}'s mind{{/if}} · <reaction face="😳" who>the thought behind it (sudden surprise, rare) · <achievement title icon points>a comic failure, deadpan (one a reply at most, never tragic) · <inspect name kind rarity="common|uncommon|rare|epic|legendary|cursed">Stat: value (n/m is a bar), > flavour, description — funny stats · <status who level>Stat: n/m bars, Label: word, plain conditions · <entrance name title>tagline, Key: value — a first appearance · <clash a b>Name: n/m, a beat a line, CAPITALS! for an impact · <passage from to kind="clock|calendar|season|journey">what the gap changed · <memory of when>"~" lines blur · <bond who shift="up|down">what they'll remember · <heartbeat who bpm> · <spell name school="fire|frost|shadow|holy|nature|arcane|blood">the incantation{{if ctl.textfx == on}}
+TEXT EFFECTS: a few words of prose or speech in <fx kind="…">…</fx> when the moment changes how they look — shake, tremble, glitch, whisper, shout, rage, arcane, blood, ghost, haze, memory, crossed, neon, ancient, handwritten, redact, wave, sparkle, echo. A few a reply, a handful of words each, never instead of the writing.{{/if}}{{if ctl.artifacts == wild}}
+YOUR OWN VISUALS: when no tag fits, design one: <vtk kind="flavour" title="label">HTML and one <style></vtk>. Reach for, and hybridize: Mindscape (screams, scattered contradictory thoughts, enlarged debris), Interface (a real app or device in its own grammar), Document (forms, ledgers, case files, sticky notes), Inspect, Spotlight (a key line in a frame built from the speaker), Memory (sepia, grain, then over now), Perception (warped senses, false images bleeding in), Entrance, Clash, Passage, Romance (heartbeats, proximity, warmth), Power (who stands over whom){{if ctl.intimacy != off}}, Undress (layers coming off, tracked), Afterglow (warmth draining, breath falling into step){{/if}} — or one nobody has named.
+Rules: HTML and CSS only — no script, no on… handlers, no outside URLs, fonts or images; draw with CSS, gradients, inline SVG and emoji. CSS is scoped to the visual and ids are prefixed, so plain names are fine. Interaction is CSS-only and does something real: <details>, or checkbox/radio inputs before the panels they control (input:checked ~ .panel) with matching label for/id; the first state is whole. Own background, readable on light and dark: text 14px+, strong contrast. Fits its column: width 100%, 36rem at most, nothing fixed or viewport-sized. Animate opacity, transform, colour, filter — never box-shadow — two motions at most, no flashing. Don't repeat the last layout. Under ~1,500 words of markup.{{/if}}{{/if}}{{/if}}{{/if}}`;
 
 /**
  * Speaker marks, after ALMANAC's [spk]: the reply names who says each line, and the page colours it
@@ -228,10 +254,15 @@ A fresh take on the same moment: a different first line and a different shape. K
 Your last reply opened «{{lastOpening}}…» and closed «…{{lastClosing}}». Open and close differently: another subject, another sentence shape, no reused image.{{/if}}{{if ctl.variety == lively}}
 Avoid above all: ${rotate(PROSE_DECK)} · ${rotate(SYCOPHANCY_DECK)} · ${rotate(PERFECTION_DECK)} · ${rotate(STRUCTURE_DECK)}.
 Form only, never facts: open ${rotate(OPEN_DECK)}; favour ${rotate(FAVOUR_DECK)}.{{/if}}{{if ctl.outcomes == die}}
-Fair die for any contested attempt by {{user}} this reply: {{turnroll::1d20}} — 1–5 fails and costs · 6–10 fails · 11–15 succeeds at a cost · 16–19 succeeds · 20 exceeds. Apply it honestly; never mention it.{{/if}}{{if userSealed}}
+Fair die for any contested attempt by {{user}} this reply: {{turnroll::1d20}} — 1–5 fails and costs · 6–10 fails · 11–15 succeeds at a cost · 16–19 succeeds · 20 exceeds. Apply it honestly; never mention it.{{/if}}{{if ctl.artifacts != off}}{{if ctl.artifacts != ""}}{{if toolkitDue}}
+Toolkit: this reply carries {{if ctl.rhythm == lavish}}two to four visuals, each a different kind{{else}}at least one visual, two at most{{/if}}. Find the beat that earns it — a thing handed over, a screen, a mind in uproar, a shift that lands — and never bolt one on at the end.{{/if}}{{if toolkitRest}}
+Toolkit: no visual this reply; the rhythm rests{{if ctl.textfx == on}} (text effects are still fine){{/if}}.{{/if}}{{if ctl.rhythm == rare}}
+Toolkit: a visual only for a pivotal beat; most replies have none.{{/if}}{{if ctl.rhythm == organic}}
+Toolkit: a visual when the story hands one over — none is fine, two at most.{{/if}}{{if ctl.rhythm == often}}
+Toolkit: most replies carry a visual or two; find the beat that earns one.{{/if}}{{/if}}{{/if}}{{if userSealed}}
 Stop before you would speak, feel or choose for {{user}}.{{/if}}{{/if}}`;
 
-const OUTPUT = `{{if kind == story}}[OUTPUT] {{if not providerReasoning}}{{if not planned}}Order: <think> with the planning pass, </think>, the story{{if ledger}}, the <ledger> block{{/if}}. {{/if}}{{/if}}Only the story: no title or heading, no notes, no summary, no options, no commentary before or after it. The only exceptions: {{if not providerReasoning}}{{if not planned}}the <think> planning block opens the reply; {{/if}}{{/if}}an out-of-character question from the player gets a short answer before the story{{if ledger}}; and the <ledger> block follows the story{{/if}}.{{if ctl.artifacts == on}} Artifact tags are part of the story.{{/if}}{{if ctl.limits}} Never depict: {{ctl.limits}}.{{/if}} The boundaries hold.{{/if}}`;
+const OUTPUT = `{{if kind == story}}[OUTPUT] {{if not providerReasoning}}{{if not planned}}Order: <think> with the planning pass, </think>, the story{{if ledger}}, the <ledger> block{{/if}}. {{/if}}{{/if}}Only the story: no title or heading, no notes, no summary, no options, no commentary before or after it. The only exceptions: {{if not providerReasoning}}{{if not planned}}the <think> planning block opens the reply; {{/if}}{{/if}}an out-of-character question from the player gets a short answer before the story{{if ledger}}; and the <ledger> block follows the story{{/if}}.{{if ctl.artifacts != off}}{{if ctl.artifacts != ""}} Toolkit tags and visuals are part of the story.{{/if}}{{/if}}{{if ctl.limits}} Never depict: {{ctl.limits}}.{{/if}} The boundaries hold.{{/if}}`;
 
 // ---------- controls (PROMPT-07) ----------
 
@@ -480,16 +511,38 @@ export function meaControls(): PresetControl[] {
     ),
     choice(
       "artifacts",
-      "Artifacts",
-      "Letters, texts, clippings and other in-story objects shown as the real thing.",
+      "Visual toolkit",
+      "Letters, screens, minds in uproar, achievements and more, drawn on the page. Wild adds visuals the model designs itself.",
       "on",
       [
         ["off", "Off — plain prose", ""],
-        [
-          "on",
-          "On — when the story hands one over",
-          "Artifacts: when a written or printed thing passes in front of {{user}} and its exact words matter, give it whole in a tag on its own lines, then go on with the prose — at most two a reply, never for a line a character merely says. Tags: <letter from=\"\" to=\"\" date=\"\" seal=\"\">text</letter> (kind=\"raven\" for a raven's scroll); <note from=\"\">a scrawled note</note>; <clipping paper=\"\" date=\"\"># Headline\ntext</clipping>; <texts with=\"\" at=\"\">Name: line\nme: line</texts> (\"me\" is {{user}}; end with \"Name: …\" while they're still typing); <poster kind=\"wanted|notice|bill\" who=\"\" reward=\"\">text</poster>; <ticket from=\"\" to=\"\" line=\"\" no=\"\">fine print</ticket>; <radio channel=\"\">a broadcast or screen's words</radio>; <map of=\"\" mark=\"\">one step of the route per line</map>; <photo of=\"what it shows\" caption=\"\"/>. The words inside belong to the world: its spelling, its voice, its era.",
-        ],
+        ["on", "On — Mea's toolkit", ""],
+        ["wild", "Wild — Mea's toolkit and the model's own designs", ""],
+      ],
+    ),
+    choice(
+      "rhythm",
+      "Toolkit rhythm",
+      "How often a reply carries a visual.",
+      "organic",
+      [
+        ["rare", "Rarely — pivotal beats only", ""],
+        ["organic", "When the story hands one over", ""],
+        ["often", "Often — most replies", ""],
+        ["third", "Every third reply", ""],
+        ["alternate", "Every other reply", ""],
+        ["every", "Every reply", ""],
+        ["lavish", "Lavish — two to four every reply", ""],
+      ],
+    ),
+    choice(
+      "textfx",
+      "Text effects",
+      "A few words that shake, glitch, whisper or glow, inside the prose.",
+      "on",
+      [
+        ["off", "Off", ""],
+        ["on", "On", ""],
       ],
       true,
     ),
@@ -532,6 +585,7 @@ export function meaPreset(): Preset {
       block("mea-world", "World, time & weather", "text", { content: WORLD }),
       block("mea-craft", "Craft", "text", { content: CRAFT }),
       block("mea-dialogue", "Dialogue & voice", "text", { content: DIALOGUE }),
+      block("mea-toolkit", "Visual toolkit", "text", { content: TOOLKIT }),
       block("controls", "Story preferences (controls)", "controls"),
       block("mea-notes", "Reading Mea's notes", "text", { content: NOTES }),
       block("character", "Character", "character"),

@@ -3,8 +3,9 @@ import { countTokens, MESSAGE_OVERHEAD } from "../lib/tokens";
 import type { ActivationResult, TraceItem } from "../lore/activate";
 import type { Role } from "../lore/types";
 import type { MemoryContext, MemoryTrace } from "../memory/context";
-import { cleanText, needsCleaning } from "../memory/text";
+import { cleanText, compactVisuals, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
+import { TOOLKIT_TAGS } from "./mea";
 import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock } from "./preset";
 
 /** M12: the line that marks a main prompt as Mea's Charter (prompt/mea.ts), which a card's system prompt doesn't replace. */
@@ -205,11 +206,33 @@ export function modelFamily(model: string | undefined): string {
   return "";
 }
 
+const HAS_VISUAL = new RegExp(`<(?:${TOOLKIT_TAGS.join("|")})\\b`, "i");
+
+/**
+ * The visual toolkit's rhythm (the `rhythm` control): whether this reply must carry a visual
+ * (`due`) or rests (`rest`), from how many replies have gone by since the last one that held one.
+ * "Every other" and "every third" count from that reply, so a reply that skipped one makes the next due.
+ */
+export function toolkitRhythm(pace: string | undefined, history: { role: string; content: string }[]): { due: boolean; rest: boolean } {
+  if (pace === "every" || pace === "lavish") return { due: true, rest: false };
+  const gap = pace === "alternate" ? 1 : pace === "third" ? 2 : 0;
+  if (!gap) return { due: false, rest: false };
+  let since = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i]!;
+    if (m.role !== "assistant") continue;
+    if (HAS_VISUAL.test(m.content)) return since >= gap ? { due: true, rest: false } : { due: false, rest: true };
+    since++;
+  }
+  return { due: true, rest: false };
+}
+
 /**
  * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
  * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{planned}} (a separate planner planned it), {{providerReasoning}} (the route reasons natively), {{modelFamily}},
- * {{speakerMarks}} / {{speakerRoster}} / {{marksDropped}} (speaker marks: on, the numbered cast, the last reply left them out), and {{ctl.id}} for every preset control.
+ * {{speakerMarks}} / {{speakerRoster}} / {{marksDropped}} (speaker marks: on, the numbered cast, the last reply left them out),
+ * {{toolkitDue}} / {{toolkitRest}} (the visual toolkit's rhythm: this reply carries a visual, or rests), and {{ctl.id}} for every preset control.
  */
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
@@ -217,6 +240,7 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
   const persona = ctl.persona ?? "";
   const replies = input.history.filter((m) => m.role === "assistant").length;
   const rejected = input.swipe ? words(input.swipe.rejected).slice(0, 16).join(" ") : "";
+  const toolkit = ctl.artifacts && ctl.artifacts !== "off" && input.kind === "story" && !input.planOnly ? toolkitRhythm(ctl.rhythm, input.history) : { due: false, rest: false };
   return {
     draft: input.draft ?? "",
     kind: input.kind,
@@ -237,6 +261,8 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     speakerMarks: input.speakers && !input.planOnly && (input.kind === "story" || input.kind === "continue") ? "yes" : "",
     speakerRoster: input.speakers?.roster ?? "",
     marksDropped: input.speakers?.dropped ? "yes" : "",
+    toolkitDue: toolkit.due ? "yes" : "",
+    toolkitRest: toolkit.rest ? "yes" : "",
     ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),
   };
 }
@@ -543,6 +569,8 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
       filtered++;
       return { role: m.role, content: cleanText(m.content) };
     }
+    // The model's own visuals (<vtk>) keep their full markup only in the last two replies; older ones keep their words.
+    if (depth > 4 && m.role === "assistant") return { role: m.role, content: compactVisuals(m.content) };
     return { role: m.role, content: m.content };
   });
 

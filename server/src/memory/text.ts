@@ -32,6 +32,18 @@ export function cleanText(text: string): string {
     .trim();
 }
 
+/**
+ * The model's own visuals (<vtk>…</vtk>, HTML and CSS) folded to their words, so an old one costs a
+ * line in the prompt instead of its markup: <vtk kind="mindscape" title="…">the words it showed</vtk>.
+ */
+export function compactVisuals(text: string): string {
+  if (!/<vtk\b/i.test(text)) return text;
+  return text.replace(/<vtk\b([^>]*)>([\s\S]*?)<\/vtk\s*>/gi, (_m, attrs: string, body: string) => {
+    const words = cleanText(body).replace(/\s+/g, " ").trim().slice(0, 600);
+    return `<vtk${attrs}>${words}</vtk>`;
+  });
+}
+
 /** True when cleaning would change the text (so untouched messages keep their exact bytes for caching). */
 export function needsCleaning(text: string): boolean {
   return /<[a-z!/][\s\S]*?>|```(?:status|stats|tracker|info|hud)|\[(?:status|stats|tracker)\]|\[\/?spk\b/i.test(text);

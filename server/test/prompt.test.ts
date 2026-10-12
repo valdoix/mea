@@ -248,9 +248,9 @@ describe("Mea's default preset", () => {
     expect(p).toContain("The player waits");
   });
 
-  test("it stays lean: about 4.5k tokens of instructions", () => {
+  test("it stays lean: about 5.3k tokens of instructions, the visual toolkit included", () => {
     const r = assemblePrompt(base({ history: story }));
-    expect(r.estPromptTokens).toBeLessThan(5200);
+    expect(r.estPromptTokens).toBeLessThan(6000);
   });
 });
 

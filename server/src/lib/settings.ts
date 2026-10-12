@@ -11,6 +11,8 @@ export interface LivingPage {
   voices: "ink" | "blocks" | "chips" | "tint" | "script" | "ribbon" | "halo" | "off";
   /** Letters, texts and clippings drawn as objects. */
   artifacts: boolean;
+  /** The visuals a model designs itself (<vtk>) drawn too; off shows their words. */
+  freeform?: boolean;
   /** The painted window of time, weather and place. */
   window: boolean;
   /** Private thoughts under replies. */
@@ -354,7 +356,7 @@ export const defaults: Settings = {
   "appearance.storyFont": "newsreader",
   "appearance.glossary": true,
   "appearance.typography": defaultTypography,
-  "appearance.living": { voices: "ink", artifacts: true, window: true, thoughts: "drawer" },
+  "appearance.living": { voices: "ink", artifacts: true, freeform: true, window: true, thoughts: "drawer" },
   "chat.enterToSend": false,
   "chat.defaultPresetId": null,
   "presets.meaVersion": 0,

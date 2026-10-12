@@ -1,6 +1,6 @@
 # The living page
 
-What a story knows about itself, drawn on the page. The design came from `mockups/4-living-page.html`. Everything here is rendered by Mea from the reply and the trackers; only the Artifacts control and the calendar change what the model is told.
+What a story knows about itself, drawn on the page. The design came from `mockups/4-living-page.html`. Everything here is rendered by Mea from the reply and the trackers; only the visual toolkit controls and the calendar change what the model is told.
 
 Settings → Appearance → **The living page** holds the display switches (`appearance.living`).
 
@@ -20,26 +20,80 @@ The cast comes from the trackers (names, aliases, user and main), plus the messa
 - **Colour.** Each person has a colour: the cast profile's `color` (set in Story → Cast), else a hash into a palette that keeps away from your character's rose. The colour is mixed toward the text colour so it reads in light and dark themes.
 - **Styles:** Ink (the words), Ribbon (a bar and initial for whoever leads each paragraph), Halo (an underline in light), Off.
 
-## Artifacts (`web/src/lib/artifacts.ts`, `styles/artifacts.css`)
+## The visual toolkit (`web/src/lib/artifacts.ts`, `styles/artifacts.css`, `styles/vtk.css`)
 
-The Mea preset's **Artifacts** control (on by default, preset v2) teaches these tags:
+After Stabs' GLM Directives (its Visual Toolkit) and KittyLotus (its in-world text, emotion effects and HTML governors). Three controls in the Mea preset (v8) decide what the model is told:
+
+- **Visual toolkit**: Off · On (Mea's tags, the default) · Wild (Mea's tags, plus visuals the model designs itself).
+- **Toolkit rhythm**: Rarely · When the story hands one over (default) · Often · Every third reply · Every other reply · Every reply · Lavish (two to four every reply). Every other and every third count replies since the last one that held a visual (`toolkitRhythm` in `prompt/assemble.ts`), so a reply that skipped one makes the next due. A due reply is told so in [THIS REPLY], and its plan names the visual; a resting one is told to rest.
+- **Text effects** (under More): on by default.
+
+The catalogue is one block in the cached prefix (`TOOLKIT` in `prompt/mea.ts`, about 750 tokens on, 1,200 on Wild).
+
+**Paper**
 
 | Tag | Shows as |
 |---|---|
-| `<letter from to date seal>` | Aged letter with a wax seal |
-| `<letter kind="raven">` | A raven's scroll |
-| `<note from>` | A scrawled note |
+| `<letter from to date seal>` | Aged letter with a wax seal (`kind="raven"`: a raven's scroll) |
+| `<note from>` | A scrawled sticky note |
+| `<journal who date>` | A lined diary page with a doodle; `~~words~~` are struck out |
 | `<clipping paper date>` | Newspaper cutting; a `# headline` line becomes the headline |
-| `<texts with at>` | A phone thread; `me:` is you, a final `Name: …` shows typing dots |
 | `<poster kind=wanted\|notice\|bill who reward>` | A poster |
 | `<ticket from to line no>` | A punched ticket |
-| `<radio channel>` | A green phosphor screen |
+| `<receipt shop date>` | Thermal receipt: `Item — price` rows, `TOTAL — sum`, footer, barcode, torn edge |
+| `<menu place>` | A bill of fare: `# Section`, `Dish — price` with dotted leaders |
+| `<dossier name status file>` | A case file: `Key: value` fields, notes, a stamp from `status`, a paperclip |
 | `<map of mark>` | A map; one step of the route per line |
 | `<photo of caption/>` | A polaroid painted from the description |
+| `<sign kind=neon\|wood\|stone\|brass\|street>` | A sign: flickering neon, carved wood, engraved stone, brass plaque, street sign |
+| `<tarot card no reversed>` | A tarot card that flips (hover or tap) to the reading |
 
-- **Safety.** Tags are cut out before Markdown and drawn from escaped text only, so a reply can't inject markup through them.
-- **Turned off** in Appearance, the words stay and become a plain quote.
-- **What the model sees.** The tags stay in the message text, so the model sees what it handed over earlier, and so do the trackers.
+**Screens**
+
+| Tag | Shows as |
+|---|---|
+| `<texts with at>` | A phone thread; `me:` is you, a final `Name: …` shows typing dots |
+| `<chat app channel>` | A group channel (Discord-like), names coloured, runs grouped |
+| `<feed app who handle likes time verified>` | A social post; `---` then `Name: comment` lines; an Instagram-like app paints a photo |
+| `<poll q votes>` | Poll bars that fill; the winner ticked |
+| `<email from to subject at>` | A mail window |
+| `<call from kind=incoming\|missed\|voicemail\|ended length at>` | Ringing screen, missed or ended call, or a voicemail with a waveform and transcript |
+| `<terminal host user>` | `$ command` lines type themselves out; `!` errors, `#` comments |
+| `<radio channel>` | A green phosphor screen |
+
+**Drama & game**
+
+| Tag | Shows as |
+|---|---|
+| `<mind of mood>` | A mindscape: plain thoughts, `!` screams, `?` spirals, `~` drifting, `x` crushed, emoji or kaomoji as debris; eight moods colour it |
+| `<reaction face who>` | A huge emoji that pops, and the thought behind it |
+| `<achievement title icon points>` | An "Achievement unlocked" toast, for comic failures |
+| `<inspect name kind rarity icon>` | An RPG item card: `Stat: value` (n/m is a bar, ±n coloured), `>` flavour; legendary and epic shimmer, cursed throbs |
+| `<status who level>` | A game HUD: bars coloured by stat, chips, conditions |
+| `<entrance name title>` | A casting card: the name slams in letter by letter, a tagline, chips |
+| `<clash a b>` | A fight: VS, health bars, beats, and comic impact bursts for lines in CAPITALS |
+| `<passage from to kind=clock\|calendar\|season\|journey>` | A time skip: spinning clock, a calendar page tearing off, the seasons, a journey line |
+| `<memory of when>` | A sepia, grainy recollection; `~` lines blur |
+| `<bond who shift=up\|down>` | "They'll remember that." |
+| `<heartbeat who bpm>` | A pulse and an ECG sweep at that pace |
+| `<spell name school>` | A turning sigil of runes spelled from the words, coloured by school |
+
+**Anywhere:** `[[words]]` in any paper or screen are redacted (hover or tap reveals).
+
+**Text effects** — `<fx kind="…">a few words</fx>` in prose: shake, tremble, glitch, whisper, shout, rage, arcane, blood, ghost, haze, memory, crossed, neon, ancient, handwritten, redact, wave, sparkle, echo. They become spans before Markdown, so the sanitizer still checks them.
+
+**The model's own visuals (Wild)** — `<vtk kind title>HTML and a <style></vtk>`: Mindscape, Interface, Document, Inspect, Spotlight, Memory, Perception, Entrance, Clash, Passage, Romance, Power (and, with intimacy on, Undress and Afterglow), or anything else. `freeformVisual` in `render.ts` draws them:
+
+- sanitized like a message (no script, handlers, forms or outside sources; images only from data: URLs or Mea's own);
+- CSS scoped to the one visual, keyframes renamed, nothing fixed or pinned, `url(#id)` kept;
+- ids, `label for`, radio names and `#id` selectors prefixed per visual, so two visuals never share state;
+- only checkbox and radio inputs survive, for CSS-only tabs, reveals and flips;
+- while streaming, an unfinished one shows as a sketch in progress;
+- in the prompt, a visual older than the last two exchanges is folded to its words (`compactVisuals`), so old markup costs a line.
+
+- **Safety.** Mea's tags are cut out before Markdown and drawn from escaped text only, so a reply can't inject markup through them.
+- **Appearance** → The visual toolkit: Everything · Mea's pieces only (the model's own designs as their words) · Off (plain words).
+- **What the model sees.** The tags stay in the message text, so the model sees what it handed over earlier, and so do the trackers. Quote styling never touches a visual's CSS (`steer/style.ts`).
 
 ## The scene window (`web/src/lib/scenery.ts`, `SceneWindow.svelte`)
 
