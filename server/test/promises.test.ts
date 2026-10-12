@@ -7,7 +7,7 @@ import { pauseJobs, registerJob } from "../src/services/jobs";
 import { statusTiles } from "../src/services/status";
 import { parseLine } from "../src/trackers/dsl";
 import { buildNote } from "../src/trackers/note";
-import { promisesAfterReply, promisesFor, setPromise, spokenDue, spokenPromises } from "../src/trackers/promises";
+import { promisesAfterReply, promisesFor, setPromise, speakerOf, spokenDue, spokenPromises } from "../src/trackers/promises";
 import { currentFold, linesToOps, writeEvents } from "../src/trackers/store";
 import { freshDb } from "./helpers";
 
@@ -45,6 +45,15 @@ describe("promises on the clock (E3)", () => {
     expect(spokenPromises("I promise I'll bring the map back by noon.", true)[0]).toMatchObject({ what: "bring the map back by noon", due: "noon" });
     // Narration isn't dialogue: only quoted speech counts in a reply.
     expect(spokenPromises("She will meet you at the Bronze at nine, she thinks.", false)).toEqual([]);
+    // Oaths, threats and lines cut off aren't promises.
+    expect(spokenPromises(`"I swear to god if you call me Nattie one more time - " Nat threatens.`, false)).toEqual([]);
+    expect(spokenPromises(`"I swear, you're impossible," she laughs.`, false)).toEqual([]);
+    expect(spokenPromises(`"I swear I'll kill you if you touch her."`, false)).toEqual([]);
+    expect(spokenPromises(`"I promise I'll come back for—" The door slams.`, false)).toEqual([]);
+    expect(spokenPromises(`"I promise I'll..." he trails off.`, false)).toEqual([]);
+    expect(spokenPromises(`"I swear to god I'll get you out of here."`, false)[0]).toMatchObject({ what: "get you out of here", importance: 3 });
+    expect(spokenPromises(`"I promise you, I won't tell a soul."`, false)[0]).toMatchObject({ what: "not tell a soul" });
+    expect(spokenPromises(`"I promise to write every week."`, false)[0]).toMatchObject({ what: "write every week" });
     expect(parseLine("promise Willow>You: be there | meet @ the Bronze · vital [due 21:00] [window 30m]")?.args).toMatchObject({ meet: "the Bronze", importance: 3, window: "30m", due: "21:00" });
   });
 
@@ -87,6 +96,14 @@ describe("promises on the clock (E3)", () => {
     setPromise(chatId, p.id, "broken");
     setPromise(chatId, p.id, "excused");
     expect(bond(char("Willow").id, user().id)).toMatchObject({ trust: 0, resentment: 0 });
+  });
+
+  test("a quote goes to whoever the narration says spoke it", () => {
+    const cast = [{ name: "James Holloway" }, { name: "Natalie Reyes", aliases: ["Nat"] }];
+    const near = (s: string) => spokenPromises(s, false)[0]?.near;
+    expect(speakerOf(near(`"I promise I'll be careful," Nat says, glancing at James.`), cast)).toBe("Natalie Reyes");
+    expect(speakerOf(near(`James sighs. "I promise I'll be careful."`), cast)).toBe("James Holloway");
+    expect(speakerOf(near(`"I promise I'll be careful."`), cast)).toBeUndefined();
   });
 
   test("Undo on the chip takes the promise back, and it isn't found again", () => {
