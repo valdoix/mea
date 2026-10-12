@@ -27,6 +27,9 @@ export interface YtmState {
   videoId: string | null;
   title: string | null;
   author: string | null;
+  /** Seconds into the song, and its length (null when the app doesn't say). */
+  elapsed: number | null;
+  duration: number | null;
 }
 
 /** Shown to you as it is (502: the app on this PC, not Mea, said no). */
@@ -98,11 +101,21 @@ export async function requestPearToken(port: number) {
 /** What's playing now. */
 export async function playerState(conn: YtmConn): Promise<YtmState> {
   if (conn.app === "pear") {
-    const r = await call<{ isPaused?: boolean; videoId?: string; title?: string; artist?: string }>(conn, "/api/v1/song");
-    return { playing: Boolean(r.videoId) && !r.isPaused, videoId: r.videoId ?? null, title: r.title ?? null, author: r.artist ?? null };
+    const r = await call<{ isPaused?: boolean; videoId?: string; title?: string; artist?: string; elapsedSeconds?: number; songDuration?: number }>(conn, "/api/v1/song");
+    return { playing: Boolean(r.videoId) && !r.isPaused, videoId: r.videoId ?? null, title: r.title ?? null, author: r.artist ?? null, elapsed: r.elapsedSeconds ?? null, duration: r.songDuration ?? null };
   }
-  const r = await call<{ player?: { trackState?: number }; video?: { id?: string; title?: string; author?: string } | null }>(conn, "/api/v1/state");
-  return { playing: r.player?.trackState === 1, videoId: r.video?.id ?? null, title: r.video?.title ?? null, author: r.video?.author ?? null };
+  const r = await call<{ player?: { trackState?: number; videoProgress?: number }; video?: { id?: string; title?: string; author?: string; durationSeconds?: number } | null }>(conn, "/api/v1/state");
+  return { playing: r.player?.trackState === 1, videoId: r.video?.id ?? null, title: r.video?.title ?? null, author: r.video?.author ?? null, elapsed: r.player?.videoProgress ?? null, duration: r.video?.durationSeconds ?? null };
+}
+
+/**
+ * Lines a song up to play when this one ends, with no gap (th-ch's app only; the Companion Server
+ * has no queue to add to, so there the next song starts when this one has ended). True if queued.
+ */
+export async function queueNext(conn: YtmConn, videoId: string): Promise<boolean> {
+  if (conn.app !== "pear") return false;
+  await call(conn, "/api/v1/queue", { method: "POST", body: { videoId, insertPosition: "INSERT_AFTER_CURRENT_VIDEO" } });
+  return true;
 }
 
 export type YtmCommand = { command: "playPause" | "play" | "pause" | "next" | "previous" } | { command: "changeVideo"; data: { videoId: string; playlistId?: string | null } };
