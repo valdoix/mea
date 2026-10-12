@@ -4,8 +4,9 @@ import type { Arc, ArcKind } from "./types";
 
 /**
  * How subplots bear on each other (after ALMANAC 09 §20). Two subplots are tied when one of them is
- * about a person the other has in it: the lead of one is in the other. Everything is read from the
- * subplots' own beats and endings; nothing new is stored.
+ * about a person the other has in it: the lead of one is in the other. Two subplots aimed at the same
+ * person bear on each other too, when this one's lead could know of the other. Everything is read from
+ * the subplots' own beats and endings; nothing new is stored. (What spreads at once is ripples.ts.)
  * - Meanwhile: what a tied subplot did last, so the telling continues in step with it.
  * - Pulls: a subplot out to help someone, or to work against them, turns the dice of that person's
  *   own subplot by how its latest step went (and the other way round).
@@ -33,8 +34,10 @@ export interface Bearing {
   person: string;
   /** Which way one of the two pulls on the other's lead, or neither. */
   stance: "for" | "against" | "shared";
-  /** Whose pull: the other subplot on this one's lead ("theirs"), or this one on the other's lead ("mine"). */
-  dir?: "theirs" | "mine";
+  /** Whose pull: the other subplot on this one's lead ("theirs"), this one on the other's lead ("mine"), or both on the same person ("target"). */
+  dir?: "theirs" | "mine" | "target";
+  /** "target": the other subplot's step went well for that person. */
+  helped?: boolean;
   text: string;
   at: number;
   ending: boolean;
@@ -110,7 +113,7 @@ export function aimAt(arc: Arc, person: RActor): "for" | "against" | "shared" {
 }
 
 /** How a step went for its lead: +1 their way, −1 against them, 0 neither. */
-const swing = (result: string) => (["win", "cost", "met", "price"].includes(result) ? 1 : ["loss", "lost"].includes(result) ? -1 : 0);
+export const swing = (result: string) => (["win", "cost", "met", "price"].includes(result) ? 1 : ["loss", "lost"].includes(result) ? -1 : 0);
 
 const THING = "dark magic|magic|magick|powers?|abilities|strength|memor(?:y|ies)|soul|sight|voice|wings|immortality|freedom|title|fortune|ship|boat|house|home|job|name";
 /** Things of a kind: a subplot about dark magic is about the magic that was taken. */
@@ -184,16 +187,27 @@ export function bearingsOn(arc: Arc, arcs: Arc[], r: Roster, at: number, extra: 
     // A dropped subplot stopped: what it last did no longer moves anyone.
     if (o.id === arc.id || o.status === "dropped") continue;
     const both = tied(arc, o, r);
-    if (!both.length) continue;
+    const same = !both.length && !!arc.target && arc.target === o.target ? r.actors.get(arc.target) : undefined;
+    if (!both.length && !(same && knowsOf(o, arc.lead, r))) continue;
     const ev = [...eventsOf(o), ...extra.filter((e) => e.arc === o.id)].filter((e) => e.at <= at).sort((a, b) => a.at - b.at).at(-1);
     if (!ev || (at - ev.at > WINDOW && !ev.ending) || at - ev.at > 3 * WINDOW) continue;
     const fresh = hasEarlier ? ev.at > since : ev.at >= since;
     const oLead = r.actors.get(o.lead);
     let stance: Bearing["stance"] = "shared";
     let dir: Bearing["dir"];
-    let person = both[0]!;
+    let person = both[0] ?? same!;
     let mod = 0;
+    let helped: boolean | undefined;
     const g = swing(ev.result);
+    // Target: both aimed at the same person. What the other's step did to them is this one's headway or setback.
+    if (same) {
+      const so = side(aimAt(o, same));
+      const sa = side(aimAt(arc, same));
+      if (so && sa) {
+        [stance, dir, helped, mod] = [so > 0 ? "for" : "against", "target", so * g > 0, so * g * sa];
+        if (!g) helped = undefined;
+      }
+    }
     // Theirs: helping this lead turns the dice their way when it goes well; working against them, by how it went.
     if (lead && both.includes(lead)) {
       const s = aimAt(o, lead);
@@ -204,9 +218,19 @@ export function bearingsOn(arc: Arc, arcs: Arc[], r: Roster, at: number, extra: 
       const s = aimAt(arc, oLead);
       if (s !== "shared") [stance, dir, person, mod] = [s, "mine", oLead, s === "for" ? g : -g];
     }
-    out.push({ arc: o.id, leadName: o.leadName, kind: o.kind, person: person.name, stance, dir, text: ev.text, at: ev.at, ending: !!ev.ending, fresh, mod: fresh ? mod : 0 });
+    out.push({ arc: o.id, leadName: o.leadName, kind: o.kind, person: person.name, stance, dir, ...(helped != null ? { helped } : {}), text: ev.text, at: ev.at, ending: !!ev.ending, fresh, mod: fresh ? mod : 0 });
   }
   return out.sort((a, b) => Number(b.fresh) - Number(a.fresh) || b.at - a.at);
+}
+
+const side = (s: "for" | "against" | "shared") => (s === "for" ? 1 : s === "against" ? -1 : 0);
+
+/** Could this person know of a subplot? Its own people do; others unless it's secret, and only if close to it when private. */
+function knowsOf(o: Arc, id: string, r: Roster): boolean {
+  const a = r.actors.get(id);
+  if (!a) return false;
+  if (peopleOf(o, r).includes(a) || o.secrecy === "public") return true;
+  return o.secrecy === "private" && [o.lead, o.target].some((p) => !!p && (a.ties.get(p) ?? 0) >= 2);
 }
 
 /** What the ties do to this subplot's next roll: the fresh pulls, at most one step either way. */
@@ -219,6 +243,7 @@ export function webMod(bs: Bearing[]): { mod: number; why: string[] } {
 /** A pull in words: "Joss's revenge went against Mira", "Mira's own recovery went badly". */
 export function pullWords(b: Bearing): string {
   const label = SPECS[b.kind].label.toLowerCase();
+  if (b.dir === "target") return `tied: ${b.leadName}'s ${label} ${b.helped ? "helped" : "hurt"} ${b.person}`;
   if (b.dir === "theirs") return `tied: ${b.leadName}'s ${label} ${b.stance === "for" ? `helped ${b.person}` : `went against ${b.person}`}`;
   return `tied: ${b.person}'s own ${label} went ${(b.mod > 0) === (b.stance === "for") ? "well" : "badly"}`;
 }
@@ -227,7 +252,7 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).repl
 
 /** A card's MEANWHILE lines: what the tied subplots did, newest that this step answers first. */
 export function meanwhileLines(bs: Bearing[]): string[] {
-  const label = (b: Bearing) => (b.dir === "theirs" ? (b.stance === "for" ? ` (on ${b.person}'s side)` : ` (against ${b.person})`) : b.dir === "mine" ? ` (${b.person}'s own story; this subplot is ${b.stance === "for" ? `on ${b.person}'s side` : `against ${b.person}`})` : "");
+  const label = (b: Bearing) => (b.dir === "theirs" ? (b.stance === "for" ? ` (on ${b.person}'s side)` : ` (against ${b.person})`) : b.dir === "mine" ? ` (${b.person}'s own story; this subplot is ${b.stance === "for" ? `on ${b.person}'s side` : `against ${b.person}`})` : b.dir === "target" ? ` (${b.stance === "for" ? `on ${b.person}'s side` : `against ${b.person}`}; this subplot is about ${b.person} too)` : "");
   return bs.slice(0, 3).map((b) => `${b.leadName}'s ${SPECS[b.kind].label.toLowerCase()}${label(b)}${b.ending ? ", ended" : ""}: ${clip(b.text, 220)}${b.fresh ? " [since this subplot's last step]" : ""}`);
 }
 

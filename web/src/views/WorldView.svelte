@@ -85,6 +85,8 @@
     told: "engine" | "model";
     arrivals: { route: string; text: string; carrier: string | null }[];
     why: string[];
+    /** What else this beat would set moving: answers, endings it settles, subplots it starts. */
+    ripples: string[];
   }
   let preview = $state<{ arc: Arc; data: BeatPreview; editing: boolean; text: string; busy: boolean } | null>(null);
   /** How the called beat would reach the scene, before anything commits. */
@@ -226,6 +228,7 @@
   /** Which way a tied subplot pulls, in words. */
   function stanceWord(t: ArcTies["ties"][number]): string {
     if (t.dir === "theirs") return t.stance === "for" ? `on ${t.person}'s side` : `against ${t.person}`;
+    if (t.dir === "target") return `${t.stance === "for" ? `on ${t.person}'s side` : `against ${t.person}`}; both are about ${t.person}`;
     if (t.dir === "mine") return t.stance === "for" ? `${t.person}'s own story; this one is on their side` : `${t.person}'s own story; this one is against them`;
     return `both involve ${t.person}`;
   }
@@ -334,7 +337,7 @@
             <ol class="beats">
               {#each a.beats.slice(-6) as b, i (`${b.at}:${i}`)}
                 <li>
-                  <span class="tiny faint">{b.stage}{b.forced ? ` · your call${director ? ` → ${resultWord[b.result]}` : ""}` : director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && !b.forced && b.why.length ? ` (${b.why.join(", ")})` : ""}</span>
+                  <span class="tiny faint">{b.stage}{b.forced ? ` · your call${director ? ` → ${resultWord[b.result]}` : ""}` : director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && !b.forced && b.why.length ? ` (${b.why.join(", ")})` : ""}{b.answers && b.twist !== "collide" ? ` · answering ${b.answers}` : ""}</span>
                   <div class="small">{b.text}</div>
                 </li>
               {/each}
@@ -392,6 +395,7 @@
                   {:else}
                     <p class="small">{pv.text}</p>
                   {/if}
+                  {#if pv.data.ripples?.length}<div class="tiny faint">It would also set moving: {pv.data.ripples.join(" · ")}</div>{/if}
                   {#if pv.data.arrivals.length}<div class="tiny faint">On its way: {pv.data.arrivals.map((x) => `${routeIcon[x.route] ?? "•"} ${x.text}`).join(" · ")}</div>{/if}
                   <div class="row wrap">
                     <button class="btn small primary" onclick={acceptBeat}>Accept</button>

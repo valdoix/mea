@@ -278,6 +278,8 @@ export interface BeatPreview {
   /** The ways it could reach the scene (a messenger, a letter, word going round…). */
   arrivals: { route: string; text: string; carrier: string | null }[];
   why: string[];
+  /** What else the beat would set moving: subplots answering it, endings it settles, subplots it starts. */
+  ripples: string[];
 }
 
 /**
@@ -289,7 +291,7 @@ export async function previewOutcome(chatId: string, id: string, outcome: Force,
   const st = currentFold(chatId).result.state;
   const arc = mustArc(st, id);
   if (arc.status !== "running" && arc.status !== "held") throw badRequest("This subplot isn't moving any more");
-  const none: BeatPreview = { landsNow: false, outcome, salt, result: null, stage: null, text: "", told: "engine", arrivals: [], why: [] };
+  const none: BeatPreview = { landsNow: false, outcome, salt, result: null, stage: null, text: "", told: "engine", arrivals: [], why: [], ripples: [] };
   if (cfg.mode === "off" || !st.time) return none;
   const roster = rosterFor(chatId, st);
   if (!canStep(arc, roster)) return none;
@@ -316,7 +318,7 @@ export async function previewOutcome(chatId: string, id: string, outcome: Force,
       // The engine's words stand in.
     }
   }
-  return { landsNow: true, outcome, salt, result: beat?.result ?? null, stage: beat?.stage ?? null, text, told, arrivals, why: beat?.why ?? [] };
+  return { landsNow: true, outcome, salt, result: beat?.result ?? null, stage: beat?.stage ?? null, text, told, arrivals, why: beat?.why ?? [], ripples: res.summary.slice(1) };
 }
 
 /** "Give someone a story": a premise in your words, started at once (it locks). */

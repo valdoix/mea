@@ -13,7 +13,7 @@ export const tellingSchema = z.object({
 export function tellingPrompt(cards: BeatCard[], o: { userName: string; truths: string[]; genres: string[] }) {
   const system = `You tell what happened off the page in a roleplay, between two story times. Each CARD is already decided: who, where, when, and how it turned out (WIN, COST, LOSS, or an ending: MET, PRICE, LOST). Tell each as two short, plain sentences: what happened (past tense, naming the actual people, places and news), then where it leaves things (present tense). At most 50 words per card.
 Keep the outcome. Add nothing the card doesn't allow. Name only the people on the card; anyone else is unnamed ("a clerk").
-Subplots bear on each other. MEANWHILE is what tied subplots did last: keep in step with it and never contradict it; a step marked [since this subplot's last step] is what this one answers. STANDS is settled about its people: this step can't undo it by itself. You may name the people in MEANWHILE and STANDS. Never decide anything ${o.userName} (the user's character) does, says, thinks or knows. No dialogue.${o.genres.length ? `\nThe story's genre: ${o.genres.join(", ")}.` : ""}${o.truths.length ? `\nStory truths that hold here too: ${o.truths.join("; ")}` : ""}
+Subplots bear on each other. MEANWHILE is what tied subplots did last: keep in step with it and never contradict it; a step marked [since this subplot's last step] is what this one answers. STANDS is settled about its people: this step can't undo it by itself. ANSWERS is what set this step off elsewhere (another subplot's outcome, or a plot thread moving): tell this step as a response to it. You may name the people in MEANWHILE, STANDS and ANSWERS. Never decide anything ${o.userName} (the user's character) does, says, thinks or knows. No dialogue.${o.genres.length ? `\nThe story's genre: ${o.genres.join(", ")}.` : ""}${o.truths.length ? `\nStory truths that hold here too: ${o.truths.join("; ")}` : ""}
 Reply with JSON only: {"beats":[{"card":"<id>","text":"…"}]}`;
   const user = cards
     .map((c) =>
@@ -26,6 +26,7 @@ Reply with JSON only: {"beats":[{"card":"<id>","text":"…"}]}`;
         c.soFar.length ? `SO FAR ${c.soFar.join(" ")}` : "",
         ...(c.meanwhile ?? []).map((l) => `MEANWHILE ${l}`),
         ...(c.stands ?? []).map((l) => `STANDS ${l}`),
+        c.answers ? `ANSWERS ${c.answers}` : "",
         `ENGINE'S WORDS ${c.template}`,
       ]
         .filter(Boolean)
