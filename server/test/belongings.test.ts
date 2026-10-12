@@ -6,6 +6,7 @@ import { pauseJobs, registerJob } from "../src/services/jobs";
 import { belongingsOf } from "../src/trackers/belongings";
 import { parseLine } from "../src/trackers/dsl";
 import { buildNote } from "../src/trackers/note";
+import { lookWithout } from "../src/trackers/fold";
 import { currentFold, linesToOps, writeEvents } from "../src/trackers/store";
 import { freshDb } from "./helpers";
 
@@ -75,5 +76,12 @@ describe("belongings and rooms (E2)", () => {
     expect(note()).not.toContain("NOTICED:");
     // Handing it back and forth isn't a second gift.
     expect(state().bonds[`${char("Mira").id}>${char("Joss").id}`]?.axes.affection).toBe(1);
+  });
+  test("a jacket handed back leaves the giver's look", () => {
+    reply(["item Mira's oilskin coat: Mira → Joss — she lends it against the rain", "look Joss: bare-armed under Mira's oilskin coat, boots muddy; scarf red"]);
+    reply(["item Mira's oilskin coat: Joss → Mira — he gives it back"]);
+    expect(char("Joss").look).toBe("boots muddy, scarf red");
+    expect(lookWithout("varsity jacket torn at the shoulder, hair loose", "Natalie's leather jacket")).toBe("varsity jacket torn at the shoulder, hair loose");
+    expect(lookWithout("bare-chested under Natalie's leather jacket, back bandaged", "Natalie's leather jacket")).toBe("back bandaged");
   });
 });

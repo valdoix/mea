@@ -64,6 +64,24 @@ export interface FoldResult {
   verdicts: Record<string, Verdict>;
 }
 
+/**
+ * A look line without the clauses that wear or hold an item ("bare-chested under Natalie's
+ * leather jacket, back bandaged" less "Natalie's leather jacket" is "back bandaged").
+ */
+export function lookWithout(look: string, item: string): string {
+  const words = (item.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map((w) => w.replace(/'s$/, "")).filter((w) => w.length > 2 && w !== "the");
+  const head = words.at(-1);
+  if (!head) return look;
+  const rest = words.slice(0, -1);
+  const clauses = look.split(/\s*[,;]\s*/);
+  const kept = clauses.filter((c) => {
+    const cw = new Set((c.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map((w) => w.replace(/s$/, "")));
+    if (!cw.has(head.replace(/s$/, ""))) return true;
+    return rest.length > 0 && !rest.some((w) => cw.has(w.replace(/s$/, "")));
+  });
+  return kept.length === clauses.length ? look : kept.join(", ");
+}
+
 const norm = (s: string) =>
   s
     .toLowerCase()
@@ -961,6 +979,12 @@ export class Folder {
         if (!it.owner && toChar) it.owner = toChar.id;
         it.lostGift = undefined;
         it.custody.push({ from: was, to: holder, how: op.cause, seq, ...this.where() });
+        // A jacket handed back is no longer part of the giver's look.
+        const giver = was && was !== holder ? st.chars[was] : undefined;
+        if (giver?.look && !this.isLocked(`chars.${giver.id}.look`)) {
+          const look = lookWithout(giver.look, name);
+          if (look !== giver.look) giver.look = look || undefined;
+        }
         const nm = (h?: string) => (h ? (h.startsWith("place:") ? h.slice(6) : this.nameOf(h)) : "");
         this.push(ctx, { kind: "item", text: was && was !== holder ? `${name}: ${nm(was)} → ${nm(holder)}` : `${name} → ${nm(holder)}`, path: `items.${id}`, reason: op.cause, from: nm(was), to: nm(holder), memory: Boolean(a.gift) });
         // E2: a gift moves a bond: the one who got it warms to the one who gave it.
