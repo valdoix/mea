@@ -5,6 +5,11 @@ import { dirname, join, resolve } from "node:path";
 export const compiled = /\$bunfs|~BUN/.test(import.meta.dir);
 /** Repo root from source; the exe's own folder when compiled, so data sits next to mea.exe. */
 const root = compiled ? dirname(process.execPath) : resolve(import.meta.dir, "../..");
+// `bun test` run from anywhere but the repo root skips the setup preload, and the tests would then
+// work on the real data folder (they once encrypted it). Without a throwaway folder, they don't run.
+if (process.env.NODE_ENV === "test" && !process.env.MEA_DATA_DIR) {
+  throw new Error("Tests need their own data folder: run `bun test` from the repo root so server/test/setup.ts preloads.");
+}
 const dataDir = resolve(process.env.MEA_DATA_DIR ?? join(root, "data"));
 
 export const config = {
