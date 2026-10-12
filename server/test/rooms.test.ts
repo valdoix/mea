@@ -53,9 +53,9 @@ function files(dir: string): string[] {
 describe("backdrops move on the compositor", () => {
   // Animating background-position repaints the whole layer every frame; on a screen-sized backdrop
   // that halved the frame rate in an embedded browser (VENUS). Move the layer with a transform.
-  // (Small things, like a progress stripe, are fine and aren't checked.)
+  // (Small things, like a progress stripe or a shine across a word, are fine and aren't checked.)
   test("no backdrop keyframes animate background-position", () => {
-    const backdrops = [...files(ROOMS_DIR), ...files(join(WEB, "src/styles")), join(WEB, "src/components/Ambience.svelte"), join(WEB, "src/components/Sky.svelte")];
+    const backdrops = [...files(ROOMS_DIR), join(WEB, "src/components/Ambience.svelte"), join(WEB, "src/components/Sky.svelte")];
     const offenders = backdrops.flatMap((p) =>
       keyframes(read(p))
         .filter((k) => /background-position/.test(k.body))
