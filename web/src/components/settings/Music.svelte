@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { get, post, put } from "../../lib/api";
+  import { del, get, patch, post, put } from "../../lib/api";
   import { Plus, X } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
 
@@ -59,6 +59,14 @@
   async function save(patch: Partial<Config>) {
     try {
       cfg = await put<Config>("/api/music", patch);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  // One song at a time: sending the whole library could undo songs a lookup added since this page loaded.
+  async function song(req: Promise<Config>) {
+    try {
+      cfg = await req;
     } catch (e) {
       errorToast(e);
     }
@@ -145,8 +153,8 @@
       </div>
       {#each cfg.library as t (t.videoId)}
         <div class="track">
-          <div class="row between"><span class="small"><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}{#if t.instrumental} <span class="tiny faint">instrumental</span>{/if}</span><button class="btn ghost icon small" onclick={() => save({ library: cfg!.library.filter((x) => x.videoId !== t.videoId) })} aria-label="Remove {t.title}"><X size={13} /></button></div>
-          <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => save({ library: cfg!.library.map((x) => (x.videoId === t.videoId ? { ...x, moods: toggle(x.moods, m) } : x)) })}>{m}</button>{/each}</div>
+          <div class="row between"><span class="small"><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}{#if t.instrumental} <span class="tiny faint">instrumental</span>{/if}</span><button class="btn ghost icon small" onclick={() => song(del<Config>(`/api/music/library/${t.videoId}`))} aria-label="Remove {t.title}"><X size={13} /></button></div>
+          <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => song(patch<Config>(`/api/music/library/${t.videoId}`, { moods: toggle(t.moods, m) }))}>{m}</button>{/each}</div>
         </div>
       {:else}
         <p class="tiny muted">Nothing yet. Paste a song or playlist link, or play something in YouTube Music and Add what's playing.</p>

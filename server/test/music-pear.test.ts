@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createApp } from "../src/app";
 import { setSetting } from "../src/lib/settings";
-import { addTrack, connectStart, type Cue, musicConfig, musicView, pickTrack, refreshTaste, saveMusicConfig } from "../src/music/director";
+import { addTrack, connectStart, type Cue, musicConfig, musicView, pickTrack, refreshTaste, removeTrack, retagTrack, saveMusicConfig } from "../src/music/director";
 import { command, playlistIdOf, YtmError } from "../src/music/ytmusic";
 import { freshDb } from "./helpers";
 
@@ -68,6 +69,7 @@ afterAll(() => {
   globalThis.fetch = realFetch;
   setSetting("music.config", null);
   setSetting("music.taste", null);
+  setSetting("music.removed", null);
 });
 
 describe("the soundtrack on th-ch's YouTube Music (API Server)", () => {
@@ -111,11 +113,23 @@ describe("the soundtrack on th-ch's YouTube Music (API Server)", () => {
     expect(pickTrack(cfg, cue, {}, { exclude: ["ppppppppppp"] })?.track.artist).toContain("Hozier");
     // Banned wins over preferred.
     expect(pickTrack({ ...cfg, taste: { ...cfg.taste, banned: ["bear mccreary"] } }, cue, {}, { exclude: ["ppppppppppp", "hhhhhhhhhh1"] })).toBeNull();
-    // A song you remove stays removed, even when the artist is looked up again.
-    saveMusicConfig({ library: musicConfig().library.filter((t) => t.videoId !== "hhhhhhhhhh1") });
-    setSetting("music.taste", { hozier: { at: 0, ids: ["hhhhhhhhhh1", "hhhhhhhhhh2"] } });
+    // One song at a time: retag it, or remove it.
+    expect(retagTrack("hhhhhhhhhh2", { moods: ["epic"] }).library.find((t) => t.videoId === "hhhhhhhhhh2")?.moods).toEqual(["epic"]);
+    removeTrack("hhhhhhhhhh1");
+    // Songs lost another way (an older page saving a stale library) come back on the next look; one you removed doesn't.
+    saveMusicConfig({ library: musicConfig().library.filter((t) => t.videoId !== "hhhhhhhhhh2") });
+    setSetting("music.taste", { hozier: { at: Date.now(), ids: ["hhhhhhhhhh1", "hhhhhhhhhh2"] } });
     await refreshTaste();
-    expect(musicConfig().library.map((t) => t.videoId)).not.toContain("hhhhhhhhhh1");
+    const ids = musicConfig().library.map((t) => t.videoId);
+    expect(ids).toContain("hhhhhhhhhh2");
+    expect(ids).not.toContain("hhhhhhhhhh1");
+    // Adding it by hand makes it yours again.
+    await addTrack({ link: "hhhhhhhhhh1" });
+    removeTrack("hhhhhhhhhh1");
+    await addTrack({ link: "hhhhhhhhhh1" });
+    setSetting("music.taste", { hozier: { at: 0 } });
+    await refreshTaste();
+    expect(musicConfig().library.filter((t) => t.videoId === "hhhhhhhhhh1").length).toBe(1);
     // Taking the artist off the list keeps their songs; it only stops looking for more.
     saveMusicConfig({ taste: { preferred: [], banned: [], instrumentalInDialogue: false } });
     await refreshTaste();
@@ -135,5 +149,21 @@ describe("the soundtrack on th-ch's YouTube Music (API Server)", () => {
     await addTrack({ link: "https://music.youtube.com/watch?v=sssssssssss&list=PLmine1234567" });
     expect(musicConfig().library.at(-1)?.videoId).toBe("sssssssssss");
     expect(await addTrack({ link: "https://music.youtube.com/playlist?list=PLempty123456" }).catch((e) => e.message)).toContain("empty");
+  });
+
+  test("saving one setting from the page leaves the rest alone (the switch, the library, leitmotifs)", async () => {
+    const app = createApp();
+    const local = { requestIP: () => ({ address: "127.0.0.1", family: "IPv4", port: 5000 }) };
+    const put = (b: unknown) => app.fetch(new Request("http://localhost/api/music", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }), local);
+    saveMusicConfig({ enabled: true, leitmotifs: [{ who: "Mira", videoId: "llllllllll1" }] });
+    const before = musicConfig();
+    expect(before.library.length).toBeGreaterThan(0);
+    const res = await put({ taste: { preferred: [], banned: ["Nobody"], instrumentalInDialogue: false } });
+    expect(res.status).toBe(200);
+    const after = musicConfig();
+    expect(after).toMatchObject({ enabled: true, port: before.port, taste: { banned: ["Nobody"] } });
+    expect(after.library).toEqual(before.library);
+    expect(after.leitmotifs).toEqual(before.leitmotifs);
+    expect((await put({ port: "nope" })).status).toBe(400);
   });
 });

@@ -53,27 +53,38 @@ export function musicView() {
   const tasteFound = Object.fromEntries(rest.taste.preferred.map((a) => [a, found[a.toLowerCase()] ? rest.library.filter((t) => byArtist(t, a)).length : null]));
   return { ...rest, connected: Boolean(token), canSearch: app === "pear", tasteFound };
 }
-export function saveMusicConfig(patch: Partial<z.infer<typeof musicConfigSchema>>) {
+/**
+ * Changes only the fields sent. Pass the request as it came: the schema fills in its defaults even
+ * for fields left out (`enabled: false`, an empty library), so those must never be written.
+ */
+export function saveMusicConfig(patch: Partial<z.infer<typeof musicConfigSchema>> | Record<string, unknown>) {
   const cur = musicConfig();
-  // Only what was sent changes (the schema's defaults would fill in the rest).
-  const parsed = musicConfigSchema.partial().parse(patch) as Record<string, unknown>;
-  const next = { ...cur, ...Object.fromEntries(Object.keys(patch).map((k) => [k, parsed[k]])) };
+  const ok = musicConfigSchema.partial().safeParse(patch);
+  if (!ok.success) throw badRequest("Invalid music settings", z.treeifyError(ok.error));
+  const parsed = ok.data as Record<string, unknown>;
+  const sent = Object.keys(patch).filter((k) => k in musicConfigSchema.shape && (patch as Record<string, unknown>)[k] !== undefined);
+  const next = { ...cur, ...Object.fromEntries(sent.map((k) => [k, parsed[k]])) };
   setSetting("music.config", next as never);
-  if (patch.taste) void refreshTaste().catch(() => {});
+  if (sent.includes("taste")) void refreshTaste().catch(() => {});
   return musicView();
 }
 
 // ---------- your preferred artists' songs ----------
 
-/**
- * Per preferred artist (lower-cased): when they were looked up, and every song of theirs found so
- * far. A found song joins the library once; one you remove from it stays removed.
- */
-type TasteCache = Record<string, { at: number; ids: string[] }>;
+/** Per preferred artist (lower-cased): when they were last looked up. */
+type TasteCache = Record<string, { at: number; ids?: string[] }>;
 const TASTE_TTL = 7 * 24 * 3600_000;
 const TASTE_PER_ARTIST = 20;
 const tasteCache = () => (getSetting("music.taste") as TasteCache | null) ?? {};
 const byArtist = (t: Track, artist: string) => t.artist.toLowerCase().includes(artist.toLowerCase());
+/** Songs you removed from the library yourself: a lookup never adds them back. */
+const removedIds = () => new Set((getSetting("music.removed") as string[] | null) ?? []);
+function markRemoved(videoId: string, removed: boolean) {
+  const ids = removedIds();
+  if (removed) ids.add(videoId);
+  else ids.delete(videoId);
+  setSetting("music.removed", [...ids].slice(-2000) as never);
+}
 
 const tagSchema = z.object({ songs: z.array(z.object({ id: z.string(), moods: z.array(z.string()).max(4).default([]), instrumental: z.boolean().default(false) })) });
 
@@ -119,18 +130,18 @@ async function refreshOnce() {
   const cache = tasteCache();
   for (const artist of cfg.taste.preferred) {
     const k = artist.toLowerCase();
-    const had = cache[k]?.ids ?? [];
-    if (cache[k] && Date.now() - cache[k].at < TASTE_TTL) continue;
+    // A look from before songs you removed were kept apart ("ids") is due again: it brings back songs lost then.
+    if (cache[k] && !cache[k].ids && Date.now() - cache[k].at < TASTE_TTL) continue;
     try {
       const songs = (await searchSongs(cfg, artist)).filter((s) => s.artist.toLowerCase().includes(k)).slice(0, TASTE_PER_ARTIST);
-      // Only songs never found before: one you removed from the library doesn't come back.
-      const known = new Set([...had, ...musicConfig().library.map((t) => t.videoId)]);
+      // Not songs already there, nor ones you removed yourself.
+      const known = new Set([...removedIds(), ...musicConfig().library.map((t) => t.videoId)]);
       const fresh = songs.filter((s) => !known.has(s.videoId)).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), instrumental: /instrumental/i.test(s.title) }));
       addToLibrary(await tagMoods(fresh));
-      cache[k] = { at: Date.now(), ids: [...new Set([...had, ...songs.map((s) => s.videoId)])] };
+      cache[k] = { at: Date.now() };
     } catch {
       // YouTube Music not answering: try again in an hour.
-      cache[k] = { at: Date.now() - TASTE_TTL + 3600_000, ids: had };
+      cache[k] = { at: Date.now() - TASTE_TTL + 3600_000 };
     }
     setSetting("music.taste", cache as never);
   }
@@ -388,6 +399,9 @@ async function addPlaylist(listId: string, input: { moods?: Mood[]; instrumental
   const now = musicConfig();
   const ids = new Set(now.library.map((t) => t.videoId));
   setSetting("music.config", { ...now, library: [...now.library, ...fresh.filter((t) => !ids.has(t.videoId))].slice(0, 500) } as never);
+  // Added by hand: a song you'd removed before is yours again.
+  const removed = removedIds();
+  if (fresh.some((t) => removed.has(t.videoId))) setSetting("music.removed", [...removed].filter((id) => !fresh.some((t) => t.videoId === id)) as never);
   return { ...musicView(), added: fresh.length };
 }
 
@@ -409,7 +423,28 @@ export async function addTrack(input: { link?: string; moods?: Mood[]; instrumen
     artist ||= s.author ?? "";
   }
   const track = trackSchema.parse({ videoId, title: title || videoId, artist, moods: input.moods ?? [], instrumental: input.instrumental ?? false });
-  const library = [...cfg.library.filter((t) => t.videoId !== videoId), track];
-  setSetting("music.config", { ...cfg, library } as never);
+  // Re-read: the library may have changed while YouTube Music answered.
+  const now = musicConfig();
+  setSetting("music.config", { ...now, library: [...now.library.filter((t) => t.videoId !== videoId), track] } as never);
+  markRemoved(videoId, false);
+  return musicView();
+}
+
+/**
+ * One song's moods or instrumental flag. Edits go song by song: a whole library sent from the
+ * page could be seconds old and drop songs a lookup added since.
+ */
+export function retagTrack(videoId: string, patch: { moods?: Mood[]; instrumental?: boolean }) {
+  const cfg = musicConfig();
+  if (!cfg.library.some((t) => t.videoId === videoId)) throw badRequest("That song isn't in the library");
+  setSetting("music.config", { ...cfg, library: cfg.library.map((t) => (t.videoId === videoId ? { ...t, ...patch } : t)) } as never);
+  return musicView();
+}
+
+/** Takes a song out of the library; a lookup for its artist won't add it back. */
+export function removeTrack(videoId: string) {
+  const cfg = musicConfig();
+  setSetting("music.config", { ...cfg, library: cfg.library.filter((t) => t.videoId !== videoId) } as never);
+  markRemoved(videoId, true);
   return musicView();
 }
