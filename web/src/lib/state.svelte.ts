@@ -1,7 +1,7 @@
 import { get, put } from "./api";
 import { applyRoomColors } from "./roomcolors";
 import { applyFonts } from "./fonts";
-import { isRoom, isShellTheme, loadThemeFonts, themeInfo, type ThemeId } from "./themes";
+import { isRoom, isShellTheme, loadThemeFonts, loadThemeStyles, themeInfo, type ThemeId } from "./themes";
 import type { Quota, Settings } from "./types";
 
 export interface Toast {
@@ -126,6 +126,7 @@ export function applyAppearance() {
   if (isRoom(shown)) {
     root.dataset.mode = night ? "night" : "day";
     loadThemeFonts(shown);
+    void loadThemeStyles(shown);
   } else delete root.dataset.mode;
   app.dark = dark;
   app.theme = shown;

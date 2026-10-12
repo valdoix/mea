@@ -7,18 +7,18 @@
   import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
   import { STORY_FONTS, UI_FONTS, loadAllFonts } from "../../lib/fonts";
   import { living } from "../../lib/living";
-  import { THEMES, isRoom, loadThemeFonts, themeInfo } from "../../lib/themes";
+  import { THEMES, isRoom, loadThemeFonts, loadThemeStyles, themeInfo } from "../../lib/themes";
   import { onMount } from "svelte";
   import type { LivingPage, Typography } from "../../lib/types";
 
   const s = $derived(app.settings);
-  // The picker shows each room in its own type.
-  onMount(() => THEMES.forEach((t) => isRoom(t.id) && loadThemeFonts(t.id)));
+  // The picker shows each room in its own type, and a room you pick is dressed the moment you pick it.
+  onMount(() => THEMES.forEach((t) => isRoom(t.id) && (loadThemeFonts(t.id), void loadThemeStyles(t.id))));
   const drifting = $derived(
-    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering" } as Record<string, string>)[app.theme] ?? "Drifting lights",
+    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Bokeh drifting and the mirror lights twinkling" } as Record<string, string>)[app.theme] ?? "Drifting lights",
   );
   const texture = $derived(
-    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
+    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Powder shimmer and damask" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
   );
   const page = $derived(living(s));
   const VOICE_HINTS: Record<LivingPage["voices"], string> = {
@@ -158,6 +158,20 @@
           <input type="range" min={PORTRAIT_RANGE.min} max={PORTRAIT_RANGE.max} step="4" value={portraitWidth()} oninput={(e) => setDevice("portraitPx", Number(e.currentTarget.value))} aria-label="Portrait width" />
         {/if}
         <span class="hint">On a phone they stay small beside each message.</span>
+      </div>
+      <div class="field">
+        <span class="label">Portrait frame <span class="faint">on cards, on this device</span></span>
+        <Segmented
+          value={device.portraitFrame}
+          options={[
+            { value: "room", label: "The room's" },
+            { value: "holo", label: "Holo card" },
+            { value: "polaroid", label: "Polaroid" },
+            { value: "cameo", label: "Cameo" },
+          ]}
+          onchange={(v) => setDevice("portraitFrame", v)}
+        />
+        <span class="hint">A holographic trading card, a taped polaroid with the name written under it, or a gilded cameo with a ribbon.</span>
       </div>
       <div class="grid">
         <div class="field">
@@ -514,6 +528,41 @@
     background: #2e2b29;
     border-radius: 2px;
     box-shadow: inset 0 0 0 2px #2e2b29, inset 0 0 0 3px #b08a3a;
+  }
+  .t-sugarrush .tname {
+    font: 400 1.6rem/1 "Chewy", cursive;
+    color: #ff4f93;
+    text-shadow: 2px 2px 0 #fff8ef, 3px 3px 0 #ffb3cd;
+    background: #fff4f8;
+    border-radius: 999px;
+    box-shadow: 0 0 0 2px #9fe8cf, 0 4px 0 #ffb3cd;
+  }
+  .t-arcade .tname {
+    font: 700 0.78rem/1.15 "Silkscreen", monospace;
+    white-space: normal;
+    width: 86%;
+    color: #ffb000;
+    text-shadow: 0 0 8px #ffb000;
+    background: #0c0805;
+    border-radius: 2px;
+    box-shadow: 0 0 0 2px #d9531e, 4px 4px 0 2px #5f8a1f;
+  }
+  .t-noir .tname {
+    font: 400 1.3rem/1.1 "Limelight", serif;
+    letter-spacing: 0.04em;
+    color: #f2d896;
+    text-shadow: none;
+    background: #0e0d0b;
+    border-radius: 0;
+    box-shadow: inset 0 0 0 1px #c9a45a, inset 0 0 0 3px #0e0d0b, inset 0 0 0 4px #c9a45a;
+  }
+  .t-rosewater .tname {
+    font: italic 400 1.45rem/1.1 "Playfair Display Variable", serif;
+    color: #b07a3a;
+    text-shadow: none;
+    background: linear-gradient(135deg, #fffaf6, #fbe3e6);
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px #d8b27a, 0 6px 16px -6px rgb(160 60 90 / 45%);
   }
   .t-marquee .tname {
     font: 400 1.9rem/1 "Neonderthaw", cursive;

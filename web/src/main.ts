@@ -25,12 +25,15 @@ import "./styles/artifacts.css";
 import "./styles/vtk.css";
 import "./styles/voices.css";
 import "./rooms/rooms.css";
+import "./styles/frames.css";
+import "@fontsource/pinyon-script/400.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { registerServiceWorker } from "./lib/push";
 import { navigate } from "./lib/router.svelte";
 import { ApiError } from "./lib/api";
 import { errorToast } from "./lib/state.svelte";
+import { loadThemeStyles } from "./lib/themes";
 
 registerServiceWorker();
 
@@ -52,4 +55,7 @@ navigator.serviceWorker?.addEventListener("message", (e) => {
   if (e.data?.type === "navigate" && typeof e.data.url === "string") navigate(e.data.url);
 });
 
-mount(App, { target: document.getElementById("app")! });
+// A room that loads its stylesheets on demand gets them before the first paint of the app.
+void loadThemeStyles(document.documentElement.dataset.theme ?? "")
+  .catch(() => {})
+  .then(() => mount(App, { target: document.getElementById("app")! }));

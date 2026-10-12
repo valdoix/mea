@@ -271,6 +271,8 @@
   <!-- The portrait sits beside the box; the name, time and actions sit inside it. -->
   <div class="portrait-col">
     <span class="portrait"><Avatar id={avatarId} name={displayName} size={portraitPx} portrait shape="squircle" {palette} /></span>
+    <!-- The name under a framed portrait (styles/frames.css shows it). -->
+    <span class="pf-cap" aria-hidden="true">{displayName}</span>
   </div>
   <div class="bubble">
     <header class="head">
@@ -448,6 +450,9 @@
     content-visibility: auto;
     contain-intrinsic-size: auto 180px;
     animation: fade-up 0.4s var(--ease) backwards;
+  }
+  .pf-cap {
+    display: none;
   }
   .portrait-col {
     position: sticky;
