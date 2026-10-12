@@ -61,7 +61,8 @@ import { applyGuards } from "../accuracy/guards";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
-import { extractSpeakers, rosterLine, type RosterVoice, speakerRule, type SpokenLine, voiceRoster, withoutSpeakerMarks } from "../lib/speakers";
+import { extractSpeakers, quotedLines, rosterLine, type RosterVoice, speakerRule, type SpokenLine, voiceRoster, withoutSpeakerMarks, withSpeakerMarks } from "../lib/speakers";
+import { scheduleSpeakerMarks } from "./speakermarks";
 
 /** M18: a stream that sends nothing new for this long is treated as stalled. */
 const IDLE_MS = 90_000;
@@ -267,6 +268,8 @@ interface Prepared {
   timing: Timing;
   /** The cast's numbered voices, so each speaker mark is read back as the cast's own name. */
   voices: RosterVoice[];
+  /** The reply was asked to mark its speakers. */
+  speakerMarks: boolean;
 }
 
 export interface Timing {
@@ -300,6 +303,20 @@ export interface PrepareOptions {
   targetScale?: number;
   /** STEER-01: wait (briefly) for the advisor's plan if it isn't ready. Off for previews. */
   advise?: boolean;
+}
+
+/** The history with each of Mea's replies marked again from the speakers saved in its meta. */
+function markedHistory(history: HistoryMessage[], roster: RosterVoice[]): HistoryMessage[] {
+  const ids = history.filter((m) => m.role === "assistant").map((m) => m.id);
+  if (!ids.length) return history;
+  const metas = new Map(
+    all<{ id: string; meta: string }>(`SELECT m.id, s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.id IN (${ids.map(() => "?").join(",")})`, ...ids).map((r) => [r.id, r.meta]),
+  );
+  return history.map((m) => {
+    if (m.role !== "assistant") return m;
+    const lines = parseJson<{ speakers?: SpokenLine[] }>(metas.get(m.id) ?? "{}", {}).speakers;
+    return lines?.length ? { ...m, content: withSpeakerMarks(m.content, lines, roster) } : m;
+  });
 }
 
 /** The last reply had speech but no speaker marks, so the next one is reminded (ALMANAC's nudge). */
@@ -440,7 +457,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     userName,
     personaText: personaPrompt(persona),
     mode: chat.mode,
-    history,
+    // Earlier replies keep their speaker marks in the prompt, so the model keeps writing them.
+    history: marks ? markedHistory(history, voices) : history,
     authorsNote: layers.authorsNote,
     controls,
     controlValues,
@@ -512,7 +530,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices, speakerMarks: marks };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -1035,7 +1053,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   text = marked.text;
   original = withoutSpeakerMarks(original);
   let speakers: SpokenLine[] = marked.lines;
-  if (action === "continue" && speakers.length) {
+  // A continue keeps the marks of the part it continued, whether or not its own part has any.
+  if (action === "continue") {
     const before = parseJson<{ speakers?: SpokenLine[] }>(getSwipes(gen.messageId).find((s) => s.idx === gen.swipeIdx)?.meta ?? "{}", {}).speakers ?? [];
     speakers = [...before, ...speakers];
   }
@@ -1118,6 +1137,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       }
       // CON-10: every few replies, measure the character's voice against their samples.
       if (status === "done") scheduleDrift(gen.chatId);
+      // A reply that came back with dialogue and no marks: the helper names the speakers.
+      if (status === "done" && p.speakerMarks && !speakers.length && quotedLines(text).length) scheduleSpeakerMarks(gen.chatId, gen.messageId, gen.swipeIdx, first.voices);
       // STEER-03: the post-pass editor, when it's on (not for a reply about to be written again).
       if (status === "done" && !guarded?.retry) scheduleEditor(gen.chatId, gen.messageId, gen.swipeIdx);
       if (chat.character_id) touchCharacter(chat.character_id);

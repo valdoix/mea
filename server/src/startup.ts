@@ -34,6 +34,7 @@ import { probeCache, runDueProbes } from "./services/probe";
 import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
 import { runTelling, worldAfterReply, worldLane } from "./sim/service";
 import { activeGenerations, setElsewhereLane } from "./services/generation";
+import { runSpeakerMarksJob } from "./services/speakermarks";
 
 /** Replies that were streaming when Mea stopped are marked so the user can retry them. */
 function recoverInterrupted() {
@@ -125,6 +126,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   // J3: the soundtrack changes on story beats (YouTube Music, only when you've turned it on).
   onTrackerUpdate(musicAfterReply);
   registerJob("accuracy.drift", async (p, job) => runDriftJob(String(p.chatId), job));
+  // Speaker marks a reply left out, named by the helper.
+  registerJob("speakers.mark", async (p, job) => runSpeakerMarksJob(p as Parameters<typeof runSpeakerMarksJob>[0], job));
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   // A1: lessons from the takes you kept and the replies you edited.

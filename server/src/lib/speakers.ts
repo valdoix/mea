@@ -153,6 +153,40 @@ export function extractSpeakers(input: string, roster: RosterVoice[] = []): { te
   return { text: out.replace(/\[\/spk\]/gi, "").replace(/\[spk=[^\]\n]{0,80}\]/gi, ""), lines };
 }
 
+/**
+ * A saved reply with its marks put back, for the prompt. The model reads its own earlier replies
+ * marked, so it keeps marking: a history of unmarked replies teaches it to stop. Each line is found
+ * in order in the text; one an edit has since changed is left unmarked.
+ */
+export function withSpeakerMarks(text: string, lines: SpokenLine[] | undefined, roster: RosterVoice[]): string {
+  if (!lines?.length) return text;
+  let out = "";
+  let at = 0;
+  for (const l of lines) {
+    if (!l?.text) continue;
+    const i = text.indexOf(l.text, at);
+    if (i < 0) continue;
+    const v = l.name ? roster.find((r) => r.name === l.name) : undefined;
+    const who = !l.name ? "?" : v ? `${v.name}#${v.slot}` : l.name;
+    out += `${text.slice(at, i)}[spk=${who}${l.tone ? `|${l.tone}` : ""}]${l.text}[/spk]`;
+    at = i + l.text.length;
+  }
+  return out + text.slice(at);
+}
+
+/**
+ * The quoted lines of a reply, in order, exactly as they stand. A quote closed with the wrong curly
+ * mark (“Hey. You —“) still counts as one line.
+ */
+export function quotedLines(text: string): string[] {
+  return [...text.matchAll(/["“][^"“”\n]{1,600}["”“]/g)].map((m) => m[0]);
+}
+
+/** A name the helper gave for a line ("Name#N", "Name", "?"), as the cast knows it. */
+export function speakerFromLabel(label: string, roster: RosterVoice[]): string | null {
+  return readMark(label, roster).name;
+}
+
 /** The text with marks taken out (memory and old prompt messages: a save cut short can leave them). */
 export function withoutSpeakerMarks(text: string): string {
   return /\[\/?spk\b/i.test(text) ? text.replace(/\[spk=[^\]\n]{0,80}\]|\[\/spk\]/gi, "") : text;
