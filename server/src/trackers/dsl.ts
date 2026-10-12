@@ -88,7 +88,8 @@ function bondArgs(rest: string) {
       moves.push({ axis: m[1]!.trim().toLowerCase(), delta: num(m[2]) });
       continue;
     }
-    m = p.match(/^([a-z][a-z -]*?)\s*(?:=|:|\bto\b)?\s*(-?\d+(?:\.\d+)?)(?:\s*(?:→|->)\s*(-?\d+))?$/i);
+    // "trust 4 → 2" and "trust +4 → +2" (old → new) set the new value.
+    m = p.match(/^([a-z][a-z -]*?)\s*(?:=|:|\bto\b)?\s*([+-]?\s*\d+(?:\.\d+)?)(?:\s*(?:→|->)\s*([+-]?\s*\d+))?$/i);
     if (m) {
       moves.push({ axis: m[1]!.trim().toLowerCase(), set: num(m[3] ?? m[2]) });
       continue;

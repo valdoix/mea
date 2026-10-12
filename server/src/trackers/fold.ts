@@ -149,6 +149,7 @@ const AXIS_ALIASES: Record<string, Axis> = {
 };
 const BIG_CAUSE = /\b(betray\w*|rescue\w*|saved?\b|saving|unforgiv\w*|life|died|death|confess\w*|attack\w*|abandon\w*)\b/i;
 const DOWN_CAUSE = /\b(betray\w*|lie|lies|lied|lying|neglect\w*|abandon\w*|broke|broken|break\w*|cheat\w*|hurt\w*|reject\w*|refus\w*|cruel\w*|deceiv\w*|deceit\w*|revealed|left (?:her|him|them)|walked away|turned away|pushed (?:her|him|them) away|cold|withdr[ae]w\w*|distan\w*|end(?:ed|s)? it|split|dumped|argu\w*|resent\w*)\b/i;
+const ROMANCE_CAUSE = /\b(kiss\w*|attract\w*|desir\w*|crush\w*|flirt\w*|blush\w*|in love|lov(?:e|es|ed|ing)|romanc\w*|romantic\w*|date|dating|lips|mouth|jealous\w*|long(?:s|ed|ing) for|butterfl\w*|chemistry|sparks?|aroused|arousal|wants? (?:her|him|them)|sexual\w*|seduc\w*|caress\w*)\b/i;
 /** Words that name a crowd, not a person: "know Group: …" means everyone in the scene. */
 const GROUP_WORD = /^(?:the |all the |whole )*(?:group|whole group|everyone|everybody|all|all present|all of them|all of us|circle|others|rest|crowd|camp|team|squad|party|survivors|room|table|fire|us|them|they|we|both|both of them|girls|boys|kids|everyone present|everyone here|whole camp)$/;
 
@@ -843,6 +844,9 @@ export class Folder {
         const prev = cur?.tier ?? (this.cfg.romance === "established" ? 7 : 0);
         if (tier === prev) return;
         const up = tier > prev;
+        // A romance starts from something romantic: attraction on the bond, or a romantic cause. Shock or tension isn't one.
+        if (!cur && up && this.ai(ctx) && ctx.ev.source !== "init" && this.cfg.romance !== "established" && !((st.bonds[key]?.axes.attraction ?? 0) > 0) && !ROMANCE_CAUSE.test(op.cause ?? ""))
+          return this.reject(ctx, "a romance starts from attraction or a romantic moment; tension between friends is a bond");
         if (this.ai(ctx) && up) {
           const pace = this.cfg.romance;
           if (pace === "off") return this.reject(ctx, "romance is off in this story");

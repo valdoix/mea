@@ -108,7 +108,7 @@ describe("fold rules", () => {
   });
 
   test("romance ladder respects the pace", () => {
-    const r = foldEvents(events([["ladder Mira>Alex: 1 — noticed him"], ["ladder Mira>Alex: 2 — teased him"]]), cfg());
+    const r = foldEvents(events([["ladder Mira>Alex: 1 — noticed his mouth, blushed"], ["ladder Mira>Alex: 2 — teased him, flirting"]]), cfg());
     expect(r.state.ladders["mira>user"]!.tier).toBe(1);
     expect(Object.values(r.verdicts)[1]!.reason).toContain("slow burn");
     const fast = foldEvents(events([["ladder Mira>Alex: 3 — sparks"]]), cfg({ romance: "fast" }));
@@ -126,6 +126,22 @@ describe("fold rules", () => {
     expect(hurt.state.ladders["mira>user"]!.tier).toBe(5);
     const you = foldEvents(events([["ladder Mira>Alex: 3"]], "user"), est);
     expect(you.state.ladders["mira>user"]!.tier).toBe(3);
+  });
+
+  test("a bond written old → new still moves, and tension between friends doesn't open a romance", () => {
+    const r = foldEvents(
+      events([
+        ["bond Mira>Joss: trust +4; familiarity +3 — best friends since second grade"],
+        ["bond Mira>Joss: trust +4 → +2, familiarity +3 → +2 — Joss hid a pregnancy from her", "ladder Mira>Joss: 3 Charged — the silence after yes is a new kind of charge"],
+      ]),
+      cfg({ romance: "fast" }),
+    );
+    expect(r.state.bonds["mira>joss"]!.axes).toMatchObject({ trust: 2, familiarity: 2 });
+    expect(r.state.ladders["mira>joss"]).toBeUndefined();
+    const kiss = foldEvents(events([["ladder Mira>Joss: 1 — she kissed him and blushed"]]), cfg({ romance: "fast" }));
+    expect(kiss.state.ladders["mira>joss"]!.tier).toBe(1);
+    const drawn = foldEvents(events([["bond Mira>Joss: attraction +1 — caught looking"], ["ladder Mira>Joss: 1 — noticed"]]), cfg());
+    expect(drawn.state.ladders["mira>joss"]!.tier).toBe(1);
   });
 
   test("an item line written owner first is about the thing, not the person", () => {
