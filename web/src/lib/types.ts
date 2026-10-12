@@ -482,7 +482,7 @@ export interface LivingPage {
 
 export interface Settings {
   "routing.story": string | null;
-  "appearance.theme": "system" | "light" | "dark" | "lantern" | "wildflower" | "overprint" | "citadel" | "marquee";
+  "appearance.theme": "lantern" | "wildflower" | "overprint" | "citadel" | "marquee";
   /** J2: your colours per room, by day and by night. */
   "appearance.colors"?: Record<string, { day?: Record<string, string>; night?: Record<string, string> }>;
   /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */

@@ -1,0 +1,27 @@
+/* The chosen story and interface fonts (lib/fonts.ts sets the -pick variables). UI-16: "nunito"
+   means the theme's own interface font. UI-19: a dyslexia-friendly font everywhere wins over both. */
+:root[data-story-font] {
+  --font-story: var(--font-story-pick, "Lora Variable", "Lora", Georgia, serif);
+}
+:root[data-ui-font]:not([data-ui-font="nunito"]) {
+  --font-ui: var(--font-ui-pick, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+}
+:root[data-dyslexic],
+:root[data-dyslexic][data-ui-font] {
+  --font-ui: "OpenDyslexic", system-ui, sans-serif;
+  --font-story: "OpenDyslexic", Georgia, serif;
+  --font-display: "OpenDyslexic", Georgia, serif;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --fs-story: calc(1.0625rem * var(--scale));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t: 0ms;
+  }
+}

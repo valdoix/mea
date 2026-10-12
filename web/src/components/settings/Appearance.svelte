@@ -3,7 +3,7 @@
   import Segmented from "../Segmented.svelte";
   import { biometricsAvailable, lock, removeLock, setPin, setupBiometrics } from "../../lib/applock.svelte";
   import { confirm } from "../../lib/dialogs.svelte";
-  import { device, setDevice } from "../../lib/device.svelte";
+  import { PORTRAIT_RANGE, device, portraitWidth, setDevice } from "../../lib/device.svelte";
   import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
   import { STORY_FONTS, UI_FONTS, loadAllFonts } from "../../lib/fonts";
   import { living } from "../../lib/living";
@@ -93,16 +93,6 @@
             {#if t.day}<span class="note faint">{t.day} by day · {t.night} by night</span>{:else}<span class="note faint">Always night</span>{/if}
           </button>
         {/each}
-        <button class="theme t-cozy" class:on={app.shell === "cozy"} role="radio" aria-checked={app.shell === "cozy"} onclick={() => saveSetting("appearance.theme", app.shell === "cozy" ? s["appearance.theme"] : "system")}>
-          <span class="preview" aria-hidden="true">
-            <span class="half day" style:background="#fbf6f1"><i style:background="#f0b3c5"></i><i style:background="#cdbdf0"></i><i style:background="#bfe6d8"></i><i style:background="#ffe2a8"></i></span>
-            <span class="half night" style:background="#231e2a"><i style:background="#f0b3c5"></i><i style:background="#b9a6e8"></i><i style:background="#8fd3bf"></i><i style:background="#f2cf8a"></i></span>
-            <span class="tname">Cozy</span>
-          </span>
-          <b>Mea Cozy</b>
-          <span class="note">The original: soft, plain and quiet</span>
-          <span class="note faint">A sidebar instead of the rail</span>
-        </button>
       </div>
       {#if isRoom(app.theme)}
         {@const info = themeInfo(app.theme)}
@@ -116,19 +106,6 @@
               { value: "night", label: info?.night ?? "Night" },
             ]}
             onchange={(v) => saveSetting("appearance.themeMode", v)}
-          />
-        </div>
-      {:else if app.shell === "cozy"}
-        <div class="field">
-          <span class="label">Cozy light or dark</span>
-          <Segmented
-            value={s["appearance.theme"]}
-            options={[
-              { value: "system", label: "Match my device" },
-              { value: "light", label: "Mea Cozy" },
-              { value: "dark", label: "Cozy Night" },
-            ]}
-            onchange={(v) => saveSetting("appearance.theme", v)}
           />
         </div>
       {/if}
@@ -164,19 +141,25 @@
         />
         <span class="hint">Comfortable follows the text width below.</span>
       </div>
+      <div class="field">
+        <span class="label">Portraits <span class="faint">{portraitWidth()} px wide, on this device</span></span>
+        <Segmented
+          value={device.portrait}
+          options={[
+            { value: "small", label: "Small" },
+            { value: "large", label: "Large" },
+            { value: "grand", label: "Grand" },
+            { value: "towering", label: "Towering" },
+            { value: "custom", label: "Custom" },
+          ]}
+          onchange={(v) => setDevice("portrait", v)}
+        />
+        {#if device.portrait === "custom"}
+          <input type="range" min={PORTRAIT_RANGE.min} max={PORTRAIT_RANGE.max} step="4" value={portraitWidth()} oninput={(e) => setDevice("portraitPx", Number(e.currentTarget.value))} aria-label="Portrait width" />
+        {/if}
+        <span class="hint">On a phone they stay small beside each message.</span>
+      </div>
       <div class="grid">
-        <div class="field">
-          <span class="label">Portraits</span>
-          <Segmented
-            value={device.portrait}
-            options={[
-              { value: "small", label: "Small" },
-              { value: "large", label: "Large" },
-              { value: "grand", label: "Grand" },
-            ]}
-            onchange={(v) => setDevice("portrait", v)}
-          />
-        </div>
         <div class="field">
           <span class="label">Room inside each box</span>
           <Segmented
@@ -192,14 +175,12 @@
       </div>
     </section>
 
-    {#if app.shell === "lantern"}
-      <section class="panel stack">
-        <h2>Atmosphere</h2>
-        <label class="switch"><input type="checkbox" checked={device.fireflies} onchange={(e) => setDevice("fireflies", e.currentTarget.checked)} /> {drifting}</label>
-        <label class="switch"><input type="checkbox" checked={device.grain} onchange={(e) => setDevice("grain", e.currentTarget.checked)} /> {texture}</label>
-        <p class="tiny muted">Both stay on this device. If your system asks for less motion, Mea keeps everything still.</p>
-      </section>
-    {/if}
+    <section class="panel stack">
+      <h2>Atmosphere</h2>
+      <label class="switch"><input type="checkbox" checked={device.fireflies} onchange={(e) => setDevice("fireflies", e.currentTarget.checked)} /> {drifting}</label>
+      <label class="switch"><input type="checkbox" checked={device.grain} onchange={(e) => setDevice("grain", e.currentTarget.checked)} /> {texture}</label>
+      <p class="tiny muted">Both stay on this device. If your system asks for less motion, Mea keeps everything still.</p>
+    </section>
 
     <section class="panel stack">
       <h2>Reading</h2>
@@ -245,7 +226,7 @@
           {#each UI_FONTS as f (f.id)}
             <button class="font" class:on={typo.uiFont === f.id} role="radio" aria-checked={typo.uiFont === f.id} onclick={() => setTypo({ uiFont: f.id })}>
               <span class="face" style:font-family={f.family || undefined}>Settings · Aa</span>
-              <b>{f.id === "nunito" && app.shell !== "lantern" ? "Nunito" : f.label}</b><span class="note">{f.note}</span>
+              <b>{f.label}</b><span class="note">{f.note}</span>
             </button>
           {/each}
         </div>
@@ -526,12 +507,6 @@
     text-shadow: 0 0 4px #ff4fb0, 0 0 12px #ff4fb0, 0 0 24px #ff4fb0;
     background: #0f0d1a;
     box-shadow: 0 0 0 1.5px #3ee8ff, 0 0 14px #3ee8ff;
-  }
-  .t-cozy .tname {
-    font: italic 600 1.3rem "Fraunces Variable", Georgia, serif;
-    color: #9c3f63;
-    text-shadow: none;
-    background: #fffbf8;
   }
   .grid {
     display: grid;

@@ -1,7 +1,7 @@
 /*
- * Lantern: Mea's night-garden theme. Everything here is scoped to [data-shell="lantern"], so the
- * Cozy themes stay exactly as they were. Shared pieces (buttons, cards, chips, fields) are restyled
- * here; the shell, the sky and the chat carry their own Lantern styles.
+ * Lantern: Mea's night-garden theme. Everything here is scoped to [data-shell="lantern"], which
+ * every theme wears now that Mea Cozy is retired. Shared pieces (buttons, cards, chips, fields) are
+ * restyled here over the base styles; the shell, the sky and the chat carry their own Lantern styles.
  */
 
 :root[data-shell="lantern"] {

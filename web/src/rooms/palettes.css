@@ -1,0 +1,11 @@
+/* ==========================================================================
+   The rooms: Wildflower, Overprint, Citadel and Marquee. Each wears the Lantern shell (rail,
+   backdrop, glass) with its own palette, type and shapes, and has a day and a night
+   ([data-mode]). --hi is what glass and hover fills are mixed from, --lo what shadows and wells
+   are mixed from, --pop is the solid behind menus and popovers.
+   ========================================================================== */
+
+@import "./wildflower/palette.css";
+@import "./overprint/palette.css";
+@import "./citadel/palette.css";
+@import "./marquee/palette.css";

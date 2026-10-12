@@ -1,0 +1,70 @@
+/*
+ * The rooms: Wildflower, Overprint, Citadel and Marquee. Each one wears the Lantern shell
+ * (lantern.css and the [data-shell="lantern"] styles in components); this file gives each its own
+ * cards, names, chapter titles, send button, logo and motion. Selectors carry an extra attribute
+ * so they win over the component styles they refine.
+ */
+
+/* =====================================================================
+   Shared by all four rooms
+   ===================================================================== */
+:root[data-mode][data-shell] {
+  --voice-mix: 88%;
+}
+:root[data-mode="day"][data-shell] {
+  --voice-mix: 58%;
+}
+:root[data-mode][data-shell] body {
+  background: var(--bg);
+}
+:root[data-mode="day"][data-shell] .chip.lavender,
+:root[data-mode="day"][data-shell] .chip.mint,
+:root[data-mode="day"][data-shell] .chip.butter,
+:root[data-mode="day"][data-shell] .chip.sky,
+:root[data-mode="day"][data-shell] .chip.peach {
+  color: var(--text);
+}
+:root[data-mode="day"][data-shell] .chip.lavender {
+  background: color-mix(in srgb, var(--lavender) 55%, transparent);
+}
+:root[data-mode="day"][data-shell] .chip.mint {
+  background: color-mix(in srgb, var(--mint) 60%, transparent);
+}
+:root[data-mode="day"][data-shell] .chip.butter {
+  background: color-mix(in srgb, var(--butter) 60%, transparent);
+}
+:root[data-mode="day"][data-shell] .chip.sky {
+  background: color-mix(in srgb, var(--sky) 60%, transparent);
+}
+:root[data-mode="day"][data-shell] .chip.peach {
+  background: color-mix(in srgb, var(--peach) 60%, transparent);
+}
+:root[data-mode="day"][data-shell] .toast.error {
+  color: #fff;
+}
+:root[data-mode="day"][data-shell] .input:focus,
+:root[data-mode="day"][data-shell] .textarea:focus,
+:root[data-mode="day"][data-shell] .select:focus {
+  background-color: var(--surface);
+}
+:root[data-mode="day"][data-shell] nav.rail .nav.on {
+  text-shadow: none;
+}
+:root[data-mode][data-shell] {
+  --reveal-bg: color-mix(in srgb, var(--pop) 90%, transparent);
+}
+:root[data-mode][data-shell] .msg .bubble::after {
+  display: none;
+}
+:root[data-mode][data-shell] .ch-title {
+  filter: none;
+}
+:root[data-mode][data-shell] .chapter-h .flourish {
+  display: contents;
+}
+:root[data-mode][data-shell] nav.rail .logo svg {
+  width: 30px;
+  height: 30px;
+  overflow: visible;
+}
+

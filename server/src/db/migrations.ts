@@ -1167,6 +1167,14 @@ CREATE TABLE offpage_cache (
 CREATE INDEX offpage_cache_chat ON offpage_cache(chat_id);
 `,
   },
+  {
+    id: 21,
+    name: "no cozy theme",
+    sql: /* sql */ `
+-- Mea Cozy (light, dark, and "match my device") was retired; whoever wore it moves to Lantern.
+UPDATE settings SET value = '"lantern"' WHERE key = 'appearance.theme' AND value IN ('"system"', '"light"', '"dark"');
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

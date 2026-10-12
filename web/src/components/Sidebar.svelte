@@ -64,12 +64,11 @@
   ];
 
   const dark = $derived(app.dark);
-  // In a room, day ↔ night. Otherwise Lantern → Mea Cozy → Cozy Night → Lantern.
+  // In a room, day ↔ night. Lantern is always night, so it has no switch.
   function toggleTheme() {
     if (isRoom(app.theme)) void saveSetting("appearance.themeMode", app.night ? "day" : "night");
-    else void saveSetting("appearance.theme", app.theme === "lantern" ? "light" : app.theme === "light" ? "dark" : "lantern");
   }
-  const themeTitle = $derived(isRoom(app.theme) ? (app.night ? themeInfo(app.theme)?.day : themeInfo(app.theme)?.night) : app.theme === "lantern" ? "Mea Cozy (light)" : app.theme === "light" ? "Cozy Night" : "Lantern");
+  const themeTitle = $derived(isRoom(app.theme) ? (app.night ? themeInfo(app.theme)?.day : themeInfo(app.theme)?.night) : "");
 </script>
 
 <div class="sidebar">
@@ -84,9 +83,11 @@
       <button class="btn ghost icon small" onclick={() => setDevice("discreet", !device.discreet)} aria-label={device.discreet ? "Leave discreet mode" : "Discreet mode: blur avatars and previews"} aria-pressed={device.discreet} title={device.discreet ? "Discreet mode is on" : "Discreet mode"}>
         {#if device.discreet}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
       </button>
-      <button class="btn ghost icon small" onclick={toggleTheme} aria-label="Change theme" title={themeTitle}>
-        {#if dark}<Sun size={16} />{:else}<Moon size={16} />{/if}
-      </button>
+      {#if isRoom(app.theme)}
+        <button class="btn ghost icon small" onclick={toggleTheme} aria-label="Change theme" title={themeTitle}>
+          {#if dark}<Sun size={16} />{:else}<Moon size={16} />{/if}
+        </button>
+      {/if}
     </div>
   </div>
 

@@ -1252,7 +1252,7 @@
             <a class="btn ghost icon" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>
             <DisplayMenu />
             <span class="sep hide-sm"></span>
-            {#if app.shell === "lantern" && !app.isMobile}
+            {#if !app.isMobile}
               <button class="btn ghost icon" onclick={() => toggleRail(true)} class:on={layout.railChat} aria-label={layout.railChat ? "Hide navigation" : "Show navigation"} title={layout.railChat ? "Hide navigation" : "Show navigation"}><PanelLeft size={18} /></button>
             {/if}
             <button class="btn ghost icon" onclick={togglePanel} aria-label={app.isMobile ? "Memory, story and world" : panelOpen ? "Hide the side panel" : "Show the side panel"} title={panelOpen && !app.isMobile ? "Hide the side panel" : "Memory, story, world and notes"} class:on={panelOpen && !app.isMobile}><PanelRight size={18} /></button>

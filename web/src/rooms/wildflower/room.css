@@ -1,0 +1,371 @@
+/* =====================================================================
+   I · WILDFLOWER — a meadow in pastel
+   ===================================================================== */
+:root[data-theme="wildflower"][data-shell] h1,
+:root[data-theme="wildflower"][data-shell] h2 {
+  font-style: italic;
+  font-weight: 600;
+}
+:root[data-theme="wildflower"][data-shell] h1 {
+  color: var(--accent-ink);
+}
+:root[data-theme="wildflower"][data-shell] .eyebrow-l {
+  letter-spacing: 0.16em;
+}
+:root[data-theme="wildflower"][data-shell] .btn {
+  border-radius: 999px;
+}
+:root[data-theme="wildflower"][data-shell] .btn.primary {
+  color: var(--on-accent);
+  box-shadow:
+    0 6px 18px -8px color-mix(in srgb, var(--accent-ink) 55%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 55%);
+}
+:root[data-theme="wildflower"][data-shell] .btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 24px -10px color-mix(in srgb, var(--accent-ink) 60%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--sig2) 30%, transparent);
+}
+:root[data-theme="wildflower"][data-mode="night"] .btn.primary {
+  box-shadow: 0 0 24px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] .chip {
+  background: color-mix(in srgb, var(--sig1) 30%, transparent);
+  border-color: transparent;
+  color: var(--thought);
+}
+:root[data-theme="wildflower"][data-shell] .chip.rose {
+  background: color-mix(in srgb, var(--sig2) 40%, transparent);
+  color: var(--accent-ink);
+}
+:root[data-theme="wildflower"][data-shell] .seg button.on {
+  background: color-mix(in srgb, var(--sig2) 42%, var(--surface));
+  color: var(--accent-ink);
+  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--accent-ink) 40%, transparent);
+}
+:root[data-theme="wildflower"][data-mode="night"] .seg button.on {
+  background: color-mix(in srgb, var(--sig2) 22%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] .switch input:checked {
+  background: linear-gradient(90deg, var(--sig2), var(--accent));
+}
+:root[data-theme="wildflower"][data-mode="day"] .card,
+:root[data-theme="wildflower"][data-mode="day"] .panel {
+  border-color: var(--border);
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="wildflower"][data-mode="day"] .panel {
+  background:
+    radial-gradient(80% 60% at 100% 0%, color-mix(in srgb, var(--sig2) 14%, transparent), transparent 70%),
+    var(--pane);
+}
+
+/* the shell */
+:root[data-theme="wildflower"][data-mode="day"] nav.rail,
+:root[data-theme="wildflower"][data-mode="day"] .main-col,
+:root[data-theme="wildflower"][data-mode="day"] .dock {
+  background: linear-gradient(160deg, rgb(255 255 255 / 82%), rgb(255 251 250 / 62%));
+  border-color: var(--border);
+  box-shadow: var(--shadow-2);
+}
+:root[data-theme="wildflower"][data-mode="day"] .main-col {
+  background:
+    radial-gradient(55% 38% at 100% 0%, color-mix(in srgb, var(--sig2) 20%, transparent), transparent 72%),
+    radial-gradient(50% 40% at 0% 100%, color-mix(in srgb, var(--sig1) 22%, transparent), transparent 72%),
+    linear-gradient(160deg, rgb(255 255 255 / 80%), rgb(255 251 250 / 62%));
+}
+:root[data-theme="wildflower"][data-shell] nav.rail .logo {
+  background: radial-gradient(circle at 35% 30%, #fff, color-mix(in srgb, var(--sig2) 50%, #fff));
+  box-shadow: 0 0 0 1px var(--border), 0 8px 20px -10px color-mix(in srgb, var(--accent-ink) 50%, transparent);
+  animation: none;
+}
+:root[data-theme="wildflower"][data-mode="night"] nav.rail .logo {
+  background: radial-gradient(circle at 35% 30%, #2e3c35, var(--surface-2));
+  box-shadow: 0 0 22px -4px color-mix(in srgb, var(--sig2) 50%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] nav.rail .logo svg {
+  animation: wf-turn 24s linear infinite;
+}
+:root[data-theme="wildflower"][data-shell] nav.rail .logo:hover svg {
+  animation-duration: 3s;
+}
+:root[data-theme="wildflower"][data-shell] nav.rail .nav.on {
+  background: color-mix(in srgb, var(--sig2) 34%, transparent);
+  color: var(--accent-ink) !important;
+  box-shadow: none;
+}
+:root[data-theme="wildflower"][data-mode="night"] nav.rail .nav.on {
+  background: color-mix(in srgb, var(--sig2) 16%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] nav.rail .nav.on::before {
+  background: linear-gradient(var(--sig2), var(--sig1));
+  box-shadow: none;
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .p1 {
+  fill: var(--sig2);
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .p2 {
+  fill: color-mix(in srgb, var(--sig2) 55%, var(--surface));
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .p3 {
+  fill: var(--lavender);
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .p4 {
+  fill: var(--peach);
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .fc {
+  fill: var(--butter);
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .bud {
+  fill: var(--sig2);
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .stem {
+  fill: none;
+  stroke: var(--leaf);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .lf {
+  fill: var(--leaf);
+  opacity: 0.85;
+}
+:root[data-theme="wildflower"][data-shell] .w-orn .lf2 {
+  fill: var(--sig1);
+}
+
+/* messages: petal cards */
+:root[data-theme="wildflower"][data-shell] .style-cards .msg .bubble {
+  background: linear-gradient(170deg, var(--tint-char), color-mix(in srgb, var(--tint-char) 80%, transparent));
+  box-shadow: var(--shadow-1);
+  --hairline: linear-gradient(160deg, var(--sig2), color-mix(in srgb, var(--sig2) 30%, transparent) 45%, color-mix(in srgb, var(--lavender) 60%, transparent));
+}
+:root[data-theme="wildflower"][data-shell] .style-cards .msg.user .bubble {
+  background: linear-gradient(170deg, var(--tint-user), color-mix(in srgb, var(--tint-user) 80%, transparent));
+  --hairline: linear-gradient(160deg, var(--sig1), color-mix(in srgb, var(--sig1) 30%, transparent) 50%, color-mix(in srgb, var(--leaf) 40%, transparent));
+}
+:root[data-theme="wildflower"][data-shell] .style-cards .msg.bookmarked .bubble {
+  --hairline: linear-gradient(135deg, var(--sig2), var(--lavender) 50%, var(--sig1));
+}
+:root[data-theme="wildflower"][data-shell] .style-cards .msg.bookmarked .bubble::before {
+  padding: 1.5px;
+}
+:root[data-theme="wildflower"][data-shell] .msg .name {
+  font: italic 600 1.35rem/1 var(--font-display);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent-ink);
+}
+:root[data-theme="wildflower"][data-shell] .msg.user .name {
+  color: var(--thought);
+}
+:root[data-theme="wildflower"][data-shell] .msg .portrait {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 4.5px var(--sig2),
+    0 10px 24px -12px color-mix(in srgb, var(--accent-ink) 55%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% !important;
+}
+:root[data-theme="wildflower"][data-shell] .msg.user .portrait {
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 4.5px var(--sig1),
+    0 10px 24px -12px color-mix(in srgb, var(--thought) 45%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] .msg .portrait::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  width: 24px;
+  height: 24px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='%23f7a8c6' stroke='%23fff' stroke-width='1.5'%3E%3Ccircle cx='20' cy='10' r='8.5'/%3E%3Ccircle cx='29.5' cy='16.9' r='8.5'/%3E%3Ccircle cx='25.9' cy='28.1' r='8.5'/%3E%3Ccircle cx='14.1' cy='28.1' r='8.5'/%3E%3Ccircle cx='10.5' cy='16.9' r='8.5'/%3E%3C/g%3E%3Ccircle cx='20' cy='20' r='5.5' fill='%23ffe08a'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: wf-turn 30s linear infinite;
+}
+:root[data-theme="wildflower"][data-shell] .msg.user .portrait::after {
+  filter: hue-rotate(150deg) saturate(0.8);
+}
+:root[data-theme="wildflower"][data-shell] .msg .portrait {
+  position: relative;
+}
+:root[data-theme="wildflower"][data-shell] .msg {
+  animation: wf-in 0.75s var(--spring) backwards;
+}
+:root[data-theme="wildflower"][data-shell] .msg .portrait {
+  animation: wf-pop 0.8s var(--spring) 0.08s backwards;
+}
+:root[data-theme="wildflower"][data-shell] .prose mark.hl,
+:root[data-theme="wildflower"][data-shell] mark.hl {
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--sig2) 55%, transparent) 58% 94%, transparent 94%);
+}
+
+/* chapters */
+:root[data-theme="wildflower"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="wildflower"][data-shell] .chapter-h .w-wreath {
+  width: min(250px, 80%);
+  height: auto;
+  margin-bottom: -0.9rem;
+  overflow: visible;
+}
+:root[data-theme="wildflower"][data-shell] .chapter-h .w-wreath .grow {
+  animation: wf-leaf 0.9s var(--spring) backwards;
+}
+:root[data-theme="wildflower"][data-shell] .chapter-h .w-wreath .bloom {
+  animation: wf-bloom 1.1s var(--spring) 0.3s backwards;
+}
+:root[data-theme="wildflower"][data-shell] .chapter-h:hover .w-wreath .bloom {
+  animation: wf-nod 1.4s ease-in-out;
+}
+:root[data-theme="wildflower"][data-shell] .bar .cname {
+  font-style: italic;
+  font-weight: 600;
+}
+:root[data-theme="wildflower"][data-shell] .ch-num {
+  margin-top: 0.4rem;
+  font: 400 1.9rem/1 var(--font-script);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--thought);
+}
+:root[data-theme="wildflower"][data-shell] .ch-num b {
+  color: var(--thought);
+  font-weight: 400;
+}
+:root[data-theme="wildflower"][data-shell] .ch-title {
+  font: italic 600 clamp(2.6rem, 5.6vw, 4rem) / 1.05 var(--font-display);
+  background: var(--flame);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-theme="wildflower"][data-shell] .chapter-h::before {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--sig2) 30%, transparent), transparent);
+}
+:root[data-theme="wildflower"][data-shell] .sc-line {
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, var(--sig2));
+}
+:root[data-theme="wildflower"][data-shell] .sc-line:last-child {
+  background: linear-gradient(270deg, transparent, var(--sig1));
+}
+:root[data-theme="wildflower"][data-shell] .sc-body {
+  border-color: color-mix(in srgb, var(--sig2) 50%, var(--border));
+}
+:root[data-theme="wildflower"][data-shell] .sc-ic {
+  box-shadow: none;
+}
+
+/* composer: the blossom send button */
+:root[data-theme="wildflower"][data-shell] .composer {
+  border: 1.5px solid color-mix(in srgb, var(--sig2) 75%, transparent);
+}
+:root[data-theme="wildflower"][data-mode="day"] .composer {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 10px 28px -16px color-mix(in srgb, var(--accent-ink) 50%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] .send.primary {
+  width: 3rem;
+  min-height: 3rem;
+  border-radius: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='9.5' r='9.5'/%3E%3Ccircle cx='30' cy='16.8' r='9.5'/%3E%3Ccircle cx='26.2' cy='28.5' r='9.5'/%3E%3Ccircle cx='13.8' cy='28.5' r='9.5'/%3E%3Ccircle cx='10' cy='16.8' r='9.5'/%3E%3Ccircle cx='20' cy='20' r='11'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='9.5' r='9.5'/%3E%3Ccircle cx='30' cy='16.8' r='9.5'/%3E%3Ccircle cx='26.2' cy='28.5' r='9.5'/%3E%3Ccircle cx='13.8' cy='28.5' r='9.5'/%3E%3Ccircle cx='10' cy='16.8' r='9.5'/%3E%3Ccircle cx='20' cy='20' r='11'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 0.6s var(--spring), background 0.3s;
+}
+:root[data-theme="wildflower"][data-shell] .send.primary:not(:disabled):hover {
+  transform: rotate(36deg) scale(1.1);
+  background: var(--accent-strong);
+}
+:root[data-theme="wildflower"][data-shell] .send.primary:not(:disabled):hover svg {
+  transform: rotate(-36deg);
+}
+:root[data-theme="wildflower"][data-shell] .send.primary svg {
+  transition: transform 0.6s var(--spring);
+}
+:root[data-theme="wildflower"][data-shell] .send.primary:not(:disabled):active {
+  transform: rotate(72deg) scale(0.9);
+}
+
+/* home */
+:root[data-theme="wildflower"][data-shell] .continue {
+  background:
+    radial-gradient(420px 220px at 0% 0%, color-mix(in srgb, var(--sig2) 26%, transparent), transparent 70%),
+    radial-gradient(380px 200px at 100% 100%, color-mix(in srgb, var(--sig1) 26%, transparent), transparent 70%),
+    var(--pane);
+  border-color: color-mix(in srgb, var(--sig2) 60%, var(--border));
+}
+:root[data-theme="wildflower"][data-shell] .continue .eyebrow {
+  color: var(--thought);
+}
+:root[data-theme="wildflower"][data-shell] .continue .recapline {
+  border-left-color: var(--sig2);
+}
+:root[data-theme="wildflower"][data-shell] .continue .go {
+  border-radius: 999px;
+}
+:root[data-theme="wildflower"][data-shell] .hero-pic {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 5px var(--sig2),
+    0 16px 30px -14px color-mix(in srgb, var(--accent-ink) 50%, transparent);
+}
+:root[data-theme="wildflower"][data-shell] .hero-pic .avatar {
+  border-radius: 50% !important;
+}
+:root[data-theme="wildflower"][data-shell] .char .name {
+  font-style: italic;
+  font-weight: 600;
+}
+:root[data-theme="wildflower"][data-shell] .hello .spark {
+  display: inline-block;
+  color: var(--sig2);
+  animation: wf-turn 12s linear infinite;
+}
+
+@keyframes wf-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes wf-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+    filter: blur(4px);
+  }
+}
+@keyframes wf-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-14deg);
+  }
+}
+@keyframes wf-leaf {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+@keyframes wf-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.2) rotate(-90deg);
+  }
+}
+@keyframes wf-nod {
+  30% {
+    transform: rotate(14deg) scale(1.08);
+  }
+  60% {
+    transform: rotate(-8deg);
+  }
+}
+

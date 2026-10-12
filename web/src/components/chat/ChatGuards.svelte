@@ -220,7 +220,7 @@
     background: linear-gradient(color-mix(in srgb, var(--butter) 35%, var(--surface)), var(--surface));
     box-shadow: var(--st-inset);
   }
-  :global(:root:is([data-mode="night"], [data-theme="lantern"], [data-theme="dark"])) .vu {
+  :global(:root:is([data-mode="night"], [data-theme="lantern"])) .vu {
     background: linear-gradient(color-mix(in srgb, var(--lamp, var(--butter)) 14%, var(--st-well)), var(--st-well));
   }
   .vu svg {

@@ -1,0 +1,521 @@
+/* =====================================================================
+   V · CITADEL — chronicled by candlelight
+   ===================================================================== */
+:root[data-theme="citadel"][data-shell] h1,
+:root[data-theme="citadel"][data-shell] h2 {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+:root[data-theme="citadel"][data-shell] h1 {
+  font-size: calc(var(--fs-xl) * 1.25);
+  color: var(--accent-ink);
+}
+:root[data-theme="citadel"][data-shell] h2 {
+  font-size: calc(var(--fs-lg) * 1.05);
+}
+:root[data-theme="citadel"][data-shell] .panel > h2:first-child,
+:root[data-theme="citadel"][data-shell] .panel > .row > h2:first-child {
+  font-size: 1.25rem;
+}
+:root[data-theme="citadel"][data-shell] .eyebrow-l,
+:root[data-theme="citadel"][data-shell] .field > .label {
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.12em;
+  font-size: 0.85rem;
+}
+:root[data-theme="citadel"][data-shell] .btn {
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+}
+:root[data-theme="citadel"][data-shell] .btn.primary {
+  background: var(--grad);
+  color: var(--on-accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, #000);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--gilt) 55%, transparent),
+    0 2px 6px rgb(0 0 0 / 25%);
+}
+:root[data-theme="citadel"][data-shell] .btn.primary:hover {
+  background: var(--grad);
+  box-shadow:
+    inset 0 0 0 2px var(--gilt),
+    0 4px 12px rgb(0 0 0 / 30%);
+}
+:root[data-theme="citadel"][data-shell] .card,
+:root[data-theme="citadel"][data-shell] .panel {
+  background: var(--pane);
+  border: 1px solid var(--border-strong);
+  box-shadow:
+    inset 0 0 0 4px var(--surface),
+    inset 0 0 0 5px color-mix(in srgb, var(--gilt) 55%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="citadel"][data-shell] .chip {
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.05em;
+  background: transparent;
+  border-color: var(--border-strong);
+}
+:root[data-theme="citadel"][data-shell] .chip.rose {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+:root[data-theme="citadel"][data-shell] .seg {
+  border-radius: 3px;
+}
+:root[data-theme="citadel"][data-shell] .seg button {
+  border-radius: 2px;
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+}
+:root[data-theme="citadel"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gilt) 60%, transparent);
+}
+:root[data-theme="citadel"][data-shell] .switch input:checked {
+  background: var(--grad);
+  box-shadow: inset 0 0 0 1px var(--gilt);
+}
+
+/* the shell: a house banner for a rail, folios for panels */
+:root[data-theme="citadel"][data-shell] nav.rail {
+  position: relative;
+  isolation: isolate;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding-bottom: 40px;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme="citadel"][data-shell] nav.rail::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 22%), transparent 22%, transparent 78%, rgb(0 0 0 / 22%)),
+    var(--rail-bg);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26px), 50% 100%, 0 calc(100% - 26px));
+  box-shadow:
+    inset 0 0 0 4px var(--rail-bg),
+    inset 0 0 0 5px color-mix(in srgb, var(--rail-ink) 70%, transparent);
+  animation: ct-unfurl 0.9s var(--ease) backwards;
+}
+:root[data-theme="citadel"][data-shell] nav.rail .nav {
+  color: color-mix(in srgb, var(--rail-ink) 70%, transparent) !important;
+}
+:root[data-theme="citadel"][data-shell] nav.rail .nav:hover,
+:root[data-theme="citadel"][data-shell] nav.rail .nav.on {
+  background: color-mix(in srgb, var(--rail-ink) 16%, transparent);
+  color: var(--rail-ink) !important;
+  box-shadow: none;
+  text-shadow: none;
+}
+:root[data-theme="citadel"][data-shell] nav.rail .nav.on::before {
+  left: -10px;
+  background: var(--rail-ink);
+  box-shadow: none;
+}
+:root[data-theme="citadel"][data-shell] nav.rail hr {
+  margin-inline: auto;
+  background: color-mix(in srgb, var(--rail-ink) 40%, transparent);
+}
+:root[data-theme="citadel"][data-shell] nav.rail .logo {
+  width: 46px;
+  height: 52px;
+  border-radius: 0;
+  background: radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--accent) 60%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 70%, #000));
+  clip-path: path("M0 0H46V26C46 40 34 48 23 52 12 48 0 40 0 26Z");
+  box-shadow: none;
+  color: var(--rail-ink) !important;
+  font: 700 1.3rem/1 var(--font-display);
+  animation: none;
+}
+:root[data-theme="citadel"][data-shell] nav.rail .logo:hover {
+  transform: scale(1.06);
+}
+:root[data-theme="citadel"][data-shell] .main-col,
+:root[data-theme="citadel"][data-shell] .dock {
+  background: var(--pane);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 6px var(--surface),
+    inset 0 0 0 7px color-mix(in srgb, var(--gilt) 55%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="citadel"][data-mode="night"] .main-col,
+:root[data-theme="citadel"][data-mode="night"] .dock {
+  box-shadow:
+    inset 0 0 0 6px var(--surface),
+    inset 0 0 0 7px color-mix(in srgb, var(--gilt) 30%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="citadel"][data-mode="night"] .main-col {
+  background: linear-gradient(160deg, rgb(20 26 33 / 70%), rgb(14 18 24 / 58%));
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+}
+:root[data-theme="citadel"][data-shell] .chat.focus .main-col {
+  box-shadow: none;
+}
+:root[data-theme="citadel"][data-shell] .bar .cname .ctitle {
+  font: italic 400 0.95rem var(--font-story-theme);
+  letter-spacing: 0;
+}
+:root[data-theme="citadel"][data-shell] .bar .cname {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.55rem;
+  letter-spacing: 0.02em;
+}
+
+/* the maester's chain: gold, silver, iron, copper, bronze, steel */
+:root[data-theme="citadel"][data-shell] .c-chain {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 0 4px;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i {
+  --m: #c9a227;
+  flex-shrink: 0;
+  width: 17px;
+  height: 9px;
+  border: 2.2px solid var(--m);
+  border-radius: 6px;
+  margin: 0 -3px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%);
+  animation: ct-link 0.5s var(--ease) backwards;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i:nth-child(even) {
+  width: 13px;
+  height: 3.5px;
+  border: 0;
+  background: var(--m);
+  border-radius: 2px;
+  margin: 0 -2px;
+  position: relative;
+  z-index: 1;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i:nth-child(6n + 2) {
+  --m: #c0c4c8;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i:nth-child(6n + 3) {
+  --m: #66696e;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i:nth-child(6n + 4) {
+  --m: #b8734a;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i:nth-child(6n + 5) {
+  --m: #a7803e;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i:nth-child(6n + 6) {
+  --m: #3f4650;
+}
+:root[data-theme="citadel"][data-mode="night"] .c-chain i:nth-child(6n + 3) {
+  --m: #7d8189;
+}
+:root[data-theme="citadel"][data-mode="night"] .c-chain i:nth-child(6n + 6) {
+  --m: #5a6472;
+}
+:root[data-theme="citadel"][data-shell] .c-chain i:hover {
+  filter: brightness(1.4);
+}
+
+/* messages: folios with a gilt rule, a blackletter capital, and wax for the best ones */
+:root[data-theme="citadel"][data-shell] .style-cards .msg .bubble {
+  background: var(--tint-char);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  overflow: visible;
+  box-shadow:
+    inset 0 0 0 4px var(--tint-char),
+    inset 0 0 0 5px color-mix(in srgb, var(--gilt) 55%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="citadel"][data-shell] .style-cards .msg.user .bubble {
+  background: var(--tint-user);
+  box-shadow:
+    inset 0 0 0 4px var(--tint-user),
+    inset 0 0 0 5px color-mix(in srgb, var(--thought) 35%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="citadel"][data-shell] .style-cards .msg .bubble::before {
+  display: none;
+}
+:root[data-theme="citadel"][data-shell] .style-cards .msg.streaming .bubble {
+  animation: ct-candle 2.4s ease-in-out infinite;
+}
+:root[data-theme="citadel"][data-shell] .msg.assistant .prose > p:first-child::first-letter {
+  float: left;
+  margin: 0.2rem 0.55rem 0 0;
+  padding: 0.35rem 0.42rem 0.2rem;
+  font: 400 3.2em/0.82 var(--font-initial);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--gilt) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gilt) 75%, transparent);
+}
+:root[data-theme="citadel"][data-mode="night"] .msg.assistant .prose > p:first-child::first-letter {
+  color: var(--accent-ink);
+}
+:root[data-theme="citadel"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+  display: grid;
+  place-items: center;
+  content: "✠";
+  left: auto;
+  right: 14px;
+  top: -16px;
+  width: 42px;
+  height: 42px;
+  border-radius: 47% 53% 50% 46% / 52% 46% 54% 48%;
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent) 52%, color-mix(in srgb, var(--accent) 70%, #000));
+  box-shadow:
+    0 2px 5px rgb(0 0 0 / 35%),
+    inset 0 0 0 3px color-mix(in srgb, var(--accent) 75%, #000);
+  color: var(--on-accent);
+  font: 400 1.25rem/1 Georgia, serif;
+  animation: ct-seal 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+}
+:root[data-theme="citadel"][data-shell] .style-cards .msg.bookmarked .head {
+  padding-right: 3rem;
+}
+:root[data-theme="citadel"][data-shell] .msg .name {
+  font: 700 1.05rem/1.15 var(--font-display);
+  letter-spacing: 0.03em;
+  color: var(--accent-ink);
+}
+:root[data-theme="citadel"][data-shell] .msg.user .name {
+  color: var(--thought);
+}
+:root[data-theme="citadel"][data-shell] .msg .portrait {
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 4px var(--gilt),
+    0 10px 20px -10px rgb(0 0 0 / 50%);
+}
+:root[data-theme="citadel"][data-shell] .msg .portrait .avatar {
+  border-radius: 2px !important;
+}
+:root[data-theme="citadel"][data-shell] .msg.user .portrait {
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 4px color-mix(in srgb, var(--thought) 70%, var(--gilt)),
+    0 10px 20px -10px rgb(0 0 0 / 50%);
+}
+:root[data-theme="citadel"][data-shell] .msg {
+  animation: ct-in 0.8s var(--ease) backwards;
+}
+:root[data-theme="citadel"][data-shell] .prose mark.hl,
+:root[data-theme="citadel"][data-shell] mark.hl {
+  background: linear-gradient(transparent 60%, color-mix(in srgb, var(--gilt) 40%, transparent) 60%);
+}
+
+/* chapters */
+:root[data-theme="citadel"][data-shell] .chapter-h::before {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--gilt) 22%, transparent), transparent);
+  animation: ct-candle 3.4s ease-in-out infinite;
+}
+:root[data-theme="citadel"][data-shell] .chapter-h .orn-line i {
+  color: var(--gilt);
+  font-style: normal;
+}
+:root[data-theme="citadel"][data-shell] .chapter-h .orn-line span {
+  background: linear-gradient(90deg, transparent, var(--gilt));
+}
+:root[data-theme="citadel"][data-shell] .chapter-h .orn-line span:last-child {
+  background: linear-gradient(270deg, transparent, var(--gilt));
+}
+:root[data-theme="citadel"][data-shell] .ch-num {
+  font: italic 400 1.05rem var(--font-story-theme);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--accent-ink);
+}
+:root[data-theme="citadel"][data-shell] .ch-num b {
+  color: var(--accent-ink);
+  font-weight: 400;
+}
+:root[data-theme="citadel"][data-shell] .ch-title {
+  font: 700 clamp(2rem, 4.4vw, 3rem) / 1.08 var(--font-display);
+  letter-spacing: 0.01em;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--text);
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--gilt) 45%, transparent);
+}
+:root[data-theme="citadel"][data-shell] .ch-meta {
+  font-variant: small-caps;
+  text-transform: lowercase;
+  letter-spacing: 0.1em;
+  font-size: 0.85rem;
+}
+:root[data-theme="citadel"][data-shell] .chapter-h .c-chain {
+  margin-top: 0.7rem;
+  width: min(22rem, 90%);
+}
+:root[data-theme="citadel"][data-shell] .sc-body {
+  border-radius: 2px;
+  background: var(--tint-note);
+  border-top: 3px double var(--gilt);
+  border-bottom: 3px double var(--gilt);
+  border-left: 0;
+  border-right: 0;
+}
+:root[data-theme="citadel"][data-shell] .sc-body b {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+}
+:root[data-theme="citadel"][data-shell] .sc-line {
+  background: linear-gradient(90deg, transparent, var(--gilt));
+}
+:root[data-theme="citadel"][data-shell] .sc-line:last-child {
+  background: linear-gradient(270deg, transparent, var(--gilt));
+}
+
+/* composer: the wax-seal send button */
+:root[data-theme="citadel"][data-shell] .composer {
+  background: var(--tint-char);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 3px var(--tint-char),
+    inset 0 0 0 4px color-mix(in srgb, var(--gilt) 45%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="citadel"][data-shell] .composer textarea::placeholder {
+  font-family: var(--font-story-theme);
+}
+:root[data-theme="citadel"][data-shell] .send.primary {
+  width: 3rem;
+  min-height: 3rem;
+  border-radius: 47% 53% 50% 46% / 52% 46% 54% 48%;
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent) 52%, color-mix(in srgb, var(--accent) 70%, #000));
+  color: var(--on-accent);
+  border: 0;
+  box-shadow:
+    0 2px 5px rgb(0 0 0 / 35%),
+    inset 0 0 0 3px color-mix(in srgb, var(--accent) 75%, #000);
+}
+:root[data-theme="citadel"][data-shell] .send.primary:not(:disabled):hover {
+  transform: rotate(-12deg) scale(1.06);
+}
+:root[data-theme="citadel"][data-shell] .send.primary:not(:disabled):active {
+  transform: scale(0.86);
+  box-shadow:
+    0 0 0 rgb(0 0 0 / 0%),
+    inset 0 0 0 5px color-mix(in srgb, var(--accent) 75%, #000);
+}
+
+/* home */
+:root[data-theme="citadel"][data-shell] .continue {
+  background:
+    radial-gradient(420px 220px at 0% 0%, color-mix(in srgb, #ffcf7a 18%, transparent), transparent 70%),
+    var(--pane);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 6px var(--surface),
+    inset 0 0 0 7px color-mix(in srgb, var(--gilt) 55%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="citadel"][data-shell] .continue .eyebrow {
+  color: var(--accent-ink);
+  font-variant: small-caps;
+  text-transform: lowercase;
+}
+:root[data-theme="citadel"][data-shell] .continue .title {
+  font-weight: 700;
+  font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+}
+:root[data-theme="citadel"][data-shell] .continue .recapline {
+  border-left: 3px double var(--gilt);
+}
+:root[data-theme="citadel"][data-shell] .continue .go {
+  background: var(--grad);
+  color: var(--on-accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, #000);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--gilt) 55%, transparent);
+}
+:root[data-theme="citadel"][data-shell] .hero-pic,
+:root[data-theme="citadel"][data-shell] .char {
+  border-radius: 3px;
+}
+:root[data-theme="citadel"][data-shell] .hero-pic {
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 4px var(--gilt),
+    0 16px 30px -14px rgb(0 0 0 / 50%);
+}
+:root[data-theme="citadel"][data-shell] .hero-pic .avatar {
+  border-radius: 2px !important;
+}
+:root[data-theme="citadel"][data-shell] .char {
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    0 0 0 4px var(--surface),
+    0 0 0 5px color-mix(in srgb, var(--gilt) 55%, transparent);
+}
+:root[data-theme="citadel"][data-shell] .char .name {
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.01em;
+}
+
+@keyframes ct-unfurl {
+  from {
+    clip-path: polygon(0 0, 100% 0, 100% 0, 50% 0, 0 0);
+  }
+}
+@keyframes ct-in {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(-6px);
+  }
+  to {
+    clip-path: inset(0 0 -40px 0);
+  }
+}
+@keyframes ct-seal {
+  0% {
+    opacity: 0;
+    transform: scale(2.2) rotate(-30deg);
+  }
+  70% {
+    transform: scale(0.92) rotate(4deg);
+  }
+}
+@keyframes ct-link {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes ct-candle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  38% {
+    opacity: 0.84;
+  }
+  41% {
+    opacity: 0.96;
+  }
+  66% {
+    opacity: 0.8;
+  }
+}
+

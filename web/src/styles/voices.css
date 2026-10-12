@@ -4,7 +4,7 @@
 :root {
   --voice-mix: 58%;
 }
-:root[data-theme="dark"],
+
 :root[data-shell="lantern"] {
   --voice-mix: 88%;
 }
@@ -58,7 +58,7 @@
   --on-voice: #160f1c;
   --card-lift: 0 12px 24px -18px rgba(40, 25, 10, 0.55);
 }
-:root[data-theme="dark"],
+
 :root[data-shell="lantern"] {
   --card-lift: 0 14px 26px -18px rgba(0, 0, 0, 0.8);
 }
