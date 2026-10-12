@@ -1,0 +1,465 @@
+/* =====================================================================
+   VII · SUGAR RUSH — sweet talk only
+   Macaron cards, lollipop portraits, a frosted chapter cake and a cherry to send.
+   ===================================================================== */
+:root[data-theme="sugarrush"][data-shell] h1 {
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--accent-ink);
+  text-shadow:
+    2px 2px 0 var(--cream),
+    4px 4px 0 color-mix(in srgb, var(--c2) 80%, transparent),
+    6px 6px 0 color-mix(in srgb, var(--c4) 60%, transparent);
+}
+:root[data-theme="sugarrush"][data-shell] h2,
+:root[data-theme="sugarrush"][data-shell] .panel > h2:first-child {
+  font-family: var(--font-ui);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+:root[data-theme="sugarrush"][data-shell] .btn {
+  border-radius: 999px;
+  font-weight: 600;
+}
+:root[data-theme="sugarrush"][data-shell] .btn.primary {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c1) 70%, #fff), var(--c1) 55%, color-mix(in srgb, var(--c1) 85%, #a0004a));
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 50%),
+    inset 0 -3px 0 rgb(0 0 0 / 10%),
+    0 4px 0 color-mix(in srgb, var(--c1) 60%, #6a0030),
+    0 10px 18px -8px color-mix(in srgb, var(--c1) 70%, transparent);
+  text-shadow: 0 1px 0 rgb(120 0 50 / 30%);
+  transition:
+    transform 0.2s var(--spring),
+    box-shadow 0.2s var(--ease);
+}
+:root[data-theme="sugarrush"][data-shell] .btn.primary:hover {
+  transform: translateY(-2px);
+}
+:root[data-theme="sugarrush"][data-shell] .btn.primary:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 40%),
+    0 1px 0 color-mix(in srgb, var(--c1) 60%, #6a0030);
+}
+:root[data-theme="sugarrush"][data-shell] .card,
+:root[data-theme="sugarrush"][data-shell] .panel {
+  border-radius: var(--r-lg);
+  border: 2px dashed color-mix(in srgb, var(--accent) 32%, transparent);
+  box-shadow:
+    0 6px 0 -1px color-mix(in srgb, var(--accent) 16%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="sugarrush"][data-shell] .chip {
+  border-radius: 999px;
+  font-weight: 600;
+}
+:root[data-theme="sugarrush"][data-shell] .seg button.on {
+  border-radius: 999px;
+  background: var(--butter);
+  color: #4a3500;
+  box-shadow:
+    inset -2px -3px 0 rgb(0 0 0 / 8%),
+    inset 2px 2px 0 rgb(255 255 255 / 60%);
+}
+:root[data-theme="sugarrush"][data-shell] .switch input:checked {
+  background: var(--c1);
+}
+:root[data-theme="sugarrush"][data-shell] mark.hl,
+:root[data-theme="sugarrush"][data-shell] .prose mark.hl {
+  background: linear-gradient(transparent 50%, color-mix(in srgb, var(--c3) 75%, transparent) 50% 92%, transparent 92%);
+  color: inherit;
+}
+
+/* the shell: a striped candy rail and a frosted window */
+:root[data-theme="sugarrush"][data-shell] nav.rail {
+  border: 4px solid transparent;
+  border-radius: 34px;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    repeating-linear-gradient(-45deg, var(--c1) 0 9px, var(--cream) 9px 18px) border-box;
+  box-shadow: var(--shadow-2);
+}
+:root[data-theme="sugarrush"][data-mode="night"] nav.rail {
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    repeating-linear-gradient(-45deg, var(--c1) 0 9px, #5a1a55 9px 18px) border-box;
+  box-shadow:
+    0 0 26px -4px color-mix(in srgb, var(--c1) 55%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="sugarrush"][data-shell] nav.rail .logo {
+  width: 56px;
+  background: none;
+  box-shadow: none;
+  place-items: center;
+  color: var(--accent) !important;
+  font: 400 1.7rem/1 var(--font-display);
+  text-shadow:
+    2px 2px 0 var(--cream),
+    3px 3px 0 var(--c2);
+  animation: sr-bounce 3.2s var(--spring) infinite;
+}
+:root[data-theme="sugarrush"][data-shell] nav.rail .nav.on {
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c3) 40%, #fff), var(--c3) 60%, color-mix(in srgb, var(--c3) 80%, #b07a00));
+  color: #4a3500 !important;
+  box-shadow:
+    inset -3px -3px 0 rgb(0 0 0 / 10%),
+    0 4px 10px -4px color-mix(in srgb, var(--c3) 80%, transparent);
+}
+:root[data-theme="sugarrush"][data-shell] nav.rail .nav.on::before {
+  background: var(--c1);
+}
+:root[data-theme="sugarrush"][data-shell] .main-col,
+:root[data-theme="sugarrush"][data-shell] .dock {
+  border-radius: 34px;
+  border: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--cream) 55%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="sugarrush"][data-mode="night"] .main-col {
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--c1) 12%, transparent),
+    0 0 50px -10px color-mix(in srgb, var(--c1) 40%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="sugarrush"][data-shell] .chat.focus .main-col {
+  border-color: transparent;
+  box-shadow: none;
+}
+:root[data-theme="sugarrush"][data-shell] .bar .cname {
+  font: 400 2.1rem/1 var(--font-display);
+  color: var(--accent-ink);
+  text-shadow:
+    2px 2px 0 var(--cream),
+    3px 3px 0 color-mix(in srgb, var(--c2) 85%, transparent);
+}
+:root[data-theme="sugarrush"][data-shell] .bar .cname .ctitle {
+  font: 600 0.8rem var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-shadow: none;
+}
+:root[data-theme="sugarrush"][data-shell] .bar.compact .cname {
+  font-size: 1.75rem;
+}
+
+/* messages: macarons — two glossy shells, a line of cream and a soft shadow */
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg .bubble {
+  border-radius: 34px;
+  border: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c1) 7%, var(--surface)), color-mix(in srgb, var(--c1) 16%, var(--surface)));
+  box-shadow:
+    inset 0 -8px 0 color-mix(in srgb, var(--c1) 10%, transparent),
+    0 8px 0 -2px var(--cream),
+    0 11px 0 -2px color-mix(in srgb, var(--c1) 30%, transparent),
+    0 24px 30px -20px color-mix(in srgb, var(--c1) 60%, transparent),
+    0 0 calc(28px * var(--glaze)) -8px var(--c1);
+}
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg.user .bubble {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c2) 10%, var(--surface)), color-mix(in srgb, var(--c2) 22%, var(--surface)));
+  box-shadow:
+    inset 0 -8px 0 color-mix(in srgb, var(--c2) 14%, transparent),
+    0 8px 0 -2px var(--cream),
+    0 11px 0 -2px color-mix(in srgb, var(--c2) 45%, transparent),
+    0 24px 30px -20px color-mix(in srgb, var(--c2) 70%, transparent),
+    0 0 calc(28px * var(--glaze)) -8px var(--c2);
+}
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg.system .bubble {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c3) 12%, var(--surface)), color-mix(in srgb, var(--c3) 24%, var(--surface)));
+}
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg .bubble::before {
+  inset: 9px auto auto 26px;
+  width: 84px;
+  height: 13px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / calc(0.75 - 0.55 * var(--glaze)));
+  -webkit-mask: none;
+  mask: none;
+  filter: blur(1px);
+}
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+  display: block;
+  left: auto;
+  right: 18px;
+  top: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff9aae, #e8173f 45%, #a1001f);
+  box-shadow:
+    0 3px 0 #7a0016,
+    inset 4px 3px 0 -2px rgb(255 255 255 / 60%);
+  animation: sr-drop 0.6s var(--spring) backwards;
+}
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg.bookmarked .head {
+  padding-right: 2.6rem;
+}
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg.streaming .bubble {
+  animation: sr-jelly 1.6s ease-in-out infinite;
+}
+:root[data-theme="sugarrush"][data-shell] .style-cards .msg.highlighted .bubble {
+  box-shadow:
+    0 0 0 3px var(--c3),
+    0 0 40px -6px var(--c3);
+}
+:root[data-theme="sugarrush"][data-shell] .msg .name {
+  font: 400 1.45rem/1 var(--font-display);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--accent-ink);
+  text-shadow: 1.5px 1.5px 0 var(--cream);
+}
+:root[data-theme="sugarrush"][data-shell] .msg.user .name {
+  color: var(--thought);
+}
+:root[data-theme="sugarrush"][data-shell] .msg .portrait {
+  position: relative;
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 4px var(--cream),
+    0 0 0 8px var(--c1),
+    0 0 0 10px var(--cream),
+    0 14px 22px -10px color-mix(in srgb, var(--c1) 80%, transparent);
+}
+:root[data-theme="sugarrush"][data-shell] .msg.user .portrait {
+  box-shadow:
+    0 0 0 4px var(--cream),
+    0 0 0 8px var(--c2),
+    0 0 0 10px var(--cream),
+    0 14px 22px -10px color-mix(in srgb, var(--c2) 80%, transparent);
+}
+:root[data-theme="sugarrush"][data-shell] .msg .portrait .avatar {
+  border-radius: 999px !important;
+}
+:root[data-theme="sugarrush"][data-shell] .msg .portrait::after {
+  content: "";
+  position: absolute;
+  inset: -22px;
+  pointer-events: none;
+  background:
+    radial-gradient(2px 7px at 12% 18%, var(--c2) 98%, transparent),
+    radial-gradient(7px 2px at 88% 12%, var(--c3) 98%, transparent),
+    radial-gradient(2px 7px at 94% 62%, var(--c4) 98%, transparent),
+    radial-gradient(7px 2px at 6% 70%, var(--c5) 98%, transparent),
+    radial-gradient(2px 7px at 70% 96%, var(--c1) 98%, transparent),
+    radial-gradient(3px 3px at 30% 94%, var(--c3) 98%, transparent);
+  transition: transform 0.6s var(--spring);
+}
+:root[data-theme="sugarrush"][data-shell] .msg:hover .portrait::after {
+  transform: rotate(25deg) scale(1.08);
+}
+:root[data-theme="sugarrush"][data-shell] .msg {
+  animation: sr-in 0.6s var(--spring) backwards;
+}
+
+/* chapters: a frosted cake with drips, sprinkles and a three-layer title */
+:root[data-theme="sugarrush"][data-shell] .chapter-h {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 2.6rem 3.2rem 1.9rem;
+  overflow: hidden;
+  border-radius: 30px;
+  background: var(--surface);
+  box-shadow:
+    0 8px 0 var(--cream),
+    0 11px 0 color-mix(in srgb, var(--c1) 40%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="sugarrush"][data-shell] .chapter-h::before {
+  inset: 0 0 auto;
+  width: auto;
+  height: 34px;
+  transform: none;
+  background:
+    radial-gradient(circle at 14px 0, var(--c1) 12px, transparent 12.5px) 0 12px / 28px 22px repeat-x,
+    radial-gradient(circle at 7px 0, var(--c1) 6px, transparent 6.5px) 9px 12px / 41px 30px repeat-x,
+    linear-gradient(var(--c1), var(--c1)) top / 100% 13px no-repeat;
+}
+:root[data-theme="sugarrush"][data-shell] .chapter-h::after {
+  content: "";
+  position: absolute;
+  inset: 34px 0 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background:
+    radial-gradient(2px 7px at 8% 30%, var(--c2) 98%, transparent),
+    radial-gradient(7px 2px at 92% 40%, var(--c3) 98%, transparent),
+    radial-gradient(2px 7px at 85% 80%, var(--c4) 98%, transparent),
+    radial-gradient(7px 2px at 14% 78%, var(--c5) 98%, transparent),
+    radial-gradient(3px 3px at 50% 92%, var(--c1) 98%, transparent);
+}
+:root[data-theme="sugarrush"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="sugarrush"][data-shell] .ch-num {
+  margin-top: 0.2rem;
+  font: 700 0.78rem var(--font-ui);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--thought);
+}
+:root[data-theme="sugarrush"][data-shell] .ch-num b {
+  color: var(--accent-ink);
+}
+:root[data-theme="sugarrush"][data-shell] .ch-title {
+  font: 400 clamp(2.2rem, 5vw, 3.4rem) / 1.05 var(--font-display);
+  letter-spacing: 0.01em;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--accent-ink);
+  text-shadow:
+    2px 2px 0 var(--cream),
+    4px 4px 0 var(--c2),
+    6px 6px 0 var(--c4);
+}
+:root[data-theme="sugarrush"][data-mode="night"] .ch-title {
+  color: #ffe8f4;
+  text-shadow:
+    0 0 10px var(--c1),
+    3px 3px 0 var(--c1),
+    6px 6px 0 #5a1a55;
+}
+:root[data-theme="sugarrush"][data-shell] .sc-line {
+  height: 4px;
+  border-radius: 4px;
+  background: repeating-linear-gradient(90deg, var(--c1) 0 10px, var(--c2) 10px 20px, var(--c3) 20px 30px, var(--c4) 30px 40px);
+  opacity: 0.8;
+}
+
+/* composer: a cream pill and a cherry to send */
+:root[data-theme="sugarrush"][data-shell] .composer {
+  border-radius: 30px;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--c2) 60%, transparent),
+    0 6px 0 color-mix(in srgb, var(--accent) 22%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="sugarrush"][data-shell] .send.primary {
+  position: relative;
+  overflow: visible;
+  border-radius: 50%;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #ff9aae 0, #e8173f 45%, #a1001f 100%);
+  box-shadow:
+    0 5px 0 #7a0016,
+    0 12px 18px -6px rgb(160 0 30 / 60%);
+}
+:root[data-theme="sugarrush"][data-shell] .send.primary::before {
+  content: "";
+  position: absolute;
+  left: 54%;
+  top: -13px;
+  width: 15px;
+  height: 17px;
+  border: 3px solid #4d7a2a;
+  border-color: #4d7a2a transparent transparent #4d7a2a;
+  border-radius: 70% 0 0 0;
+  rotate: 18deg;
+  pointer-events: none;
+}
+:root[data-theme="sugarrush"][data-shell] .send.primary:not(:disabled):hover {
+  transform: translateY(-2px) rotate(-6deg);
+}
+:root[data-theme="sugarrush"][data-shell] .send.primary:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #7a0016;
+}
+
+/* home */
+:root[data-theme="sugarrush"][data-shell] .hello h1 .spark {
+  color: var(--c1);
+}
+:root[data-theme="sugarrush"][data-shell] .continue {
+  border-radius: 34px;
+  border: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c4) 10%, var(--surface)), color-mix(in srgb, var(--c4) 22%, var(--surface)));
+  box-shadow:
+    0 8px 0 -2px var(--cream),
+    0 11px 0 -2px color-mix(in srgb, var(--c4) 50%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="sugarrush"][data-shell] .continue .eyebrow {
+  color: var(--thought);
+}
+:root[data-theme="sugarrush"][data-shell] .continue .title {
+  font: 400 clamp(2.4rem, 4.4vw, 3.4rem) / 1 var(--font-display);
+  color: var(--accent-ink);
+  text-shadow:
+    2px 2px 0 var(--cream),
+    4px 4px 0 var(--c2);
+}
+:root[data-theme="sugarrush"][data-shell] .hero-pic {
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 4px var(--cream),
+    0 0 0 9px var(--c1),
+    var(--shadow-2);
+}
+:root[data-theme="sugarrush"][data-shell] .char {
+  border-radius: var(--r-lg);
+  transition: transform 0.35s var(--spring);
+}
+:root[data-theme="sugarrush"][data-shell] .char:hover {
+  transform: translateY(-4px) rotate(-1.5deg);
+}
+:root[data-theme="sugarrush"][data-shell] .char .name {
+  font: 400 1.9rem/1 var(--font-display);
+  color: var(--accent-ink);
+  text-shadow: 2px 2px 0 var(--cream);
+}
+
+@keyframes sr-bounce {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+  }
+  80% {
+    transform: translateY(-5px) rotate(-6deg);
+  }
+  90% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+}
+@keyframes sr-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+}
+@keyframes sr-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+@keyframes sr-jelly {
+  50% {
+    transform: scale(1.006, 0.994);
+  }
+}
+
+@media (max-width: 760px) {
+  :root[data-theme="sugarrush"][data-shell] .chapter-h {
+    padding: 2.4rem 1.6rem 1.6rem;
+  }
+  :root[data-theme="sugarrush"][data-shell] .msg .name {
+    font-size: 1.25rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="sugarrush"][data-shell] nav.rail .logo,
+  :root[data-theme="sugarrush"][data-shell] .style-cards .msg.streaming .bubble {
+    animation: none;
+  }
+}

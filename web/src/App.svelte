@@ -181,6 +181,9 @@
     else if (w > 0) root.setProperty("--chat-w", `${w}rem`);
     else root.removeProperty("--chat-w");
     root.setProperty("--portrait-w", `${portraitWidth()}px`);
+    const frame = document.documentElement.dataset;
+    if (device.portraitFrame && device.portraitFrame !== "room") frame.frame = device.portraitFrame;
+    else delete frame.frame;
     const pad = { snug: ["0.75rem", "1rem"], cozy: ["1.1rem", "1.45rem"], airy: ["1.6rem", "2.1rem"] }[device.boxPadding] ?? ["1.1rem", "1.45rem"];
     root.setProperty("--pad-y", pad[0]!);
     root.setProperty("--pad-x", pad[1]!);

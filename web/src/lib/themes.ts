@@ -1,5 +1,6 @@
 /**
- * Mea's themes. Lantern and the rooms (Wildflower, Overprint, Citadel, Marquee) share the Lantern
+ * Mea's themes. Lantern and the rooms (Wildflower, Overprint, Citadel, Marquee, Sugar Rush, Arcade
+ * Afterhours, Noir Salon, Rosewater Vanity) share the Lantern
  * shell: a slim rail, a living backdrop, glass panels. Each room lives in its own folder under
  * src/rooms and has a day and a night; Cozy is the older, plainer look with its own light and dark.
  */
@@ -35,6 +36,15 @@ export const THEMES: ThemeInfo[] = [
 export const isShellTheme = (t: string): t is ThemeId => THEMES.some((x) => x.id === t);
 export const isRoom = (t: string): t is RoomId => ROOMS.some((r) => r.id === t);
 export const themeInfo = (t: string) => THEMES.find((x) => x.id === t);
+
+const styled = new Map<string, Promise<unknown>>();
+/** A room's stylesheets, for the rooms that load them on demand; resolves at once for the rest. */
+export function loadThemeStyles(t: string): Promise<unknown> {
+  const load = ROOMS.find((r) => r.id === t)?.styles;
+  if (!load) return Promise.resolve();
+  if (!styled.has(t)) styled.set(t, load().catch(() => styled.delete(t)));
+  return styled.get(t)!;
+}
 
 const loaded = new Set<RoomId>();
 /** Each room's typefaces arrive the first time the room is shown. */

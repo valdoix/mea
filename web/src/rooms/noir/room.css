@@ -1,0 +1,354 @@
+/* =====================================================================
+   IX · NOIR SALON — speak softly; everyone's listening
+   Black lacquer and gilt: double-ruled cards, stepped Deco portrait frames, a title card with a
+   sunburst fan for each chapter, names in tracked capitals over a gold rule.
+   ===================================================================== */
+:root[data-theme="noir"][data-shell] h1 {
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  color: var(--accent-ink);
+}
+:root[data-theme="noir"][data-mode="night"] h1 {
+  color: var(--gold-hi);
+  text-shadow: 0 0 24px rgb(242 216 150 / 25%);
+}
+:root[data-theme="noir"][data-shell] h2,
+:root[data-theme="noir"][data-shell] .panel > h2:first-child {
+  font: 400 1.25rem/1.2 var(--font-deco);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+:root[data-theme="noir"][data-shell] .btn {
+  border-radius: 0;
+  letter-spacing: 0.08em;
+}
+:root[data-theme="noir"][data-shell] .btn.primary {
+  border: 0;
+  background: var(--lacquer);
+  color: var(--gold-hi);
+  text-transform: uppercase;
+  font-weight: 600;
+  box-shadow:
+    inset 0 0 0 1px var(--gold),
+    inset 0 0 0 3px var(--lacquer),
+    inset 0 0 0 4px color-mix(in srgb, var(--gold) 60%, transparent);
+}
+:root[data-theme="noir"][data-mode="night"] .btn.primary {
+  background: linear-gradient(160deg, var(--gold-hi), var(--gold) 55%, var(--gold-lo));
+  color: #0b0a09;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 30%),
+    0 0 20px -6px var(--gold);
+}
+:root[data-theme="noir"][data-shell] .btn.primary:hover {
+  filter: brightness(1.12);
+}
+:root[data-theme="noir"][data-shell] .card,
+:root[data-theme="noir"][data-shell] .panel {
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+  outline-offset: -6px;
+}
+:root[data-theme="noir"][data-shell] .chip {
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, var(--gold) 60%, transparent);
+  letter-spacing: 0.06em;
+}
+:root[data-theme="noir"][data-shell] .seg button.on {
+  border-radius: 0;
+  background: var(--lacquer);
+  color: var(--gold-hi);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+:root[data-theme="noir"][data-mode="night"] .seg button.on {
+  background: var(--gold);
+  color: #0b0a09;
+}
+:root[data-theme="noir"][data-shell] .switch input:checked {
+  background: var(--gold);
+}
+:root[data-theme="noir"][data-shell] mark.hl,
+:root[data-theme="noir"][data-shell] .prose mark.hl {
+  background: color-mix(in srgb, var(--gold) 24%, transparent);
+  color: inherit;
+}
+
+/* the shell: a lacquer rail and a double-framed salon wall */
+:root[data-theme="noir"][data-shell] nav.rail {
+  border: 0;
+  border-radius: 0;
+  color: #cfc3aa;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 9px, rgb(201 164 90 / 7%) 9px 10px),
+    var(--lacquer);
+  box-shadow:
+    inset 0 0 0 1px var(--gold),
+    inset 0 0 0 5px var(--lacquer),
+    inset 0 0 0 6px color-mix(in srgb, var(--gold) 45%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="noir"][data-shell] nav.rail .nav {
+  color: #cfc3aa;
+}
+:root[data-theme="noir"][data-shell] nav.rail .logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 50% 50% 0 0;
+  place-items: end center;
+  padding-bottom: 6px;
+  background: repeating-conic-gradient(from 270deg at 50% 100%, color-mix(in srgb, var(--gold) 55%, transparent) 0 3deg, transparent 3deg 12deg);
+  box-shadow: none;
+  color: var(--gold-hi) !important;
+  font: 400 1.7rem/1 var(--font-display);
+}
+:root[data-theme="noir"][data-shell] nav.rail .nav.on {
+  border-radius: 0;
+  background: rgb(201 164 90 / 14%);
+  color: var(--gold-hi) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 70%, transparent);
+}
+:root[data-theme="noir"][data-shell] nav.rail .nav.on::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 0;
+  background: var(--gold-hi);
+  rotate: 45deg;
+}
+:root[data-theme="noir"][data-shell] .main-col,
+:root[data-theme="noir"][data-shell] .dock {
+  border: 0;
+  border-radius: 0;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--gold) 60%, transparent),
+    0 0 0 6px var(--bg),
+    0 0 0 7px color-mix(in srgb, var(--gold) 35%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="noir"][data-shell] .chat.focus .main-col {
+  box-shadow: none;
+}
+:root[data-theme="noir"][data-shell] .bar .cname {
+  font: 400 1.9rem/1.05 var(--font-display);
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+:root[data-theme="noir"][data-mode="night"] .bar .cname {
+  color: var(--gold-hi);
+}
+:root[data-theme="noir"][data-shell] .bar .cname .ctitle {
+  font: italic 500 1rem var(--font-story-theme);
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
+/* messages: double-ruled cards with a gilt inner frame */
+:root[data-theme="noir"][data-shell] .style-cards .msg .bubble {
+  --hairline: linear-gradient(color-mix(in srgb, var(--gold) 45%, transparent), color-mix(in srgb, var(--gold) 45%, transparent));
+  border: 1px solid color-mix(in srgb, var(--gold) 75%, transparent);
+  border-radius: 0;
+  background:
+    linear-gradient(var(--gold), var(--gold)) 0 0 / 14px 1px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 0 0 / 1px 14px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 100% 100% / 14px 1px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 100% 100% / 1px 14px no-repeat,
+    var(--tint-char);
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="noir"][data-shell] .style-cards .msg .bubble::before {
+  inset: 6px;
+}
+:root[data-theme="noir"][data-shell] .style-cards .msg.user .bubble {
+  background:
+    linear-gradient(var(--gold), var(--gold)) 100% 0 / 14px 1px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 100% 0 / 1px 14px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 0 100% / 14px 1px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 0 100% / 1px 14px no-repeat,
+    var(--tint-user);
+}
+:root[data-theme="noir"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+  display: grid;
+  place-items: center;
+  content: "✦";
+  left: auto;
+  right: 14px;
+  top: 12px;
+  width: 26px;
+  height: 26px;
+  background: var(--lacquer);
+  color: var(--gold-hi);
+  font-size: 0.75rem;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  box-shadow: inset 0 0 0 1px var(--gold);
+  animation: nr-fade 0.8s var(--ease) backwards;
+}
+:root[data-theme="noir"][data-shell] .style-cards .msg.bookmarked .head {
+  padding-right: 2.6rem;
+}
+:root[data-theme="noir"][data-shell] .msg .name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8em;
+  font: 400 0.9rem/1.2 var(--font-deco);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+:root[data-theme="noir"][data-shell] .msg .name::after {
+  content: "";
+  width: 2.6rem;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+:root[data-theme="noir"][data-mode="night"] .msg .name {
+  color: var(--gold-hi);
+}
+:root[data-theme="noir"][data-shell] .msg.user .name {
+  color: var(--thought);
+}
+:root[data-theme="noir"][data-shell] .msg .portrait {
+  padding: 4px;
+  border-radius: 0;
+  background: linear-gradient(160deg, var(--gold-hi), var(--gold) 45%, var(--gold-lo) 80%, var(--gold));
+  clip-path: var(--step);
+  box-shadow: none;
+}
+:root[data-theme="noir"][data-shell] .msg .portrait .avatar {
+  border-radius: 0 !important;
+  clip-path: var(--step);
+}
+:root[data-theme="noir"][data-shell] .msg.user .portrait {
+  background: linear-gradient(160deg, #e8e4dc, #a9a59c 45%, #6c6860 80%, #b9b5ac);
+}
+:root[data-theme="noir"][data-shell] .msg {
+  animation: nr-fade 0.9s var(--ease) backwards;
+}
+:root[data-theme="noir"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+
+/* chapters: a lacquer title card under a gilt sunburst */
+:root[data-theme="noir"][data-shell] .chapter-h {
+  width: fit-content;
+  max-width: 100%;
+  margin: 3.2rem auto 2.4rem;
+  padding: 2.6rem 3.4rem 2rem;
+  background: var(--lacquer);
+  box-shadow:
+    inset 0 0 0 1px var(--gold),
+    inset 0 0 0 6px var(--lacquer),
+    inset 0 0 0 7px color-mix(in srgb, var(--gold) 55%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="noir"][data-shell] .chapter-h::before {
+  top: -54px;
+  width: 200px;
+  height: 100px;
+  background: repeating-conic-gradient(from 270deg at 50% 100%, var(--gold) 0 1.5deg, transparent 1.5deg 9deg);
+  -webkit-mask: radial-gradient(circle at 50% 100%, transparent 0 22px, #000 23px 98px, transparent 99px);
+  mask: radial-gradient(circle at 50% 100%, transparent 0 22px, #000 23px 98px, transparent 99px);
+  opacity: 0.9;
+}
+:root[data-theme="noir"][data-shell] .chapter-h .orn-line {
+  color: var(--gold);
+}
+:root[data-theme="noir"][data-shell] .chapter-h .orn-line span {
+  background: color-mix(in srgb, var(--gold) 60%, transparent);
+}
+:root[data-theme="noir"][data-shell] .ch-num {
+  font: 400 0.8rem var(--font-deco);
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+:root[data-theme="noir"][data-shell] .ch-num b {
+  color: var(--gold-hi);
+  font-weight: 400;
+}
+:root[data-theme="noir"][data-shell] .ch-title {
+  font: 400 clamp(2rem, 4.6vw, 3.1rem) / 1.08 var(--font-display);
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #fff6dc, var(--gold-hi) 40%, #c9a45a 70%, #f2d896);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-theme="noir"][data-shell] .chapter-h .ch-meta {
+  color: #bfb196;
+  font-style: italic;
+}
+:root[data-theme="noir"][data-shell] .sc-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+/* composer and send */
+:root[data-theme="noir"][data-shell] .composer {
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="noir"][data-shell] .send.primary {
+  border-radius: 0;
+  background: var(--lacquer);
+  color: var(--gold-hi);
+  clip-path: var(--step);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+:root[data-theme="noir"][data-mode="night"] .send.primary {
+  background: linear-gradient(160deg, var(--gold-hi), var(--gold) 55%, var(--gold-lo));
+  color: #0b0a09;
+}
+
+/* home */
+:root[data-theme="noir"][data-shell] .hello h1 .spark {
+  color: var(--gold);
+}
+:root[data-theme="noir"][data-shell] .continue {
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+  outline-offset: -7px;
+}
+:root[data-theme="noir"][data-shell] .continue .eyebrow {
+  font-family: var(--font-deco);
+  letter-spacing: 0.3em;
+  color: var(--accent-ink);
+}
+:root[data-theme="noir"][data-shell] .continue .title {
+  font: 400 clamp(2.2rem, 4.2vw, 3.2rem) / 1.05 var(--font-display);
+  letter-spacing: 0.03em;
+}
+:root[data-theme="noir"][data-shell] .hero-pic {
+  border-radius: 0;
+  padding: 5px;
+  background: linear-gradient(160deg, var(--gold-hi), var(--gold) 45%, var(--gold-lo));
+  clip-path: var(--step);
+}
+:root[data-theme="noir"][data-shell] .char {
+  border-radius: 0;
+}
+:root[data-theme="noir"][data-shell] .char:hover {
+  box-shadow:
+    0 0 0 1px var(--gold),
+    0 18px 30px -18px rgb(0 0 0 / 60%);
+}
+:root[data-theme="noir"][data-shell] .char .name {
+  font: 400 1.5rem/1.05 var(--font-display);
+  letter-spacing: 0.03em;
+}
+
+@keyframes nr-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(2px);
+  }
+}
+
+@media (max-width: 760px) {
+  :root[data-theme="noir"][data-shell] .chapter-h {
+    padding: 2.4rem 1.6rem 1.8rem;
+  }
+}

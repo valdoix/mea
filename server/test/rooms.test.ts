@@ -19,14 +19,36 @@ describe("rooms", () => {
     for (const f of ["index.ts", "palette.css", "room.css", "Ambience.svelte"]) expect(statSync(join(ROOMS_DIR, id, f)).isFile()).toBe(true);
     expect(read(join(ROOMS_DIR, id, "index.ts"))).toContain(`id: "${id}"`);
     expect(read(join(ROOMS_DIR, "index.ts"))).toContain(`from "./${id}"`);
-    expect(read(join(ROOMS_DIR, "palettes.css"))).toContain(`@import "./${id}/palette.css";`);
-    expect(read(join(ROOMS_DIR, "rooms.css"))).toContain(`@import "./${id}/room.css";`);
+    // Its stylesheets come with Mea (listed in the aggregators) or the first time it's shown (styles).
+    const index = read(join(ROOMS_DIR, id, "index.ts"));
+    const listed = read(join(ROOMS_DIR, "palettes.css")).includes(`@import "./${id}/palette.css";`);
+    if (index.includes("styles:")) {
+      expect(index).toContain('import("./palette.css")');
+      expect(index).toContain('import("./room.css")');
+      expect(listed).toBe(false);
+      expect(read(join(ROOMS_DIR, "rooms.css"))).not.toContain(`@import "./${id}/room.css";`);
+    } else {
+      expect(listed).toBe(true);
+      expect(read(join(ROOMS_DIR, "rooms.css"))).toContain(`@import "./${id}/room.css";`);
+    }
     // The pre-paint script and the settings both know it.
     expect(read(join(WEB, "public/theme.js"))).toContain(`"${id}"`);
     const themeEnum = read(join(import.meta.dir, "../src/routes/system.ts"))
       .split("\n")
       .find((l) => l.includes('"appearance.theme": z.enum('));
     expect(themeEnum).toContain(`"${id}"`);
+  });
+});
+
+describe("rooms that load their stylesheets late", () => {
+  // Their palette lands after picks.css, so a font token at full strength would beat the font
+  // picks and the dyslexia font; at :where() strength it can't.
+  const late = rooms.filter((id) => read(join(ROOMS_DIR, id, "index.ts")).includes("styles:"));
+  test.each(late)("%s sets its fonts at :where() strength", (id) => {
+    const blocks = read(join(ROOMS_DIR, id, "palette.css")).split("}");
+    const fontBlocks = blocks.filter((b) => /--font-/.test(b));
+    expect(fontBlocks.length).toBeGreaterThan(0);
+    for (const b of fontBlocks) expect(b.slice(0, b.indexOf("{"))).toContain(":root:where(");
   });
 });
 

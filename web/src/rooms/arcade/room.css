@@ -1,0 +1,566 @@
+/* =====================================================================
+   VIII · ARCADE AFTERHOURS — insert coin to continue
+   Pixel borders drawn with box-shadows (--pc is the pixel colour), hard offset shadows,
+   a stage card for each chapter and a big round button to send.
+   ===================================================================== */
+:root[data-theme="arcade"][data-shell] h1 {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  text-shadow:
+    3px 3px 0 var(--p4),
+    0 0 calc(14px * var(--glow)) var(--accent);
+}
+:root[data-theme="arcade"][data-shell] h2,
+:root[data-theme="arcade"][data-shell] .panel > h2:first-child {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+:root[data-theme="arcade"][data-shell] .btn {
+  border-radius: 0;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+:root[data-theme="arcade"][data-shell] .btn.primary {
+  --pc: var(--line);
+  border: 0;
+  margin: 3px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    inset -3px -3px 0 rgb(0 0 0 / 25%),
+    inset 3px 3px 0 rgb(255 255 255 / 30%);
+  text-transform: uppercase;
+}
+:root[data-theme="arcade"][data-mode="night"] .btn.primary {
+  --pc: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-ink);
+  text-shadow: 0 0 8px var(--accent);
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc),
+    0 0 18px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+:root[data-theme="arcade"][data-shell] .btn.primary:active {
+  transform: translate(2px, 2px);
+}
+:root[data-theme="arcade"][data-shell] .card,
+:root[data-theme="arcade"][data-shell] .panel {
+  --pc: var(--border-strong);
+  border: 0;
+  border-radius: 0;
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    7px 7px 0 color-mix(in srgb, var(--accent) 30%, transparent);
+}
+:root[data-theme="arcade"][data-mode="night"] .card,
+:root[data-theme="arcade"][data-mode="night"] .panel {
+  --pc: color-mix(in srgb, var(--phos) 35%, transparent);
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc),
+    0 0 24px -8px color-mix(in srgb, var(--phos) 40%, transparent);
+}
+:root[data-theme="arcade"][data-shell] .chip {
+  border-radius: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+:root[data-theme="arcade"][data-shell] .seg button.on {
+  border-radius: 0;
+  background: var(--sig1);
+  color: #2e1a0e;
+  box-shadow:
+    inset -2px -2px 0 rgb(0 0 0 / 22%),
+    inset 2px 2px 0 rgb(255 255 255 / 35%);
+}
+:root[data-theme="arcade"][data-shell] .switch input:checked {
+  background: var(--sig2);
+}
+:root[data-theme="arcade"][data-shell] mark.hl,
+:root[data-theme="arcade"][data-shell] .prose mark.hl {
+  background: color-mix(in srgb, var(--sig1) 32%, transparent);
+  color: inherit;
+}
+:root[data-theme="arcade"][data-mode="night"] .msg .prose {
+  text-shadow: 0 0 6px rgb(255 176 0 / 28%);
+}
+:root[data-theme="arcade"][data-mode="night"] .msg.user .prose {
+  color: #c9ffb3;
+  text-shadow: 0 0 6px rgb(125 255 90 / 25%);
+}
+
+/* the shell: a woodgrain cabinet side by day, a phosphor tube by night */
+:root[data-theme="arcade"][data-shell] nav.rail {
+  border-radius: 6px;
+  border: 0;
+  color: #fbe7c0;
+  background: repeating-linear-gradient(92deg, #7a4a26 0 7px, #6b3f1f 7px 9px, #82512b 9px 16px, #5f381c 16px 17px);
+  box-shadow:
+    inset 0 0 0 3px #3b2314,
+    inset 0 0 0 5px #d9a35c,
+    inset 0 0 0 7px #3b2314,
+    var(--shadow-2);
+}
+:root[data-theme="arcade"][data-shell] nav.rail .nav {
+  color: #fbe7c0;
+}
+:root[data-theme="arcade"][data-mode="night"] nav.rail {
+  color: var(--text-muted);
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--phos) 45%, transparent),
+    0 0 28px -6px color-mix(in srgb, var(--phos) 45%, transparent);
+}
+:root[data-theme="arcade"][data-mode="night"] nav.rail .nav {
+  color: var(--text-muted);
+}
+:root[data-theme="arcade"][data-shell] nav.rail .logo {
+  width: 56px;
+  background: none;
+  box-shadow: none;
+  place-items: center;
+  color: #ffcf6b !important;
+  font: 700 1.05rem/1 var(--font-display);
+  text-shadow: 2px 2px 0 #3b2314;
+}
+:root[data-theme="arcade"][data-mode="night"] nav.rail .logo {
+  color: var(--phos) !important;
+  text-shadow:
+    0 0 6px var(--phos),
+    0 0 18px var(--phos);
+  animation: ar-flicker 6s infinite;
+}
+:root[data-theme="arcade"][data-shell] nav.rail .nav.on {
+  --pc: #3b2314;
+  border-radius: 0;
+  background: var(--sig1);
+  color: #2e1a0e !important;
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc);
+}
+:root[data-theme="arcade"][data-mode="night"] nav.rail .nav.on {
+  --pc: var(--phos);
+  background: color-mix(in srgb, var(--phos) 14%, transparent);
+  color: var(--phos) !important;
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc),
+    0 0 14px color-mix(in srgb, var(--phos) 50%, transparent);
+}
+:root[data-theme="arcade"][data-shell] nav.rail .nav.on::before {
+  background: var(--accent);
+  border-radius: 0;
+}
+:root[data-theme="arcade"][data-shell] .main-col,
+:root[data-theme="arcade"][data-shell] .dock {
+  border: 0;
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, var(--p1) 0 25%, var(--p2) 25% 50%, var(--p3) 50% 75%, var(--p4) 75%) top / 100% 6px no-repeat,
+    var(--glass);
+  box-shadow:
+    inset 0 0 0 3px var(--p4),
+    var(--shadow-2);
+}
+:root[data-theme="arcade"][data-mode="night"] .main-col,
+:root[data-theme="arcade"][data-mode="night"] .dock {
+  background:
+    linear-gradient(90deg, var(--p1) 0 33%, var(--p2) 33% 66%, var(--p3) 66%) top / 100% 2px no-repeat,
+    var(--glass);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--phos) 35%, transparent),
+    inset 0 0 80px rgb(255 176 0 / 6%),
+    0 0 40px -12px color-mix(in srgb, var(--phos) 40%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="arcade"][data-shell] .chat.focus .main-col {
+  background: transparent;
+  box-shadow: none;
+}
+:root[data-theme="arcade"][data-shell] .bar .cname {
+  font: 700 1.55rem/1.1 var(--font-display);
+  letter-spacing: 0.02em;
+  color: var(--accent-ink);
+  text-shadow: 2px 2px 0 color-mix(in srgb, var(--sig1) 70%, transparent);
+}
+:root[data-theme="arcade"][data-mode="night"] .bar .cname {
+  color: var(--phos);
+  text-shadow:
+    0 0 8px var(--phos),
+    2px 2px 0 #4a2a00;
+}
+:root[data-theme="arcade"][data-shell] .bar .cname .ctitle {
+  font: 500 0.78rem var(--font-ui);
+  color: var(--text-muted);
+  text-shadow: none;
+}
+
+/* messages: pixel-bordered boxes with a hard shadow; "▶ NAME" in pixels */
+:root[data-theme="arcade"][data-shell] .style-cards .msg .bubble {
+  --pc: var(--line);
+  margin: 3px;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: var(--tint-char);
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    9px 9px 0 color-mix(in srgb, var(--p2) 55%, transparent);
+}
+:root[data-theme="arcade"][data-shell] .style-cards .msg.user .bubble {
+  --pc: var(--p3);
+  background: var(--tint-user);
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    -9px 9px 0 color-mix(in srgb, var(--p1) 45%, transparent);
+}
+:root[data-theme="arcade"][data-mode="night"] .style-cards .msg .bubble {
+  --pc: color-mix(in srgb, var(--phos) 55%, transparent);
+  background: rgb(255 176 0 / 3%);
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc),
+    0 0 26px -10px var(--phos);
+}
+:root[data-theme="arcade"][data-mode="night"] .style-cards .msg.user .bubble {
+  --pc: color-mix(in srgb, var(--p3) 55%, transparent);
+  background: rgb(125 255 90 / 3%);
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc),
+    0 0 26px -10px var(--p3);
+}
+:root[data-theme="arcade"][data-shell] .style-cards .msg .bubble::before {
+  display: none;
+}
+:root[data-theme="arcade"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+  display: block;
+  content: "★ SAVE";
+  left: auto;
+  right: 12px;
+  top: 10px;
+  width: auto;
+  height: auto;
+  background: none;
+  font: 400 0.55rem/1 var(--font-pixel);
+  color: var(--sig1);
+  text-shadow: 2px 2px 0 color-mix(in srgb, var(--p4) 60%, transparent);
+  animation: ar-blink 1.2s steps(1) 3;
+}
+:root[data-theme="arcade"][data-shell] .style-cards .msg.bookmarked .head {
+  padding-right: 4.6rem;
+}
+:root[data-theme="arcade"][data-shell] .style-cards .msg.streaming .bubble {
+  animation: ar-scan 1s steps(2) infinite;
+}
+:root[data-theme="arcade"][data-shell] .style-cards .msg.highlighted .bubble {
+  --pc: var(--sig1);
+}
+:root[data-theme="arcade"][data-shell] .msg .name {
+  font: 400 0.68rem/1.4 var(--font-pixel);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+:root[data-theme="arcade"][data-shell] .msg .name::before {
+  content: "▶ ";
+  color: var(--accent);
+}
+:root[data-theme="arcade"][data-shell] .msg:last-child .name::before {
+  animation: ar-blink 1s steps(1) infinite;
+}
+:root[data-theme="arcade"][data-shell] .msg.user .name {
+  color: var(--thought);
+}
+:root[data-theme="arcade"][data-shell] .msg.user .name::before {
+  content: "P2 ";
+  color: var(--thought);
+}
+:root[data-theme="arcade"][data-mode="night"] .msg .name {
+  text-shadow: 0 0 8px currentColor;
+}
+:root[data-theme="arcade"][data-shell] .msg .portrait {
+  --pc: var(--line);
+  border-radius: 0;
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    8px 8px 0 var(--p2);
+}
+:root[data-theme="arcade"][data-shell] .msg.user .portrait {
+  --pc: var(--p3);
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    -8px 8px 0 var(--p1);
+}
+:root[data-theme="arcade"][data-mode="night"] .msg .portrait {
+  --pc: var(--phos);
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc),
+    0 0 20px color-mix(in srgb, var(--pc) 60%, transparent);
+}
+:root[data-theme="arcade"][data-mode="night"] .msg.user .portrait {
+  --pc: var(--p3);
+}
+:root[data-theme="arcade"][data-shell] .msg .portrait .avatar {
+  border-radius: 0 !important;
+}
+:root[data-theme="arcade"][data-shell] .msg:hover .portrait {
+  transform: translate(-2px, -2px);
+}
+:root[data-theme="arcade"][data-shell] .msg {
+  animation: ar-in 0.5s steps(5) backwards;
+}
+
+/* chapters: a stage card between checkered flags */
+:root[data-theme="arcade"][data-shell] .chapter-h {
+  --pc: var(--line);
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 2.4rem 3rem 2.9rem;
+  background:
+    repeating-conic-gradient(var(--p4) 0 25%, transparent 0 50%) top left / 16px 16px,
+    repeating-conic-gradient(var(--p4) 0 25%, transparent 0 50%) bottom left / 16px 16px,
+    var(--surface);
+  background-repeat: repeat-x, repeat-x, no-repeat;
+  background-size: 16px 16px, 16px 16px, auto;
+  background-position: 0 0, 0 100%, 0 0;
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    10px 10px 0 color-mix(in srgb, var(--accent) 40%, transparent);
+}
+:root[data-theme="arcade"][data-shell] .chapter-h::before {
+  content: "PLAYER 1 · READY";
+  inset: auto auto 1.15rem 50%;
+  top: auto;
+  width: max-content;
+  height: auto;
+  transform: translateX(-50%);
+  background: none;
+  font: 400 0.55rem/1 var(--font-pixel);
+  color: var(--accent);
+  animation: ar-blink 1.2s steps(1) infinite;
+}
+:root[data-theme="arcade"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="arcade"][data-shell] .ch-num {
+  margin-top: 0.4rem;
+  font: 400 0.8rem/1.4 var(--font-pixel);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--thought);
+}
+:root[data-theme="arcade"][data-shell] .ch-num b {
+  color: inherit;
+  font-weight: 400;
+}
+:root[data-theme="arcade"][data-shell] .ch-title {
+  font: 700 clamp(2rem, 5vw, 3.3rem) / 1.05 var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--sig1);
+  text-shadow:
+    3px 3px 0 var(--accent),
+    6px 6px 0 var(--p4);
+}
+:root[data-theme="arcade"][data-mode="night"] .ch-title {
+  color: #ffe2a8;
+  text-shadow:
+    0 0 10px var(--phos),
+    0 0 26px var(--phos),
+    3px 3px 0 #7a2e00;
+}
+:root[data-theme="arcade"][data-shell] .sc-line {
+  height: 3px;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 12px);
+  opacity: 0.8;
+}
+
+/* composer: a pixel box and a big red arcade button */
+:root[data-theme="arcade"][data-shell] .composer {
+  --pc: var(--line);
+  border-radius: 0;
+  margin: 3px;
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc);
+}
+:root[data-theme="arcade"][data-mode="night"] .composer {
+  --pc: color-mix(in srgb, var(--phos) 45%, transparent);
+  box-shadow:
+    0 -2px 0 var(--pc),
+    0 2px 0 var(--pc),
+    -2px 0 0 var(--pc),
+    2px 0 0 var(--pc),
+    0 0 22px -8px var(--phos);
+}
+:root[data-theme="arcade"][data-shell] .send.primary {
+  border-radius: 50%;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #ff9a6b, var(--accent) 55%, #8a2c08);
+  box-shadow:
+    0 0 0 3px #2e1a0e,
+    0 5px 0 3px #2e1a0e,
+    0 10px 16px 2px rgb(0 0 0 / 30%);
+  transition: transform 0.08s;
+}
+:root[data-theme="arcade"][data-mode="night"] .send.primary {
+  box-shadow:
+    0 0 0 3px #2e1a0e,
+    0 5px 0 3px #2e1a0e,
+    0 0 26px 4px color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: ar-pulse 2.4s ease-in-out infinite;
+}
+:root[data-theme="arcade"][data-shell] .send.primary:not(:disabled):active {
+  transform: translateY(4px);
+  box-shadow:
+    0 0 0 3px #2e1a0e,
+    0 1px 0 3px #2e1a0e;
+}
+
+/* home */
+:root[data-theme="arcade"][data-shell] .hello h1 .spark {
+  color: var(--sig2);
+}
+:root[data-theme="arcade"][data-shell] .continue {
+  --pc: var(--line);
+  border: 0;
+  border-radius: 0;
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    10px 10px 0 color-mix(in srgb, var(--p2) 50%, transparent);
+}
+:root[data-theme="arcade"][data-shell] .continue .eyebrow {
+  font-family: var(--font-pixel);
+  font-size: 0.6rem;
+  color: var(--accent);
+}
+:root[data-theme="arcade"][data-shell] .continue .title {
+  font: 700 clamp(2rem, 4vw, 3rem) / 1.05 var(--font-display);
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  text-shadow: 3px 3px 0 color-mix(in srgb, var(--sig1) 70%, transparent);
+}
+:root[data-theme="arcade"][data-mode="night"] .continue .title {
+  color: var(--phos);
+  text-shadow: 0 0 12px var(--phos);
+}
+:root[data-theme="arcade"][data-shell] .hero-pic {
+  --pc: var(--line);
+  border-radius: 0;
+  box-shadow:
+    0 -3px 0 var(--pc),
+    0 3px 0 var(--pc),
+    -3px 0 0 var(--pc),
+    3px 0 0 var(--pc),
+    9px 9px 0 var(--p2);
+}
+:root[data-theme="arcade"][data-shell] .char {
+  border-radius: 0;
+  transition: transform 0.12s steps(2);
+}
+:root[data-theme="arcade"][data-shell] .char:hover {
+  transform: translate(-4px, -4px);
+}
+:root[data-theme="arcade"][data-shell] .char .name {
+  font: 700 1.4rem/1.05 var(--font-display);
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+@keyframes ar-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes ar-flicker {
+  0%,
+  40%,
+  43%,
+  100% {
+    opacity: 1;
+  }
+  41% {
+    opacity: 0.4;
+  }
+}
+@keyframes ar-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+@keyframes ar-scan {
+  50% {
+    --pc: var(--sig1);
+  }
+}
+@keyframes ar-pulse {
+  50% {
+    filter: brightness(1.18);
+  }
+}
+
+@media (max-width: 760px) {
+  :root[data-theme="arcade"][data-shell] .chapter-h {
+    padding-inline: 1.4rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="arcade"][data-shell] .msg:last-child .name::before,
+  :root[data-theme="arcade"][data-shell] .chapter-h::before,
+  :root[data-theme="arcade"][data-shell] nav.rail .logo,
+  :root[data-theme="arcade"][data-shell] .send.primary {
+    animation: none;
+  }
+}
