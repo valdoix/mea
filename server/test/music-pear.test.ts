@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { setSetting } from "../src/lib/settings";
-import { addTrack, connectStart, type Cue, musicConfig, musicView, pickTrack, poolOf, refreshTaste, saveMusicConfig } from "../src/music/director";
+import { addTrack, connectStart, type Cue, musicConfig, musicView, pickTrack, refreshTaste, saveMusicConfig } from "../src/music/director";
 import { command, playlistIdOf, YtmError } from "../src/music/ytmusic";
 import { freshDb } from "./helpers";
 
@@ -95,25 +95,31 @@ describe("the soundtrack on th-ch's YouTube Music (API Server)", () => {
     expect(e.message).toContain("connect again");
   });
 
-  test("songs by your preferred artists play without being in the library", async () => {
+  test("songs by your preferred artists join the library by themselves", async () => {
+    // A look with nothing to do finishes at once, and doesn't stop the next one from running.
+    await refreshTaste();
     saveMusicConfig({ taste: { preferred: ["Hozier"], banned: [], instrumentalInDialogue: false } });
     await refreshTaste();
-    const cfg = musicConfig();
     // Songs only, by that artist (a feature counts; a near-miss name and a music video don't).
-    expect(poolOf(cfg).filter((t) => !cfg.library.some((l) => l.videoId === t.videoId)).map((t) => [t.title, t.artist])).toEqual([
+    expect(musicConfig().library.filter((t) => t.artist.includes("Hozier")).map((t) => [t.title, t.artist])).toEqual([
       ["Northern Attitude", "Hozier"],
       ["Blood Upon the Snow", "Hozier & Bear McCreary"],
     ]);
     expect(musicView()).toMatchObject({ canSearch: true, tasteFound: { Hozier: 2 } });
+    const cfg = musicConfig();
     const cue: Cue = { moods: ["calm"], intensity: 0, hour: null, weather: "", place: "", genre: null, present: [], key: "k" };
-    // With the library song set aside, a Hozier song plays.
-    expect(pickTrack(cfg, cue, {}, { pool: poolOf(cfg), exclude: ["ppppppppppp"] })?.track.artist).toContain("Hozier");
+    expect(pickTrack(cfg, cue, {}, { exclude: ["ppppppppppp"] })?.track.artist).toContain("Hozier");
     // Banned wins over preferred.
-    expect(pickTrack({ ...cfg, taste: { ...cfg.taste, banned: ["bear mccreary"] } }, cue, {}, { pool: poolOf(cfg), exclude: ["ppppppppppp", "hhhhhhhhhh1"] })).toBeNull();
-    // Taking the artist off the list forgets their songs.
+    expect(pickTrack({ ...cfg, taste: { ...cfg.taste, banned: ["bear mccreary"] } }, cue, {}, { exclude: ["ppppppppppp", "hhhhhhhhhh1"] })).toBeNull();
+    // A song you remove stays removed, even when the artist is looked up again.
+    saveMusicConfig({ library: musicConfig().library.filter((t) => t.videoId !== "hhhhhhhhhh1") });
+    setSetting("music.taste", { hozier: { at: 0, ids: ["hhhhhhhhhh1", "hhhhhhhhhh2"] } });
+    await refreshTaste();
+    expect(musicConfig().library.map((t) => t.videoId)).not.toContain("hhhhhhhhhh1");
+    // Taking the artist off the list keeps their songs; it only stops looking for more.
     saveMusicConfig({ taste: { preferred: [], banned: [], instrumentalInDialogue: false } });
     await refreshTaste();
-    expect(poolOf(musicConfig()).length).toBe(musicConfig().library.length);
+    expect(musicConfig().library.map((t) => t.videoId)).toContain("hhhhhhhhhh2");
   });
 
   test("a playlist link adds each of its songs", async () => {

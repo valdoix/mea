@@ -7,7 +7,7 @@
    * J3: the soundtrack, on YouTube Music. Mea talks only to a YouTube Music app on this PC: the
    * YouTube Music Desktop App (its Companion Server) or th-ch's YouTube Music (its API Server). The
    * picker chooses from your library (songs and playlists you add, tagged with moods), songs by your
-   * preferred artists (th-ch's app finds them; no need to add them), leitmotifs pinned to people and
+   * preferred artists (th-ch's app finds them and they join the library by themselves), leitmotifs pinned to people and
    * bonds, and your taste. Off until you connect.
    */
   const MOODS = ["calm", "tender", "melancholy", "tense", "dread", "bright", "epic", "mystery", "night"] as const;
@@ -26,9 +26,9 @@
     library: Track[];
     leitmotifs: { who: string; videoId: string }[];
     taste: { preferred: string[]; banned: string[]; instrumentalInDialogue: boolean };
-    /** th-ch's app can search, so preferred artists play without being in the library. */
+    /** th-ch's app can search, so preferred artists' songs join the library by themselves. */
     canSearch: boolean;
-    /** Songs found per preferred artist; null until looked up. */
+    /** Each preferred artist's songs in the library; null until they've been looked up. */
     tasteFound: Record<string, number | null>;
   }
   let cfg = $state<Config | null>(null);
@@ -133,7 +133,7 @@
 
     <section class="panel stack">
       <h2>Library <span class="muted small">({cfg.library.length})</span></h2>
-      <p class="tiny muted">The picker chooses from these, and from your preferred artists' songs. Paste a song or a playlist link (a playlist adds each of its songs; with no moods picked, Mea tags them for you). Tag each with the moods it suits.</p>
+      <p class="tiny muted">The picker chooses from these. Your preferred artists' songs land here by themselves. Paste a song or a playlist link (a playlist adds each of its songs; with no moods picked, Mea tags them for you). Tag each with the moods it suits.</p>
       <div class="row wrap">
         <input class="input grow" bind:value={link} placeholder="A YouTube Music song or playlist link" aria-label="YouTube Music song or playlist link" />
         <button class="btn" onclick={() => add()} disabled={busy || !link.trim()}><Plus size={14} /> {busy && link.trim() ? "Adding…" : "Add"}</button>
@@ -169,11 +169,11 @@
     <section class="panel stack">
       <h2>Taste</h2>
       <p class="tiny muted">
-        {#if cfg.canSearch}Songs by your preferred artists play too, without adding them to the library: Mea finds their songs in YouTube Music and tags the moods each one suits.{:else if cfg.connected}Preferred artists only lift songs already in your library here: finding their other songs needs th-ch's YouTube Music (its API Server can search).{:else}Connect th-ch's YouTube Music and songs by your preferred artists play too, without adding them to the library.{/if}
+        {#if cfg.canSearch}Mea finds your preferred artists' songs in YouTube Music, tags the moods each one suits, and adds them to the library (a song you remove stays removed).{:else if cfg.connected}Preferred artists only lift songs already in your library here: finding their other songs needs th-ch's YouTube Music (its API Server can search).{:else}Connect th-ch's YouTube Music and your preferred artists' songs join the library by themselves.{/if}
       </p>
       <label class="field"><span class="label">Preferred artists</span><input class="input" value={cfg.taste.preferred.join(", ")} onchange={(e) => save({ taste: { ...cfg!.taste, preferred: listOf(e.currentTarget.value) } })} placeholder="comma-separated" /></label>
       {#if cfg.canSearch && cfg.taste.preferred.length}
-        <p class="tiny muted">{cfg.taste.preferred.map((a) => `${a}: ${cfg!.tasteFound[a] == null ? "looking…" : `${cfg!.tasteFound[a]} songs`}`).join(" · ")}</p>
+        <p class="tiny muted">{cfg.taste.preferred.map((a) => `${a}: ${cfg!.tasteFound[a] == null ? "looking…" : `${cfg!.tasteFound[a]} in the library`}`).join(" · ")}</p>
       {/if}
       <label class="field"><span class="label">Never play</span><input class="input" value={cfg.taste.banned.join(", ")} onchange={(e) => save({ taste: { ...cfg!.taste, banned: listOf(e.currentTarget.value) } })} placeholder="comma-separated artists" /></label>
       <label class="switch"><input type="checkbox" checked={cfg.taste.instrumentalInDialogue} onchange={(e) => save({ taste: { ...cfg!.taste, instrumentalInDialogue: e.currentTarget.checked } })} /> Instrumental only during dialogue</label>
