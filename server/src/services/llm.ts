@@ -111,13 +111,15 @@ function jsonSchemaOf(name: string, schema: z.ZodType) {
 
 /** M15: on a route that reasons, thinking shares the helper's budget: never send it less than this. */
 const REASONING_FLOOR = 1024;
+/** On a route that reasons, the first try gets this much on top of the answer's budget for the thinking. */
+const REASONING_ROOM = 3000;
 /** M14: the most a truncated helper reply is retried with. */
 const MAX_RETRY_TOKENS = 32_000;
 
 async function once(r: ResolvedProfile, call: JsonCall<z.ZodType>, messages: ChatMessage[], structured: boolean, maxTokens?: number) {
   const timeoutMs = (getSetting("routing.timeouts")[call.task] ?? 120) * 1000;
   const signal = call.signal ? AbortSignal.any([call.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
-  const budget = maxTokens ?? call.maxTokens ?? 4000;
+  const budget = maxTokens ?? (call.maxTokens ?? 4000) + (r.reasoning ? REASONING_ROOM : 0);
   const params = { ...r.params, max_tokens: r.reasoning ? Math.max(budget, REASONING_FLOOR) : budget, temperature: call.temperature ?? 0.3 };
   const responseFormat = structured ? { type: "json_schema", json_schema: { name: call.name, strict: false, schema: jsonSchemaOf(call.name, call.schema) } } : undefined;
   const est = messages.reduce((n, m) => n + countTokens(m.content) + 4, 0);
@@ -268,6 +270,8 @@ export async function callText(call: TextCall): Promise<{ text: string; generati
       if (!problem) return { text: res.text, generationId: res.id, usage: res.usage, model: r.modelId, inputTokens: res.usage?.promptTokens ?? res.est };
       lastError = new Error(problem);
       if (cutOff(res)) maxTokens = Math.min(MAX_RETRY_TOKENS, res.maxTokens * 2);
+      // Cut off while still thinking, there's no reply to correct: the same ask again, with more room.
+      if (!res.text.trim()) continue;
       messages.splice(2, messages.length, { role: "assistant", content: res.text.slice(0, 4000) }, { role: "user", content: `${problem}\nReply again with only the corrected lines.` });
     }
   }

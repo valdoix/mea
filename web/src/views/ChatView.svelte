@@ -293,9 +293,10 @@
         recapChecked = true;
         void maybeRecap(d).finally(markSeen);
       }
-      void loadBoundaries();
-      void loadFlags();
-      void loadHighlights();
+      // Chapter and scene headers arrive after the messages: still pinned, the view follows them down.
+      void Promise.all([loadBoundaries(), loadFlags(), loadHighlights()])
+        .then(() => tick())
+        .then(() => stick && !jumping && scrollToBottom(false));
       await tick();
       const at = Number(route.query.at);
       if (route.query.q) {
@@ -304,7 +305,11 @@
       }
       if (at) void jumpTo(at);
       else if (route.query.m) void openCitation({ messageId: route.query.m, seq: null } as Citation);
-      else scrollToBottom(false);
+      else {
+        // Opening a chat lands on the latest reply, and stays there while late content lays out.
+        stick = true;
+        scrollToBottom(false);
+      }
       refreshPreview();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -777,6 +782,16 @@
     void messages.length;
     void lastMsg?.content.length;
     if (stick) queueMicrotask(() => scrollToBottom(false));
+  });
+
+  // Content that grows after it's drawn (rendered markdown, images, highlights, the recap card)
+  // keeps the view on the latest reply too, unless the user scrolled up.
+  $effect(() => {
+    const col = scroller?.firstElementChild;
+    if (!col) return;
+    const ro = new ResizeObserver(() => stick && !jumping && scrollToBottom(false));
+    ro.observe(col);
+    return () => ro.disconnect();
   });
 
   function scrollToBottom(smooth = true) {

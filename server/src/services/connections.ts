@@ -482,6 +482,7 @@ export function resolveTaskChain(task: Task, primaryId?: string | null): Resolve
     const model = getModel(r.connection.id, r.modelId);
     r.reasoning = applyReasoning(r.params, r.connection, model?.capabilities);
   }
+  if (task !== "story") quietHelper(out[0]!);
   const seen = new Set([out[0]!.profile.id]);
   for (const id of fallbacks[task] ?? (BORROWS[task] ? fallbacks[BORROWS[task]!] : []) ?? []) {
     let r: ResolvedProfile;
@@ -493,9 +494,25 @@ export function resolveTaskChain(task: Task, primaryId?: string | null): Resolve
     if (seen.has(r.profile.id)) continue;
     if (out[0]!.billing === "subscription" && r.billing !== "subscription") continue;
     seen.add(r.profile.id);
+    if (task !== "story") quietHelper(r);
     out.push(r);
   }
   return out;
+}
+
+const EFFORTS_LEAST_FIRST = ["minimal", "low", "medium", "high", "xhigh", "max"];
+
+/**
+ * A helper on a model that reasons and can't be told not to (no "none" among its efforts) thinks at
+ * its default effort, which can eat the whole budget before it writes a word (GLM 5.3's tracker
+ * ledgers came back empty). Unless the profile sets an effort, helpers ask for the least it lists.
+ */
+function quietHelper(r: ResolvedProfile) {
+  if (!r.reasoning || r.params.reasoning_effort || r.profile.params.reasoning_effort === MODEL_DEFAULT_EFFORT) return;
+  const caps = getModel(r.connection.id, r.modelId)?.capabilities;
+  const efforts = Array.isArray(caps?.reasoning_efforts) ? (caps.reasoning_efforts as unknown[]).map(String) : [];
+  const least = EFFORTS_LEAST_FIRST.find((e) => efforts.includes(e));
+  if (least) r.params.reasoning_effort = least;
 }
 
 // ---------- Quota (CONN-13, CONN-19) ----------

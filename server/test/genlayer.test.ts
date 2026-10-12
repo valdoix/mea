@@ -21,7 +21,7 @@ import { addMessage, createChat } from "../src/services/chats";
 import { applyReasoning, createConnection, createProfile, listModels, resolveTaskChain, syncModels } from "../src/services/connections";
 import { splitThink, thinkRouter } from "../src/services/generation";
 import { registerJob } from "../src/services/jobs";
-import { callJson } from "../src/services/llm";
+import { callJson, callText } from "../src/services/llm";
 import { purgeTrash } from "../src/services/trash";
 import { initPrompt, updatePrompt } from "../src/trackers/prompts";
 import { freshDb } from "./helpers";
@@ -29,7 +29,7 @@ import { freshDb } from "./helpers";
 // A small OpenAI- and Anthropic-compatible server whose behaviour is picked by the model id.
 let server: ReturnType<typeof Bun.serve>;
 let base = "";
-const seen: { model: string; size: number; max_tokens?: number }[] = [];
+const seen: { model: string; size: number; max_tokens?: number; effort?: string; turns?: number }[] = [];
 let emptyCatalog = false;
 const counts = new Map<string, number>();
 
@@ -46,6 +46,7 @@ beforeAll(() => {
           data: [
             { id: "overflow", context_length: 64000 },
             { id: "truncated", context_length: 64000 },
+            { id: "thinker", context_length: 64000 },
             { id: "claude-opus-4-7", max_input_tokens: 1000000, max_tokens: 128000 },
           ],
         });
@@ -53,7 +54,7 @@ beforeAll(() => {
       const body = (await req.json()) as Record<string, any>;
       const n = (counts.get(body.model) ?? 0) + 1;
       counts.set(body.model, n);
-      seen.push({ model: body.model, size: JSON.stringify(body.messages).length, max_tokens: body.max_tokens });
+      seen.push({ model: body.model, size: JSON.stringify(body.messages).length, max_tokens: body.max_tokens, effort: body.reasoning_effort, turns: body.messages?.length });
       if (url.pathname.endsWith("/messages")) {
         // Anthropic: a reply cut off at max_tokens, then (second model) a stream that drops before message_stop.
         const events = [
@@ -88,6 +89,8 @@ beforeAll(() => {
         return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
       }
       if (body.model === "nodone") return sse([{ choices: [{ delta: { content: "Half a sent" } }] }]);
+      // A model that reasons and can't stop: the first try thinks through its whole budget and writes nothing.
+      if (body.model === "thinker") return Response.json({ choices: [{ message: { content: n === 1 ? "" : "clock: +5m" }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
       if (body.model === "truncated") {
         const content = n === 1 ? '{"items":["a","b",' : '{"items":["a"]}';
         return Response.json({ choices: [{ message: { content }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
@@ -311,6 +314,28 @@ describe("helper prompts and calls (M14, M15, M16, M17, M18, M33, L3)", () => {
     const calls = seen.filter((s) => s.model === "truncated");
     expect(calls.length).toBe(2);
     expect(calls[1]!.max_tokens).toBe(calls[0]!.max_tokens! * 2);
+  });
+
+  test("helpers on a model that can't stop reasoning ask for the least effort, with room to think", async () => {
+    const conn = createConnection({ name: "Local 3", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    run("UPDATE models SET capabilities = ? WHERE connection_id = ? AND model_id = 'thinker'", JSON.stringify({ reasoning: true, reasoning_efforts: ["low", "high", "max"] }), conn);
+    const helper = createProfile({ name: "Helper", connectionId: conn, modelId: "thinker", params: { max_tokens: 1200 } });
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: helper, world: null });
+    expect(resolveTaskChain("tracker")[0]).toMatchObject({ reasoning: true, params: { reasoning_effort: "low" } });
+    const own = createProfile({ name: "Helper (high)", connectionId: conn, modelId: "thinker", params: { reasoning_effort: "high" } });
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: own, world: null });
+    expect(resolveTaskChain("tracker")[0]!.params.reasoning_effort).toBe("high");
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: helper, world: null });
+    seen.length = 0;
+    const r = await callText({ task: "tracker", kind: "tracker", system: "Write ledger lines.", user: "go", maxTokens: 900, validate: (t) => (t.trim() ? null : "That had no ledger lines.") });
+    expect(r.text).toBe("clock: +5m");
+    const calls = seen.filter((s) => s.model === "thinker");
+    expect(calls.map((c) => c.max_tokens)).toEqual([3900, 7800]);
+    expect(calls.every((c) => c.effort === "low")).toBe(true);
+    // Cut off while thinking: asked again as before, not shown an empty reply to correct.
+    expect(calls[1]!.turns).toBe(2);
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: null, world: null });
   });
 
   test("an empty model list keeps the saved catalog (L3)", async () => {
