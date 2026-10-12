@@ -6,7 +6,8 @@
   import { living } from "../../lib/living";
   import { app, errorToast } from "../../lib/state.svelte";
   import { MONTH_NAMES, daysIn, ordinal, readClock, weekdayOf, ymdOf } from "../../lib/storytime";
-  import { openTrackers, trk } from "../../lib/trackers.svelte";
+  import { openTrackers, removeLadder, trk } from "../../lib/trackers.svelte";
+  import { Trash } from "../../lib/icons";
   import { USER_COLOR, storyColors, voiceColor } from "../../lib/voices";
   import type { TrackerCharacter, TrackersResponse } from "../../lib/types";
 
@@ -310,7 +311,7 @@
 
       {#if sec?.romance && ladder}
         <section class="tile card romance">
-          <h3><span class="g">♡</span>Romance<span class="k">{d.config.romance}</span></h3>
+          <h3><span class="g">♡</span>Romance<span class="k">{d.config.romance}</span><button class="btn ghost icon small" title="Remove this romance" aria-label="Remove {nm(ladder.from)} → {nm(ladder.to)} romance" onclick={async () => { if (await removeLadder(chatId, `${ladder.from}>${ladder.to}`, `${nm(ladder.from)} → ${nm(ladder.to)}`)) ladderSel = null; }}><Trash size={13} /></button></h3>
           {#if ladders.length > 1}
             <select class="select small" value={`${ladder.from}>${ladder.to}`} onchange={(e) => (ladderSel = e.currentTarget.value)}>
               {#each ladders as l (`${l.from}>${l.to}`)}<option value={`${l.from}>${l.to}`}>{nm(l.from)} → {nm(l.to)}</option>{/each}
