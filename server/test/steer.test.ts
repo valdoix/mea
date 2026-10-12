@@ -11,7 +11,7 @@ import { queueBuilds, segmentChat } from "../src/memory/scheduler";
 import { levelRows, storyRow } from "../src/memory/store";
 import { createCharacter } from "../src/services/characters";
 import { patchCharacterSettings } from "../src/services/charsettings";
-import { applyBanned } from "../src/services/chattools";
+import { applyBanned, cutFourthWall } from "../src/services/chattools";
 import { addMessage, createChat, getMessage, historyForPrompt, updateChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { prefetch, previewPrompt, startStory } from "../src/services/generation";
@@ -78,6 +78,14 @@ describe("the style profile (STEER-04)", () => {
   test("the story's banned words are flagged with yours", () => {
     expect(applyBanned("Her orbs gleamed.", ["orbs"]).hits).toContain("orbs");
     expect(applyBanned("A tapestry of light.", ["tapestry"]).hits).toEqual(["tapestry"]);
+  });
+  test("a narration line about the player comes out of the story", () => {
+    const r = cutFourthWall("His eyes are on Jackie. Wide. The player put them there. The wide is helpless.");
+    expect(r.text).toBe("His eyes are on Jackie. Wide. The wide is helpless.");
+    expect(r.cut).toEqual(["The player put them there."]);
+    expect(cutFourthWall("The player put them there.\nShe laughs.").text).toBe("She laughs.");
+    expect(cutFourthWall("“You're the player, aren't you?” she asks.").cut).toEqual([]);
+    expect(cutFourthWall("Nothing here.").text).toBe("Nothing here.");
   });
 });
 

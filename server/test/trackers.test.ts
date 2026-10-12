@@ -117,6 +117,28 @@ describe("fold rules", () => {
     expect(off.state.ladders["mira>user"]).toBeUndefined();
   });
 
+  test("the romance ladder only drops for a real setback", () => {
+    const est = cfg({ romance: "established" });
+    const r = foldEvents(events([["ladder Mira>Alex: 3 — looking at him the way she never let herself look"], ["ladder Mira>Alex: 4 — the visible lean in front of everyone"]]), est);
+    expect(r.state.ladders["mira>user"]).toBeUndefined();
+    expect(Object.values(r.verdicts).every((v) => !v.ok)).toBe(true);
+    const hurt = foldEvents(events([["ladder Mira>Alex: 5 — he lied to her about the letter"]]), est);
+    expect(hurt.state.ladders["mira>user"]!.tier).toBe(5);
+    const you = foldEvents(events([["ladder Mira>Alex: 3"]], "user"), est);
+    expect(you.state.ladders["mira>user"]!.tier).toBe(3);
+  });
+
+  test("a group named in the ledger means the people in the scene, never a new person", () => {
+    const r = foldEvents(events([["cast: Mira@spot · Joss@spot · Old Tom@left"], ["know Group: the well is dry — heard it said aloud", "know everyone: the boat leaves at dawn — told", "mood Circle: calm"]]), cfg());
+    const names = Object.values(r.state.chars).map((c) => c.name);
+    expect(names).not.toContain("Group");
+    expect(names).not.toContain("Circle");
+    expect(names).not.toContain("everyone");
+    const well = Object.values(r.state.facts).find((f) => f.statement === "the well is dry")!;
+    expect(Object.keys(well.stances).sort()).toEqual(["joss", "mira"]);
+    expect(Object.values(r.verdicts).at(-1)!.ok).toBe(false);
+  });
+
   test("traits from the card hold against the story", () => {
     const r = foldEvents(events([["trait Mira: blue eyes"], ["trait Mira: green eyes; a scar over her brow"]]), cfg({ seedTraits: { mira: ["green eyes"] } }));
     const eyes = r.state.chars.mira!.traits.find((t) => t.kind === "eyes")!;

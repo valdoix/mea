@@ -44,7 +44,7 @@ import { layered, presetForRequest } from "./layers";
 import { applyCardVariant, applyPersonaVariant, getVariant } from "./variants";
 import { sendPush } from "./push";
 import { assertQuota } from "./quota";
-import { applyBanned, chatExtras, consumeOnce, looksLikeRefusal, trimUnfinished } from "./chattools";
+import { applyBanned, chatExtras, consumeOnce, cutFourthWall, looksLikeRefusal, trimUnfinished } from "./chattools";
 import { evalCondition } from "../trackers/condition";
 import type { WorldState } from "../trackers/types";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
@@ -1037,6 +1037,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     const style = styleFor(gen.chatId);
     banned = status !== "error" ? applyBanned(text, style.banned ?? []) : { text, hits: [], replaced: 0 };
     text = banned.text;
+    // The model naming "the player" in the prose steps out of the story; that sentence comes out.
+    if (status !== "error") text = cutFourthWall(text).text;
     if (status !== "error" && style.quotes && style.quotes !== "any") text = normalizeQuotes(text, style.quotes);
     // CON-04 / CON-05: names corrected and puppeting cut, when you chose those actions.
     original = text;
