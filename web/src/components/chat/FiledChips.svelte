@@ -32,16 +32,17 @@
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    max-width: 24rem;
+    max-width: 100%;
     padding: 0.18rem 0.3rem 0.18rem 0.55rem;
     border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
-    border-radius: var(--r-pill);
+    border-radius: var(--r, 12px);
     background: color-mix(in srgb, var(--accent) 7%, transparent);
     color: var(--text-muted);
-    font: 600 var(--fs-xs) / 1.2 var(--font-ui);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    font: 600 var(--fs-xs) / 1.35 var(--font-ui);
+    overflow-wrap: anywhere;
+  }
+  .fchip button {
+    flex: none;
   }
   .fchip button {
     display: grid;

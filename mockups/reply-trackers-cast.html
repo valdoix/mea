@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reply Cast Roll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400;1,9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&display=swap">
+<style>
+/* Mockup B — "Cast roll": changes are filed under the person they happened to, like a curtain call. */
+:root{
+  --bg:#f7eef3; --glass:rgba(255,255,255,.62); --glass-2:rgba(255,255,255,.85); --ink:#3d2433; --muted:#86677a; --faint:#b598a8;
+  --line:rgba(160,90,130,.18); --accent:#b03a78;
+  --up:#c23d5a; --upbg:#fde4ea; --good:#23845a; --goodbg:#ddf3e8;
+  --blob1:#ffd0e0; --blob2:#d9d0ff; --blob3:#ffe7c7;
+  --f-ui:"Jost",system-ui,sans-serif; --f-name:"Fraunces",Georgia,serif; --f-read:"Newsreader",Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#181219; --glass:rgba(40,28,40,.66); --glass-2:rgba(52,36,50,.9); --ink:#f5e6ee; --muted:#c3a3b5; --faint:#8c6f80;
+  --line:rgba(240,170,210,.14); --accent:#f28dbd; --up:#f68aa0; --upbg:#47222d; --good:#77d6a6; --goodbg:#1c3a2b;
+  --blob1:#4a1f37; --blob2:#2c2550; --blob3:#43311c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#181219; --glass:rgba(40,28,40,.66); --glass-2:rgba(52,36,50,.9); --ink:#f5e6ee; --muted:#c3a3b5; --faint:#8c6f80;
+  --line:rgba(240,170,210,.14); --accent:#f28dbd; --up:#f68aa0; --upbg:#47222d; --good:#77d6a6; --goodbg:#1c3a2b;
+  --blob1:#4a1f37; --blob2:#2c2550; --blob3:#43311c; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--f-ui);padding:0 16px;overflow-x:hidden;min-height:100vh;
+  background-image:radial-gradient(40% 30% at 10% 20%,var(--blob1),transparent 70%),radial-gradient(35% 30% at 90% 45%,var(--blob2),transparent 70%),radial-gradient(40% 30% at 30% 90%,var(--blob3),transparent 70%);background-attachment:fixed}
+.wrap{max-width:860px;margin:0 auto;padding:40px 0 96px;display:grid;gap:18px}
+.note{font-size:13px;color:var(--muted);display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.note b{color:var(--ink)}
+.theme{font:500 12px var(--f-ui);border:1px solid var(--line);background:var(--glass-2);color:var(--muted);border-radius:99px;padding:5px 12px;cursor:pointer}
+.reply{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:22px;padding:20px 22px}
+.reply p{font:400 16.5px/1.65 var(--f-read);margin:0 0 .8em}.reply p:last-child{margin:0}
+
+/* ---------- roll ---------- */
+.roll{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:22px;padding:16px 16px 10px}
+.rhead{display:flex;align-items:baseline;gap:10px;padding:0 4px 10px;flex-wrap:wrap}
+.rhead h2{margin:0;font:italic 500 21px/1 var(--f-name);color:var(--accent)}
+.rhead .sub{font:500 12.5px var(--f-ui);color:var(--muted)}
+.faces{margin-left:auto;display:flex}
+.faces .av{width:24px;height:24px;font-size:12px;margin-left:-6px;box-shadow:0 0 0 2px var(--glass-2)}
+
+.av{--h:220;width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font:700 22px/1 var(--f-name);color:hsl(var(--h) 50% 22%);
+  background:radial-gradient(circle at 35% 30%,hsl(var(--h) 95% 90%),hsl(var(--h) 70% 70%))}
+
+.person{--h:220;display:grid;grid-template-columns:132px 1fr;gap:16px;padding:14px 6px;border-top:1px solid var(--line);animation:in .5s both cubic-bezier(.2,.9,.3,1)}
+.person:nth-of-type(2){animation-delay:.05s}.person:nth-of-type(3){animation-delay:.1s}.person:nth-of-type(4){animation-delay:.15s}.person:nth-of-type(5){animation-delay:.2s}
+.id{display:grid;justify-items:start;gap:6px;align-content:start}
+.id .ring{padding:3px;border-radius:50%;background:conic-gradient(from 200deg,hsl(var(--h) 80% 70%),hsl(calc(var(--h) + 60) 80% 75%),hsl(var(--h) 80% 70%));transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.person:hover .ring{transform:rotate(-8deg) scale(1.05)}
+.id .nm{font:700 15px/1.15 var(--f-name)}
+.id .nm i{display:block;font:italic 400 12.5px/1.2 var(--f-name);color:var(--muted)}
+.id .count{font:600 11px/1 var(--f-ui);color:hsl(var(--h) 55% 45%);background:hsl(var(--h) 90% 93%);padding:3px 7px;border-radius:99px}
+:root[data-theme="dark"] .id .count{background:hsl(var(--h) 30% 22%);color:hsl(var(--h) 80% 80%)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .id .count{background:hsl(var(--h) 30% 22%);color:hsl(var(--h) 80% 80%)}}
+
+.beats{display:grid;gap:8px;align-content:start}
+.beat{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start;font:400 14.5px/1.45 var(--f-ui)}
+.beat .e{font-size:15px;line-height:21px;text-align:center}
+.beat b{font-weight:600}
+.verb{color:var(--muted)}
+
+/* feeling line */
+.feel{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.toward{display:inline-flex;align-items:center;gap:5px;font-weight:600}
+.toward .av{width:20px;height:20px;font-size:11px}
+.meter{display:inline-flex;align-items:center;gap:6px;padding:2px 8px 2px 3px;border-radius:99px;background:var(--upbg);color:var(--up);font:600 12.5px/1.5 var(--f-ui)}
+.meter.good{background:var(--goodbg);color:var(--good)}
+.meter .bar{width:46px;height:6px;border-radius:9px;background:color-mix(in srgb,currentColor 18%,transparent);position:relative;overflow:hidden;margin-left:4px}
+.meter .bar::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--from);background:currentColor;opacity:.55;border-radius:9px}
+.meter .bar::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--to);background:currentColor;border-radius:9px;animation:grow .9s .4s both cubic-bezier(.3,1.4,.5,1)}
+.meter .tri{font-size:10px}
+
+.know{font:italic 400 15.5px/1.45 var(--f-read)}
+.know::before{content:"“";color:var(--accent);font-weight:600}.know::after{content:"”";color:var(--accent)}
+.vow{display:block;margin-top:4px;padding:8px 12px;border-radius:4px 14px 14px 14px;background:var(--glass-2);border:1px solid var(--line);font:italic 400 16px/1.4 var(--f-read);position:relative}
+.vow::after{content:"🤝 sworn";position:absolute;right:10px;top:-10px;font:600 10.5px/1 var(--f-ui);font-style:normal;background:var(--accent);color:var(--bg);padding:4px 7px;border-radius:99px;transform:rotate(3deg)}
+.vow-x{font:600 11px var(--f-ui);border:0;background:none;color:var(--faint);cursor:pointer;padding:4px 0 0;text-decoration:underline dotted}
+.tag{display:inline-block;font:600 10.5px/1 var(--f-ui);letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:hsl(var(--h) 90% 93%);color:hsl(var(--h) 50% 40%);margin-right:4px;vertical-align:1px}
+:root[data-theme="dark"] .tag{background:hsl(var(--h) 30% 22%);color:hsl(var(--h) 80% 80%)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tag{background:hsl(var(--h) 30% 22%);color:hsl(var(--h) 80% 80%)}}
+
+/* world row */
+.person.world .globe{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-size:24px;background:radial-gradient(circle at 35% 30%,#d8f3ee,#8fcdc3)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;gap:6px;align-items:flex-start;padding:5px 11px;border-radius:12px;background:var(--glass-2);border:1px solid var(--line);font:400 13.5px/1.4 var(--f-ui)}
+.chip b{font-weight:600}
+.chip.warn{border:1px dashed var(--up);color:var(--up)}
+
+.unsaid{background:var(--glass);border:1px solid var(--line);border-radius:16px;padding:12px 16px;color:var(--muted);font:600 12px var(--f-ui)}
+@keyframes in{from{opacity:0;transform:translateX(-10px)}}
+@keyframes grow{from{width:var(--from)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:560px){
+  .person{grid-template-columns:1fr;gap:10px}
+  .id{grid-template-columns:auto 1fr auto;align-items:center;gap:10px}
+  .faces{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note"><span><b>B · Cast roll.</b> Changes are filed under the person they happened to.</span><button class="theme" id="theme">Toggle dark</button></div>
+
+  <article class="reply">
+    <p>The tree line swallows the last of the light. Jackie claps once, sharp, the way Coach does. “Nobody goes solo. Pairs only. I mean it.” Her voice is bright and it doesn’t shake, and nobody points out that she’s counting heads under her breath.</p>
+    <p>Shauna falls in beside James without being asked. Travis is already ten steps ahead, shouting his brother’s name into the snow.</p>
+  </article>
+
+  <section class="roll" aria-label="What this reply changed">
+    <div class="rhead">
+      <h2>Curtain call</h2><span class="sub">22 changes · 4 people + the world</span>
+      <div class="faces" aria-hidden="true"><span class="av" style="--h:225">J</span><span class="av" style="--h:18">S</span><span class="av" style="--h:40">J</span><span class="av" style="--h:120">T</span></div>
+    </div>
+
+    <div class="person" style="--h:225">
+      <div class="id"><span class="ring"><span class="av" style="--h:225">J</span></span><span class="nm">Jacqueline ‘Jackie’ Taylor<i>the captain</i></span><span class="count">8 changes</span></div>
+      <div class="beats">
+        <div class="beat"><span class="e">💞</span><div class="feel"><span class="verb">feels more</span><span class="meter" style="--from:40%;--to:60%">Fear <span class="bar"></span><span class="tri">▲1</span></span><span class="verb">toward</span><span class="toward"><span class="av" style="--h:40">J</span>James Holloway</span></div></div>
+        <div class="beat"><span class="e">💞</span><div class="feel"><span class="verb">feels more</span><span class="meter" style="--from:60%;--to:80%">Resentment <span class="bar"></span><span class="tri">▲1</span></span><span class="verb">toward</span><span class="toward"><span class="av" style="--h:18">S</span>Shauna Shipman</span></div></div>
+        <div class="beat"><span class="e">💞</span><div class="feel"><span class="verb">feels more</span><span class="meter good" style="--from:20%;--to:40%">Trust <span class="bar"></span><span class="tri">▲1</span></span><span class="verb">toward</span><span class="toward"><span class="av" style="--h:290">K</span>Kristen</span></div></div>
+        <div class="beat"><span class="e">🧠</span><div><span class="verb">now knows</span> <span class="know">Shauna’s color is better. She filed it under shock from the tree line and let it go.</span></div></div>
+        <div class="beat"><span class="e">🤝</span><div><span class="verb">swore to</span> <b>the group</b><span class="vow">Nobody solo. Pairs only.</span><button class="vow-x">not a promise?</button></div></div>
+        <div class="beat"><span class="e">🎭</span><div><span class="tag">mood</span>brittle, captain-bright</div></div>
+        <div class="beat"><span class="e">✨</span><div><span class="tag">trait</span>counts heads when she’s scared</div></div>
+        <div class="beat"><span class="e">🎒</span><div><span class="tag">lost</span>the whistle</div></div>
+      </div>
+    </div>
+
+    <div class="person" style="--h:18">
+      <div class="id"><span class="ring"><span class="av" style="--h:18">S</span></span><span class="nm">Shauna Shipman<i>keeping quiet</i></span><span class="count">4 changes</span></div>
+      <div class="beats">
+        <div class="beat"><span class="e">🧠</span><div><span class="verb">now knows</span> <span class="know">Jackie won’t look at her since the tree line.</span></div></div>
+        <div class="beat"><span class="e">🎭</span><div><span class="tag">mood</span>cold and watchful</div></div>
+        <div class="beat"><span class="e">🎒</span><div><span class="tag">keeps</span>the journal, inside her jacket</div></div>
+        <div class="beat"><span class="e">🤫</span><div><span class="tag">secret</span>the journal. Jackie doesn’t know it exists.</div></div>
+      </div>
+    </div>
+
+    <div class="person" style="--h:40">
+      <div class="id"><span class="ring"><span class="av" style="--h:40">J</span></span><span class="nm">James Holloway<i>at the ridge</i></span><span class="count">2 changes</span></div>
+      <div class="beats">
+        <div class="beat"><span class="e">🤝</span><div><span class="verb">swore to</span> <b>Jacqueline ‘Jackie’ Taylor</b><span class="vow">To god, if you call me Nattie one more time I’m leaving you at the tree line.</span><button class="vow-x">not a promise?</button></div></div>
+        <div class="beat"><span class="e">⚖</span><div><span class="tag">owes</span><b>Jackie</b>, for covering for her at the ridge</div></div>
+      </div>
+    </div>
+
+    <div class="person" style="--h:120">
+      <div class="id"><span class="ring"><span class="av" style="--h:120">T</span></span><span class="nm">Travis Martinez<i>searching</i></span><span class="count">2 changes</span></div>
+      <div class="beats">
+        <div class="beat"><span class="e">🩹</span><div><span class="tag">body</span>scraped both palms on the ravine rocks</div></div>
+        <div class="beat"><span class="e">👥</span><div><span class="tag">joined</span>the search party</div></div>
+      </div>
+    </div>
+
+    <div class="person world" style="--h:170">
+      <div class="id"><span class="globe">🌲</span><span class="nm">The world<i>off everyone’s shoulders</i></span><span class="count">6 changes</span></div>
+      <div class="chips">
+        <span class="chip">📍 <span>Tree line → <b>south ridge</b></span></span>
+        <span class="chip">🌦 <span><b>First snow</b>, wind out of the north</span></span>
+        <span class="chip">🕰 <span>Day 41 · dusk → <b>early night</b></span></span>
+        <span class="chip">🧵 <span>New thread: <b>where is Javi?</b></span></span>
+        <span class="chip">🏛 <span><b>The group</b>: tension +1 over the pairs rule</span></span>
+        <span class="chip warn">⏰ <span>About <b>two hours</b> of light left for the search</span></span>
+      </div>
+    </div>
+  </section>
+
+  <div class="unsaid">∴ What went unsaid · 3 &nbsp;(unchanged drawer sits here)</div>
+</div>
+<script>
+document.getElementById('theme').onclick=()=>{const d=document.documentElement;const dark=d.dataset.theme==='dark'||(!d.dataset.theme&&matchMedia('(prefers-color-scheme:dark)').matches);d.dataset.theme=dark?'light':'dark'};
+</script>
+</body>
+</html>
