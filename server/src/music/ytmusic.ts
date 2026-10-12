@@ -2,7 +2,8 @@ import { HttpError } from "../lib/http";
 
 /**
  * Soundtrack (Almanac plan J3), YouTube Music only, through one of the two desktop apps on this PC
- * (Mea runs on the same machine). Nothing else is contacted: no network access beyond localhost.
+ * (Mea runs on the same machine). Nothing else is contacted, except YouTube Music's public page
+ * data for a playlist link you paste (neither app can list a playlist).
  * - "ytmd": the YouTube Music Desktop App's Companion Server (http://127.0.0.1:9863/api/v1). It
  *   shows a code you approve once, and Mea keeps the token it gets.
  * - "pear": th-ch's YouTube Music app with its API Server plugin (26538 by default). One request
@@ -115,6 +116,94 @@ export async function command(conn: YtmConn, c: YtmCommand) {
     return;
   }
   await call(conn, `/api/v1/${c.command === "playPause" ? "toggle-play" : c.command}`, { method: "POST" });
+}
+
+export interface YtmSong {
+  videoId: string;
+  title: string;
+  /** Everyone credited, as YouTube Music lists them ("Hozier & Bear McCreary"). */
+  artist: string;
+}
+
+type Runs = { runs?: { text?: string; navigationEndpoint?: { watchEndpoint?: { videoId?: string; watchEndpointMusicSupportedConfigs?: { watchEndpointMusicConfig?: { musicVideoType?: string } } } } }[] };
+const runsText = (t: unknown) => ((t as Runs | undefined)?.runs ?? []).map((x) => x.text ?? "").join("");
+
+/**
+ * The songs in YouTube Music's own page data (a search, a playlist): every list row with a song in
+ * it, wherever it sits. `videos` keeps every video too (a playlist's own picks); otherwise only songs.
+ */
+export function songRows(data: unknown, videos = false): YtmSong[] {
+  const out = new Map<string, YtmSong>();
+  const walk = (node: unknown, card: string) => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach((n) => walk(n, card));
+    const o = node as Record<string, unknown>;
+    // A search's top-result card names the artist once, above its songs.
+    if (o.musicCardShelfRenderer) card = runsText((o.musicCardShelfRenderer as { title?: unknown }).title);
+    const row = o.musicResponsiveListItemRenderer as { flexColumns?: { musicResponsiveListItemFlexColumnRenderer?: { text?: Runs } }[] } | undefined;
+    if (row) {
+      const cols = (row.flexColumns ?? []).map((c) => c.musicResponsiveListItemFlexColumnRenderer?.text);
+      const watch = cols[0]?.runs?.[0]?.navigationEndpoint?.watchEndpoint;
+      const type = watch?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType;
+      if (watch?.videoId && (videos || type === "MUSIC_VIDEO_TYPE_ATV")) {
+        // Search: "Song • Artist • Album • 3:21", or "Song • 3:21" on the card. Playlist: just "Artist".
+        const second = runsText(cols[1]);
+        const parts = second.split(" • ");
+        const artist = parts.length === 1 ? second || card : parts.length > 2 || !/^[\d:]+$/.test(parts[1]!) ? parts[1]! : card;
+        if (!out.has(watch.videoId)) out.set(watch.videoId, { videoId: watch.videoId, title: runsText(cols[0]), artist });
+      }
+      return;
+    }
+    for (const v of Object.values(o)) walk(v, card);
+  };
+  walk(data, "");
+  return [...out.values()];
+}
+
+/** Songs for a search (th-ch's API Server only; the Companion Server can't search). */
+export async function searchSongs(conn: YtmConn, query: string): Promise<YtmSong[]> {
+  if (conn.app !== "pear") return [];
+  return songRows(await call<unknown>(conn, "/api/v1/search", { method: "POST", body: { query }, timeout: 10_000 }));
+}
+
+/** A playlist id from what you paste: a link with ?list=, or the id itself. */
+export function playlistIdOf(input: string): string | null {
+  const t = input.trim();
+  const m = t.match(/[?&]list=([\w-]{10,})/);
+  if (m) return m[1]!;
+  return /^(?:VL)?(?:PL|OLAK5uy_|RDCLAK)[\w-]{10,}$/.test(t) ? t.replace(/^VL/, "") : null;
+}
+
+const WEB_REMIX = { clientName: "WEB_REMIX", clientVersion: "1.20241023.01.00", hl: "en" };
+
+/**
+ * A playlist's songs. Neither app can list one, so this is the one request that leaves this PC:
+ * YouTube Music's public page data for that playlist, only when you paste its link. Public and
+ * unlisted playlists only (a private one needs your sign-in).
+ */
+export async function playlistSongs(listId: string, max = 300): Promise<YtmSong[]> {
+  const songs = new Map<string, YtmSong>();
+  let body: Record<string, unknown> = { browseId: `VL${listId}` };
+  for (let page = 0; page < 6 && songs.size < max; page++) {
+    let res: Response;
+    try {
+      res = await fetch("https://music.youtube.com/youtubei/v1/browse?prettyPrint=false", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://music.youtube.com" },
+        body: JSON.stringify({ ...body, context: { client: WEB_REMIX } }),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new YtmError("YouTube Music's website isn't answering");
+    }
+    if (!res.ok) throw new YtmError(`YouTube Music said ${res.status} for that playlist`, res.status);
+    const data = (await res.json()) as unknown;
+    for (const s of songRows(data, true)) if (!songs.has(s.videoId)) songs.set(s.videoId, s);
+    const next = JSON.stringify(data).match(/"(?:continuationCommand|nextContinuationData)":\{[^}]*?"(?:token|continuation)":"([^"]+)"/)?.[1];
+    if (!next) break;
+    body = { continuation: next };
+  }
+  return [...songs.values()].slice(0, max);
 }
 
 /** A video id from what you paste: an id, or a music.youtube.com / youtube.com / youtu.be link. */

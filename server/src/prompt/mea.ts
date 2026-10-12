@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 8;
+export const MEA_PRESET_VERSION = 9;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -607,7 +607,7 @@ export function meaPreset(): Preset {
     ],
     samplers: { temperature: 1, max_tokens: 2200 },
     impersonationPrompt:
-      "[This one message is the exception to the persona rule: write {{user}}'s next message for the player, as the player would — in {{user}}'s voice from the persona and their past messages, in the player's usual person, tense, form and length. Only {{user}} acts or speaks, and {{user}} knows only what has reached them. Reply with the message only.]",
+      `[This one message is the exception to the persona rule: write {{user}}'s next message for the player, in third person, present tense ("{{user}} steps closer and says…"), even if the story or the player's past messages use another person or tense. Keep {{user}}'s voice from the persona and their past messages (spoken lines stay in their own words), and the player's usual form and length. Only {{user}} acts or speaks, and {{user}} knows only what has reached them. Reply with the message only.]`,
     expandPrompt:
       '[{{user}} wrote a rough draft of their next message:\n"""\n{{draft}}\n"""\nRewrite it as {{user}}\'s full in-character message. Keep every intention, action and line of dialogue from the draft, expand it into vivid prose that matches the story\'s tense and point of view, and add nothing for {{char}} or anyone else. Reply with the message only.]',
     continuePrompt: "[Continue your last reply from its exact final word: no recap, no restart, no heading. Pick up mid-sentence if that's where it stopped.]",

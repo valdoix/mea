@@ -594,7 +594,7 @@
       {#if trayTab === "write"}
         <div class="opts-grid">
           <button class="opt" onclick={() => trayDo(() => draft("impersonate"), [], true)} disabled={generating || Boolean(drafting)}>
-            <span class="ic"><UserPen size={17} /></span><span><b>Write my next message</b><small>In your character's voice</small></span>
+            <span class="ic"><UserPen size={17} /></span><span><b>Write my next message</b><small>Third person, present tense</small></span>
           </button>
           <button class="opt" onclick={() => trayDo(() => draft("expand"), [], true)} disabled={generating || Boolean(drafting) || !text.trim()}>
             <span class="ic"><WandSparkles size={17} /></span><span><b>Expand my draft</b><small>Turn rough notes into prose</small></span>
