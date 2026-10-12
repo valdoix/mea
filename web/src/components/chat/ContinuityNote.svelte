@@ -144,8 +144,6 @@
     cursor: pointer;
     border: 1px solid var(--border);
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 </style>

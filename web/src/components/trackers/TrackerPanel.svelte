@@ -531,9 +531,7 @@
     color: var(--text);
     text-align: left;
     font: 600 12.5px/1.3 var(--font-ui);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
     cursor: text;
   }
   .val:hover {
@@ -630,9 +628,7 @@
     margin-top: 2px;
     font-size: 11.5px;
     color: var(--text-faint);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .meters {
     display: grid;
@@ -649,9 +645,7 @@
     color: var(--text-muted);
   }
   .lm-n {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .cells {
     display: grid;
@@ -768,9 +762,7 @@
     min-width: 0;
     font: italic 12px/1.3 var(--st-story);
     color: var(--text-faint);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
   .axes {
     display: grid;
