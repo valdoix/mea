@@ -110,6 +110,12 @@ describe("checking a reply", () => {
     const src = one<{ message_id: string }>("SELECT s.message_id FROM memory_sources s JOIN memories mm ON mm.id = s.memory_id WHERE mm.content = ?", "Mira keeps the brass lantern in the cellar.");
     expect(src?.message_id).toBe(m);
   });
+  test("a flag the story's own words settle is dropped (the notes lag behind the story)", async () => {
+    addMessage(chatId, "user", "Joss hands the coat back. MOCK_SETTLED: the contradiction was in the story all along.", { name: "Joss" });
+    const m = addMessage(chatId, "assistant", "Mira shrugs the coat on. MOCK_CONTRADICTION", { name: "Mira" });
+    const issues = await checkReply(chatId, m, 0);
+    expect(issues!.some((i) => i.by === "model")).toBe(false);
+  });
   test("your tracker edits count even when they're anchored to the reply being checked", async () => {
     const m = addMessage(chatId, "assistant", "Joss grins, his grey eyes crinkling.", { name: "Mira" });
     // A trait you set now lands on the latest message: the reply itself.

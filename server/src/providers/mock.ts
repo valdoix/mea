@@ -110,6 +110,11 @@ function helperJson(name: string, user: string): unknown {
         issues: [{ kind: "fact", severity: "major", claim: "MOCK_CONTRADICTION", conflict: "The facts say otherwise.", cites: [ref], fix: "Follow the established facts.", canon: `${who} keeps the brass lantern in the cellar.` }],
       };
     }
+    case "continuity_verify": {
+      // An issue whose story passages say MOCK_SETTLED is settled in the reply's favour.
+      const verdicts = [...user.matchAll(/^ISSUE (\d+)[\s\S]*?(?=^ISSUE |(?![\s\S]))/gm)].map((m) => ({ id: m[1]!, stands: !/MOCK_SETTLED/.test(m[0]) }));
+      return { verdicts };
+    }
     case "archivist_answer": {
       const first = user.match(/^\[1\] \([^)]*\) (.*)$/m)?.[1];
       return first ? { answer: `According to the archive [1], ${firstSentence(first)}`, cites: [1], confidence: "sure" } : { answer: "The story hasn't established that.", cites: [], confidence: "unknown" };
@@ -494,6 +499,7 @@ function guessSchema(system: string) {
   if (system.includes('"query"')) return "recall_query";
   if (system.includes('"keep"')) return "librarian";
   if (system.includes('"journal"')) return "journal_update";
+  if (system.includes('"verdicts"')) return "continuity_verify";
   if (system.includes('"issues"')) return "continuity_check";
   if (system.includes('"confidence"')) return "archivist_answer";
   if (system.includes('"questions"')) return "quiz_questions";
