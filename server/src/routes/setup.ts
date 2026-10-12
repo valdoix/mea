@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
-import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicConfigSchema, musicView, saveMusicConfig } from "../music/director";
+import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicConfigSchema, musicView, refreshTaste, saveMusicConfig } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -156,7 +156,11 @@ desk.get("/chats/:id/plates", (c) => c.json(scenePlates(c.req.param("id"))));
 
 // ---------- J3: the soundtrack (YouTube Music) ----------
 
-desk.get("/music", (c) => c.json(musicView()));
+desk.get("/music", (c) => {
+  // Preferred artists not looked up yet (or a week ago) are found in the background.
+  void refreshTaste().catch(() => {});
+  return c.json(musicView());
+});
 desk.put("/music", async (c) => c.json(saveMusicConfig(await body(c, musicConfigSchema.partial()))));
 desk.post("/music/connect", async (c) => c.json(await connectStart()));
 desk.post("/music/connect/finish", async (c) => c.json(await connectFinish((await body(c, z.object({ code: z.string().min(1).max(40) }))).code)));

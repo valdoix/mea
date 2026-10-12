@@ -2,18 +2,21 @@ import { z } from "zod";
 import { one, parseJson } from "../db/db";
 import { badRequest } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
+import { callJson } from "../services/llm";
 import { type ChatSettings, mustChat, updateChat } from "../services/chats";
 import { storyDials } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
-import { command, detectApp, playerState, requestCode, requestPearToken, requestToken, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
+import { command, detectApp, playerState, playlistIdOf, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
  * The soundtrack (Almanac plan J3), on YouTube Music: a cue read from the story (mood, intensity,
  * hour, weather, place, genre), a picker over your library (tracks you've tagged, leitmotifs
  * pinned to people and bonds, your taste and thumbs), and a director that changes the music on
  * story beats only: a new scene, a change of mood or time of day, or a big moment. Otherwise it
- * holds. Off by default; it only ever talks to the YouTube Music app on this PC.
+ * holds. Songs by your preferred artists play too, library or not: th-ch's app finds them, and the
+ * helper model tags their moods once. Off by default; it talks to the YouTube Music app on this PC
+ * (and to YouTube Music's website only to read a playlist link you paste).
  */
 
 export const MOODS = ["calm", "tender", "melancholy", "tense", "dread", "bright", "epic", "mystery", "night"] as const;
@@ -44,8 +47,9 @@ export function musicConfig(): MusicConfig {
 }
 /** What the browser sees: everything but the token. */
 export function musicView() {
-  const { token, app: _app, ...rest } = musicConfig();
-  return { ...rest, connected: Boolean(token) };
+  const { token, app, ...rest } = musicConfig();
+  const found = tasteCache();
+  return { ...rest, connected: Boolean(token), canSearch: app === "pear", tasteFound: Object.fromEntries(rest.taste.preferred.map((a) => [a, found[a.toLowerCase()]?.tracks.length ?? null])) };
 }
 export function saveMusicConfig(patch: Partial<z.infer<typeof musicConfigSchema>>) {
   const cur = musicConfig();
@@ -53,7 +57,90 @@ export function saveMusicConfig(patch: Partial<z.infer<typeof musicConfigSchema>
   const parsed = musicConfigSchema.partial().parse(patch) as Record<string, unknown>;
   const next = { ...cur, ...Object.fromEntries(Object.keys(patch).map((k) => [k, parsed[k]])) };
   setSetting("music.config", next as never);
+  if (patch.taste) void refreshTaste().catch(() => {});
   return musicView();
+}
+
+// ---------- your preferred artists' songs ----------
+
+/** Songs found per preferred artist (lower-cased), mood-tagged, and when they were looked up. */
+type TasteCache = Record<string, { at: number; tracks: Track[] }>;
+const TASTE_TTL = 7 * 24 * 3600_000;
+const TASTE_PER_ARTIST = 20;
+const tasteCache = () => (getSetting("music.taste") as TasteCache | null) ?? {};
+
+const tagSchema = z.object({ songs: z.array(z.object({ id: z.string(), moods: z.array(z.string()).max(4).default([]), instrumental: z.boolean().default(false) })) });
+
+/** Moods for songs you haven't tagged: the helper model knows most songs. Left untagged if it can't. */
+export async function tagMoods(songs: Track[]): Promise<Track[]> {
+  const out = [...songs];
+  for (let i = 0; i < songs.length; i += 40) {
+    const batch = songs.slice(i, i + 40);
+    try {
+      const r = await callJson({
+        task: "helper",
+        kind: "soundtrack",
+        name: "song_moods",
+        schema: tagSchema,
+        system: `You tag songs for a story's soundtrack. For each song, give 1-3 moods it suits, from: ${MOODS.join(", ")}. Mark it instrumental only if it has no vocals. Reply with JSON only: {"songs": [{"id": "…", "moods": ["tender"], "instrumental": false}]}`,
+        user: batch.map((t) => `${t.videoId}: "${t.title}" by ${t.artist || "?"}`).join("\n"),
+        maxTokens: 40 * batch.length + 200,
+      });
+      const by = new Map(r.data.songs.map((x) => [x.id, x]));
+      batch.forEach((t, j) => {
+        const tag = by.get(t.videoId);
+        if (tag) out[i + j] = { ...t, moods: tag.moods.filter((m): m is Mood => (MOODS as readonly string[]).includes(m)), instrumental: tag.instrumental || t.instrumental };
+      });
+    } catch (e) {
+      console.error("[mea] soundtrack: couldn't tag moods:", (e as Error).message);
+    }
+  }
+  return out;
+}
+
+let refreshing: Promise<void> | null = null;
+/** Looks up preferred artists not found yet (or found a week ago). Only th-ch's app can search. */
+export function refreshTaste(): Promise<void> {
+  refreshing ??= (async () => {
+    try {
+      const cfg = musicConfig();
+      if (!cfg.token || cfg.app !== "pear") return;
+      const cache = tasteCache();
+      for (const artist of cfg.taste.preferred) {
+        const k = artist.toLowerCase();
+        if (cache[k] && Date.now() - cache[k].at < TASTE_TTL) continue;
+        try {
+          const songs = (await searchSongs(cfg, artist)).filter((s) => s.artist.toLowerCase().includes(k)).slice(0, TASTE_PER_ARTIST);
+          const tracks = songs.map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), instrumental: /instrumental/i.test(s.title) }));
+          cache[k] = { at: Date.now(), tracks: await tagMoods(tracks) };
+        } catch {
+          // YouTube Music not answering: keep what was found before, and try again in an hour.
+          cache[k] = { at: Date.now() - TASTE_TTL + 3600_000, tracks: cache[k]?.tracks ?? [] };
+        }
+        setSetting("music.taste", cache as never);
+      }
+      // Artists you took off the list are forgotten.
+      const want = musicConfig().taste.preferred.map((a) => a.toLowerCase());
+      for (const k of Object.keys(cache)) if (!want.includes(k)) delete cache[k];
+      setSetting("music.taste", cache as never);
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
+/** What the picker chooses from: your library, then your preferred artists' songs. */
+export function poolOf(cfg: MusicConfig): Track[] {
+  const seen = new Set(cfg.library.map((t) => t.videoId));
+  const cache = tasteCache();
+  const extra: Track[] = [];
+  for (const t of cfg.taste.preferred.flatMap((a) => cache[a.toLowerCase()]?.tracks ?? [])) {
+    if (seen.has(t.videoId)) continue;
+    seen.add(t.videoId);
+    extra.push(t);
+  }
+  return [...cfg.library, ...extra];
 }
 
 // ---------- the cue ----------
@@ -133,15 +220,17 @@ function leitmotifFor(cfg: MusicConfig, present: string[]) {
   return fits.sort((a, b) => b.who.split(/&|and|\+/).length - a.who.split(/&|and|\+/).length)[0] ?? null;
 }
 
-export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { dialogue?: boolean; exclude?: string[] } = {}): { track: Track; why: string } | null {
+export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { dialogue?: boolean; exclude?: string[]; pool?: Track[] } = {}): { track: Track; why: string } | null {
   const banned = cfg.taste.banned.map((a) => a.toLowerCase());
   const preferred = cfg.taste.preferred.map((a) => a.toLowerCase());
   const skip = new Set([...(music.notFor?.[cue.key] ?? []), ...(opts.exclude ?? [])]);
   const recent = music.recent ?? [];
   const motif = leitmotifFor(cfg, cue.present);
   let best: { track: Track; score: number; why: string } | null = null;
-  for (const t of cfg.library) {
-    if (skip.has(t.videoId) || banned.includes(t.artist.toLowerCase())) continue;
+  // "Hozier & Bear McCreary" is a Hozier song.
+  const byAny = (names: string[], artist: string) => names.some((a) => a && artist.toLowerCase().includes(a));
+  for (const t of opts.pool ?? cfg.library) {
+    if (skip.has(t.videoId) || byAny(banned, t.artist)) continue;
     if (opts.dialogue && cfg.taste.instrumentalInDialogue && !t.instrumental) continue;
     const overlap = t.moods.filter((m) => cue.moods.includes(m));
     let score = overlap.length * 2 + (t.moods[0] && t.moods[0] === cue.moods[0] ? 1 : 0);
@@ -150,8 +239,9 @@ export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { 
       score += 6;
       why = `${motif.who}'s theme`;
     }
-    score += (music.votes?.[t.videoId] ?? 0) + (preferred.includes(t.artist.toLowerCase()) ? 1 : 0) - (recent.includes(t.videoId) ? 3 : 0);
-    if (!best || score > best.score) best = { track: t, score, why };
+    score += (music.votes?.[t.videoId] ?? 0) + (byAny(preferred, t.artist) ? 1 : 0) - (recent.includes(t.videoId) ? 3 : 0);
+    // A tie goes either way, so the same song doesn't always win.
+    if (!best || score > best.score || (score === best.score && Math.random() < 0.5)) best = { track: t, score, why };
   }
   return best ? { track: best.track, why: best.why } : null;
 }
@@ -179,15 +269,16 @@ async function play(chatId: string, cfg: MusicConfig, pick: { track: Track; why:
 export function musicAfterReply(chatId: string, messageId: string) {
   void (async () => {
     const cfg = musicConfig();
-    if (!cfg.enabled || !cfg.token || !cfg.library.length) return;
+    if (!cfg.enabled || !cfg.token || !(cfg.library.length || cfg.taste.preferred.length)) return;
     const music = chatMusic(chatId);
     if (!music.on) return;
+    if (cfg.taste.preferred.length) await refreshTaste().catch(() => {});
     const st = currentFold(chatId).result.state;
     const cue = cueFrom(st, storyDials(mustChat(chatId)).genre);
     const beat = cue.key !== music.lastKey || bigMoment(messageId, chatId);
     if (!beat) return;
     const text = one<{ content: string }>("SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.id = ?", messageId)?.content ?? "";
-    const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: music.now ? [music.now.videoId] : [] });
+    const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: music.now ? [music.now.videoId] : [], pool: poolOf(cfg) });
     if (pick) await play(chatId, cfg, pick, cue.key);
   })().catch((e) => {
     if (!(e instanceof YtmError)) console.error("[mea] soundtrack:", (e as Error).message);
@@ -215,8 +306,8 @@ export async function musicAction(chatId: string, action: MusicAction) {
     if (action === "down") return musicAction(chatId, "skip");
   } else {
     if (action === "notForScene" && cur) setChatMusic(chatId, { notFor: { ...(music.notFor ?? {}), [cue.key]: [...(music.notFor?.[cue.key] ?? []), cur] } });
-    const pick = pickTrack(cfg, cue, chatMusic(chatId), { exclude: cur ? [cur] : [] });
-    if (!pick) throw badRequest("Nothing else in your library fits");
+    const pick = pickTrack(cfg, cue, chatMusic(chatId), { exclude: cur ? [cur] : [], pool: poolOf(cfg) });
+    if (!pick) throw badRequest("Nothing else in your library or by your preferred artists fits");
     await play(chatId, cfg, pick, cue.key);
   }
   return chatMusicView(chatId);
@@ -256,10 +347,34 @@ export function disconnect() {
   return musicView();
 }
 
-/** Add a track: a pasted link or id, or whatever YouTube Music is playing now. */
+/**
+ * Add a whole playlist: each song joins the library, tagged with the moods you picked, or, with
+ * none picked, the moods the helper model hears in it. Songs already in the library keep their tags.
+ */
+async function addPlaylist(listId: string, input: { moods?: Mood[]; instrumental?: boolean }) {
+  const songs = await playlistSongs(listId);
+  if (!songs.length) throw badRequest("That playlist is empty, private, or not one YouTube Music can show without signing in");
+  const cfg = musicConfig();
+  const have = new Set(cfg.library.map((t) => t.videoId));
+  let fresh = songs.filter((s) => !have.has(s.videoId)).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), moods: input.moods ?? [], instrumental: input.instrumental || /instrumental/i.test(s.title) }));
+  const room = 500 - cfg.library.length;
+  if (room <= 0) throw badRequest("The library is full (500 songs)");
+  fresh = fresh.slice(0, room);
+  if (!input.moods?.length) fresh = await tagMoods(fresh);
+  // Re-read: the library may have changed while the playlist loaded.
+  const now = musicConfig();
+  const ids = new Set(now.library.map((t) => t.videoId));
+  setSetting("music.config", { ...now, library: [...now.library, ...fresh.filter((t) => !ids.has(t.videoId))].slice(0, 500) } as never);
+  return { ...musicView(), added: fresh.length };
+}
+
+/** Add a track: a pasted link or id, a playlist link, or whatever YouTube Music is playing now. */
 export async function addTrack(input: { link?: string; moods?: Mood[]; instrumental?: boolean; title?: string; artist?: string }) {
   const cfg = musicConfig();
   let videoId = input.link ? videoIdOf(input.link) : null;
+  // A song's link can carry the list it was played from; only a link with no song in it is a playlist.
+  const listId = input.link && !videoId ? playlistIdOf(input.link) : null;
+  if (listId) return addPlaylist(listId, input);
   let title = input.title ?? "";
   let artist = input.artist ?? "";
   if (!videoId) {

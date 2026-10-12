@@ -570,7 +570,7 @@ These replace today's four (More dialogue, Slow burn, Mature content, Narration 
 
 | Field | Proposal |
 |---|---|
-| Impersonation | Mea's current prompt, plus ALMANAC's: in the player's usual person, tense, form and length; {{user}} knows only what has reached them |
+| Impersonation | Mea's current prompt, plus ALMANAC's: always third person, present tense, in the player's usual form and length; {{user}} knows only what has reached them |
 | Continue | ALMANAC's: pick up from the exact last word; no recap, no restart |
 | Expand | Unchanged (Mea's is already good) |
 | Wait *(new)* | For an empty send: "The player waits. Let the world move on its own: one unprompted move at most, then stop where the player can act." |
