@@ -2,8 +2,8 @@
    The Studio: the chat's side panel as a mixing desk. Modules with screws, LEDs, hardware keys,
    faders, knobs, segmented switches and LCD readouts. Every class here starts with st- so nothing
    in a panel can catch another panel's styles; panel-specific parts live in each panel's own
-   scoped <style>. Colours come from the theme tokens, with fallbacks for the Cozy themes, which
-   don't define the room-only ones (--well, --edge, --sig1…).
+   scoped <style>. Colours come from the theme tokens, with fallbacks for themes
+   that don't define the room-only ones (--well, --edge, --sig1…).
    ========================================================================== */
 
 .studio {
@@ -246,7 +246,7 @@ details.st-mod > summary:focus-visible {
   letter-spacing: 0.03em;
   color: var(--accent-ink);
 }
-:root:is([data-mode="night"], [data-theme="lantern"], [data-theme="dark"]) .st-lcd {
+:root:is([data-mode="night"], [data-theme="lantern"]) .st-lcd {
   text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .st-lcdbar {

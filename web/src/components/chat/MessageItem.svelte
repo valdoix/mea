@@ -48,7 +48,7 @@
   import { voices, voicesFrom } from "../../lib/voices";
   import type { Citation, ContinuityFlag, EditSuggestion, GlossaryTerm, TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
-  import { device } from "../../lib/device.svelte";
+  import { device, portraitWidth } from "../../lib/device.svelte";
   import { clock } from "../../lib/format";
   import type { Message } from "../../lib/types";
 
@@ -134,7 +134,7 @@
 
   const isUser = $derived(message.role === "user");
   // Lantern: the portrait beside each box follows the Display setting.
-  const portraitPx = $derived(app.isMobile ? 32 : ({ small: 56, large: 76, grand: 104 }[device.portrait] ?? 76));
+  const portraitPx = $derived(app.isMobile ? 32 : portraitWidth());
   const streaming = $derived(message.status === "streaming");
   const scope = $derived(`m-${message.id.slice(0, 8)}`);
   // PROMPT-08: display-only regex scripts change what's shown, never the stored text.

@@ -639,7 +639,7 @@
     clip-path: polygon(0 4%, 3% 0, 7% 5%, 12% 1%, 18% 4%, 25% 0, 33% 3%, 41% 0, 50% 4%, 58% 1%, 66% 4%, 74% 0, 82% 3%, 90% 0, 96% 4%, 100% 1%, 100% 96%, 97% 100%, 91% 96%, 84% 100%, 76% 97%, 68% 100%, 60% 96%, 52% 100%, 44% 97%, 36% 100%, 28% 96%, 20% 100%, 12% 97%, 5% 100%, 0 96%);
     filter: drop-shadow(0 3px 6px rgb(0 0 0 / 12%));
   }
-  :global(:root:is([data-mode="night"], [data-theme="lantern"], [data-theme="dark"])) .tape {
+  :global(:root:is([data-mode="night"], [data-theme="lantern"])) .tape {
     background: color-mix(in srgb, var(--butter) 62%, #d9c49a);
   }
   .tape textarea {

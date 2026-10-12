@@ -24,8 +24,10 @@ export interface DevicePrefs {
   readTheme: "app" | "paper" | "night";
   /** Lantern: how wide the chat boxes are, in rem (0 = the reading width from Appearance, 100 = the whole window). */
   chatWidth: number;
-  /** Lantern: portrait size beside each message. */
-  portrait: "small" | "large" | "grand";
+  /** Lantern: portrait size beside each message, a preset or "custom" (then portraitPx). */
+  portrait: PortraitSize;
+  /** The portrait's width in px when portrait is "custom". */
+  portraitPx: number;
   /** Lantern: how much room inside each message box. */
   boxPadding: "snug" | "cozy" | "airy";
   /** Lantern: drifting fireflies and a whisper of film grain behind everything. */
@@ -35,8 +37,13 @@ export interface DevicePrefs {
   plates: boolean;
 }
 
+export type PortraitSize = "small" | "large" | "grand" | "towering" | "custom";
+/** Portrait widths in px for the presets, and the custom slider's range. */
+export const PORTRAIT_PRESETS = { small: 56, large: 76, grand: 104, towering: 150 } as const;
+export const PORTRAIT_RANGE = { min: 48, max: 260 } as const;
+
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", boxPadding: "cozy", fireflies: true, grain: true, plates: true };
+const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, boxPadding: "cozy", fireflies: true, grain: true, plates: true };
 
 function read(): DevicePrefs {
   try {
@@ -84,3 +91,9 @@ export function onConnectionChange(fn: () => void) {
 export const inApp = typeof navigator !== "undefined" && /\bMeaApp\//.test(navigator.userAgent);
 /** The app's own start page, where the Mea address is set. */
 export const appSetupUrl = "https://localhost/?setup";
+
+/** How wide the portrait beside each message is on a wide screen, in px. */
+export function portraitWidth(p: Pick<DevicePrefs, "portrait" | "portraitPx"> = device) {
+  if (p.portrait === "custom") return Math.round(Math.min(PORTRAIT_RANGE.max, Math.max(PORTRAIT_RANGE.min, Number(p.portraitPx) || 140)));
+  return PORTRAIT_PRESETS[p.portrait] ?? PORTRAIT_PRESETS.large;
+}

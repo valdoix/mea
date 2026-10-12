@@ -1,0 +1,465 @@
+/* =====================================================================
+   VI · MARQUEE — every name in lights
+   ===================================================================== */
+:root[data-theme="marquee"][data-shell] {
+  --tube-glow: 0 0 calc(3px * var(--gl)) var(--ng), 0 0 calc(10px * var(--gl)) var(--ng), 0 0 calc(24px * var(--gl)) color-mix(in srgb, var(--ng) 65%, transparent), 0 0 calc(44px * var(--gl)) color-mix(in srgb, var(--ng) 40%, transparent);
+}
+:root[data-theme="marquee"][data-shell] h1 {
+  --ng: var(--n2);
+  font-weight: 400;
+  color: var(--nt-pink);
+  text-shadow: var(--tube-glow);
+  letter-spacing: 0.02em;
+  animation: mq-flick 7s infinite;
+}
+:root[data-theme="marquee"][data-shell] h2,
+:root[data-theme="marquee"][data-shell] .panel > h2:first-child {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+:root[data-theme="marquee"][data-shell] .btn {
+  border-radius: 12px;
+}
+:root[data-theme="marquee"][data-shell] .btn.primary {
+  background: var(--grad);
+  color: #fff;
+  border: 0;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--n1) 40%, transparent),
+    0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--n1) 60%, transparent);
+}
+:root[data-theme="marquee"][data-mode="night"] .btn.primary {
+  background: transparent;
+  color: var(--nt-cyan);
+  border: 1.5px solid color-mix(in srgb, var(--n1) 55%, #fff);
+  --ng: var(--n1);
+  text-shadow: 0 0 8px var(--n1);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--n1) 55%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--n1) 25%, transparent);
+}
+:root[data-theme="marquee"][data-mode="night"] .btn.primary:hover {
+  background: color-mix(in srgb, var(--n1) 12%, transparent);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--n1) 70%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--n1) 35%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .card,
+:root[data-theme="marquee"][data-shell] .panel {
+  --tube: var(--n3);
+  border: 1.5px solid color-mix(in srgb, var(--tube) 70%, transparent);
+  box-shadow:
+    0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--tube) 30%, transparent),
+    inset 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--tube) 10%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .chip {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--n1) 75%, transparent);
+  box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n1) 30%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .chip.rose {
+  border-color: var(--n2);
+  color: var(--nt-pink);
+  box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .seg button.on {
+  background: color-mix(in srgb, var(--n3) 18%, transparent);
+  color: var(--text);
+  box-shadow:
+    inset 0 -2px 0 var(--n3),
+    0 4px calc(12px * var(--gl)) -4px var(--n3);
+}
+:root[data-theme="marquee"][data-shell] .switch input:checked {
+  background: var(--n1);
+  box-shadow: 0 0 calc(16px * var(--gl)) var(--n1);
+}
+
+/* the shell: glowing tubes */
+:root[data-theme="marquee"][data-shell] nav.rail,
+:root[data-theme="marquee"][data-shell] .main-col,
+:root[data-theme="marquee"][data-shell] .dock {
+  --tube: var(--n1);
+  border: 1.5px solid var(--tube-core, var(--tube));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--tube) 30%, transparent),
+    0 0 calc(24px * var(--gl)) color-mix(in srgb, var(--tube) 50%, transparent),
+    inset 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--tube) 18%, transparent);
+}
+:root[data-theme="marquee"][data-shell] nav.rail {
+  --tube: var(--n2);
+}
+:root[data-theme="marquee"][data-shell] .dock {
+  --tube: var(--n3);
+}
+:root[data-theme="marquee"][data-mode="night"] nav.rail,
+:root[data-theme="marquee"][data-mode="night"] .main-col,
+:root[data-theme="marquee"][data-mode="night"] .dock {
+  --tube-core: color-mix(in srgb, var(--tube) 55%, #fff);
+}
+:root[data-theme="marquee"][data-mode="day"] nav.rail,
+:root[data-theme="marquee"][data-mode="day"] .main-col,
+:root[data-theme="marquee"][data-mode="day"] .dock {
+  background: linear-gradient(160deg, rgb(255 255 255 / 86%), rgb(253 252 255 / 70%));
+}
+:root[data-theme="marquee"][data-mode="night"] .main-col {
+  animation: mq-hum 5s ease-in-out infinite;
+}
+:root[data-theme="marquee"][data-shell] .chat.focus .main-col {
+  border-color: transparent;
+  box-shadow: none;
+  animation: none;
+}
+:root[data-theme="marquee"][data-shell] nav.rail .logo {
+  --ng: var(--n2);
+  width: 56px;
+  background: none;
+  box-shadow: none;
+  place-items: center;
+  color: var(--nt-pink) !important;
+  font: 400 1.55rem/1 var(--font-script);
+  white-space: nowrap;
+  text-shadow: var(--tube-glow);
+  animation: mq-flick 6s infinite;
+}
+:root[data-theme="marquee"][data-shell] nav.rail .nav.on {
+  background: color-mix(in srgb, var(--n2) 16%, transparent);
+  color: var(--nt-pink) !important;
+  text-shadow: 0 0 8px var(--n2);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--n2) 60%, transparent),
+    0 0 calc(12px * var(--gl)) color-mix(in srgb, var(--n2) 40%, transparent);
+}
+:root[data-theme="marquee"][data-shell] nav.rail .nav.on::before {
+  background: var(--n2);
+  box-shadow: 0 0 10px var(--n2);
+}
+:root[data-theme="marquee"][data-shell] .bar .cname {
+  --ng: var(--n2);
+  font: 400 2.3rem/0.9 var(--font-script);
+  color: var(--nt-pink);
+  text-shadow: var(--tube-glow);
+  overflow: visible;
+  padding: 0.2rem 0.3rem 0.1rem;
+}
+:root[data-theme="marquee"][data-shell] .bar .cname .ctitle {
+  font: 500 0.82rem var(--font-ui);
+  color: var(--text-muted);
+  text-shadow: none;
+}
+:root[data-theme="marquee"][data-shell] .bar.compact .cname {
+  font-size: 2rem;
+}
+
+/* messages: neon outlines and names in tube script */
+:root[data-theme="marquee"][data-shell] .style-cards .msg .bubble {
+  --tube: var(--n2);
+  --hairline: linear-gradient(160deg, color-mix(in srgb, var(--n2) 80%, #fff), color-mix(in srgb, var(--n2) 30%, transparent) 40%, color-mix(in srgb, var(--n3) 50%, transparent));
+  box-shadow:
+    0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--tube) 22%, transparent),
+    inset 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--tube) 8%, transparent);
+}
+:root[data-theme="marquee"][data-mode="day"] .style-cards .msg .bubble {
+  background: linear-gradient(170deg, rgb(255 255 255 / 92%), rgb(253 252 255 / 76%));
+}
+:root[data-theme="marquee"][data-shell] .style-cards .msg.user .bubble {
+  --tube: var(--n1);
+  --hairline: linear-gradient(160deg, color-mix(in srgb, var(--n1) 80%, #fff), color-mix(in srgb, var(--n1) 30%, transparent) 45%, color-mix(in srgb, var(--n1) 50%, transparent));
+}
+:root[data-theme="marquee"][data-shell] .style-cards .msg.bookmarked .bubble {
+  box-shadow:
+    0 0 calc(26px * var(--gl)) color-mix(in srgb, var(--n2) 45%, transparent),
+    inset 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--n2) 16%, transparent);
+  --hairline: linear-gradient(var(--n2), var(--n2));
+}
+:root[data-theme="marquee"][data-shell] .msg .name {
+  --ng: var(--n2);
+  text-transform: none;
+  letter-spacing: 0;
+  font: 400 2.1rem/0.85 var(--font-script);
+  color: var(--nt-pink);
+  text-shadow: var(--tube-glow);
+  padding: 0.15rem 0.2rem 0;
+  overflow: visible;
+}
+:root[data-theme="marquee"][data-shell] .msg.user .name {
+  --ng: var(--n1);
+  color: var(--nt-cyan);
+}
+:root[data-theme="marquee"][data-shell] .msg:last-child .name {
+  animation: mq-flick 8s infinite 2s;
+}
+:root[data-theme="marquee"][data-shell] .msg .portrait {
+  border-radius: 18px;
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--n2),
+    0 0 calc(18px * var(--gl)) var(--n2);
+}
+:root[data-theme="marquee"][data-shell] .msg.user .portrait {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--n1),
+    0 0 calc(18px * var(--gl)) var(--n1);
+}
+:root[data-theme="marquee"][data-shell] .msg {
+  animation: mq-on 0.9s steps(1) backwards;
+}
+:root[data-theme="marquee"][data-shell] .prose mark.hl,
+:root[data-theme="marquee"][data-shell] mark.hl {
+  background: color-mix(in srgb, var(--n2) 18%, transparent);
+  box-shadow: 0 0 calc(10px * var(--gl)) color-mix(in srgb, var(--n2) 30%, transparent);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* chapters: a theatre marquee with chasing bulbs */
+:root[data-theme="marquee"][data-shell] .chapter-h {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 2.2rem 3.2rem 1.8rem;
+  border-radius: 18px;
+  background: var(--surface-2);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--sig1) 45%, transparent),
+    0 0 calc(40px * var(--gl)) -8px color-mix(in srgb, var(--sig1) 60%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .chapter-h::before {
+  display: none;
+}
+:root[data-theme="marquee"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs {
+  position: absolute;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs.t,
+:root[data-theme="marquee"][data-shell] .m-bulbs.b {
+  left: 16px;
+  right: 16px;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs.t {
+  top: 9px;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs.b {
+  bottom: 9px;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs.l,
+:root[data-theme="marquee"][data-shell] .m-bulbs.r {
+  top: 28px;
+  bottom: 28px;
+  flex-direction: column;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs.l {
+  left: 10px;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs.r {
+  right: 10px;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sig1) 30%, var(--surface-2));
+  animation: mq-chase 1.2s linear infinite;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs i:nth-child(3n + 2) {
+  animation-delay: -0.4s;
+}
+:root[data-theme="marquee"][data-shell] .m-bulbs i:nth-child(3n + 3) {
+  animation-delay: -0.8s;
+}
+:root[data-theme="marquee"][data-shell] .chapter-h:hover .m-bulbs i {
+  animation-duration: 0.45s;
+}
+:root[data-theme="marquee"][data-shell] .ch-num {
+  --ng: var(--n1);
+  margin-top: 0;
+  font: 400 2.2rem/1 var(--font-script);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--nt-cyan);
+  text-shadow: var(--tube-glow);
+}
+:root[data-theme="marquee"][data-shell] .ch-num b {
+  color: inherit;
+  font-weight: 400;
+}
+:root[data-theme="marquee"][data-shell] .ch-title {
+  --ng: var(--sig1);
+  font: 400 clamp(1.8rem, 4.2vw, 2.8rem) / 1.1 var(--font-display);
+  letter-spacing: 0.02em;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--nt-amber);
+  text-shadow: var(--tube-glow);
+}
+:root[data-theme="marquee"][data-shell] .sc-line {
+  height: 1.5px;
+  background: var(--n1);
+  box-shadow: 0 0 calc(8px * var(--gl)) var(--n1);
+  opacity: 0.7;
+}
+:root[data-theme="marquee"][data-shell] .sc-line:last-child {
+  background: var(--n2);
+  box-shadow: 0 0 calc(8px * var(--gl)) var(--n2);
+}
+:root[data-theme="marquee"][data-shell] .sc-body {
+  border-color: color-mix(in srgb, var(--n3) 60%, transparent);
+  box-shadow: 0 0 calc(12px * var(--gl)) color-mix(in srgb, var(--n3) 30%, transparent);
+}
+
+/* composer: a cyan tube and a pulsing send light */
+:root[data-theme="marquee"][data-shell] .composer {
+  border: 1.5px solid var(--n1);
+  box-shadow: 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--n1) 40%, transparent);
+}
+:root[data-theme="marquee"][data-mode="day"] .composer {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .send.primary {
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 0 calc(20px * var(--gl)) var(--accent);
+  animation: mq-pulse 2.6s ease-in-out infinite;
+}
+:root[data-theme="marquee"][data-shell] .send.primary:not(:disabled):hover {
+  transform: scale(1.08);
+}
+
+/* home */
+:root[data-theme="marquee"][data-shell] .hello h1 .spark {
+  --ng: var(--n1);
+  color: var(--nt-cyan);
+  text-shadow: var(--tube-glow);
+}
+:root[data-theme="marquee"][data-shell] .continue {
+  --tube: var(--n2);
+  border: 1.5px solid color-mix(in srgb, var(--n2) 80%, transparent);
+  box-shadow:
+    0 0 calc(26px * var(--gl)) color-mix(in srgb, var(--n2) 35%, transparent),
+    inset 0 0 calc(22px * var(--gl)) color-mix(in srgb, var(--n2) 12%, transparent);
+}
+:root[data-theme="marquee"][data-mode="day"] .continue {
+  background: linear-gradient(160deg, rgb(255 255 255 / 92%), rgb(253 252 255 / 76%));
+}
+:root[data-theme="marquee"][data-shell] .continue .eyebrow {
+  color: var(--nt-amber);
+}
+:root[data-theme="marquee"][data-shell] .continue .title {
+  --ng: var(--n2);
+  font: 400 clamp(2.4rem, 4.4vw, 3.4rem) / 0.95 var(--font-script);
+  color: var(--nt-pink);
+  text-shadow: var(--tube-glow);
+}
+:root[data-theme="marquee"][data-shell] .continue .recapline {
+  border-left-color: var(--n1);
+}
+:root[data-theme="marquee"][data-shell] .hero-pic {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--n2),
+    0 0 calc(22px * var(--gl)) var(--n2);
+}
+:root[data-theme="marquee"][data-shell] .char {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--n3) 60%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .char:hover {
+  box-shadow:
+    0 0 0 1.5px var(--n2),
+    0 0 calc(26px * var(--gl)) color-mix(in srgb, var(--n2) 55%, transparent);
+}
+:root[data-theme="marquee"][data-shell] .char .name {
+  --ng: var(--n2);
+  font: 400 2.2rem/0.95 var(--font-script);
+  color: var(--nt-pink);
+  text-shadow: var(--tube-glow);
+}
+
+@keyframes mq-flick {
+  0%,
+  30%,
+  32%,
+  34%,
+  72%,
+  74%,
+  100% {
+    opacity: 1;
+  }
+  31%,
+  33%,
+  73% {
+    opacity: 0.35;
+  }
+}
+@keyframes mq-chase {
+  0%,
+  32% {
+    background: var(--sig1);
+    box-shadow:
+      0 0 5px var(--sig1),
+      0 0 12px color-mix(in srgb, var(--sig1) 70%, transparent);
+  }
+  34%,
+  100% {
+    background: color-mix(in srgb, var(--sig1) 28%, var(--surface-2));
+    box-shadow: none;
+  }
+}
+@keyframes mq-pulse {
+  50% {
+    box-shadow:
+      0 0 0 6px color-mix(in srgb, var(--accent) 12%, transparent),
+      0 0 calc(32px * var(--gl)) var(--accent);
+  }
+}
+@keyframes mq-on {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.8;
+  }
+  20% {
+    opacity: 0.1;
+  }
+  32% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.4;
+  }
+  52% {
+    opacity: 1;
+  }
+}
+@keyframes mq-hum {
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--tube) 34%, transparent),
+      0 0 calc(30px * var(--gl)) color-mix(in srgb, var(--tube) 60%, transparent),
+      inset 0 0 calc(26px * var(--gl)) color-mix(in srgb, var(--tube) 22%, transparent);
+  }
+}
+
+@media (max-width: 760px) {
+  :root[data-theme="overprint"][data-shell] .chapter-h > .o-big {
+    font-size: 5rem;
+  }
+  :root[data-theme="marquee"][data-shell] .chapter-h {
+    padding: 2rem 1.8rem 1.6rem;
+  }
+  :root[data-theme="marquee"][data-shell] .msg .name {
+    font-size: 1.7rem;
+  }
+}
