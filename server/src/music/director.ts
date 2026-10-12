@@ -7,7 +7,7 @@ import { type ChatSettings, mustChat, updateChat } from "../services/chats";
 import { storyDials } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
-import { command, detectApp, playerState, playlistIdOf, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
+import { command, detectApp, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
  * The soundtrack (Almanac plan J3), on YouTube Music: a cue read from the story (mood, intensity,
@@ -287,11 +287,89 @@ function bigMoment(messageId: string, chatId: string) {
 /** Mostly dialogue: instrumental-only taste applies. */
 const dialogueHeavy = (text: string) => (text.match(/[“"][^”"]+[”"]/g) ?? []).join("").length > text.length * 0.4;
 
-async function play(chatId: string, cfg: MusicConfig, pick: { track: Track; why: string }, key: string) {
-  if (!cfg.token) return;
-  await command(cfg, { command: "changeVideo", data: { videoId: pick.track.videoId } });
+type Pick = { track: Track; why: string };
+
+/** What's playing for this chat now (the header shows it), and what's played lately. */
+function remember(chatId: string, pick: Pick, key: string) {
   const m = chatMusic(chatId);
   setChatMusic(chatId, { lastKey: key, recent: [pick.track.videoId, ...(m.recent ?? []).filter((v) => v !== pick.track.videoId)].slice(0, 6), now: { videoId: pick.track.videoId, title: pick.track.title, artist: pick.track.artist, key, why: pick.why, at: Date.now() } });
+}
+
+async function play(chatId: string, cfg: MusicConfig, pick: Pick, key: string) {
+  if (!cfg.token) return;
+  await command(cfg, { command: "changeVideo", data: { videoId: pick.track.videoId } });
+  pending = null;
+  remember(chatId, pick, key);
+  watch(chatId);
+}
+
+// ---------- one song after another ----------
+
+/** The chat whose soundtrack is playing, and the song lined up to follow this one. */
+let active: string | null = null;
+let pending: (Pick & { key: string; chatId: string }) | null = null;
+let timer: ReturnType<typeof setInterval> | null = null;
+let ticking = false;
+/** Seconds before the end that the next song is lined up. */
+const LINE_UP = 12;
+const WATCH_MS = 4_000;
+
+/** Keeps the music going for this chat: a song that ends is followed by the next one that fits. */
+function watch(chatId: string) {
+  active = chatId;
+  if (timer) return;
+  timer = setInterval(() => void musicTick(), WATCH_MS);
+  (timer as { unref?: () => void }).unref?.();
+}
+function unwatch() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  active = null;
+  pending = null;
+}
+
+/**
+ * One look at the player. Near the end of the song Mea chose, the next song for the scene is lined
+ * up after it (so the app plays it straight on); once the app is on it, the header says so. If the
+ * song ended and nothing followed, the next one is played. Something you put on yourself is left alone.
+ */
+export async function musicTick() {
+  if (ticking || !active) return;
+  ticking = true;
+  try {
+    const chatId = active;
+    const cfg = musicConfig();
+    const m = (() => {
+      try {
+        return chatMusic(chatId);
+      } catch {
+        return null;
+      }
+    })();
+    if (!cfg.enabled || !cfg.token || !m?.on || !m.now) return unwatch();
+    const s = await playerState(cfg);
+    if (pending?.chatId === chatId && s.videoId === pending.track.videoId) {
+      remember(chatId, pending, pending.key);
+      pending = null;
+      return;
+    }
+    if (s.videoId !== m.now.videoId || s.duration == null || s.elapsed == null || !s.duration) return;
+    const left = s.duration - s.elapsed;
+    const ended = !s.playing && left <= 2;
+    if (left > LINE_UP && !ended) return;
+    if (!pending || pending.chatId !== chatId) {
+      const cue = cueFrom(currentFold(chatId).result.state, storyDials(mustChat(chatId)).genre);
+      const pick = pickTrack(cfg, cue, m, { exclude: [m.now.videoId] });
+      if (!pick) return;
+      pending = { ...pick, key: cue.key, chatId };
+      if (!ended && (await queueNext(cfg, pick.track.videoId))) return;
+    }
+    if (ended) await play(chatId, cfg, pending, pending.key);
+  } catch (e) {
+    if (!(e instanceof YtmError)) console.error("[mea] soundtrack:", (e as Error).message);
+  } finally {
+    ticking = false;
+  }
 }
 
 /**
@@ -304,6 +382,7 @@ export function musicAfterReply(chatId: string, messageId: string) {
     if (!cfg.enabled || !cfg.token) return;
     const music = chatMusic(chatId);
     if (!music.on) return;
+    if (music.now) watch(chatId);
     // Preferred artists due a look are found in the background; their songs are there next time.
     if (cfg.taste.preferred.length) void refreshTaste().catch(() => {});
     if (!cfg.library.length) return;
@@ -328,6 +407,8 @@ export async function musicAction(chatId: string, action: MusicAction) {
   const music = chatMusic(chatId);
   if (action === "on" || action === "off") {
     setChatMusic(chatId, { on: action === "on", ...(action === "on" ? { lastKey: "" } : {}) });
+    if (action === "on") watch(chatId);
+    else if (active === chatId) unwatch();
     return chatMusicView(chatId);
   }
   if (!cfg.token) throw badRequest("Connect YouTube Music first (Settings › Music)");
@@ -356,6 +437,8 @@ export function chatMusicView(chatId: string) {
   } catch {
     cue = null;
   }
+  // The chat is open with its music on: keep it going (also after Mea restarts).
+  if (cfg.enabled && cfg.token && m.on && m.now) watch(chatId);
   return { available: cfg.enabled && Boolean(cfg.token), on: Boolean(m.on), now: m.now ?? null, cue, vote: m.now ? (m.votes?.[m.now.videoId] ?? 0) : 0 };
 }
 

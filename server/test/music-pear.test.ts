@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../src/app";
 import { setSetting } from "../src/lib/settings";
-import { addTrack, connectStart, type Cue, musicConfig, musicView, pickTrack, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig } from "../src/music/director";
+import { normalizeCard } from "../src/cards/card";
+import { createCharacter } from "../src/services/characters";
+import { addMessage, createChat } from "../src/services/chats";
+import { pauseJobs, registerJob } from "../src/services/jobs";
+import { linesToOps, writeEvents } from "../src/trackers/store";
+import { addTrack, chatMusicView, connectStart, type Cue, musicAction, musicConfig, musicTick, musicView, pickTrack, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig } from "../src/music/director";
 import { command, playlistIdOf, YtmError } from "../src/music/ytmusic";
 import { freshDb } from "./helpers";
 
@@ -11,6 +16,8 @@ const sent: { method: string; path: string; body: unknown; auth: string | null }
 /** The app's queue. Like the real one, a song asked for lands only a moment later (after a couple of looks). */
 let queue: { videoId: string; selected: boolean }[] = [{ videoId: "ppppppppppp", selected: true }, { videoId: "oldqueued11", selected: false }];
 let landing: { videoId: string; looks: number } | null = null;
+/** What the app says is playing. */
+let song: Record<string, unknown> = { title: "Pear Song", artist: "P", isPaused: false, videoId: "ppppppppppp" };
 let queueLands = true;
 
 /** One list row the way YouTube Music's page data has it. */
@@ -81,7 +88,7 @@ beforeAll(() => {
       return new Response(null, { status: 204 });
     }
     if (url.pathname === "/api/v1/search") return json(body.query === "Hozier" ? searchPage : {});
-    if (url.pathname === "/api/v1/song") return json({ title: "Pear Song", artist: "P", isPaused: false, videoId: "ppppppppppp" });
+    if (url.pathname === "/api/v1/song") return json(song);
     return new Response(null, { status: 204 });
   }) as typeof fetch;
   saveMusicConfig({ port: 26538 });
@@ -205,5 +212,36 @@ describe("the soundtrack on th-ch's YouTube Music (API Server)", () => {
     expect(after.library).toEqual(before.library);
     expect(after.leitmotifs).toEqual(before.leitmotifs);
     expect((await put({ port: "nope" })).status).toBe(400);
+  });
+
+  test("one song after another: the next one is lined up before this one ends, so there's no gap", async () => {
+    pauseJobs(true);
+    for (const kind of ["memory.segment", "memory.build", "memory.embed", "accuracy.check", "tracker.update"]) registerJob(kind, async () => {});
+    const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", first_mes: "The lamp hums." } });
+    const chatId = createChat({ characterId: createCharacter(data) }).id;
+    const first = addMessage(chatId, "assistant", "The lamp hums.", { name: "Mira" });
+    writeEvents(chatId, { messageId: first, swipeIdx: -1 }, linesToOps(["clock: Day 1 22:00", "cast: Mira@spot", "mood Mira: wistful", "scene: The lamp room"]).ops, "model");
+    saveMusicConfig({ enabled: true });
+    await musicAction(chatId, "on");
+    await musicAction(chatId, "skip");
+    const now = chatMusicView(chatId).now!;
+    // Near the end: the next song is queued after this one, not played over it.
+    song = { title: now.title, artist: now.artist, isPaused: false, videoId: now.videoId, elapsedSeconds: 190, songDuration: 200 };
+    sent.length = 0;
+    await musicTick();
+    expect(sent.map((x) => `${x.method} ${x.path}`)).toEqual(["GET /api/v1/song", "POST /api/v1/queue"]);
+    const lined = (sent[1]?.body as { videoId: string }).videoId;
+    expect(lined).not.toBe(now.videoId);
+    expect(chatMusicView(chatId).now?.videoId).toBe(now.videoId);
+    // Lined up once only.
+    sent.length = 0;
+    await musicTick();
+    expect(sent.map((x) => x.path)).toEqual(["/api/v1/song"]);
+    // The app moved on to it by itself: the header says so.
+    song = { title: "Next", artist: "", isPaused: false, videoId: lined, elapsedSeconds: 1, songDuration: 180 };
+    await musicTick();
+    expect(chatMusicView(chatId).now?.videoId).toBe(lined);
+    await musicAction(chatId, "off");
+    pauseJobs(false);
   });
 });

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { setSetting } from "../src/lib/settings";
-import { addTrack, chatMusicView, connectFinish, connectStart, cueFrom, musicAction, musicAfterReply, musicConfig, musicView, pickTrack, saveMusicConfig } from "../src/music/director";
+import { addTrack, chatMusicView, connectFinish, connectStart, cueFrom, musicAction, musicAfterReply, musicTick, musicConfig, musicView, pickTrack, saveMusicConfig } from "../src/music/director";
 import { videoIdOf } from "../src/music/ytmusic";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
@@ -12,7 +12,8 @@ import { freshDb } from "./helpers";
 let chatId = "";
 const realFetch = globalThis.fetch;
 const sent: { path: string; body: unknown; auth: string | null }[] = [];
-let playing = { id: "aaaaaaaaaaa", title: "Now Playing Song", author: "Someone" };
+let playing: { id: string; title: string; author: string; durationSeconds?: number } = { id: "aaaaaaaaaaa", title: "Now Playing Song", author: "Someone" };
+let player = { trackState: 1, videoProgress: 0 };
 
 beforeAll(() => {
   freshDb();
@@ -28,7 +29,7 @@ beforeAll(() => {
     const json = (o: unknown) => new Response(JSON.stringify(o), { status: 200 });
     if (path === "/auth/requestcode") return json({ code: "4821" });
     if (path === "/auth/request") return body.code === "4821" ? json({ token: "tok-123" }) : new Response("", { status: 403 });
-    if (path === "/state") return json({ player: { trackState: 1 }, video: playing });
+    if (path === "/state") return json({ player, video: playing });
     if (path === "/command") return new Response("", { status: 204 });
     return new Response("", { status: 404 });
   }) as typeof fetch;
@@ -116,5 +117,31 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     expect(v.now?.title).not.toBe("Fight Song");
     await musicAction(chatId, "playPause");
     expect(sent.at(-1)?.body).toEqual({ command: "playPause" });
+  });
+
+  test("one song after another: when Mea's song ends, the next one that fits plays", async () => {
+    const now = chatMusicView(chatId).now!;
+    // Still playing, well before the end: nothing happens.
+    playing = { id: now.videoId, title: now.title, author: now.artist, durationSeconds: 200 };
+    player = { trackState: 1, videoProgress: 100 };
+    sent.length = 0;
+    await musicTick();
+    expect(sent.filter((x) => x.path === "/command")).toEqual([]);
+    // Ended and stopped (the Companion Server has no queue to line it up in): the next song plays.
+    player = { trackState: 0, videoProgress: 200 };
+    await musicTick();
+    const cmds = sent.filter((x) => x.path === "/command");
+    expect(cmds.length).toBe(1);
+    expect(cmds[0]?.body).toMatchObject({ command: "changeVideo" });
+    const next = chatMusicView(chatId).now!;
+    expect(next.videoId).not.toBe(now.videoId);
+    expect((cmds[0]?.body as { data: { videoId: string } }).data.videoId).toBe(next.videoId);
+    // Something you put on yourself is left alone.
+    playing = { id: "zzzzzzzzzzz", title: "Mine", author: "Me", durationSeconds: 100 };
+    player = { trackState: 0, videoProgress: 100 };
+    sent.length = 0;
+    await musicTick();
+    expect(sent.filter((x) => x.path === "/command")).toEqual([]);
+    await musicAction(chatId, "off");
   });
 });
