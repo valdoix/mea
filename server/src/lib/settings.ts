@@ -28,6 +28,8 @@ export interface Settings {
   "music.config": Record<string, unknown> | null;
   /** J3: songs found for your preferred artists, mood-tagged, by artist. */
   "music.taste": Record<string, unknown> | null;
+  /** J3: songs you removed from the library yourself (a lookup never adds them back). */
+  "music.removed": string[] | null;
   /** J2: your own colours for each room, by day and by night (CSS token → colour). */
   "appearance.colors": Record<string, { day?: Record<string, string>; night?: Record<string, string> }>;
   /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
@@ -353,6 +355,7 @@ export const defaults: Settings = {
   "appearance.colors": {},
   "music.config": null,
   "music.taste": null,
+  "music.removed": null,
   "appearance.themeMode": "system",
   "appearance.chatStyle": "cards",
   "appearance.fontScale": 1,

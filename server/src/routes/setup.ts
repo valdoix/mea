@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
-import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicConfigSchema, musicView, refreshTaste, saveMusicConfig } from "../music/director";
+import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicView, refreshTaste, removeTrack, retagTrack, saveMusicConfig } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -161,11 +161,14 @@ desk.get("/music", (c) => {
   void refreshTaste().catch(() => {});
   return c.json(musicView());
 });
-desk.put("/music", async (c) => c.json(saveMusicConfig(await body(c, musicConfigSchema.partial()))));
+// The body as sent, not parsed here: the schema would add its defaults for every field left out.
+desk.put("/music", async (c) => c.json(saveMusicConfig(await body(c, z.record(z.string(), z.unknown())))));
 desk.post("/music/connect", async (c) => c.json(await connectStart()));
 desk.post("/music/connect/finish", async (c) => c.json(await connectFinish((await body(c, z.object({ code: z.string().min(1).max(40) }))).code)));
 desk.post("/music/disconnect", (c) => c.json(disconnect()));
 desk.post("/music/library", async (c) => c.json(await addTrack(await body(c, z.object({ link: z.string().max(300).optional(), moods: z.array(z.enum(MOODS)).optional(), instrumental: z.boolean().optional(), title: z.string().max(200).optional(), artist: z.string().max(120).optional() })))));
+desk.patch("/music/library/:videoId", async (c) => c.json(retagTrack(c.req.param("videoId"), await body(c, z.object({ moods: z.array(z.enum(MOODS)).max(9).optional(), instrumental: z.boolean().optional() })))));
+desk.delete("/music/library/:videoId", (c) => c.json(removeTrack(c.req.param("videoId"))));
 desk.get("/chats/:id/music", (c) => {
   mustChat(c.req.param("id"));
   return c.json(chatMusicView(c.req.param("id")));
