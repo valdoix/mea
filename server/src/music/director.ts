@@ -441,10 +441,12 @@ export function retagTrack(videoId: string, patch: { moods?: Mood[]; instrumenta
   return musicView();
 }
 
-/** Takes a song out of the library; a lookup for its artist won't add it back. */
-export function removeTrack(videoId: string) {
+/** Takes songs out of the library; a lookup for their artists won't add them back. */
+export function removeTracks(videoIds: string[]) {
+  const gone = new Set(videoIds);
   const cfg = musicConfig();
-  setSetting("music.config", { ...cfg, library: cfg.library.filter((t) => t.videoId !== videoId) } as never);
-  markRemoved(videoId, true);
+  setSetting("music.config", { ...cfg, library: cfg.library.filter((t) => !gone.has(t.videoId)) } as never);
+  setSetting("music.removed", [...new Set([...removedIds(), ...gone])].slice(-2000) as never);
   return musicView();
 }
+export const removeTrack = (videoId: string) => removeTracks([videoId]);

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { del, get, patch, post, put } from "../../lib/api";
-  import { Plus, X } from "../../lib/icons";
+  import { ChevronDown, Plus, X } from "../../lib/icons";
+  import { confirm } from "../../lib/dialogs.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
 
   /**
@@ -39,6 +40,64 @@
   let motifWho = $state("");
   let motifTrack = $state("");
   let busy = $state(false);
+  // The song list folds away (remembered on this device); adding stays open.
+  const OPEN_KEY = "mea.music.libraryOpen";
+  let libraryOpen = $state(readOpen());
+  function readOpen() {
+    try {
+      return localStorage.getItem(OPEN_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+  // Search the library: every word must match a title, an artist or a mood; and one artist, if picked.
+  let query = $state("");
+  let artistPick = $state("");
+  const artists = $derived.by(() => {
+    const n = new Map<string, number>();
+    for (const t of cfg?.library ?? []) if (t.artist) n.set(t.artist, (n.get(t.artist) ?? 0) + 1);
+    return [...n.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  });
+  const shown = $derived.by(() => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    return (cfg?.library ?? []).filter((t) => {
+      if (artistPick && t.artist !== artistPick) return false;
+      const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
+  });
+  // The picked artist's songs are all gone: show everyone again.
+  $effect(() => {
+    if (artistPick && !artists.some(([a]) => a === artistPick)) artistPick = "";
+  });
+  const filtering = $derived(Boolean(query.trim() || artistPick));
+  // Quick remove: tick songs (or every song shown), then remove them in one go.
+  let picked = $state<string[]>([]);
+  const pickedSet = $derived(new Set(picked));
+  const allShownPicked = $derived(shown.length > 0 && shown.every((t) => pickedSet.has(t.videoId)));
+  function pickShown() {
+    const ids = shown.map((t) => t.videoId);
+    picked = allShownPicked ? picked.filter((id) => !ids.includes(id)) : [...new Set([...picked, ...ids])];
+  }
+  async function removePicked() {
+    const n = picked.length;
+    if (!n || !(await confirm({ title: `Remove ${n} song${n === 1 ? "" : "s"}?`, message: "They leave the library, and lookups for your preferred artists won't add them back.", confirmLabel: "Remove", danger: true }))) return;
+    try {
+      cfg = await post<Config>("/api/music/library/remove", { ids: picked });
+      picked = [];
+      toast(`Removed ${n} song${n === 1 ? "" : "s"}`, { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  function toggleLibrary() {
+    libraryOpen = !libraryOpen;
+    try {
+      localStorage.setItem(OPEN_KEY, libraryOpen ? "1" : "0");
+    } catch {
+      // Not remembered; it still opens.
+    }
+  }
 
   async function load() {
     try {
@@ -140,7 +199,10 @@
     </section>
 
     <section class="panel stack">
-      <h2>Library <span class="muted small">({cfg.library.length})</span></h2>
+      <div class="row between">
+        <h2>Library <span class="muted small">({cfg.library.length})</span></h2>
+        {#if cfg.library.length}<button class="btn ghost small fold" class:open={libraryOpen} onclick={toggleLibrary} aria-expanded={libraryOpen} aria-controls="music-library">{libraryOpen ? "Hide songs" : "Show songs"} <ChevronDown size={14} /></button>{/if}
+      </div>
       <p class="tiny muted">The picker chooses from these. Your preferred artists' songs land here by themselves. Paste a song or a playlist link (a playlist adds each of its songs; with no moods picked, Mea tags them for you). Tag each with the moods it suits.</p>
       <div class="row wrap">
         <input class="input grow" bind:value={link} placeholder="A YouTube Music song or playlist link" aria-label="YouTube Music song or playlist link" />
@@ -151,14 +213,33 @@
         {#each MOODS as m (m)}<button type="button" class="chip" class:on={moods.includes(m)} onclick={() => (moods = toggle(moods, m))}>{m}</button>{/each}
         <label class="switch small"><input type="checkbox" bind:checked={instrumental} /> instrumental</label>
       </div>
-      {#each cfg.library as t (t.videoId)}
+      {#if libraryOpen || !cfg.library.length}
+      <div class="stack" id="music-library">
+      {#if cfg.library.length > 1}
+        <div class="row wrap">
+          <input class="input grow" type="search" bind:value={query} placeholder="Search by title, artist or mood" aria-label="Search the library" />
+          {#if artists.length > 1}<select class="select" bind:value={artistPick} aria-label="Only this artist"><option value="">All artists</option>{#each artists as [a, n] (a)}<option value={a}>{a} ({n})</option>{/each}</select>{/if}
+          {#if filtering}<span class="tiny muted">{shown.length} of {cfg.library.length}</span>{/if}
+        </div>
+        <div class="row wrap bulk">
+          <label class="switch small"><input type="checkbox" checked={allShownPicked} onchange={pickShown} disabled={!shown.length} /> Select {filtering ? "all shown" : "all"}</label>
+          {#if picked.length}
+            <span class="tiny muted">{picked.length} selected</span>
+            <button class="btn ghost small" onclick={() => (picked = [])}>Clear</button>
+            <button class="btn small danger" onclick={removePicked}><X size={13} /> Remove {picked.length}</button>
+          {/if}
+        </div>
+      {/if}
+      {#each shown as t (t.videoId)}
         <div class="track">
-          <div class="row between"><span class="small"><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}{#if t.instrumental} <span class="tiny faint">instrumental</span>{/if}</span><button class="btn ghost icon small" onclick={() => song(del<Config>(`/api/music/library/${t.videoId}`))} aria-label="Remove {t.title}"><X size={13} /></button></div>
+          <div class="row between"><label class="pick small"><input type="checkbox" checked={pickedSet.has(t.videoId)} onchange={() => (picked = toggle(picked, t.videoId))} aria-label="Select {t.title}" /><span><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}{#if t.instrumental} <span class="tiny faint">instrumental</span>{/if}</span></label><button class="btn ghost icon small" onclick={() => song(del<Config>(`/api/music/library/${t.videoId}`))} aria-label="Remove {t.title}"><X size={13} /></button></div>
           <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => song(patch<Config>(`/api/music/library/${t.videoId}`, { moods: toggle(t.moods, m) }))}>{m}</button>{/each}</div>
         </div>
       {:else}
-        <p class="tiny muted">Nothing yet. Paste a song or playlist link, or play something in YouTube Music and Add what's playing.</p>
+        {#if cfg.library.length}<p class="tiny muted">No song matches.</p>{:else}<p class="tiny muted">Nothing yet. Paste a song or playlist link, or play something in YouTube Music and Add what's playing.</p>{/if}
       {/each}
+      </div>
+      {/if}
     </section>
 
     <section class="panel stack">
@@ -210,6 +291,22 @@
   .chip.on {
     background: var(--accent);
     color: var(--on-accent, #fff);
+  }
+  .fold :global(svg) {
+    transition: transform 0.15s;
+  }
+  .fold.open :global(svg) {
+    transform: rotate(180deg);
+  }
+  .pick {
+    display: flex;
+    gap: 0.45rem;
+    align-items: baseline;
+    cursor: pointer;
+  }
+  .bulk {
+    gap: 0.5rem;
+    align-items: center;
   }
   .track {
     display: grid;

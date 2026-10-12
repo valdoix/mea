@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../src/app";
 import { setSetting } from "../src/lib/settings";
-import { addTrack, connectStart, type Cue, musicConfig, musicView, pickTrack, refreshTaste, removeTrack, retagTrack, saveMusicConfig } from "../src/music/director";
+import { addTrack, connectStart, type Cue, musicConfig, musicView, pickTrack, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig } from "../src/music/director";
 import { command, playlistIdOf, YtmError } from "../src/music/ytmusic";
 import { freshDb } from "./helpers";
 
@@ -130,6 +130,12 @@ describe("the soundtrack on th-ch's YouTube Music (API Server)", () => {
     setSetting("music.taste", { hozier: { at: 0 } });
     await refreshTaste();
     expect(musicConfig().library.filter((t) => t.videoId === "hhhhhhhhhh1").length).toBe(1);
+    // Several at once: both leave, and neither comes back.
+    removeTracks(["hhhhhhhhhh1", "hhhhhhhhhh2"]);
+    setSetting("music.taste", { hozier: { at: 0 } });
+    await refreshTaste();
+    expect(musicConfig().library.map((t) => t.videoId).filter((id) => id.startsWith("hhh"))).toEqual([]);
+    await addTrack({ link: "hhhhhhhhhh2" });
     // Taking the artist off the list keeps their songs; it only stops looking for more.
     saveMusicConfig({ taste: { preferred: [], banned: [], instrumentalInDialogue: false } });
     await refreshTaste();

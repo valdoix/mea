@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
-import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicView, refreshTaste, removeTrack, retagTrack, saveMusicConfig } from "../music/director";
+import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -169,6 +169,7 @@ desk.post("/music/disconnect", (c) => c.json(disconnect()));
 desk.post("/music/library", async (c) => c.json(await addTrack(await body(c, z.object({ link: z.string().max(300).optional(), moods: z.array(z.enum(MOODS)).optional(), instrumental: z.boolean().optional(), title: z.string().max(200).optional(), artist: z.string().max(120).optional() })))));
 desk.patch("/music/library/:videoId", async (c) => c.json(retagTrack(c.req.param("videoId"), await body(c, z.object({ moods: z.array(z.enum(MOODS)).max(9).optional(), instrumental: z.boolean().optional() })))));
 desk.delete("/music/library/:videoId", (c) => c.json(removeTrack(c.req.param("videoId"))));
+desk.post("/music/library/remove", async (c) => c.json(removeTracks((await body(c, z.object({ ids: z.array(z.string().max(20)).max(500) }))).ids)));
 desk.get("/chats/:id/music", (c) => {
   mustChat(c.req.param("id"));
   return c.json(chatMusicView(c.req.param("id")));
