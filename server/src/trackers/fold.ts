@@ -712,7 +712,7 @@ export class Folder {
         const c = this.person(op.subject, seq);
         if (!c || !a.text) return this.reject(ctx, "whose thoughts?");
         if (c.isUser && this.cfg.sealedPersona && this.ai(ctx)) return this.reject(ctx, "your character's inner life is yours to write");
-        c.thoughts = { text: clip(a.text, 400), seq };
+        c.thoughts = { text: a.text.trim(), seq };
         // A private change: the thoughts drawer under the reply reads it; the chips never show it.
         this.push(ctx, { kind: "thought", text: `${c.name} thinks`, subject: c.name, path: `chars.${c.id}.thoughts`, to: c.thoughts.text });
         return;
