@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reply Gazette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700&family=Libre+Franklin:wght@400;500;600;800&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Mockup C — "The Gazette": each reply prints a tiny front page. Typographic, inky, a little dramatic. */
+:root{
+  --bg:#ece6dc; --paper:#faf6ee; --ink:#1d1a17; --muted:#6a6158; --rule:#1d1a17; --hair:#cfc5b6;
+  --red:#b3261e; --green:#21714a; --tint:#f1e9da;
+  --f-mast:"UnifrakturMaguntia",serif; --f-head:"Playfair Display",Georgia,serif; --f-ui:"Libre Franklin",system-ui,sans-serif;
+  --f-read:"Newsreader",Georgia,serif; --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121110; --paper:#1d1b19; --ink:#efe8dc; --muted:#a59c90; --rule:#efe8dc; --hair:#3d3832; --red:#ff7a6b; --green:#6fd3a0; --tint:#27241f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121110; --paper:#1d1b19; --ink:#efe8dc; --muted:#a59c90; --rule:#efe8dc; --hair:#3d3832; --red:#ff7a6b; --green:#6fd3a0; --tint:#27241f; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--f-ui);padding:0 16px;overflow-x:hidden}
+.wrap{max-width:860px;margin:0 auto;padding:40px 0 96px;display:grid;gap:18px}
+.note{font-size:13px;color:var(--muted);display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.note b{color:var(--ink)}
+.theme{font:500 12px var(--f-ui);border:1px solid var(--hair);background:var(--paper);color:var(--muted);border-radius:2px;padding:5px 12px;cursor:pointer}
+.reply{background:var(--paper);border:1px solid var(--hair);padding:20px 22px}
+.reply p{font:400 16.5px/1.65 var(--f-read);margin:0 0 .8em}.reply p:last-child{margin:0}
+
+/* ---------- front page ---------- */
+.paper{background:var(--paper);padding:18px 22px 22px;border:1px solid var(--hair);position:relative;
+  box-shadow:0 1px 0 var(--hair),0 14px 30px -18px rgba(0,0,0,.35);transform:rotate(-.25deg);
+  background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1.2px);background-size:4px 4px;animation:drop .6s both cubic-bezier(.2,1.2,.4,1)}
+.mast{text-align:center;border-bottom:3px double var(--rule);padding-bottom:6px}
+.mast h2{margin:0;font:400 clamp(30px,6vw,46px)/1 var(--f-mast);letter-spacing:.01em}
+.dateline{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--rule);padding:5px 0;font:600 10.5px/1.2 var(--f-ui);letter-spacing:.14em;text-transform:uppercase}
+.dateline .extra{color:var(--red)}
+
+.lead{padding:16px 0 14px;border-bottom:1px solid var(--rule);display:grid;gap:6px;text-align:center}
+.kicker{font:800 10.5px/1 var(--f-ui);letter-spacing:.2em;text-transform:uppercase;color:var(--red)}
+.lead h3{margin:0;font:900 clamp(26px,5vw,40px)/1.02 var(--f-head);letter-spacing:-.01em;text-wrap:balance}
+.lead .deck{font:italic 400 16px/1.4 var(--f-head);color:var(--muted)}
+.lead .deck b{font-style:normal;color:var(--ink)}
+.retract{justify-self:center;font:600 10.5px/1 var(--f-ui);letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--hair);background:none;color:var(--muted);padding:5px 9px;cursor:pointer}
+.retract:hover{color:var(--red);border-color:var(--red)}
+
+.cols{display:grid;grid-template-columns:1.1fr 1fr;gap:0}
+.col{padding:14px 16px 4px 0}
+.col + .col{padding:14px 0 4px 16px;border-left:1px solid var(--hair)}
+.sect{font:800 11px/1 var(--f-ui);letter-spacing:.2em;text-transform:uppercase;border-bottom:2px solid var(--rule);padding-bottom:5px;margin:0 0 10px;display:flex;justify-content:space-between}
+.sect span{color:var(--muted);font-weight:600;letter-spacing:.08em}
+
+/* hearts as market ticker */
+.ticker{width:100%;border-collapse:collapse;font:500 13px/1.3 var(--f-ui)}
+.ticker td{padding:8px 0;border-bottom:1px dotted var(--hair);vertical-align:top}
+.ticker tr:last-child td{border-bottom:0}
+.ticker .pair{font-weight:600}
+.ticker .pair small{display:block;font:400 12px/1.3 var(--f-ui);color:var(--muted)}
+.ticker .sym{font:600 12px/1 var(--f-mono);letter-spacing:.04em;text-align:right;white-space:nowrap;padding-left:10px}
+.ticker .up{color:var(--red)}.ticker .good{color:var(--green)}
+.ticker .sym em{font-style:normal;display:block;font-size:10.5px;color:var(--muted);margin-top:4px}
+.spark{display:inline-block;vertical-align:middle;margin-right:4px}
+
+/* overheard */
+.heard{margin:14px 0 0;display:grid;gap:12px}
+.heard blockquote{margin:0;font:italic 400 16px/1.4 var(--f-read);padding-left:12px;border-left:3px solid var(--ink)}
+.heard cite{display:block;font:600 10.5px/1.2 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;font-style:normal;color:var(--muted);margin-top:4px}
+
+/* second oath as a pull quote */
+.pull{margin:0 0 14px;padding:12px 0;border-top:3px solid var(--rule);border-bottom:1px solid var(--rule);text-align:center}
+.pull p{margin:0;font:700 italic 19px/1.25 var(--f-head)}
+.pull p::before{content:"“";color:var(--red)}.pull p::after{content:"”";color:var(--red)}
+.pull cite{display:block;font:600 10.5px/1.3 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;font-style:normal;color:var(--muted);margin-top:6px}
+
+/* in brief */
+.brief{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.brief li{padding:6px 0;border-bottom:1px dotted var(--hair);font:400 13.5px/1.4 var(--f-ui);display:grid;grid-template-columns:84px 1fr;gap:8px}
+.brief li:last-child{border-bottom:0}
+.brief .k{font:800 9.5px/1.9 var(--f-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.brief b{font-weight:600}
+.brief .alert .k,.brief .alert b{color:var(--red)}
+
+.weather{margin-top:12px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:10px;background:var(--tint);border:1px solid var(--hair)}
+.weather .ic{font-size:26px}
+.weather div{font:500 13px/1.35 var(--f-ui)}
+.weather b{display:block;font:900 15px/1.2 var(--f-head)}
+
+.stamp{position:absolute;top:56px;right:18px;font:800 11px/1 var(--f-ui);letter-spacing:.14em;color:var(--red);border:2px solid var(--red);padding:5px 8px;transform:rotate(9deg);opacity:.85;animation:stamp .5s .5s both cubic-bezier(.3,1.6,.5,1)}
+
+.unsaid{background:var(--paper);border:1px solid var(--hair);padding:12px 16px;color:var(--muted);font:600 12px var(--f-ui)}
+@keyframes drop{from{opacity:0;transform:translateY(-12px) rotate(-1.5deg)}}
+@keyframes stamp{from{opacity:0;transform:scale(2) rotate(-10deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (max-width:620px){
+  .paper{padding:14px 14px 16px;transform:none}
+  .cols{grid-template-columns:1fr}
+  .col{padding:14px 0 4px}
+  .col + .col{padding:14px 0 4px;border-left:0;border-top:1px solid var(--rule)}
+  .stamp{display:none}
+  .brief li{grid-template-columns:1fr;gap:2px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note"><span><b>C · The Gazette.</b> Every reply prints a tiny front page. The biggest change gets the headline.</span><button class="theme" id="theme">Toggle dark</button></div>
+
+  <article class="reply">
+    <p>The tree line swallows the last of the light. Jackie claps once, sharp, the way Coach does. “Nobody goes solo. Pairs only. I mean it.” Her voice is bright and it doesn’t shake, and nobody points out that she’s counting heads under her breath.</p>
+    <p>Shauna falls in beside James without being asked. Travis is already ten steps ahead, shouting his brother’s name into the snow.</p>
+  </article>
+
+  <section class="paper" aria-label="What this reply changed">
+    <div class="mast"><h2>The Tree Line Times</h2></div>
+    <div class="dateline"><span>Day 41 · Early night</span><span class="extra">Extra! 22 developments</span><span>South ridge edition</span></div>
+    <span class="stamp" aria-hidden="true">SWORN</span>
+
+    <div class="lead">
+      <span class="kicker">🤝 A promise is made</span>
+      <h3>“Nobody solo. Pairs only.”</h3>
+      <div class="deck"><b>Jacqueline ‘Jackie’ Taylor</b> swears it to the whole group</div>
+      <button class="retract">Retract · not a promise</button>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <h4 class="sect">Hearts index <span>3 movers</span></h4>
+        <table class="ticker">
+          <tr><td class="pair">Jacqueline ‘Jackie’ Taylor<small>toward James Holloway</small></td>
+              <td class="sym up"><svg class="spark" width="34" height="14" viewBox="0 0 34 14"><polyline fill="none" stroke="currentColor" stroke-width="1.6" points="1,11 9,10 17,11 25,7 33,3"/></svg>FEAR ▲1<em>3 / 5</em></td></tr>
+          <tr><td class="pair">Jacqueline ‘Jackie’ Taylor<small>toward Shauna Shipman</small></td>
+              <td class="sym up"><svg class="spark" width="34" height="14" viewBox="0 0 34 14"><polyline fill="none" stroke="currentColor" stroke-width="1.6" points="1,9 9,7 17,8 25,5 33,2"/></svg>RESENT ▲1<em>4 / 5</em></td></tr>
+          <tr><td class="pair">Jacqueline ‘Jackie’ Taylor<small>toward Kristen</small></td>
+              <td class="sym good"><svg class="spark" width="34" height="14" viewBox="0 0 34 14"><polyline fill="none" stroke="currentColor" stroke-width="1.6" points="1,12 9,12 17,11 25,11 33,7"/></svg>TRUST ▲1<em>2 / 5</em></td></tr>
+        </table>
+
+        <h4 class="sect" style="margin-top:16px">Overheard <span>🧠 learned</span></h4>
+        <div class="heard">
+          <blockquote>Shauna’s color is better. She filed it under shock from the tree line and let it go.<cite>Now known to Jackie Taylor</cite></blockquote>
+          <blockquote>Jackie won’t look at her since the tree line.<cite>Now known to Shauna Shipman</cite></blockquote>
+        </div>
+
+        <div class="pull" style="margin:16px 0 0">
+          <p>To god, if you call me Nattie one more time I’m leaving you at the tree line.</p>
+          <cite>🤝 James Holloway, sworn to Jackie Taylor · <button class="retract" style="padding:2px 6px">retract</button></cite>
+        </div>
+
+        <div class="weather"><span class="ic">🌨</span><div><b>First snow</b>Wind out of the north · dusk turned to early night</div></div>
+      </div>
+
+      <div class="col">
+
+        <h4 class="sect">In brief <span>15 items</span></h4>
+        <ul class="brief">
+          <li class="alert"><span class="k">⏰ Deadline</span><span>About <b>two hours</b> of light left for the search</span></li>
+          <li><span class="k">🧵 Thread</span><span>New question: <b>where is Javi?</b></span></li>
+          <li><span class="k">🤫 Secret</span><span><b>Shauna’s journal.</b> Jackie doesn’t know it exists.</span></li>
+          <li><span class="k">🎭 Mood</span><span><b>Jackie</b> is brittle, captain-bright. <b>Shauna</b> is cold and watchful.</span></li>
+          <li><span class="k">🩹 Body</span><span><b>Travis</b> scraped both palms on the ravine rocks</span></li>
+          <li><span class="k">✨ Trait</span><span><b>Jackie</b> counts heads when she’s scared</span></li>
+          <li><span class="k">👥 Cast</span><span><b>Travis Martinez</b> joined the search party</span></li>
+          <li><span class="k">🎒 Items</span><span><b>Shauna</b> keeps the journal inside her jacket. <b>Jackie</b> lost the whistle.</span></li>
+          <li><span class="k">⚖ Owed</span><span><b>James</b> owes <b>Jackie</b> for covering for her at the ridge</span></li>
+          <li><span class="k">🏛 Faction</span><span><b>The group</b>: tension +1 over the pairs rule</span></li>
+          <li><span class="k">📍 Place</span><span>Moved from the tree line to <b>the south ridge</b></span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="unsaid">∴ What went unsaid · 3 &nbsp;(unchanged drawer sits here)</div>
+</div>
+<script>
+document.getElementById('theme').onclick=()=>{const d=document.documentElement;const dark=d.dataset.theme==='dark'||(!d.dataset.theme&&matchMedia('(prefers-color-scheme:dark)').matches);d.dataset.theme=dark?'light':'dark'};
+</script>
+</body>
+</html>

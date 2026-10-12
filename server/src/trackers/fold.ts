@@ -651,7 +651,7 @@ export class Folder {
         if (this.isLocked(`chars.${c.id}.look`) && this.ai(ctx)) return this.reject(ctx, "locked");
         if (c.look && norm(c.look) === norm(a.to)) return;
         c.look = clip(a.to, 240);
-        this.push(ctx, { kind: "look", text: `${c.name}: ${clip(a.to, 60)}`, subject: c.name, path: `chars.${c.id}.look` });
+        this.push(ctx, { kind: "look", text: `${c.name}: ${clip(a.to)}`, subject: c.name, path: `chars.${c.id}.look` });
         return;
       }
       case "trait": {
@@ -671,7 +671,7 @@ export class Folder {
           }
           if (cur) c.traits = c.traits.filter((t) => t !== cur);
           c.traits.push({ kind, text: clip(text, 120), by, seq });
-          this.push(ctx, { kind: "trait", text: `${c.name}: ${clip(text, 60)}`, subject: c.name, path: `chars.${c.id}.traits.${kind}`, from: cur?.text, to: text });
+          this.push(ctx, { kind: "trait", text: `${c.name}: ${clip(text)}`, subject: c.name, path: `chars.${c.id}.traits.${kind}`, from: cur?.text, to: text });
         }
         return;
       }
@@ -688,8 +688,8 @@ export class Folder {
           if ((target as Record<string, string>)[k] && norm((target as Record<string, string>)[k]!) === norm(a[k])) continue;
           (target as Record<string, string>)[k] = clip(a[k], 160);
           any = true;
-          if (op.op === "mask" && k === "felt") this.push(ctx, { kind: "mask", text: `${c.name} hides: ${clip(a[k], 60)}`, subject: c.name, path: `chars.${c.id}.mask`, to: a[k] });
-          if (op.op === "drive" && k === "want") this.push(ctx, { kind: "drive", text: `${c.name} wants: ${clip(a[k], 60)}`, subject: c.name, path: `chars.${c.id}.drives.want` });
+          if (op.op === "mask" && k === "felt") this.push(ctx, { kind: "mask", text: `${c.name} hides: ${clip(a[k])}`, subject: c.name, path: `chars.${c.id}.mask`, to: a[k] });
+          if (op.op === "drive" && k === "want") this.push(ctx, { kind: "drive", text: `${c.name} wants: ${clip(a[k])}`, subject: c.name, path: `chars.${c.id}.drives.want` });
         }
         if (!any && !keys.some((k) => a[k])) return this.reject(ctx, `write ${keys.join(": / ")}:`);
         return;
@@ -863,7 +863,7 @@ export class Folder {
         if (cur && cur.status === status) return;
         f.stances[holder.id] = { status, route: a.route ?? op.cause, seq, ...(ctx.ev.source === "user" ? { set: true } : {}) };
         if (f.secret?.from.includes(holder.id) && /knows|believes|suspects/.test(status)) f.secret.from = f.secret.from.filter((x) => x !== holder.id);
-        this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : `now ${status}`}: ${clip(f.statement, 70)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });
+        this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });
         return;
       }
       case "secret": {
@@ -874,7 +874,7 @@ export class Folder {
         f.secret = { keepers: uniq([...(f.secret?.keepers ?? []), ...keepers]), from: uniq([...(f.secret?.from ?? []), ...from]) };
         for (const k of keepers) f.stances[k] ??= { status: "knows", route: "keeps it", seq };
         for (const k of from) if (!f.stances[k] || f.stances[k]!.status === "unaware") f.stances[k] = { status: "unaware", route: "kept from them", seq };
-        this.push(ctx, { kind: "secret", text: `Secret: ${clip(f.statement, 60)}`, path: `facts.${f.key}`, reason: op.cause });
+        this.push(ctx, { kind: "secret", text: `Secret: ${clip(f.statement)}`, path: `facts.${f.key}`, reason: op.cause });
         return;
       }
       case "reveal": {
@@ -884,7 +884,7 @@ export class Folder {
         for (const id of to) f.stances[id] = { status: "knows", route: op.cause ?? "revealed", seq };
         if (f.secret) f.secret.from = f.secret.from.filter((x) => !to.includes(x));
         f.revealed.push({ to, seq, how: op.cause });
-        this.push(ctx, { kind: "secret", text: `Revealed to ${to.map((x) => this.nameOf(x)).join(", ") || "someone"}: ${clip(f.statement, 60)}`, path: `facts.${f.key}`, reason: op.cause, tone: "warn", memory: true });
+        this.push(ctx, { kind: "secret", text: `Revealed to ${to.map((x) => this.nameOf(x)).join(", ") || "someone"}: ${clip(f.statement)}`, path: `facts.${f.key}`, reason: op.cause, tone: "warn", memory: true });
         return;
       }
       case "pressure": {
@@ -929,7 +929,7 @@ export class Folder {
         }
         if (e.cur === prev) return;
         e.history.push({ delta: e.cur - prev, v: e.cur, why: op.cause, who: who?.id, seq });
-        this.push(ctx, { kind: "secret", text: `Exposure ${e.cur}/${e.max}: ${clip(f.statement, 50)}`, path: `exposure.${f.key}`, reason: op.cause, from: prev, to: e.cur, tone: e.cur >= e.max ? "warn" : e.cur > prev ? "due" : undefined, memory: e.cur >= e.max });
+        this.push(ctx, { kind: "secret", text: `Exposure ${e.cur}/${e.max}: ${clip(f.statement)}`, path: `exposure.${f.key}`, reason: op.cause, from: prev, to: e.cur, tone: e.cur >= e.max ? "warn" : e.cur > prev ? "due" : undefined, memory: e.cur >= e.max });
         return;
       }
       case "item": {
@@ -1081,7 +1081,7 @@ export class Folder {
           o.auto = ctx.ev.source === "engine";
           this.push(ctx, { kind: op.op, text: `${cap(op.op === "owe" ? "debt" : "promise")} ${status}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause, tone: status === "kept" || status === "paid" ? "up" : status === "broken" ? "down" : "due", memory: status === "broken" || status === "kept" });
           if (op.op === "promise" && whom) this.feelPromise(o, ctx, seq);
-        } else if (fresh) this.push(ctx, { kind: op.op, text: `${op.op === "owe" ? `${who.name} owes ${whom?.name ?? "someone"}` : `${who.name} ${o.meet ? `will meet ${whom?.name ?? "someone"} at ${o.meet}` : "promised"}`}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause });
+        } else if (fresh) this.push(ctx, { kind: op.op, text: `${op.op === "owe" ? `${who.name} owes ${whom?.name ?? "someone"}` : `${who.name} ${o.meet ? `will meet ${whom?.name ?? "someone"} at ${o.meet}` : `promised${whom ? ` ${whom.name}` : ""}`}`}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause });
         this.promiseChecks(ctx);
         return;
       }
@@ -1104,21 +1104,21 @@ export class Folder {
         const id = slug(a.text);
         if (st.plants[id]) return;
         st.plants[id] = { id, text: clip(a.text, 160), payoff: a.payoff ? clip(a.payoff, 120) : undefined, seq, scene: st.sceneNo };
-        this.push(ctx, { kind: "plant", text: `Planted: ${clip(a.text, 60)}`, path: `plants.${id}` });
+        this.push(ctx, { kind: "plant", text: `Planted: ${clip(a.text)}`, path: `plants.${id}` });
         return;
       }
       case "payoff": {
         const p = Object.values(st.plants).find((x) => x.paidSeq == null && (slug(a.text) === x.id || overlap(x.text, a.text) >= 0.5));
         if (!p) return this.reject(ctx, "no unpaid plant like that");
         p.paidSeq = seq;
-        this.push(ctx, { kind: "plant", text: `Paid off: ${clip(p.text, 60)}`, path: `plants.${p.id}`, reason: a.payoff, tone: "up", memory: true });
+        this.push(ctx, { kind: "plant", text: `Paid off: ${clip(p.text)}`, path: `plants.${p.id}`, reason: a.payoff, tone: "up", memory: true });
         return;
       }
       case "clue": {
         if (!a.text) return this.reject(ctx, "what clue?");
         if (st.clues.some((c) => overlap(c.text, a.text) > 0.8)) return;
         st.clues.push({ id: slug(a.text), text: clip(a.text, 160), pointsTo: a.pointsTo, reliability: a.reliability, seq });
-        this.push(ctx, { kind: "clue", text: `Clue: ${clip(a.text, 60)}`, path: `clues.${slug(a.text)}` });
+        this.push(ctx, { kind: "clue", text: `Clue: ${clip(a.text)}`, path: `clues.${slug(a.text)}` });
         return;
       }
       case "gauge": {
@@ -1187,7 +1187,7 @@ export class Folder {
           return;
         }
         st.motifs[id] = { id, text: clip(a.text, 120), who: a.who, firstSeq: seq, lastSeq: seq, uses: 1 };
-        this.push(ctx, { kind: "motif", text: `Running bit: ${clip(a.text, 50)}`, path: `motifs.${id}` });
+        this.push(ctx, { kind: "motif", text: `Running bit: ${clip(a.text)}`, path: `motifs.${id}` });
         return;
       }
       case "milestone": {
@@ -1195,7 +1195,7 @@ export class Folder {
         if (st.milestones.some((m) => overlap(m.text, a.text) > 0.8)) return;
         const who = (a.who ? String(a.who).split(/\s*(?:&|,|\band\b)\s*/) : []).map((n: string) => this.findChar(n)?.id ?? n);
         st.milestones.push({ text: clip(a.text, 160), who, seq, at: st.time ? formatStoryTime(st.time) : null });
-        this.push(ctx, { kind: "milestone", text: `Milestone: ${clip(a.text, 60)}`, path: `milestones.${slug(a.text)}`, memory: true, tone: "up" });
+        this.push(ctx, { kind: "milestone", text: `Milestone: ${clip(a.text)}`, path: `milestones.${slug(a.text)}`, memory: true, tone: "up" });
         return;
       }
       case "lock": {

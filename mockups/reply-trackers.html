@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reply Ripples</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=Caveat:wght@600;700&display=swap">
+<style>
+/* Mockup: the tracker chips under a reply, reworked into "ripples" — grouped, untruncated, a bit of sticker-book joy. */
+:root{
+  --bg:#fbf1ee; --paper:#fffaf8; --paper-2:#fff3f1; --ink:#4b2833; --muted:#8a6570; --faint:#b9989f;
+  --line:#efd3da; --rose:#c2416b; --rose-soft:#fbe3ea;
+  --fear:#7756c9; --fear-soft:#eee8fb;
+  --resent:#d0435a; --resent-soft:#fde5e8;
+  --trust:#2c8a5c; --trust-soft:#e2f4ea;
+  --mind:#3473b8; --mind-soft:#e3eefa;
+  --oath:#b4731c; --oath-soft:#fbf0dc; --wax:#b8344f;
+  --shadow:0 1px 0 rgba(120,50,70,.06), 0 6px 18px -10px rgba(120,50,70,.25);
+  --f-ui:"Jost",system-ui,sans-serif; --f-read:"Newsreader",Georgia,serif; --f-hand:"Caveat",cursive;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1d1519; --paper:#271c21; --paper-2:#2e2127; --ink:#f4e4e8; --muted:#c09ea8; --faint:#8a6c75;
+  --line:#47323a; --rose:#f07fa0; --rose-soft:#3e2430;
+  --fear:#b09cf2; --fear-soft:#2f2742; --resent:#f2798b; --resent-soft:#43232b;
+  --trust:#6fd09d; --trust-soft:#1f3529; --mind:#86b6ec; --mind-soft:#1f2b3b;
+  --oath:#e9b464; --oath-soft:#3a2d1b; --wax:#d9566f;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 8px 20px -12px rgba(0,0,0,.7); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1d1519; --paper:#271c21; --paper-2:#2e2127; --ink:#f4e4e8; --muted:#c09ea8; --faint:#8a6c75;
+  --line:#47323a; --rose:#f07fa0; --rose-soft:#3e2430;
+  --fear:#b09cf2; --fear-soft:#2f2742; --resent:#f2798b; --resent-soft:#43232b;
+  --trust:#6fd09d; --trust-soft:#1f3529; --mind:#86b6ec; --mind-soft:#1f2b3b;
+  --oath:#e9b464; --oath-soft:#3a2d1b; --wax:#d9566f;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 8px 20px -12px rgba(0,0,0,.7); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--f-ui);padding:0 16px;overflow-x:hidden}
+.wrap{max-width:860px;margin:0 auto;padding:40px 0 96px;display:grid;gap:18px}
+.note{font-size:13px;color:var(--muted);display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.note b{color:var(--ink);font-weight:600}
+.theme{font:500 12px var(--f-ui);border:1px solid var(--line);background:var(--paper);color:var(--muted);border-radius:99px;padding:5px 12px;cursor:pointer}
+
+/* ---------- the reply (context only) ---------- */
+.reply{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:20px 22px;box-shadow:var(--shadow)}
+.reply .by{display:flex;gap:10px;align-items:center;font:600 12px/1 var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.reply p{font:400 16.5px/1.65 var(--f-read);margin:0 0 .8em}
+.reply p:last-child{margin:0}
+
+.av{--h:220;width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font:500 14px/1 var(--f-read);color:hsl(var(--h) 45% 22%);
+  background:radial-gradient(circle at 35% 30%,hsl(var(--h) 90% 88%),hsl(var(--h) 70% 72%));
+  box-shadow:0 0 0 2px var(--paper)}
+.av.lg{width:34px;height:34px;font-size:17px}
+
+/* ---------- ripples ---------- */
+.ripples{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px 16px 16px;box-shadow:var(--shadow)}
+.rhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rtitle{font:700 22px/1 var(--f-hand);color:var(--rose);letter-spacing:.01em}
+.tally{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.tally span{font:600 11.5px/1 var(--f-ui);padding:4px 8px;border-radius:99px;background:var(--paper-2);border:1px solid var(--line);color:var(--muted)}
+.fold{font:600 12px var(--f-ui);border:0;background:var(--rose-soft);color:var(--rose);border-radius:99px;padding:6px 12px;cursor:pointer}
+.fold:hover{filter:brightness(.97)}
+.body{display:grid;gap:18px;margin-top:14px}
+.ripples.folded .body{display:none}
+
+.sec{display:grid;gap:8px}
+.sec h3{margin:0;display:flex;align-items:center;gap:8px;font:600 11px/1 var(--f-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+.sec h3::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+
+/* hearts: bond cards */
+.bonds{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.bond{--c:var(--fear);--s:var(--fear-soft);position:relative;border-radius:14px;padding:12px 14px 12px;
+  background:linear-gradient(160deg,var(--s),var(--paper) 75%);border:1px solid color-mix(in srgb,var(--c) 28%,var(--line));
+  display:grid;gap:10px;transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.bond:hover{transform:translateY(-2px) rotate(-.6deg)}
+.bond.resent{--c:var(--resent);--s:var(--resent-soft)}
+.bond.trust{--c:var(--trust);--s:var(--trust-soft)}
+.pair{display:flex;align-items:center;gap:6px}
+.pair .arrow{flex:1;height:2px;background:repeating-linear-gradient(90deg,var(--c) 0 6px,transparent 6px 10px);position:relative;opacity:.7}
+.pair .arrow::after{content:"";position:absolute;right:-2px;top:-4px;border:5px solid transparent;border-left:7px solid var(--c);border-right:0}
+.who{font:400 13.5px/1.35 var(--f-ui);color:var(--muted)}
+.who b{color:var(--ink);font-weight:600}
+.feel{display:flex;align-items:center;gap:10px}
+.emo{font:700 24px/1 var(--f-hand);color:var(--c)}
+.pips{display:flex;gap:4px;flex:1}
+.pips i{width:12px;height:12px;border-radius:50%;border:1.5px solid color-mix(in srgb,var(--c) 45%,transparent)}
+.pips i.on{background:var(--c);border-color:var(--c)}
+.pips i.new{background:var(--c);border-color:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 25%,transparent);animation:pop .6s .4s both cubic-bezier(.3,1.8,.5,1)}
+.pips.down i.lost{border-style:dashed;animation:fade .6s .4s both}
+.delta{font:700 13px/1 var(--f-ui);color:var(--paper);background:var(--c);border-radius:8px;padding:5px 8px;transform:rotate(4deg);box-shadow:0 2px 0 color-mix(in srgb,var(--c) 60%,#000)}
+
+/* minds: index cards */
+.minds{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.card{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:4px 14px 14px 14px;padding:12px 14px 13px;
+  background-image:linear-gradient(90deg,transparent 30px,color-mix(in srgb,var(--rose) 22%,transparent) 30px 31px,transparent 31px);padding-left:42px;
+  box-shadow:var(--shadow);transition:transform .2s}
+.card:nth-child(odd){transform:rotate(-.5deg)}
+.card:nth-child(even){transform:rotate(.6deg)}
+.card:hover{transform:rotate(0) translateY(-2px)}
+.card::before{content:"";position:absolute;left:18px;top:-7px;width:44px;height:14px;background:color-mix(in srgb,var(--mind) 30%,transparent);border-radius:2px;transform:rotate(-4deg)}
+.card .k{display:flex;gap:8px;align-items:center;margin-left:-28px;font:600 12px/1.2 var(--f-ui);color:var(--mind);margin-bottom:6px}
+.card .k .now{font-weight:500;color:var(--muted)}
+.card p{margin:0;font:italic 400 15.5px/24px var(--f-read)}
+
+/* oaths: sealed promises */
+.oaths{display:grid;gap:10px}
+.oath{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:12px 14px;border-radius:14px;
+  background:var(--oath-soft);border:1.5px dashed color-mix(in srgb,var(--oath) 45%,transparent)}
+.seal{width:46px;height:46px;display:grid;place-items:center;font-size:20px;color:#fff;position:relative;animation:stamp .5s .2s both cubic-bezier(.3,1.6,.5,1)}
+.seal svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 2px 0 rgba(0,0,0,.18))}
+.seal span{position:relative}
+.oath .line{font:400 13px/1.35 var(--f-ui);color:var(--muted)}
+.oath .line b{color:var(--ink);font-weight:600}
+.oath q{display:block;font:500 italic 17px/1.4 var(--f-read);color:var(--ink);margin-top:3px;quotes:"“" "”"}
+.oath .status{font:700 20px/1 var(--f-hand);color:var(--oath);transform:rotate(-6deg);white-space:nowrap}
+.undo{border:1px solid color-mix(in srgb,var(--oath) 40%,transparent);background:var(--paper);color:var(--oath);border-radius:99px;font:600 11px var(--f-ui);padding:4px 9px;cursor:pointer;margin-top:6px}
+.oath .end{display:grid;justify-items:end;gap:4px}
+
+/* everything else: wrapped stickers */
+.also{display:grid;gap:12px}
+.lane{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:start}
+.lane .lname{font:700 18px/1.1 var(--f-hand);color:var(--muted);padding-top:5px}
+.stickers{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start}
+.st{--c:var(--rose);display:inline-flex;align-items:flex-start;gap:7px;max-width:100%;padding:5px 11px 5px 5px;border-radius:16px;
+  background:color-mix(in srgb,var(--c) 9%,var(--paper));border:1px solid color-mix(in srgb,var(--c) 26%,var(--line));
+  font:400 13.5px/1.4 var(--f-ui);color:var(--ink);transition:transform .18s cubic-bezier(.3,1.6,.5,1)}
+.st:hover{transform:rotate(-1.2deg) scale(1.02)}
+.st .ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:50%;font-size:12px;background:color-mix(in srgb,var(--c) 18%,var(--paper))}
+.st .tx{padding-top:1px}
+.st b{font-weight:600}
+.st .ar{color:var(--c);font-weight:600}
+.st.mood{--c:#c4589a}.st.body{--c:#d4683f}.st.trait{--c:#9a6bd1}.st.look{--c:#c2416b}
+.st.place{--c:#2e8c86}.st.weather{--c:#4c86c9}.st.clock{--c:#8a7a5e}.st.cast{--c:#5d7bd6}
+.st.item{--c:#a8742c}.st.owe{--c:#7f6a3f}.st.thread{--c:#c2416b}.st.secret{--c:#6d55b8}.st.deadline{--c:#c9502d}.st.faction{--c:#5a7d4d}
+.st.warn{border-style:dashed}
+
+/* folded ribbon */
+.ribbon{display:none;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ripples.folded .ribbon{display:flex}
+.ribbon span{font:600 12px/1 var(--f-ui);padding:6px 10px;border-radius:99px;background:var(--paper-2);border:1px solid var(--line)}
+
+/* drawer (context only, existing design) */
+.unsaid{background:var(--paper-2);border:1px solid var(--line);border-radius:16px;padding:12px 16px;color:var(--muted);font:600 12px var(--f-ui)}
+
+.ripples:not(.folded) .body > .sec{animation:rise .5s both cubic-bezier(.2,.9,.3,1)}
+.body > .sec:nth-child(2){animation-delay:.06s}.body > .sec:nth-child(3){animation-delay:.12s}.body > .sec:nth-child(4){animation-delay:.18s}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.35)}100%{transform:scale(1)}}
+@keyframes fade{from{background:var(--c)}}
+@keyframes stamp{0%{transform:scale(1.8) rotate(-20deg);opacity:0}100%{transform:scale(1) rotate(-8deg);opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+@media (max-width:560px){
+  .lane{grid-template-columns:1fr;gap:4px}
+  .lane .lname{padding:0}
+  .oath{grid-template-columns:auto 1fr}
+  .oath .end{grid-column:1/-1;justify-items:start;grid-auto-flow:column;align-items:center;gap:10px}
+  .reply{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">
+    <span><b>Reply trackers, redesigned.</b> Grouped by what kind of change it is, and nothing is cut off.</span>
+    <button class="theme" id="theme">Toggle dark</button>
+  </div>
+
+  <article class="reply">
+    <div class="by"><span class="av" style="--h:330">N</span>Narrator</div>
+    <p>The tree line swallows the last of the light. Jackie claps once, sharp, the way Coach does. “Nobody goes solo. Pairs only. I mean it.” Her voice is bright and it doesn’t shake, and nobody points out that she’s counting heads under her breath.</p>
+    <p>Shauna falls in beside James without being asked. Travis is already ten steps ahead, shouting his brother’s name into the snow.</p>
+  </article>
+
+  <section class="ripples" id="ripples" aria-label="What this reply changed">
+    <div class="rhead">
+      <span class="rtitle">22 ripples</span>
+      <div class="tally" aria-hidden="true">
+        <span>💞 3</span><span>🧠 2</span><span>🤝 2</span><span>✨ 15</span>
+      </div>
+      <button class="fold" id="fold" aria-expanded="true">Fold up</button>
+    </div>
+
+    <div class="ribbon" aria-hidden="true">
+      <span>💞 Jackie feels more fear, resentment, trust</span><span>🧠 2 things learned</span><span>🤝 2 promises</span><span>✨ 15 more</span>
+    </div>
+
+    <div class="body">
+      <!-- HEARTS -->
+      <div class="sec">
+        <h3>Hearts shifted</h3>
+        <div class="bonds">
+          <div class="bond">
+            <div class="pair"><span class="av lg" style="--h:225">J</span><span class="arrow"></span><span class="av lg" style="--h:40">J</span></div>
+            <div class="who"><b>Jacqueline ‘Jackie’ Taylor</b> toward <b>James Holloway</b></div>
+            <div class="feel"><span class="emo">Fear</span><span class="pips"><i class="on"></i><i class="on"></i><i class="new"></i><i></i><i></i></span><span class="delta">+1</span></div>
+          </div>
+          <div class="bond resent">
+            <div class="pair"><span class="av lg" style="--h:225">J</span><span class="arrow"></span><span class="av lg" style="--h:18">S</span></div>
+            <div class="who"><b>Jacqueline ‘Jackie’ Taylor</b> toward <b>Shauna Shipman</b></div>
+            <div class="feel"><span class="emo">Resentment</span><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="new"></i><i></i></span><span class="delta">+1</span></div>
+          </div>
+          <div class="bond trust">
+            <div class="pair"><span class="av lg" style="--h:225">J</span><span class="arrow"></span><span class="av lg" style="--h:290">K</span></div>
+            <div class="who"><b>Jacqueline ‘Jackie’ Taylor</b> toward <b>Kristen</b></div>
+            <div class="feel"><span class="emo">Trust</span><span class="pips"><i class="on"></i><i class="new"></i><i></i><i></i><i></i></span><span class="delta">+1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MINDS -->
+      <div class="sec">
+        <h3>Minds opened</h3>
+        <div class="minds">
+          <div class="card">
+            <div class="k"><span class="av" style="--h:225">J</span>🧠 Jackie <span class="now">now knows</span></div>
+            <p>Shauna’s color is better. She filed it under shock from the tree line and let it go.</p>
+          </div>
+          <div class="card">
+            <div class="k"><span class="av" style="--h:18">S</span>🧠 Shauna <span class="now">now knows</span></div>
+            <p>Jackie won’t look at her since the tree line.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- OATHS -->
+      <div class="sec">
+        <h3>Oaths sworn</h3>
+        <div class="oaths">
+          <div class="oath">
+            <div class="seal"><svg viewBox="0 0 46 46" aria-hidden="true"><path fill="var(--wax)" d="M23 2l4.2 3.6 5.4-1.1 2.3 5 5.1 2-.4 5.5 3.4 4.3-3.4 4.3.4 5.5-5.1 2-2.3 5-5.4-1.1L23 44l-4.2-3.6-5.4 1.1-2.3-5-5.1-2 .4-5.5L3 23.7l3.4-4.3L6 13.9l5.1-2 2.3-5 5.4 1.1z"/><circle cx="23" cy="23" r="13" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/></svg><span>🤝</span></div>
+            <div>
+              <div class="line"><b>Jacqueline ‘Jackie’ Taylor</b> promised <b>the group</b></div>
+              <q>Nobody solo. Pairs only.</q>
+            </div>
+            <div class="end"><span class="status">sworn!</span><button class="undo" title="Not a promise">↶ not a promise</button></div>
+          </div>
+          <div class="oath">
+            <div class="seal"><svg viewBox="0 0 46 46" aria-hidden="true"><path fill="var(--wax)" d="M23 2l4.2 3.6 5.4-1.1 2.3 5 5.1 2-.4 5.5 3.4 4.3-3.4 4.3.4 5.5-5.1 2-2.3 5-5.4-1.1L23 44l-4.2-3.6-5.4 1.1-2.3-5-5.1-2 .4-5.5L3 23.7l3.4-4.3L6 13.9l5.1-2 2.3-5 5.4 1.1z"/><circle cx="23" cy="23" r="13" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/></svg><span>🤝</span></div>
+            <div>
+              <div class="line"><b>James Holloway</b> promised <b>Jacqueline ‘Jackie’ Taylor</b></div>
+              <q>To god, if you call me Nattie one more time I’m leaving you at the tree line.</q>
+            </div>
+            <div class="end"><span class="status">sworn!</span><button class="undo" title="Not a promise">↶ not a promise</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EVERYTHING ELSE -->
+      <div class="sec">
+        <h3>And also</h3>
+        <div class="also">
+          <div class="lane">
+            <div class="lname">bodies &amp; moods</div>
+            <div class="stickers">
+              <span class="st mood"><span class="ic">🎭</span><span class="tx"><b>Jackie</b> <span class="ar">→</span> brittle, captain-bright</span></span>
+              <span class="st mood"><span class="ic">🎭</span><span class="tx"><b>Shauna</b> <span class="ar">→</span> cold and watchful</span></span>
+              <span class="st body"><span class="ic">🩹</span><span class="tx"><b>Travis</b> scraped both palms on the ravine rocks</span></span>
+              <span class="st trait"><span class="ic">✨</span><span class="tx"><b>Jackie</b> counts heads when she’s scared</span></span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="lname">the world</div>
+            <div class="stickers">
+              <span class="st place"><span class="ic">📍</span><span class="tx">Tree line <span class="ar">→</span> <b>south ridge</b></span></span>
+              <span class="st weather"><span class="ic">🌦</span><span class="tx"><b>First snow</b>, wind out of the north</span></span>
+              <span class="st clock"><span class="ic">🕰</span><span class="tx">Day 41 · dusk <span class="ar">→</span> <b>early night</b></span></span>
+              <span class="st cast"><span class="ic">👥</span><span class="tx"><b>Travis Martinez</b> joined the search party</span></span>
+              <span class="st faction"><span class="ic">🏛</span><span class="tx"><b>The group</b> · tension +1 over the pairs rule</span></span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="lname">pockets</div>
+            <div class="stickers">
+              <span class="st item"><span class="ic">🎒</span><span class="tx"><b>Shauna</b> keeps the journal inside her jacket</span></span>
+              <span class="st item"><span class="ic">🎒</span><span class="tx"><b>Jackie</b> lost the whistle</span></span>
+              <span class="st owe"><span class="ic">⚖</span><span class="tx"><b>James</b> owes <b>Jackie</b> for covering for her at the ridge</span></span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="lname">loose threads</div>
+            <div class="stickers">
+              <span class="st thread"><span class="ic">🧵</span><span class="tx">New thread: <b>where is Javi?</b></span></span>
+              <span class="st secret"><span class="ic">🤫</span><span class="tx"><b>Shauna’s journal</b> · Jackie doesn’t know it exists</span></span>
+              <span class="st deadline warn"><span class="ic">⏰</span><span class="tx">About <b>two hours</b> of light left for the search</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="unsaid">∴ What went unsaid · 3 &nbsp;(unchanged drawer sits here)</div>
+</div>
+<script>
+const r=document.getElementById('ripples'),f=document.getElementById('fold');
+f.onclick=()=>{const folded=r.classList.toggle('folded');f.textContent=folded?'Unfold':'Fold up';f.setAttribute('aria-expanded',String(!folded))};
+document.getElementById('theme').onclick=()=>{const d=document.documentElement;const dark=d.dataset.theme==='dark'||(!d.dataset.theme&&matchMedia('(prefers-color-scheme:dark)').matches);d.dataset.theme=dark?'light':'dark'};
+</script>
+</body>
+</html>
