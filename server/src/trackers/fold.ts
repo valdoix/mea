@@ -148,7 +148,9 @@ const AXIS_ALIASES: Record<string, Axis> = {
   obligation: "obligation", debt: "obligation", rivalry: "rivalry", rival: "rivalry", jealousy: "rivalry",
 };
 const BIG_CAUSE = /\b(betray\w*|rescue\w*|saved?\b|saving|unforgiv\w*|life|died|death|confess\w*|attack\w*|abandon\w*)\b/i;
-const DOWN_CAUSE = /\b(betray\w*|lie|lied|neglect\w*|abandon\w*|broke|broken|cheat\w*|hurt|rejected|refus\w*)\b/i;
+const DOWN_CAUSE = /\b(betray\w*|lie|lies|lied|lying|neglect\w*|abandon\w*|broke|broken|break\w*|cheat\w*|hurt\w*|reject\w*|refus\w*|cruel\w*|deceiv\w*|deceit\w*|revealed|left (?:her|him|them)|walked away|turned away|pushed (?:her|him|them) away|cold|withdr[ae]w\w*|distan\w*|end(?:ed|s)? it|split|dumped|argu\w*|resent\w*)\b/i;
+/** Words that name a crowd, not a person: "know Group: …" means everyone in the scene. */
+const GROUP_WORD = /^(?:the |all the |whole )*(?:group|whole group|everyone|everybody|all|all present|all of them|all of us|circle|others|rest|crowd|camp|team|squad|party|survivors|room|table|fire|us|them|they|we|both|both of them|girls|boys|kids|everyone present|everyone here|whole camp)$/;
 
 interface Ctx {
   cfg: FoldConfig;
@@ -245,7 +247,18 @@ export class Folder {
   /** A person named in an op: resolves or creates (never for names that look like groups or places). */
   person(name: string | undefined, seq: number): Character | undefined {
     if (!name?.trim()) return undefined;
-    return this.findChar(name) ?? this.ensureChar(name, seq);
+    const found = this.findChar(name);
+    if (found) return found;
+    if (GROUP_WORD.test(norm(personName(name)))) return undefined;
+    return this.ensureChar(name, seq);
+  }
+
+  /** The people a name stands for: "the group", "everyone", "the circle" mean whoever is in the scene. */
+  people(name: string | undefined, seq: number): Character[] {
+    if (name?.trim() && !this.findChar(name) && GROUP_WORD.test(norm(personName(name))))
+      return Object.values(this.state.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead);
+    const c = this.person(name, seq);
+    return c ? [c] : [];
   }
 
   nameOf(id: string) {
@@ -842,7 +855,9 @@ export class Folder {
           if (pace === "slow" && prev >= 1 && scenesSince < 2) return this.reject(ctx, "slow burn: a step up needs two separate scenes of returned signals");
           if (pace === "measured" && prev >= 1 && scenesSince < 1) return this.reject(ctx, "measured pace: one step per scene");
         }
-        if (!up && this.ai(ctx) && !DOWN_CAUSE.test(op.cause ?? "") && LADDER_WARM.test(op.cause ?? "")) return this.reject(ctx, "a warm beat doesn't lower the ladder");
+        // A rung is lost to betrayal, neglect, cruelty or a revealed lie, never to a re-read of the moment.
+        if (!up && this.ai(ctx) && !DOWN_CAUSE.test(op.cause ?? ""))
+          return this.reject(ctx, LADDER_WARM.test(op.cause ?? "") ? "a warm beat doesn't lower the ladder" : `the ladder is at ${LADDER[prev]} (${prev}/7); it only drops for a betrayal, neglect, cruelty or a revealed lie`);
         const l = (st.ladders[key] ??= { from: from.id, to: to.id, tier: prev, seq, scene: st.sceneNo, history: [] });
         l.tier = tier;
         l.evidence = op.cause;
@@ -853,24 +868,30 @@ export class Folder {
         return;
       }
       case "know": {
-        const holder = this.person(op.subject, seq);
-        if (!holder || !a.fact) return this.reject(ctx, "write know Holder: fact | route · status · truth");
+        const holders = this.people(op.subject, seq);
+        if (!holders.length || !a.fact) return this.reject(ctx, "write know Holder: fact | route · status · truth");
         if (!this.needCause(ctx, op) && !a.route) return;
         const f = this.fact(a.key, a.fact, seq, a.truth);
         const status = (a.status ?? "knows") as KnowStatus;
-        const cur = f.stances[holder.id];
-        if (cur?.set && this.ai(ctx)) return this.reject(ctx, "you set what they know about this");
-        if (cur && cur.status === status) return;
-        f.stances[holder.id] = { status, route: a.route ?? op.cause, seq, ...(ctx.ev.source === "user" ? { set: true } : {}) };
-        if (f.secret?.from.includes(holder.id) && /knows|believes|suspects/.test(status)) f.secret.from = f.secret.from.filter((x) => x !== holder.id);
-        this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });
+        const one = holders.length === 1;
+        for (const holder of holders) {
+          const cur = f.stances[holder.id];
+          if (cur?.set && this.ai(ctx)) {
+            if (one) return this.reject(ctx, "you set what they know about this");
+            continue;
+          }
+          if (cur && cur.status === status) continue;
+          f.stances[holder.id] = { status, route: a.route ?? op.cause, seq, ...(ctx.ev.source === "user" ? { set: true } : {}) };
+          if (f.secret?.from.includes(holder.id) && /knows|believes|suspects/.test(status)) f.secret.from = f.secret.from.filter((x) => x !== holder.id);
+          this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });
+        }
         return;
       }
       case "secret": {
         if (!a.fact && !a.key) return this.reject(ctx, "write secret #key: fact | kept by A · from B");
         const f = this.fact(a.key, a.fact ?? a.key, seq, "true");
-        const keepers = ((a.keepers ?? []) as string[]).map((n) => this.person(n, seq)?.id).filter(Boolean) as string[];
-        const from = ((a.from ?? []) as string[]).map((n) => this.person(n, seq)?.id).filter(Boolean) as string[];
+        const keepers = uniq(((a.keepers ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
+        const from = uniq(((a.from ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
         f.secret = { keepers: uniq([...(f.secret?.keepers ?? []), ...keepers]), from: uniq([...(f.secret?.from ?? []), ...from]) };
         for (const k of keepers) f.stances[k] ??= { status: "knows", route: "keeps it", seq };
         for (const k of from) if (!f.stances[k] || f.stances[k]!.status === "unaware") f.stances[k] = { status: "unaware", route: "kept from them", seq };
@@ -880,7 +901,7 @@ export class Folder {
       case "reveal": {
         const f = a.key ? st.facts[slug(a.key)] ?? Object.values(st.facts).find((x) => overlap(x.statement, a.key) > 0.6) : undefined;
         if (!f) return this.reject(ctx, "no such secret or fact");
-        const to = ((a.to ?? []) as string[]).map((n) => this.person(n, seq)?.id).filter(Boolean) as string[];
+        const to = uniq(((a.to ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
         for (const id of to) f.stances[id] = { status: "knows", route: op.cause ?? "revealed", seq };
         if (f.secret) f.secret.from = f.secret.from.filter((x) => !to.includes(x));
         f.revealed.push({ to, seq, how: op.cause });

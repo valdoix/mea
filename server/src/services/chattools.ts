@@ -108,6 +108,21 @@ export function applyBanned(text: string, extra: string[] = []): { text: string;
   return { text: out.replace(/ {2,}/g, " "), hits, replaced };
 }
 
+/**
+ * A short narration sentence that names the player or the user ("The player put them there.") is the
+ * model stepping out of the story; it comes out. Dialogue and longer sentences are left alone.
+ */
+export function cutFourthWall(text: string): { text: string; cut: string[] } {
+  const cut: string[] = [];
+  const out = text.replace(/(^|[.!?…*]["”’']?[ \t]+|\n[ \t]*)([^.!?…"“”\n]*\bthe (?:player|user)(?:['’]s)?\b[^.!?…"“”\n]*[.!?…]+)[ \t]*/gi, (m, lead: string, s: string) => {
+    if (s.trim().split(/\s+/).length > 12) return m;
+    cut.push(s.trim());
+    return lead;
+  });
+  if (!cut.length) return { text, cut };
+  return { text: out.replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").replace(/^\s*\n/, "").replace(/\n{3,}/g, "\n\n"), cut };
+}
+
 /** CHAT-14: cuts an unfinished last sentence. */
 export function trimUnfinished(text: string): string {
   const t = text.trimEnd();
