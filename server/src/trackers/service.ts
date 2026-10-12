@@ -102,8 +102,8 @@ function messagesFor(chatId: string, messageId: string, names: { user: string; c
   return picked
     .map((r) => {
       const who = r.role === "user" ? names.user : r.role === "assistant" ? r.name || names.char : "Note";
-      // The reply being read goes in whole: what changes often comes at its end (a reveal, a death, a kiss).
-      return `[#${r.seq}] ${who}: ${clip(cleanText(r.content), r.id === messageId ? 40000 : 12000)}`;
+      // Whole messages: what changes often comes at the end of a long reply (a reveal, a death, a kiss).
+      return `[#${r.seq}] ${who}: ${cleanText(r.content)}`;
     })
     .join("\n\n");
 }
