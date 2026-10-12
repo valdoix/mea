@@ -1,46 +1,45 @@
 /* =====================================================================
    X · ROSEWATER VANITY — blush, powder, prose
-   Pearl-sheen cards with a gold hairline, oval mirror portraits ringed with bulbs, a perfume-label
-   cartouche for each chapter, a gold compact to send, and a heart for what you keep.
+   Pearl cards with a single gold hairline, oval portraits strung with pearls, names in Playfair
+   italic over a fading gold rule, a chapter title under a gold swag, and a rose-gold compact to send.
    ===================================================================== */
 :root[data-theme="rosewater"][data-shell] h1 {
   font-style: italic;
   font-weight: 400;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--accent-ink);
 }
 :root[data-theme="rosewater"][data-shell] h2,
 :root[data-theme="rosewater"][data-shell] .panel > h2:first-child {
   font: italic 500 1.35rem/1.2 var(--font-display);
+  letter-spacing: -0.01em;
 }
 :root[data-theme="rosewater"][data-shell] .btn {
   border-radius: 999px;
+  letter-spacing: 0.02em;
 }
 :root[data-theme="rosewater"][data-shell] .btn.primary {
   border: 0;
   color: #fff;
-  background: linear-gradient(135deg, #eb93ad, #d9708f 55%, #c35a7a);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent) 60%, var(--accent-strong));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 50%),
-    0 10px 20px -10px rgb(200 80 120 / 70%);
+    inset 0 1px 0 rgb(255 255 255 / 45%),
+    0 8px 18px -10px color-mix(in srgb, var(--accent-strong) 80%, transparent);
 }
 :root[data-theme="rosewater"][data-mode="night"] .btn.primary {
-  color: #2a0b1c;
-  background: linear-gradient(135deg, #fbecc8, #f0cf94 50%, #c99a52);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 60%),
-    0 0 24px -6px rgb(240 207 148 / 60%);
+  color: #2a0f1c;
+  background: linear-gradient(180deg, #f6dccb, var(--accent) 60%, #c98e78);
 }
 :root[data-theme="rosewater"][data-shell] .btn.primary:hover {
-  filter: brightness(1.06) saturate(1.1);
+  filter: brightness(1.05);
 }
 :root[data-theme="rosewater"][data-shell] .card,
 :root[data-theme="rosewater"][data-shell] .panel {
   border-radius: var(--r-lg);
   border: 0;
-  background: linear-gradient(135deg, var(--pearl), color-mix(in srgb, var(--pearl) 88%, var(--blush)) 50%, var(--pearl));
+  background: var(--surface);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gold) 28%, transparent),
     var(--shadow-1);
 }
 :root[data-theme="rosewater"][data-shell] .chip {
@@ -48,29 +47,28 @@
 }
 :root[data-theme="rosewater"][data-shell] .seg button.on {
   border-radius: 999px;
-  background: var(--pearl);
+  background: var(--surface);
   color: var(--accent-ink);
   box-shadow:
-    inset 0 0 0 1px var(--gold),
-    0 4px 10px -6px rgb(160 60 90 / 50%);
+    inset 0 0 0 1px color-mix(in srgb, var(--gold) 60%, transparent),
+    0 4px 10px -6px color-mix(in srgb, var(--lo) 70%, transparent);
 }
 :root[data-theme="rosewater"][data-shell] .switch input:checked {
   background: var(--accent);
 }
 :root[data-theme="rosewater"][data-shell] mark.hl,
 :root[data-theme="rosewater"][data-shell] .prose mark.hl {
-  background: linear-gradient(transparent 55%, color-mix(in srgb, var(--blush) 55%, transparent) 55% 92%, transparent 92%);
+  background: linear-gradient(transparent 60%, color-mix(in srgb, var(--blush) 70%, transparent) 60% 94%, transparent 94%);
   color: inherit;
 }
 
-/* the shell: a pearl capsule rail and a mirror-arched window */
+/* the shell: a pearl rail and a calm, softly framed page */
 :root[data-theme="rosewater"][data-shell] nav.rail {
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--pearl), color-mix(in srgb, var(--pearl) 85%, var(--blush)) 50%, var(--pearl));
+  background: var(--surface);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--gold) 60%, transparent),
-    0 0 0 5px color-mix(in srgb, var(--pearl) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gold) 40%, transparent),
     var(--shadow-2);
 }
 :root[data-theme="rosewater"][data-shell] nav.rail .logo {
@@ -78,94 +76,87 @@
   background: none;
   box-shadow: none;
   place-items: center;
-  color: var(--gold) !important;
-  font: italic 500 1.65rem/1 var(--font-display);
+  color: var(--accent-ink) !important;
+  font: italic 500 1.6rem/1 var(--font-display);
 }
 :root[data-theme="rosewater"][data-shell] nav.rail .nav.on {
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff, color-mix(in srgb, var(--blush) 45%, var(--pearl)) 70%);
+  background: color-mix(in srgb, var(--blush) 45%, var(--surface));
   color: var(--accent-ink) !important;
-  box-shadow:
-    inset 0 0 0 1px var(--gold),
-    0 6px 14px -8px rgb(160 60 90 / 60%);
-}
-:root[data-theme="rosewater"][data-mode="night"] nav.rail .nav.on {
-  background: radial-gradient(circle at 35% 30%, #7a2e58, #4e1b3c 70%);
-  color: var(--gold-hi) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent);
 }
 :root[data-theme="rosewater"][data-shell] nav.rail .nav.on::before {
   background: var(--gold);
 }
-:root[data-theme="rosewater"][data-shell] .main-col {
-  border: 0;
-  border-radius: 64px 64px 30px 30px;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--gold) 50%, transparent),
-    inset 0 0 0 6px color-mix(in srgb, var(--pearl) 40%, transparent),
-    inset 0 0 0 7px color-mix(in srgb, var(--gold) 25%, transparent),
-    var(--shadow-2);
-}
+:root[data-theme="rosewater"][data-shell] .main-col,
 :root[data-theme="rosewater"][data-shell] .dock {
   border: 0;
-  border-radius: 30px;
+  border-radius: 28px;
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--gold) 50%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gold) 30%, transparent),
     var(--shadow-2);
 }
 :root[data-theme="rosewater"][data-shell] .chat.focus .main-col {
   box-shadow: none;
 }
 :root[data-theme="rosewater"][data-shell] .bar .cname {
-  font: italic 500 2rem/1.05 var(--font-display);
+  font: italic 500 1.9rem/1.05 var(--font-display);
   color: var(--accent-ink);
 }
 :root[data-theme="rosewater"][data-shell] .bar .cname .ctitle {
-  font: 500 0.72rem var(--font-ui);
+  font: 500 0.7rem var(--font-ui);
   font-style: normal;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
-/* messages: pearl sheen, a gold hairline, a soft blush for you */
+/* messages: pearl cards, a hairline of gold, a blush wash for you */
 :root[data-theme="rosewater"][data-shell] .style-cards .msg .bubble {
-  --hairline: linear-gradient(160deg, color-mix(in srgb, var(--gold) 80%, transparent), color-mix(in srgb, var(--gold) 15%, transparent) 40%, color-mix(in srgb, var(--gold) 55%, transparent));
+  --hairline: linear-gradient(170deg, color-mix(in srgb, var(--gold) 55%, transparent), color-mix(in srgb, var(--gold) 12%, transparent) 45%, color-mix(in srgb, var(--gold) 30%, transparent));
   border: 0;
-  border-radius: 28px 28px 28px 8px;
-  background: linear-gradient(135deg, var(--pearl) 0%, color-mix(in srgb, var(--pearl) 82%, var(--blush)) 42%, var(--pearl) 58%, color-mix(in srgb, var(--pearl) 88%, var(--gold)) 100%);
-  box-shadow:
-    inset 0 14px 22px -16px rgb(255 255 255 / calc(0.9 * var(--sheen))),
-    0 18px 34px -22px rgb(160 60 90 / 60%);
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--pearl) 90%, transparent), transparent 60%),
+    var(--tint-char);
+  box-shadow: 0 18px 36px -26px color-mix(in srgb, var(--lo) 90%, transparent);
 }
 :root[data-theme="rosewater"][data-shell] .style-cards .msg.user .bubble {
-  border-radius: 28px 28px 8px 28px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--blush) 40%, var(--pearl)), color-mix(in srgb, var(--blush) 20%, var(--pearl)) 60%, color-mix(in srgb, var(--blush) 34%, var(--pearl)));
+  background:
+    radial-gradient(120% 70% at 100% 0%, color-mix(in srgb, var(--pearl) 60%, transparent), transparent 60%),
+    var(--tint-user);
+  --hairline: linear-gradient(170deg, color-mix(in srgb, var(--accent) 45%, transparent), color-mix(in srgb, var(--accent) 10%, transparent) 50%, color-mix(in srgb, var(--accent) 25%, transparent));
 }
 :root[data-theme="rosewater"][data-shell] .style-cards .msg.bookmarked .bubble::after {
   display: block;
   content: "♥";
   left: auto;
   right: 18px;
-  top: 10px;
+  top: 12px;
   width: auto;
   height: auto;
   background: none;
-  font: 1.15rem/1 var(--font-display);
-  color: #e0457a;
-  text-shadow: 0 2px 8px rgb(224 69 122 / 50%);
-  animation: rw-heart 0.9s var(--spring) backwards;
+  font: 0.95rem/1 var(--font-display);
+  color: var(--accent);
+  animation: rw-heart 0.8s var(--spring) backwards;
 }
 :root[data-theme="rosewater"][data-shell] .style-cards .msg.bookmarked .head {
-  padding-right: 2.4rem;
-}
-:root[data-theme="rosewater"][data-shell] .style-cards .msg.streaming .bubble {
-  animation: rw-breathe 2.4s ease-in-out infinite;
+  padding-right: 2.2rem;
 }
 :root[data-theme="rosewater"][data-shell] .msg .name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
   font: italic 500 1.2rem/1.1 var(--font-display);
   letter-spacing: 0;
   text-transform: none;
   color: var(--accent-ink);
+}
+:root[data-theme="rosewater"][data-shell] .msg .name::after {
+  content: "";
+  width: 2.4rem;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold), transparent);
 }
 :root[data-theme="rosewater"][data-shell] .msg.user .name {
   color: var(--thought);
@@ -174,64 +165,50 @@
   position: relative;
   border-radius: 50%;
   box-shadow:
-    0 0 0 2px var(--gold),
-    0 0 0 5px var(--pearl),
-    0 0 0 6px color-mix(in srgb, var(--gold) 60%, transparent),
-    0 14px 26px -12px rgb(160 60 90 / 60%);
+    0 0 0 1px var(--gold),
+    0 0 0 6px var(--surface),
+    0 0 0 7px color-mix(in srgb, var(--gold) 45%, transparent),
+    0 16px 30px -16px color-mix(in srgb, var(--lo) 90%, transparent);
 }
 :root[data-theme="rosewater"][data-shell] .msg .portrait .avatar {
   border-radius: 50% !important;
 }
+/* a string of pearls around the oval */
 :root[data-theme="rosewater"][data-shell] .msg .portrait::after {
   content: "";
   position: absolute;
-  inset: -15px;
+  inset: -12px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, var(--bulb) 0 2.6px, transparent 3.3px) 0 0 / 14px 14px;
-  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
-  mask: radial-gradient(closest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
-  filter: drop-shadow(0 0 3px #ffd98a);
+  background: radial-gradient(circle at 40% 35%, #fff 0 1.2px, var(--bulb) 1.6px 2.7px, transparent 3.2px) 0 0 / 11px 11px;
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  mask: radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--lo) 60%, transparent));
   opacity: 0.9;
 }
-:root[data-theme="rosewater"][data-shell] .msg:last-child .portrait::after {
-  animation: rw-twinkle 2.6s ease-in-out infinite;
-}
 :root[data-theme="rosewater"][data-shell] .msg.user .portrait::after {
-  opacity: 0.55;
+  display: none;
 }
 :root[data-theme="rosewater"][data-shell] .msg {
   animation: rw-in 0.8s var(--ease) backwards;
 }
 
-/* chapters: a perfume label */
+/* chapters: a title in italic under a gold swag */
 :root[data-theme="rosewater"][data-shell] .chapter-h {
-  width: fit-content;
-  max-width: 100%;
-  margin-inline: auto;
-  padding: 2.2rem 3.6rem 1.8rem;
-  border-radius: 50% / 46%;
-  background: linear-gradient(135deg, var(--pearl), color-mix(in srgb, var(--pearl) 82%, var(--blush)) 50%, var(--pearl));
-  box-shadow:
-    inset 0 0 0 1px var(--gold),
-    inset 0 0 0 6px var(--pearl),
-    inset 0 0 0 7px color-mix(in srgb, var(--gold) 55%, transparent),
-    var(--shadow-2);
+  padding-top: 2.6rem;
 }
 :root[data-theme="rosewater"][data-shell] .chapter-h::before {
-  top: -1.2rem;
-  height: 9rem;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--blush) 30%, transparent), transparent);
+  top: 0.4rem;
+  width: min(15rem, 80%);
+  height: 2.2rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 36'%3E%3Cg fill='none' stroke='%23b08a4e' stroke-width='1.2' stroke-linecap='round'%3E%3Cpath d='M4 8c40 30 76 30 116 0 40 30 76 30 116 0'/%3E%3Cpath d='M120 8c-6-8-14-8-14-2s8 6 14 2c6 4 14 4 14-2s-8-6-14 2z'/%3E%3Ccircle cx='4' cy='8' r='2.5'/%3E%3Ccircle cx='236' cy='8' r='2.5'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
 }
 :root[data-theme="rosewater"][data-shell] .chapter-h .orn-line {
-  color: var(--gold);
-}
-:root[data-theme="rosewater"][data-shell] .chapter-h .orn-line span {
-  background: color-mix(in srgb, var(--gold) 55%, transparent);
+  display: none;
 }
 :root[data-theme="rosewater"][data-shell] .ch-num {
-  font: 500 0.72rem var(--font-ui);
-  letter-spacing: 0.32em;
+  font: 500 0.7rem var(--font-ui);
+  letter-spacing: 0.34em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -240,14 +217,14 @@
 }
 :root[data-theme="rosewater"][data-shell] .ch-title {
   font: italic 500 clamp(2rem, 4.6vw, 3rem) / 1.08 var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   background: none;
   -webkit-background-clip: border-box;
   background-clip: border-box;
   color: var(--accent-ink);
 }
 :root[data-theme="rosewater"][data-mode="night"] .ch-title {
-  background: linear-gradient(180deg, #fff3dc, var(--gold) 60%, #d6a35a);
+  background: linear-gradient(180deg, #fff1e4, var(--accent) 60%, var(--gold));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -257,24 +234,24 @@
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
 
-/* composer: a pearl pill and a gold compact */
+/* composer: a pearl field and a rose-gold compact */
 :root[data-theme="rosewater"][data-shell] .composer {
-  border-radius: 28px;
-  background: var(--pearl);
+  border-radius: 26px;
+  background: var(--surface);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gold) 38%, transparent),
     var(--shadow-1);
 }
 :root[data-theme="rosewater"][data-shell] .send.primary {
   border-radius: 50%;
   color: #fff;
-  background: radial-gradient(circle at 35% 30%, #fff3d6, #d6aa62 55%, #8f6528);
+  background: radial-gradient(circle at 35% 30%, #fff1e8, #e3a796 50%, #b8705c);
   box-shadow:
-    inset 0 0 0 2px rgb(255 255 255 / 35%),
-    0 8px 16px -8px rgb(120 80 20 / 70%);
+    inset 0 0 0 1px rgb(255 255 255 / 40%),
+    0 8px 16px -8px rgb(150 70 60 / 70%);
 }
 :root[data-theme="rosewater"][data-shell] .send.primary:not(:disabled):hover {
-  transform: rotate(-10deg) scale(1.06);
+  transform: scale(1.06);
 }
 
 /* home */
@@ -282,11 +259,11 @@
   color: var(--accent);
 }
 :root[data-theme="rosewater"][data-shell] .continue {
-  border-radius: 48px 48px 26px 26px;
+  border-radius: 28px;
   border: 0;
-  background: linear-gradient(135deg, var(--pearl), color-mix(in srgb, var(--pearl) 82%, var(--blush)) 50%, var(--pearl));
+  background: var(--surface);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent),
     var(--shadow-2);
 }
 :root[data-theme="rosewater"][data-shell] .continue .eyebrow {
@@ -300,9 +277,9 @@
 :root[data-theme="rosewater"][data-shell] .hero-pic {
   border-radius: 50%;
   box-shadow:
-    0 0 0 3px var(--gold),
-    0 0 0 8px var(--pearl),
-    0 0 0 9px color-mix(in srgb, var(--gold) 60%, transparent),
+    0 0 0 1px var(--gold),
+    0 0 0 7px var(--surface),
+    0 0 0 8px color-mix(in srgb, var(--gold) 45%, transparent),
     var(--shadow-2);
 }
 :root[data-theme="rosewater"][data-shell] .char {
@@ -316,43 +293,91 @@
 @keyframes rw-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
-    filter: blur(3px);
+    transform: translateY(8px);
   }
 }
 @keyframes rw-heart {
   0% {
     opacity: 0;
-    transform: scale(0.2);
+    transform: scale(0.3);
   }
   60% {
     opacity: 1;
-    transform: scale(1.5);
+    transform: scale(1.35);
   }
 }
-@keyframes rw-breathe {
-  50% {
-    filter: brightness(1.04);
-  }
-}
-@keyframes rw-twinkle {
-  50% {
-    opacity: 0.45;
-  }
+:root[data-theme="rosewater"][data-mode="night"] .msg .portrait::after {
+  opacity: 0.55;
 }
 
-@media (max-width: 760px) {
-  :root[data-theme="rosewater"][data-shell] .chapter-h {
-    padding: 2rem 2rem 1.6rem;
-    border-radius: 40px;
-  }
-  :root[data-theme="rosewater"][data-shell] .main-col {
-    border-radius: 30px;
-  }
+/* ---------- the flourishes ---------- */
+/* a second, finer frame inside each card and a scallop of lace along its foot */
+:root[data-theme="rosewater"][data-shell] .style-cards .msg .bubble {
+  outline: 1px solid color-mix(in srgb, var(--gold) 22%, transparent);
+  outline-offset: -7px;
+  padding-bottom: calc(var(--pad-y, 1.1rem) + 6px);
+  background:
+    radial-gradient(circle at 9px 100%, color-mix(in srgb, var(--blush) 55%, transparent) 5px, transparent 5.6px) 0 100% / 18px 9px repeat-x,
+    radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--pearl) 90%, transparent), transparent 60%),
+    var(--tint-char);
 }
-@media (prefers-reduced-motion: reduce) {
-  :root[data-theme="rosewater"][data-shell] .msg:last-child .portrait::after,
-  :root[data-theme="rosewater"][data-shell] .style-cards .msg.streaming .bubble {
-    animation: none;
-  }
+:root[data-theme="rosewater"][data-shell] .style-cards .msg.user .bubble {
+  background:
+    radial-gradient(circle at 9px 100%, color-mix(in srgb, var(--accent) 30%, transparent) 5px, transparent 5.6px) 0 100% / 18px 9px repeat-x,
+    radial-gradient(120% 70% at 100% 0%, color-mix(in srgb, var(--pearl) 60%, transparent), transparent 60%),
+    var(--tint-user);
+}
+:root[data-theme="rosewater"][data-shell] .msg .name::before {
+  content: "❦";
+  font-style: normal;
+  font-size: 0.85em;
+  color: var(--gold);
+}
+/* a satin bow tied on top of each portrait */
+:root[data-theme="rosewater"][data-shell] .msg .portrait::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: -20px;
+  width: 54px;
+  height: 46px;
+  translate: -50% 0;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 104'%3E%3Cdefs%3E%3ClinearGradient id='s' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f7d3d9'/%3E%3Cstop offset='.45' stop-color='%23e79aab'/%3E%3Cstop offset='.55' stop-color='%23fbe3e7'/%3E%3Cstop offset='1' stop-color='%23c96a82'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23s)' stroke='%23b08a4e' stroke-width='1.5'%3E%3Cpath d='M56 46c-6 20-16 36-26 50l12-4 4 8c8-18 12-36 14-52zM64 46c6 20 16 36 26 50l-12-4-4 8c-8-18-12-36-14-52z'/%3E%3Cpath d='M60 40C40 8 6 12 12 36c4 18 32 16 48 4zM60 40c20-32 54-28 48-4-4 18-32 16-48 4z'/%3E%3Cellipse cx='60' cy='41' rx='8' ry='9'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 3px 3px rgb(150 50 80 / 30%));
+}
+:root[data-theme="rosewater"][data-shell] .msg.user .portrait::before {
+  display: none;
+}
+/* chapters: a swag strung with pearls, a bow at its knot, roses either side of the title */
+:root[data-theme="rosewater"][data-shell] .chapter-h {
+  padding-top: 3.6rem;
+}
+:root[data-theme="rosewater"][data-shell] .chapter-h::before {
+  top: 0;
+  width: min(22rem, 92%);
+  height: 3.4rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 50'%3E%3Cpath d='M6 10c50 36 94 36 144 0 50 36 94 36 144 0' fill='none' stroke='%23b08a4e' stroke-width='1.2'/%3E%3Cpath d='M6 10c50 36 94 36 144 0 50 36 94 36 144 0' fill='none' stroke='%23fffaf2' stroke-width='6' stroke-linecap='round' stroke-dasharray='0 9'/%3E%3Cg fill='%23e79aab' stroke='%23b08a4e'%3E%3Cpath d='M150 12c-14-16-34-14-32-2 2 10 20 8 32 2zM150 12c14-16 34-14 32-2-2 10-20 8-32 2z'/%3E%3Cpath d='M147 15c-4 10-10 18-16 24l8-1 2 5c4-9 7-18 8-28zM153 15c4 10 10 18 16 24l-8-1-2 5c-4-9-7-18-8-28z'/%3E%3Ccircle cx='150' cy='12' r='5'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 2px 2px rgb(120 50 70 / 25%));
+}
+:root[data-theme="rosewater"][data-shell] .ch-title::before,
+:root[data-theme="rosewater"][data-shell] .ch-title::after {
+  content: "✿";
+  display: inline-block;
+  margin: 0 0.5em;
+  font: normal 0.45em/1 var(--font-ui);
+  vertical-align: middle;
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+}
+/* the composer gets a lace hem too, and the rail a strand of pearls down its edge */
+:root[data-theme="rosewater"][data-shell] .composer {
+  outline: 1px solid color-mix(in srgb, var(--gold) 20%, transparent);
+  outline-offset: -6px;
+}
+:root[data-theme="rosewater"][data-shell] nav.rail {
+  background:
+    radial-gradient(circle at 40% 35%, #fff 0 1px, var(--bulb) 1.4px 2.6px, transparent 3px) 100% 0 / 8px 9px repeat-y,
+    var(--surface);
 }
