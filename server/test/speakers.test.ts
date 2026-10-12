@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { extractSpeakers, resolveSpeaker, rosterLine, speakerRule, voiceRoster, withoutSpeakerMarks } from "../src/lib/speakers";
+import { extractSpeakers, quotedLines, resolveSpeaker, rosterLine, speakerFromLabel, speakerRule, voiceRoster, withoutSpeakerMarks, withSpeakerMarks, type SpokenLine } from "../src/lib/speakers";
 import { assemblePrompt } from "../src/prompt/assemble";
 import { meaPreset } from "../src/prompt/mea";
 import { emptyCard } from "../src/cards/card";
@@ -88,5 +88,30 @@ describe("speaker marks", () => {
     expect(on).toContain("left its lines unmarked");
     const off = assemblePrompt({ ...base, kind: "story" }).messages.map((m) => m.content).join("\n");
     expect(off).not.toContain("[SPEAKER MARKS");
+  });
+
+  test("earlier replies are marked again for the prompt, with the cast's numbers", () => {
+    const roster = voiceRoster("Jackie Taylor", "James", [{ name: "Jackie Taylor", isMain: true }, { name: "Nat", firstSeq: 2 }]);
+    const text = `"Water!" James grins. "We found it." Nat shrugs. "It's a lake."`;
+    const lines: SpokenLine[] = [
+      { text: `"Water!"`, name: "James" },
+      { text: `"We found it."`, name: "James", tone: "shout" },
+      { text: `"It's a lake."`, name: "Nat" },
+      { text: `"Edited away."`, name: "Nat" },
+    ];
+    expect(withSpeakerMarks(text, lines, roster)).toBe(`[spk=James#0]"Water!"[/spk] James grins. [spk=James#0|shout]"We found it."[/spk] Nat shrugs. [spk=Nat#2]"It's a lake."[/spk]`);
+    // Marked again, it reads back the same.
+    expect(extractSpeakers(withSpeakerMarks(text, lines, roster), roster).lines).toEqual(lines.slice(0, 3));
+    expect(withSpeakerMarks(text, undefined, roster)).toBe(text);
+  });
+
+  test("the helper's lines: every quote in order, a wrongly curled close included; its names read as the cast's", () => {
+    expect(quotedLines(`“Shipman. Hey. You —“
+
+“Shauna.” She kneels. "Okay," Nat says.`)).toEqual([`“Shipman. Hey. You —“`, `“Shauna.”`, `"Okay,"`]);
+    const roster = voiceRoster("Jackie Taylor", "James", [{ name: "Jackie Taylor", isMain: true, aliases: ["Jackie"] }]);
+    expect(speakerFromLabel("Jackie#1", roster)).toBe("Jackie Taylor");
+    expect(speakerFromLabel("?", roster)).toBeNull();
+    expect(speakerFromLabel("Travis", roster)).toBe("Travis");
   });
 });
