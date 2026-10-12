@@ -128,6 +128,16 @@ describe("fold rules", () => {
     expect(you.state.ladders["mira>user"]!.tier).toBe(3);
   });
 
+  test("an item line written owner first is about the thing, not the person", () => {
+    const r = foldEvents(events([["cast: Mira@spot · Joss@spot"], ["item Mira: silver bracelet — a gift", "item Mira: Lucky Strike → gone (dropped) — burned herself", "item Joss: leather jacket → Mira — lent it"]]), cfg());
+    expect(r.state.items.mira).toBeUndefined();
+    expect(r.state.items.joss).toBeUndefined();
+    expect(r.state.items["silver-bracelet"]!.holder).toBe("mira");
+    expect(r.state.items["lucky-strike"]!.gone).toBe(true);
+    expect(r.state.items["leather-jacket"]!.holder).toBe("mira");
+    expect(r.state.chars.mira!.dead).toBeFalsy();
+  });
+
   test("a group named in the ledger means the people in the scene, never a new person", () => {
     const r = foldEvents(events([["cast: Mira@spot · Joss@spot · Old Tom@left"], ["know Group: the well is dry — heard it said aloud", "know everyone: the boat leaves at dawn — told", "mood Circle: calm"]]), cfg());
     const names = Object.values(r.state.chars).map((c) => c.name);
