@@ -144,7 +144,7 @@ export function quotaPlanner() {
   const w = cal.cachedWeight ?? 1;
   const rows = all<{ task: string; kind: string; n: number; p: number; c: number; est: number }>(
     `SELECT task, kind, COUNT(*) AS n, COALESCE(SUM(prompt_tokens), 0) AS p, COALESCE(SUM(cached_tokens), 0) AS c, COALESCE(SUM(est_prompt_tokens), 0) AS est
-     FROM generations WHERE started_at >= ? AND billing = 'subscription' AND status != 'error' GROUP BY task, kind`,
+     FROM generations WHERE started_at >= ? AND billing = 'subscription' AND status NOT IN ('error', 'replaced') GROUP BY task, kind`,
     since,
   );
   const counted = (r: { p: number; c: number; est: number }) => (r.p ? r.p - r.c + r.c * w : r.est);

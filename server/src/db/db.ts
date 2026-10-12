@@ -28,6 +28,8 @@ export function openDb(file: string = paths.db, opts: { backupDir?: string; /** 
   database.exec("PRAGMA busy_timeout = 5000");
   database.exec("PRAGMA temp_store = MEMORY");
   database.exec("PRAGMA cache_size = -16000");
+  // The write-ahead log shrinks back to this after a checkpoint, so one big write doesn't keep it huge.
+  database.exec("PRAGMA journal_size_limit = 67108864");
   current = database;
   generation++;
   mode = "file";
@@ -68,6 +70,7 @@ export function closeDb() {
     }
     current.close();
     current = null;
+    health = null;
   }
 }
 
@@ -92,6 +95,63 @@ function migrate(database: Database, backupDir?: string, backupFn?: (name: strin
       database.query("INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)").run(m.id, m.name, now());
     })();
   }
+}
+
+export interface DbHealth {
+  ok: boolean;
+  checkedAt: number;
+  /** What quick_check reported, when it wasn't "ok" (the first few lines). */
+  problems: string[];
+  /** Rebuilding the indexes cleared the problems. */
+  repaired: boolean;
+}
+let health: DbHealth | null = null;
+/** The last health check of the open database, or null before the first one. */
+export const dbHealth = () => health;
+
+function quickCheck(database: Database): string[] {
+  return database
+    .query<Record<string, string>, []>("PRAGMA quick_check")
+    .all()
+    .map((r) => String(Object.values(r)[0] ?? ""))
+    .filter((v) => v && v !== "ok");
+}
+
+/**
+ * Checks the open database for damage (borrowed from Lumiverse's self-healing, the review of
+ * 2026-10-12): at startup and once a day. Damage confined to indexes is repaired by rebuilding
+ * them; anything else is reported (a status tile points to Backups & data) and left for you to
+ * decide, never "fixed" by throwing data away.
+ */
+export function checkDb(): DbHealth {
+  const database = db();
+  let problems: string[];
+  try {
+    problems = quickCheck(database);
+  } catch (e) {
+    problems = [`quick_check failed: ${(e as Error).message}`];
+  }
+  let repaired = false;
+  if (problems.length) {
+    console.error(`[mea] the database check found ${problems.length} problem(s): ${problems.slice(0, 3).join("; ")}`);
+    try {
+      database.exec("REINDEX");
+      problems = quickCheck(database);
+      repaired = problems.length === 0;
+      if (repaired) console.error("[mea] rebuilding the indexes repaired the database");
+    } catch (e) {
+      problems.push(`REINDEX failed: ${(e as Error).message}`);
+    }
+  }
+  health = { ok: problems.length === 0, checkedAt: now(), problems: problems.slice(0, 20), repaired };
+  return health;
+}
+
+/** Routine upkeep: fresh query statistics, and the write-ahead log folded back into the file. */
+export function tidyDb() {
+  const database = db();
+  database.exec("PRAGMA optimize");
+  if (mode === "file") database.exec("PRAGMA wal_checkpoint(TRUNCATE)");
 }
 
 export function one<T>(sql: string, ...params: SQLQueryBindings[]): T | undefined {

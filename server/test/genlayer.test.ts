@@ -451,11 +451,13 @@ describe("sending (H8, C2, H3)", () => {
     };
     counts.delete("neverplans");
     await send("I step inside.");
-    await send("I sit down.");
-    expect(counts.get("neverplans")).toBe(6);
+    expect(counts.get("neverplans")).toBe(3);
+    // One skip is enough (the review of 2026-10-12): the next reply plans first, no wasted try.
+    const second = await send("I sit down.");
+    expect(counts.get("neverplans")).toBe(5);
+    expect(JSON.parse(second.meta).plan).toBe("first");
     const third = await send("I take the cup.");
-    // Two skips out of two: the third plans first, no wasted try.
-    expect(counts.get("neverplans")).toBe(8);
+    expect(counts.get("neverplans")).toBe(7);
     expect(JSON.parse(third.meta).plan).toBe("first");
     expect(JSON.parse(third.meta).notes).toContain("planned first, in its own step: this model has been skipping its plan");
     expect(third.reasoning).toContain("MOVE — she offers tea");

@@ -1,4 +1,4 @@
-import { type EmbedResult, httpError, INCOMPLETE, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
+import { type EmbedResult, HTTP_HINTS, httpError, INCOMPLETE, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
 
 export interface OpenAIOptions {
   baseUrl: string;
@@ -189,7 +189,6 @@ export function describeError(status: number, body: string): string {
   } catch {
     detail = body.slice(0, 300);
   }
-  const hint =
-    status === 401 || status === 403 ? "Check the API key." : status === 429 ? "Rate limit or quota reached." : status === 404 ? "Unknown model or wrong base URL." : status >= 500 ? "The provider had a problem; try again." : "";
+  const hint = status === 401 || status === 403 ? HTTP_HINTS[0] : status === 429 ? HTTP_HINTS[1] : status === 404 ? HTTP_HINTS[2] : status >= 500 ? HTTP_HINTS[3] : "";
   return [`HTTP ${status}`, detail, hint].filter(Boolean).join(" · ");
 }

@@ -1,23 +1,67 @@
 import { all, now, one, run, tx } from "../db/db";
 import { getSetting } from "../lib/settings";
-import type { Provider } from "../providers/types";
+import { type Provider, ProviderError } from "../providers/types";
 import { getConnectionRow, providerFor } from "../services/connections";
 import type { JobContext } from "../services/jobs";
 import { finishRequest, startRequest } from "../services/requests";
+import { registerStatusTile } from "../services/status";
 import { hashText } from "./text";
 
 /**
  * Embeddings (MEM-11) through the pay-as-you-go key (decision 10). Each vector records the
  * model and size that made it (ARCH-12); identical text is never embedded twice (PERF-07).
  */
-export function embeddingTarget(): { connectionId: string; model: string; dims: number; provider: Provider; billing: string } | null {
+export function embeddingTarget(opts: { ignoreBlock?: boolean } = {}): { connectionId: string; model: string; dims: number; provider: Provider; billing: string } | null {
   const cfg = getSetting("routing.embeddings");
   if (!cfg.connectionId || !cfg.model) return null;
   const conn = getConnectionRow(cfg.connectionId);
   if (!conn) return null;
   const provider = providerFor(conn.id);
   if (!provider.embed) return null;
+  if (!opts.ignoreBlock && blockFor(conn.id, conn.updated_at, cfg.model, cfg.dims)) return null;
   return { connectionId: conn.id, model: cfg.model, dims: cfg.dims, provider, billing: conn.billing };
+}
+
+/**
+ * A setup problem (a bad key, a key that can't pay for the embedding model) switches embeddings off
+ * instead of failing every job and every turn. It lifts when the connection or the embedding
+ * setting changes, after BLOCK_MS (the plan may have been fixed at the provider), or on restart.
+ * Meanwhile recall and lore run on keywords, and a status tile says why.
+ */
+const BLOCK_MS = 6 * 3600_000;
+let blocked: { stamp: string; message: string; at: number } | null = null;
+const stampOf = (connectionId: string, updatedAt: number, model: string, dims: number) => `${connectionId}:${updatedAt}:${model}:${dims}`;
+
+function blockFor(connectionId: string, updatedAt: number, model: string, dims: number) {
+  if (!blocked) return null;
+  if (blocked.stamp !== stampOf(connectionId, updatedAt, model, dims) || now() - blocked.at > BLOCK_MS) {
+    blocked = null;
+    return null;
+  }
+  return blocked;
+}
+
+/** Records a failed embedding call; a permanent one (auth, billing) blocks embeddings for now. */
+export function noteEmbedFailure(e: unknown) {
+  if (!(e instanceof ProviderError) || !e.permanent) return;
+  const cfg = getSetting("routing.embeddings");
+  const conn = cfg.connectionId ? getConnectionRow(cfg.connectionId) : undefined;
+  if (!conn) return;
+  if (!blocked) console.error(`[mea] embeddings are off until the setup changes: ${e.message}`);
+  blocked = { stamp: stampOf(conn.id, conn.updated_at, cfg.model, cfg.dims), message: e.message, at: now() };
+}
+
+/** Why embeddings are switched off right now, if they are. */
+export function embeddingBlock(): { message: string; at: number } | null {
+  const t = embeddingTarget({ ignoreBlock: true });
+  if (!t) return null;
+  const conn = getConnectionRow(t.connectionId);
+  const b = conn ? blockFor(conn.id, conn.updated_at, t.model, t.dims) : null;
+  return b ? { message: b.message, at: b.at } : null;
+}
+
+export function clearEmbeddingBlock() {
+  blocked = null;
 }
 
 export const embeddingsEnabled = () => embeddingTarget() !== null;
@@ -125,6 +169,7 @@ export async function embedChat(chatId: string, job?: JobContext) {
       finishRequest(reqId, { status: "done", usage: { promptTokens: res.promptTokens } });
     } catch (e) {
       finishRequest(reqId, { status: "error", error: (e as Error).message });
+      noteEmbedFailure(e);
       throw e;
     }
   }
@@ -135,47 +180,68 @@ export async function embedChat(chatId: string, job?: JobContext) {
 // ---------- Query side ----------
 
 const queryCache = new Map<string, Float32Array>();
+/** Requests on their way, by text, so a send and a prefetch never pay for the same query twice. */
+const inflight = new Map<string, Promise<void>>();
+/** How long a query request may run in the background after the caller stopped waiting. */
+const QUERY_REQUEST_MS = 30_000;
+
+function cacheQuery(key: string, v: Float32Array) {
+  queryCache.delete(key);
+  queryCache.set(key, v);
+  while (queryCache.size > 500) queryCache.delete(queryCache.keys().next().value!);
+}
+
+/**
+ * Starts embedding the texts not cached or already on their way. The request isn't tied to any
+ * caller's deadline: a slow endpoint still fills the cache, so the next turn (or the send after a
+ * prefetch) finds the vectors ready.
+ */
+function requestQueries(texts: string[]): Promise<void>[] {
+  const t = embeddingTarget();
+  if (!t) return [];
+  const keyOf = (s: string) => `${t.model}:${t.dims}:${hashText(s)}`;
+  const waiting = new Set<Promise<void>>();
+  const missing: string[] = [];
+  for (const s of new Set(texts.filter((x) => x.trim()))) {
+    const key = keyOf(s);
+    if (queryCache.has(key)) continue;
+    const on = inflight.get(key);
+    if (on) waiting.add(on);
+    else missing.push(s);
+  }
+  if (missing.length) {
+    const keys = missing.map(keyOf);
+    const req: Promise<void> = t.provider
+      .embed!(missing, t.model, t.dims, AbortSignal.timeout(QUERY_REQUEST_MS))
+      .then((res) => keys.forEach((k, i) => res.vectors[i] && cacheQuery(k, normalize(res.vectors[i]!))))
+      .catch((e) => noteEmbedFailure(e)) // keywords carry this turn (MEM-21)
+      .finally(() => keys.forEach((k) => inflight.get(k) === req && inflight.delete(k)));
+    keys.forEach((k) => inflight.set(k, req));
+    waiting.add(req);
+  }
+  return [...waiting];
+}
 
 /** Embeds a search query, cached by text (PERF-06). Returns null when embeddings are off or fail. */
-export async function embedQuery(text: string, signal?: AbortSignal): Promise<Float32Array | null> {
-  const t = embeddingTarget();
-  if (!t || !text.trim()) return null;
-  const key = `${t.model}:${t.dims}:${hashText(text)}`;
-  const hit = queryCache.get(key);
-  if (hit) return hit;
-  try {
-    const res = await t.provider.embed!([text], t.model, t.dims, signal ?? AbortSignal.timeout(8000));
-    const v = normalize(res.vectors[0]!);
-    queryCache.set(key, v);
-    if (queryCache.size > 500) queryCache.delete(queryCache.keys().next().value!);
-    return v;
-  } catch {
-    return null; // never block a reply on embeddings (MEM-21)
-  }
+export async function embedQuery(text: string, timeoutMs = 8000): Promise<Float32Array | null> {
+  return (await embedQueries([text], timeoutMs))[0] ?? null;
 }
 
 /**
  * Several queries in one request (MEM-14), each cached by text. With a deadline the reply never
- * waits long: what isn't ready by then comes back null and recall uses keywords (MEM-21).
+ * waits long: what isn't ready by then comes back null and recall uses keywords (MEM-21), while
+ * the request itself carries on and fills the cache. A deadline of 0 never waits.
  */
 export async function embedQueries(texts: string[], timeoutMs = 8000): Promise<(Float32Array | null)[]> {
   const t = embeddingTarget();
   if (!t) return texts.map(() => null);
-  const keyOf = (s: string) => `${t.model}:${t.dims}:${hashText(s)}`;
-  const missing = [...new Set(texts.filter((s) => s.trim() && !queryCache.has(keyOf(s))))];
-  if (missing.length) {
-    try {
-      const res = await t.provider.embed!(missing, t.model, t.dims, AbortSignal.timeout(timeoutMs));
-      missing.forEach((s, i) => {
-        const v = res.vectors[i];
-        if (v) queryCache.set(keyOf(s), normalize(v));
-      });
-      while (queryCache.size > 500) queryCache.delete(queryCache.keys().next().value!);
-    } catch {
-      // keywords carry this turn (MEM-21)
-    }
+  const waiting = requestQueries(texts);
+  if (waiting.length && timeoutMs > 0) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([Promise.all(waiting), new Promise<void>((r) => (timer = setTimeout(r, timeoutMs)))]);
+    clearTimeout(timer);
   }
-  return texts.map((s) => queryCache.get(keyOf(s)) ?? null);
+  return texts.map((s) => queryCache.get(`${t.model}:${t.dims}:${hashText(s)}`) ?? null);
 }
 
 /** True when a query's vector is already cached (so a send doesn't wait). */
@@ -207,6 +273,8 @@ export function indexCoverage(chatId: string) {
 }
 
 const vectorCache = new Map<string, { key: string; rows: { ownerType: string; ownerId: string; vector: Float32Array }[] }>();
+/** The chats whose vectors stay in memory: the ones used most recently (an open story and a few more). */
+const VECTOR_CACHE_CHATS = 8;
 
 export function invalidateVectors(chatId: string) {
   vectorCache.delete(chatId);
@@ -218,11 +286,17 @@ export function chatVectors(chatId: string) {
   const stamp = one<{ n: number; m: number | null }>("SELECT COUNT(*) AS n, MAX(created_at) AS m FROM embeddings WHERE chat_id = ? AND model = ? AND dims = ?", chatId, t.model, t.dims);
   const key = `${t.model}:${t.dims}:${stamp?.n}:${stamp?.m}`;
   const cached = vectorCache.get(chatId);
-  if (cached?.key === key) return cached.rows;
+  if (cached?.key === key) {
+    vectorCache.delete(chatId);
+    vectorCache.set(chatId, cached);
+    return cached.rows;
+  }
   const rows = all<{ owner_type: string; owner_id: string; vector: Uint8Array }>("SELECT owner_type, owner_id, vector FROM embeddings WHERE chat_id = ? AND model = ? AND dims = ?", chatId, t.model, t.dims).map(
     (r) => ({ ownerType: r.owner_type, ownerId: r.owner_id, vector: fromBlob(r.vector) }),
   );
+  vectorCache.delete(chatId);
   vectorCache.set(chatId, { key, rows });
+  while (vectorCache.size > VECTOR_CACHE_CHATS) vectorCache.delete(vectorCache.keys().next().value!);
   return rows;
 }
 
@@ -235,7 +309,7 @@ export function embeddingStatus() {
   const items =
     (one<{ n: number }>("SELECT COUNT(*) AS n FROM memories WHERE deleted_at IS NULL AND status != 'superseded'")?.n ?? 0) +
     (one<{ n: number }>("SELECT COUNT(*) AS n FROM summaries WHERE level IN ('scene', 'chapter') AND state = 'ready' AND content != ''")?.n ?? 0);
-  return { enabled: embeddingsEnabled(), model: t.model, dims: t.dims, byModel, total, current, mismatched: total - current, missing: Math.max(0, items - current) };
+  return { enabled: embeddingsEnabled(), blocked: embeddingBlock(), model: t.model, dims: t.dims, byModel, total, current, mismatched: total - current, missing: Math.max(0, items - current) };
 }
 
 /** Drops vectors from other models and queues a re-embed for every chat (ARCH-12). */
@@ -245,3 +319,18 @@ export function reembedAll(enqueueFor: (chatId: string) => void) {
   vectorCache.clear();
   for (const c of all<{ id: string }>("SELECT DISTINCT chat_id AS id FROM memories UNION SELECT DISTINCT chat_id FROM summaries")) enqueueFor(c.id);
 }
+
+// Fix 2 (the review of 2026-10-12): a key that can't embed is said once, here, not in 45 failed jobs.
+registerStatusTile(() => {
+  const b = embeddingBlock();
+  if (!b) return null;
+  return {
+    id: "embeddings-off",
+    n: 1,
+    label: "search by meaning off",
+    tone: "red",
+    title: `Embeddings stopped: ${b.message}\nMemory and lore use keywords until the embedding connection or model changes (or in a few hours).`,
+    open: { href: "/settings/models" },
+    order: 3,
+  };
+});

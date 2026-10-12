@@ -37,7 +37,7 @@ import {
   updateSwipe,
 } from "./chats";
 import { learnContextLimit, recordCalibration, type ResolvedProfile, resolveProfile, resolveTaskChain } from "./connections";
-import { enqueue } from "./jobs";
+import { enqueue, waitForChatJobs } from "./jobs";
 import { getDefaultPersona, getPersona, personaPrompt } from "./personas";
 import { isChatWatched } from "./presence";
 import { layered, presetForRequest } from "./layers";
@@ -65,6 +65,8 @@ import { extractSpeakers, speakerRule, type SpokenLine, withoutSpeakerMarks } fr
 
 /** M18: a stream that sends nothing new for this long is treated as stalled. */
 const IDLE_MS = 90_000;
+/** How long a reply you send waits for the trackers to finish reading the last one (it goes ahead after). */
+export const TRACKER_WAIT_MS = 6000;
 /** M18: the longest Retry-After Mea waits before its one quick retry. */
 const RETRY_AFTER_CAP_MS = 30_000;
 
@@ -197,24 +199,24 @@ export function planFrom(text: string, reasoning: string): string | null {
 }
 
 /**
- * A model that has been skipping its plan in this chat: two of its last three replies here needed
- * the plan step (or, before it, were asked again for skipping). Those plan first, in their own step.
+ * A model that has been skipping its plan: one of its last three replies (in any chat) needed the
+ * plan step (or, before it, was asked again for skipping). Those plan first, in their own step, so
+ * no try is spent and stopped. The skipping is the model's habit, not the chat's, so every story
+ * learns it from one (the review of 2026-10-12: 10 of 68 tries were stopped for it).
  * After six replies in a row planned that way, one tries its own pass again, so a model (or a
  * prompt) that learns to plan gets the single request back.
  */
-export function skipsPlans(chatId: string, modelId: string, excludeMessageId?: string): boolean {
+export function skipsPlans(modelId: string, excludeMessageId?: string): boolean {
   const recent = all<{ meta: string }>(
     `SELECT s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
-     WHERE m.chat_id = ? AND m.role = 'assistant' AND m.deleted_at IS NULL AND m.id != ? ORDER BY m.seq DESC LIMIT 12`,
-    chatId,
+     WHERE m.role = 'assistant' AND m.deleted_at IS NULL AND m.id != ? AND json_extract(s.meta, '$.model') = ?
+     ORDER BY s.updated_at DESC LIMIT 6`,
     excludeMessageId ?? "",
-  )
-    .map((r) => parseJson<{ model?: string; plan?: string; notes?: string[] }>(r.meta, {}))
-    .filter((m) => m.model === modelId)
-    .slice(0, 6);
+    modelId,
+  ).map((r) => parseJson<{ model?: string; plan?: string; notes?: string[] }>(r.meta, {}));
   if (recent.length === 6 && recent.every((m) => m.plan === "first")) return false;
   const skipped = (m: (typeof recent)[number]) => m.plan === "step" || m.plan === "first" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n));
-  return recent.slice(0, 3).filter(skipped).length >= 2;
+  return recent.slice(0, 3).some(skipped);
 }
 
 interface ActiveGeneration {
@@ -356,7 +358,11 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
 
   const substitute = (s: string) => expandMacros(s, { char: card.name, user: userName, vars: {}, mode: chat.mode });
   const loreDefaults = getSetting("lore.defaults");
-  // Trackers (TRK-06): the story state as of the message being written.
+  // Trackers (TRK-06): the story state as of the message being written. A reply you send waits a
+  // few seconds for the trackers still reading the last one, so it isn't written from the state
+  // before it (the clock, the scene, who's there). Previews never wait.
+  if (opts.advise)
+    await waitForChatJobs(chatId, ["tracker.update", "tracker.init"], { timeoutMs: TRACKER_WAIT_MS, exceptMessageId: opts.excludeMessageId, onWait: () => publish({ type: "gen.prep", chatId, stage: "trackers" }) });
   let tp: ReturnType<typeof trackerPrompt> | null = null;
   try {
     tp = trackerPrompt(chatId, { excludeMessageId: opts.excludeMessageId, kind, elsewhere: elsewhereLane?.(chatId) });
@@ -575,6 +581,7 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
           ? await prepare(chatId, "story", { excludeMessageId: last!.id, feedback: opts.feedback, profileId: opts.profileId, advise: true })
           : await prepare(chatId, "continue", { feedback: opts.feedback, profileId: opts.profileId });
   } catch (e) {
+    publish({ type: "gen.prep", chatId, stage: null });
     // The kept part waits for a take that never started: put the reply back as it was.
     if (redo) {
       try {
@@ -750,10 +757,10 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   try {
     // A model that keeps skipping its plan in this chat plans in its own step first, rather than
     // spending a try that would be stopped anyway.
-    if (planAsked && !p.plannedPass && skipsPlans(gen.chatId, p.resolved.modelId, gen.messageId)) {
+    if (planAsked && !p.plannedPass && skipsPlans(p.resolved.modelId, gen.messageId)) {
       const plan = await planStep();
       if (plan) {
-        finishRequest(requestId, { status: "error", error: "replaced: planned first, in its own step" });
+        finishRequest(requestId, { status: "replaced", error: "replaced: planned first, in its own step" });
         await writeFrom(plan);
         planHow = "first";
         notes.push("planned first, in its own step: this model has been skipping its plan");
@@ -848,7 +855,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         const leftover = planned && !planOnlyRetried && !gen.abort.signal.aborted ? planOnly(written, gen.reasoning) : null;
         if (leftover) {
           planOnlyRetried = true;
-          finishRequest(requestId, { status: "error", error: "retried: the reply was only its plan", usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+          finishRequest(requestId, { status: "retried", error: "retried: the reply was only its plan", usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
           p = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, writtenPlan: leftover });
           notes.push("the first try wrote only its plan: the story was written from it");
           planHow = "own";
@@ -867,7 +874,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         const why = !written.trim() && retry.empty ? "empty reply" : retry.refusal && looksLikeRefusal(written) ? "refusal" : null;
         if (why && !smartRetried && !gen.abort.signal.aborted) {
           smartRetried = true;
-          finishRequest(requestId, { status: "error", error: `retried: ${why}`, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+          finishRequest(requestId, { status: "retried", error: `retried: ${why}`, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
           const next = chain.shift();
           if (next) p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: next.profile.id });
           notes.push(`retried after ${why}${next ? ` with ${next.profile.name}` : ""}`);
@@ -888,7 +895,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (gen.abort.signal.aborted) throw e;
         if (planSkipped && !planRetried) {
           planRetried = true;
-          finishRequest(requestId, { status: "error", error: "retried: the reply skipped its plan", firstTokenAt });
+          finishRequest(requestId, { status: "retried", error: "retried: the reply skipped its plan", firstTokenAt });
           // The plan in its own step, then the story from it; if no plan comes back, one more try told plainly to plan.
           const plan = await planStep();
           if (plan) {
@@ -942,7 +949,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         }
         // CONN-05: try the next model in the story chain.
         const next = chain.shift();
-        if ((err.retryable || err.kind === "refused") && next) {
+        if ((err.retryable || err.kind === "refused" || err.kind === "billing") && next) {
           finishRequest(requestId, { status: "error", error: err.message });
           p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: next.profile.id });
           notes.push(`fell back to ${next.profile.name} (${err.message.slice(0, 80)})`);
@@ -962,6 +969,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       status = "error";
       error = e instanceof ProviderError || e instanceof HttpError ? e.message : `Something went wrong: ${(e as Error).message}`;
       if (e instanceof ProviderError && e.kind === "quota") error = `${e.message} — your subscription quota may be used up.`;
+      if (e instanceof ProviderError && e.kind === "billing") error = `${e.message} — this key can't pay for that model; pick one your plan covers in Settings → Models.`;
     }
   } finally {
     clearInterval(flushTimer);

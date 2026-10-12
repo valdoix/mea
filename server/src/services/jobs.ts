@@ -41,9 +41,18 @@ interface JobRow {
 }
 
 const handlers = new Map<string, Handler>();
-const running = new Set<string>();
+/** Running jobs and their priority. */
+const running = new Map<string, number>();
 let timer: ReturnType<typeof setInterval> | null = null;
+/** Jobs of any kind that run at once. */
 const CONCURRENCY = 2;
+/**
+ * One more slot, kept for urgent jobs (priority URGENT and up: the trackers reading a reply, a
+ * summary you asked for), so a long editor pass or journal can't make the next reply see an old
+ * story state (the review of 2026-10-12).
+ */
+const URGENT_SLOTS = 1;
+export const URGENT = 5;
 
 export function registerJob(kind: string, handler: Handler) {
   handlers.set(kind, handler);
@@ -90,7 +99,7 @@ function activity() {
 
 async function runJob(job: JobRow) {
   const handler = handlers.get(job.kind);
-  running.add(job.id);
+  running.set(job.id, job.priority);
   run("UPDATE jobs SET status = 'running', attempts = attempts + 1, updated_at = ? WHERE id = ?", now(), job.id);
   activity();
   const meta = parseJson<Record<string, unknown>>(job.meta, {});
@@ -111,7 +120,8 @@ async function runJob(job: JobRow) {
       return;
     }
     const attempts = job.attempts + 1;
-    const failed = attempts >= job.max_attempts;
+    // A setup problem (a bad key, a key that can't pay for the model) fails at once: retrying only repeats it.
+    const failed = attempts >= job.max_attempts || (e as { permanent?: boolean })?.permanent === true;
     const backoff = Math.min(15 * 60_000, 2 ** attempts * 5_000);
     run(
       "UPDATE jobs SET status = ?, last_error = ?, run_after = ?, updated_at = ? WHERE id = ?",
@@ -124,6 +134,8 @@ async function runJob(job: JobRow) {
   } finally {
     running.delete(job.id);
     activity();
+    // The freed slot goes to the next job now, not at the next timer tick.
+    queueMicrotask(tick);
   }
 }
 
@@ -136,23 +148,57 @@ export function pauseJobs(on: boolean) {
 export const runningJobCount = () => running.size;
 
 function tick() {
-  if (paused || running.size >= CONCURRENCY) return;
+  if (paused || running.size >= CONCURRENCY + URGENT_SLOTS) return;
   // H11: a tick runs from a timer; an error here (e.g. no database) must not kill the process.
   try {
-    const ready = all<JobRow>(
-      "SELECT * FROM jobs WHERE status = 'queued' AND run_after <= ? ORDER BY priority DESC, run_after LIMIT ?",
-      now(),
-      CONCURRENCY - running.size,
-    );
-    for (const job of ready)
-      if (!running.has(job.id))
-        runJob(job).catch((e) => {
-          running.delete(job.id);
-          console.error(`[mea] job ${job.kind} couldn't be recorded:`, (e as Error)?.message ?? e);
-        });
+    let ordinary = [...running.values()].filter((p) => p < URGENT).length;
+    let free = CONCURRENCY + URGENT_SLOTS - running.size;
+    // Highest priority first, so urgent jobs take the kept slot before anything else is looked at.
+    const ready = all<JobRow>("SELECT * FROM jobs WHERE status = 'queued' AND run_after <= ? ORDER BY priority DESC, run_after LIMIT ?", now(), free + 8);
+    for (const job of ready) {
+      if (free <= 0) break;
+      if (running.has(job.id)) continue;
+      if (job.priority < URGENT) {
+        if (ordinary >= CONCURRENCY) continue;
+        ordinary++;
+      }
+      free--;
+      runJob(job).catch((e) => {
+        running.delete(job.id);
+        console.error(`[mea] job ${job.kind} couldn't be recorded:`, (e as Error)?.message ?? e);
+      });
+    }
   } catch (e) {
     console.error("[mea] job tick failed:", (e as Error)?.message ?? e);
   }
+}
+
+/**
+ * Waits (briefly) until a chat has no queued or running job of these kinds, so a reply is written
+ * from the story state the last reply left (the trackers read it in the background). Jobs about
+ * `exceptMessageId` (the reply being rewritten) don't count. Returns how long it waited, in ms.
+ */
+export async function waitForChatJobs(chatId: string, kinds: string[], opts: { timeoutMs: number; exceptMessageId?: string; /** Called once, when there is something to wait for. */ onWait?: () => void }) {
+  const t0 = now();
+  const marks = kinds.map(() => "?").join(", ");
+  const pending = () =>
+    Boolean(
+      one(
+        // Only work that is under way or due now: a job backing off after a failure won't finish meanwhile.
+        `SELECT 1 FROM jobs WHERE chat_id = ? AND kind IN (${marks}) AND (status = 'running' OR (status = 'queued' AND run_after <= ?))
+           AND COALESCE(json_extract(payload, '$.messageId'), '') != ? LIMIT 1`,
+        chatId,
+        ...kinds,
+        now(),
+        opts.exceptMessageId ?? "",
+      ),
+    );
+  // While jobs are paused (a restore), nothing queued will run.
+  if (paused) return 0;
+  if (!pending()) return 0;
+  opts.onWait?.();
+  while (pending() && now() - t0 < opts.timeoutMs) await Bun.sleep(200);
+  return now() - t0;
 }
 
 export function startJobs() {

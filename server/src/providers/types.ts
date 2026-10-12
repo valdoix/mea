@@ -82,7 +82,7 @@ export interface Provider {
   embed?(texts: string[], model: string, dims?: number, signal?: AbortSignal): Promise<EmbedResult>;
 }
 
-export type ErrorKind = "overflow" | "quota" | "auth" | "rate" | "server" | "network" | "refused" | "other";
+export type ErrorKind = "overflow" | "quota" | "billing" | "auth" | "rate" | "server" | "network" | "refused" | "other";
 
 export class ProviderError extends Error {
   kind: ErrorKind;
@@ -99,6 +99,10 @@ export class ProviderError extends Error {
   /** Worth trying the next model in a fallback chain (CONN-05). */
   get retryable() {
     return this.kind === "server" || this.kind === "network" || this.kind === "rate" || this.kind === "other";
+  }
+  /** A setup problem (the key, or what it may spend on): trying again later changes nothing, so jobs stop at once. */
+  get permanent() {
+    return this.kind === "auth" || this.kind === "billing";
   }
 }
 
@@ -117,9 +121,15 @@ export function httpError(res: Response, message: string, body: string): Provide
 /** M18: a stream that ended without its end marker (the connection dropped mid-reply). */
 export const INCOMPLETE = "incomplete";
 
+/** The hints describeError adds after a provider's message, per status. */
+export const HTTP_HINTS = ["Check the API key.", "Rate limit or quota reached.", "Unknown model or wrong base URL.", "The provider had a problem; try again."] as const;
+
 /** Sorts provider failures so Mea can react: shrink the prompt, fall back, or explain the quota. */
 export function classifyError(status: number | undefined, text: string): ErrorKind {
-  const t = text.toLowerCase();
+  // Mea's own hints (describeError) say "quota" on every 429; only the provider's words count.
+  const t = HTTP_HINTS.reduce((s, h) => s.replaceAll(h.toLowerCase(), ""), text.toLowerCase());
+  // The key can't pay for this (e.g. a subscription-only key asked for a pay-as-you-go model).
+  if (status === 402 || /subscription-only|cannot spend from (your|the) balance|billing (is )?not (enabled|set up|configured)|payment required/.test(t)) return "billing";
   if (/context.{0,20}(length|window|limit)|maximum context|too many tokens|prompt is too long|input.{0,20}too long|reduce the length|exceeds? the (model'?s )?(maximum|context)|token limit/.test(t)) return "overflow";
   if (/quota|subscription (limit|usage)|weekly limit|daily limit|insufficient (balance|credits?)|usage limit/.test(t) && status !== 500) return "quota";
   if (status === 401 || status === 403) return "auth";

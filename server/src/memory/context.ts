@@ -241,7 +241,10 @@ export async function memoryInputs(
   const contexts = [contextText(o.history.slice(0, -1)), contextText(o.history)];
   const rewritten = cfg.rewriteQuery ? cachedRewrite(chatId, contexts) : null;
   const queries = buildQueries(o.history, { draft: o.draft, present, rewritten });
-  const qvecs = embeddingsEnabled() ? await embedQueries(queries.map((q) => q.text), o.waitMs ?? 1500) : queries.map(() => null);
+  // Recall only searches what has left the window. Until something has, query vectors would buy
+  // nothing, so no reply waits for them (the turn the window first moves runs on keywords, MEM-21).
+  const searchable = memState(chatId).evictedThrough > 0;
+  const qvecs = searchable && embeddingsEnabled() ? await embedQueries(queries.map((q) => q.text), o.waitMs ?? 1500) : queries.map(() => null);
   const mode = povMode(cfg, o.chatMode);
   let pov: PovFilter | null = null;
   const res = resolver(chatId);

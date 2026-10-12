@@ -201,6 +201,9 @@
   let knows = $state<{ scene: Summary | null; atoms: Atom[]; inMemory: boolean; seq: number } | null>(null);
   // SUM-15: "previously on…" when you come back after a while.
   let recap = $state<{ text: string } | null>(null);
+  /** A reply you sent that's still being prepared on the server (waiting for the trackers or its plan). */
+  let prep = $state<"trackers" | "planning" | null>(null);
+  const PREP_LABEL = { trackers: "The story state is catching up with the last reply…", planning: "Planning the reply…" } as const;
   const seenKey = $derived(`mea.seen.${id}`);
   function markSeen() {
     try {
@@ -686,7 +689,11 @@
       }
       if (!("chatId" in e) || e.chatId !== id) return;
       switch (e.type) {
+        case "gen.prep":
+          prep = e.stage;
+          break;
         case "gen.start": {
+          prep = null;
           gens[e.messageId] = e.generationId;
           const m = messages.find((x) => x.id === e.messageId);
           // M21: the window stops short of the end: the reply streams below it, unseen.
@@ -941,6 +948,8 @@
       }
       errorToast(e);
       return false;
+    } finally {
+      prep = null;
     }
   }
 
@@ -960,6 +969,8 @@
       await go();
     } catch (e) {
       if (!offerQuotaChoice(e, (p) => go(p).catch(errorToast))) errorToast(e);
+    } finally {
+      prep = null;
     }
   }
 
@@ -1352,6 +1363,9 @@
               <div class="row tiny muted"><span class="grow">Waiting to send, when Mea is reachable</span><button class="btn ghost small" onclick={() => cancelQueued(q.id)}>Cancel</button></div>
             </div>
           {/each}
+          {#if prep && !hasNewer}
+            <div class="prep tiny muted" role="status" aria-live="polite"><span class="prep-dot" aria-hidden="true"></span>{PREP_LABEL[prep]}</div>
+          {/if}
           {#if recap && !hasNewer}
             <aside class="recap card" aria-label="Previously">
               <div class="row between"><b class="recap-title">Previously…</b><button class="btn ghost small" onclick={() => (recap = null)}>Dismiss</button></div>
@@ -1674,6 +1688,30 @@
     border: 1px dashed var(--border-strong, var(--border));
     background: color-mix(in srgb, var(--tint-user) 60%, transparent);
     opacity: 0.85;
+  }
+  .prep {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.6rem 0;
+    padding: 0.4rem 0.2rem;
+  }
+  .prep-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: prep-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes prep-pulse {
+    50% {
+      opacity: 0.3;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .prep-dot {
+      animation: none;
+    }
   }
   .queued p {
     margin: 0 0 0.3rem;

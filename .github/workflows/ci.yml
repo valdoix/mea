@@ -1,5 +1,5 @@
 # K2: every pull request (and every push to main) is checked the way a part is checked before it
-# merges: types, tests, the web build, and the first-load budgets. Everything runs against the mock
+# merges: types, tests, the web build, the first-load budgets, and the long-chat timing budgets. Everything runs against the mock
 # provider; nothing here reaches NanoGPT or the network beyond installing packages.
 name: CI
 
@@ -39,6 +39,9 @@ jobs:
 
       - name: Budgets
         run: bun run budgets
+
+      - name: Long-chat benchmark
+        run: bun run bench
 
       - name: Golden scenarios
         run: bun run golden

@@ -1,5 +1,5 @@
 import { ensureDirs, paths } from "./config";
-import { openDb, openDbFromBytes, run } from "./db/db";
+import { checkDb, openDb, openDbFromBytes, run, tidyDb } from "./db/db";
 import { lockUntilUnlocked, vaultEnabled, vaultMigrationBackup } from "./lib/vault";
 import { loadMasterKey } from "./lib/crypto";
 import { scheduledBackup } from "./services/backup";
@@ -33,7 +33,7 @@ import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
 import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
 import { runTelling, worldAfterReply, worldLane } from "./sim/service";
-import { setElsewhereLane } from "./services/generation";
+import { activeGenerations, setElsewhereLane } from "./services/generation";
 
 /** Replies that were streaming when Mea stopped are marked so the user can retry them. */
 function recoverInterrupted() {
@@ -61,6 +61,7 @@ export function startup(opts: { jobs?: boolean; dbFile?: string } = {}) {
 }
 
 function afterOpen(opts: { jobs?: boolean }) {
+  checkDb();
   recoverInterrupted();
   ensureDefaultPreset();
   vapidKeys();
@@ -78,6 +79,11 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("maintenance", async () => {
     pruneJobs();
     pruneGenerations();
+    // The checkpoint waits for writers, so not while a reply streams; the next run does it.
+    if (!activeGenerations().length) tidyDb();
+  });
+  registerJob("db.check", async () => {
+    checkDb();
   });
 
   // Memory (Phase 1): segmentation, summaries, embeddings, all in the background (SUM-07).
@@ -144,6 +150,7 @@ function afterOpen(opts: { jobs?: boolean }) {
     schedule("catalog.sync", 24 * 3600_000);
     schedule("trash.purge", 24 * 3600_000, { runNow: true });
     schedule("maintenance", 6 * 3600_000, { runNow: true });
+    schedule("db.check", 24 * 3600_000);
     schedule("cache.probe", 24 * 3600_000);
   }
 }

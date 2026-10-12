@@ -188,7 +188,7 @@ export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<
             structured = false;
             continue;
           }
-          if (e.retryable || e.kind === "auth" || e.kind === "refused") break;
+          if (e.retryable || e.permanent || e.kind === "refused") break;
         }
         throw e;
       }
@@ -260,7 +260,7 @@ export async function callText(call: TextCall): Promise<{ text: string; generati
         if (call.signal?.aborted) throw e;
         if (e instanceof ProviderError) {
           if (e.kind === "quota") throw new Deferred("The provider reports the quota is used up", 30 * 60_000);
-          if (e.retryable || e.kind === "auth" || e.kind === "refused") break;
+          if (e.retryable || e.permanent || e.kind === "refused") break;
         }
         throw e;
       }

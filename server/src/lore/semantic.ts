@@ -1,6 +1,6 @@
 import { all, now, one, parseJson, run, tx } from "../db/db";
 import { getSetting } from "../lib/settings";
-import { cosine, embeddingTarget } from "../memory/embed";
+import { cosine, embeddingTarget, noteEmbedFailure } from "../memory/embed";
 import { hashText } from "../memory/text";
 import { finishRequest, startRequest } from "../services/requests";
 import { type EntryExtra, type ScanEntry } from "./activate";
@@ -76,6 +76,7 @@ export async function embedLore() {
       finishRequest(reqId, { status: "done", usage: { promptTokens: res.promptTokens } });
     } catch (e) {
       finishRequest(reqId, { status: "error", error: (e as Error).message });
+      noteEmbedFailure(e);
       throw e;
     }
   }

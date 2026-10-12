@@ -40,6 +40,7 @@ import {
   storyRow,
   touchMemory,
 } from "./store";
+import { sceneDigest } from "./digest";
 import { ftsQuery, hashText } from "./text";
 import { highlightsInRange } from "../services/notebook";
 
@@ -395,10 +396,32 @@ export async function buildSummary(id: string, opts: BuildOptions = {}) {
         now(),
         id,
       );
+      // A scene with no record yet keeps its most telling lines by rules, so it isn't a hole once it
+      // leaves the window. It stays marked as failed: a rebuild with the helper replaces it.
+      if (!deferred && prev.level === "scene" && !prev.content.trim()) keepDigest(prev);
     }
     throw e;
   } finally {
     touchMemory(row.chat_id);
+  }
+}
+
+/** Writes the rule-based digest (memory/digest) into a scene whose record couldn't be written. */
+function keepDigest(row: SummaryRow) {
+  try {
+    const d = sceneDigest(ledger(row.chat_id, row.start_seq, row.end_seq ?? Number.MAX_SAFE_INTEGER), chatNames(row.chat_id));
+    if (!d) return;
+    run(
+      "UPDATE summaries SET title = ?, content = ?, data = ?, tokens = ?, updated_at = ? WHERE id = ? AND TRIM(content) = ''",
+      d.title,
+      d.content,
+      JSON.stringify({ extractive: true }),
+      d.tokens,
+      now(),
+      row.id,
+    );
+  } catch (e) {
+    console.error("[mea] couldn't keep the scene's lines by rules:", e);
   }
 }
 

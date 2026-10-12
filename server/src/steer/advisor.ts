@@ -1,3 +1,4 @@
+import { publish } from "../lib/events";
 import { z } from "zod";
 import { all, newId, now, one, parseJson, run } from "../db/db";
 import { defaultSteer, getSetting, type SteerConfig } from "../lib/settings";
@@ -240,6 +241,7 @@ export async function advisorExtra(chatId: string, history: HistoryMessage[], op
   // H3: the planner gets a longer budget; if it's late or fails, the writer plans for itself.
   const wait = cfg.planner ? PLANNER_WAIT_S : cfg.advisorWait;
   if (!plan && opts.wait && wait > 0) {
+    publish({ type: "gen.prep", chatId, stage: "planning" });
     plan = await Promise.race([runAdvisor(chatId, { history }), Bun.sleep(wait * 1000).then(() => null)]);
   }
   // L10: no plan for the words as sent: the newest one written for this turn while you typed will do.

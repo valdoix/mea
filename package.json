@@ -14,6 +14,7 @@
     "test": "bun test server/test",
     "check": "tsc --noEmit -p server/tsconfig.json && svelte-check --workspace web --tsconfig ./tsconfig.json --threshold warning",
     "budgets": "bun scripts/check-budgets.ts",
+    "bench": "bun scripts/bench-long-chat.ts",
     "golden": "bun scripts/golden.ts",
     "icons": "bun scripts/gen-icons.ts",
     "app:desktop": "cd desktop && tauri build",

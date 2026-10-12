@@ -43,7 +43,7 @@ function dailyLimit(): number | null {
 export function chatCostToday(chatId: string) {
   const rows = all<Row>(
     `SELECT task, kind, billing, COALESCE(SUM(prompt_tokens), 0) AS prompt, COALESCE(SUM(completion_tokens), 0) AS completion, COALESCE(SUM(cached_tokens), 0) AS cached, SUM(cost) AS cost, COUNT(*) AS n
-     FROM generations WHERE chat_id = ? AND started_at >= ? AND status != 'error' GROUP BY task, kind, billing`,
+     FROM generations WHERE chat_id = ? AND started_at >= ? AND status NOT IN ('error', 'replaced') GROUP BY task, kind, billing`,
     chatId,
     Date.now() - DAY,
   );

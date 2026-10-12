@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { paths } from "../config";
-import { all, db, now, one, run } from "../db/db";
+import { all, db, dbHealth, now, one, run } from "../db/db";
 import { HttpError } from "../lib/http";
 import { activeGenerations } from "./generation";
+import { registerStatusTile } from "./status";
 import { purgeTrash } from "./trash";
 import { deletedImagesDir, IMAGE_UNREFERENCED, purgeUnreferencedImages } from "./images";
 
@@ -114,3 +115,18 @@ export function clean(what: "requestBodies" | "trash" | "images") {
   if (what === "trash") return { removed: purgeTrash(now() + 1) };
   return { removed: purgeUnreferencedImages() };
 }
+
+// The daily database check (db.checkDb): damage it couldn't repair is said here, with the way to a backup.
+registerStatusTile(() => {
+  const h = dbHealth();
+  if (!h || h.ok) return null;
+  return {
+    id: "db-health",
+    n: 1,
+    label: "database needs a look",
+    tone: "red",
+    title: `The database check found problems it couldn't repair:\n${h.problems.slice(0, 5).join("\n")}\nMake a backup now, then consider restoring an earlier one in Backups & data.`,
+    open: { href: "/settings/data" },
+    order: 1,
+  };
+});
