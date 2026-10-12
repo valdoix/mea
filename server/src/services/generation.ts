@@ -61,7 +61,7 @@ import { applyGuards } from "../accuracy/guards";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
-import { extractSpeakers, speakerRule, type SpokenLine, withoutSpeakerMarks } from "../lib/speakers";
+import { extractSpeakers, rosterLine, type RosterVoice, speakerRule, type SpokenLine, voiceRoster, withoutSpeakerMarks } from "../lib/speakers";
 
 /** M18: a stream that sends nothing new for this long is treated as stalled. */
 const IDLE_MS = 90_000;
@@ -265,6 +265,8 @@ interface Prepared {
   plannedPass: string | null;
   /** PERF-10: where the time went before the request was sent, in ms. */
   timing: Timing;
+  /** The cast's numbered voices, so each speaker mark is read back as the cast's own name. */
+  voices: RosterVoice[];
 }
 
 export interface Timing {
@@ -309,14 +311,6 @@ function droppedMarks(history: HistoryMessage[]): boolean {
   return Boolean(meta.model) && !meta.speakers?.length;
 }
 
-/** Who the speaker marks may name: the main character, then the story state's cast by most recent. */
-function castNames(main: string, state: WorldState | null): string[] {
-  const cast = Object.values(state?.chars ?? {})
-    .filter((c) => !c.isUser)
-    .sort((a, b) => Number(b.isMain) - Number(a.isMain) || (b.lastSeq ?? 0) - (a.lastSeq ?? 0))
-    .map((c) => c.name);
-  return [...new Set([main, ...cast].filter(Boolean))];
-}
 
 /** Gathers everything for one request: card, persona, preset, profile, lore, memory, prompt. */
 export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareOptions = {}): Promise<Prepared> {
@@ -370,6 +364,10 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     console.error("[mea] trackers unavailable for this prompt:", e);
   }
   const trackersMs = lap();
+  // Speaker marks (while Dialogue colours is on): the cast numbered as voices, {{user}} as 0.
+  const marks = (kind === "story" || kind === "continue") && getSetting("appearance.living").voices !== "off";
+  const voices = voiceRoster(card.name, userName, Object.values(tp?.state?.chars ?? {}));
+  const userSealed = !["director", "full_cast"].includes(controlValues.persona ?? "");
   // TRK-12: lorebook entries with a tracker condition switch on when it holds, and only then.
   const entries = scanEntriesFor({ characterId: chat.character_id, personaId: persona?.id ?? null, chatId }).flatMap((e) => {
     const when = (e.extra as { trackerWhen?: string } | undefined)?.trackerWhen?.trim();
@@ -460,6 +458,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     feedback: opts.feedback,
     forcePlan: opts.forcePlan,
     planOnly: opts.planOnly,
+    // Speaker marks: Mea's preset words the rule in its own block (mea-speakers); this fills it in.
+    speakers: marks ? { roster: rosterLine(voices, userSealed), dropped: droppedMarks(history) } : undefined,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
     // H3: a separate planner (or the writer's last try) planned this reply: the writer's own planning pass is left out.
@@ -472,9 +472,9 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       ...((cfg.enabled || tp?.note) && !(preset.builtin === "mea" && preset.blocks.find((b) => b.id === "main")?.enabled && !card.system_prompt?.trim()) ? [{ id: "canon", name: "Canon order", content: CANON_RULE, prefix: true } satisfies PromptExtra] : []),
       ...(tp?.note ? [{ id: "trackers", name: "Story state (trackers)", content: tp.note.text, depth: 1 } satisfies PromptExtra] : []),
       ...(tp?.inline ? [{ id: "ledger", name: "Ledger instructions", content: tp.inline, depth: 0 } satisfies PromptExtra] : []),
-      // Speaker marks: the reply names who says each line, so the page colours it without guessing.
-      ...((kind === "story" || kind === "continue") && getSetting("appearance.living").voices !== "off"
-        ? [{ id: "speakers", name: "Speaker marks", content: speakerRule(userName, castNames(card.name, tp?.state ?? null), !["director", "full_cast"].includes(controlValues.persona ?? ""), droppedMarks(history)), depth: 0 } satisfies PromptExtra]
+      // A preset without that block (one of your own) gets the same rule just before the reply.
+      ...(marks && !preset.blocks.some((b) => b.id === "mea-speakers") && !opts.planOnly
+        ? [{ id: "speakers", name: "Speaker marks", content: speakerRule(userName, rosterLine(voices, userSealed), userSealed, droppedMarks(history)), depth: 0 } satisfies PromptExtra]
         : []),
       ...chatExtras(chatId, kind, tp?.state ?? null),
       // STEER-04: the style profile joins the stable prefix.
@@ -512,7 +512,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -1031,7 +1031,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     console.error("[mea] after-reply clean-up failed:", e);
   }
   // Speaker marks come out last, so the lines they keep match the text as saved.
-  const marked = extractSpeakers(text);
+  const marked = extractSpeakers(text, first.voices);
   text = marked.text;
   original = withoutSpeakerMarks(original);
   let speakers: SpokenLine[] = marked.lines;

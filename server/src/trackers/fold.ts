@@ -1,7 +1,7 @@
 import { applySim } from "../sim/fold";
 import { itemsAt } from "./belongings";
 import type { SimOp } from "../sim/types";
-import { formatStoryTime, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
+import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { applyPatch, type Change as PatchChange } from "./patch";
 import type { Template } from "./schema";
@@ -459,9 +459,11 @@ export class Folder {
       case "clock": {
         if (this.isLocked("clock") && this.ai(ctx)) return this.reject(ctx, "the clock is locked");
         const now = this.now();
-        if (a.plus != null) {
+        // A skip in parts saved before Mea read them ("+1h30m | 1996-05-24 15:48") is read again here.
+        const late = a.plus == null && typeof a.set === "string" && a.set.trim().startsWith("+") ? leadingDuration(a.set.trim().slice(1)) : null;
+        if (a.plus != null || late) {
           if (now == null) return this.reject(ctx, "no time set yet to move from");
-          let plus = a.plus as number;
+          let plus = (a.plus as number | undefined) ?? late!.minutes;
           const capMin = ctx.ev.source === "model" || ctx.ev.source === "inline" ? 7 * 1440 : Infinity;
           if (plus > capMin) {
             this.warn(ctx, `capped a ${Math.round(plus / 1440)}-day jump at 7 days`);

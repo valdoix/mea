@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 6;
+export const MEA_PRESET_VERSION = 7;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -112,6 +112,19 @@ MOVE — three candidates: the obvious one, the one only these people would choo
 RISK — the likeliest way this reply fails (writing for {{user}}, a leak, an echo, a softened enemy, a clock running backward) and how you prevent it.
 VOICE — length, how much talk, and how the opening differs from the last reply's (subject and sentence shape, named, not written).
 STOP RULE: after VOICE the planning is over{{if providerReasoning}}: end your reasoning and write the story{{/if}}{{if not providerReasoning}}: close with </think> and write the story at once{{/if}}. No review, no restart, no rehearsal. Fragments only. Never draft: no sentence of the reply, no line of dialogue, no opening line and no paragraph outline inside the pass.{{/if}}`;
+
+/**
+ * Speaker marks, after ALMANAC's [spk]: the reply names who says each line, and the page colours it
+ * from the mark instead of guessing. The roster numbers the cast the way ALMANAC's voice slots do,
+ * and Mea maps every mark back to the cast's own name (lib/speakers.ts), so a person keeps one colour.
+ * On while Appearance › Dialogue colours is on.
+ */
+export const SPEAKERS = `{{if speakerMarks}}[SPEAKER MARKS — the page colours each line by its mark; write them exactly]
+Wrap every line of speech in a mark naming who says it, short replies too: [spk=Name#N]"Words."[/spk] — the mark first, the quoted words inside, then exactly [/spk]. Narration and dialogue tags stay outside the mark: [spk=Name#N]"Words,"[/spk] she said.
+Name and number from this roster, written exactly as listed{{if speakerRoster}}: {{speakerRoster}}{{/if}}. Anyone new: the name the prose gives them and the next unused number, kept from then on.{{if userSealed}} {{user}} has no lines in your reply, so no mark is ever theirs.{{else}} {{user}} is 0.{{/if}}
+Check each mark against the prose around it: the speaker is the person whose tag or action sits beside the line, not the last name mentioned. An unseen or uncertain speaker is [spk=?].
+When delivery matters, add a tone after a bar: [spk=Name#N|whisper] — whisper, murmur, shout, sing, sob, cold, tender, sly, breathless, flat. Thoughts, signs, letters and words only remembered get no mark. The mark is the only speaker label: never "Name:" in front of a line.{{if marksDropped}}
+Your last reply left its lines unmarked, so the page couldn't tell who spoke: mark every line in this one.{{/if}}{{/if}}`;
 
 /** Per-model nudges (ALMANAC's errata): what each family tends to get wrong about the pass and the order. */
 const ERRATA = `{{if kind == story}}{{if modelFamily == claude}}[MODEL] {{if not planned}}{{if providerReasoning}}Extended thinking is the planning pass: its steps and ceiling, then the reply.{{else}}Write the <think> block first, in plain fragments, then the story.{{/if}} {{/if}}Follow the output order literally.{{/if}}{{if modelFamily == deepseek}}[MODEL] {{if planned}}Write only the story.{{else}}Plan once, in fragments, end the plan at VOICE, then write the story. Anything drafted in the plan is wasted, and nothing of it belongs after the plan.{{/if}}{{/if}}{{if modelFamily == gemini}}[MODEL] {{if not planned}}Don't restate these instructions or the story state while planning; the plan is bullet fragments. {{/if}}No markdown headings in the story.{{/if}}{{if modelFamily == glm}}[MODEL] {{if planned}}No self-talk: write only the story.{{else}}Plan in telegraphic fragments within the ceiling. No self-talk, no rechecking, no drafting. Then close </think> and write the story: the plan alone is not a reply.{{/if}}{{/if}}{{if modelFamily == kimi}}[MODEL] {{if planned}}No workspace: no "Let me plan", no self-correction; write only the story.{{else}}No workspace outside the plan: no "Let me plan", no self-correction, no paragraph-by-paragraph rehearsal.{{/if}}{{/if}}{{if modelFamily == gpt}}[MODEL] Keep the output order exact; no commentary around the story.{{/if}}{{if modelFamily == open}}[MODEL] {{if not planned}}{{if providerReasoning}}Plan in your reasoning, in fragments.{{else}}Write the plan inside <think>…</think> as plain lines: never in a code fence, never as JSON, never skipped.{{/if}} {{/if}}Keep names spelled exactly as before.{{/if}}{{/if}}`;
@@ -535,6 +548,7 @@ export function meaPreset(): Preset {
       block("post_history", "Post-history instructions", "post_history", { content: "" }),
       block("mea-planning", "Before you write", "text", { content: PLANNING }),
       block("mea-errata", "Model notes", "text", { content: ERRATA }),
+      block("mea-speakers", "Speaker marks", "text", { content: SPEAKERS }),
       block("mea-output", "Output", "text", { content: OUTPUT }),
     ],
     samplers: { temperature: 1, max_tokens: 2200 },

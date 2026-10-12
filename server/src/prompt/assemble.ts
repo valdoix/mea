@@ -73,6 +73,8 @@ export interface AssembleInput {
   forcePlan?: boolean;
   /** The plan step: this request writes only the planning pass; the story is written from it next. */
   planOnly?: boolean;
+  /** Speaker marks are on: the cast's numbered roster, and whether the last reply dropped its marks. */
+  speakers?: { roster: string; dropped: boolean };
   /** PROMPT-07: the active preset controls, already rendered. */
   controls?: string;
   /** Every control's value, readable in blocks as {{ctl.id}}. */
@@ -206,7 +208,8 @@ export function modelFamily(model: string | undefined): string {
 /**
  * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
- * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{planned}} (a separate planner planned it), {{providerReasoning}} (the route reasons natively), {{modelFamily}}, and {{ctl.id}} for every preset control.
+ * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{planned}} (a separate planner planned it), {{providerReasoning}} (the route reasons natively), {{modelFamily}},
+ * {{speakerMarks}} / {{speakerRoster}} / {{marksDropped}} (speaker marks: on, the numbered cast, the last reply left them out), and {{ctl.id}} for every preset control.
  */
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
@@ -231,6 +234,9 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     planned: input.skipBlocks?.includes("mea-planning") ? "yes" : "",
     providerReasoning: input.providerReasoning ? "yes" : "",
     modelFamily: modelFamily(input.modelId),
+    speakerMarks: input.speakers && !input.planOnly && (input.kind === "story" || input.kind === "continue") ? "yes" : "",
+    speakerRoster: input.speakers?.roster ?? "",
+    marksDropped: input.speakers?.dropped ? "yes" : "",
     ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),
   };
 }

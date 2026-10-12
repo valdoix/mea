@@ -1,4 +1,5 @@
 import type { Op, OpName } from "./types";
+import { leadingDuration } from "./clock";
 
 /**
  * The ledger language (after ALMANAC §20): one change per line, readable, tolerant to parse.
@@ -223,12 +224,10 @@ export function parseLine(raw: string): Op | null {
   switch (op) {
     case "clock": {
       const t = body.replace(/^now\s*/i, "");
-      const rel = t.match(/^\+\s*(\d+(?:\.\d+)?)\s*(m|min|mins|minutes?|h|hrs?|hours?|d|days?|w|weeks?)\b/i);
-      if (rel) {
-        const n = Number(rel[1]);
-        const u = rel[2]!.toLowerCase()[0];
-        a.plus = Math.round(n * (u === "m" ? 1 : u === "h" ? 60 : u === "d" ? 1440 : 10080));
-      } else {
+      // "+45m", "+1h30m", "+2 hours 15 minutes"; a date written after it ("+1h30m | 1996-05-24 15:48") is only a gloss.
+      const rel = /^\+/.test(t) ? leadingDuration(t.slice(1)) : null;
+      if (rel) a.plus = rel.minutes;
+      else {
         a.flashback = /\bflashback\b/i.test(t);
         a.set = t.replace(/\bflashback\b/i, "").trim();
       }

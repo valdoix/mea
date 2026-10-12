@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { extractSpeakers, speakerRule, withoutSpeakerMarks } from "../src/lib/speakers";
+import { extractSpeakers, resolveSpeaker, rosterLine, speakerRule, voiceRoster, withoutSpeakerMarks } from "../src/lib/speakers";
+import { assemblePrompt } from "../src/prompt/assemble";
+import { meaPreset } from "../src/prompt/mea";
+import { emptyCard } from "../src/cards/card";
 import { cleanText } from "../src/memory/text";
 
 describe("speaker marks", () => {
@@ -33,11 +36,57 @@ describe("speaker marks", () => {
     expect(withoutSpeakerMarks(`[spk=Mara]"Stay.`)).toBe(`"Stay.`);
   });
 
-  test("the rule names the cast and keeps a sealed persona's lines out", () => {
-    expect(speakerRule("Ava", ["Mara", "Pell"], true)).toContain("(Mara, Pell)");
-    expect(speakerRule("Ava", ["Mara"], true)).toContain("never mark one as theirs");
-    expect(speakerRule("Ava", ["Mara"], false)).toContain("[spk=Ava]");
-    expect(speakerRule("Ava", ["Mara"], true)).not.toContain("left its lines unmarked");
-    expect(speakerRule("Ava", ["Mara"], true, true)).toContain("left its lines unmarked");
+  test("the rule lists the numbered cast and keeps a sealed persona's lines out", () => {
+    expect(speakerRule("Ava", "Mara#1, Pell#2", true)).toContain("Mara#1, Pell#2");
+    expect(speakerRule("Ava", "Mara#1", true)).toContain("no mark is ever theirs");
+    expect(speakerRule("Ava", "Ava#0, Mara#1", false)).toContain("Ava is 0");
+    expect(speakerRule("Ava", "Mara#1", true)).not.toContain("left its lines unmarked");
+    expect(speakerRule("Ava", "Mara#1", true, true)).toContain("left its lines unmarked");
+  });
+
+  const chars = [
+    { name: "Ava", isUser: true },
+    { name: "Jackie Taylor", isMain: true, firstSeq: 0, tier: "spot" },
+    { name: "Misty Quigley", aliases: ["Crystal"], firstSeq: 4, tier: "spot" },
+    { name: "Ben Scott", firstSeq: 2, tier: "off" },
+    { name: "Laura Lee Taylor", firstSeq: 9, tier: "peri" },
+  ];
+
+  test("the roster numbers the cast in order of arrival, the user as 0", () => {
+    const roster = voiceRoster("Jackie Taylor", "Ava", chars);
+    expect(roster.map((v) => `${v.name}#${v.slot}`)).toEqual(["Ava#0", "Jackie Taylor#1", "Ben Scott#2", "Misty Quigley#3", "Laura Lee Taylor#4"]);
+    expect(rosterLine(roster, true)).toBe("Jackie Taylor#1, Ben Scott#2, Misty Quigley#3, Laura Lee Taylor#4");
+    expect(rosterLine(roster, false)).toStartWith("Ava#0, ");
+    // Without a story state, the card's character alone.
+    expect(voiceRoster("Mara", "Ava", []).map((v) => v.name)).toEqual(["Ava", "Mara"]);
+  });
+
+  test("a mark is read back as the cast's own name, so a person keeps one colour", () => {
+    const roster = voiceRoster("Jackie Taylor", "Ava", chars);
+    expect(resolveSpeaker("Misty", 3, roster)).toBe("Misty Quigley");
+    expect(resolveSpeaker("Jacqueline ‘Jackie’ Taylor", 1, roster)).toBe("Jackie Taylor");
+    expect(resolveSpeaker("crystal", undefined, roster)).toBe("Misty Quigley");
+    // A shared family name: the number settles it, then a first name.
+    expect(resolveSpeaker("Taylor", 4, roster)).toBe("Laura Lee Taylor");
+    expect(resolveSpeaker("Mrs. Taylor", undefined, roster)).toBe("Mrs. Taylor");
+    // Someone new keeps their name, even with a number already taken.
+    expect(resolveSpeaker("Coach Ben", 3, roster)).toBe("Ben Scott");
+    expect(resolveSpeaker("Natalie", 3, roster)).toBe("Natalie");
+    expect(extractSpeakers(`[spk=Misty#3|whisper]"Hold still."[/spk] [spk=#1]"Go."[/spk]`, roster).lines).toEqual([
+      { text: `"Hold still."`, name: "Misty Quigley", tone: "whisper" },
+      { text: `"Go."`, name: "Jackie Taylor" },
+    ]);
+  });
+
+  test("the default preset carries the rule, filled in with the roster", () => {
+    const preset = meaPreset();
+    expect(preset.blocks.some((b) => b.id === "mea-speakers")).toBe(true);
+    const base = { card: emptyCard("Mara"), preset, userName: "Ava", personaText: "", mode: "companion" as const, lore: null, contextTarget: 16000, modelId: "test", vars: {}, seed: "s", history: [{ id: "u1", role: "user" as const, content: "Hi." }] };
+    const on = assemblePrompt({ ...base, kind: "story", speakers: { roster: "Mara#1, Pell#2", dropped: true } }).messages.map((m) => m.content).join("\n");
+    expect(on).toContain("[SPEAKER MARKS");
+    expect(on).toContain("Mara#1, Pell#2");
+    expect(on).toContain("left its lines unmarked");
+    const off = assemblePrompt({ ...base, kind: "story" }).messages.map((m) => m.content).join("\n");
+    expect(off).not.toContain("[SPEAKER MARKS");
   });
 });

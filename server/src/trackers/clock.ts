@@ -75,8 +75,29 @@ export function timeOfDay(s: unknown): string | null {
   return h < 5 ? "late night" : h < 7 ? "dawn" : h < 11 ? "morning" : h < 14 ? "midday" : h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
 }
 
-/** "3 days", "2h", "90 minutes", "a week" → minutes, for /timeskip. */
+const DURATION_PART = /^\s*(?:,\s*|and\s+)?(\d+(?:\.\d+)?)\s*(months?|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|wks?|w|years?|y)(?![a-z])/i;
+
+/**
+ * A duration at the start of the text, in one part or several: "90m", "1h30m", "1h 30m",
+ * "2 hours 15 minutes", "1 day, 4 hours". Minutes summed, and the text after it.
+ */
+export function leadingDuration(s: string): { minutes: number; rest: string } | null {
+  let rest = s.toLowerCase().replace(/\ban hour and a half\b/g, "90m").replace(/\bhalf an hour\b/g, "30m").replace(/\ban? (?=(?:minute|hour|day|week|month|year)\b)/g, "1 ");
+  let total = 0;
+  let parts = 0;
+  for (let m = DURATION_PART.exec(rest); m; m = DURATION_PART.exec(rest)) {
+    const u = m[2]!.toLowerCase();
+    total += Number(m[1]) * (u.startsWith("mo") ? DAY * 30 : u[0] === "m" ? 1 : u[0] === "h" ? 60 : u[0] === "d" ? DAY : u[0] === "w" ? DAY * 7 : DAY * 365);
+    rest = rest.slice(m[0].length);
+    parts++;
+  }
+  return parts ? { minutes: Math.round(total), rest } : null;
+}
+
+/** "3 days", "2h", "90 minutes", "a week", "1h30m", "an hour and a half" → minutes, for /timeskip. */
 export function parseDuration(s: string): number | null {
+  const whole = leadingDuration(s.trim());
+  if (whole && !whole.rest.trim()) return whole.minutes;
   const t = s.trim().toLowerCase().replace(/^an? /, "1 ");
   const units: [RegExp, number][] = [
     [/^(\d+(?:\.\d+)?)\s*(m|min|mins|minute|minutes)$/, 1],

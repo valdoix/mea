@@ -303,12 +303,16 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
   if (marked) {
     const lower = new Map(pairs.map(([n, v]) => [n.toLowerCase(), v] as const));
     const firstOf = (n: string) => n.toLowerCase().split(/\s+/)[0]!;
+    // Every word of a marked name, nicknames out of their quotes: "Jacqueline ‘Jackie’ Taylor".
+    const wordsOf = (n: string) => n.toLowerCase().split(/[\s"“”‘’'()]+/).filter((w) => w.length > 2);
     const fresh: string[] = [];
     for (const s of root.querySelectorAll<HTMLElement>(".dl[data-spk]")) {
       const name = s.dataset.spk!.trim();
       const k = name.toLowerCase();
       if (!name || name === "?" || tagged.has(k) || fresh.includes(name)) continue;
-      const v = lower.get(k) ?? voices.find((o) => o.names.some((n) => firstOf(n) === firstOf(name)));
+      const own = wordsOf(name);
+      const byWord = voices.filter((o) => o.names.some((n) => own.includes(firstOf(n))));
+      const v = lower.get(k) ?? voices.find((o) => o.names.some((n) => firstOf(n) === firstOf(name))) ?? (byWord.length === 1 ? byWord[0] : undefined);
       if (v) tagged.set(k, v);
       else fresh.push(name);
     }

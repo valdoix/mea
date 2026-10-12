@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { calendarHint, describeWhen, noteTime, spanLabel } from "../src/trackers/calendars";
-import { formatStoryTime, parseStoryTime } from "../src/trackers/clock";
+import { formatStoryTime, parseDuration, parseStoryTime } from "../src/trackers/clock";
 import { parseLine } from "../src/trackers/dsl";
 import { foldEvents, type TrackerEvent } from "../src/trackers/fold";
 import { buildNote, hudLine } from "../src/trackers/note";
@@ -61,5 +61,23 @@ describe("story calendars", () => {
     expect(kinds).toContain("thought");
     expect(kinds).toContain("mask");
     expect(r.changes.m1!.find((c) => c.kind === "thought")!.to).toBe("She shouldn't have come back.");
+  });
+
+  test("a skip in parts moves the clock: +1h30m, with or without a date after it", () => {
+    expect(parseLine("clock: +1h30m | 1996-05-24 15:48")!.args.plus).toBe(90);
+    expect(parseLine("clock: +1h 30m")!.args.plus).toBe(90);
+    expect(parseLine("clock: +2 hours 15 minutes")!.args.plus).toBe(135);
+    expect(parseLine("clock: +1 day, 4 hours")!.args.plus).toBe(1680);
+    expect(parseLine("clock: +45m")!.args.plus).toBe(45);
+    expect(parseLine("clock: +1.5h")!.args.plus).toBe(90);
+    expect(parseDuration("an hour and a half")).toBe(90);
+    expect(parseDuration("1h30m")).toBe(90);
+    expect(parseDuration("3 days")).toBe(4320);
+    const ev: TrackerEvent[] = ["clock: 1996-05-24 14:18", "clock: +1h30m | 1996-05-24 15:48"].map((l, i) => ({ id: `c${i}`, messageId: `m${i}`, seq: i + 1, source: "model", op: parseLine(l)! }));
+    const st = foldEvents(ev, { userName: "James", mainName: "Jackie", sealedPersona: true, romance: "slow", strictness: "lenient", limits: true, templates: [] }).state;
+    expect(formatStoryTime(st.time!)).toBe("1996-05-24 15:48");
+    // A line saved before this fix kept the skip as an unread "set": the fold reads it again.
+    const old: TrackerEvent[] = [ev[0]!, { id: "c9", messageId: "m9", seq: 2, source: "model", op: { op: "clock", args: { flashback: false, set: "+1h30m | 1996-05-24 15:48" }, raw: "clock: +1h30m | 1996-05-24 15:48" } }];
+    expect(formatStoryTime(foldEvents(old, { userName: "James", mainName: "Jackie", sealedPersona: true, romance: "slow", strictness: "lenient", limits: true, templates: [] }).state.time!)).toBe("1996-05-24 15:48");
   });
 });

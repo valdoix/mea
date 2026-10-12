@@ -448,7 +448,7 @@ export class MockProvider implements Provider {
             ? "OK"
             : /^\[PLAN ONLY/.test(tail)
               ? `<think>\nNOW — evening, the lamp room; Mira and the guest present; same scene.\nSEAL — the player arrived and spoke; the reply stops on Mira's question.\nMINDS — Mira: wants him to stay · fears he'll leave again · tactic: tea.\nMOVE — the obvious welcome; Mira's sideways warmth; Old Tam's call. Choose Tam's call.\nVOICE — medium, a third talk, open on the lamp.\n</think>\n\nThe lamp flickers and the story would begin here.`
-              : `${(req.messages.some((m) => m.content.includes("[SPEAKER MARKS]")) ? MARKED : LINES).join("\n\n")}\n\n(You said: "${last.slice(0, 80)}")${req.messages.some((m) => m.content.includes("add a <ledger> block")) ? `\n\n<ledger>\nclock: +6m\nmood Mira: thoughtful — he came back\n</ledger>` : ""}`;
+              : `${(req.messages.some((m) => m.content.includes("[SPEAKER MARKS")) ? MARKED : LINES).join("\n\n")}\n\n(You said: "${last.slice(0, 80)}")${req.messages.some((m) => m.content.includes("add a <ledger> block")) ? `\n\n<ledger>\nclock: +6m\nmood Mira: thoughtful — he came back\n</ledger>` : ""}`;
     // Long enough to count as the planning pass (the plan watch), like a route that reasons.
     onDelta({ reasoning: "Mock reasoning: keep continuity with the lighthouse scene. NOW — evening, the lamp room. MOVE — Mira welcomes the guest with tea. VOICE — short." });
     const words = text.split(/(\s+)/);
