@@ -44,28 +44,78 @@ export interface Spoken {
   meet?: string;
   due?: string;
   importance: number;
+  /** The narration either side of the quote ("…” Nat threatens."), to tell who said it. */
+  near?: { after: string; before: string };
 }
 
-const quoted = (s: string) => [...s.matchAll(/[“"]([^”"]{3,400})[”"]/g)].map((m) => m[1]!);
+/** Each quote in a reply, with the narration just after it and just before it. */
+const quoted = (s: string) =>
+  [...s.matchAll(/[“"]([^”"]{3,400})[”"]/g)].map((m) => {
+    const after = s.slice(m.index! + m[0].length).split(/[“"\n]|(?<=[.!?])\s/)[0] ?? "";
+    const before = (s.slice(0, m.index).split(/[”"\n]/).pop() ?? "").trimEnd().split(/(?<=[.!?])\s+/).pop() ?? "";
+    return { text: m[1]!, near: { after, before } };
+  });
 const PLACE = /\b(?:[Mm]eet (?:me|us|you)|[Ss]ee you|[Bb]e|[Ww]ait(?: for you)?|[Ff]ind me)\s+(?:at|by|in|outside|behind)\s+((?:the\s+)?[A-Z][\w'’-]*(?:\s+(?:of\s+the\s+|of\s+)?[A-Z][\w'’-]*)*)/;
-const PROMISE = /\bI\s+(promise|swear|give you my word)(?:\s+(?:you|to you))?(?:\s+that)?,?\s+(?:I(?:'ll|’ll| will)\s+)?([^.!?”"]{3,90})/i;
+const VOW = /\bI\s+(promise|swear|vow|give you my word)\b(.*)$/i;
+// The oath around a promise ("to god", "on my life", "you", "that"), not the promise itself.
+const OATH = /^(?:[\s,;:—–-]*(?:to\s+(?:god|christ|heaven|the gods|you)|on\s+(?:my|our)\s+(?:life|honou?r|soul|word|name|mother'?s?\s+grave|father'?s?\s+grave)|you|that)\b)*[\s,;:—–-]*/i;
+const WILL = /^(?:I|we)(?:'ll|’ll|\s+will|\s+shall|\s+am going to|'m going to|’m going to|'m gonna|’m gonna|\s+won'?t|\s+won’t|\s+will not|\s+shall not)\s+/i;
+// A vow to hurt the one listening is a threat, not a promise.
+const THREAT = /\b(?:kill|murder|gut|strangle|hurt|bury|destroy|ruin|make you (?:pay|sorry|regret)|regret it|wish you)\b/i;
+
+/**
+ * What a vow commits the speaker to: "I swear I'll find him" → "find him". Nothing when there's no
+ * commitment in it ("I swear, you're impossible", "I swear to god if you…"), when it's a threat,
+ * or when the line is cut off before it got there ("one more time -").
+ */
+export function vowed(sentence: string): { what: string; vital: boolean } | null {
+  const m = sentence.match(VOW);
+  if (!m) return null;
+  const rest = m[2]!.replace(OATH, "");
+  const will = rest.match(WILL);
+  let what: string;
+  if (will) what = (/n[o'’]?t\s+$/i.test(will[0]) ? "not " : "") + rest.slice(will[0].length);
+  else if (/^to\s+[a-z]/i.test(rest) && !/^swear$/i.test(m[1]!)) what = rest.replace(/^to\s+/i, "");
+  else return null;
+  // Up to the sentence's end; single stops only, so a trailing "..." stays to show it trailed off.
+  what = what.split(/(?<!\.)\.(?!\.)|[!?”"]/)[0]!;
+  if (/(?:[-–—]|…|\.\.\.)\s*$/.test(what)) return null;
+  what = what.trim().replace(/[,;:]$/, "");
+  if (what.length < 3 || what.length > 90) return null;
+  if (/\byou\b/i.test(what) && THREAT.test(what)) return null;
+  return { what, vital: /swear|word|vow/i.test(m[1]!) };
+}
+
+/** Who spoke a quote, by the narration around it ("…” Nat threatens." or "Nat says, “…"). */
+export function speakerOf(near: Spoken["near"], chars: { name: string; aliases?: string[] }[]): string | undefined {
+  if (!near) return undefined;
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const names = chars.flatMap((c) => [c.name, c.name.split(/\s+/)[0]!, ...(c.aliases ?? [])].filter((n) => n.length > 1).map((n) => ({ re: new RegExp(`\\b${esc(n)}\\b`, "gi"), who: c.name })));
+  // The first name after the quote is its tag; failing that, the last one before it.
+  const pick = (s: string, last: boolean) => {
+    let best: { i: number; who: string } | undefined;
+    for (const { re, who } of names) for (const x of s.matchAll(re)) if (!best || (last ? x.index! > best.i : x.index! < best.i)) best = { i: x.index!, who };
+    return best?.who;
+  };
+  return pick(near.after, false) ?? pick(near.before, true);
+}
 
 /** Promises and meetings in what someone said (their dialogue, or your whole message). */
 export function spokenPromises(text: string, mine: boolean): Spoken[] {
   const out: Spoken[] = [];
-  const parts = mine ? [text, ...quoted(text)] : quoted(text);
-  for (const part of parts) {
+  const parts: { text: string; near?: Spoken["near"] }[] = mine ? [{ text }, ...quoted(text).map((q) => ({ text: q.text }))] : quoted(text);
+  for (const { text: part, near } of parts) {
     for (const sentence of part.split(/(?<=[.!?])\s+/)) {
       const meet = sentence.match(PLACE);
       const due = spokenDue(sentence);
       const vital = /\b(on my life|no matter what|swear)\b/i.test(sentence);
       if (meet && due && /\b(meet|see you|I'?ll be|I will be|I'?ll wait|wait for you|find me|be there)\b/i.test(sentence)) {
         const place = meet[1]!.replace(/^the\s+/i, "the ").trim();
-        out.push({ what: `be at ${place}`, meet: place, due, importance: vital ? 3 : 2 });
+        out.push({ what: `be at ${place}`, meet: place, due, importance: vital ? 3 : 2, near });
         continue;
       }
-      const p = sentence.match(PROMISE);
-      if (p) out.push({ what: p[2]!.trim().replace(/[,;:]$/, ""), due, importance: vital || /swear|word/i.test(p[1]!) ? 3 : 2 });
+      const v = vowed(sentence);
+      if (v) out.push({ what: v.what, due, importance: vital || v.vital ? 3 : 2, near });
     }
   }
   const seen = new Set<string>();
@@ -97,20 +147,25 @@ export function promisesAfterReply(chatId: string, messageId: string, swipeIdx?:
   const speaker = (m.name && Object.values(st.chars).find((c) => !c.isUser && c.name.toLowerCase() === m.name!.toLowerCase())) || Object.values(st.chars).find((c) => c.isMain);
   if (!user || !speaker) return;
   const prev = one<{ id: string; active_swipe: number; seq: number }>("SELECT id, active_swipe, seq FROM messages WHERE chat_id = ? AND seq < ? AND role = 'user' AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", chatId, m.seq);
-  const said: { who: string; whom: string; s: Spoken }[] = [
-    ...spokenPromises(textOf(messageId, idx), false).map((s) => ({ who: speaker.name, whom: user.name, s })),
-    ...(prev ? spokenPromises(textOf(prev.id, prev.active_swipe), true).map((s) => ({ who: user.name, whom: speaker.name, s })) : []),
+  const cast = Object.values(st.chars);
+  const said: { who: string; whom: string; s: Spoken; seq: number }[] = [
+    // A quote is whoever the narration says spoke it, not the card the reply came from.
+    ...spokenPromises(textOf(messageId, idx), false).map((s) => {
+      const who = speakerOf(s.near, cast) ?? speaker.name;
+      return { who, whom: who === user.name ? speaker.name : user.name, s, seq: m.seq };
+    }),
+    ...(prev ? spokenPromises(textOf(prev.id, prev.active_swipe), true).map((s) => ({ who: user.name, whom: speaker.name, s, seq: prev.seq })) : []),
   ];
   const undone = new Set(all<{ what: string }>("SELECT json_extract(data, '$.what') AS what FROM filings WHERE message_id = ? AND kind = 'promise' AND status = 'undone'", messageId).map((r) => key(String(r.what ?? ""))));
   const open = Object.values(st.obligations).filter((o) => o.kind === "promise" && (o.status === "open" || o.status === "due"));
   const lines: string[] = [];
-  for (const { who, whom, s } of said) {
+  for (const { who, whom, s, seq } of said) {
     const whoId = Object.values(st.chars).find((c) => c.name === who)?.id;
     if (undone.has(key(s.what))) continue;
     // The tracker already wrote it (the same meeting place, or much the same words).
     if (open.some((o) => o.who === whoId && ((s.meet && o.meet && o.meet.toLowerCase() === s.meet.toLowerCase()) || key(o.what) === key(s.what)))) continue;
     const meta = [...(s.meet ? [`meet @ ${s.meet}`] : []), ...(s.importance >= 3 ? ["vital"] : [])];
-    lines.push(`promise ${who}>${whom}: ${s.what}${meta.length ? ` | ${meta.join(" · ")}` : ""}${s.due ? ` [due ${s.due}]` : ""} — said in #${who === user.name && prev ? prev.seq : m.seq}`);
+    lines.push(`promise ${who}>${whom}: ${s.what}${meta.length ? ` | ${meta.join(" · ")}` : ""}${s.due ? ` [due ${s.due}]` : ""} — said in #${seq}`);
   }
   if (lines.length) writeEvents(chatId, { messageId, swipeIdx: idx }, linesToOps(lines).ops, "engine");
   // Chips: every promise this reply made (Mea's or the tracker's), once.
