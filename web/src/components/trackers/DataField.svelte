@@ -88,9 +88,7 @@
     width: 7.5rem;
     flex: none;
     color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .input.small,
   .textarea.small {

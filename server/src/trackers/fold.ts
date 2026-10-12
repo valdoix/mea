@@ -92,7 +92,7 @@ const norm = (s: string) =>
     .trim();
 export const slug = (s: string) => norm(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "x";
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
-const clip = (s: string | undefined, n = 300) => (s ?? "").trim().slice(0, n);
+const clip = (s: string | undefined) => (s ?? "").trim();
 /** A name as the model wrote it, without a place or note: "Jackie Taylor@down-slope (finding James)" → "Jackie Taylor". */
 export const personName = (s: string) => s.replace(/\s*@.*$/, "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 
@@ -519,12 +519,12 @@ export class Folder {
         if (!a.to) return this.reject(ctx, "no weather given");
         const prev = st.weather?.now;
         if (prev && norm(prev) === norm(a.to)) return;
-        st.weather = { now: clip(a.to, 80), prev, seq };
+        st.weather = { now: clip(a.to), prev, seq };
         this.push(ctx, { kind: "weather", text: prev ? `${prev} → ${a.to}` : a.to, path: "weather", from: prev, to: a.to });
         return;
       }
       case "at": {
-        const path = (a.path as string[]).map((s) => clip(s, 60)).filter(Boolean);
+        const path = (a.path as string[]).map((s) => clip(s)).filter(Boolean);
         if (!path.length) return this.reject(ctx, "no place given");
         if (this.isLocked("place") && this.ai(ctx)) return this.reject(ctx, "the place is locked");
         const before = st.place;
@@ -549,14 +549,14 @@ export class Folder {
         if (a.to && norm(a.to) !== norm(st.sceneTitle ?? "")) {
           const fresh = Boolean(st.sceneTitle);
           if (fresh) this.newScene(seq);
-          st.sceneTitle = clip(a.to, 80);
+          st.sceneTitle = clip(a.to);
           // newScene marks a real change of scene (not the first title), which memory treats as a break.
           this.push(ctx, { kind: "scene", text: `Scene: ${st.sceneTitle}`, path: "scene", ...(fresh ? { newScene: true } : {}) });
         }
         return;
       }
       case "mode":
-        st.mode = clip(a.to, 30).toLowerCase();
+        st.mode = clip(a.to).toLowerCase();
         return;
       case "cast": {
         for (const it of a.list as { name: string; tier: string; note?: string }[]) {
@@ -569,12 +569,12 @@ export class Folder {
           const was = c.tier;
           const tier = /^(left|leave|leaves|off|away|gone|exit\w*)$/.test(it.tier) ? "off" : /^peri/.test(it.tier) ? "peri" : "spot";
           c.tier = tier;
-          c.activity = it.note ? clip(it.note.replace(/^(→|←)\s*/, ""), 120) : tier === "off" ? undefined : c.activity;
+          c.activity = it.note ? clip(it.note.replace(/^(→|←)\s*/, "")) : tier === "off" ? undefined : c.activity;
           if (tier !== "off") {
             c.place = st.place.join(" › ") || c.place;
             for (const k of ["hunger", "thirst", "fatigue"] as const) if (c.meters[k] == null && !c.isUser) c.meters[k] = 1;
             c.driftAt ??= this.now();
-          } else if (it.note && /→/.test(it.note)) c.place = clip(it.note.replace(/^.*→\s*/, ""), 120);
+          } else if (it.note && /→/.test(it.note)) c.place = clip(it.note.replace(/^.*→\s*/, ""));
           if (was !== tier) {
             if (tier === "off" && was) this.push(ctx, { kind: "cast", text: `${c.name} left${c.activity ? "" : ""}`, subject: c.name, path: `chars.${c.id}.tier` });
             else if (tier !== "off" && (was === "off" || !was) && !c.isUser && c.firstSeq !== seq) this.push(ctx, { kind: "cast", text: `${c.name} arrived`, subject: c.name, path: `chars.${c.id}.tier` });
@@ -592,7 +592,7 @@ export class Folder {
         if (!a.to) return this.reject(ctx, "no mood given");
         const prev = c.mood?.name;
         if (prev && norm(prev) === norm(a.to)) return;
-        c.mood = { name: clip(a.to, 60), v: clamp(a.v, -3, 3), a: clamp(a.a, 0, 5), d: clamp(a.d, -3, 3), prev, seq };
+        c.mood = { name: clip(a.to), v: clamp(a.v, -3, 3), a: clamp(a.a, 0, 5), d: clamp(a.d, -3, 3), prev, seq };
         this.push(ctx, { kind: "mood", text: `${c.name}: ${c.mood.name}`, subject: c.name, path: `chars.${c.id}.mood`, from: prev, to: c.mood.name });
         return;
       }
@@ -615,7 +615,7 @@ export class Folder {
           this.push(ctx, { kind: "body", text: `${c.name}: ${k} ${prev == null ? "–" : Math.round(prev)} → ${Math.round(next)}`, subject: c.name, path: `chars.${c.id}.meters.${k}`, from: prev, to: next, tone: (k === "health" || k === "composure") === next > (prev ?? next) ? "up" : "down" });
         }
         for (const inj of a.injuries as { where: string; severity?: string; treated?: boolean; heal?: boolean }[]) {
-          const where = clip(inj.where, 60);
+          const where = clip(inj.where);
           const cur = c.injuries.find((i) => overlap(i.where, where) >= 0.5 || norm(i.where) === norm(where));
           if (inj.heal) {
             if (cur) {
@@ -648,7 +648,7 @@ export class Folder {
           for (const k of kinds) if (addCondition(c, k, f, now)) added = true;
           if (added) this.push(ctx, { kind: "body", text: `${c.name}: ${f}`, subject: c.name, path: `chars.${c.id}.conditions`, tone: "down" });
           else if (!kinds.length && !c.flags.some((x) => norm(x) === norm(f))) {
-            c.flags = uniq([...c.flags, clip(f, 60)]).slice(-12);
+            c.flags = uniq([...c.flags, clip(f)]).slice(-12);
             this.push(ctx, { kind: "body", text: `${c.name}: ${f}`, subject: c.name, path: `chars.${c.id}.flags` });
           }
         }
@@ -664,7 +664,7 @@ export class Folder {
         if (!c || !a.to) return this.reject(ctx, "whose look?");
         if (this.isLocked(`chars.${c.id}.look`) && this.ai(ctx)) return this.reject(ctx, "locked");
         if (c.look && norm(c.look) === norm(a.to)) return;
-        c.look = clip(a.to, 240);
+        c.look = clip(a.to);
         this.push(ctx, { kind: "look", text: `${c.name}: ${clip(a.to)}`, subject: c.name, path: `chars.${c.id}.look` });
         return;
       }
@@ -684,7 +684,7 @@ export class Folder {
             }
           }
           if (cur) c.traits = c.traits.filter((t) => t !== cur);
-          c.traits.push({ kind, text: clip(text, 120), by, seq });
+          c.traits.push({ kind, text: clip(text), by, seq });
           this.push(ctx, { kind: "trait", text: `${c.name}: ${clip(text)}`, subject: c.name, path: `chars.${c.id}.traits.${kind}`, from: cur?.text, to: text });
         }
         return;
@@ -700,7 +700,7 @@ export class Folder {
         for (const k of keys) {
           if (!a[k]) continue;
           if ((target as Record<string, string>)[k] && norm((target as Record<string, string>)[k]!) === norm(a[k])) continue;
-          (target as Record<string, string>)[k] = clip(a[k], 160);
+          (target as Record<string, string>)[k] = clip(a[k]);
           any = true;
           if (op.op === "mask" && k === "felt") this.push(ctx, { kind: "mask", text: `${c.name} hides: ${clip(a[k])}`, subject: c.name, path: `chars.${c.id}.mask`, to: a[k] });
           if (op.op === "drive" && k === "want") this.push(ctx, { kind: "drive", text: `${c.name} wants: ${clip(a[k])}`, subject: c.name, path: `chars.${c.id}.drives.want` });
@@ -721,7 +721,7 @@ export class Folder {
         const c = this.person(op.subject, seq);
         if (!c || !a.text) return this.reject(ctx, "whose journal?");
         if (c.isUser && this.cfg.sealedPersona && this.ai(ctx)) return this.reject(ctx, "your character's inner life is yours to write");
-        c.journal.push({ text: clip(a.text, 400), seq, at: st.time ? formatStoryTime(st.time) : null });
+        c.journal.push({ text: clip(a.text), seq, at: st.time ? formatStoryTime(st.time) : null });
         if (c.journal.length > 40) c.journal.splice(0, c.journal.length - 40);
         this.push(ctx, { kind: "journal", text: `${c.name}'s journal`, subject: c.name, path: `chars.${c.id}.journal`, to: a.text });
         return;
@@ -741,7 +741,7 @@ export class Folder {
         const c = this.findChar(op.subject ?? "");
         if (!c || !a.to) return this.reject(ctx, "rename whom?");
         c.aliases = uniq([...c.aliases, c.name]);
-        c.name = clip(a.to, 60);
+        c.name = clip(a.to);
         return;
       }
       case "merge": {
@@ -821,7 +821,7 @@ export class Folder {
         }
         if (a.label && norm(a.label) !== norm(b.label ?? "")) {
           const prev = b.label;
-          b.label = clip(a.label, 60);
+          b.label = clip(a.label);
           this.push(ctx, { kind: "bond", text: `${from.name} → ${to.name}: ${b.label}`, subject: from.name, reason: op.cause, path: `bonds.${key}.label`, from: prev, to: b.label, memory: true });
         }
         for (const t of a.tagsAdd as string[]) if (t && !b.tags.includes(t.toLowerCase())) b.tags.push(t.toLowerCase());
@@ -920,7 +920,7 @@ export class Folder {
         const cur = c.pressure;
         if (cur?.locked && ctx.ev.source === "engine" && a.lock !== false) return;
         const stage = (["hidden", "growing", "cracking", "head", "resolved"].includes(a.stage) ? a.stage : undefined) as NonNullable<typeof c.pressure>["stage"] | undefined;
-        const text = a.text ? clip(a.text, 200) : cur?.text;
+        const text = a.text ? clip(a.text) : cur?.text;
         if (!text) return this.reject(ctx, "write pressure Name: what they carry | stage: hidden");
         const next = {
           text,
@@ -959,14 +959,14 @@ export class Folder {
       }
       case "item": {
         // Owner first ("item Jackie: silver bracelet", "item Jackie: Lucky Strike → gone") means the thing she has.
-        const owner = op.subject && !st.items[slug(clip(op.subject, 80))] ? this.findChar(op.subject) : undefined;
+        const owner = op.subject && !st.items[slug(clip(op.subject))] ? this.findChar(op.subject) : undefined;
         if (owner) {
           const thing = String(a.from ?? a.to ?? "").replace(/^at\s+/i, "").trim();
           if (!thing || this.findChar(thing)) return this.reject(ctx, "write item Thing: from → to (the thing first, not its owner)");
           const args = a.from ? { ...a, from: owner.name } : { ...a, to: owner.name };
           return this.applyOp({ ...op, subject: thing, args }, ctx);
         }
-        const name = clip(op.subject, 80);
+        const name = clip(op.subject);
         if (!name) return this.reject(ctx, "which item?");
         if (!this.needCause(ctx, op)) return;
         const id = slug(name);
@@ -975,11 +975,11 @@ export class Folder {
         it.lastSeq = seq;
         if (a.owner) {
           const o = this.findChar(a.owner);
-          it.owner = o?.id ?? clip(a.owner, 60);
+          it.owner = o?.id ?? clip(a.owner);
           return;
         }
         if (a.condition) {
-          it.condition = clip(a.condition, 80);
+          it.condition = clip(a.condition);
           this.push(ctx, { kind: "item", text: `${name}: ${it.condition}`, path: `items.${id}` });
           return;
         }
@@ -995,17 +995,17 @@ export class Folder {
           return;
         }
         const toChar = a.to ? this.findChar(a.to) ?? (looksLikePerson(a.to) ? this.person(a.to, seq) : undefined) : undefined;
-        const holder = toChar?.id ?? (a.to ? `place:${clip(a.to, 80)}` : it.holder);
+        const holder = toChar?.id ?? (a.to ? `place:${clip(a.to)}` : it.holder);
         // G2: a first hand-off says who it came from ("item key: Mira → Joss"), for the object's trail.
         const was = it.holder ?? (a.from ? this.findChar(a.from)?.id : undefined);
         it.gone = false;
         it.holder = holder;
-        if (a.where) it.where = clip(a.where, 60);
+        if (a.where) it.where = clip(a.where);
         let gave: Character | undefined;
         if (a.gift) {
           gave = this.findChar(a.gift);
           const fresh = !it.gift;
-          it.gift = gave?.name ?? clip(a.gift, 60);
+          it.gift = gave?.name ?? clip(a.gift);
           if (toChar) it.owner = toChar.id;
           if (!fresh) gave = undefined;
         }
@@ -1027,10 +1027,10 @@ export class Folder {
       case "room": {
         // E2: whose place this is, and what kind of place.
         const who = this.person(op.subject, seq);
-        const path = ((a.path ?? []) as string[]).map((x) => clip(x, 60)).filter(Boolean);
+        const path = ((a.path ?? []) as string[]).map((x) => clip(x)).filter(Boolean);
         if (!who || !path.length) return this.reject(ctx, "write room A: Town › Place | room");
         const p = this.placeAt(path) ?? (st.places[slug(path.join(" "))] ??= { id: slug(path.join(" ")), name: path.at(-1)!, path, visits: 0, lastSeq: seq });
-        const kind = a.kind ? clip(a.kind, 30) : (p.kind ?? "room");
+        const kind = a.kind ? clip(a.kind) : (p.kind ?? "room");
         if (p.owner === who.id && p.kind === kind) return;
         if (this.isLocked(`places.${p.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
         p.owner = who.id;
@@ -1041,12 +1041,12 @@ export class Folder {
       case "keeps": {
         // E2: something of theirs, kept somewhere ("keeps Mira: the ledger @ Lamp room").
         const who = this.person(op.subject, seq);
-        const name = clip(a.item, 80);
+        const name = clip(a.item);
         if (!who || !name) return this.reject(ctx, "write keeps A: item @ place");
         const id = slug(name);
         const it = (st.items[id] ??= { id, name, custody: [], lastSeq: seq });
         if (this.isLocked(`items.${id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
-        const holder = a.place ? `place:${clip(a.place, 80)}` : it.holder;
+        const holder = a.place ? `place:${clip(a.place)}` : it.holder;
         if (it.owner === who.id && it.holder === holder && !it.gone) return;
         const was = it.holder;
         it.owner = who.id;
@@ -1060,7 +1060,7 @@ export class Folder {
         return;
       }
       case "thread": {
-        const title = clip(op.subject ?? a.detail, 100);
+        const title = clip(op.subject ?? a.detail);
         if (!title) return this.reject(ctx, "which thread?");
         const id = this.threadId(title);
         let t = st.threads[id];
@@ -1078,7 +1078,7 @@ export class Folder {
         t.lastSeq = seq;
         t.history.push({ op: action, detail: a.detail, seq });
         if (t.history.length > 60) t.history.splice(0, t.history.length - 60);
-        if (a.detail) t.latest = clip(a.detail, 200);
+        if (a.detail) t.latest = clip(a.detail);
         if (action === "resolve") t.status = "resolved";
         else if (action === "stall") {
           t.status = "stalled";
@@ -1087,7 +1087,7 @@ export class Folder {
         if (a.kind) t.kind = a.kind;
         this.push(ctx, {
           kind: "thread",
-          text: action === "resolve" ? `Resolved: ${t.title}` : action === "stall" ? `Stalled: ${t.title}` : `${t.title}: ${clip(a.detail ?? action, 60)}`,
+          text: action === "resolve" ? `Resolved: ${t.title}` : action === "stall" ? `Stalled: ${t.title}` : `${t.title}: ${clip(a.detail ?? action)}`,
           path: `threads.${id}`,
           reason: a.detail,
           tone: action === "resolve" ? "up" : action === "complicate" ? "warn" : undefined,
@@ -1101,10 +1101,10 @@ export class Folder {
         const whom = op.object ? this.person(op.object, seq) : undefined;
         if (!who || !a.what) return this.reject(ctx, `write ${op.op} A → B: what | status [due …]`);
         const id = this.obligationId(op.op, who.id, whom?.id, a.what);
-        const o = (st.obligations[id] ??= { id, kind: op.op, who: who.id, whom: whom?.id, what: clip(a.what, 160), status: "open", seq });
+        const o = (st.obligations[id] ??= { id, kind: op.op, who: who.id, whom: whom?.id, what: clip(a.what), status: "open", seq });
         if (a.due) o.due = { minutes: this.when(a.due), text: a.due };
         // E3: a meeting, its window, and how much it matters.
-        if (a.meet) o.meet = clip(a.meet, 80);
+        if (a.meet) o.meet = clip(a.meet);
         if (a.importance) o.importance = a.importance;
         if (a.window) o.window = parseDuration(String(a.window).replace(/^(\d+)(\w)/, "$1 $2")) ?? o.window;
         const status = a.status as typeof o.status | undefined;
@@ -1121,9 +1121,9 @@ export class Folder {
       case "deadline": {
         if (!a.title) return this.reject(ctx, "write deadline Title: when");
         const id = slug(a.title);
-        const d = (st.deadlines[id] ??= { id, title: clip(a.title, 100), at: null, text: "", done: false, seq });
+        const d = (st.deadlines[id] ??= { id, title: clip(a.title), at: null, text: "", done: false, seq });
         if (a.when) {
-          d.text = clip(a.when, 60);
+          d.text = clip(a.when);
           d.at = this.when(a.when);
         }
         if (a.done && !d.done) {
@@ -1136,7 +1136,7 @@ export class Folder {
         if (!a.text) return this.reject(ctx, "plant what?");
         const id = slug(a.text);
         if (st.plants[id]) return;
-        st.plants[id] = { id, text: clip(a.text, 160), payoff: a.payoff ? clip(a.payoff, 120) : undefined, seq, scene: st.sceneNo };
+        st.plants[id] = { id, text: clip(a.text), payoff: a.payoff ? clip(a.payoff) : undefined, seq, scene: st.sceneNo };
         this.push(ctx, { kind: "plant", text: `Planted: ${clip(a.text)}`, path: `plants.${id}` });
         return;
       }
@@ -1150,12 +1150,12 @@ export class Folder {
       case "clue": {
         if (!a.text) return this.reject(ctx, "what clue?");
         if (st.clues.some((c) => overlap(c.text, a.text) > 0.8)) return;
-        st.clues.push({ id: slug(a.text), text: clip(a.text, 160), pointsTo: a.pointsTo, reliability: a.reliability, seq });
+        st.clues.push({ id: slug(a.text), text: clip(a.text), pointsTo: a.pointsTo, reliability: a.reliability, seq });
         this.push(ctx, { kind: "clue", text: `Clue: ${clip(a.text)}`, path: `clues.${slug(a.text)}` });
         return;
       }
       case "gauge": {
-        const name = clip(op.subject, 60);
+        const name = clip(op.subject);
         if (!name) return this.reject(ctx, "write gauge Name: 3/6");
         const g = (st.gauges[slug(name)] ??= { name, cur: 0, max: a.max ?? 6, history: [] });
         if (a.max) g.max = a.max;
@@ -1168,11 +1168,11 @@ export class Folder {
         return;
       }
       case "clockf": {
-        const faction = clip(op.subject, 60);
+        const faction = clip(op.subject);
         if (!faction || !a.project) return this.reject(ctx, "write clockf Faction: project +1 (3/6)");
         const existing = Object.values(st.clocks).find((c) => norm(c.faction) === norm(faction) && overlap(c.name, a.project) >= 0.5);
         const id = existing ? `${slug(existing.faction)}:${slug(existing.name)}` : `${slug(faction)}:${slug(a.project)}`;
-        const c = (st.clocks[id] ??= { faction, name: clip(a.project, 80), cur: 0, max: a.max ?? 6, history: [] });
+        const c = (st.clocks[id] ??= { faction, name: clip(a.project), cur: 0, max: a.max ?? 6, history: [] });
         if (a.max) c.max = a.max;
         const prev = c.cur;
         c.cur = Math.max(0, Math.min(c.max, a.cur ?? prev + (a.delta ?? 1)));
@@ -1183,7 +1183,7 @@ export class Folder {
       }
       case "rep": {
         const who = this.person(op.subject ?? this.cfg.userName, seq);
-        const group = clip(op.object, 60);
+        const group = clip(op.object);
         if (!who || !group) return this.reject(ctx, "write rep Name @ Group: ±N — deed");
         const id = `${who.id}@${slug(group)}`;
         const r = (st.rep[id] ??= { who: who.id, group, score: 0, tags: [], history: [] });
@@ -1200,9 +1200,9 @@ export class Folder {
         if (!a.title) return this.reject(ctx, `write ${op.op} Title: when | kind | who: …`);
         const id = slug(a.title);
         const kind = (a.kind ?? (/birthday/i.test(a.title) ? "birthday" : /anniversar/i.test(a.title) ? "anniversary" : op.op === "plan" ? "plan" : "recurring")) as "plan";
-        const e = (st.calendar[id] ??= { id, title: clip(a.title, 100), kind, when: "", at: null, who: [], seq });
+        const e = (st.calendar[id] ??= { id, title: clip(a.title), kind, when: "", at: null, who: [], seq });
         if (a.when) {
-          e.when = clip(a.when, 60);
+          e.when = clip(a.when);
           e.at = kind === "plan" || kind === "appointment" ? this.when(a.when) : null;
         }
         e.who = uniq([...e.who, ...((a.who as string[]) ?? []).map((n) => this.findChar(n)?.id ?? n)]);
@@ -1219,7 +1219,7 @@ export class Folder {
           existing.lastSeq = seq;
           return;
         }
-        st.motifs[id] = { id, text: clip(a.text, 120), who: a.who, firstSeq: seq, lastSeq: seq, uses: 1 };
+        st.motifs[id] = { id, text: clip(a.text), who: a.who, firstSeq: seq, lastSeq: seq, uses: 1 };
         this.push(ctx, { kind: "motif", text: `Running bit: ${clip(a.text)}`, path: `motifs.${id}` });
         return;
       }
@@ -1227,7 +1227,7 @@ export class Folder {
         if (!a.text) return this.reject(ctx, "what milestone?");
         if (st.milestones.some((m) => overlap(m.text, a.text) > 0.8)) return;
         const who = (a.who ? String(a.who).split(/\s*(?:&|,|\band\b)\s*/) : []).map((n: string) => this.findChar(n)?.id ?? n);
-        st.milestones.push({ text: clip(a.text, 160), who, seq, at: st.time ? formatStoryTime(st.time) : null });
+        st.milestones.push({ text: clip(a.text), who, seq, at: st.time ? formatStoryTime(st.time) : null });
         this.push(ctx, { kind: "milestone", text: `Milestone: ${clip(a.text)}`, path: `milestones.${slug(a.text)}`, memory: true, tone: "up" });
         return;
       }
@@ -1262,7 +1262,7 @@ export class Folder {
   fact(key: string | undefined, statement: string, seq: number, truth?: string) {
     const st = this.state;
     const k = key ? slug(key) : (Object.values(st.facts).find((f) => overlap(f.statement, statement) >= 0.75)?.key ?? slug(statement));
-    const f = (st.facts[k] ??= { key: k, statement: clip(statement, 240), truth: (truth as Truth) ?? "true", stances: {}, revealed: [], firstSeq: seq, lastSeq: seq });
+    const f = (st.facts[k] ??= { key: k, statement: clip(statement), truth: (truth as Truth) ?? "true", stances: {}, revealed: [], firstSeq: seq, lastSeq: seq });
     f.lastSeq = seq;
     if (truth) f.truth = truth as Truth;
     return f;

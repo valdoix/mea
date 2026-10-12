@@ -273,9 +273,7 @@
     font: inherit;
   }
   .title .small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .fields {
     display: grid;
