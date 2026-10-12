@@ -11,9 +11,9 @@
   import { readClock } from "../../lib/storytime";
   import { app } from "../../lib/state.svelte";
   import { post } from "../../lib/api";
-  import { Bandage, Calendar, Check, Eye, ExternalLink, Heart, Landmark, Lock, LockOpen, RefreshCw, Repeat, Settings, ShieldAlert, Sprout, Star } from "../../lib/icons";
+  import { Bandage, Calendar, Check, Eye, ExternalLink, Heart, Landmark, Lock, LockOpen, RefreshCw, Repeat, Settings, ShieldAlert, Sprout, Star, Trash } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
-  import { lockLine, trackerEdit, trk } from "../../lib/trackers.svelte";
+  import { lockLine, removeLadder, trackerEdit, trk } from "../../lib/trackers.svelte";
   import type { TemplateField, TrackerCharacter, TrackerTemplate } from "../../lib/types";
 
   let { chatId }: { chatId: string } = $props();
@@ -320,7 +320,7 @@
             {#if l}
               <div class="ladder">
                 <div class="rungs" aria-hidden="true">{#each LADDER as r, i (r)}<i class:on={i <= l.tier} class:now={i === l.tier} title={r}></i>{/each}</div>
-                <p><Heart size={12} /> <b>{LADDER[l.tier]}</b> ({l.tier}/7){l.evidence ? ` · ${l.evidence}` : ""}</p>
+                <p><Heart size={12} /> <b>{LADDER[l.tier]}</b> ({l.tier}/7){l.evidence ? ` · ${l.evidence}` : ""}<button class="btn ghost icon small rm" title="Remove this romance" aria-label="Remove {nm(b.from)} → {nm(b.to)} romance" onclick={() => removeLadder(chatId, `${b.from}>${b.to}`, `${nm(b.from)} → ${nm(b.to)}`)}><Trash size={12} /></button></p>
               </div>
             {/if}
           </div>
@@ -852,6 +852,12 @@
   }
   .ladder p :global(svg) {
     color: var(--st-rose);
+  }
+  .ladder .rm {
+    margin-left: auto;
+  }
+  .ladder .rm :global(svg) {
+    color: var(--text-muted);
   }
 
   /* threads and stakes */

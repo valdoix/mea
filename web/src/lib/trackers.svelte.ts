@@ -1,4 +1,6 @@
 import { get, post } from "./api";
+import { confirm } from "./dialogs.svelte";
+import { editLine } from "./dataedit";
 import { errorToast } from "./state.svelte";
 import type { TrackerChange, TrackersResponse } from "./types";
 
@@ -65,6 +67,13 @@ export async function trackerEdit(chatId: string, lines: string[]) {
     errorToast(e);
     return false;
   }
+}
+
+/** Takes a romance ladder out of the story's records, after asking. */
+export async function removeLadder(chatId: string, key: string, label: string) {
+  const ok = await confirm({ title: `Remove the romance ${label}?`, message: "Its rungs and history leave the story's records. If the story moves this romance again, it starts over from the bottom.", confirmLabel: "Remove", danger: true });
+  if (!ok) return false;
+  return trackerEdit(chatId, [editLine(["ladders", key], null)]);
 }
 
 export const lockLine = (path: string, on: boolean) => `lock ${path}: ${on ? "on" : "off"}`;
