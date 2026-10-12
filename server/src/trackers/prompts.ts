@@ -18,11 +18,13 @@ drive Name: want: …; fear: …; need: …; tactic: …      mask Name: shown: 
 think Name: "Damn it, not now. If she finds the letter I'm finished."       journal Name: "a turning point, in their own slant"
    (think: first person, in their own head-voice: their words, slang, oaths, grudges and worries, only what they know, about what's in front of them; a raw reaction, not narration, summary or poetry)
 dead Name — cause
-bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${AXES.join(", ")}; usually ±1, ±2 major)
+bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${AXES.join(", ")}; usually ±1, ±2 major; write the change, not old → new)
+   (a hidden truth coming out — a lie, an affair, a secret pregnancy — drops trust for whoever it was kept from; think about who else it touches: whose partner, whose family, whose best friend)
 ladder A>B: 3 — evidence   (romance rungs: ${LADDER.map((n, i) => `${i} ${n}`).join(", ")})
-know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|unaware · true|false|partial
+   (ladder is ONLY romantic or sexual interest. Shock, tension, loyalty or closeness between friends or family is a bond, never a ladder. A rung drops only for betrayal, neglect, cruelty or a lie.)
+know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|unaware · true|false|partial   (know everyone: … = everyone in the scene)
 secret #key: fact | kept by A · from B        reveal #key: to B — how
-item Name: A → B — how | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
+item Thing: A → B — how (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
 room A: Town › Place | room|home|shop (whose place it is)     keeps A: item @ place (theirs, kept there)
 thread Title: new|advance|complicate|stall(blocker)|resolve — detail
 owe A → B: what | open|paid [due Day 4]       promise A>B: what | open|kept|broken [due tomorrow 9:00]
