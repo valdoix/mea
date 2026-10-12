@@ -8,7 +8,8 @@ import { scanEntriesFor } from "../lore/service";
 import { type AtomRow } from "../memory/atoms";
 import { chatNames } from "../memory/build";
 import { correctMemory } from "../memory/remember";
-import { cleanText, ftsQuery } from "../memory/text";
+import { excerpt } from "../memory/deep";
+import { cleanText, contentWords, ftsQuery } from "../memory/text";
 import { getMessageRow, mustChat } from "../services/chats";
 import type { JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
@@ -96,6 +97,72 @@ const modelSchema = z.object({
     )
     .default([]),
 });
+
+const verifySchema = z.object({ verdicts: z.array(z.object({ id: z.coerce.string(), stands: z.boolean().catch(true) })).default([]) });
+
+type Passage = { seq: number; messageId: string; role: string; name: string | null; text: string };
+
+/**
+ * The story's own words about an issue: the earlier messages that best match it, and the newest
+ * ones that mention it (a later message overrides an earlier one: a jacket given back).
+ */
+function storyPassages(chatId: string, beforeSeq: number, about: string): Passage[] {
+  const q = ftsQuery(about, 12);
+  if (!q) return [];
+  const words = contentWords(about);
+  const pick = (order: string) => {
+    try {
+      return all<{ id: string; seq: number; role: string; name: string | null; content: string }>(
+        `SELECT m.id, m.seq, m.role, m.name, s.content FROM swipes_fts f JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
+         WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq < ? AND m.deleted_at IS NULL ORDER BY ${order} LIMIT 4`,
+        q,
+        chatId,
+        beforeSeq,
+      );
+    } catch {
+      return [];
+    }
+  };
+  const seen = new Map<number, Passage>();
+  for (const r of [...pick("bm25(swipes_fts)"), ...pick("m.seq DESC")]) if (!seen.has(r.seq)) seen.set(r.seq, { seq: r.seq, messageId: r.id, role: r.role, name: r.name, text: excerpt(r.content, words, 480) });
+  return [...seen.values()].sort((a, b) => a.seq - b.seq);
+}
+
+/**
+ * The trackers and memories are summaries and miss things (a line said in your first message, a
+ * jacket handed back). Before a helper's flag is shown, the story itself is searched for it, and
+ * a flag the story's own words settle in the reply's favour is dropped.
+ */
+async function settledByStory(chatId: string, seq: number, found: Omit<Issue, "id">[], job?: JobContext): Promise<Set<number>> {
+  const asks = found
+    .map((i, n) => ({ n, i, passages: i.by === "model" && STORY_SETTLES.has(i.kind) ? storyPassages(chatId, seq, `${i.claim} ${i.conflict}`) : [] }))
+    .filter((a) => a.passages.length);
+  if (!asks.length) return new Set();
+  const names = chatNames(chatId);
+  const who = (p: Passage) => (p.role === "user" ? names.user : (p.name ?? names.char));
+  try {
+    const r = await callJson({
+      task: "helper",
+      kind: "continuity",
+      chatId,
+      jobId: job?.id,
+      name: "continuity_verify",
+      schema: verifySchema,
+      system: `A continuity checker compared a new roleplay reply (message #${seq}) with helper notes (trackers and memories) and flagged the issues below. Those notes are summaries: they are often incomplete or out of date. Under each issue are passages from the story itself, with their message numbers. The passages are the record, and a later message overrides an earlier one. For each issue decide whether it still stands. It does NOT stand when the passages show the reply is right: the event or line did happen, the object changed hands again, the detail was established, the person did say it. It stands only when the passages don't back the reply. Reply with JSON only: {"verdicts": [{"id": "1", "stands": false}]}`,
+      user: asks
+        .map((a) => `ISSUE ${a.n + 1} (${a.i.kind})\nThe reply says: "${a.i.claim}"\nThe checker said: ${a.i.conflict}\nSTORY:\n${a.passages.map((p) => `#${p.seq} (${who(p)}): ${p.text}`).join("\n")}`)
+        .join("\n\n"),
+      maxTokens: 300,
+    });
+    return new Set(r.data.verdicts.filter((v) => !v.stands).map((v) => Number(v.id) - 1));
+  } catch (e) {
+    job?.note({ verifyError: (e as Error).message.slice(0, 200) });
+    return new Set();
+  }
+}
+
+/** Kinds the story's own words can settle. */
+const STORY_SETTLES = new Set(["fact", "past", "trait", "place", "time", "dead"]);
 
 /** A cited fact sheet for the helper pass: story state, confirmed memories, lore, the card. */
 function factSheet(chatId: string, reply: string, st: WorldState | null) {
@@ -199,7 +266,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   const g = guardsFor(chatId);
   // P1: every check in the slip registry that's on for this chat (slips.ts).
   const ctx = slipContext({ chatId, text: sw.content, seq: m.seq, messageId, role: m.role, speaker: m.name ?? names.char, state: st, guards: g, continuity: cfg.continuity, leaks: leakGuardOn(chatId) });
-  const issues: Omit<Issue, "id">[] = runSlips(ctx, "reply", (id, e) => opts.job?.note({ [`${id}Error`]: e.message.slice(0, 200) }));
+  let issues: Omit<Issue, "id">[] = runSlips(ctx, "reply", (id, e) => opts.job?.note({ [`${id}Error`]: e.message.slice(0, 200) }));
   // CON-12: the timeline check runs once the trackers have read the reply; keep what it found.
   const earlier = one<FlagRow>("SELECT * FROM continuity_flags WHERE message_id = ? AND swipe_idx = ?", messageId, swipeIdx);
   issues.push(...parseJson<Issue[]>(earlier?.issues, []).filter((i) => i.kind === "timeline").map(({ id: _id, ...rest }) => rest));
@@ -215,7 +282,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           jobId: opts.job?.id,
           name: "continuity_check",
           schema: modelSchema,
-          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
+          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them. The FACTS are summaries kept by helpers and can lag behind the story (an object handed back, a change of clothes): a reply describing a later change isn't wrong for it.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."; for an invented past, the event as the reply tells it, never its denial). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
           user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content).slice(0, 6000)}`,
           maxTokens: 800,
         });
@@ -240,6 +307,11 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
         opts.job?.note({ checkerError: (e as Error).message.slice(0, 200) });
       }
     }
+  }
+  const settled = useModel ? await settledByStory(chatId, m.seq, issues, opts.job) : new Set<number>();
+  if (settled.size) {
+    opts.job?.note({ settledByStory: settled.size });
+    issues = issues.filter((_, n) => !settled.has(n));
   }
   const withIds: Issue[] = issues.map((i, n) => ({ ...i, id: `${n + 1}` }));
   const t = now();
