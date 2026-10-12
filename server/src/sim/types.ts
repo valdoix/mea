@@ -35,6 +35,8 @@ export interface Beat {
   told: "template" | "model";
   /** The player called this outcome; the dice didn't. */
   forced?: Force;
+  /** What set it off elsewhere: "Joss's revenge", 'the thread "Lost locket"'. */
+  answers?: string;
   seq: number;
 }
 
@@ -77,6 +79,8 @@ export interface Arc {
   place?: string[];
   /** The thread it became once it crossed into the story. */
   thread?: string;
+  /** The last seq of its plot thread it has answered (threads and subplots move each other). */
+  threadSeen?: number;
   ending?: { result: EndResult; text: string; at: number; seq: number };
   /** An irreversible ending waiting on the player (fates: ask). */
   fate?: { result: EndResult; text: string; at: number };
@@ -180,7 +184,7 @@ export type SimOp =
   | { type: "arc.tell"; id: string; at: number; text: string }
   | { type: "arc.end"; id: string; result: EndResult; text: string; at: number }
   | { type: "arc.fate"; id: string; result: EndResult; text: string; at: number }
-  | { type: "arc.set"; id: string; patch: Partial<Pick<Arc, "status" | "premise" | "want" | "fear" | "push" | "bringIn" | "heat" | "locked" | "nextAt" | "foreshadowed" | "thread" | "cast" | "force">> }
+  | { type: "arc.set"; id: string; patch: Partial<Pick<Arc, "status" | "premise" | "want" | "fear" | "push" | "bringIn" | "heat" | "locked" | "nextAt" | "foreshadowed" | "thread" | "cast" | "force" | "threadSeen">> }
   | { type: "arrival.new"; arrival: Arrival }
   | { type: "arrival.set"; id: string; status: Arrival["status"]; text?: string; offers?: number }
   | { type: "actor.set"; actor: Partial<Actor> & { id: string; name: string } }

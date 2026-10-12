@@ -1484,6 +1484,8 @@ export interface ArcBeat {
   told: "template" | "model";
   /** The player called this outcome. */
   forced?: ArcForce;
+  /** What set it off elsewhere: "Joss's revenge", 'the thread "Lost locket"'. */
+  answers?: string;
   seq: number;
 }
 
@@ -1597,7 +1599,7 @@ export interface WorldPerson {
 
 /** How a live subplot is tied to the others: each tied subplot's latest step, which way it pulls, and what stands. */
 export interface ArcTies {
-  ties: { id: string; leadName: string; kind: string; stance: "for" | "against" | "shared"; dir: "theirs" | "mine" | null; person: string; ending: boolean; fresh: boolean; text: string; at: number; pull: string; mod: number }[];
+  ties: { id: string; leadName: string; kind: string; stance: "for" | "against" | "shared"; dir: "theirs" | "mine" | "target" | null; person: string; ending: boolean; fresh: boolean; text: string; at: number; pull: string; mod: number }[];
   stands: { text: string; leadName: string; kind: string; at: number }[];
   pull: { mod: number; why: string[] } | null;
 }
