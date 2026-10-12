@@ -12,7 +12,7 @@ cast: Name@spot(activity) · Name@peri(at the bar) · Name@left(→ where) · Na
 mood Name: old → new | V-1 A2 D0              (named emotion; VAD optional: valence -3..3, arousal 0..5, dominance -3..3)
 body Name: fatigue 3; hunger +1; soaked; injury: left arm, wound, bandaged; healed: left arm
    (meters 0-5: health, fatigue, hunger, thirst, pain, intox, composure, stress, arousal; severities: scratch, wound, serious, critical)
-look Name: what they wear and visible marks now
+look Name: what they wear and visible marks now   (the whole look, replacing the old one: leave out what they took off or handed back)
 trait Name: green eyes; red hair in a braid   (only lasting features, first time described)
 drive Name: want: …; fear: …; need: …; tactic: …      mask Name: shown: calm; felt: panic; tell: …
 think Name: "Damn it, not now. If she finds the letter I'm finished."       journal Name: "a turning point, in their own slant"

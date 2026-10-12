@@ -384,7 +384,8 @@ export function acceptIssue(flagId: string, issueId: string) {
   if (!issue) throw notFound("Issue not found");
   // M27: only the memories the issue cites are replaced, never ones that merely share a word.
   if (issue.canon?.memory && issue.kind !== "timeline") {
-    const cited = issue.citations.filter((c) => c.type === "memory" && c.id).map((c) => c.id!);
+    // An invented past adds an event; the memories it cited aren't wrong, so none is replaced.
+    const cited = issue.kind === "past" ? [] : issue.citations.filter((c) => c.type === "memory" && c.id).map((c) => c.id!);
     correctMemory(r.chat_id, { wrong: issue.canon.wrong ?? issue.conflict, right: issue.canon.memory, messageId: r.message_id, memoryIds: cited, exact: true });
   }
   if (issue.canon?.trackerLine) {
