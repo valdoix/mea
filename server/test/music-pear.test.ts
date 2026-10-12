@@ -8,6 +8,11 @@ import { freshDb } from "./helpers";
 const realFetch = globalThis.fetch;
 const sent: { method: string; path: string; body: unknown; auth: string | null }[] = [];
 
+/** The app's queue. Like the real one, a song asked for lands only a moment later (after a couple of looks). */
+let queue: { videoId: string; selected: boolean }[] = [{ videoId: "ppppppppppp", selected: true }, { videoId: "oldqueued11", selected: false }];
+let landing: { videoId: string; looks: number } | null = null;
+let queueLands = true;
+
 /** One list row the way YouTube Music's page data has it. */
 const row = (videoId: string, title: string, second: string, type = "MUSIC_VIDEO_TYPE_ATV") => ({
   musicResponsiveListItemRenderer: {
@@ -59,6 +64,22 @@ beforeAll(() => {
     if (url.pathname === "/doc") return json({ info: { title: "YouTube Music API Server" } });
     if (url.pathname === "/auth/mea-soundtrack") return json({ accessToken: "jwt-9" });
     if (auth !== "Bearer jwt-9") return new Response("Unauthorized", { status: 401 });
+    if (url.pathname === "/api/v1/queue" && init?.method === "POST") {
+      if (queueLands) landing = { videoId: body.videoId, looks: 2 };
+      return new Response(null, { status: 204 });
+    }
+    if (url.pathname === "/api/v1/queue" && (init?.method ?? "GET") === "GET") {
+      if (landing && --landing.looks <= 0) {
+        queue.splice(queue.findIndex((q) => q.selected) + 1, 0, { videoId: landing.videoId, selected: false });
+        landing = null;
+      }
+      // Real rows come both bare and wrapped.
+      return json({ items: queue.map((q, i) => (i % 2 ? { playlistPanelVideoRenderer: q } : { playlistPanelVideoWrapperRenderer: { primaryRenderer: { playlistPanelVideoRenderer: q } } })) });
+    }
+    if (url.pathname === "/api/v1/queue" && init?.method === "PATCH") {
+      queue = queue.map((q, i) => ({ ...q, selected: i === body.index }));
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === "/api/v1/search") return json(body.query === "Hozier" ? searchPage : {});
     if (url.pathname === "/api/v1/song") return json({ title: "Pear Song", artist: "P", isPaused: false, videoId: "ppppppppppp" });
     return new Response(null, { status: 204 });
@@ -80,14 +101,27 @@ describe("the soundtrack on th-ch's YouTube Music (API Server)", () => {
     expect(musicConfig()).toMatchObject({ token: "jwt-9", app: "pear", enabled: true });
   });
 
-  test("what's playing, and playing a chosen song: queued after this one, then skipped to", async () => {
+  test("what's playing, and playing a chosen song: queued after this one, then played once it's there", async () => {
     await addTrack({ moods: ["calm"] });
     expect(musicConfig().library[0]).toMatchObject({ videoId: "ppppppppppp", title: "Pear Song", artist: "P" });
     sent.length = 0;
     await command(musicConfig(), { command: "changeVideo", data: { videoId: "qqqqqqqqqqq" } });
     await command(musicConfig(), { command: "playPause" });
-    expect(sent.map((s) => `${s.method} ${s.path}`)).toEqual(["POST /api/v1/queue", "POST /api/v1/next", "POST /api/v1/toggle-play"]);
+    // Not "next" straight away: that would play what was queued before (the music ran one song behind).
+    expect(sent.map((s) => `${s.method} ${s.path}`)).toEqual(["POST /api/v1/queue", "GET /api/v1/queue", "GET /api/v1/queue", "PATCH /api/v1/queue", "POST /api/v1/toggle-play"]);
     expect(sent[0]?.body).toEqual({ videoId: "qqqqqqqqqqq", insertPosition: "INSERT_AFTER_CURRENT_VIDEO" });
+    expect(queue.find((q) => q.selected)?.videoId).toBe("qqqqqqqqqqq");
+    // The same song already further down the queue: it's the copy just after this one that plays.
+    sent.length = 0;
+    await command(musicConfig(), { command: "changeVideo", data: { videoId: "oldqueued11" } });
+    expect(queue.findIndex((q) => q.selected)).toBe(2);
+    expect(queue[2]?.videoId).toBe("oldqueued11");
+    // A song that never shows up: skip ahead, as before.
+    queueLands = false;
+    sent.length = 0;
+    await command(musicConfig(), { command: "changeVideo", data: { videoId: "neverlands1" } });
+    expect(sent.at(-1)).toMatchObject({ method: "POST", path: "/api/v1/next" });
+    queueLands = true;
   });
 
   test("the app's own errors reach you as they are, not as a server fault", async () => {

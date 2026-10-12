@@ -107,14 +107,41 @@ export async function playerState(conn: YtmConn): Promise<YtmState> {
 
 export type YtmCommand = { command: "playPause" | "play" | "pause" | "next" | "previous" } | { command: "changeVideo"; data: { videoId: string; playlistId?: string | null } };
 
+type QueueRow = { videoId?: string; selected?: boolean };
+type QueueItem = { playlistPanelVideoRenderer?: QueueRow; playlistPanelVideoWrapperRenderer?: { primaryRenderer?: { playlistPanelVideoRenderer?: QueueRow } } };
+
+/** th-ch's queue: each song's id, and which one is playing. */
+async function pearQueue(conn: YtmConn): Promise<QueueRow[]> {
+  const r = await call<{ items?: QueueItem[] }>(conn, "/api/v1/queue");
+  return (r.items ?? []).map((it) => it.playlistPanelVideoRenderer ?? it.playlistPanelVideoWrapperRenderer?.primaryRenderer?.playlistPanelVideoRenderer ?? {});
+}
+
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * th-ch's app has no "play this": the song is queued right after the current one, then played by
+ * its place in the queue. The queue fills in a moment after the request returns, so pressing
+ * "next" at once played whatever was there before (the last song Mea queued): the music ran one
+ * behind. So: wait until the song shows up after the current one, then jump to it.
+ */
+async function pearPlay(conn: YtmConn, videoId: string, waitMs = 4_000) {
+  await call(conn, "/api/v1/queue", { method: "POST", body: { videoId, insertPosition: "INSERT_AFTER_CURRENT_VIDEO" } });
+  const until = Date.now() + waitMs;
+  for (;;) {
+    const rows = await pearQueue(conn);
+    const cur = rows.findIndex((r) => r.selected);
+    const at = rows.findIndex((r, i) => i > cur && r.videoId === videoId);
+    if (at >= 0) return void (await call(conn, "/api/v1/queue", { method: "PATCH", body: { index: at } }));
+    if (Date.now() >= until) break;
+    await pause(150);
+  }
+  // Never showed up (an older app?): skip ahead, as before.
+  await call(conn, "/api/v1/next", { method: "POST" });
+}
+
 export async function command(conn: YtmConn, c: YtmCommand) {
   if (conn.app !== "pear") return void (await call(conn, "/api/v1/command", { method: "POST", body: c }));
-  if (c.command === "changeVideo") {
-    // No "play this" here: queue it right after the current song, then skip to it.
-    await call(conn, "/api/v1/queue", { method: "POST", body: { videoId: c.data.videoId, insertPosition: "INSERT_AFTER_CURRENT_VIDEO" } });
-    await call(conn, "/api/v1/next", { method: "POST" });
-    return;
-  }
+  if (c.command === "changeVideo") return pearPlay(conn, c.data.videoId);
   await call(conn, `/api/v1/${c.command === "playPause" ? "toggle-play" : c.command}`, { method: "POST" });
 }
 
