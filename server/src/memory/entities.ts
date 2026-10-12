@@ -400,6 +400,9 @@ export function syncEntities(chatId: string, force = false) {
     }
     for (const p of Object.values(st.places)) add(p.name, "place", { last: p.lastSeq, mentions: p.visits, source: "tracker", strong: true, data: { path: p.path } });
     for (const it of Object.values(st.items)) {
+      // A thing never shares a record with a person of the same name (its status would become theirs).
+      const k = entityKey(it.name);
+      if (k && seen.get(k.key)?.kind === "person") continue;
       const holder = it.holder ? (st.chars[it.holder]?.name ?? it.holder) : undefined;
       add(it.name, "object", { last: it.lastSeq, status: it.gone ? "gone" : undefined, source: "tracker", strong: true, data: { holder } });
     }
@@ -528,7 +531,7 @@ export function syncEntities(chatId: string, force = false) {
       const names = new Set([row.name, ...aliases].map(norm));
       for (const a of [s.name, ...s.aliases]) if (!names.has(norm(a)) && !removed.has(norm(a))) (aliases.push(a), names.add(norm(a)));
       const desc = locked.has("description") || data.descSource === "consolidation" ? row.description : (s.description ?? row.description);
-      const status = locked.has("status") ? row.status : (s.status ?? (row.status === "dead" && !s.status && data.sources?.includes("tracker") ? "active" : row.status));
+      const status = locked.has("status") ? row.status : (s.status ?? ((row.status === "dead" || (row.status === "gone" && s.kind === "person")) && !s.status && data.sources?.includes("tracker") ? "active" : row.status));
       const kind = locked.has("kind") ? row.kind : s.strong ? s.kind : row.kind;
       const next = {
         aliases: JSON.stringify(aliases),

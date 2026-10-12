@@ -482,7 +482,7 @@ export class Folder {
     return plain != null ? (plain < now ? plain + 1440 : plain) : null;
   }
 
-  applyOp(op: Op, ctx: Ctx) {
+  applyOp(op: Op, ctx: Ctx): void {
     const st = this.state;
     const seq = ctx.ev.seq;
     const a = op.args;
@@ -954,6 +954,14 @@ export class Folder {
         return;
       }
       case "item": {
+        // Owner first ("item Jackie: silver bracelet", "item Jackie: Lucky Strike → gone") means the thing she has.
+        const owner = op.subject && !st.items[slug(clip(op.subject, 80))] ? this.findChar(op.subject) : undefined;
+        if (owner) {
+          const thing = String(a.from ?? a.to ?? "").replace(/^at\s+/i, "").trim();
+          if (!thing || this.findChar(thing)) return this.reject(ctx, "write item Thing: from → to (the thing first, not its owner)");
+          const args = a.from ? { ...a, from: owner.name } : { ...a, to: owner.name };
+          return this.applyOp({ ...op, subject: thing, args }, ctx);
+        }
         const name = clip(op.subject, 80);
         if (!name) return this.reject(ctx, "which item?");
         if (!this.needCause(ctx, op)) return;
