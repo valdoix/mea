@@ -109,7 +109,10 @@ describe("API end to end (mock provider)", () => {
     expect(end.status).toBe("done");
     const msg = await api("GET", `/api/messages/${r.json.messageId}`);
     expect(msg.json.content).toContain("The lamp flickers");
-    expect(deltas.join("")).toBe(msg.json.content);
+    // The speaker marks stream in (the page hides them) and come out of the saved reply into meta.
+    expect(deltas.join("").replace(/\[spk=[^\]\n]*\]|\[\/spk\]/g, "")).toBe(msg.json.content);
+    expect(msg.json.content).not.toContain("[spk=");
+    expect(msg.json.meta.speakers[0]).toEqual({ text: '"You came back,"', name: "Mira", tone: "tender" });
     expect(msg.json.meta.model).toBe("mock/storyteller");
     expect(msg.json.reasoning).toContain("Mock reasoning");
 

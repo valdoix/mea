@@ -1,6 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { vetPattern } from "../src/lib/regex";
-import { planOnly, splitLeakedPlan } from "../src/services/generation";
+import { planFrom, planOnly, splitLeakedPlan } from "../src/services/generation";
+
+describe("the plan step's answer", () => {
+  const pass = "NOW — dusk, the lamp room. SEAL — Ash arrived and spoke. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short.";
+  test("takes the pass in <think>, written out, or as plain lines, and nothing after it", () => {
+    expect(planFrom(`<think>${pass}</think>\n\nMira looks up.`, "")).toBe(pass);
+    expect(planFrom(pass.replace(/\. /g, ".\n"), "")).toContain("MOVE — she offers tea");
+    expect(planFrom(`<think>${pass}`, "")).toBe(pass);
+  });
+  test("falls back to the route's reasoning, and refuses a token plan or a story", () => {
+    expect(planFrom("", pass)).toBe(pass);
+    expect(planFrom("<think>NOW — dusk.</think>", "")).toBeNull();
+    expect(planFrom("Mira looks up from the logbook and sets the kettle on.", "")).toBeNull();
+  });
+});
 import { salvageJson } from "../src/services/llm";
 import { parseEditorReply } from "../src/steer/editor";
 

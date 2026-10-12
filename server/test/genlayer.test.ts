@@ -72,6 +72,14 @@ beforeAll(() => {
         const content = n % 2 ? story : `${plan}${story}`;
         return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
       }
+      if (body.model === "neverplans") {
+        // A model that never plans on its own: only a "plan only" request gets a plan (and then a story it shouldn't write).
+        const planAsked = JSON.stringify(body.messages.at(-1)).includes("[PLAN ONLY");
+        const content = planAsked
+          ? "<think>NOW — night, the lighthouse, Mira and Ash. SEAL — Ash stepped in. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short, quiet.</think>\n\nThe story it should not have written."
+          : "The rain had not stopped all night, and the lantern on the sill burned low while the harbour bell rang twice.";
+        return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+      }
       if (body.model === "planonly") {
         // The plan-only watch: the first try writes its plan out (no tags) and stops; the second writes the story.
         const plan = "NOW — night, the lighthouse, Mira and Ash.\n\nSEAL — Ash stepped in. Reply ends on her offer.\n\nMINDS — Mira wary, hopeful.\n\nMOVE — she offers tea.\n\nVOICE — short, quiet.";
@@ -406,7 +414,7 @@ describe("sending (H8, C2, H3)", () => {
     expect(rejections).toEqual([]);
   });
 
-  test("the plan watch: a reply that skips its plan is asked again, once, told to plan first", async () => {
+  test("the plan watch: a reply that skips its plan is planned in its own step, then written from that plan", async () => {
     const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
     await syncModels(conn);
     setSetting("routing.story", createProfile({ name: "No plan", connectionId: conn, modelId: "noplan", params: {} }));
@@ -417,12 +425,42 @@ describe("sending (H8, C2, H3)", () => {
     const r = await api("POST", `/api/chats/${chatId}/send`, { content: "I step inside." });
     expect(r.status).toBe(200);
     expect(((await end) as any).status).toBe("done");
-    expect(seen.filter((s) => s.model === "noplan").length).toBe(2);
+    expect(seen.filter((s) => s.model === "noplan").length).toBe(3);
     const reply = all<{ content: string; reasoning: string | null; meta: string }>("SELECT s.content, s.reasoning, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
     expect(reply.content.startsWith("The rain had not stopped")).toBe(true);
     expect(reply.content).not.toContain("<think>");
     expect(reply.reasoning).toContain("MOVE — she offers tea");
-    expect(JSON.parse(reply.meta).notes).toContain("asked again: the first try skipped its plan");
+    expect(JSON.parse(reply.meta).notes).toContain("planned in its own step: the first try skipped its plan");
+    expect(JSON.parse(reply.meta).plan).toBe("step");
+    const bodies = all<{ request: string; kind: string }>("SELECT request, kind FROM generations WHERE chat_id = ? AND task = 'story' ORDER BY started_at", chatId);
+    expect(bodies.map((b) => b.kind)).toEqual(["new", "plan", "new"]);
+    expect(bodies[1]!.request).toContain("[PLAN ONLY");
+    expect(bodies[2]!.request).toContain("<director-plan>");
+  });
+
+  test("a model that keeps skipping its plan plans first, and the plan step stops at </think>", async () => {
+    const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    setSetting("routing.story", createProfile({ name: "Never plans", connectionId: conn, modelId: "neverplans", params: {} }));
+    const chatId = newChat();
+    const send = async (content: string) => {
+      const end = waitFor((e) => e.type === "gen.end" && (e as any).chatId === chatId);
+      expect((await api("POST", `/api/chats/${chatId}/send`, { content })).status).toBe(200);
+      expect(((await end) as any).status).toBe("done");
+      return all<{ content: string; reasoning: string | null; meta: string }>("SELECT s.content, s.reasoning, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
+    };
+    counts.delete("neverplans");
+    await send("I step inside.");
+    await send("I sit down.");
+    expect(counts.get("neverplans")).toBe(6);
+    const third = await send("I take the cup.");
+    // Two skips out of two: the third plans first, no wasted try.
+    expect(counts.get("neverplans")).toBe(8);
+    expect(JSON.parse(third.meta).plan).toBe("first");
+    expect(JSON.parse(third.meta).notes).toContain("planned first, in its own step: this model has been skipping its plan");
+    expect(third.reasoning).toContain("MOVE — she offers tea");
+    expect(third.reasoning).not.toContain("should not have written");
+    expect(third.content.startsWith("The rain had not stopped")).toBe(true);
   });
 
   test("the plan-only watch: a reply that stops at its plan is written again from that plan", async () => {

@@ -81,6 +81,61 @@ function highlightDialogue(root: HTMLElement) {
   }
 }
 
+/** One spoken line and who says it, kept in a saved reply's meta (server lib/speakers.ts). */
+export interface SpokenLine {
+  text: string;
+  name: string | null;
+  tone?: string;
+}
+
+const attr = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function spanFor(who: { name: string | null; tone?: string }) {
+  return `<span class="dl" data-spk="${attr(who.name ?? "?")}"${who.tone ? ` data-tone="${attr(who.tone)}"` : ""}>`;
+}
+
+function readMark(raw: string): { name: string | null; tone?: string } {
+  const [who = "", how = ""] = raw.split("|");
+  const name = who.replace(/#\d{1,2}\s*$/, "").trim();
+  const tone = how.trim().toLowerCase();
+  return { name: !name || name === "?" ? null : name, ...(/^[a-z]{2,12}$/.test(tone) ? { tone } : {}) };
+}
+
+/**
+ * Speaker marks become dialogue spans that already know their speaker (lib/voices.ts reads them).
+ * A saved reply keeps its marks in meta (`lines`), found again in order in the text; a reply still
+ * streaming (or a save cut short) has them inline. A mark still being written never shows.
+ */
+function markSpeakers(text: string, lines?: SpokenLine[] | null): string {
+  let out = text;
+  if (lines?.length) {
+    let at = 0;
+    let res = "";
+    for (const l of lines) {
+      if (!l?.text) continue;
+      const i = out.indexOf(l.text, at);
+      if (i < 0) continue;
+      res += out.slice(at, i) + spanFor(l) + l.text + "</span>";
+      at = i + l.text.length;
+    }
+    out = res + out.slice(at);
+  }
+  if (!/\[\/?s|\[$/i.test(out)) return out;
+  return (
+    out
+      // [spk=Mara|whisper]"…"[/spk]
+      .replace(/\[spk=([^\]\n]{0,80})\]((?:(?!\[spk=)[^\n])*?)\[\/spk\]/gi, (_m, raw: string, inner: string) => {
+        // A mark that also wraps the narration after its quote colours only the quote.
+        const q = /^\s*["“][^"“”\n]*["”]/.exec(inner)?.[0] ?? inner;
+        return `${spanFor(readMark(raw))}${q}</span>${inner.slice(q.length)}`;
+      })
+      // a mark the model left open: up to the end of the quote it opens on
+      .replace(/\[spk=([^\]\n]{0,80})\](\s*["“][^"“”\n]*["”])/gi, (_m, raw: string, inner: string) => `${spanFor(readMark(raw))}${inner}</span>`)
+      // strays, and a mark still streaming in
+      .replace(/\[spk=[^\]\n]{0,80}\]|\[\/spk\]|\[spk=[^\]\n]*$|\[\/?(?:s(?:p(?:k)?)?)?$/gi, "")
+  );
+}
+
 /** A value that would load something from outside the message: a remote image, or a request to Mea's API. */
 const REMOTE_REF = /(?:image-set|\bsrc)\s*\(|url\(\s*["']?(?!data:)/i;
 
@@ -180,13 +235,13 @@ purify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean; quotes?: QuoteStyle } = {}): string {
+export function renderMessage(input: string, scopeClass: string, opts: { artifacts?: boolean; quotes?: QuoteStyle; speakers?: SpokenLine[] | null } = {}): string {
   const dressed = opts.artifacts !== false;
-  const key = `${scopeClass}\u0000${dressed ? 1 : 0}\u0000${opts.quotes ?? ""}\u0000${input}`;
+  const key = `${scopeClass}\u0000${dressed ? 1 : 0}\u0000${opts.quotes ?? ""}\u0000${opts.speakers?.length ? JSON.stringify(opts.speakers) : ""}\u0000${input}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   // Artifacts (<letter>, <texts>…) are cut out before Markdown and drawn from escaped text.
-  const { text, found } = extractArtifacts(input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, ""));
+  const { text, found } = extractArtifacts(markSpeakers(input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, ""), opts.speakers));
 
   const styles: string[] = [];
   const withoutStyles = text.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_m, css: string) => {
@@ -198,6 +253,7 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
     FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select", "link", "meta", "base"],
     FORBID_ATTR: ["srcset", "action", "formaction"],
     ALLOW_DATA_ATTR: false,
+    ADD_ATTR: ["data-spk", "data-tone"],
   });
   const tpl = document.createElement("template");
   tpl.innerHTML = clean;
@@ -218,9 +274,9 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
 /** Cheap render for streaming text: re-rendered at most once per animation frame. */
 export function renderStreaming(input: string, opts: { artifacts?: boolean; quotes?: QuoteStyle } = {}): string {
   // Inline trackers: the hidden <ledger> the story model writes never shows while it streams.
-  const { text, found } = extractArtifacts(input.replace(/<ledger\b[\s\S]*$/i, ""));
+  const { text, found } = extractArtifacts(markSpeakers(input.replace(/<ledger\b[\s\S]*$/i, "")));
   const raw = marked.parse(text, { async: false }) as string;
-  const clean = purify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "link", "meta", "base"], FORBID_ATTR: ["srcset"] });
+  const clean = purify.sanitize(raw, { FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "link", "meta", "base"], FORBID_ATTR: ["srcset"], ADD_ATTR: ["data-spk", "data-tone"] });
   const tpl = document.createElement("template");
   tpl.innerHTML = clean;
   const container = document.createElement("div");

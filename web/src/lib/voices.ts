@@ -2,14 +2,21 @@ import type { Action } from "svelte/action";
 import type { TrackerCharacter, TrackersResponse } from "./types";
 
 /**
- * Speaker colours: who said each quoted line, read from the prose the way a reader would. The
- * renderer already wraps dialogue in <span class="dl">; this works out the speaker of each from
- * the tag beside it ("Wren said"), the action beat before it, a pronoun's last-named person, or the
- * back-and-forth of a two-person exchange. Each line is tinted in that person's colour, with a
- * texture for how it was said (whispered, shouted). Nothing is sent to the model.
+ * Speaker colours: who said each quoted line. Replies name the speaker of each line themselves
+ * (speaker marks, after ALMANAC's [spk]); the renderer turns those into <span class="dl"
+ * data-spk="Name">, and they are taken as written. Older messages and yours, with no marks, are
+ * read from the prose the way a reader would: the tag beside a line ("Wren said"), the action beat
+ * before it, a pronoun's last-named person, or the back-and-forth of a two-person exchange. Each
+ * line is tinted in that person's colour, with a texture for how it was said (whispered, shouted).
+ * Blocks and Script (from ALMANAC) also turn a paragraph that opens on someone's line into their
+ * voice card or screenplay line.
  */
 
-export type VoiceStyle = "ink" | "ribbon" | "halo" | "off";
+export type VoiceStyle = "ink" | "blocks" | "chips" | "tint" | "script" | "ribbon" | "halo" | "off";
+
+/** Styles that dress a whole paragraph after the person whose line opens it. */
+const CARDS = new Set<VoiceStyle>(["blocks", "script"]);
+const TONE_TEXTURE: Record<string, "whisper" | "loud"> = { whisper: "whisper", murmur: "whisper", breathless: "whisper", shout: "loud" };
 
 export interface Voice {
   key: string;
@@ -194,6 +201,12 @@ function segmentsOf(block: Element): Seg[] {
   return segs;
 }
 
+/** A person's monogram: the first letter of their name past any title ("Ser Arlan" → A). */
+function initial(name: string) {
+  const words = name.split(/\s+/);
+  return ((words.length > 1 && TITLE.test(words[0]!) ? words[1] : words[0]) ?? "?").slice(0, 1).toUpperCase();
+}
+
 const sentences = (text: string) => text.split(/(?<=[.!?\u2026])\s+/);
 
 /**
@@ -235,11 +248,22 @@ function strangersIn(narration: { text: string; open: boolean }[], known: Set<st
  */
 export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle, author?: string) {
   root.dataset.voices = style;
+  // What an earlier pass dressed (a style change re-reads the same html).
+  for (const el of root.querySelectorAll(".v-ui")) el.remove();
+  for (const el of root.querySelectorAll<HTMLElement>(".v-say")) {
+    el.classList.remove("v-say", "v-user", "v-follow", "v-unknown");
+    delete el.dataset.say;
+    delete el.dataset.tone;
+    el.style.removeProperty("--vc");
+  }
+  for (const el of root.querySelectorAll(".dl.v-other")) el.classList.remove("v-other");
   if (style === "off" || !voices.length) {
     for (const s of root.querySelectorAll<HTMLElement>(".dl[data-v]")) s.removeAttribute("data-v");
     return;
   }
   const blocks = Array.from(root.querySelectorAll("p, li, blockquote, td")).filter((b) => !b.closest(".art") && !b.querySelector("p, li"));
+  /** The reply marked its speakers: those lines are taken as written, and unmarked ones aren't guessed. */
+  const marked = root.querySelector(".dl[data-spk]") !== null;
   const segsOf = new Map(blocks.map((b) => [b, segmentsOf(b)] as const));
 
   // Surnames on their own ("Halloway"), when only one person has that surname.
@@ -272,6 +296,27 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
   const escaped = pairs.map(([n]) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const tokenRe = new RegExp(`\\b(${escaped.join("|") || "(?!)"})(?:['\u2019]s)?\\b|\\b([Yy]ou|[Yy]our|[Yy]ours|[Yy]ourself)\\b|\\b(I|me|my|myself)\\b|\\b([Hh]e|[Ss]he|[Tt]hey|[Hh]is|[Hh]er|[Tt]heir|[Hh]im|[Tt]hem|[Hh]imself|[Hh]erself|[Tt]hemselves)\\b`, "g");
   const byName = new Map(pairs.map(([n, v]) => [n, v]));
+
+  // Names the marks give: someone in the cast (any name or alias, then a first name), else a new
+  // person with a colour of their own.
+  const tagged = new Map<string, Voice>();
+  if (marked) {
+    const lower = new Map(pairs.map(([n, v]) => [n.toLowerCase(), v] as const));
+    const firstOf = (n: string) => n.toLowerCase().split(/\s+/)[0]!;
+    const fresh: string[] = [];
+    for (const s of root.querySelectorAll<HTMLElement>(".dl[data-spk]")) {
+      const name = s.dataset.spk!.trim();
+      const k = name.toLowerCase();
+      if (!name || name === "?" || tagged.has(k) || fresh.includes(name)) continue;
+      const v = lower.get(k) ?? voices.find((o) => o.names.some((n) => firstOf(n) === firstOf(name)));
+      if (v) tagged.set(k, v);
+      else fresh.push(name);
+    }
+    if (fresh.length) {
+      const colors = castColors([...voices.map((v) => ({ name: v.name, color: v.color })), ...fresh.map((name) => ({ name }))]);
+      for (const name of fresh) tagged.set(name.toLowerCase(), { key: `t:${name}`, name, names: [name], color: colors.get(name.toLowerCase())!, isUser: false, isMain: false });
+    }
+  }
   const user = voices.find((v) => v.isUser);
   const self = (author && voices.find((v) => v.name.toLowerCase() === author.toLowerCase())) || voices.find((v) => v.isMain && !v.isUser) || voices.find((v) => !v.isUser);
   const own = self?.isUser ?? false;
@@ -438,6 +483,51 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
   };
   const owedBy = (not: (Voice | undefined)[]) => [...owed].reverse().find((v) => !not.includes(v));
 
+  /** Tints one line in its speaker's colour (a nameless speaker stays plain). */
+  const paint = (span: HTMLElement, who: Voice, tex: "whisper" | "loud" | null) => {
+    if (who === STRANGER) {
+      span.removeAttribute("data-v");
+      span.style.removeProperty("--vc");
+      span.removeAttribute("title");
+      delete span.dataset.initial;
+    } else {
+      span.dataset.v = who.key;
+      span.style.setProperty("--vc", who.color);
+      span.title = who.name;
+      span.dataset.initial = initial(who.name);
+    }
+    span.classList.toggle("v-whisper", tex === "whisper");
+    span.classList.toggle("v-loud", tex === "loud");
+  };
+  /** A voice card (Blocks) or screenplay line (Script): a medallion and a nameplate, painted by voices.css. */
+  const dress = (el: HTMLElement, who: Voice, tone?: string) => {
+    const known = who !== STRANGER;
+    el.classList.add("v-say");
+    el.classList.toggle("v-user", who.isUser);
+    el.classList.toggle("v-unknown", !known);
+    el.dataset.say = known ? who.key : "?";
+    if (tone) el.dataset.tone = tone;
+    if (known) el.style.setProperty("--vc", who.color);
+    const prev = el.previousElementSibling as HTMLElement | null;
+    if (known && prev?.classList.contains("v-say") && prev.dataset.say === el.dataset.say) el.classList.add("v-follow");
+    const medal = document.createElement("span");
+    medal.className = "v-ui v-medal";
+    medal.textContent = known ? initial(who.name) : "?";
+    const plate = document.createElement("span");
+    plate.className = "v-ui v-plate";
+    plate.textContent = known ? who.name : "Someone";
+    if (tone) {
+      const t = document.createElement("em");
+      t.textContent = tone;
+      plate.appendChild(t);
+    }
+    for (const x of [medal, plate]) {
+      x.setAttribute("aria-hidden", "true");
+      x.contentEditable = "false";
+    }
+    el.prepend(medal, plate);
+  };
+
   for (const block of blocks) learn(segsOf.get(block)!.filter((x) => !x.span).map((x) => x.text).join(" "));
   for (const [k, g] of genders()) known_g.set(k, g);
 
@@ -445,6 +535,8 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
     const segs = segsOf.get(block)!;
     let blockSpeaker: Voice | undefined;
     let leads: Voice | undefined;
+    /** The first line in the paragraph with a speaker (Blocks and Script dress the paragraph after it). */
+    let opener: { who: Voice; tone?: string; at: number } | undefined;
     /** Whether this paragraph has named who it's about: then "she" means them, not whoever was spoken to. */
     let named = false;
     segs.forEach((seg, i) => {
@@ -462,6 +554,20 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
         return;
       }
       if (seg.span.closest(".art")) return;
+      if (marked) {
+        const spk = seg.span.dataset.spk?.trim();
+        const who = spk && spk !== "?" ? (tagged.get(spk.toLowerCase()) ?? STRANGER) : STRANGER;
+        paint(seg.span, who, TONE_TEXTURE[seg.span.dataset.tone ?? ""] ?? null);
+        if (spk !== undefined) opener ??= { who, tone: seg.span.dataset.tone, at: i };
+        if (who !== STRANGER) {
+          if (opener && opener.who !== who) seg.span.classList.add("v-other");
+          blockSpeaker ??= who;
+          leads ??= who;
+          mention(who);
+          if (!who.isUser) subject = who;
+        }
+        return;
+      }
       const first = !segs.slice(0, i).some((x) => x.span);
       const before = (segs[i - 1] && !segs[i - 1]!.span ? segs[i - 1]!.text : "").trim();
       const after = (segs[i + 1] && !segs[i + 1]!.span ? segs[i + 1]!.text : "").trim();
@@ -500,18 +606,9 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
       if (!who && self && !notThem.has(self)) who = self;
       notThem = new Set();
       if (!who) return;
-      const tex = texture(how);
-      if (who === STRANGER) {
-        seg.span.removeAttribute("data-v");
-        seg.span.style.removeProperty("--vc");
-        seg.span.removeAttribute("title");
-      } else {
-        seg.span.dataset.v = who.key;
-        seg.span.style.setProperty("--vc", who.color);
-        seg.span.title = who.name;
-      }
-      seg.span.classList.toggle("v-whisper", tex === "whisper");
-      seg.span.classList.toggle("v-loud", tex === "loud");
+      paint(seg.span, who, texture(how));
+      if (who !== STRANGER) opener ??= { who, at: i };
+      if (opener && opener.who !== who) seg.span.classList.add("v-other");
       // Who this line is said to: someone named in its tag or beat, a name it calls out, or else
       // the person who just spoke to this speaker (an answer goes back to them).
       const to = called ?? (cue ? addresseeIn(cue, who) : undefined) ?? (owed.includes(who) && lastSpeaker !== who ? lastSpeaker : undefined);
@@ -528,6 +625,9 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
       lastSpeaker = blockSpeaker;
     }
     const el = block as HTMLElement;
+    // Blocks / Script: a paragraph that opens on a line becomes that person's card; a line in the
+    // middle of narration stays inline (a chip), so sentences never break mid-flow.
+    if (CARDS.has(style) && opener && !segs.slice(0, opener.at).some((x) => x.text.trim()) && (opener.who !== STRANGER || marked)) dress(el, opener.who, opener.tone);
     if (leads) {
       el.dataset.lead = leads.key;
       el.dataset.initial = leads.name.slice(0, 1);

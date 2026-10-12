@@ -8,7 +8,7 @@ export type StoryFont = "theme" | "newsreader" | "lora" | "literata" | "ebgaramo
 
 export interface LivingPage {
   /** How dialogue shows who is speaking. */
-  voices: "ink" | "ribbon" | "halo" | "off";
+  voices: "ink" | "blocks" | "chips" | "tint" | "script" | "ribbon" | "halo" | "off";
   /** Letters, texts and clippings drawn as objects. */
   artifacts: boolean;
   /** The painted window of time, weather and place. */

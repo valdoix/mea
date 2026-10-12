@@ -1,6 +1,6 @@
 import type { CardData } from "../cards/card";
 import { applyRegex } from "../lib/regex";
-import { now, parseJson, run } from "../db/db";
+import { all, now, one, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
 import { HttpError, notFound } from "../lib/http";
 import { getSetting, memoryConfig } from "../lib/settings";
@@ -17,7 +17,7 @@ import { recordLoreHits } from "../lore/health";
 import { warmMemory } from "../memory/warm";
 import { ledgerChangedAfterReply, scheduleMemory } from "../memory/scheduler";
 import { setMemState } from "../memory/store";
-import { type AssembleKind, type AssembleResult, assemblePrompt } from "../prompt/assemble";
+import { type AssembleKind, type AssembleResult, assemblePrompt, type HistoryMessage } from "../prompt/assemble";
 import { expandMacros } from "../prompt/macros";
 import { contextLimitFromError, INCOMPLETE, ProviderError, type CacheHint, type GenerationParams, type Usage } from "../providers/types";
 import { getCard, getCharacterRow, touchCharacter } from "./characters";
@@ -46,6 +46,7 @@ import { sendPush } from "./push";
 import { assertQuota } from "./quota";
 import { applyBanned, chatExtras, consumeOnce, looksLikeRefusal, trimUnfinished } from "./chattools";
 import { evalCondition } from "../trackers/condition";
+import type { WorldState } from "../trackers/types";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
 import { gatherLanes } from "../prompt/lanes";
@@ -60,6 +61,7 @@ import { applyGuards } from "../accuracy/guards";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
+import { extractSpeakers, speakerRule, type SpokenLine, withoutSpeakerMarks } from "../lib/speakers";
 
 /** M18: a stream that sends nothing new for this long is treated as stalled. */
 const IDLE_MS = 90_000;
@@ -179,6 +181,42 @@ export function planOnly(text: string, reasoning: string): string | null {
   return plan.split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS ? plan : null;
 }
 
+/**
+ * The plan step's answer: the pass in <think>, written out under its step headers, written as plain
+ * lines naming the steps, or (when the text has none) the route's own reasoning. Null when it's
+ * too short to be the pass.
+ */
+export function planFrom(text: string, reasoning: string): string | null {
+  const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
+  const steps = (s: string) => new Set(s.match(/\b(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)\b/g) ?? []).size;
+  const tagged = splitThink(text).reasoning;
+  const leaked = splitLeakedPlan(text).reasoning;
+  const bare = steps(text) >= 3 ? text.replace(/<\/?(?:think|thinking|plan|reasoning)>/gi, "").trim() : "";
+  for (const plan of [tagged, leaked, bare, reasoning.trim()]) if (plan && words(plan) >= PLAN_MIN_WORDS) return plan;
+  return null;
+}
+
+/**
+ * A model that has been skipping its plan in this chat: two of its last three replies here needed
+ * the plan step (or, before it, were asked again for skipping). Those plan first, in their own step.
+ * After six replies in a row planned that way, one tries its own pass again, so a model (or a
+ * prompt) that learns to plan gets the single request back.
+ */
+export function skipsPlans(chatId: string, modelId: string, excludeMessageId?: string): boolean {
+  const recent = all<{ meta: string }>(
+    `SELECT s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+     WHERE m.chat_id = ? AND m.role = 'assistant' AND m.deleted_at IS NULL AND m.id != ? ORDER BY m.seq DESC LIMIT 12`,
+    chatId,
+    excludeMessageId ?? "",
+  )
+    .map((r) => parseJson<{ model?: string; plan?: string; notes?: string[] }>(r.meta, {}))
+    .filter((m) => m.model === modelId)
+    .slice(0, 6);
+  if (recent.length === 6 && recent.every((m) => m.plan === "first")) return false;
+  const skipped = (m: (typeof recent)[number]) => m.plan === "step" || m.plan === "first" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n));
+  return recent.slice(0, 3).filter(skipped).length >= 2;
+}
+
 interface ActiveGeneration {
   id: string;
   chatId: string;
@@ -248,6 +286,8 @@ export interface PrepareOptions {
   forcePlan?: boolean;
   /** The plan-only watch: the last try wrote only its plan, so this one writes the story from it. */
   writtenPlan?: string;
+  /** The plan step: this request writes only the planning pass (the story is written from it next). */
+  planOnly?: boolean;
   draft?: string;
   feedback?: string;
   /** Use this profile instead of the chat's (fallbacks, or a paid reply you tapped for). */
@@ -256,6 +296,24 @@ export interface PrepareOptions {
   targetScale?: number;
   /** STEER-01: wait (briefly) for the advisor's plan if it isn't ready. Off for previews. */
   advise?: boolean;
+}
+
+/** The last reply had speech but no speaker marks, so the next one is reminded (ALMANAC's nudge). */
+function droppedMarks(history: HistoryMessage[]): boolean {
+  const last = history.findLast((m) => m.role === "assistant");
+  if (!last || !/["“][^"“”\n]{2,}["”]/.test(last.content)) return false;
+  const meta = parseJson<{ speakers?: unknown[]; model?: string }>(one<{ meta: string }>("SELECT s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.id = ?", last.id)?.meta ?? "{}", {});
+  // Only a reply Mea generated (not a card's greeting or an imported message).
+  return Boolean(meta.model) && !meta.speakers?.length;
+}
+
+/** Who the speaker marks may name: the main character, then the story state's cast by most recent. */
+function castNames(main: string, state: WorldState | null): string[] {
+  const cast = Object.values(state?.chars ?? {})
+    .filter((c) => !c.isUser)
+    .sort((a, b) => Number(b.isMain) - Number(a.isMain) || (b.lastSeq ?? 0) - (a.lastSeq ?? 0))
+    .map((c) => c.name);
+  return [...new Set([main, ...cast].filter(Boolean))];
 }
 
 /** Gathers everything for one request: card, persona, preset, profile, lore, memory, prompt. */
@@ -395,6 +453,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     draft: opts.draft,
     feedback: opts.feedback,
     forcePlan: opts.forcePlan,
+    planOnly: opts.planOnly,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
     // H3: a separate planner (or the writer's last try) planned this reply: the writer's own planning pass is left out.
@@ -407,6 +466,10 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       ...((cfg.enabled || tp?.note) && !(preset.builtin === "mea" && preset.blocks.find((b) => b.id === "main")?.enabled && !card.system_prompt?.trim()) ? [{ id: "canon", name: "Canon order", content: CANON_RULE, prefix: true } satisfies PromptExtra] : []),
       ...(tp?.note ? [{ id: "trackers", name: "Story state (trackers)", content: tp.note.text, depth: 1 } satisfies PromptExtra] : []),
       ...(tp?.inline ? [{ id: "ledger", name: "Ledger instructions", content: tp.inline, depth: 0 } satisfies PromptExtra] : []),
+      // Speaker marks: the reply names who says each line, so the page colours it without guessing.
+      ...((kind === "story" || kind === "continue") && getSetting("appearance.living").voices !== "off"
+        ? [{ id: "speakers", name: "Speaker marks", content: speakerRule(userName, castNames(card.name, tp?.state ?? null), !["director", "full_cast"].includes(controlValues.persona ?? ""), droppedMarks(history)), depth: 0 } satisfies PromptExtra]
+        : []),
       ...chatExtras(chatId, kind, tp?.state ?? null),
       // STEER-04: the style profile joins the stable prefix.
       ...(style ? [style] : []),
@@ -496,7 +559,8 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
     if (!current || !prefix) throw new HttpError(400, "Select a sentence in the latest reply to keep");
     if (current.status === "streaming") throw new HttpError(409, "Wait for the reply to finish");
     const idx = addSwipe(last!.id, "done");
-    updateSwipe(last!.id, idx, { content: prefix, status: "done", meta: { keptFrom: current.idx } });
+    const kept = parseJson<{ speakers?: { text: string }[] }>(current.meta, {}).speakers?.filter((l) => prefix.includes(l.text));
+    updateSwipe(last!.id, idx, { content: prefix, status: "done", meta: { keptFrom: current.idx, ...(kept?.length ? { speakers: kept } : {}) } });
     redo = { idx, prefix, previous: current.content.slice(prefix.length).trim() };
     const rest = takeShapeNote(redo.previous);
     opts = { ...opts, feedback: [`Everything up to here is kept word for word; write the rest anew${rest ? `, not as the earlier take went on (${rest})` : ""}.`, opts.feedback].filter(Boolean).join(" ") };
@@ -596,8 +660,105 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   let planOnlyRetried = false;
   let backedOff = false;
   const notes: string[] = [];
+  /** Where this reply's plan came from (saved in meta.plan; skipsPlans reads it back). */
+  let planHow: "own" | "step" | "first" | null = null;
+  const planAsked = action !== "continue" && (Boolean(p.plannedPass) || p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included));
+
+  /**
+   * The plan step: the planning pass on a request of its own (the same prompt, ending in "plan
+   * only"), so the reply is always written from a plan, even by a model that skips its <think>
+   * block. The plan streams in as the reply's reasoning and the request stops at </think>.
+   * Returns the plan, or null when none came back.
+   */
+  const planStep = async (): Promise<string | null> => {
+    const pp = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, planOnly: true });
+    const rid = requestFor(pp, { chatId: gen.chatId, messageId: gen.messageId, kind: "plan" });
+    const ctl = new AbortController();
+    const onUserAbort = () => ctl.abort();
+    gen.abort.signal.addEventListener("abort", onUserAbort);
+    let started: number | null = null;
+    const timer = setTimeout(() => started == null && ctl.abort(), getSetting("routing.timeouts").story * 1000);
+    const think = thinkRouter();
+    let text = "";
+    let reasoning = "";
+    let done = false;
+    gen.text = baseText;
+    gen.reasoning = "";
+    pendingText = "";
+    pendingReasoning = "";
+    publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reasoning: "", reset: true });
+    try {
+      const result = await pp.resolved.provider.stream({ model: pp.resolved.modelId, messages: pp.assembled.messages, params: pp.samplers, signal: ctl.signal, cache: pp.cache }, (d) => {
+        if (done) return;
+        started ??= now();
+        lastDeltaAt = now();
+        if (d.reasoning) {
+          reasoning += d.reasoning;
+          gen.reasoning += d.reasoning;
+          pendingReasoning += d.reasoning;
+        }
+        if (d.text) {
+          text += d.text;
+          const out = think.push(d.text);
+          const shown = out.reasoning + out.text;
+          gen.reasoning += shown;
+          pendingReasoning += shown;
+          // The pass is over: whatever follows </think> would be the story, which isn't this request's.
+          if (/<\/(?:think|thinking|plan|reasoning)>/i.test(text)) {
+            done = true;
+            ctl.abort();
+          }
+        }
+      });
+      finishRequest(rid, { status: "done", usage: result.usage, firstTokenAt: started, sentBody: result.sentBody, pricing: pp.resolved.pricing, billing: pp.resolved.billing });
+    } catch (e) {
+      if (gen.abort.signal.aborted) throw e;
+      if (!done) {
+        finishRequest(rid, { status: "error", error: (e as Error).message, firstTokenAt: started });
+        return null;
+      }
+      finishRequest(rid, { status: "done", firstTokenAt: started });
+    } finally {
+      clearTimeout(timer);
+      gen.abort.signal.removeEventListener("abort", onUserAbort);
+    }
+    const plan = planFrom(text, reasoning);
+    if (!plan) {
+      // Nothing usable: the next try starts clean, so the plan watch isn't fooled by the leftovers.
+      gen.reasoning = "";
+      pendingReasoning = "";
+      publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reasoning: "", reset: true });
+    }
+    return plan;
+  };
+  /** Writes the reply from a finished plan: the next try's prompt has the plan in place of its own pass. */
+  const writeFrom = async (plan: string) => {
+    // The advisor's plan the plan step built on still counts as used by this reply (STEER-02).
+    const planKey = p.planKey;
+    p = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, writtenPlan: plan });
+    p.planKey ??= planKey;
+    gen.text = baseText;
+    gen.reasoning = `${plan}\n\n`;
+    pendingText = "";
+    pendingReasoning = "";
+    first_ = true;
+    firstTokenAt = null;
+    publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reasoning: gen.reasoning, reset: true });
+    requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
+  };
 
   try {
+    // A model that keeps skipping its plan in this chat plans in its own step first, rather than
+    // spending a try that would be stopped anyway.
+    if (planAsked && !p.plannedPass && skipsPlans(gen.chatId, p.resolved.modelId, gen.messageId)) {
+      const plan = await planStep();
+      if (plan) {
+        finishRequest(requestId, { status: "error", error: "replaced: planned first, in its own step" });
+        await writeFrom(plan);
+        planHow = "first";
+        notes.push("planned first, in its own step: this model has been skipping its plan");
+      }
+    }
     for (;;) {
       // First-token timeout (CONN-05): a stuck route moves on to the next model.
       const attempt = new AbortController();
@@ -621,11 +782,11 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       }, 5000);
       // The preset's <think> planning block goes to reasoning as it streams (not when continuing).
       const think = action === "continue" ? null : thinkRouter();
-      // The plan watch: a preset that plans (Mea's) on a route without its own reasoning. If the
-      // story starts with no plan before it, or a token one, this try stops at once and the next
-      // is told plainly to plan first. Once only; a second try is kept whatever it does.
+      // The plan watch: a preset that plans (Mea's). If the story starts with no plan before it (in
+      // <think> or the route's own reasoning), or a token one, this try stops at once and the plan
+      // is written in its own step, then the story from it. Once only.
       let planSkipped = false;
-      let watching = !planRetried && action !== "continue" && !p.resolved.reasoning && p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included);
+      let watching = !planRetried && action !== "continue" && p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included);
       const watchPlan = () => {
         if (!watching) return;
         const story = gen.text.slice(baseText.length).replace(/^\s+/, "");
@@ -690,6 +851,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           finishRequest(requestId, { status: "error", error: "retried: the reply was only its plan", usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
           p = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, writtenPlan: leftover });
           notes.push("the first try wrote only its plan: the story was written from it");
+          planHow = "own";
           gen.text = baseText;
           gen.reasoning = `${leftover}\n\n`;
           pendingText = "";
@@ -727,6 +889,14 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (planSkipped && !planRetried) {
           planRetried = true;
           finishRequest(requestId, { status: "error", error: "retried: the reply skipped its plan", firstTokenAt });
+          // The plan in its own step, then the story from it; if no plan comes back, one more try told plainly to plan.
+          const plan = await planStep();
+          if (plan) {
+            await writeFrom(plan);
+            planHow = "step";
+            notes.push("planned in its own step: the first try skipped its plan");
+            continue;
+          }
           p = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, forcePlan: true });
           notes.push("asked again: the first try skipped its plan");
           gen.text = baseText;
@@ -852,6 +1022,15 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   } catch (e) {
     console.error("[mea] after-reply clean-up failed:", e);
   }
+  // Speaker marks come out last, so the lines they keep match the text as saved.
+  const marked = extractSpeakers(text);
+  text = marked.text;
+  original = withoutSpeakerMarks(original);
+  let speakers: SpokenLine[] = marked.lines;
+  if (action === "continue" && speakers.length) {
+    const before = parseJson<{ speakers?: SpokenLine[] }>(getSwipes(gen.messageId).find((s) => s.idx === gen.swipeIdx)?.meta ?? "{}", {}).speakers ?? [];
+    speakers = [...before, ...speakers];
+  }
   const finalStatus = status === "error" && action === "continue" ? "done" : status === "error" && text ? "stopped" : status;
   try {
     updateSwipe(gen.messageId, gen.swipeIdx, {
@@ -887,6 +1066,9 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         ...(feedback ? { feedback } : {}),
         ...(banned.hits.length ? { banned: banned.hits } : {}),
         ...(ledgerRaw ? { ledger: ledgerRaw.slice(0, 6000) } : {}),
+        ...(speakers.length ? { speakers } : {}),
+        // Where the plan came from: its own pass, the plan step, or a separate planner (none when it skipped it).
+        ...(planAsked ? { plan: planHow ?? (p.plannedPass ? "planner" : reasoning.trim().split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS ? "own" : "none") } : {}),
         ...(cutOff ? { cutOff: true } : {}),
         ...(guarded && text !== original ? { guard: { ...guarded.meta, original: original.slice(0, 20_000) } } : {}),
       },

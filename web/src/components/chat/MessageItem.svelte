@@ -35,7 +35,7 @@
   } from "../../lib/icons";
   import { ANGLES, type Angle } from "../../lib/angles";
   import { askMeus } from "../../lib/meus.svelte";
-  import { renderMessage, renderStreaming } from "../../lib/render";
+  import { renderMessage, renderStreaming, type SpokenLine } from "../../lib/render";
   import { applyRegex, regexScope } from "../../lib/regex.svelte";
   import { storyStyle } from "../../lib/storystyle.svelte";
   import ChangeChips from "../trackers/ChangeChips.svelte";
@@ -140,7 +140,7 @@
   // PROMPT-08: display-only regex scripts change what's shown, never the stored text.
   const shown = $derived(message.role === "system" ? message.content : applyRegex(message.content, app.settings?.["regex.scripts"], { role: isUser ? "user" : "ai", mode: "display", characterId: regexScope.characterId }));
   const page = $derived(living(app.settings));
-  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope, { artifacts: page.artifacts, quotes: message.role === "system" ? null : storyStyle.quotes }), mark), passages));
+  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope, { artifacts: page.artifacts, quotes: message.role === "system" ? null : storyStyle.quotes, speakers: message.meta?.speakers as SpokenLine[] | undefined }), mark), passages));
   // Speaker colours: the story state's cast, plus whoever wrote this message.
   const cast = $derived(voicesFrom(trk.data, [{ name: displayName, isUser }]));
 

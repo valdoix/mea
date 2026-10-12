@@ -12,7 +12,9 @@ export function cleanText(text: string): string {
     .replace(/<!--[\s\S]*?-->/g, "")
     // Status / tracker blocks some cards append, e.g. ```status … ``` or [STATUS] … [/STATUS]
     .replace(/```(?:status|stats|tracker|info|hud)[\s\S]*?```/gi, "")
-    .replace(/\[(status|stats|tracker)\][\s\S]*?\[\/\1\]/gi, "");
+    .replace(/\[(status|stats|tracker)\][\s\S]*?\[\/\1\]/gi, "")
+    // Speaker marks a save cut short left in the text (lib/speakers.ts).
+    .replace(/\[spk=[^\]\n]{0,80}\]|\[\/spk\]/gi, "");
   if (/<[a-z][\s\S]*?>/i.test(t)) {
     t = t
       .replace(/<br\s*\/?>/gi, "\n")
@@ -32,7 +34,7 @@ export function cleanText(text: string): string {
 
 /** True when cleaning would change the text (so untouched messages keep their exact bytes for caching). */
 export function needsCleaning(text: string): boolean {
-  return /<[a-z!/][\s\S]*?>|```(?:status|stats|tracker|info|hud)|\[(?:status|stats|tracker)\]/i.test(text);
+  return /<[a-z!/][\s\S]*?>|```(?:status|stats|tracker|info|hud)|\[(?:status|stats|tracker)\]|\[\/?spk\b/i.test(text);
 }
 
 const STOP = new Set(

@@ -474,7 +474,7 @@ export interface Typography {
 }
 
 export interface LivingPage {
-  voices: "ink" | "ribbon" | "halo" | "off";
+  voices: "ink" | "blocks" | "chips" | "tint" | "script" | "ribbon" | "halo" | "off";
   artifacts: boolean;
   window: boolean;
   thoughts: "never" | "drawer" | "always";

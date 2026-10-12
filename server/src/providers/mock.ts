@@ -6,6 +6,14 @@ const LINES = [
   "*Outside, the sea keeps up its patient rhythm, waves folding over the rocks below the lighthouse.*",
   '"Sit, please. The tea is still warm, and I have a feeling we have a lot to talk about."',
 ];
+/** The same scene with speaker marks, for a prompt that asks for them (lib/speakers.ts). */
+const MARKED = [
+  LINES[0],
+  'She tucks a loose strand of hair behind her ear and smiles, a little crooked. [spk=Mira|tender]"You came back,"[/spk] she says softly. [spk=Mira]"I wasn\'t sure you would."[/spk]',
+  LINES[2],
+  '[spk=Mira]"Sit, please. The tea is still warm, and I have a feeling we have a lot to talk about."[/spk] She pours without looking.',
+  '[spk=Old Tam|shout]"Mira! The light!"[/spk] a voice calls from the stairs.',
+];
 
 /** "[#12] Mira: text" lines from a helper prompt. */
 function ledgerLines(text: string) {
@@ -438,8 +446,11 @@ export class MockProvider implements Provider {
           ? 'I set my bag down by the door and let out a long breath. "It\'s good to see you again," I say, and I mean it.'
           : /single word OK/.test(tail)
             ? "OK"
-            : `${LINES.join("\n\n")}\n\n(You said: "${last.slice(0, 80)}")${req.messages.some((m) => m.content.includes("add a <ledger> block")) ? `\n\n<ledger>\nclock: +6m\nmood Mira: thoughtful — he came back\n</ledger>` : ""}`;
-    onDelta({ reasoning: "Mock reasoning: keep continuity with the lighthouse scene." });
+            : /^\[PLAN ONLY/.test(tail)
+              ? `<think>\nNOW — evening, the lamp room; Mira and the guest present; same scene.\nSEAL — the player arrived and spoke; the reply stops on Mira's question.\nMINDS — Mira: wants him to stay · fears he'll leave again · tactic: tea.\nMOVE — the obvious welcome; Mira's sideways warmth; Old Tam's call. Choose Tam's call.\nVOICE — medium, a third talk, open on the lamp.\n</think>\n\nThe lamp flickers and the story would begin here.`
+              : `${(req.messages.some((m) => m.content.includes("[SPEAKER MARKS]")) ? MARKED : LINES).join("\n\n")}\n\n(You said: "${last.slice(0, 80)}")${req.messages.some((m) => m.content.includes("add a <ledger> block")) ? `\n\n<ledger>\nclock: +6m\nmood Mira: thoughtful — he came back\n</ledger>` : ""}`;
+    // Long enough to count as the planning pass (the plan watch), like a route that reasons.
+    onDelta({ reasoning: "Mock reasoning: keep continuity with the lighthouse scene. NOW — evening, the lamp room. MOVE — Mira welcomes the guest with tea. VOICE — short." });
     const words = text.split(/(\s+)/);
     for (const w of words) {
       if (req.signal.aborted) {

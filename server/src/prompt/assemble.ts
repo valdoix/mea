@@ -71,6 +71,8 @@ export interface AssembleInput {
   providerReasoning?: boolean;
   /** The plan watch's second try: a last line insists the reply open with its <think> plan. */
   forcePlan?: boolean;
+  /** The plan step: this request writes only the planning pass; the story is written from it next. */
+  planOnly?: boolean;
   /** PROMPT-07: the active preset controls, already rendered. */
   controls?: string;
   /** Every control's value, readable in blocks as {{ctl.id}}. */
@@ -433,6 +435,13 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   if (input.kind === "story" && input.history.at(-1)?.role === "assistant") tail.push({ role: "system", content: x(preset.waitPrompt) || "[Continue the story.]" });
   if (input.kind === "story" && input.forcePlan) {
     tail.push({ role: "system", content: "[The last try skipped the planning pass. Start this reply with <think>, run the [BEFORE YOU WRITE] pass step by step, close with </think>, and only then write the story.]" });
+  }
+  if (input.kind === "story" && input.planOnly) {
+    tail.push({
+      role: "system",
+      content:
+        "[PLAN ONLY. This turn is the planning pass and nothing else: write <think>, then the [BEFORE YOU WRITE] pass from NOW to VOICE as labelled lines of fragments, then </think>, and stop. No story, no line of dialogue, no sentence of the reply, no ledger: the reply is written in the next turn, from this plan.]",
+    });
   }
   if (input.kind === "story" && preset.prefill.trim()) tail.push({ role: "assistant", content: x(preset.prefill) });
 

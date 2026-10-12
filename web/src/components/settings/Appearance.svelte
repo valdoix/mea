@@ -21,6 +21,16 @@
     ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
   );
   const page = $derived(living(s));
+  const VOICE_HINTS: Record<LivingPage["voices"], string> = {
+    blocks: "A paragraph that opens on someone's line becomes their voice card: a medallion, a nameplate and a bubble that shows how it was said. A line mid-narration is a chip.",
+    chips: "Each line is a pill with its speaker's initial; the prose flows on untouched.",
+    tint: "Dialogue is coloured and underlined in the speaker's colour.",
+    script: "A screenplay: the speaker's name beside the line, and how it was said under it.",
+    ink: "Dialogue is written in the speaker's ink.",
+    ribbon: "A coloured ribbon marks who leads each paragraph.",
+    halo: "Dialogue is underlined in the speaker's light.",
+    off: "One dialogue colour for everyone, and replies aren't asked to mark speakers.",
+  };
   // The picker shows each font in its own face.
   onMount(loadAllFonts);
   function setPage(patch: Partial<LivingPage>) {
@@ -248,21 +258,20 @@
 
     <section class="panel stack">
       <h2>The living page</h2>
-      <p class="tiny muted">Drawn by Mea from the story itself; nothing here is sent to the model.</p>
-      <label class="field">
+      <p class="tiny muted">Drawn by Mea from the story itself. Only speaker colours reach the model: replies are asked to mark who says each line, and the marks never show.</p>
+      <label class="field narrow">
         <span class="label">Speaker colours <span class="faint">each character's lines in their own colour</span></span>
-        <Segmented
-          value={page.voices}
-          small
-          options={[
-            { value: "ink" as const, label: "Ink" },
-            { value: "ribbon" as const, label: "Ribbon" },
-            { value: "halo" as const, label: "Halo" },
-            { value: "off" as const, label: "Off" },
-          ]}
-          onchange={(v) => setPage({ voices: v })}
-        />
-        <span class="hint">{page.voices === "ink" ? "Dialogue is written in the speaker's ink." : page.voices === "ribbon" ? "A coloured ribbon marks who leads each paragraph." : page.voices === "halo" ? "Dialogue is underlined in the speaker's light." : "One dialogue colour for everyone."} Change someone's colour in the story's Cast.</span>
+        <select class="select" value={page.voices} onchange={(e) => setPage({ voices: e.currentTarget.value as LivingPage["voices"] })}>
+          <option value="blocks">Blocks: voice cards</option>
+          <option value="chips">Chips</option>
+          <option value="tint">Tint</option>
+          <option value="script">Script</option>
+          <option value="ink">Ink</option>
+          <option value="ribbon">Ribbon</option>
+          <option value="halo">Halo</option>
+          <option value="off">Off</option>
+        </select>
+        <span class="hint">{VOICE_HINTS[page.voices]} Change someone's colour in the story's Cast.</span>
       </label>
       <label class="switch"><input type="checkbox" checked={page.artifacts} onchange={(e) => setPage({ artifacts: e.currentTarget.checked })} /> Show letters, texts, clippings and other in-story objects as the real thing</label>
       <p class="tiny muted indent">Replies write them when the preset's Artifacts control is on (it is in Mea's own preset).</p>
