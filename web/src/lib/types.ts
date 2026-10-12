@@ -476,6 +476,8 @@ export interface Typography {
 export interface LivingPage {
   voices: "ink" | "blocks" | "chips" | "tint" | "script" | "ribbon" | "halo" | "off";
   artifacts: boolean;
+  /** Visuals the model designs itself (<vtk>) drawn too; off, their words show. */
+  freeform: boolean;
   window: boolean;
   thoughts: "never" | "drawer" | "always";
 }

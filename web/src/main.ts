@@ -22,6 +22,7 @@ import "@fontsource/im-fell-english/400-italic.css";
 import "@fontsource/unifrakturmaguntia/400.css";
 import "@fontsource/vt323/400.css";
 import "./styles/artifacts.css";
+import "./styles/vtk.css";
 import "./styles/voices.css";
 import "./rooms/rooms.css";
 import { mount } from "svelte";

@@ -254,8 +254,22 @@
         </select>
         <span class="hint">{VOICE_HINTS[page.voices]} Change someone's colour in the story's Cast.</span>
       </label>
-      <label class="switch"><input type="checkbox" checked={page.artifacts} onchange={(e) => setPage({ artifacts: e.currentTarget.checked })} /> Show letters, texts, clippings and other in-story objects as the real thing</label>
-      <p class="tiny muted indent">Replies write them when the preset's Artifacts control is on (it is in Mea's own preset).</p>
+      <label class="field narrow">
+        <span class="label">The visual toolkit <span class="faint">letters, screens, minds, spells…</span></span>
+        <select
+          class="select"
+          value={!page.artifacts ? "off" : page.freeform === false ? "mea" : "all"}
+          onchange={(e) => {
+            const v = e.currentTarget.value;
+            setPage({ artifacts: v !== "off", freeform: v === "all" });
+          }}
+        >
+          <option value="all">Everything</option>
+          <option value="mea">Mea's pieces only</option>
+          <option value="off">Off: plain words</option>
+        </select>
+        <span class="hint">{page.artifacts === false ? "Shown as plain words." : page.freeform === false ? "Visuals the model designs itself show as their words." : "Mea's pieces and the model's own designs."} How often they come is the chat's Toolkit rhythm; the model designs its own on Wild.</span>
+      </label>
       <label class="switch"><input type="checkbox" checked={page.window} onchange={(e) => setPage({ window: e.currentTarget.checked })} /> A painted window of the story's time, weather and place in the story panel</label>
       <label class="field narrow">
         <span class="label">Private thoughts under replies</span>

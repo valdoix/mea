@@ -140,7 +140,7 @@
   // PROMPT-08: display-only regex scripts change what's shown, never the stored text.
   const shown = $derived(message.role === "system" ? message.content : applyRegex(message.content, app.settings?.["regex.scripts"], { role: isUser ? "user" : "ai", mode: "display", characterId: regexScope.characterId }));
   const page = $derived(living(app.settings));
-  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope, { artifacts: page.artifacts, quotes: message.role === "system" ? null : storyStyle.quotes, speakers: message.meta?.speakers as SpokenLine[] | undefined }), mark), passages));
+  const html = $derived(streaming ? "" : markPassages(markText(renderMessage(shown, scope, { artifacts: page.artifacts, freeform: page.freeform, quotes: message.role === "system" ? null : storyStyle.quotes, speakers: message.meta?.speakers as SpokenLine[] | undefined }), mark), passages));
   // Speaker colours: the story state's cast, plus whoever wrote this message.
   const cast = $derived(voicesFrom(trk.data, [{ name: displayName, isUser }]));
 
@@ -179,7 +179,7 @@
     if (!streaming) return;
     const text = message.content;
     cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => (streamHtml = renderStreaming(text, { artifacts: page.artifacts, quotes: storyStyle.quotes })));
+    raf = requestAnimationFrame(() => (streamHtml = renderStreaming(text, { artifacts: page.artifacts, freeform: page.freeform, quotes: storyStyle.quotes })));
     return () => cancelAnimationFrame(raf);
   });
 
