@@ -413,7 +413,7 @@
           <button class="btn ghost small" onclick={() => onregen()} disabled={!canGenerate} title="Regenerate (Alt+R)"><RotateCcw size={14} /> <span class="hide-sm">Regenerate</span></button>
           {#if message.content}<button class="btn ghost small" onclick={oncontinue} disabled={!canGenerate} title="Continue this reply"><StepForward size={14} /> <span class="hide-sm">Continue</span></button>{/if}
         {/if}
-        {#if message.meta?.model && !app.isMobile}<span class="tiny faint model truncate" title="Model">{message.meta.model}</span>{/if}
+        {#if message.meta?.model && !app.isMobile}<span class="tiny faint model wraps" title="Model">{message.meta.model}</span>{/if}
         {#if message.meta?.generationId && !streaming}<button class="btn ghost icon small receipt" onclick={oninspect} aria-label="What this reply was given: memories, summaries, lore" title="What this reply was given"><Info size={14} /></button>{/if}
       </footer>
     {/if}

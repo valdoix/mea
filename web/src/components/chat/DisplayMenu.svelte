@@ -106,7 +106,7 @@
     animation: pop 0.3s var(--spring);
   }
   :global([data-shell="lantern"]) .pop {
-    background: color-mix(in srgb, var(--pop) 96%, transparent);
+    background: var(--pop);
     border-color: color-mix(in srgb, var(--hi) 10%, transparent);
     backdrop-filter: blur(20px);
   }

@@ -7,7 +7,7 @@
 {#if trk.data?.hud && trk.data.config.mode !== "off"}
   <button class="hud tiny" onclick={onopen} title="Story state: tap to open">
     {#if trk.running}<span class="dot" aria-label="Reading the latest reply"></span>{/if}
-    <span class="truncate">{trk.data.hud}</span>
+    <span class="wraps">{trk.data.hud}</span>
   </button>
 {/if}
 

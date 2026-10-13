@@ -83,9 +83,7 @@
     cursor: pointer;
   }
   .t {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .ctl {
     position: absolute;

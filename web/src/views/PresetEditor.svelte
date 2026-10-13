@@ -158,7 +158,7 @@
               <input type="checkbox" bind:checked={block.enabled} aria-label="Enabled" />
               <button class="expand" onclick={() => (open[block.id] = !open[block.id])}>
                 {#if open[block.id]}<ChevronDown size={15} />{:else}<ChevronRight size={15} />{/if}
-                <b class="truncate">{block.name}</b>
+                <b class="wraps">{block.name}</b>
                 <span class="tiny muted hide-sm">{KIND_LABEL[block.kind]}</span>
               </button>
               <span class="chip">{block.position === "depth" ? `depth ${block.depth ?? 4}` : block.role}</span>

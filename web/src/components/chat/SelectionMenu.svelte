@@ -146,7 +146,7 @@
       editOffpage(null, { neverSay: [word], messageId });
       return done();
     }
-    pickItems = [...list.map((o) => ({ label: o.label.slice(0, 70), onclick: () => void neverSay(o, word, messageId) })), { label: "A new secret…", onclick: () => editOffpage(null, { neverSay: [word], messageId }) }];
+    pickItems = [...list.map((o) => ({ label: o.label, onclick: () => void neverSay(o, word, messageId) })), { label: "A new secret…", onclick: () => editOffpage(null, { neverSay: [word], messageId }) }];
     pickTitle = "Never say this, for which secret?";
     pickPoint = { x: sel.x, y: sel.y + 4 };
     pickOpen = true;

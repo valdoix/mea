@@ -102,8 +102,8 @@
           <div class="cover blank"><Avatar id={c.avatarId} name={c.characterName ?? ""} size={46} shape="squircle" /></div>
         {/if}
         <div class="meta">
-          <b class="truncate">{c.title}</b>
-          <span class="tiny muted truncate">{c.characterName} · {timeAgo(c.lastMessageAt ?? c.createdAt)} · {c.messageCount} messages</span>
+          <b class="wraps">{c.title}</b>
+          <span class="tiny muted wraps">{c.characterName} · {timeAgo(c.lastMessageAt ?? c.createdAt)} · {c.messageCount} messages</span>
         </div>
       </a>
     {:else}

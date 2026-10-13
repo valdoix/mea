@@ -94,7 +94,7 @@
     <section class="panel stack tight">
       <h2>By model</h2>
       {#each data.byModel as m (m.model_id + m.billing)}
-        <div class="row small"><span class="grow mono truncate">{m.model_id}</span><span class="chip {m.billing === 'subscription' ? 'mint' : 'peach'}">{m.billing}</span><span class="tiny muted">{m.requests} req · {compact(m.prompt)} in · {compact(m.completion)} out</span></div>
+        <div class="row small"><span class="grow mono wraps">{m.model_id}</span><span class="chip {m.billing === 'subscription' ? 'mint' : 'peach'}">{m.billing}</span><span class="tiny muted">{m.requests} req · {compact(m.prompt)} in · {compact(m.completion)} out</span></div>
       {/each}
     </section>
 
@@ -103,7 +103,7 @@
         <h2>Prompt caching <span class="tiny muted">{Math.round(cache.total.hitRate * 100)}% of story input came from cache</span></h2>
         {#each cache.rows as r (`${r.chatId}:${r.model}:${r.billing}`)}
           <div class="row small wrap">
-            <span class="grow truncate">{r.title ?? "Untitled chat"} <span class="tiny faint mono">{r.model}</span></span>
+            <span class="grow wraps">{r.title ?? "Untitled chat"} <span class="tiny faint mono">{r.model}</span></span>
             <span class="tiny muted">{Math.round(r.hitRate * 100)}% cached · {r.requests} req{r.saved.usd ? ` · saved ${usd(r.saved.usd)}` : ""}{r.saved.quotaTokens ? ` · saved ${compact(r.saved.quotaTokens)} quota` : ""}</span>
           </div>
         {/each}
@@ -128,7 +128,7 @@
     {#each requests as r (r.id)}
       <button class="req" onclick={() => openRequest(r)}>
         <span class="chip {r.status === 'done' ? 'mint' : r.status === 'error' ? 'rose' : ''}">{r.task}</span>
-        <span class="grow truncate small">{r.chatTitle ?? (r.chatId ? "Chat" : "—")} <span class="tiny faint mono">{r.model ?? ""}</span></span>
+        <span class="grow wraps small">{r.chatTitle ?? (r.chatId ? "Chat" : "—")} <span class="tiny faint mono">{r.model ?? ""}</span></span>
         <span class="tiny muted nowrap">{compact(r.promptTokens ?? r.estPromptTokens)} in{r.cachedTokens ? ` (${compact(r.cachedTokens)} cached)` : ""} · {compact(r.completionTokens)} out{r.cost ? ` · ${usd(r.cost)}` : ""} · {timeAgo(r.startedAt)}</span>
       </button>
       {#if r.error}<div class="tiny err">{r.error}</div>{/if}

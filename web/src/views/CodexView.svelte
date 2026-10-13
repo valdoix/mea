@@ -246,7 +246,7 @@
             {#if e.isUser}<span class="chip tiny">you</span>{/if}
             {#if e.userEdited}<span class="chip tiny mint">yours</span>{/if}
           </div>
-          <div class="tiny muted clamp">{e.card}</div>
+          <div class="tiny muted">{e.card}</div>
           <div class="tiny faint">{e.facts} facts · {e.mentions} mentions{e.journal ? " · journal" : ""}{e.path ? ` · ${e.path.slice(0, -1).join(" › ")}` : ""}</div>
         </button>
       {:else}
@@ -520,22 +520,10 @@
   .ent-head :global(svg) {
     margin-top: 0.2em;
   }
-  /* A long name wraps to two lines inside its card, then ends in an ellipsis. */
+  /* A long name wraps inside its card, however many lines it takes. */
   .ent-name {
     flex: 1;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  .clamp {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
   }
   .chapter,
   .thread,

@@ -108,7 +108,7 @@
       {#each rows as r (r.id)}
         <div class="draft card">
           <a class="grow" href={r.href}>
-            <b class="truncate">{r.title}</b>
+            <b class="wraps">{r.title}</b>
             <span class="tiny muted"><span class="chip tiny">{r.kind}</span> {r.detail} · {timeAgo(r.updatedAt)}</span>
           </a>
           {#if r.lore}<BookOpen size={14} />{/if}

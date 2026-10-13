@@ -90,7 +90,7 @@
         <input type="checkbox" bind:checked={s.enabled} onchange={() => save(0)} aria-label="Enabled" />
         <button class="expand" onclick={() => (open[s.id] = !open[s.id])} aria-expanded={Boolean(open[s.id])}>
           {#if open[s.id]}<ChevronDown size={15} />{:else}<ChevronRight size={15} />{/if}
-          <b class="truncate">{s.name}</b>
+          <b class="wraps">{s.name}</b>
           <span class="chip tiny">{MODE[s.mode]}</span>
           {#if !valid}<span class="chip tiny rose">invalid pattern</span>{/if}
         </button>

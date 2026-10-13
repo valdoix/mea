@@ -64,9 +64,7 @@
     align-items: center;
     gap: 0.25rem;
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .brief {
     white-space: pre-wrap;

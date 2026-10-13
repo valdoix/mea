@@ -22,10 +22,8 @@
 :root[data-frame][data-shell] .style-cards .msg .portrait-col .pf-cap {
   display: block;
   max-width: var(--portrait-w, 76px);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Holo card: foil that shifts as the light moves ---------- */

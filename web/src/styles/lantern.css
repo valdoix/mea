@@ -136,7 +136,8 @@
 /* ---------- Surfaces ---------- */
 :root[data-shell="lantern"] .card,
 :root[data-shell="lantern"] .panel {
-  background: var(--pane);
+  /* The glass sheen sits on a solid surface, so nothing behind a window shows through it. */
+  background: var(--pane), var(--surface);
   border: 1px solid color-mix(in srgb, var(--hi) 9%, transparent);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--hi) 6%, transparent),

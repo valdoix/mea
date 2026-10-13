@@ -132,7 +132,7 @@
         {#each drafts as d (d.id)}
           <div class="draft card">
             <a class="grow" href="/lore-studio/{d.id}">
-              <b class="truncate">{d.title}</b>
+              <b class="wraps">{d.title}</b>
               <span class="tiny muted">{KIND[d.kind]}{d.refName ? `: ${d.refName}` : ""} · {STAGE[d.stage]} · {d.drafted}/{d.items} written{d.writing ? ` · writing ${d.writing}…` : ""} · {timeAgo(d.updatedAt)}</span>
             </a>
             <button class="btn ghost icon small" onclick={() => drop(d)} aria-label="Delete draft"><Trash size={14} /></button>

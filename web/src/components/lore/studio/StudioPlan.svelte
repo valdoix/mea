@@ -219,7 +219,7 @@
       <summary class="small"><b>Already in the book</b> <span class="muted">{existing.length} entries · change one or switch it off as part of this plan</span></summary>
       {#each existing.slice(0, 80) as e (e.id)}
         <div class="row between exist">
-          <span class="small truncate">{e.comment || e.keys[0] || "Untitled"}</span>
+          <span class="small wraps">{e.comment || e.keys[0] || "Untitled"}</span>
           <span class="row">
             <button class="btn ghost small" onclick={() => planExisting(e.id, "change")} disabled={Boolean(session.busy)}>Change it</button>
             <button class="btn ghost small" onclick={() => planExisting(e.id, "off")} disabled={Boolean(session.busy)}>Switch it off</button>

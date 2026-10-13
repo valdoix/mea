@@ -306,9 +306,7 @@
     margin-top: 2px;
     font: italic 12px/1.35 var(--st-story);
     color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .clock {
     display: flex;

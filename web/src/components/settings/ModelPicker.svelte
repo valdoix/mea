@@ -45,8 +45,8 @@
       >
         <button class="star" class:on={m.starred} onclick={(e) => star(m, e)} aria-label={m.starred ? "Unstar" : "Star"}><Star size={14} fill={m.starred ? "currentColor" : "none"} /></button>
         <span class="grow">
-          <span class="name truncate">{m.name}</span>
-          <span class="id truncate">{m.id}</span>
+          <span class="name wraps">{m.name}</span>
+          <span class="id wraps">{m.id}</span>
         </span>
         <span class="badges">
           {#if m.subscription}<span class="chip mint">subscription</span>{:else}<span class="chip peach">pay-as-you-go</span>{/if}

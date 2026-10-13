@@ -38,12 +38,12 @@
   import { ApiError, del, get, imageUrl, patch, post, put, storedMessage } from "../lib/api";
   import { confirm, promptText } from "../lib/dialogs.svelte";
   import { onEvent, reportPresence } from "../lib/events";
-  import { ArrowDown, ArrowLeft, BookOpen, Clapperboard, Brain, CloudRain, Globe, Heart, Library, MapPin, MessageCircle, MessagesSquare, Moon, NotebookPen, PanelLeft, PanelRight, Rows2, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
+  import { ArrowDown, ArrowLeft, BookOpen, Clapperboard, Brain, CloudRain, Globe, Heart, Library, MapPin, MessagesSquare, Moon, NotebookPen, PanelLeft, PanelRight, Scan, Search, SlidersHorizontal, Sun, Sunrise, Sunset } from "../lib/icons";
   import { DOCK_MIN, dockMax, layout, setDockWidth, setFocus, toggleDock, toggleRail } from "../lib/layout.svelte";
   import "../styles/studio.css";
   import { renderMessage } from "../lib/render";
   import { back, navigate, route } from "../lib/router.svelte";
-  import { app, errorToast, saveSetting, toast } from "../lib/state.svelte";
+  import { app, errorToast, toast } from "../lib/state.svelte";
   import { wreath } from "../lib/ornaments";
   import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, CodexPage, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
 
@@ -593,7 +593,6 @@
     return MapPin;
   }
   const hud = $derived(trk.data?.hud && trk.data.config.mode !== "off" ? trk.data.hud : "");
-  const chatStyle = $derived(app.settings?.["appearance.chatStyle"] ?? "cards");
 
   async function endScene(m: Message) {
     try {
@@ -1227,24 +1226,18 @@
             <Avatar id={detail.character?.avatarId} name={charName} size={app.isMobile ? 40 : layout.focus ? 42 : 58} palette={detail.character?.palette ?? []} />
           </a>
           <div class="grow names">
-            <a class="cname truncate" href={detail.character ? `/character/${detail.character.id}` : "/"}>{charName}<em class="ctitle hide-sm"> · {detail.chat.title}</em></a>
+            <a class="cname wraps" href={detail.character ? `/character/${detail.character.id}` : "/"}>{charName}<em class="ctitle hide-sm"> · {detail.chat.title}</em></a>
             {#if !layout.focus && (hud || detail.chat.mode === "narrator" || trk.running)}
               <button class="sub" onclick={openStory} title="Story state: open the Story panel">
                 {#if detail.chat.mode === "narrator"}<span class="chip lavender">Narrator</span>{/if}
                 {#if trk.running}<span class="live" aria-label="Reading the latest reply"></span>{/if}
-                {#if hud}<span class="hudline truncate">{hud}</span>{/if}
+                {#if hud}<span class="hudline wraps">{hud}</span>{/if}
               </button>
             {/if}
           </div>
         </div>
         <div class="row tools">
           {#if !layout.focus}
-            <div class="styles hide-sm" role="radiogroup" aria-label="Chat style">
-              <button role="radio" aria-checked={chatStyle === "cards"} class:on={chatStyle === "cards"} onclick={() => saveSetting("appearance.chatStyle", "cards")} title="Cards"><Rows2 size={15} /> Cards</button>
-              <button role="radio" aria-checked={chatStyle === "book"} class:on={chatStyle === "book"} onclick={() => saveSetting("appearance.chatStyle", "book")} title="Book"><BookOpen size={15} /> Book</button>
-              <button role="radio" aria-checked={chatStyle === "bubbles"} class:on={chatStyle === "bubbles"} onclick={() => saveSetting("appearance.chatStyle", "bubbles")} title="Bubbles"><MessageCircle size={15} /> Bubbles</button>
-            </div>
-            <span class="sep hide-sm"></span>
             <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" title="Search this chat" class:on={searchOpen}><Search size={18} /></button>
             <NowPlaying chatId={id} />
             {#if app.isMobile}<button class="btn ghost icon" onclick={openDesk} aria-label="Director's Desk" title="Director's Desk"><Clapperboard size={18} /></button>{/if}
@@ -1994,36 +1987,6 @@
     margin: 0 0.3rem;
     background: var(--border);
   }
-  .styles {
-    display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 14px;
-    background: var(--surface-2);
-  }
-  .styles button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    border: 0;
-    background: none;
-    padding: 0.42rem 0.7rem;
-    border-radius: 10px;
-    font: 650 var(--fs-xs) var(--font-ui);
-    color: var(--text-muted);
-    cursor: pointer;
-    transition:
-      background 0.2s,
-      color 0.2s;
-  }
-  .styles button:hover {
-    color: var(--text);
-  }
-  .styles button.on {
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow-1);
-  }
   .leave .spark {
     color: var(--lamp, var(--accent-strong));
   }
@@ -2168,16 +2131,12 @@
   }
   .sc-text b {
     font: 400 1.1rem/1.15 var(--font-display);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
   .sc-text span {
     font-size: 0.7rem;
     color: var(--text-faint);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
   .column.style-cards .scene-h {
     margin-left: calc(var(--portrait-w, 76px) + 1rem);
@@ -2255,16 +2214,11 @@
     background: var(--fill);
     border-color: var(--edge);
   }
-  :global([data-shell="lantern"]) .tools .on,
-  :global([data-shell="lantern"]) .styles button.on {
+  :global([data-shell="lantern"]) .tools .on {
     background: color-mix(in srgb, var(--hi) 12%, transparent);
     box-shadow:
       inset 0 0 0 1px color-mix(in srgb, var(--hi) 14%, transparent),
       0 0 16px color-mix(in srgb, var(--lavender) 18%, transparent);
-  }
-  :global([data-shell="lantern"]) .styles {
-    background: var(--well);
-    box-shadow: inset 0 0 0 1px var(--edge);
   }
   :global([data-shell="lantern"]) .sep {
     background: var(--edge);
@@ -2330,7 +2284,6 @@
     .pic {
       padding: 2px;
     }
-    .styles.hide-sm,
     .sep.hide-sm {
       display: none;
     }

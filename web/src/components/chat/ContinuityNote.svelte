@@ -70,7 +70,7 @@
             <div class="small"><span class="sev" class:hi={i.severity === "major"}>{i.severity}</span> “{i.claim}”</div>
             <div class="small muted">{i.conflict}</div>
             <div class="row wrap cites">
-              {#each i.citations as c, k (k)}{#if opens(c)}<button class="chip tiny cite" onclick={() => oncite(c)} title="Open the source">{c.type} · {c.label.slice(0, 60)}</button>{:else}<span class="chip tiny cite rule">{c.label.slice(0, 60)}</span>{/if}{/each}
+              {#each i.citations as c, k (k)}{#if opens(c)}<button class="chip tiny cite" onclick={() => oncite(c)} title="Open the source">{c.type} · {c.label}</button>{:else}<span class="chip tiny cite rule">{c.label}</span>{/if}{/each}
               {#if i.by === "model"}<span class="tiny faint">checked by the helper model</span>{/if}
             </div>
             <div class="row wrap">

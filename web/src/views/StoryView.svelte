@@ -267,7 +267,7 @@
       <section class="sparks">
         {#each series as s (s.key)}
           <div class="spark card" title="{s.label}: {s.points.at(-1)?.v}">
-            <div class="tiny row between"><span class="truncate">{s.label}</span><b>{s.points.at(-1)?.v}</b></div>
+            <div class="tiny row between"><span class="wraps">{s.label}</span><b>{s.points.at(-1)?.v}</b></div>
             <svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path d={sparkPath(s)} /></svg>
           </div>
         {/each}
@@ -305,8 +305,8 @@
             <Avatar id={p.profile?.avatarId ?? null} name={p.name} size={44} />
             <div class="grow">
               <div class="row"><b>{p.name}</b>{#if p.present}<span class="chip mint tiny">here</span>{/if}{#if p.dead}<span class="chip tiny">†</span>{/if}{#if p.profile?.standing && p.profile.standing !== "here"}<span class="chip tiny">{p.profile.standing}</span>{/if}</div>
-              <div class="tiny muted truncate">{p.profile?.role ?? p.profile?.description ?? p.wants ?? ""}</div>
-              {#if p.aliases.length}<div class="tiny faint truncate">also {p.aliases.join(", ")}</div>{/if}
+              <div class="tiny muted wraps">{p.profile?.role ?? p.profile?.description ?? p.wants ?? ""}</div>
+              {#if p.aliases.length}<div class="tiny faint wraps">also {p.aliases.join(", ")}</div>{/if}
             </div>
             <button class="btn ghost icon small" class:on={p.profile?.pinned} onclick={() => togglePin(p)} aria-label="Pin" title="Always keep in mind"><Pin size={14} /></button>
           </div>

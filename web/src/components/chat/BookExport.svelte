@@ -72,7 +72,7 @@
         <div class="outline">
           <b class="small">{outline.title}</b>
           {#each outline.chapters.slice(0, 40) as c, i (i)}
-            <div class="row tiny"><span class="grow truncate">{c.title}{#if c.subtitle}<span class="faint"> · {c.subtitle}</span>{/if}</span><span class="faint">{c.paragraphs} ¶</span></div>
+            <div class="row tiny"><span class="grow wraps">{c.title}{#if c.subtitle}<span class="faint"> · {c.subtitle}</span>{/if}</span><span class="faint">{c.paragraphs} ¶</span></div>
           {/each}
           {#if outline.chapters.length > 40}<span class="tiny faint">…and {outline.chapters.length - 40} more</span>{/if}
         </div>

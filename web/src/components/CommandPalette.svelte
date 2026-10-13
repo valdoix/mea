@@ -192,8 +192,8 @@
         {#if i === 0 || results[i - 1]!.group !== r.group}<div class="grp tiny faint">{r.group}</div>{/if}
         <button id="cmdk-{i}" class="item" class:on={i === at} role="option" aria-selected={i === at} onmousemove={() => (at = i)} onclick={() => choose(r)}>
           <r.icon size={16} />
-          <span class="grow truncate">{r.label}</span>
-          {#if r.hint}<span class="tiny muted truncate hint">{r.hint}</span>{/if}
+          <span class="grow wraps">{r.label}</span>
+          {#if r.hint}<span class="tiny muted wraps hint">{r.hint}</span>{/if}
         </button>
       {:else}
         <p class="tiny muted empty">Nothing matches “{q}”.</p>

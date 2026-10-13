@@ -286,8 +286,8 @@
             <button class="expand" onclick={() => (open[entry.id] = !open[entry.id])} aria-expanded={Boolean(open[entry.id])}>
               {#if open[entry.id]}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
               <span class="grow">
-                <b class="truncate">{entry.comment || entry.keys.slice(0, 3).join(", ") || "Untitled entry"}</b>
-                <span class="tiny muted truncate">{entry.constant ? "Always on" : entry.keys.join(", ") || "No keywords"} · {entry.content.slice(0, 90)}</span>
+                <b class="wraps">{entry.comment || entry.keys.slice(0, 3).join(", ") || "Untitled entry"}</b>
+                <span class="tiny muted wraps">{entry.constant ? "Always on" : entry.keys.join(", ") || "No keywords"} · {entry.content.slice(0, 90)}</span>
               </span>
             </button>
             {#if folderOf(entry)}<span class="chip tiny hide-sm"><Folder size={11} /> {folderOf(entry).split(" › ").at(-1)}</span>{/if}
@@ -350,8 +350,8 @@
           {#each trace as t (t.id)}
             <div class="row small" class:muted={t.status !== "active"}>
               <span class="chip {t.status === 'active' ? 'mint' : ''}">{t.status === "active" ? "fires" : "skipped"}</span>
-              <b class="truncate">{t.comment}</b>
-              <span class="tiny muted truncate">{t.reason}{t.tokens ? ` · ${t.tokens} tokens` : ""}</span>
+              <b class="wraps">{t.comment}</b>
+              <span class="tiny muted wraps">{t.reason}{t.tokens ? ` · ${t.tokens} tokens` : ""}</span>
             </div>
           {/each}
         </div>

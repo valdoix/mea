@@ -53,8 +53,8 @@
       {#if open}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
       {#if meta}<span class="chip tiny {meta.chip}"><meta.icon size={11} /> {meta.label}</span>{/if}
       <span class="grow">
-        <b class="truncate">{item.title}</b>
-        <span class="tiny muted truncate">
+        <b class="wraps">{item.title}</b>
+        <span class="tiny muted wraps">
           {#if busy}{item.status === "writing" ? "Writing…" : "Waiting to be written"}{:else if item.status === "error"}Failed: {item.error}{:else if item.entry}{item.entry.keys.join(", ")} · {item.entry.content.slice(0, 120)}{:else}Not written yet{item.pitch ? ` · ${item.pitch}` : ""}{/if}
         </span>
       </span>

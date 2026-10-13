@@ -107,8 +107,8 @@
       <a href="/chat/{c.id}" class="chat" class:active={route.name === "chat" && route.params.id === c.id}>
         <Avatar id={c.avatarId} name={c.characterName ?? "?"} size={34} />
         <span class="grow">
-          <span class="name truncate">{c.characterName ?? "Unknown"}</span>
-          <span class="sub truncate dz">{c.lastText || c.title}</span>
+          <span class="name wraps">{c.characterName ?? "Unknown"}</span>
+          <span class="sub wraps dz">{c.lastText || c.title}</span>
         </span>
         <span class="when">{timeAgo(c.lastMessageAt)}</span>
       </a>

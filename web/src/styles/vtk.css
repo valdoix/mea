@@ -82,9 +82,7 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   opacity: 0.8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .art-bar i {
   height: 0.7em;
@@ -2041,10 +2039,8 @@
   font: 700 0.75em/1.9 var(--font-ui, sans-serif);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   padding: 0 0.3em;
+  overflow-wrap: anywhere;
 }
 .art-cpage b {
   flex: 1;

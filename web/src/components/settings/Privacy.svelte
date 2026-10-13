@@ -159,7 +159,7 @@
         {#if view === "chats"}
           {#each report.chats.slice(0, showAll ? 200 : 8) as c (c.id)}
             <a class="row small item" href="/chat/{c.id}" title="Messages {bytes(c.text)} · requests {bytes(c.requests)} · memory {bytes(c.memory)} · search vectors {bytes(c.vectors)}">
-              <span class="grow truncate">{c.title}{#if c.character}<span class="faint"> · {c.character}</span>{/if}{#if c.deleted}<span class="chip">in trash</span>{/if}</span>
+              <span class="grow wraps">{c.title}{#if c.character}<span class="faint"> · {c.character}</span>{/if}{#if c.deleted}<span class="chip">in trash</span>{/if}</span>
               <span class="tiny muted">{c.messages.toLocaleString()} msgs</span>
               <span class="tiny num">{bytes(c.total)}</span>
             </a>
@@ -168,7 +168,7 @@
         {:else}
           {#each report.characters.slice(0, showAll ? 200 : 8) as c (c.id)}
             <a class="row small item" href="/character/{c.id}">
-              <span class="grow truncate">{c.name}{#if c.deleted}<span class="chip">in trash</span>{/if}</span>
+              <span class="grow wraps">{c.name}{#if c.deleted}<span class="chip">in trash</span>{/if}</span>
               <span class="tiny muted">{c.chats} chats · images {bytes(c.images)}</span>
               <span class="tiny num">{bytes(c.images + c.chatBytes)}</span>
             </a>

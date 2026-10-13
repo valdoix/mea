@@ -151,8 +151,8 @@
       <a href="/personas/{p.id}" class="item card" class:on={current?.id === p.id}>
         <Avatar id={p.avatarId} name={p.name} size={42} />
         <span class="grow">
-          <b class="truncate">{p.name}</b>
-          <span class="tiny muted truncate">{p.data.description || "No description yet"}</span>
+          <b class="wraps">{p.name}</b>
+          <span class="tiny muted wraps">{p.data.description || "No description yet"}</span>
         </span>
         {#if p.isDefault}<Star size={15} class="star" fill="currentColor" />{/if}
       </a>

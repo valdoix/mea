@@ -65,7 +65,7 @@
 
 <div class="ms" class:up>
   <button class="btn ghost small trigger" bind:this={btn} onclick={() => (open = !open)} title="Switch model for this chat" aria-haspopup="menu" aria-expanded={open}>
-    <Cpu size={15} /> <span class="truncate lbl hide-sm">{label}</span>
+    <Cpu size={15} /> <span class="wraps lbl hide-sm">{label}</span>
   </button>
   {#if open}
     <div class="pop card" role="menu">
@@ -76,7 +76,7 @@
       {#each profiles as p (p.id)}
         {@const b = billing(p.connectionId)}
         <button class="it" role="menuitem" onclick={() => pickProfile(p.id)}>
-          <span class="grow"><span class="small">{p.name}</span><span class="tiny faint block mono truncate">{p.modelId ?? "no model"}</span></span>
+          <span class="grow"><span class="small">{p.name}</span><span class="tiny faint block mono wraps">{p.modelId ?? "no model"}</span></span>
           {#if badge(b, connections.find((c) => c.id === p.connectionId)?.kind)}<span class="chip {b === 'subscription' ? 'mint' : 'peach'} tiny">{badge(b, connections.find((c) => c.id === p.connectionId)?.kind)}</span>{/if}
           {#if s.profileId === p.id && !s.modelOverride}<Check size={14} />{/if}
         </button>
@@ -124,7 +124,7 @@
     display: inline !important;
   }
   :global([data-shell="lantern"]) .pop {
-    background: color-mix(in srgb, var(--pop) 97%, transparent);
+    background: var(--pop);
   }
   .pop {
     position: absolute;

@@ -365,7 +365,7 @@
           {#each requests as r (r.id)}
             <div class="row tiny req">
               <span class="chip">{r.kind}</span>
-              <span class="grow truncate muted">{r.model}</span>
+              <span class="grow wraps muted">{r.model}</span>
               <span>{compact(r.promptTokens ?? r.estPromptTokens)} in</span>
               <span class="muted">{r.durationMs ? `${(r.durationMs / 1000).toFixed(1)} s` : r.status}</span>
               {#if r.status === "error"}<span class="err" title={r.error ?? ""}>failed</span>{/if}

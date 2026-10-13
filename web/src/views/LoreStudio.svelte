@@ -123,9 +123,7 @@
   }
   .src {
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .saved {
     display: flex;

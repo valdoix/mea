@@ -54,7 +54,7 @@
     const s = snap(drag.seq);
     const chapter = [...marks].filter((m) => m.kind === "chapter" && m.seq <= s).at(-1);
     const here = marks.find((m) => m.seq === s && m.kind !== "chapter");
-    return [`#${s}`, here?.title ? `“${here.title.slice(0, 40)}”` : chapter?.title].filter(Boolean).join(" · ");
+    return [`#${s}`, here?.title ? `“${here.title}”` : chapter?.title].filter(Boolean).join(" · ");
   });
   function key(e: KeyboardEvent) {
     const chapterSeqs = marks.filter((m) => m.kind === "chapter").map((m) => m.seq);

@@ -179,7 +179,7 @@
         {#each recent.slice(1) as c (c.id)}
           <a href="/chat/{c.id}" class="mini card">
             <Avatar id={c.avatarId} name={c.characterName ?? ""} size={36} />
-            <span class="grow truncate"><b>{c.characterName}</b> <span class="muted">· {timeAgo(c.lastMessageAt)}</span></span>
+            <span class="grow wraps"><b>{c.characterName}</b> <span class="muted">· {timeAgo(c.lastMessageAt)}</span></span>
             {#if dots[c.id]}<span class="hdot {dots[c.id]!.level}" title="Story health {dots[c.id]!.score}" aria-label="Story health {dots[c.id]!.score}"></span>{/if}
           </a>
         {/each}
@@ -244,9 +244,9 @@
               </button>
             </div>
             <div class="meta">
-              <div class="name truncate">{c.name}</div>
+              <div class="name wraps">{c.name}</div>
               <div class="row between">
-                <span class="tiny muted truncate">{c.chatCount ? `${c.chatCount} chat${c.chatCount === 1 ? "" : "s"}` : "No chats yet"}</span>
+                <span class="tiny muted wraps">{c.chatCount ? `${c.chatCount} chat${c.chatCount === 1 ? "" : "s"}` : "No chats yet"}</span>
                 <button class="btn small chatbtn" onclick={(e) => startChat(c, e)}><MessageHeart size={14} /> Chat</button>
               </div>
             </div>
@@ -326,20 +326,10 @@
   .recapline {
     margin: 0.15rem 0 0.25rem;
     font-size: var(--fs-sm);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
   }
   .last {
     font-size: var(--fs-sm);
     color: var(--text-muted);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
     margin-top: 0.2rem;
   }
   .recent {

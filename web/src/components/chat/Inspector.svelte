@@ -340,7 +340,7 @@
             <div class="m">
               <button class="mhead" onclick={() => (expanded[i] = !expanded[i])}>
                 <span class="chip {m.role === 'system' ? 'butter' : m.role === 'user' ? 'lavender' : 'rose'}">{m.role}</span>
-                <span class="truncate grow muted small">{m.content.slice(0, 140)}</span>
+                <span class="wraps grow muted small">{m.content.slice(0, 140)}</span>
               </button>
               {#if expanded[i]}<pre>{m.content}</pre>{/if}
             </div>

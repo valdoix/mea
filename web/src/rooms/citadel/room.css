@@ -45,7 +45,7 @@
 }
 :root[data-theme="citadel"][data-shell] .card,
 :root[data-theme="citadel"][data-shell] .panel {
-  background: var(--pane);
+  background: var(--pane), var(--surface);
   border: 1px solid var(--border-strong);
   box-shadow:
     inset 0 0 0 4px var(--surface),
@@ -422,7 +422,8 @@
 :root[data-theme="citadel"][data-shell] .continue {
   background:
     radial-gradient(420px 220px at 0% 0%, color-mix(in srgb, #ffcf7a 18%, transparent), transparent 70%),
-    var(--pane);
+    var(--pane),
+    var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 4px;
   box-shadow:

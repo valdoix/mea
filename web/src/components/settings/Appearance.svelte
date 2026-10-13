@@ -406,9 +406,7 @@
   .font .face {
     font-size: 1.15rem;
     line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
   .font b {
     font-size: var(--fs-sm);

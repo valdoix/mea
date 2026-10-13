@@ -123,7 +123,7 @@
         <div class="stack tight">
           <p class="small">In the Mea app on your phone, paste this link, or enter the address and type the code:</p>
           <div class="code">{pairing.code}</div>
-          <div class="cmd"><code class="truncate">{pairing.url}</code><button class="btn ghost icon small" onclick={() => copy(pairing!.url)} aria-label="Copy link"><Copy size={15} /></button></div>
+          <div class="cmd"><code class="wraps">{pairing.url}</code><button class="btn ghost icon small" onclick={() => copy(pairing!.url)} aria-label="Copy link"><Copy size={15} /></button></div>
           <span class="tiny muted">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} · works once</span>
         </div>
       </div>

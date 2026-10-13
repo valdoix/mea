@@ -326,13 +326,6 @@
     border-color: var(--accent);
     box-shadow: inset 0 0 0 1px var(--accent);
   }
-  .choice span {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
   .preview {
     display: grid;
     gap: 0.3rem;

@@ -86,8 +86,8 @@
             <span class="icon">{#if b.links.some((l) => l.type === "global")}<Globe size={18} />{:else}<BookOpen size={18} />{/if}</span>
             <span class="tiny faint">{timeAgo(b.updatedAt)}</span>
           </div>
-          <b class="truncate">{b.name}</b>
-          {#if b.description}<p class="tiny muted desc">{b.description}</p>{/if}
+          <b class="wraps">{b.name}</b>
+          {#if b.description}<p class="tiny muted">{b.description}</p>{/if}
           <div class="row wrap" style="margin-top:auto">
             <span class="chip butter">{b.entryCount} entries</span>
             <span class="chip">{scopeLabel(b)}</span>
@@ -140,12 +140,5 @@
     display: grid;
     place-items: center;
     background: color-mix(in srgb, var(--butter) 50%, var(--surface));
-  }
-  .desc {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
   }
 </style>

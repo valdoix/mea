@@ -345,7 +345,7 @@
         <Avatar id={character.avatarId} name={draft.name} size={112} portrait shape="squircle" palette={character.palette} />
       </button>
       <div class="grow who">
-        <h1 class="truncate">{draft.name || "Unnamed"}</h1>
+        <h1 class="wraps">{draft.name || "Unnamed"}</h1>
         {#if draft.creator_notes}<p class="muted small notes">{draft.creator_notes.slice(0, 160)}</p>{/if}
         <div class="row wrap" style="margin-top:.5rem">
           {#if tokens}
@@ -375,8 +375,8 @@
           {#each chats as c (c.id)}
             <div class="chatrow card">
               <a href="/chat/{c.id}" class="grow chatlink">
-                <div class="row between"><b class="truncate">{c.title}</b><span class="tiny faint">{timeAgo(c.lastMessageAt)}</span></div>
-                <p class="small muted truncate">{c.lastText}</p>
+                <div class="row between"><b class="wraps">{c.title}</b><span class="tiny faint">{timeAgo(c.lastMessageAt)}</span></div>
+                <p class="small muted wraps">{c.lastText}</p>
                 <span class="tiny faint">{c.messageCount} messages · {c.mode}</span>
               </a>
               <button class="btn ghost icon small" onclick={() => deleteChat(c)} aria-label="Delete chat"><Trash size={16} /></button>

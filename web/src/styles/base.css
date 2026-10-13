@@ -24,8 +24,8 @@ body {
   overflow-wrap: break-word;
 }
 
-/* Overflow: flex and grid children may shrink below their content, so a long title wraps or
-   truncates inside its card instead of spilling over the next one. Icons, buttons, chips and
+/* Overflow: flex and grid children may shrink below their content, so a long title wraps
+   inside its card instead of spilling over the next one. Icons, buttons, chips and
    avatars keep their size. Zero specificity, so a component's own sizes still win. */
 :where(.row, .stack, .card, .panel, .cards, .grid, .field, label) > *,
 :where(.row, .grow) {
@@ -289,7 +289,6 @@ input[type="range"] {
 
 .chip {
   max-width: 100%;
-  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -300,7 +299,6 @@ input[type="range"] {
   background: var(--surface-2);
   color: var(--text-muted);
   border: 1px solid transparent;
-  white-space: nowrap;
 }
 .chip.rose {
   background: color-mix(in srgb, var(--accent) 30%, var(--surface));
@@ -385,11 +383,10 @@ button.chip {
   flex: 1;
   min-width: 0;
 }
-.truncate {
+/* A long name or line wraps onto the next line rather than ending in an ellipsis. */
+.wraps {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .sr-only {
   position: absolute;

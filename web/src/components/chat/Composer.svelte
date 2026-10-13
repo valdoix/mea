@@ -560,7 +560,7 @@
       {#each mentions as n, i (n.name)}
         <button class="pal" class:on={i === mentionAt} role="option" aria-selected={i === mentionAt} onmousedown={(e) => e.preventDefault()} onclick={() => pickMention(n)}>
           <b>{n.name}</b>
-          <span class="tiny muted grow truncate">{n.hint ?? n.kind}</span>
+          <span class="tiny muted grow wraps">{n.hint ?? n.kind}</span>
         </button>
       {/each}
     </div>
@@ -1047,7 +1047,7 @@
     gap: 0.3rem;
   }
   :global([data-shell="lantern"]) .tray {
-    background: color-mix(in srgb, var(--pop) 94%, transparent);
+    background: var(--pop);
   }
   :global([data-shell="lantern"]) .opt {
     background: color-mix(in srgb, var(--hi) 4%, transparent);
@@ -1057,7 +1057,7 @@
     box-shadow: 0 0 16px -6px var(--lamp);
   }
   :global([data-shell="lantern"]) .composer {
-    background: color-mix(in srgb, var(--pop) 80%, transparent);
+    background: var(--pop);
     border-radius: 24px;
     padding: 0.45rem;
   }

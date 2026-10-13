@@ -603,9 +603,7 @@
     margin: 3px 0 0;
     font-size: 12px;
     color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .counters {
     display: flex;
@@ -749,9 +747,7 @@
   }
   .cas-label b {
     font: 600 calc(14.5px * var(--st-hs)) / 1.15 var(--st-head);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .reels {
     display: flex;
