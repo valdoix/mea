@@ -643,6 +643,47 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
   }
 }
 
+/** Text as both the saved reply and the page read it: no quote marks, Markdown or extra spaces. */
+const plain = (s: string) => s.replace(/[\s"“”„'‘’*_~`\\]+/g, " ").trim().toLowerCase();
+
+/**
+ * Every quoted line of a message with who says it as the page reads it now, `line` given to `name`
+ * instead: what a tap on a line saves, so the lines you didn't touch keep their colour. Lines are
+ * the saved text's own (server lib quotedLines), each matched to the dialogue spans that show it.
+ * Null when the tapped line can't be found in the text.
+ */
+export function respoken(root: HTMLElement, content: string, line: HTMLElement, name: string | null): { text: string; name: string | null; tone?: string }[] | null {
+  const spans = Array.from(root.querySelectorAll<HTMLElement>(".dl")).filter((s) => !s.closest(".art"));
+  const quotes = [...content.matchAll(/["“][^"“”\n]{1,600}["”“]/g)].map((m) => m[0]);
+  const out: { text: string; name: string | null; tone?: string }[] = [];
+  let j = 0;
+  let found = false;
+  for (const q of quotes) {
+    const want = plain(q);
+    let group: HTMLElement[] = [];
+    // A line can show as several spans (split by italics); a stray span in between is skipped.
+    for (let start = j; start < Math.min(spans.length, j + 4) && !group.length; start++) {
+      let got = "";
+      for (let k = start; k < spans.length; k++) {
+        got += spans[k]!.textContent ?? "";
+        const p = plain(got);
+        if (p === want) {
+          group = spans.slice(start, k + 1);
+          j = k + 1;
+          break;
+        }
+        if (!want.startsWith(p)) break;
+      }
+    }
+    const first = group[0];
+    const mine = group.includes(line);
+    if (mine) found = true;
+    const tone = first?.dataset.tone;
+    out.push({ text: q, name: mine ? name : first?.dataset.v ? first.title || null : null, ...(tone ? { tone } : {}) });
+  }
+  return found ? out : null;
+}
+
 /** use:voices={{ html, voices, style, author }}: re-reads the speakers whenever the text changes. */
 export const voices: Action<HTMLElement, { html: string; voices: Voice[]; style: VoiceStyle; author?: string }> = (node, p) => {
   let last = "";
