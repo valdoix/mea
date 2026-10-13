@@ -165,6 +165,14 @@ describe("fold rules", () => {
     expect(Object.values(r.verdicts).at(-1)!.ok).toBe(false);
   });
 
+  test("a list of names is each of those people, never one person by that name", () => {
+    const r = foldEvents(events([["cast: Mira@spot · Gen, Akilah & Robin@spot"], ["mood Mira, Gen and Robin: tense", "body Akilah, Robin: fatigue +1"]]), cfg());
+    const names = Object.values(r.state.chars).map((c) => c.name).sort();
+    expect(names).toEqual(["Akilah", "Alex", "Gen", "Mira", "Robin"]);
+    expect(["mira", "gen", "robin"].map((id) => r.state.chars[id]!.mood?.name)).toEqual(["tense", "tense", "tense"]);
+    expect(r.changes.m2!.filter((c) => c.kind === "mood").map((c) => c.subject)).toEqual(["Mira", "Gen", "Robin"]);
+  });
+
   test("traits from the card hold against the story", () => {
     const r = foldEvents(events([["trait Mira: blue eyes"], ["trait Mira: green eyes; a scar over her brow"]]), cfg({ seedTraits: { mira: ["green eyes"] } }));
     const eyes = r.state.chars.mira!.traits.find((t) => t.kind === "eyes")!;

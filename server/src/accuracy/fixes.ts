@@ -42,8 +42,7 @@ export async function rewriteSentence(o: { chatId: string; text: string; sentenc
     name: "fix_sentence",
     schema,
     system: `You correct one sentence of a roleplay reply. Rewrite only that sentence so it follows the instruction, in the same voice, tense and point of view, keeping it about as long and keeping whatever in it doesn't need to change. Reply with JSON only: {"sentence": "…"}`,
-    user: `THE REPLY (for context; don't rewrite it):\n${cleanText(o.text).slice(0, 4000)}\n\nTHE SENTENCE:\n${o.sentence}\n\nINSTRUCTION: ${o.instruction}`,
-    maxTokens: 300,
+    user: `THE REPLY (for context; don't rewrite it):\n${cleanText(o.text)}\n\nTHE SENTENCE:\n${o.sentence}\n\nINSTRUCTION: ${o.instruction}`,
   });
   const out = r.data.sentence.trim();
   if (!out) throw badRequest("The helper didn't write a sentence; try again");
