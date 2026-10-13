@@ -152,7 +152,6 @@ async function settledByStory(chatId: string, seq: number, found: Omit<Issue, "i
       user: asks
         .map((a) => `ISSUE ${a.n + 1} (${a.i.kind})\nThe reply says: "${a.i.claim}"\nThe checker said: ${a.i.conflict}\nSTORY:\n${a.passages.map((p) => `#${p.seq} (${who(p)}): ${p.text}`).join("\n")}`)
         .join("\n\n"),
-      maxTokens: 300,
     });
     return new Set(r.data.verdicts.filter((v) => !v.stands).map((v) => Number(v.id) - 1));
   } catch (e) {
@@ -162,10 +161,39 @@ async function settledByStory(chatId: string, seq: number, found: Omit<Issue, "i
 }
 
 /** Kinds the story's own words can settle. */
-const STORY_SETTLES = new Set(["fact", "past", "trait", "place", "time", "dead"]);
+const STORY_SETTLES = new Set(["fact", "past", "trait", "place", "time", "dead", "name", "who"]);
 
-/** A cited fact sheet for the helper pass: story state, confirmed memories, lore, the card. */
-function factSheet(chatId: string, reply: string, st: WorldState | null) {
+/** How many messages before the reply the helper pass reads whole (who said and did what just now). */
+const RECENT = 4;
+
+/**
+ * Tense and point of view are read by counting words, which can't tell the scene's own narration
+ * from a memory, a plan, a thought or a general truth. Before such a flag is shown, the helper reads
+ * the reply and drops the ones where the narration itself keeps the rule.
+ */
+async function voiceSettled(chatId: string, text: string, found: Omit<Issue, "id">[], job?: JobContext): Promise<Set<number>> {
+  const asks = found.map((i, n) => ({ i, n })).filter((a) => a.i.by === "rules" && (a.i.kind === "tense" || a.i.kind === "pov"));
+  if (!asks.length) return new Set();
+  try {
+    const r = await callJson({
+      task: "helper",
+      kind: "continuity",
+      chatId,
+      jobId: job?.id,
+      name: "continuity_voice",
+      schema: verifySchema,
+      system: `A word-counting check flagged the narration of the roleplay reply below for its tense or point of view. Counting is crude: it can't tell the scene's own narration from a memory, a flashback, backstory, a plan, a character's thoughts, a general truth, a letter or dialogue, where another tense or person is right. Read the reply and decide for each flag whether the narration of the scene itself really breaks the rule (for tense: the scene's present action told in the wrong tense, or that action flipping between tenses). Tenses that English grammar needs together ("she remembers how he left", "he had been there before", "she knows he will come") don't stand. When unsure, it doesn't stand. Reply with JSON only: {"verdicts": [{"id": "1", "stands": false}]}`,
+      user: `${asks.map((a, k) => `FLAG ${k + 1} (${a.i.kind}): ${a.i.conflict}`).join("\n")}\n\nTHE REPLY:\n${cleanText(text)}`,
+    });
+    return new Set(r.data.verdicts.filter((v) => !v.stands).map((v) => asks[Number(v.id) - 1]?.n).filter((n): n is number => n != null));
+  } catch (e) {
+    job?.note({ voiceError: (e as Error).message.slice(0, 200) });
+    return new Set();
+  }
+}
+
+/** A cited fact sheet for the helper pass: the last few messages, story state, confirmed memories, lore, the card. */
+function factSheet(chatId: string, reply: string, st: WorldState | null, seq: number) {
   const cites = new Map<string, Citation>();
   const lines: string[] = [];
   const add = (prefix: string, c: Omit<Citation, "ref">, text: string) => {
@@ -174,12 +202,25 @@ function factSheet(chatId: string, reply: string, st: WorldState | null) {
     lines.push(`[${ref}] ${text}`);
   };
   const msg = seqMessage(chatId);
+  const names = chatNames(chatId);
+  const recent = all<{ id: string; seq: number; role: string; name: string | null; content: string }>(
+    `SELECT m.id, m.seq, m.role, m.name, s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+     WHERE m.chat_id = ? AND m.seq < ? AND m.deleted_at IS NULL AND m.role IN ('user', 'assistant') ORDER BY m.seq DESC LIMIT ?`,
+    chatId,
+    seq,
+    RECENT,
+  ).reverse();
+  for (const r of recent) {
+    const who = r.role === "user" ? names.user : (r.name ?? names.char);
+    add("S", { type: "message", label: `#${r.seq} (${who})`, messageId: r.id, seq: r.seq }, `Message #${r.seq}, written by ${who}${r.role === "user" ? " (the player)" : ""}: ${cleanText(r.content).replace(/\s+/g, " ")}`);
+  }
   if (st) {
     if (st.time) add("T", { type: "tracker", label: "story time" }, `Story time now: ${Math.floor(st.time.minutes / 1440) + 1}d ${String(Math.floor((st.time.minutes % 1440) / 60)).padStart(2, "0")}:${String(st.time.minutes % 60).padStart(2, "0")}`);
     if (st.place.length) add("T", { type: "tracker", label: "place" }, `Place now: ${st.place.join(" › ")}`);
     for (const c of Object.values(st.chars)) {
-      const bits = [c.traits.map((t) => t.text).join(", "), c.look ?? "", c.dead ? "DEAD" : "", c.tier === "spot" || c.tier === "peri" ? "present" : c.place ? `at ${c.place}` : ""].filter(Boolean);
-      if (bits.length) add("T", { type: "tracker", label: c.name, seq: c.lastSeq, messageId: msg.get(c.lastSeq) ?? null }, `${c.name}${c.isUser ? " (the player's character)" : ""}: ${bits.join("; ")}`);
+      // Everyone the story has met is listed, even with nothing known about them yet: a name missing here reads as a stranger.
+      const bits = [c.traits.map((t) => t.text).join(", "), c.look ?? "", c.dead ? "DEAD" : "", c.tier === "spot" || c.tier === "peri" ? "present" : c.place ? `at ${c.place}` : "", c.firstSeq ? `in the story since #${c.firstSeq}` : ""].filter(Boolean);
+      add("T", { type: "tracker", label: c.name, seq: c.lastSeq, messageId: msg.get(c.lastSeq) ?? null }, `${c.name}${c.isUser ? " (the player's character)" : ""}: ${bits.join("; ")}`);
     }
     for (const f of Object.values(st.facts).slice(-20)) {
       const who = Object.entries(f.stances)
@@ -207,7 +248,7 @@ function factSheet(chatId: string, reply: string, st: WorldState | null) {
   }
   const chat = mustChat(chatId);
   const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).filter((e) => e.enabled && (e.constant || e.keys.some((k) => keyMatches(k, reply, false, true))));
-  for (const e of entries.slice(0, 8)) add("L", { type: "lore", label: e.comment || e.keys[0] || "lore", id: e.id }, e.content.replace(/\s+/g, " ").slice(0, 400));
+  for (const e of entries.slice(0, 8)) add("L", { type: "lore", label: e.comment || e.keys[0] || "lore", id: e.id }, e.content.replace(/\s+/g, " "));
   // A1 (and later parts): rules the reply must keep, cited as R1, R2…
   let rules = 0;
   for (const fn of sheetRules)
@@ -272,7 +313,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   issues.push(...parseJson<Issue[]>(earlier?.issues, []).filter((i) => i.kind === "timeline").map(({ id: _id, ...rest }) => rest));
   const useModel = cfg.continuity && (opts.model ?? (cfg.checkerModel && !shouldShed("continuity", chatId)));
   if (useModel) {
-    const sheet = factSheet(chatId, sw.content, st);
+    const sheet = factSheet(chatId, sw.content, st, m.seq);
     if (sheet.lines.length) {
       try {
         const r = await callJson({
@@ -282,24 +323,23 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           jobId: opts.job?.id,
           name: "continuity_check",
           schema: modelSchema,
-          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Not style, not things the facts don't cover, not new details that merely add to them. The FACTS are summaries kept by helpers and can lag behind the story (an object handed back, a change of clothes): a reply describing a later change isn't wrong for it.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."; for an invented past, the event as the reply tells it, never its denial). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
-          user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content).slice(0, 6000)}`,
-          maxTokens: 800,
+          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Watch who said and did what: a line, an act or an idea credited to the wrong person, whether it was said in the recent messages (S ids, quoted in full) or earlier in this same reply (kind "who"; cite the S id, or none when the reply contradicts itself). The S messages are the story itself and outrank the other FACTS. Not style, not things the facts don't cover, not new details that merely add to them. The FACTS are summaries kept by helpers and can lag behind the story (an object handed back, a change of clothes): a reply describing a later change isn't wrong for it.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."; for an invented past, the event as the reply tells it, never its denial). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
+          user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content)}`,
         });
         for (const i of r.data.issues) {
           if (issues.some((x) => x.claim.includes(i.claim.slice(0, 40)) || i.claim.includes(x.claim.slice(0, 40)))) continue;
           const citations = i.cites.map((c) => sheet.cites.get(c.replace(/[[\]\s]/g, ""))).filter((c): c is Citation => Boolean(c));
           // An issue without a source is a guess, except an invented past (its point is that nothing holds it).
-          if (!citations.length && i.kind !== "past") continue;
+          if (!citations.length && i.kind !== "past" && i.kind !== "who") continue;
           issues.push({
-            kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline", "lesson", "past"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
+            kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline", "lesson", "past", "who"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
             severity: i.severity,
-            claim: i.claim.slice(0, 300),
-            conflict: i.conflict.slice(0, 400),
+            claim: i.claim,
+            conflict: i.conflict,
             citations,
             fix: i.fix || i.conflict,
             // M28: what's kept is a whole sentence, never the reply's quoted fragment.
-            canon: i.canon?.trim() ? { memory: i.canon.trim().slice(0, 300), wrong: citations.find((c) => c.type === "memory")?.label } : undefined,
+            canon: i.canon?.trim() ? { memory: i.canon.trim(), wrong: citations.find((c) => c.type === "memory")?.label } : undefined,
             by: "model",
           });
         }
@@ -308,7 +348,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
       }
     }
   }
-  const settled = useModel ? await settledByStory(chatId, m.seq, issues, opts.job) : new Set<number>();
+  const settled = useModel ? new Set((await Promise.all([settledByStory(chatId, m.seq, issues, opts.job), voiceSettled(chatId, sw.content, issues, opts.job)])).flatMap((x) => [...x])) : new Set<number>();
   if (settled.size) {
     opts.job?.note({ settledByStory: settled.size });
     issues = issues.filter((_, n) => !settled.has(n));
@@ -402,7 +442,7 @@ export function acceptIssue(flagId: string, issueId: string) {
 export function fixNotes(flagId: string) {
   const r = mustFlag(flagId);
   const open = parseJson<Issue[]>(r.issues, []).filter((i) => !i.dismissed);
-  return { chatId: r.chat_id, messageId: r.message_id, feedback: `Keep continuity: ${open.map((i) => i.fix).join(" ")}`.slice(0, 1500) };
+  return { chatId: r.chat_id, messageId: r.message_id, feedback: `Keep continuity: ${open.map((i) => i.fix).join(" ")}` };
 }
 
 /** True when anything would check a reply: the continuity checker or one of the guards. */

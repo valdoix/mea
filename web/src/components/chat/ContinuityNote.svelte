@@ -10,7 +10,7 @@
   let open = $state(false);
   const issues = $derived(flag.issues.filter((i) => !i.dismissed));
   const major = $derived(issues.some((i) => i.severity === "major"));
-  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page", canon: "later canon", nothere: "someone not in the scene", clockback: "the clock going back", planning: "planning left in", past: "an invented past" };
+  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page", canon: "later canon", nothere: "someone not in the scene", clockback: "the clock going back", planning: "planning left in", past: "an invented past", who: "who said or did it" };
   /** D1: findings about the whole reply (its voice, its time, planning in it) aren't one sentence to fix. */
   const WHOLE = new Set(["pov", "tense", "timeline", "planning"]);
   /** A citation that points somewhere (guard notes cite a rule, not a source). */

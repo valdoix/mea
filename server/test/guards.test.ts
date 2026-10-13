@@ -107,6 +107,13 @@ describe("puppeting, point of view and tense (CON-04)", () => {
     expect(tenseOf(PAST.join(" "), ["Mira"]).tense).toBe("past");
     expect(tenseOf("She sets the kettle down. She turns. She smiles and she pours. Mira laughs. She looks at the fire.", ["Mira"]).tense).toBe("present");
   });
+  test("a present-tense scene that remembers isn't switching tense", () => {
+    const text =
+      "Mira sets the kettle down. She remembers how he left that night. She turns to the window. Years ago she stood here and waited. She pours the tea. Back then she was braver. She looks at the door. She had wanted to follow him. Mira laughs at herself. Last winter he came back once. She sits by the fire.";
+    const t = tenseOf(text, ["Mira"]);
+    expect(t.tense).toBe("present");
+    expect(t.past).toBe(0);
+  });
   test("flags a switch against the recent replies", () => {
     const issues = guardIssues(chatId, "I set the kettle down and I look at you. My hands shake. I pour the tea, and I wait. I hate storms, I think.", { seq: 999 });
     const kinds = issues.map((i) => i.kind);

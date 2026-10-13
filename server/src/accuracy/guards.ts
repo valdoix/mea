@@ -138,18 +138,34 @@ const PRESENT = new Set(
 );
 const NOT_VERBS = new Set("always perhaps just never still also only even then too almost already really nearly suddenly finally quietly slowly gently softly".split(" "));
 
-/** The narration's tense: past, present, or unclear (with the counts, to spot a reply that wobbles). */
+/**
+ * Sentences that step out of the narration's own time, where the other tense is right: a memory or
+ * a backstory ("years ago", "she had", "remembers"), what's to come, a thought, a general truth.
+ */
+const TIME_SHIFT =
+  /\b(?:ago|yesterday|earlier|before|once|used to|had|hadn't|remember(?:s|ed)?|recall(?:s|ed)?|thinks?|thought|wonder(?:s|ed)?|knows?|knew|always|every time|whenever|tomorrow|tonight|soon|will|won't|would|wouldn't|later|since|last (?:night|week|year|time)|back then|when (?:she|he|they|I|we|you) (?:was|were|is|are))\b/i;
+
+/**
+ * The narration's tense: past, present, or unclear (with the counts, to spot a reply that wobbles).
+ * Each sentence counts once, by its main verb (its first subject and verb), and sentences that step
+ * into another time don't count at all, so a present-tense scene that remembers isn't "switching".
+ */
 export function tenseOf(text: string, charNames: string[]): { tense: Tense; past: number; present: number } {
   const n = narration(cleanText(text));
   const cn = charNames.filter((x) => x.length >= 2).map(esc);
-  const re = new RegExp(`\\b(?:[Hh]e|[Ss]he|[Ii]t|[Tt]hey|I|[Ww]e|[Yy]ou|${cn.length ? cn.join("|") : "\\u0000"})\\s+(?:(?:\\w+ly|still|just|then|never|always|also)\\s+)?([a-z]+)\\b`, "g");
+  const re = new RegExp(`\\b(?:[Hh]e|[Ss]he|[Ii]t|[Tt]hey|I|[Ww]e|[Yy]ou|${cn.length ? cn.join("|") : "\\u0000"})\\s+(?:(?:\\w+ly|still|just|then|never|also)\\s+)?([a-z]+)\\b`, "g");
   let past = 0;
   let present = 0;
-  for (const m of n.matchAll(re)) {
-    const v = m[1]!;
-    if (NOT_VERBS.has(v)) continue;
-    if (PAST.has(v) || (v.length > 4 && v.endsWith("ed"))) past++;
-    else if (PRESENT.has(v) || (v.length > 3 && v.endsWith("s") && !/(ss|us|is|ous)$/.test(v))) present++;
+  for (const s of sentences(n)) {
+    if (TIME_SHIFT.test(s)) continue;
+    for (const m of s.matchAll(re)) {
+      const v = m[1]!;
+      if (NOT_VERBS.has(v)) continue;
+      if (PAST.has(v) || (v.length > 4 && v.endsWith("ed"))) past++;
+      else if (PRESENT.has(v) || (v.length > 3 && v.endsWith("s") && !/(ss|us|is|ous)$/.test(v))) present++;
+      else continue;
+      break;
+    }
   }
   const tense: Tense = past >= 5 && past >= present * 2 ? "past" : present >= 5 && present >= past * 2 ? "present" : null;
   return { tense, past, present };
@@ -283,7 +299,7 @@ export function tenseGuard(g: GuardInput): GuardIssue[] {
         by: "rules",
       },
     ];
-  if (!t.tense && t.past >= 4 && t.present >= 4 && Math.min(t.past, t.present) / Math.max(t.past, t.present) >= 0.5)
+  if (!t.tense && t.past >= 5 && t.present >= 5 && Math.min(t.past, t.present) / Math.max(t.past, t.present) >= 0.6)
     return [
       {
         kind: "tense",

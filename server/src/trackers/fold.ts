@@ -152,6 +152,8 @@ const DOWN_CAUSE = /\b(betray\w*|lie|lies|lied|lying|neglect\w*|abandon\w*|broke
 const ROMANCE_CAUSE = /\b(kiss\w*|attract\w*|desir\w*|crush\w*|flirt\w*|blush\w*|in love|lov(?:e|es|ed|ing)|romanc\w*|romantic\w*|date|dating|lips|mouth|jealous\w*|long(?:s|ed|ing) for|butterfl\w*|chemistry|sparks?|aroused|arousal|wants? (?:her|him|them)|sexual\w*|seduc\w*|caress\w*)\b/i;
 /** Words that name a crowd, not a person: "know Group: …" means everyone in the scene. */
 const GROUP_WORD = /^(?:the |all the |whole )*(?:group|whole group|everyone|everybody|all|all present|all of them|all of us|circle|others|rest|crowd|camp|team|squad|party|survivors|room|table|fire|us|them|they|we|both|both of them|girls|boys|kids|everyone present|everyone here|whole camp)$/;
+/** Ops said of a person, which a list of names in the subject spreads over each of them. */
+const PERSON_OPS = new Set<string>(["mood", "body", "look", "trait", "drive", "mask", "dead", "bond", "ladder", "know", "pressure", "room", "keeps", "owe", "promise", "rep"]);
 
 interface Ctx {
   cfg: FoldConfig;
@@ -245,6 +247,14 @@ export class Folder {
     return c;
   }
 
+  /** "Mari, Gen and Robin" → each of them (unless someone really goes by the whole thing). */
+  each(name: string): string[] {
+    const parts = personName(name).split(/\s*(?:,|&|\+|\/|\band\b)\s*/i).map((s) => s.trim()).filter(Boolean);
+    if (parts.length < 2) return [name];
+    const n = norm(personName(name));
+    return Object.values(this.state.chars).some((c) => norm(c.name) === n || c.aliases.some((x) => norm(x) === n)) ? [name] : parts;
+  }
+
   /** A person named in an op: resolves or creates (never for names that look like groups or places). */
   person(name: string | undefined, seq: number): Character | undefined {
     if (!name?.trim()) return undefined;
@@ -275,7 +285,10 @@ export class Folder {
   apply(ev: TrackerEvent) {
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
     try {
-      this.applyOp(ev.op, ctx);
+      // "mood Mari, Gen & Robin: tense" is said of each of them, not of one person by that name.
+      const each = PERSON_OPS.has(ev.op.op) && ev.op.subject ? this.each(ev.op.subject) : [];
+      if (each.length > 1) for (const subject of each) this.applyOp({ ...ev.op, subject }, ctx);
+      else this.applyOp(ev.op, ctx);
       if (ev.op.op === "cast" || ev.op.op === "at" || ev.op.op === "clock") this.promiseChecks(ctx);
     } catch (e) {
       ctx.verdict = { raw: ev.op.raw, ok: false, reason: `couldn't apply: ${(e as Error).message}` };
@@ -559,7 +572,7 @@ export class Folder {
         st.mode = clip(a.to).toLowerCase();
         return;
       case "cast": {
-        for (const it of a.list as { name: string; tier: string; note?: string }[]) {
+        for (const it of (a.list as { name: string; tier: string; note?: string }[]).flatMap((x) => this.each(x.name).map((name) => ({ ...x, name })))) {
           const c = this.person(it.name, seq);
           if (!c) continue;
           if (c.dead && /spot|peri|arrive/.test(it.tier)) {
