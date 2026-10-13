@@ -1,6 +1,6 @@
 <script lang="ts">
   import ContinuityNote from "./ContinuityNote.svelte";
-  import { post } from "../../lib/api";
+  import { post, put } from "../../lib/api";
   import { wordDiff } from "../../lib/diff";
   import { errorToast, toast } from "../../lib/state.svelte";
   import { gloss } from "../../lib/glossary";
@@ -45,7 +45,7 @@
   import ThoughtsDrawer from "../trackers/ThoughtsDrawer.svelte";
   import { trk } from "../../lib/trackers.svelte";
   import { living } from "../../lib/living";
-  import { voices, voicesFrom } from "../../lib/voices";
+  import { respoken, voices, voicesFrom } from "../../lib/voices";
   import type { Citation, ContinuityFlag, EditSuggestion, GlossaryTerm, TrackerChange } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
   import { device, portraitWidth } from "../../lib/device.svelte";
@@ -256,6 +256,44 @@
     menuPoint = p;
     menuOpen = true;
   }
+
+  // Tap a line of dialogue to say who speaks it.
+  let proseEl = $state<HTMLElement | null>(null);
+  let spkOpen = $state(false);
+  let spkPoint = $state<{ x: number; y: number } | null>(null);
+  let spkLine = $state<HTMLElement | null>(null);
+  const canRespeak = $derived(!streaming && !editing && message.role !== "system" && page.voices !== "off");
+  function lineClick(e: MouseEvent) {
+    if (!canRespeak) return;
+    const t = e.target as HTMLElement;
+    const line = t.closest<HTMLElement>(".dl");
+    // A lore term, a link or a selection inside the line keeps its own click.
+    if (!line || line.closest(".art") || t.closest(".gloss, a, button") || window.getSelection()?.toString()) return;
+    spkLine = line;
+    spkPoint = { x: e.clientX, y: e.clientY };
+    spkOpen = true;
+  }
+  const spkItems = $derived.by<MenuItem[]>(() => {
+    if (!spkOpen || !spkLine) return [];
+    const now = spkLine.dataset.v ? spkLine.title : "";
+    // The cast, then anyone this message's lines already name who isn't in it.
+    const names = [...cast.map((v) => v.name)];
+    for (const s of proseEl?.querySelectorAll<HTMLElement>(".dl[data-v]") ?? []) if (s.title && !names.includes(s.title)) names.push(s.title);
+    return [
+      ...names.map((n) => ({ label: n, hint: n === now ? "speaking" : undefined, onclick: () => respeak(n) })),
+      { label: "Someone unseen", hint: !now ? "speaking" : undefined, onclick: () => respeak(null) },
+    ];
+  });
+  async function respeak(name: string | null) {
+    if (!proseEl || !spkLine) return;
+    const lines = respoken(proseEl, message.content, spkLine, name);
+    if (!lines) return void toast("Couldn't find that line in the text", { kind: "info" });
+    try {
+      await put(`/api/messages/${message.id}/speakers`, { lines });
+    } catch (err) {
+      errorToast(err);
+    }
+  }
 </script>
 
 <article
@@ -312,7 +350,8 @@
           <div class="notice error row"><CircleAlert size={16} /><span class="grow">{message.error ?? "Something went wrong."}</span></div>
           {#if isLast}<button class="btn small" style="margin-top:.5rem" onclick={() => onregen()} disabled={!canGenerate}><RotateCcw size={14} /> Try again</button>{/if}
         {:else}
-          <div class="prose {scope}" use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }} use:voices={{ html, voices: cast, style: page.voices, author: displayName }}>{@html html}</div>
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          <div class="prose {scope}" class:respeak={canRespeak} bind:this={proseEl} onclick={lineClick} use:gloss={{ terms: glossary, enabled: Boolean(onglossary) && glossary.length > 0 && app.settings?.["appearance.glossary"] !== false, html, onpick: (t, at) => onglossary?.(t, at) }} use:voices={{ html, voices: cast, style: page.voices, author: displayName }}>{@html html}</div>
           {#if banned.length}<div class="tiny banned" title="Phrases from your banned list (Settings → Writing)">Banned phrases: {banned.join(", ")}</div>{/if}
           {#if suggestion?.status === "proposed" && suggestion.original === message.content}
             <div class="editor-note tiny">
@@ -383,6 +422,7 @@
 
 <Menu bind:open={menuOpen} {items} anchor={menuBtn} point={menuPoint} title={displayName} />
 <Menu bind:open={angleOpen} items={angleItems} anchor={angleBtn} point={anglePoint} title="A new take, with an angle" />
+<Menu bind:open={spkOpen} items={spkItems} anchor={null} point={spkPoint} title="Who says this?" />
 
 <style>
   /* M5: whatever a message's HTML positions stays inside the message, so it can't cover or fake the app.
@@ -398,6 +438,9 @@
     text-align: justify;
     hyphens: auto;
     -webkit-hyphens: auto;
+  }
+  .body > .prose.respeak :global(.dl) {
+    cursor: pointer;
   }
   .body > .prose :global(li p) {
     text-align: start;

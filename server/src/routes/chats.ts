@@ -39,6 +39,8 @@ import { getDefaultPersona, getPersona } from "../services/personas";
 import { statusTiles } from "../services/status";
 import { filingsFor, undoFiling } from "../services/filings";
 import { noteEdit, noteKeptSwipe } from "../steer/lessons";
+import type { SpokenLine } from "../lib/speakers";
+import { setSpeakers } from "../services/speakermarks";
 import { type Angle, ANGLES } from "../steer/swipes";
 
 export const chats = new Hono();
@@ -226,6 +228,13 @@ chats.put("/messages/:id", async (c) => {
     }
   }
   return c.json(out);
+});
+
+/** Who says each line, as you set it on the page (tap a line, pick the speaker). */
+chats.put("/messages/:id/speakers", async (c) => {
+  const input = await body(c, z.object({ lines: z.array(z.object({ text: z.string().min(1).max(2000), name: z.string().max(80).nullable(), tone: z.string().max(20).optional() })).max(600) }));
+  setSpeakers(c.req.param("id"), input.lines as SpokenLine[]);
+  return c.json(must(getMessage(c.req.param("id")), "Message not found"));
 });
 
 chats.patch("/messages/:id", async (c) => {

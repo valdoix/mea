@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { one, parseJson } from "../db/db";
 import { publish } from "../lib/events";
-import { quotedLines, type RosterVoice, speakerFromLabel, type SpokenLine } from "../lib/speakers";
+import { badRequest, notFound } from "../lib/http";
+import { quotedLines, type RosterVoice, speakerFromLabel, type SpokenLine, TONES } from "../lib/speakers";
 import { updateSwipe } from "./chats";
 import { enqueue, type JobContext } from "./jobs";
 import { callJson } from "./llm";
@@ -61,4 +62,27 @@ export async function runSpeakerMarksJob(p: { chatId: string; messageId: string;
   if (!speakers.some((s) => s.name)) return;
   updateSwipe(p.messageId, p.swipeIdx, { meta: { speakers, speakersBy: "helper" } });
   publish({ type: "message.changed", chatId: p.chatId, messageId: p.messageId });
+}
+
+/**
+ * Who says each line, as you set it by tapping a line on the page. The page sends every line with
+ * its speaker as it reads them now, so lines you didn't touch keep their colour. Each line must
+ * still stand in the text, in order; one that doesn't is dropped.
+ */
+export function setSpeakers(messageId: string, lines: SpokenLine[]) {
+  const m = one<{ chat_id: string; active_swipe: number; deleted_at: string | null }>("SELECT chat_id, active_swipe, deleted_at FROM messages WHERE id = ?", messageId);
+  if (!m || m.deleted_at) throw notFound("Message not found");
+  const sw = one<{ content: string; status: string }>("SELECT content, status FROM swipes WHERE message_id = ? AND idx = ?", messageId, m.active_swipe);
+  if (!sw) throw notFound("Message has no content");
+  if (sw.status === "streaming") throw badRequest("Wait for the reply to finish first");
+  const speakers: SpokenLine[] = [];
+  let at = 0;
+  for (const l of lines) {
+    const i = sw.content.indexOf(l.text, at);
+    if (!l.text || i < 0) continue;
+    speakers.push({ text: l.text, name: l.name?.trim() || null, ...(l.tone && (TONES as readonly string[]).includes(l.tone) ? { tone: l.tone } : {}) });
+    at = i + l.text.length;
+  }
+  updateSwipe(messageId, m.active_swipe, { meta: { speakers, speakersBy: "you" } });
+  publish({ type: "message.changed", chatId: m.chat_id, messageId });
 }
