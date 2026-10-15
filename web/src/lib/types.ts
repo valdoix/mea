@@ -480,6 +480,8 @@ export interface LivingPage {
   freeform: boolean;
   window: boolean;
   thoughts: "never" | "drawer" | "always";
+  /** Each reply's plan: in a folded drawer or always open (planning itself is always on). */
+  plan?: "drawer" | "always";
 }
 
 export interface Settings {

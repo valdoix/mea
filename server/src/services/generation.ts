@@ -58,7 +58,7 @@ import { anchorExtra } from "../accuracy/anchor";
 import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
-import { advisorExtra, directorPlanText, markPlanUsed, planSchema, runAdvisor, turnKey } from "../steer/advisor";
+import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
 import { extractSpeakers, quotedLines, rosterLine, type RosterVoice, speakerRule, type SpokenLine, voiceRoster, withoutSpeakerMarks, withSpeakerMarks } from "../lib/speakers";
@@ -216,7 +216,7 @@ export function skipsPlans(modelId: string, excludeMessageId?: string): boolean 
     modelId,
   ).map((r) => parseJson<{ model?: string; plan?: string; notes?: string[] }>(r.meta, {}));
   if (recent.length === 6 && recent.every((m) => m.plan === "first")) return false;
-  const skipped = (m: (typeof recent)[number]) => m.plan === "step" || m.plan === "first" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n));
+  const skipped = (m: (typeof recent)[number]) => m.plan === "step" || m.plan === "first" || m.plan === "rescue" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n));
   return recent.slice(0, 3).some(skipped);
 }
 
@@ -681,12 +681,13 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   })();
   let overflowRetried = false;
   let smartRetried = false;
-  let planRetried = false;
+  /** Planning is mandatory: tries stopped for skipping their plan (the first gets the plan step, the second the planner model). */
+  let planSkips = 0;
   let planOnlyRetried = false;
   let backedOff = false;
   const notes: string[] = [];
   /** Where this reply's plan came from (saved in meta.plan; skipsPlans reads it back). */
-  let planHow: "own" | "step" | "first" | null = null;
+  let planHow: "own" | "step" | "first" | "rescue" | null = null;
   const planAsked = action !== "continue" && (Boolean(p.plannedPass) || p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included));
 
   /**
@@ -811,7 +812,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       // <think> or the route's own reasoning), or a token one, this try stops at once and the plan
       // is written in its own step, then the story from it. Once only.
       let planSkipped = false;
-      let watching = !planRetried && action !== "continue" && p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included);
+      let watching = planSkips < 2 && action !== "continue" && p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included);
       const watchPlan = () => {
         if (!watching) return;
         const story = gen.text.slice(baseText.length).replace(/^\s+/, "");
@@ -911,8 +912,32 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         break;
       } catch (e) {
         if (gen.abort.signal.aborted) throw e;
-        if (planSkipped && !planRetried) {
-          planRetried = true;
+        if (planSkipped && planSkips === 1) {
+          planSkips++;
+          finishRequest(requestId, { status: "retried", error: "retried: the reply skipped its plan again", firstTokenAt });
+          // The last resort: the planner model (or the helper it borrows) writes the pass, and the writer writes from it.
+          const plan = await rescuePlan(gen.chatId, historyForPrompt(gen.chatId, { excludeMessageId: action === "swipe" ? gen.messageId : undefined }), gen.abort.signal);
+          if (gen.abort.signal.aborted) throw e;
+          if (plan) {
+            await writeFrom(plan);
+            planHow = "rescue";
+            notes.push("planned by the planner model: the writer skipped its plan twice");
+            continue;
+          }
+          // Nothing could plan it: one try more, unwatched, so there is still a reply (its plan shows as missing).
+          notes.push("written without a plan: every planning try failed");
+          gen.text = baseText;
+          gen.reasoning = "";
+          pendingText = "";
+          pendingReasoning = "";
+          first_ = true;
+          firstTokenAt = null;
+          publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reset: true });
+          requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
+          continue;
+        }
+        if (planSkipped && planSkips === 0) {
+          planSkips++;
           finishRequest(requestId, { status: "retried", error: "retried: the reply skipped its plan", firstTokenAt });
           // The plan in its own step, then the story from it; if no plan comes back, one more try told plainly to plan.
           const plan = await planStep();

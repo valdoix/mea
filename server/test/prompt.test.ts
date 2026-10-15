@@ -85,7 +85,9 @@ describe("prompt assembly", () => {
     lean.blocks = lean.blocks.filter((b) => b.id === "main" || b.kind === "history").map((b) => (b.id === "main" ? { ...b, content: "You are {{char}}." } : b));
     const r = assemblePrompt(base({ preset: lean, history, contextTarget: 3000 }));
     expect(r.trace.history.dropped).toBeGreaterThan(0);
-    expect(r.messages.at(-1)!.content).toContain("message 49");
+    // The newest message is the last one from the history; the mandatory planning pass follows it.
+    expect(r.messages.at(-2)!.content).toContain("message 49");
+    expect(r.messages.at(-1)!.content).toContain("[BEFORE YOU WRITE");
     expect(r.estPromptTokens).toBeLessThanOrEqual(3000);
   });
 

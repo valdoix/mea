@@ -5,7 +5,7 @@ import type { Role } from "../lore/types";
 import type { MemoryContext, MemoryTrace } from "../memory/context";
 import { cleanText, compactVisuals, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
-import { TOOLKIT_TAGS } from "./mea";
+import { PLANNING_BLOCK, TOOLKIT_TAGS } from "./mea";
 import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock } from "./preset";
 
 /** M12: the line that marks a main prompt as Mea's Charter (prompt/mea.ts), which a card's system prompt doesn't replace. */
@@ -309,18 +309,23 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   const blocks: BlockTrace[] = [];
   let loreTokens = 0;
 
-  preset.blocks.forEach((block: PromptBlock, index) => {
+  // Planning is mandatory: every story reply is planned, whatever the preset says. A preset that
+  // dropped the pass (or never had it, like an imported one) gets Mea's after everything else.
+  const presetBlocks = preset.blocks.some((b) => b.id === PLANNING_BLOCK.id) ? preset.blocks : [...preset.blocks, PLANNING_BLOCK];
+  presetBlocks.forEach((block: PromptBlock, index) => {
     const trace: BlockTrace = { id: block.id, name: block.name, kind: block.kind, role: block.role, tokens: 0, included: false };
     blocks.push(trace);
     if (input.skipBlocks?.includes(block.id)) {
       trace.note = "the separate planner planned this reply";
       return;
     }
-    if (!block.enabled) {
+    const mandatory = block.id === PLANNING_BLOCK.id;
+    if (!block.enabled && !mandatory) {
       trace.note = "disabled";
       return;
     }
-    if (block.when?.trim() && !input.when?.(block.when)) {
+    if (mandatory && !block.enabled) trace.note = "always on: every reply is planned";
+    if (block.when?.trim() && !mandatory && !input.when?.(block.when)) {
       trace.note = `only when ${block.when.trim()}`;
       return;
     }
