@@ -427,10 +427,15 @@
       grid-template-columns: 1fr;
       gap: 0.55rem;
     }
+    /* The name keeps room to read: in a very narrow chat the count drops below it. */
     .id {
-      grid-template-columns: auto 1fr auto;
+      display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.3rem 0.6rem;
+    }
+    .nm {
+      flex: 1 1 4.5rem;
     }
     .faces {
       display: none;
