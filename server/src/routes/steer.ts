@@ -4,6 +4,7 @@ import { body } from "../lib/http";
 import { historyForPrompt, mustChat } from "../services/chats";
 import { planFor, recentPlans, runAdvisor, steerFor, turnKey } from "../steer/advisor";
 import { decideEdit } from "../steer/editor";
+import { planbook } from "../steer/planbook";
 import { styleFor, styleText } from "../steer/style";
 
 /** Steering (Phase 5): the advisor's plans (STEER-01/02), the post-pass editor (STEER-03), the style profile (STEER-04). */
@@ -16,6 +17,9 @@ steer.get("/chats/:id/advisor", (c) => {
   const cfg = steerFor(id);
   return c.json({ on: cfg.advisorOn, next: planFor(id, turnKey(historyForPrompt(id))), plans: recentPlans(id, 8) });
 });
+
+/** The planner's notebook: how this chat's plans turned out (or, with ?scope=model, its model's in every chat). */
+steer.get("/chats/:id/planbook", (c) => c.json(planbook(c.req.param("id"), c.req.query("scope") === "model" ? "model" : "chat")));
 
 /** Plan the next reply now (for the panel's "Plan now"; normally this happens while you type). */
 steer.post("/chats/:id/advisor/plan", async (c) => {

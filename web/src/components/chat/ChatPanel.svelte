@@ -467,6 +467,8 @@
   <CanonPanel chatId={detail.chat.id} />
 
   <ChatSteer chatId={detail.chat.id} settings={detail.chat.settings} characterStyle={detail.defaults?.characterStyle ?? null} onupdate={(b) => update(b)} />
+  <!-- Loaded on its own, so it costs the first page nothing. -->
+  {#await import("./PlannerNotebook.svelte") then { default: PlannerNotebook }}<PlannerNotebook chatId={detail.chat.id} />{/await}
   <ChatGuards chatId={detail.chat.id} settings={detail.chat.settings} onupdate={(b) => update(b)} />
 
   <!-- lorebooks as cassettes -->
