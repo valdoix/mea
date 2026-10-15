@@ -72,6 +72,8 @@ export interface AssembleInput {
   providerReasoning?: boolean;
   /** The plan watch's second try: a last line insists the reply open with its <think> plan. */
   forcePlan?: boolean;
+  /** The planner's notebook (steer/plannernotes.ts): kept notes, added to the planning pass. */
+  plannerNotes?: string;
   /** The plan step: this request writes only the planning pass; the story is written from it next. */
   planOnly?: boolean;
   /** Speaker marks are on: the cast's numbered roster, and whether the last reply dropped its marks. */
@@ -402,6 +404,11 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     if (!content) {
       trace.note = "empty";
       return;
+    }
+    // The learning planner: the notes the player kept go into the pass itself, after its steps.
+    if (mandatory && input.plannerNotes) {
+      content = `${content}\n${input.plannerNotes}`;
+      trace.note = [trace.note, "with the planner's notebook"].filter(Boolean).join("; ");
     }
     trace.included = true;
     trace.tokens = tok(content);

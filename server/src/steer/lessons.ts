@@ -40,8 +40,11 @@ export interface LessonData {
   seen?: Record<string, number>;
   /** Messages already counted as breaking it (so "Check again" doesn't count twice). */
   brokenAt?: string[];
-  /** Where the lesson came from: swipes, an edit, you. */
-  from?: "swipes" | "edit" | "you" | "meus" | "flag";
+  /** Where the lesson came from: swipes, an edit, you, or the planner's notebook. */
+  from?: "swipes" | "edit" | "you" | "meus" | "flag" | "planner";
+  /** A planner note: the plan step it belongs in (NOW…VOICE, or TIER), and the rule that learned it. */
+  step?: string;
+  rule?: string;
 }
 
 interface LessonRow {
@@ -154,6 +157,11 @@ export function activeLessons(chatId: string) {
   return lessonsFor(chatId).filter((l) => l.status === "kept" && !l.resting);
 }
 
+/** The kept lessons for the story itself; planner notes go into the planning pass instead (steer/plannernotes.ts). */
+export function storyLessons(chatId: string) {
+  return activeLessons(chatId).filter((l) => l.data.from !== "planner");
+}
+
 function saveData(id: string, data: LessonData) {
   run("UPDATE lessons SET data = ?, updated_at = ? WHERE id = ?", JSON.stringify(data), now(), id);
 }
@@ -166,7 +174,7 @@ function markSeen(l: Lesson, chatId: string, seq: number) {
 
 // ---------- learning ----------
 
-interface Candidate {
+export interface Candidate {
   text: string;
   why: string;
   quote: string;
@@ -256,7 +264,7 @@ async function modelCandidates(chatId: string, kept: string, rejected: { idx: nu
 }
 
 /** Files candidates as suggestions, skipping any the story already has (or you said "Not this" to). */
-function suggest(chatId: string, messageId: string, cands: Candidate[], data: LessonData): Lesson[] {
+export function suggest(chatId: string, messageId: string, cands: Candidate[], data: LessonData): Lesson[] {
   const chat = mustChat(chatId);
   const existing = all<LessonRow>("SELECT * FROM lessons WHERE chat_id = ? OR (scope = 'character' AND character_id = ?) OR scope = 'everywhere'", chatId, chat.character_id ?? "").map(view);
   const texts = new Set(existing.map((l) => norm(l.text)));
@@ -478,14 +486,14 @@ SLIPS.push({
 });
 
 // The helper pass re-reads kept lessons too, when lessons use the model.
-registerSheetRules((chatId) => (lessonsMode(chatId) === "model" ? activeLessons(chatId).slice(0, 10).map((l) => ({ type: "lesson" as const, label: l.text.slice(0, 120), id: l.id, text: l.text })) : []));
+registerSheetRules((chatId) => (lessonsMode(chatId) === "model" ? storyLessons(chatId).slice(0, 10).map((l) => ({ type: "lesson" as const, label: l.text.slice(0, 120), id: l.id, text: l.text })) : []));
 
 // ---------- the [LESSONS] lane ----------
 
 registerLane("lessons", (ctx) => {
   if (ctx.kind !== "story" && ctx.kind !== "continue") return null;
   const seq = curSeq(ctx.chatId);
-  const list = activeLessons(ctx.chatId).slice(0, 12);
+  const list = storyLessons(ctx.chatId).slice(0, 12);
   if (!list.length) return null;
   for (const l of list) markSeen(l, ctx.chatId, seq);
   const strong = list.some((l) => l.strength >= STRONG);
@@ -512,7 +520,7 @@ registerInboxProvider({
         key: `lesson:${l.id}`,
         chatId: l.chatId!,
         chatTitle: "",
-        title: `A lesson${l.data.from === "edit" ? " from your edit" : " from your swipes"}${seq ? ` (#${seq})` : ""}`,
+        title: l.data.from === "planner" ? `A note for the planner${l.data.step ? ` (${l.data.step})` : ""}` : `A lesson${l.data.from === "edit" ? " from your edit" : " from your swipes"}${seq ? ` (#${seq})` : ""}`,
         why: [l.why, l.quote ? `“${l.quote}”` : ""].filter(Boolean).join(" "),
         before: null,
         after: l.text,

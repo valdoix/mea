@@ -1,8 +1,11 @@
 <script lang="ts">
   import Module from "../desk/Module.svelte";
   import Seg from "../desk/Seg.svelte";
-  import { get } from "../../lib/api";
+  import { get, post } from "../../lib/api";
   import { onEvent } from "../../lib/events";
+  import { isPlannerNote, type Lesson, lessonsState, loadLessons, removeLesson, setLesson } from "../../lib/lessons.svelte";
+  import { PLAN_STEPS } from "../../lib/plan";
+  import { errorToast, toast } from "../../lib/state.svelte";
   import type { Planbook, PlanStats, PlanTrendPoint } from "../../lib/types";
 
   /**
@@ -79,10 +82,27 @@
   const TIERS = ["Routine", "Charged", "Pivotal"] as const;
   const HOW: Record<string, string> = { own: "Its own reasoning", step: "A step of its own", first: "Planned first", planner: "The planner model", rescue: "The planner, as a last resort", none: "No plan" };
   const pct = (s: PlanStats | undefined) => (s?.firstTry == null ? "–" : `${Math.round(s.firstTry * 100)}%`);
-  const peek = $derived(!book || book.all.n < ENOUGH ? "Filling in" : book.recent.firstTry == null ? "" : `${Math.round(book.recent.firstTry * 100)}% first take`);
+  // The learning planner's notes: suggestions to keep or turn down, and the ones kept.
+  const notes = $derived(lessonsState.chatId === chatId ? lessonsState.list.filter((l) => isPlannerNote(l) && l.status !== "rejected") : []);
+  const waiting = $derived(notes.filter((l) => l.status === "suggested").length);
+  const stepName = (step?: string) => (step === "TIER" ? "Beat size" : (PLAN_STEPS.find((s) => s.key === step)?.label ?? "Plan"));
+  let reviewing = $state(false);
+  async function review() {
+    reviewing = true;
+    try {
+      const r = await post<{ notes: Lesson[] }>(`/api/chats/${chatId}/planbook/review`, {});
+      await loadLessons(chatId);
+      toast(r.notes.length ? `${r.notes.length} new note${r.notes.length === 1 ? "" : "s"} for the planner` : "Nothing new: the plans are doing what the notes say", { kind: r.notes.length ? "ok" : "info" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      reviewing = false;
+    }
+  }
+  const peek = $derived(waiting ? `${waiting} note${waiting === 1 ? "" : "s"} to look at` : !book || book.all.n < ENOUGH ? "Filling in" : book.recent.firstTry == null ? "" : `${Math.round(book.recent.firstTry * 100)}% first take`);
 </script>
 
-<Module title="Planner's notebook" fold open={false} {peek}>
+<Module title="Planner's notebook" fold open={false} {peek} led={waiting ? "warm" : null}>
   <div class="st-seg-row">
     <span class="st-k">Plans in</span>
     <Seg
@@ -159,6 +179,36 @@
         </tbody>
       </table>
     </details>
+  {/if}
+  <hr class="st-divider" />
+  <div class="notes-head">
+    <span class="st-k">Notes for the planner</span>
+    <button class="st-key small" type="button" onclick={review} disabled={reviewing || lessonsState.mode === "off"}>{reviewing ? "Reviewing…" : "Review now"}</button>
+  </div>
+  {#if lessonsState.mode === "off"}
+    <p class="st-hint">Lessons are off for this story (Story checks), so the planner doesn't learn either.</p>
+  {:else if !notes.length}
+    <p class="st-hint">As plans turn out, the planner suggests notes for its steps: the slip this story keeps making, beats it plans too small{lessonsState.mode === "model" ? ", what the plans of the takes you kept do differently" : ""}. Each waits for you to keep it; kept notes go into every plan.</p>
+  {:else}
+    {#each notes as l (l.id)}
+      <div class="note" class:off={l.status === "off"} class:waiting={l.status === "suggested"}>
+        <span class="step">{stepName(l.data.step)}</span>
+        <p class="ntext">{l.text}</p>
+        {#if l.why}<p class="why">{l.why}</p>{/if}
+        <div class="acts">
+          {#if l.status === "suggested"}
+            <button class="st-key small" type="button" onclick={() => setLesson(l, { status: "kept" })}>Keep</button>
+            <button class="st-link" type="button" onclick={() => setLesson(l, { status: "rejected" })}>Not this</button>
+          {:else if l.status === "kept"}
+            <span class="tiny muted">{l.resting ? "Resting: not needed lately" : "In every plan"}</span>
+            <button class="st-link" type="button" onclick={() => setLesson(l, { status: "off" })}>Switch off</button>
+          {:else}
+            <button class="st-link" type="button" onclick={() => setLesson(l, { status: "kept" })}>Switch on</button>
+            <button class="st-link" type="button" onclick={() => removeLesson(l)}>Forget</button>
+          {/if}
+        </div>
+      </div>
+    {/each}
   {/if}
 </Module>
 
@@ -255,6 +305,48 @@
     align-items: center;
     gap: 0.3rem;
     margin-top: 0.6rem;
+  }
+  .notes-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .note {
+    display: grid;
+    gap: 0.2rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--r-md, 12px);
+    background: var(--surface-2);
+    border-left: 3px solid var(--accent);
+  }
+  .note.waiting {
+    border-left-color: var(--warn);
+  }
+  .note.off {
+    opacity: 0.6;
+  }
+  .step {
+    font: 700 0.64rem var(--font-ui);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .ntext,
+  .why {
+    margin: 0;
+  }
+  .why {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.2rem;
   }
   .numbers {
     margin-top: 0.5rem;

@@ -14,6 +14,7 @@ import { embedChat } from "./memory/embed";
 import { consolidate } from "./memory/consolidate";
 import { recordTimeline, runCheckJob } from "./accuracy/checker";
 import { runLessonsJob } from "./steer/lessons";
+import { reviewPlans } from "./steer/plannernotes";
 import { runRewordJob } from "./accuracy/offpage";
 import { exposureAfterReply } from "./trackers/exposure";
 import { pressuresAfterReply } from "./trackers/pressures";
@@ -137,6 +138,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   // C1: "Suggest from the wiki" for the canon cutoff.
   registerJob("canon.suggest", async (p, job) => void (await suggestCanon(String(p.chatId), job)));
   registerJob("lessons.edit", async (p, job) => runLessonsJob(p as { chatId: string; messageId: string; before: string; after: string }, job));
+  // The learning planner: notes on how this story's plans should be made, from how they turned out.
+  registerJob("planner.review", async (p, job) => void (await reviewPlans((p as { chatId: string }).chatId, { job })));
   // DATA-05 / PERF-11: memory files come in as a chunked background job.
   registerJob("memory.import", async (p, job) => runMemoryImport(p as { chatId: string; file: string; mode: "merge" | "replace" }, job));
   setElsewhereLane((chatId) => worldLane(chatId));
