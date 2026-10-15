@@ -39,6 +39,7 @@ import { getDefaultPersona, getPersona } from "../services/personas";
 import { statusTiles } from "../services/status";
 import { filingsFor, undoFiling } from "../services/filings";
 import { noteEdit, noteKeptSwipe } from "../steer/lessons";
+import { notePlanReview } from "../steer/plannernotes";
 import type { SpokenLine } from "../lib/speakers";
 import { setSpeakers } from "../services/speakermarks";
 import { type Angle, ANGLES } from "../steer/swipes";
@@ -170,6 +171,7 @@ chats.post("/chats/:id/send", async (c) => {
     // A1: the reply before it was swiped and kept; learn from the takes passed over.
     try {
       noteKeptSwipe(chatId, userMessageId);
+      notePlanReview(chatId);
     } catch (e) {
       console.error("[mea] lessons:", e);
     }

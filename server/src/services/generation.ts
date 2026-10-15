@@ -58,6 +58,7 @@ import { anchorExtra } from "../accuracy/anchor";
 import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
+import { notebookText, type PlannerNote, plannerNotes } from "../steer/plannernotes";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
@@ -250,6 +251,8 @@ export function stopChatGenerations(chatId: string) {
 }
 
 interface Prepared {
+  /** The planner's notes this reply's plan had. */
+  notebook: PlannerNote[];
   characterId: string;
   card: CardData;
   userName: string;
@@ -446,6 +449,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       : kind === "story"
         ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise) })
         : null;
+  // The learning planner: the notes you kept, added to the planning pass.
+  const notebook = kind === "story" ? plannerNotes(chatId) : [];
   const style = styleExtra(chatId);
   const advisorMs = lap();
   let memoryMs = 0;
@@ -477,6 +482,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     feedback: opts.feedback,
     forcePlan: opts.forcePlan,
     planOnly: opts.planOnly,
+    plannerNotes: notebookText(notebook) || undefined,
     // Speaker marks: Mea's preset words the rule in its own block (mea-speakers); this fills it in.
     speakers: marks ? { roster: rosterLine(voices, userSealed), dropped: droppedMarks(history) } : undefined,
     tokenRatio: resolved.tokenRatio,
@@ -531,7 +537,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices, speakerMarks: marks };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices, speakerMarks: marks, notebook };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -1123,6 +1129,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         ...(ledgerRaw ? { ledger: ledgerRaw.slice(0, 6000) } : {}),
         ...(speakers.length ? { speakers } : {}),
         // Where the plan came from: its own pass, the plan step, or a separate planner (none when it skipped it).
+        ...(planAsked && p.notebook.length ? { notebook: p.notebook.map(({ step, text }) => ({ step, text })) } : {}),
         ...(planAsked ? { plan: planHow ?? (p.plannedPass ? "planner" : reasoning.trim().split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS ? "own" : "none") } : {}),
         ...(cutOff ? { cutOff: true } : {}),
         ...(guarded && text !== original ? { guard: { ...guarded.meta, original: original.slice(0, 20_000) } } : {}),

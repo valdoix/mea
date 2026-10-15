@@ -15,6 +15,7 @@ import { trackerPrompt } from "../trackers/service";
 import { gatherLanes } from "../prompt/lanes";
 import { PLANNING } from "../prompt/mea";
 import { currentFold } from "../trackers/store";
+import { notebookText, plannerNotes } from "./plannernotes";
 
 /**
  * The advisor ("council-lite", STEER-01): before a reply, a helper model writes a short private
@@ -204,6 +205,8 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
       const st = currentFold(chatId).result.state;
       const lanes = gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).map((l) => l.content.trim()).filter(Boolean);
       if (lanes.length) parts.push(`WHAT MEA'S FEATURES ADD THIS TURN:\n${lanes.join("\n\n").slice(0, 5000)}`);
+      const notes = notebookText(plannerNotes(chatId));
+      if (notes) parts.push(notes);
     } catch {
       // lanes are optional
     }

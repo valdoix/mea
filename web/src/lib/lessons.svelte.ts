@@ -17,7 +17,7 @@ export interface Lesson {
   strength: number;
   by: "rules" | "model" | "edit" | "user";
   lastBrokenSeq: number | null;
-  data: { seq?: number; keptIdx?: number; kept?: string; rejected?: { idx: number; quote: string }[]; from?: string; slip?: { kind: string; subject?: string } };
+  data: { seq?: number; keptIdx?: number; kept?: string; rejected?: { idx: number; quote: string }[]; from?: string; slip?: { kind: string; subject?: string }; step?: string; rule?: string };
   createdAt: number;
   resting?: boolean;
 }
@@ -53,8 +53,13 @@ export function watchLessons(chatId: string) {
   };
 }
 
+/** Planner notes (the learning planner) live in the Planner's notebook, not with the story's lessons. */
+export const isPlannerNote = (l: Lesson) => l.data.from === "planner";
+/** The story's own lessons. */
+export const storyLessons = () => lessonsState.list.filter((l) => !isPlannerNote(l));
+
 /** Suggestions learned from one reply's swipes (the chip under it). */
-export const suggestedFor = (messageId: string) => lessonsState.list.filter((l) => l.status === "suggested" && l.messageId === messageId);
+export const suggestedFor = (messageId: string) => storyLessons().filter((l) => l.status === "suggested" && l.messageId === messageId);
 
 export async function setLesson(l: Lesson, p: { text?: string; scope?: LessonScope; status?: "kept" | "off" | "rejected" }) {
   try {

@@ -417,6 +417,9 @@ function helperJson(name: string, user: string, system = ""): unknown {
     // A1: a lesson only when the takes ask for one (MOCK_LESSON), so other tests stay quiet.
     case "lessons_from_swipes":
       return { lessons: /MOCK_LESSON/.test(user) ? [{ text: "Keep the storm in every scene.", why: "The kept take kept the storm.", quote: "calm night" }] : [] };
+    // The learning planner's helper pass: a note only when the plans ask for one (MOCK_NOTE).
+    case "planner_review":
+      return { notes: /MOCK_NOTE/.test(user) ? [{ step: "MOVE", text: "Prefer the sideways consequence over the obvious answer.", why: "Every kept plan chose the sideways move." }] : [] };
     case "lesson_from_edit":
       return /MOCK_LESSON/.test(user) ? { lesson: "Mira doesn't apologise easily.", why: "You cut her apology." } : { lesson: "", why: "" };
     default:

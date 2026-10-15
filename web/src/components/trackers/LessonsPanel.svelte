@@ -3,7 +3,7 @@
   import Seg from "../desk/Seg.svelte";
   import { dockRequest } from "../../lib/dock.svelte";
   import { Plus, Trash } from "../../lib/icons";
-  import { addLesson, type Lesson, type LessonScope, lessonsState, removeLesson, SCOPES, setLesson } from "../../lib/lessons.svelte";
+  import { addLesson, type Lesson, type LessonScope, lessonsState, removeLesson, SCOPES, setLesson, storyLessons } from "../../lib/lessons.svelte";
 
   /**
    * A1: the Story tab's Lessons. Every lesson that applies here (this story, this character,
@@ -12,8 +12,8 @@
    */
   let { chatId }: { chatId: string } = $props();
 
-  const shown = $derived(lessonsState.list.filter((l) => l.status === "kept" || l.status === "off"));
-  const waiting = $derived(lessonsState.list.filter((l) => l.status === "suggested").length);
+  const shown = $derived(storyLessons().filter((l) => l.status === "kept" || l.status === "off"));
+  const waiting = $derived(storyLessons().filter((l) => l.status === "suggested").length);
   const active = $derived(shown.filter((l) => l.status === "kept" && !l.resting).length);
   let text = $state("");
   let scope = $state<LessonScope>("story");
