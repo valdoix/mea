@@ -194,7 +194,7 @@ describe("links between the creators", () => {
     await runCreatorJob(p.id);
     const saved = saveCreator(p.id, { makeDefault: true });
     const persona = getPersona(saved.id)!;
-    expect(persona.data.pronouns).toBe("she/her");
+    expect(persona.data.pronouns).toBe("she/her/her");
     expect(persona.isDefault).toBe(true);
     expect(linkedBooks("persona", saved.id).map((x) => x.id)).toContain(worldId);
     expect(companionLore(p.id).source.kind).toBe("persona");
@@ -222,7 +222,8 @@ describe("API", () => {
     const id = made.json.draft.id;
     expect((await api("GET", "/api/creator")).json.drafts.some((x: { id: string }) => x.id === id)).toBe(true);
     expect((await api("POST", `/api/creator/${id}/expand`)).json.draft.expansion.sections.length).toBe(4);
-    expect((await api("POST", `/api/creator/${id}/readback`)).json.draft.questions.length).toBe(2);
+    // The read-back asks one question at a time.
+    expect((await api("POST", `/api/creator/${id}/readback`)).json.draft.questions.length).toBe(1);
     expect((await api("POST", `/api/creator/${id}/write`)).status).toBe(400);
     expect((await api("POST", `/api/creator/${id}/bible`)).json.draft.bible.length).toBeGreaterThan(5);
     expect((await api("POST", `/api/creator/${id}/bible/check`)).json.draft.bibleCheck).toEqual([]);

@@ -55,6 +55,12 @@ export function checkProse(text: string, opts: { maxTokens?: number; minTokens?:
   return out;
 }
 
+/** A companion scenario ends on what {{char}} is after in the opening scene. */
+export function checkScenario(text: string): CardIssue[] {
+  if (!text.trim() || /^\s*scene[- ]objective\s*:/im.test(text)) return [];
+  return [{ kind: "no-objective", severity: "info", message: 'No "Scene-objective:" line: say what they want to find out or get in this first scene, so the opening has a direction.' }];
+}
+
 /** A persona written like a character card: {{char}}, chat lines, or a relationship "with {{user}}" (the persona is {{user}}). */
 export function checkPersona(text: string): CardIssue[] {
   if (!text.trim()) return [];

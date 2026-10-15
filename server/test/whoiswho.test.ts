@@ -46,8 +46,9 @@ describe("who is who", () => {
     expect(readback).toContain("This is a PERSONA");
     expect(readback).not.toContain("what they want from {{user}}, the line");
     await writeBible(p.id);
-    expect(sent("creator:bible")).toContain("This is a PERSONA");
-    expect(sent("creator:bible")).toContain("Persona craft");
+    // The bible is written in passes; the first is "creator:bible:psyche".
+    expect(sent("creator:bible:psyche")).toContain("This is a PERSONA");
+    expect(sent("creator:bible:psyche")).toContain("Persona craft");
     queueFields(p.id);
     await runCreatorJob(p.id);
     expect(sent("creator:description")).toContain("This is a PERSONA");

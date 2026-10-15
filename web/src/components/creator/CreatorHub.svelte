@@ -6,6 +6,7 @@
   import { navigate, route } from "../../lib/router.svelte";
   import { app, errorToast } from "../../lib/state.svelte";
   import type { CreatorDraft, CreatorDraftSummary, CreatorKind, LorebookSummary, StudioDraftSummary } from "../../lib/types";
+  import CreatorImport from "./CreatorImport.svelte";
 
   /** The Creator Studio's front door: characters, personas and worlds, and every draft in progress. */
   let kind = $state<CreatorKind | null>(null);
@@ -101,6 +102,8 @@
       </div>
     </section>
   {/if}
+
+  <CreatorImport />
 
   {#if rows.length}
     <section class="stack tight">

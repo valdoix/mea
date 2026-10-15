@@ -58,11 +58,17 @@
       <div class="field"><span class="label">Length</span><Segmented value={o.length} options={[{ value: "lean", label: "Lean" }, { value: "standard", label: "Standard" }, { value: "rich", label: "Rich" }]} onchange={(v) => set("length", v)} small /></div>
       <label class="field"><span class="label">Tone and genre</span><input class="input" value={o.tone} oninput={(e) => set("tone", e.currentTarget.value, 600)} placeholder="quiet gothic, slow-burn romance, noir…" /></label>
       <label class="field"><span class="label">Style notes</span><input class="input" value={o.style} oninput={(e) => set("style", e.currentTarget.value, 600)} placeholder="British spelling; actions in *asterisks*" /></label>
+      <div class="field"><span class="label">Description format</span><Segmented value={o.format} options={[{ value: "prose", label: "Flowing prose" }, { value: "tagged", label: isChar ? "Tagged sheet" : "Short bullets" }]} onchange={(v) => set("format", v)} small /></div>
+    </div>
+    <div class="stack tight switches">
+      <label class="switch"><input type="checkbox" checked={o.autoCheck} onchange={(e) => set("autoCheck", e.currentTarget.checked)} /> Check every field as it's written, and revise it once if it falls short <span class="faint">(more calls)</span></label>
+      <label class="switch"><input type="checkbox" checked={o.depthBook} onchange={(e) => set("depthBook", e.currentTarget.checked)} /> On save, put depth entries in a triggered lorebook bound to {isChar ? "the card" : "the persona"}</label>
+      {#if isChar}<label class="switch"><input type="checkbox" checked={o.rulesBook} onchange={(e) => set("rulesBook", e.currentTarget.checked)} /> On save, bind a rules book: always-on rules and a re-anchor, so it plays to spec under any preset</label>{/if}
     </div>
   </details>
 
   <div class="row wrap actions">
-    <button class="btn" onclick={() => session.act("readback", "/readback")} disabled={Boolean(session.busy) || !hasMaterial}><MessageQuestion size={16} /> {session.busy === "readback" ? "Reading…" : "Ask me questions first"}</button>
+    <button class="btn" onclick={() => session.act("readback", "/readback")} disabled={Boolean(session.busy) || !hasMaterial}><MessageQuestion size={16} /> {session.busy === "readback" ? "Reading…" : "Read my idea and ask me"}</button>
     <button class="btn primary" onclick={() => session.act("bible", "/bible")} disabled={Boolean(session.busy) || !hasMaterial}><NotebookPen size={16} /> {session.busy === "bible" ? "Writing the bible…" : "Write the bible"}</button>
   </div>
   <p class="tiny muted">The bible is the single source of truth (look, voice, past, wants, flaws, secrets{isChar ? ", what they want from you" : ""}) and every field of the {isChar ? "card" : "persona"} is written from it. You review it before anything is written.</p>
@@ -80,5 +86,8 @@
   }
   .actions {
     justify-content: flex-end;
+  }
+  .switches {
+    margin-top: 0.8rem;
   }
 </style>

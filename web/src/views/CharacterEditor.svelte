@@ -14,6 +14,7 @@
   import TestBench from "../components/cardtools/TestBench.svelte";
   import VariantsPanel from "../components/cardtools/VariantsPanel.svelte";
   import VoiceLab from "../components/cardtools/VoiceLab.svelte";
+  import WorldAgency from "../components/cardtools/WorldAgency.svelte";
   import { download, get, post, put, del } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { clock, timeAgo } from "../lib/format";
@@ -467,6 +468,7 @@
             <label class="field grow"><span class="label">Version</span><input class="input" bind:value={draft.character_version} /></label>
           </div>
           <CharacterDefaults characterId={id} settings={character.settings} />
+          {#if (mode === "auto" ? guess?.mode : mode) === "narrator"}<WorldAgency characterId={id} />{/if}
         </div>
       {:else if tab === "voice"}
         <VoiceLab characterId={id} card={cardNow} kept={character.settings?.voice?.kept ?? []} onexamples={(t) => draft && (draft.mes_example = [draft.mes_example.trim(), t].filter(Boolean).join("\n"))} />

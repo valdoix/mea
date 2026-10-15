@@ -2,7 +2,7 @@
   import Segmented from "../Segmented.svelte";
   import { Plus, Trash } from "../../lib/icons";
   import { app, errorToast, saveSetting } from "../../lib/state.svelte";
-  import type { GuidanceChip, Settings, SteerConfig } from "../../lib/types";
+  import type { CreatorTuning, GuidanceChip, Settings, SteerConfig } from "../../lib/types";
 
   const s = $derived(app.settings);
   let newPhrase = $state("");
@@ -26,6 +26,21 @@
   function addChip() {
     void save("chat.guidance", [...chips(), { id: `g-${crypto.randomUUID().slice(0, 6)}`, name: "New chip", text: "", mode: "once" }]);
   }
+  // The creators' knobs: writing runs warmer than judging; caps on extra questions and proposals.
+  const TUNING: { key: keyof CreatorTuning; label: string; hint: string; def: number; min: number; max: number; step: number }[] = [
+    { key: "writeTemp", label: "Writing temperature", hint: "questions, the bible, fields, entries", def: 0.8, min: 0, max: 2, step: 0.05 },
+    { key: "judgeTemp", label: "Judging temperature", hint: "checks, the read-back", def: 0.2, min: 0, max: 2, step: 0.05 },
+    { key: "deepenCap", label: "Extra questions an interview may ask", hint: "after the essentials", def: 6, min: 0, max: 50, step: 1 },
+    { key: "peopleCount", label: "People per proposal", hint: "a world's People", def: 5, min: 1, max: 20, step: 1 },
+    { key: "namedTarget", label: "Answers before a profile is suggested", hint: "weaving a person", def: 3, min: 1, max: 20, step: 1 },
+  ];
+  const tuning = (): CreatorTuning => ({ writeTemp: null, judgeTemp: null, deepenCap: null, peopleCount: null, namedTarget: null, ...(s?.["creator.tuning"] ?? {}) });
+  function setTuning(key: keyof CreatorTuning, raw: string) {
+    const t = TUNING.find((x) => x.key === key)!;
+    const n = raw.trim() === "" ? null : Math.min(t.max, Math.max(t.min, t.step < 1 ? Number(raw) : Math.round(Number(raw))));
+    void save("creator.tuning", { ...tuning(), [key]: n === null || Number.isNaN(n) ? null : n });
+  }
+
   function setSteer(patch: Partial<SteerConfig>) {
     if (!s) return;
     void save("steer.config", { ...$state.snapshot(s["steer.config"]), ...patch });
@@ -41,6 +56,19 @@
 
 {#if s}
   <div class="stack">
+    <section class="panel stack">
+      <h2>Creator Studio</h2>
+      <p class="tiny muted">How much the character, persona and lorebook creators do in one go, and how warm the model runs. Empty means Mea's default (shown in grey).</p>
+      <div class="grid">
+        {#each TUNING as t (t.key)}
+          <label class="field">
+            <span class="label">{t.label} <span class="faint">{t.hint}</span></span>
+            <input class="input" type="number" min={t.min} max={t.max} step={t.step} placeholder={String(t.def)} value={tuning()[t.key] ?? ""} onchange={(e) => setTuning(t.key, e.currentTarget.value)} />
+          </label>
+        {/each}
+      </div>
+    </section>
+
     <section class="panel stack">
       <h2>The advisor</h2>
       <p class="tiny muted">Before each reply, a helper model writes a short private plan: the direction, a few beats, threads worth touching, continuity to keep straight. It runs while you type, so sending rarely waits; it sees its own last few plans so longer plotting holds together. Uses the helper route (Settings → Models).</p>

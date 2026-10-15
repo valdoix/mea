@@ -27,7 +27,19 @@ import {
   saveCreator,
   stopFields,
   writeBible,
+  answerQuestion,
+  applyPairing,
+  composeDepth,
+  finishInterview,
+  interviewPlan,
+  nextQuestion,
+  pairedGreeting,
+  questionDirections,
+  resetInterview,
+  suggestTreatment,
+  weaveCreator,
 } from "../creator/creator";
+import { harvestFromCreator } from "../lore/people";
 import { extendText } from "../creator/expand";
 
 /** The character and persona creator (Phase 4). */
@@ -45,14 +57,20 @@ const optionsSchema = z.object({
   style: z.string().max(600),
   mode: z.enum(["companion", "narrator"]),
   greetings: z.number().int().min(0).max(5),
+  format: z.enum(["prose", "tagged"]),
+  autoCheck: z.boolean(),
+  depthBook: z.boolean(),
+  rulesBook: z.boolean(),
 });
+const source = z.enum(["idea", "typed", "picked", "extended"]);
 const expansionPatch = z.object({
   sections: z.array(z.object({ id: z.string().max(100), heading: z.string().max(200).optional(), text: z.string().max(20_000).optional() })).max(40).optional(),
   use: z.boolean().optional(),
   remove: z.array(z.string()).optional(),
 });
 const steer = z.object({ steer: z.string().max(1000).optional() }).default({});
-const d = (draft: ReturnType<typeof mustCreator>) => ({ draft });
+/** The draft, with what the interview will do about each section ("I'll handle next"). */
+const d = (draft: ReturnType<typeof mustCreator>) => ({ draft: { ...draft, plan: interviewPlan(draft) } });
 
 creator.get("/creator", (c) => c.json({ drafts: listCreatorDrafts() }));
 
@@ -66,6 +84,9 @@ creator.post("/creator", async (c) => {
       baseId: z.string().nullable().optional(),
       fromLore: z.object({ draftId: z.string(), itemId: z.string() }).nullable().optional(),
       fromDraftId: z.string().nullable().optional(),
+      asCopy: z.boolean().optional(),
+      fromEntry: z.object({ bookId: z.string(), entryId: z.string() }).nullable().optional(),
+      oppositeOf: z.object({ draftId: z.string().nullable().optional(), characterId: z.string().nullable().optional() }).nullable().optional(),
       worldBookIds: z.array(z.string()).max(20).optional(),
       loreDraftId: z.string().nullable().optional(),
       options: optionsSchema.partial().optional(),
@@ -98,10 +119,22 @@ creator.put("/creator/:id", async (c) => {
       fields: z.record(z.string(), z.string().max(40_000)).optional(),
       basedOn: z.string().max(200).optional(),
       dismissKindHint: z.boolean().optional(),
+      dismissModeHint: z.boolean().optional(),
+      answerSources: z.record(z.string(), source).optional(),
+      accepted: z.record(z.string(), z.boolean()).optional(),
+      facts: z.array(z.object({ id: z.string().optional(), section: z.string().max(40).optional(), text: z.string().max(4000).optional(), remove: z.boolean().optional() })).max(100).optional(),
+      claims: z.array(z.string().max(40)).max(40).optional(),
+      optional: z.array(z.string().max(40)).max(10).optional(),
+      taste: z.array(z.string().max(200)).max(24).optional(),
+      brief: z.string().max(4000).optional(),
+      depth: z.array(z.object({ id: z.string().optional(), title: z.string().max(200).optional(), content: z.string().max(4000).optional(), keys: z.array(z.string().max(80)).max(12).optional(), remove: z.boolean().optional() })).max(60).optional(),
     }),
   );
   return c.json(d(patchCreator(c.req.param("id"), input)));
 });
+
+/** How to rebuild an imported card: what it carries, and whether it reads as one character or a narrator. */
+creator.get("/creator/treatment/:characterId", async (c) => c.json(await suggestTreatment(c.req.param("characterId"))));
 
 creator.delete("/creator/:id", (c) => {
   deleteCreatorDraft(c.req.param("id"));
@@ -117,12 +150,27 @@ creator.post("/creator/:id/kind", async (c) => {
 creator.post("/creator/:id/expand", async (c) => c.json(d(await expandCreator(c.req.param("id"), (await opts(c, steer)).steer))));
 creator.post("/creator/:id/expand/:sectionId", async (c) => c.json(d(await deepenCreator(c.req.param("id"), c.req.param("sectionId"), (await opts(c, steer)).steer))));
 creator.post("/creator/:id/readback", async (c) => c.json(d(await creatorReadback(c.req.param("id")))));
+/** The interview: the next question (asking again skips the open one), answering it, directions, finishing, starting over. */
+creator.post("/creator/:id/question", async (c) => c.json(d(await nextQuestion(c.req.param("id"), await opts(c, steer)))));
+creator.post("/creator/:id/questions/:qid/answer", async (c) => {
+  const input = await body(c, z.object({ answer: z.string().min(1).max(8000), source: source.optional(), next: z.boolean().optional() }));
+  return c.json(d(await answerQuestion(c.req.param("id"), c.req.param("qid"), input)));
+});
+creator.post("/creator/:id/questions/:qid/directions", async (c) => c.json(d(await questionDirections(c.req.param("id"), c.req.param("qid"), (await opts(c, steer)).steer))));
+creator.post("/creator/:id/interview/finish", (c) => c.json(d(finishInterview(c.req.param("id")))));
+creator.post("/creator/:id/interview/reset", (c) => c.json(d(resetInterview(c.req.param("id")))));
+creator.post("/creator/:id/weave", async (c) => c.json(d(await weaveCreator(c.req.param("id")))));
+/** Depth entries: deepening answers composed (and, with fromBible, more drafted from the bible). */
+creator.post("/creator/:id/depth", async (c) => c.json(d(await composeDepth(c.req.param("id"), await opts(c, z.object({ fromBible: z.boolean().optional() }).default({}))))));
+/** A persona's opening written opposite its character, and adding it to that character. */
+creator.post("/creator/:id/pairing", async (c) => c.json(d(await pairedGreeting(c.req.param("id"), (await body(c, z.object({ register: z.string().max(40) }))).register))));
+creator.post("/creator/:id/pairing/apply", async (c) => c.json(d(applyPairing(c.req.param("id"), (await opts(c, z.object({ text: z.string().max(8000).optional() }).default({}))).text))));
 creator.post("/creator/:id/bible", async (c) => c.json(d(await writeBible(c.req.param("id"), (await opts(c, steer)).steer))));
 creator.post("/creator/:id/bible/check", async (c) => c.json(d(await checkBible(c.req.param("id")))));
 creator.post("/creator/:id/bible/:key", async (c) => c.json(d(await rewriteBibleSection(c.req.param("id"), c.req.param("key"), (await opts(c, steer)).steer))));
 
 creator.post("/creator/:id/write", async (c) => {
-  const input = await opts(c, z.object({ keys: z.array(z.string()).optional(), steer: z.string().max(1000).optional(), all: z.boolean().optional() }).default({}));
+  const input = await opts(c, z.object({ keys: z.array(z.string()).optional(), steer: z.string().max(1000).optional(), all: z.boolean().optional(), force: z.boolean().optional() }).default({}));
   return c.json(d(queueFields(c.req.param("id"), input)));
 });
 creator.post("/creator/:id/stop", (c) => c.json(d(stopFields(c.req.param("id")))));
@@ -153,7 +201,11 @@ creator.delete("/creator/:id/cowrite", (c) => c.json(d(clearCreatorChat(c.req.pa
 
 creator.post("/creator/:id/save", async (c) => {
   const input = await opts(c, z.object({ makeDefault: z.boolean().optional() }).default({}));
-  return c.json(saveCreator(c.req.param("id"), input));
+  const saved = saveCreator(c.req.param("id"), input);
+  // A narrator's named people go into its people book's roster (best effort: the save already stands).
+  let peopleBookId: string | null = null;
+  if (saved.draft.kind === "character" && saved.draft.options.mode === "narrator") peopleBookId = await harvestFromCreator(saved.draft.id).catch(() => null);
+  return c.json({ ...saved, draft: d(saved.draft).draft, peopleBookId });
 });
 
 /** A companion lorebook drafted from the bible (CHAR-18 / PER-03): returns the Lore Studio draft. */

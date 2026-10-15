@@ -8,6 +8,7 @@ import { HttpError } from "./lib/http";
 import { chats } from "./routes/chats";
 import { library } from "./routes/library";
 import { lore } from "./routes/lore";
+import { lorecraft } from "./routes/lorecraft";
 import { memory } from "./routes/memory";
 import { models } from "./routes/models";
 import { system } from "./routes/system";
@@ -83,6 +84,7 @@ export function createApp() {
   app.get("/api/ping", (c) => c.json({ ok: true, app: "mea" }));
   app.route("/api", library);
   app.route("/api", lore);
+  app.route("/api", lorecraft);
   app.route("/api", studio);
   app.route("/api", creator);
   app.route("/api", cardtools);

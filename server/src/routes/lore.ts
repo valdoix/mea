@@ -44,6 +44,7 @@ const settingsSchema = z.object({
   matchWholeWords: z.boolean().optional(),
   semantic: z.boolean().optional(),
   chronicleFor: z.string().optional(),
+  role: z.enum(["depth", "lore", "people", "rules"]).optional(),
 });
 
 const entrySchema = z.object({
@@ -144,7 +145,7 @@ lore.post("/lorebooks/:id/autosort", async (c) => {
   const b = await body(c, z.object({ apply: z.boolean().default(false), defaults: z.boolean().default(false), onlyNew: z.boolean().default(true) }));
   const book = must(getLorebook(c.req.param("id")), "Lorebook not found");
   const out = getEntries(book.id).map((e) => {
-    const g = guessCategory(e, book.name);
+    const g = guessCategory(e, book.name, book.settings.role);
     const had = categoryOf(e);
     const write = b.apply && (!b.onlyNew || !had);
     if (write) updateEntry(e.id, withCategory(e, g.category, { defaults: b.defaults, confidence: g.confidence }));

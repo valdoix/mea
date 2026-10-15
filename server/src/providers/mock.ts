@@ -23,8 +23,19 @@ function ledgerLines(text: string) {
 const firstSentence = (s: string) => (s.replace(/[*_"]/g, "").match(/^.{1,160}?[.!?](\s|$)/)?.[0] ?? s.replace(/[*_"]/g, "").slice(0, 160)).trim();
 const names = (s: string) => [...new Set((s.match(/\b[A-Z][a-z]{2,}\b/g) ?? []).filter((w) => !["The", "She", "You", "Outside", "Sit", "This", "That", "Mock"].includes(w)))].slice(0, 4);
 
+/** The criteria a gate's system prompt lists ("- key (Label): …"). */
+const criteriaIn = (system: string) => [...(system.split("CRITERIA:")[1] ?? "").matchAll(/^- (\w+) \(/gm)].map((m) => m[1]!);
+
+/** A gate passes every criterion unless the text under judgement says MOCK_GATE_FAIL. */
+function mockGate(system: string, user: string) {
+  const judged = user.split("THE TEXT TO JUDGE:")[1] ?? "";
+  const fail = /MOCK_GATE_FAIL/.test(judged);
+  return { criteria: criteriaIn(system).map((key, i) => ({ key, passed: !(fail && i === 0), note: fail && i === 0 ? "It's generic." : "Strong." })), summary: fail ? "One thing to fix." : "It works." };
+}
+
 /** Deterministic stand-ins for the memory helpers, keyed by the schema name the caller asks for. */
-function helperJson(name: string, user: string): unknown {
+function helperJson(name: string, user: string, system = ""): unknown {
+  if (name.endsWith("_gate")) return mockGate(system, user);
   const lines = ledgerLines(user);
   switch (name) {
     case "scene_memory": {
@@ -292,20 +303,68 @@ function helperJson(name: string, user: string): unknown {
       const again = /THE CURRENT VERSION:/.test(user) ? " (reworked)" : "";
       return { sections: heads.map((h) => ({ heading: h, text: `${h} for ${firstSentence(idea) || "the idea"} Named: ${names(idea).join(", ") || "nobody yet"}.${again}` })) };
     }
-    case "creator_readback":
+    case "creator_readback": {
+      const idea = (user.split(/THE AUTHOR'S IDEA \(canon\):\n/)[1] ?? "").split("\n\n")[0] ?? "";
       return {
         reads: /\bI'm\b|\bmy persona\b/.test(user) ? "persona" : /MOCK_CARD/.test(user) ? "character" : "",
         readsWhy: /\bI'm\b/.test(user) ? 'It says "I\'m".' : "",
+        card: /MOCK_NARRATOR/.test(user) ? "narrator" : "",
+        cardWhy: /MOCK_NARRATOR/.test(user) ? "It runs a whole town." : "",
         understood: `Someone built from ${names(user).slice(0, 2).join(" and ") || "the author's idea"}.`,
         missing: ["their voice", "what they want"],
-        questions: [
-          { q: "What do they want that they can't admit?", why: "A hidden want drives scenes.", suggestions: ["To be forgiven", "To leave", "To be chosen first"] },
-          { q: "How do they talk when they're angry?", why: "Voice under pressure is what players remember." },
-        ],
+        facts: [{ section: "identity", text: firstSentence(idea) || "someone" }, ...(/debt|owes/i.test(idea) ? [{ section: "secrets", text: "owes money" }] : [])],
+        gaps: [{ section: "personality", note: "no contradiction yet" }, { section: "user", note: "how they meet" }],
+        detected: /MOCK_ARC/.test(user) ? ["arc"] : [],
       };
+    }
+    case "creator_question": {
+      const target = (user.split("PRIORITIES (")[1] ?? "").match(/^- (\w+) \(/m)?.[1] ?? "depth";
+      const steer = user.match(/^STEER from the author for this question: (.*)$/m)?.[1];
+      const n = (user.match(/^- Q: /gm) ?? []).length + 1;
+      return { q: `Question ${n} about ${target}${steer ? ` (${steer})` : ""}: what would they never admit?`, why: "It pins down what drives them.", target };
+    }
+    case "creator_directions": {
+      const steer = user.match(/^STEER: (.*)$/m)?.[1] ?? "";
+      const seen = (user.split("Already shown")[1] ?? "").match(/^- /gm)?.length ?? 0;
+      return { options: [1, 2, 3].map((k) => ({ caption: `Direction ${k + seen}${steer ? ` (${steer})` : ""}`, text: `Answer ${k + seen}: she keeps the logbook's missing page in her coat${steer ? `, ${steer}` : ""}.` })) };
+    }
+    case "creator_spillover": {
+      const answer = user.split("THE ANSWER:\n")[1]?.split("\n\n")[0] ?? "";
+      return { facts: /sister/i.test(answer) ? [{ section: "relationships", text: "a sister in the navy" }] : [] };
+    }
+    case "creator_weave":
+      return { brief: "A dry, tired keeper who hides kindness behind work; she wants forgiveness and won't ask for it.", links: [{ from: "backstory", to: "personality", relation: "hardened into" }, { from: "nowhere", to: "personality", relation: "dropped" }] };
+    case "creator_depth_entry": {
+      const q = user.match(/^QUESTION: (.*)$/m)?.[1] ?? "";
+      const a = user.match(/^ANSWER \([^)]*\): (.*)$/m)?.[1] ?? "";
+      return { title: q.split(":")[0]!.slice(0, 40) || "Depth", content: `Mira ${a.replace(/^I /, "")}`.trim(), keys: names(a).length ? names(a) : ["past"] };
+    }
+    case "creator_depth_from_bible":
+      return { entries: [{ title: "The missing page", content: "Mira tore a page from the logbook the night the ferry sank.", keys: ["logbook", "page"] }, { title: "Her brother", content: "Her brother left for the navy and stopped writing.", keys: ["brother"] }] };
+    case "creator_treatment":
+      return /MOCK_NARRATOR/.test(user) ? { treatment: "narrator", why: "It voices the whole town." } : { treatment: "character", why: "It's one woman." };
+    case "lore_grow_entry": {
+      const a = user.match(/^ANSWER \([^)]*\): (.*)$/m)?.[1] ?? "";
+      return { title: names(a)[0] ?? "Grown lore", content: a, keys: names(a).length ? names(a) : ["lore"], essentials: firstSentence(a) };
+    }
+    case "lore_enrich": {
+      const entry = user.split(/THE ENTRY: [^\n]*\n/)[1] ?? "";
+      return { content: /MOCK_EMPTY/.test(entry) ? "" : `${entry.trim()} Enriched: the harbour bell rings twice when it's true.${/MOCK_WORSE/.test(entry) ? " MOCK_GATE_FAIL" : ""}` };
+    }
+    case "people_propose":
+      return { people: [{ name: "Tam Hollis", hook: "pilots the tithe boat" }, { name: "Edda Crane", hook: "the clerk's apprentice" }] };
+    case "people_harvest":
+      return { people: [...new Set(user.match(/\b[A-Z][a-z]+ [A-Z][a-z]+\b/g) ?? [])].map((n) => ({ name: n, hook: `${n}, named in the build` })) };
+    case "person_extra":
+      return { content: `${user.match(/^THE PERSON: ([^:\n]+)/m)?.[1] ?? "They"} works the docks and says little.`, keys: [] };
+    case "person_profile": {
+      const who = user.match(/^THE PERSON: ([^:\n]+)/m)?.[1] ?? "They";
+      const a = [...user.matchAll(/^A: (.*?) \[/gm)].map((m) => m[1]).join(" ");
+      return { content: `${who} talks in short, salted sentences. ${a}`, keys: [] };
+    }
     case "creator_bible": {
       const name = user.match(/^NAME: (.+)$/m)?.[1] ?? names(user.split("THE AUTHOR'S IDEA")[1] ?? user)[0] ?? "Wren";
-      const keys = ["identity", "appearance", "personality", "voice", "backstory", "background", "motivation", "flaws", "relationships", "secrets", "details", "user", "hooks", "skills"];
+      const keys = ["identity", "appearance", "personality", "voice", "backstory", "background", "motivation", "flaws", "relationships", "secrets", "details", "user", "hooks", "skills", "gradient", "tensions", "negative", "arc", "intimacy", "agency"];
       const steer = /THE CURRENT BIBLE:/.test(user) ? " Reworked." : "";
       return { name, ...Object.fromEntries(keys.map((k) => [k, `${name}'s ${k}: specific and playable.${k === "voice" ? ' "Sit. You look like the fog chewed you."' : ""}${steer}`])) };
     }
@@ -331,7 +390,11 @@ function helperJson(name: string, user: string): unknown {
       return { name: idea.split(" ").slice(0, 3).join(" "), note: `The ${idea}.`, fields: { description: `In the ${idea}: the same person, different clothes.`, first_mes: `Snow falls on the harbour as she looks up. "You came back?"`, nonsense: "dropped" } };
     }
     case "creator_bible_check":
-      return { issues: /MOCK_ISSUE/.test(user) ? [{ section: "voice", problem: "The voice is flat.", fix: "Give them a verbal habit." }] : [] };
+      return {
+        criteria: criteriaIn(system).map((key) => ({ key, passed: !(/MOCK_ISSUE/.test(user) && key === "specificity"), note: "Checked." })),
+        summary: /MOCK_ISSUE/.test(user) ? "The voice is the weak spot." : "It works.",
+        issues: /MOCK_ISSUE/.test(user) ? [{ section: "voice", problem: "The voice is flat.", fix: "Give them a verbal habit." }] : [],
+      };
     // B1: the text with every sentence that uses a never-say word left out.
     case "offpage_reword": {
       const words = [...user.matchAll(/never say: ([^)\n]*)\)/g)].flatMap((m) => m[1]!.split(",").map((w) => w.trim().toLowerCase())).filter(Boolean);
@@ -389,7 +452,7 @@ function mockPlainText(system: string, user: string): string | null {
           : `${name} looks up from the logbook as the door bangs open, and the lamp gutters in the draught. "You're late," ${name} says, sliding a chipped mug across the table. The tea is still warm; the fog presses at the glass like a held breath. "Sit down. The harbourmaster was here asking about you, and I told him nothing. ${field === "Greeting" ? "So" : "Now"} — what did the fog take from you this time?"`;
     else if (field === "Example dialogue") text = `<START>\n{{user}}: Hello.\n{{char}}: "Hello yourself." ${name} doesn't look up from the ledger.\n<START>\n{{user}}: Are you angry?\n{{char}}: "Angry is for people with time." ${name} snaps the book shut.`;
     else if (field === "Tags") text = "Fantasy, Harbour, mystery, slow burn";
-    else if (field === "Pronouns") text = "she/her";
+    else if (field === "Pronouns") text = "she/her/her";
     else text = `${field} of ${name}: ${name} keeps the harbour light and keeps her promises, and the people of Port Ellis know both cost her something. She talks in short, dry sentences and laughs only when she's tired.${/MOCK_SLIP/.test(user) ? " {{char}} hides it well." : ""}`;
     return asks ? `${text} (${asks})` : text;
   }
@@ -437,7 +500,7 @@ export class MockProvider implements Provider {
     const helper = schemaName ?? (/Reply with one JSON object only|Reply with JSON only/.test(system) ? guessSchema(system) : undefined);
     if (helper) {
       const user = req.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
-      const text = JSON.stringify(helperJson(helper, user));
+      const text = JSON.stringify(helperJson(helper, user, system));
       onDelta({ text });
       const promptTokens = Math.round(JSON.stringify(req.messages).length / 4);
       return { finishReason: "stop", usage: { promptTokens, completionTokens: Math.round(text.length / 4) }, sentBody: { model: req.model, messages: req.messages, ...req.params } };

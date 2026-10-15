@@ -2,11 +2,13 @@
   import type { CreatorSession } from "../../lib/creator.svelte";
   import { post } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
-  import { BookOpen, ClipboardCheck, ClockAlert, ExternalLink, MessageHeart, PenLine, RefreshCw, Save, Square, TriangleAlert, WandSparkles, X } from "../../lib/icons";
+  import { BookOpen, ClipboardCheck, ClockAlert, ExternalLink, MessageHeart, PenLine, RefreshCw, Save, Square, TriangleAlert, Users, WandSparkles, X } from "../../lib/icons";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { CreatorDraft } from "../../lib/types";
+  import CreatorDepth from "./CreatorDepth.svelte";
   import CreatorField from "./CreatorField.svelte";
+  import CreatorPairing from "./CreatorPairing.svelte";
 
   let { session }: { session: CreatorSession } = $props();
   const draft = $derived(session.draft!);
@@ -28,15 +30,18 @@
 
   async function rewriteAll() {
     if (written.length && !(await confirm({ title: "Rewrite every field from the bible?", message: "Each field keeps its current text as the previous version, so you can restore any of them.", confirmLabel: "Rewrite all" }))) return;
-    await session.act("write", "/write", { all: true });
+    await session.act("write", "/write", { all: true, force: true });
   }
+  const signed = $derived(draft.fields.filter((f) => f.accepted && f.value.trim()).length);
+  let peopleBookId = $state<string | null>(null);
 
   async function save() {
     saving = true;
     try {
       await session.flush();
-      const r = await post<{ id: string; draft: CreatorDraft }>(`/api/creator/${session.id}/save`, { makeDefault });
+      const r = await post<{ id: string; draft: CreatorDraft; peopleBookId?: string | null }>(`/api/creator/${session.id}/save`, { makeDefault });
       session.apply(r.draft);
+      peopleBookId = r.peopleBookId ?? null;
       toast(isChar ? `Saved ${draft.name}` : `Saved ${draft.name} as a persona`, { kind: "ok", action: { label: "Open", run: () => navigate(isChar ? `/character/${r.id}` : `/personas/${r.id}`) } });
     } catch (e) {
       errorToast(e);
@@ -67,7 +72,7 @@
 <section class="stack">
   <div class="panel stack tight">
     <div class="row between wrap">
-      <b>{written.length} of {draft.fields.length} written</b>
+      <b>{written.length} of {draft.fields.length} written{#if signed}<span class="muted"> · {signed} signed off</span>{/if}</b>
       <div class="row wrap">
         {#if working.length}
           <span class="tiny muted">{current ? `Writing the ${current.label.toLowerCase()}…` : "Starting…"} {working.length} to go</span>
@@ -83,7 +88,7 @@
       <div class="row wrap stale">
         <ClockAlert size={14} />
         <span class="small grow">{staleKeys.length} field{staleKeys.length === 1 ? " was" : "s were"} written before you changed {staleWhy.join(", ")}.</span>
-        <button class="btn small" onclick={() => session.act("write", "/write", { keys: staleKeys, steer: "" })} disabled={Boolean(session.busy)}><RefreshCw size={13} /> Bring {staleKeys.length === 1 ? "it" : "them"} up to date</button>
+        <button class="btn small" onclick={() => session.writeFields({ keys: staleKeys, steer: "" })} disabled={Boolean(session.busy)}><RefreshCw size={13} /> Bring {staleKeys.length === 1 ? "it" : "them"} up to date</button>
       </div>
     {/if}
     <div class="row between wrap">
@@ -109,6 +114,9 @@
     <CreatorField {session} field={f} issues={review?.issues[f.key] ?? []} stale={stale[f.key] ?? []} tokens={review?.tokens[f.key] ?? 0} />
   {/each}
 
+  <CreatorDepth {session} />
+  <CreatorPairing {session} />
+
   <div class="panel stack savebox">
     <h3><Save size={16} /> {draft.savedId ? "Saved" : "Save"}</h3>
     {#if !isChar}
@@ -117,6 +125,10 @@
     {#if draft.worldBookIds.length || draft.loreDraftId}
       <span class="tiny muted"><BookOpen size={12} /> Its world's lorebooks are linked on save{draft.loreDraftId ? " (the Lore Studio draft once it's saved)" : ""}.</span>
     {/if}
+    {#if (draft.options.depthBook && draft.depth.some((e) => e.content.trim())) || (isChar && draft.options.rulesBook) || (draft.options.mode === "narrator" && draft.optional.includes("agency"))}
+      <span class="tiny muted"><BookOpen size={12} /> Bound on save:{draft.options.depthBook && draft.depth.some((e) => e.content.trim()) ? " a depth book" : ""}{isChar && draft.options.rulesBook ? " · a rules book" : ""}{isChar && draft.options.mode === "narrator" && draft.optional.includes("agency") ? " · world agency" : ""}. Export carries them in the card.</span>
+    {/if}
+    {#if draft.origin?.copyOf}<span class="tiny muted">A rebuild: saving makes a new {isChar ? "card" : "persona"} and leaves the original as it is.</span>{/if}
     <div class="row between wrap">
       <span class="tiny muted">{draft.savedId || draft.baseId ? `Saving updates the ${isChar ? "card; the old version stays in its history" : "persona"}.` : `Creates a new ${isChar ? "character card" : "persona"}.`}</span>
       <button class="btn primary" onclick={save} disabled={saving || !written.length}>{saving ? "Saving…" : draft.savedId || draft.baseId ? "Save changes" : isChar ? "Save the card" : "Save the persona"}</button>
@@ -125,6 +137,7 @@
       <div class="row wrap next">
         <a class="btn small" href={isChar ? `/character/${draft.savedId}` : `/personas/${draft.savedId}`}><ExternalLink size={14} /> Open {isChar ? "the card" : "the persona"}</a>
         {#if isChar}<button class="btn small" onclick={chat}><MessageHeart size={14} /> Start a chat</button>{/if}
+        {#if peopleBookId}<a class="btn small" href="/lorebooks/{peopleBookId}"><Users size={14} /> Its people</a>{/if}
         {#if draft.companionLoreDraftId}
           <a class="btn small" href="/lore-studio/{draft.companionLoreDraftId}"><BookOpen size={14} /> Companion lorebook</a>
         {:else}
