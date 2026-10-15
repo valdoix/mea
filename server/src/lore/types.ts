@@ -45,7 +45,12 @@ export interface LorebookSettings {
   semantic?: boolean;
   /** LORE-12: this book is a chat's Chronicle (story-born lore). */
   chronicleFor?: string;
+  /** What the book is for, which sets how its entries fire: depth and lore by meaning, people by name, rules always. */
+  role?: BookRole;
 }
+
+export type BookRole = "depth" | "lore" | "people" | "rules";
+export const BOOK_ROLES: BookRole[] = ["depth", "lore", "people", "rules"];
 
 export function defaultEntry(partial: Partial<LoreEntry> = {}): LoreEntry {
   return {

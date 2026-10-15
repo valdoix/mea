@@ -245,7 +245,11 @@ export interface LorebookSettings {
   semantic?: boolean;
   /** LORE-12 */
   chronicleFor?: string;
+  /** What the book is for: depth and lore fire by meaning, people by name, rules always. */
+  role?: BookRole;
 }
+
+export type BookRole = "depth" | "lore" | "people" | "rules";
 
 export interface LoreLink {
   type: "global" | "character" | "persona" | "chat";
@@ -522,6 +526,8 @@ export interface Settings {
   "guards.config": GuardsConfig;
   "steer.config": SteerConfig;
   "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
+  /** How much the creators do in one go and how warm the model runs (null: Mea default). */
+  "creator.tuning"?: CreatorTuning;
 }
 
 // ---------- Phase 5: steering ----------
@@ -1855,6 +1861,17 @@ export interface CreatorOptions {
   style: string;
   mode: "companion" | "narrator";
   greetings: number;
+  format: "prose" | "tagged";
+  autoCheck: boolean;
+  depthBook: boolean;
+  rulesBook: boolean;
+}
+
+/** A pass/fail check with named criteria (the bible, a field, a depth entry, a profile). */
+export interface GateVerdict {
+  passed: boolean;
+  criteria: { key: string; label: string; passed: boolean; note: string }[];
+  summary: string;
 }
 
 export interface CardField {
@@ -1866,6 +1883,62 @@ export interface CardField {
   previous: string | null;
   steer: string;
   basis: string;
+  gate?: GateVerdict | null;
+  revised?: boolean;
+  accepted?: boolean;
+  edited?: boolean;
+}
+
+export type FactSource = "idea" | "typed" | "picked" | "extended";
+
+export interface CreatorFact {
+  id: string;
+  section: string;
+  text: string;
+  source: FactSource;
+  qid?: string;
+}
+
+export interface Direction {
+  caption: string;
+  text: string;
+}
+
+export interface CreatorQuestion {
+  id: string;
+  q: string;
+  why: string;
+  answer: string;
+  suggestions: string[];
+  section: string;
+  source: FactSource;
+  directions: Direction[];
+  shown: string[];
+  skipped: boolean;
+}
+
+/** What the interview will do about a bible section. */
+export interface PlanItem {
+  key: string;
+  label: string;
+  status: "covered" | "ask" | "mixed" | "write";
+  impact: "critical" | "high" | "medium" | "low";
+  you?: string;
+  mea?: string;
+  claimed: boolean;
+  detected: boolean;
+  note: string;
+}
+
+export interface DepthEntry {
+  id: string;
+  title: string;
+  content: string;
+  keys: string[];
+  from: "answer" | "bible" | "you";
+  qid?: string;
+  gate?: GateVerdict | null;
+  entryId?: string;
 }
 
 export interface CreatorDraft {
@@ -1878,13 +1951,31 @@ export interface CreatorDraft {
   options: CreatorOptions;
   worldBookIds: string[];
   loreDraftId: string | null;
-  origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string } | null;
+  origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string; copyOf?: string; fromEntry?: { bookId: string; entryId: string }; personId?: string } | null;
   baseId: string | null;
-  readback: { understood: string; missing: string[] } | null;
-  questions: { id: string; q: string; why: string; answer: string; suggestions: string[] }[];
-  bible: { key: string; label: string; text: string }[];
+  readback: { understood: string; missing: string[]; gaps?: { section: string; note: string }[] } | null;
+  questions: CreatorQuestion[];
+  bible: { key: string; label: string; text: string; origin?: "yours" | "mea" | "guess" }[];
   bibleCheck: { section: string; problem: string; fix: string }[] | null;
+  bibleGate: GateVerdict | null;
+  brief: string;
+  links: { from: string; to: string; relation: string }[];
   fields: CardField[];
+  modeHint: { mode: CreatorOptions["mode"]; why: string } | null;
+  facts: CreatorFact[];
+  claims: string[];
+  optional: string[];
+  detected: string[];
+  taste: string[];
+  editedSections: string[];
+  interviewDone: boolean;
+  depth: DepthEntry[];
+  depthBookId: string | null;
+  rulesBookId: string | null;
+  counterpart: { draftId: string | null; characterId: string | null; name: string; text: string } | null;
+  pairing: { register: string; text: string; appliedTo: string | null } | null;
+  /** What the interview will do about each section (from the server). */
+  plan?: PlanItem[];
   savedId: string | null;
   companionLoreDraftId: string | null;
   basedOn: string;
@@ -1944,4 +2035,52 @@ export interface Planbook {
   byTier: Partial<Record<"Routine" | "Charged" | "Pivotal", PlanStats>>;
   byHow: Partial<Record<string, PlanStats>>;
   slipKinds: { kind: string; count: number }[];
+// ---------- growing a lorebook ----------
+
+export interface PersonAnswer {
+  id: string;
+  q: string;
+  why: string;
+  answer: string;
+  source: FactSource;
+  directions: Direction[];
+  shown: string[];
+}
+
+/** Someone in a world's roster: a name, an extra (a few lines), named (a voiced profile), or promoted to a card. */
+export interface LorePerson {
+  id: string;
+  bookId: string;
+  name: string;
+  hook: string;
+  origin: "proposed" | "manual" | "interview";
+  tier: "unfleshed" | "extra" | "named";
+  interview: PersonAnswer[];
+  entryId: string | null;
+  creatorDraftId: string | null;
+  characterId: string | null;
+  gate: GateVerdict | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface EnrichRun {
+  bookId: string;
+  state: "running" | "stopped" | "done";
+  items: { entryId: string; title: string; status: "pending" | "working" | "enriched" | "kept" | "error" | "restored"; why: string; original: string }[];
+  startedAt: number;
+}
+
+export interface WorldAgency {
+  enabled: boolean;
+  agenda: string;
+  holds: string[];
+}
+
+export interface CreatorTuning {
+  writeTemp: number | null;
+  judgeTemp: number | null;
+  deepenCap: number | null;
+  peopleCount: number | null;
+  namedTarget: number | null;
 }

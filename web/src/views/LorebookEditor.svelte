@@ -1,5 +1,8 @@
 <script lang="ts">
   import EntryEditor from "../components/lore/EntryEditor.svelte";
+  import EnrichPanel from "../components/lore/EnrichPanel.svelte";
+  import GrowPanel from "../components/lore/GrowPanel.svelte";
+  import PeoplePanel from "../components/lore/PeoplePanel.svelte";
   import Menu, { type MenuItem } from "../components/Menu.svelte";
   import Segmented from "../components/Segmented.svelte";
   import { del, download, get, post, put } from "../lib/api";
@@ -9,7 +12,7 @@
   import { app, errorToast, toast } from "../lib/state.svelte";
   import { route } from "../lib/router.svelte";
   import { tick } from "svelte";
-  import type { CharacterSummary, LoreEntry, Lorebook, LoreHealth, LoreTrace, Persona } from "../lib/types";
+  import type { BookRole, CharacterSummary, LoreEntry, Lorebook, LoreHealth, LoreTrace, Persona } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -257,6 +260,16 @@
             <select class="select" value={String(book.settings.matchWholeWords ?? "")} onchange={(e) => { book!.settings.matchWholeWords = e.currentTarget.value === "" ? undefined : e.currentTarget.value === "true"; saveMeta(); }}><option value="">App default</option><option value="true">Yes</option><option value="false">No</option></select>
           </label>
         </div>
+        <label class="field role">
+          <span class="label">What this book is for</span>
+          <select class="select" value={book.settings.role ?? ""} onchange={(e) => { const r = e.currentTarget.value as BookRole | ""; book!.settings.role = r || undefined; if (r === "depth" || r === "lore") book!.settings.semantic = true; saveMeta(); }}>
+            <option value="">General</option>
+            <option value="depth">Depth: detail that surfaces when relevant (fires on meaning)</option>
+            <option value="lore">Lore: a world's deep detail (fires on meaning)</option>
+            <option value="people">People: one profile per person (fires by name)</option>
+            <option value="rules">Rules: always-on rules for a card</option>
+          </select>
+        </label>
         <label class="switch"><input type="checkbox" checked={Boolean(book.settings.semantic)} onchange={(e) => { book!.settings.semantic = e.currentTarget.checked || undefined; saveMeta(); }} /> Entries also fire on meaning, not just keywords <span class="tiny muted">(needs embeddings, Settings → Models)</span></label>
       </details>
     </section>
@@ -319,6 +332,12 @@
         <p class="muted small">{filter ? "No entries match." : "No entries yet. Add the first one."}</p>
       {/if}
     </div>
+
+    {#if !book.settings.chronicleFor}
+      <GrowPanel bookId={id} onadded={async (eid) => { await load(); void openEntry(eid); }} />
+      <EnrichPanel bookId={id} onchanged={() => void load()} onopen={openEntry} />
+      <PeoplePanel bookId={id} onchanged={() => void load()} onopen={openEntry} />
+    {/if}
 
     <section class="panel stack">
       <div class="row between"><h3><Stethoscope size={16} /> Health check</h3><button class="btn small" onclick={checkHealth}>{health ? "Check again" : "Check"}</button></div>

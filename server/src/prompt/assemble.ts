@@ -34,6 +34,8 @@ export interface AssembleInput {
   card: CardData;
   userName: string;
   personaText: string;
+  /** The persona's pronouns ("she/her/her"), for {{user_they}}, {{user_them}}, {{user_their}}. */
+  userPronouns?: string;
   mode: "companion" | "narrator";
   /** Visible, non-hidden messages, oldest first. For "continue", the last one is the partial reply. */
   history: HistoryMessage[];
@@ -278,6 +280,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   const ctx: MacroContext = {
     char: card.name,
     user: input.userName,
+    userPronouns: input.userPronouns,
     persona: input.personaText,
     description: card.description,
     personality: card.personality,

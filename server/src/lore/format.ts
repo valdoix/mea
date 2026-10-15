@@ -1,5 +1,5 @@
 import type { EntryExtra } from "./activate";
-import type { LoreEntry, LorePosition } from "./types";
+import type { BookRole, LoreEntry, LorePosition } from "./types";
 
 /**
  * Lorebook categories (Almanac plan I1). Each entry can carry a category (in `extra.category`);
@@ -78,10 +78,10 @@ export interface CategoryGuess {
 }
 
 /** Auto-sort: the likeliest category from the title, the words, and (as a fallback) the entry's type. */
-export function guessCategory(e: Pick<LoreEntry, "comment" | "content" | "keys" | "constant"> & { extra?: Record<string, unknown> }, bookName = ""): CategoryGuess {
+export function guessCategory(e: Pick<LoreEntry, "comment" | "content" | "keys" | "constant"> & { extra?: Record<string, unknown> }, bookName = "", role?: BookRole): CategoryGuess {
   const title = (e.comment || e.keys[0] || "").trim();
   const text = e.content ?? "";
-  const dw = dreamWeaverCategory(bookName);
+  const dw = (role && ROLE_CATEGORY[role]) || dreamWeaverCategory(bookName);
   for (const r of RULES) {
     if (r.title?.test(title)) return { category: r.cat, confidence: r.weight, why: `the title ("${title.slice(0, 40)}")` };
   }
@@ -100,6 +100,9 @@ export function guessCategory(e: Pick<LoreEntry, "comment" | "content" | "keys" 
 
 /** Dream Weaver books by their fixed names ("DW Rules", "Dream Weaver – NPCs", "…Depth…", "…Lore…"). */
 export function dreamWeaverCategory(bookName: string): Category | null {
+  // Lumiverse's Weaver (and Mea's creator) name bound books "<Name> rules book", "<Name> NPC book"…
+  const bound = bookName.match(/\b(rules|npc|people|depth|lore) book$/i)?.[1]?.toLowerCase();
+  if (bound) return ROLE_CATEGORY[bound === "npc" ? "people" : (bound as BookRole)];
   if (!/\b(dream\s*weaver|dw)\b/i.test(bookName)) return null;
   if (/\brules?\b/i.test(bookName)) return "rule";
   if (/\bnpcs?\b|\bcharacters?\b/i.test(bookName)) return "character";
@@ -107,6 +110,9 @@ export function dreamWeaverCategory(bookName: string): Category | null {
   if (/\blore\b|\bworld\b/i.test(bookName)) return "history";
   return null;
 }
+
+/** A book's role sets the category its entries start from. */
+export const ROLE_CATEGORY: Record<BookRole, Category> = { rules: "rule", people: "character", depth: "current", lore: "history" };
 
 export const categoryOf = (e: { extra?: Record<string, unknown> }): Category | null => {
   const c = (e.extra as { category?: unknown } | undefined)?.category;

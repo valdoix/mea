@@ -2,7 +2,7 @@
   import { FIELD_STEERS, type CreatorSession } from "../../lib/creator.svelte";
   import { promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
-  import { CircleAlert, Loader, PenLine, RotateCcw, TriangleAlert } from "../../lib/icons";
+  import { CircleAlert, CircleCheck, Loader, PenLine, RotateCcw, TriangleAlert } from "../../lib/icons";
   import type { CardField, StudioIssue } from "../../lib/types";
 
   let { session, field, issues = [], stale = [], tokens = 0 }: { session: CreatorSession; field: CardField; issues?: StudioIssue[]; stale?: string[]; tokens?: number } = $props();
@@ -28,8 +28,14 @@
       if (!v?.trim()) return;
       s = v.trim();
     }
-    await session.act(`field:${field.key}`, "/write", { keys: [field.key], steer: s });
+    await session.writeFields({ keys: [field.key], steer: s }, `field:${field.key}`);
   }
+
+  function accept() {
+    field.accepted = !field.accepted;
+    session.save({ accepted: { [field.key]: Boolean(field.accepted) } }, `accept:${field.key}`, 0);
+  }
+  const failed = $derived(field.gate ? field.gate.criteria.filter((c) => !c.passed) : []);
 </script>
 
 <div class="card field-card" id="field-{field.key}">
@@ -40,8 +46,17 @@
     </div>
     {#if busy}<span class="spin"><Loader size={15} /></span><span class="tiny muted">{field.status === "writing" ? "Writing…" : "In line"}</span>{/if}
     {#if stale.length && !busy}<span class="chip tiny butter" title="Written before you changed {stale.join(', ')}">out of date</span>{/if}
+    {#if field.edited && !busy}<span class="chip tiny" title="You edited this by hand; rewriting asks first">your edit</span>{/if}
+    {#if field.gate && !busy}<span class="chip tiny" class:ok={field.gate.passed} class:bad={!field.gate.passed} title={field.gate.summary}>{field.gate.passed ? "checks pass" : `${failed.length} flagged`}{field.revised ? " · revised once" : ""}</span>{/if}
     {#if field.value.trim() && !short}<span class="tiny faint">{tokens} tok</span>{/if}
+    {#if field.value.trim() && !busy}<button class="btn ghost icon small tick" class:on={field.accepted} onclick={accept} title={field.accepted ? "Signed off: click to take it back" : "Sign it off"} aria-pressed={Boolean(field.accepted)}><CircleCheck size={15} /></button>{/if}
   </div>
+  {#if failed.length && !busy}
+    <ul class="issues">
+      {#each failed as c (c.key)}<li class="tiny warn"><TriangleAlert size={11} /> <b>{c.label}:</b> {c.note}</li>{/each}
+      <li><button class="chip tiny steer" onclick={() => rewrite(`Fix exactly these: ${failed.map((c) => `${c.label}: ${c.note}`).join("; ")}`)} disabled={Boolean(session.busy)}>Rewrite with these fixes</button></li>
+    </ul>
+  {/if}
 
   {#if field.status === "error"}<p class="tiny error">Failed: {field.error}</p>{/if}
 
@@ -98,6 +113,18 @@
   }
   .issues .warn {
     color: var(--danger);
+  }
+  .chip.ok {
+    color: var(--ok);
+  }
+  .chip.bad {
+    color: var(--danger);
+  }
+  .tick {
+    color: var(--text-muted);
+  }
+  .tick.on {
+    color: var(--ok);
   }
   .tools {
     gap: 0.3rem;

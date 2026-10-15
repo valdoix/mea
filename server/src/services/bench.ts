@@ -58,6 +58,7 @@ export function benchPrompt(input: BenchInput) {
     card: input.card,
     userName,
     personaText: personaPrompt(persona),
+    userPronouns: persona?.data.pronouns,
     mode: input.mode,
     history,
     authorsNote: layers.authorsNote,

@@ -1,9 +1,10 @@
 import { api, get, put } from "./api";
+import { confirm } from "./dialogs.svelte";
 import { DraftSaver } from "./drafts.svelte";
 import { onEvent } from "./events";
 import { errorToast } from "./state.svelte";
 import { mergeExpansion } from "./studio.svelte";
-import type { CreatorDraft, CreatorOptions, CreatorReview, CreatorStage, ExpansionPatch } from "./types";
+import type { CreatorDraft, CreatorOptions, CreatorReview, CreatorStage, ExpansionPatch, FactSource } from "./types";
 
 type Patch = Partial<{
   name: string;
@@ -18,6 +19,15 @@ type Patch = Partial<{
   fields: Record<string, string>;
   basedOn: string;
   dismissKindHint: boolean;
+  dismissModeHint: boolean;
+  answerSources: Record<string, FactSource>;
+  accepted: Record<string, boolean>;
+  facts: { id?: string; section?: string; text?: string; remove?: boolean }[];
+  claims: string[];
+  optional: string[];
+  taste: string[];
+  brief: string;
+  depth: { id?: string; title?: string; content?: string; keys?: string[]; remove?: boolean }[];
 }>;
 
 /** One open character or persona draft: same rules as the Lore Studio's (see StudioSession). */
@@ -68,6 +78,9 @@ export class CreatorSession {
       questions: s.questions.map((q) => (p(`answer:${q.id}`) ? { ...q, answer: cur.questions.find((x) => x.id === q.id)?.answer ?? q.answer } : q)),
       expansion: mergeExpansion(cur.expansion, s.expansion, this.saver),
       bible: s.bible.map((b) => (p(`bible:${b.key}`) ? { ...b, text: cur.bible.find((x) => x.key === b.key)?.text ?? b.text } : b)),
+      brief: p("brief") ? cur.brief : s.brief,
+      facts: s.facts.map((f) => (p(`fact:${f.id}`) ? { ...f, text: cur.facts.find((x) => x.id === f.id)?.text ?? f.text } : f)),
+      depth: s.depth.map((e) => (p(`depth:${e.id}`) ? (cur.depth.find((x) => x.id === e.id) ?? e) : e)),
       // While the writer works on a field, its text is the server's; otherwise yours wins while you type.
       fields: s.fields.map((f) => (p(`field:${f.key}`) && f.status !== "writing" && f.status !== "queued" ? { ...f, value: cur.fields.find((x) => x.key === f.key)?.value ?? f.value } : f)),
     };
@@ -95,6 +108,13 @@ export class CreatorSession {
     } finally {
       this.busy = "";
     }
+  }
+
+  /** Writes (or rewrites) fields; fields you edited by hand ask first, since rewriting replaces your edit. */
+  async writeFields(body: { keys?: string[]; steer?: string; all?: boolean }, label = "write") {
+    const edited = (this.draft?.fields ?? []).filter((f) => f.edited && f.value.trim() && (body.keys ? body.keys.includes(f.key) : body.all));
+    if (edited.length && !(await confirm({ title: "Replace your edits?", message: `You edited ${edited.map((f) => f.label.toLowerCase()).join(", ")} by hand. Rewriting replaces your edit; the current text stays as the previous version.`, confirmLabel: "Rewrite" }))) return false;
+    return this.act(label, "/write", { ...body, force: edited.length > 0 });
   }
 
   #queueReview() {

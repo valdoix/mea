@@ -26,6 +26,7 @@ import { runEditorJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
 import { runChronicle } from "./lore/chronicle";
 import { embedLore } from "./lore/semantic";
+import { runEnrichJob } from "./lore/enrich";
 import { runStudioJob } from "./lore/studio";
 import { runCreatorJob } from "./creator/creator";
 import { runJournalJob } from "./memory/journals";
@@ -103,6 +104,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   // Phase 4: the Lore Studio writes drafted entries one at a time, in plan order.
   registerJob("lore.studio", async (p, job) => runStudioJob(String(p.draftId), job));
   registerJob("creator.write", async (p, job) => runCreatorJob(String(p.draftId), job));
+  registerJob("lore.enrich", async (p, job) => runEnrichJob(String(p.bookId), job));
   registerJob("accuracy.check", async (p, job) => runCheckJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   registerJob("memory.consolidate", async (p, job) => {
     await consolidate(String(p.chatId), job);

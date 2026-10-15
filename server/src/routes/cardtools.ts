@@ -48,7 +48,7 @@ cardtools.post("/card-tools/check", async (c) => {
 });
 
 cardtools.post("/card-tools/greeting", async (c) => {
-  const input = await body(c, z.object({ card, situation: z.string().max(1000).default(""), pov: pov.default("third"), tense: tense.default("present") }));
+  const input = await body(c, z.object({ card, situation: z.string().max(1000).default(""), pov: pov.default("third"), tense: tense.default("present"), personaId: z.string().nullable().optional(), register: z.string().max(40).optional() }));
   return c.json({ text: await draftGreeting({ ...input, card: asCardLike(input.card) }) });
 });
 
