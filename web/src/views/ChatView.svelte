@@ -1608,8 +1608,9 @@
   }
   .bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.35rem 0.5rem;
     padding: calc(0.55rem + var(--safe-top)) 0.9rem 0.55rem;
     border-bottom: 1px solid var(--border);
     background: var(--glass);
@@ -1902,12 +1903,13 @@
   }
 
   /* ---------- Header ---------- */
+  /* The name keeps room to read: when the tools don't fit beside it (a phone), they move to a line of their own. */
   .who {
     display: flex;
     align-items: center;
     gap: 0.85rem;
     min-width: 0;
-    flex: 1;
+    flex: 1 1 13rem;
   }
   .pic {
     display: grid;
@@ -1957,7 +1959,7 @@
   }
   .hudline {
     padding: 0.22rem 0.7rem;
-    border-radius: var(--r-pill);
+    border-radius: 0.8rem;
     background: var(--surface-2);
     border: 1px solid var(--border);
     min-width: 0;
@@ -1976,6 +1978,7 @@
   .tools {
     gap: 0.2rem;
     flex: none;
+    margin-left: auto;
   }
   .tools .on {
     background: var(--surface-2);
