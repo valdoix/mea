@@ -11,8 +11,9 @@ const html = readFileSync(join(dist, "index.html"), "utf8");
 const refs = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g)].map((m) => m[1]!);
 
 const BUDGET_JS = 250 * 1024;
-// Raised from 60 KB for the visual toolkit (styles/vtk.css), which has to be there on first paint.
-const BUDGET_CSS = 72 * 1024;
+// Raised from 60 KB for the visual toolkit (styles/vtk.css), which has to be there on first paint,
+// then from 72 KB for the plan drawer above every reply.
+const BUDGET_CSS = 76 * 1024;
 let js = 0;
 let css = 0;
 for (const ref of new Set(refs)) {
