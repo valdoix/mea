@@ -456,6 +456,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     card,
     userName,
     personaText: personaPrompt(persona),
+    userPronouns: persona?.data.pronouns,
     mode: chat.mode,
     // Earlier replies keep their speaker marks in the prompt, so the model keeps writing them.
     history: marks ? markedHistory(history, voices) : history,

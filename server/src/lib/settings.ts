@@ -95,6 +95,17 @@ export interface Settings {
   "setup.usual": import("../services/setup").SetupAnswers | null;
   /** SEC-06: how long the local request log keeps what. */
   "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
+  /** How much the creators do in one go and how warm the model runs (null: Mea's default). */
+  "creator.tuning": CreatorTuning;
+}
+
+/** The creators' knobs: writing vs judging temperature, and the caps on extra questions and proposals. */
+export interface CreatorTuning {
+  writeTemp: number | null;
+  judgeTemp: number | null;
+  deepenCap: number | null;
+  peopleCount: number | null;
+  namedTarget: number | null;
 }
 
 export interface Typography {
@@ -418,6 +429,7 @@ export const defaults: Settings = {
   "steer.config": defaultSteer,
   "setup.usual": null,
   "privacy.requestLog": { bodiesDays: 30, rowsDays: 0, fileLog: true, fileDays: 14 },
+  "creator.tuning": { writeTemp: null, judgeTemp: null, deepenCap: null, peopleCount: null, namedTarget: null },
 };
 
 /** Keys the web client may read and write directly. */
@@ -457,6 +469,7 @@ export const clientKeys: (keyof Settings)[] = [
   "guards.config",
   "steer.config",
   "privacy.requestLog",
+  "creator.tuning",
 ];
 
 export function getSetting<K extends keyof Settings>(key: K): Settings[K] {

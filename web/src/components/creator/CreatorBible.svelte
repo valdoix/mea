@@ -3,7 +3,7 @@
   import type { CreatorSession } from "../../lib/creator.svelte";
   import { promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
-  import { ClipboardCheck, Loader, PenLine, RefreshCw, Sparkle, TriangleAlert, UserPen, Users, X } from "../../lib/icons";
+  import { CircleCheck, ClipboardCheck, Loader, PenLine, RefreshCw, Sparkle, TriangleAlert, UserPen, Users, X } from "../../lib/icons";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast } from "../../lib/state.svelte";
   import type { CreatorDraft } from "../../lib/types";
@@ -31,6 +31,24 @@
       errorToast(e);
     }
   }
+
+  /** A different person, built to play opposite this character: complement or friction, but reusable. */
+  async function opposite() {
+    try {
+      await session.flush();
+      const r = await post<{ draft: CreatorDraft }>("/api/creator", { kind: "persona", oppositeOf: { draftId: draft.id } });
+      navigate(`/creator/${r.draft.id}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  const ORIGIN: Record<string, { label: string; title: string }> = {
+    yours: { label: "Yours", title: "Your words, your facts, or your edit" },
+    mea: { label: "Mea wrote", title: "Written to fit your material" },
+    guess: { label: "My guess, check it", title: "You left this open; this is an overturnable guess" },
+  };
+  const labelOf = (key: string) => draft.bible.find((b) => b.key === key)?.label ?? key;
 </script>
 
 <section class="stack">
@@ -45,15 +63,37 @@
           {#if session.busy === "check"}<span class="spin"><Loader size={14} /></span> Reading…{:else}<ClipboardCheck size={14} /> Check it like an editor{/if}
         </button>
       </div>
+      {#if draft.bibleGate}
+        {@const failed = draft.bibleGate.criteria.filter((c) => !c.passed)}
+        <span class="small" class:ok={draft.bibleGate.passed}><b>{draft.bibleGate.passed ? "All checks pass" : `${failed.length} check${failed.length === 1 ? " needs" : "s need"} work`}</b>{#if draft.bibleGate.summary}{" "}<span class="muted">{draft.bibleGate.summary}</span>{/if}</span>
+        <ul class="gate">
+          {#each draft.bibleGate.criteria as c (c.key)}
+            <li class="tiny" class:fail={!c.passed}>{#if c.passed}<CircleCheck size={12} />{:else}<TriangleAlert size={12} />{/if} <b>{c.label}</b>{#if c.note}{" "}<span class="muted">{c.note}</span>{/if}</li>
+          {/each}
+        </ul>
+        {#if failed.length}<span class="tiny muted">You can still write the {isChar ? "card" : "persona"}; expect more generic fields where the source is thin.</span>{/if}
+      {/if}
       {#if draft.bibleCheck}
-        <span class="tiny" class:ok={!draft.bibleCheck.length}>{draft.bibleCheck.length ? `${draft.bibleCheck.length} thing${draft.bibleCheck.length === 1 ? "" : "s"} to look at: generic choices, contradictions, missing essentials. Each has a fix you can apply.` : "The editor found nothing generic, contradictory or missing."}</span>
+        <span class="tiny" class:ok={!draft.bibleCheck.length}>{draft.bibleCheck.length ? `${draft.bibleCheck.length} thing${draft.bibleCheck.length === 1 ? "" : "s"} to look at, each with a fix you can apply.` : "The editor found nothing generic, contradictory or missing."}</span>
+      {/if}
+    </div>
+
+    <div class="card stack tight section brief">
+      <div class="row between">
+        <b>Brief</b>
+        <button class="btn ghost small" onclick={() => session.act("weave", "/weave")} disabled={Boolean(session.busy)} title="Links and brief again, from the bible as it stands"><RefreshCw size={13} /> {session.busy === "weave" ? "Weaving…" : "Re-weave"}</button>
+      </div>
+      <textarea class="textarea story" use:autosize={{ max: 300, value: draft.brief }} value={draft.brief} placeholder="The subject in a paragraph: read this first." oninput={(e) => { session.draft!.brief = e.currentTarget.value; session.save({ brief: e.currentTarget.value }, "brief"); }}></textarea>
+      {#if draft.links.length}
+        <span class="tiny muted">How it connects:</span>
+        <ul class="links">{#each draft.links as l, i (i)}<li class="tiny">{labelOf(l.from)} <span class="muted">→ {l.relation} →</span> {labelOf(l.to)}</li>{/each}</ul>
       {/if}
     </div>
 
     {#each draft.bible as b (b.key)}
       <div class="card stack tight section" class:working={session.busy === `section:${b.key}`}>
         <div class="row between">
-          <b>{b.label}</b>
+          <span><b>{b.label}</b>{#if b.origin}{" "}<span class="chip tiny origin {b.origin}" title={ORIGIN[b.origin]!.title}>{ORIGIN[b.origin]!.label}</span>{/if}</span>
           <div class="row">
             {#if session.busy === `section:${b.key}`}<span class="spin"><Loader size={14} /></span>{/if}
             <button class="btn ghost small" onclick={() => session.act(`section:${b.key}`, `/bible/${b.key}`, {})} disabled={Boolean(session.busy)} title="Sharper and more specific, same facts"><Sparkle size={13} /> Sharpen</button>
@@ -84,6 +124,7 @@
       <button class="btn ghost" onclick={twin} disabled={Boolean(session.busy)} title={isChar ? "A persona built from this bible, to play them yourself" : "A character card built from this bible"}>
         {#if isChar}<UserPen size={15} /> Make a persona from this{:else}<Users size={15} /> Make a character from this{/if}
       </button>
+      {#if isChar}<button class="btn ghost" onclick={opposite} disabled={Boolean(session.busy)} title="A different person for you to play, made to complement or rub against them"><UserPen size={15} /> A persona to play opposite them</button>{/if}
       <span class="grow"></span>
       <button class="btn primary" onclick={() => session.act("write", "/write")} disabled={Boolean(session.busy)}><PenLine size={16} /> {session.busy === "write" ? "Starting…" : isChar ? "Write the card" : "Write the persona"}</button>
     </div>
@@ -113,6 +154,32 @@
   }
   .ok {
     color: var(--ok);
+  }
+  .gate,
+  .links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.2rem;
+  }
+  .gate li {
+    color: var(--ok);
+  }
+  .gate li.fail {
+    color: var(--danger);
+  }
+  .gate li :global(svg) {
+    vertical-align: -2px;
+  }
+  .brief {
+    border-left: 3px solid var(--accent);
+  }
+  .origin.guess {
+    background: color-mix(in srgb, var(--butter, #f5d77a) 30%, transparent);
+  }
+  .origin.yours {
+    background: color-mix(in srgb, var(--mint, #9fe0c0) 30%, transparent);
   }
   .grow {
     flex: 1 1 12rem;

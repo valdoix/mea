@@ -1175,6 +1175,28 @@ CREATE INDEX offpage_cache_chat ON offpage_cache(chat_id);
 UPDATE settings SET value = '"lantern"' WHERE key = 'appearance.theme' AND value IN ('"system"', '"light"', '"dark"');
 `,
   },
+  {
+    id: 22,
+    name: "a world's people and enriching a book",
+    sql: /* sql */ `
+-- A lorebook's roster of people, from a name to a voiced profile (an entry) to their own card.
+CREATE TABLE lore_people (
+  id TEXT PRIMARY KEY,
+  book_id TEXT NOT NULL REFERENCES lorebooks(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX idx_lore_people_book ON lore_people(book_id);
+-- One "enrich the entries" run per book: each entry's progress and its original text.
+CREATE TABLE lore_enrich_runs (
+  book_id TEXT PRIMARY KEY REFERENCES lorebooks(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

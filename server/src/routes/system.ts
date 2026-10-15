@@ -56,6 +56,13 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
   "appearance.living": z.object({ voices: z.enum(["ink", "blocks", "chips", "tint", "script", "ribbon", "halo", "off"]), artifacts: z.boolean(), freeform: z.boolean().optional(), window: z.boolean(), thoughts: z.enum(["never", "drawer", "always"]) }),
   "privacy.requestLog": z.object({ bodiesDays: z.number().int().min(1).max(3650), rowsDays: z.number().int().min(0).max(36500), fileLog: z.boolean(), fileDays: z.number().int().min(1).max(3650) }),
   "routing.story": z.string().max(200).nullable(),
+  "creator.tuning": z.object({
+    writeTemp: z.number().min(0).max(2).nullable(),
+    judgeTemp: z.number().min(0).max(2).nullable(),
+    deepenCap: z.number().int().min(0).max(50).nullable(),
+    peopleCount: z.number().int().min(1).max(20).nullable(),
+    namedTarget: z.number().int().min(1).max(20).nullable(),
+  }),
   "appearance.chatStyle": z.enum(["cards", "book", "bubbles"]),
   "appearance.fontScale": z.number().min(0.6).max(2),
   "appearance.glossary": z.boolean(),

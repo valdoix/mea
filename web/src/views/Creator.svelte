@@ -73,6 +73,13 @@
       <span class="tiny muted">From an entry in <a href="/lore-studio/{draft.origin.loreDraftId}">a Lore Studio draft</a>; that world is its context.</span>
     {:else if draft.origin?.fromDraftId}
       <span class="tiny muted">Built from <a href="/creator/{draft.origin.fromDraftId}">another draft</a>'s bible.</span>
+    {:else if draft.origin?.copyOf}
+      <span class="tiny muted">Rebuilding <a href="/character/{draft.origin.copyOf}">a card</a> as a new one; the original stays as it is.</span>
+    {:else if draft.origin?.fromEntry}
+      <span class="tiny muted">Promoted from <a href="/lorebooks/{draft.origin.fromEntry.bookId}">a world's people</a>; that lorebook comes with them.</span>
+    {/if}
+    {#if draft.counterpart}
+      <span class="tiny muted">Built to play opposite {#if draft.counterpart.draftId}<a href="/creator/{draft.counterpart.draftId}">{draft.counterpart.name}</a>{:else}{draft.counterpart.name}{/if}: complement or friction, but reusable with anyone.</span>
     {/if}
 
     <nav class="steps" aria-label="Steps">

@@ -4,7 +4,8 @@ import { newId } from "../db/db";
 import { countTokens } from "../lib/tokens";
 import { callJson, callText } from "../services/llm";
 import { type CardIssue, checkExamples, checkGreeting, checkPersona, checkProse } from "./checks";
-import { GREETING_RULES } from "./creator";
+import { getPersona, personaPrompt } from "../services/personas";
+import { GREETING_RULES, REGISTERS } from "./creator";
 import { CRAFT, tidy } from "./expand";
 import { unslipPersona, WHO_IS_WHO } from "./smarts";
 
@@ -192,19 +193,26 @@ export async function reviewCard(kind: ToolKind, card: CardLike) {
 
 // ---------- greeting workshop (CHAR-15) ----------
 
-export async function draftGreeting(input: { card: CardLike; situation: string; pov: Pov; tense: "present" | "past" }) {
+export async function draftGreeting(input: { card: CardLike; situation: string; pov: Pov; tense: "present" | "past"; personaId?: string | null; register?: string }) {
   const others = [input.card.first_mes, ...(input.card.alternate_greetings ?? [])].filter((g) => g?.trim());
+  // Written opposite a specific persona, in a relationship register (neutral, canon, AU, romantic, adversarial).
+  const persona = input.personaId ? getPersona(input.personaId) : undefined;
+  const register = input.register && REGISTERS[input.register] ? REGISTERS[input.register] : "";
   const r = await callText({
     task: "summarizer",
     kind: "assist:greeting",
     system: [
       "Field: Greeting",
       `You write a new alternate greeting (opening message) for a character card: ${input.situation.trim() || "a genuinely different opening from the ones it has: a different place, time, mood or stage of the relationship"}. 160–320 words.`,
+      persona ? `{{user}} IS the persona described below: open the scene opposite them specifically.` : "",
+      register ? `RELATIONSHIP: ${register}` : "",
       GREETING_RULES(input),
       `Craft rules:\n- ${CRAFT}`,
       "Stay true to the card: the same person, voice and world. Reply with the greeting only.",
-    ].join("\n\n"),
-    user: [cardContext("character", input.card, "greeting"), others.length ? `GREETINGS IT ALREADY HAS (be different from these):\n${others.map((g, i) => `${i + 1}. ${g!.slice(0, 800)}`).join("\n\n")}` : ""].filter(Boolean).join("\n\n"),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    user: [cardContext("character", input.card, "greeting"), persona ? `{{user}} IS THIS PERSONA (${persona.name}):\n${personaPrompt(persona)}` : "", others.length ? `GREETINGS IT ALREADY HAS (be different from these):\n${others.map((g, i) => `${i + 1}. ${g!.slice(0, 800)}`).join("\n\n")}` : ""].filter(Boolean).join("\n\n"),
     maxTokens: 1400,
     temperature: 0.85,
     validate: (t) => (!tidy(t) ? "That was empty." : checkGreeting(tidy(t), input.pov).some((i) => i.kind === "puppets-user") ? "It writes {{user}}'s actions, words or feelings. Leave every choice to {{user}}." : null),

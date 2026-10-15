@@ -6,6 +6,8 @@
 export interface MacroContext {
   char: string;
   user: string;
+  /** The persona's pronouns as written ("she/her/her", "they/them"), for {{user_they}} and friends. */
+  userPronouns?: string;
   persona?: string;
   description?: string;
   personality?: string;
@@ -32,7 +34,36 @@ export interface MacroContext {
   random?: () => number;
 }
 
-type Node = { t: "text"; v: string } | { t: "macro"; v: string; pos: number } | { t: "if"; cond: string; then: Node[]; else: Node[] };
+export interface Pronouns {
+  they: string;
+  them: string;
+  their: string;
+  theirs: string;
+}
+
+const KNOWN: Record<string, Pronouns> = {
+  she: { they: "she", them: "her", their: "her", theirs: "hers" },
+  he: { they: "he", them: "him", their: "his", theirs: "his" },
+  they: { they: "they", them: "them", their: "their", theirs: "theirs" },
+  it: { they: "it", them: "it", their: "its", theirs: "its" },
+};
+
+/**
+ * "she/her/her", "she/her", "he", "xe/xem/xyr": subject / object / possessive (and possessive
+ * pronoun). Common sets fill what's left out; anything else repeats its last given form. Empty: they.
+ */
+export function pronounsOf(raw: string | undefined): Pronouns {
+  const parts = (raw ?? "").toLowerCase().split(/[\s/,]+/).map((p) => p.trim()).filter(Boolean);
+  const known = KNOWN[parts[0] ?? "they"] ?? null;
+  if (!parts.length) return KNOWN.they!;
+  const they = parts[0]!;
+  const them = parts[1] ?? known?.them ?? they;
+  const their = parts[2] ?? known?.their ?? them;
+  const theirs = parts[3] ?? known?.theirs ?? (their.endsWith("s") ? their : `${their}s`);
+  return { they, them, their, theirs };
+}
+
+type Node ={ t: "text"; v: string } | { t: "macro"; v: string; pos: number } | { t: "if"; cond: string; then: Node[]; else: Node[] };
 
 const TRIM = "\u0000TRIM\u0000";
 
@@ -157,6 +188,11 @@ function evalMacro(raw: string, ctx: MacroContext, pos: number): string | null {
       return ctx.char;
     case "user":
       return ctx.user;
+    case "user_they":
+    case "user_them":
+    case "user_their":
+    case "user_theirs":
+      return pronounsOf(ctx.userPronouns)[name.slice(5) as keyof Pronouns];
     case "persona":
       return get(ctx.persona);
     case "description":

@@ -1,9 +1,10 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
   import DiffModal from "./DiffModal.svelte";
-  import { post } from "../../lib/api";
+  import { get, post } from "../../lib/api";
   import { Loader, Sparkles } from "../../lib/icons";
   import { errorToast } from "../../lib/state.svelte";
+  import type { Persona } from "../../lib/types";
 
   /**
    * Greeting workshop (CHAR-15): a new alternate greeting from a situation, in the point of view
@@ -23,10 +24,20 @@
 
   const IDEAS = ["The morning after", "A chance meeting in the rain", "They need your help", "Years later", "Something went wrong", "A quiet evening"];
 
+  // Written opposite one of your personas, in a relationship register.
+  let personaId = $state("");
+  let register = $state("neutral");
+  let personas = $state<Persona[]>([]);
+  $effect(() => {
+    get<{ personas: Persona[] }>("/api/personas")
+      .then((r) => (personas = r.personas))
+      .catch(() => {});
+  });
+
   async function write() {
     working = true;
     try {
-      text = (await post<{ text: string }>("/api/card-tools/greeting", { card: card(), situation, pov, tense })).text;
+      text = (await post<{ text: string }>("/api/card-tools/greeting", { card: card(), situation, pov, tense, ...(personaId ? { personaId, register } : {}) })).text;
       open = true;
     } catch (e) {
       errorToast(e);
@@ -49,6 +60,17 @@
     <Segmented bind:value={pov} options={[{ value: "first", label: "I" }, { value: "second", label: "You" }, { value: "third", label: "She / he / they" }]} small />
     <Segmented bind:value={tense} options={[{ value: "present", label: "Present" }, { value: "past", label: "Past" }]} small />
   </div>
+  {#if personas.length}
+    <div class="row wrap">
+      <select class="select mini" bind:value={personaId} aria-label="Opposite a persona">
+        <option value="">Opposite anyone</option>
+        {#each personas as p (p.id)}<option value={p.id}>Opposite {p.name}</option>{/each}
+      </select>
+      {#if personaId}
+        <Segmented bind:value={register} options={[{ value: "neutral", label: "Neutral" }, { value: "canon", label: "Canon" }, { value: "au", label: "AU" }, { value: "romantic", label: "Romantic" }, { value: "adversarial", label: "Adversarial" }]} small />
+      {/if}
+    </div>
+  {/if}
   <span class="tiny muted">Point of view and tense also guide the wand's “Fix point of view” on every greeting.</span>
 </section>
 

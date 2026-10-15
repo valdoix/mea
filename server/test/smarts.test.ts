@@ -193,7 +193,10 @@ describe("the creator", () => {
   test("suggested answers, stale fields, the editor's pass and the co-writer", async () => {
     const d = createCreatorDraft({ kind: "character", idea: "Wren, a lighthouse keeper with a debt." });
     const rb = await api("POST", `/api/creator/${d.id}/readback`);
-    expect(rb.json.draft.questions[0].suggestions).toEqual(["To be forgiven", "To leave", "To be chosen first"]);
+    // Answers to pick from come on demand ("Show me directions"), captioned, so your own words come first.
+    const qid = rb.json.draft.questions[0].id;
+    expect(rb.json.draft.questions[0].directions).toEqual([]);
+    expect((await api("POST", `/api/creator/${d.id}/questions/${qid}/directions`)).json.draft.questions[0].directions).toHaveLength(3);
     await writeBible(d.id);
     queueFields(d.id, { keys: ["description", "first_mes", "tags"] });
     await runCreatorJob(d.id);
