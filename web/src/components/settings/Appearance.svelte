@@ -293,6 +293,14 @@
           <option value="never">Never show</option>
         </select>
       </label>
+      <label class="field narrow">
+        <span class="label">The plan above each reply</span>
+        <select class="select" value={page.plan ?? "drawer"} onchange={(e) => setPage({ plan: e.currentTarget.value as NonNullable<LivingPage["plan"]> })}>
+          <option value="drawer">In a folded drawer</option>
+          <option value="always">Always open</option>
+        </select>
+        <span class="hint">Every reply is planned first; this only changes how the plan shows.</span>
+      </label>
     </section>
 
     <section class="panel stack">

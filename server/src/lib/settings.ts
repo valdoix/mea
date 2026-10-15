@@ -17,6 +17,8 @@ export interface LivingPage {
   window: boolean;
   /** Private thoughts under replies. */
   thoughts: "never" | "drawer" | "always";
+  /** Each reply's plan: in a folded drawer or always open (planning itself is always on). */
+  plan?: "drawer" | "always";
 }
 
 /** Typed app settings with defaults. Stored as JSON per key. */

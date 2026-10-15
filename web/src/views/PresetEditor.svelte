@@ -153,9 +153,13 @@
         <div class="row between"><h2>Prompt blocks</h2><button class="btn small" onclick={addText}><Plus size={14} /> Custom block</button></div>
         <p class="tiny muted">Top to bottom is the order the model reads. “Depth” blocks are slotted into the chat history, counted from the newest message.</p>
         {#each preset.blocks as block, i (block.id)}
-          <div class="block card" class:off={!block.enabled}>
+          <div class="block card" class:off={!block.enabled && block.id !== "mea-planning"}>
             <div class="brow">
-              <input type="checkbox" bind:checked={block.enabled} aria-label="Enabled" />
+              {#if block.id === "mea-planning"}
+                <input type="checkbox" checked disabled aria-label="Always on" title="Planning is mandatory: every reply is planned before it's written" />
+              {:else}
+                <input type="checkbox" bind:checked={block.enabled} aria-label="Enabled" />
+              {/if}
               <button class="expand" onclick={() => (open[block.id] = !open[block.id])}>
                 {#if open[block.id]}<ChevronDown size={15} />{:else}<ChevronRight size={15} />{/if}
                 <b class="wraps">{block.name}</b>
@@ -165,7 +169,7 @@
               {#if block.when}<span class="chip hide-sm" title="Sent only while this holds">{block.when}</span>{/if}
               <button class="btn ghost icon small" onclick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"><ArrowUp size={14} /></button>
               <button class="btn ghost icon small" onclick={() => move(i, 1)} disabled={i === preset.blocks.length - 1} aria-label="Move down"><ArrowDown size={14} /></button>
-              {#if block.kind === "text"}<button class="btn ghost icon small" onclick={() => preset?.blocks.splice(i, 1)} aria-label="Remove block"><Trash size={14} /></button>{/if}
+              {#if block.id === "mea-planning"}<span class="chip" title="Planning is mandatory: every reply is planned before it's written">always on</span>{:else if block.kind === "text"}<button class="btn ghost icon small" onclick={() => preset?.blocks.splice(i, 1)} aria-label="Remove block"><Trash size={14} /></button>{/if}
             </div>
             {#if open[block.id]}
               <div class="bbody stack tight">

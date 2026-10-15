@@ -43,6 +43,7 @@
   import LessonChip from "./LessonChip.svelte";
   import { learnFrom } from "../../lib/lessons.svelte";
   import ThoughtsDrawer from "../trackers/ThoughtsDrawer.svelte";
+  import PlanDrawer from "./PlanDrawer.svelte";
   import { trk } from "../../lib/trackers.svelte";
   import { living } from "../../lib/living";
   import { respoken, voices, voicesFrom } from "../../lib/voices";
@@ -128,7 +129,6 @@
   let menuOpen = $state(false);
   let menuBtn = $state<HTMLButtonElement | null>(null);
   let menuPoint = $state<{ x: number; y: number } | null>(null);
-  let showReasoning = $state(false);
   let streamHtml = $state("");
   let raf = 0;
 
@@ -322,11 +322,8 @@
       <button class="btn ghost icon small more" bind:this={menuBtn} onclick={() => ((menuPoint = null), (menuOpen = true))} aria-label="Message actions"><Ellipsis size={16} /></button>
     </header>
 
-    {#if message.reasoning && !isUser}
-      <button class="reasoning-toggle tiny" onclick={() => (showReasoning = !showReasoning)}>
-        {streaming && !message.content ? "Thinking…" : showReasoning ? "Hide reasoning" : "Show reasoning"}
-      </button>
-      {#if showReasoning}<div class="reasoning small">{message.reasoning}</div>{/if}
+    {#if !isUser && !editing && (message.reasoning || message.meta?.plan === "none")}
+      <PlanDrawer reasoning={message.reasoning} how={message.meta?.plan} {streaming} writing={Boolean(message.content)} open={page.plan === "always"} />
     {/if}
 
     {#if editing}
@@ -581,24 +578,6 @@
   .msg:hover .more,
   .more:focus-visible {
     opacity: 1;
-  }
-  .reasoning-toggle {
-    background: none;
-    border: 0;
-    padding: 0;
-    color: var(--thought);
-    font: 700 var(--fs-xs) var(--font-ui);
-    cursor: pointer;
-    margin-bottom: 0.3rem;
-  }
-  .reasoning {
-    border-left: 3px solid var(--lavender);
-    padding: 0.2rem 0 0.2rem 0.75rem;
-    margin-bottom: 0.6rem;
-    color: var(--text-muted);
-    white-space: pre-wrap;
-    max-height: 16rem;
-    overflow-y: auto;
   }
   .caret {
     display: inline-block;

@@ -81,6 +81,11 @@ beforeAll(() => {
           : "The rain had not stopped all night, and the lantern on the sill burned low while the harbour bell rang twice.";
         return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
       }
+      if (String(body.model).startsWith("refuses")) {
+        // Mandatory planning: a model that never plans, not even when a request asks for the plan alone.
+        const content = "The rain had not stopped all night, and the lantern on the sill burned low while the harbour bell rang twice.";
+        return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+      }
       if (body.model === "planonly") {
         // The plan-only watch: the first try writes its plan out (no tags) and stops; the second writes the story.
         const plan = "NOW — night, the lighthouse, Mira and Ash.\n\nSEAL — Ash stepped in. Reply ends on her offer.\n\nMINDS — Mira wary, hopeful.\n\nMOVE — she offers tea.\n\nVOICE — short, quiet.";
@@ -488,6 +493,60 @@ describe("sending (H8, C2, H3)", () => {
     expect(third.reasoning).toContain("MOVE — she offers tea");
     expect(third.reasoning).not.toContain("should not have written");
     expect(third.content.startsWith("The rain had not stopped")).toBe(true);
+  });
+
+  test("planning is mandatory: a writer that skips every plan is planned by the planner model", async () => {
+    const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    const mock = createConnection({ name: "Mock", kind: "mock", billing: "subscription" });
+    await syncModels(mock);
+    const planner = createProfile({ name: "Planner", connectionId: mock, modelId: "mock/storyteller", params: {} });
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: null, world: null, assistant: null, planner });
+    const send = async (model: string, content: string) => {
+      setSetting("routing.story", createProfile({ name: model, connectionId: conn, modelId: model, params: {} }));
+      const chatId = newChat();
+      counts.delete(model);
+      const end = waitFor((e) => e.type === "gen.end" && (e as any).chatId === chatId);
+      expect((await api("POST", `/api/chats/${chatId}/send`, { content })).status).toBe(200);
+      expect(((await end) as any).status).toBe("done");
+      const reply = all<{ content: string; reasoning: string | null; meta: string }>("SELECT s.content, s.reasoning, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
+      const bodies = all<{ request: string; kind: string }>("SELECT request, kind FROM generations WHERE chat_id = ? AND task = 'story' ORDER BY started_at", chatId);
+      return { reply, meta: JSON.parse(reply.meta), bodies };
+    };
+
+    // Its own pass skipped, the plan step empty, the forced try skipped too: the planner writes the pass.
+    const rescued = await send("refuses-a", "I step inside.");
+    expect(counts.get("refuses-a")).toBe(4);
+    expect(rescued.meta.plan).toBe("rescue");
+    expect(rescued.meta.notes).toContain("planned by the planner model: the writer skipped its plan twice");
+    expect(rescued.reply.reasoning).toContain("MOVE — she answers honestly.");
+    expect(rescued.bodies.map((b) => b.kind)).toEqual(["new", "plan", "new", "new"]);
+    expect(rescued.bodies[2]!.request).toContain("The last try skipped the planning pass");
+    expect(rescued.bodies[3]!.request).toContain("<director-plan>");
+
+    // The planner fails too: one last try, unwatched, so there is still a reply, shown as unplanned.
+    const unplanned = await send("refuses-b", "MOCK_PLANNER_FAIL I step inside.");
+    expect(counts.get("refuses-b")).toBe(4);
+    expect(unplanned.meta.plan).toBe("none");
+    expect(unplanned.meta.notes).toContain("written without a plan: every planning try failed");
+    expect(unplanned.reply.content.startsWith("The rain had not stopped")).toBe(true);
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: null, world: null, assistant: null });
+  });
+
+  test("planning is mandatory: the pass is sent when the preset switched it off, or never had it", () => {
+    const off = meaPreset();
+    for (const b of off.blocks) if (b.id === "mea-planning") (b.enabled = false), (b.when = "never");
+    const offTrace = assemblePrompt(input({ preset: off })).trace.blocks.find((b) => b.id === "mea-planning");
+    expect(offTrace).toMatchObject({ included: true, note: "always on: every reply is planned" });
+
+    const imported = importStPreset({ prompts: [{ identifier: "main", content: "Write the reply." }], prompt_order: [{ character_id: 100001, order: [{ identifier: "main", enabled: true }, { identifier: "chatHistory", enabled: true }] }] }, "Imported");
+    expect(imported.blocks.some((b) => b.id === "mea-planning")).toBe(false);
+    const out = assemblePrompt(input({ preset: imported }));
+    expect(out.trace.blocks.find((b) => b.id === "mea-planning")?.included).toBe(true);
+    expect(JSON.stringify(out.messages)).toContain("[BEFORE YOU WRITE");
+
+    // Only story replies plan: an impersonation or a continue gets no pass.
+    for (const kind of ["impersonate", "continue"] as const) expect(assemblePrompt(input({ preset: imported, kind })).trace.blocks.find((b) => b.id === "mea-planning")?.included).toBe(false);
   });
 
   test("the plan-only watch: a reply that stops at its plan is written again from that plan", async () => {

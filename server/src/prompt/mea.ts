@@ -114,6 +114,9 @@ RISK — the likeliest way this reply fails (writing for {{user}}, a leak, an ec
 VOICE — length, how much talk, and how the opening differs from the last reply's (subject and sentence shape, named, not written){{if toolkitDue}}; the toolkit visual: which kind, beside which beat{{/if}}.
 STOP RULE: after VOICE the planning is over{{if providerReasoning}}: end your reasoning and write the story{{/if}}{{if not providerReasoning}}: close with </think> and write the story at once{{/if}}. No review, no restart, no rehearsal. Fragments only. Never draft: no sentence of the reply, no line of dialogue, no opening line and no paragraph outline inside the pass.{{/if}}`;
 
+/** The planning pass as a preset block. It is mandatory: the assembler sends it even when a preset switched it off or has none. */
+export const PLANNING_BLOCK: PromptBlock = Object.freeze(block("mea-planning", "Before you write", "text", { content: PLANNING })) as PromptBlock;
+
 /**
  * Every visual-toolkit tag the page draws (web/src/lib/artifacts.ts keeps the same list). A reply
  * that holds one counts as a visual for the toolkit's rhythm (prompt/assemble.ts).
@@ -601,7 +604,7 @@ export function meaPreset(): Preset {
       block("authors_note", "Author's note", "authors_note", { position: "depth", depth: 4 }),
       block("mea-turn", "This reply", "text", { content: TURN }),
       block("post_history", "Post-history instructions", "post_history", { content: "" }),
-      block("mea-planning", "Before you write", "text", { content: PLANNING }),
+      { ...PLANNING_BLOCK },
       block("mea-errata", "Model notes", "text", { content: ERRATA }),
       block("mea-speakers", "Speaker marks", "text", { content: SPEAKERS }),
       block("mea-output", "Output", "text", { content: OUTPUT }),

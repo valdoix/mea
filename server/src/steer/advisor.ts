@@ -251,6 +251,23 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
   return p;
 }
 
+/**
+ * Mandatory planning's last resort: the writer skipped its pass twice (its plan step came back empty
+ * between), so the planner model, or the helper it borrows, writes the pass for this reply. Runs
+ * whether or not the chat uses a separate planner, and isn't kept as the chat's plan. Null when it fails too.
+ */
+export async function rescuePlan(chatId: string, history: HistoryMessage[], signal?: AbortSignal): Promise<string | null> {
+  try {
+    const cfg = steerFor(chatId);
+    const { system, user } = advisorInput(chatId, history, undefined, { ...cfg, planner: true });
+    const r = await callJson({ task: "planner", kind: "planner", chatId, name: "planner_plan", schema: planSchema, system, user, maxTokens: 1800, temperature: 0.5, signal, profileId: cfg.plannerProfileId });
+    return undraft(r.data).pass.trim() || null;
+  } catch (e) {
+    console.error("[mea] the rescue plan failed:", (e as Error).message);
+    return null;
+  }
+}
+
 /** H3: the separate planner's plan, as the writer gets it: the pass is done, so it writes only the prose. */
 export function directorPlanText(p: Plan) {
   const body = [p.pass.trim(), p.direction ? `Direction: ${p.direction}` : "", p.beats.length ? `Beats:\n${p.beats.map((b) => `- ${b}`).join("\n")}` : "", p.reminders.length ? `Keep straight: ${p.reminders.join("; ")}` : "", p.avoid.length ? `Avoid: ${p.avoid.join("; ")}` : ""].filter(Boolean).join("\n");
