@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parsePlan, planSource } from "../../web/src/lib/plan";
+import { parsePlan, planSource } from "../../shared/plan";
 
 describe("the plan drawer reads the planning pass step by step", () => {
   test("labelled lines become steps, in the order written", () => {

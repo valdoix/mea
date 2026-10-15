@@ -2009,6 +2009,32 @@ export interface CreatorReview {
   cost: { permanent: number; greeting: number; examples: number };
 }
 
+/** The planner's notebook (server/src/steer/planbook.ts): how each plan turned out. */
+export interface PlanStats {
+  n: number;
+  /** Share kept on the first take and left as written (0–1). */
+  firstTry: number | null;
+  /** Extra takes per reply. */
+  swipes: number | null;
+  /** Continuity slips per 100 replies. */
+  slips: number | null;
+  /** Share with a readable plan (0–1). */
+  planned: number | null;
+}
+export interface PlanTrendPoint extends PlanStats {
+  fromSeq: number;
+  toSeq: number;
+}
+export interface Planbook {
+  scope: "chat" | "model";
+  model: string | null;
+  all: PlanStats;
+  recent: PlanStats;
+  earlier: PlanStats;
+  trend: PlanTrendPoint[];
+  byTier: Partial<Record<"Routine" | "Charged" | "Pivotal", PlanStats>>;
+  byHow: Partial<Record<string, PlanStats>>;
+  slipKinds: { kind: string; count: number }[];
 // ---------- growing a lorebook ----------
 
 export interface PersonAnswer {
