@@ -21,6 +21,7 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 | [docs/11-living-page.md](docs/11-living-page.md) | The living page: speaker colours, in-story artifacts, the scene window, the Almanac, private thoughts, and story calendars (Gregorian, Westeros) |
 | [docs/12-smarter-studios.md](docs/12-smarter-studios.md) | One person per cast entry (merge, edit any record, Story → Data), forgiving dialogue colours, and smarter studios: census and canon research, suggested answers, Mea the co-writer, out-of-date tracking, the editor's pass |
 | [docs/13-meus.md](docs/13-meus.md) | Meus, the one assistant: the studios' co-writer and the story companion in every chat, which answers with sources, brainstorms, and fixes the cast, the clock, the records, the Codex, memory and past messages, with undo |
+| [docs/14-linked-variants.md](docs/14-linked-variants.md) | Build plan for linked variants: character and persona versions with their own lorebooks, shared universes, the variant studio and its translation map, changes from the original, and leak checks in chats |
 
 ## Running Mea
 
