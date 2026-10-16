@@ -1,6 +1,6 @@
 <script lang="ts">
   import { post } from "../../lib/api";
-  import type { CreatorSession } from "../../lib/creator.svelte";
+  import { type CreatorSession, leakSteer } from "../../lib/creator.svelte";
   import { promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
   import { CircleCheck, ClipboardCheck, Loader, PenLine, RefreshCw, Sparkle, TriangleAlert, UserPen, Users, X } from "../../lib/icons";
@@ -49,6 +49,21 @@
     guess: { label: "My guess, check it", title: "You left this open; this is an overturnable guess" },
   };
   const labelOf = (key: string) => draft.bible.find((b) => b.key === key)?.label ?? key;
+
+  // A version (docs/14): each section kept from the original, changed, or new; and what leaked from the original's world.
+  const MARK: Record<string, { label: string; title: string }> = {
+    kept: { label: "Kept", title: "The original's words, unchanged in this version" },
+    changed: { label: "Changed", title: "Rewritten for this version" },
+    new: { label: "New", title: "Only in this version" },
+  };
+  const bibleLeaks = $derived((draft.leaks ?? []).filter((l) => l.where === "bible"));
+  const keptCount = $derived(Object.values(draft.marks ?? {}).filter((m) => m === "kept").length);
+
+  /** A version writes only the fields its changes reach; the rest carry over from the original. */
+  function writeCard() {
+    const keys = draft.variant ? draft.fieldPlan?.rewrite : undefined;
+    void session.act("write", "/write", keys ? { keys } : undefined);
+  }
 </script>
 
 <section class="stack">
@@ -73,6 +88,16 @@
         </ul>
         {#if failed.length}<span class="tiny muted">You can still write the {isChar ? "card" : "persona"}; expect more generic fields where the source is thin.</span>{/if}
       {/if}
+      {#if draft.variant && draft.marks}
+        <span class="tiny muted">{keptCount} section{keptCount === 1 ? "" : "s"} kept from {draft.variant.originName}, {draft.bible.length - keptCount} written for this version.</span>
+      {/if}
+      {#each bibleLeaks as l, i (i)}
+        <div class="issue small">
+          <TriangleAlert size={14} />
+          <div class="grow"><b>{l.label}:</b> “{l.term}” {l.state === "changed" ? `is “${l.to}” in this version.` : "doesn't exist in this version."}</div>
+          <button class="btn small" onclick={() => session.act(`section:${l.key}`, `/bible/${l.key}`, { steer: leakSteer(l) })} disabled={Boolean(session.busy)}>Fix it</button>
+        </div>
+      {/each}
       {#if draft.bibleCheck}
         <span class="tiny" class:ok={!draft.bibleCheck.length}>{draft.bibleCheck.length ? `${draft.bibleCheck.length} thing${draft.bibleCheck.length === 1 ? "" : "s"} to look at, each with a fix you can apply.` : "The editor found nothing generic, contradictory or missing."}</span>
       {/if}
@@ -93,7 +118,7 @@
     {#each draft.bible as b (b.key)}
       <div class="card stack tight section" class:working={session.busy === `section:${b.key}`}>
         <div class="row between">
-          <span><b>{b.label}</b>{#if b.origin}{" "}<span class="chip tiny origin {b.origin}" title={ORIGIN[b.origin]!.title}>{ORIGIN[b.origin]!.label}</span>{/if}</span>
+          <span><b>{b.label}</b>{#if draft.marks?.[b.key]}{" "}<span class="chip tiny mark {draft.marks[b.key]}" title={MARK[draft.marks[b.key]!]!.title}>{MARK[draft.marks[b.key]!]!.label}</span>{:else if b.origin}{" "}<span class="chip tiny origin {b.origin}" title={ORIGIN[b.origin]!.title}>{ORIGIN[b.origin]!.label}</span>{/if}</span>
           <div class="row">
             {#if session.busy === `section:${b.key}`}<span class="spin"><Loader size={14} /></span>{/if}
             <button class="btn ghost small" onclick={() => session.act(`section:${b.key}`, `/bible/${b.key}`, {})} disabled={Boolean(session.busy)} title="Sharper and more specific, same facts"><Sparkle size={13} /> Sharpen</button>
@@ -121,12 +146,15 @@
     </div>
 
     <div class="row wrap actions">
+      {#if !draft.variant}
       <button class="btn ghost" onclick={twin} disabled={Boolean(session.busy)} title={isChar ? "A persona built from this bible, to play them yourself" : "A character card built from this bible"}>
         {#if isChar}<UserPen size={15} /> Make a persona from this{:else}<Users size={15} /> Make a character from this{/if}
       </button>
       {#if isChar}<button class="btn ghost" onclick={opposite} disabled={Boolean(session.busy)} title="A different person for you to play, made to complement or rub against them"><UserPen size={15} /> A persona to play opposite them</button>{/if}
+      {/if}
       <span class="grow"></span>
-      <button class="btn primary" onclick={() => session.act("write", "/write")} disabled={Boolean(session.busy)}><PenLine size={16} /> {session.busy === "write" ? "Starting…" : isChar ? "Write the card" : "Write the persona"}</button>
+      {#if draft.variant && draft.fieldPlan}<span class="tiny muted">{draft.fieldPlan.keep.length} field{draft.fieldPlan.keep.length === 1 ? "" : "s"} carry over; {draft.fieldPlan.rewrite.length} written for this version</span>{/if}
+      <button class="btn primary" onclick={writeCard} disabled={Boolean(session.busy)}><PenLine size={16} /> {session.busy === "write" ? "Starting…" : draft.variant ? "Write the version" : isChar ? "Write the card" : "Write the persona"}</button>
     </div>
   {/if}
 </section>
@@ -179,6 +207,15 @@
     background: color-mix(in srgb, var(--butter, #f5d77a) 30%, transparent);
   }
   .origin.yours {
+    background: color-mix(in srgb, var(--mint, #9fe0c0) 30%, transparent);
+  }
+  .mark.kept {
+    background: color-mix(in srgb, var(--sky, #9cc4ee) 28%, transparent);
+  }
+  .mark.changed {
+    background: color-mix(in srgb, var(--lavender, #c7b8ec) 34%, transparent);
+  }
+  .mark.new {
     background: color-mix(in srgb, var(--mint, #9fe0c0) 30%, transparent);
   }
   .grow {

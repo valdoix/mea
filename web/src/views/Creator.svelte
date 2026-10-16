@@ -6,8 +6,11 @@
   import CreatorIdea from "../components/creator/CreatorIdea.svelte";
   import CreatorQuestions from "../components/creator/CreatorQuestions.svelte";
   import CreatorWrite from "../components/creator/CreatorWrite.svelte";
+  import VariantMap from "../components/creator/VariantMap.svelte";
+  import VariantQuestions from "../components/creator/VariantQuestions.svelte";
+  import VariantStart from "../components/creator/VariantStart.svelte";
   import { CreatorSession } from "../lib/creator.svelte";
-  import { ArrowLeft, Check } from "../lib/icons";
+  import { ArrowLeft, Check, GitBranch } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
   import type { CreatorStage } from "../lib/types";
 
@@ -32,13 +35,28 @@
     { stage: "bible", label: "Bible" },
     { stage: "write", label: "Write & save" },
   ];
-  const at = $derived(draft ? (draft.stage === "done" ? 3 : STEPS.findIndex((s) => s.stage === draft.stage)) : 0);
+  // A version (docs/14) has a premise instead of an idea, and a map before its bible.
+  const VERSION_STEPS: { stage: CreatorStage; label: string }[] = [
+    { stage: "idea", label: "Premise" },
+    { stage: "questions", label: "Questions" },
+    { stage: "map", label: "Map" },
+    { stage: "bible", label: "Bible" },
+    { stage: "write", label: "Write & save" },
+  ];
+  const steps = $derived(draft?.variant ? VERSION_STEPS : STEPS);
+  const at = $derived(draft ? (draft.stage === "done" ? steps.length - 1 : Math.max(0, steps.findIndex((s) => s.stage === draft.stage))) : 0);
 
   // What to try with Meus, for this kind and stage: a persona is the one you play, so it never gets card prompts.
   const examples = $derived.by(() => {
     if (!draft) return [];
     const who = draft.name && !/^New (character|persona)$/.test(draft.name) ? draft.name : "them";
     const early = draft.stage === "idea" || draft.stage === "questions";
+    if (draft.variant)
+      return draft.stage === "map"
+        ? ["What would the people around them become here?", "Which of these places has no place in this version?", "Suggest two new people this version needs", "Is anything on the map half-translated?"]
+        : early
+          ? [`What would ${draft.variant.originName} lose in this version?`, "Brainstorm three premises that change everything", "What should stay exactly the same?", `Who is ${draft.variant.originName} to the people around them now?`]
+          : [`Does this still read as ${draft.variant.originName}?`, "Fix what the checks flagged", "What did the map miss?", "Make the greeting open in this version's world"];
     if (draft.kind === "persona")
       return early
         ? ["What kind of stories would I enjoy playing as them?", "Brainstorm the contradiction at their core", "Give them a past that opens doors in a story", `What would people notice first about ${who}?`]
@@ -67,7 +85,9 @@
       <input class="title" bind:value={draft.name} oninput={() => session.save({ name: draft.name }, "name")} aria-label="Name" />
       <span class="chip {draft.kind === 'persona' ? 'lavender' : 'rose'}">{draft.kind === "persona" ? "Persona" : draft.options.mode === "narrator" ? "Narrator card" : "Character"}</span>
     </div>
-    {#if draft.baseId}
+    {#if draft.variant}
+      <span class="tiny muted"><GitBranch size={12} /> A version of <a href={draft.variant.originKind === "persona" ? `/personas/${draft.variant.originId}` : `/character/${draft.variant.originId}`}>{draft.variant.originName}</a>{draft.variant.label ? ` · ${draft.variant.label}` : ""}. The original stays as it is; saving makes a new {draft.kind === "persona" ? "persona" : "card"} linked to it.</span>
+    {:else if draft.baseId}
       <span class="tiny muted">Reworking <a href={draft.kind === "persona" ? `/personas/${draft.baseId}` : `/character/${draft.baseId}`}>the saved {draft.kind === "persona" ? "persona" : "card"}</a>. Saving updates it{draft.kind === "character" ? " and keeps the old version in its history" : ""}.</span>
     {:else if draft.origin?.loreDraftId}
       <span class="tiny muted">From an entry in <a href="/lore-studio/{draft.origin.loreDraftId}">a Lore Studio draft</a>; that world is its context.</span>
@@ -83,7 +103,7 @@
     {/if}
 
     <nav class="steps" aria-label="Steps">
-      {#each STEPS as s, i (s.stage)}
+      {#each steps as s, i (s.stage)}
         <button class="step" class:on={i === at} class:past={i < at} onclick={() => go(s.stage)} aria-current={i === at ? "step" : undefined} aria-label="Step {i + 1}: {s.label}">
           <span class="dot">{#if i < at}<Check size={12} />{:else}{i + 1}{/if}</span>
           <span class="label">{s.label}</span>
@@ -91,7 +111,13 @@
       {/each}
     </nav>
 
-    {#if draft.stage === "idea"}
+    {#if draft.variant && draft.stage === "idea"}
+      <VariantStart {session} />
+    {:else if draft.variant && draft.stage === "questions"}
+      <VariantQuestions {session} />
+    {:else if draft.stage === "map"}
+      <VariantMap {session} />
+    {:else if draft.stage === "idea"}
       <CreatorIdea {session} />
     {:else if draft.stage === "questions"}
       <CreatorQuestions {session} />

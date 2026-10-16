@@ -70,7 +70,7 @@
     busy = true;
     try {
       await beforeLeave?.();
-      const r = await post<{ draft: { id: string } }>("/api/creator", { kind, baseId: id, asVersion: { kind: vkind, label: label.trim() }, idea: label.trim() ? `${kindLabel(vkind)}: ${label.trim()}` : "" });
+      const r = await post<{ draft: { id: string } }>("/api/creator", { kind, baseId: id, asVersion: { kind: vkind, label: label.trim() }, idea: label.trim() });
       navigate(`/creator/${r.draft.id}`);
     } catch (e) {
       errorToast(e);

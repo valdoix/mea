@@ -2,14 +2,41 @@
   import { del, get, post } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
   import { timeAgo } from "../../lib/format";
-  import { BookOpen, Globe2, Trash, UserPen, Users } from "../../lib/icons";
+  import { BookOpen, GitBranch, Globe2, Trash, UserPen, Users } from "../../lib/icons";
   import { navigate, route } from "../../lib/router.svelte";
   import { app, errorToast } from "../../lib/state.svelte";
-  import type { CreatorDraft, CreatorDraftSummary, CreatorKind, LorebookSummary, StudioDraftSummary } from "../../lib/types";
+  import { type CharacterSummary, type CreatorDraft, type CreatorDraftSummary, type CreatorKind, type LorebookSummary, type Persona, type StudioDraftSummary, VERSION_KINDS, type VersionKind } from "../../lib/types";
   import CreatorImport from "./CreatorImport.svelte";
 
   /** The Creator Studio's front door: characters, personas and worlds, and every draft in progress. */
-  let kind = $state<CreatorKind | null>(null);
+  let kind = $state<CreatorKind | "version" | null>(null);
+  // A version (docs/14): of which character or persona, what kind, and what it's called.
+  let originKind = $state<CreatorKind>("character");
+  let originId = $state("");
+  let vkind = $state<VersionKind>("au");
+  let vlabel = $state("");
+  let characters = $state<CharacterSummary[]>([]);
+  let personas = $state<Persona[]>([]);
+  $effect(() => {
+    if (kind !== "version" || characters.length || personas.length) return;
+    Promise.all([get<{ characters: CharacterSummary[] }>("/api/characters?sort=name"), get<{ personas: Persona[] }>("/api/personas")]).then(([c, p]) => {
+      characters = c.characters;
+      personas = p.personas;
+    }, errorToast);
+  });
+
+  async function startVersion() {
+    if (!originId) return;
+    creating = true;
+    try {
+      const r = await post<{ draft: CreatorDraft }>("/api/creator", { kind: originKind, baseId: originId, asVersion: { kind: vkind, label: vlabel.trim() }, idea: vlabel.trim() });
+      navigate(`/creator/${r.draft.id}`);
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      creating = false;
+    }
+  }
   let idea = $state("");
   let worldId = $state("");
   let creating = $state(false);
@@ -35,7 +62,7 @@
   });
 
   async function start() {
-    if (!kind || !idea.trim()) return;
+    if (!kind || kind === "version" || !idea.trim()) return;
     creating = true;
     try {
       const r = await post<{ draft: CreatorDraft }>("/api/creator", { kind, idea, worldBookIds: worldId ? [worldId] : [] });
@@ -48,7 +75,7 @@
   }
 
   type Row = { id: string; href: string; title: string; kind: string; detail: string; updatedAt: number; lore: boolean };
-  const STAGE: Record<string, string> = { idea: "Idea", questions: "Questions", bible: "Bible", write: "Writing", done: "Saved", start: "Starting", plan: "Planning", review: "Writing & review" };
+  const STAGE: Record<string, string> = { idea: "Idea", questions: "Questions", map: "Map", bible: "Bible", write: "Writing", done: "Saved", start: "Starting", plan: "Planning", review: "Writing & review" };
   const rows = $derived<Row[]>(
     [
       ...drafts.map((d) => ({ id: d.id, href: `/creator/${d.id}`, title: d.name, kind: d.kind === "persona" ? "Persona" : "Character", detail: `${STAGE[d.stage]} · ${d.written}/${d.fields} fields${d.writing ? ` · writing ${d.writing}…` : ""}`, updatedAt: d.updatedAt, lore: false })),
@@ -81,12 +108,39 @@
     <button class="kind card" class:on={kind === "persona"} onclick={() => (kind = "persona")} aria-pressed={kind === "persona"}>
       <span class="icon lavender"><UserPen size={18} /></span><b>A persona</b><span class="tiny muted">You, in the story: who you play, where you come from.</span>
     </button>
+    <button class="kind card" class:on={kind === "version"} onclick={() => (kind = "version")} aria-pressed={kind === "version"}>
+      <span class="icon butter"><GitBranch size={18} /></span><b>A version</b><span class="tiny muted">Someone you already have, in an alternate universe, another era, years later, or a what-if.</span>
+    </button>
     <a class="kind card" href="/lore-studio">
       <span class="icon sky"><Globe2 size={18} /></span><b>A world</b><span class="tiny muted">A lorebook in the Lore Studio: from an idea, a card, a document or a book you have.</span>
     </a>
   </div>
 
-  {#if kind}
+  {#if kind === "version"}
+    <section class="panel stack">
+      <div class="row wrap">
+        <label class="field"><span class="label">Of</span>
+          <select class="select" bind:value={originKind} onchange={() => (originId = "")}>
+            <option value="character">A character</option>
+            <option value="persona">A persona</option>
+          </select>
+        </label>
+        <label class="field grow"><span class="label">Who</span>
+          <select class="select" bind:value={originId}>
+            <option value="">Pick one…</option>
+            {#each originKind === "character" ? characters : personas as o (o.id)}<option value={o.id}>{o.name}</option>{/each}
+          </select>
+        </label>
+      </div>
+      <div class="row wrap">
+        <label class="field grow"><span class="label">Called</span><input class="input" bind:value={vlabel} placeholder="College AU · Ten years later · The war never ended" maxlength="80" /></label>
+        <label class="field"><span class="label">Kind</span>
+          <select class="select" bind:value={vkind}>{#each VERSION_KINDS as k (k.id)}<option value={k.id}>{k.label}</option>{/each}</select>
+        </label>
+      </div>
+      <div class="row"><span class="grow"></span><button class="btn primary" onclick={startVersion} disabled={creating || !originId}><GitBranch size={15} /> {creating ? "Starting…" : "Start the version"}</button></div>
+    </section>
+  {:else if kind}
     <section class="panel stack">
       <label class="field">
         <span class="label">{kind === "character" ? "Your character" : "Who you want to be"}, in your own words</span>
@@ -174,6 +228,9 @@
   }
   .icon.sky {
     background: color-mix(in srgb, var(--sky) 45%, var(--surface));
+  }
+  .icon.butter {
+    background: color-mix(in srgb, var(--butter) 45%, var(--surface));
   }
   .draft {
     display: flex;

@@ -27,6 +27,10 @@ import {
   saveCreator,
   stopFields,
   writeBible,
+  writeVariantBible,
+  draftLeaks,
+  variantMarks,
+  variantFieldPlan,
   answerQuestion,
   applyPairing,
   composeDepth,
@@ -42,6 +46,8 @@ import {
 import { harvestFromCreator } from "../lore/people";
 import { extendText } from "../creator/expand";
 import { versionKind } from "../services/linked";
+import { anotherVariantQuestion, buildMap, fillMap, personaVersion, premiseDirections, startVariant } from "../creator/variant";
+import { ROW_STATES, ROW_TYPES, type RowState, type RowType } from "../creator/variantcore";
 
 /** The character and persona creator (Phase 4). */
 export const creator = new Hono();
@@ -71,7 +77,21 @@ const expansionPatch = z.object({
 });
 const steer = z.object({ steer: z.string().max(1000).optional() }).default({});
 /** The draft, with what the interview will do about each section ("I'll handle next"). */
-const d = (draft: ReturnType<typeof mustCreator>) => ({ draft: { ...draft, plan: interviewPlan(draft) } });
+const d = (draft: ReturnType<typeof mustCreator>) => ({
+  draft: {
+    ...draft,
+    plan: interviewPlan(draft),
+    // A version (docs/14): its bible's marks, what leaked from the original's world, and which fields carry over.
+    ...(draft.variant ? { leaks: draftLeaks(draft), marks: variantMarks(draft), fieldPlan: variantFieldPlan(draft) } : {}),
+  },
+});
+const variantPatch = z.object({
+  kind: versionKind.optional(),
+  label: z.string().max(80).optional(),
+  premise: z.string().max(8000).optional(),
+  anchors: z.array(z.object({ id: z.string().optional(), text: z.string().max(300).optional(), kept: z.boolean().optional(), remove: z.boolean().optional() })).max(40).optional(),
+  map: z.array(z.object({ id: z.string().optional(), type: z.enum(ROW_TYPES as [RowType, ...RowType[]]).optional(), from: z.string().max(200).optional(), to: z.string().max(300).optional(), state: z.enum(ROW_STATES as [RowState, ...RowState[]]).optional(), note: z.string().max(300).optional(), remove: z.boolean().optional() })).max(300).optional(),
+});
 
 creator.get("/creator", (c) => c.json({ drafts: listCreatorDrafts() }));
 
@@ -110,7 +130,7 @@ creator.put("/creator/:id", async (c) => {
     c,
     z.object({
       name: z.string().max(120).optional(),
-      stage: z.enum(["idea", "questions", "bible", "write", "done"]).optional(),
+      stage: z.enum(["idea", "questions", "map", "bible", "write", "done"]).optional(),
       idea: z.string().max(100_000).optional(),
       options: optionsSchema.partial().optional(),
       answers: z.record(z.string(), z.string().max(8000)).optional(),
@@ -130,6 +150,7 @@ creator.put("/creator/:id", async (c) => {
       taste: z.array(z.string().max(200)).max(24).optional(),
       brief: z.string().max(4000).optional(),
       depth: z.array(z.object({ id: z.string().optional(), title: z.string().max(200).optional(), content: z.string().max(4000).optional(), keys: z.array(z.string().max(80)).max(12).optional(), remove: z.boolean().optional() })).max(60).optional(),
+      variant: variantPatch.optional(),
     }),
   );
   return c.json(d(patchCreator(c.req.param("id"), input)));
@@ -167,7 +188,22 @@ creator.post("/creator/:id/depth", async (c) => c.json(d(await composeDepth(c.re
 /** A persona's opening written opposite its character, and adding it to that character. */
 creator.post("/creator/:id/pairing", async (c) => c.json(d(await pairedGreeting(c.req.param("id"), (await body(c, z.object({ register: z.string().max(40) }))).register))));
 creator.post("/creator/:id/pairing/apply", async (c) => c.json(d(applyPairing(c.req.param("id"), (await opts(c, z.object({ text: z.string().max(8000).optional() }).default({}))).text))));
-creator.post("/creator/:id/bible", async (c) => c.json(d(await writeBible(c.req.param("id"), (await opts(c, steer)).steer))));
+creator.post("/creator/:id/bible", async (c) => {
+  const id = c.req.param("id");
+  const s = (await opts(c, steer)).steer;
+  return c.json(d(mustCreator(id).variant ? await writeVariantBible(id, s) : await writeBible(id, s)));
+});
+
+/** The variant studio (docs/14): premise takes, what stays true and the questions, the map, a persona's version. */
+creator.post("/creator/:id/variant/directions", async (c) => c.json(d(await premiseDirections(c.req.param("id"), (await opts(c, steer)).steer))));
+creator.post("/creator/:id/variant/start", async (c) => c.json(d(await startVariant(c.req.param("id"), await opts(c, z.object({ anchorsOnly: z.boolean().optional() }).default({}))))));
+creator.post("/creator/:id/variant/question", async (c) => c.json(d(await anotherVariantQuestion(c.req.param("id"), (await opts(c, steer)).steer))));
+creator.post("/creator/:id/variant/map", async (c) => c.json(d(await buildMap(c.req.param("id")))));
+creator.post("/creator/:id/variant/map/fill", async (c) => c.json(d(await fillMap(c.req.param("id"), await opts(c, z.object({ all: z.boolean().optional() }).default({}))))));
+creator.post("/creator/:id/variant/persona", async (c) => {
+  const input = await opts(c, z.object({ personaId: z.string().nullable().optional() }).default({}));
+  return c.json(d(personaVersion(c.req.param("id"), input.personaId)), 201);
+});
 creator.post("/creator/:id/bible/check", async (c) => c.json(d(await checkBible(c.req.param("id")))));
 creator.post("/creator/:id/bible/:key", async (c) => c.json(d(await rewriteBibleSection(c.req.param("id"), c.req.param("key"), (await opts(c, steer)).steer))));
 

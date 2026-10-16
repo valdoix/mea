@@ -4,7 +4,7 @@ import { DraftSaver } from "./drafts.svelte";
 import { onEvent } from "./events";
 import { errorToast } from "./state.svelte";
 import { mergeExpansion } from "./studio.svelte";
-import type { CreatorDraft, CreatorOptions, CreatorReview, CreatorStage, ExpansionPatch, FactSource } from "./types";
+import type { CreatorDraft, CreatorOptions, CreatorReview, CreatorStage, ExpansionPatch, FactSource, MapRowState, MapRowType, VariantLeak, VersionKind } from "./types";
 
 type Patch = Partial<{
   name: string;
@@ -28,6 +28,13 @@ type Patch = Partial<{
   taste: string[];
   brief: string;
   depth: { id?: string; title?: string; content?: string; keys?: string[]; remove?: boolean }[];
+  variant: {
+    kind?: VersionKind;
+    label?: string;
+    premise?: string;
+    anchors?: { id?: string; text?: string; kept?: boolean; remove?: boolean }[];
+    map?: { id?: string; type?: MapRowType; from?: string; to?: string; state?: MapRowState; note?: string; remove?: boolean }[];
+  };
 }>;
 
 /** One open character or persona draft: same rules as the Lore Studio's (see StudioSession). */
@@ -81,6 +88,16 @@ export class CreatorSession {
       brief: p("brief") ? cur.brief : s.brief,
       facts: s.facts.map((f) => (p(`fact:${f.id}`) ? { ...f, text: cur.facts.find((x) => x.id === f.id)?.text ?? f.text } : f)),
       depth: s.depth.map((e) => (p(`depth:${e.id}`) ? (cur.depth.find((x) => x.id === e.id) ?? e) : e)),
+      // A version's premise, name and map rows: yours win while you type.
+      variant:
+        s.variant && cur.variant
+          ? {
+              ...s.variant,
+              premise: p("premise") ? cur.variant.premise : s.variant.premise,
+              label: p("label") ? cur.variant.label : s.variant.label,
+              map: s.variant.map.map((r) => (p(`row:${r.id}`) ? (cur.variant!.map.find((x) => x.id === r.id) ?? r) : r)),
+            }
+          : s.variant,
       // While the writer works on a field, its text is the server's; otherwise yours wins while you type.
       fields: s.fields.map((f) => (p(`field:${f.key}`) && f.status !== "writing" && f.status !== "queued" ? { ...f, value: cur.fields.find((x) => x.key === f.key)?.value ?? f.value } : f)),
     };
@@ -135,6 +152,9 @@ export class CreatorSession {
     void this.flush().catch(() => {});
   }
 }
+
+/** The steer that fixes a leak in a version (same wording as the server's leakSteer). */
+export const leakSteer = (l: VariantLeak) => (l.state === "changed" ? `In this version "${l.term}" is "${l.to}": use that, and keep everything else.` : `"${l.term}" doesn't exist in this version: take it out or replace it with something from this version's world, and keep everything else.`);
 
 /** One-tap steering for a field rewrite. */
 export const FIELD_STEERS = ["Shorter", "Longer", "More vivid", "More in their voice", "Darker", "Warmer", "Less purple"];

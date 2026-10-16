@@ -112,21 +112,21 @@ Parts run in order. Part 4's tables are created in part 1 (empty), so versions m
 
 ## Part 2 · The variant studio
 
-**What you get:** a version written the way the creator writes a card, but starting from everything the original already is. Same shape as the creator: **Start → Questions → Map → Bible → Write → Save**.
+**What you get:** a version written the way the creator writes a card, but starting from everything the original already is. Its steps: **Premise → Questions → Map → Bible → Write & save**.
+
+**Ways in:** **Rebuild in the studio** on a character's or persona's **Versions** panel (part 1), or **Creator Studio › A version** (pick a character or persona, a kind and a name).
 
 ### The steps
 
-1. **Start.**
-   - The original (a character or a persona). Its card, its bible if the creator made it, and its linked lorebooks come along.
-   - The kind: **Alternate universe**, **Another era**, **Time skip** ("ten years later"), **What if** (one event went differently).
-   - The premise in your words, with **Expand my idea**, the three suggested directions, and **Brainstorm with Meus**.
-   - Until part 4: the universe is created here, privately, for this one version.
-2. **Questions,** about the change, each with three suggested answers, as in the creator:
-   - What's the point of divergence, and when does it happen?
-   - **What must stay true?** Mea suggests anchors drawn from the original (voice, core wound, want, a habit, a relationship), and you tick the ones that hold in this version.
-   - What's lost, gained or turned upside down?
-   - For a time skip: what happened in between?
-3. **The map.** One row for each person, place, group, thing and event from the original's card and lorebooks (from `takeCensus`), plus the original themself.
+1. **Premise.**
+   - The original (a character or a persona). Its card, its bible if the creator made it, and its linked lorebooks come along. The original's text is the source; the premise is kept apart from it, and outranks it wherever they disagree.
+   - What it's called ("College AU") and the kind: **Alternate universe**, **Another era**, **Time skip** ("ten years later"), **What if** (one event went differently).
+   - The premise in your words, with **Show me directions** (three divergent takes, steerable, with **Use this** or **Add to mine**) and **Brainstorm with Meus**.
+   - Until part 4 there's no universe to join; the premise and map live on the draft.
+2. **Questions.**
+   - **What stays true.** Mea suggests anchors drawn from the original (voice, core wound, want, a habit), and you tick the ones that hold in this version, untick the rest, or add your own. A persona's version made alongside a character's has **Suggest them** for its own.
+   - Three questions about the change, each with why it's asked and three suggested answers to tap: the point of divergence, what it costs or gives them, who they are to the people around them now. **Ask me another** (optionally steered) adds one more.
+3. **The map.** One row for the original themself, every entry in their lorebooks (name and type, read without a model call), and every name their card and bible mention (one model call).
 
    | Original | → | In this version | State |
    |---|---|---|---|
@@ -136,33 +136,34 @@ Parts run in order. Part 4's tables are created in part 1 (empty), so versions m
    | Arya | → | Arya | kept |
    | — | → | the rival ranch next door | new |
 
-   - Each row has suggested answers, and the map has **Fill the rest** and **Brainstorm this row**.
-   - **Not mapped yet** lists rows still open, as chips, like the Lore Studio's coverage list.
-   - The map is saved with the draft (and in part 4, with the universe).
-4. **Bible.** The original's bible sections, each marked **kept**, **changed** or **new**. For a card without a bible, one is drafted from the card first, the way **Rework** does today.
-   - Only changed and new sections are written. Kept ones are copied, and can be opened up with one tap.
-   - The editor's check gains two tests:
-     - **Still them?** Each anchor must still be visible.
-     - **Leaks:** anything the map changed or dropped that slipped through unchanged.
-   - **Sharpen**, **Rewrite**, **Rework with a steer** and **Apply fix** work as they do now.
-5. **Write.** Every field is written from the variant bible, in the same order and with the same checks as the creator: greetings that act for `{{user}}`, point of view, repeated greetings, stock phrases, bloated fields. Greetings are set in the new world. Kept fields that the bible didn't change are copied word for word.
-6. **Save.** It saves as a new card or persona with `variant_of`, `universe_id`, `anchors` and `variant_kind`. Then: **Open**, **Start a chat**, **Write its lorebook** (part 3), and for a character, **Make my persona's version too** (below).
+   - Mea fills the first 36 rows (and may add up to four new ones the version needs); **Fill the N open** does the rest in batches of 18.
+   - Each row: its type, **The same / Becomes… / Not here / New here / Not decided**, what it becomes, and a note. Filter chips by state, **Add a row** (from the original or new here), remove a row.
+   - **Read the original again** adds anything new and never touches rows already there.
+4. **Bible.** The original's sections, each marked **Kept**, **Changed** or **New**.
+   - With the original's bible (when the creator made the original): a kept section is copied word for word, and only the rest is written. A section is marked by comparing it with the original's, so an edit turns Kept into Changed.
+   - Without one: every section is written from the card, and the writer marks each one.
+   - The editor's check gains two criteria: **Still them** (every anchor visible, the same person moved) and **In its own world** (the premise and map followed, nothing half-translated).
+   - **Leaks** are found by rules, for free: an original name the map changed or dropped that still appears. Names are matched as written ("Rose" the person, not "rose" the verb), and a name that's part of its own translation ("Arya" → "Arya Stark") doesn't count. Each leak in a section has **Fix it**, which rewrites the section with what to use instead.
+   - **Sharpen**, **Rewrite**, **Rework with a steer** (your edits stand) and **Apply fix** work as they do now.
+5. **Write.** **Write the version** writes only the fields its changes reach: a field carries over word for word when every section it's written from is kept and nothing in it leaked. Greetings and the scenario always open in the new world, so they're always written. The write step says what carried over and what still holds the original's text (**Write the N for this version**), and any field that still names things from the original's world shows the leak, with **Fix them** for all of them at once.
+6. **Save.** It saves as a new card or persona linked to the original, with its name, kind and the anchors you kept. Then: **Open**, **Start a chat**, **Build a companion lorebook** (as today; part 3 writes it through the map), and for a character, **Make my persona's version too**.
 
 ### Persona versions
 
 - **On their own.** Your persona can get a version for any story: "me, but a vampire", "me in 1920s Chicago". It's the same flow, with the persona's shorter bible (including skills and limits), and its anchors.
-- **Alongside a character.** After saving a character's version, **Make my persona's version too** opens the studio for your persona with the same premise and map already filled in. It uses the existing persona-twin path (`fromDraftId`, `oppositeOf`), so the two fit each other: if Mira is now your rival on the next ranch, your persona's version knows it.
-- **Choosing which persona.** By default it's the character's default persona (`default_persona_id`). You can pick another.
+- **Alongside a character.** **Make my persona's version too** (after saving a character's version) makes a persona version with the same kind, name, premise, answers and map (minus the character's own row), built to play opposite the character's version (`oppositeOf`). It opens at its questions.
+- **Which persona.** The character's default persona, or your default persona if the character has none.
 
 ### How it's built
-- `creator/creator.ts`: a new draft kind flag `variant: { originKind, originId, kind, premise, anchors, map }` on `CreatorDraft`, rather than a separate draft type, so every creator tool keeps working.
-- New `creator/variant.ts`: anchor suggestions, the divergence questions, map building from the census (`takeCensus` takes a card and books as material), the marked bible, and the **Still them?** and **Leaks** checks. The leak check runs on rules first (names from changed and dropped rows) and only asks the model about paraphrases.
-- Saving goes through the existing save, plus the part 1 link.
-- **Web:** `CreatorHub.svelte` gains **A version**. New `CreatorMap.svelte` (the map table) and `CreatorAnchors.svelte`. `CreatorBible.svelte` shows the kept / changed / new marks.
-- **Meus** in the studio can propose map rows, anchors and section rewrites, as diffs.
-- Creative steps run on the **summarizer** route, as the creator's do.
+- `creator/variantcore.ts` (no creator imports): the plan on the draft (`variant`: original, kind, name, premise, anchors, map, the original's bible, marks, directions), `variantBlock` (what every step reads), `findLeaks`, `marksOf`.
+- `creator/creator.ts`: `variant` on `CreatorDraft`, set by `asVersion`. `baseBlocks` labels the original as the source and adds `variantBlock`, so the questions, bible, fields, checks and co-writer all read the premise, anchors and map. `writeVariantBible`, `draftLeaks`, `variantMarks`, `variantFieldPlan`, leak issues in the card review, two more bible criteria, and the anchors linked on save. A new `map` stage.
+- `creator/variant.ts`: premise directions, anchors and questions (`startVariant`, `anotherVariantQuestion`), the map (`buildMap`, `fillMap`), and `personaVersion`.
+- **Routes:** `PUT /api/creator/:id` takes `variant` edits (kind, name, premise, anchors, map rows). `POST /api/creator/:id/variant/{directions,start,question,map,map/fill,persona}`. `POST /api/creator/:id/bible` writes a version's bible for a version draft. The draft payload adds `leaks`, `marks` and `fieldPlan`.
+- **Web:** `VariantStart.svelte`, `VariantQuestions.svelte` and `VariantMap.svelte` for the first three steps; `CreatorBible.svelte` and `CreatorWrite.svelte` show marks, leaks and the field plan; `CreatorHub.svelte` gains **A version**.
+- **Meus** in the studio proposes map rows (`map`) and anchors (`anchor`) alongside its usual section and field changes, as diffs to tick.
+- Creative steps run on the **summarizer** route, questions and the name list on the helper route, as the creator's do.
 
-**Tests (`variantstudio.test.ts`, mock provider):** a character version and a persona version from premise to save; kept fields copied exactly; a leak caught and fixed; an anchor dropped and flagged; "Make my persona's version too" carrying the premise and map.
+**Tests (`variantstudio.test.ts`, mock provider):** the original kept apart from the premise, and premise takes; anchors and questions, ticking and adding; the map from lorebook, card and the original, filled and rebuilt without touching your edits; the bible marked against an original bible (kept copied, edits change the mark, your edit stands on a rework) and without one; leaks in the bible and fields, with names matched as written, and the two extra criteria; the field plan; save with name, kind and kept anchors; the persona's version, its own anchors; every route.
 
 ---
 

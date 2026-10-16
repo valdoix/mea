@@ -20,6 +20,7 @@ import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, idea
 import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "./research";
 import { worldContext } from "./world";
 import { linkVersion, type VersionKind } from "../services/linked";
+import { findLeaks, type Leak, marksOf, newRow, newVariant, ROW_STATES, ROW_TYPES, type RowState, type RowType, type VariantPlan, variantBlock } from "./variantcore";
 
 /**
  * The character and persona creator (Phase 4, CHAR-08…15, PER-04…06): Idea (in your words, with
@@ -35,7 +36,8 @@ import { linkVersion, type VersionKind } from "../services/linked";
  */
 
 export type CreatorKind = "character" | "persona";
-export type CreatorStage = "idea" | "questions" | "bible" | "write" | "done";
+/** A version (docs/14) also has a map step between its questions and its bible. */
+export type CreatorStage = "idea" | "questions" | "map" | "bible" | "write" | "done";
 type Length = "lean" | "standard" | "rich";
 
 export interface CreatorOptions {
@@ -183,6 +185,8 @@ export interface CreatorDraft {
   counterpart: Counterpart | null;
   /** A persona's opening written opposite its counterpart, with the relationship register. */
   pairing: { register: string; text: string; appliedTo: string | null } | null;
+  /** A version of an existing card or persona (docs/14): its premise, anchors and map. */
+  variant: VariantPlan | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -444,6 +448,7 @@ function hydrate(r: Row): CreatorDraft {
     rulesBookId: d.rulesBookId ?? null,
     counterpart: d.counterpart ?? null,
     pairing: d.pairing ?? null,
+    variant: d.variant ? { ...newVariant(d.variant), ...d.variant } : null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -584,6 +589,16 @@ function currentFields(kind: CreatorKind, id: string): Record<string, string> {
   };
 }
 
+/** The bible the creator wrote for a saved card or persona, if it made one (the latest draft that saved it). */
+function originBible(kind: CreatorKind, savedId: string) {
+  const rows = all<Row>("SELECT * FROM creator_drafts WHERE kind = ? AND json_extract(data, '$.savedId') = ? ORDER BY updated_at DESC", kind, savedId);
+  for (const r of rows) {
+    const bible = hydrate(r).bible.filter((b) => b.text.trim());
+    if (bible.length) return bible.map((b) => ({ key: b.key, label: b.label, text: b.text }));
+  }
+  return null;
+}
+
 export function createCreatorDraft(input: CreatorInput): CreatorDraft {
   const id = newId();
   const t = now();
@@ -630,6 +645,7 @@ export function createCreatorDraft(input: CreatorInput): CreatorDraft {
     rulesBookId: null,
     counterpart: null,
     pairing: null,
+    variant: null,
     createdAt: t,
     updatedAt: t,
   };
@@ -640,7 +656,11 @@ export function createCreatorDraft(input: CreatorInput): CreatorDraft {
     else if (input.asCopy) d.origin = { copyOf: input.baseId };
     else d.baseId = input.baseId;
     d.name ||= base.name;
-    d.idea = [base.idea, d.idea && `WHAT TO CHANGE: ${d.idea}`].filter(Boolean).join("\n\n");
+    if (input.asVersion) {
+      // A version keeps the original as its source and the premise apart: every step reads both.
+      d.variant = newVariant({ originKind: input.kind, originId: input.baseId, originName: base.name, kind: input.asVersion.kind, label: input.asVersion.label, premise: d.idea, originBible: originBible(input.kind, input.baseId) });
+      d.idea = base.idea;
+    } else d.idea = [base.idea, d.idea && `WHAT TO CHANGE: ${d.idea}`].filter(Boolean).join("\n\n");
     // The rework keeps the world it already lives in.
     d.worldBookIds = [...new Set([...d.worldBookIds, ...linkedBooks(input.kind, input.baseId).map((b) => b.id)])];
     if (input.kind === "character") d.options.mode = (getCharacterRow(input.baseId)?.mode as CreatorOptions["mode"]) ?? d.options.mode;
@@ -741,6 +761,41 @@ export interface CreatorPatch {
   taste?: string[];
   brief?: string;
   depth?: { id?: string; title?: string; content?: string; keys?: string[]; remove?: boolean }[];
+  variant?: VariantPatch;
+}
+
+/** Edits to a version's plan: its kind, name and premise, anchors, and map rows (a new row has no id). */
+export interface VariantPatch {
+  kind?: VersionKind;
+  label?: string;
+  premise?: string;
+  anchors?: { id?: string; text?: string; kept?: boolean; remove?: boolean }[];
+  map?: { id?: string; type?: RowType; from?: string; to?: string; state?: RowState; note?: string; remove?: boolean }[];
+}
+
+function applyVariantPatch(v: VariantPlan, p: VariantPatch) {
+  if (p.kind) v.kind = p.kind;
+  if (p.label !== undefined) v.label = p.label.trim();
+  if (p.premise !== undefined) v.premise = p.premise;
+  for (const a of p.anchors ?? []) {
+    const cur = a.id ? v.anchors.find((x) => x.id === a.id) : undefined;
+    if (cur && a.remove) v.anchors = v.anchors.filter((x) => x !== cur);
+    else if (cur) {
+      if (a.text !== undefined) cur.text = a.text;
+      if (a.kept !== undefined) cur.kept = a.kept;
+    } else if (!a.id && a.text?.trim()) v.anchors.push({ id: newId(), text: a.text.trim(), kept: a.kept ?? true, from: "you" });
+  }
+  for (const r of p.map ?? []) {
+    const cur = r.id ? v.map.find((x) => x.id === r.id) : undefined;
+    if (cur && r.remove) v.map = v.map.filter((x) => x !== cur);
+    else if (cur) {
+      if (r.type && ROW_TYPES.includes(r.type)) cur.type = r.type;
+      if (r.from !== undefined) cur.from = r.from;
+      if (r.to !== undefined) cur.to = r.to;
+      if (r.state && ROW_STATES.includes(r.state)) cur.state = r.state;
+      if (r.note !== undefined) cur.note = r.note;
+    } else if (!r.id && (r.from?.trim() || r.to?.trim())) v.map.push(newRow({ from: r.from?.trim() ?? "", to: r.to?.trim() ?? "", type: r.type && ROW_TYPES.includes(r.type) ? r.type : "thing", state: r.state ?? (r.from?.trim() ? "open" : "new"), note: r.note ?? "", source: "you" }));
+  }
 }
 
 export function patchCreator(id: string, p: CreatorPatch) {
@@ -768,6 +823,7 @@ export function patchCreator(id: string, p: CreatorPatch) {
           if (spec) d.bible.push({ key, label: spec.label, text });
         }
         if (!d.editedSections.includes(key)) d.editedSections.push(key);
+        if (d.variant && d.variant.marks[key] === "kept") d.variant.marks[key] = "changed";
       }
     if (p.fields)
       for (const [key, value] of Object.entries(p.fields)) {
@@ -805,6 +861,7 @@ export function patchCreator(id: string, p: CreatorPatch) {
     if (p.optional) d.optional = [...new Set(p.optional.filter((k) => OPTIONAL_SECTIONS.includes(k) && specOf(d.kind, k)))];
     if (p.taste) d.taste = p.taste.map((t) => t.trim()).filter(Boolean).slice(-24);
     if (p.brief !== undefined) d.brief = p.brief;
+    if (p.variant && d.variant) applyVariantPatch(d.variant, p.variant);
     if (p.depth)
       for (const e of p.depth) {
         const cur = e.id ? d.depth.find((x) => x.id === e.id) : undefined;
@@ -910,11 +967,14 @@ const counterpartBlock = (d: CreatorDraft) =>
 /** Facts not already shown as answers: the read-back's facts from the idea, and anything you added or the listener filed. */
 const factBlock = (d: CreatorDraft) => factsBlock(d.facts.filter((f) => !f.qid), labelFor(d.kind));
 
-function baseBlocks(d: CreatorDraft, opts: { world?: number } = {}) {
+export function baseBlocks(d: CreatorDraft, opts: { world?: number } = {}) {
   const w = world(d, opts.world ?? 2500);
   return [
     d.name && !/^New (character|persona)$/.test(d.name) ? `NAME: ${d.name}` : "",
-    `THE AUTHOR'S IDEA (canon):\n${d.idea.trim() || "(see the expanded concept)"}`,
+    d.variant
+      ? `THE ORIGINAL, ${d.variant.originName} as they are now (the source the version is made from; the premise and the map outrank it):\n${d.idea.trim()}`
+      : `THE AUTHOR'S IDEA (canon):\n${d.idea.trim() || "(see the expanded concept)"}`,
+    variantBlock(d.variant),
     expansionBlock(d.expansion),
     factBlock(d),
     answers(d) ? `THE AUTHOR'S ANSWERS (canon; marked by whose words):\n${answers(d)}` : "",
@@ -1322,6 +1382,100 @@ export async function writeBible(id: string, steer = "") {
   });
 }
 
+const MARKS = new Set(["kept", "changed", "new"]);
+
+/**
+ * The bible of a version (docs/14): the original's sections, each kept, changed for the version, or
+ * new, in the same passes as any bible. With the original's bible to hand, a kept section is copied
+ * word for word and only the rest is written; without one, every section is written from the card.
+ * Sections you edited by hand stay as they are on a rework.
+ */
+export async function writeVariantBible(id: string, steer = "") {
+  const d = mustCreator(id);
+  const v = d.variant;
+  if (!v) throw badRequest("This draft isn't a version");
+  const specs = specsOf(d);
+  const origin = v.originBible;
+  const rework = d.bible.some((b) => b.text.trim());
+  const clean = (t: string) => (d.kind === "persona" ? unslipPersona(tidy(t), d.name) : tidy(t));
+  const out: Record<string, { mark: "kept" | "changed" | "new"; text: string }> = {};
+  for (const pass of PASSES) {
+    const group = specs.filter((s) => s.pass === pass.id);
+    if (!group.length) continue;
+    const earlier = specs.filter((s) => out[s.key]);
+    const shape = Object.fromEntries(group.map((s) => [s.key, { mark: "kept|changed|new", text: "…" }]));
+    const r = await callJson({
+      task: "summarizer",
+      kind: `creator:variant-bible:${pass.id}`,
+      name: "creator_variant_bible",
+      schema: z.object({}).catchall(z.unknown()),
+      system: [
+        `You write the bible for a VERSION of ${v.originName}, ${LABEL[d.kind]}: the single source of truth every field of the version will be written from. It is written in passes; THIS PASS is "${pass.label}": ${pass.what}.`,
+        who(d),
+        origin
+          ? 'Decide each section against THE ORIGINAL\'S BIBLE: "kept" when it holds as written in this version (leave "text" empty: the original\'s words are copied), "changed" when the premise or the map changes it (write the whole section for the version), or "new" only for a section the original has nothing for.'
+          : 'The original is a card without a bible: write every section for the version from THE ORIGINAL. Mark each one "kept" when it\'s what the original already establishes and the premise leaves it alone, "changed" when the premise or the map changes it, or "new" when the original says nothing about it.',
+        "A version is the same person moved into the premise, not a stranger with their name: change what the premise and the map change, and no more. Keep every point under WHAT STAYS TRUE visible. Follow THE MAP exactly: the version's names, places and history, never an original name the map changed or dropped.",
+        `Craft rules:\n- ${CRAFT}`,
+        WEIGHT_RULE,
+        canonRule(d.basedOn),
+        d.kind === "persona" ? PERSONA_CRAFT : CHARACTER_CRAFT,
+        `Sections for this pass (40–160 words each when written; sample lines in quotes where asked):\n${group.map((s) => `- "${s.key}" (${s.label}): ${s.ask}`).join("\n")}`,
+        earlier.length ? "Stay consistent with what earlier passes wrote and build on it; never contradict it." : "",
+        rework ? "Rework the version's current bible: keep what the author wrote or edited into it, and change what they ask." : "",
+        steer.trim() ? `The author asks: ${steer.trim()}` : "",
+        `Reply with JSON only: ${JSON.stringify(shape)}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      user: [
+        ...baseBlocks(d),
+        earlier.length ? `WRITTEN BY EARLIER PASSES:\n${earlier.map((s) => `## ${s.label}\n${out[s.key]!.text}`).join("\n\n")}` : "",
+        rework ? `THE VERSION'S CURRENT BIBLE:\n${bibleText(d)}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      maxTokens: 5000,
+      temperature: writeTemp(0.75),
+    });
+    const data = r.data as Record<string, unknown>;
+    for (const s of group) {
+      const current = d.bible.find((b) => b.key === s.key)?.text.trim() ?? "";
+      const was = origin?.find((o) => o.key === s.key)?.text.trim() ?? "";
+      // Your own edit stands on a rework.
+      if (d.editedSections.includes(s.key) && current) {
+        out[s.key] = { mark: was && was === current ? "kept" : was ? "changed" : "new", text: current };
+        continue;
+      }
+      const raw = (data[s.key] && typeof data[s.key] === "object" ? data[s.key] : { text: data[s.key] }) as { mark?: unknown; text?: unknown };
+      const said = typeof raw.mark === "string" && MARKS.has(raw.mark.trim().toLowerCase()) ? (raw.mark.trim().toLowerCase() as "kept" | "changed" | "new") : "changed";
+      const text = typeof raw.text === "string" ? clean(raw.text) : "";
+      if (origin) {
+        if (said === "kept" && was) out[s.key] = { mark: "kept", text: was };
+        else if (text) out[s.key] = { mark: was ? "changed" : "new", text };
+        else if (was) out[s.key] = { mark: "kept", text: was };
+      } else if (text) out[s.key] = { mark: said, text };
+    }
+  }
+  const bible = specs.map((s) => ({ key: s.key, label: s.label, text: out[s.key]?.text ?? d.bible.find((b) => b.key === s.key)?.text ?? "" }));
+  let woven = { brief: d.brief, links: d.links };
+  try {
+    woven = await weave(d, bible);
+  } catch (e) {
+    if (e instanceof Deferred) throw e;
+  }
+  return mutateCreator(id, (cur) => {
+    cur.bible = bible.map((b) => ({ ...b, text: cur.kind === "persona" ? unslipPersona(b.text, cur.name) : b.text }));
+    if (cur.variant) cur.variant.marks = Object.fromEntries(Object.entries(out).map(([k, x]) => [k, x.mark]));
+    cur.brief = woven.brief || cur.brief;
+    cur.links = woven.links;
+    cur.bibleCheck = null;
+    cur.bibleGate = null;
+    cur.taste = addTaste(cur.taste, steer);
+    if (cur.stage !== "write" && cur.stage !== "done") cur.stage = "bible";
+  });
+}
+
 /** One bible section, rewritten (a fix from the check, or your own steer). */
 export async function rewriteBibleSection(id: string, key: string, steer = "") {
   const d = mustCreator(id);
@@ -1355,6 +1509,7 @@ export async function rewriteBibleSection(id: string, key: string, steer = "") {
     else cur.bible.push({ key, label: s.label, text });
     if (cur.bibleCheck) cur.bibleCheck = cur.bibleCheck.filter((i) => i.section !== key);
     cur.editedSections = cur.editedSections.filter((k) => k !== key);
+    if (cur.variant && cur.variant.marks[key] === "kept") cur.variant.marks[key] = "changed";
     cur.taste = addTaste(cur.taste, steer);
   });
 }
@@ -1392,7 +1547,13 @@ const BIBLE_CRITERIA: Record<"character" | "narrator" | "persona", BibleCriterio
   ],
 };
 
-const bibleCriteria = (d: CreatorDraft) => BIBLE_CRITERIA[d.kind === "persona" ? "persona" : d.options.mode === "narrator" ? "narrator" : "character"].filter((c) => !c.applies || c.applies(d));
+/** A version is also judged on staying the same person, and on living in its own world. */
+const VARIANT_CRITERIA: BibleCriterion[] = [
+  { key: "still_them", label: "Still them", description: "Every point under WHAT STAYS TRUE is visible in the bible, and the version reads as the same person at the core, moved into the premise; not someone new with the same name." },
+  { key: "translated", label: "In its own world", description: "The version follows the premise and THE MAP: the version's names, places and history throughout, nothing left over from the original's world that the map changed or dropped, and no half-translated mix." },
+];
+
+const bibleCriteria = (d: CreatorDraft) => [...BIBLE_CRITERIA[d.kind === "persona" ? "persona" : d.options.mode === "narrator" ? "narrator" : "character"], ...(d.variant ? VARIANT_CRITERIA : [])].filter((c) => !c.applies || c.applies(d));
 
 const checkSchema = z.object({
   criteria: z.array(z.object({ key: z.string(), passed: z.boolean().default(false), note: z.string().default("") })).default([]),
@@ -1647,6 +1808,41 @@ export function staleFieldReasons(d: CreatorDraft, f: CardField): string[] {
     .map((k) => (k === "name" ? "the name" : k === "canon" ? "what it's based on" : (d.bible.find((b) => b.key === k)?.label ?? k)));
 }
 
+// ---------- versions (docs/14) ----------
+
+/** Original names that slipped into the version's bible or fields (rules only, free). */
+export function draftLeaks(d: CreatorDraft): Leak[] {
+  if (!d.variant) return [];
+  return findLeaks(d.variant.map, [
+    ...d.bible.map((b) => ({ where: "bible" as const, key: b.key, label: b.label, text: b.text })),
+    ...d.fields.filter((f) => f.key !== "tags" && f.key !== "pronouns").map((f) => ({ where: "field" as const, key: f.key, label: f.label, text: f.value })),
+  ]);
+}
+
+/** Each bible section, kept from the original, changed for the version, or new. */
+export const variantMarks = (d: CreatorDraft) => (d.variant ? marksOf(d.variant, d.bible) : {});
+
+/**
+ * Which fields carry over from the original word for word, and which need writing for the version:
+ * a field is kept only when every section it's written from is kept and nothing in it leaked.
+ * Greetings and the scenario open a story in the version's world, so they're always rewritten.
+ */
+export function variantFieldPlan(d: CreatorDraft) {
+  if (!d.variant || !d.bible.some((b) => b.text.trim())) return null;
+  const marks = variantMarks(d);
+  const leaked = new Set(draftLeaks(d).filter((l) => l.where === "field").map((l) => l.key));
+  const keep: string[] = [];
+  const rewrite: string[] = [];
+  for (const f of d.fields) {
+    const sections = readsOf(d, f.key).filter((k) => marks[k]);
+    const allKept = sections.length > 0 && sections.every((k) => marks[k] === "kept");
+    const opens = f.key === "scenario" || isGreeting(f.key);
+    if (f.value.trim() && allKept && !opens && !leaked.has(f.key)) keep.push(f.key);
+    else rewrite.push(f.key);
+  }
+  return { keep, rewrite };
+}
+
 // ---------- the editor's pass on the card ----------
 
 const fieldCheckSchema = z.object({ issues: z.array(z.object({ field: z.string(), problem: z.string(), fix: z.string().default("") })).default([]) });
@@ -1785,6 +1981,8 @@ export async function cowriteCreator(id: string, message: string) {
       `{"kind": "field", "key": "<field key>", "text": "the whole new field"} for a precise edit to a written field (keys: ${fields.join(", ")});`,
       `{"kind": "rewrite", "key": "<field key>", "steer": "what to change"} when a long field (${persona ? "the description, the background" : "a greeting, the description"}) needs rewriting rather than a small edit;`,
       '{"kind": "name", "text": "the new name"};',
+      d.variant ? '{"kind": "map", "key": "<the original name, or new>", "text": "what it is in this version, or \\"dropped\\", or \\"kept\\""} to change a row of THE MAP (or add a new one);' : "",
+      d.variant ? '{"kind": "anchor", "text": "something about them that stays true in every version"} to add to WHAT STAYS TRUE;' : "",
       IDEA_CHANGES,
       d.questions.length ? '{"kind": "answer", "key": "<question number>", "text": "the answer, in the author\'s voice"} to answer an open interview question with what you agreed;' : "",
       `{"kind": "option", "key": "<${opts.join("|")}>", "text": "the new value"} to change the draft's shape (length: lean|standard|rich${persona ? "" : "; pov: first|second|third; tense: present|past; mode: companion|narrator; greetings: 0–5 alternate greetings"});`,
@@ -1826,6 +2024,12 @@ export async function cowriteCreator(id: string, message: string) {
     else if (kind === "field" && f && text && text !== f.value.trim()) changes.push({ kind, target: f.key, label: f.label, before: f.value, after: text });
     else if (kind === "rewrite" && f && (c.steer.trim() || text)) changes.push({ kind, target: f.key, label: `${f.label} · ${f.value.trim() ? "rewrite" : "write"}`, before: f.value, after: "", steer: c.steer.trim() || `Use this: ${text}` });
     else if (kind === "name" && text && text.length <= 60 && text !== d.name) changes.push({ kind, target: "name", label: "Name", before: d.name, after: text });
+    else if (kind === "map" && d.variant && text) {
+      const row = d.variant.map.find((r) => r.from.trim().toLowerCase() === c.key.trim().toLowerCase());
+      const before = row ? (row.state === "changed" ? row.to : row.state) : "";
+      if (row) changes.push({ kind, target: row.id, label: `Map · ${row.from}`, before, after: text });
+      else if (c.key.trim().toLowerCase() === "new" || !c.key.trim()) changes.push({ kind, target: "new", label: "Map · new", before: "", after: text });
+    } else if (kind === "anchor" && d.variant && text && !d.variant.anchors.some((a) => a.text.trim().toLowerCase() === text.toLowerCase())) changes.push({ kind, target: "anchor", label: "What stays true", before: "", after: text });
     else if (isIdeaKind(kind)) changes.push(...ideaChanges({ ...c, text }, d.idea, d.expansion));
     else if (kind === "answer") {
       const q = d.questions[Number.parseInt(c.key, 10) - 1] ?? d.questions.find((x) => x.id === c.key);
@@ -1873,6 +2077,14 @@ export function applyCreatorCowrite(id: string, accept: string[]) {
           f.status = "done";
         }
       } else if (c.kind === "name") d.name = c.after;
+      else if (c.kind === "map" && d.variant) {
+        const row = d.variant.map.find((r) => r.id === c.target);
+        const v = c.after.trim();
+        const word = v.toLowerCase();
+        if (!row) d.variant.map.push(newRow({ from: "", to: v, state: "new", source: "mea" }));
+        else if (word === "dropped" || word === "kept") Object.assign(row, { state: word as RowState, to: "" });
+        else Object.assign(row, { state: "changed" as RowState, to: v });
+      } else if (c.kind === "anchor" && d.variant) d.variant.anchors.push({ id: newId(), text: c.after.trim(), kept: true, from: "mea" });
       else if (c.kind === "idea" || c.kind === "section") applyIdeaChange(d, c, (t) => (d.idea = t));
       else if (c.kind === "rewrite") rewrites.push({ key: c.target, steer: c.steer ?? "" });
       else if (c.kind === "answer") {
@@ -1929,6 +2141,11 @@ export function reviewCreator(id: string) {
     else issues[f.key] = checkProse(f.value);
     if (d.kind === "persona" && f.key !== "pronouns") issues[f.key]!.push(...checkPersona(f.value));
   }
+  // A version's fields shouldn't name what its world changed or dropped.
+  for (const l of draftLeaks(d)) {
+    if (l.where !== "field") continue;
+    (issues[l.key] ??= []).push({ kind: "leak", severity: "warn", message: l.state === "changed" ? `"${l.term}" is "${l.to}" in this version.` : `"${l.term}" doesn't exist in this version.` });
+  }
   // Greetings that open the same way read as one greeting three times.
   const greetings = d.fields.filter((f) => isGreeting(f.key) && f.value.trim());
   for (let i = 0; i < greetings.length; i++)
@@ -1980,7 +2197,8 @@ ${v("rules")}` : (base?.post_history_instructions ?? ""),
   }
   // A version (docs/14) is linked to its original the first time it's saved.
   const v0 = d.origin?.versionOf;
-  if (v0 && !d.savedId && savedId !== v0.id) linkVersion(d.kind, savedId!, v0.id, { kind: v0.kind, label: v0.label });
+  if (v0 && !d.savedId && savedId !== v0.id)
+    linkVersion(d.kind, savedId!, v0.id, d.variant ? { kind: d.variant.kind, label: d.variant.label, anchors: d.variant.anchors.filter((a) => a.kept).map((a) => a.text) } : { kind: v0.kind, label: v0.label });
   const owner = { type: d.kind, id: savedId!, name };
   // The world it was made in comes along (LORE-02 scopes): a saved lore draft's book, and every world book.
   const lore = d.loreDraftId ? getLoreDraft(d.loreDraftId) : undefined;
