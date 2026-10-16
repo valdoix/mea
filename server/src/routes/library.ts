@@ -8,7 +8,7 @@ import {
   createCharacter,
   exportCharacter,
   getCard,
-  getCharacter,
+  getCharacter as getCharacterBase,
   listCharacters,
   listVersions,
   restoreCharacter,
@@ -21,9 +21,20 @@ import { characterSettingsSchema } from "../services/charsettings";
 import { getImage, imageFileFor, liveImagePath, saveImage, setThumbnail } from "../services/images";
 import { importFile } from "../services/importer";
 import { detectMode } from "../services/mode";
-import { createPersona, getPersona, listPersonas, restorePersona, softDeletePersona, updatePersona } from "../services/personas";
+import { linkInfo, listLinkedVersions, versionLabels } from "../services/linked";
+import { createPersona, getPersona as getPersonaBase, listPersonas, restorePersona, softDeletePersona, updatePersona } from "../services/personas";
 
 export const library = new Hono();
+
+/** A character or persona with its family (docs/14): the original it's a version of, and its own versions. */
+const getCharacter = (id: string) => {
+  const ch = getCharacterBase(id);
+  return ch && { ...ch, link: linkInfo("character", id) };
+};
+const getPersona = (id: string) => {
+  const p = getPersonaBase(id);
+  return p && { ...p, link: linkInfo("persona", id) };
+};
 
 const modeSchema = z.enum(["companion", "narrator"]).nullable();
 
@@ -31,6 +42,7 @@ const modeSchema = z.enum(["companion", "narrator"]).nullable();
 
 library.get("/characters", (c) => {
   const q = c.req.query();
+  const labels = versionLabels("character");
   return c.json({
     characters: listCharacters({
       q: q.q,
@@ -39,7 +51,7 @@ library.get("/characters", (c) => {
       favorite: q.favorite === "1",
       sort: (q.sort as "recent" | "name" | "created" | "updated") || "recent",
       deleted: q.deleted === "1",
-    }),
+    }).map((ch) => ({ ...ch, version: labels.get(ch.id) ?? null })),
     tags: allTags(),
     folders: allFolders(),
   });
@@ -85,7 +97,8 @@ library.put("/characters/:id", async (c) => {
 
 library.delete("/characters/:id", (c) => {
   softDeleteCharacter(c.req.param("id"));
-  return c.json({ ok: true });
+  // Its versions keep working and stay linked while it's in the Trash; deleting it for good detaches them.
+  return c.json({ ok: true, versions: listLinkedVersions("character", c.req.param("id")).length });
 });
 
 library.post("/characters/:id/restore", (c) => {
@@ -129,7 +142,10 @@ const personaData = z.object({
   background: z.string().optional(),
 });
 
-library.get("/personas", (c) => c.json({ personas: listPersonas({ deleted: c.req.query("deleted") === "1" }) }));
+library.get("/personas", (c) => {
+  const labels = versionLabels("persona");
+  return c.json({ personas: listPersonas({ deleted: c.req.query("deleted") === "1" }).map((p) => ({ ...p, version: labels.get(p.id) ?? null })) });
+});
 
 library.post("/personas", async (c) => {
   const input = await body(c, z.object({ name: z.string().trim().min(1), data: personaData.optional(), avatarId: z.string().nullable().optional(), isDefault: z.boolean().optional() }));
@@ -146,7 +162,7 @@ library.put("/personas/:id", async (c) => {
 
 library.delete("/personas/:id", (c) => {
   softDeletePersona(c.req.param("id"));
-  return c.json({ ok: true });
+  return c.json({ ok: true, versions: listLinkedVersions("persona", c.req.param("id")).length });
 });
 
 library.post("/personas/:id/restore", (c) => {

@@ -19,6 +19,7 @@ import { addTaste, askQuestion, type Direction, directions as offerDirections, t
 import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, ideaChanges, isIdeaKind, lastPerSection, withDropNote, canonBlock, canonRule, type ChatTurn, chatBlock, COWRITER, LOOKUP_FIELD, newProposal, personaSlip, type Proposal, type ProposedChange, shortHash, unslipPersona, whoIsWho, withLookups } from "./smarts";
 import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "./research";
 import { worldContext } from "./world";
+import { linkVersion, type VersionKind } from "../services/linked";
 
 /**
  * The character and persona creator (Phase 4, CHAR-08…15, PER-04…06): Idea (in your words, with
@@ -133,7 +134,7 @@ export interface CreatorDraft {
   worldBookIds: string[];
   /** A Lore Studio draft used as the world while it isn't saved yet. */
   loreDraftId: string | null;
-  origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string; copyOf?: string; fromEntry?: { bookId: string; entryId: string }; personId?: string } | null;
+  origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string; copyOf?: string; versionOf?: { id: string; kind: VersionKind | null; label: string }; fromEntry?: { bookId: string; entryId: string }; personId?: string } | null;
   /** The character or persona being reworked; saving updates it (with version history). */
   baseId: string | null;
   readback: { understood: string; missing: string[]; gaps?: { section: string; note: string }[] } | null;
@@ -522,6 +523,8 @@ export interface CreatorInput {
   fromDraftId?: string | null;
   /** With baseId: rebuild from that card or persona but save as a new one, leaving the original untouched. */
   asCopy?: boolean;
+  /** With baseId: save as a new card or persona linked to the original as its version (docs/14). */
+  asVersion?: { kind?: VersionKind | null; label?: string } | null;
   /** Start from an entry in a saved lorebook (a person promoted from a world's roster); the book comes along. */
   fromEntry?: { bookId: string; entryId: string } | null;
   /** The roster person being promoted (lore/people.ts), to link back on save. */
@@ -633,7 +636,8 @@ export function createCreatorDraft(input: CreatorInput): CreatorDraft {
   if (input.baseId) {
     const base = input.kind === "character" ? cardIdea(input.baseId) : personaIdea(input.baseId);
     // A copy rebuilds from the original but saves as a new one; the original stays as it is.
-    if (input.asCopy) d.origin = { copyOf: input.baseId };
+    if (input.asVersion) d.origin = { copyOf: input.baseId, versionOf: { id: input.baseId, kind: input.asVersion.kind ?? null, label: input.asVersion.label?.trim() ?? "" } };
+    else if (input.asCopy) d.origin = { copyOf: input.baseId };
     else d.baseId = input.baseId;
     d.name ||= base.name;
     d.idea = [base.idea, d.idea && `WHAT TO CHANGE: ${d.idea}`].filter(Boolean).join("\n\n");
@@ -1974,6 +1978,9 @@ ${v("rules")}` : (base?.post_history_instructions ?? ""),
     if (existing && !existing.deletedAt) updatePersona(savedId!, { name, data, isDefault: opts.makeDefault || undefined });
     else savedId = createPersona({ name, data, isDefault: opts.makeDefault });
   }
+  // A version (docs/14) is linked to its original the first time it's saved.
+  const v0 = d.origin?.versionOf;
+  if (v0 && !d.savedId && savedId !== v0.id) linkVersion(d.kind, savedId!, v0.id, { kind: v0.kind, label: v0.label });
   const owner = { type: d.kind, id: savedId!, name };
   // The world it was made in comes along (LORE-02 scopes): a saved lore draft's book, and every world book.
   const lore = d.loreDraftId ? getLoreDraft(d.loreDraftId) : undefined;

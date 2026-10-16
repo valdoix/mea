@@ -7,10 +7,11 @@
   import FieldTools from "../components/cardtools/FieldTools.svelte";
   import NotesSorter from "../components/cardtools/NotesSorter.svelte";
   import VariantsPanel from "../components/cardtools/VariantsPanel.svelte";
+  import VersionsPanel from "../components/cardtools/VersionsPanel.svelte";
   import { del, get, post, put } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { autosize } from "../lib/gestures";
-  import { ArrowLeft, BookOpen, ImageIcon, Plus, Star, Trash, Unlink, WandSparkles } from "../lib/icons";
+  import { ArrowLeft, BookOpen, GitBranch, ImageIcon, Plus, Star, Trash, Unlink, WandSparkles } from "../lib/icons";
   import { uploadImage } from "../lib/images";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
@@ -97,7 +98,9 @@
 
   async function remove() {
     if (!current) return;
-    if (!(await confirm({ title: `Move ${current.name} to the trash?`, confirmLabel: "Move to trash", danger: true }))) return;
+    const n = current.link?.versions.length ?? 0;
+    const message = n ? `Its ${n === 1 ? "version" : `${n} versions`} (${current.link!.versions.map((v) => v.label || v.name).join(", ")}) keep working; they're detached only if this persona is deleted for good.` : undefined;
+    if (!(await confirm({ title: `Move ${current.name} to the trash?`, message, confirmLabel: "Move to trash", danger: true }))) return;
     const id = current.id;
     try {
       await del(`/api/personas/${id}`);
@@ -152,7 +155,7 @@
         <Avatar id={p.avatarId} name={p.name} size={42} />
         <span class="grow">
           <b class="wraps">{p.name}</b>
-          <span class="tiny muted wraps">{p.data.description || "No description yet"}</span>
+          <span class="tiny muted wraps">{#if p.version}<GitBranch size={11} /> {p.version.label || `Version of ${p.version.originName}`} · {/if}{p.data.description || "No description yet"}</span>
         </span>
         {#if p.isDefault}<Star size={15} class="star" fill="currentColor" />{/if}
       </a>
@@ -183,6 +186,7 @@
         />
         <div class="grow stack tight">
           <input class="input name" bind:value={current.name} aria-label="Name" />
+          {#if current.link?.origin}<a class="chip lavender verchip" href="/personas/{current.link.origin.id}" title="Open the original"><GitBranch size={12} /> Version of {current.link.origin.name}{current.link.label ? ` · ${current.link.label}` : ""}</a>{/if}
           <div class="row wrap">
             {#if current.isDefault}<span class="chip rose"><Star size={12} /> Default persona</span>{:else}<button class="btn small" onclick={makeDefault}><Star size={14} /> Make default</button>{/if}
             <button class="btn small" onclick={rework} title="Expand, deepen and rewrite this persona with the Creator Studio"><WandSparkles size={14} /> Rework in the studio</button>
@@ -191,14 +195,18 @@
         </div>
       </div>
       <div class="stack">
-        <div class="row wrap"><button class="btn small" onclick={() => (notesOpen = true)}>Sort my notes</button><button class="btn small" onclick={() => (variantsOpen = !variantsOpen)}>{variantsOpen ? "Hide variants" : "Variants"}</button></div>
+        <div class="row wrap"><button class="btn small" onclick={() => (notesOpen = true)}>Sort my notes</button><button class="btn small" onclick={() => (variantsOpen = !variantsOpen)}>{variantsOpen ? "Hide versions and looks" : current.link?.versions.length ? `Versions and looks · ${current.link.versions.length}` : "Versions and looks"}</button></div>
         <label class="field"><span class="label">Pronouns <span class="faint">subject/object/possessive; fills {"{{user_they}}"}, {"{{user_them}}"}, {"{{user_their}}"}</span></span><input class="input" bind:value={current.data.pronouns} placeholder="she/her/her, he/him/his, they/them/their…" /></label>
         <label class="field"><span class="label">Description <FieldTools kind="persona" field="description" label="Description" text={current.data.description} card={personaNow} onapply={(t) => setField("description", t)} /></span><textarea class="textarea story" use:autosize={500} bind:value={current.data.description} placeholder="Who you are in the story"></textarea></label>
         <label class="field"><span class="label">Appearance <FieldTools kind="persona" field="appearance" label="Appearance" text={current.data.appearance} card={personaNow} onapply={(t) => setField("appearance", t)} /></span><textarea class="textarea story" use:autosize={400} bind:value={current.data.appearance}></textarea></label>
         <label class="field"><span class="label">Personality <FieldTools kind="persona" field="personality" label="Personality" text={current.data.personality} card={personaNow} onapply={(t) => setField("personality", t)} /></span><textarea class="textarea story" use:autosize={400} bind:value={current.data.personality}></textarea></label>
         <label class="field"><span class="label">Background <FieldTools kind="persona" field="background" label="Background" text={current.data.background} card={personaNow} onapply={(t) => setField("background", t)} /></span><textarea class="textarea story" use:autosize={400} bind:value={current.data.background}></textarea></label>
         <CardCheck kind="persona" card={personaNow} labels={LABELS} onapply={setField} />
-        {#if variantsOpen}<VariantsPanel ownerType="persona" ownerId={current.id} base={personaNow} />{/if}
+        {#if variantsOpen}
+          <VersionsPanel kind="persona" id={current.id} name={current.name} link={current.link} beforeLeave={async () => { if (dirty) await save(); }} onchanged={() => current && select(current.id)} />
+          <h3 class="looks">Looks</h3>
+          <VariantsPanel ownerType="persona" ownerId={current.id} base={personaNow} />
+        {/if}
         <NotesSorter bind:open={notesOpen} kind="persona" card={personaNow} labels={LABELS} onapply={(f) => Object.entries(f).forEach(([k, v]) => setField(k, v))} />
         <div class="field">
           <span class="label">Lorebooks</span>
@@ -234,6 +242,14 @@
 </Modal>
 
 <style>
+  .verchip {
+    align-self: flex-start;
+    text-decoration: none;
+    gap: 0.3rem;
+  }
+  .looks {
+    margin: 1rem 0 0.2rem;
+  }
   .personas {
     display: grid;
     grid-template-columns: 20rem 1fr;

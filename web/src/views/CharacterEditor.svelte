@@ -13,13 +13,14 @@
   import NotesSorter from "../components/cardtools/NotesSorter.svelte";
   import TestBench from "../components/cardtools/TestBench.svelte";
   import VariantsPanel from "../components/cardtools/VariantsPanel.svelte";
+  import VersionsPanel from "../components/cardtools/VersionsPanel.svelte";
   import VoiceLab from "../components/cardtools/VoiceLab.svelte";
   import WorldAgency from "../components/cardtools/WorldAgency.svelte";
   import { download, get, post, put, del } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { clock, timeAgo } from "../lib/format";
   import { autosize } from "../lib/gestures";
-  import { ArrowLeft, BookOpen, Download, Ellipsis, History, ImageIcon, Link, MessageHeart, Plus, Trash, Unlink, WandSparkles } from "../lib/icons";
+  import { ArrowLeft, BookOpen, GitBranch, Download, Ellipsis, History, ImageIcon, Link, MessageHeart, Plus, Trash, Unlink, WandSparkles } from "../lib/icons";
   import { uploadImage } from "../lib/images";
   import { navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
@@ -249,7 +250,9 @@
   }
 
   async function deleteCharacter() {
-    if (!(await confirm({ title: `Move ${character?.name} to the trash?`, message: "Their chats stay; you can restore the character for 30 days.", confirmLabel: "Move to trash", danger: true }))) return;
+    const n = character?.link?.versions.length ?? 0;
+    const versionsNote = n ? ` Their ${n === 1 ? "version" : `${n} versions`} (${character!.link!.versions.map((v) => v.label || v.name).join(", ")}) keep working; they're detached only if the character is deleted for good.` : "";
+    if (!(await confirm({ title: `Move ${character?.name} to the trash?`, message: `Their chats stay; you can restore the character for 30 days.${versionsNote}`, confirmLabel: "Move to trash", danger: true }))) return;
     try {
       await del(`/api/characters/${id}`);
     } catch (err) {
@@ -310,18 +313,18 @@
     { label: "CHARX", icon: Download, onclick: () => download(`/api/characters/${id}/export?format=charx`) },
   ];
 
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs: { id: Tab; label: string }[] = $derived([
     { id: "chats", label: "Chats" },
     { id: "card", label: "Card" },
     { id: "greetings", label: "Greetings" },
     { id: "voice", label: "Voice" },
     { id: "test", label: "Test" },
-    { id: "variants", label: "Variants" },
+    { id: "variants", label: character?.link?.versions.length ? `Versions · ${character.link.versions.length}` : "Versions" },
     { id: "advanced", label: "Advanced" },
     { id: "images", label: "Images" },
     { id: "lore", label: "Lore" },
     { id: "history", label: "History" },
-  ];
+  ]);
 
   const tk = (f: string) => (tokens?.fields[f] != null ? `${tokens.fields[f]} tokens` : "");
 </script>
@@ -347,6 +350,9 @@
       </button>
       <div class="grow who">
         <h1 class="wraps">{draft.name || "Unnamed"}</h1>
+        {#if character.link?.origin}
+          <a class="chip lavender verchip" href="/character/{character.link.origin.id}" title="Open the original"><GitBranch size={12} /> Version of {character.link.origin.name}{character.link.label ? ` · ${character.link.label}` : ""}</a>
+        {/if}
         {#if draft.creator_notes}<p class="muted small notes">{draft.creator_notes.slice(0, 160)}</p>{/if}
         <div class="row wrap" style="margin-top:.5rem">
           {#if tokens}
@@ -475,6 +481,8 @@
       {:else if tab === "test"}
         <TestBench characterId={id} card={cardNow} mode={mode === "auto" ? undefined : mode} />
       {:else if tab === "variants"}
+        <VersionsPanel kind="character" {id} name={character.name} link={character.link} beforeLeave={async () => { if (dirty) await save(); }} onchanged={load} />
+        <h2 class="looks">Looks</h2>
         <VariantsPanel ownerType="character" ownerId={id} base={() => character?.card as unknown as Record<string, unknown>} gallery={character.gallery} />
       {:else if tab === "images"}
         <div class="stack">
@@ -603,6 +611,15 @@
   }
   .notes {
     margin-top: 0.3rem;
+  }
+  .verchip {
+    margin-top: 0.3rem;
+    text-decoration: none;
+    gap: 0.3rem;
+  }
+  .looks {
+    font-size: var(--fs-md, 1.05rem);
+    margin: 1.6rem 0 0.4rem;
   }
   .tabs {
     display: flex;

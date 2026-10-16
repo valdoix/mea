@@ -4,7 +4,7 @@
   import Stories from "../components/library/Stories.svelte";
   import { api, get, post, put } from "../lib/api";
   import { greeting, timeAgo } from "../lib/format";
-  import { Heart, Import, MessageHeart, Plus, Search, Star, WandSparkles } from "../lib/icons";
+  import { GitBranch, Heart, Import, MessageHeart, Plus, Search, Star, WandSparkles } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
   import type { CharacterSummary, ChatListItem } from "../lib/types";
@@ -23,6 +23,33 @@
   let dragging = $state(false);
   let importing = $state(false);
   let fileInput = $state<HTMLInputElement | null>(null);
+  // docs/14: fold linked versions under their original.
+  let groupVersions = $state(readFlag("mea.groupVersions"));
+
+  function readFlag(key: string) {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  const hasVersions = $derived(characters.some((c) => c.version));
+  const versionCount = $derived.by(() => {
+    const n: Record<string, number> = {};
+    for (const c of characters) if (c.version) n[c.version.originId] = (n[c.version.originId] ?? 0) + 1;
+    return n;
+  });
+  const shown = $derived(groupVersions ? characters.filter((c) => !c.version || !characters.some((o) => o.id === c.version!.originId)) : characters);
+
+  function toggleGroup() {
+    groupVersions = !groupVersions;
+    try {
+      localStorage.setItem("mea.groupVersions", groupVersions ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }
 
   async function load() {
     const params = new URLSearchParams({ sort });
@@ -210,9 +237,10 @@
       </div>
     </div>
 
-    {#if tags.length || folders.length}
+    {#if tags.length || folders.length || hasVersions}
       <div class="filters row wrap">
         <button class="chip" class:rose={favOnly} onclick={() => (favOnly = !favOnly)}><Star size={12} /> Favorites</button>
+        {#if hasVersions}<button class="chip" class:lavender={groupVersions} onclick={toggleGroup} aria-pressed={groupVersions}><GitBranch size={12} /> Group versions</button>{/if}
         {#each folders as f (f)}
           <button class="chip" class:sky={folder === f} onclick={() => (folder = folder === f ? "" : f)}>📁 {f}</button>
         {/each}
@@ -234,7 +262,7 @@
       {/if}
     {:else}
       <div class="grid">
-        {#each characters as c (c.id)}
+        {#each shown as c (c.id)}
           <a href="/character/{c.id}" class="char card" use:tilt>
             <span class="shine" aria-hidden="true"></span>
             <div class="portrait">
@@ -245,6 +273,11 @@
             </div>
             <div class="meta">
               <div class="name wraps">{c.name}</div>
+              {#if c.version}
+                <span class="tiny muted wraps verline"><GitBranch size={11} /> {c.version.label || `Version of ${c.version.originName}`}</span>
+              {:else if groupVersions && versionCount[c.id]}
+                <span class="tiny muted wraps verline"><GitBranch size={11} /> {versionCount[c.id]} version{versionCount[c.id] === 1 ? "" : "s"}</span>
+              {/if}
               <div class="row between">
                 <span class="tiny muted wraps">{c.chatCount ? `${c.chatCount} chat${c.chatCount === 1 ? "" : "s"}` : "No chats yet"}</span>
                 <button class="btn small chatbtn" onclick={(e) => startChat(c, e)}><MessageHeart size={14} /> Chat</button>
@@ -262,6 +295,11 @@
 {/if}
 
 <style>
+  .verline {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
   .hdot {
     display: inline-block;
     width: 8px;

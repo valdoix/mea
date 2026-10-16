@@ -36,6 +36,43 @@ export interface CharacterSummary {
   lastUsedAt: number | null;
   updatedAt: number;
   createdAt: number;
+  /** Set when this card is a linked version of another (docs/14). */
+  version?: VersionLabel | null;
+}
+
+export type VersionKind = "au" | "era" | "skip" | "whatif";
+
+export const VERSION_KINDS: { id: VersionKind; label: string }[] = [
+  { id: "au", label: "Alternate universe" },
+  { id: "era", label: "Another era" },
+  { id: "skip", label: "Time skip" },
+  { id: "whatif", label: "What if" },
+];
+
+export interface VersionLabel {
+  originId: string;
+  originName: string;
+  kind: VersionKind | null;
+  label: string;
+}
+
+export interface VersionSummary {
+  id: string;
+  name: string;
+  avatarId: string | null;
+  kind: VersionKind | null;
+  label: string;
+  updatedAt: number;
+}
+
+/** A card's or persona's family: the original it's a version of, and its own versions (docs/14). */
+export interface LinkInfo {
+  origin: { id: string; name: string; avatarId: string | null; inTrash: boolean } | null;
+  kind: VersionKind | null;
+  label: string;
+  anchors: string[];
+  universeId: string | null;
+  versions: VersionSummary[];
 }
 
 export interface TokenCounts {
@@ -60,6 +97,7 @@ export interface Character {
   settings: CharacterSettings;
   tokens: TokenCounts;
   versionCount: number;
+  link?: LinkInfo | null;
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;
@@ -80,6 +118,8 @@ export interface Persona {
   avatarId: string | null;
   isDefault: boolean;
   lorebooks?: { id: string; name: string }[];
+  link?: LinkInfo | null;
+  version?: VersionLabel | null;
 }
 
 /** UI-08: per-chat ambience. */
@@ -2035,6 +2075,8 @@ export interface Planbook {
   byTier: Partial<Record<"Routine" | "Charged" | "Pivotal", PlanStats>>;
   byHow: Partial<Record<string, PlanStats>>;
   slipKinds: { kind: string; count: number }[];
+}
+
 // ---------- growing a lorebook ----------
 
 export interface PersonAnswer {

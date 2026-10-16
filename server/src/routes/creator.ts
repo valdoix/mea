@@ -41,6 +41,7 @@ import {
 } from "../creator/creator";
 import { harvestFromCreator } from "../lore/people";
 import { extendText } from "../creator/expand";
+import { versionKind } from "../services/linked";
 
 /** The character and persona creator (Phase 4). */
 export const creator = new Hono();
@@ -85,6 +86,7 @@ creator.post("/creator", async (c) => {
       fromLore: z.object({ draftId: z.string(), itemId: z.string() }).nullable().optional(),
       fromDraftId: z.string().nullable().optional(),
       asCopy: z.boolean().optional(),
+      asVersion: z.object({ kind: versionKind.nullable().optional(), label: z.string().max(80).optional() }).nullable().optional(),
       fromEntry: z.object({ bookId: z.string(), entryId: z.string() }).nullable().optional(),
       oppositeOf: z.object({ draftId: z.string().nullable().optional(), characterId: z.string().nullable().optional() }).nullable().optional(),
       worldBookIds: z.array(z.string()).max(20).optional(),
