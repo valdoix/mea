@@ -207,8 +207,9 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const asks = user.match(/^THE AUTHOR ASKS: (.*)$/m)?.[1];
       return {
         content: asks ? `${content} (${asks})` : content,
-        keys: [title, ...names(content).filter((n) => n !== title).slice(0, 1)],
-        aliases: [],
+        // A version's translated entry: the mock keeps the original's name, as a careless model might.
+        keys: [title, ...names(content).filter((n) => n !== title).slice(0, 1), ...(user.match(/^THE ORIGINAL'S ENTRY \("([^"]+)"\)/m)?.slice(1, 2) ?? [])],
+        aliases: user.match(/^THE ORIGINAL'S ENTRY \("([^"]+)"\)/m)?.slice(1, 2) ?? [],
         essentials: firstSentence(content),
         secrets: /"secrets": 0–2/.test(user) || !/MOCK_SECRET/.test(user) ? [] : [{ text: `${title} hides something.`, knownBy: [title] }],
       };

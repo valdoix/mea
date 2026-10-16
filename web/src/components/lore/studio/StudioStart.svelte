@@ -115,7 +115,7 @@
   }
 
   const STAGE: Record<string, string> = { start: "Starting", questions: "Questions", plan: "Planning", review: "Writing & review", done: "Saved" };
-  const KIND: Record<string, string> = { idea: "Idea", character: "Character", persona: "Persona", document: "Document", book: "Growing a book" };
+  const KIND: Record<string, string> = { idea: "Idea", character: "Character", persona: "Persona", document: "Document", book: "Growing a book", version: "A version's lore" };
 </script>
 
 <div class="page">

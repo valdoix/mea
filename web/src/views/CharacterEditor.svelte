@@ -216,6 +216,17 @@
     navigate(`/lore-studio?character=${id}`);
   }
 
+  /** A version's own lorebook (docs/14): its original's lore, translated through the version's map. */
+  async function versionLore() {
+    try {
+      if (dirty) await save();
+      const r = await post<{ draft: { id: string } }>("/api/lore-studio/version", { kind: "character", id });
+      navigate(`/lore-studio/${r.draft.id}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   /** Rework the card in the Creator Studio: its text is the starting idea, saving updates it. */
   async function rework() {
     try {
@@ -529,7 +540,12 @@
             <p class="muted small">No lorebooks are linked to {draft.name}. Linked books are active in all of their chats.</p>
           {/each}
           <div class="row wrap">
-            <button class="btn primary" onclick={buildLore} title="Plan and draft their backstory, people and places with the Lore Studio"><WandSparkles size={16} /> Build a companion lorebook</button>
+            {#if character.link?.origin}
+              <button class="btn primary" onclick={versionLore} title="{character.link.origin.name}'s lorebooks, translated into this version through its map: kept entries copied, changed ones rewritten, dropped ones left out"><GitBranch size={16} /> Write this version's lorebook</button>
+              <button class="btn" onclick={buildLore} title="Plan and draft their backstory, people and places with the Lore Studio"><WandSparkles size={16} /> Build a companion lorebook</button>
+            {:else}
+              <button class="btn primary" onclick={buildLore} title="Plan and draft their backstory, people and places with the Lore Studio"><WandSparkles size={16} /> Build a companion lorebook</button>
+            {/if}
             <button class="btn" onclick={createLorebook}><Plus size={16} /> Empty lorebook</button>
             {#if books.filter((b) => !character?.lorebooks.some((l) => l.id === b.id)).length}
               <select class="select" style="width:auto" onchange={(e) => e.currentTarget.value && link(e.currentTarget.value)}>

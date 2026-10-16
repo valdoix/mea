@@ -79,9 +79,10 @@
     saving = true;
     try {
       await session.flush();
-      const r = await post<{ bookId: string; added: number; draft: StudioDraft }>(`/api/lore-studio/${session.id}/commit`, { bookId: savedId ?? (dest === "existing" ? bookId || null : null), name: draft.title, links: $state.snapshot(draft.links) });
+      const r = await post<{ bookId: string; added: number; unlinked?: string[]; draft: StudioDraft }>(`/api/lore-studio/${session.id}/commit`, { bookId: savedId ?? (dest === "existing" ? bookId || null : null), name: draft.title, links: $state.snapshot(draft.links) });
       session.apply(r.draft);
-      toast(`Saved ${r.added} entr${r.added === 1 ? "y" : "ies"}`, { kind: "ok", action: { label: "Open", run: () => navigate(`/lorebooks/${r.bookId}`) } });
+      const unlinked = r.unlinked?.length ? ` · ${draft.version?.name} no longer uses ${r.unlinked.join(", ")}` : "";
+      toast(`Saved ${r.added} entr${r.added === 1 ? "y" : "ies"}${unlinked}`, { kind: "ok", action: { label: "Open", run: () => navigate(`/lorebooks/${r.bookId}`) } });
     } catch (e) {
       errorToast(e);
     } finally {
@@ -174,7 +175,12 @@
 
   <div class="panel stack savebox">
     <h3><BookOpen size={16} /> Save</h3>
-    {#if savedBook}
+    {#if draft.version}
+      <span class="small">Saves into two lorebooks linked to {draft.version.name}'s version: its own (people, things, events) and its world's (places, groups, ideas, rules). {draft.version.originName}'s lorebooks stay as they are, and the version stops using them.</span>
+      {#if draft.version.companionBookId || draft.version.worldBookId}
+        <span class="tiny muted">Saved so far:{#if draft.version.companionBookId}{" "}<a href="/lorebooks/{draft.version.companionBookId}">its own</a>{/if}{#if draft.version.worldBookId}{" "}<a href="/lorebooks/{draft.version.worldBookId}">its world</a>{/if}. Only new entries are added.</span>
+      {/if}
+    {:else if savedBook}
       <span class="small">Saving into <a href="/lorebooks/{savedBook.id}">{savedBook.name}</a>. Entries saved before stay as they are; only new ones are added.</span>
     {:else if draft.source.kind !== "book"}
       <div class="row wrap">
@@ -182,12 +188,13 @@
         {#if dest === "new"}<span class="tiny muted">Named “{draft.title}”; rename it at the top.</span>{/if}
       </div>
     {/if}
-    {#if dest === "existing" && !savedBook}
+    {#if dest === "existing" && !savedBook && !draft.version}
       <select class="select" bind:value={bookId} aria-label="Lorebook">
         <option value="">Choose…</option>
         {#each books as b (b.id)}<option value={b.id}>{b.name} ({b.entryCount})</option>{/each}
       </select>
     {/if}
+    {#if !draft.version}
     <div class="stack tight">
       <span class="label">Where it applies</span>
       <label class="switch"><input type="checkbox" checked={isGlobal} onchange={(e) => setLink("global", "", e.currentTarget.checked)} /> <Globe size={14} /> Every chat</label>
@@ -209,9 +216,10 @@
       </div>
       {#if !draft.links.length}<span class="tiny muted">Not linked anywhere yet: it won't fire until you link it here or in the lorebook.</span>{/if}
     </div>
+    {/if}
     <div class="row between wrap">
       <span class="tiny muted">{unsaved.length} new entr{unsaved.length === 1 ? "y" : "ies"}{overviewNew ? " + the overview" : ""}{working.length ? ". Entries still being written can be saved later." : ""}{lookCount ? ` · ${lookCount} need a look` : ""}</span>
-      <button class="btn primary" onclick={save} disabled={saving || (!unsaved.length && !overviewNew) || (!savedId && dest === "existing" && !bookId)}>{saving ? "Saving…" : draft.committedBookId ? "Save the new entries" : "Save the lorebook"}</button>
+      <button class="btn primary" onclick={save} disabled={saving || (!unsaved.length && !overviewNew) || (!draft.version && !savedId && dest === "existing" && !bookId)}>{saving ? "Saving…" : draft.committedBookId ? "Save the new entries" : "Save the lorebook"}</button>
     </div>
   </div>
 </section>

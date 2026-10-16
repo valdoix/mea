@@ -73,6 +73,17 @@
     }
   }
 
+  /** A version's own lorebook (docs/14): its original's lore, translated through the version's map. */
+  async function versionLore() {
+    if (!current) return;
+    try {
+      const r = await post<{ draft: { id: string } }>("/api/lore-studio/version", { kind: "persona", id: current.id });
+      navigate(`/lore-studio/${r.draft.id}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   async function create() {
     const p = await post<Persona>("/api/personas", { name: personas.length ? "New persona" : "You" });
     navigate(`/personas/${p.id}`);
@@ -214,6 +225,7 @@
             <div class="row"><a href="/lorebooks/{b.id}" class="grow row"><BookOpen size={15} /> {b.name}</a><button class="btn ghost icon small" onclick={() => unlinkBook(b.id)} aria-label="Unlink"><Unlink size={14} /></button></div>
           {/each}
           <div class="row wrap">
+            {#if current.link?.origin}<button class="btn small" onclick={versionLore} disabled={dirty} title={dirty ? "Save your changes first" : `${current.link.origin.name}'s lorebooks, translated into this version through its map`}><GitBranch size={14} /> Write this version's lorebook</button>{/if}
             <button class="btn small" onclick={() => navigate(`/lore-studio?persona=${current!.id}`)} disabled={dirty} title={dirty ? "Save your changes first" : "Plan and draft your persona's family, home and history with the Lore Studio"}><WandSparkles size={14} /> Build with the studio</button>
             <button class="btn small" onclick={newBook}><Plus size={14} /> New</button>
             <select class="select" style="width:auto" onchange={(e) => e.currentTarget.value && linkBook(e.currentTarget.value)}>

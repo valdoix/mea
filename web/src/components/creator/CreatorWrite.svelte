@@ -177,7 +177,9 @@
         {#if isChar}<button class="btn small" onclick={chat}><MessageHeart size={14} /> Start a chat</button>{/if}
         {#if isChar && draft.variant}<button class="btn small" onclick={personaVersion} title="Your persona in the same version: same premise, answers and map, built to play opposite this one"><UserPen size={14} /> Make my persona's version too</button>{/if}
         {#if peopleBookId}<a class="btn small" href="/lorebooks/{peopleBookId}"><Users size={14} /> Its people</a>{/if}
-        {#if draft.companionLoreDraftId}
+        {#if draft.variant}
+          <button class="btn small" onclick={companion} title="{draft.variant.originName}'s lorebooks, translated into this version through the map"><GitBranch size={14} /> Write this version's lorebook</button>
+        {:else if draft.companionLoreDraftId}
           <a class="btn small" href="/lore-studio/{draft.companionLoreDraftId}"><BookOpen size={14} /> Companion lorebook</a>
         {:else}
           <button class="btn small" onclick={companion} title="People, places and events from the bible, drafted in the Lore Studio"><WandSparkles size={14} /> Build a companion lorebook</button>

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
+import { loreComparison } from "../lore/versionlore";
 import { compareWithOriginal, copyAsVersion, detachVersion, type LinkKind, linkInfo, linkVersion, updateLink, versionKind } from "../services/linked";
 
 /**
@@ -45,5 +46,5 @@ for (const path of ["characters", "personas"] as const) {
     return c.json({ ok: true, originId });
   });
 
-  linked.get(`/${path}/:id/compare`, (c) => c.json(compareWithOriginal(kind, c.req.param("id"))));
+  linked.get(`/${path}/:id/compare`, (c) => c.json({ ...compareWithOriginal(kind, c.req.param("id")), entries: loreComparison(kind, c.req.param("id")) }));
 }

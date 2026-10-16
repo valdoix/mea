@@ -46,6 +46,7 @@ import {
 import { harvestFromCreator } from "../lore/people";
 import { extendText } from "../creator/expand";
 import { versionKind } from "../services/linked";
+import { createVersionLore } from "../lore/versionlore";
 import { anotherVariantQuestion, buildMap, fillMap, personaVersion, premiseDirections, startVariant } from "../creator/variant";
 import { ROW_STATES, ROW_TYPES, type RowState, type RowType } from "../creator/variantcore";
 
@@ -248,6 +249,12 @@ creator.post("/creator/:id/save", async (c) => {
 
 /** A companion lorebook drafted from the bible (CHAR-18 / PER-03): returns the Lore Studio draft. */
 creator.post("/creator/:id/companion", (c) => {
+  // A saved version gets its own lorebook, translated from its original's through the map (docs/14).
+  const cur = mustCreator(c.req.param("id"));
+  if (cur.variant && cur.savedId) {
+    const lore = createVersionLore(cur.kind, cur.savedId);
+    return c.json({ loreDraftId: lore.id, draft: cur });
+  }
   const lore = companionLore(c.req.param("id"));
   return c.json({ loreDraftId: lore.id, draft: mustCreator(c.req.param("id")) });
 });
