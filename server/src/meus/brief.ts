@@ -3,6 +3,7 @@ import { listOffpage } from "../accuracy/offpage";
 import { canonOf } from "../accuracy/canoncut";
 import { all, parseJson } from "../db/db";
 import { inboxCount } from "../accuracy/inbox";
+import { originChanges } from "../services/versionsync";
 import { getSetting } from "../lib/settings";
 import { scanEntriesFor } from "../lore/service";
 import { listJournals } from "../memory/journals";
@@ -145,6 +146,11 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
   toc.push(`memory ledgers: ${promises(chatId).length} promises, ${secrets(chatId).length} secrets`);
   const inbox = inboxCount(chatId);
   if (inbox) toc.push(`continuity inbox ${inbox} waiting`);
+  // docs/14, part 5: this chat's card or persona is a version and its original changed.
+  for (const [who, id] of [["character", chat.character_id], ["persona", chat.persona_id]] as const) {
+    const changes = id ? originChanges(who, id) : [];
+    if (changes.length) toc.push(`changes from the ${who}'s original (version_sync, who "${who}"): ${changes.map((x) => `[${x.key}] ${x.label} (${x.state === "kept" ? "kept the same, can take" : "changed for the version, translate on its page"})`).join("; ")}`);
+  }
   if (st) {
     const arcs = Object.values(st.sim.arcs);
     const live = arcs.filter((a) => a.status === "running" || a.status === "held" || a.status === "fate");

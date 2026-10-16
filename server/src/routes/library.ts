@@ -22,6 +22,7 @@ import { getImage, imageFileFor, liveImagePath, saveImage, setThumbnail } from "
 import { importFile } from "../services/importer";
 import { detectMode } from "../services/mode";
 import { linkInfo, listLinkedVersions, versionLabels } from "../services/linked";
+import { afterOriginSave } from "../services/versionsync";
 import { createPersona, getPersona as getPersonaBase, listPersonas, restorePersona, softDeletePersona, updatePersona } from "../services/personas";
 
 export const library = new Hono();
@@ -92,6 +93,7 @@ library.put("/characters/:id", async (c) => {
     }
   }
   must(updateCharacter(id, { ...input, card }) || undefined, "Character not found");
+  if (card && listLinkedVersions("character", id).length) afterOriginSave();
   return c.json(getCharacter(id));
 });
 
@@ -157,6 +159,7 @@ library.get("/personas/:id", (c) => c.json(must(getPersona(c.req.param("id")), "
 library.put("/personas/:id", async (c) => {
   const input = await body(c, z.object({ name: z.string().trim().min(1).optional(), data: personaData.optional(), avatarId: z.string().nullable().optional(), isDefault: z.boolean().optional() }));
   must(updatePersona(c.req.param("id"), input) || undefined, "Persona not found");
+  if (input.data && listLinkedVersions("persona", c.req.param("id")).length) afterOriginSave();
   return c.json(getPersona(c.req.param("id")));
 });
 

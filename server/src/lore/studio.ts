@@ -1557,7 +1557,7 @@ export function commitDraft(id: string, input: CommitInput = {}) {
       const e = it.entry!;
       const extra: Record<string, unknown> = { ...(it.type ? { type: it.type } : {}), ...(e.aliases.length ? { aliases: e.aliases } : {}), ...(e.essentials ? { essentials: e.essentials } : {}), ...(e.secrets.length ? { secrets: e.secrets } : {}), ...(it.folder ? { folder: it.folder } : {}) };
       // A version's entry remembers the original it came from (docs/14).
-      if (it.versionSource) extra.source = { entryId: it.versionSource.entryId, bookId: it.versionSource.bookId, state: it.versionSource.state, basis: it.versionSource.basis };
+      if (it.versionSource) extra.source = { entryId: it.versionSource.entryId, bookId: it.versionSource.bookId, state: it.versionSource.state, basis: it.versionSource.basis, text: it.versionSource.text };
       let entry = defaultEntry({ comment: it.title, keys: e.keys, content: e.content, constant: it.constant, extra });
       // I1: the category's place and priority (an always-on choice of yours stays).
       if (it.category) entry = { ...withCategory(entry, it.category, { defaults: true }), ...(it.constant ? { constant: true } : {}) };

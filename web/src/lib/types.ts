@@ -74,6 +74,26 @@ export interface LinkInfo {
   universeId: string | null;
   universe?: { id: string; name: string } | null;
   versions: VersionSummary[];
+  /** Part 5: changes from the original waiting for this version. */
+  changes?: number;
+}
+
+/** Something the original changed since the version was written from it (docs/14, part 5). */
+export interface OriginChange {
+  key: string;
+  target: "field" | "entry";
+  label: string;
+  /** kept: the version had it the same (take it across); changed: the version translated it. */
+  state: "kept" | "changed";
+  was: string;
+  now: string;
+  mine: string;
+}
+
+export interface OriginSync {
+  origin: { id: string; name: string } | null;
+  auto: boolean;
+  changes: OriginChange[];
 }
 
 /** A shared setting for versions (docs/14, part 4): one premise, one map, one world book. */
@@ -719,7 +739,7 @@ export interface GuardsView {
 }
 
 /** P1: where an Inbox suggestion comes from. */
-export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar" | "secret";
+export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar" | "secret" | "versions";
 
 export interface InboxItem {
   key: string;

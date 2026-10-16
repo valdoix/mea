@@ -31,7 +31,7 @@ const WORLD_TYPES = new Set(["location", "faction", "concept", "rule"]);
 export const isWorldItem = (it: Pick<StudioItem, "type">) => Boolean(it.type && WORLD_TYPES.has(it.type));
 
 /** The plan the version was made with (the variant studio's draft), or a bare one for a version copied by hand. */
-function planFor(kind: LinkKind, id: string, origin: { id: string; name: string }, link: NonNullable<ReturnType<typeof linkInfo>>): VariantPlan {
+export function planFor(kind: LinkKind, id: string, origin: { id: string; name: string }, link: NonNullable<ReturnType<typeof linkInfo>>): VariantPlan {
   const made = variantPlanOf(kind, id);
   if (made) return made;
   const plan = newVariant({ originKind: kind, originId: origin.id, originName: origin.name, kind: link.kind, label: link.label, premise: link.label ? `${link.label}.` : "" });

@@ -45,8 +45,8 @@
     }),
   );
 
-  const KIND: Record<string, string> = { summary: "Summary", journal: "Journal", chronicle: "New lore", merge: "Duplicate", disputed: "Disputed memory", world: "Subplot", lesson: "Lesson", canon: "Canon", pressure: "Pressure", calendar: "Calendar", offpage: "Secret" };
-  const SOURCE: Record<InboxSource, string> = { memory: "Memory", lore: "Lore", world: "World", lesson: "Lessons", canon: "Canon", pressure: "Pressures", calendar: "Calendar", secret: "Secrets" };
+  const KIND: Record<string, string> = { summary: "Summary", journal: "Journal", chronicle: "New lore", merge: "Duplicate", disputed: "Disputed memory", world: "Subplot", lesson: "Lesson", canon: "Canon", pressure: "Pressure", calendar: "Calendar", offpage: "Secret", version: "Original changed" };
+  const SOURCE: Record<InboxSource, string> = { memory: "Memory", lore: "Lore", world: "World", lesson: "Lessons", canon: "Canon", pressure: "Pressures", calendar: "Calendar", secret: "Secrets", versions: "Versions" };
   const counts = $derived.by(() => {
     const c = new Map<InboxSource, number>();
     for (const i of items ?? []) c.set(i.source, (c.get(i.source) ?? 0) + 1);
@@ -123,11 +123,11 @@
             <p class="after small">{item.after}</p>
           {/if}
           <div class="row wrap">
-            <button class="btn primary small" onclick={() => act(item, "accept")} disabled={busy === item.key}><Check size={14} /> {editing === item.key ? "Save and approve" : item.kind === "merge" ? "Merge" : "Approve"}</button>
+            <button class="btn primary small" onclick={() => act(item, "accept")} disabled={busy === item.key}><Check size={14} /> {editing === item.key ? "Save and approve" : item.kind === "merge" ? "Merge" : item.kind === "version" ? "Take the changes" : "Approve"}</button>
             {#if item.editable && editing !== item.key}<button class="btn ghost small" onclick={() => startEdit(item)}><Pencil size={14} /> Edit</button>{/if}
             {#if editing === item.key}<button class="btn ghost small" onclick={() => (editing = null)}>Cancel edit</button>{/if}
-            <button class="btn ghost small" onclick={() => act(item, "reject")} disabled={busy === item.key}><X size={14} /> {item.kind === "merge" ? "Not the same" : "Reject"}</button>
-            <button class="btn ghost small" onclick={() => talkItThrough(item)}><MessagesSquare size={14} /> Talk it through with Meus</button>
+            <button class="btn ghost small" onclick={() => act(item, "reject")} disabled={busy === item.key}><X size={14} /> {item.kind === "merge" ? "Not the same" : item.kind === "version" ? "Not for this version" : "Reject"}</button>
+            {#if item.chatId}<button class="btn ghost small" onclick={() => talkItThrough(item)}><MessagesSquare size={14} /> Talk it through with Meus</button>{/if}
           </div>
         </article>
       {/each}

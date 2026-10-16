@@ -390,6 +390,12 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const idea = user.split("THE VARIANT: ")[1]?.trim() ?? "variant";
       return { name: idea.split(" ").slice(0, 3).join(" "), note: `The ${idea}.`, fields: { description: `In the ${idea}: the same person, different clothes.`, first_mes: `Snow falls on the harbour as she looks up. "You came back?"`, nonsense: "dropped" } };
     }
+    // ---------- changes from the original (docs/14, part 5) ----------
+    case "version_translate": {
+      const now = /THE ORIGINAL, NOW:\s*([\s\S]*?)\s*THE VERSION, NOW:/.exec(user)?.[1] ?? "";
+      const mine = /THE VERSION, NOW:\s*([\s\S]*)$/.exec(user)?.[1] ?? "";
+      return { text: `${mine.trim()} (Translated: ${now.trim().split(/\r?\n/).pop()})` };
+    }
     // ---------- the variant studio (docs/14) ----------
     case "variant_directions":
       return { options: [1, 2, 3].map((k) => `Take ${k}: the harbour becomes a campus radio station${/Move the whole set toward: (.+)/.exec(system)?.[1] ? `, ${/Move the whole set toward: (.+)/.exec(system)![1]}` : ""}.`) };

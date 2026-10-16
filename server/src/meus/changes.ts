@@ -25,6 +25,8 @@ import { addLesson, deleteLesson, getLesson, lessonsFor, updateLesson } from "..
 import { pressureAction, type PressureAction } from "../trackers/pressures";
 import { canonOf, type CanonSettings, laterItem, setCanon } from "../accuracy/canoncut";
 import { createOffpage, deleteOffpage, getOffpage, type HintBudget, listOffpage, updateOffpage } from "../accuracy/offpage";
+import { restoreStash } from "../services/undo";
+import { originChanges, skipChanges, takeChanges } from "../services/versionsync";
 
 /**
  * What Meus can change in a chat, each through the tool the app already uses for it, so swipes,
@@ -49,6 +51,7 @@ export const CHANGE_KINDS = [
   '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"};',
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
+  '{"kind": "version_sync", "who": "character|persona", "key": "<change key from the brief>", "action": "take|skip"} when this chat’s card or persona is a version and its original changed: take a change the version kept the same (copied across), or skip it (it becomes the version’s own); a change to something the version changed is translated on its page instead;',
   '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off;',
   '{"kind": "secret_offpage", "label": "the secret, in a sentence", "never_say": ["words the narration must not use yet"], "hint_as": "how the story may hint at it", "hints": "never|rarely|building"} keeps a secret off the page (the narration doesn’t state it); {"kind": "secret_offpage", "id": "<off-page id>", "status": "revealed|kept", "never_say": […]} reveals one, or changes it;',
   '{"kind": "canon", "source": "the work", "point": "where the story stands in it", "later": [{"kind": "event|character|reveal|term", "text": "…", "terms": ["words that give it away"]}], "wont": ["canon events that won’t happen in this story"], "remove": ["text of a later or wont item"]} changes the canon cutoff (only what changes);',
@@ -84,6 +87,7 @@ export type UndoStep =
   | { t: "lessonDrop"; id: string }
   | { t: "lessonStatus"; id: string; status: "kept" | "off" | "suggested" | "rejected" }
   | { t: "offpageDrop"; id: string }
+  | { t: "stash"; token: string }
   | { t: "offpageRestore"; id: string; patch: { label: string; neverSay: string[]; hintAs: string; hints: HintBudget; status: "kept" | "revealed" } };
 
 type Raw = Record<string, unknown>;
@@ -544,6 +548,22 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
         after: text || item.after,
         data: { action, text, item: item.kind, ...(undoable ? {} : { risky: true, noUndo: true, note: NO_UNDO }), why },
       });
+    } else if (kind === "version_sync") {
+      // docs/14, part 5: a change from the original, for this chat's version.
+      const chat = mustChat(chatId);
+      const who = str(c.who).toLowerCase() === "persona" ? "persona" : "character";
+      const vid = who === "persona" ? chat.persona_id : chat.character_id;
+      const action = str(c.action).toLowerCase() === "skip" ? "skip" : "take";
+      const change = vid ? originChanges(who, vid).find((x) => x.key === str(c.key)) : undefined;
+      if (!change) {
+        dropped.push(`there's no change from the original ${str(c.key)}`);
+        continue;
+      }
+      if (action === "take" && change.state === "changed") {
+        dropped.push(`${change.label} was changed for this version: translate it on the version's page`);
+        continue;
+      }
+      out.push({ kind, target: vid!, label: `Version · ${action === "take" ? "take from the original" : "keep the version's own"}: ${change.label}`, before: change.mine, after: action === "take" ? change.now : change.mine, data: { who, key: change.key, action, why } });
     } else if (kind === "lesson") {
       // A1: keep a new lesson, or switch one on or off.
       const ref = str(c.id);
@@ -883,6 +903,11 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       return [{ t: "loreDrop", id: createEntry(c.target, { comment: String(d.comment ?? ""), keys: (d.keys as string[]) ?? [], content: String(d.content ?? "") }).id }];
     case "note":
       return [{ t: "noteDrop", id: createNote({ chatId, title: String(d.title ?? ""), body: c.after }).id }];
+    case "version_sync": {
+      const who = d.who === "persona" ? "persona" : "character";
+      const r = d.action === "skip" ? skipChanges(who, c.target, [String(d.key)]) : takeChanges(who, c.target, [String(d.key)]);
+      return [{ t: "stash", token: r.undo }];
+    }
     case "lesson": {
       if (c.target) {
         const prev = String(d.prev ?? "kept") as "kept";
@@ -951,6 +976,9 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
 /** Undoes one step (the steps of a set run in reverse). */
 export function undoStep(chatId: string, s: UndoStep) {
   switch (s.t) {
+    case "stash":
+      restoreStash(s.token);
+      return;
     case "events":
       for (const id of s.ids) deleteEvent(chatId, id);
       return;
