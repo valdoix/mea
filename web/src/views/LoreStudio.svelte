@@ -33,7 +33,7 @@
     { stage: "review", label: "Write & review" },
   ];
   const at = $derived(draft ? (draft.stage === "done" ? 3 : STEPS.findIndex((s) => s.stage === draft.stage)) : 0);
-  const SOURCE: Record<string, string> = { idea: "From your idea", character: "Companion lore for", persona: "Lore for your persona", document: "From", book: "Growing" };
+  const SOURCE: Record<string, string> = { idea: "From your idea", character: "Companion lore for", persona: "Lore for your persona", document: "From", book: "Growing", version: "Translated lore for the version of" };
   const sourceLabel = $derived(draft ? `${SOURCE[draft.source.kind]}${draft.source.refName ? ` ${draft.source.refName}` : draft.source.kind === "document" ? ` ${draft.source.fileName || "your notes"}` : ""}` : "");
 
   function go(stage: StudioStage) {

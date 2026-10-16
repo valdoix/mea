@@ -3,6 +3,7 @@ import { stash } from "../services/undo";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { parseDocument } from "../lore/ingest";
+import { commitVersionLore, createVersionLore } from "../lore/versionlore";
 import { CATEGORIES } from "../lore/format";
 import {
   addItem,
@@ -239,7 +240,18 @@ studio.post("/lore-studio/:id/cowrite/apply", async (c) => {
 studio.post("/lore-studio/:id/cowrite/dismiss", (c) => c.json(d(dismissCowrite(c.req.param("id")))));
 studio.delete("/lore-studio/:id/cowrite", (c) => c.json(d(clearCowriteChat(c.req.param("id")))));
 
+/** A version's own lorebook (docs/14): the plan comes from its map; kept entries are already in it. */
+studio.post("/lore-studio/version", async (c) => {
+  const input = await body(c, z.object({ kind: z.enum(["character", "persona"]), id: z.string().min(1) }));
+  return c.json(d(createVersionLore(input.kind, input.id)), 201);
+});
+
 studio.post("/lore-studio/:id/commit", async (c) => {
+  // A version's lore saves into its own two books, whatever the request names.
+  if (mustDraft(c.req.param("id")).version) {
+    const r = commitVersionLore(c.req.param("id"));
+    return c.json({ bookId: r.bookIds[0] ?? null, bookIds: r.bookIds, added: r.added, unlinked: r.unlinked, draft: r.draft });
+  }
   const input = await opts(
     c,
     z

@@ -19,6 +19,7 @@ import { baseTitle, cleanTitle, type EntryType, entryFromSource, firstSentences,
 import { checkEntries, type EntryLength, STOCK_NAMES, STOCK_PHRASES } from "./quality";
 import { createEntry, createLorebook, getLorebook, type LinkType, linkLorebook, linkedBooks, updateEntry } from "./service";
 import { defaultEntry } from "./types";
+import { findLeaks, type VariantPlan, variantBlock } from "../creator/variantcore";
 
 /**
  * The Lore Studio (Phase 4): a lorebook written with you, not for you. The flow mirrors the
@@ -31,7 +32,8 @@ import { defaultEntry } from "./types";
  * (documents become draft entries without a model call). Drafts persist until you save or drop them.
  */
 
-export type SourceKind = "idea" | "character" | "persona" | "document" | "book";
+/** "version": the lorebook of a linked version (docs/14), translated from its original's through the map. */
+export type SourceKind = "idea" | "character" | "persona" | "document" | "book" | "version";
 export type Stage = "start" | "questions" | "plan" | "review" | "done";
 export const ENTRY_TYPES = Object.keys(ENTRY_TEMPLATES) as EntryType[];
 
@@ -92,6 +94,35 @@ export interface StudioItem {
   action: "write" | "change" | "off";
   /** I2: the book's entry a change or switch-off is for. */
   targetEntryId: string | null;
+  /** A version's entry (docs/14): the original entry it comes from, and whether it's kept, translated or new. */
+  versionSource: VersionSource | null;
+}
+
+export interface VersionSource {
+  /** The original's entry, and its book (null for an entry only the version has). */
+  entryId: string | null;
+  bookId: string | null;
+  /** Its name in the original ("" for a new one). */
+  from: string;
+  state: "kept" | "changed" | "new";
+  /** A fingerprint of the original entry when this was made, so a later change to it shows. */
+  basis: string;
+  /** The original entry's text, translated through the map when the state is "changed". */
+  text: string;
+}
+
+/** What a version's lore draft knows (docs/14): whose version it is, the plan, and where it saves. */
+export interface VersionLore {
+  kind: "character" | "persona";
+  /** The version (a saved card or persona). */
+  id: string;
+  name: string;
+  originId: string;
+  originName: string;
+  plan: VariantPlan;
+  /** The two books it saves into: the version's own (people, things, events) and its world's (places, groups, rules). */
+  companionBookId: string | null;
+  worldBookId: string | null;
 }
 
 /** I2: a numbered version of the plan, for "what changed" between versions. */
@@ -158,6 +189,7 @@ export interface StudioDraft {
   research: Research | null;
   /** I2: the plan's numbered versions (each plan and each accepted change makes one). */
   planVersions: PlanVersion[];
+  version: VersionLore | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -171,6 +203,7 @@ export const defaultOptions = (kind: SourceKind = "idea"): StudioOptions => ({
   secrets: kind !== "document",
   faithful: kind === "document",
   overview: kind === "idea" || kind === "document",
+  ...(kind === "version" ? { secrets: false } : {}),
 });
 
 const PLAN_SIZE = { small: 8, medium: 15, large: 26, complete: 26 } as const;
@@ -214,6 +247,7 @@ function hydrate(r: Row): StudioDraft {
     proposal: d.proposal ?? null,
     research: d.research ?? null,
     planVersions: d.planVersions ?? [],
+    version: d.version ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -242,6 +276,7 @@ function normItem(i: Partial<StudioItem>): StudioItem {
     category: i.category && (CATEGORIES as readonly string[]).includes(i.category) ? i.category : guessCategory({ comment: i.title ?? "", content: i.pitch ?? "", keys: [], constant: i.constant ?? false, extra: i.type ? { type: i.type } : {} }).category,
     action: i.action === "change" || i.action === "off" ? i.action : "write",
     targetEntryId: i.targetEntryId ?? null,
+    versionSource: i.versionSource ?? null,
   };
 }
 
@@ -465,10 +500,16 @@ export function createDraft(input: CreateInput): StudioDraft {
     chat: [],
     proposal: null,
     research: null,
+    version: null,
     createdAt: t,
     updatedAt: t,
   };
-  if (input.kind === "character") {
+  if (input.kind === "version") {
+    // Filled in by lore/versionlore.ts (createVersionLore): the version's text, its plan and its items.
+    if (!input.refId) throw badRequest("Pick a version");
+    d.source.text = input.text?.trim() ?? "";
+    d.stage = "plan";
+  } else if (input.kind === "character") {
     if (!input.refId) throw badRequest("Pick a character");
     const s = cardSource(input.refId);
     d.source.refName = s.name;
@@ -605,7 +646,7 @@ const dedupe = (xs: string[]) => [...new Map(xs.map((x) => x.trim()).filter(Bool
 
 const sourceBlock = (d: StudioDraft) => {
   const text = d.source.text.length > MAX_SOURCE_CHARS ? `${d.source.text.slice(0, MAX_SOURCE_CHARS)}\n[…the rest is cut for length]` : d.source.text;
-  const label = { idea: "THE AUTHOR'S IDEA", character: "THE CHARACTER CARD", persona: "THE PERSONA", document: "THE DOCUMENT", book: "THE EXISTING LOREBOOK" }[d.source.kind];
+  const label = { idea: "THE AUTHOR'S IDEA", character: "THE CHARACTER CARD", persona: "THE PERSONA", document: "THE DOCUMENT", book: "THE EXISTING LOREBOOK", version: "THE VERSION (the card or persona this lore is for)" }[d.source.kind];
   return [`${label}:\n${text || "(nothing yet)"}`, expansionBlock(d.expansion)].filter(Boolean).join("\n\n");
 };
 
@@ -625,6 +666,8 @@ const PURPOSE: Record<SourceKind, string> = {
     "This is a lorebook for the user's own persona: the people, places, history and possessions around them, so stories can draw on their past. The persona is the person the human player plays ({{user}} in a chat), not a character the AI plays: don't make an entry for the persona themself, mention them by name, never as {{char}}, and never decide what they feel or do. Stay consistent with the persona.",
   document: "Turn the author's document into entries. Use only what the document says.",
   book: "Grow an existing lorebook: propose entries it lacks. Never repeat an entry it has.",
+  version:
+    "This is the lorebook of a VERSION (an alternate universe, another era, a time skip or a what-if): each entry is the original's entry translated into this version through THE MAP, or a new one the version needs. Keep what the map keeps, rename and rework what it changes, never mention what it dropped, and keep the role each thing plays in the story. Don't make an entry for the version themself: their card covers them.",
 };
 
 const AVOID = `Avoid names models overuse (${STOCK_NAMES.slice(0, 18).join(", ")}…) unless the author used them, and filler phrases (${STOCK_PHRASES.slice(0, 10).join(", ")}…).`;
@@ -1111,7 +1154,8 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
     .slice(0, 80)
     .map((x) => `- ${x.title}${x.type ? ` (${x.type})` : ""}: ${x.entry?.essentials || x.pitch || "(not written yet)"}`);
   const faithful = d.options.faithful || Boolean(it.source.trim() && d.source.kind === "document");
-  const cast = [d.source.kind === "character" ? d.source.refName : "", d.source.kind === "persona" ? d.source.refName : ""].filter(Boolean);
+  const cast = [d.source.kind === "character" || d.source.kind === "persona" || d.source.kind === "version" ? d.source.refName : ""].filter(Boolean);
+  const vs = it.versionSource;
   const r = await callJson({
     task: "summarizer",
     kind: "studio:entry",
@@ -1134,6 +1178,8 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
     user: [
       d.overview.trim() ? `OVERVIEW:\n${d.overview.trim()}` : "",
       d.source.kind === "document" ? "" : sourceBlock(d),
+      d.version ? `PURPOSE: ${PURPOSE.version}\n\n${variantBlock(d.version.plan, { original: false })}` : "",
+      vs?.text.trim() ? `THE ORIGINAL'S ENTRY${vs.from ? ` ("${vs.from}")` : ""}, to translate into this version through the map (keep its role, change what the map changes):\n${vs.text.trim().slice(0, 8000)}` : "",
       canonBlock(d.basedOn),
       researchBlock(d.research),
       answersBlock(d),
@@ -1154,11 +1200,14 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
     temperature: faithful ? 0.3 : 0.75,
   });
   const name = baseTitle(it.title);
-  const keys = dedupe([name, ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim())));
+  // A translated entry never keeps the original's name as a key or alias (unless it's part of the new one).
+  const oldName = vs?.state === "changed" && vs.from && !name.toLowerCase().includes(vs.from.toLowerCase()) ? vs.from.toLowerCase() : "";
+  const notOld = (k: string) => !oldName || k.trim().toLowerCase() !== oldName;
+  const keys = dedupe([name, ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim()) && notOld(k)));
   return {
     content: r.data.content.trim(),
     keys: keys.slice(0, 8),
-    aliases: dedupe(r.data.aliases).filter((a) => !keys.some((k) => k.toLowerCase() === a.toLowerCase())).slice(0, 6),
+    aliases: dedupe(r.data.aliases).filter((a) => notOld(a) && !keys.some((k) => k.toLowerCase() === a.toLowerCase())).slice(0, 6),
     essentials: r.data.essentials.trim() || firstSentences(r.data.content),
     secrets: r.data.secrets.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), knownBy: dedupe(s.knownBy) })).slice(0, 3),
   };
@@ -1176,6 +1225,11 @@ export function reviewDraft(id: string) {
     drafted.map((i) => ({ id: i.id, title: i.title, constant: i.constant, content: i.entry!.content, keys: i.entry!.keys, aliases: i.entry!.aliases, essentials: i.entry!.essentials, secrets: i.entry!.secrets })),
     { existing: book?.entries.filter((e) => !d.items.some((i) => i.savedEntryId === e.id)).map((e) => ({ title: e.comment, keys: [...e.keys, ...(extraOf(e).aliases ?? [])] })), length: d.options.length, cast },
   );
+  // A version's entries shouldn't name what its world changed or dropped (docs/14).
+  if (d.version)
+    for (const i of drafted)
+      for (const l of findLeaks(d.version.plan.map, [{ where: "field", key: i.id, label: i.title, text: [i.entry!.content, ...i.entry!.keys, ...i.entry!.aliases].join("\n") }]))
+        (issues[i.id] ??= []).push({ kind: "leak", severity: "warn", message: l.state === "changed" ? `"${l.term}" is "${l.to}" in this version.` : `"${l.term}" doesn't exist in this version.` });
   const tokens = Object.fromEntries(drafted.map((i) => [i.id, countTokens(i.entry!.content)]));
   const overviewTokens = d.options.overview ? countTokens(d.overview) : 0;
   const stale = Object.fromEntries(drafted.map((i) => [i.id, staleReasons(d, i)]).filter(([, r]) => r!.length));
@@ -1502,6 +1556,8 @@ export function commitDraft(id: string, input: CommitInput = {}) {
       if (it.action !== "write") continue;
       const e = it.entry!;
       const extra: Record<string, unknown> = { ...(it.type ? { type: it.type } : {}), ...(e.aliases.length ? { aliases: e.aliases } : {}), ...(e.essentials ? { essentials: e.essentials } : {}), ...(e.secrets.length ? { secrets: e.secrets } : {}), ...(it.folder ? { folder: it.folder } : {}) };
+      // A version's entry remembers the original it came from (docs/14).
+      if (it.versionSource) extra.source = { entryId: it.versionSource.entryId, bookId: it.versionSource.bookId, state: it.versionSource.state, basis: it.versionSource.basis };
       let entry = defaultEntry({ comment: it.title, keys: e.keys, content: e.content, constant: it.constant, extra });
       // I1: the category's place and priority (an always-on choice of yours stays).
       if (it.category) entry = { ...withCategory(entry, it.category, { defaults: true }), ...(it.constant ? { constant: true } : {}) };

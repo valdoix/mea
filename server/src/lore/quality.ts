@@ -7,7 +7,7 @@ import { countTokens } from "../lib/tokens";
  */
 
 export interface QualityIssue {
-  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown";
+  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown" | "leak";
   severity: "info" | "warn";
   message: string;
 }

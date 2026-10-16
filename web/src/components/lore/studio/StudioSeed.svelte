@@ -10,7 +10,7 @@
   let steer = $state("");
 
   const label = $derived(
-    { idea: "Your idea, in your own words", character: "What the studio reads (the card, plus your notes)", persona: "What the studio reads (the persona, plus your notes)", document: "The document", book: "What the studio reads (the book's entries, plus your notes)" }[draft.source.kind],
+    { idea: "Your idea, in your own words", character: "What the studio reads (the card, plus your notes)", persona: "What the studio reads (the persona, plus your notes)", document: "The document", book: "What the studio reads (the book's entries, plus your notes)", version: "What the studio reads (the version's card)" }[draft.source.kind],
   );
 
   function useDirection(d: { title: string; pitch: string }) {

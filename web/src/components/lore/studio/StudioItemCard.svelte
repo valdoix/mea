@@ -52,6 +52,7 @@
     <button class="expand" onclick={() => (open = !open)} aria-expanded={open}>
       {#if open}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
       {#if meta}<span class="chip tiny {meta.chip}"><meta.icon size={11} /> {meta.label}</span>{/if}
+      {#if item.versionSource}<span class="chip tiny vsrc {item.versionSource.state}" title={item.versionSource.from ? `From “${item.versionSource.from}” in the original` : "Only in this version"}>{item.versionSource.state === "kept" ? "Kept" : item.versionSource.state === "new" ? "New here" : item.versionSource.from && item.versionSource.from !== item.title ? `From ${item.versionSource.from}` : "Translated"}</span>{/if}
       <span class="grow">
         <b class="wraps">{item.title}</b>
         <span class="tiny muted wraps">
@@ -131,6 +132,15 @@
 </div>
 
 <style>
+  .vsrc.kept {
+    background: color-mix(in srgb, var(--sky, #9cc4ee) 28%, transparent);
+  }
+  .vsrc.changed {
+    background: color-mix(in srgb, var(--lavender, #c7b8ec) 34%, transparent);
+  }
+  .vsrc.new {
+    background: color-mix(in srgb, var(--mint, #9fe0c0) 30%, transparent);
+  }
   .entry.out {
     opacity: 0.55;
   }

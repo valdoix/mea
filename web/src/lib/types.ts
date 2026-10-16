@@ -1695,7 +1695,8 @@ export interface SearchResult {
 // ---------- Phase 4: the Lore Studio ----------
 
 export type LoreType = "character" | "location" | "item" | "faction" | "concept" | "event" | "rule";
-export type StudioSourceKind = "idea" | "character" | "persona" | "document" | "book";
+/** "version": a linked version's own lorebook (docs/14), translated from its original's. */
+export type StudioSourceKind = "idea" | "character" | "persona" | "document" | "book" | "version";
 export type StudioStage = "start" | "questions" | "plan" | "review" | "done";
 
 export interface StudioOptions {
@@ -1740,6 +1741,8 @@ export interface StudioItem {
   category?: string | null;
   action?: "write" | "change" | "off";
   targetEntryId?: string | null;
+  /** A version's entry (docs/14): the original entry it comes from, kept, translated or new. */
+  versionSource?: { entryId: string | null; bookId: string | null; from: string; state: "kept" | "changed" | "new"; basis: string; text: string } | null;
 }
 
 /** The co-writer (both studios): the conversation, and the changes it proposes. */
@@ -1839,6 +1842,8 @@ export interface StudioDraft {
   chat: ChatTurn[];
   proposal: Proposal | null;
   research: Research | null;
+  /** A version's lore draft (docs/14): whose version, from whom, and the two books it saves into. */
+  version?: { kind: "character" | "persona"; id: string; name: string; originId: string; originName: string; plan: VariantPlan; companionBookId: string | null; worldBookId: string | null } | null;
   createdAt: number;
   updatedAt: number;
 }

@@ -173,30 +173,35 @@ Parts run in order. Part 4's tables are created in part 1 (empty), so versions m
 
 ### What happens to each entry
 
-From the original's linked books (companion and world), every entry goes through the map:
+Every entry in the original's linked books goes through the map (matched by the entry's name or one of its keys):
 
 | Map says | The entry |
 |---|---|
-| **kept** | is copied, and remembers which entry it came from |
-| **changed** | is rewritten through the map: new name, new facts, the same role in the story |
-| **dropped** | is left out |
-| **new** | is written fresh from the map row and the bible |
+| **kept** | is copied as it is (keys, aliases, essentials, secrets), and remembers which entry it came from. If its text names something the map changed or dropped, it's translated instead, so nothing leaks |
+| **changed** | is planned under its new name ("Port Ellis" → "Ellis Ring") and written through the map, with the original entry as what to translate. The original's name never survives as a key or alias, unless it's part of the new name |
+| **dropped** | is left out (listed, unticked, so you can bring it back) |
+| not on the map | is translated in the spirit of the premise |
+| **new** | is a new entry, written from the map row |
 
-**Where entries go.** People and things that belong to this character go to the version's **companion book**. Places, groups and world rules go to the **universe book**, so other versions can share them later (part 4). Until part 4, both books belong to this one version.
+People, places and groups the map changed that never had an entry of their own become new entries too. A version copied by hand (no map) gets a bare plan from its name and anchors, and every entry is translated.
+
+**Where entries go.** On save, places, groups, ideas and rules go into the version's **world book** ("College AU: the world"); people, things and events into its **own book** ("Mira (College AU): lore"). Both are linked to the version; part 4 hands the world book to a shared universe. Saving again adds new entries to the same two books.
+
+**The original's books.** A version used its original's books until now (copied with it, or linked by the creator). Once it has its own, saving unlinks the original's books from the version; the original keeps them, untouched. The save toast says which.
 
 ### Buttons
-- **Write its lorebook** after saving (part 2), or **Lore** tab › **Write this version's lorebook** on any version.
-- It opens the Lore Studio with the map as its plan: **Plan → Write & review → Save**. Every entry shows its source entry and state, and can be edited, rewritten or left out before saving.
-- **Compare with original** (part 1) gains a **Lore** side: entry next to entry.
+- **Write this version's lorebook:** on a version's **Lore** tab, in the persona editor's lorebooks, and after saving a version in the creator (where it replaces **Build a companion lorebook**).
+- It opens the Lore Studio at its plan (**Plan → Write & review → Save**). Each entry shows where it came from (**Kept**, **From Port Ellis**, **Translated**, **New here**), and can be edited, rewritten or left out before saving. A leak in a written entry shows in the review.
+- The save panel says where it goes (the two books) and has no book picker or link settings: a version's lore always belongs to the version.
+- **Compare with original** (part 1) gains an **Entries** side: how many kept, translated and new, and each translated or new entry next to the original's.
 
 ### How it's built
-- `lore/studio.ts`: a new start mode **From a version** that builds plan items from the map instead of a census. Each item carries `source: { entryId, state }`.
-- Saved entries keep `extra.source = { entryId, bookId, state, basis }`. `basis` is the source entry's fingerprint (the existing `basisOf` idea), which is what part 5 compares against.
-- Entries keep the Phase 3 fields (type, aliases, essentials, secrets, folder, parent). Aliases from the original are mapped too, so the old name of a changed place is never left behind as an alias.
-- Links: the companion book to the version (`target_type` character or persona), the universe book to the version until part 4 moves it to the universe.
-- **Meus:** `version_lore_entry` (rewrite one entry through the map).
+- `lore/versionlore.ts`: `createVersionLore` (the plan from the map: `versionItems`), `commitVersionLore` (the split save and the unlinking), `loreComparison`.
+- `lore/studio.ts`: a new source kind `version`; `version` on the draft (whose version, its plan, its two book ids); `versionSource` on each item (the original entry, its book, its name, kept / changed / new, a fingerprint, and its text). The writer reads the version's map and the original entry; the review flags leaks; saved entries keep `extra.source = { entryId, bookId, state, basis }`, which part 5 compares against.
+- **Routes:** `POST /api/lore-studio/version` (`{ kind, id }`); the commit route saves a version's lore its own way; `POST /api/creator/:id/companion` starts a version's lore for a saved version; the compare route adds `entries`.
+- **Meus:** no new kind. Rewriting one entry through the map is the studio's usual rewrite with a steer; the writer already reads the map.
 
-**Tests (`versionlore.test.ts`):** kept entries copied with their source; a changed entry renamed everywhere including aliases; dropped entries absent; new entries present; a persona version's book linked to the persona; export carries the merged book.
+**Tests (`versionlore.test.ts`):** the plan from the map (kept copied, changed renamed, a kept entry that leaks translated, dropped left out, new rows added); writing never keeps the original's name as a key or alias, kept entries aren't rewritten, leaks show in the review; the split save, the original's book unlinked from the version and untouched, sources on every entry, saving again; a version copied by hand and a persona's version; the routes, including the creator's button and compare.
 
 ---
 

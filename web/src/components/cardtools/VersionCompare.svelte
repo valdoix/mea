@@ -7,7 +7,8 @@
   /** A version next to its original, field by field, plus the lorebooks each one uses (docs/14). */
   type Field = { key: string; label: string; original: string; version: string; same: boolean };
   type Book = { id: string; name: string };
-  type Compared = { originId: string; fields: Field[]; books: { shared: Book[]; originalOnly: Book[]; versionOnly: Book[] } };
+  type Entry = { title: string; state: string; from: string; original: string; version: string };
+  type Compared = { originId: string; fields: Field[]; books: { shared: Book[]; originalOnly: Book[]; versionOnly: Book[] }; entries?: Entry[] };
 
   let { open = $bindable(false), kind, id, originName }: { open?: boolean; kind: "character" | "persona"; id: string; originName: string } = $props();
 
@@ -59,6 +60,20 @@
         {#if data.books.originalOnly.length}<p class="small">Only the original: {data.books.originalOnly.map((b) => b.name).join(", ")}</p>{/if}
         {#if !data.books.shared.length && !data.books.versionOnly.length && !data.books.originalOnly.length}<p class="small muted">Neither has a lorebook.</p>{/if}
       </section>
+      {#if data.entries?.length}
+        <section class="stack tight">
+          <span class="label">Entries <span class="faint">{data.entries.filter((e) => e.state === "kept").length} kept · {data.entries.filter((e) => e.state === "changed").length} translated · {data.entries.filter((e) => e.state === "new").length} new</span></span>
+          {#each data.entries.filter((e) => e.state !== "kept") as e, i (i)}
+            <section class="field-cmp">
+              <span class="label">{e.from && e.from !== e.title ? `${e.from} → ${e.title}` : e.title}{e.state === "new" ? " (new)" : ""}</span>
+              <div class="cols">
+                <div class="col"><span class="tiny faint">{originName}</span><p class="text small">{e.original || "—"}</p></div>
+                <div class="col"><span class="tiny faint">This version</span><p class="text small">{e.version}</p></div>
+              </div>
+            </section>
+          {/each}
+        </section>
+      {/if}
     </div>
   {/if}
 </Modal>
