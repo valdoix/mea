@@ -7,6 +7,7 @@ import { linkedBooks, linkLorebook } from "../lore/service";
 import { createCharacter, getCard, getCharacterRow } from "./characters";
 import { createPersona, getPersona, type PersonaData } from "./personas";
 import { leaveUniverse } from "./universes";
+import { originChanges, snapshotBasis } from "./versionsync";
 
 /**
  * Linked versions (docs/14-linked-variants.md, part 1). A version is a whole card or persona of its own
@@ -74,6 +75,8 @@ export function linkInfo(kind: LinkKind, id: string) {
     universeId: universe?.id ?? null,
     universe: universe ?? null,
     versions: listLinkedVersions(kind, id),
+    /** Part 5: how many changes from the original wait for this version. */
+    changes: origin && origin.deleted_at === null ? originChanges(kind, id).length : 0,
   };
 }
 
@@ -114,6 +117,8 @@ export function linkVersion(kind: LinkKind, id: string, originId: string, input:
     JSON.stringify((input.anchors ?? []).map((a) => a.trim()).filter(Boolean)),
     id,
   );
+  // Part 5: what each field was written from, so later changes to the original show.
+  snapshotBasis(kind, id);
   changed(kind);
 }
 

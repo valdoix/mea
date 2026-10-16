@@ -1,5 +1,6 @@
 <script lang="ts">
   import Avatar from "../Avatar.svelte";
+  import OriginChanges from "./OriginChanges.svelte";
   import VersionCompare from "./VersionCompare.svelte";
   import { get, post, put } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
@@ -171,7 +172,7 @@
         </div>
       </div>
       <div class="field">
-        <span class="label"><Globe2 size={13} /> Universe</span>
+        <span class="label"><span><Globe2 size={13} /> Universe</span></span>
         {#if link.universe}
           <div class="row wrap"><a href="/universes/{link.universe.id}">{link.universe.name}</a><button class="btn ghost small" onclick={leaveUniverse}>Leave</button></div>
         {:else}
@@ -181,6 +182,7 @@
           </select>
         {/if}
       </div>
+      {#if !link.origin.inTrash}<OriginChanges {kind} {id} {onchanged} />{/if}
       <div class="row wrap">
         {#if linkDirty}<button class="btn primary small" onclick={saveLink}>Save</button>{/if}
         {#if !link.origin.inTrash}<button class="btn small" onclick={() => (compareOpen = true)}><Columns2 size={14} /> Compare with {link.origin.name}</button>{/if}

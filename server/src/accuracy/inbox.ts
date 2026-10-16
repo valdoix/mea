@@ -23,7 +23,7 @@ export type InboxKind = "summary" | "journal" | "chronicle" | "merge" | "dispute
  * P1: where a suggestion comes from, for the Inbox's filter. The first three are the original
  * kinds; the rest are the Almanac features' suggestions, each added by a provider below.
  */
-export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar" | "secret";
+export type InboxSource = "memory" | "lore" | "world" | "lesson" | "canon" | "pressure" | "calendar" | "secret" | "versions";
 
 const SOURCE_OF: Record<InboxKind, InboxSource> = { summary: "memory", journal: "memory", disputed: "memory", merge: "memory", chronicle: "lore", world: "world" };
 
@@ -63,6 +63,8 @@ export interface InboxProvider {
   act: (id: string, action: "accept" | "reject", edited?: string) => string | null;
   /** Approving it can be taken back from a Meus card. */
   undoable?: boolean;
+  /** Its items belong to no chat (chatId ""): listed once, in the Inbox for all stories. */
+  global?: boolean;
 }
 const providers = new Map<string, InboxProvider>();
 export function registerInboxProvider(p: InboxProvider) {
@@ -78,7 +80,18 @@ export function inboxItems(opts: { chatId?: string } = {}): InboxItem[] {
   const chats = liveChats(opts.chatId);
   const title = new Map(chats.map((c) => [c.id, c.title || "Untitled story"]));
   const ids = chats.map((c) => c.id);
-  if (!ids.length) return [];
+  // Suggestions that belong to no chat (a version's original changed, docs/14) show with all stories.
+  const global: InboxItem[] = [];
+  if (!opts.chatId)
+    for (const p of providers.values()) {
+      if (!p.global) continue;
+      try {
+        for (const i of p.items([])) global.push({ ...i, kind: p.kind, source: p.source });
+      } catch (e) {
+        console.error(`[mea] inbox suggestions (${p.kind}) failed:`, e);
+      }
+    }
+  if (!ids.length) return global.sort((a, b) => b.createdAt - a.createdAt);
   const inChats = `(${ids.map(() => "?").join(",")})`;
   const out: (Omit<InboxItem, "source"> & { source?: InboxSource })[] = [];
 
@@ -193,7 +206,9 @@ export function inboxItems(opts: { chatId?: string } = {}): InboxItem[] {
       // trackers off for this chat
     }
   }
+  out.push(...global);
   for (const p of providers.values()) {
+    if (p.global) continue;
     try {
       for (const i of p.items(chats)) out.push({ ...i, chatTitle: i.chatTitle || title.get(i.chatId) || "", kind: p.kind, source: p.source });
     } catch (e) {

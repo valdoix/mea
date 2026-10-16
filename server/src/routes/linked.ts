@@ -3,6 +3,8 @@ import { z } from "zod";
 import { body } from "../lib/http";
 import { loreComparison } from "../lore/versionlore";
 import { compareWithOriginal, copyAsVersion, detachVersion, type LinkKind, linkInfo, linkVersion, updateLink, versionKind } from "../services/linked";
+import "../services/versioninbox";
+import { setAutoSync, skipChanges, syncInfo, takeChanges, translateChange } from "../services/versionsync";
 
 /**
  * Linked versions (docs/14, part 1). `/family` because `/characters/:id/versions` is a card's History.
@@ -12,6 +14,12 @@ import { compareWithOriginal, copyAsVersion, detachVersion, type LinkKind, linkI
  * - POST /{characters,personas}/:id/link            link it to an original (`originId`)
  * - POST /{characters,personas}/:id/detach          cut the link
  * - GET  /{characters,personas}/:id/compare         the version next to its original
+ * Part 5, changes from the original:
+ * - GET  /{characters,personas}/:id/origin-changes            what changed, and auto-sync
+ * - PUT  /{characters,personas}/:id/origin-changes            auto-sync on or off ({ auto })
+ * - POST /{characters,personas}/:id/origin-changes/take       take changes ({ keys, texts })
+ * - POST /{characters,personas}/:id/origin-changes/skip       "Not for this version" ({ keys })
+ * - POST /{characters,personas}/:id/origin-changes/translate  translate one through the map ({ key })
  */
 export const linked = new Hono();
 
@@ -47,4 +55,17 @@ for (const path of ["characters", "personas"] as const) {
   });
 
   linked.get(`/${path}/:id/compare`, (c) => c.json({ ...compareWithOriginal(kind, c.req.param("id")), entries: loreComparison(kind, c.req.param("id")) }));
+
+  linked.get(`/${path}/:id/origin-changes`, (c) => c.json(syncInfo(kind, c.req.param("id"))));
+  linked.put(`/${path}/:id/origin-changes`, async (c) => c.json(setAutoSync(kind, c.req.param("id"), (await body(c, z.object({ auto: z.boolean() }))).auto)));
+  const keys = z.array(z.string().min(1).max(200)).min(1).max(200);
+  linked.post(`/${path}/:id/origin-changes/take`, async (c) => {
+    const input = await body(c, z.object({ keys, texts: z.record(z.string(), z.string().max(40_000)).optional() }));
+    return c.json({ ...takeChanges(kind, c.req.param("id"), input.keys, input.texts), ...syncInfo(kind, c.req.param("id")) });
+  });
+  linked.post(`/${path}/:id/origin-changes/skip`, async (c) => {
+    const input = await body(c, z.object({ keys }));
+    return c.json({ ...skipChanges(kind, c.req.param("id"), input.keys), ...syncInfo(kind, c.req.param("id")) });
+  });
+  linked.post(`/${path}/:id/origin-changes/translate`, async (c) => c.json(await translateChange(kind, c.req.param("id"), (await body(c, z.object({ key: z.string().min(1).max(200) }))).key)));
 }

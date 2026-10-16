@@ -20,6 +20,7 @@ import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, idea
 import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "./research";
 import { worldContext } from "./world";
 import { linkVersion, type VersionKind } from "../services/linked";
+import { snapshotBasis } from "../services/versionsync";
 import { applyMapPatch, findLeaks, type Leak, type MapPatch, marksOf, mergeRows, newRow, newVariant, type RowState, type VariantPlan, variantBlock } from "./variantcore";
 import { createUniverse, getUniverse, joinUniverse, mergeIntoUniverse } from "../services/universes";
 
@@ -2221,6 +2222,8 @@ ${v("rules")}` : (base?.post_history_instructions ?? ""),
   const v0 = d.origin?.versionOf;
   if (v0 && !d.savedId && savedId !== v0.id)
     linkVersion(d.kind, savedId!, v0.id, d.variant ? { kind: d.variant.kind, label: d.variant.label, anchors: d.variant.anchors.filter((a) => a.kept).map((a) => a.text) } : { kind: v0.kind, label: v0.label });
+  // Part 5: every save from the studio is what the version's fields are written from now.
+  else if (v0 && savedId !== v0.id) snapshotBasis(d.kind, savedId!);
   // Part 4: a version lives in a universe: the one it joined (its map decisions go into the shared
   // map), or one made for it from its name, premise and map, which others can join later.
   let universeId: string | null = null;

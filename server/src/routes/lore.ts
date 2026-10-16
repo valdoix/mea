@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { CATEGORIES, CATEGORY_INFO, categoryOf, guessCategory, withCategory } from "../lore/format";
 import { createOffpage } from "../accuracy/offpage";
 import { stash } from "../services/undo";
+import { afterOriginSave } from "../services/versionsync";
 import { z } from "zod";
 import { one } from "../db/db";
 import { badRequest, body, HttpError, must } from "../lib/http";
@@ -135,6 +136,8 @@ lore.put("/lorebooks/:id/entries/:entryId", async (c) => {
   const entry = await body(c, entrySchema);
   must(updateEntry(c.req.param("entryId"), entry) || undefined, "Entry not found");
   reembed();
+  // Part 5 (docs/14): versions whose lore came from this entry hear about it.
+  if (one("SELECT 1 FROM lorebook_entries WHERE data LIKE ? LIMIT 1", `%"entryId":"${c.req.param("entryId")}"%`)) afterOriginSave();
   return c.json({ ...entry, id: c.req.param("entryId") });
 });
 

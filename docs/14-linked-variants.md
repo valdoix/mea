@@ -244,23 +244,35 @@ People, places and groups the map changed that never had an entry of their own b
 
 ## Part 5 · Changes from the original
 
-**What you get:** an original keeps growing, and its versions don't fall behind without you knowing.
+**What you get:** an original keeps growing, and its versions don't fall behind without you knowing. Give Mira a cat, and her College AU hears about it: a field it kept the same comes across in one click, and one it rewrote for the campus gets just the new part translated.
 
 ### How it behaves
-- When you save an edit to an original's card, bible or lore, each version compares the fingerprints it was written from (`basis`) with the original's new ones.
-- **Kept** fields and entries that changed in the original: one note per version in the **Inbox**, "Mira's original changed: Personality, 2 lore entries", with **Take the changes** (copied straight across) or **Not for this version** (the field becomes the version's own).
-- **Changed** fields and entries: **Translate the new part**, which re-runs only the edited part through the map and shows a diff.
-- **Auto-sync** per version (a switch in the Version menu): kept fields and entries update without asking. Changed ones still ask.
-- Your own edit to a version's field or entry marks it as the version's own, so it's never overwritten.
-- A version's page shows a quiet **"2 changes from the original"** badge that opens the same list.
+- A version remembers, per field and per lore entry, what its original said when the version was written from it. When the original changes, each field or entry is one of:
+  - **Kept the same** (the version had the original's words): **Take the change** copies the new words across, or **Not for this version** makes it the version's own.
+  - **Changed for this version** (the studio rewrote it, or its lore entry was translated): **Translate the new part** sends only what changed in the original through the version's premise and map, keeps the rest of the version's words, and shows the result as a diff with any leaked original names. **Take this**, **Again** or **Discard**. Not for this version works here too.
+- **Your own edits win:** a field or entry you edit in the version becomes its own, and is never offered or overwritten again.
+- **Auto-sync** (a switch on the version's Versions tab): kept fields and entries update as soon as the original is saved. Changed ones still ask.
+- **Undo** on every Take and Not for this version (the toast's Undo).
+- **Where it shows:**
+  - A **"2 changes from the original"** badge next to the version chip on its page, which opens the Versions tab.
+  - **Changes from Mira** on that tab: every change with what moved in the original, and **Take all N kept changes**.
+  - The **Inbox** (with all stories, under **Versions**): one note per version for what it kept the same, "Mira changed: Personality, 1 lore entry", with **Take the changes** or **Not for this version**. The note names what it changed too, to translate on its page.
+- Fields followed: a character's description, personality, scenario, greeting, alternate greetings, example dialogue, system prompt, rules and creator notes, and a persona's pronouns, description, appearance, personality and background. Names and tags stay the version's own. Lore entries are followed when they came from one of the original's lorebooks (part 3); entries only the version has aren't.
 
 ### How it's built
-- `basis` is stored on version fields (`characters.settings.versionBasis` and the persona equivalent) and on lore entries (`extra.source.basis`, from part 3).
-- New `services/versionsync.ts`: on save of an original (a hook in the card, persona and lorebook save paths), work out what's stale per version, queue Inbox items with source **version**, and apply them on accept, through `services/undo.ts`.
-- Re-translation reuses part 2's per-section rewrite and part 3's per-entry rewrite, with the map.
-- **Meus:** `version_sync` (take or skip a change).
+- Migration 24: a `version_sync` column on characters and personas, holding auto-sync and, per field, its state (kept, changed or own), the original's text and fingerprint it was written from, and the version's own fingerprint then. A lore entry keeps the same in `extra.source` (part 3 wrote `basis`; it now also keeps the original's `text`, and `mine` and `own` are added).
+- **When it's recorded:** linking a version (copy, or link by hand) and every studio save of one: a field that reads like the original is kept, one that doesn't is changed. A version from before this part starts following from the first time it's looked at.
+- New `services/versionsync.ts`:
+  - `originChanges` works out what's waiting when asked (so it's always current). A field or entry whose fingerprint no longer matches the version's is marked its own on the way.
+  - `takeChanges` / `skipChanges` (Undo through a new `stashRestore` in `services/undo.ts`), and `translateChange` (callJson `version_translate`).
+  - `autoSync` runs after an original's card, persona or lore entry is saved (hooks in the library and lorebook routes). It takes a few passes, so a version of a version follows too.
+- `services/versioninbox.ts`: the Inbox provider. The Inbox now takes providers whose notes belong to no chat (`global`), listed with all stories.
+- `linkInfo` carries `changes` (how many wait) for the badge.
+- **Routes:** `GET/PUT /api/{characters,personas}/:id/origin-changes` (what waits, auto-sync), and `POST …/origin-changes/take` (`keys`, `texts`), `…/skip` and `…/translate`.
+- **Web:** `OriginChanges.svelte` in the Versions panel, the badge in the character and persona pages, and the Inbox's Versions filter.
+- **Meus:** `version_sync` takes or skips a kept change for the chat's own card or persona when it's a version. Meus's brief lists what waits, with keys; Undo takes it back. Changed ones are left to the page, where you see the translation first.
 
-**Tests (`versionsync.test.ts`):** a kept field updated by Take; a changed field re-translated; auto-sync touching only kept items; a field you edited in the version never overwritten; Undo restores.
+**Tests (`versionsync.test.ts`):** a kept field taken and undone; a changed field translated, taken, and asking again on the next edit; your edit never overwritten (even with auto-sync); Not for this version, and undoing it; auto-sync from a card save touching only kept fields; a studio version's kept and changed fields; a kept lore entry through the Inbox (the original's name kept out of its keys), and an edited entry becoming the version's own; personas and every route; the Meus kind with Undo.
 
 ---
 

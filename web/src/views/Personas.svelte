@@ -198,6 +198,7 @@
         <div class="grow stack tight">
           <input class="input name" bind:value={current.name} aria-label="Name" />
           {#if current.link?.origin}<a class="chip lavender verchip" href="/personas/{current.link.origin.id}" title="Open the original"><GitBranch size={12} /> Version of {current.link.origin.name}{current.link.label ? ` · ${current.link.label}` : ""}</a>{/if}
+          {#if current.link?.changes}<button class="chip butter verchip" onclick={() => (variantsOpen = true)}>{current.link.changes} {current.link.changes === 1 ? "change" : "changes"} from the original</button>{/if}
           <div class="row wrap">
             {#if current.isDefault}<span class="chip rose"><Star size={12} /> Default persona</span>{:else}<button class="btn small" onclick={makeDefault}><Star size={14} /> Make default</button>{/if}
             <button class="btn small" onclick={rework} title="Expand, deepen and rewrite this persona with the Creator Studio"><WandSparkles size={14} /> Rework in the studio</button>
@@ -254,6 +255,12 @@
 </Modal>
 
 <style>
+  button.verchip {
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-xs, 0.78rem);
+  }
   .verchip {
     align-self: flex-start;
     text-decoration: none;

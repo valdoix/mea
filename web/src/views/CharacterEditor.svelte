@@ -363,6 +363,7 @@
         <h1 class="wraps">{draft.name || "Unnamed"}</h1>
         {#if character.link?.origin}
           <a class="chip lavender verchip" href="/character/{character.link.origin.id}" title="Open the original"><GitBranch size={12} /> Version of {character.link.origin.name}{character.link.label ? ` · ${character.link.label}` : ""}</a>
+          {#if character.link.changes}<button class="chip butter verchip" onclick={() => (tab = "variants")}>{character.link.changes} {character.link.changes === 1 ? "change" : "changes"} from the original</button>{/if}
         {/if}
         {#if draft.creator_notes}<p class="muted small notes">{draft.creator_notes.slice(0, 160)}</p>{/if}
         <div class="row wrap" style="margin-top:.5rem">
@@ -627,6 +628,12 @@
   }
   .notes {
     margin-top: 0.3rem;
+  }
+  button.verchip {
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-xs, 0.78rem);
   }
   .verchip {
     margin-top: 0.3rem;

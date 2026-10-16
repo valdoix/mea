@@ -22,6 +22,8 @@ interface Stash {
   rows: { table: string; rows: Record<string, unknown>[] }[];
   expires: number;
   what?: "characters" | "personas" | "lorebooks" | "presets" | "connections";
+  /** For changes that aren't whole rows (docs/14, part 5): puts things back its own way. */
+  restore?: () => void;
 }
 
 const stashes = new Map<string, Stash>();
@@ -38,11 +40,20 @@ export function stash(label: string, parts: Part[], what?: Stash["what"]): strin
   return token;
 }
 
+/** Keeps a way to take back a change that isn't a delete of rows. Returns the token for the Undo button. */
+export function stashRestore(label: string, restore: () => void, what?: Stash["what"]): string {
+  for (const [k, s] of stashes) if (s.expires < now()) stashes.delete(k);
+  const token = crypto.randomUUID();
+  stashes.set(token, { label, rows: [], expires: now() + TTL, what, restore });
+  return token;
+}
+
 /** Puts the rows back (as they were, ids and all). */
 export function restoreStash(token: string) {
   const s = stashes.get(token);
   if (!s || s.expires < now()) throw notFound("It's too late to undo that.");
   tx(() => {
+    s.restore?.();
     for (const part of s.rows)
       for (const row of part.rows) {
         const cols = Object.keys(row);
