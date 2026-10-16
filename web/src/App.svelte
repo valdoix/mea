@@ -40,6 +40,7 @@
     personas: () => import("./views/Personas.svelte"),
     lorebooks: () => import("./views/Lorebooks.svelte"),
     lorebook: () => import("./views/LorebookEditor.svelte"),
+    universes: () => import("./views/UniversesView.svelte"),
     studio: () => import("./views/LoreStudio.svelte"),
     creator: () => import("./views/Creator.svelte"),
     presets: () => import("./views/Presets.svelte"),

@@ -1,12 +1,12 @@
 <script lang="ts">
   import Avatar from "../Avatar.svelte";
   import VersionCompare from "./VersionCompare.svelte";
-  import { post, put } from "../../lib/api";
+  import { get, post, put } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
-  import { Columns2, Copy, GitBranch, MessageHeart, Plus, Unlink, WandSparkles, X } from "../../lib/icons";
+  import { Columns2, Copy, GitBranch, Globe2, MessageHeart, Plus, Unlink, WandSparkles, X } from "../../lib/icons";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
-  import { type LinkInfo, VERSION_KINDS, type VersionKind } from "../../lib/types";
+  import { type LinkInfo, type UniverseSummary, VERSION_KINDS, type VersionKind } from "../../lib/types";
 
   /**
    * Linked versions (docs/14, part 1): a whole card or persona of its own (an AU, an era, a time skip,
@@ -38,6 +38,32 @@
   let vkind = $state<VersionKind>("au");
   let busy = $state(false);
   let compareOpen = $state(false);
+  let universes = $state<UniverseSummary[]>([]);
+  $effect(() => {
+    if (!link?.origin || link.universe) return;
+    get<{ universes: UniverseSummary[] }>("/api/universes").then((r) => (universes = r.universes), () => {});
+  });
+
+  async function joinUniverse(universeId: string) {
+    if (!universeId) return;
+    try {
+      await post(`/api/universes/${universeId}/join`, { kind, id });
+      onchanged();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  async function leaveUniverse() {
+    if (!link?.universe) return;
+    if (!(await confirm({ title: `Leave ${link.universe.name}?`, message: `${name} keeps a copy of the world book as it is now, in a lorebook of their own.`, confirmLabel: "Leave" }))) return;
+    try {
+      await post(`/api/${path}/${id}/leave-universe`);
+      onchanged();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
 
   // Editing this card's own link (when it is a version).
   let myLabel = $state("");
@@ -143,6 +169,17 @@
           <input class="input grow" bind:value={anchorDraft} placeholder="Dry humour that hides fear" maxlength="300" onkeydown={(e) => e.key === "Enter" && (e.preventDefault(), addAnchor())} aria-label="Add something that stays true" />
           <button class="btn small" onclick={addAnchor} disabled={!anchorDraft.trim()}><Plus size={13} /> Add</button>
         </div>
+      </div>
+      <div class="field">
+        <span class="label"><Globe2 size={13} /> Universe</span>
+        {#if link.universe}
+          <div class="row wrap"><a href="/universes/{link.universe.id}">{link.universe.name}</a><button class="btn ghost small" onclick={leaveUniverse}>Leave</button></div>
+        {:else}
+          <select class="select" onchange={(e) => joinUniverse(e.currentTarget.value)} aria-label="Join a universe">
+            <option value="">Not in one. Join…</option>
+            {#each universes as u (u.id)}<option value={u.id}>{u.name}</option>{/each}
+          </select>
+        {/if}
       </div>
       <div class="row wrap">
         {#if linkDirty}<button class="btn primary small" onclick={saveLink}>Save</button>{/if}

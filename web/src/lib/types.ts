@@ -72,7 +72,33 @@ export interface LinkInfo {
   label: string;
   anchors: string[];
   universeId: string | null;
+  universe?: { id: string; name: string } | null;
   versions: VersionSummary[];
+}
+
+/** A shared setting for versions (docs/14, part 4): one premise, one map, one world book. */
+export interface Universe {
+  id: string;
+  name: string;
+  premise: string;
+  kind: VersionKind | null;
+  map: MapRow[];
+  bookId: string | null;
+  createdAt: number;
+  updatedAt: number;
+  members: { kind: "character" | "persona"; id: string; name: string; avatarId: string | null; label: string; originId: string | null; originName: string }[];
+  book: { id: string; name: string; entries: number } | null;
+}
+
+export interface UniverseSummary {
+  id: string;
+  name: string;
+  premise: string;
+  kind: VersionKind | null;
+  rows: number;
+  bookId: string | null;
+  updatedAt: number;
+  members: { kind: "character" | "persona"; id: string; name: string; avatarId: string | null }[];
 }
 
 export interface TokenCounts {
@@ -1927,6 +1953,8 @@ export interface VariantPlan {
   originBible: { key: string; label: string; text: string }[] | null;
   marks: Record<string, "kept" | "changed" | "new">;
   directions: string[];
+  /** The universe it joins (part 4); saving joins it, or makes one for this version. */
+  universeId: string | null;
 }
 
 /** An original name that slipped into a version's bible or fields. */

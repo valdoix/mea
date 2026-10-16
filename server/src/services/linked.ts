@@ -6,6 +6,7 @@ import { badRequest, notFound } from "../lib/http";
 import { linkedBooks, linkLorebook } from "../lore/service";
 import { createCharacter, getCard, getCharacterRow } from "./characters";
 import { createPersona, getPersona, type PersonaData } from "./personas";
+import { leaveUniverse } from "./universes";
 
 /**
  * Linked versions (docs/14-linked-variants.md, part 1). A version is a whole card or persona of its own
@@ -64,12 +65,14 @@ export function linkInfo(kind: LinkKind, id: string) {
   const r = row(kind, id);
   if (!r) return null;
   const origin = r.variant_of ? row(kind, r.variant_of) : undefined;
+  const universe = r.universe_id ? one<{ id: string; name: string }>("SELECT id, name FROM universes WHERE id = ? AND deleted_at IS NULL", r.universe_id) : undefined;
   return {
     origin: origin ? { id: origin.id, name: origin.name, avatarId: origin.avatar_id, inTrash: origin.deleted_at !== null } : null,
     kind: r.variant_kind,
     label: r.variant_label ?? "",
     anchors: parseJson<string[]>(r.anchors, []),
-    universeId: r.universe_id,
+    universeId: universe?.id ?? null,
+    universe: universe ?? null,
     versions: listLinkedVersions(kind, id),
   };
 }
@@ -133,6 +136,8 @@ export function updateLink(kind: LinkKind, id: string, input: LinkInput) {
 export function detachVersion(kind: LinkKind, id: string) {
   const r = row(kind, id);
   if (!r) throw notFound(kind === "character" ? "Character not found" : "Persona not found");
+  // An ordinary card can't be in a universe: it leaves, keeping its own copy of the world.
+  if (r.universe_id) leaveUniverse(kind, id);
   run(`UPDATE ${TABLE[kind]} SET variant_of = NULL, variant_kind = NULL, variant_label = NULL, universe_id = NULL, anchors = '[]' WHERE id = ?`, id);
   changed(kind);
   return { originId: r.variant_of };

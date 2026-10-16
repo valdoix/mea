@@ -53,11 +53,13 @@ export interface VariantPlan {
   marks: Record<string, Mark>;
   /** Three takes on the premise ("Show me directions"). */
   directions: string[];
+  /** The universe it joins (part 4); saving joins it, or makes one for this version. */
+  universeId: string | null;
 }
 
 export const KIND_LABEL: Record<VersionKind, string> = { au: "alternate universe", era: "another era", skip: "time skip", whatif: "what if" };
 
-export function newVariant(input: { originKind: VariantPlan["originKind"]; originId: string; originName: string; kind?: VersionKind | null; label?: string; premise?: string; originBible?: VariantPlan["originBible"] }): VariantPlan {
+export function newVariant(input: { originKind: VariantPlan["originKind"]; originId: string; originName: string; kind?: VersionKind | null; label?: string; premise?: string; originBible?: VariantPlan["originBible"]; universeId?: string | null }): VariantPlan {
   return {
     originKind: input.originKind,
     originId: input.originId,
@@ -71,10 +73,39 @@ export function newVariant(input: { originKind: VariantPlan["originKind"]; origi
     originBible: input.originBible?.length ? input.originBible : null,
     marks: {},
     directions: [],
+    universeId: input.universeId ?? null,
   };
 }
 
 export const newRow = (r: Partial<MapRow> & Pick<MapRow, "from">): MapRow => ({ id: newId(), type: "thing", to: "", state: "open", note: "", source: "you", ...r });
+
+/** An edit to one map row; a row without an id is new, `remove` drops one. */
+export interface MapPatch {
+  id?: string;
+  type?: RowType;
+  from?: string;
+  to?: string;
+  state?: RowState;
+  note?: string;
+  remove?: boolean;
+}
+
+/** Applies row edits to a map (a version draft's or a universe's) and returns the new map. */
+export function applyMapPatch(map: MapRow[], patches: MapPatch[]) {
+  let out = [...map];
+  for (const r of patches) {
+    const cur = r.id ? out.find((x) => x.id === r.id) : undefined;
+    if (cur && r.remove) out = out.filter((x) => x !== cur);
+    else if (cur) {
+      if (r.type && ROW_TYPES.includes(r.type)) cur.type = r.type;
+      if (r.from !== undefined) cur.from = r.from;
+      if (r.to !== undefined) cur.to = r.to;
+      if (r.state && ROW_STATES.includes(r.state)) cur.state = r.state;
+      if (r.note !== undefined) cur.note = r.note;
+    } else if (!r.id && (r.from?.trim() || r.to?.trim())) out.push(newRow({ from: r.from?.trim() ?? "", to: r.to?.trim() ?? "", type: r.type && ROW_TYPES.includes(r.type) ? r.type : "thing", state: r.state ?? (r.from?.trim() ? "open" : "new"), note: r.note ?? "", source: "you" }));
+  }
+  return out;
+}
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 

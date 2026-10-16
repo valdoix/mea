@@ -28,7 +28,7 @@
     { href: "/", label: "Home", icon: House, match: ["home", "character"] },
     { href: "/personas", label: "Personas", icon: Users, match: ["personas"] },
     { href: "/creator", label: "Studio", icon: WandSparkles, match: ["creator", "studio"] },
-    { href: "/lorebooks", label: "Lore", icon: BookOpen, match: ["lorebooks", "lorebook"] },
+    { href: "/lorebooks", label: "Lore", icon: BookOpen, match: ["lorebooks", "lorebook", "universes"] },
     { href: "/inbox", label: "Inbox", icon: Inbox, match: ["inbox"] },
   ];
 </script>

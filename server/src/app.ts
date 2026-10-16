@@ -22,6 +22,7 @@ import { studio } from "./routes/studio";
 import { creator } from "./routes/creator";
 import { cardtools } from "./routes/cardtools";
 import { linked } from "./routes/linked";
+import { universes } from "./routes/universes";
 import { steer } from "./routes/steer";
 import { meus } from "./routes/meus";
 import { lessons } from "./routes/lessons";
@@ -90,6 +91,7 @@ export function createApp() {
   app.route("/api", creator);
   app.route("/api", cardtools);
   app.route("/api", linked);
+  app.route("/api", universes);
   app.route("/api", chats);
   app.route("/api", memory);
   app.route("/api", models);

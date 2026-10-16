@@ -92,6 +92,7 @@ const variantPatch = z.object({
   premise: z.string().max(8000).optional(),
   anchors: z.array(z.object({ id: z.string().optional(), text: z.string().max(300).optional(), kept: z.boolean().optional(), remove: z.boolean().optional() })).max(40).optional(),
   map: z.array(z.object({ id: z.string().optional(), type: z.enum(ROW_TYPES as [RowType, ...RowType[]]).optional(), from: z.string().max(200).optional(), to: z.string().max(300).optional(), state: z.enum(ROW_STATES as [RowState, ...RowState[]]).optional(), note: z.string().max(300).optional(), remove: z.boolean().optional() })).max(300).optional(),
+  universeId: z.string().nullable().optional(),
 });
 
 creator.get("/creator", (c) => c.json({ drafts: listCreatorDrafts() }));
@@ -107,7 +108,7 @@ creator.post("/creator", async (c) => {
       fromLore: z.object({ draftId: z.string(), itemId: z.string() }).nullable().optional(),
       fromDraftId: z.string().nullable().optional(),
       asCopy: z.boolean().optional(),
-      asVersion: z.object({ kind: versionKind.nullable().optional(), label: z.string().max(80).optional() }).nullable().optional(),
+      asVersion: z.object({ kind: versionKind.nullable().optional(), label: z.string().max(80).optional(), universeId: z.string().nullable().optional() }).nullable().optional(),
       fromEntry: z.object({ bookId: z.string(), entryId: z.string() }).nullable().optional(),
       oppositeOf: z.object({ draftId: z.string().nullable().optional(), characterId: z.string().nullable().optional() }).nullable().optional(),
       worldBookIds: z.array(z.string()).max(20).optional(),
