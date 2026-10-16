@@ -1197,6 +1197,37 @@ CREATE TABLE lore_enrich_runs (
 );
 `,
   },
+  {
+    id: 23,
+    name: "linked versions and universes",
+    sql: /* sql */ `
+-- Linked versions (docs/14): a whole card or persona of its own (an AU, an era, a time skip, a what-if),
+-- linked to the original it came from. Universes are shared settings; they're filled in by a later part.
+CREATE TABLE universes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  premise TEXT NOT NULL DEFAULT '',
+  kind TEXT,
+  map TEXT NOT NULL DEFAULT '[]',
+  book_id TEXT REFERENCES lorebooks(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
+);
+`,
+    up: (db) => {
+      for (const table of ["characters", "personas"]) {
+        if (!hasColumn(db, table, "variant_of")) db.exec(`ALTER TABLE ${table} ADD COLUMN variant_of TEXT REFERENCES ${table}(id) ON DELETE SET NULL`);
+        if (!hasColumn(db, table, "variant_kind")) db.exec(`ALTER TABLE ${table} ADD COLUMN variant_kind TEXT`);
+        if (!hasColumn(db, table, "variant_label")) db.exec(`ALTER TABLE ${table} ADD COLUMN variant_label TEXT`);
+        if (!hasColumn(db, table, "universe_id")) db.exec(`ALTER TABLE ${table} ADD COLUMN universe_id TEXT REFERENCES universes(id) ON DELETE SET NULL`);
+        if (!hasColumn(db, table, "anchors")) db.exec(`ALTER TABLE ${table} ADD COLUMN anchors TEXT NOT NULL DEFAULT '[]'`);
+        db.exec(`CREATE INDEX IF NOT EXISTS ${table}_variant_of ON ${table}(variant_of)`);
+      }
+      // A Look (today's variants) that sits on a version instead of the original.
+      if (!hasColumn(db, "variants", "on_version_id")) db.exec("ALTER TABLE variants ADD COLUMN on_version_id TEXT");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

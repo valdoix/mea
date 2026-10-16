@@ -81,11 +81,13 @@ Parts run in order. Part 4's tables are created in part 1 (empty), so versions m
 **What you get:** a version is a real card or persona that knows its original. It can be made straight from today's "rebuild as a copy", so there's something to use before the studio exists.
 
 **Buttons**
-- Character page › **Versions** › **New version**. Until part 2 it opens the creator as a copy, as today, but the link is kept when you save.
-- On a version: a chip **"Version of Mira · College AU"** (it opens the original), plus a **Version** menu with **Compare with original**, **Detach** and **Export**.
-- Personas: the same section, chip and menu.
+- Character page › **Versions** tab (it was **Variants**; Looks sit under it) › **New version**: a name ("College AU") and a kind, then either
+  - **Rebuild in the studio:** the creator rebuilds it as a copy, and the link is made when you save. Part 2 turns this into the full variant studio.
+  - **Copy now, change by hand:** an instant copy of the card, portrait, tags, settings and lorebooks, opened for editing.
+- On a version: a chip **"Version of Mira · College AU"** under the name (it opens the original). Its Versions tab has the version's name, kind and **What stays true** (its anchors), plus **Compare with Mira** and **Detach** (with Undo). Export is the usual export button.
+- Personas: the same panel under **Versions and looks**, the same chip, and a small "Version of…" line in the persona list.
 - Home: a universe chip on version cards, and a **Group versions** toggle.
-- Deleting an original that has versions: a dialog lists them and offers **Detach them and delete** or **Cancel**. Nothing is lost.
+- Moving an original to the Trash: the dialog lists its versions. They keep working and stay linked while it's in the Trash (the chip says so). Deleting it for good detaches them (the link is `ON DELETE SET NULL`). Nothing is lost.
 
 **Compare** opens original and version side by side, field by field, using `DiffModal.svelte`. Lore comparison arrives with part 3.
 
@@ -93,17 +95,18 @@ Parts run in order. Part 4's tables are created in part 1 (empty), so versions m
 
 **How it's built**
 - **Migration 23:**
-  - `characters`: `variant_of TEXT REFERENCES characters(id) ON DELETE SET NULL`, `universe_id TEXT`, `anchors TEXT NOT NULL DEFAULT '[]'`, `variant_kind TEXT` (au / era / skip / whatif)
-  - `personas`: the same four columns, referencing `personas(id)`
+  - `characters`: `variant_of TEXT REFERENCES characters(id) ON DELETE SET NULL`, `variant_kind TEXT` (au / era / skip / whatif), `variant_label TEXT` (the version's own name, "College AU"), `universe_id TEXT REFERENCES universes(id)`, `anchors TEXT NOT NULL DEFAULT '[]'`
+  - `personas`: the same five columns, referencing `personas(id)`
   - `universes`: `id, name, premise, kind, map TEXT NOT NULL DEFAULT '[]', book_id TEXT REFERENCES lorebooks(id) ON DELETE SET NULL, created_at, updated_at, deleted_at` (filled in from part 4)
   - `variants`: `on_version_id TEXT` for Looks that sit on a version (used in part 6)
-- **New `services/versions.ts`:** `makeVersion`, `listVersions`, `originOf`, `detach`, `compare`. Saving a creator draft whose `origin.copyOf` is set writes `variant_of`.
-- **Routes:** `/api/{characters,personas}/:id/versions`, `/api/versions/:kind/:id/{detach,compare}`.
-- **Library payloads** gain `variantOf` and `universe` so Home can group and label.
-- **Web:** `VersionsPanel.svelte` (character page and persona editor), a `VersionChip.svelte`, and the delete dialog.
-- **Meus:** `version_detach`.
+- **New `services/linked.ts`** (not `versions.ts`: card History already owns that word in the code): `copyAsVersion`, `linkVersion`, `updateLink`, `detachVersion`, `linkInfo`, `listLinkedVersions`, `versionLabels`, `compareWithOriginal`. Linking refuses loops.
+- **Creator:** `createCreatorDraft({ baseId, asVersion: { kind, label } })` sets `origin.versionOf`, and the first save links the new card or persona.
+- **Routes** (`routes/linked.ts`; `/family` because `/characters/:id/versions` is History): `GET|POST /api/{characters,personas}/:id/family`, `POST|PUT …/:id/link`, `POST …/:id/detach`, `GET …/:id/compare`.
+- **Library payloads:** a character or persona carries `link` (its original, label, kind, anchors and versions). Lists carry `version` (original's name and label) so Home and Personas can label and group.
+- **Web:** `VersionsPanel.svelte` and `VersionCompare.svelte` (character page and persona editor), the chip, the Trash dialogs, and Home's **Group versions** chip.
+- **Meus:** none in this part. Meus's change kinds act on a story, and detaching is a library action; Meus gets version kinds in the studio (part 2).
 
-**Tests (`versions.test.ts`):** make a version of a character and of a persona; it chats and exports on its own; detach; deleting the original detaches its versions; Looks still work as before.
+**Tests (`versions.test.ts`):** a version of a character and of a persona; it chats and exports on its own with its lore; compare; detach and relink, with loops refused; an original in the Trash keeps its versions linked, and deleting it for good detaches them; the creator saves a linked version once; Looks untouched; the routes and library payloads.
 
 ---
 
@@ -270,7 +273,7 @@ Two versions of the same person meeting (the original and an AU self, or two AUs
 
 ### How it's built
 - The leak check reads the universe map through a small cache keyed by universe and map version.
-- Retelling: `services/versions.ts` `retell(chatId, arc, versionIds)` uses the existing summaries (`memory/recap.ts`) and one map-translation call, then `createChat`.
+- Retelling: `services/linked.ts` `retell(chatId, arc, versionIds)` uses the existing summaries (`memory/recap.ts`) and one map-translation call, then `createChat`.
 - Looks on versions: `variants.on_version_id` (part 1) plus an "every version" flag. `applyCardVariant` / `applyPersonaVariant` accept a Look for the version or for its original.
 - **Meus:** `retell`, plus fixing a leak in a past message through the existing message edit kind.
 
@@ -296,8 +299,8 @@ Parts 5 and 6 are independent of each other and can go in either order. Each par
 | Half-translated text | Everything is written through the map, the studio's **Leaks** check catches what slipped, and the chat check catches the rest |
 | A version drifting from who the person is | Anchors, the **Still them?** check, and Compare |
 | The original and versions drifting apart | Part 5's notes and auto-sync |
-| Confusion with card History (`character_versions`) | The UI says **History** for snapshots and **Versions** for linked cards. The code keeps the names apart (`versions.ts` vs the existing history routes) |
-| Deleting an original | Versions are detached, never deleted, after a dialog |
+| Confusion with card History (`character_versions`) | The UI says **History** for snapshots and **Versions** for linked cards. The code keeps the names apart (`services/linked.ts` and `/family` vs the existing history routes) |
+| Deleting an original | Versions stay linked while it's in the Trash and are detached, never deleted, when it's deleted for good |
 
 ## What you'll do
 
