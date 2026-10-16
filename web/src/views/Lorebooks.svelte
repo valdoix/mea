@@ -2,7 +2,7 @@
   import EmptyState from "../components/EmptyState.svelte";
   import { api, get, post } from "../lib/api";
   import { timeAgo } from "../lib/format";
-  import { BookOpen, Globe, Import, Plus, WandSparkles } from "../lib/icons";
+  import { BookOpen, Globe, Globe2, Import, Plus, WandSparkles } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
   import type { LorebookSummary, StudioDraftSummary } from "../lib/types";
@@ -62,6 +62,7 @@
       <p class="muted small">World facts that slip into the prompt when they're relevant. SillyTavern World Info compatible.</p>
     </div>
     <div class="row">
+      <a class="btn" href="/universes" title="Shared settings for versions: an alternate universe a whole cast can move into"><Globe2 size={16} /> Universes</a>
       <button class="btn" onclick={() => fileInput?.click()}><Import size={16} /> Import</button>
       <button class="btn" onclick={create}><Plus size={16} /> New</button>
       <a class="btn primary" href="/lore-studio"><WandSparkles size={16} /> Lore Studio</a>

@@ -209,26 +209,36 @@ People, places and groups the map changed that never had an entry of their own b
 
 **What you get:** an AU becomes a place, not one card's private setting. Make Mira's college AU, and later Jon's version joins it: it reuses the premise, the map and the world book, and only Jon's own card and companion lore are written.
 
+### Every studio version lives in a universe
+- Saving a version in the variant studio joins the universe it picked, or makes one for it: named after the version ("College AU"), with its premise, kind and map. Others can join it later.
+- A version copied by hand (part 1) isn't in one until it joins.
+
 ### Buttons
-- **Lorebooks › Universes:** every universe with its premise, map, world book, and the versions in it (characters and personas). **New universe** starts with no versions yet.
-- In the variant studio's **Start:** **Join a universe** (pick one) or **New universe**.
-- On a universe page: **Add a character** and **Add my persona**, both opening the variant studio already joined.
-- On a universe's map: rows added by one version's studio are visible to the others. A row that one version changed ("Ned → the sheriff") is offered, not forced, to the next.
+- **Lorebooks › Universes** (`/universes`): every universe with its kind, members and map size, and **New universe**.
+- **A universe's page:** its name, kind and premise (saved as you type), its world book (once there is one), **Who's in it** (with **Take out**), **Add a character** / **Add my persona** (the variant studio, already joined), the shared map (each row's state and what it becomes, editable), and **Delete the universe**.
+- **Variant studio › Premise:** a **Universe** picker: a new one just for this version, or **Join** an existing one. **Creator Studio › A version** has the same picker.
+- **Versions panel** (on a version): the universe it lives in (a link, and **Leave**), or **Join…** when it isn't in one.
 
 ### What joining means
-- The premise and map are shared. Joining adds this original's own census rows to the shared map, so Jon's people get mapped next to Mira's.
-- World entries (places, groups, rules) are written once, in the universe book. Joining reuses them and writes only what's missing.
-- Anchors stay per person.
-- A persona can join any universe. A chat between a character version and a persona version in the same universe gets both companion books and the one universe book.
+- **In the studio:** the draft takes the universe's kind, its premise (when it has none yet), and every map row it doesn't have. On save, its own rows join the shared map, and rows the universe left undecided take its decision. Rows the universe already decided stay as they are: a row is offered to the next version, never forced.
+- **From the Versions panel:** a version made in the studio brings its map decisions in the same way.
+- **The world book:** made the first time someone in the universe writes their version's lorebook ("College AU: the world"), and linked to every member, so it's active in all their chats and exports with their cards. A version's lore puts its world entries (places, groups, ideas, rules) there, and leaves out what it already has ("Already in College AU's world book."), so world entries are written once.
+- **Anchors** stay per person. A persona's version made alongside a character's joins the same universe.
+
+### Leaving, detaching, deleting
+- **Leaving** (or being taken out): the version keeps a copy of the world book as it is now, in a lorebook of its own, and the shared book is no longer linked to it. Joining again links the shared book back.
+- **Detaching** a version (part 1) also leaves its universe, the same way.
+- **Deleting a universe:** its members stay versions, and keep the world book linked (it's an ordinary lorebook now, still shared by them). Only the universe itself (its premise and shared map) goes.
 
 ### How it's built
-- The `universes` table from part 1 comes into use. New `services/universes.ts`: create, join, leave, shared map edits, the book link (`lorebook_links` gains `target_type = 'universe'`, and a chat whose character or persona is in a universe activates that universe's book).
-- The variant studio's **Start** and **Map** steps read and write the universe's map.
-- Leaving a universe: the version keeps its own copy of the world entries it used, in its companion book.
-- **Web:** `UniversesView` under Lorebooks, a `UniversePicker.svelte` in the studio, universe chips on Home.
-- **Meus:** `universe_map_row`, `universe_join`.
+- The `universes` table from part 1, now used. `services/universes.ts`: create, update (name, premise, kind, map rows), list, detail (members and world book), `joinUniverse`, `leaveUniverse`, `mergeIntoUniverse`, `ensureWorldBook`, `deleteUniverse`.
+- The world book is linked to each member (`target_type` character or persona) rather than through a new link type, so chats, activation and export needed no change.
+- `creator/variantcore.ts`: `applyMapPatch` (shared by drafts and universes) and `universeId` on the plan. `creator/creator.ts`: joining a draft to a universe (`asVersion.universeId` or a patch), and joining or making one on save; `variantPlanOf`. `lore/versionlore.ts`: world entries into the universe's book, and what it has left out.
+- **Routes:** `/api/universes` (list, create, read, edit, delete), `POST /api/universes/:id/join`, `POST /api/{characters,personas}/:id/leave-universe`. A version's `link` carries its `universe`.
+- **Web:** `UniversesView.svelte` (the list and one universe), the pickers in `VariantStart.svelte` and `CreatorHub.svelte`, the universe line in `VersionsPanel.svelte`, and a **Universes** button on Lorebooks.
+- **Meus:** no new kinds in this part; the studio's co-writer already proposes map rows (part 2), which join the shared map on save.
 
-**Tests (`universes.test.ts`):** two characters and one persona join one universe; the world book written once and active in their chats; a shared map row reused; leaving keeps the version working.
+**Tests (`universes.test.ts`):** the service (create, edit, list, delete); a studio version making its universe from its name, premise and map; a second character joining (premise and map come along, its own rows and decisions join the shared map, joining and leaving from a patch); world entries written once into the universe's book, linked to every member, with what it has left out; the persona's version joining; leaving with a copy, joining back, detaching, only versions joining, deleting a universe keeping the book; every route, including a studio version's map coming along when it joins from its panel.
 
 ---
 

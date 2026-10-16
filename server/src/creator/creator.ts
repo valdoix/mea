@@ -20,7 +20,8 @@ import { addTurns, applyIdeaChange, BASED_ON_RULE, IDEA_CHANGES, ideaBlock, idea
 import { BRIEF_RULE, gather, lookup, type Research, researchBlock, wikisFor } from "./research";
 import { worldContext } from "./world";
 import { linkVersion, type VersionKind } from "../services/linked";
-import { findLeaks, type Leak, marksOf, newRow, newVariant, ROW_STATES, ROW_TYPES, type RowState, type RowType, type VariantPlan, variantBlock } from "./variantcore";
+import { applyMapPatch, findLeaks, type Leak, type MapPatch, marksOf, mergeRows, newRow, newVariant, type RowState, type VariantPlan, variantBlock } from "./variantcore";
+import { createUniverse, getUniverse, joinUniverse, mergeIntoUniverse } from "../services/universes";
 
 /**
  * The character and persona creator (Phase 4, CHAR-08…15, PER-04…06): Idea (in your words, with
@@ -529,7 +530,7 @@ export interface CreatorInput {
   /** With baseId: rebuild from that card or persona but save as a new one, leaving the original untouched. */
   asCopy?: boolean;
   /** With baseId: save as a new card or persona linked to the original as its version (docs/14). */
-  asVersion?: { kind?: VersionKind | null; label?: string } | null;
+  asVersion?: { kind?: VersionKind | null; label?: string; universeId?: string | null } | null;
   /** Start from an entry in a saved lorebook (a person promoted from a world's roster); the book comes along. */
   fromEntry?: { bookId: string; entryId: string } | null;
   /** The roster person being promoted (lore/people.ts), to link back on save. */
@@ -587,6 +588,16 @@ function currentFields(kind: CreatorKind, id: string): Record<string, string> {
     tags: c.tags.join(", "),
     creator_notes: c.creator_notes,
   };
+}
+
+/** The variant studio's plan a saved version was made with (the latest draft that saved it), if any. */
+export function variantPlanOf(kind: CreatorKind, savedId: string): VariantPlan | null {
+  const rows = all<Row>("SELECT * FROM creator_drafts WHERE kind = ? AND json_extract(data, '$.savedId') = ? AND json_extract(data, '$.variant') IS NOT NULL ORDER BY updated_at DESC", kind, savedId);
+  for (const r of rows) {
+    const v = hydrate(r).variant;
+    if (v) return v;
+  }
+  return null;
 }
 
 /** The bible the creator wrote for a saved card or persona, if it made one (the latest draft that saved it). */
@@ -659,6 +670,7 @@ export function createCreatorDraft(input: CreatorInput): CreatorDraft {
     if (input.asVersion) {
       // A version keeps the original as its source and the premise apart: every step reads both.
       d.variant = newVariant({ originKind: input.kind, originId: input.baseId, originName: base.name, kind: input.asVersion.kind, label: input.asVersion.label, premise: d.idea, originBible: originBible(input.kind, input.baseId) });
+      if (input.asVersion.universeId) joinDraftUniverse(d.variant, input.asVersion.universeId);
       d.idea = base.idea;
     } else d.idea = [base.idea, d.idea && `WHAT TO CHANGE: ${d.idea}`].filter(Boolean).join("\n\n");
     // The rework keeps the world it already lives in.
@@ -770,7 +782,9 @@ export interface VariantPatch {
   label?: string;
   premise?: string;
   anchors?: { id?: string; text?: string; kept?: boolean; remove?: boolean }[];
-  map?: { id?: string; type?: RowType; from?: string; to?: string; state?: RowState; note?: string; remove?: boolean }[];
+  map?: MapPatch[];
+  /** Join a universe (its premise and map come along), or leave it with null. */
+  universeId?: string | null;
 }
 
 function applyVariantPatch(v: VariantPlan, p: VariantPatch) {
@@ -785,17 +799,25 @@ function applyVariantPatch(v: VariantPlan, p: VariantPatch) {
       if (a.kept !== undefined) cur.kept = a.kept;
     } else if (!a.id && a.text?.trim()) v.anchors.push({ id: newId(), text: a.text.trim(), kept: a.kept ?? true, from: "you" });
   }
-  for (const r of p.map ?? []) {
-    const cur = r.id ? v.map.find((x) => x.id === r.id) : undefined;
-    if (cur && r.remove) v.map = v.map.filter((x) => x !== cur);
-    else if (cur) {
-      if (r.type && ROW_TYPES.includes(r.type)) cur.type = r.type;
-      if (r.from !== undefined) cur.from = r.from;
-      if (r.to !== undefined) cur.to = r.to;
-      if (r.state && ROW_STATES.includes(r.state)) cur.state = r.state;
-      if (r.note !== undefined) cur.note = r.note;
-    } else if (!r.id && (r.from?.trim() || r.to?.trim())) v.map.push(newRow({ from: r.from?.trim() ?? "", to: r.to?.trim() ?? "", type: r.type && ROW_TYPES.includes(r.type) ? r.type : "thing", state: r.state ?? (r.from?.trim() ? "open" : "new"), note: r.note ?? "", source: "you" }));
+  if (p.map) v.map = applyMapPatch(v.map, p.map);
+  if (p.universeId !== undefined) joinDraftUniverse(v, p.universeId);
+}
+
+/**
+ * A version draft joins a universe (docs/14, part 4): it takes the universe's kind and premise when
+ * it has none of its own, and the universe's map rows it doesn't have yet. Null leaves it (the rows stay).
+ */
+function joinDraftUniverse(v: VariantPlan, universeId: string | null) {
+  if (!universeId) {
+    v.universeId = null;
+    return;
   }
+  const u = getUniverse(universeId);
+  if (!u) throw notFound("Universe not found");
+  v.universeId = u.id;
+  if (!v.premise.trim()) v.premise = u.premise;
+  if (u.kind) v.kind = u.kind;
+  v.map = mergeRows(v.map, u.map.map((r) => ({ ...r, id: newId() })));
 }
 
 export function patchCreator(id: string, p: CreatorPatch) {
@@ -2199,6 +2221,15 @@ ${v("rules")}` : (base?.post_history_instructions ?? ""),
   const v0 = d.origin?.versionOf;
   if (v0 && !d.savedId && savedId !== v0.id)
     linkVersion(d.kind, savedId!, v0.id, d.variant ? { kind: d.variant.kind, label: d.variant.label, anchors: d.variant.anchors.filter((a) => a.kept).map((a) => a.text) } : { kind: v0.kind, label: v0.label });
+  // Part 4: a version lives in a universe: the one it joined (its map decisions go into the shared
+  // map), or one made for it from its name, premise and map, which others can join later.
+  let universeId: string | null = null;
+  if (d.variant && v0 && savedId !== v0.id) {
+    const joined = getUniverse(d.variant.universeId);
+    const u = joined ? mergeIntoUniverse(joined.id, d.variant.map) : createUniverse({ name: d.variant.label || `${d.variant.originName}'s ${d.variant.kind === "au" ? "alternate universe" : d.variant.kind === "era" ? "other era" : d.variant.kind === "skip" ? "later years" : "what if"}`, premise: d.variant.premise, kind: d.variant.kind, map: d.variant.map.filter((r) => r.type !== "self") });
+    joinUniverse(d.kind, savedId!, u.id);
+    universeId = u.id;
+  }
   const owner = { type: d.kind, id: savedId!, name };
   // The world it was made in comes along (LORE-02 scopes): a saved lore draft's book, and every world book.
   const lore = d.loreDraftId ? getLoreDraft(d.loreDraftId) : undefined;
@@ -2232,6 +2263,7 @@ ${v("rules")}` : (base?.post_history_instructions ?? ""),
   if (d.origin?.personId) markPromoted(d.origin.personId, d.id, d.kind === "character" ? savedId! : null);
   const saved = mutateCreator(id, (cur) => {
     cur.savedId = savedId!;
+    if (cur.variant && universeId) cur.variant.universeId = universeId;
     cur.stage = "done";
     cur.depthBookId = depthBookId;
     cur.rulesBookId = rulesBookId;

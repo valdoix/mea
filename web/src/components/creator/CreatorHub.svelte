@@ -17,11 +17,14 @@
   let vlabel = $state("");
   let characters = $state<CharacterSummary[]>([]);
   let personas = $state<Persona[]>([]);
+  let universes = $state<{ id: string; name: string }[]>([]);
+  let universeId = $state("");
   $effect(() => {
     if (kind !== "version" || characters.length || personas.length) return;
-    Promise.all([get<{ characters: CharacterSummary[] }>("/api/characters?sort=name"), get<{ personas: Persona[] }>("/api/personas")]).then(([c, p]) => {
+    Promise.all([get<{ characters: CharacterSummary[] }>("/api/characters?sort=name"), get<{ personas: Persona[] }>("/api/personas"), get<{ universes: { id: string; name: string }[] }>("/api/universes")]).then(([c, p, u]) => {
       characters = c.characters;
       personas = p.personas;
+      universes = u.universes;
     }, errorToast);
   });
 
@@ -29,7 +32,7 @@
     if (!originId) return;
     creating = true;
     try {
-      const r = await post<{ draft: CreatorDraft }>("/api/creator", { kind: originKind, baseId: originId, asVersion: { kind: vkind, label: vlabel.trim() }, idea: vlabel.trim() });
+      const r = await post<{ draft: CreatorDraft }>("/api/creator", { kind: originKind, baseId: originId, asVersion: { kind: vkind, label: vlabel.trim(), universeId: universeId || null }, idea: vlabel.trim() });
       navigate(`/creator/${r.draft.id}`);
     } catch (e) {
       errorToast(e);
@@ -138,6 +141,14 @@
           <select class="select" bind:value={vkind}>{#each VERSION_KINDS as k (k.id)}<option value={k.id}>{k.label}</option>{/each}</select>
         </label>
       </div>
+      {#if universes.length}
+        <label class="field"><span class="label">Universe</span>
+          <select class="select" bind:value={universeId}>
+            <option value="">A new one, just for this version</option>
+            {#each universes as u (u.id)}<option value={u.id}>Join {u.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
       <div class="row"><span class="grow"></span><button class="btn primary" onclick={startVersion} disabled={creating || !originId}><GitBranch size={15} /> {creating ? "Starting…" : "Start the version"}</button></div>
     </section>
   {:else if kind}

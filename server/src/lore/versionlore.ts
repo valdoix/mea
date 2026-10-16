@@ -1,11 +1,12 @@
 import { all, newId, parseJson } from "../db/db";
 import { badRequest, notFound } from "../lib/http";
-import { getCreatorDraft } from "../creator/creator";
+import { variantPlanOf } from "../creator/creator";
 import { shortHash } from "../creator/smarts";
 import { findLeaks, type MapRow, newVariant, type RowType, type VariantPlan } from "../creator/variantcore";
 import { getCard } from "../services/characters";
 import { type LinkKind, linkInfo } from "../services/linked";
 import { getPersona } from "../services/personas";
+import { ensureWorldBook, getUniverse } from "../services/universes";
 import { type EntryExtra, extraOf } from "./activate";
 import { firstSentences } from "./ingest";
 import { getLorebook, linkedBooks, unlinkLorebook } from "./service";
@@ -31,11 +32,8 @@ export const isWorldItem = (it: Pick<StudioItem, "type">) => Boolean(it.type && 
 
 /** The plan the version was made with (the variant studio's draft), or a bare one for a version copied by hand. */
 function planFor(kind: LinkKind, id: string, origin: { id: string; name: string }, link: NonNullable<ReturnType<typeof linkInfo>>): VariantPlan {
-  const rows = all<{ id: string }>("SELECT id FROM creator_drafts WHERE kind = ? AND json_extract(data, '$.savedId') = ? AND json_extract(data, '$.variant') IS NOT NULL ORDER BY updated_at DESC", kind, id);
-  for (const r of rows) {
-    const d = getCreatorDraft(r.id);
-    if (d?.variant) return d.variant;
-  }
+  const made = variantPlanOf(kind, id);
+  if (made) return made;
   const plan = newVariant({ originKind: kind, originId: origin.id, originName: origin.name, kind: link.kind, label: link.label, premise: link.label ? `${link.label}.` : "" });
   plan.anchors = link.anchors.map((text) => ({ id: newId(), text, kept: true, from: "you" }));
   return plan;
@@ -144,6 +142,13 @@ export function createVersionLore(kind: LinkKind, id: string): StudioDraft {
   const v = versionText(kind, id);
   const books = linkedBooks(kind, link.origin.id);
   const items = versionItems(plan, books);
+  // Part 4: world entries are written once, in the universe's book; what it already has isn't written again.
+  const universe = getUniverse(link.universeId);
+  const shared = universe?.bookId ? getLorebook(universe.bookId) : undefined;
+  if (shared) {
+    const have = new Set(shared.entries.flatMap((e) => [e.comment, ...e.keys]).map(norm).filter(Boolean));
+    for (const it of items) if (isWorldItem(it) && it.keep && have.has(norm(it.title))) Object.assign(it, { keep: false, pitch: `Already in ${universe!.name}'s world book.` });
+  }
   const label = plan.label || link.label;
   const d = createDraft({ kind: "version", refId: id, text: v.text, title: `${v.name}${label ? ` (${label})` : ""}: lore`, options: { overview: false, secrets: false, size: "complete" } });
   return mutate(d.id, (cur) => {
@@ -171,7 +176,10 @@ export function commitVersionLore(id: string) {
   let added = 0;
   const world = ready.filter(isWorldItem).map((i) => i.id);
   const own = ready.filter((i) => !isWorldItem(i)).map((i) => i.id);
-  let worldBookId = v.worldBookId && getLorebook(v.worldBookId) ? v.worldBookId : null;
+  // In a universe, the world book is the universe's (made the first time, and linked to every member).
+  const universeId = linkInfo(v.kind, v.id)?.universeId ?? null;
+  let worldBookId = universeId ? null : v.worldBookId && getLorebook(v.worldBookId) ? v.worldBookId : null;
+  if (universeId && ready.some(isWorldItem)) worldBookId = ensureWorldBook(universeId);
   let companionBookId = v.companionBookId && getLorebook(v.companionBookId) ? v.companionBookId : null;
   if (world.length) {
     const r = commitDraft(id, { bookId: worldBookId, name: `${label || v.name}: the world`, description: `The world of ${v.name}'s version${label ? ` (${label})` : ""}, translated from ${v.originName}'s.`, links: link, overview: false, itemIds: world });

@@ -56,7 +56,7 @@
     { href: "/", label: "Home", icon: House, match: ["home", "character"] },
     { href: "/personas", label: "Personas", icon: Users, match: ["personas"] },
     { href: "/creator", label: "Studio", icon: WandSparkles, match: ["creator", "studio"] },
-    { href: "/lorebooks", label: "Lorebooks", icon: BookOpen, match: ["lorebooks", "lorebook"] },
+    { href: "/lorebooks", label: "Lorebooks", icon: BookOpen, match: ["lorebooks", "lorebook", "universes"] },
     { href: "/presets", label: "Presets", icon: SlidersHorizontal, match: ["presets", "preset"] },
     { href: "/notebook", label: "Notebook", icon: NotebookPen, match: ["notebook"] },
     { href: "/inbox", label: "Inbox", icon: Inbox, match: ["inbox"] },

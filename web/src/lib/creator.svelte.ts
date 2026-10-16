@@ -34,6 +34,7 @@ type Patch = Partial<{
     premise?: string;
     anchors?: { id?: string; text?: string; kept?: boolean; remove?: boolean }[];
     map?: { id?: string; type?: MapRowType; from?: string; to?: string; state?: MapRowState; note?: string; remove?: boolean }[];
+    universeId?: string | null;
   };
 }>;
 

@@ -265,10 +265,11 @@ export function personaVersion(id: string, personaId?: string | null) {
   if (d.kind !== "character") throw badRequest("This is already a persona");
   const pid = personaId || getCharacterRow(d.variant.originId)?.default_persona_id || getDefaultPersona()?.id;
   if (!pid || !getPersona(pid)) throw badRequest("Pick a persona first");
-  const p = createCreatorDraft({ kind: "persona", baseId: pid, asVersion: { kind: d.variant.kind, label: d.variant.label }, idea: d.variant.premise, oppositeOf: { draftId: d.id } });
+  // The persona joins the same universe (once the character's version is saved, it has one).
+  const p = createCreatorDraft({ kind: "persona", baseId: pid, asVersion: { kind: d.variant.kind, label: d.variant.label, universeId: d.variant.universeId }, idea: d.variant.premise, oppositeOf: { draftId: d.id } });
   return mutateCreator(p.id, (cur) => {
     if (!cur.variant) return;
-    cur.variant.map = d.variant.map.filter((r) => r.type !== "self").map((r) => ({ ...r, id: newId() }));
+    cur.variant.map = mergeRows(cur.variant.map, d.variant.map.filter((r) => r.type !== "self").map((r) => ({ ...r, id: newId() })));
     cur.questions = d.questions.filter((q) => q.answer.trim()).map((q) => ({ ...q, id: newId() }));
     cur.worldBookIds = [...new Set([...cur.worldBookIds, ...d.worldBookIds])];
     cur.stage = "questions";

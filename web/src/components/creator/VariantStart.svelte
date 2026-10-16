@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { get } from "../../lib/api";
   import type { CreatorSession } from "../../lib/creator.svelte";
   import { autosize } from "../../lib/gestures";
-  import { GitBranch, Lightbulb, Loader, StepForward } from "../../lib/icons";
-  import { VERSION_KINDS, type VersionKind } from "../../lib/types";
+  import { GitBranch, Globe2, Lightbulb, Loader, StepForward } from "../../lib/icons";
+  import { errorToast } from "../../lib/state.svelte";
+  import { type UniverseSummary, VERSION_KINDS, type VersionKind } from "../../lib/types";
 
   /** A version's first step (docs/14): what kind of version, what it's called, and the premise in your words. */
   let { session }: { session: CreatorSession } = $props();
@@ -10,6 +12,21 @@
   const v = $derived(draft.variant!);
   const isChar = $derived(v.originKind === "character");
   let steer = $state("");
+  let universes = $state<UniverseSummary[]>([]);
+  $effect(() => {
+    get<{ universes: UniverseSummary[] }>("/api/universes").then((r) => (universes = r.universes), () => {});
+  });
+
+  /** Joining a universe brings its premise (if this has none yet) and its map; the server merges them. */
+  async function setUniverse(universeId: string) {
+    try {
+      session.save({ variant: { universeId: universeId || null } }, "universe", 0);
+      await session.flush();
+      await session.load();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
 
   function setPremise(text: string) {
     session.draft!.variant!.premise = text;
@@ -37,6 +54,15 @@
         </select>
       </label>
     </div>
+  </div>
+
+  <div class="panel stack tight">
+    <span class="label"><Globe2 size={14} /> Universe</span>
+    <select class="select" value={v.universeId ?? ""} onchange={(e) => setUniverse(e.currentTarget.value)} aria-label="Universe">
+      <option value="">A new one, just for this version (others can join it later)</option>
+      {#each universes as u (u.id)}<option value={u.id}>Join {u.name} ({u.members.length} {u.members.length === 1 ? "member" : "members"})</option>{/each}
+    </select>
+    <span class="tiny muted">{v.universeId ? "Its premise and shared map come along; this version's own map rows join the shared map when you save." : `Saving makes a universe called “${v.label || "…"}” with this premise and map, so a whole cast can move into it later.`}</span>
   </div>
 
   <div class="panel stack tight">
