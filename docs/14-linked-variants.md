@@ -278,34 +278,65 @@ People, places and groups the map changed that never had an entry of their own b
 
 ## Part 6 · In chats
 
-**What you get:** stories set in a version or universe stay in it.
+**What you get:** stories set in a version or universe stay in it. Mira's College AU doesn't wander back to Port Ellis, a night with the original can be retold on campus, and the College AU can wear the original's winter coat.
 
 ### Leak checks
-- A new check in the slip registry (`accuracy/slips.ts`): a reply that uses a name the universe changed or dropped ("Winterfell" in the ranch AU) is flagged, with the mapped name offered as a one-tap fix. It runs on rules, for free.
-- The Codex, trackers and continuity checker treat a dropped name as foreign to this story, so a leak never becomes a cast entry or a place.
-- A per-chat toggle in **Chat › Guards**, as for the other checks.
+- **A new check in the slip registry** (`accuracy/slips.ts`, "This version's world"): a reply that uses a name the version's map (or its universe's) changed or dropped gets a continuity note, "In College AU, Port Ellis is Ellis Campus, a city university."
+  - A changed name comes with a one-tap fix, **Use "Ellis Campus"**. It swaps every place the reply writes it, as an edit (history kept), and clears the note.
+  - A dropped name says it isn't part of this version.
+  - Rules only, free. It runs in any chat whose card or persona is a version with a map.
+- **The Codex** never files a changed or dropped name as a page.
+- **Chat › Guards** has a switch for it, like the other checks.
+- **Meus** reads the map in its brief (`set in College AU: Port Ellis → …`), so it can fix a leak in a past message with the existing message edit.
 
-### Retell in another universe
-- From a chat with the original: **Retell in…** (chat ⋯ menu) › pick a version (or a universe and the versions in it). Mea starts a new chat with the version, opening on the chosen arc's summary translated through the map ("replay our first meeting, college AU"). The new chat's memory starts fresh, with the translated summary as its opening recap.
-- You pick the arc from the chat's chapters or scenes.
+### Retell in another version
+- **Chat panel › Tools › Retell in…**
+  1. Pick another version of the character (or the original, from a version's chat).
+  2. Pick what to retell: the story so far, or an arc, chapter or scene from its memory.
+  3. Optionally, say what to change.
+- One model call retells it through that version's premise and map, and Mea opens a new chat with the version:
+  - **A new greeting** written for the retelling, which picks up where the recap ends (instead of the card's usual greeting, which would start the story over).
+  - **The retold recap** as its "previously on…" card, and as a note the story keeps to.
+  - Your persona's version from the same universe, when there is one.
+  - Fresh memory. The original chat stays as it is.
+- **Meus:** `retell`, with its own recap and greeting. Undo deletes the new chat.
+
+### Greetings of their own
+- **Studio versions:** saving one is refused while its greeting is still the original's word for word ("This version still opens with Mira's greeting"). The review flags it too. The studio already rewrites greetings for a version; this catches saving before the Write step.
+- **Looks:** drafting a character Look from an idea always writes a new greeting that opens a scene in the Look.
 
 ### Looks on versions
-- A Look (today's variants) can sit on a version: *College AU* + *Winter coat*. The chat panel's variant picker lists the version's own Looks, then the original's Looks that make sense on it (any Look marked as "works on every version").
-- **Make it a version** on a Look opens the variant studio with the Look's edits as the premise.
+- A Look on an original can be marked **Works on every version** (a switch on the Look). Each version can then play it: *College AU* + *Winter coat*.
+- In a version's chat, the Look picker lists the version's own Looks, then the original's every-version ones, "(from the original)".
+- **Make it a version** on a Look opens the variant studio for a new version, with the Look's name as its label and its changes as the premise.
 
 ### Choosing in a new chat
-- When you start a chat with a character version, the persona picker lists your persona versions in the same universe first, then your others.
+- A new chat with a character version in a universe plays your persona's version from that universe, or another persona in it, unless you pick one.
+- In the chat panel's persona picker, personas in the character's universe come first, with their version label ("Ash · College AU").
 
 ### Later: crossovers
 Two versions of the same person meeting (the original and an AU self, or two AUs). Each one's map lets it recognise the other. This is listed for completeness; it isn't part of the six PRs.
 
 ### How it's built
-- The leak check reads the universe map through a small cache keyed by universe and map version.
-- Retelling: `services/linked.ts` `retell(chatId, arc, versionIds)` uses the existing summaries (`memory/recap.ts`) and one map-translation call, then `createChat`.
-- Looks on versions: `variants.on_version_id` (part 1) plus an "every version" flag. `applyCardVariant` / `applyPersonaVariant` accept a Look for the version or for its original.
-- **Meus:** `retell`, plus fixing a leak in a past message through the existing message edit kind.
+- **`services/versionchat.ts`:**
+  - `chatMap` reads the chat's map: the character's and persona's studio plans plus their universe's rows, kept in a short cache because every reply asks.
+  - `universeLeaks` (the slip), `replaceTerm` and `foreignNames` (for the Codex).
+  - `personaForVersion`, used by `createChat`.
+  - `retellOptions`, `retell` and `startRetold`. A retold chat keeps `settings.retold`, which `chattools.ts` sends as a prompt note, and opens with the retold greeting.
+- **The one-tap fix:** `Issue.replace` and `POST /api/continuity/:id/replace`.
+- **Looks:** migration 25 adds `variants.every_version`. `lookFits` / `looksFor` in `services/variants.ts`; `applyCardVariant`, `applyPersonaVariant` and `createChat` accept an original's every-version Look on a version. `variants.on_version_id` (part 1) stays unused: a version's own Looks are simply owned by it.
+- **Routes:** `GET/POST /api/chats/:id/retell`, `everyVersion` on `PUT /api/variants/:id`, `fromOriginal` on a chat's Looks, and the character's `universeId` in the chat screen's data.
+- **Web:** the fix button in `ContinuityNote.svelte`, `RetellChat.svelte`, and in `VariantsPanel.svelte` the Works on every version switch and Make it a version. The chat panel orders personas and labels Looks.
+- **Not done:** the trackers still file what the story says as it says it. A leak there is caught by the check, not prevented.
 
-**Tests (`versionchat.test.ts`):** a leak flagged and fixed; a dropped name not filed in the Codex; a retold chat opening in the version with the translated summary; a Look applied on a version; the persona version offered first.
+**Tests (`versionchat.test.ts`):**
+- A leak flagged through the checker and fixed in one tap, with its Guards switch.
+- A chat with the original not checked, and dropped names not filed in the Codex.
+- A retold chat opening in the version on its new greeting, with the translated recap as memory's opening and the prompt note, and the original offered back from it.
+- Looks on versions, applied and listed.
+- The persona's version chosen first.
+- The Meus retell, with its greeting and Undo.
+- A studio version refused with the original's greeting, and saved with its own.
 
 ---
 

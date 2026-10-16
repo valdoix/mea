@@ -16,13 +16,14 @@
   import ChatSteer from "./ChatSteer.svelte";
   import BookExport from "./BookExport.svelte";
   import LoreExport from "./LoreExport.svelte";
+  import RetellChat from "./RetellChat.svelte";
   import AmbienceEditor from "./AmbienceEditor.svelte";
   import { openSetup } from "../../lib/setup.svelte";
   import { del, download, get, imageUrl, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
   import { compact } from "../../lib/format";
-  import { Archive, BookOpen, Download, Eye, ImageIcon, Library, Link, Pencil, Plus, ScrollText, Sparkles, Trash, Unlink, X } from "../../lib/icons";
+  import { Archive, BookOpen, Download, Eye, GitBranch, ImageIcon, Library, Link, Pencil, Plus, ScrollText, Sparkles, Trash, Unlink, X } from "../../lib/icons";
   import { uploadImage } from "../../lib/images";
   import type { Collection, StoryStats } from "../../lib/types";
   import { navigate } from "../../lib/router.svelte";
@@ -32,6 +33,12 @@
   let { detail, onchange, oninspect }: { detail: ChatDetail; onchange: () => void; oninspect: () => void } = $props();
 
   let personas = $state<Persona[]>([]);
+  // docs/14, part 6: in a version's chat, your personas from the same universe come first.
+  const personaOrder = $derived.by(() => {
+    const u = detail.character?.universeId;
+    if (!u) return personas;
+    return [...personas.filter((p) => p.version?.universeId === u), ...personas.filter((p) => p.version?.universeId !== u)];
+  });
   let profiles = $state<Profile[]>([]);
   let storyProfileId = $state<string | null>(null);
   let presets = $state<{ id: string; name: string }[]>([]);
@@ -65,6 +72,7 @@
   const s = $derived(detail.chat.settings);
   let exportOpen = $state(false);
   let loreOpen = $state(false);
+  let retellOpen = $state(false);
 
   $effect(() => {
     void Promise.all([
@@ -324,14 +332,14 @@
       <Jack
         label="You're playing"
         value={detail.persona?.id ?? ""}
-        options={personas.length ? personas.map((p) => ({ value: p.id, label: `${p.name}${p.isDefault ? " (default)" : ""}` })) : [{ value: "", label: "No personas yet" }]}
+        options={personas.length ? personaOrder.map((p) => ({ value: p.id, label: `${p.name}${p.version?.label ? ` · ${p.version.label}` : ""}${p.isDefault ? " (default)" : ""}` })) : [{ value: "", label: "No personas yet" }]}
         onchange={(v) => update({ personaId: v || null })}
       />
       {#if detail.variants?.length}
         <Jack
           label="{detail.character?.name} plays"
           value={s.variantId ?? ""}
-          options={[{ value: "", label: "The base card" }, ...detail.variants.map((v) => ({ value: v.id, label: v.name }))]}
+          options={[{ value: "", label: "The base card" }, ...detail.variants.map((v) => ({ value: v.id, label: v.fromOriginal ? `${v.name} (from the original)` : v.name }))]}
           onchange={(v) => update({ settings: { variantId: v || null } })}
         />
       {/if}
@@ -510,11 +518,13 @@
       <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=md`)}><Download size={15} />Markdown</button>
       <button class="st-key fmt" type="button" onclick={() => download(`/api/chats/${detail.chat.id}/export?format=jsonl`)}><Download size={15} />JSONL</button>
       <button class="st-key fmt" type="button" onclick={() => (loreOpen = true)} title="Save this story as a lorebook"><Library size={15} />As a lorebook</button>
+      <button class="st-key fmt" type="button" onclick={() => (retellOpen = true)} title="This story told again with another version of the character (an AU, another era)"><GitBranch size={15} />Retell in…</button>
     </div>
   </Module>
 
   <BookExport bind:open={exportOpen} chatId={detail.chat.id} />
   <LoreExport bind:open={loreOpen} chatId={detail.chat.id} lastSeq={detail.chat.messageCount} />
+  <RetellChat bind:open={retellOpen} chatId={detail.chat.id} />
 
   <Module>
     <div class="endrow">

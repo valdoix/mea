@@ -4,6 +4,7 @@ import type { Issue } from "./checker";
 import { guardInput, type GuardInput, nameGuard, povGuard, puppetGuard, tenseGuard } from "./guards";
 import { deadRule, leakRule, nameRule, ruleInput, type RuleInput, timeRule, traitRule } from "./rules";
 import { timelineIssues } from "./timeline";
+import { universeCheckOn, universeLeaks } from "../services/versionchat";
 
 /**
  * The slip registry (Almanac plan P1): every check Mea runs on a reply, in one list. A check is a
@@ -76,6 +77,14 @@ export const SLIPS: Slip[] = [
     setting: "timeline",
     on: (c) => c.guards.timeline && Boolean(c.messageId),
     run: (_t, _s, c) => timelineIssues(c.chatId, c.messageId!),
+  },
+  {
+    id: "universe",
+    label: "This version's world",
+    description: "Names this version's map changed or dropped (the original's world leaking into an AU), with the version's name as a fix.",
+    phase: "reply",
+    on: (c) => assistant(c) && universeCheckOn(c.chatId),
+    run: (t, _s, c) => universeLeaks(c.chatId, t),
   },
 ];
 

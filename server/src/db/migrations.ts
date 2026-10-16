@@ -1237,6 +1237,15 @@ CREATE TABLE universes (
       for (const table of ["characters", "personas"]) if (!hasColumn(db, table, "version_sync")) db.exec(`ALTER TABLE ${table} ADD COLUMN version_sync TEXT NOT NULL DEFAULT '{}'`);
     },
   },
+  {
+    id: 25,
+    name: "looks on every version",
+    sql: "",
+    // docs/14, part 6: an original's Look that also plays on each of its versions.
+    up: (db) => {
+      if (!hasColumn(db, "variants", "every_version")) db.exec("ALTER TABLE variants ADD COLUMN every_version INTEGER NOT NULL DEFAULT 0");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

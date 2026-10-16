@@ -112,7 +112,7 @@ for (const path of ["characters", "personas"] as const) {
 }
 
 cardtools.put("/variants/:id", async (c) => {
-  const input = await body(c, z.object({ name: z.string().max(80).optional(), note: z.string().max(500).optional(), overlay: overlay.optional(), avatarId: z.string().nullable().optional() }));
+  const input = await body(c, z.object({ name: z.string().max(80).optional(), note: z.string().max(500).optional(), overlay: overlay.optional(), avatarId: z.string().nullable().optional(), everyVersion: z.boolean().optional() }));
   return c.json(updateVariant(c.req.param("id"), input));
 });
 

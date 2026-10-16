@@ -15,7 +15,7 @@ import { restoreStash } from "../src/services/undo";
 import { originChanges, setAutoSync, skipChanges, snapshotBasis, syncInfo, takeChanges, translateChange } from "../src/services/versionsync";
 import { applyChange, checkChanges, undoStep } from "../src/meus/changes";
 import { createChat } from "../src/services/chats";
-import { freshDb } from "./helpers";
+import { freshDb, ownGreeting } from "./helpers";
 
 let app: ReturnType<typeof createApp>;
 const local = { requestIP: () => ({ address: "127.0.0.1", family: "IPv4", port: 5000 }) };
@@ -117,11 +117,13 @@ describe("changes from the original (docs/14, part 5)", () => {
     mutateCreator(d.id, (cur) => {
       cur.fields.find((f) => f.key === "personality")!.value = "Older, softer, still dry.";
     });
-    const version = saveCreator(d.id).id;
-    editCard(origin, { personality: "Dry, tired, kind, brave.", first_mes: "The lamp is lit, always." });
+    const version = saveCreator(ownGreeting(d.id)).id;
+    editCard(origin, { personality: "Dry, tired, kind, brave.", description: "Mira keeps the lighthouse above Port Ellis, and a cat.", first_mes: "The lamp is lit, always." });
     const by = Object.fromEntries(originChanges("character", version).map((c) => [c.key, c.state]));
-    expect(by["field:first_mes"]).toBe("kept");
+    expect(by["field:description"]).toBe("kept");
     expect(by["field:personality"]).toBe("changed");
+    // Its greeting is its own (the studio won't save a version with the original's), so it's changed too.
+    expect(by["field:first_mes"]).toBe("changed");
   });
 
   test("lore: a kept entry's change is in the Inbox, one note per version; approving takes it", async () => {
@@ -136,7 +138,7 @@ describe("changes from the original (docs/14, part 5)", () => {
     });
     const d = createCreatorDraft({ kind: "character", baseId: origin, asVersion: { kind: "au", label: "College AU" }, idea: "" });
     patchCreator(d.id, { name: "Mia", variant: { map: [{ from: "Port Ellis", type: "place", state: "changed", to: "Ellis Campus" }, { from: "The Lamp", type: "thing", state: "kept" }] } } as never);
-    const version = saveCreator(d.id).id;
+    const version = saveCreator(ownGreeting(d.id)).id;
     const ld = createVersionLore("character", version);
     queueWrite(ld.id);
     await runStudioJob(ld.id);

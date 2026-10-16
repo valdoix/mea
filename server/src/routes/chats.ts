@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { characterSettings } from "../services/charsettings";
 import { memState } from "../memory/store";
 import { layered } from "../services/layers";
-import { listVariants } from "../services/variants";
+import { looksFor } from "../services/variants";
+import { one } from "../db/db";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { badRequest, body, must } from "../lib/http";
@@ -61,19 +62,20 @@ chats.get("/chats/:id", (c) => {
   const character = chat.characterId ? getCharacter(chat.characterId) : undefined;
   const persona = getPersona(chat.personaId) ?? getDefaultPersona();
   // CHAR-06 / PER-05: the variants this chat can play, and a variant's own portrait.
-  const variants = character ? listVariants("character", character.id) : [];
-  const personaVariants = persona ? listVariants("persona", persona.id) : [];
+  // docs/14, part 6: a version also plays its original's Looks that fit every version.
+  const variants = character ? looksFor("character", character.id) : [];
+  const personaVariants = persona ? looksFor("persona", persona.id) : [];
   const variant = variants.find((v) => v.id === chat.settings.variantId);
   const personaVariant = personaVariants.find((v) => v.id === chat.settings.personaVariantId);
   const layers = layered(chat.settings, chat.characterId);
   return c.json({
     chat,
-    character: character && { id: character.id, name: character.name, avatarId: variant?.avatarId ?? character.avatarId, palette: character.palette, mode: character.mode, tags: character.tags },
+    character: character && { id: character.id, name: character.name, avatarId: variant?.avatarId ?? character.avatarId, palette: character.palette, mode: character.mode, tags: character.tags, universeId: one<{ universe_id: string | null }>("SELECT universe_id FROM characters WHERE id = ?", character.id)?.universe_id ?? null },
     persona: persona && { id: persona.id, name: persona.name, avatarId: personaVariant?.avatarId ?? persona.avatarId },
     lorebooks: linkedBooks("chat", chat.id),
     active: activeGenerations(chat.id),
-    variants: variants.map((v) => ({ id: v.id, name: v.name, note: v.note })),
-    personaVariants: personaVariants.map((v) => ({ id: v.id, name: v.name, note: v.note })),
+    variants: variants.map((v) => ({ id: v.id, name: v.name, note: v.note, fromOriginal: v.fromOriginal })),
+    personaVariants: personaVariants.map((v) => ({ id: v.id, name: v.name, note: v.note, fromOriginal: v.fromOriginal })),
     // PROMPT-06: what the character sets for its chats, so the panel can say "from the character".
     defaults: { from: layers.from, presetId: layers.presetId, profileId: layers.profileId, characterControls: characterSettings(chat.characterId).controls ?? {}, characterStyle: characterSettings(chat.characterId).style ?? null },
     // SUM-20: summarized isn't hidden; the chat marks where word-for-word ends.

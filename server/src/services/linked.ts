@@ -82,10 +82,10 @@ export function linkInfo(kind: LinkKind, id: string) {
 
 /** For library lists: id → its original's name and the version's label, for every version of this kind. */
 export function versionLabels(kind: LinkKind) {
-  const rows = all<{ id: string; variant_of: string; variant_kind: VersionKind | null; variant_label: string | null; origin_name: string | null }>(
-    `SELECT v.id, v.variant_of, v.variant_kind, v.variant_label, o.name AS origin_name FROM ${TABLE[kind]} v LEFT JOIN ${TABLE[kind]} o ON o.id = v.variant_of WHERE v.variant_of IS NOT NULL`,
+  const rows = all<{ id: string; variant_of: string; variant_kind: VersionKind | null; variant_label: string | null; universe_id: string | null; origin_name: string | null }>(
+    `SELECT v.id, v.variant_of, v.variant_kind, v.variant_label, v.universe_id, o.name AS origin_name FROM ${TABLE[kind]} v LEFT JOIN ${TABLE[kind]} o ON o.id = v.variant_of WHERE v.variant_of IS NOT NULL`,
   );
-  return new Map(rows.map((r) => [r.id, { originId: r.variant_of, originName: r.origin_name ?? "", kind: r.variant_kind, label: r.variant_label ?? "" }]));
+  return new Map(rows.map((r) => [r.id, { originId: r.variant_of, originName: r.origin_name ?? "", kind: r.variant_kind, label: r.variant_label ?? "", universeId: r.universe_id }]));
 }
 
 /** True when `ancestor` is `id` or one of the originals above it (so linking would make a loop). */

@@ -1,3 +1,4 @@
+import { foreignNames } from "../services/versionchat";
 import { all, dbGeneration, newId, now, one, parseJson, run, tx } from "../db/db";
 import { badRequest, notFound } from "../lib/http";
 import { publish } from "../lib/events";
@@ -353,7 +354,10 @@ export function syncEntities(chatId: string, force = false) {
   if (synced.size > 200) synced.delete(synced.keys().next().value!);
 
   const seen = new Map<string, Seen>();
+  // docs/14, part 6: in a version, a name its map changed or dropped is foreign here, never a page.
+  const foreign = foreignNames(chatId);
   const add = (name: string, kind: EntityKind, o: Partial<Omit<Seen, "aliases" | "sources" | "data">> & { aliases?: string[]; source: string; data?: EntityData; seq?: number | null }) => {
+    if (foreign.size && foreign.has(name.trim().toLowerCase().replace(/\s+/g, " "))) return;
     const k = entityKey(name);
     if (!k) return;
     const { clean, key } = k;

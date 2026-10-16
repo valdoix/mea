@@ -10,7 +10,7 @@
   let open = $state(false);
   const issues = $derived(flag.issues.filter((i) => !i.dismissed));
   const major = $derived(issues.some((i) => i.severity === "major"));
-  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page", canon: "later canon", nothere: "someone not in the scene", clockback: "the clock going back", planning: "planning left in", past: "an invented past", who: "who said or did it" };
+  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page", canon: "later canon", nothere: "someone not in the scene", clockback: "the clock going back", planning: "planning left in", past: "an invented past", who: "who said or did it", universe: "this version's world" };
   /** D1: findings about the whole reply (its voice, its time, planning in it) aren't one sentence to fix. */
   const WHOLE = new Set(["pov", "tense", "timeline", "planning"]);
   /** A citation that points somewhere (guard notes cite a rule, not a source). */
@@ -74,6 +74,7 @@
               {#if i.by === "model"}<span class="tiny faint">checked by the helper model</span>{/if}
             </div>
             <div class="row wrap">
+              {#if i.replace}<button class="btn small" onclick={() => act("replace", { issueId: i.id }, `Now “${i.replace!.to}”`)} title="Swap the name in this reply; every other word stays"><Check size={13} /> Use “{i.replace.to}”</button>{/if}
               {#if !WHOLE.has(i.kind)}<button class="btn ghost small" onclick={() => fixSentence(i.id)} disabled={fixing === i.id} title="Rewrite only this sentence; every other word stays"><Pencil size={13} /> {fixing === i.id ? "Fixing…" : i.kind === "offpage" || i.kind === "canon" ? "Reword this sentence" : "Fix this sentence"}</button>{/if}
               {#if i.canon}<button class="btn ghost small" onclick={() => act("accept", { issueId: i.id }, "Canon updated: the reply's version is now confirmed")} title="The reply is right: update memory (and the trackers) to match"><Check size={13} /> Accept & update canon</button>{/if}
               <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id })}><X size={13} /> Dismiss</button>

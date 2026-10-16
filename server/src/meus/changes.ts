@@ -15,7 +15,7 @@ import { arcAction, authorArc, decideFate, decideProposal, setActor } from "../s
 import { createEntity, deleteEntity, ENTITY_KINDS, type EntityKind, type EntityRow, type EntityStatus, getEntityRow, mergeEntities, resolver, restoreEntity, unmergeEntity, updateEntity } from "../memory/entities";
 import { correctMemory } from "../memory/remember";
 import type { ProposedChange } from "../assistant/core";
-import { type ChatSettings, editMessage, getMessageRow, mustChat, setMessageFlags, softDeleteMessage, updateChat } from "../services/chats";
+import { type ChatSettings, editMessage, getMessageRow, mustChat, setMessageFlags, softDeleteChat, softDeleteMessage, updateChat } from "../services/chats";
 import { userEditAt, timeskip, untilMinutes } from "../trackers/service";
 import { promisesFor, type PromiseVerdict, setPromise } from "../trackers/promises";
 import { bondsReport, deskCue, secretsReport, threadsReport } from "../steer/desk";
@@ -27,6 +27,7 @@ import { canonOf, type CanonSettings, laterItem, setCanon } from "../accuracy/ca
 import { createOffpage, deleteOffpage, getOffpage, type HintBudget, listOffpage, updateOffpage } from "../accuracy/offpage";
 import { restoreStash } from "../services/undo";
 import { originChanges, skipChanges, takeChanges } from "../services/versionsync";
+import { retellOptions, startRetold } from "../services/versionchat";
 
 /**
  * What Meus can change in a chat, each through the tool the app already uses for it, so swipes,
@@ -51,6 +52,7 @@ export const CHANGE_KINDS = [
   '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"};',
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
+  '{"kind": "retell", "version": "<name of another version of this character, from the brief>", "arc": "<summary id, or empty for the story so far>", "title": "…", "text": "the retold recap: what happened, moved into that version’s world through its map, past tense, under 250 words", "greeting": "the new chat’s opening message: the character picking up where the recap ends, never writing {{user}}’s actions or words"} starts a new chat with that version, opening on your greeting (not its usual one);',
   '{"kind": "version_sync", "who": "character|persona", "key": "<change key from the brief>", "action": "take|skip"} when this chat’s card or persona is a version and its original changed: take a change the version kept the same (copied across), or skip it (it becomes the version’s own); a change to something the version changed is translated on its page instead;',
   '{"kind": "lesson", "text": "a short rule the story should follow from now on", "scope": "story|character|everywhere", "why": "…"} keeps a lesson (sent every turn); {"kind": "lesson", "id": "<lesson id>", "status": "kept|off"} switches one on or off;',
   '{"kind": "secret_offpage", "label": "the secret, in a sentence", "never_say": ["words the narration must not use yet"], "hint_as": "how the story may hint at it", "hints": "never|rarely|building"} keeps a secret off the page (the narration doesn’t state it); {"kind": "secret_offpage", "id": "<off-page id>", "status": "revealed|kept", "never_say": […]} reveals one, or changes it;',
@@ -88,6 +90,7 @@ export type UndoStep =
   | { t: "lessonStatus"; id: string; status: "kept" | "off" | "suggested" | "rejected" }
   | { t: "offpageDrop"; id: string }
   | { t: "stash"; token: string }
+  | { t: "chatDrop"; id: string }
   | { t: "offpageRestore"; id: string; patch: { label: string; neverSay: string[]; hintAs: string; hints: HintBudget; status: "kept" | "revealed" } };
 
 type Raw = Record<string, unknown>;
@@ -548,6 +551,27 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
         after: text || item.after,
         data: { action, text, item: item.kind, ...(undoable ? {} : { risky: true, noUndo: true, note: NO_UNDO }), why },
       });
+    } else if (kind === "retell") {
+      // docs/14, part 6: this chat, retold in another version of its character.
+      let opts: ReturnType<typeof retellOptions>;
+      try {
+        opts = retellOptions(chatId);
+      } catch {
+        continue;
+      }
+      const want = str(c.version).toLowerCase();
+      const v = opts.versions.find((x) => x.id === str(c.version) || x.name.toLowerCase() === want || (x.label && x.label.toLowerCase() === want) || `${x.name} (${x.label})`.toLowerCase() === want);
+      const text = str(c.text).slice(0, 4000);
+      if (!v) {
+        dropped.push(`there's no version "${str(c.version)}" of this character`);
+        continue;
+      }
+      if (!text) {
+        dropped.push("a retelling needs the retold recap");
+        continue;
+      }
+      const arc = opts.arcs.find((a) => a.id === str(c.arc)) ?? opts.arcs.find((a) => a.level === "story");
+      out.push({ kind, target: v.id, label: `Retell in ${v.label || v.name}${arc ? `: ${arc.title}` : ""}`, before: "", after: text, data: { arcId: arc?.id ?? "", title: str(c.title).slice(0, 80), greeting: str(c.greeting).slice(0, 6000), why } });
     } else if (kind === "version_sync") {
       // docs/14, part 5: a change from the original, for this chat's version.
       const chat = mustChat(chatId);
@@ -903,6 +927,10 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       return [{ t: "loreDrop", id: createEntry(c.target, { comment: String(d.comment ?? ""), keys: (d.keys as string[]) ?? [], content: String(d.content ?? "") }).id }];
     case "note":
       return [{ t: "noteDrop", id: createNote({ chatId, title: String(d.title ?? ""), body: c.after }).id }];
+    case "retell": {
+      const r = startRetold(chatId, c.target, String(d.arcId ?? ""), c.after, String(d.title ?? ""), String(d.greeting ?? ""));
+      return [{ t: "chatDrop", id: r.chatId }];
+    }
     case "version_sync": {
       const who = d.who === "persona" ? "persona" : "character";
       const r = d.action === "skip" ? skipChanges(who, c.target, [String(d.key)]) : takeChanges(who, c.target, [String(d.key)]);
@@ -978,6 +1006,9 @@ export function undoStep(chatId: string, s: UndoStep) {
   switch (s.t) {
     case "stash":
       restoreStash(s.token);
+      return;
+    case "chatDrop":
+      softDeleteChat(s.id);
       return;
     case "events":
       for (const id of s.ids) deleteEvent(chatId, id);
