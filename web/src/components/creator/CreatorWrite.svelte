@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { CreatorSession } from "../../lib/creator.svelte";
+  import { type CreatorSession, leakSteer } from "../../lib/creator.svelte";
   import { post } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
-  import { BookOpen, ClipboardCheck, ClockAlert, ExternalLink, MessageHeart, PenLine, RefreshCw, Save, Square, TriangleAlert, Users, WandSparkles, X } from "../../lib/icons";
+  import { BookOpen, ClipboardCheck, ClockAlert, ExternalLink, GitBranch, MessageHeart, PenLine, RefreshCw, Save, Square, TriangleAlert, UserPen, Users, WandSparkles, X } from "../../lib/icons";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { CreatorDraft } from "../../lib/types";
@@ -59,6 +59,29 @@
     }
   }
 
+  // A version (docs/14): fields still holding the original's text that the version's changes reach.
+  const toRewrite = $derived(draft.variant && draft.fieldPlan ? draft.fieldPlan.rewrite.filter((k) => !draft.fields.find((f) => f.key === k)?.basis && draft.fields.find((f) => f.key === k)?.status !== "queued" && draft.fields.find((f) => f.key === k)?.status !== "writing") : []);
+  const carried = $derived(draft.variant && draft.fieldPlan ? draft.fieldPlan.keep.filter((k) => !draft.fields.find((f) => f.key === k)?.basis) : []);
+
+  const fieldLeaks = $derived((draft.leaks ?? []).filter((l) => l.where === "field"));
+  const leakKeys = $derived([...new Set(fieldLeaks.map((l) => l.key))]);
+  /** Rewrites the fields that still name things from the original's world, each told what to use instead. */
+  function fixLeaks() {
+    const steer = [...new Set(fieldLeaks.map(leakSteer))].join(" ");
+    void session.writeFields({ keys: leakKeys, steer });
+  }
+
+  /** "Make my persona's version too": a persona version with the same premise, answers and map. */
+  async function personaVersion() {
+    try {
+      await session.flush();
+      const r = await post<{ draft: CreatorDraft }>(`/api/creator/${session.id}/variant/persona`, {});
+      navigate(`/creator/${r.draft.id}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   async function chat() {
     try {
       const c = await post<{ id: string }>("/api/chats", { characterId: draft.savedId });
@@ -83,6 +106,20 @@
         {/if}
       </div>
     </div>
+    {#if draft.variant && !working.length && (toRewrite.length || carried.length)}
+      <div class="row wrap version">
+        <GitBranch size={14} />
+        <span class="small grow">{carried.length ? `${carried.length} field${carried.length === 1 ? "" : "s"} carry over from ${draft.variant.originName} word for word (${carried.map(labelOf).join(", ").toLowerCase()}). ` : ""}{toRewrite.length ? `${toRewrite.length} still hold${toRewrite.length === 1 ? "s" : ""} the original's text and need${toRewrite.length === 1 ? "s" : ""} writing for this version.` : ""}</span>
+        {#if toRewrite.length}<button class="btn small primary" onclick={() => session.act("write", "/write", { keys: toRewrite })} disabled={Boolean(session.busy)}><PenLine size={13} /> Write {toRewrite.length === 1 ? "it" : `the ${toRewrite.length}`} for this version</button>{/if}
+      </div>
+    {/if}
+    {#if leakKeys.length && !working.length}
+      <div class="row wrap version">
+        <TriangleAlert size={14} />
+        <span class="small grow">{leakKeys.length} field{leakKeys.length === 1 ? " still names" : "s still name"} things from {draft.variant?.originName}'s world: {[...new Set(fieldLeaks.map((l) => l.term))].join(", ")}.</span>
+        <button class="btn small" onclick={fixLeaks} disabled={Boolean(session.busy)}><RefreshCw size={13} /> Fix {leakKeys.length === 1 ? "it" : "them"}</button>
+      </div>
+    {/if}
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={draft.fields.length} aria-valuenow={written.length}><span style:width="{(written.length / Math.max(1, draft.fields.length)) * 100}%"></span></div>
     {#if staleKeys.length && !working.length}
       <div class="row wrap stale">
@@ -128,7 +165,8 @@
     {#if (draft.options.depthBook && draft.depth.some((e) => e.content.trim())) || (isChar && draft.options.rulesBook) || (draft.options.mode === "narrator" && draft.optional.includes("agency"))}
       <span class="tiny muted"><BookOpen size={12} /> Bound on save:{draft.options.depthBook && draft.depth.some((e) => e.content.trim()) ? " a depth book" : ""}{isChar && draft.options.rulesBook ? " · a rules book" : ""}{isChar && draft.options.mode === "narrator" && draft.optional.includes("agency") ? " · world agency" : ""}. Export carries them in the card.</span>
     {/if}
-    {#if draft.origin?.copyOf}<span class="tiny muted">A rebuild: saving makes a new {isChar ? "card" : "persona"} and leaves the original as it is.</span>{/if}
+    {#if draft.variant}<span class="tiny muted"><GitBranch size={12} /> Saving makes a new {isChar ? "card" : "persona"} linked to {draft.variant.originName} as its version{draft.variant.label ? ` (${draft.variant.label})` : ""}, with what stays true. The original stays as it is.</span>
+    {:else if draft.origin?.copyOf}<span class="tiny muted">A rebuild: saving makes a new {isChar ? "card" : "persona"} and leaves the original as it is.</span>{/if}
     <div class="row between wrap">
       <span class="tiny muted">{draft.savedId || draft.baseId ? `Saving updates the ${isChar ? "card; the old version stays in its history" : "persona"}.` : `Creates a new ${isChar ? "character card" : "persona"}.`}</span>
       <button class="btn primary" onclick={save} disabled={saving || !written.length}>{saving ? "Saving…" : draft.savedId || draft.baseId ? "Save changes" : isChar ? "Save the card" : "Save the persona"}</button>
@@ -137,6 +175,7 @@
       <div class="row wrap next">
         <a class="btn small" href={isChar ? `/character/${draft.savedId}` : `/personas/${draft.savedId}`}><ExternalLink size={14} /> Open {isChar ? "the card" : "the persona"}</a>
         {#if isChar}<button class="btn small" onclick={chat}><MessageHeart size={14} /> Start a chat</button>{/if}
+        {#if isChar && draft.variant}<button class="btn small" onclick={personaVersion} title="Your persona in the same version: same premise, answers and map, built to play opposite this one"><UserPen size={14} /> Make my persona's version too</button>{/if}
         {#if peopleBookId}<a class="btn small" href="/lorebooks/{peopleBookId}"><Users size={14} /> Its people</a>{/if}
         {#if draft.companionLoreDraftId}
           <a class="btn small" href="/lore-studio/{draft.companionLoreDraftId}"><BookOpen size={14} /> Companion lorebook</a>
@@ -160,6 +199,13 @@
     height: 100%;
     background: var(--accent);
     transition: width 0.4s var(--ease);
+  }
+  .version {
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.45rem 0.6rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--lavender, #c7b8ec) 20%, transparent);
   }
   .stale {
     gap: 0.5rem;

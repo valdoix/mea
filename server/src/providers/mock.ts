@@ -389,6 +389,44 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const idea = user.split("THE VARIANT: ")[1]?.trim() ?? "variant";
       return { name: idea.split(" ").slice(0, 3).join(" "), note: `The ${idea}.`, fields: { description: `In the ${idea}: the same person, different clothes.`, first_mes: `Snow falls on the harbour as she looks up. "You came back?"`, nonsense: "dropped" } };
     }
+    // ---------- the variant studio (docs/14) ----------
+    case "variant_directions":
+      return { options: [1, 2, 3].map((k) => `Take ${k}: the harbour becomes a campus radio station${/Move the whole set toward: (.+)/.exec(system)?.[1] ? `, ${/Move the whole set toward: (.+)/.exec(system)![1]}` : ""}.`) };
+    case "variant_start":
+      return {
+        anchors: ["Dry humour that covers fear", "Keeps the lamp lit no matter what"],
+        questions: [
+          { q: "When does this version split from the original?", why: "Everything follows from it.", suggestions: ["Ten years ago", "At birth", "Last winter"] },
+          { q: "Who is she to the people around her now?", why: "It sets the cast.", suggestions: ["Their DJ", "Their RA", "A stranger"] },
+        ],
+      };
+    case "variant_question": {
+      const n = (system.match(/^- /gm) ?? []).length + 1;
+      return { q: `Version question ${n}: what did she lose?`, why: "It costs something.", suggestions: ["Her lighthouse", "Her brother", "Nothing yet"] };
+    }
+    case "variant_names": {
+      const original = user.split("THE ORIGINAL:\n")[1] ?? user;
+      const skip = new Set(["Description", "Personality", "Scenario", "Greeting", "Example", "Her", "His", "Dry", "Sit", "The", "She", "Mira"]);
+      const found = [...new Set(original.match(/\b[A-Z][a-z]{2,}(?: [A-Z][a-z]{2,})*\b/g) ?? [])].filter((n) => !skip.has(n));
+      return { rows: found.map((name) => ({ type: /Port|Harbour|Rock|Ellis/.test(name) ? "place" : "person", name })) };
+    }
+    case "variant_map": {
+      const rows = [...(user.split("THE ROWS TO DECIDE:\n")[1] ?? "").matchAll(/^- (\w+): (.+)$/gm)].map((m) => ({ type: m[1]!, name: m[2]!.trim() }));
+      let other = 0;
+      return {
+        rows: rows.map((r) => {
+          if (r.type === "self") return { name: r.name, state: "changed", to: `${r.name}, a sophomore`, note: "" };
+          const k = other++;
+          return k === 0 ? { name: r.name, state: "changed", to: `${r.name} Campus`, note: "moved" } : k === 1 ? { name: r.name, state: "dropped", to: "", note: "" } : { name: r.name, state: "kept", to: "", note: "" };
+        }),
+        added: /"added": 0–4/.test(system) ? [{ type: "place", name: "the campus radio station", note: "where she works" }] : [],
+      };
+    }
+    case "creator_variant_bible": {
+      const keys = [...system.matchAll(/"(\w+)":\{"mark"/g)].map((m) => m[1]!);
+      const steer = /THE VERSION'S CURRENT BIBLE:/.test(user) ? " Reworked." : "";
+      return Object.fromEntries(keys.map((k) => [k, { mark: k === "voice" ? "kept" : "changed", text: `The version's ${k}: on campus now.${steer}` }]));
+    }
     case "creator_bible_check":
       return {
         criteria: criteriaIn(system).map((key) => ({ key, passed: !(/MOCK_ISSUE/.test(user) && key === "specificity"), note: "Checked." })),

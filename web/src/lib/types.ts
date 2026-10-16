@@ -1891,7 +1891,48 @@ export interface ExpansionPatch {
 }
 
 export type CreatorKind = "character" | "persona";
-export type CreatorStage = "idea" | "questions" | "bible" | "write" | "done";
+/** A version (docs/14) also has a map step between its questions and its bible. */
+export type CreatorStage = "idea" | "questions" | "map" | "bible" | "write" | "done";
+
+export type MapRowType = "self" | "person" | "place" | "group" | "thing" | "event" | "idea";
+export type MapRowState = "open" | "kept" | "changed" | "dropped" | "new";
+
+/** One row of a version's map: what something from the original becomes in the version. */
+export interface MapRow {
+  id: string;
+  type: MapRowType;
+  from: string;
+  to: string;
+  state: MapRowState;
+  note: string;
+  source: "card" | "lore" | "you" | "mea";
+}
+
+/** A version draft's plan (docs/14): its original, premise, what stays true, and the map. */
+export interface VariantPlan {
+  originKind: "character" | "persona";
+  originId: string;
+  originName: string;
+  kind: VersionKind;
+  label: string;
+  premise: string;
+  anchors: { id: string; text: string; kept: boolean; from: "mea" | "you" }[];
+  map: MapRow[];
+  mapBuilt: boolean;
+  originBible: { key: string; label: string; text: string }[] | null;
+  marks: Record<string, "kept" | "changed" | "new">;
+  directions: string[];
+}
+
+/** An original name that slipped into a version's bible or fields. */
+export interface VariantLeak {
+  term: string;
+  to: string;
+  state: "changed" | "dropped";
+  where: "bible" | "field";
+  key: string;
+  label: string;
+}
 
 export interface CreatorOptions {
   pov: "first" | "second" | "third";
@@ -1991,8 +2032,13 @@ export interface CreatorDraft {
   options: CreatorOptions;
   worldBookIds: string[];
   loreDraftId: string | null;
-  origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string; copyOf?: string; fromEntry?: { bookId: string; entryId: string }; personId?: string } | null;
+  origin: { loreDraftId?: string; loreItemId?: string; fromDraftId?: string; copyOf?: string; versionOf?: { id: string; kind: VersionKind | null; label: string }; fromEntry?: { bookId: string; entryId: string }; personId?: string } | null;
   baseId: string | null;
+  /** A version of an existing card or persona (docs/14), with what the server works out from it. */
+  variant?: VariantPlan | null;
+  leaks?: VariantLeak[];
+  marks?: Record<string, "kept" | "changed" | "new">;
+  fieldPlan?: { keep: string[]; rewrite: string[] } | null;
   readback: { understood: string; missing: string[]; gaps?: { section: string; note: string }[] } | null;
   questions: CreatorQuestion[];
   bible: { key: string; label: string; text: string; origin?: "yours" | "mea" | "guess" }[];
