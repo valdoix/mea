@@ -2169,6 +2169,9 @@ export function reviewCreator(id: string) {
     if (l.where !== "field") continue;
     (issues[l.key] ??= []).push({ kind: "leak", severity: "warn", message: l.state === "changed" ? `"${l.term}" is "${l.to}" in this version.` : `"${l.term}" doesn't exist in this version.` });
   }
+  // A version opens its own story: a greeting still the original's word for word is never saved.
+  const sameGreeting = originalGreeting(d);
+  if (sameGreeting) (issues.first_mes ??= []).push({ kind: "original", severity: "warn", message: `Still ${sameGreeting}'s greeting word for word: write this version's own (it can't be saved as it is).` });
   // Greetings that open the same way read as one greeting three times.
   const greetings = d.fields.filter((f) => isGreeting(f.key) && f.value.trim());
   for (let i = 0; i < greetings.length; i++)
@@ -2185,8 +2188,19 @@ export function reviewCreator(id: string) {
 
 // ---------- save ----------
 
+/** The original's name when a version's greeting is still the original's word for word (docs/14). */
+function originalGreeting(d: CreatorDraft): string | null {
+  const v0 = d.origin?.versionOf;
+  if (!v0 || d.kind !== "character") return null;
+  const mine = d.fields.find((f) => f.key === "first_mes")?.value.trim() ?? "";
+  const theirs = getCard(v0.id)?.first_mes?.trim() ?? "";
+  return mine && mine === theirs ? (d.variant?.originName ?? getCard(v0.id)?.name ?? "the original") : null;
+}
+
 export function saveCreator(id: string, opts: { makeDefault?: boolean } = {}) {
   const d = mustCreator(id);
+  const sameGreeting = originalGreeting(d);
+  if (sameGreeting) throw badRequest(`This version still opens with ${sameGreeting}'s greeting: write its own greeting first`);
   const v = (k: string) => d.fields.find((f) => f.key === k)?.value.trim() ?? "";
   const name = d.name.trim() || (d.kind === "persona" ? "New persona" : "New character");
   let savedId = d.savedId ?? d.baseId;

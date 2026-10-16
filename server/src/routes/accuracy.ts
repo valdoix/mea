@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { askArchivist, deleteArchive, listArchive, pushArchive } from "../accuracy/archivist";
-import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor, leakGuardOn } from "../accuracy/checker";
+import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor, leakGuardOn, replaceIssue } from "../accuracy/checker";
 import { slipCatalog } from "../accuracy/slips";
 import { memoryConfig } from "../lib/settings";
 import { codex, codexEntry } from "../accuracy/codex";
@@ -48,6 +48,12 @@ accuracy.post("/continuity/:id/dismiss", async (c) => {
 accuracy.post("/continuity/:id/accept", async (c) => {
   const input = await body(c, z.object({ issueId: z.string() }));
   return c.json(acceptIssue(c.req.param("id"), input.issueId));
+});
+
+/** docs/14, part 6: swap the original's name for the version's in the reply. */
+accuracy.post("/continuity/:id/replace", async (c) => {
+  const input = await body(c, z.object({ issueId: z.string() }));
+  return c.json(replaceIssue(c.req.param("id"), input.issueId));
 });
 
 /** "Regenerate with fix": a new swipe that carries the corrections as notes for the model. */

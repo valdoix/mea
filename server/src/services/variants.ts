@@ -31,6 +31,8 @@ export interface Variant {
   note: string;
   overlay: Overlay;
   avatarId: string | null;
+  /** docs/14, part 6: an original's Look that also fits every version of it (College AU + Winter coat). */
+  everyVersion: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -43,12 +45,13 @@ interface Row {
   note: string;
   overlay: string;
   avatar_id: string | null;
+  every_version?: number;
   sort: number;
   created_at: number;
   updated_at: number;
 }
 
-const out = (r: Row): Variant => ({ id: r.id, ownerType: r.owner_type as OwnerType, ownerId: r.owner_id, name: r.name, note: r.note, overlay: cleanOverlay(r.owner_type as OwnerType, parseJson<Overlay>(r.overlay, {})), avatarId: r.avatar_id, createdAt: r.created_at, updatedAt: r.updated_at });
+const out = (r: Row): Variant => ({ id: r.id, ownerType: r.owner_type as OwnerType, ownerId: r.owner_id, name: r.name, note: r.note, overlay: cleanOverlay(r.owner_type as OwnerType, parseJson<Overlay>(r.overlay, {})), avatarId: r.avatar_id, everyVersion: Boolean(r.every_version), createdAt: r.created_at, updatedAt: r.updated_at });
 
 /** Only known fields, and only ones that actually say something. */
 export function cleanOverlay(type: OwnerType, o: Overlay): Overlay {
@@ -67,6 +70,23 @@ const changed = (type: OwnerType) => publish({ type: "library.changed", what: ty
 
 export function listVariants(type: OwnerType, ownerId: string) {
   return all<Row>("SELECT * FROM variants WHERE owner_type = ? AND owner_id = ? ORDER BY sort, created_at", type, ownerId).map(out);
+}
+
+/** The original a version was made from (docs/14), or null. */
+const originOf = (type: OwnerType, id: string) => one<{ variant_of: string | null }>(`SELECT variant_of FROM ${type === "character" ? "characters" : "personas"} WHERE id = ?`, id)?.variant_of ?? null;
+
+/** A Look plays on its own card, and an original's "every version" Look on each of its versions. */
+export function lookFits(v: Variant, type: OwnerType, ownerId: string) {
+  if (v.ownerType !== type) return false;
+  return v.ownerId === ownerId || (v.everyVersion && originOf(type, ownerId) === v.ownerId);
+}
+
+/** What a chat with this card can play: its own Looks, then its original's that fit every version. */
+export function looksFor(type: OwnerType, ownerId: string) {
+  const own = listVariants(type, ownerId).map((v) => ({ ...v, fromOriginal: false }));
+  const origin = originOf(type, ownerId);
+  const theirs = origin ? listVariants(type, origin).filter((v) => v.everyVersion).map((v) => ({ ...v, fromOriginal: true })) : [];
+  return [...own, ...theirs];
 }
 
 export function getVariant(id: string | null | undefined) {
@@ -97,9 +117,10 @@ export function createVariant(type: OwnerType, ownerId: string, input: { name: s
   return getVariant(id)!;
 }
 
-export function updateVariant(id: string, patch: { name?: string; note?: string; overlay?: Overlay; avatarId?: string | null }) {
+export function updateVariant(id: string, patch: { name?: string; note?: string; overlay?: Overlay; avatarId?: string | null; everyVersion?: boolean }) {
   const v = getVariant(id);
   if (!v) throw notFound("Variant not found");
+  if (patch.everyVersion !== undefined) run("UPDATE variants SET every_version = ? WHERE id = ?", patch.everyVersion ? 1 : 0, id);
   run(
     "UPDATE variants SET name = ?, note = ?, overlay = ?, avatar_id = ?, updated_at = ? WHERE id = ?",
     patch.name?.trim() || v.name,
@@ -126,12 +147,12 @@ export function deleteVariant(id: string) {
 
 /** The card as this variant plays it. A variant for another character is ignored. */
 export function applyCardVariant(card: CardData, v: Variant | undefined, characterId: string): CardData {
-  if (!v || v.ownerType !== "character" || v.ownerId !== characterId) return card;
+  if (!v || !lookFits(v, "character", characterId)) return card;
   return { ...card, ...v.overlay } as CardData;
 }
 
 export function applyPersonaVariant<P extends Persona | undefined>(p: P, v: Variant | undefined): P {
-  if (!p || !v || v.ownerType !== "persona" || v.ownerId !== p.id) return p;
+  if (!p || !v || !lookFits(v, "persona", p.id)) return p;
   return { ...p, data: { ...p.data, ...(v.overlay as Partial<PersonaData>) } };
 }
 
@@ -178,7 +199,7 @@ export async function draftVariant(type: OwnerType, ownerId: string, idea: strin
       `You make a variant of ${type === "character" ? "a character card" : "the user's persona"} for interactive fiction: the same person in a different outfit, era, setting or alternate universe, as the author describes.`,
       "Rewrite only the fields that must change for this variant, in full, in the same style and format as the original. Keep the same person at the core: name, voice, personality and the history that still applies, unless the variant itself changes them. An outfit usually changes only appearance details; an alternate universe changes setting, history, scenario and greeting.",
       `Fields you may rewrite: ${fields.map((f) => `"${f}" (${FIELD_LABEL[f]})`).join(", ")}. Leave out every field that doesn't need to change.`,
-      type === "character" ? "Greetings must never write {{user}}'s actions, words, thoughts or feelings." : "",
+      type === "character" ? "Always write a new greeting (\"first_mes\") that opens a scene in this variant: what they wear, where and when they are, so the first message already shows it. Greetings must never write {{user}}'s actions, words, thoughts or feelings." : "",
       `Craft rules:\n- ${CRAFT}`,
       'Reply with JSON only: {"name": "short variant name", "note": "one sentence on what changes", "fields": {"field": "full new text"}}',
     ]

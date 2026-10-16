@@ -1,3 +1,4 @@
+import { retoldNote } from "./versionchat";
 import { parseJson } from "../db/db";
 import { layered } from "./layers";
 import { getSetting, type GuidanceChip } from "../lib/settings";
@@ -57,6 +58,9 @@ export function chatExtras(chatId: string, kind: string, state: WorldState | nul
   ].filter(Boolean);
   if (settings.length) out.push({ id: "story", name: "Story settings", content: `[Story settings]\n${settings.join("\n")}`, prefix: true });
   if (layers.truths.length) out.push({ id: "truths", name: "Story truths", content: `[Story truths: these hold over the card, the lore and anything earlier in the chat]\n${layers.truths.map((t) => `- ${t}`).join("\n")}`, prefix: true });
+
+  const retold = retoldNote(s);
+  if (retold) out.push({ id: "retold", name: "Retold story", content: retold, prefix: true });
 
   const story_ = kind === "story" || kind === "continue";
   if (s.ooc?.length) out.push({ id: "ooc", name: "OOC notes", content: `[Notes from the user, out of character]\n${s.ooc.map((o) => `- ${o.text}`).join("\n")}`, depth: 1 });

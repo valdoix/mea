@@ -11,7 +11,7 @@ import { createConnection, createProfile, syncModels } from "../src/services/con
 import { registerJob } from "../src/services/jobs";
 import { linkInfo } from "../src/services/linked";
 import { createPersona, getPersona } from "../src/services/personas";
-import { freshDb } from "./helpers";
+import { freshDb, ownGreeting } from "./helpers";
 
 let app: ReturnType<typeof createApp>;
 const local = { requestIP: () => ({ address: "127.0.0.1", family: "IPv4", port: 5000 }) };
@@ -184,7 +184,7 @@ describe("the variant studio (docs/14, part 2)", () => {
     const cur = getCreatorDraft(d.id)!;
     patchCreator(d.id, { variant: { label: "Campus AU", anchors: [{ id: cur.variant!.anchors[1]!.id, kept: false }] }, answers: { [cur.questions[0]!.id]: "Ten years ago" } });
     await writeVariantBible(d.id);
-    const saved = saveCreator(d.id);
+    const saved = saveCreator(ownGreeting(d.id));
     expect(saved.id).not.toBe(origin);
     expect(getCard(origin)!.description).toContain("lighthouse");
     expect(linkInfo("character", saved.id)).toMatchObject({ origin: { id: origin }, kind: "au", label: "Campus AU", anchors: ["Dry humour that covers fear"] });

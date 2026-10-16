@@ -11,7 +11,7 @@ import { createConnection, createProfile, syncModels } from "../src/services/con
 import { registerJob } from "../src/services/jobs";
 import { copyAsVersion } from "../src/services/linked";
 import { createPersona } from "../src/services/personas";
-import { freshDb } from "./helpers";
+import { freshDb, ownGreeting } from "./helpers";
 
 let app: ReturnType<typeof createApp>;
 const local = { requestIP: () => ({ address: "127.0.0.1", family: "IPv4", port: 5000 }) };
@@ -56,7 +56,7 @@ function mirasVersion() {
       ],
     },
   });
-  const version = saveCreator(d.id).id;
+  const version = saveCreator(ownGreeting(d.id)).id;
   return { origin, book, version, creatorId: d.id };
 }
 

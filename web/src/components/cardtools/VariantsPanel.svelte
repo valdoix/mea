@@ -4,7 +4,7 @@
   import { confirm } from "../../lib/dialogs.svelte";
   import { wordDiff } from "../../lib/diff";
   import { autosize } from "../../lib/gestures";
-  import { Loader, MessageHeart, Plus, RotateCcw, Shirt, Sparkles, Trash } from "../../lib/icons";
+  import { GitBranch, Loader, MessageHeart, Plus, RotateCcw, Shirt, Sparkles, Trash } from "../../lib/icons";
   import { navigate } from "../../lib/router.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
 
@@ -13,7 +13,7 @@
    * fields you choose; everything else follows the base, so edits to the base reach every variant.
    */
   type Overlay = Record<string, string | string[]>;
-  type Variant = { id: string; name: string; note: string; overlay: Overlay; avatarId: string | null };
+  type Variant = { id: string; name: string; note: string; overlay: Overlay; avatarId: string | null; everyVersion?: boolean };
   let {
     ownerType,
     ownerId,
@@ -89,7 +89,7 @@
     if (!selected) return;
     saving = true;
     try {
-      await put(`/api/variants/${selected.id}`, { name: selected.name, note: selected.note, overlay: $state.snapshot(selected.overlay), avatarId: selected.avatarId });
+      await put(`/api/variants/${selected.id}`, { name: selected.name, note: selected.note, overlay: $state.snapshot(selected.overlay), avatarId: selected.avatarId, everyVersion: Boolean(selected.everyVersion) });
       await load();
       toast("Variant saved", { kind: "ok" });
     } catch (e) {
@@ -110,6 +110,17 @@
     try {
       const c = await post<{ id: string }>("/api/chats", { characterId: ownerId, variantId: v.id });
       navigate(`/chat/${c.id}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  /** docs/14, part 6: a Look that's grown into its own world becomes a version, its edits the premise. */
+  async function makeVersion(v: Variant) {
+    const edits = Object.entries(v.overlay).map(([k, x]) => `${fields.find(([f]) => f === k)?.[1] ?? k}: ${(Array.isArray(x) ? x.join(" / ") : x).slice(0, 600)}`);
+    try {
+      const r = await post<{ draft: { id: string } }>("/api/creator", { kind: ownerType, baseId: ownerId, asVersion: { kind: "au", label: v.name }, idea: [`${v.name}${v.note ? `: ${v.note}` : ""}`, ...edits].join("\n\n") });
+      navigate(`/creator/${r.draft.id}`);
     } catch (e) {
       errorToast(e);
     }
@@ -187,7 +198,11 @@
             </select>
           </div>
         {/if}
-        <div class="row"><button class="btn primary" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save variant"}</button></div>
+        <label class="switch small" title="Each version of this {ownerType === 'persona' ? 'persona' : 'character'} (an AU, another era) can play it too"><input type="checkbox" bind:checked={selected.everyVersion} /> Works on every version</label>
+        <div class="row wrap">
+          <button class="btn primary" onclick={save} disabled={saving}>{saving ? "Saving…" : "Save variant"}</button>
+          <button class="btn ghost" onclick={() => makeVersion(selected!)} title="A card of its own in the variant studio, linked back to this one, with this Look's changes as its premise"><GitBranch size={14} /> Make it a version</button>
+        </div>
       </div>
     {/if}
   {:else}

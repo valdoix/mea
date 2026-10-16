@@ -13,7 +13,7 @@ import { registerJob } from "../src/services/jobs";
 import { copyAsVersion, detachVersion, linkInfo } from "../src/services/linked";
 import { createPersona } from "../src/services/personas";
 import { createUniverse, deleteUniverse, getUniverse, joinUniverse, leaveUniverse, listUniverses, membersOf, universeDetail, updateUniverse } from "../src/services/universes";
-import { freshDb } from "./helpers";
+import { freshDb, ownGreeting } from "./helpers";
 
 let app: ReturnType<typeof createApp>;
 const local = { requestIP: () => ({ address: "127.0.0.1", family: "IPv4", port: 5000 }) };
@@ -47,7 +47,7 @@ function harbour() {
 function studioVersion(origin: string, opts: { label?: string; universeId?: string | null; premise?: string; rows?: Parameters<typeof patchCreator>[1]["variant"] } = {}) {
   const d = createCreatorDraft({ kind: "character", baseId: origin, asVersion: { kind: "au", label: opts.label ?? "College AU", universeId: opts.universeId ?? null }, idea: opts.premise ?? "" });
   if (opts.rows) patchCreator(d.id, { variant: opts.rows });
-  return { draftId: d.id, id: saveCreator(d.id).id };
+  return { draftId: d.id, id: saveCreator(ownGreeting(d.id)).id };
 }
 
 describe("universes (docs/14, part 4)", () => {
@@ -84,7 +84,7 @@ describe("universes (docs/14, part 4)", () => {
     // Jon decides a row the universe left open, and adds his own.
     const docks = d.variant!.map.find((r) => r.from === "The Docks")!;
     patchCreator(d.id, { variant: { map: [{ id: docks.id, state: "changed", to: "The quad" }, { from: "Jon's forge", type: "place", state: "changed", to: "The engineering lab" }] } });
-    const second = saveCreator(d.id).id;
+    const second = saveCreator(ownGreeting(d.id)).id;
     const u = universeDetail(universeId);
     expect(u.members.map((m) => m.name).sort()).toEqual(["Jon", "Mira"]);
     expect(u.map.find((r) => r.from === "The Docks")).toMatchObject({ state: "changed", to: "The quad" });

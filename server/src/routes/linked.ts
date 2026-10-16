@@ -5,6 +5,7 @@ import { loreComparison } from "../lore/versionlore";
 import { compareWithOriginal, copyAsVersion, detachVersion, type LinkKind, linkInfo, linkVersion, updateLink, versionKind } from "../services/linked";
 import "../services/versioninbox";
 import { setAutoSync, skipChanges, syncInfo, takeChanges, translateChange } from "../services/versionsync";
+import { retell, retellOptions } from "../services/versionchat";
 
 /**
  * Linked versions (docs/14, part 1). `/family` because `/characters/:id/versions` is a card's History.
@@ -69,3 +70,10 @@ for (const path of ["characters", "personas"] as const) {
   });
   linked.post(`/${path}/:id/origin-changes/translate`, async (c) => c.json(await translateChange(kind, c.req.param("id"), (await body(c, z.object({ key: z.string().min(1).max(200) }))).key)));
 }
+
+// Part 6: retell a chat in another version (its arcs, translated through that version's map).
+linked.get("/chats/:id/retell", (c) => c.json(retellOptions(c.req.param("id"))));
+linked.post("/chats/:id/retell", async (c) => {
+  const input = await body(c, z.object({ versionId: z.string().min(1), arcId: z.string().nullable().optional(), steer: z.string().max(500).optional() }));
+  return c.json(await retell(c.req.param("id"), input), 201);
+});

@@ -54,6 +54,8 @@ export interface VersionLabel {
   originName: string;
   kind: VersionKind | null;
   label: string;
+  /** Part 6: the universe it lives in, if any. */
+  universeId?: string | null;
 }
 
 export interface VersionSummary {
@@ -274,13 +276,13 @@ export interface Message {
 
 export interface ChatDetail {
   chat: Chat;
-  character?: { id: string; name: string; avatarId: string | null; palette: string[]; mode: ChatMode | null; tags: string[] };
+  character?: { id: string; name: string; avatarId: string | null; palette: string[]; mode: ChatMode | null; tags: string[]; universeId?: string | null };
   persona?: { id: string; name: string; avatarId: string | null };
   lorebooks: { id: string; name: string }[];
   active: { generationId: string; chatId: string; messageId: string; swipeIdx: number; text: string; reasoning: string }[];
   /** CHAR-06 / PER-05 */
-  variants?: { id: string; name: string; note: string }[];
-  personaVariants?: { id: string; name: string; note: string }[];
+  variants?: { id: string; name: string; note: string; fromOriginal?: boolean }[];
+  personaVariants?: { id: string; name: string; note: string; fromOriginal?: boolean }[];
   /** PROMPT-06: what applies when the chat leaves a choice empty. */
   defaults?: { from: { preset: "chat" | "character" | "global"; profile: "chat" | "character" | "global"; authorsNote: "chat" | "character" | null }; presetId: string | null; profileId: string | null; characterControls: ControlValues; characterStyle?: StyleProfile | null };
   /** SUM-20: messages up to this seq reach the model through memory, not word for word. */
@@ -1128,6 +1130,8 @@ export interface ContinuityIssue {
   canon?: { memory: string; wrong?: string; trackerLine?: string };
   by: "rules" | "model";
   dismissed?: boolean;
+  /** docs/14, part 6: a one-tap fix, the version's name for the original's. */
+  replace?: { from: string; to: string };
 }
 export interface ContinuityFlag {
   id: string;

@@ -10,7 +10,8 @@ import { chatNames } from "../memory/build";
 import { correctMemory } from "../memory/remember";
 import { excerpt } from "../memory/deep";
 import { cleanText, contentWords, ftsQuery } from "../memory/text";
-import { getMessageRow, mustChat } from "../services/chats";
+import { editMessage, getMessageRow, mustChat, updateSwipe } from "../services/chats";
+import { replaceTerm, universeCheckOn } from "../services/versionchat";
 import type { JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
@@ -53,6 +54,8 @@ export interface Issue {
   canon?: { memory?: string; wrong?: string; trackerLine?: string };
   by: "rules" | "model";
   dismissed?: boolean;
+  /** docs/14, part 6: a one-tap fix that swaps a word in the reply (a name from the original's world). */
+  replace?: { from: string; to: string };
 }
 
 export interface FlagRow {
@@ -449,7 +452,27 @@ export function fixNotes(flagId: string) {
 export function checksOn(chatId: string) {
   if (memoryConfig().continuity) return true;
   const g = guardsFor(chatId);
-  return g.pov || g.tense || g.puppet || g.names !== "off" || g.timeline;
+  return g.pov || g.tense || g.puppet || g.names !== "off" || g.timeline || (slipAllowed("universe", g) && universeCheckOn(chatId));
+}
+
+/** docs/14, part 6: the one-tap fix, the version's name in place of the original's, in the reply as shown. */
+export function replaceIssue(flagId: string, issueId: string) {
+  const r = mustFlag(flagId);
+  const issues = parseJson<Issue[]>(r.issues, []);
+  const issue = issues.find((i) => i.id === issueId);
+  if (!issue?.replace) throw notFound("Nothing to swap for that note");
+  const sw = one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", r.message_id, r.swipe_idx);
+  if (!sw) throw notFound("That reply is gone");
+  const next = replaceTerm(sw.content, issue.replace.from, issue.replace.to);
+  // The swipe on screen is edited as you would (its history kept, the chat told); another one quietly.
+  if (next !== sw.content) {
+    if (getMessageRow(r.message_id)?.active_swipe === r.swipe_idx) editMessage(r.message_id, next);
+    else updateSwipe(r.message_id, r.swipe_idx, { content: next });
+  }
+  return save(
+    r,
+    issues.map((i) => (i.id === issueId || (i.kind === issue.kind && i.replace?.from === issue.replace!.from) ? { ...i, dismissed: true } : i)),
+  );
 }
 
 /** After each reply (job "accuracy.check"). */

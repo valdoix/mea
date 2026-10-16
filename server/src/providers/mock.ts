@@ -396,6 +396,10 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const mine = /THE VERSION, NOW:\s*([\s\S]*)$/.exec(user)?.[1] ?? "";
       return { text: `${mine.trim()} (Translated: ${now.trim().split(/\r?\n/).pop()})` };
     }
+    case "version_retell": {
+      const story = /THE STORY TO RETELL[^:]*:\s*([\s\S]*)$/.exec(user)?.[1]?.trim() ?? "";
+      return { recap: `Retold here: ${story}`, title: "Retold", greeting: `{{char}} looks up as {{user}} comes in. "So. Where were we?"` };
+    }
     // ---------- the variant studio (docs/14) ----------
     case "variant_directions":
       return { options: [1, 2, 3].map((k) => `Take ${k}: the harbour becomes a campus radio station${/Move the whole set toward: (.+)/.exec(system)?.[1] ? `, ${/Move the whole set toward: (.+)/.exec(system)![1]}` : ""}.`) };

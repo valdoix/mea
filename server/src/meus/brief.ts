@@ -4,6 +4,7 @@ import { canonOf } from "../accuracy/canoncut";
 import { all, parseJson } from "../db/db";
 import { inboxCount } from "../accuracy/inbox";
 import { originChanges } from "../services/versionsync";
+import { chatMap, retellOptions } from "../services/versionchat";
 import { getSetting } from "../lib/settings";
 import { scanEntriesFor } from "../lore/service";
 import { listJournals } from "../memory/journals";
@@ -146,6 +147,18 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
   toc.push(`memory ledgers: ${promises(chatId).length} promises, ${secrets(chatId).length} secrets`);
   const inbox = inboxCount(chatId);
   if (inbox) toc.push(`continuity inbox ${inbox} waiting`);
+  // docs/14, part 6: the world this chat is set in (fix a leaked name with the message kind), and where it could be retold.
+  const vmap = chatMap(chatId);
+  if (vmap) {
+    const moved = vmap.rows.filter((r) => r.from.trim() && (r.state === "changed" || r.state === "dropped"));
+    if (moved.length) toc.push(`set in ${vmap.label}: ${moved.slice(0, 30).map((r) => (r.state === "dropped" ? `no ${r.from}` : `${r.from} → ${r.to}`)).join("; ")} (a reply using an original name is a leak)`);
+  }
+  try {
+    const ro = retellOptions(chatId);
+    if (ro.versions.length && ro.arcs.length) toc.push(`could be retold (kind retell) in: ${ro.versions.map((v) => (v.label ? `${v.name} (${v.label})` : v.name)).join(", ")}; arcs: ${ro.arcs.slice(0, 12).map((a) => `[${a.id}] ${a.title}`).join("; ")}`);
+  } catch {
+    // no character
+  }
   // docs/14, part 5: this chat's card or persona is a version and its original changed.
   for (const [who, id] of [["character", chat.character_id], ["persona", chat.persona_id]] as const) {
     const changes = id ? originChanges(who, id) : [];

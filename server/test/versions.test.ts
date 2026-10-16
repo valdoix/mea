@@ -10,7 +10,7 @@ import { createChat } from "../src/services/chats";
 import { compareWithOriginal, copyAsVersion, detachVersion, linkInfo, linkVersion, listLinkedVersions } from "../src/services/linked";
 import { createPersona, getPersona, updatePersona } from "../src/services/personas";
 import { createVariant, listVariants } from "../src/services/variants";
-import { freshDb } from "./helpers";
+import { freshDb, ownGreeting } from "./helpers";
 
 let app: ReturnType<typeof createApp>;
 const local = { requestIP: () => ({ address: "127.0.0.1", family: "IPv4", port: 5000 }) };
@@ -118,11 +118,11 @@ describe("linked versions (docs/14, part 1)", () => {
     const origin = mira();
     const d = createCreatorDraft({ kind: "character", baseId: origin, asVersion: { kind: "whatif", label: "Never left the city" } });
     expect(d.origin?.versionOf?.id).toBe(origin);
-    const id = saveCreator(d.id).id;
+    const id = saveCreator(ownGreeting(d.id)).id;
     expect(id).not.toBe(origin);
     expect(linkInfo("character", id)).toMatchObject({ origin: { id: origin }, kind: "whatif", label: "Never left the city" });
     // Saving again updates the same version.
-    saveCreator(d.id);
+    saveCreator(ownGreeting(d.id));
     expect(listLinkedVersions("character", origin).map((v) => v.id)).toEqual([id]);
   });
 

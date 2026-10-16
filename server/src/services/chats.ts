@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { applyCardVariant, getVariant } from "./variants";
+import { applyCardVariant, getVariant, lookFits } from "./variants";
+import { personaForVersion } from "./versionchat";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -91,6 +92,8 @@ export const chatSettingsSchema = z.object({
   meus: z.object({ autoApply: z.boolean() }).partial().optional(),
   /** Story truths: your rules for this story, sent every turn. */
   truths: z.array(short(300)).max(30).optional(),
+  /** docs/14, part 6: retold from another chat in this version's world (the recap the story keeps to). */
+  retold: z.object({ fromChatId: z.string(), arcId: z.string(), recap: z.string().max(8000) }).nullable().optional(),
   /** PROMPT-07: this chat's preset control values (over the character's and the preset's). */
   controls: z.record(z.string(), z.union([z.boolean(), z.string()])).optional(),
   /** CHAR-06 / PER-05: the character variant and persona variant this chat plays. */
@@ -301,7 +304,8 @@ export function createChat(input: { characterId: string; personaId?: string | nu
   const base = getCard(input.characterId);
   const card = base && applyCardVariant(base, variant, input.characterId);
   if (!row || !card || row.deleted_at) throw notFound("Character not found");
-  const persona = getPersona(input.personaId) ?? getPersona(row.default_persona_id) ?? getDefaultPersona();
+  // docs/14, part 6: a version in a universe brings your persona's version from the same universe.
+  const persona = getPersona(input.personaId) ?? getPersona(personaForVersion(input.characterId, null)) ?? getPersona(row.default_persona_id) ?? getDefaultPersona();
   const mode = input.mode ?? row.mode ?? detectMode(card).mode;
   const id = newId();
   const t = now();
@@ -315,9 +319,9 @@ export function createChat(input: { characterId: string; personaId?: string | nu
       id,
       input.characterId,
       persona?.id ?? null,
-      input.title ?? `${card.name}${variant && variant.ownerId === input.characterId ? ` (${variant.name})` : ""} · ${new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      input.title ?? `${card.name}${variant && lookFits(variant, "character", input.characterId) ? ` (${variant.name})` : ""} · ${new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
       mode,
-      JSON.stringify(variant && variant.ownerId === input.characterId ? { variantId: variant.id } : {}),
+      JSON.stringify(variant && lookFits(variant, "character", input.characterId) ? { variantId: variant.id } : {}),
       t,
       t,
       t,
