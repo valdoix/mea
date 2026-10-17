@@ -10,7 +10,8 @@ const dist = resolve(process.env.MEA_WEB_DIST ?? resolve(import.meta.dir, "../we
 const html = readFileSync(join(dist, "index.html"), "utf8");
 const refs = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g)].map((m) => m[1]!);
 
-const BUDGET_JS = 250 * 1024;
+// Raised from 250 KB for living lore (docs/15): the facts on replies, the selection bar and the Inspector.
+const BUDGET_JS = 260 * 1024;
 // Raised from 60 KB for the visual toolkit (styles/vtk.css), which has to be there on first paint,
 // then from 72 KB for the plan drawer above every reply.
 const BUDGET_CSS = 76 * 1024;
