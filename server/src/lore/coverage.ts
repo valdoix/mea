@@ -74,7 +74,8 @@ export function coverageFindings(chatId: string): Finding[] {
     if (ent.mentions >= 10 && words(e.content) < 40 && factCount < 3)
       push({ key: `thin:${chatId}:${e.id}`, kind: "thin", entries: [ref(e)], message: `${ent.name} comes up a lot (${ent.mentions} mentions), but "${ref(e).title}" says little.`, fix: "draft-facts" });
     // Active lately, but the entry hasn't fired: its keys may miss how the story names them.
-    const active = ent.last_seq != null && latest - ent.last_seq <= QUIET_AFTER;
+    // Only someone the story has had for a while: in a young chat nothing has had the chance to fire.
+    const active = ent.last_seq != null && latest - ent.last_seq <= QUIET_AFTER && ent.first_seq != null && latest - ent.first_seq > QUIET_AFTER;
     const quiet = (ago.get(e.id) ?? Number.MAX_SAFE_INTEGER) > QUIET_AFTER;
     if (active && quiet && !e.constant) {
       const missing = res!.namesOf(ent).filter((n) => !namesOf(e).some((k) => norm(k) === norm(n)));
