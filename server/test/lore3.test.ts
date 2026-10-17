@@ -78,6 +78,19 @@ describe("activation, Phase 3", () => {
     expect(r.activated.find((a) => a.entry.id === word.id)?.content).toBe("w");
     expect(r.trace.every((t) => t.status !== "active" || typeof t.priority === "number")).toBe(true);
   });
+
+  test("a high-order entry pulled in by recursion can't push out the focus, or a constant", () => {
+    const overview = entry({ constant: true, content: "O".repeat(200), order: 10 });
+    const james = entry({ keys: ["James"], comment: "James", content: "James mentions Wiskayok. " + "J".repeat(300), order: 100, extra: { type: "character" } });
+    const town = entry({ keys: ["Wiskayok"], comment: "Wiskayok", content: "T".repeat(400), order: 170, extra: { essentials: "A small town." } });
+    const r = run([overview, james, town], ["James walks in."], { tiers: { focus: ["James"], focusText: "" }, defaults: { ...defaults, tokenBudget: 600 } });
+    const ids = r.activated.map((a) => a.entry.id);
+    expect(ids).toContain(overview.id);
+    expect(ids).toContain(james.id);
+    // The linked town comes last: trimmed to its essentials to fit.
+    expect(r.activated.find((a) => a.entry.id === town.id)?.content).toBe("A small town.");
+    expect(r.trace.find((t) => t.id === town.id)?.why).toBe("linked");
+  });
 });
 
 describe("health check (LORE-13)", () => {

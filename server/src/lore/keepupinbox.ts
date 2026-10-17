@@ -69,7 +69,7 @@ registerInboxProvider({
   },
 });
 
-// 7.1: coverage findings, each with its fix (Draft facts, Add key, Merge, Confirm); Not now hides it.
+// 7.1: coverage findings, each with its fix (Draft facts, Add key, Raise budget, Merge, Confirm); Not now hides it.
 registerInboxProvider({
   kind: "lore-health",
   source: "lore",

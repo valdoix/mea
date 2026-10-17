@@ -10,13 +10,18 @@ import { getLorebook } from "./service";
  * entries that never fire, oversized entries, and recursion loops, plus a token cost report.
  */
 
-/** Which entries fired in which chat (fed after every reply). */
-export function recordLoreHits(chatId: string, entryIds: string[]) {
-  if (!entryIds.length) return;
+/**
+ * Which entries fired in which chat (fed after every reply), and which matched but were cut because
+ * the budget was full (a row that has only been cut has count 0).
+ */
+export function recordLoreHits(chatId: string, entryIds: string[], cutIds: string[] = []) {
+  if (!entryIds.length && !cutIds.length) return;
   const t = now();
   tx(() => {
     for (const id of new Set(entryIds))
       run("INSERT INTO lore_hits (entry_id, chat_id, count, last_at) VALUES (?, ?, 1, ?) ON CONFLICT(entry_id, chat_id) DO UPDATE SET count = count + 1, last_at = excluded.last_at", id, chatId, t);
+    for (const id of new Set(cutIds))
+      run("INSERT INTO lore_hits (entry_id, chat_id, count, last_at, cut_at) VALUES (?, ?, 0, 0, ?) ON CONFLICT(entry_id, chat_id) DO UPDATE SET cut_at = excluded.cut_at", id, chatId, t);
   });
 }
 
@@ -24,7 +29,17 @@ export function recordLoreHits(chatId: string, entryIds: string[]) {
 export function loreFiredAgo(chatId: string): Map<string, number> {
   return new Map(
     all<{ entry_id: string; ago: number }>(
-      "SELECT h.entry_id, (SELECT COUNT(*) FROM messages m WHERE m.chat_id = h.chat_id AND m.deleted_at IS NULL AND m.created_at > h.last_at) AS ago FROM lore_hits h WHERE h.chat_id = ?",
+      "SELECT h.entry_id, (SELECT COUNT(*) FROM messages m WHERE m.chat_id = h.chat_id AND m.deleted_at IS NULL AND m.created_at > h.last_at) AS ago FROM lore_hits h WHERE h.chat_id = ? AND h.count > 0",
+      chatId,
+    ).map((r) => [r.entry_id, r.ago]),
+  );
+}
+
+/** How many messages since each entry was last cut by the budget in this chat, for those cut since they last fired. */
+export function loreCutAgo(chatId: string): Map<string, number> {
+  return new Map(
+    all<{ entry_id: string; ago: number }>(
+      "SELECT h.entry_id, (SELECT COUNT(*) FROM messages m WHERE m.chat_id = h.chat_id AND m.deleted_at IS NULL AND m.created_at > h.cut_at) AS ago FROM lore_hits h WHERE h.chat_id = ? AND h.cut_at > h.last_at",
       chatId,
     ).map((r) => [r.entry_id, r.ago]),
   );

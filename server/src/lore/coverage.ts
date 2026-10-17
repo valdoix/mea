@@ -1,6 +1,7 @@
 import { all, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
+import { getSetting, setSetting } from "../lib/settings";
 import { resolver } from "../memory/entities";
 import { getChatRow } from "../services/chats";
 import { enqueue } from "../services/jobs";
@@ -8,7 +9,7 @@ import { stashRestore } from "../services/undo";
 import { extraOf, type ScanEntry } from "./activate";
 import { decideDetails } from "./details";
 import { factsNowFor } from "./facts";
-import { loreFiredAgo } from "./health";
+import { loreCutAgo, loreFiredAgo } from "./health";
 import { scanEntriesFor, updateEntry } from "./service";
 import { normalizeValue } from "./slots";
 import type { LoreEntry } from "./types";
@@ -17,11 +18,12 @@ import type { LoreEntry } from "./types";
  * Coverage findings (docs/15, 7.1): what lore health sees once it can look at a chat. Busy people
  * and places with thin entries, entries whose entity is active but that haven't fired in a while,
  * facts that disagree across books, the same alias in two books, and invented facts still waiting
- * for a yes. Each comes with a fix: Draft facts, Add key, Merge, Confirm.
+ * for a yes; and entries that match but the budget keeps out. Each comes with a fix: Draft facts, Add
+ * key, Raise budget, Merge, Confirm.
  */
 
-export type FindingKind = "thin" | "quiet" | "fact-conflict" | "alias-twice" | "invented";
-export type FixAction = "draft-facts" | "add-key" | "merge" | "confirm";
+export type FindingKind = "thin" | "quiet" | "budget" | "fact-conflict" | "alias-twice" | "invented";
+export type FixAction = "draft-facts" | "add-key" | "raise-budget" | "merge" | "confirm";
 
 export interface Finding {
   key: string;
@@ -38,7 +40,21 @@ export interface Finding {
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 const QUIET_AFTER = 20;
-const FIX_LABEL: Record<FixAction, string> = { "draft-facts": "Draft facts", "add-key": "Add key", merge: "Merge", confirm: "Confirm" };
+const BUDGET_STEP = 1024;
+const FIX_LABEL: Record<FixAction, string> = { "draft-facts": "Draft facts", "add-key": "Add key", "raise-budget": "Raise budget", merge: "Merge", confirm: "Confirm" };
+
+/**
+ * The Codex sometimes keeps a note in a name ("Shauna (missing)"): that's not something the story
+ * says, so it's no key. A short capitalised one is another name ("Kristen (Crystal)"), and counts.
+ */
+export function spokenNames(name: string): string[] {
+  const out = [name.replace(/\s*\([^)]*\)/g, " ").replace(/\s+/g, " ").trim()];
+  for (const m of name.matchAll(/\(([^)]*)\)/g)) {
+    const inner = m[1]!.trim();
+    if (/^\p{Lu}/u.test(inner) && !inner.includes(",") && words(inner) <= 3) out.push(inner);
+  }
+  return out.filter((n) => n.length >= 2);
+}
 
 const namesOf = (e: ScanEntry) => [...new Set([e.comment, ...e.keys.filter((k) => !/^\/.*\/[a-z]*$/.test(k.trim())), ...(extraOf(e).aliases ?? []), extraOf(e).entity ?? ""].map((n) => n.trim()).filter((n) => n.length >= 2))];
 
@@ -55,6 +71,8 @@ export function coverageFindings(chatId: string): Finding[] {
   let latest = 0;
   latest = one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.s ?? 0;
   const ago = loreFiredAgo(chatId);
+  const cutAgo = loreCutAgo(chatId);
+  const cut: ScanEntry[] = [];
   let res: ReturnType<typeof resolver> | null = null;
   try {
     res = resolver(chatId);
@@ -78,9 +96,24 @@ export function coverageFindings(chatId: string): Finding[] {
     const active = ent.last_seq != null && latest - ent.last_seq <= QUIET_AFTER && ent.first_seq != null && latest - ent.first_seq > QUIET_AFTER;
     const quiet = (ago.get(e.id) ?? Number.MAX_SAFE_INTEGER) > QUIET_AFTER;
     if (active && quiet && !e.constant) {
-      const missing = res!.namesOf(ent).filter((n) => !namesOf(e).some((k) => norm(k) === norm(n)));
-      push({ key: `quiet:${chatId}:${e.id}`, kind: "quiet", entries: [ref(e)], message: `${ent.name} is in the story lately, but "${ref(e).title}" hasn't fired in ${QUIET_AFTER}+ messages.${missing.length ? ` The story also calls them ${missing.slice(0, 3).join(", ")}.` : ""}`, fix: "add-key", names: missing.length ? missing.slice(0, 5) : [ent.name] });
+      // Its keys matched, but the budget was full: more keys won't help.
+      if ((cutAgo.get(e.id) ?? Number.MAX_SAFE_INTEGER) <= QUIET_AFTER) {
+        cut.push(e);
+        continue;
+      }
+      const have = new Set(namesOf(e).map(norm));
+      const missing = [...new Map(res!.namesOf(ent).flatMap(spokenNames).map((n) => [norm(n), n])).entries()].filter(([k]) => k && !have.has(k)).map(([, n]) => n);
+      // Every name the story uses is a key already: nothing to add, so no card.
+      if (missing.length)
+        push({ key: `quiet:${chatId}:${e.id}`, kind: "quiet", entries: [ref(e)], message: `${ent.name} is in the story lately, but "${ref(e).title}" hasn't fired in ${QUIET_AFTER}+ messages. The story calls them ${missing.slice(0, 3).join(", ")}, which isn't a key.`, fix: "add-key", names: missing.slice(0, 5) });
     }
+  }
+  // One card for everyone the budget keeps out, with the budget in its key: raised, it can come back.
+  if (cut.length) {
+    const budget = getSetting("lore.defaults").tokenBudget;
+    const names = cut.map((e) => ref(e).title);
+    const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more` : names.join(names.length === 2 ? " and " : ", ");
+    push({ key: `budget:${chatId}:${budget}`, kind: "budget", entries: cut.map(ref), message: `${list} ${cut.length === 1 ? "is" : "are"} in the story lately and ${cut.length === 1 ? "its keys match" : "their keys match"}, but the lore budget (${budget} tokens) is full before ${cut.length === 1 ? "it gets" : "they get"} in. Raising it to ${budget + BUDGET_STEP} makes room.`, fix: "raise-budget" });
   }
   // Across books: the same alias, and facts that disagree.
   const seen = new Map<string, ScanEntry>();
@@ -122,6 +155,14 @@ export function fixFinding(chatId: string, key: string): { undo: string | null; 
     const keys = [...new Set([...before.keys, ...(f.names ?? [])])];
     updateEntry(first.id, { ...before, keys });
     return { undo: stashRestore("Keys", () => updateEntry(first.id, before)), message: `Added ${f.names?.join(", ")} as keys` };
+  }
+  if (f.fix === "raise-budget") {
+    const before = getSetting("lore.defaults");
+    const tokenBudget = before.tokenBudget + BUDGET_STEP;
+    setSetting("lore.defaults", { ...before, tokenBudget });
+    // The cuts were at the old budget; the next replies say whether they still are.
+    run(`UPDATE lore_hits SET cut_at = NULL WHERE chat_id = ? AND entry_id IN (${f.entries.map(() => "?").join(",")})`, chatId, ...f.entries.map((e) => e.id));
+    return { undo: stashRestore("Lore budget", () => setSetting("lore.defaults", before)), message: `The lore budget is ${tokenBudget} tokens now` };
   }
   if (f.fix === "confirm") return { undo: decideDetails(first.id, "accept"), message: "Kept: they're sent as fact now" };
   if (f.fix === "merge") {
