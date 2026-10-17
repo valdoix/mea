@@ -15,7 +15,7 @@ import { extraOf, type ScanEntry } from "./activate";
 import { createFact, factLine, factsNow, factsNowFor, type FactKind, type LoreFact, retireFact, supersedeFact } from "./facts";
 import { describeMinutes } from "../trackers/clock";
 import { milestoneAtoms } from "./bond";
-import { getLorebook, scanEntriesFor, updateEntry } from "./service";
+import { getLorebook, linkedBooks, scanEntriesFor, updateEntry } from "./service";
 import type { LoreEntry } from "./types";
 
 /**
@@ -136,12 +136,13 @@ function itemWants(it: Item, st: WorldState): Want[] {
 }
 
 /** The trackers' people and things, each with the entry it belongs to (by name, alias or link). */
-function trackedFor(entries: ScanEntry[], st: WorldState) {
+function trackedFor(entries: ScanEntry[], st: WorldState, personaBooks: Set<string> = new Set()) {
   const out: { entry: ScanEntry; wants: Want[] }[] = [];
   for (const e of entries) {
     const names = namesOfEntry(e);
     if (!names.size) continue;
-    const c = Object.values(st.chars).find((x) => !x.isUser && [x.name, ...x.aliases].some((n) => names.has(normName(n))));
+    // 8.2: your persona's own lorebook keeps up with your character too.
+    const c = Object.values(st.chars).find((x) => (!x.isUser || personaBooks.has(e.bookId)) && [x.name, ...x.aliases].some((n) => names.has(normName(n))));
     if (c) {
       out.push({ entry: e, wants: charWants(c, st) });
       continue;
@@ -441,7 +442,8 @@ export async function runKeepup(chatId: string, job?: JobContext, opts: { memori
   }
   const onPath = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC", chatId);
   const latest = onPath[0]?.seq ?? 0;
-  const tracked = new Map(st ? trackedFor(entries, st).map((t) => [t.entry.id, t.wants]) : []);
+  const personaBooks = new Set(chat.persona_id ? linkedBooks("persona", chat.persona_id).map((b) => b.id) : []);
+  const tracked = new Map(st ? trackedFor(entries, st, personaBooks).map((t) => [t.entry.id, t.wants]) : []);
   for (const e of entries) {
     const cur = cursor(e.id, chatId);
     // 4.2: the Bond entry (companion chats): important memories about the two of them become milestone cards.

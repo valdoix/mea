@@ -135,6 +135,22 @@ export function fixFinding(chatId: string, key: string): { undo: string | null; 
 }
 
 /**
+ * 8.1: where a story fact goes when it's made canon. An entry in the chat's Chronicle (which only
+ * this chat reads) hands it to the entry for the same person, place or thing in a book every chat
+ * with the character reads; any other entry keeps it.
+ */
+export function canonEntryFor(chatId: string, entryId: string): string | null {
+  const chat = getChatRow(chatId);
+  if (!chat) return null;
+  const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId });
+  const e = entries.find((x) => x.id === entryId);
+  if (!e) return entryId;
+  if (!e.book.chronicleFor) return entryId;
+  const names = new Set(namesOf(e).map(norm));
+  return entries.find((x) => !x.book.chronicleFor && x.id !== e.id && namesOf(x).some((n) => names.has(norm(n))))?.id ?? null;
+}
+
+/**
  * 7.2: two entries for one entity become one, in the book of the first (`keepId`): every fact moves
  * over with its history and source, keys and aliases join, and the other entry goes. Undo puts both
  * back as they were.

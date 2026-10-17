@@ -43,6 +43,7 @@ interface FactRow {
   until_message_id: string | null;
   until_swipe: number | null;
   expects_minutes: number | null;
+  source: string | null;
   known_by: string;
   created_at: number;
   updated_at: number;
@@ -75,6 +76,8 @@ export interface LoreFact {
   supersededBy: string | null;
   /** The fact this one replaced. */
   replaces: string | null;
+  /** 8.1: a canon fact made from a story fact: the chat, message and number it came from. */
+  source: { chatId: string; messageId: string | null; seq: number | null } | null;
   knownBy: string[];
   createdAt: number;
   updatedAt: number;
@@ -103,6 +106,7 @@ const view = (r: Joined, nowAt: boolean, seq?: number | null): LoreFact => ({
   status: r.status,
   supersededBy: r.superseded_by,
   replaces: r.replaces,
+  source: r.source ? parseJson<{ chatId: string; messageId: string | null; seq: number | null } | null>(r.source, null) : null,
   knownBy: parseJson<string[]>(r.known_by, []),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -156,7 +160,9 @@ function resolve(rows: Joined[], seq: number) {
     if (r.until_message_id) return !(r.u_seq != null && r.u_deleted == null && (r.until_swipe == null || r.until_swipe === -1 || r.until_swipe === r.u_swipe) && r.u_seq <= seq);
     return r.until_seq == null || seq < r.until_seq;
   };
-  return rows.map((r) => ({ r, now: holds(r), shown: onPath(r) }));
+  // 8.1: in a chat, its own value for a single slot (eyes, age…) wins over the canon one.
+  const own = new Set(rows.filter((r) => r.chat_id && r.slot && isSingleSlot(r.slot) && holds(r)).map((r) => r.slot!));
+  return rows.map((r) => ({ r, now: holds(r) && !(!r.chat_id && r.slot && own.has(r.slot)), shown: onPath(r) }));
 }
 
 /**
@@ -408,6 +414,58 @@ export function confirmFact(id: string) {
   run("UPDATE lore_facts SET basis = ?, updated_at = ? WHERE id = ?", m ? textBasis(text) : null, now(), id);
   changed(r.entry_id, r.chat_id);
   return getFact(id)!;
+}
+
+/**
+ * 8.1 "Make it canon": a story fact holds in every chat from now on. It moves to `toEntryId` (the
+ * companion or world book's entry for the same person, place or thing; default: where it is),
+ * keeping where it came from (its chat, message and number) as provenance. A canon fact it had
+ * replaced in that chat is replaced everywhere now (kept in History).
+ */
+export function promoteFact(id: string, toEntryId?: string) {
+  const r = mustFact(id);
+  if (!r.chat_id) throw badRequest("This fact is canon already");
+  const target = toEntryId ?? r.entry_id;
+  if (!one("SELECT 1 FROM lorebook_entries WHERE id = ?", target)) throw notFound("Entry not found");
+  const seq = r.message_id ? one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", r.message_id)?.seq : null;
+  const back = snapshot([id, ...(r.replaces ? [r.replaces] : [])]);
+  tx(() => {
+    run(
+      "UPDATE lore_facts SET chat_id = NULL, entry_id = ?, message_id = NULL, swipe_idx = -1, since_seq = NULL, until_seq = NULL, until_message_id = NULL, basis = NULL, source = ?, updated_at = ? WHERE id = ?",
+      target,
+      JSON.stringify({ chatId: r.chat_id, messageId: r.message_id, seq: seq ?? r.since_seq }),
+      now(),
+      id,
+    );
+    if (r.replaces) run("UPDATE lore_facts SET status = 'superseded', superseded_by = ?, updated_at = ? WHERE id = ? AND chat_id IS NULL", id, now(), r.replaces);
+  });
+  const undo = stashRestore("Made canon", () => {
+    back();
+    changed(r.entry_id, r.chat_id);
+    changed(target, null);
+  });
+  changed(r.entry_id, r.chat_id);
+  changed(target, null);
+  return { fact: getFact(id)!, undo };
+}
+
+/**
+ * 8.1 "Only in this chat": a chat's own version of a canon fact (the same, or `value`), which wins
+ * in this chat and leaves every other chat with the canon one.
+ */
+export function overrideFact(id: string, chatId: string, value?: string) {
+  const r = mustFact(id);
+  if (r.chat_id) throw badRequest("This fact already belongs to one chat");
+  if (!one("SELECT 1 FROM chats WHERE id = ?", chatId)) throw notFound("Chat not found");
+  const latest = one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", chatId)?.id ?? null;
+  const made = insertFact(r.entry_id, { value: value?.trim() || r.value, slot: r.slot, kind: r.kind, chatId, messageId: latest, origin: "you", knownBy: parseJson<string[]>(r.known_by, []) });
+  run("UPDATE lore_facts SET replaces = ? WHERE id = ?", id, made);
+  const undo = stashRestore("Only in this chat", () => {
+    run("DELETE FROM lore_facts WHERE id = ?", made);
+    changed(r.entry_id, chatId);
+  });
+  changed(r.entry_id, chatId);
+  return { fact: getFact(made)!, undo };
 }
 
 /** Deletes a fact (kept for Undo). */

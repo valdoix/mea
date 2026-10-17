@@ -394,17 +394,18 @@
           <div><div class="big">{pct(r.score)}</div><div class="tiny muted">overall</div></div>
           <div><div class="big">{pct(r.retrieval)}</div><div class="tiny muted">found the memory</div></div>
           <div><div class="big">{pct(r.answers)}</div><div class="tiny muted">answered right</div></div>
+          {#if r.slots != null}<div><div class="big">{pct(r.slots)}</div><div class="tiny muted">detail sheet</div></div>{/if}
         </div>
         <div class="quiz">
           {#each r.questions as qq (qq.id)}
             <div class="qrow">
               <span class="mark" class:ok={qq.correct} class:bad={qq.correct === false}>{qq.correct ? "✓" : qq.correct === false ? "✗" : "·"}</span>
-              <div class="grow"><div class="small">{qq.question}</div><div class="tiny muted">expected “{qq.answer}”{qq.given ? ` · got “${qq.given.slice(0, 120)}”` : ""} · {qq.retrieved ? `found (rank ${qq.rank ?? "pinned"})` : "not found"}</div></div>
+              <div class="grow"><div class="small">{qq.question}</div><div class="tiny muted">expected “{qq.answer}”{qq.given ? ` · got “${qq.given.slice(0, 120)}”` : ""} · {qq.slot ? `detail sheet: ${qq.slot}` : qq.retrieved ? `found (rank ${qq.rank ?? "pinned"})` : "not found"}</div></div>
             </div>
           {/each}
         </div>
         {#if runs.length > 1}
-          <div class="tiny faint">Earlier: {runs.slice(1, 6).map((x) => `${pct(x.score)} (${String(x.settings.profile ?? "")})`).join(" · ")}</div>
+          <div class="tiny faint">Earlier: {runs.slice(1, 6).map((x) => `${pct(x.score)}${x.slots != null ? ` · sheet ${pct(x.slots)}` : ""} (${String(x.settings.profile ?? "")}${x.settings.model ? `, ${String(x.settings.model)}` : ""})`).join(" · ")}</div>
         {/if}
       {/if}
     </section>

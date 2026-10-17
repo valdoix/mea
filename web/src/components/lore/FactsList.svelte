@@ -9,6 +9,7 @@
   import { onEvent } from "../../lib/events";
   import { Check, Lock, LockOpen, Plus, Trash, WandSparkles } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
+  import { promptText } from "../../lib/dialogs.svelte";
   import type { LoreFact } from "../../lib/types";
 
   /**
@@ -117,6 +118,28 @@
       errorToast(e);
     }
   }
+  /** 8.1: a story fact for every chat from now on; a canon fact's own version for this chat. */
+  async function makeCanon(f: LoreFact) {
+    try {
+      const r = await post<{ undo: string }>(`/api/lore/facts/${f.id}/canon`, {});
+      await load();
+      undoToast("Canon now: every chat with them knows it", r.undo);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function onlyHere(f: LoreFact) {
+    if (!chatId) return;
+    const value = await promptText({ title: "Only in this chat", label: `This chat's own version (the book keeps “${f.value}”)`, value: f.value, confirmLabel: "Keep for this chat" });
+    if (!value?.trim()) return;
+    try {
+      const r = await post<{ undo: string }>(`/api/lore/facts/${f.id}/local`, { chatId, value: value.trim() });
+      await load();
+      undoToast("This chat has its own version now", r.undo);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   /** 3.2: keep or clear a drafted detail. */
   async function decide(f: LoreFact, action: "accept" | "reject") {
     try {
@@ -186,6 +209,8 @@
         <button class="btn ghost icon small" onclick={() => toggleLock(f)} aria-label={f.locked ? "Unlock" : "Lock"} title={f.locked ? "Locked: the story won't change it without asking" : "Lock it"}>
           {#if f.locked}<Lock size={13} />{:else}<LockOpen size={13} />{/if}
         </button>
+        {#if f.now && chatId && f.chatId}<button class="btn ghost small" onclick={() => makeCanon(f)} title="True in every chat with them from now on">Make it canon</button>{/if}
+        {#if f.now && chatId && !f.chatId}<button class="btn ghost small" onclick={() => onlyHere(f)} title="A version just for this chat; the book stays as it is">Only in this chat</button>{/if}
         {#if f.now}
           <button class="btn ghost small" onclick={() => retire(f)} title="It stops being true now; kept in History">Retire</button>
         {:else}

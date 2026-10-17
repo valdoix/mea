@@ -1258,6 +1258,8 @@ export interface QuizQuestion {
   rank?: number | null;
   given?: string;
   correct?: boolean | null;
+  /** docs/15, 8.3: a detail-sheet question. */
+  slot?: string;
 }
 export interface QuizRun {
   id: string;
@@ -1266,6 +1268,8 @@ export interface QuizRun {
   retrieval: number | null;
   answers: number | null;
   score: number | null;
+  /** docs/15, 8.3: the detail sheet's score (null: no slot facts yet). */
+  slots?: number | null;
   createdAt: number;
 }
 export interface ChronicleProposal {

@@ -12,6 +12,9 @@ import { contentWords } from "../memory/text";
 import { type ChatSettings, mustChat } from "../services/chats";
 import { resolveProfile } from "../services/connections";
 import { callJson } from "../services/llm";
+import { factLine, factsNowFor } from "../lore/facts";
+import { scanEntriesFor } from "../lore/service";
+import { sameValue, slotDef } from "../lore/slots";
 
 /**
  * The memory quiz (MEM-46): a personal benchmark. Questions come from the facts your story
@@ -31,6 +34,9 @@ export interface QuizQuestion {
   rank?: number | null;
   given?: string;
   correct?: boolean | null;
+  /** docs/15, 8.3: a question from a lore entry's detail sheet (the slot), not from memory. */
+  slot?: string;
+  factId?: string;
 }
 
 const questionsSchema = z.object({ questions: z.array(z.object({ q: z.string(), a: z.string(), fact: z.coerce.number() })).default([]) });
@@ -108,6 +114,44 @@ export function grade(expected: string, given: string) {
   return hits / want.length >= 0.6;
 }
 
+// ---------- docs/15, 8.3: the continuity quiz (the detail sheet) ----------
+
+const SLOT_Q: Record<string, (n: string) => string> = {
+  eyes: (n) => `What colour are ${n}'s eyes?`,
+  hair: (n) => `What is ${n}'s hair like?`,
+  age: (n) => `How old is ${n}?`,
+  height: (n) => `How tall is ${n}?`,
+  birthday: (n) => `When is ${n}'s birthday?`,
+  handedness: (n) => `Is ${n} left- or right-handed?`,
+  scar: (n) => `Where is ${n}'s scar or mark?`,
+};
+
+/** Questions with exact answers from the facts on this chat's lore entries ("What colour are Wren's eyes?" → grey). */
+export function slotQuestions(chatId: string, n = 6): (QuizQuestion & { notes: string })[] {
+  const chat = mustChat(chatId);
+  const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).filter((e) => e.enabled);
+  const facts = factsNowFor(entries.map((e) => e.id), chatId);
+  const out: (QuizQuestion & { notes: string })[] = [];
+  for (const e of entries) {
+    const name = e.comment || e.keys[0] || "";
+    const fs = (facts.get(e.id) ?? []).filter((f) => f.status === "active");
+    for (const f of fs) {
+      // Only the detail sheet's single, settled slots: one exact answer each (no states, lists or bond lines).
+      const def = slotDef(f.slot);
+      if (!f.slot || !name || !def || def.list || !["attribute", "habit", "voice"].includes(def.kind) || f.kind === "state" || f.kind === "bond") continue;
+      const q = SLOT_Q[f.slot]?.(name) ?? `What is ${name}'s ${slotDef(f.slot)!.label.toLowerCase().replace("{{user}}", "you")}?`;
+      // The notes are what the prompt would carry for them: the entry and its facts.
+      const notes = [`- ${name}: ${e.content.replace(/\s+/g, " ").slice(0, 600)}`, ...fs.map((x) => `- ${name}: ${factLine(x)}`)].join("\n");
+      out.push({ id: newId().slice(0, 8), question: q, answer: f.value, atomId: "", sceneId: null, slot: f.slot, factId: f.id, notes });
+      if (out.length >= n) return out;
+    }
+  }
+  return out;
+}
+
+/** A slot's answer is right when it says the same thing ("gray" for grey, 5'7" for 170 cm). */
+export const gradeSlot = (slot: string, expected: string, given: string) => sameValue(slot, expected, given) || grade(expected, given);
+
 export async function runQuiz(chatId: string, opts: { n?: number; answers?: boolean } = {}) {
   const chat = mustChat(chatId);
   const cfg = memoryConfig();
@@ -169,6 +213,28 @@ export async function runQuiz(chatId: string, opts: { n?: number; answers?: bool
       }
     }
   }
+  // 8.3: the detail sheet, asked of the model as the prompt would give it the lore.
+  const sheet = opts.answers === false ? [] : slotQuestions(chatId, opts.n ?? 6);
+  for (const q of sheet) {
+    try {
+      const a = await callJson({
+        task: "helper",
+        kind: "quiz:answer",
+        chatId,
+        name: "quiz_answer",
+        schema: answerSchema,
+        system: 'Answer the question using only the notes. Give the short answer only (a name, number, colour, place or a few words). If the notes don\'t say, answer "unknown". Reply with JSON only: {"answer": "…"}',
+        user: `NOTES:\n${q.notes}\n\nQUESTION: ${q.question}`,
+        maxTokens: 80,
+      });
+      q.given = a.data.answer.trim();
+      q.correct = gradeSlot(q.slot!, q.answer, q.given);
+    } catch {
+      q.correct = null;
+    }
+  }
+  const sheetGraded = sheet.filter((q) => q.correct != null);
+  const slots = sheetGraded.length ? sheetGraded.filter((q) => q.correct).length / sheetGraded.length : null;
   const n = questions.length || 1;
   const retrieval = questions.filter((q) => q.retrieved).length / n;
   const graded = questions.filter((q) => q.correct != null);
@@ -176,7 +242,24 @@ export async function runQuiz(chatId: string, opts: { n?: number; answers?: bool
   const score = answers == null ? retrieval : (retrieval + answers) / 2;
   const settings = { profile: cfg.profile, format: cfg.format, diversity: cfg.diversity, budget: cfg.budget, slots: cfg.slots, entityRecall: cfg.entityRecall, reinforcement: cfg.reinforcement, embeddings: embeddingsEnabled(), recallTokens: budget, pov: pov ? names.char : "narrator" };
   const id = newId();
-  run("INSERT INTO quiz_runs (id, chat_id, settings, questions, retrieval, answers, score, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", id, chatId, JSON.stringify(settings), JSON.stringify(questions), retrieval, answers, score, now());
+  let model: string | null = null;
+  try {
+    model = resolveProfile(parseJson<ChatSettings>(chat.settings, {}).profileId).modelId;
+  } catch {
+    model = null;
+  }
+  run(
+    "INSERT INTO quiz_runs (id, chat_id, settings, questions, retrieval, answers, score, slots, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id,
+    chatId,
+    JSON.stringify({ ...settings, model }),
+    JSON.stringify([...questions, ...sheet.map(({ notes: _n, ...q }) => q)]),
+    retrieval,
+    answers,
+    score,
+    slots,
+    now(),
+  );
   return quizOut(one<QuizRow>("SELECT * FROM quiz_runs WHERE id = ?", id)!);
 }
 
@@ -188,11 +271,12 @@ interface QuizRow {
   retrieval: number | null;
   answers: number | null;
   score: number | null;
+  slots: number | null;
   created_at: number;
 }
 
 export function quizOut(r: QuizRow) {
-  return { id: r.id, settings: parseJson<Record<string, unknown>>(r.settings, {}), questions: parseJson<QuizQuestion[]>(r.questions, []), retrieval: r.retrieval, answers: r.answers, score: r.score, createdAt: r.created_at };
+  return { id: r.id, settings: parseJson<Record<string, unknown>>(r.settings, {}), questions: parseJson<QuizQuestion[]>(r.questions, []), retrieval: r.retrieval, answers: r.answers, score: r.score, slots: r.slots ?? null, createdAt: r.created_at };
 }
 
 export function quizRuns(chatId: string) {
