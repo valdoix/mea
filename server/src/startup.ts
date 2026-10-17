@@ -4,7 +4,7 @@ import { lockUntilUnlocked, vaultEnabled, vaultMigrationBackup } from "./lib/vau
 import { loadMasterKey } from "./lib/crypto";
 import { scheduledBackup } from "./services/backup";
 import { listConnections, refreshQuota, syncModels } from "./services/connections";
-import { pruneJobs, registerJob, schedule, startJobs } from "./services/jobs";
+import { enqueue, pruneJobs, registerJob, schedule, startJobs } from "./services/jobs";
 import { ensureDefaultPreset } from "./services/presets";
 import { vapidKeys } from "./services/push";
 import { purgeTrash } from "./services/trash";
@@ -25,7 +25,7 @@ import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
 import { runChronicle } from "./lore/chronicle";
-import { runKeepup } from "./lore/keepup";
+import { runKeepup, runTimeKeepup } from "./lore/keepup";
 import { runDetailsJob } from "./lore/details";
 import { runBondJob } from "./lore/bond";
 import "./lore/keepupinbox";
@@ -102,6 +102,9 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("lore.chronicle", async (p, job) => {
     await runChronicle(String(p.chatId), job);
   });
+  registerJob("lore.time", async (p) => {
+    runTimeKeepup(String(p.chatId));
+  });
   registerJob("lore.bond", async (p) => {
     runBondJob(String(p.chatId));
   });
@@ -130,6 +133,8 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(worldAfterReply);
   // Phase 5 guards: the timeline check once the clock has moved (CON-12), the voice now and then (CON-10).
   onTrackerUpdate(recordTimeline);
+  // docs/15, 5.2: once the clock has moved, states that should have worn off ask "over by now?".
+  onTrackerUpdate((chatId) => void enqueue("lore.time", { chatId }, { dedupeKey: `lore.time:${chatId}`, delayMs: 8000, priority: 0, chatId }));
   // B2: secrets' exposure clocks move for what the reply showed.
   onTrackerUpdate(exposureAfterReply);
   // E1: important people draw a hidden pressure, and it grows over scenes.

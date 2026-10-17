@@ -1309,6 +1309,15 @@ CREATE TABLE lore_keepup (
       if (!hasColumn(db, "lore_facts", "until_swipe")) db.exec("ALTER TABLE lore_facts ADD COLUMN until_swipe INTEGER");
     },
   },
+  {
+    id: 28,
+    name: "facts that wear off",
+    sql: "",
+    // docs/15, 5.2: how long a state is expected to last on the story's clock ("a sling, about six weeks").
+    up: (db) => {
+      if (!hasColumn(db, "lore_facts", "expects_minutes")) db.exec("ALTER TABLE lore_facts ADD COLUMN expects_minutes INTEGER");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

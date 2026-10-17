@@ -12,7 +12,8 @@ import { stashRestore } from "../services/undo";
 import { currentFold } from "../trackers/store";
 import type { Character, Item, WorldState } from "../trackers/types";
 import { extraOf, type ScanEntry } from "./activate";
-import { createFact, factLine, factsNow, type FactKind, type LoreFact, retireFact, supersedeFact } from "./facts";
+import { createFact, factLine, factsNow, factsNowFor, type FactKind, type LoreFact, retireFact, supersedeFact } from "./facts";
+import { describeMinutes } from "../trackers/clock";
 import { milestoneAtoms } from "./bond";
 import { getLorebook, scanEntriesFor, updateEntry } from "./service";
 import type { LoreEntry } from "./types";
@@ -54,6 +55,8 @@ export interface FactOp {
   locked?: boolean;
   /** The kind of fact it makes (default: state for the trackers', attribute for the rest). */
   kind?: FactKind;
+  /** 5.2: why it's asked ("About six weeks have passed on the story's clock."). */
+  note?: string;
 }
 
 export interface UpdateDiff {
@@ -282,6 +285,8 @@ export function keepupLevel(bookId: string): KeepupLevel {
 /** Carries out operations on an entry's facts for a chat, and says what it did (for Undo). */
 export function applyOps(entryId: string, chatId: string, ops: FactOp[], opts: { force?: boolean } = {}): Applied {
   const done: Applied = { created: [], superseded: [], retired: [] };
+  // 5.2: what the story's clock says now, so a state can wear off.
+  const sinceTime = clockNow(chatId)?.minutes ?? null;
   tx(() => {
     for (const o of ops) {
       if (o.locked && !opts.force) continue;
@@ -289,9 +294,9 @@ export function applyOps(entryId: string, chatId: string, ops: FactOp[], opts: {
       const target = o.factId ? one<{ id: string; deleted_at: number | null }>("SELECT id, deleted_at FROM lore_facts WHERE id = ?", o.factId) : undefined;
       if (o.op === "add" || ((o.op === "supersede" || o.op === "retire") && (!target || target.deleted_at))) {
         if (o.op === "retire") continue;
-        done.created.push(createFact(entryId, { value: o.value, slot: o.slot, chatId, messageId, origin: o.origin, kind: o.kind ?? (o.origin === "tracker" ? "state" : "attribute") }).fact.id);
+        done.created.push(createFact(entryId, { value: o.value, slot: o.slot, chatId, messageId, origin: o.origin, kind: o.kind ?? (o.origin === "tracker" ? "state" : "attribute"), sinceTime }).fact.id);
       } else if (o.op === "supersede") {
-        done.superseded.push({ old: o.factId!, made: supersedeFact(o.factId!, { value: o.value, slot: o.slot, chatId, messageId, origin: o.origin }, { force: opts.force }).fact.id });
+        done.superseded.push({ old: o.factId!, made: supersedeFact(o.factId!, { value: o.value, slot: o.slot, chatId, messageId, origin: o.origin, sinceTime }, { force: opts.force }).fact.id });
       } else {
         retireFact(o.factId!, { chatId, ...(messageId ? { atMessageId: messageId } : {}) });
         done.retired.push(o.factId!);
@@ -485,6 +490,43 @@ export async function runKeepup(chatId: string, job?: JobContext, opts: { memori
   return res;
 }
 
+// ---------- 5.2 things that wear off ----------
+
+/** The story's clock now (null: no clock yet). */
+export function clockNow(chatId: string) {
+  try {
+    return currentFold(chatId).result.state.time ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 5.2: states whose expected time has passed on the story's clock ("a sling, about six weeks") get a
+ * "healed?" card (asked once), instead of lasting forever. Runs after the clock moves.
+ */
+export function runTimeKeepup(chatId: string) {
+  const t = clockNow(chatId);
+  const chat = getChatRow(chatId);
+  if (!t || !chat || chat.deleted_at || !memoryConfig().loreKeepup) return [];
+  const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).filter((e) => e.enabled);
+  const facts = factsNowFor(entries.map((e) => e.id), chatId);
+  const latest = one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", chatId)?.id ?? null;
+  const made: string[] = [];
+  for (const e of entries) {
+    const due = (facts.get(e.id) ?? []).filter((f) => f.expectsMinutes && f.sinceTime != null && t.minutes >= f.sinceTime + f.expectsMinutes);
+    if (!due.length) continue;
+    const no = rejectedSigs(e.id, chatId);
+    const asked = new Set(all<ProposalRow>("SELECT * FROM chronicle_proposals WHERE entry_id = ? AND chat_id = ? AND kind = 'update' AND status = 'open'", e.id, chatId).flatMap((r) => diffOf(r).ops.map((o) => o.factId)));
+    const ops = due
+      .map((f): FactOp => ({ op: "retire", slot: f.slot, value: f.value, old: f.value, factId: f.id, messageId: latest, origin: "tracker", note: `${describeMinutes(t.minutes - f.sinceTime!)} have passed on the story's clock since “${f.value}”.`, ...(f.locked ? { locked: true } : {}) }))
+      .filter((o) => !no.has(opSig(e.id, o)) && !asked.has(o.factId));
+    if (ops.length) made.push(upsertCard(chatId, e, ops.filter((o) => !o.locked), false), ...(ops.some((o) => o.locked) ? [upsertCard(chatId, e, ops.filter((o) => o.locked), true)] : []));
+  }
+  if (made.length) publish({ type: "inbox.changed" });
+  return made;
+}
+
 // ---------- deciding a card ----------
 
 export interface UpdateProposal {
@@ -569,11 +611,14 @@ export function cardText(p: UpdateProposal) {
   const lines = p.diff.ops.map(opLine);
   const from = p.diff.ops.find((o) => o.citeText)?.citeText;
   const tracker = p.diff.ops.every((o) => o.origin === "tracker");
+  const worn = p.diff.ops.find((o) => o.note)?.note;
   return {
-    title: p.diff.contradiction ? `${p.title}: the story contradicts a locked fact` : `Lore update: ${p.title}`,
+    title: p.diff.contradiction ? `${p.title}: the story contradicts a locked fact` : worn ? `${p.title}: over by now?` : `Lore update: ${p.title}`,
     why: p.diff.contradiction
       ? "You locked this fact, so it wasn't changed. Keep yours, or update it to what the story says."
-      : tracker
+      : worn
+        ? `${worn} Applying retires it (kept in History); Not this keeps it.`
+        : tracker
         ? "The story's records changed. Applying keeps the old value in History."
         : `From the story${from ? `: “${from.slice(0, 140)}”` : ""}. Applying keeps the old value in History.`,
     // The lines already show old → new, so there's no separate before.
