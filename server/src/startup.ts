@@ -27,6 +27,7 @@ import { runMemoryImport } from "./memory/transfer";
 import { runChronicle } from "./lore/chronicle";
 import { runKeepup } from "./lore/keepup";
 import { runDetailsJob } from "./lore/details";
+import { runBondJob } from "./lore/bond";
 import "./lore/keepupinbox";
 import { embedLore } from "./lore/semantic";
 import { runEnrichJob } from "./lore/enrich";
@@ -100,6 +101,9 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("memory.journal", async (p, job) => runJournalJob(String(p.chatId), job));
   registerJob("lore.chronicle", async (p, job) => {
     await runChronicle(String(p.chatId), job);
+  });
+  registerJob("lore.bond", async (p) => {
+    runBondJob(String(p.chatId));
   });
   registerJob("lore.details", async (p, job) => {
     await runDetailsJob(p as { bookId: string; characterId: string }, job);

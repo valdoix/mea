@@ -32,6 +32,7 @@
     Columns2,
     Shuffle,
     ShieldCheck,
+    Star,
   } from "../../lib/icons";
   import { ANGLES, type Angle } from "../../lib/angles";
   import { askMeus } from "../../lib/meus.svelte";
@@ -222,6 +223,8 @@
     if (message.meta?.generationId) list.push({ label: "What the model received", icon: ScrollText, onclick: oninspect });
     if (onmemory) list.push({ label: "What memory knows", icon: Brain, onclick: onmemory });
     list.push({ label: "Fix with Meus", icon: MessagesSquare, onclick: () => askMeus(`Something's wrong in #${message.seq}: `) });
+    // docs/15, 4.2: a moment for the Bond's milestones, with the story's date.
+    list.push({ label: "Mark as a milestone", icon: Star, onclick: markMilestone, disabled: streaming });
     if (onendscene) list.push({ label: "End the scene after this", icon: Milestone, onclick: onendscene });
     if (onnewchapter) list.push({ label: "Start a new chapter here", icon: Flag, onclick: onnewchapter });
     if (onrewind && !isLast) list.push({ label: "Rewind to here", icon: Undo, onclick: onrewind, hint: "deletes what comes after" });
@@ -229,6 +232,14 @@
     return list;
   });
 
+  async function markMilestone() {
+    try {
+      const r = await post<{ fact: { value: string }; undo: string }>(`/api/messages/${message.id}/milestone`, {});
+      toast(`Milestone: ${r.fact.value}`, { kind: "ok", action: { label: "Undo", run: () => void post(`/api/undo/${r.undo}`).catch(errorToast) } });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   async function checkAgain() {
     try {
       const r = await post<{ issues: unknown[]; flags: ContinuityFlag[] }>(`/api/messages/${message.id}/check`);

@@ -12,7 +12,8 @@ import { stashRestore } from "../services/undo";
 import { currentFold } from "../trackers/store";
 import type { Character, Item, WorldState } from "../trackers/types";
 import { extraOf, type ScanEntry } from "./activate";
-import { createFact, factLine, factsNow, type LoreFact, retireFact, supersedeFact } from "./facts";
+import { createFact, factLine, factsNow, type FactKind, type LoreFact, retireFact, supersedeFact } from "./facts";
+import { milestoneAtoms } from "./bond";
 import { getLorebook, scanEntriesFor, updateEntry } from "./service";
 import type { LoreEntry } from "./types";
 
@@ -51,6 +52,8 @@ export interface FactOp {
   citeText?: string;
   /** The fact it changes is locked: only a contradiction card can change it. */
   locked?: boolean;
+  /** The kind of fact it makes (default: state for the trackers', attribute for the rest). */
+  kind?: FactKind;
 }
 
 export interface UpdateDiff {
@@ -286,7 +289,7 @@ export function applyOps(entryId: string, chatId: string, ops: FactOp[], opts: {
       const target = o.factId ? one<{ id: string; deleted_at: number | null }>("SELECT id, deleted_at FROM lore_facts WHERE id = ?", o.factId) : undefined;
       if (o.op === "add" || ((o.op === "supersede" || o.op === "retire") && (!target || target.deleted_at))) {
         if (o.op === "retire") continue;
-        done.created.push(createFact(entryId, { value: o.value, slot: o.slot, chatId, messageId, origin: o.origin, kind: o.origin === "tracker" ? "state" : "attribute" }).fact.id);
+        done.created.push(createFact(entryId, { value: o.value, slot: o.slot, chatId, messageId, origin: o.origin, kind: o.kind ?? (o.origin === "tracker" ? "state" : "attribute") }).fact.id);
       } else if (o.op === "supersede") {
         done.superseded.push({ old: o.factId!, made: supersedeFact(o.factId!, { value: o.value, slot: o.slot, chatId, messageId, origin: o.origin }, { force: opts.force }).fact.id });
       } else {
@@ -436,6 +439,17 @@ export async function runKeepup(chatId: string, job?: JobContext, opts: { memori
   const tracked = new Map(st ? trackedFor(entries, st).map((t) => [t.entry.id, t.wants]) : []);
   for (const e of entries) {
     const cur = cursor(e.id, chatId);
+    // 4.2: the Bond entry (companion chats): important memories about the two of them become milestone cards.
+    if ((e.extra as { bond?: string }).bond === chatId) {
+      const found = milestoneAtoms(chatId, cur.atoms_at);
+      setCursor(e.id, chatId, latest, found.at(-1)?.created_at ?? cur.atoms_at);
+      const no = rejectedSigs(e.id, chatId);
+      const ops: FactOp[] = found
+        .map((a): FactOp => ({ op: "add", slot: "milestone", value: a.content, kind: "event", messageId: a.msg, origin: "story", cite: a.id, citeText: a.content }))
+        .filter((o) => !no.has(opSig(e.id, o)) && !factsNow(e.id, chatId).some((f) => f.slot === "milestone" && normName(f.value) === normName(o.value)));
+      if (ops.length) res.proposed.push(upsertCard(chatId, e, ops, false));
+      continue;
+    }
     const wants = tracked.get(e.id);
     const atoms = opts.memories === false ? [] : newAtoms(chatId, e, cur.atoms_at);
     if (!wants && !atoms.length) continue;

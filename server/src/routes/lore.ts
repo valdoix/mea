@@ -35,6 +35,8 @@ import { afterApplied, decideUpdate, KEEPUP_LEVELS, type KeepupLevel, runKeepup,
 import "../lore/keepupinbox";
 import { slotsFor } from "../lore/slots";
 import { decideDetails, draftDetails } from "../lore/details";
+import { bondPage, markMilestone } from "../lore/bond";
+import { updateChat } from "../services/chats";
 import { embedLore } from "../lore/semantic";
 import { embeddingsEnabled } from "../memory/embed";
 import { enqueue } from "../services/jobs";
@@ -311,6 +313,20 @@ lore.post("/lore/entries/:id/details/draft", async (c) => {
 lore.post("/lore/entries/:id/details/decide", async (c) => {
   const b = await body(c, z.object({ action: z.enum(["accept", "reject"]), slot: z.string().optional(), value: z.string().max(500).optional() }));
   return c.json({ undo: decideDetails(c.req.param("id"), b.action, { slot: b.slot, value: b.value }) });
+});
+
+// ---------- docs/15, part 4: the bond ----------
+
+lore.get("/chats/:id/bond", (c) => c.json(bondPage(c.req.param("id"))));
+lore.post("/chats/:id/bond/settings", async (c) => {
+  const b = await body(c, z.object({ personaFacts: z.boolean().nullable() }));
+  updateChat(c.req.param("id"), { settings: { personaFacts: b.personaFacts } });
+  return c.json(bondPage(c.req.param("id")));
+});
+/** 4.2: "Mark as a milestone" on a message. */
+lore.post("/messages/:id/milestone", async (c) => {
+  const b = await body(c, z.object({ text: z.string().max(200).optional() }).default({}));
+  return c.json(markMilestone(c.req.param("id"), b.text), 201);
 });
 
 /** 3.1: the slots an entry's type offers. */
