@@ -2,6 +2,7 @@ import { all } from "../db/db";
 import { registerInboxProvider } from "../accuracy/inbox";
 import { confirmFact, factLine, getFact, retireFact } from "./facts";
 import { afterApplied, cardText, decideUpdate, updateProposals } from "./keepup";
+import { decideDetails, inventedFacts } from "./details";
 
 /**
  * The Inbox cards of living lore (docs/15, part 2): update proposals and contradictions on an entry's
@@ -37,6 +38,31 @@ registerInboxProvider({
     // 2.4: with the facts changed, the entry's own text may now say the old thing.
     if (action === "accept") void afterApplied(id).catch(() => {});
     return r.chatId;
+  },
+});
+
+// 3.2: details drafted for a character's book, waiting for your yes (they belong to no chat).
+registerInboxProvider({
+  kind: "lore-details",
+  source: "lore",
+  global: true,
+  items: () =>
+    inventedFacts().map((x) => ({
+      key: `lore-details:${x.entryId}`,
+      chatId: "",
+      chatTitle: "",
+      title: `Details drafted for ${x.name || "an entry"}`,
+      why: "The card leaves these open, so Mea drafted them to keep every chat the same. Until you keep them they're sent as “likely”, not as fact.",
+      before: null,
+      after: x.facts.map((f) => factLine(f)).join("\n"),
+      editable: true,
+      createdAt: Math.max(...x.facts.map((f) => f.createdAt)),
+      link: `/lorebooks/${x.bookId}?entry=${x.entryId}`,
+      labels: { accept: "Keep all", reject: "Clear them" },
+    })),
+  act: (id, action, edited) => {
+    decideDetails(id, action, { edited });
+    return null;
   },
 });
 

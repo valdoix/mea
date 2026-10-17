@@ -4,6 +4,7 @@ import type { Issue } from "./checker";
 import { guardInput, type GuardInput, nameGuard, povGuard, puppetGuard, tenseGuard } from "./guards";
 import { deadRule, leakRule, nameRule, ruleInput, type RuleInput, timeRule, traitRule } from "./rules";
 import { timelineIssues } from "./timeline";
+import { neverRule, slotRule } from "./loreslots";
 import { universeCheckOn, universeLeaks } from "../services/versionchat";
 
 /**
@@ -77,6 +78,22 @@ export const SLIPS: Slip[] = [
     setting: "timeline",
     on: (c) => c.guards.timeline && Boolean(c.messageId),
     run: (_t, _s, c) => timelineIssues(c.chatId, c.messageId!),
+  },
+  {
+    id: "lore-slot",
+    label: "Details in the lore",
+    description: "Eye and hair colour, which side a scar is on, age and height against the facts on lore entries.",
+    phase: "reply",
+    on: (c) => c.continuity,
+    run: (t, s, c) => slotRule(c.chatId, t, s, c.speaker, c.found),
+  },
+  {
+    id: "lore-never",
+    label: "Never",
+    description: "Someone doing what a “never” fact on their lore says they can't or don't.",
+    phase: "reply",
+    on: (c) => c.continuity,
+    run: (t, s, c) => neverRule(c.chatId, t, s, c.speaker),
   },
   {
     id: "universe",

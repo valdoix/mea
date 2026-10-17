@@ -272,7 +272,7 @@
           {#each page.lore as l (l.id)}
             <div class="lore card">
               <a href="/lorebooks/{l.bookId}?entry={l.id}"><b class="small">{l.title}</b> <span class="tiny muted">· {l.bookName}</span><div class="tiny muted">{l.content.slice(0, 200)}</div></a>
-              <FactsList entryId={l.id} {chatId} compact />
+              <FactsList entryId={l.id} {chatId} type={l.type ?? null} compact />
             </div>
           {/each}
         </section>

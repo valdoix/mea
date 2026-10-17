@@ -3,6 +3,7 @@ import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
 import { shortHash } from "../creator/smarts";
 import { stashRestore } from "../services/undo";
+import { isSingleSlot, slotDef } from "./slots";
 
 /**
  * Living lore (docs/15, part 1): facts on lorebook entries. An entry keeps its written core and
@@ -308,6 +309,24 @@ function mustFact(id: string) {
   return r;
 }
 
+/**
+ * 3.1: adds a fact, and when its slot holds one value at a time (eyes, age…) and already has one
+ * here, the new value supersedes it instead (kept in History). List slots (likes, scars) just add.
+ */
+export function addFact(entryId: string, f: FactInput) {
+  const slot = cleanSlot(f.slot);
+  const kind = f.kind ?? slotDef(slot)?.kind;
+  if (slot && isSingleSlot(slot)) {
+    const chatId = f.chatId ?? (f.messageId ? (one<{ chat_id: string }>("SELECT chat_id FROM messages WHERE id = ?", f.messageId)?.chat_id ?? null) : null);
+    const cur = factsNow(entryId, chatId).find((x) => x.slot === slot && (chatId || !x.chatId));
+    if (cur && !cur.locked) {
+      const r = supersedeFact(cur.id, { ...f, slot, kind, chatId });
+      return { fact: r.fact, undo: r.undo, replaced: r.old };
+    }
+  }
+  return { ...createFact(entryId, { ...f, slot, kind }), replaced: null };
+}
+
 /** Changes a fact in place (its words, slot, kind, keepers, or lock). A locked fact's words need `force`. */
 export function updateFact(id: string, patch: { value?: string; slot?: string | null; kind?: FactKind; locked?: boolean; knownBy?: string[]; status?: FactStatus }, opts: { force?: boolean } = {}) {
   const r = mustFact(id);
@@ -395,17 +414,19 @@ export function deleteFact(id: string) {
 
 // ---------- in the prompt (1.2) ----------
 
-type FactText = { slot: string | null; value: string; knownBy: string[]; status: string };
+type FactText = { slot: string | null; value: string; knownBy: string[]; status: string; kind?: string };
 const SLOT_LABEL = (slot: string) => slot.charAt(0).toUpperCase() + slot.slice(1);
 
 /** One fact as the prompt says it: "Eyes: grey", a secret with its keepers, an unconfirmed one as likely. */
-export function factLine(f: FactText) {
-  const text = f.slot ? `${SLOT_LABEL(f.slot)}: ${f.value}` : f.value;
+export function factLine(f: FactText, name?: string) {
+  // 3.4: a "never" fact is said plainly, as a statement about them ("Wren can't swim."), so the model doesn't fill the gap with the opposite.
+  const never = f.kind === "never" && name ? (f.value.toLowerCase().includes(name.toLowerCase()) ? f.value : `${name} ${f.value.charAt(0).toLowerCase()}${f.value.slice(1)}`).replace(/[.!]*$/, ".") : null;
+  const text = never ?? (f.slot ? `${SLOT_LABEL(f.slot)}: ${f.value}` : f.value);
   const tags = [f.status === "invented" ? "likely, not confirmed" : "", f.knownBy.length ? `secret — known only to ${f.knownBy.join(", ")}` : ""].filter(Boolean);
   return tags.length ? `${text} [${tags.join("; ")}]` : text;
 }
 
 /** The `Now:` block an entry carries after its core. */
-export function nowBlock(facts: FactText[]) {
-  return facts.length ? `Now:\n${facts.map((f) => `- ${factLine(f)}`).join("\n")}` : "";
+export function nowBlock(facts: FactText[], name?: string) {
+  return facts.length ? `Now:\n${facts.map((f) => `- ${factLine(f, name)}`).join("\n")}` : "";
 }

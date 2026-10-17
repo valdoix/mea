@@ -180,6 +180,11 @@ function helperJson(name: string, user: string, system = ""): unknown {
       }
       return { ops };
     }
+    case "lore_details": {
+      // The card says grey eyes when it does; the rest is drafted.
+      const eyes = user.match(/\b(grey|green|blue|brown) eyes\b/i)?.[1];
+      return { card: eyes ? [{ slot: "eyes", value: eyes.toLowerCase() }] : [], invented: [{ slot: "birthday", value: "19 January" }, { slot: "handedness", value: "left-handed" }, { slot: "nonsense", value: "dropped" }] };
+    }
     case "lore_core_rewrite":
       // The rules' rewrite stands (same text back means "no better version").
       return { content: (user.split("ENTRY:\n")[1] ?? "").split("\n\nWHAT CHANGED:")[0] };

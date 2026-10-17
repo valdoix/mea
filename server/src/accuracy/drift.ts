@@ -7,6 +7,7 @@ import { characterSettings } from "../services/charsettings";
 import { mustChat } from "../services/chats";
 import { enqueue, type JobContext } from "../services/jobs";
 import { guardsFor } from "./guards";
+import { furthestVoiceSlot, voiceFacts } from "../lore/voice";
 
 /**
  * The drift detector (CON-10). The character's recent lines are compared with their voice
@@ -182,7 +183,9 @@ export async function checkDrift(chatId: string, opts: { job?: JobContext; recen
     if (vr && vc && ve) semantic = Math.max(0, Math.min(1, (cosine(vr, ve) - cosine(vr, vc)) / 0.12));
   }
   const score = semantic == null ? style.score : 0.65 * style.score + 0.35 * semantic;
-  const reasons = [...style.reasons, ...(semantic != null && semantic >= 0.5 ? ["what they talk about and how has moved away from the samples"] : [])];
+  // docs/15, 3.5: the voice slot (from their lore) the replies are furthest from, by name.
+  const slotReason = chat.character_id ? furthestVoiceSlot(voiceFacts(chatId, getCard(chat.character_id)?.name ?? ""), recentRows.map((r) => r.content).join(" ")) : null;
+  const reasons = [...style.reasons, ...(semantic != null && semantic >= 0.5 ? ["what they talk about and how has moved away from the samples"] : []), ...(slotReason ? [slotReason] : [])];
   const drifting = score >= cfg.driftThreshold;
   const id = newId();
   run(
