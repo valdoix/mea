@@ -1318,6 +1318,17 @@ CREATE TABLE lore_keepup (
       if (!hasColumn(db, "lore_facts", "expects_minutes")) db.exec("ALTER TABLE lore_facts ADD COLUMN expects_minutes INTEGER");
     },
   },
+  {
+    id: 29,
+    name: "canon facts and the slot quiz",
+    sql: "",
+    up: (db) => {
+      // docs/15, 8.1: where a story fact made canon came from (its chat, message and number), kept as provenance.
+      if (!hasColumn(db, "lore_facts", "source")) db.exec("ALTER TABLE lore_facts ADD COLUMN source TEXT");
+      // 8.3: the quiz's score on the detail sheet, beside its memory scores.
+      if (!hasColumn(db, "quiz_runs", "slots")) db.exec("ALTER TABLE quiz_runs ADD COLUMN slots REAL");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

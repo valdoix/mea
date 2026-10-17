@@ -29,14 +29,14 @@ import { activateLore } from "../lore/activate";
 import { assistEntry, ENTRY_TEMPLATES, glossary, previewLore, templateContent } from "../lore/assist";
 import { acceptChronicle, chronicleProposals, rejectChronicle, runChronicle } from "../lore/chronicle";
 import { loreHealth } from "../lore/health";
-import { addFact, latestSeq, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
+import { addFact, getFact, overrideFact, promoteFact, latestSeq, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
 import { pickFactEntry } from "../lore/factpick";
 import { afterApplied, clockNow, decideUpdate, KEEPUP_LEVELS, type KeepupLevel, runKeepup, updateProposals } from "../lore/keepup";
 import "../lore/keepupinbox";
 import { slotsFor } from "../lore/slots";
 import { decideDetails, draftDetails } from "../lore/details";
 import { bondPage, markMilestone } from "../lore/bond";
-import { coverageFindings, fixFinding, mergeEntries } from "../lore/coverage";
+import { canonEntryFor, coverageFindings, fixFinding, mergeEntries } from "../lore/coverage";
 import { compactEntry, decideCompaction } from "../lore/compact";
 import { updateChat } from "../services/chats";
 import { embedLore } from "../lore/semantic";
@@ -294,6 +294,19 @@ lore.post("/lore/facts/:id/supersede", async (c) => {
 });
 
 lore.delete("/lore/facts/:id", (c) => c.json(deleteFact(c.req.param("id"))));
+
+/** 8.1: Make it canon (every chat from now on), or Only in this chat (a chat's own version of a canon fact). */
+lore.post("/lore/facts/:id/canon", (c) => {
+  const f = must(getFact(c.req.param("id")), "Fact not found");
+  if (!f.chatId) throw badRequest("This fact is canon already");
+  const to = canonEntryFor(f.chatId, f.entryId);
+  if (!to) throw badRequest("No book every chat reads has an entry for this yet: add one, then make it canon");
+  return c.json(promoteFact(f.id, to));
+});
+lore.post("/lore/facts/:id/local", async (c) => {
+  const b = await body(c, z.object({ chatId: z.string(), value: z.string().max(500).optional() }));
+  return c.json(overrideFact(c.req.param("id"), b.chatId, b.value), 201);
+});
 
 // ---------- docs/15, part 2: entries that keep up ----------
 
