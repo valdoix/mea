@@ -1240,7 +1240,7 @@ export interface CodexPage {
   appearances: { id: string; title: string; startSeq: number; endSeq: number | null; storyTime: string | null }[];
   ties: (GraphEdge & { other: string; direction: "in" | "out" })[];
   journal: Journal | null;
-  lore: { id: string; bookId: string; bookName: string; title: string; content: string }[];
+  lore: { id: string; bookId: string; bookName: string; title: string; content: string; type?: string | null }[];
 }
 export interface QuizQuestion {
   id: string;

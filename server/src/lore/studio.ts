@@ -1582,5 +1582,7 @@ export function commitDraft(id: string, input: CommitInput = {}) {
     cur.stage = "done";
   });
   if (embeddingsEnabled()) enqueue("lore.embed", {}, { dedupeKey: "lore.embed", delayMs: 4000 });
+  // docs/15, 3.2: a companion book's details stage: the card's small details, and the gaps drafted for your yes.
+  if (d.source.kind === "character" && d.source.refId) enqueue("lore.details", { bookId, characterId: d.source.refId }, { dedupeKey: `lore.details:${bookId}`, delayMs: 2000, priority: 0 });
   return { bookId, added: saved.size + (wantOverview ? 1 : 0) };
 }

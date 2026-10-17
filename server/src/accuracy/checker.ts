@@ -4,6 +4,7 @@ import { publish } from "../lib/events";
 import { notFound } from "../lib/http";
 import { memoryConfig } from "../lib/settings";
 import { keyMatches } from "../lore/activate";
+import { getFact, supersedeFact } from "../lore/facts";
 import { scanEntriesFor } from "../lore/service";
 import { type AtomRow } from "../memory/atoms";
 import { chatNames } from "../memory/build";
@@ -51,7 +52,7 @@ export interface Issue {
   citations: Citation[];
   fix: string;
   /** What "accept and update canon" writes: a confirmed memory, and a tracker line if it helps. */
-  canon?: { memory?: string; wrong?: string; trackerLine?: string };
+  canon?: { memory?: string; wrong?: string; trackerLine?: string; /** docs/15, 3.3: the lore fact the reply's version replaces. */ fact?: { id: string; value: string } };
   by: "rules" | "model";
   dismissed?: boolean;
   /** docs/14, part 6: a one-tap fix that swaps a word in the reply (a name from the original's world). */
@@ -426,7 +427,12 @@ export function acceptIssue(flagId: string, issueId: string) {
   const issue = issues.find((i) => i.id === issueId);
   if (!issue) throw notFound("Issue not found");
   // M27: only the memories the issue cites are replaced, never ones that merely share a word.
-  if (issue.canon?.memory && issue.kind !== "timeline") {
+  // docs/15, 3.3: the reply's version becomes the fact (the old one kept in History), from this message.
+  if (issue.canon?.fact) {
+    const f = getFact(issue.canon.fact.id);
+    if (f && f.now) supersedeFact(f.id, { value: issue.canon.fact.value, chatId: r.chat_id, messageId: r.message_id, origin: "story" }, { force: true });
+  }
+  if (issue.canon?.memory && issue.kind !== "timeline" && !issue.canon.fact) {
     // An invented past adds an event; the memories it cited aren't wrong, so none is replaced.
     const cited = issue.kind === "past" ? [] : issue.citations.filter((c) => c.type === "memory" && c.id).map((c) => c.id!);
     correctMemory(r.chat_id, { wrong: issue.canon.wrong ?? issue.conflict, right: issue.canon.memory, messageId: r.message_id, memoryIds: cited, exact: true });

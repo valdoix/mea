@@ -1,8 +1,13 @@
+<script lang="ts" module>
+  /** The slots each entry type offers (3.1), fetched once per type. */
+  const slotCache = new Map<string, Promise<{ key: string; label: string; hint: string; list?: boolean; kind: string }[]>>();
+</script>
+
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
   import { del, get, patch, post } from "../../lib/api";
   import { onEvent } from "../../lib/events";
-  import { Lock, LockOpen, Plus, Trash } from "../../lib/icons";
+  import { Check, Lock, LockOpen, Plus, Trash, WandSparkles } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { LoreFact } from "../../lib/types";
 
@@ -11,13 +16,18 @@
    * where it came from (the card, you, or a message you can open), and whether it's locked.
    * In a chat (the Codex) it shows that chat's facts and canon; in the lorebook editor, canon and
    * every chat's. A fact you add here is canon; one added in a chat belongs to that chat.
+   * 3.1: the entry's type offers slots (eyes, scars, pet names…); a single slot holds one value.
+   * 3.2: details Mea drafted wait for Keep or Clear, and are sent as "likely" until kept.
    */
-  let { entryId, chatId = null, compact = false }: { entryId: string; chatId?: string | null; compact?: boolean } = $props();
+  let { entryId, chatId = null, type = null, compact = false }: { entryId: string; chatId?: string | null; type?: string | null; compact?: boolean } = $props();
 
+  type Slot = { key: string; label: string; hint: string; list?: boolean; kind: string };
   let facts = $state<LoreFact[]>([]);
+  let slots = $state<Slot[]>([]);
   let loaded = $state(false);
   let view = $state<"now" | "history">("now");
   let draft = $state("");
+  let slot = $state("");
   let busy = $state(false);
 
   async function load() {
@@ -35,6 +45,12 @@
     void load();
   });
   $effect(() => {
+    const t = type ?? "";
+    if (!t) return void (slots = []);
+    if (!slotCache.has(t)) slotCache.set(t, get<{ slots: Slot[] }>(`/api/lore/slots?type=${encodeURIComponent(t)}`).then((r) => r.slots));
+    slotCache.get(t)!.then((s) => (slots = s), () => (slots = []));
+  });
+  $effect(() => {
     const id = entryId;
     return onEvent((e) => {
       if ((e.type === "lore.facts" && e.entryId === id && (!chatId || !e.chatId || e.chatId === chatId)) || e.type === "reconnected") void load();
@@ -43,6 +59,7 @@
 
   const shown = $derived(view === "now" ? facts.filter((f) => f.now) : facts.filter((f) => !f.now));
   const history = $derived(facts.filter((f) => !f.now).length);
+  const picked = $derived(slots.find((s) => s.key === slot));
   $effect(() => {
     if (!history && view === "history") view = "now";
   });
@@ -55,11 +72,11 @@
     if (!value || busy) return;
     busy = true;
     try {
-      const r = await post<{ fact: LoreFact; undo: string }>(`/api/lore/entries/${entryId}/facts`, { value, chatId });
+      const r = await post<{ fact: LoreFact; undo: string; replaced: LoreFact | null }>(`/api/lore/entries/${entryId}/facts`, { value, chatId, slot: slot || null, ...(picked ? { kind: picked.kind } : {}) });
       draft = "";
       view = "now";
       await load();
-      undoToast(chatId ? "Fact added for this chat" : "Fact added", r.undo);
+      undoToast(r.replaced ? `${picked?.label ?? "Fact"}: ${r.replaced.value} → ${value} (the old one is in History)` : chatId ? "Fact added for this chat" : "Fact added", r.undo);
     } catch (e) {
       errorToast(e);
     } finally {
@@ -93,21 +110,48 @@
       errorToast(e);
     }
   }
+  /** 3.2: keep or clear a drafted detail. */
+  async function decide(f: LoreFact, action: "accept" | "reject") {
+    try {
+      const r = await post<{ undo: string }>(`/api/lore/entries/${entryId}/details/decide`, { action, slot: f.slot ?? undefined });
+      await load();
+      undoToast(action === "accept" ? "Kept: it's sent as fact now" : "Cleared", r.undo);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  let drafting = $state(false);
+  async function draftDetails() {
+    drafting = true;
+    try {
+      const r = await post<{ card: LoreFact[]; invented: LoreFact[] }>(`/api/lore/entries/${entryId}/details/draft`, {});
+      await load();
+      toast(r.card.length || r.invented.length ? `${r.card.length} from the card, ${r.invented.length} drafted for your yes` : "Nothing left open to draft", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      drafting = false;
+    }
+  }
 
-  const ORIGIN: Record<LoreFact["origin"], string> = { card: "from the card", you: "yours", story: "from the story", tracker: "from the trackers", invented: "drafted, not confirmed" };
-  const label = (f: LoreFact) => (f.slot ? `${f.slot.charAt(0).toUpperCase()}${f.slot.slice(1)}: ${f.value}` : f.value);
+  const ORIGIN: Record<LoreFact["origin"], string> = { card: "from the card", you: "yours", story: "from the story", tracker: "from the trackers", invented: "drafted" };
+  const label = (f: LoreFact) => (f.slot ? `${(slots.find((s) => s.key === f.slot)?.label ?? f.slot).replace(/^./, (c) => c.toUpperCase())}: ${f.value}` : f.value);
   const where = (f: LoreFact) => f.chatId ?? chatId;
 </script>
 
 <div class="facts stack tight" class:compact>
   <div class="row between head">
     <span class="label">Facts <span class="faint">{chatId ? "true now in this chat, and canon" : "small, exact, dated; sent after the text when it fires"}</span></span>
-    {#if history}<Segmented options={[{ value: "now", label: "Now" }, { value: "history", label: `History (${history})` }]} bind:value={view} small />{/if}
+    <div class="row">
+      {#if type === "character" && !chatId}<button class="btn ghost small" onclick={draftDetails} disabled={drafting} title="Fill the detail sheet from the card, and draft what it leaves open for your yes"><WandSparkles size={13} /> {drafting ? "Drafting…" : "Draft the details"}</button>{/if}
+      {#if history}<Segmented options={[{ value: "now", label: "Now" }, { value: "history", label: `History (${history})` }]} bind:value={view} small />{/if}
+    </div>
   </div>
   {#each shown as f (f.id)}
-    <div class="fact" class:old={!f.now}>
+    <div class="fact" class:old={!f.now} class:likely={f.status === "invented"}>
       <span class="grow small">
         {label(f)}
+        {#if f.status === "invented"}<span class="tiny faint" title="Sent as “likely” until you keep it"> · likely</span>{/if}
         {#if f.knownBy.length}<span class="tiny faint"> · secret, known to {f.knownBy.join(", ")}</span>{/if}
         {#if f.stale && f.now}<span class="tiny warn-t" title="The message it came from was edited; the Inbox asks if it's still true"> · re-check</span>{/if}
       </span>
@@ -119,22 +163,34 @@
         {#if !f.now && f.supersededBy}· replaced{:else if !f.now && f.untilSeq != null}· retired{/if}
         · {ORIGIN[f.origin]}
       </span>
-      <button class="btn ghost icon small" onclick={() => toggleLock(f)} aria-label={f.locked ? "Unlock" : "Lock"} title={f.locked ? "Locked: the story won't change it without asking" : "Lock it"}>
-        {#if f.locked}<Lock size={13} />{:else}<LockOpen size={13} />{/if}
-      </button>
-      {#if f.now}
-        <button class="btn ghost small" onclick={() => retire(f)} title="It stops being true now; kept in History">Retire</button>
+      {#if f.status === "invented" && f.now && !f.chatId}
+        <button class="btn ghost small" onclick={() => decide(f, "accept")} title="Keep it as fact"><Check size={13} /> Keep</button>
+        <button class="btn ghost small" onclick={() => decide(f, "reject")} title="Clear this drafted detail">Clear</button>
       {:else}
-        <button class="btn ghost icon small" onclick={() => remove(f)} aria-label="Delete this fact" title="Delete this fact"><Trash size={13} /></button>
+        <button class="btn ghost icon small" onclick={() => toggleLock(f)} aria-label={f.locked ? "Unlock" : "Lock"} title={f.locked ? "Locked: the story won't change it without asking" : "Lock it"}>
+          {#if f.locked}<Lock size={13} />{:else}<LockOpen size={13} />{/if}
+        </button>
+        {#if f.now}
+          <button class="btn ghost small" onclick={() => retire(f)} title="It stops being true now; kept in History">Retire</button>
+        {:else}
+          <button class="btn ghost icon small" onclick={() => remove(f)} aria-label="Delete this fact" title="Delete this fact"><Trash size={13} /></button>
+        {/if}
       {/if}
     </div>
   {:else}
     {#if loaded}<p class="tiny muted">{view === "now" ? "No facts yet." : "Nothing retired or replaced."}</p>{/if}
   {/each}
   <form class="row add" onsubmit={(e) => (e.preventDefault(), void add())}>
-    <input class="input grow" bind:value={draft} maxlength="500" placeholder={chatId ? "Add a fact for this chat: Scar on her left hand" : "Add a fact: Eyes are grey · Can't swim"} />
+    {#if slots.length}
+      <select class="select slot" bind:value={slot} aria-label="What kind of fact">
+        <option value="">Free text</option>
+        {#each slots as s (s.key)}<option value={s.key}>{s.label.replace("{{user}}", "you")}</option>{/each}
+      </select>
+    {/if}
+    <input class="input grow" bind:value={draft} maxlength="500" placeholder={picked ? picked.hint : chatId ? "Add a fact for this chat: Scar on her left hand" : "Add a fact: Eyes are grey · Can't swim"} />
     <button class="btn small" type="submit" disabled={!draft.trim() || busy}><Plus size={13} /> Add a fact</button>
   </form>
+  {#if picked && !picked.list}<span class="hint">{picked.label} holds one value: a new one replaces the old (kept in History).</span>{/if}
 </div>
 
 <style>
@@ -153,6 +209,9 @@
   .fact.old {
     opacity: 0.7;
   }
+  .fact.likely .grow {
+    font-style: italic;
+  }
   .fact .grow {
     flex: 1 1 12rem;
     min-width: 0;
@@ -165,10 +224,15 @@
   }
   .add {
     gap: 0.4rem;
+    flex-wrap: wrap;
   }
   .add .grow {
-    flex: 1;
+    flex: 1 1 12rem;
     min-width: 0;
+  }
+  .slot {
+    width: auto;
+    max-width: 12rem;
   }
   @media (max-width: 640px) {
     .meta {

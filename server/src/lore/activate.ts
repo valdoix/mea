@@ -369,7 +369,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
   const withNow = (e: ScanEntry, content: string) => {
     const facts = input.facts?.get(e.id);
     if (!facts?.length) return content;
-    const block = nowBlock(facts.map((f) => ({ ...f, value: sub(f.value) })));
+    const block = nowBlock(facts.map((f) => ({ ...f, value: sub(f.value) })), sub(e.comment || e.keys[0] || "") || undefined);
     return `${content}\n${block}`;
   };
   for (const a of sorted) {
@@ -377,7 +377,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
     let tokens = input.countTokens(content);
     let reason = a.reason;
     const p = Math.round(priority(a));
-    const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine({ ...f, value: sub(f.value) }));
+    const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine({ ...f, value: sub(f.value) }, sub(a.entry.comment || a.entry.keys[0] || "") || undefined));
     if (defaults.tokenBudget > 0 && used + tokens > defaults.tokenBudget) {
       const short = withNow(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry))));
       const st = input.countTokens(short);

@@ -29,10 +29,12 @@ import { activateLore } from "../lore/activate";
 import { assistEntry, ENTRY_TEMPLATES, glossary, previewLore, templateContent } from "../lore/assist";
 import { acceptChronicle, chronicleProposals, rejectChronicle, runChronicle } from "../lore/chronicle";
 import { loreHealth } from "../lore/health";
-import { createFact, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
+import { addFact, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
 import { pickFactEntry } from "../lore/factpick";
 import { afterApplied, decideUpdate, KEEPUP_LEVELS, type KeepupLevel, runKeepup, updateProposals } from "../lore/keepup";
 import "../lore/keepupinbox";
+import { slotsFor } from "../lore/slots";
+import { decideDetails, draftDetails } from "../lore/details";
 import { embedLore } from "../lore/semantic";
 import { embeddingsEnabled } from "../memory/embed";
 import { enqueue } from "../services/jobs";
@@ -263,7 +265,7 @@ lore.post("/lore/entries/:id/facts", async (c) => {
   // A fact you add in a chat holds from its newest message on, on every swipe of it.
   const messageId = b.messageId ?? (b.chatId ? (one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", b.chatId)?.id ?? null) : null);
   const { fromText, ...f } = b;
-  return c.json(createFact(c.req.param("id"), { ...f, messageId, origin: fromText && b.messageId ? "story" : "you" }), 201);
+  return c.json(addFact(c.req.param("id"), { ...f, messageId, origin: fromText && b.messageId ? "story" : "you" }), 201);
 });
 
 lore.patch("/lore/facts/:id", async (c) => {
@@ -296,6 +298,23 @@ lore.post("/lore/updates/:id/decide", async (c) => {
   const core = b.action === "accept" ? await afterApplied(c.req.param("id")) : null;
   return c.json({ ...r, core });
 });
+
+/** 3.2: draft the detail sheet for a character's entry (the character: given, or the book's linked one). */
+lore.post("/lore/entries/:id/details/draft", async (c) => {
+  const b = await body(c, z.object({ characterId: z.string().optional() }).default({}));
+  const bookId = must(one<{ lorebook_id: string }>("SELECT lorebook_id FROM lorebook_entries WHERE id = ?", c.req.param("id")), "Entry not found").lorebook_id;
+  const characterId = b.characterId ?? getLorebook(bookId)?.links.find((l) => l.type === "character")?.id;
+  if (!characterId) throw badRequest("Link this book to a character first");
+  return c.json(await draftDetails(c.req.param("id"), characterId));
+});
+/** 3.2: keep (or clear) invented facts: all of an entry's, or one by slot, with an edited value. */
+lore.post("/lore/entries/:id/details/decide", async (c) => {
+  const b = await body(c, z.object({ action: z.enum(["accept", "reject"]), slot: z.string().optional(), value: z.string().max(500).optional() }));
+  return c.json({ undo: decideDetails(c.req.param("id"), b.action, { slot: b.slot, value: b.value }) });
+});
+
+/** 3.1: the slots an entry's type offers. */
+lore.get("/lore/slots", (c) => c.json({ slots: slotsFor(c.req.query("type") || undefined) }));
 
 /** "Remember as a fact" (1.4): the entry it's likely about, and the fact pre-filled. */
 lore.post("/chats/:id/lore/fact/pick", async (c) => {

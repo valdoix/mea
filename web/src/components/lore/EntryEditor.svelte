@@ -121,7 +121,7 @@
     <span class="label">Essentials <span class="faint">one sentence; used when the budget is tight, or when a child entry fires</span></span>
     <input class="input" value={x.essentials ?? ""} onchange={(e) => setX("essentials", e.currentTarget.value.trim() || undefined)} placeholder="Port Ellis is a cold fishing town on the northern coast." />
   </label>
-  {#if entry.id}<FactsList entryId={entry.id} />{/if}
+  {#if entry.id}<FactsList entryId={entry.id} type={x.type ?? null} />{/if}
 
   {#if full}
     <div class="grid2">
