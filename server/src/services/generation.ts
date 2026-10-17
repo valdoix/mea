@@ -7,6 +7,7 @@ import { getSetting, memoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 import { activateLore, type ActivationResult } from "../lore/activate";
 import { loadLoreState, saveLoreState, scanEntriesFor } from "../lore/service";
+import { factsNowFor } from "../lore/facts";
 import { CANON_RULE } from "../memory/canon";
 import { buildMemoryContext, emptyInputs, memoryInputs } from "../memory/context";
 import { embeddingsEnabled, embedQueries } from "../memory/embed";
@@ -414,6 +415,12 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     present: [...memInputs.present, ...named],
     semantic: semanticScorer(loreVec),
     all: entries,
+    // docs/15: each entry's facts as of the message being written, on the branch shown.
+    facts: factsNowFor(
+      entries.map((e) => e.id),
+      chatId,
+      opts.excludeMessageId ? (one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", opts.excludeMessageId)?.seq ?? Number.MAX_SAFE_INTEGER) - 1 : undefined,
+    ),
   });
   const loreMs = lap();
   // B1: memory and lore that state a secret kept off the page are reworded before the prompt.

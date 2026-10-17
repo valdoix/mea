@@ -1,4 +1,5 @@
 import type { LoreEntry, LorebookSettings, LorePosition, Role } from "./types";
+import { factLine, nowBlock } from "./facts";
 
 export interface ScanEntry extends LoreEntry {
   id: string;
@@ -50,6 +51,16 @@ export interface ActivationInput {
   semanticThreshold?: number;
   /** Every entry by id, so a child can pull in its parent's essentials (LORE-10). */
   all?: ScanEntry[];
+  /** Living lore (docs/15): each entry's facts true now, sent as a `Now:` block after its core. */
+  facts?: Map<string, NowFact[]>;
+}
+
+export interface NowFact {
+  slot: string | null;
+  value: string;
+  kind: string;
+  status: string;
+  knownBy: string[];
 }
 
 /** Phase 3 entry fields, kept in `extra` so SillyTavern imports and exports carry them (LORE-09, LORE-10). */
@@ -96,6 +107,8 @@ export interface TraceItem {
   order: number;
   /** LORE-14: how much this entry mattered when the budget was tight. */
   priority?: number;
+  /** docs/15: the facts it sent, as the prompt says them. */
+  facts?: string[];
 }
 
 export interface ActivatedEntry {
@@ -352,13 +365,21 @@ export function activateLore(input: ActivationInput): ActivationResult {
   const sorted = [...active.values()].sort((a, b) => priority(b) - priority(a) || b.entry.order - a.entry.order);
   const accepted: ActivatedEntry[] = [];
   let used = 0;
+  // docs/15: what's true now rides after the core (and after the essentials, when trimmed).
+  const withNow = (e: ScanEntry, content: string) => {
+    const facts = input.facts?.get(e.id);
+    if (!facts?.length) return content;
+    const block = nowBlock(facts.map((f) => ({ ...f, value: sub(f.value) })));
+    return `${content}\n${block}`;
+  };
   for (const a of sorted) {
-    let content = withSecrets(a.entry, sub(a.content));
+    let content = withNow(a.entry, withSecrets(a.entry, sub(a.content)));
     let tokens = input.countTokens(content);
     let reason = a.reason;
     const p = Math.round(priority(a));
+    const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine({ ...f, value: sub(f.value) }));
     if (defaults.tokenBudget > 0 && used + tokens > defaults.tokenBudget) {
-      const short = withSecrets(a.entry, sub(essentialsOf(a.entry)));
+      const short = withNow(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry))));
       const st = input.countTokens(short);
       if (a.kind !== "parent" && short.length < content.length && used + st <= defaults.tokenBudget) {
         content = short;
@@ -371,7 +392,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
     }
     used += tokens;
     accepted.push({ ...a, content, tokens, reason });
-    setTrace(a.entry, "active", reason, { level: a.level, tokens, priority: p });
+    setTrace(a.entry, "active", reason, { level: a.level, tokens, priority: p, ...(sentFacts?.length ? { facts: sentFacts } : {}) });
   }
 
   accepted.sort((a, b) => a.entry.order - b.entry.order);

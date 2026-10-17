@@ -23,6 +23,8 @@ export type MeaEvent =
   | { type: "filings.changed"; chatId: string }
   | { type: "lessons.changed"; chatId: string }
   | { type: "offpage.changed"; chatId: string }
+  /** Living lore (docs/15): an entry's facts changed (chatId null: a canon fact). */
+  | { type: "lore.facts"; entryId: string; chatId: string | null }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   /** A reply you sent is still being prepared: waiting for the trackers or the plan (null: done). */
   | { type: "gen.prep"; chatId: string; stage: "trackers" | "planning" | null };

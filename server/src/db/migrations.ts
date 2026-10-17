@@ -1246,6 +1246,41 @@ CREATE TABLE universes (
       if (!hasColumn(db, "variants", "every_version")) db.exec("ALTER TABLE variants ADD COLUMN every_version INTEGER NOT NULL DEFAULT 0");
     },
   },
+  {
+    id: 26,
+    name: "lore facts",
+    sql: /* sql */ `
+-- Living lore (docs/15, part 1): small, exact, dated statements on a lorebook entry. A canon fact
+-- (chat_id NULL) holds in every chat; a story fact belongs to one chat and follows its branch
+-- through the message and swipe it came from (swipe_idx -1: whichever swipe is shown).
+CREATE TABLE lore_facts (
+  id TEXT PRIMARY KEY,
+  entry_id TEXT NOT NULL REFERENCES lorebook_entries(id) ON DELETE CASCADE,
+  chat_id TEXT REFERENCES chats(id) ON DELETE CASCADE,
+  slot TEXT,
+  value TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'attribute',
+  since_seq INTEGER,
+  until_seq INTEGER,
+  since_time INTEGER,
+  until_time INTEGER,
+  message_id TEXT REFERENCES messages(id) ON DELETE CASCADE,
+  swipe_idx INTEGER NOT NULL DEFAULT -1,
+  origin TEXT NOT NULL DEFAULT 'you',
+  locked INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  superseded_by TEXT,
+  -- The fact this one replaced (a chat's change to a canon fact hides it in that chat only).
+  replaces TEXT,
+  known_by TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
+);
+CREATE INDEX lore_facts_entry ON lore_facts(entry_id, chat_id);
+CREATE INDEX lore_facts_message ON lore_facts(message_id) WHERE message_id IS NOT NULL;
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

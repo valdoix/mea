@@ -1,7 +1,7 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import { del, get, post } from "../../lib/api";
-  import { Bookmark, BookmarkPlus, CircleAlert, EyeOff, Heart, Lock, MessagesSquare, Scissors, FilePlus } from "../../lib/icons";
+  import { Bookmark, BookmarkPlus, BookOpen, CircleAlert, EyeOff, Heart, Lock, MessagesSquare, Scissors, FilePlus } from "../../lib/icons";
   import { type Filing, filedToast } from "../../lib/filings.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
   import { editOffpage, kept, neverSay } from "../../lib/offpage.svelte";
@@ -224,6 +224,40 @@
     sel = null;
   }
 
+  // ---------- docs/15, 1.4: Remember as a fact ----------
+  type FactPick = { value: string; messageId: string; candidates: { entryId: string; bookName: string; title: string; why: string }[] };
+  let factPick = $state<FactPick | null>(null);
+  let factEntry = $state("");
+  let factValue = $state("");
+  let factOpen = $state(false);
+  async function rememberFact() {
+    if (!sel) return;
+    const { text, messageId } = sel;
+    window.getSelection()?.removeAllRanges();
+    sel = null;
+    try {
+      const r = await post<FactPick>(`/api/chats/${chatId}/lore/fact/pick`, { messageId, text });
+      if (!r.candidates.length) return toast("No lore entry this chat uses is about this. Link a lorebook, or add the entry first.");
+      factPick = r;
+      factEntry = r.candidates[0]!.entryId;
+      factValue = r.value;
+      factOpen = true;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function saveFact() {
+    if (!factPick || !factEntry || !factValue.trim()) return;
+    try {
+      const r = await post<{ undo: string }>(`/api/lore/entries/${factEntry}/facts`, { value: factValue.trim(), messageId: factPick.messageId, chatId, fromText: true });
+      const title = factPick.candidates.find((c) => c.entryId === factEntry)?.title ?? "the entry";
+      factOpen = false;
+      toast(`Kept as a fact on ${title}`, { kind: "ok", action: { label: "Undo", run: () => void post(`/api/undo/${r.undo}`).catch(errorToast) } });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
   /** A2: a new take that keeps the reply up to (and including) the selected sentence. */
   function keepThis() {
     if (!sel || !onkeep) return;
@@ -247,6 +281,7 @@
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={startFix}><CircleAlert size={14} /> That's wrong</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={toMeus}><MessagesSquare size={14} /> Ask Meus</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={neverSayThis} title="Add these words to a secret kept off the page"><EyeOff size={14} /> Never say this</button>
+    <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={rememberFact} title="Keep it as a fact on a lore entry; it follows this version of the reply"><BookOpen size={14} /> Remember as a fact</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={asides} title="Pin as truth, running bit, calendar, clock, plant, belongs to…"><FilePlus size={14} /> File as…</button>
     <button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepOffPage} title="Hold this back from the narration"><Lock size={14} /> Keep off the page</button>
     {#if onkeep && canKeep?.(sel.messageId)}<button class="btn ghost small" onmousedown={(e) => e.preventDefault()} onclick={keepThis} title="A new take that keeps everything up to here"><Scissors size={14} /> Keep this, redo the rest</button>{/if}
@@ -274,6 +309,29 @@
   {#snippet footer()}
     <button class="btn ghost" onclick={() => (asideOpen = false)}>Cancel</button>
     <button class="btn primary" onclick={saveAside} disabled={!asideForm?.when.trim()}>{asideForm?.kind === "calendar" ? "Add" : "Set the clock"}</button>
+  {/snippet}
+</Modal>
+
+<Modal bind:open={factOpen} title="Remember as a fact" size="sm">
+  {#if factPick}
+    <div class="stack">
+      <label class="field">
+        <span class="label">On</span>
+        <select class="select" bind:value={factEntry}>
+          {#each factPick.candidates as c (c.entryId)}<option value={c.entryId}>{c.title} · {c.bookName}</option>{/each}
+        </select>
+        <span class="hint">{factPick.candidates.find((c) => c.entryId === factEntry)?.why ?? ""}</span>
+      </label>
+      <label class="field">
+        <span class="label">The fact</span>
+        <input class="input" bind:value={factValue} maxlength="500" />
+        <span class="hint">It holds in this chat from this message on, and goes if this version of the reply is swiped away.</span>
+      </label>
+    </div>
+  {/if}
+  {#snippet footer()}
+    <button class="btn ghost" onclick={() => (factOpen = false)}>Cancel</button>
+    <button class="btn primary" onclick={saveFact} disabled={!factValue.trim() || !factEntry}>Keep the fact</button>
   {/snippet}
 </Modal>
 

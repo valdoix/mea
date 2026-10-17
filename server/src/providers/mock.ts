@@ -264,6 +264,8 @@ function helperJson(name: string, user: string, system = ""): unknown {
       if (m) changes.push({ kind: "hide", message: Number(m[1]), hidden: true });
       m = says.match(/^lore: (.+?) — (.+)$/i);
       if (m) changes.push({ kind: "lore_add", comment: m[1], keys: [m[1]], content: m[2] });
+      m = says.match(/^lore fact: (.+?) — (.+)$/i);
+      if (m) changes.push({ kind: "lore_fact", entry: m[1], action: "add", value: m[2] });
       m = says.match(/^world arc: (.+?) — (.+)$/i);
       if (m) changes.push({ kind: "world_arc", lead: m[1], premise: m[2] });
       m = says.match(/^card: (.+)$/i);
