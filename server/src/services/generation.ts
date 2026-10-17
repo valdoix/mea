@@ -14,7 +14,8 @@ import { embeddingsEnabled, embedQueries } from "../memory/embed";
 import { resolver } from "../memory/entities";
 import { reinforce } from "../memory/reinforce";
 import { anySemantic, semanticScorer } from "../lore/semantic";
-import { recordLoreHits } from "../lore/health";
+import { loreFiredAgo, recordLoreHits } from "../lore/health";
+import { reachBack, recallLore } from "../lore/recallhook";
 import { warmMemory } from "../memory/warm";
 import { ledgerChangedAfterReply, scheduleMemory } from "../memory/scheduler";
 import { setMemState } from "../memory/store";
@@ -401,7 +402,11 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   // LORE-05 / LORE-06: lore fires on who's in the scene or just named, and on meaning when an entry opts in.
   const named = memInputs.queries.length ? resolver(chatId).mentionedIn(history.slice(-2).map((m) => m.content).join("\n")).map((e) => e.name) : [];
   let loreVec = memInputs.qvecs[0] ?? null;
-  if (!loreVec && anySemantic(entries) && embeddingsEnabled()) loreVec = (await embedQueries([history.slice(-2).map((m) => m.content).join("\n").slice(-2000)], 1500))[0] ?? null;
+  // docs/15, 6.2: your message reaching back ("remember the night at the mill?") brings that lore, keywords or not.
+  const yours = kind === "expand" && opts.draft ? opts.draft : ([...history].reverse().find((m) => m.role === "user")?.content ?? "");
+  const reaching = Boolean(reachBack(yours));
+  if (!loreVec && (anySemantic(entries) || reaching) && embeddingsEnabled()) loreVec = (await embedQueries([history.slice(-2).map((m) => m.content).join("\n").slice(-2000)], 1500))[0] ?? null;
+  const recalled = reaching ? recallLore(chatId, yours, entries, loreVec) : undefined;
   const lore = activateLore({
     entries,
     history: history.map((m) => `${m.role === "user" ? userName : m.role === "assistant" ? card.name : "Note"}: ${m.content}`),
@@ -421,6 +426,11 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       chatId,
       opts.excludeMessageId ? (one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", opts.excludeMessageId)?.seq ?? Number.MAX_SAFE_INTEGER) - 1 : undefined,
     ),
+    // 6.1: the focus is who's named in your message, who's speaking, and the place you're in.
+    tiers: cfg.loreTiers ? { focus: [card.name, ...(tp?.state?.place.length ? [tp.state.place.at(-1)!] : [])], focusText: yours } : undefined,
+    recalled,
+    // 6.3: how long since each entry last fired here, for the budget.
+    firedAgo: loreFiredAgo(chatId),
   });
   const loreMs = lap();
   // B1: memory and lore that state a secret kept off the page are reworded before the prompt.

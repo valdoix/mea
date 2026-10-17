@@ -97,7 +97,16 @@
   const levelChip: Record<string, string> = { scene: "", chapter: "lavender", arc: "peach", story: "butter" };
   const slotChip: Record<string, string> = { pinned: "butter", recent: "mint", relevant: "lavender", serendipity: "sky", entity: "mint", deep: "butter" };
   const slotName: Record<string, string> = { pinned: "pinned", recent: "recent", relevant: "relevant", serendipity: "callback", entity: "in play", deep: "quoted" };
-  const lore = $derived((data?.trace?.lore ?? []).filter((l) => showLore === "all" || l.status === "active"));
+  // docs/15, 6.3: what fired, by tier (the focus, around it, the rest), then what the budget cut.
+  const TIER_ORDER = { focus: 0, around: 1 } as Record<string, number>;
+  const lore = $derived(
+    (data?.trace?.lore ?? [])
+      .filter((l) => showLore === "all" || l.status === "active")
+      .slice()
+      .sort((a, b) => Number(a.status !== "active") - Number(b.status !== "active") || (TIER_ORDER[a.tier ?? ""] ?? 2) - (TIER_ORDER[b.tier ?? ""] ?? 2)),
+  );
+  const cut = $derived((data?.trace?.lore ?? []).filter((l) => l.status !== "active" && l.reason.startsWith("over token budget")));
+  const TIER_LABEL: Record<string, string> = { focus: "Focus", around: "Around" };
 
   function copyJson() {
     navigator.clipboard?.writeText(JSON.stringify(data?.messages ?? [], null, 2));
@@ -317,9 +326,12 @@
           {#if lore.length}
             <table>
               <tbody>
-                {#each lore as l (l.id)}
+                {#each lore as l, i (l.id)}
+                  {#if l.status === "active" && (i === 0 || lore[i - 1]!.tier !== l.tier) && (l.tier || lore.some((x) => x.tier))}
+                    <tr class="tierrow"><td colspan="4" class="tiny muted">{l.tier ? TIER_LABEL[l.tier] : "Other"}{l.tier === "around" ? " · essentials and what's true now" : l.tier === "focus" ? " · the full entry" : ""}</td></tr>
+                  {/if}
                   <tr class:off={l.status !== "active"}>
-                    <td>{l.comment}</td>
+                    <td>{l.comment}{#if l.why}<span class="chip tiny why">{l.why}</span>{/if}</td>
                     <td class="muted">{l.bookName}</td>
                     <td class="num">{l.tokens ?? ""}</td>
                     <td class={l.status === "active" ? "ok" : "muted"}>{l.reason}{#if l.facts?.length}<div class="tiny muted" title="The facts it sent">Now: {l.facts.join(" · ")}</div>{/if}</td>
@@ -329,6 +341,9 @@
             </table>
           {:else}
             <p class="tiny muted">No entries {showLore === "active" ? "fired" : "in scope"}.</p>
+          {/if}
+          {#if cut.length && showLore === "active"}
+            <p class="tiny muted cut">Cut for the budget: {cut.map((l) => `${l.comment}${l.why ? ` (${l.why})` : ""}`).join(" · ")}</p>
           {/if}
         </details>
       {/if}
@@ -466,6 +481,17 @@
   }
   tr.off td {
     opacity: 0.6;
+  }
+  .tierrow td {
+    padding-top: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .why {
+    margin-left: 0.35rem;
+  }
+  .cut {
+    margin: 0.4rem 0 0;
   }
   .msgs {
     display: grid;
