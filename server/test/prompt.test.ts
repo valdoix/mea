@@ -165,10 +165,14 @@ describe("Mea's default preset", () => {
     expect(p).toContain("[BEFORE YOU WRITE");
     // Planning is always on: in a <think> block by default, in the model's own reasoning when the route reasons.
     expect(p).toContain("the very first thing you write is <think>, then the pass");
-    expect(p).toContain("the <think> planning block opens the reply");
+    expect(p).toContain("the <think> planning block before it");
+    // The story has a box of its own, so the plan can't reach the prose (2026-10-17).
+    expect(p).toContain("then <story>, the story, and </story>");
+    expect(p).toContain("Order: <think> with the planning pass, </think>, <story>, the story, </story>.");
     const native = all({ providerReasoning: true });
     expect(native).toContain("Run this pass in your reasoning before you write a word of the reply");
     expect(native).not.toContain("<think>");
+    expect(native).toContain("write the reply inside <story>…</story>");
     expect(p).not.toContain("{{");
   });
 
@@ -205,9 +209,9 @@ describe("Mea's default preset", () => {
 
   test("the rules agree with each other: OOC answers, the inline ledger, planning only for story replies", () => {
     const p = all();
-    expect(p).toContain("an out-of-character question from the player gets a short answer before the story");
-    expect(p).not.toContain("the <ledger> block follows the story");
-    expect(all({ extras: [{ id: "ledger", name: "Ledger", content: "LEDGER", depth: 0 }] })).toContain("the <ledger> block follows the story");
+    expect(p).toContain("a short answer to an out-of-character question from the player, inside the box before the story");
+    expect(p).not.toContain("and the <ledger> block after it");
+    expect(all({ extras: [{ id: "ledger", name: "Ledger", content: "LEDGER", depth: 0 }] })).toContain("and the <ledger> block after it");
     expect(all({ kind: "impersonate" })).not.toContain("[BEFORE YOU WRITE");
   });
 
