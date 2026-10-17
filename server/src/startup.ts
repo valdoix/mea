@@ -28,6 +28,7 @@ import { runChronicle } from "./lore/chronicle";
 import { runKeepup, runTimeKeepup } from "./lore/keepup";
 import { runDetailsJob } from "./lore/details";
 import { runBondJob } from "./lore/bond";
+import { runCompactJob } from "./lore/compact";
 import "./lore/keepupinbox";
 import { embedLore } from "./lore/semantic";
 import { runEnrichJob } from "./lore/enrich";
@@ -101,6 +102,9 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("memory.journal", async (p, job) => runJournalJob(String(p.chatId), job));
   registerJob("lore.chronicle", async (p, job) => {
     await runChronicle(String(p.chatId), job);
+  });
+  registerJob("lore.compact", async (p, job) => {
+    await runCompactJob(String(p.chatId), job);
   });
   registerJob("lore.time", async (p) => {
     runTimeKeepup(String(p.chatId));

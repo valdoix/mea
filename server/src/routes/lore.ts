@@ -36,6 +36,8 @@ import "../lore/keepupinbox";
 import { slotsFor } from "../lore/slots";
 import { decideDetails, draftDetails } from "../lore/details";
 import { bondPage, markMilestone } from "../lore/bond";
+import { coverageFindings, fixFinding, mergeEntries } from "../lore/coverage";
+import { compactEntry, decideCompaction } from "../lore/compact";
 import { updateChat } from "../services/chats";
 import { embedLore } from "../lore/semantic";
 import { embeddingsEnabled } from "../memory/embed";
@@ -316,6 +318,26 @@ lore.post("/lore/entries/:id/details/draft", async (c) => {
 lore.post("/lore/entries/:id/details/decide", async (c) => {
   const b = await body(c, z.object({ action: z.enum(["accept", "reject"]), slot: z.string().optional(), value: z.string().max(500).optional() }));
   return c.json({ undo: decideDetails(c.req.param("id"), b.action, { slot: b.slot, value: b.value }) });
+});
+
+// ---------- docs/15, part 7: upkeep ----------
+
+lore.get("/chats/:id/lore/coverage", (c) => c.json({ findings: coverageFindings(c.req.param("id")) }));
+lore.post("/chats/:id/lore/coverage/fix", async (c) => {
+  const b = await body(c, z.object({ key: z.string() }));
+  return c.json(fixFinding(c.req.param("id"), b.key));
+});
+/** 7.2: merge another entry (any book) into this one, facts and history included. */
+lore.post("/lore/entries/:id/merge", async (c) => {
+  const b = await body(c, z.object({ otherId: z.string() }));
+  return c.json(mergeEntries(c.req.param("id"), b.otherId));
+});
+/** 7.3: compact this entry's text now, or decide / undo a compaction. */
+lore.post("/lore/entries/:id/compact", async (c) => c.json(await compactEntry(c.req.param("id"))));
+lore.post("/lore/entries/:id/compact/decide", async (c) => {
+  const b = await body(c, z.object({ action: z.enum(["accept", "reject", "undo"]), edited: z.string().max(40_000).optional() }));
+  decideCompaction(c.req.param("id"), b.action, b.edited);
+  return c.json({ ok: true });
 });
 
 // ---------- docs/15, part 4: the bond ----------

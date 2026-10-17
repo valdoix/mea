@@ -223,6 +223,8 @@ function afterScene(chatId: string, summaryId: string) {
   // docs/15, part 4: a companion chat's Bond, kept current (the first scene makes it).
   enqueue("lore.bond", { chatId }, { dedupeKey: `lore.bond:${chatId}`, delayMs: 25_000, priority: 0, chatId });
   if (cfg.loreKeepup) enqueue("lore.keepup", { chatId }, { dedupeKey: `lore.keepup:${chatId}`, delayMs: 35_000, priority: 0, chatId });
+  // docs/15, 7.3: long lore texts get shorter while the chat is idle (names and numbers kept).
+  enqueue("lore.compact", { chatId }, { dedupeKey: `lore.compact:${chatId}`, delayMs: 25 * 60_000, priority: 0, chatId });
   if (cfg.consolidate) enqueue("memory.consolidate", { chatId }, { dedupeKey: `memory.consolidate:${chatId}`, delayMs: 20 * 60_000, priority: 0, chatId });
 }
 
