@@ -62,6 +62,8 @@ export interface ActivationInput {
   recalled?: Map<string, string>;
   /** 6.3: messages since each entry last fired in this chat (missing: not yet). */
   firedAgo?: Map<string, number>;
+  /** docs/15, 5.1: entries whose date comes round today, with the line to say ("a year since the wedding"). */
+  dated?: Map<string, string>;
 }
 
 export interface NowFact {
@@ -132,7 +134,7 @@ export interface ActivatedEntry {
   content: string;
   /** LORE-14 priority inputs. */
   score?: number;
-  kind?: "key" | "constant" | "entity" | "semantic" | "sticky" | "recursion" | "parent" | "recalled";
+  kind?: "key" | "constant" | "entity" | "semantic" | "sticky" | "recursion" | "parent" | "recalled" | "date";
   tier?: "focus" | "around";
 }
 
@@ -230,6 +232,9 @@ export function activateLore(input: ActivationInput): ActivationResult {
     const primary = keys.filter((k) => keyMatches(sub(k), text, cs, ww));
     if (primary.length === 0) {
       if (level === 0) {
+        // 5.1: its date comes round today.
+        const day = input.dated?.get(e.id);
+        if (day) return { ok: true, reason: `date: ${day}`, score: 2.5, kind: "date" };
         // 6.2: a "remember when…" reached back for it.
         const back = input.recalled?.get(e.id);
         if (back) return { ok: true, reason: `recalled: ${back}`, score: 2.5, kind: "recalled" };
@@ -402,13 +407,13 @@ export function activateLore(input: ActivationInput): ActivationResult {
   const stale = (a: ActivatedEntry) => (input.firedAgo ? Math.min(10, (input.firedAgo.get(a.entry.id) ?? 50) / 5) : 0);
   const priority = (a: ActivatedEntry) =>
     a.entry.order +
-    (a.kind === "constant" ? 60 : a.kind === "sticky" ? 30 : a.kind === "entity" ? 35 : a.kind === "recalled" ? 35 : a.kind === "semantic" ? 15 : a.kind === "parent" ? 10 : 25) +
+    (a.kind === "constant" ? 60 : a.kind === "sticky" ? 30 : a.kind === "entity" ? 35 : a.kind === "recalled" || a.kind === "date" ? 35 : a.kind === "semantic" ? 15 : a.kind === "parent" ? 10 : 25) +
     (a.tier === "focus" ? 10 : 0) +
     Math.min(20, (a.score ?? 0) * 5) -
     a.level * 10 -
     stale(a);
   // 6.3: why it fired, in a word, for the Inspector.
-  const WHY: Record<NonNullable<ActivatedEntry["kind"]>, string> = { key: "named", constant: "constant", entity: "in the scene", semantic: "meaning", sticky: "sticky", recursion: "linked", parent: "parent", recalled: "recalled" };
+  const WHY: Record<NonNullable<ActivatedEntry["kind"]>, string> = { key: "named", constant: "constant", entity: "in the scene", semantic: "meaning", sticky: "sticky", recursion: "linked", parent: "parent", recalled: "recalled", date: "date" };
   const whyOf = (a: ActivatedEntry) => (a.tier === "focus" ? "focus" : a.kind ? WHY[a.kind] : "named");
   const sorted = [...active.values()].sort((a, b) => priority(b) - priority(a) || b.entry.order - a.entry.order);
   const accepted: ActivatedEntry[] = [];
@@ -416,6 +421,9 @@ export function activateLore(input: ActivationInput): ActivationResult {
   // docs/15: what's true now rides after the core (and after the essentials, when trimmed).
   const withNow = (e: ScanEntry, content: string) => {
     const facts = input.facts?.get(e.id);
+    // 5.1: today's date line rides with it, whatever made it fire.
+    const day = input.dated?.get(e.id);
+    if (day) content = `${content}\n${day}.`;
     if (!facts?.length) return content;
     const block = nowBlock(facts.map((f) => ({ ...f, value: sub(f.value) })), sub(e.comment || e.keys[0] || "") || undefined);
     return `${content}\n${block}`;

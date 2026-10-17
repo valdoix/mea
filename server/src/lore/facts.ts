@@ -3,7 +3,7 @@ import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
 import { shortHash } from "../creator/smarts";
 import { stashRestore } from "../services/undo";
-import { isSingleSlot, slotDef } from "./slots";
+import { durationIn, isSingleSlot, slotDef } from "./slots";
 
 /**
  * Living lore (docs/15, part 1): facts on lorebook entries. An entry keeps its written core and
@@ -42,6 +42,7 @@ interface FactRow {
   basis: string | null;
   until_message_id: string | null;
   until_swipe: number | null;
+  expects_minutes: number | null;
   known_by: string;
   created_at: number;
   updated_at: number;
@@ -63,6 +64,8 @@ export interface LoreFact {
   /** The message number it stops at (retired); null while it holds. */
   untilSeq: number | null;
   sinceTime: number | null;
+  /** 5.2: how long it's expected to last on the story's clock (null: until the story says). */
+  expectsMinutes: number | null;
   untilTime: number | null;
   messageId: string | null;
   swipeIdx: number;
@@ -91,6 +94,7 @@ const view = (r: Joined, nowAt: boolean, seq?: number | null): LoreFact => ({
   sinceSeq: seq ?? r.since_seq,
   untilSeq: r.until_message_id ? (r.u_seq ?? null) : r.until_seq,
   sinceTime: r.since_time,
+  expectsMinutes: r.expects_minutes ?? null,
   untilTime: r.until_time,
   messageId: r.message_id,
   swipeIdx: r.swipe_idx,
@@ -245,6 +249,8 @@ export interface FactInput {
   locked?: boolean;
   knownBy?: string[];
   sinceTime?: number | null;
+  /** 5.2: how long it lasts (default: read from the words for a state, "about six weeks"). */
+  expectsMinutes?: number | null;
   status?: FactStatus;
 }
 
@@ -267,8 +273,8 @@ function insertFact(entryId: string, f: FactInput): string {
   const id = newId();
   const t = now();
   run(
-    `INSERT INTO lore_facts (id, entry_id, chat_id, slot, value, kind, since_seq, since_time, message_id, swipe_idx, origin, locked, status, known_by, basis, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO lore_facts (id, entry_id, chat_id, slot, value, kind, since_seq, since_time, message_id, swipe_idx, origin, locked, status, known_by, basis, expects_minutes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     entryId,
     chatId,
@@ -285,6 +291,7 @@ function insertFact(entryId: string, f: FactInput): string {
     JSON.stringify(cleanNames(f.knownBy)),
     // Facts read from a message's words remember them, so an edit there asks for a re-check (2.3).
     msg && origin === "story" ? textBasis(one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", f.messageId!, swipe === -1 ? msg.active_swipe : swipe)?.content ?? "") : null,
+    f.expectsMinutes !== undefined ? f.expectsMinutes : kind === "state" ? durationIn(value) : null,
     t,
     t,
   );

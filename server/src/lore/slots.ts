@@ -1,4 +1,5 @@
 import type { EntryExtra } from "./activate";
+import { parseDuration } from "../trackers/clock";
 
 /**
  * The detail sheet (docs/15, 3.1): the named kinds of fact each type of entry has, the small
@@ -146,6 +147,19 @@ export function normalizeValue(slot: string | null | undefined, value: string): 
   if (s === "age") return numberOf(v)?.toString() ?? v.toLowerCase();
   if (s === "handedness") return /\bleft/i.test(v) ? "left" : /\bright/i.test(v) ? "right" : /ambi|both/i.test(v) ? "both" : v.toLowerCase();
   return v.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+const WORD_NUM: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, few: 3, couple: 2 };
+
+/**
+ * 5.2: how long a state says it lasts ("arm in a sling, about six weeks" → 6 weeks in minutes), or null.
+ * A moon counts as a month.
+ */
+export function durationIn(text: string): number | null {
+  const m = text.toLowerCase().match(/\b(?:for |about |around |roughly |some )?(\d+(?:\.\d+)?|an?|one|two|three|four|five|six|seven|eight|nine|ten|twelve|few|couple)\s+(?:of\s+)?(minutes?|hours?|days?|weeks?|months?|moons?|years?)\b/);
+  if (!m) return null;
+  const n = WORD_NUM[m[1]!] ?? Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? parseDuration(`${n} ${m[2]!.replace(/^moons?$/, "months")}`) : null;
 }
 
 /** Whether two values of a slot say the same thing ("gray" and "steel-grey" eyes do). */

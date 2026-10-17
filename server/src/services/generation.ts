@@ -16,6 +16,7 @@ import { reinforce } from "../memory/reinforce";
 import { anySemantic, semanticScorer } from "../lore/semantic";
 import { loreFiredAgo, recordLoreHits } from "../lore/health";
 import { reachBack, recallLore } from "../lore/recallhook";
+import { chatCalendar, datesToday } from "../lore/dates";
 import { warmMemory } from "../memory/warm";
 import { ledgerChangedAfterReply, scheduleMemory } from "../memory/scheduler";
 import { setMemState } from "../memory/store";
@@ -431,6 +432,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     recalled,
     // 6.3: how long since each entry last fired here, for the budget.
     firedAgo: loreFiredAgo(chatId),
+    // 5.1: anniversaries and birthdays that come round today on the story's calendar.
+    dated: tp?.state?.time ? datesToday(chatId, entries, tp.state.time, chatCalendar(chatId)) : undefined,
   });
   const loreMs = lap();
   // B1: memory and lore that state a secret kept off the page are reworded before the prompt.

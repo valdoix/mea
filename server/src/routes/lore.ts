@@ -29,9 +29,9 @@ import { activateLore } from "../lore/activate";
 import { assistEntry, ENTRY_TEMPLATES, glossary, previewLore, templateContent } from "../lore/assist";
 import { acceptChronicle, chronicleProposals, rejectChronicle, runChronicle } from "../lore/chronicle";
 import { loreHealth } from "../lore/health";
-import { addFact, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
+import { addFact, latestSeq, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
 import { pickFactEntry } from "../lore/factpick";
-import { afterApplied, decideUpdate, KEEPUP_LEVELS, type KeepupLevel, runKeepup, updateProposals } from "../lore/keepup";
+import { afterApplied, clockNow, decideUpdate, KEEPUP_LEVELS, type KeepupLevel, runKeepup, updateProposals } from "../lore/keepup";
 import "../lore/keepupinbox";
 import { slotsFor } from "../lore/slots";
 import { decideDetails, draftDetails } from "../lore/details";
@@ -246,7 +246,8 @@ lore.get("/lore/entries/:id/facts", (c) => {
   const chats = new Map(
     [...new Set(facts.map((f) => f.chatId).filter((x): x is string => Boolean(x)))].map((id) => [id, one<{ title: string }>("SELECT title FROM chats WHERE id = ?", id)?.title ?? ""]),
   );
-  return c.json({ facts: facts.map((f) => ({ ...f, chatTitle: f.chatId ? (chats.get(f.chatId) ?? "") : null })) });
+  // 5.3: the newest message, for "as of any message".
+  return c.json({ facts: facts.map((f) => ({ ...f, chatTitle: f.chatId ? (chats.get(f.chatId) ?? "") : null })), latest: chatId ? latestSeq(chatId) : null });
 });
 
 lore.post("/lore/entries/:id/facts", async (c) => {
@@ -267,7 +268,9 @@ lore.post("/lore/entries/:id/facts", async (c) => {
   // A fact you add in a chat holds from its newest message on, on every swipe of it.
   const messageId = b.messageId ?? (b.chatId ? (one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", b.chatId)?.id ?? null) : null);
   const { fromText, ...f } = b;
-  return c.json(addFact(c.req.param("id"), { ...f, messageId, origin: fromText && b.messageId ? "story" : "you" }), 201);
+  // 5.1 / 5.2: a fact made in a chat starts at the story's clock now (for its dates, and wearing off).
+  const sinceTime = b.chatId || messageId ? (clockNow(b.chatId ?? one<{ chat_id: string }>("SELECT chat_id FROM messages WHERE id = ?", messageId!)!.chat_id)?.minutes ?? null) : null;
+  return c.json(addFact(c.req.param("id"), { ...f, messageId, sinceTime, origin: fromText && b.messageId ? "story" : "you" }), 201);
 });
 
 lore.patch("/lore/facts/:id", async (c) => {

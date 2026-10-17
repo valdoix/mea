@@ -29,10 +29,16 @@
   let draft = $state("");
   let slot = $state("");
   let busy = $state(false);
+  /** 5.3: the facts as they were at a message (null: now), and the newest message. */
+  let asOf = $state<number | null>(null);
+  let latest = $state<number | null>(null);
 
   async function load() {
     try {
-      facts = (await get<{ facts: LoreFact[] }>(`/api/lore/entries/${entryId}/facts${chatId ? `?chatId=${chatId}` : ""}`)).facts;
+      const q = chatId ? `?chatId=${chatId}${asOf != null ? `&seq=${asOf}` : ""}` : "";
+      const r = await get<{ facts: LoreFact[]; latest: number | null }>(`/api/lore/entries/${entryId}/facts${q}`);
+      facts = r.facts;
+      latest = r.latest;
     } catch (e) {
       errorToast(e);
     } finally {
@@ -42,6 +48,7 @@
   $effect(() => {
     void entryId;
     void chatId;
+    void asOf;
     void load();
   });
   $effect(() => {
@@ -141,12 +148,21 @@
 
 <div class="facts stack tight" class:compact>
   <div class="row between head">
-    <span class="label">Facts <span class="faint">{chatId ? "true now in this chat, and canon" : "small, exact, dated; sent after the text when it fires"}</span></span>
+    <span class="label">Facts <span class="faint">{chatId ? (asOf != null ? `as they were at #${asOf}` : "true now in this chat, and canon") : "small, exact, dated; sent after the text when it fires"}</span></span>
     <div class="row">
       {#if type === "character" && !chatId}<button class="btn ghost small" onclick={draftDetails} disabled={drafting} title="Fill the detail sheet from the card, and draft what it leaves open for your yes"><WandSparkles size={13} /> {drafting ? "Drafting…" : "Draft the details"}</button>{/if}
       {#if history}<Segmented options={[{ value: "now", label: "Now" }, { value: "history", label: `History (${history})` }]} bind:value={view} small />{/if}
     </div>
   </div>
+  {#if chatId && latest && latest > 1 && (history || asOf != null)}
+    <!-- 5.3: every fact as it was at any message. -->
+    <label class="row timeline tiny muted">
+      <span>#1</span>
+      <input type="range" min="1" max={latest + 1} value={asOf ?? latest + 1} onchange={(e) => { const v = Number(e.currentTarget.value); asOf = v > latest! ? null : v; }} aria-label="Facts as of message" />
+      <span>{asOf != null ? `#${asOf}` : "now"}</span>
+      {#if asOf != null}<button class="btn ghost small" type="button" onclick={() => (asOf = null)}>Now</button>{/if}
+    </label>
+  {/if}
   {#each shown as f (f.id)}
     <div class="fact" class:old={!f.now} class:likely={f.status === "invented"}>
       <span class="grow small">
@@ -225,6 +241,14 @@
   .add {
     gap: 0.4rem;
     flex-wrap: wrap;
+  }
+  .timeline {
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .timeline input {
+    flex: 1;
+    min-width: 0;
   }
   .add .grow {
     flex: 1 1 12rem;
