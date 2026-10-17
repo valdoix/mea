@@ -2,15 +2,16 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { actOnInbox, inboxItems } from "../src/accuracy/inbox";
 import { compactEntry, decideCompaction, lostNames, namesAndNumbers } from "../src/lore/compact";
-import { coverageFindings, fixFinding, mergeEntries } from "../src/lore/coverage";
+import { coverageFindings, fixFinding, mergeEntries, spokenNames } from "../src/lore/coverage";
 import { createFact, factsNow, listFacts, supersedeFact } from "../src/lore/facts";
 import { recordLoreHits } from "../src/lore/health";
 import "../src/lore/keepupinbox";
-import { createEntry, createLorebook, getEntries } from "../src/lore/service";
+import { createEntry, createLorebook, getEntries, updateEntry } from "../src/lore/service";
 import { defaultEntry } from "../src/lore/types";
 import { createAtom } from "../src/memory/atoms";
 import { createEntity } from "../src/memory/entities";
 import { run } from "../src/db/db";
+import { getSetting } from "../src/lib/settings";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
 import { registerJob } from "../src/services/jobs";
@@ -78,6 +79,39 @@ describe("7.1 coverage findings", () => {
     const thin = coverageFindings(chatId).find((f) => f.kind === "thin")!;
     actOnInbox(`lore-health:${thin.key}`, "reject");
     expect(coverageFindings(chatId).some((f) => f.key === thin.key)).toBe(false);
+  });
+
+  test("an entry the budget keeps out gets Raise budget, not Add key; the fix raises it, with Undo", () => {
+    run("UPDATE lore_hits SET last_at = 0, count = 0 WHERE entry_id = ?", joss);
+    recordLoreHits(chatId, [], [joss]);
+    const all = coverageFindings(chatId);
+    expect(all.some((f) => f.kind === "quiet" && f.entries[0]!.id === joss)).toBe(false);
+    const budget = all.find((f) => f.kind === "budget")!;
+    expect(budget.entries.map((e) => e.title)).toEqual(["Joss"]);
+    expect(budget.message).toContain("lore budget (2048 tokens)");
+    expect(inboxItems({ chatId }).find((i) => i.key === `lore-health:${budget.key}`)!.labels).toEqual({ accept: "Raise budget", reject: "Not now" });
+    const r = fixFinding(chatId, budget.key);
+    expect(getSetting("lore.defaults").tokenBudget).toBe(3072);
+    // The old cuts are cleared, so the card is gone until a reply is cut again.
+    expect(coverageFindings(chatId).some((f) => f.kind === "budget")).toBe(false);
+    restoreStash(r.undo!);
+    expect(getSetting("lore.defaults").tokenBudget).toBe(2048);
+    // Fired since it was cut: no budget card.
+    recordLoreHits(chatId, [], [joss]);
+    recordLoreHits(chatId, [joss]);
+    expect(coverageFindings(chatId).some((f) => f.kind === "budget")).toBe(false);
+  });
+
+  test("names the Codex annotates aren't offered as keys, and nothing to add means no card", () => {
+    expect(spokenNames("Shauna (best friend, present but not a POV)")).toEqual(["Shauna"]);
+    expect(spokenNames("Shauna (missing)")).toEqual(["Shauna"]);
+    expect(spokenNames("Kristen (Crystal)")).toEqual(["Kristen", "Crystal"]);
+    // With Old Joss a key too, every name the story uses is covered: no quiet card, even unfired.
+    const before = getEntries(world).find((e) => e.id === joss)!;
+    updateEntry(joss, { ...before, keys: ["Joss", "Old Joss"] });
+    run("UPDATE lore_hits SET last_at = 0, count = 0, cut_at = NULL WHERE entry_id = ?", joss);
+    expect(coverageFindings(chatId).some((f) => f.kind === "quiet" && f.entries[0]!.id === joss)).toBe(false);
+    updateEntry(joss, before);
   });
 });
 

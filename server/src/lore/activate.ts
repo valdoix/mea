@@ -415,7 +415,12 @@ export function activateLore(input: ActivationInput): ActivationResult {
   // 6.3: why it fired, in a word, for the Inspector.
   const WHY: Record<NonNullable<ActivatedEntry["kind"]>, string> = { key: "named", constant: "constant", entity: "in the scene", semantic: "meaning", sticky: "sticky", recursion: "linked", parent: "parent", recalled: "recalled", date: "date" };
   const whyOf = (a: ActivatedEntry) => (a.tier === "focus" ? "focus" : a.kind ? WHY[a.kind] : "named");
-  const sorted = [...active.values()].sort((a, b) => priority(b) - priority(a) || b.entry.order - a.entry.order);
+  // Order only ranks within a band, so a high-order entry pulled in by another can't push out the
+  // scene's own: first what the scene needs (constants, the focus, who's in it), then what was named,
+  // then what came along by recursion or as a parent.
+  const band = (a: ActivatedEntry) =>
+    a.kind === "recursion" || a.kind === "parent" ? 0 : a.tier === "focus" || (a.kind && ["constant", "sticky", "entity", "recalled", "date"].includes(a.kind)) ? 2 : 1;
+  const sorted = [...active.values()].sort((a, b) => band(b) - band(a) || priority(b) - priority(a) || b.entry.order - a.entry.order);
   const accepted: ActivatedEntry[] = [];
   let used = 0;
   // docs/15: what's true now rides after the core (and after the essentials, when trimmed).

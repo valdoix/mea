@@ -1168,7 +1168,11 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         console.error("[mea] after-reply step failed:", e);
       }
       saveLoreState(gen.chatId, p.lore.stateUpdates, gen.messageId);
-      recordLoreHits(gen.chatId, p.lore.activated.map((a) => a.entry.id));
+      recordLoreHits(
+        gen.chatId,
+        p.lore.activated.map((a) => a.entry.id),
+        p.lore.trace.filter((t) => t.status === "inactive" && t.reason.startsWith("over token budget")).map((t) => t.id),
+      );
       setChatVars(gen.chatId, p.assembled.vars);
       recordMemoryUsage(requestId, gen.chatId, p);
       // STEER-02: the advisor remembers which of its plans a reply was written with.

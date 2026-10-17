@@ -1329,6 +1329,15 @@ CREATE TABLE lore_keepup (
       if (!hasColumn(db, "quiz_runs", "slots")) db.exec("ALTER TABLE quiz_runs ADD COLUMN slots REAL");
     },
   },
+  {
+    id: 30,
+    name: "lore cut by the budget",
+    sql: "",
+    // Lore health tells "its keys miss" from "it matched, but the budget was full": when an entry was last cut.
+    up: (db) => {
+      if (!hasColumn(db, "lore_hits", "cut_at")) db.exec("ALTER TABLE lore_hits ADD COLUMN cut_at INTEGER");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
