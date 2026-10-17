@@ -109,6 +109,7 @@
       <span class="grow small">
         {label(f)}
         {#if f.knownBy.length}<span class="tiny faint"> · secret, known to {f.knownBy.join(", ")}</span>{/if}
+        {#if f.stale && f.now}<span class="tiny warn-t" title="The message it came from was edited; the Inbox asks if it's still true"> · re-check</span>{/if}
       </span>
       <span class="tiny faint meta">
         {#if !f.chatId}canon{:else if !chatId && f.chatTitle}{f.chatTitle || "a chat"}{/if}
@@ -158,6 +159,9 @@
   }
   .meta {
     white-space: nowrap;
+  }
+  .warn-t {
+    color: var(--danger);
   }
   .add {
     gap: 0.4rem;

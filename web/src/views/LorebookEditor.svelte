@@ -270,6 +270,14 @@
             <option value="rules">Rules: always-on rules for a card</option>
           </select>
         </label>
+        <label class="field role">
+          <span class="label">When the story changes an entry <span class="faint">its facts, in each chat</span></span>
+          <select class="select" value={book.settings.keepup ?? "ask"} onchange={(e) => { const v = e.currentTarget.value as "ask" | "tracker" | "all"; book!.settings.keepup = v === "ask" ? undefined : v; saveMeta(); }}>
+            <option value="ask">Ask me (a card in the Inbox)</option>
+            <option value="tracker">Apply tracker facts, ask the rest</option>
+            <option value="all">Apply all (each with Undo under its reply)</option>
+          </select>
+        </label>
         <label class="switch"><input type="checkbox" checked={Boolean(book.settings.semantic)} onchange={(e) => { book!.settings.semantic = e.currentTarget.checked || undefined; saveMeta(); }} /> Entries also fire on meaning, not just keywords <span class="tiny muted">(needs embeddings, Settings → Models)</span></label>
       </details>
     </section>

@@ -5,7 +5,7 @@
   /** P1: what Mea filed from this message, each with Undo (and "That's not what I meant" for guesses). */
   let { messageId }: { messageId: string } = $props();
   const list = $derived(filed.byMessage[messageId] ?? []);
-  const icon: Record<string, string> = { lesson: "📏", promise: "🤝", truth: "📌", calendar: "📅", motif: "🔁", plant: "🌱", offpage: "🔒", owner: "🏷", clock: "🕰", canon: "📚" };
+  const icon: Record<string, string> = { lesson: "📏", promise: "🤝", truth: "📌", calendar: "📅", motif: "🔁", plant: "🌱", offpage: "🔒", owner: "🏷", clock: "🕰", canon: "📚", lore_update: "📖" };
 </script>
 
 {#if list.length}

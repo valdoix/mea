@@ -47,6 +47,8 @@ export interface LorebookSettings {
   chronicleFor?: string;
   /** What the book is for, which sets how its entries fire: depth and lore by meaning, people by name, rules always. */
   role?: BookRole;
+  /** docs/15, 2.3: the story's changes to this book's entries: ask me (default), apply tracker facts and ask the rest, or apply all. */
+  keepup?: "ask" | "tracker" | "all";
 }
 
 export type BookRole = "depth" | "lore" | "people" | "rules";

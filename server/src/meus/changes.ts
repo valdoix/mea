@@ -11,6 +11,7 @@ import { getSetting } from "../lib/settings";
 import { createEntry, deleteEntry, scanEntriesFor, updateEntry } from "../lore/service";
 import type { LoreEntry } from "../lore/types";
 import { createFact, factLine, factsNow, retireFact, supersedeFact } from "../lore/facts";
+import { cardText, decideUpdate, updateProposals } from "../lore/keepup";
 import { createNote, deleteNote } from "../services/notebook";
 import { arcAction, authorArc, decideFate, decideProposal, setActor } from "../sim/service";
 import { createEntity, deleteEntity, ENTITY_KINDS, type EntityKind, type EntityRow, type EntityStatus, getEntityRow, mergeEntities, resolver, restoreEntity, unmergeEntity, updateEntity } from "../memory/entities";
@@ -50,7 +51,7 @@ export const CHANGE_KINDS = [
   '{"kind": "steer", "length": "short|normal|long", "pacing": "slow|normal|fast", "guidance": ["chip names to switch on"], "guidance_off": ["chip names"], "guidance_once": ["chip names, for the next reply only"], "authors_note": "…", "story": {"genre", "tone", "pov", "tense", "style", "intensity", "language"}} (only what changes);',
   '{"kind": "split", "from": "<cast name>", "name": "<the other person>", "aliases": ["names that belong to the other person"], "lines": ["ledger lines about the other person, after they exist"]} when one cast entry is really two people;',
   '{"kind": "world", "arc": "<subplot id>", "action": "hold|resume|nudge|bring_in|drop|edit", "premise": "…", "want": "…", "fear": "…"}; {"kind": "world_arc", "lead": "<name>", "premise": "…"} a new subplot off the page; {"kind": "world_proposal", "id": "…", "accept": true}; {"kind": "world_fate", "arc": "<id>", "choice": "accept|soften|page"}; {"kind": "world_person", "name": "…", "where": "Town › Place", "standing": "…", "flag": "out|hold|wake|none"};',
-  '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"}; {"kind": "lore_fact", "entry": "<entry id or title>", "action": "add|change|retire", "value": "one short exact fact, e.g. Scar on her left hand", "slot": "<optional: eyes, hair, home…>", "fact": "<for change/retire: the fact id, or give the slot or the old value as old>", "message": <message number it comes from, optional>} keeps a small exact fact on a lore entry for this chat (it follows swipes; the entry text stays as written);',
+  '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"}; {"kind": "lore_fact", "entry": "<entry id or title>", "action": "add|change|retire", "value": "one short exact fact, e.g. Scar on her left hand", "slot": "<optional: eyes, hair, home…>", "fact": "<for change/retire: the fact id, or give the slot or the old value as old>", "message": <message number it comes from, optional>} keeps a small exact fact on a lore entry for this chat (it follows swipes; the entry text stays as written); {"kind": "lore_update", "proposal": "<id from a lore-update inbox key>", "action": "apply|reject"} decides a proposed change to the facts of a lore entry;',
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
   '{"kind": "retell", "version": "<name of another version of this character, from the brief>", "arc": "<summary id, or empty for the story so far>", "title": "…", "text": "the retold recap: what happened, moved into that version’s world through its map, past tense, under 250 words", "greeting": "the new chat’s opening message: the character picking up where the recap ends, never writing {{user}}’s actions or words"} starts a new chat with that version, opening on your greeting (not its usual one);',
@@ -562,6 +563,16 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
       }
       if (action === "change" && (!value || value === f.value)) continue;
       out.push({ kind, target: f.id, label: `Lore fact · ${title} · ${action}`, before: factLine(f), after: action === "retire" ? "" : value, data: { action, value, messageId: at?.id ?? null, why } });
+    } else if (kind === "lore_update") {
+      const ref = str(c.proposal).replace(/^lore-update:/, "");
+      const p = updateProposals(chatId).find((x) => x.id === ref);
+      if (!p) {
+        dropped.push("that lore update isn't waiting any more");
+        continue;
+      }
+      const action = str(c.action).toLowerCase() === "reject" ? "reject" : "accept";
+      const t = cardText(p);
+      out.push({ kind, target: p.id, label: `${t.title} · ${action === "accept" ? "apply" : "not this"}`, before: t.before ?? "", after: action === "accept" ? t.after : "", data: { action, why } });
     } else if (kind === "note") {
       const body = str(c.body);
       if (!body) continue;
@@ -962,6 +973,10 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       if (d.action === "retire") return [{ t: "stash", token: retireFact(c.target, { chatId }).undo }];
       if (d.action === "change") return [{ t: "stash", token: supersedeFact(c.target, { value: String(d.value), messageId, chatId }).undo }];
       return [{ t: "stash", token: createFact(c.target, { value: String(d.value), slot: (d.slot as string | null) ?? null, chatId, messageId, origin: "you" }).undo }];
+    }
+    case "lore_update": {
+      const r = decideUpdate(c.target, d.action === "reject" ? "reject" : "accept");
+      return r.undo ? [{ t: "stash", token: r.undo }] : [];
     }
     case "note":
       return [{ t: "noteDrop", id: createNote({ chatId, title: String(d.title ?? ""), body: c.after }).id }];

@@ -335,6 +335,8 @@ export interface LorebookSettings {
   chronicleFor?: string;
   /** What the book is for: depth and lore fire by meaning, people by name, rules always. */
   role?: BookRole;
+  /** docs/15, 2.3: the story's changes to this book's entries. */
+  keepup?: "ask" | "tracker" | "all";
 }
 
 export type BookRole = "depth" | "lore" | "people" | "rules";
@@ -402,6 +404,8 @@ export interface LoreFact {
   updatedAt: number;
   /** True now, on the branch shown. */
   now: boolean;
+  /** Its source message was edited since: it needs a re-check (the Inbox asks). */
+  stale?: boolean;
 }
 
 export type BlockKind =
@@ -785,6 +789,8 @@ export interface InboxItem {
   editable: boolean;
   createdAt: number;
   link: string;
+  /** The buttons' words when they aren't Approve / Reject ("Apply" / "Not this"). */
+  labels?: { accept?: string; reject?: string };
 }
 
 export interface NameEntry {
@@ -1070,6 +1076,8 @@ export interface MemoryConfig {
   leakGuard: "auto" | "on" | "off";
   checkerModel: boolean;
   chronicle: boolean;
+  /** docs/15, part 2: propose updates to lore entries the story changes. */
+  loreKeepup: boolean;
   /** SUM-10 */
   compression: { scene: Compression; chapter: Compression; arc: Compression; story: Compression };
   /** SUM-11 */

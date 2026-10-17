@@ -31,6 +31,8 @@ import { acceptChronicle, chronicleProposals, rejectChronicle, runChronicle } fr
 import { loreHealth } from "../lore/health";
 import { createFact, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
 import { pickFactEntry } from "../lore/factpick";
+import { afterApplied, decideUpdate, KEEPUP_LEVELS, type KeepupLevel, runKeepup, updateProposals } from "../lore/keepup";
+import "../lore/keepupinbox";
 import { embedLore } from "../lore/semantic";
 import { embeddingsEnabled } from "../memory/embed";
 import { enqueue } from "../services/jobs";
@@ -48,6 +50,8 @@ const settingsSchema = z.object({
   semantic: z.boolean().optional(),
   chronicleFor: z.string().optional(),
   role: z.enum(["depth", "lore", "people", "rules"]).optional(),
+  /** docs/15, 2.3: how much of the story's changes apply without asking. */
+  keepup: z.enum(KEEPUP_LEVELS as [KeepupLevel, ...KeepupLevel[]]).optional(),
 });
 
 const entrySchema = z.object({
@@ -281,6 +285,17 @@ lore.post("/lore/facts/:id/supersede", async (c) => {
 });
 
 lore.delete("/lore/facts/:id", (c) => c.json(deleteFact(c.req.param("id"))));
+
+// ---------- docs/15, part 2: entries that keep up ----------
+
+lore.get("/chats/:id/lore/updates", (c) => c.json({ proposals: updateProposals(c.req.param("id")) }));
+lore.post("/chats/:id/lore/keepup/run", async (c) => c.json(await runKeepup(c.req.param("id"))));
+lore.post("/lore/updates/:id/decide", async (c) => {
+  const b = await body(c, z.object({ action: z.enum(["accept", "reject"]), edited: z.string().max(20_000).optional() }));
+  const r = decideUpdate(c.req.param("id"), b.action, b.edited);
+  const core = b.action === "accept" ? await afterApplied(c.req.param("id")) : null;
+  return c.json({ ...r, core });
+});
 
 /** "Remember as a fact" (1.4): the entry it's likely about, and the fact pre-filled. */
 lore.post("/chats/:id/lore/fact/pick", async (c) => {

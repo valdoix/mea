@@ -219,6 +219,8 @@ function afterScene(chatId: string, summaryId: string) {
   }
   if (cfg.journals) enqueue("memory.journal", { chatId }, { dedupeKey: `memory.journal:${chatId}`, delayMs: 20_000, priority: 0, chatId });
   if (cfg.chronicle) enqueue("lore.chronicle", { chatId }, { dedupeKey: `lore.chronicle:${chatId}`, delayMs: 30_000, priority: 0, chatId });
+  // docs/15, part 2: entries the story changed get update cards (or, by the book's trust level, the change).
+  if (cfg.loreKeepup) enqueue("lore.keepup", { chatId }, { dedupeKey: `lore.keepup:${chatId}`, delayMs: 35_000, priority: 0, chatId });
   if (cfg.consolidate) enqueue("memory.consolidate", { chatId }, { dedupeKey: `memory.consolidate:${chatId}`, delayMs: 20 * 60_000, priority: 0, chatId });
 }
 

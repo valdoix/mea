@@ -64,7 +64,7 @@ export async function runChronicle(chatId: string, job?: JobContext, opts: { max
   // What lore already covers, by any key or alias.
   const covered = new Set<string>();
   for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) for (const k of [...e.keys, ...(((e.extra ?? {}) as EntryExtra).aliases ?? []), e.comment]) if (k?.trim()) covered.add(norm(k));
-  const asked = new Set(all<{ name: string; entity_id: string | null }>("SELECT name, entity_id FROM chronicle_proposals WHERE chat_id = ?", chatId).flatMap((r) => [norm(r.name), r.entity_id ?? ""]));
+  const asked = new Set(all<{ name: string; entity_id: string | null }>("SELECT name, entity_id FROM chronicle_proposals WHERE chat_id = ? AND kind = 'new'", chatId).flatMap((r) => [norm(r.name), r.entity_id ?? ""]));
   const candidates = res.rows
     .filter((e) => ["person", "place", "object", "group"].includes(e.kind) && e.status !== "gone")
     .filter((e) => !parseJson<{ isUser?: boolean }>(e.data, {}).isUser && norm(e.name) !== norm(names.char) && norm(e.name) !== norm(names.user))
@@ -111,7 +111,7 @@ export async function runChronicle(chatId: string, job?: JobContext, opts: { max
 }
 
 export function chronicleProposals(chatId: string, status = "open") {
-  return all<Row>("SELECT * FROM chronicle_proposals WHERE chat_id = ? AND status = ? ORDER BY created_at DESC", chatId, status).map(out);
+  return all<Row>("SELECT * FROM chronicle_proposals WHERE chat_id = ? AND status = ? AND kind = 'new' ORDER BY created_at DESC", chatId, status).map(out);
 }
 
 /** Accept (optionally edited): the entry goes into the chat's Chronicle book. */
