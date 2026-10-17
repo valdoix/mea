@@ -170,6 +170,19 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const notes = (user.match(/^- (.*)$/gm) ?? []).map((l) => l.slice(2));
       return { comment: name, keys: [name], content: `${name}. ${notes.join(" ")}`.slice(0, 900) };
     }
+    // ---------- Living lore (docs/15, part 2) ----------
+    case "lore_keepup": {
+      const ops: Record<string, unknown>[] = [];
+      for (const m of user.matchAll(/^(M\d+)\. (.*)$/gm)) {
+        const nick = m[2]!.match(/goes by (\w+)/i)?.[1];
+        if (nick) ops.push({ op: "add", slot: "nickname", value: nick, cite: m[1] });
+        if (/MOCK_UNCITED/.test(m[2]!)) ops.push({ op: "add", slot: null, value: "Something nobody said" });
+      }
+      return { ops };
+    }
+    case "lore_core_rewrite":
+      // The rules' rewrite stands (same text back means "no better version").
+      return { content: (user.split("ENTRY:\n")[1] ?? "").split("\n\nWHAT CHANGED:")[0] };
     // ---------- Lore Studio (Phase 4) ----------
     case "studio_readback":
       return {

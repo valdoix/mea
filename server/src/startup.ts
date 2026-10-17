@@ -25,6 +25,8 @@ import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
 import { runChronicle } from "./lore/chronicle";
+import { runKeepup } from "./lore/keepup";
+import "./lore/keepupinbox";
 import { embedLore } from "./lore/semantic";
 import { runEnrichJob } from "./lore/enrich";
 import { runStudioJob } from "./lore/studio";
@@ -97,6 +99,9 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("memory.journal", async (p, job) => runJournalJob(String(p.chatId), job));
   registerJob("lore.chronicle", async (p, job) => {
     await runChronicle(String(p.chatId), job);
+  });
+  registerJob("lore.keepup", async (p, job) => {
+    await runKeepup(String(p.chatId), job);
   });
   registerJob("lore.embed", async () => {
     await embedLore();

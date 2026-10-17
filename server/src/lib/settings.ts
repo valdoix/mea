@@ -316,6 +316,8 @@ export interface MemoryConfig {
   checkerModel: boolean;
   /** LORE-12: propose Chronicle entries for people, places and things the story introduces. */
   chronicle: boolean;
+  /** docs/15, part 2: propose updates to lore entries when the story changes what they describe. */
+  loreKeepup: boolean;
   /** SUM-10: Tight / Balanced / Detailed per summary level. */
   compression: { scene: Compression; chapter: Compression; arc: Compression; story: Compression };
   /** SUM-11: tag dramatic moments in scene records and carry them up through every level. */
@@ -357,6 +359,7 @@ export const defaultMemoryConfig: MemoryConfig = {
   leakGuard: "auto",
   checkerModel: true,
   chronicle: true,
+  loreKeepup: true,
   compression: { scene: "balanced", chapter: "balanced", arc: "balanced", story: "balanced" },
   moments: true,
   voice: { tense: "past", person: "third", register: "record" },

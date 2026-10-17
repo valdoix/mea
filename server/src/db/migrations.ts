@@ -1281,6 +1281,34 @@ CREATE INDEX lore_facts_entry ON lore_facts(entry_id, chat_id);
 CREATE INDEX lore_facts_message ON lore_facts(message_id) WHERE message_id IS NOT NULL;
 `,
   },
+  {
+    id: 27,
+    name: "lore keep-up",
+    sql: /* sql */ `
+-- docs/15, part 2: how far each entry has been checked against each chat's story (the last message,
+-- and the newest memory read), so nothing is read twice.
+CREATE TABLE lore_keepup (
+  entry_id TEXT NOT NULL REFERENCES lorebook_entries(id) ON DELETE CASCADE,
+  chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL DEFAULT 0,
+  atoms_at INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (entry_id, chat_id)
+);
+`,
+    up: (db) => {
+      // Update proposals live beside the Chronicle's new-entry ones: their kind, their entry, and the diff.
+      if (!hasColumn(db, "chronicle_proposals", "kind")) db.exec("ALTER TABLE chronicle_proposals ADD COLUMN kind TEXT NOT NULL DEFAULT 'new'");
+      if (!hasColumn(db, "chronicle_proposals", "entry_id")) db.exec("ALTER TABLE chronicle_proposals ADD COLUMN entry_id TEXT");
+      if (!hasColumn(db, "chronicle_proposals", "diff")) db.exec("ALTER TABLE chronicle_proposals ADD COLUMN diff TEXT");
+      db.exec("CREATE INDEX IF NOT EXISTS chronicle_entry ON chronicle_proposals(entry_id, chat_id, kind) WHERE entry_id IS NOT NULL");
+      // A story fact's source text, fingerprinted: an edit to that message marks the fact for a re-check (2.3).
+      if (!hasColumn(db, "lore_facts", "basis")) db.exec("ALTER TABLE lore_facts ADD COLUMN basis TEXT");
+      // A fact the story ended at a message ends on that message's branch only (swipe it away and it holds again).
+      if (!hasColumn(db, "lore_facts", "until_message_id")) db.exec("ALTER TABLE lore_facts ADD COLUMN until_message_id TEXT");
+      if (!hasColumn(db, "lore_facts", "until_swipe")) db.exec("ALTER TABLE lore_facts ADD COLUMN until_swipe INTEGER");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

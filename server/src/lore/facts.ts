@@ -1,6 +1,7 @@
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
+import { shortHash } from "../creator/smarts";
 import { stashRestore } from "../services/undo";
 
 /**
@@ -37,6 +38,9 @@ interface FactRow {
   status: FactStatus;
   superseded_by: string | null;
   replaces: string | null;
+  basis: string | null;
+  until_message_id: string | null;
+  until_swipe: number | null;
   known_by: string;
   created_at: number;
   updated_at: number;
@@ -44,7 +48,7 @@ interface FactRow {
 }
 
 /** A row with where its message stands now (null when it has none, or it's gone). */
-type Joined = FactRow & { m_seq: number | null; m_swipe: number | null; m_deleted: number | null; m_chat: string | null };
+type Joined = FactRow & { m_seq: number | null; m_swipe: number | null; m_deleted: number | null; m_chat: string | null; m_text?: string | null; u_seq?: number | null; u_swipe?: number | null; u_deleted?: number | null };
 
 export interface LoreFact {
   id: string;
@@ -72,9 +76,11 @@ export interface LoreFact {
   updatedAt: number;
   /** True at the message it was read at, on the branch shown now. */
   now: boolean;
+  /** 2.3: the message it was read from was edited since; it needs a re-check. */
+  stale: boolean;
 }
 
-const view = (r: FactRow, nowAt: boolean, seq?: number | null): LoreFact => ({
+const view = (r: Joined, nowAt: boolean, seq?: number | null): LoreFact => ({
   id: r.id,
   entryId: r.entry_id,
   chatId: r.chat_id,
@@ -82,7 +88,7 @@ const view = (r: FactRow, nowAt: boolean, seq?: number | null): LoreFact => ({
   value: r.value,
   kind: r.kind,
   sinceSeq: seq ?? r.since_seq,
-  untilSeq: r.until_seq,
+  untilSeq: r.until_message_id ? (r.u_seq ?? null) : r.until_seq,
   sinceTime: r.since_time,
   untilTime: r.until_time,
   messageId: r.message_id,
@@ -96,7 +102,11 @@ const view = (r: FactRow, nowAt: boolean, seq?: number | null): LoreFact => ({
   createdAt: r.created_at,
   updatedAt: r.updated_at,
   now: nowAt,
+  stale: Boolean(r.basis && r.m_text != null && textBasis(r.m_text) !== r.basis),
 });
+
+/** The fingerprint of a fact's source text (2.3). */
+export const textBasis = (text: string) => shortHash(text.replace(/\s+/g, " ").trim());
 
 const changed = (entryId: string, chatId: string | null) => publish({ type: "lore.facts", entryId, chatId });
 
@@ -109,8 +119,10 @@ const onPath = (r: Joined) => !r.message_id || (r.m_seq != null && r.m_deleted =
 /** Where the fact starts: its message's number as it is now (rewinds renumber nothing, but be safe). */
 const sinceOf = (r: Joined) => (r.message_id ? r.m_seq : r.since_seq);
 
-const SELECT = `SELECT f.*, m.seq AS m_seq, m.active_swipe AS m_swipe, m.deleted_at AS m_deleted, m.chat_id AS m_chat
-  FROM lore_facts f LEFT JOIN messages m ON m.id = f.message_id`;
+const SELECT = `SELECT f.*, m.seq AS m_seq, m.active_swipe AS m_swipe, m.deleted_at AS m_deleted, m.chat_id AS m_chat,
+  CASE WHEN f.basis IS NULL THEN NULL ELSE (SELECT s.content FROM swipes s WHERE s.message_id = f.message_id AND s.idx = CASE WHEN f.swipe_idx = -1 THEN m.active_swipe ELSE f.swipe_idx END) END AS m_text
+  , u.seq AS u_seq, u.active_swipe AS u_swipe, u.deleted_at AS u_deleted
+  FROM lore_facts f LEFT JOIN messages m ON m.id = f.message_id LEFT JOIN messages u ON u.id = f.until_message_id`;
 
 function rowsFor(entryIds: string[], chatId: string | null | undefined): Joined[] {
   if (!entryIds.length) return [];
@@ -135,6 +147,8 @@ function resolve(rows: Joined[], seq: number) {
     if (!visible(r) || replaced.has(r.id)) return false;
     // Superseded within its own scope, and the replacement isn't here: it still holds.
     if (r.status === "superseded") return true;
+    // Ended at a message: only on that message's branch, from there on.
+    if (r.until_message_id) return !(r.u_seq != null && r.u_deleted == null && (r.until_swipe == null || r.until_swipe === -1 || r.until_swipe === r.u_swipe) && r.u_seq <= seq);
     return r.until_seq == null || seq < r.until_seq;
   };
   return rows.map((r) => ({ r, now: holds(r), shown: onPath(r) }));
@@ -187,7 +201,7 @@ export function listFacts(entryId: string, opts: { chatId?: string | null; seq?:
 
 export function getFact(id: string): LoreFact | undefined {
   const r = one<Joined>(`${SELECT} WHERE f.id = ?`, id);
-  return r ? view(r, onPath(r) && r.status !== "superseded" && r.until_seq == null, sinceOf(r)) : undefined;
+  return r ? view(r, onPath(r) && r.status !== "superseded" && r.until_seq == null && !r.until_message_id, sinceOf(r)) : undefined;
 }
 
 const rawRow = (id: string) => one<FactRow>("SELECT * FROM lore_facts WHERE id = ?", id);
@@ -252,8 +266,8 @@ function insertFact(entryId: string, f: FactInput): string {
   const id = newId();
   const t = now();
   run(
-    `INSERT INTO lore_facts (id, entry_id, chat_id, slot, value, kind, since_seq, since_time, message_id, swipe_idx, origin, locked, status, known_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO lore_facts (id, entry_id, chat_id, slot, value, kind, since_seq, since_time, message_id, swipe_idx, origin, locked, status, known_by, basis, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     entryId,
     chatId,
@@ -268,6 +282,8 @@ function insertFact(entryId: string, f: FactInput): string {
     f.locked ? 1 : 0,
     f.status ?? (origin === "invented" ? "invented" : "active"),
     JSON.stringify(cleanNames(f.knownBy)),
+    // Facts read from a message's words remember them, so an edit there asks for a re-check (2.3).
+    msg && origin === "story" ? textBasis(one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", f.messageId!, swipe === -1 ? msg.active_swipe : swipe)?.content ?? "") : null,
     t,
     t,
   );
@@ -318,13 +334,18 @@ export function updateFact(id: string, patch: { value?: string; slot?: string | 
  * Retires a fact: it stops holding after `atSeq` (default: now, the chat's newest message) and stays
  * in History. A canon fact retires everywhere.
  */
-export function retireFact(id: string, opts: { chatId?: string | null; atSeq?: number } = {}) {
+export function retireFact(id: string, opts: { chatId?: string | null; atSeq?: number; /** The story ended it here: on this message's branch only. */ atMessageId?: string; swipeIdx?: number } = {}) {
   const r = mustFact(id);
-  if (r.until_seq != null) throw badRequest("This fact is already retired");
+  if (r.until_seq != null || r.until_message_id) throw badRequest("This fact is already retired");
   const chatId = r.chat_id ?? opts.chatId ?? null;
-  const until = opts.atSeq ?? (r.chat_id ? latestSeq(r.chat_id) + 1 : 0);
   const undo = undoable("Retired fact", [id], r.entry_id, r.chat_id);
-  run("UPDATE lore_facts SET until_seq = ?, updated_at = ? WHERE id = ?", until, now(), id);
+  if (opts.atMessageId) {
+    const m = one<{ active_swipe: number }>("SELECT active_swipe FROM messages WHERE id = ?", opts.atMessageId);
+    run("UPDATE lore_facts SET until_message_id = ?, until_swipe = ?, updated_at = ? WHERE id = ?", opts.atMessageId, opts.swipeIdx ?? m?.active_swipe ?? -1, now(), id);
+  } else {
+    const until = opts.atSeq ?? (r.chat_id ? latestSeq(r.chat_id) + 1 : 0);
+    run("UPDATE lore_facts SET until_seq = ?, updated_at = ? WHERE id = ?", until, now(), id);
+  }
   changed(r.entry_id, chatId);
   return { fact: getFact(id)!, undo };
 }
@@ -351,6 +372,16 @@ export function supersedeFact(id: string, next: Omit<FactInput, "chatId"> & { ch
   });
   changed(r.entry_id, r.chat_id);
   return { fact: getFact(made)!, old: getFact(id)!, undo };
+}
+
+/** 2.3: a fact whose source message was edited still holds: it now reads from the edited text. */
+export function confirmFact(id: string) {
+  const r = mustFact(id);
+  const m = r.message_id ? one<{ active_swipe: number }>("SELECT active_swipe FROM messages WHERE id = ?", r.message_id) : undefined;
+  const text = m ? (one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", r.message_id!, r.swipe_idx === -1 ? m.active_swipe : r.swipe_idx)?.content ?? "") : "";
+  run("UPDATE lore_facts SET basis = ?, updated_at = ? WHERE id = ?", m ? textBasis(text) : null, now(), id);
+  changed(r.entry_id, r.chat_id);
+  return getFact(id)!;
 }
 
 /** Deletes a fact (kept for Undo). */

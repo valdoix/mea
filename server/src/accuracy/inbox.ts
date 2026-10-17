@@ -43,6 +43,8 @@ export interface InboxItem {
   createdAt: number;
   /** Where to see it in context. */
   link: string;
+  /** The buttons' words when they aren't Approve / Reject ("Apply" / "Not this"). */
+  labels?: { accept?: string; reject?: string };
 }
 
 type ChatLite = { id: string; title: string };
