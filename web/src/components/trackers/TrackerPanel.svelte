@@ -6,6 +6,7 @@
   import LessonsPanel from "./LessonsPanel.svelte";
   import OffpagePanel from "./OffpagePanel.svelte";
   import PromisesPanel from "./PromisesPanel.svelte";
+  import BondPanel from "./BondPanel.svelte";
   import { editOffpage, offpageFor } from "../../lib/offpage.svelte";
   import { living } from "../../lib/living";
   import { readClock } from "../../lib/storytime";
@@ -412,6 +413,7 @@
       </Module>
     {/if}
 
+    <BondPanel {chatId} />
     <PromisesPanel {chatId} />
     <LessonsPanel {chatId} />
     <OffpagePanel />

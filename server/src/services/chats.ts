@@ -92,6 +92,8 @@ export const chatSettingsSchema = z.object({
   meus: z.object({ autoApply: z.boolean() }).partial().optional(),
   /** Story truths: your rules for this story, sent every turn. */
   truths: z.array(short(300)).max(30).optional(),
+  /** docs/15, 4.3: what {{char}} knows about {{user}} rides on the Bond (null: on in companion mode). */
+  personaFacts: z.boolean().nullable().optional(),
   /** docs/14, part 6: retold from another chat in this version's world (the recap the story keeps to). */
   retold: z.object({ fromChatId: z.string(), arcId: z.string(), recap: z.string().max(8000) }).nullable().optional(),
   /** PROMPT-07: this chat's preset control values (over the character's and the preset's). */
