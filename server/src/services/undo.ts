@@ -9,7 +9,7 @@ import { notFound } from "../lib/http";
  * their own restore instead.
  */
 
-const TABLES = new Set(["archivist", "variants", "presets", "lorebook_entries", "lorebook_links", "profiles", "connections", "secrets", "models", "collections", "collection_chats", "lore_drafts", "tracker_templates"]);
+const TABLES = new Set(["archivist", "variants", "presets", "lorebook_entries", "lorebook_links", "profiles", "connections", "secrets", "models", "collections", "collection_chats", "lore_drafts", "tracker_templates", "lore_facts"]);
 const TTL = 15 * 60_000;
 
 interface Part {

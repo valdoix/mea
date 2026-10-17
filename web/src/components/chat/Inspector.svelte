@@ -322,7 +322,7 @@
                     <td>{l.comment}</td>
                     <td class="muted">{l.bookName}</td>
                     <td class="num">{l.tokens ?? ""}</td>
-                    <td class={l.status === "active" ? "ok" : "muted"}>{l.reason}</td>
+                    <td class={l.status === "active" ? "ok" : "muted"}>{l.reason}{#if l.facts?.length}<div class="tiny muted" title="The facts it sent">Now: {l.facts.join(" · ")}</div>{/if}</td>
                   </tr>
                 {/each}
               </tbody>

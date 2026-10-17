@@ -565,6 +565,9 @@ export function deleteSwipe(id: string, idx: number) {
     for (const f of all<{ id: string; swipe_idx: number }>("SELECT id, swipe_idx FROM continuity_flags WHERE message_id = ? AND swipe_idx > ? ORDER BY swipe_idx", id, idx))
       run("UPDATE continuity_flags SET swipe_idx = ? WHERE id = ?", f.swipe_idx - 1, f.id);
     run("UPDATE tracker_events SET swipe_idx = swipe_idx - 1 WHERE message_id = ? AND swipe_idx > ?", id, idx);
+    // docs/15: lore facts from that version go with it; the ones after it move down with theirs.
+    run("DELETE FROM lore_facts WHERE message_id = ? AND swipe_idx = ?", id, idx);
+    run("UPDATE lore_facts SET swipe_idx = swipe_idx - 1 WHERE message_id = ? AND swipe_idx > ?", id, idx);
     // M31: so do the tracker memories made from them.
     run(
       "UPDATE memories SET swipe_idx = swipe_idx - 1 WHERE origin = 'tracker' AND swipe_idx > ? AND id IN (SELECT memory_id FROM memory_sources WHERE message_id = ?)",

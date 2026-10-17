@@ -29,6 +29,8 @@ import { activateLore } from "../lore/activate";
 import { assistEntry, ENTRY_TEMPLATES, glossary, previewLore, templateContent } from "../lore/assist";
 import { acceptChronicle, chronicleProposals, rejectChronicle, runChronicle } from "../lore/chronicle";
 import { loreHealth } from "../lore/health";
+import { createFact, deleteFact, FACT_KINDS, type FactKind, factsNowFor, listFacts, retireFact, supersedeFact, updateFact } from "../lore/facts";
+import { pickFactEntry } from "../lore/factpick";
 import { embedLore } from "../lore/semantic";
 import { embeddingsEnabled } from "../memory/embed";
 import { enqueue } from "../services/jobs";
@@ -223,6 +225,69 @@ lore.post("/chronicle/:id/reject", (c) => {
 });
 lore.post("/lore/embed", async (c) => c.json(await embedLore()));
 
+// ---------- Living lore (docs/15, part 1): facts on entries ----------
+
+const factKind = z.enum(FACT_KINDS as [FactKind, ...FactKind[]]);
+
+/** An entry's facts: with `chatId`, that chat's and canon, now and history; without, canon and every chat's. */
+lore.get("/lore/entries/:id/facts", (c) => {
+  must(one("SELECT 1 FROM lorebook_entries WHERE id = ?", c.req.param("id")), "Entry not found");
+  const chatId = c.req.query("chatId") || null;
+  const seq = c.req.query("seq") ? Number(c.req.query("seq")) : undefined;
+  const facts = listFacts(c.req.param("id"), { chatId, seq });
+  const chats = new Map(
+    [...new Set(facts.map((f) => f.chatId).filter((x): x is string => Boolean(x)))].map((id) => [id, one<{ title: string }>("SELECT title FROM chats WHERE id = ?", id)?.title ?? ""]),
+  );
+  return c.json({ facts: facts.map((f) => ({ ...f, chatTitle: f.chatId ? (chats.get(f.chatId) ?? "") : null })) });
+});
+
+lore.post("/lore/entries/:id/facts", async (c) => {
+  const b = await body(
+    c,
+    z.object({
+      value: z.string().trim().min(1).max(500),
+      slot: z.string().max(60).nullable().optional(),
+      kind: factKind.optional(),
+      chatId: z.string().nullable().optional(),
+      messageId: z.string().nullable().optional(),
+      locked: z.boolean().optional(),
+      knownBy: z.array(z.string().max(80)).max(20).optional(),
+      /** story: the words came from the message (Remember as a fact), so the fact follows its swipe. */
+      fromText: z.boolean().optional(),
+    }),
+  );
+  // A fact you add in a chat holds from its newest message on, on every swipe of it.
+  const messageId = b.messageId ?? (b.chatId ? (one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", b.chatId)?.id ?? null) : null);
+  const { fromText, ...f } = b;
+  return c.json(createFact(c.req.param("id"), { ...f, messageId, origin: fromText && b.messageId ? "story" : "you" }), 201);
+});
+
+lore.patch("/lore/facts/:id", async (c) => {
+  const b = await body(
+    c,
+    z.object({ value: z.string().trim().max(500).optional(), slot: z.string().max(60).nullable().optional(), kind: factKind.optional(), locked: z.boolean().optional(), knownBy: z.array(z.string().max(80)).max(20).optional() }),
+  );
+  return c.json(updateFact(c.req.param("id"), b));
+});
+
+lore.post("/lore/facts/:id/retire", async (c) => {
+  const b = await body(c, z.object({ chatId: z.string().nullable().optional() }).default({}));
+  return c.json(retireFact(c.req.param("id"), { chatId: b.chatId }));
+});
+
+lore.post("/lore/facts/:id/supersede", async (c) => {
+  const b = await body(c, z.object({ value: z.string().trim().min(1).max(500), messageId: z.string().nullable().optional(), force: z.boolean().optional() }));
+  return c.json(supersedeFact(c.req.param("id"), { value: b.value, messageId: b.messageId, origin: "you" }, { force: b.force }));
+});
+
+lore.delete("/lore/facts/:id", (c) => c.json(deleteFact(c.req.param("id"))));
+
+/** "Remember as a fact" (1.4): the entry it's likely about, and the fact pre-filled. */
+lore.post("/chats/:id/lore/fact/pick", async (c) => {
+  const b = await body(c, z.object({ messageId: z.string(), text: z.string().max(1500) }));
+  return c.json(pickFactEntry(c.req.param("id"), b.messageId, b.text));
+});
+
 /** Which book an entry lives in (for citations that point at a lore entry). */
 lore.get("/lore/entries/:id/locate", (c) => {
   const r = one<{ lorebook_id: string }>("SELECT lorebook_id FROM lorebook_entries WHERE id = ?", c.req.param("id"));
@@ -230,7 +295,8 @@ lore.get("/lore/entries/:id/locate", (c) => {
 });
 
 lore.delete("/lorebooks/:id/entries/:entryId", (c) => {
-  const undo = stash("Entry", [{ table: "lorebook_entries", where: "id = ?", params: [c.req.param("entryId")] }], "lorebooks");
+  // Its facts go with it (docs/15), and come back with it.
+  const undo = stash("Entry", [{ table: "lorebook_entries", where: "id = ?", params: [c.req.param("entryId")] }, { table: "lore_facts", where: "entry_id = ?", params: [c.req.param("entryId")] }], "lorebooks");
   deleteEntry(c.req.param("entryId"));
   return c.json({ ok: true, undo });
 });
@@ -276,6 +342,7 @@ lore.post("/lorebooks/:id/test", async (c) => {
     defaults: { ...defaults, scanDepth: Math.max(defaults.scanDepth, book.settings.scanDepth ?? 0, 1000) },
     countTokens,
     substitute: (s) => s.replace(/\{\{char\}\}/gi, input.char ?? "{{char}}").replace(/\{\{user\}\}/gi, input.user ?? "{{user}}"),
+    facts: factsNowFor(book.entries.map((e) => e.id), null),
   });
   return c.json({ trace: result.trace, totalTokens: result.totalTokens });
 });

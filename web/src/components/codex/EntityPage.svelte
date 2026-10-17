@@ -1,6 +1,7 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import TagInput from "../TagInput.svelte";
+  import FactsList from "../lore/FactsList.svelte";
   import { del, get, patch, post, put } from "../../lib/api";
   import { confirm, promptText } from "../../lib/dialogs.svelte";
   import { BookOpen, Merge, NotebookPen, Pencil, Trash } from "../../lib/icons";
@@ -269,7 +270,10 @@
         <section class="stack tight">
           <h3><BookOpen size={15} /> Lore</h3>
           {#each page.lore as l (l.id)}
-            <a class="lore card" href="/lorebooks/{l.bookId}?entry={l.id}"><b class="small">{l.title}</b> <span class="tiny muted">· {l.bookName}</span><div class="tiny muted">{l.content.slice(0, 200)}</div></a>
+            <div class="lore card">
+              <a href="/lorebooks/{l.bookId}?entry={l.id}"><b class="small">{l.title}</b> <span class="tiny muted">· {l.bookName}</span><div class="tiny muted">{l.content.slice(0, 200)}</div></a>
+              <FactsList entryId={l.id} {chatId} compact />
+            </div>
           {/each}
         </section>
       {/if}
@@ -323,6 +327,9 @@
   .lore {
     display: block;
     padding: 0.5rem 0.6rem;
+  }
+  .lore a {
+    display: block;
     color: inherit;
   }
   .narrow {

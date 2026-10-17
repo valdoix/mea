@@ -373,6 +373,35 @@ export interface LoreTrace {
   tokens?: number;
   position?: LorePosition;
   order: number;
+  /** docs/15: the facts it sent, as the prompt says them. */
+  facts?: string[];
+}
+
+/** Living lore (docs/15): one small, exact, dated statement on an entry. */
+export type FactKind = "attribute" | "never" | "state" | "event" | "habit" | "voice" | "bond";
+export interface LoreFact {
+  id: string;
+  entryId: string;
+  /** null: canon, true in every chat. */
+  chatId: string | null;
+  chatTitle?: string | null;
+  slot: string | null;
+  value: string;
+  kind: FactKind;
+  sinceSeq: number | null;
+  untilSeq: number | null;
+  messageId: string | null;
+  swipeIdx: number;
+  origin: "card" | "you" | "story" | "tracker" | "invented";
+  locked: boolean;
+  status: "active" | "superseded" | "disputed" | "invented";
+  supersededBy: string | null;
+  replaces: string | null;
+  knownBy: string[];
+  createdAt: number;
+  updatedAt: number;
+  /** True now, on the branch shown. */
+  now: boolean;
 }
 
 export type BlockKind =
@@ -815,6 +844,7 @@ export type MeaEvent =
   | { type: "filings.changed"; chatId: string }
   | { type: "lessons.changed"; chatId: string }
   | { type: "offpage.changed"; chatId: string }
+  | { type: "lore.facts"; entryId: string; chatId: string | null }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   /** A reply you sent is still being prepared: waiting for the trackers or the plan (null: done). */
   | { type: "gen.prep"; chatId: string; stage: "trackers" | "planning" | null }
