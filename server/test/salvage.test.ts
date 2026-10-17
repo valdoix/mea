@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { vetPattern } from "../src/lib/regex";
-import { planFrom, planOnly, splitLeakedPlan } from "../src/services/generation";
+import { planFrom, planOnly, splitLeakedPlan, splitStoryBox, storyRouter } from "../src/services/generation";
 
 describe("the plan step's answer", () => {
   const pass = "NOW — dusk, the lamp room. SEAL — Ash arrived and spoke. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short.";
@@ -53,7 +53,67 @@ describe("M17: a written-out plan leaves the story", () => {
     expect(out.reasoning).toContain("SEAL — SAID: hello");
   });
   test("ordinary prose is left alone", () => {
-    for (const t of ["Now — she said — we wait.", "NOW — the bell rings.\nMira runs.", "Mira waits.\nMOVE — later"]) expect(splitLeakedPlan(t).reasoning).toBe("");
+    for (const t of ["Now — she said — we wait.", "NOW — the bell rings.\nMira runs.", "Mira waits.\nMOVE — later", "Mira waits by the door.\n\nNOW — the bell.\nMOVE — she runs."]) expect(splitLeakedPlan(t).reasoning).toBe("");
+  });
+  test("a step's own lines, a header the route ate, and a story glued onto the pass all leave (2026-10-16)", () => {
+    // The GLM reply: MINDS one person a line with its header gone, candidates under MOVE, the story glued to VOICE.
+    const reply = [
+      "Jackie: wants to see the wound · fears it's worse · tactic: captain's orders · mask: command voice",
+      "Nat: wants James to stop bleeding · fears he'll tear it · tactic: flat refusal",
+      "",
+      "WORLD — The cabin door is ajar. The woodstove is cold.",
+      "",
+      "MOVE —",
+      "Candidate A: Jackie examines the wound. Obvious.",
+      "Candidate B: her voice cracks. More character-driven.",
+      "Choose B. The pressure: Nat has to decide.",
+      "",
+      "RISK — Writing for James (prevent: no interior).",
+      "",
+      "VOICE — Medium length. Opening: on Jackie's hands.Her hands are already moving when he turns.",
+      "",
+      "Not the hover from before.",
+    ].join("\n");
+    const out = splitLeakedPlan(reply);
+    expect(out.text).toBe("Her hands are already moving when he turns.\n\nNot the hover from before.");
+    expect(out.reasoning).toContain("Candidate B");
+    expect(out.reasoning.endsWith("on Jackie's hands.")).toBe(true);
+  });
+  test("the story right under the last step, with no blank line, stays story", () => {
+    expect(splitLeakedPlan("NOW — dusk.\nVOICE — short\nMira looks up.").text).toBe("Mira looks up.");
+  });
+});
+
+describe("the story box: only what's inside <story> is prose", () => {
+  test("everything before the box is plan; the ledger after it stays with the text", () => {
+    const out = splitStoryBox("NOW — dusk.\nMOVE — tea.\nVOICE — short.<story>\nMira looks up.\n</story>\n<ledger>\nclock: +5m\n</ledger>");
+    expect(out.reasoning).toBe("NOW — dusk.\nMOVE — tea.\nVOICE — short.");
+    expect(out.text).toBe("Mira looks up.\n\n<ledger>\nclock: +5m\n</ledger>");
+    expect(splitStoryBox("<think>NOW — dusk</think>\n<story>Rain.</story>")).toEqual({ text: "Rain.", reasoning: "NOW — dusk" });
+    expect(splitStoryBox("Mira looks up.")).toEqual({ text: "Mira looks up.", reasoning: "" });
+  });
+  const run = (chunks: string[]) => {
+    const r = storyRouter();
+    const out = { text: "", reasoning: "" };
+    for (const c of [...chunks.map((x) => r.push(x)), r.end()]) {
+      out.text += c.text;
+      out.reasoning += c.reasoning;
+    }
+    return out;
+  };
+  test("while it streams, the plan goes to reasoning and only the box reaches the text", () => {
+    expect(run(["<think>NOW — dusk", "</think>\n<sto", "ry>\nShe smiled.</st", "ory>"])).toEqual({ text: "She smiled.", reasoning: "NOW — dusk" });
+    // A plan written out with no tags is held back, never shown as prose, and goes to reasoning when the box opens.
+    expect(run(["NOW — dusk, the cabin.\n", "MOVE — she ", "dresses it.\n<story>", "Her hands move."])).toEqual({ text: "Her hands move.", reasoning: "NOW — dusk, the cabin.\nMOVE — she dresses it.\n" });
+    // More plan after the think block closes stays plan.
+    expect(run(["<think>NOW — dusk</think>\nMOVE — tea, warily, the sideways choice.\n<story>Rain."])).toEqual({ text: "Rain.", reasoning: "NOW — dusk\n\nMOVE — tea, warily, the sideways choice.\n" });
+    expect(run(["<story>Rain.</story>\n<ledger>\nclock: +5m\n</ledger>"])).toEqual({ text: "Rain.\n<ledger>\nclock: +5m\n</ledger>", reasoning: "" });
+  });
+  test("a reply with no box: prose streams as it comes, a held plan goes back for the clean-up", () => {
+    expect(run(["She ", "smiled at the lamp and said nothing for a long while, which was answer enough.\nRain."])).toEqual({ text: "She smiled at the lamp and said nothing for a long while, which was answer enough.\nRain.", reasoning: "" });
+    expect(run(["<think>never closed"])).toEqual({ text: "", reasoning: "never closed" });
+    expect(run(["NOW — dusk.\nVOICE — short.\n\nMira looks up."])).toEqual({ text: "NOW — dusk.\nVOICE — short.\n\nMira looks up.", reasoning: "" });
+    expect(run(["<", "b>Bold</b> move"])).toEqual({ text: "<b>Bold</b> move", reasoning: "" });
   });
 });
 
@@ -64,6 +124,11 @@ describe("the plan-only watch: a reply that is only its plan", () => {
     expect(planOnly(`<think>${pass}</think>\n\n`, "")).toBe(pass);
     expect(planOnly(`${pass}\n</think>`, "")).toBe(pass);
     expect(planOnly("", pass)).toBe(pass);
+  });
+  test("a plan and the trackers' ledger, with no story between, is still only a plan", () => {
+    expect(planOnly(`${pass}\n\n<ledger>\nclock: +5m\n</ledger>`, "")).toBe(pass);
+    expect(planOnly(`${pass}\n<story>\n</story>\n<ledger>\nclock: +5m\n</ledger>`, "")).toBe(pass);
+    expect(planOnly(`${pass}\n<story>Mira looks up.</story>`, "")).toBeNull();
   });
   test("a story after the plan, or a token plan, is not one", () => {
     expect(planOnly(`${pass}\n\nMira looks up from the logbook.`, "")).toBeNull();

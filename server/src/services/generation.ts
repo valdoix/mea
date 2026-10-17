@@ -145,27 +145,196 @@ export function thinkRouter() {
 /** The plan watch: a "plan" shorter than this is a one-line outline, not the pass. */
 const PLAN_MIN_WORDS = 15;
 
-const PLAN_HEADER = /^\s*(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*[—–:-]/;
+const PLAN_HEADER = /^\s*(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:\([^)\n]*\)\s*)?[—–:-]/;
+const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning)>/gi;
 
 /**
- * M17: a model that can't reason privately sometimes writes the planning pass out. A reply that opens
- * with two or more of its step headers (NOW —, SEAL —, …) has that block moved to the reasoning field.
+ * A line of the planning pass that isn't a step header: the pass's own markers, a tier line, a bullet
+ * or indented line, a candidate, or a "Name: wants … · fears …" line (MINDS written one person a line).
+ */
+function planLine(line: string): boolean {
+  return (
+    PLAN_HEADER.test(line) ||
+    /^\s*(?:\[BEFORE YOU WRITE|STOP RULE\b|<\/?(?:think|thinking|plan|reasoning)>)/i.test(line) ||
+    /^\s*[*#([]*\s*(?:tier|beat)?\s*[:—–-]?\s*(?:routine|charged|pivotal)\b[^\n]{0,40}$/i.test(line) ||
+    /^\s+\S|^\s*[-*•]\s/.test(line) ||
+    /^\s*(?:candidate|option)\s*\w{0,2}\s*[:.)—–-]|^\s*choose\b/i.test(line) ||
+    /^[^"“”\n:]{1,40}:\s*(?:wants?|fears?|SAID|DID)\b/.test(line) ||
+    (line.match(/ · /g)?.length ?? 0) >= 2
+  );
+}
+
+/** Does the reply open like the planning pass rather than the story? (Its first line decides.) */
+export function opensWithPlan(text: string): boolean {
+  const first = text.replace(/^\s+/, "").split("\n")[0] ?? "";
+  return Boolean(first.trim()) && !/^\s+/.test(first) && planLine(first);
+}
+
+/**
+ * The story box: Mea's preset asks for the story inside <story>…</story>, so the plan has a place of
+ * its own and nothing of it can reach the prose. Whatever comes before <story> is the plan (moved to
+ * reasoning); </story> and anything after it (the <ledger> block) stay with the text. A reply with
+ * no box is left alone, for the leak watch below.
+ */
+export function splitStoryBox(text: string): { text: string; reasoning: string } {
+  const at = text.search(/<story\s*>/i);
+  if (at < 0) return { text, reasoning: "" };
+  const reasoning = text.slice(0, at).replace(PLAN_TAGS, "").trim();
+  const story = text
+    .slice(at)
+    .replace(/<\/?story\s*>/gi, "")
+    .replace(/^\s+/, "");
+  return { text: story, reasoning };
+}
+
+/**
+ * M17: a model that can't reason privately sometimes writes the planning pass out, without the
+ * story box. A reply that opens with the pass (two or more step headers, NOW —, MOVE —, …, and only
+ * plan lines before the first) has the pass moved to the reasoning field. The pass runs to the end
+ * of its last step: that step's paragraph, cut where a story sentence is glued on ("…the wound.Her").
  */
 export function splitLeakedPlan(text: string): { text: string; reasoning: string } {
   const lines = text.split("\n");
-  let headers = 0;
-  let end = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
-    if (PLAN_HEADER.test(line)) {
-      headers++;
-      end = i;
-    } else if (!line.trim() || /^\s*\[BEFORE YOU WRITE[^\]]*\]\s*$/i.test(line) || (headers > 0 && /^\s+\S|^\s*[-*•]\s/.test(line))) {
-      if (headers > 0 && line.trim()) end = i;
-    } else break;
+  const heads = lines.flatMap((l, i) => (PLAN_HEADER.test(l) ? [i] : []));
+  if (heads.length < 2) return { text, reasoning: "" };
+  // The pass opens the reply: whatever is above its first header is plan too (a header the route ate).
+  if (!lines.slice(0, heads[0]).every((l) => !l.trim() || planLine(l))) return { text, reasoning: "" };
+  const last = heads.at(-1)!;
+  let end = last;
+  // The last step's own lines: plan-shaped lines straight under it, up to a blank line.
+  while (end + 1 < lines.length && lines[end + 1]!.trim() && planLine(lines[end + 1]!)) end++;
+  // A story sentence glued onto the end of the pass, with no space or line between them.
+  let tail = "";
+  const line = lines[end]!;
+  const glued = line.match(/[.!?…](?=[A-Z][a-z]|[“"‘*_])/);
+  if (glued && (end !== last || glued.index! > line.search(/[—–:-]/))) {
+    tail = line.slice(glued.index! + 1);
+    lines[end] = line.slice(0, glued.index! + 1);
   }
-  if (headers < 2) return { text, reasoning: "" };
-  return { text: lines.slice(end + 1).join("\n").replace(/^\s+/, ""), reasoning: lines.slice(0, end + 1).join("\n").trim() };
+  const story = [tail, ...lines.slice(end + 1)].join("\n").replace(/^\s+/, "");
+  return { text: story, reasoning: lines.slice(0, end + 1).join("\n").replace(PLAN_TAGS, "").trim() };
+}
+
+/**
+ * The story box while the reply streams: the plan never reaches the story text. A <think> block
+ * streams into reasoning as it comes (as thinkRouter does); a plan written out without tags is held
+ * back until the story box opens (then it goes to reasoning), so it never flashes up as prose. A
+ * reply that opens with the story itself streams as it comes. With no box by the end, `end()` hands
+ * back what was held as text, for the after-reply clean-up (splitLeakedPlan) to sort.
+ */
+export function storyRouter() {
+  let state: "start" | "think" | "held" | "story" = "start";
+  let buf = "";
+  let close = "";
+  const holdBack = (s: string, tags: string[]) => {
+    for (let n = Math.min(Math.max(...tags.map((t) => t.length)) - 1, s.length); n > 0; n--) {
+      const end = s.slice(-n).toLowerCase();
+      if (tags.some((t) => t.startsWith(end))) return n;
+    }
+    return 0;
+  };
+  const storyText = (): string => {
+    buf = buf.replace(/<\/?story\s*>/gi, "");
+    const keep = holdBack(buf, ["<story>", "</story>"]);
+    const out = buf.slice(0, buf.length - keep);
+    buf = buf.slice(buf.length - keep);
+    return out;
+  };
+  /** Whether any reasoning has gone out yet. */
+  let said = false;
+  const push = (chunk: string): { text: string; reasoning: string } => {
+    const out = step(chunk);
+    if (out.reasoning) said = true;
+    return out;
+  };
+  const step = (chunk: string): { text: string; reasoning: string } => {
+    buf += chunk;
+    if (state === "story") return { text: storyText(), reasoning: "" };
+    let reasoning = "";
+    for (;;) {
+      // The box opens: everything before it is plan.
+      const box = buf.search(/<story\s*>/i);
+      if (box >= 0 && state !== "think") {
+        const pre = buf
+          .slice(0, box)
+          .replace(/<\/(?:think|thinking|plan|reasoning)>/gi, "\n\n")
+          .replace(PLAN_TAGS, "")
+          .replace(/\n{3,}/g, "\n\n");
+        if (pre.trim()) reasoning += state === "start" && (said || reasoning) ? `\n\n${pre.replace(/^\s+/, "")}` : pre;
+        buf = buf.slice(box).replace(/^<story\s*>\s*/i, "");
+        state = "story";
+        return { text: storyText(), reasoning };
+      }
+      if (state === "think") {
+        const at = buf.toLowerCase().indexOf(close);
+        if (at >= 0) {
+          reasoning += buf.slice(0, at);
+          buf = buf.slice(at + close.length);
+          state = "start";
+          continue;
+        }
+        if (box >= 0) {
+          // The box opened without closing the think block first.
+          reasoning += buf.slice(0, box);
+          buf = buf.slice(box);
+          state = "start";
+          continue;
+        }
+        const keep = holdBack(buf, [close, "<story>"]);
+        reasoning += buf.slice(0, buf.length - keep);
+        buf = buf.slice(buf.length - keep);
+        return { text: "", reasoning };
+      }
+      if (state === "held") {
+        // A plan written out and then closed with </think>: what follows is the story (or the box).
+        const m = buf.match(/<\/(?:think|thinking|plan|reasoning)>/i);
+        if (!m) return { text: "", reasoning };
+        reasoning += buf.slice(0, m.index).replace(PLAN_TAGS, "");
+        buf = buf.slice(m.index! + m[0].length);
+        state = "start";
+        continue;
+      }
+      // start: decide what the reply (or what follows a closed plan) opens with.
+      const lead = buf.replace(/^\s+/, "");
+      const lower = lead.toLowerCase();
+      const open = THINK_OPEN.find((t) => lower.startsWith(t));
+      if (open) {
+        state = "think";
+        close = `</${open.slice(1)}`;
+        buf = lead.slice(open.length);
+        continue;
+      }
+      if (!lead || [...THINK_OPEN, "<story>"].some((t) => t.startsWith(lower))) return { text: "", reasoning };
+      // A closing tag left over from a pass the route kept to itself.
+      const stray = lead.match(/^<\/(?:think|thinking|plan|reasoning)>/i);
+      if (stray) {
+        buf = lead.slice(stray[0].length);
+        continue;
+      }
+      // Enough to judge the first line?
+      if (!lead.includes("\n") && lead.length < 80) return { text: "", reasoning };
+      if (opensWithPlan(lead)) {
+        state = "held";
+        // More plan after a closed <think> block starts on a line of its own.
+        buf = said || reasoning ? `\n\n${lead}` : lead;
+        continue;
+      }
+      state = "story";
+      buf = lead;
+      return { text: storyText(), reasoning };
+    }
+  };
+  const end = (): { text: string; reasoning: string } => {
+    const rest = buf;
+    buf = "";
+    if (state === "think") return { text: "", reasoning: rest };
+    const was = state;
+    state = "story";
+    // Held plan with no box after it: the clean-up sorts plan from story.
+    if (was === "held" || was === "start") return { text: rest.replace(/^\s+/, ""), reasoning: "" };
+    return { text: rest.replace(/<\/?story\s*>/gi, ""), reasoning: "" };
+  };
+  return { push, end };
 }
 
 /**
@@ -173,9 +342,10 @@ export function splitLeakedPlan(text: string): { text: string; reasoning: string
  * in the provider's reasoning) and no story. Returns that plan, or null when there is a story.
  */
 export function planOnly(text: string, reasoning: string): string | null {
-  let story = text;
+  // The trackers' <ledger> block isn't story: a plan and a ledger with nothing between is still only a plan.
+  let story = text.replace(/<ledger\b[\s\S]*$/i, "");
   let plan = reasoning;
-  for (const split of [splitThink, splitLeakedPlan]) {
+  for (const split of [splitStoryBox, splitThink, splitLeakedPlan]) {
     const out = split(story);
     if (out.reasoning) {
       story = out.text;
@@ -196,9 +366,10 @@ export function planFrom(text: string, reasoning: string): string | null {
   const words = (s: string) => s.split(/\s+/).filter(Boolean).length;
   const steps = (s: string) => new Set(s.match(/\b(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)\b/g) ?? []).size;
   const tagged = splitThink(text).reasoning;
+  const boxed = splitStoryBox(text).reasoning;
   const leaked = splitLeakedPlan(text).reasoning;
-  const bare = steps(text) >= 3 ? text.replace(/<\/?(?:think|thinking|plan|reasoning)>/gi, "").trim() : "";
-  for (const plan of [tagged, leaked, bare, reasoning.trim()]) if (plan && words(plan) >= PLAN_MIN_WORDS) return plan;
+  const bare = steps(text) >= 3 ? text.replace(PLAN_TAGS, "").trim() : "";
+  for (const plan of [tagged, boxed, leaked, bare, reasoning.trim()]) if (plan && words(plan) >= PLAN_MIN_WORDS) return plan;
   return null;
 }
 
@@ -750,8 +921,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           const shown = out.reasoning + out.text;
           gen.reasoning += shown;
           pendingReasoning += shown;
-          // The pass is over: whatever follows </think> would be the story, which isn't this request's.
-          if (/<\/(?:think|thinking|plan|reasoning)>/i.test(text)) {
+          // The pass is over: whatever follows </think> (or opens the story box) would be the story, which isn't this request's.
+          if (/<\/(?:think|thinking|plan|reasoning)>|<story\s*>/i.test(text)) {
             done = true;
             ctl.abort();
           }
@@ -827,8 +998,9 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           attempt.abort();
         }
       }, 5000);
-      // The preset's <think> planning block goes to reasoning as it streams (not when continuing).
-      const think = action === "continue" ? null : thinkRouter();
+      // The story box: the planning pass (in <think>, or written out) goes to reasoning as it streams,
+      // and only the story reaches the text (not when continuing).
+      const think = action === "continue" ? null : storyRouter();
       // The plan watch: a preset that plans (Mea's). If the story starts with no plan before it (in
       // <think> or the route's own reasoning), or a token one, this try stops at once and the plan
       // is written in its own step, then the story from it. Once only.
@@ -1058,11 +1230,12 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   let guarded: ReturnType<typeof applyGuards> | null = null;
   let original = text;
   try {
-    // M17: inline reasoning (<think>…</think>) from OpenAI-style routes goes to the reasoning field.
+    // M17: inline reasoning (<think>…</think>) from OpenAI-style routes goes to the reasoning field,
+    // and so does anything before the story box, or a plan written out without either.
     if (action !== "continue") {
-      for (const split of [splitThink, splitLeakedPlan]) {
+      for (const split of [splitStoryBox, splitThink, splitLeakedPlan]) {
         const out = split(text);
-        if (out.reasoning && (split === splitThink || out.text.trim())) {
+        if (out.reasoning && (split !== splitLeakedPlan || out.text.replace(/<ledger\b[\s\S]*$/i, "").trim())) {
           text = out.text;
           reasoning = [reasoning, out.reasoning].filter(Boolean).join("\n\n");
         }
