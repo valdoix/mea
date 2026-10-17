@@ -161,6 +161,7 @@
       <label class="switch"><input type="checkbox" checked={cfg.consolidate} onchange={(e) => set({ consolidate: e.currentTarget.checked })} /> Tidy memory while the chat is quiet (merge duplicates, fold trivia)</label>
       <label class="switch"><input type="checkbox" checked={cfg.chronicle} onchange={(e) => set({ chronicle: e.currentTarget.checked })} /> Propose lore entries for people and places the story introduces</label>
       <label class="switch"><input type="checkbox" checked={cfg.loreKeepup} onchange={(e) => set({ loreKeepup: e.currentTarget.checked })} /> Keep lore entries up to date when the story changes what they describe</label>
+      <label class="switch"><input type="checkbox" checked={cfg.loreTiers} onchange={(e) => set({ loreTiers: e.currentTarget.checked })} /> Lore tiers: the focus of the scene gets its full entry, who's around just their essentials</label>
       <label class="switch"><input type="checkbox" checked={cfg.continuity} onchange={(e) => set({ continuity: e.currentTarget.checked })} /> Check each reply for continuity slips (flags only; nothing is rewritten)</label>
       <label class="switch indent"><input type="checkbox" checked={cfg.checkerModel} disabled={!cfg.continuity} onchange={(e) => set({ checkerModel: e.currentTarget.checked })} /> Also ask the helper model, with sources (the quick rules always run)</label>
       <div class="field indent">

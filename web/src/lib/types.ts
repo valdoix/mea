@@ -377,6 +377,11 @@ export interface LoreTrace {
   order: number;
   /** docs/15: the facts it sent, as the prompt says them. */
   facts?: string[];
+  /** 6.1: focus (the full entry) or around (its essentials). */
+  tier?: "focus" | "around";
+  /** 6.3: why it fired, in a word. */
+  why?: string;
+  priority?: number;
 }
 
 /** Living lore (docs/15): one small, exact, dated statement on an entry. */
@@ -1078,6 +1083,8 @@ export interface MemoryConfig {
   chronicle: boolean;
   /** docs/15, part 2: propose updates to lore entries the story changes. */
   loreKeepup: boolean;
+  /** docs/15, 6.1: lore tiers. */
+  loreTiers: boolean;
   /** SUM-10 */
   compression: { scene: Compression; chapter: Compression; arc: Compression; story: Compression };
   /** SUM-11 */

@@ -29,6 +29,7 @@ export const MEMORY_PROFILES: Record<"light" | "balanced" | "deep", { label: str
       continuity: true,
       checkerModel: false,
       chronicle: false,
+      loreTiers: false,
     },
   },
   balanced: {
@@ -51,6 +52,7 @@ export const MEMORY_PROFILES: Record<"light" | "balanced" | "deep", { label: str
       continuity: true,
       checkerModel: false,
       chronicle: true,
+      loreTiers: false,
     },
   },
   deep: {
@@ -73,6 +75,7 @@ export const MEMORY_PROFILES: Record<"light" | "balanced" | "deep", { label: str
       continuity: true,
       checkerModel: true,
       chronicle: true,
+      loreTiers: true,
     },
   },
 };

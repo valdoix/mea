@@ -53,6 +53,15 @@ export interface ActivationInput {
   all?: ScanEntry[];
   /** Living lore (docs/15): each entry's facts true now, sent as a `Now:` block after its core. */
   facts?: Map<string, NowFact[]>;
+  /**
+   * docs/15, 6.1: lore tiers. The focus of the scene (named in your message, speaking, the place you're
+   * in) gets its full entry; people, places and things around but not the focus, their essentials.
+   */
+  tiers?: { focus: string[]; focusText: string };
+  /** 6.2: entries a "remember when…" reached back for, with what they matched. */
+  recalled?: Map<string, string>;
+  /** 6.3: messages since each entry last fired in this chat (missing: not yet). */
+  firedAgo?: Map<string, number>;
 }
 
 export interface NowFact {
@@ -109,6 +118,10 @@ export interface TraceItem {
   priority?: number;
   /** docs/15: the facts it sent, as the prompt says them. */
   facts?: string[];
+  /** 6.1: focus (the full entry) or around (its essentials). */
+  tier?: "focus" | "around";
+  /** 6.3: why it fired, in a word: in the scene, focus, named, recalled, sticky, constant, meaning, parent, linked. */
+  why?: string;
 }
 
 export interface ActivatedEntry {
@@ -119,7 +132,8 @@ export interface ActivatedEntry {
   content: string;
   /** LORE-14 priority inputs. */
   score?: number;
-  kind?: "key" | "constant" | "entity" | "semantic" | "sticky" | "recursion" | "parent";
+  kind?: "key" | "constant" | "entity" | "semantic" | "sticky" | "recursion" | "parent" | "recalled";
+  tier?: "focus" | "around";
 }
 
 export interface Placements {
@@ -216,6 +230,9 @@ export function activateLore(input: ActivationInput): ActivationResult {
     const primary = keys.filter((k) => keyMatches(sub(k), text, cs, ww));
     if (primary.length === 0) {
       if (level === 0) {
+        // 6.2: a "remember when…" reached back for it.
+        const back = input.recalled?.get(e.id);
+        if (back) return { ok: true, reason: `recalled: ${back}`, score: 2.5, kind: "recalled" };
         // LORE-06: the entry's entity is in the scene, even if nobody said its name.
         const names = [x.entity, ...keys.filter((k) => !/^\/.*\/[a-z]*$/.test(k)), ...(x.type && e.comment ? [e.comment] : [])].filter((n): n is string => Boolean(n?.trim()));
         const here = names.find((n) => present.has(normName(sub(n))));
@@ -355,13 +372,44 @@ export function activateLore(input: ActivationInput): ActivationResult {
     }
   }
 
+  // docs/15, 6.1: tiers. A person, place or thing that's around but not the focus brings its
+  // essentials (and what's true now); the focus brings the whole entry. Rules, constants, recalled
+  // and sticky entries aren't tiered.
+  if (input.tiers) {
+    const focus = new Set(input.tiers.focus.map(normName).filter(Boolean));
+    for (const a of active.values()) {
+      const x = extraOf(a.entry);
+      const thing = Boolean(x.entity) || (x.type != null && ["character", "location", "item", "faction"].includes(x.type));
+      if (!thing || (a.kind !== "entity" && a.kind !== "key" && a.kind !== "semantic")) continue;
+      const names = [x.entity, a.entry.comment, ...a.entry.keys.filter((k) => !/^\/.*\/[a-z]*$/.test(k)), ...(x.aliases ?? [])].filter((n): n is string => Boolean(n?.trim()));
+      const isFocus = names.some((n) => focus.has(normName(sub(n))) || keyMatches(sub(n), input.tiers!.focusText, false, true));
+      if (isFocus) {
+        a.tier = "focus";
+        continue;
+      }
+      a.tier = "around";
+      const short = essentialsOf(a.entry);
+      if (short.length < a.content.length) {
+        a.content = short;
+        a.reason = `${a.reason} · around, not the focus: essentials`;
+      }
+    }
+  }
+
   // LORE-14: priority decides what stays when the budget is tight; long entries are trimmed
-  // to their essentials before they are dropped.
+  // to their essentials before they are dropped. 6.3: an entry that hasn't fired in a long while
+  // weighs a little less than one the scene has been using (relevance × how recently it fired).
+  const stale = (a: ActivatedEntry) => (input.firedAgo ? Math.min(10, (input.firedAgo.get(a.entry.id) ?? 50) / 5) : 0);
   const priority = (a: ActivatedEntry) =>
     a.entry.order +
-    (a.kind === "constant" ? 60 : a.kind === "sticky" ? 30 : a.kind === "entity" ? 35 : a.kind === "semantic" ? 15 : a.kind === "parent" ? 10 : 25) +
+    (a.kind === "constant" ? 60 : a.kind === "sticky" ? 30 : a.kind === "entity" ? 35 : a.kind === "recalled" ? 35 : a.kind === "semantic" ? 15 : a.kind === "parent" ? 10 : 25) +
+    (a.tier === "focus" ? 10 : 0) +
     Math.min(20, (a.score ?? 0) * 5) -
-    a.level * 10;
+    a.level * 10 -
+    stale(a);
+  // 6.3: why it fired, in a word, for the Inspector.
+  const WHY: Record<NonNullable<ActivatedEntry["kind"]>, string> = { key: "named", constant: "constant", entity: "in the scene", semantic: "meaning", sticky: "sticky", recursion: "linked", parent: "parent", recalled: "recalled" };
+  const whyOf = (a: ActivatedEntry) => (a.tier === "focus" ? "focus" : a.kind ? WHY[a.kind] : "named");
   const sorted = [...active.values()].sort((a, b) => priority(b) - priority(a) || b.entry.order - a.entry.order);
   const accepted: ActivatedEntry[] = [];
   let used = 0;
@@ -386,13 +434,13 @@ export function activateLore(input: ActivationInput): ActivationResult {
         tokens = st;
         reason = `${a.reason} · trimmed to its essentials to fit the budget`;
       } else {
-        setTrace(a.entry, "inactive", `over token budget (${tokens} tokens, ${defaults.tokenBudget - used} left; priority ${p})`, { level: a.level, tokens, priority: p });
+        setTrace(a.entry, "inactive", `over token budget (${tokens} tokens, ${defaults.tokenBudget - used} left; priority ${p})`, { level: a.level, tokens, priority: p, why: whyOf(a), ...(a.tier ? { tier: a.tier } : {}) });
         continue;
       }
     }
     used += tokens;
     accepted.push({ ...a, content, tokens, reason });
-    setTrace(a.entry, "active", reason, { level: a.level, tokens, priority: p, ...(sentFacts?.length ? { facts: sentFacts } : {}) });
+    setTrace(a.entry, "active", reason, { level: a.level, tokens, priority: p, why: whyOf(a), ...(a.tier ? { tier: a.tier } : {}), ...(sentFacts?.length ? { facts: sentFacts } : {}) });
   }
 
   accepted.sort((a, b) => a.entry.order - b.entry.order);

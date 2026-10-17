@@ -20,6 +20,16 @@ export function recordLoreHits(chatId: string, entryIds: string[]) {
   });
 }
 
+/** docs/15, 6.3: how many messages since each entry last fired in this chat. */
+export function loreFiredAgo(chatId: string): Map<string, number> {
+  return new Map(
+    all<{ entry_id: string; ago: number }>(
+      "SELECT h.entry_id, (SELECT COUNT(*) FROM messages m WHERE m.chat_id = h.chat_id AND m.deleted_at IS NULL AND m.created_at > h.last_at) AS ago FROM lore_hits h WHERE h.chat_id = ?",
+      chatId,
+    ).map((r) => [r.entry_id, r.ago]),
+  );
+}
+
 export interface HealthIssue {
   kind: "duplicate-key" | "overlap" | "contradiction" | "never-fires" | "oversized" | "recursion-loop" | "empty" | "no-keys";
   severity: "info" | "warn";
