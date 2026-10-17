@@ -6,7 +6,7 @@
   import { promptText } from "../../lib/dialogs.svelte";
   import { autosize } from "../../lib/gestures";
   import { Plus, Trash, WandSparkles } from "../../lib/icons";
-  import { errorToast } from "../../lib/state.svelte";
+  import { errorToast, toast } from "../../lib/state.svelte";
   import type { LoreEntry } from "../../lib/types";
 
   let { entry = $bindable(), full, siblings = [], onchange }: { entry: LoreEntry | undefined; full: boolean; siblings?: { id: string; title: string }[]; onchange?: () => void } = $props();
@@ -34,6 +34,32 @@
     ["event", "Event"],
     ["rule", "Rule"],
   ];
+  // docs/15, 7.3: a shorter text, every name and number kept (yours waits in the Inbox), and its Undo.
+  async function shorten() {
+    if (!entry?.id) return;
+    assisting = true;
+    try {
+      const r = await post<{ status: string; reason?: string }>(`/api/lore/entries/${entry.id}/compact`, {});
+      toast(r.status === "proposed" ? "A shorter version is waiting in the Inbox" : r.status === "replaced" ? "Shortened (Undo is on the entry)" : r.status === "rejected" ? `Kept as it was: the shorter version ${r.reason}` : `Kept as it was: ${r.reason}`, { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      assisting = false;
+    }
+  }
+  async function undoShorten() {
+    if (!entry?.id) return;
+    try {
+      await post(`/api/lore/entries/${entry.id}/compact/decide`, { action: "undo" });
+      const x = { ...(entry.extra as { compactUndo?: { content: string } }) };
+      if (x.compactUndo) entry.content = x.compactUndo.content;
+      delete x.compactUndo;
+      entry.extra = x;
+      toast("The longer text is back", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   async function insertTemplate() {
     if (!entry || !x.type) return;
     try {
@@ -115,6 +141,8 @@
     <button class="btn ghost small" onclick={() => assist("keys")} disabled={assisting || !entry.content.trim()}>Suggest keywords</button>
     <button class="btn ghost small" onclick={() => assist("condense")} disabled={assisting || !entry.content.trim()}>Condense</button>
     <button class="btn ghost small" onclick={() => assist("rewrite")} disabled={assisting || !entry.content.trim()}>Tidy the style</button>
+    {#if entry.id && entry.content.length > 2400}<button class="btn ghost small" onclick={shorten} disabled={assisting} title="Every name and number kept; the facts aren't touched">Shorten</button>{/if}
+    {#if (entry.extra as { compactUndo?: unknown })?.compactUndo}<button class="btn ghost small" onclick={undoShorten}>Undo the shortening</button>{/if}
     {#if assisting}<span class="tiny muted">Thinking…</span>{/if}
   </div>
   <label class="field">

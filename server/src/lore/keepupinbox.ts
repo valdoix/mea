@@ -3,6 +3,9 @@ import { registerInboxProvider } from "../accuracy/inbox";
 import { confirmFact, factLine, getFact, retireFact } from "./facts";
 import { afterApplied, cardText, decideUpdate, updateProposals } from "./keepup";
 import { decideDetails, inventedFacts } from "./details";
+import { coverageFindings, fixFinding } from "./coverage";
+import { compactProposals, decideCompaction } from "./compact";
+import { now, run } from "../db/db";
 
 /**
  * The Inbox cards of living lore (docs/15, part 2): update proposals and contradictions on an entry's
@@ -62,6 +65,59 @@ registerInboxProvider({
     })),
   act: (id, action, edited) => {
     decideDetails(id, action, { edited });
+    return null;
+  },
+});
+
+// 7.1: coverage findings, each with its fix (Draft facts, Add key, Merge, Confirm); Not now hides it.
+registerInboxProvider({
+  kind: "lore-health",
+  source: "lore",
+  items: (chats) =>
+    chats.flatMap((c) =>
+      coverageFindings(c.id).map((f) => ({
+        key: `lore-health:${f.key}`,
+        chatId: c.id,
+        chatTitle: c.title,
+        title: `Lore health: ${f.entries.map((e) => e.title).join(" · ")}`,
+        why: f.message,
+        before: null,
+        after: f.entries.map((e) => `${e.title} (${e.bookName})`).join("\n"),
+        editable: false,
+        createdAt: 0,
+        link: `/chat/${c.id}/codex`,
+        labels: { accept: f.fixLabel, reject: "Not now" },
+      })),
+    ),
+  act: (id, action) => {
+    const chatId = id.split(":")[1] ?? null;
+    if (action === "reject") run("INSERT OR IGNORE INTO inbox_dismissed (key, chat_id, created_at) VALUES (?, ?, ?)", `lore-health:${id}`, chatId, now());
+    else if (chatId) fixFinding(chatId, id);
+    return chatId;
+  },
+});
+
+// 7.3: a shorter text for an entry you wrote, names and numbers kept (no chat: listed with all stories).
+registerInboxProvider({
+  kind: "lore-compact",
+  source: "lore",
+  global: true,
+  items: () =>
+    compactProposals().map((p) => ({
+      key: `lore-compact:${p.entryId}`,
+      chatId: "",
+      chatTitle: "",
+      title: `A shorter “${p.entry.comment || p.entry.keys[0] || "entry"}”`,
+      why: "The text has grown long. This keeps every name and number; the facts and their History aren't touched.",
+      before: p.entry.content,
+      after: (p.entry.extra as { compactProposal: { content: string } }).compactProposal.content,
+      editable: true,
+      createdAt: (p.entry.extra as { compactProposal: { at: number } }).compactProposal.at,
+      link: `/lorebooks/${p.bookId}?entry=${p.entryId}`,
+      labels: { accept: "Keep", reject: "Not now" },
+    })),
+  act: (id, action, edited) => {
+    decideCompaction(id, action, edited);
     return null;
   },
 });
