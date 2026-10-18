@@ -49,6 +49,7 @@ import { sendPush } from "./push";
 import { assertQuota } from "./quota";
 import { applyBanned, chatExtras, consumeOnce, continueJoin, cutFourthWall, looksLikeRefusal, trimUnfinished } from "./chattools";
 import { evalCondition } from "../trackers/condition";
+import { revealsOf } from "../trackers/reveals";
 import type { WorldState } from "../trackers/types";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
@@ -607,6 +608,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     firedAgo: loreFiredAgo(chatId),
     // 5.1: anniversaries and birthdays that come round today on the story's calendar.
     dated: tp?.state?.time ? datesToday(chatId, entries, tp.state.time, chatCalendar(chatId)) : undefined,
+    // A lore secret the story has since let out stops calling it hidden.
+    reveals: revealsOf(tp?.state),
   });
   const loreMs = lap();
   // B1: memory and lore that state a secret kept off the page are reworded before the prompt.

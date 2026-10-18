@@ -270,6 +270,11 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
         else if (s.status === "suspects" || s.status === "doubts") lines.push(`${who} ${s.status}: ${f.statement}`);
       }
     }
+    // A secret that came out: the card or lore may still call it hidden, so say who knows now.
+    for (const f of Object.values(st.facts)) {
+      const to = [...new Set(f.revealed.flatMap((r) => r.to))].filter((id) => here.has(id) && !st.chars[id]?.isUser);
+      if (to.length) lines.unshift(`No longer a secret from ${to.map((id) => st.chars[id]?.name ?? id).join(", ")}: ${f.statement} (it came out; anything that says they don't know is out of date)`);
+    }
     // B2: a secret close to coming out (its exposure clock at 4 of 6 or more), and who is closest.
     for (const [key, e] of Object.entries(st.exposure ?? {})) {
       const f = st.facts[key];
