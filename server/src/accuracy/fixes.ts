@@ -12,24 +12,90 @@ import { dismissIssue, type FlagRow, type Issue } from "./checker";
  * the reply stays as it was. The edit goes through the usual edit (history kept, memory notified).
  */
 
-const sentences = (t: string) => t.match(/[^.!?…\n]+(?:[.!?…]+["”')\]*]*)?/g) ?? [];
+/** Sentence spans of `text`, cut where rules.ts's `sentences` cuts: end marks then a space, or a line break. */
+function sentenceSpans(text: string) {
+  const spans: { start: number; end: number }[] = [];
+  let start = 0;
+  for (const m of text.matchAll(/(?<=[.!?…]["”'’)\]*_]*)[ \t]+|\n+/g)) {
+    spans.push({ start, end: m.index! });
+    start = m.index! + m[0].length;
+  }
+  spans.push({ start, end: text.length });
+  return spans.filter((s) => text.slice(s.start, s.end).trim());
+}
 
-/** The sentence of `text` the finding's claim comes from (claims can be clipped or cleaned). */
+const FOLD: Record<string, string> = { "“": '"', "”": '"', "„": '"', "«": '"', "»": '"', "‘": "'", "’": "'", "—": "-", "–": "-" };
+
+/**
+ * `text` folded for matching (no markup or markdown marks, plain quotes and dashes, "..." as "…",
+ * one space, lower case), with `at[i]` the index in `text` that folded character i came from.
+ */
+function fold(text: string) {
+  let out = "";
+  const at: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    let c = text[i]!;
+    if (c === "<") {
+      const close = text.indexOf(">", i);
+      if (close > i && /^<\/?[a-z]/i.test(text.slice(i, i + 3))) {
+        i = close;
+        c = " ";
+      }
+    }
+    if (c === "*" || c === "_" || c === "~" || c === "`") continue;
+    if (c === "." && text.startsWith("...", i)) {
+      c = "…";
+      i += 2;
+    }
+    c = FOLD[c] ?? c;
+    if (/\s/.test(c)) {
+      if (!out || out.endsWith(" ")) continue;
+      c = " ";
+    }
+    out += c.toLowerCase();
+    at.push(i);
+  }
+  return { out, at };
+}
+
+/** The sentence(s) of `text` the finding's claim comes from (claims can be clipped, cleaned or retyped). */
 export function locateSentence(text: string, claim: string): { start: number; end: number; sentence: string } | null {
-  const want = cleanText(claim).replace(/\s+/g, " ").trim().slice(0, 80);
+  const want = fold(cleanText(claim)).out.replace(/^[\s"'…-]+|[\s"'…]+$/g, "");
   if (!want) return null;
-  let at = 0;
-  for (const s of sentences(text)) {
-    const start = text.indexOf(s, at);
-    at = start + s.length;
-    const flat = cleanText(s).replace(/\s+/g, " ").trim();
-    if (flat && (flat.includes(want) || want.includes(flat.slice(0, 80)))) {
-      // Leading whitespace isn't part of the sentence.
-      const lead = s.length - s.trimStart().length;
-      return { start: start + lead, end: start + s.trimEnd().length, sentence: s.trim() };
+  const hay = fold(text);
+  let from = -1;
+  let to = -1;
+  // The claim as quoted, else the longest piece of it a clipping "…" left whole.
+  for (const piece of [want, ...want.split(/…|\s-\s/).map((p) => p.trim()).filter((p) => p.length >= 12).sort((a, b) => b.length - a.length)]) {
+    const i = hay.out.indexOf(piece);
+    if (i >= 0) {
+      from = hay.at[i]!;
+      to = hay.at[i + piece.length - 1]! + 1;
+      break;
     }
   }
-  return null;
+  const spans = sentenceSpans(text);
+  if (from < 0) {
+    // Retyped: the sentence holding most of the claim's words, if that's most of them.
+    const words = (s: string) => new Set(s.match(/[\p{L}\p{N}']+/gu) ?? []);
+    const need = words(want);
+    if (need.size < 3) return null;
+    let best = 0;
+    for (const s of spans) {
+      const have = words(fold(text.slice(s.start, s.end)).out);
+      const share = [...need].filter((w) => have.has(w)).length / need.size;
+      if (share > best) [best, from, to] = [share, s.start, s.end];
+    }
+    if (best < 0.7) return null;
+  }
+  const first = spans.find((s) => s.end > from);
+  const last = [...spans].reverse().find((s) => s.start < to);
+  if (!first || !last) return null;
+  // Whitespace at either end isn't part of the sentence.
+  const raw = text.slice(first.start, last.end);
+  const start = first.start + (raw.length - raw.trimStart().length);
+  const end = last.end - (raw.length - raw.trimEnd().length);
+  return { start, end, sentence: text.slice(start, end) };
 }
 
 const schema = z.object({ sentence: z.string() });
