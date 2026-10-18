@@ -20,7 +20,7 @@ afterAll(() => pauseJobs(false));
 describe("golden scenarios (K1)", () => {
   const scenarios = loadScenarios();
   test("there's one for each thing Mea promises to keep", () => {
-    expect(scenarios.map((s) => s.name)).toEqual(["agency", "knowledge-leak", "clock", "weather", "people-present", "promise-kept", "offpage-secret", "canon-cutoff", "safety-floor", "ledger-shape", "planning-leak", "separate-planner", "planner-fallback"]);
+    expect(scenarios.map((s) => s.name)).toEqual(["agency", "knowledge-leak", "clock", "weather", "people-present", "promise-kept", "offpage-secret", "canon-cutoff", "safety-floor", "ledger-shape", "planning-leak", "separate-planner", "planner-fallback", "revealed-secret"]);
   });
   for (const s of scenarios) {
     test(s.name, async () => {

@@ -8,6 +8,8 @@ import "../accuracy/moreslips";
 import { createOffpage } from "../accuracy/offpage";
 import { setCanon } from "../accuracy/canoncut";
 import { normalizeCard } from "../cards/card";
+import { createLorebook, softDeleteLorebook } from "../lore/service";
+import { defaultEntry } from "../lore/types";
 import { createCharacter } from "../services/characters";
 import { addMessage, createChat, getMessageRow, softDeleteChat, softDeleteMessage, updateChat } from "../services/chats";
 import { previewPrompt, startStory } from "../services/generation";
@@ -34,6 +36,8 @@ const scenarioSchema = z.object({
   settings: z.record(z.string(), z.unknown()).default({}),
   ledger: z.array(z.string()).default([]),
   offpage: z.array(z.object({ label: z.string(), neverSay: z.array(z.string()) })).default([]),
+  /** Lorebook entries linked to the chat, with their secrets (LORE-09). */
+  lore: z.array(z.object({ keys: z.array(z.string()), content: z.string(), secrets: z.array(z.object({ text: z.string(), knownBy: z.array(z.string()).default([]) })).default([]) })).default([]),
   canon: z.object({ source: z.string(), point: z.string(), later: z.array(z.object({ kind: z.enum(["event", "character", "reveal", "term"]), text: z.string(), terms: z.array(z.string()) })) }).optional(),
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).default([]),
   /** Run the planner (the advisor, or the separate planner when the chat asks for one) before the prompt is read. */
@@ -110,11 +114,13 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
   const characterId = createCharacter(data);
   const personaId = createPersona({ name: s.user, data: { description: "" } });
   const chatId = createChat({ characterId, personaId, mode: s.mode }).id;
+  let book: string | null = null;
   updateChat(chatId, { title: `[story check] ${s.name}`, settings: s.settings as never });
   try {
     const first = one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? ORDER BY seq LIMIT 1", chatId)?.id ?? null;
     if (s.ledger.length) writeEvents(chatId, { messageId: first, swipeIdx: -1 }, linesToOps(s.ledger).ops, "model");
     for (const o of s.offpage) createOffpage(chatId, o);
+    if (s.lore.length) book = createLorebook({ name: `[story check] ${s.name}`, entries: s.lore.map((e) => defaultEntry({ keys: e.keys, comment: e.keys[0], content: e.content, extra: { secrets: e.secrets } })), links: [{ target_type: "chat", target_id: chatId }] });
     if (s.canon) setCanon(chatId, { ...s.canon, later: s.canon.later.map((l, i) => ({ ...l, id: `g${i}` })), wont: [] });
     for (const m of s.history) addMessage(chatId, m.role, m.content, m.role === "assistant" ? { name: s.card.name } : {});
 
@@ -175,6 +181,7 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
     softDeleteChat(chatId);
     sql("UPDATE characters SET deleted_at = ? WHERE id = ?", Date.now(), characterId);
     sql("UPDATE personas SET deleted_at = ? WHERE id = ?", Date.now(), personaId);
+    if (book) softDeleteLorebook(book);
   }
   return { name: s.name, about: s.about, pass: checks.every((c) => c.pass), checks };
 }

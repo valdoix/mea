@@ -246,6 +246,16 @@ describe("fold rules", () => {
     expect(r.state.facts.abuse!.secret!.from).not.toContain("misty");
   });
 
+  test("a keeper written two ways still knows their secret once the names merge", () => {
+    const evs = events([["cast: Jacqueline Taylor@spot · Jeff@spot", "secret #jj: Jackie stays with Jeff for the image | kept by Jackie · from everyone"]]);
+    const merge: TrackerEvent = { id: "mg", messageId: "m2", seq: 2, source: "user", op: parseLine("merge: Jackie → Jacqueline Taylor")! };
+    const r = foldEvents([...evs, merge], cfg());
+    const f = r.state.facts.jj!;
+    expect(f.secret!.keepers).toEqual(["jacqueline-taylor"]);
+    expect(f.secret!.from).not.toContain("jacqueline-taylor");
+    expect(f.stances["jacqueline-taylor"]!.status).toBe("knows");
+  });
+
   test("old knowledge lines are read again from their text", () => {
     const raw = "secret #js: Jeff is sleeping with Shauna | kept by Jeff, Shauna · from Jackie";
     // As stored before the parser split "kept by" on commas.

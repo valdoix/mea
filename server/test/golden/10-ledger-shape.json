@@ -5,12 +5,12 @@
     "description": "Mira keeps the lighthouse above Port Ellis. Grey eyes, dark hair.",
     "first_mes": "The lamp hums."
   },
-  "about": "Ledger shape: the lines a tracker writes read and apply; nonsense is refused.",
+  "about": "Ledger shape: the lines a tracker writes read and apply, fields written in the cause or as comma lists included; nonsense is refused.",
   "ledger": [
     "clock: Day 1 23:00",
     "at: Port Ellis › Lighthouse › Lamp room",
     "wx: storm",
-    "cast: Mira@spot · Ash@spot"
+    "cast: Mira@spot · Ash@spot · Joss@spot"
   ],
   "ledgerShape": [
     {
@@ -26,6 +26,71 @@
         "the weather is nice today"
       ],
       "ok": false
+    },
+    {
+      "lines": [
+        "know Joss: the lamp is failing — saw it flicker · knows · true",
+        "know Joss: the stairs are wet · sees · true"
+      ],
+      "ok": true
+    },
+    {
+      "lines": [
+        "secret #debt: Joss owes the harbourmaster — kept by Joss · from Mira — he hasn't said"
+      ],
+      "ok": true
+    },
+    {
+      "lines": [
+        "secret #gift: Mira bought the lamp | kept by Mira, Joss · from the general public; known to Ash"
+      ],
+      "ok": true
+    },
+    {
+      "lines": [
+        "secret #nothing: the lamp is old | kept by Mira · from nobody"
+      ],
+      "ok": false
     }
-  ]
+  ],
+  "after": {
+    "lines": [
+      "secret #debt: Joss owes the harbourmaster — kept by Joss · from Mira — he hasn't said",
+      "secret #gift: Mira bought the lamp | kept by Mira, Joss · from the general public; known to Ash",
+      "know Group: the storm is turning — heard the wind change",
+      "know Mira: Joss owes the harbourmaster and hasn't told her — he admitted it · knows",
+      "secret #debt: Joss owes the harbourmaster | kept by Joss · from Mira"
+    ],
+    "expect": [
+      {
+        "path": "facts.debt.secret.keepers",
+        "equals": [
+          "joss"
+        ]
+      },
+      {
+        "path": "facts.debt.secret.from",
+        "equals": []
+      },
+      {
+        "path": "facts.debt.stances.mira.status",
+        "equals": "knows"
+      },
+      {
+        "path": "facts.gift.secret.keepers",
+        "equals": [
+          "mira",
+          "joss"
+        ]
+      },
+      {
+        "path": "facts.gift.secret.everyone",
+        "equals": true
+      },
+      {
+        "path": "facts.gift.stances.user.status",
+        "equals": "knows"
+      }
+    ]
+  }
 }
