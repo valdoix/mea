@@ -1429,6 +1429,8 @@ export class Folder {
       if (f.secret) {
         const keepers = uniq(f.secret.keepers.map((x) => swap(x)!));
         f.secret = { ...f.secret, keepers, from: uniq(f.secret.from.map((x) => swap(x)!)).filter((x) => !keepers.includes(x)) };
+        // One of the keepers all along: the stance "kept from them" the other name had doesn't stick.
+        if (keepers.includes(into.id) && f.stances[into.id]?.status === "unaware") f.stances[into.id] = { status: "knows", route: "keeps it", seq: f.stances[into.id]!.seq };
       }
       for (const r of f.revealed) r.to = uniq(r.to.map((x) => swap(x)!));
     }
