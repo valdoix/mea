@@ -47,7 +47,7 @@ import { layered, presetForRequest } from "./layers";
 import { applyCardVariant, applyPersonaVariant, getVariant } from "./variants";
 import { sendPush } from "./push";
 import { assertQuota } from "./quota";
-import { applyBanned, chatExtras, consumeOnce, cutFourthWall, looksLikeRefusal, trimUnfinished } from "./chattools";
+import { applyBanned, chatExtras, consumeOnce, continueJoin, cutFourthWall, looksLikeRefusal, trimUnfinished } from "./chattools";
 import { evalCondition } from "../trackers/condition";
 import type { WorldState } from "../trackers/types";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
@@ -69,6 +69,8 @@ import { scheduleSpeakerMarks } from "./speakermarks";
 
 /** M18: a stream that sends nothing new for this long is treated as stalled. */
 const IDLE_MS = 90_000;
+/** How much of a continue is held back before it's shown, to see whether it writes the reply's end again. */
+const CONTINUE_HOLD = 160;
 /** How long a reply you send waits for the trackers to finish reading the last one (it goes ahead after). */
 export const TRACKER_WAIT_MS = 6000;
 /** M18: the longest Retry-After Mea waits before its one quick retry. */
@@ -843,6 +845,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   let pendingText = "";
   let pendingReasoning = "";
   let first_ = true;
+  /** A continue's opening, not yet shown (see release). */
+  let held = "";
   const flush = () => {
     if (!pendingText && !pendingReasoning) return;
     publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: pendingText, reasoning: pendingReasoning || undefined });
@@ -1024,14 +1028,35 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       const addText = (text: string) => {
         let t = text;
         if (first_ && action === "continue") {
-          if (baseText && !/\s$/.test(baseText) && /^[\p{L}\p{N}"'*(]/u.test(t)) t = ` ${t}`;
-          first_ = false;
+          // A continue's opening is held back until it shows whether it writes the reply's end again.
+          held += t;
+          if (held.length >= CONTINUE_HOLD) release();
+          return;
         } else if (first_) {
           t = t.replace(/^\s+/, "");
           if (t) first_ = false;
         }
         gen.text += t;
         pendingText += t;
+      };
+      // CHAT-14: a continue that went back over the reply is joined where it really picks up.
+      const release = () => {
+        if (!first_ || action !== "continue" || !held) return;
+        first_ = false;
+        let t = held;
+        held = "";
+        const at = continueJoin(baseText, t);
+        if (at == null) {
+          if (baseText && !/\s$/.test(baseText) && /^[\p{L}\p{N}"'*(“‘[]/u.test(t)) t = ` ${t}`;
+          gen.text += t;
+          pendingText += t;
+          return;
+        }
+        gen.text = baseText.slice(0, at) + t.replace(/^\s+/, "");
+        pendingText = "";
+        pendingReasoning = "";
+        publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: gen.text, reasoning: gen.reasoning || undefined, reset: true });
+        notes.push("the continue wrote part of the reply again: joined where it picked up");
       };
       const route = (out: { text: string; reasoning: string }) => {
         if (out.reasoning) addReasoning(out.reasoning);
@@ -1053,6 +1078,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
             }
           },
         );
+        release();
         // The plan watch stopped this try (a fast stream can finish before the abort lands).
         if (planSkipped) throw new Error("the reply skipped its plan");
         // Text still held back (a tag cut short at the end) belongs to the reply or its reasoning.
@@ -1104,6 +1130,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         }
         break;
       } catch (e) {
+        release();
         if (gen.abort.signal.aborted) throw e;
         if (planSkipped && planSkips === 1) {
           planSkips++;
@@ -1277,7 +1304,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   // A continue keeps the marks of the part it continued, whether or not its own part has any.
   if (action === "continue") {
     const before = parseJson<{ speakers?: SpokenLine[] }>(getSwipes(gen.messageId).find((s) => s.idx === gen.swipeIdx)?.meta ?? "{}", {}).speakers ?? [];
-    speakers = [...before, ...speakers];
+    // (Only lines still in the reply: a continue joined further back drops the part it wrote again.)
+    speakers = [...before.filter((l) => text.includes(l.text) && !speakers.some((s) => s.text === l.text)), ...speakers];
   }
   const finalStatus = status === "error" && action === "continue" ? "done" : status === "error" && text ? "stopped" : status;
   try {
