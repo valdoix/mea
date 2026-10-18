@@ -53,24 +53,79 @@ export function ruleInput(chatId: string, text: string, st: WorldState | null, o
 const npcs = (st: WorldState) => Object.values(st.chars).filter((c) => !c.isUser);
 const namesOf = (c: { name: string; aliases: string[] }) => [c.name, ...c.aliases].filter((n) => n.length >= 2);
 
+const SHE = /\b(she|her|hers|herself)\b/gi;
+const HE = /\b(he|him|his|himself)\b/gi;
+const count = (s: string, re: RegExp) => s.match(re)?.length ?? 0;
+
+/** "f", "m" or null: the pronouns the reply uses in sentences about this person and no one else. */
+export function genderIn(sents: string[], nameRe: RegExp, others: RegExp[]): "f" | "m" | null {
+  let f = 0;
+  let m = 0;
+  for (const s of sents) {
+    if (!nameRe.test(s) || others.some((o) => o.test(s))) continue;
+    f += count(s, SHE);
+    m += count(s, HE);
+  }
+  if (f >= 2 && f >= m * 2) return "f";
+  if (m >= 2 && m >= f * 2) return "m";
+  return null;
+}
+
+export interface Whose {
+  nameRe: RegExp;
+  /** Everyone else the story knows. */
+  others: RegExp[];
+  gender: "f" | "m" | null;
+  isSpeaker: boolean;
+}
+
+/**
+ * Whether the colour phrase at `at` describes this person ("her eyes have gone to his face… blue
+ * eyes and a crooked grin" is his, not hers): a name's possessive right before it, else a
+ * possessive pronoun, else the nearest person named or pointed to before it in the sentence. When
+ * it can't be told (both "his" and "her" before it, and no idea which this person is), it isn't.
+ */
+export function describes(s: string, at: number, who: Whose): boolean {
+  const pre = s.slice(0, at);
+  const poss = pre.match(/\b([A-Z][\w’'-]*(?:\s+[A-Z][\w’'-]*)?)['’]s\s+(?:[\w-]+,?\s+){0,2}$/);
+  if (poss) return who.nameRe.test(poss[1]!);
+  const pron = pre.match(/\b(my|her|his|their|your|its)\s+(?:[\w-]+,?\s+){0,2}$/i)?.[1]?.toLowerCase();
+  const refs: { at: number; name?: string; pron?: string }[] = [];
+  for (const m of pre.matchAll(/\b(she|her|hers|he|him|his|my|me|i|they|them|their|your|you)\b/gi)) refs.push({ at: m.index!, pron: m[1]!.toLowerCase() });
+  for (const re of [who.nameRe, ...who.others]) for (const m of pre.matchAll(new RegExp(re.source, "gi"))) refs.push({ at: m.index!, name: m[0] });
+  refs.sort((a, b) => a.at - b.at);
+  const near = pron ? { pron, name: undefined } : refs.at(-1);
+  // Nothing before it ("Blue eyes meet hers"): theirs if the sentence names them and no one else.
+  if (!near) return who.nameRe.test(s) && !who.others.some((o) => o.test(s));
+  if (near.name) return who.nameRe.test(near.name);
+  const p = near.pron!;
+  if (p === "my" || p === "me" || p === "i") return who.isSpeaker;
+  if (!/^(she|her|hers|he|him|his)$/.test(p)) return false;
+  if (who.gender) return who.gender === (/^(she|her|hers)$/.test(p) ? "f" : "m");
+  if (count(pre, SHE) && count(pre, HE)) return false;
+  const lastName = refs.filter((x) => x.name).at(-1)?.name;
+  return lastName ? who.nameRe.test(lastName) : who.isSpeaker || who.nameRe.test(s);
+}
+
 /** Eye and hair colour (TRK-17 traits, card traits included). */
 export function traitRule(r: RuleInput): Found[] {
   const out: Found[] = [];
   const { st, sents, msg, speaker } = r;
   if (!st) return out;
-  const chars = npcs(st);
-  for (const c of chars) {
-    const names = namesOf(c);
-    const nameRe = new RegExp(`\\b(${names.map(esc).join("|")})\\b`, "i");
-    const own = (s: string) => nameRe.test(s) || (norm(c.name) === norm(speaker) && /\b(my|her|his)\b/i.test(s) && !chars.some((x) => x !== c && new RegExp(`\\b${esc(x.name)}\\b`, "i").test(s)));
+  const nameReOf = (x: { name: string; aliases: string[] }) => new RegExp(`\\b(${namesOf(x).map(esc).join("|")})\\b`, "i");
+  for (const c of npcs(st)) {
+    const nameRe = nameReOf(c);
+    const others = Object.values(st.chars).filter((x) => x !== c && namesOf(x).length).map(nameReOf);
+    const who = { nameRe, others, gender: genderIn(sents, nameRe, others), isSpeaker: norm(c.name) === norm(speaker) };
     for (const part of ["eyes", "hair"] as const) {
       const trait = c.traits.find((t) => (part === "eyes" ? t.kind === "eyes" : t.kind === "hair"));
       if (!trait) continue;
       const want = colorOf(trait.text);
       if (!want) continue;
+      const phrase = new RegExp(`\\b((?:(?:light|dark|pale|deep|bright)[- ])?(?:${COLORS}))(?:[- ](?:${COLORS}))?\\s+${part}\\b`, "gi");
       for (const s of sents) {
-        const m = s.match(new RegExp(`\\b((?:(?:light|dark|pale|deep|bright)[- ])?(?:${COLORS}))(?:[- ](?:${COLORS}))?\\s+${part}\\b`, "i"));
-        if (!m || !own(s)) continue;
+        const m = [...s.matchAll(phrase)].find((x) => describes(s, x.index!, who));
+        if (!m) continue;
         const got = colorOf(m[0]);
         if (!got || got === want || want.includes(got) || got.includes(want)) continue;
         out.push({

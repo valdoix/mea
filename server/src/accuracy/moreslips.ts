@@ -20,26 +20,69 @@ const SAY = "says|said|asks|asked|replies|replied|whispers|whispered|murmurs|mur
 
 // ---------- not in the scene ----------
 
-/** A known person speaking ("…," Joss says / Joss says, "…") while the trackers have them somewhere else. */
+const ARRIVE = "arrives?|arrived|arriving|walks? in|walked in|comes? in|came in|steps? in(?:side)?|stepped in(?:side)?|enters?|entered|bursts? in|burst in|shows? up|showed up|turns? up|turned up|appears? (?:in|at) the (?:door(?:way)?|entrance)|appeared (?:in|at) the (?:door(?:way)?|entrance)|comes? through the door|came through the door|ducks? in(?:side)?|ducked in(?:side)?";
+/** Doing something in the room, as the subject of the sentence ("Shauna sits", "Shauna's hand moves"). */
+const ACT = "sits?|sat|stands?|stood|watches|watched|looks? (?:up|over|away|at)|looked (?:up|over|away|at)|turns?|turned|nods?|nodded|smiles?|smiled|grins?|grinned|laughs?|laughed|shifts?|shifted|leans?|leaned|reaches|reached|hands?|handed|moves?|moved|crosses|crossed|kneels?|knelt|shrugs?|shrugged|sighs?|sighed|stares?|stared|flinches|flinched|pulls?|pulled|pushes|pushed";
+const NOT_REALLY = /\b(phone|call|line|radio|letter|text|message|voicemail|screen|recording|photo|picture|remember(?:s|ed)?|recall(?:s|ed)?|dream(?:s|ed|t)?|imagin(?:e|es|ed)|pictur(?:e|es|ed)|would|could|might|if|wish(?:es|ed)?|used to|back (?:at|in|when|then)|thinks? of|thought of|wonders?|wondered)\b/i;
+const namesRe = (c: { name: string; aliases: string[] }) => [c.name, ...c.aliases].filter((n) => n.length >= 2).map(esc).join("|");
+
+/** The sentence this person arrives in (nothing marking it a memory or a wish), or undefined. */
+function arrival(sents: string[], c: { name: string; aliases: string[] }) {
+  const re = new RegExp(`\\b(?:${namesRe(c)})\\b(?:['’]s\\s+\\w+)?(?:\\s+\\w+ly)?\\s+(?:${ARRIVE})\\b`, "i");
+  return sents.findIndex((s) => re.test(s) && !NOT_REALLY.test(s));
+}
+
+/**
+ * A known person speaking ("…," Joss says / Joss says, "…") or acting in the room ("Joss sits",
+ * "Joss's hand moves") while the trackers have them somewhere else, unless the reply brings them in first.
+ */
 export function notHereRule(text: string, st: WorldState): Found[] {
   const out: Found[] = [];
   const away = Object.values(st.chars).filter((c) => !c.isUser && !c.dead && c.tier === "off");
   if (!away.length) return out;
-  const reply = cleanText(text);
+  const sents = sentences(cleanText(text));
   for (const c of away) {
-    const names = [c.name, ...c.aliases].filter((n) => n.length >= 2).map(esc);
-    const re = new RegExp(`(?:["”]\\s*,?\\s*(?:${names.join("|")})\\s+(?:${SAY})\\b|\\b(?:${names.join("|")})\\s+(?:${SAY})\\s*,?\\s*["“])`, "i");
-    const hit = sentences(reply).find((s) => re.test(s));
-    if (!hit) continue;
-    // Through a phone, a letter, a radio or a memory is fine.
-    if (/\b(phone|call|line|radio|letter|text|message|voicemail|screen|recording|remember|recalled|dream)/i.test(hit)) continue;
+    const names = namesRe(c);
+    const said = new RegExp(`(?:["”]\\s*,?\\s*(?:${names})\\s+(?:${SAY})\\b|\\b(?:${names})\\s+(?:${SAY})\\s*,?\\s*["“])`, "i");
+    const did = new RegExp(`(?:^|[.;:—–-]\\s*|\\band\\s+)[*_“"]?(?:${names})(?:['’]s\\s+(?:hand|hands|eyes|head|gaze|voice|face|mouth|jaw|shoulders?))?\\s+(?:${ACT})\\b`, "i");
+    const came = arrival(sents, c);
+    const at = sents.findIndex((s, i) => (came < 0 || i < came) && (said.test(s) || did.test(s.trim())) && !NOT_REALLY.test(s));
+    if (at < 0) continue;
+    const hit = sents[at]!;
     out.push({
       kind: "nothere",
       severity: "major",
       claim: hit.trim(),
       conflict: `${c.name} isn't in this scene${c.place ? ` (they're at ${c.place})` : ""}${c.activity ? `, ${c.activity}` : ""}.`,
       citations: [{ ref: "T", type: "tracker", label: `${c.name}: away${c.place ? ` at ${c.place}` : ""}`, seq: c.lastSeq }],
-      fix: `${c.name} isn't here and can't speak in this scene (unless they arrive first, or it's a call or a letter).`,
+      fix: `${c.name} isn't here and can't speak or act in this scene (unless they arrive first, or it's a call or a letter).`,
+      by: "rules",
+    });
+  }
+  return out;
+}
+
+/** Someone the trackers already have in the scene arriving again ("Shauna comes in" when Shauna's been by the fire all along). */
+export function arrivesAgainRule(text: string, st: WorldState): Found[] {
+  // A reply that jumps ahead can bring people in anew.
+  const reply = cleanText(text);
+  if (/\b(later|next (?:morning|day|evening)|hours? (?:later|pass(?:ed)?)|the following|by (?:dawn|morning|nightfall|evening)|overnight)\b/i.test(reply)) return [];
+  const out: Found[] = [];
+  const sents = sentences(reply);
+  for (const c of Object.values(st.chars)) {
+    if (c.isUser || c.dead || (c.tier !== "spot" && c.tier !== "peri")) continue;
+    const i = arrival(sents, c);
+    if (i < 0) continue;
+    // Leaving first and coming back is fine.
+    const left = new RegExp(`\\b(?:${namesRe(c)})\\b[^.!?]{0,40}\\b(?:leaves?|left|goes? out|went out|steps? out(?:side)?|stepped out(?:side)?|walks? out|walked out|heads? out|headed out|slips? out|slipped out)\\b`, "i");
+    if (sents.slice(0, i).some((s) => left.test(s))) continue;
+    out.push({
+      kind: "nothere",
+      severity: "major",
+      claim: sents[i]!.trim(),
+      conflict: `${c.name} is already in this scene${c.activity ? ` (${c.activity})` : ""}; they can't arrive again.`,
+      citations: [{ ref: "T", type: "tracker", label: `${c.name}: here${st.place.length ? ` at ${st.place.at(-1)}` : ""}`, seq: c.lastSeq }],
+      fix: `${c.name} is already here${st.place.length ? ` in ${st.place.at(-1)}` : ""}; don't have them arrive (unless they leave first).`,
       by: "rules",
     });
   }
@@ -127,10 +170,10 @@ SLIPS.push(
   {
     id: "nothere",
     label: "Not in the scene",
-    description: "Someone speaking while the trackers have them elsewhere.",
+    description: "Someone speaking or acting while the trackers have them elsewhere, or arriving when they're already here.",
     phase: "reply",
     on: (c) => c.role === "assistant" && Boolean(c.state),
-    run: (text, st) => (st ? notHereRule(text, st) : []),
+    run: (text, st) => (st ? [...notHereRule(text, st), ...arrivesAgainRule(text, st)] : []),
   },
   {
     id: "clockback",

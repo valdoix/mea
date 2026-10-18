@@ -48,8 +48,15 @@ export type Plan = z.infer<typeof planSchema>;
 /**
  * Which turn a plan is for: the message the reply answers plus the user's words. While you type,
  * the draft stands in for the message you're about to send, so the key matches once you send it.
+ * A note for the reply (a regenerate with notes) gets a plan of its own: the plan for the take
+ * you passed over doesn't know what the note says.
  */
-export function turnKey(history: HistoryMessage[], draft?: string) {
+export function turnKey(history: HistoryMessage[], draft?: string, note?: string) {
+  const base = turnBase(history, draft);
+  return note?.trim() ? `${base}|note:${hashText(note.trim())}` : base;
+}
+
+function turnBase(history: HistoryMessage[], draft?: string) {
   if (draft !== undefined) return `${history.at(-1)?.id ?? "start"}|${hashText(draft.trim())}`;
   const last = history.at(-1);
   if (last?.role === "user") {
@@ -171,7 +178,7 @@ export function undraft(p: Plan): Plan {
   };
 }
 
-function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig & { planner?: boolean }) {
+function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig & { planner?: boolean }, note?: string) {
   const names = chatNames(chatId);
   const parts: string[] = [];
   const story = storyRow(chatId);
@@ -213,11 +220,11 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
 }
 
 /** Writes (or returns the cached) plan for a turn. Never throws: no plan just means no guidance. */
-export async function runAdvisor(chatId: string, opts: { history?: HistoryMessage[]; draft?: string; signal?: AbortSignal } = {}): Promise<Plan | null> {
+export async function runAdvisor(chatId: string, opts: { history?: HistoryMessage[]; draft?: string; note?: string; signal?: AbortSignal } = {}): Promise<Plan | null> {
   const cfg = steerFor(chatId);
   if (!cfg.advisorOn || shouldShed("advisor", chatId)) return null;
   const history = opts.history ?? historyForPrompt(chatId);
-  const key = turnKey(history, opts.draft);
+  const key = turnKey(history, opts.draft, opts.note);
   const cached = planFor(chatId, key);
   if (cached) return cached;
   const inflight = running.get(`${chatId}:${key}`);
@@ -231,7 +238,7 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
   }
   const p = (async () => {
     try {
-      const { system, user } = advisorInput(chatId, history, opts.draft, cfg);
+      const { system, user } = advisorInput(chatId, history, opts.draft, cfg, opts.note);
       const r = cfg.planner
         ? await callJson({ task: "planner", kind: "planner", chatId, name: "planner_plan", schema: planSchema, system, user, maxTokens: 1800, temperature: 0.5, signal: opts.signal, profileId: cfg.plannerProfileId })
         : await callJson({ task: "helper", kind: "advisor", chatId, name: "advisor_plan", schema: planSchema, system, user, maxTokens: 700, temperature: 0.6, signal: opts.signal });
@@ -290,20 +297,22 @@ export function planText(p: Plan) {
  * The plan for the reply being prepared. With `wait`, a plan that isn't ready yet is waited for
  * up to the configured few seconds; without it (the inspector's preview), only a ready plan is used.
  */
-export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean }): Promise<(PromptExtra & { planner?: boolean; pass?: string }) | null> {
+export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean; note?: string }): Promise<(PromptExtra & { planner?: boolean; pass?: string }) | null> {
   const cfg = steerFor(chatId);
   if (!cfg.advisorOn) return null;
-  const key = turnKey(history);
+  const note = opts.note?.trim() || undefined;
+  const key = turnKey(history, undefined, note);
   let plan = planFor(chatId, key);
   // H3: the planner gets a longer budget; if it's late or fails, the writer plans for itself.
   const wait = cfg.planner ? PLANNER_WAIT_S : cfg.advisorWait;
   if (!plan && opts.wait && wait > 0) {
     publish({ type: "gen.prep", chatId, stage: "planning" });
-    plan = await Promise.race([runAdvisor(chatId, { history }), Bun.sleep(wait * 1000).then(() => null)]);
+    plan = await Promise.race([runAdvisor(chatId, { history, note }), Bun.sleep(wait * 1000).then(() => null)]);
   }
-  // L10: no plan for the words as sent: the newest one written for this turn while you typed will do.
-  if (!plan) {
-    const r = one<PlanRow>("SELECT * FROM advisor_plans WHERE chat_id = ? AND key LIKE ? ORDER BY created_at DESC LIMIT 1", chatId, `${key.split("|")[0]}|%`);
+  // L10: no plan for the words as sent: the newest one written for this turn while you typed will do
+  // (never one that didn't hear the note, or heard another).
+  if (!plan && !note) {
+    const r = one<PlanRow>("SELECT * FROM advisor_plans WHERE chat_id = ? AND key LIKE ? AND key NOT LIKE '%|note:%' ORDER BY created_at DESC LIMIT 1", chatId, `${key.split("|")[0]}|%`);
     if (r) plan = parseJson<Plan>(r.plan, planSchema.parse({}));
   }
   if (!plan) return null;

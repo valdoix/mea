@@ -363,6 +363,37 @@ export class Folder {
     });
   }
 
+  /**
+   * One message's move and cast, to tell who went along. A move takes everyone present with it,
+   * but when the same message also says who is in the scene (a cast line), the people present
+   * before who aren't in it stayed behind: three walking to the cabin don't bring the camp. Only
+   * when the cast line names someone who came along; one that just notes a change says nothing.
+   */
+  private turnCast: { key: string; named: Set<string>; cast: boolean; move?: { from: string[]; carried: string[] } } | null = null;
+
+  private castTurn(ctx: Ctx) {
+    const key = `${ctx.ev.messageId ?? ""}:${ctx.ev.seq}:${ctx.ev.source}`;
+    if (this.turnCast?.key !== key) this.turnCast = { key, named: new Set(), cast: false };
+    return this.turnCast;
+  }
+
+  private leftBehind(ctx: Ctx) {
+    const t = this.turnCast;
+    if (!t?.cast || !t.move || !ctx.ev.messageId) return;
+    // A cast line that only notes a change ("Tom@arrive") says nothing about who came along.
+    if (!t.move.carried.some((id) => t.named.has(id) && !this.state.chars[id]?.isUser)) return;
+    const from = t.move.from.join(" › ");
+    for (const id of t.move.carried) {
+      const c = this.state.chars[id];
+      if (!c || t.named.has(id) || c.isUser || c.dead || (c.tier !== "spot" && c.tier !== "peri")) continue;
+      c.tier = "off";
+      c.place = from;
+      c.activity = undefined;
+      this.push(ctx, { kind: "cast", text: `${c.name} stayed behind (${t.move.from.at(-1)})`, subject: c.name, path: `chars.${c.id}.tier` });
+    }
+    t.move.carried = [];
+  }
+
   private newScene(seq: number) {
     this.state.sceneNo++;
     this.state.sceneStartSeq = seq;
@@ -554,7 +585,13 @@ export class Folder {
         const common = before.findIndex((x, i) => norm(x) !== norm(path[i] ?? ""));
         const moved = before.length > 0 && (common < 0 ? before.length !== path.length : common < Math.max(1, path.length - 1));
         if (moved) this.newScene(seq);
-        for (const c of Object.values(st.chars)) if (c.tier === "spot" || c.tier === "peri") c.place = path.join(" › ");
+        const along = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri");
+        for (const c of along) c.place = path.join(" › ");
+        if (moved) {
+          const t = this.castTurn(ctx);
+          t.move = { from: before, carried: along.map((c) => c.id) };
+          this.leftBehind(ctx);
+        }
         this.push(ctx, { kind: "place", text: before.length ? `${before.at(-1)} → ${path.at(-1)}` : path.join(" › "), path: "place", from: before.join(" › "), to: path.join(" › "), ...(moved ? { newScene: true } : {}) });
         return;
       }
@@ -572,9 +609,12 @@ export class Folder {
         st.mode = clip(a.to).toLowerCase();
         return;
       case "cast": {
+        const turn = this.castTurn(ctx);
+        turn.cast = true;
         for (const it of (a.list as { name: string; tier: string; note?: string }[]).flatMap((x) => this.each(x.name).map((name) => ({ ...x, name })))) {
           const c = this.person(it.name, seq);
           if (!c) continue;
+          turn.named.add(c.id);
           if (c.dead && /spot|peri|arrive/.test(it.tier)) {
             this.warn(ctx, `${c.name} is dead`);
             continue;
@@ -595,6 +635,7 @@ export class Folder {
           }
           c.lastSeq = seq;
         }
+        this.leftBehind(ctx);
         return;
       }
       case "mood": {

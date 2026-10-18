@@ -103,7 +103,7 @@ describe("prompt assembly", () => {
     expect(ex.messages.some((m) => m.content.includes("Never write Ash's actions."))).toBe(false);
     expect(assemblePrompt(base({ card })).messages.some((m) => m.content.includes("Never write Ash's actions."))).toBe(true);
     const fb = assemblePrompt(base({ feedback: "more dialogue" }));
-    expect(fb.messages.some((m) => m.content === "[Note for this reply: more dialogue]")).toBe(true);
+    expect(fb.messages.some((m) => m.content.startsWith("[Note for this reply: more dialogue]\n"))).toBe(true);
   });
 
   test("a card's system prompt follows Mea's Charter instead of replacing it (M12)", () => {
