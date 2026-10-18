@@ -4,6 +4,7 @@ import type { AtomRow } from "../memory/atoms";
 import { norm, resolver } from "../memory/entities";
 import { cleanText, contentWords } from "../memory/text";
 import { mustChat } from "../services/chats";
+import { revealFor, revealsOf } from "../trackers/reveals";
 import type { WorldState } from "../trackers/types";
 import type { Issue } from "./checker";
 import { nameSlips } from "./names";
@@ -247,10 +248,13 @@ export function leakRule(r: RuleInput): Found[] {
   }
   // Lorebook secrets with a known-by list (LORE-09).
   const chat = mustChat(chatId);
+  const reveals = revealsOf(st);
   for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
     for (const sec of ((e.extra ?? {}) as { secrets?: { text: string; knownBy: string[] }[] }).secrets ?? []) {
-      const kb = new Set((sec.knownBy ?? []).map(norm));
-      if (!sec.text?.trim() || kb.has(norm(speaker)) || kb.has("everyone")) continue;
+      // The story let it out since the entry was written: whoever found out (or everyone, once it's out) knows.
+      const r = revealFor(sec.text ?? "", reveals);
+      const kb = new Set([...(sec.knownBy ?? []), ...(r?.keepers ?? []), ...(r?.to ?? [])].map(norm));
+      if (!sec.text?.trim() || kb.has(norm(speaker)) || kb.has("everyone") || r?.out) continue;
       const secretWords = [...contentWords(sec.text, 4)].filter((w) => !knownNames.has(w));
       if (secretWords.length < 2) continue;
       const hit = sents.find((s) => /["“]/.test(s) && secretWords.filter((w) => contentWords(s, 4).has(w)).length >= Math.max(2, Math.ceil(secretWords.length * 0.5)));
