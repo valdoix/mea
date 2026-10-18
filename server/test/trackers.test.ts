@@ -4,6 +4,10 @@ import { driftCharacter } from "../src/trackers/drift";
 import { extractLedger, parseLedger, parseLine } from "../src/trackers/dsl";
 import { type FoldConfig, foldEvents, type TrackerEvent } from "../src/trackers/fold";
 import { applyPatch } from "../src/trackers/patch";
+import { buildNote } from "../src/trackers/note";
+import { revealFor, revealsOf } from "../src/trackers/reveals";
+import { activateLore } from "../src/lore/activate";
+import { defaultEntry } from "../src/lore/types";
 import { STARTER_TEMPLATES, templateSchemaZ } from "../src/trackers/schema";
 
 const cfg = (over: Partial<FoldConfig> = {}): FoldConfig => ({
@@ -263,6 +267,27 @@ describe("fold rules", () => {
     expect(r.state.facts.js!.stances.jackie!.status).toBe("knows");
     expect(r.state.facts.js!.secret!.from).toEqual([]);
     expect(r.state.facts.js!.secret!.keepers).toEqual(["jeff", "shauna"]);
+  });
+
+  test("a secret that came out stops reading as hidden in lore and the scene note", () => {
+    const r = foldEvents(
+      events([["cast: Jackie@spot · Shauna@spot · Jeff@spot", "secret #jeff-shauna: Jeff is sleeping with Shauna, Shauna is pregnant | kept by Jeff · from Jackie"], ["reveal #jeff-shauna: to Jackie — Shauna told her"]]),
+      cfg(),
+    );
+    const reveals = revealsOf(r.state);
+    expect(reveals).toMatchObject([{ key: "jeff-shauna", to: ["Jackie"], out: true }]);
+    // The card's lore secret was written before the reveal, in other words.
+    expect(revealFor("Jackie does not know Jeff is sleeping with Shauna.", reveals)?.key).toBe("jeff-shauna");
+    expect(revealFor("Shauna's journal holds a coded record of the affair with Jeff.", reveals)).toBeUndefined();
+    const lore = { ...defaultEntry({ keys: ["Shauna"], content: "Jackie's best friend.", extra: { secrets: [{ text: "Shauna is pregnant with Jeff's baby and has told no one.", knownBy: ["Jeff", "Shauna"] }] } }), id: "s", bookId: "b", bookName: "Book", book: {} };
+    const run = (rv?: typeof reveals) =>
+      activateLore({ entries: [lore], history: ["Shauna sits down."], messageCount: 1, state: {}, defaults: { scanDepth: 4, tokenBudget: 1000, recursive: false, maxRecursion: 0, caseSensitive: false, matchWholeWords: true }, countTokens: (s) => s.length, reveals: rv }).activated[0]!.content;
+    expect(run()).toContain("[Secret — known only to Jeff, Shauna:");
+    expect(run(reveals)).toContain("No longer a secret (once known only to Jeff, Shauna): it came out in the story, and Jackie found out");
+    expect(run(reveals)).not.toContain("known only to Jeff, Shauna:");
+    const note = buildNote(r.state, { userName: "Alex", seq: 3 }).text;
+    expect(note).toContain("No longer a secret from Jackie: Jeff is sleeping with Shauna");
+    expect(note).not.toContain("Jackie doesn't know");
   });
 
   test("custom template fields", () => {

@@ -1,5 +1,6 @@
 import type { LoreEntry, LorebookSettings, LorePosition, Role } from "./types";
 import { factLine, nowBlock } from "./facts";
+import { type Reveal, revealFor } from "../trackers/reveals";
 
 export interface ScanEntry extends LoreEntry {
   id: string;
@@ -64,6 +65,8 @@ export interface ActivationInput {
   firedAgo?: Map<string, number>;
   /** docs/15, 5.1: entries whose date comes round today, with the line to say ("a year since the wedding"). */
   dated?: Map<string, string>;
+  /** Secrets the story has let out (trackers), so a lore secret about one stops calling it hidden. */
+  reveals?: Reveal[];
 }
 
 export interface NowFact {
@@ -99,11 +102,22 @@ export function essentialsOf(e: ScanEntry | LoreEntryLike) {
 }
 type LoreEntryLike = { content: string; extra: Record<string, unknown> };
 
-/** Lore secrets are told to the model with who knows them, so it keeps them in the right mouths (LORE-09). */
-function withSecrets(e: ScanEntry, content: string) {
+/**
+ * Lore secrets are told to the model with who knows them, so it keeps them in the right mouths (LORE-09).
+ * One the story has since let out says so: the entry was written before the reveal.
+ */
+function withSecrets(e: ScanEntry, content: string, reveals?: Reveal[]) {
   const secrets = extraOf(e).secrets?.filter((s) => s.text?.trim()) ?? [];
   if (!secrets.length) return content;
-  return `${content}\n${secrets.map((s) => `[Secret${s.knownBy?.length ? ` — known only to ${s.knownBy.join(", ")}` : ""}: ${s.text.trim()}]`).join("\n")}`;
+  return `${content}\n${secrets.map((s) => secretLine(s, revealFor(s.text, reveals))).join("\n")}`;
+}
+
+function secretLine(s: { text: string; knownBy?: string[] }, r?: Reveal) {
+  const kb = s.knownBy?.length ? s.knownBy.join(", ") : "";
+  if (!r) return `[Secret${kb ? ` — known only to ${kb}` : ""}: ${s.text.trim()}]`;
+  const once = kb ? ` (once known only to ${kb})` : "";
+  const head = r.out ? `No longer a secret${once}: it came out in the story, and ${r.to.join(", ")} found out` : `Secret${once}, since revealed to ${r.to.join(", ")}`;
+  return `[${head}. Written before that, so who "doesn't know" here is out of date: ${s.text.trim()}]`;
 }
 
 export interface TraceItem {
@@ -434,13 +448,13 @@ export function activateLore(input: ActivationInput): ActivationResult {
     return `${content}\n${block}`;
   };
   for (const a of sorted) {
-    let content = withNow(a.entry, withSecrets(a.entry, sub(a.content)));
+    let content = withNow(a.entry, withSecrets(a.entry, sub(a.content), input.reveals));
     let tokens = input.countTokens(content);
     let reason = a.reason;
     const p = Math.round(priority(a));
     const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine({ ...f, value: sub(f.value) }, sub(a.entry.comment || a.entry.keys[0] || "") || undefined));
     if (defaults.tokenBudget > 0 && used + tokens > defaults.tokenBudget) {
-      const short = withNow(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry))));
+      const short = withNow(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry)), input.reveals));
       const st = input.countTokens(short);
       if (a.kind !== "parent" && short.length < content.length && used + st <= defaults.tokenBudget) {
         content = short;
