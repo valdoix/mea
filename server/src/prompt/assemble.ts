@@ -162,6 +162,12 @@ function edge(text: string, n: number, end: "open" | "close"): string {
   return (end === "open" ? w.slice(0, n) : w.slice(-n)).join(" ");
 }
 
+/** The last dozen words of a reply cut short, speaker marks out (the words a continue writes on from). */
+function stoppedAt(text: string): string {
+  const w = text.replace(/\[spk=[^\]\n]{0,80}\]|\[\/spk\]/gi, "").trim().split(/\s+/).filter(Boolean);
+  return w.slice(-12).join(" ");
+}
+
 function characterBlock(card: CardData, x: (s: string) => string): string {
   const parts = [`## ${card.name}`];
   if (card.description.trim()) parts.push(x(card.description));
@@ -467,7 +473,12 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
 
   const tail: ChatMessage[] = [];
   // L8: a story or continue request never ends on a reply already written (it would read as a prefill).
-  if (input.kind === "continue") tail.push({ role: "system", content: x(preset.continuePrompt) || "[Continue your last reply from where it stopped.]" });
+  if (input.kind === "continue") {
+    // CHAT-14: the words it stopped on, so the model writes on from them rather than over them.
+    const stop = stoppedAt(input.history.at(-1)?.role === "assistant" ? input.history.at(-1)!.content : "");
+    const ask = x(preset.continuePrompt) || "[Continue your last reply from where it stopped.]";
+    tail.push({ role: "system", content: stop ? `${ask}\n[It stopped at: “…${stop}” Write only what comes after those words; never write them, or anything before them, again.]` : ask });
+  }
   // A draft of {{user}}'s own message is asked for as the last turn, so the model doesn't take it as {{user}}'s message to answer.
   if (input.kind === "impersonate") tail.push({ role: "user", content: x(preset.impersonationPrompt) });
   if (input.kind === "expand") tail.push({ role: "user", content: [x(DRAFT_TURN), x(preset.expandPrompt)].join("\n") });

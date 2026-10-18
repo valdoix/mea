@@ -576,8 +576,11 @@ export class MockProvider implements Provider {
     }
     const last = [...req.messages].reverse().find((m) => m.role === "user")?.content ?? "";
     const tail = req.messages.at(-1)?.content ?? "";
-    const text =
-      /Write .*next message/i.test(tail)
+    // A continue picks up the way models often do: the last words it stopped on, written again, then on.
+    const stopped = tail.match(/It stopped at: “…([\s\S]*?)” Write only/)?.[1];
+    const text = stopped
+      ? `${stopped.split(/\s+/).slice(-3).join(" ")} — and then she sets the kettle down and waits for your answer.`
+      : /Write .*next message/i.test(tail)
         ? "I step closer, brushing the rain from my coat. \"I told you I would. I keep my promises.\""
         : /rough draft/i.test(tail)
           ? 'I set my bag down by the door and let out a long breath. "It\'s good to see you again," I say, and I mean it.'

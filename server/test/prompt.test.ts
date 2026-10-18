@@ -93,6 +93,9 @@ describe("prompt assembly", () => {
 
   test("continue, impersonate, expand tails and regen feedback", () => {
     expect(assemblePrompt(base({ kind: "continue" })).messages.at(-1)!.content).toContain("Continue your last reply");
+    // It names the words the reply stopped on.
+    const cut = [...base().history, { id: "3", role: "assistant" as const, content: "She turns. [spk=Mira#1]“Wait,”[/spk] she says, and the door" }];
+    expect(assemblePrompt(base({ kind: "continue", history: cut })).messages.at(-1)!.content).toContain("It stopped at: “…She turns. “Wait,” she says, and the door”");
     expect(assemblePrompt(base({ kind: "impersonate" })).messages.at(-1)!.content).toContain("write Ash's next message");
     expect(assemblePrompt(base({ kind: "expand", draft: "smile, wave" })).messages.at(-1)!.content).toContain("smile, wave");
     // A draft of the player's own message is the last turn, says not to reply to it, and skips the card's "never write Ash".

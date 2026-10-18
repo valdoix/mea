@@ -11,7 +11,7 @@ import { queueBuilds, segmentChat } from "../src/memory/scheduler";
 import { levelRows, storyRow } from "../src/memory/store";
 import { createCharacter } from "../src/services/characters";
 import { patchCharacterSettings } from "../src/services/charsettings";
-import { applyBanned, cutFourthWall } from "../src/services/chattools";
+import { applyBanned, continueJoin, cutFourthWall } from "../src/services/chattools";
 import { addMessage, createChat, getMessage, historyForPrompt, updateChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { prefetch, previewPrompt, startStory } from "../src/services/generation";
@@ -86,6 +86,20 @@ describe("the style profile (STEER-04)", () => {
     expect(cutFourthWall("The player put them there.\nShe laughs.").text).toBe("She laughs.");
     expect(cutFourthWall("“You're the player, aren't you?” she asks.").cut).toEqual([]);
     expect(cutFourthWall("Nothing here.").text).toBe("Nothing here.");
+  });
+  test("a continue that writes the reply's end again joins where it picks up (CHAT-14)", () => {
+    const base = "His back is warm.\nand the tape is on\nand I";
+    // Its last words again: joined on them.
+    const at = continueJoin(base, "and I’m standing here with tape on my fingers");
+    expect(at).toBe(base.length - "and I".length);
+    expect(base.slice(0, at!) + "and I’m standing").toBe("His back is warm.\nand the tape is on\nand I’m standing");
+    // Gone back further, word for word (marks and spacing don't count): joined there.
+    const long = "The fire pops. “It's me,” she says.\n\nThe sound fills the space where the word was going to go. She looks at him. Her mouth opens.";
+    const back = continueJoin(long, "[spk=Jackie#1]“It's me,”[/spk] she says.  The sound fills the space where the word was, then away.");
+    expect(back).toBe(long.indexOf("“It's me"));
+    // A clean pick-up, or one that only shares a word: left alone.
+    expect(continueJoin(base, "’m standing here")).toBeNull();
+    expect(continueJoin("She said", "said nothing more.")).toBeNull();
   });
 });
 

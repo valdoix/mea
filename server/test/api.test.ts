@@ -140,6 +140,10 @@ describe("API end to end (mock provider)", () => {
     const after = (await api("GET", `/api/messages/${last.id}`)).json.content as string;
     expect(after.startsWith(before)).toBe(true);
     expect(after.length).toBeGreaterThan(before.length);
+    // CHAT-14: the words it stopped on, written again, are joined on rather than repeated.
+    const lastWords = before.trim().split(/\s+/).slice(-3).join(" ");
+    expect(after).toContain(`${lastWords} — and then she sets the kettle down`);
+    expect(after.split(lastWords).length).toBe(2);
   });
 
   test("delete a swipe: later versions move down, the last one stays", async () => {
