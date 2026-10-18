@@ -711,6 +711,9 @@ details.st-mod > summary:focus-visible {
 .st-stops button {
   position: absolute;
   top: 0;
+  /* Sized to the label, not the space left of `left` — the last stop sits at 100% and would
+     otherwise shrink to one letter per line. */
+  width: max-content;
   max-width: 7.5em;
   padding: 0 2px;
   border: 0;
@@ -719,7 +722,9 @@ details.st-mod > summary:focus-visible {
   font: 600 10.5px/1.3 var(--font-ui);
   color: var(--text-faint);
   cursor: pointer;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .st-stops button:first-child {
   transform: translateX(-11px);
