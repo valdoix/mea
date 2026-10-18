@@ -74,7 +74,7 @@ describe("more reply checks (D1)", () => {
     await kinds('"Hello," Joss says from the doorway.');
     const p = await prepare(chatId, "story");
     const lane = p.assembled.trace.blocks.find((b) => b.lane === "slips");
-    expect(lane?.text).toContain("Joss isn't here and can't speak in this scene");
+    expect(lane?.text).toContain("Joss isn't here and can't speak or act in this scene");
   });
 
   test("Make it a lesson: the finding becomes a kept lesson, checked like one", async () => {

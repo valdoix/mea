@@ -462,7 +462,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   const hint = lengthHint(preset);
   if (input.kind === "story" && hint) depthItems.push({ depth: 0, role: "system", content: hint, order: 9000 });
   if (input.feedback?.trim() && (input.kind === "story" || input.kind === "continue")) {
-    depthItems.push({ depth: 0, role: "system", content: `[Note for this reply: ${input.feedback.trim()}]`, order: 9001 });
+    depthItems.push({ depth: 0, role: "system", content: `[Note for this reply: ${input.feedback.trim()}]\n(The player's note outranks the [Story state] note, the plan and earlier replies: where they disagree about who is here, where or when, the note is right, and the ledger's cast follows it.)`, order: 9001 });
   }
 
   const tail: ChatMessage[] = [];

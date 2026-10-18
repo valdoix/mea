@@ -635,7 +635,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     kind === "story" && opts.writtenPlan
       ? { id: "advisor", name: "Its own plan", content: directorPlanText(planSchema.parse({ pass: opts.writtenPlan })), depth: 0, planner: true, pass: opts.writtenPlan }
       : kind === "story"
-        ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise) })
+        ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise), note: opts.feedback })
         : null;
   const style = styleExtra(chatId);
   const advisorMs = lap();
@@ -722,7 +722,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices, speakerMarks: marks };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history, undefined, opts.feedback) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices, speakerMarks: marks };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
