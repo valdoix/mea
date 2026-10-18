@@ -272,7 +272,7 @@ function helperJson(name: string, user: string, system = ""): unknown {
       if (m) changes.push({ kind: "memory_add", text: m[1], pin: true });
       m = says.match(/cue: (.+)$/i);
       if (m) changes.push({ kind: "cue", text: m[1] });
-      if (/nonsense change/i.test(says)) changes.push({ kind: "ledger", lines: ["bond Nobody>Noone: trust +1"] }, { kind: "merge", from: "Ghost", into: "Nobody" });
+      if (/nonsense change/i.test(says)) changes.push({ kind: "ledger", lines: ["bond Wren>Corvin: trust +1"] }, { kind: "merge", from: "Ghost", into: "Wren" });
       m = says.match(/^split (.+?) from (.+?)[.!]?$/i);
       if (m) changes.push({ kind: "split", from: m[2], name: m[1], lines: [`mood ${m[1]}: wary`] });
       m = says.match(/^note: (.+?) — (.+)$/i);

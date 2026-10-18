@@ -102,7 +102,7 @@ Bad state comes in through the ledger. This part makes each line say what the mo
 **How it's built**
 - `fold.ts`: a second list, `NOBODY_WORD` (public, people, town, school, world, nobody, no one, anyone…). In `people()`, these resolve to no one. For `secret … from`, "everyone"/"the public" mean "everyone but the keepers": store `from: ["*"]`, and read `*` as "anyone not a keeper and not told". `exposure`, `leakRule` and `note.ts` learn the wildcard.
 - A line whose only names resolve to nobody is rejected with a reason ("from whom? name the people").
-- A one-time health finding in the Codex lists existing characters whose names are group or nobody words, with **Remove** (uses the existing person-merge/remove path).
+- *Built:* no cleanup card was needed. The fold reads `know` and `secret` lines the model wrote again from their text (`op.raw`), so older chats get the new parser and rules on the next fold, and the "Group" and "general public" people stop existing. The engine's own lines keep their stored args.
 
 **Done when:** a new chat's ledger can't create "Group"; the Yellowjackets chat shows a finding for "Group" and "general-public".
 
@@ -113,7 +113,7 @@ Bad state comes in through the ledger. This part makes each line say what the mo
 **How it's built**
 - `fact()` without a key: look for an existing **secret** first, at overlap ≥ 0.6 (the threshold `reveal` uses), then any fact at ≥ 0.75 as today.
 - A `know` stance of `knows`/`believes`/`suspects` on a secret already drops that person from `from` (fold line ~943), so the dedup alone fixes the reveal.
-- A health finding lists existing near-duplicate pairs with **Merge** (the stances move to the older key; events are not rewritten).
+- A `#key` given to a fact first written without one (the card's `know` line before its `secret` line) takes that fact over, stances and all. *Built:* the re-fold merges existing pairs, so no **Merge** card.
 
 **Done when:** a keyless `know` on a secret's statement updates the secret; the Yellowjackets chat shows the pair as a finding.
 
@@ -253,6 +253,6 @@ The audit script moves up so Parts 2 and 3 can be measured on real chats while t
 
 ## What you'll do
 
-1. After Part 1, open the Codex health findings for the Yellowjackets chat and remove "Group" / merge the duplicate fact.
+1. After Part 1, nothing: existing chats are re-read on their next fold.
 2. After Part 2, glance at the secret chips on the Yellowjackets lorebook and link or unlink any that look wrong.
 3. When a reply gets something wrong, run `prompt-audit` on that chat (or ask me to) and save it as a fixture if it's worth keeping.

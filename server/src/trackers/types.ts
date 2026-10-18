@@ -156,7 +156,8 @@ export interface Fact {
   key: string;
   statement: string;
   truth: Truth;
-  secret?: { keepers: string[]; from: string[] };
+  /** `everyone`: kept from all but the keepers, so whoever turns up later goes into `from` too. */
+  secret?: { keepers: string[]; from: string[]; everyone?: boolean };
   stances: Record<string, { status: KnowStatus; route?: string; seq: number; set?: boolean }>;
   revealed: { to: string[]; seq: number; how?: string }[];
   firstSeq: number;

@@ -95,7 +95,7 @@ describe("Meus in a chat", () => {
     const v = await meusTurn(chatId, "nonsense change");
     expect(v.turns.at(-1)!.text).toContain("Left out: there's no Ghost in the cast");
     expect(v.proposal!.changes.map((c) => c.kind)).toEqual(["ledger"]);
-    expect(v.proposal!.changes[0]!.data?.note).toContain("adds Nobody, Noone to the cast");
+    expect(v.proposal!.changes[0]!.data?.note).toContain("adds Wren, Corvin to the cast");
   });
 
   test("a past message is fixed in place, with its old text one Undo away", async () => {

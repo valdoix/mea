@@ -172,6 +172,48 @@ function pipe(rest: string): [string, string[]] {
   return [head!.trim(), tail.join(" · ").split(/\s*(?:·|•|,)\s*/).map((s) => s.trim()).filter(Boolean)];
 }
 
+const KNOW_STATUS = /^(knows|believes|suspects|doubts|wrong|unaware)$/i;
+const TRUTH_WORD = /^(true|false|partial|unknown)$/i;
+
+/**
+ * A line's own fields written into its cause ("— heard it · knows · true", "— kept by A · from B —
+ * why"): each bit `take` claims leaves the cause, and the rest of it stays the cause.
+ */
+function fieldsFromCause(out: Op, take: (bit: string) => boolean) {
+  if (!out.cause) return;
+  const bits = out.cause.split(/\s*(?:·|•|\|)\s*|\s+(?:—|–|--)\s+/).map((s) => s.trim()).filter(Boolean);
+  const rest = bits.filter((b) => !take(b));
+  if (rest.length < bits.length) out.cause = rest.join(" · ") || undefined;
+}
+
+const names = (s: string) => s.split(/\s*(?:,|&|\band\b)\s*/i).map((x) => x.trim()).filter(Boolean);
+const NAME = String.raw`\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){0,2}`;
+const NAMES = String.raw`${NAME}(?:\s*(?:,|&|\band\b)\s*${NAME})*`;
+const SECRET_META: [RegExp, "keepers" | "from" | "knownTo" | "suspectedBy"][] = [
+  [/^kept by\s+(.+)$/i, "keepers"],
+  [/^(?:kept )?from\s+(.+)$/i, "from"],
+  [/^known (?:to|by)\s+(.+)$/i, "knownTo"],
+  [/^suspected by\s+(.+)$/i, "suspectedBy"],
+  // "Nat knows", "Gen and Robin suspect": names only (capitalised), so "she knows" stays prose.
+  [new RegExp(String.raw`^(${NAMES})\s+(?:knows?|know it)$`, "u"), "knownTo"],
+  [new RegExp(String.raw`^(${NAMES})\s+suspects?(?: it)?$`, "u"), "suspectedBy"],
+];
+/**
+ * "kept by A, B · from C; known to D, suspected by E". In a cause (`strict`) every bit must be one of
+ * these, or none is taken; after a "|" the ones that aren't are skipped.
+ */
+function secretMeta(a: Record<string, unknown>, text: string, strict = true) {
+  const bits = text
+    .split(/\s*(?:·|•|;|\|)\s*/)
+    .flatMap((b) => b.split(/,\s*(?=(?:kept by|from|known (?:to|by)|suspected by)\s)/i))
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const hits = bits.map((b) => SECRET_META.map(([re, k]) => [b.match(re), k] as const).find(([m]) => m));
+  if (!bits.length || (strict && hits.some((h) => !h))) return false;
+  for (const [m, k] of hits.filter(Boolean) as [RegExpMatchArray, string][]) a[k] = [...((a[k] as string[] | undefined) ?? []), ...names(m[1]!)];
+  return true;
+}
+
 function dueOf(text: string) {
   const m = text.match(/\[?\s*due\s*[:=]?\s*([^\]]+)\]?/i);
   return m ? m[1]!.trim() : undefined;
@@ -292,25 +334,29 @@ export function parseLine(raw: string): Op | null {
       break;
     }
     case "know": {
-      const [fact, meta] = pipe(body);
+      // "fact · sees · true" with no "|": the first "·" starts the fields.
+      const [fact, meta] = pipe(body.includes("|") ? body : body.replace(/\s*[·•]\s*/, " | "));
       a.fact = fact.replace(/^#([\w-]+)\s*/, (_, k) => ((a.key = k), ""));
       for (const m of meta) {
-        if (/^(knows|believes|suspects|doubts|wrong|unaware)$/i.test(m)) a.status = m.toLowerCase();
-        else if (/^(true|false|partial|unknown)$/i.test(m)) a.truth = m.toLowerCase();
+        if (KNOW_STATUS.test(m)) a.status = m.toLowerCase();
+        else if (TRUTH_WORD.test(m)) a.truth = m.toLowerCase();
         else a.route = a.route ? `${a.route}, ${m}` : m;
       }
+      fieldsFromCause(out, (b) => {
+        if (!a.status && KNOW_STATUS.test(b)) return Boolean((a.status = b.toLowerCase()));
+        if (!a.truth && TRUTH_WORD.test(b)) return Boolean((a.truth = b.toLowerCase()));
+        return false;
+      });
       break;
     }
     case "secret": {
-      const [fact, meta] = pipe(body);
+      // Not pipe(): its commas separate names here ("kept by Jeff, Shauna").
+      const bar = body.indexOf("|");
       a.key = subject?.replace(/^#/, "");
-      a.fact = fact;
-      for (const m of meta) {
-        const k = m.match(/^kept by\s+(.+)$/i);
-        const f = m.match(/^(?:kept )?from\s+(.+)$/i);
-        if (k) a.keepers = k[1]!.split(/\s*(?:&|and)\s*/);
-        else if (f) a.from = f[1]!.split(/\s*(?:&|and)\s*/);
-      }
+      a.fact = (bar < 0 ? body : body.slice(0, bar)).trim();
+      if (bar >= 0) secretMeta(a, body.slice(bar + 1), false);
+      // Fields in the cause only stand in for missing ones ("— from the card" is where it came from).
+      else fieldsFromCause(out, (b) => !/^from the (?:card|story)$/i.test(b) && secretMeta(a, b));
       break;
     }
     case "room": {
