@@ -1,7 +1,8 @@
 <#
   Updates the Mea on this PC to the latest version and restarts it.
 
-  It pulls the latest code, installs packages, rebuilds the web app (or mea.exe, when the "Mea"
+  It pulls the latest code from main (switching back to main first when the folder was left on a
+  branch that's already merged), installs packages, rebuilds the web app (or mea.exe, when the "Mea"
   task runs that), then restarts the "Mea" Scheduled Task and waits for Mea to answer again.
   It always rebuilds and restarts, even with nothing new to pull, so commits made right in this
   folder reach the running Mea too. If the build fails, the code goes back to the version that's
@@ -88,7 +89,30 @@ $branch = (& $git rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1)
 $before = (& $git rev-parse HEAD 2>$null | Select-Object -First 1)
 if (-not $before) { Finish $false $false "$root isn't a Git checkout, so it can't be updated this way." }
 
-# 1. Get the new code. --ff-only never merges or overwrites your own changes; it refuses instead.
+# 1. Get the new code. Updates come from main: when the folder sits on another branch that main
+# already contains (a merged feature branch), switch back to main first, or the pull below would only
+# fetch that branch and nothing merged since. A branch with work main doesn't have yet stays put.
+$mainBranch = "main"
+$fromBranch = $null
+if ($branch -ne $mainBranch) {
+  Invoke-Logged $git @("fetch", "origin") | Out-Null
+  if ($LASTEXITCODE -ne 0) { Finish $false $false "Couldn't reach GitHub to check for updates. Mea is still running as before." }
+  & $git merge-base --is-ancestor HEAD "origin/$mainBranch" 2>$null
+  if ($LASTEXITCODE -eq 0) {
+    Write-Log "$branch is already in $mainBranch; switching to $mainBranch to update."
+    $switch = Invoke-Logged $git @("switch", $mainBranch)
+    if ($LASTEXITCODE -ne 0) {
+      $why = if ($switch -match "overwritten") { "files edited in Mea's folder would be overwritten (the list is in update.log)" } else { "git switch exited with $LASTEXITCODE" }
+      Finish $false $false "Couldn't switch from $branch to ${mainBranch}: $why. Mea is still running as before."
+    }
+    $fromBranch = $branch
+    $branch = $mainBranch
+  } else {
+    Write-Log "$branch has commits that aren't in $mainBranch yet, so this updates $branch only."
+  }
+}
+
+# --ff-only never merges or overwrites your own changes; it refuses instead.
 $pull = Invoke-Logged $git @("pull", "--ff-only")
 if ($LASTEXITCODE -ne 0) {
   $lines = @($pull | Where-Object { $_.Trim() })
@@ -98,6 +122,7 @@ if ($LASTEXITCODE -ne 0) {
   $why = $why.Trim().TrimEnd(":")
   if ($pull -match "local changes") { $why = "files edited in Mea's folder would be overwritten (the list is in update.log)" }
   elseif ($pull -match "diverge|not possible to fast-forward") { $why = "Mea's folder has its own commits that aren't on GitHub" }
+  if ($fromBranch) { Invoke-Logged $git @("switch", $fromBranch) | Out-Null }
   Finish $false $false "Couldn't update: $why. Mea is still running as before."
 }
 $after = (& $git rev-parse HEAD 2>$null | Select-Object -First 1)
@@ -118,7 +143,8 @@ try {
 
 function Undo-Pull([string]$what) {
   # Puts the code back to the version that's running, keeping any local edits, so the next update retries.
-  Invoke-Logged $git @("reset", "--keep", $before) | Out-Null
+  if ($fromBranch) { Invoke-Logged $git @("switch", $fromBranch) | Out-Null }
+  else { Invoke-Logged $git @("reset", "--keep", $before) | Out-Null }
   if ($after -eq $before) { Finish $false $false "The rebuild failed at $what, so Mea keeps running the build it had. Details are in update.log." }
   Finish $false $false "The update downloaded but $what failed, so Mea stays on the previous version. Details are in update.log."
 }
@@ -172,4 +198,5 @@ if (-not (Test-MeaUp)) {
   Finish $false $true "Updated to $version, but Mea didn't answer within a minute of restarting. Check the logs."
 }
 $changes = if ($count -eq "0") { "nothing new to pull" } elseif ($count -eq "1") { "1 new change" } else { "$count new changes" }
+if ($fromBranch) { $changes += ", back on $mainBranch from $fromBranch" }
 Finish $true $true "Mea is rebuilt ($changes) and running again. Now on $version. Refresh Mea's page to see it."
