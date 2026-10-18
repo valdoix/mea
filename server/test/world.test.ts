@@ -173,6 +173,34 @@ describe("storyteller", () => {
     expect(canStep({ ...st.sim.arcs.y!, lead: mira.id }, input(st).roster)).toBe(false);
   });
 
+  test("a subplot moves on its own at its mode's pace, without a nudge", () => {
+    const st = world(base);
+    const joss = input(st).roster.byName("Joss")!;
+    const t0 = 1440 + 8 * 60;
+    st.time = { minutes: t0, form: "day" };
+    st.sim.lastTickAt = t0;
+    // A beat just landed, and its rest was set at the kind's base pace (the old way): eleven story hours.
+    st.sim.arcs.y = {
+      id: "y", kind: "pursuit", lead: joss.id, leadName: "Joss", cast: [], premise: "Joss wants his boat back.", want: "to buy back the boat", fear: "the Guild sells it", grounds: ["player"], secrecy: "private",
+      clock: { cur: 1, max: 6 }, tally: { win: 1, cost: 0, loss: 0 }, heat: 1, stage: "rising",
+      beats: [{ at: t0, result: "win", stage: "hook", text: "Joss asked around the harbour.", roll: [3, 3], mod: 0, why: [], told: "template", seq: 1 }],
+      nextAt: t0 + 11 * 60, status: "running", by: "player", createdAt: t0 - 60, seq: 1,
+    };
+    let movedAt: number | null = null;
+    for (let h = 2; h <= 10 && movedAt == null; h += 2) {
+      st.time = { minutes: t0 + h * 60, form: "day" };
+      const res = tick(input(st, { mode: "restless", seeding: "off", from: st.sim.lastTickAt }));
+      const beat = res.sim.find((o) => o.type === "arc.beat" && o.id === "y");
+      if (beat?.type === "arc.beat") {
+        movedAt = h;
+        // The next rest follows a restless world's pace too: hours, not half a day.
+        expect(beat.nextAt - st.time.minutes).toBeLessThan(6 * 60);
+      }
+      advance(st, res);
+    }
+    expect(movedAt).not.toBeNull();
+  });
+
   test("seeding 'ask' writes proposals, not subplots", () => {
     const st = world(base);
     const res = tick(input(st, { seeding: "ask", forced: true }));
