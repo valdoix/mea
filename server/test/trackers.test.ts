@@ -210,6 +210,65 @@ describe("fold rules", () => {
     expect(f.secret!.from).toEqual([]);
   });
 
+  test("ledger fields written into the cause still count (reliable state 1.1)", () => {
+    const k = parseLine("know Jackie: Shauna is pregnant — heard Shauna confirm · knows · true")!;
+    expect(k.args).toMatchObject({ fact: "Shauna is pregnant", status: "knows", truth: "true" });
+    expect(k.cause).toBe("heard Shauna confirm");
+    expect(parseLine("know Jackie: Shauna's seat is empty · sees · true")!.args).toMatchObject({ fact: "Shauna's seat is empty", route: "sees", truth: "true" });
+    expect(parseLine("know Jackie: reads it as shock — wrong size; how: watching · wrong")!.args.status).toBe("wrong");
+    expect(parseLine("know Mira: the boat leaves — she knows it's true")!.cause).toBe("she knows it's true");
+    const s = parseLine("secret #js: Jeff is sleeping with Shauna — kept by Shauna · from Jackie — Jackie knows only half")!;
+    expect(s.args).toMatchObject({ keepers: ["Shauna"], from: ["Jackie"] });
+    expect(s.cause).toBe("Jackie knows only half");
+    expect(parseLine("secret #js: x | kept by Jeff · from Jackie — from the card")!.args.from).toEqual(["Jackie"]);
+  });
+
+  test("secret name lists and asides (1.2), crowds aren't people (1.3)", () => {
+    const r = foldEvents(
+      events([
+        ["cast: Jackie@spot · Shauna@spot · Jeff@spot · James@spot", "secret #js: Jeff is sleeping with Shauna | kept by Jeff, Shauna · from Jackie"],
+        ["secret #love: Jackie loves James | kept by Jackie · from general public; known to James, suspected by Shauna", "secret #abuse: Edwin beat him | kept by James · from Jackie, others; Misty knows", "know Group: the fire is out — saw it"],
+        ["cast: Misty@arrive", "secret #ghost: x | kept by Jeff · from nobody"],
+      ]),
+      cfg(),
+    );
+    expect(r.state.facts.js!.secret).toEqual({ keepers: ["jeff", "shauna"], from: ["jackie"] });
+    const love = r.state.facts.love!;
+    expect(love.secret!.everyone).toBe(true);
+    expect(love.secret!.from).toEqual(expect.arrayContaining(["jeff", "misty"]));
+    expect(love.secret!.from).not.toContain("james");
+    expect(love.stances.james!.status).toBe("knows");
+    expect(love.stances.shauna!.status).toBe("suspects");
+    expect(Object.keys(r.state.chars)).not.toEqual(expect.arrayContaining(["group"]));
+    expect(Object.values(r.state.chars).some((c) => /public|group/i.test(c.name))).toBe(false);
+    expect(r.state.facts.ghost?.secret).toBeUndefined();
+    expect(r.state.facts.abuse!.secret!.from).toContain("jackie");
+    expect(r.state.facts.abuse!.secret!.from).not.toContain("misty");
+  });
+
+  test("old knowledge lines are read again from their text", () => {
+    const raw = "secret #js: Jeff is sleeping with Shauna | kept by Jeff, Shauna · from Jackie";
+    // As stored before the parser split "kept by" on commas.
+    const stale = { ...parseLine(raw)!, args: { key: "js", fact: "Jeff is sleeping with Shauna", keepers: ["Jeff"], from: ["Jackie"] } };
+    const r = foldEvents([{ id: "s1", messageId: null, seq: 0, source: "init", op: stale }], cfg());
+    expect(r.state.facts.js!.secret!.keepers).toEqual(["jeff", "shauna"]);
+  });
+
+  test("one fact, not two (1.4); a re-declared secret stays revealed (1.5)", () => {
+    const r = foldEvents(
+      events([
+        ["cast: Jackie@spot · Shauna@spot · Jeff@spot", "know Jackie: Jeff is sleeping with Shauna, Shauna is pregnant | unaware — from the card", "secret #js: Jeff is sleeping with Shauna, Shauna is pregnant | kept by Jeff · from Jackie"],
+        ["know Jackie: Jeff is sleeping with Shauna and she's pregnant — Shauna told her · knows"],
+        ["secret #js: Jeff is sleeping with Shauna, Shauna is pregnant | kept by Shauna · from Jackie"],
+      ]),
+      cfg(),
+    );
+    expect(Object.keys(r.state.facts)).toEqual(["js"]);
+    expect(r.state.facts.js!.stances.jackie!.status).toBe("knows");
+    expect(r.state.facts.js!.secret!.from).toEqual([]);
+    expect(r.state.facts.js!.secret!.keepers).toEqual(["jeff", "shauna"]);
+  });
+
   test("a secret that came out stops reading as hidden in lore and the scene note", () => {
     const r = foldEvents(
       events([["cast: Jackie@spot · Shauna@spot · Jeff@spot", "secret #jeff-shauna: Jeff is sleeping with Shauna, Shauna is pregnant | kept by Jeff · from Jackie"], ["reveal #jeff-shauna: to Jackie — Shauna told her"]]),

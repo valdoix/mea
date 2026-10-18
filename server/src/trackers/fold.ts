@@ -3,6 +3,7 @@ import { itemsAt } from "./belongings";
 import type { SimOp } from "../sim/types";
 import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
+import { parseLine } from "./dsl";
 import { applyPatch, type Change as PatchChange } from "./patch";
 import type { Template } from "./schema";
 import {
@@ -152,6 +153,14 @@ const DOWN_CAUSE = /\b(betray\w*|lie|lies|lied|lying|neglect\w*|abandon\w*|broke
 const ROMANCE_CAUSE = /\b(kiss\w*|attract\w*|desir\w*|crush\w*|flirt\w*|blush\w*|in love|lov(?:e|es|ed|ing)|romanc\w*|romantic\w*|date|dating|lips|mouth|jealous\w*|long(?:s|ed|ing) for|butterfl\w*|chemistry|sparks?|aroused|arousal|wants? (?:her|him|them)|sexual\w*|seduc\w*|caress\w*)\b/i;
 /** Words that name a crowd, not a person: "know Group: …" means everyone in the scene. */
 const GROUP_WORD = /^(?:the |all the |whole )*(?:group|whole group|everyone|everybody|all|all present|all of them|all of us|circle|others|rest|crowd|camp|team|squad|party|survivors|room|table|fire|us|them|they|we|both|both of them|girls|boys|kids|everyone present|everyone here|whole camp)$/;
+/** Words for people at large ("the general public", "nobody"): no one in particular, so never a person. */
+const PUBLIC_WORD = /^(?:the )?(?:general )?public$|^(?:the )?(?:whole )?(?:world|town|school|city|village)$|^(?:other )?people$|^everyone else$|^anyone(?: else)?$|^outsiders$|^(?:nobody|no one|noone|none)(?: else)?$/;
+/** "from everyone": the crowd words, and people at large (but not "nobody"). */
+const EVERYONE_WORD = (n: string) => GROUP_WORD.test(n) || (PUBLIC_WORD.test(n) && !/^(?:nobody|no one|noone|none)/.test(n));
+const isCrowd = (name: string) => {
+  const n = norm(personName(name));
+  return GROUP_WORD.test(n) || PUBLIC_WORD.test(n);
+};
 /** Ops said of a person, which a list of names in the subject spreads over each of them. */
 const PERSON_OPS = new Set<string>(["mood", "body", "look", "trait", "drive", "mask", "dead", "bond", "ladder", "know", "pressure", "room", "keeps", "owe", "promise", "rep"]);
 
@@ -244,6 +253,8 @@ export class Folder {
     };
     this.state.chars[id] = c;
     for (const t of this.cfg.seedTraits?.[opts.isUser ? "user" : key] ?? []) c.traits.push({ kind: traitKind(t), text: t, by: "card", seq: 0 });
+    // A secret kept from everyone is kept from whoever turns up later too.
+    if (!opts.isUser) for (const f of Object.values(this.state.facts)) if (f.secret?.everyone && !f.secret.keepers.includes(id)) f.secret.from.push(id);
     return c;
   }
 
@@ -258,15 +269,14 @@ export class Folder {
   /** A person named in an op: resolves or creates (never for names that look like groups or places). */
   person(name: string | undefined, seq: number): Character | undefined {
     if (!name?.trim()) return undefined;
-    const found = this.findChar(name);
-    if (found) return found;
-    if (GROUP_WORD.test(norm(personName(name)))) return undefined;
-    return this.ensureChar(name, seq);
+    // A crowd or "the public" is never a person, even one made by mistake before.
+    if (isCrowd(name)) return undefined;
+    return this.findChar(name) ?? this.ensureChar(name, seq);
   }
 
   /** The people a name stands for: "the group", "everyone", "the circle" mean whoever is in the scene. */
   people(name: string | undefined, seq: number): Character[] {
-    if (name?.trim() && !this.findChar(name) && GROUP_WORD.test(norm(personName(name))))
+    if (name?.trim() && GROUP_WORD.test(norm(personName(name))))
       return Object.values(this.state.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead);
     const c = this.person(name, seq);
     return c ? [c] : [];
@@ -283,6 +293,12 @@ export class Folder {
   // ---------- applying ----------
 
   apply(ev: TrackerEvent) {
+    // Knowledge lines the model wrote are read again from their text, so older ones get what the parser
+    // has learned since (fields in the cause, "kept by A, B"). The engine's own carry args the text doesn't.
+    if ((ev.op.op === "know" || ev.op.op === "secret") && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
+      const op = parseLine(ev.op.raw);
+      if (op?.op === ev.op.op) ev = { ...ev, op };
+    }
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
     try {
       // "mood Mari, Gen & Robin: tense" is said of each of them, not of one person by that name.
@@ -947,10 +963,26 @@ export class Folder {
       }
       case "secret": {
         if (!a.fact && !a.key) return this.reject(ctx, "write secret #key: fact | kept by A · from B");
+        const ids = (xs: unknown) => uniq(((xs ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
+        const named = ((a.from ?? []) as string[]).filter((n) => n.trim());
+        const all = named.some((n) => EVERYONE_WORD(norm(personName(n))));
+        const fromIds = ids(named.filter((n) => !EVERYONE_WORD(norm(personName(n)))));
+        if (named.length && !all && !fromIds.length) return this.reject(ctx, `from whom? "${named.join(", ")}" isn't anyone in the story; name the people`);
         const f = this.fact(a.key, a.fact ?? a.key, seq, "true");
-        const keepers = uniq(((a.keepers ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
-        const from = uniq(((a.from ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
-        f.secret = { keepers: uniq([...(f.secret?.keepers ?? []), ...keepers]), from: uniq([...(f.secret?.from ?? []), ...from]) };
+        const keepers = uniq([...(f.secret?.keepers ?? []), ...ids(a.keepers)]);
+        const knownTo = ids(a.knownTo).filter((id) => !keepers.includes(id));
+        const suspects = ids(a.suspectedBy).filter((id) => !keepers.includes(id) && !knownTo.includes(id));
+        for (const id of knownTo) if (!f.stances[id]?.set) f.stances[id] = { status: "knows", route: "known to them", seq };
+        for (const id of suspects) if (!f.stances[id]?.set) f.stances[id] = { status: "suspects", route: "suspects it", seq };
+        // "from everyone" / "from the public": everyone but the keepers, now and whoever turns up later.
+        const everyone = all || Boolean(f.secret?.everyone);
+        const wanted = uniq([...fromIds, ...(all ? Object.values(st.chars).filter((c) => !c.isUser).map((c) => c.id) : [])]).filter((id) => !keepers.includes(id) && !knownTo.includes(id) && !suspects.includes(id));
+        // Someone who already found out isn't put back in the dark by the secret being written again (only you can).
+        const told = (id: string) => /knows|believes|suspects/.test(f.stances[id]?.status ?? "");
+        const back = ctx.ev.source === "user" ? [] : wanted.filter(told);
+        const from = uniq([...(f.secret?.from ?? []), ...wanted.filter((id) => !back.includes(id))]).filter((id) => !keepers.includes(id));
+        f.secret = { keepers, from, ...(everyone ? { everyone: true } : {}) };
+        if (back.length) ctx.verdict.reason = `${back.map((x) => this.nameOf(x)).join(", ")} already found out, and still knows`;
         for (const k of keepers) f.stances[k] ??= { status: "knows", route: "keeps it", seq };
         for (const k of from) if (!f.stances[k] || f.stances[k]!.status === "unaware") f.stances[k] = { status: "unaware", route: "kept from them", seq };
         this.push(ctx, { kind: "secret", text: `Secret: ${clip(f.statement)}`, path: `facts.${f.key}`, reason: op.cause });
@@ -1315,7 +1347,19 @@ export class Folder {
 
   fact(key: string | undefined, statement: string, seq: number, truth?: string) {
     const st = this.state;
-    const k = key ? slug(key) : (Object.values(st.facts).find((f) => overlap(f.statement, statement) >= 0.75)?.key ?? slug(statement));
+    const facts = Object.values(st.facts);
+    // Said again without its key, it's the same fact: a secret first (at the reveal's 0.6), then anything close.
+    const k = key
+      ? slug(key)
+      : (facts.find((f) => f.secret && overlap(f.statement, statement) >= 0.6)?.key ?? facts.find((f) => overlap(f.statement, statement) >= 0.75)?.key ?? slug(statement));
+    // A #key given to a fact first written without one takes it over, stances and all.
+    if (key && !st.facts[k]) {
+      const old = facts.find((f) => !f.secret && f.key === slug(f.statement) && overlap(f.statement, statement) >= 0.75);
+      if (old) {
+        delete st.facts[old.key];
+        st.facts[k] = { ...old, key: k };
+      }
+    }
     const f = (st.facts[k] ??= { key: k, statement: clip(statement), truth: (truth as Truth) ?? "true", stances: {}, revealed: [], firstSeq: seq, lastSeq: seq });
     f.lastSeq = seq;
     if (truth) f.truth = truth as Truth;
@@ -1382,7 +1426,10 @@ export class Folder {
         if (!f.stances[into.id] || f.stances[into.id]!.seq < s.seq) f.stances[into.id] = s;
         delete f.stances[from.id];
       }
-      if (f.secret) f.secret = { keepers: uniq(f.secret.keepers.map((x) => swap(x)!)), from: uniq(f.secret.from.map((x) => swap(x)!)) };
+      if (f.secret) {
+        const keepers = uniq(f.secret.keepers.map((x) => swap(x)!));
+        f.secret = { ...f.secret, keepers, from: uniq(f.secret.from.map((x) => swap(x)!)).filter((x) => !keepers.includes(x)) };
+      }
       for (const r of f.revealed) r.to = uniq(r.to.map((x) => swap(x)!));
     }
     for (const o of Object.values(st.obligations)) {
