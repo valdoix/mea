@@ -25,6 +25,21 @@ export const MODES: Record<SimMode, { awake: number; arcs: number; perTick: numb
 
 const STAGE_RATE = { hook: 0.8, rising: 1, reversal: 1.1, crisis: 1.4, climax: 1.5, aftermath: 0 } as const;
 
+/** How often a subplot steps, per story hour: its kind, heat and stage, the mode, and the director. */
+function paceOf(arc: Arc, mode: SimMode, L: DirectorLean, cur = arc.clock.cur, heat = arc.heat): number {
+  return SPECS[arc.kind].base * (1 + heat / 2) * STAGE_RATE[stageOf(cur, arc.clock.max)] * MODES[mode].factor * L.rate;
+}
+
+/**
+ * When a subplot may step again after one: a short rest at the pace of its next step, then its dice
+ * decide. The rest follows the same pace as the dice, so a restless world, a hot subplot or a
+ * director raising the stakes moves it sooner (it used to wait out its kind's base pace regardless).
+ */
+function restAfter(arc: Arc, inp: TickInput, L: DirectorLean, r: () => number, heat = arc.heat): number {
+  const rate = Math.max(0.02, paceOf(arc, inp.mode, L, arc.clock.cur + 1, heat));
+  return inp.now + Math.round((HOUR / rate) * (0.25 + r() * 0.5));
+}
+
 export interface TickInput {
   chatId: string;
   state: WorldState;
@@ -183,12 +198,14 @@ export function tick(inp: TickInput): TickResult {
     if (lead?.ring === "onstage") continue;
     // A thread it's about just moved: it answers now.
     const due = !!W.pulls.get(arc.id)?.due;
-    if (!arc.push && !due && inp.now < arc.nextAt) continue;
+    const rate = paceOf(arc, inp.mode, L);
+    // Its rest never runs past the longest one its pace now allows (a rest set at a slower pace, or by an older build, shortens).
+    const last = arc.beats.at(-1)?.at ?? arc.createdAt;
+    const restEnds = Math.min(arc.nextAt, last + Math.round((HOUR / Math.max(0.02, rate)) * 0.75));
+    if (!arc.push && !due && inp.now < restEnds) continue;
     if (!isFaction && lead && !awakeIds.has(lead.id) && !arc.push && !due && !inp.forced) continue;
     const r = R(`arc:${arc.id}`);
-    const since = Math.max(inp.from ?? arc.createdAt, arc.beats.at(-1)?.at ?? arc.createdAt);
-    const spec = SPECS[arc.kind];
-    const rate = spec.base * (1 + arc.heat / 2) * STAGE_RATE[stageOf(arc.clock.cur, arc.clock.max)] * M.factor * L.rate;
+    const since = Math.max(inp.from ?? arc.createdAt, last);
     const happens = arc.push || due || (inp.forced && beats === 0) || r() < chanceIn(rate, (inp.now - since) / HOUR);
     if (!happens) continue;
     // The gate (MKAMT): time of day, and knowledge for subplots that rest on a fact.
@@ -215,7 +232,7 @@ export function tick(inp: TickInput): TickResult {
       const b = rollBeat(overdue, lead, inp, r, L, arcs, W);
       W.moved.add(overdue.id);
       W.events.push(eventOf(overdue, b.beat));
-      out.sim.push({ type: "arc.beat", id: overdue.id, beat: b.beat, nextAt: inp.now + Math.round((1 / SPECS[overdue.kind].base) * HOUR) });
+      out.sim.push({ type: "arc.beat", id: overdue.id, beat: b.beat, nextAt: restAfter(overdue, inp, L, r) });
       out.cards.push(cardFor(overdue, b.beat, inp, false, undefined, W, threadAnswer(overdue, inp, W)));
       afterStep(overdue, b.beat, lead, inp, r, out, W, 0);
     }
@@ -290,7 +307,7 @@ function stepArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => nu
   W.moved.add(arc.id);
   const b = rollBeat(arc, lead, inp, r, L, arcs, W);
   W.events.push(eventOf(arc, b.beat));
-  out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: inp.now + Math.round((1 / spec.base) * HOUR * (0.6 + r() * 0.8)), ...(b.heat != null ? { heat: b.heat } : {}) });
+  out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: restAfter(arc, inp, L, r, b.heat ?? arc.heat), ...(b.heat != null ? { heat: b.heat } : {}) });
   out.cards.push(cardFor(arc, b.beat, inp, false, undefined, W, threadAnswer(arc, inp, W)));
   out.summary.push(`${arc.leadName} · ${spec.label} · ${b.beat.stage}: ${b.beat.result}${b.beat.twist ? ` (twist: ${b.beat.twist})` : ""}${b.beat.forced ? " (your call)" : ""}${b.beat.answers && !b.beat.twist ? ` (answering ${b.beat.answers})` : ""}`);
   // How it could reach the scene. A beat you called always tries: you want to see it land.
@@ -315,7 +332,7 @@ function collideStep(arc: Arc, by: Arc, inp: TickInput, r: () => number, L: Dire
   W.moved.add(arc.id);
   const b = rollBeat(arc, lead, inp, r, L, arcs, W, by);
   W.events.push(eventOf(arc, b.beat));
-  out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: inp.now + Math.round((1 / spec.base) * HOUR * (0.6 + r() * 0.8)), heat: Math.min(3, arc.heat + 1) });
+  out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: restAfter(arc, inp, L, r, Math.min(3, arc.heat + 1)), heat: Math.min(3, arc.heat + 1) });
   out.cards.push(cardFor(arc, b.beat, inp, false, undefined, W));
   out.summary.push(`${arc.leadName} · ${spec.label} · ${b.beat.stage}: ${b.beat.result} (collided with ${by.leadName}'s ${SPECS[by.kind].label.toLowerCase()})`);
   afterStep(arc, b.beat, lead, inp, r, out, W, 1);
@@ -347,7 +364,7 @@ function answerStep(arc: Arc, rp: Ripple, re: Extract<Reaction, { act: "answer" 
   const b = rollBeat(arc, lead, inp, r, L, arcs, W, undefined, { mod: re.mod, why: re.why, words: ans.words });
   W.events.push(eventOf(arc, b.beat));
   const heat = Math.max(re.heat ?? 0, b.heat ?? 0);
-  out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: inp.now + Math.round((1 / spec.base) * HOUR * (0.6 + r() * 0.8)), ...(heat ? { heat } : {}) });
+  out.sim.push({ type: "arc.beat", id: arc.id, beat: b.beat, nextAt: restAfter(arc, inp, L, r, heat || arc.heat), ...(heat ? { heat } : {}) });
   out.cards.push(cardFor(arc, b.beat, inp, false, undefined, W, ans));
   out.summary.push(`${arc.leadName} · ${spec.label} · ${b.beat.stage}: ${b.beat.result} (answering ${ans.words}${re.harmed ? `: ${re.harmed} was hurt` : ""})`);
   afterStep(arc, b.beat, lead, inp, r, out, W, rp.depth + 1);
