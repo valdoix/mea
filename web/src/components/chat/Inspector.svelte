@@ -238,6 +238,20 @@
           </details>
         {/if}
 
+        {#if data.trace.outdated?.length}
+          <details>
+            <summary><b>Out of date</b> <span class="tiny muted">{data.trace.outdated.length} line{data.trace.outdated.length === 1 ? "" : "s"} the story has moved past, answered in the prompt</span></summary>
+            {#each data.trace.outdated as o, i (i)}
+              <div class="lane">
+                <p class="tiny muted">{o.where} · {o.kind === "death" ? "a death" : "who knows"} · changed at #{o.seq}</p>
+                <pre class="lane-t">"{o.sentence}"
+→ {o.now}</pre>
+              </div>
+            {/each}
+            <p class="tiny faint">The card and lore aren't rewritten; a line after them says what's true now. Settings › Memory › Correct out-of-date text.</p>
+          </details>
+        {/if}
+
         {#if data.trace.reworded?.length}
           <details>
             <summary><b>Reworded for the secret</b> <span class="tiny muted">{data.trace.reworded.length} block{data.trace.reworded.length === 1 ? "" : "s"} kept off the page</span></summary>

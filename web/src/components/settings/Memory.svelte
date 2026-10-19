@@ -164,6 +164,7 @@
       <label class="switch"><input type="checkbox" checked={cfg.loreTiers} onchange={(e) => set({ loreTiers: e.currentTarget.checked })} /> Lore tiers: the focus of the scene gets its full entry, who's around just their essentials</label>
       <label class="switch"><input type="checkbox" checked={cfg.continuity} onchange={(e) => set({ continuity: e.currentTarget.checked })} /> Check each reply for continuity slips (flags only; nothing is rewritten)</label>
       <label class="switch indent"><input type="checkbox" checked={cfg.checkerModel} disabled={!cfg.continuity} onchange={(e) => set({ checkerModel: e.currentTarget.checked })} /> Also ask the helper model, with sources (the quick rules always run)</label>
+      <label class="switch"><input type="checkbox" checked={cfg.correctOutdated} onchange={(e) => set({ correctOutdated: e.currentTarget.checked })} /> Correct out-of-date text: when the card, lore or a summary says someone doesn't know what they've since learned, or that someone who died is waiting, the prompt says what's true now</label>
       <div class="field indent">
         <span class="label">Knowledge-leak guard</span>
         <Segmented

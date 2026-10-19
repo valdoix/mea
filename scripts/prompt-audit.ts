@@ -89,7 +89,7 @@ try {
     });
 
   if (flag("--json")) {
-    console.log(JSON.stringify({ chat, tokens: p.assembled.estPromptTokens, secrets, ...(flag("--full") ? { prompt } : {}) }, null, 2));
+    console.log(JSON.stringify({ chat, tokens: p.assembled.estPromptTokens, secrets, outdated: p.assembled.trace.outdated ?? [], ...(flag("--full") ? { prompt } : {}) }, null, 2));
   } else {
     console.log(`${chat.title || "Untitled story"} (${chat.id}) · about ${p.assembled.estPromptTokens} tokens\n`);
     for (const s of secrets) {
@@ -102,6 +102,10 @@ try {
     const stale = secrets.reduce((n, s) => n + s.lines.filter((l) => l.stale && !l.answered).length, 0);
     const fixed = secrets.reduce((n, s) => n + s.lines.filter((l) => l.stale && l.answered).length, 0);
     console.log(`${stale ? `${stale} line${stale === 1 ? "" : "s"} still call a revealed secret hidden.` : "No line calls a revealed secret hidden unanswered."}${fixed ? ` ${fixed} more ${fixed === 1 ? "is" : "are"} answered by [CORRECTIONS].` : ""}`);
+    // Part 3: what the prompt check found and answered (the Inspector's "Out of date").
+    const outdated = p.assembled.trace.outdated ?? [];
+    console.log(`\nOut of date, answered in the prompt: ${outdated.length || "nothing"}`);
+    for (const o of outdated) console.log(`  ${o.where} · #${o.seq} · "${o.sentence.slice(0, 120)}"\n    → ${o.now.slice(0, 160)}`);
     if (flag("--full")) console.log(`\n${"─".repeat(60)}\n${prompt}`);
   }
 } finally {

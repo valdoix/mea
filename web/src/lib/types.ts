@@ -829,6 +829,8 @@ export interface PromptTrace {
   memory?: MemoryTrace;
   /** B1: memory and lore reworded to keep a secret off the page. */
   reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
+  /** Reliable state 3.2: text in the prompt the story has moved past, and what's true now. */
+  outdated?: { kind: "knowledge" | "death"; where: string; sentence: string; now: string; seq: number; ref: string }[];
   /** H1: the ceiling on what Mea adds, and what was cut to fit it this turn. */
   ceiling?: { tokens: number; auto: boolean; before: number; after: number; cuts: { key: string; name: string; tokens: number }[] };
   /** D2: the craft coach's numbers for this turn. */
@@ -1079,6 +1081,7 @@ export interface MemoryConfig {
   consolidate: boolean;
   continuity: boolean;
   leakGuard: "auto" | "on" | "off";
+  correctOutdated: boolean;
   checkerModel: boolean;
   chronicle: boolean;
   /** docs/15, part 2: propose updates to lore entries the story changes. */

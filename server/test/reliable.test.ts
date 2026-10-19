@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
-import { staleCardLines } from "../src/accuracy/corrections";
+import { correctionsLane, correctMemory } from "../src/accuracy/corrections";
+import { findOutdated } from "../src/accuracy/promptcheck";
 import { newId, now, run } from "../src/db/db";
 import { activateLore, type ScanEntry } from "../src/lore/activate";
 import { factLine } from "../src/lore/facts";
@@ -82,9 +83,61 @@ test("a secret Now: fact follows the reveal (2.2)", () => {
 test("card sentences that still call it hidden (2.3)", () => {
   const card =
     "Jackie is the captain. She does not yet know about Jeff and Shauna or about Edwin Holloway; when either surfaces, it hits her hard. Shauna is pregnant with Jeff's baby and has told no one. Jeff and Shauna met at a party.";
-  const lines = staleCardLines(card, revealsOf(story()));
-  expect(lines.map((l) => l.sentence)).toEqual(["She does not yet know about Jeff and Shauna or about Edwin Holloway; when either surfaces, it hits her hard.", "Shauna is pregnant with Jeff's baby and has told no one."]);
-  expect(staleCardLines(card, [])).toEqual([]);
+  const found = findOutdated(story(), [{ where: "card", text: card }]);
+  expect(found.map((f) => f.sentence)).toEqual(["She does not yet know about Jeff and Shauna or about Edwin Holloway", "Shauna is pregnant with Jeff's baby and has told no one."]);
+  expect(found[0]).toMatchObject({ kind: "knowledge", now: "Jackie knows now: Jeff is sleeping with Shauna, Shauna is pregnant", seq: 3, ref: "js" });
+  // Before the reveal (the state as of message 2), nothing is out of date.
+  expect(findOutdated(fold([["cast: Jackie@spot · Shauna@spot · Jeff@spot", "secret #js: Jeff is sleeping with Shauna, Shauna is pregnant | kept by Jeff, Shauna · from Jackie"]]), [{ where: "card", text: card }])).toEqual([]);
+});
+
+describe("the prompt check (Part 3)", () => {
+  const st = () =>
+    fold([
+      ["cast: Jackie@spot · Shauna@spot · Jeff@spot · Misty@spot · Ben@spot", "secret #love: Jackie loves James | kept by Jackie · from everyone; known to James"],
+      ["know Misty: Jackie loves James — she said it aloud · knows", "dead Ben — the fever took him"],
+    ]);
+
+  test("who knows: the sentence's own names for \"doesn't know\", the others for \"known only to\"", () => {
+    const found = findOutdated(st(), [
+      { where: "lore", text: "Misty doesn't know that Jackie loves James. [Secret — known only to James: Jackie loves James.]" },
+      { where: "lore", text: "Jackie loves James, known only to James and Misty." },
+    ]);
+    expect(found.map((f) => f.now)).toEqual(["Misty knows now: Jackie loves James", "Misty knows now: Jackie loves James"]);
+    expect(found).toHaveLength(2);
+  });
+
+  test("a sentence about another fact, or about someone still in the dark, isn't corrected", () => {
+    const found = findOutdated(st(), [
+      // Same words, other people: not "Jackie loves James".
+      { where: "lore", text: "Shauna is secretly in love with Jackie." },
+      // Names only, of a fact that never came out by a reveal.
+      { where: "lore", text: "Jackie wants James to say it, and doesn't know Shauna is leaving." },
+      // About someone who still doesn't know (Jeff never learned it).
+      { where: "lore", text: "Jeff doesn't know that Jackie loves James." },
+      // A "; "-list: only the clause that says it.
+      { where: "Story So Far", text: "Still open: the cabin needs a door; Misty doesn't know that Jackie loves James; Ben's leg." },
+    ]);
+    expect(found.map((f) => f.sentence)).toEqual(["Misty doesn't know that Jackie loves James"]);
+  });
+
+  test("long lists of who knows are cut short", () => {
+    const many = fold([["cast: Jackie@spot · Anna@spot · Bea@spot · Cora@spot · Dina@spot · Edie@spot", "secret #love: Jackie loves James | kept by Jackie · from everyone"], ["reveal #love: to Anna, Bea, Cora, Dina, Edie — she said it aloud"]]);
+    expect(findOutdated(many, [{ where: "card", text: "Jackie secretly loves James." }])[0]!.now).toBe("Anna, Bea, Cora and 2 others know now: Jackie loves James");
+  });
+
+  test("the dead aren't waiting at home", () => {
+    const found = findOutdated(st(), [{ where: "Story So Far", text: "Ben is waiting at the cabin for the others. The fire is low. Ben died in the night, and they buried him." }]);
+    expect(found).toEqual([expect.objectContaining({ kind: "death", sentence: "Ben is waiting at the cabin for the others.", now: "Ben is dead", seq: 2 })]);
+  });
+
+  test("lines already corrected aren't corrected again, and the lane says what's true now", () => {
+    expect(findOutdated(st(), [{ where: "lore", text: "[No longer a secret: it came out in the story, and Misty found out. Written before that: Misty doesn't know that Jackie loves James.]" }])).toEqual([]);
+    const { extra, findings } = correctionsLane(st(), [{ where: "card", text: "Misty doesn't know that Jackie loves James." }]);
+    expect(findings).toHaveLength(1);
+    expect(extra!.content).toContain('- The card says: "Misty doesn\'t know that Jackie loves James." — written before #2. Misty knows now: Jackie loves James.');
+    expect(correctionsLane(st(), [{ where: "card", text: "Misty is kind." }]).extra).toBeNull();
+    expect(correctMemory(st(), "### Scene\nBen is waiting at the cabin.", "Story So Far").text).toContain("### Out of date in the records above");
+  });
 });
 
 test("summaries written before a reveal say what's true since (2.4)", () => {
