@@ -1,3 +1,4 @@
+import { categoryOf } from "../lore/format";
 import type { CastProfile } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 import type { Actor, Standing } from "./types";
@@ -89,6 +90,31 @@ function textTie(text: string, other: string): number {
     else best = Math.max(best, 1);
   }
   return best;
+}
+
+/** Title tags that say what kind of entry it is ("Faction: …", "History: …"); only a person tag names someone. */
+const PERSON_TAG = /^(?:characters?|npcs?|person|people|cast)$/i;
+const OTHER_TAG =
+  /^(?:timeline|rules?|ooc|relationships?|voice|style|speech|current|beliefs?|secrets?|factions?|upcoming|items?|locations?|history|customs?|scenes?|culture|region|city|town|place|places|setting|world|lore|events?|organi[sz]ations?|groups?|species|races?|creatures?|monsters?|concepts?|era|period|calendar|magic|atmosphere|slang|themes?|tone|notes?|misc|info|background|areas?|buildings?|country|nation|realm|artifacts?|objects?)$/i;
+const NOT_A_PERSON = new Set(["location", "item", "faction", "concept", "event", "rule"]);
+
+/** The person a lore entry is about ("Name", "Name - role", "Character: Name"), or null when it's about something else. */
+export function lorePersonName(e: { comment: string; keys: string[]; content: string; extra?: Record<string, unknown> }): string | null {
+  let title = (e.comment || e.keys[0] || "").trim();
+  const tag = title.match(/^([A-Za-z]+(?:\s+[A-Za-z]+)?)\s*:\s*(.+)$/);
+  if (tag && PERSON_TAG.test(tag[1]!)) title = tag[2]!.trim();
+  else if (tag && OTHER_TAG.test(tag[1]!)) return null;
+  else {
+    const cat = categoryOf(e);
+    if (cat && cat !== "character") return null;
+    const type = (e.extra as { type?: unknown } | undefined)?.type;
+    if (typeof type === "string" && NOT_A_PERSON.has(type)) return null;
+  }
+  const m = title.match(/^([A-Z][a-z'’-]+(?:\s+(?:of\s+)?[A-Z][a-z'’-]+){0,2})(?:\s*[-–—:|(].*)?$/);
+  if (!m) return null;
+  if (/\b(house|street|city|town|village|inn|tavern|castle|forest|river|guild|council|order|church|kingdom|empire|school|academy|lighthouse|harbou?r|isle|island|mountain|valley)\b/i.test(m[1]!)) return null;
+  if (!/\b(he|she|they|his|her|their|him)\b/i.test(e.content)) return null;
+  return m[1]!;
 }
 
 export interface RosterInput {
