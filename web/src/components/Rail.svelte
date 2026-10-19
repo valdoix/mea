@@ -61,7 +61,7 @@
 
 <nav class="rail" aria-label="Main">
   <a href="/" class="logo" title="Mea">
-    {#if app.theme === "wildflower"}{@html BLOOM}{:else if app.theme === "overprint"}<span>M</span>{:else if app.theme === "citadel"}M{:else if app.theme === "marquee"}Mea{:else if app.theme === "sugarrush"}mea{:else if app.theme === "arcade"}<span>MEA</span>{:else if app.theme === "noir"}<span>M</span>{:else if app.theme === "rosewater"}Mea{:else}✿{/if}
+    {#if app.theme === "wildflower"}{@html BLOOM}{:else if app.theme === "overprint"}<span>M</span>{:else if app.theme === "citadel"}M{:else if app.theme === "marquee"}Mea{:else if app.theme === "sugarrush"}mea{:else if app.theme === "arcade"}<span>MEA</span>{:else if app.theme === "noir"}<span>M</span>{:else if app.theme === "rosewater"}Mea{:else if app.theme === "meringue"}mea{:else if app.theme === "menagerie"}<span>M</span>{:else}✿{/if}
   </a>
   {#each nav as item (item.href)}
     <a href={item.href} class="nav" class:on={item.match.includes(route.name)} aria-label={item.label}>
