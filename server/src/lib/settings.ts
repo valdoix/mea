@@ -308,6 +308,8 @@ export interface MemoryConfig {
   journals: boolean;
   /** MEM-42: an idle job merges duplicates, compresses trivia, refreshes entities. */
   consolidate: boolean;
+  /** Reliable state 3.2: say in the prompt what card, lore and memory text the story has moved past. */
+  correctOutdated: boolean;
   /** CON-02: check each reply against trackers and facts. */
   continuity: boolean;
   /** CON-06: flag secrets that a character shouldn't know. "auto" = on in Narrator mode. */
@@ -357,6 +359,7 @@ export const defaultMemoryConfig: MemoryConfig = {
   librarian: true,
   journals: true,
   consolidate: true,
+  correctOutdated: true,
   continuity: true,
   leakGuard: "auto",
   checkerModel: true,

@@ -203,6 +203,19 @@ Parts 1 and 2 fix the sources we know about. This part catches the ones we don't
 
 **Done when:** the lane appears only when there's a finding, and turning the setting off removes it.
 
+*Built (PR 4):*
+- Lanes are gathered before memory is built, so the check runs in two places. Over the card and the lore that fired, it feeds `[CORRECTIONS]` (which replaces 2.3's card-only matcher). Over the Story So Far and recalled memories, inside the memory callback, it appends "Out of date in the records above" after them. Journals aren't checked: they're first person, and "she doesn't know" there is the writer's view at the time.
+- Rules learned on the Yellowjackets chat, to keep false alarms out:
+  - Everyone a fact names must be named in the sentence ("Shauna is secretly in love with Jackie" isn't "Jackie loves James"), counting your own character.
+  - A match on names alone counts only for a fact that came out by a `reveal`, with two of its keepers named.
+  - "Jeff doesn't know" said of a keeper, or of someone who still doesn't know, is about something else.
+  - `; `-lists are checked clause by clause.
+  - `[Secret — …]` lines are left to 2.1's links.
+  - Light stemming ("love"/"loves").
+- **Deaths:** only "X is alive / waiting / on their way" about someone dead. "X died" about a living person was left out: summaries say it of flashbacks and fears too often.
+- The Inspector section lists each finding with where it is and the message it changed at. There's no **Go to** button yet: lore placements are joined text, and nothing records which entry a sentence came from.
+- Results: 7 findings on the Yellowjackets prompt, all real. None on the four dev chats (only one production chat has trackers, so the 20-prompt sweep of two other chats wasn't possible).
+
 ---
 
 ## Part 4 · Testing on real chats

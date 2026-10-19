@@ -51,7 +51,8 @@ import { applyBanned, chatExtras, consumeOnce, continueJoin, cutFourthWall, look
 import { evalCondition } from "../trackers/condition";
 import { revealsOf } from "../trackers/reveals";
 import { secretRevealer } from "../lore/secretlinks";
-import "../accuracy/corrections";
+import { cardPieces, correctionsLane, correctMemory } from "../accuracy/corrections";
+import type { Finding } from "../accuracy/promptcheck";
 import type { WorldState } from "../trackers/types";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
@@ -633,6 +634,17 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     };
   }
 
+  // Reliable state 3.2: card and lore text the story has moved past, answered in the dynamic block.
+  const correcting = cfg.correctOutdated && (kind === "story" || kind === "continue") && Boolean(tp?.state);
+  const outdated: Finding[] = [];
+  const corrections = correcting
+    ? correctionsLane(tp!.state, [
+        ...cardPieces(card),
+        ...[...lore.placements.before_char, ...lore.placements.after_char, ...lore.placements.an_top, ...lore.placements.an_bottom, ...lore.placements.ex_top, ...lore.placements.ex_bottom, ...lore.placements.triggered, ...lore.placements.depth.map((d) => d.content)].map((text) => ({ where: "lore", text })),
+      ])
+    : null;
+  if (corrections) outdated.push(...corrections.findings);
+
   const contextTarget = Math.floor(resolved.contextTarget * (opts.targetScale ?? 1));
   // Preset samplers are defaults; the profile's tuning for this model wins.
   const samplers: GenerationParams = { ...preset.samplers, ...resolved.params };
@@ -702,6 +714,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       ...(kind === "story" && opts.excludeMessageId ? [{ id: "swipe-digest", name: "Earlier takes", content: digestNote(rejectedDigest(opts.excludeMessageId)), depth: 0 } satisfies PromptExtra] : []),
       // P1: the Almanac features' prompt lanes (prompt/lanes.ts), each named in the Inspector.
       ...gatherLanes({ chatId, kind, state: tp?.state ?? null, history, excludeMessageId: opts.excludeMessageId, characterId: chat.character_id }),
+      ...(corrections?.extra ? [corrections.extra] : []),
       // CON-03: who the character is, near the end of the prompt (stronger while the voice drifts).
       ...(kind === "story" || kind === "continue" ? [anchorExtra(chatId, card, userName, chat.character_id)].filter((x): x is PromptExtra => Boolean(x)) : []),
     ],
@@ -717,10 +730,17 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
         reveals: revealsOf(tp?.state),
       });
       memoryMs += performance.now() - s;
-      return offpage ? { ...m, story: offpage(m.story, "the Story So Far"), recall: offpage(m.recall, "recalled memories") } : m;
+      const kept = offpage ? { ...m, story: offpage(m.story, "the Story So Far"), recall: offpage(m.recall, "recalled memories") } : m;
+      if (!correcting) return kept;
+      // 3.2: the records the story has moved past say so, right after them.
+      const story = correctMemory(tp!.state, kept.story, "Story So Far");
+      const recall = correctMemory(tp!.state, kept.recall, "recalled memories");
+      outdated.push(...story.findings, ...recall.findings);
+      return { ...kept, story: story.text, recall: recall.text };
     },
   });
   if (offpage?.reworded.length) assembled.trace.reworded = offpage.reworded;
+  if (outdated.length) assembled.trace.outdated = outdated;
   // D2: the craft coach's numbers for this turn (the Inspector's meter).
   if ((kind === "story" || kind === "continue") && craftOn(chatId)) assembled.trace.craft = craftReport(chatId, { beforeSeq: opts.excludeMessageId ? getMessageRow(opts.excludeMessageId)?.seq : undefined }).meter;
   const assembled_ = lap();
