@@ -6,7 +6,7 @@ import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/
 import { spreadNews } from "../src/sim/news";
 import { buildRoster, lorePersonName, readStanding } from "../src/sim/roster";
 import { forecast, weatherAt } from "../src/sim/sky";
-import { canStep, forcedStep, tick, type TickInput } from "../src/sim/storyteller";
+import { canStep, forcedStep, situationCands, tick, type TickInput } from "../src/sim/storyteller";
 import { validateTelling } from "../src/sim/telling";
 import { parseLine } from "../src/trackers/dsl";
 import { foldEvents, type FoldConfig } from "../src/trackers/fold";
@@ -80,6 +80,15 @@ describe("roster", () => {
     expect(edda.reach).toBe("far");
     expect(edda.ties.get(r.byName("Mira")!.id)).toBe(3);
     expect(readStanding("He died last winter.").standing).toBe("dead");
+    expect(readStanding("Joyce Summers died of an aneurysm.", "Joyce Summers").standing).toBe("dead");
+    expect(readStanding("status(deceased); ]", "Jenny").standing).toBe("dead");
+    // Someone else's death isn't theirs.
+    expect(readStanding("habits(shoplifting since Joyce died; keeps a diary)", "Dawn Summers").standing).toBeUndefined();
+    expect(readStanding("past(raised Eyghon; Jenny Calendar - murdered love)", "Rupert Giles").standing).toBeUndefined();
+    expect(readStanding("her witch mother died when Tara was seventeen", "Tara Maclay").standing).toBeUndefined();
+    expect(readStanding("status(chipped, has counted every day since Buffy died)", "Spike").standing).toBeUndefined();
+    expect(readStanding("She is an android built in her maker's image.", "Ada").standing).toBe("construct");
+    expect(readStanding("Warren builds robots in his garage.", "Warren Mears").standing).toBeUndefined();
   });
 });
 
@@ -307,5 +316,34 @@ describe("people from lore", () => {
     expect(who("Mira")).toBe("Mira");
     expect(who("Mira - the innkeeper")).toBe("Mira");
     expect(who("Spike: the bleached vampire")).toBe("Spike");
+  });
+});
+
+describe("what the lore says is happening now", () => {
+  const situations = [
+    { key: "hellions raid port ellis", title: "Hellions Raid Port Ellis", text: "The Hellions are raiding Port Ellis. Fires burn in the streets." },
+    { key: "edda protects joss", title: "Edda Protects Joss", text: "Edda keeps Joss out of sight." },
+    { key: "mira believes the storm is over", title: "Mira Believes the Storm Is Over", text: "Mira thinks the worst has passed." },
+  ];
+  test("a CURRENT situation starts at once, led by whoever its title names", () => {
+    const st = world(base);
+    const inp = input(st, { seeding: "ask", situations });
+    const cands = situationCands(inp);
+    const raid = cands.find((c) => c.grounds[0] === "current:hellions raid port ellis")!;
+    expect(raid.kind).toBe("threat");
+    expect(raid.lead).toBe("faction:hellions");
+    const guard = cands.find((c) => c.grounds[0] === "current:edda protects joss")!;
+    expect(guard.kind).toBe("protect");
+    expect(guard.leadName).toBe("Edda");
+    expect(guard.target).toBe(inp.roster.byName("Joss")!.id);
+    // Mira is in the scene: that one is the scene's to play.
+    expect(cands.some((c) => c.leadName === "Mira")).toBe(false);
+
+    const res = tick(inp);
+    const started = res.sim.filter((o) => o.type === "arc.new").map((o) => (o as { arc: { grounds: string[]; status: string } }).arc);
+    expect(started.some((a) => a.grounds.includes("current:hellions raid port ellis") && a.status === "running")).toBe(true);
+    // Once it's running it doesn't start again.
+    advance(st, res);
+    expect(situationCands(input(st, { situations })).some((c) => c.grounds[0] === "current:hellions raid port ellis")).toBe(false);
   });
 });

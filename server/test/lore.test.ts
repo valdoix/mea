@@ -31,6 +31,21 @@ describe("lore activation", () => {
     expect(r.trace.find((t) => t.id === c.id)?.reason).toBe("no key matched");
   });
 
+  test("CURRENT entries are in the scene from the first message, once across merged books", () => {
+    const raid = entry({ comment: "CURRENT - Hellions Raid Sunnydale", keys: ["Hellions"], content: "The Hellions are raiding Sunnydale." });
+    const copy = entry({ comment: "[buffy_s6] CURRENT - Hellions Raid Sunnydale", keys: ["Hellions"], content: "The Hellions are raiding Sunnydale." });
+    const byCategory = entry({ comment: "Spike Protects Dawn", keys: ["protect Dawn"], content: "Spike shelters Dawn.", extra: { category: "current" } });
+    const faction = entry({ comment: "Faction: The Hellions", keys: ["Hellions"], content: "A biker gang." });
+    const r = run([raid, copy, byCategory, faction], ["Buffy wakes in her coffin."]);
+    const ids = r.activated.map((x) => x.entry.id);
+    expect(ids).toContain(raid.id);
+    expect(ids).toContain(byCategory.id);
+    expect(ids).not.toContain(copy.id);
+    // The faction comes along because the situation names it, not on its own.
+    expect(r.activated.find((x) => x.entry.id === faction.id)?.kind).toBe("recursion");
+    expect(r.trace.find((t) => t.id === copy.id)?.reason).toBe("the same situation is in another book");
+  });
+
   test("secondary key logic", () => {
     const andAny = entry({ keys: ["sword"], secondaryKeys: ["fire", "ice"], logic: "and_any" });
     const notAny = entry({ keys: ["sword"], secondaryKeys: ["broken"], logic: "not_any" });

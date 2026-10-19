@@ -42,11 +42,32 @@ const EXTENDED = "uncle|aunt|cousin|nephew|niece|grandmother|grandfather|grandso
 const WORK = "boss|employer|employee|servant|maid|squire|liege|knight|master|apprentice|assistant|friend|ally|confidant|colleague|partner|rival|enemy|neighbou?r|landlord|tenant|teacher|student|captain|commander|handler";
 const FAR = /\b(abroad|overseas|another country|across the sea|far away|the capital|the north|the south|europe|england|london|paris|tokyo|new york|america)\b/i;
 
-export function readStanding(text: string): { standing?: Standing; where?: string } {
+const DEAD = /\b(?:died|was killed|is dead|deceased|passed away|was murdered)\b/gi;
+const CONSTRUCT = /\b(?:android|robot|golem|automaton|construct)\b/gi;
+const CAPTIVE = /\b(?:imprisoned|in prison|in jail|captive|held prisoner|locked up|kidnapped)\b/gi;
+/** What may stand before the phrase in a clause about the person themself ("She has", "who was", "is a"). */
+const LEAD_IN = /^(?:(?:she|he|they|it|who|and|but|then|sadly|tragically|later|eventually|finally|recently|has|had|have|was|is|were|been|now|also|status|a|an|herself|himself|themselves)\s*)*$/i;
+
+/**
+ * Whether a phrase is said of the person the text is about: nothing but their name or a pronoun
+ * before it in its clause. "She died" and "status(deceased" are; "since Joyce died", "her mother
+ * died" and "Jenny Calendar - murdered" are about someone else.
+ */
+function saidOf(text: string, re: RegExp, name?: string): boolean {
+  const own = new Set((name ?? "").toLowerCase().split(/\s+/).filter(Boolean));
+  for (const m of text.matchAll(re)) {
+    const clause = text.slice(0, m.index).split(/[.;:!?()[\]{}\n,]/).pop() ?? "";
+    const rest = clause.split(/\s+/).filter((w) => w && !own.has(w.toLowerCase()));
+    if (LEAD_IN.test(rest.join(" "))) return true;
+  }
+  return false;
+}
+
+export function readStanding(text: string, name?: string): { standing?: Standing; where?: string } {
   const t = text.toLowerCase();
-  if (/\b(died|was killed|is dead|deceased|the late\b|passed away|murdered)\b/.test(t)) return { standing: "dead" };
-  if (/\b(android|robot|golem|automaton|construct)\b/.test(t)) return { standing: "construct" };
-  if (/\b(imprisoned|in prison|in jail|captive|held prisoner|locked up|kidnapped)\b/.test(t)) return { standing: "captive" };
+  if (saidOf(text, DEAD, name)) return { standing: "dead" };
+  if (saidOf(text, CONSTRUCT, name)) return { standing: "construct" };
+  if (saidOf(text, CAPTIVE, name)) return { standing: "captive" };
   if (/\b(pet|familiar|her (?:dog|cat|horse)|his (?:dog|cat|horse)|steed|dragon of)\b/.test(t)) return { standing: "companion" };
   const away = text.match(/\b(?:lives in|moved to|left for|works in|stationed in|studying in|now in)\s+([A-Z][\w'’ -]{2,40})/);
   if (away) return { standing: "away", where: away[1]!.trim() };
@@ -136,7 +157,7 @@ export function buildRoster(inp: RosterInput): Roster {
     const prof = inp.profiles[keyOf(c.name)];
     const simActor = st.sim.actors[c.id];
     const text = [prof?.description, prof?.role, c.drives.want && `wants ${c.drives.want}`].filter(Boolean).join(". ");
-    const read = readStanding(text);
+    const read = readStanding(text, c.name);
     const standing: Standing = c.dead ? "dead" : ((prof?.standing as Standing) ?? simActor?.standing ?? read.standing ?? "here");
     const onstage = c.tier === "spot" || c.tier === "peri";
     const where = simActor?.where ?? (prof?.where ? prof.where.split(/\s*›\s*/) : c.place ? c.place.split(/\s*›\s*/) : undefined);
@@ -178,7 +199,7 @@ export function buildRoster(inp: RosterInput): Roster {
     if ([...actors.values()].some((a) => a.name.toLowerCase() === u.name.toLowerCase() || a.id === id)) continue;
     if (u.name.toLowerCase() === inp.userName.toLowerCase()) continue;
     const simActor = st.sim.actors[id];
-    const read = readStanding(u.text);
+    const read = readStanding(u.text, u.name);
     const standing: Standing = (u.prof?.standing as Standing) ?? simActor?.standing ?? read.standing ?? "here";
     const where = simActor?.where ?? (u.prof?.where ? u.prof.where.split(/\s*›\s*/) : read.where ? [read.where] : undefined);
     const reach = reachOf(where, scene, standing);

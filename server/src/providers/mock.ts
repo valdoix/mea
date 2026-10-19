@@ -214,6 +214,7 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const found = [...new Set(source.match(/\b[A-Z][a-z]{2,}(?: [A-Z][a-z]{2,})?\b/g) ?? [])].filter((w) => !["The", "She", "You", "This", "That", "THE", "Description", "Personality", "Scenario", "First", "Creator", "Example", "About", "Entries"].includes(w.split(" ")[0]!));
       const types = ["location", "character", "faction", "item", "concept", "event"];
       const titles = [...found, "The Old Harbour", "The Night Market", "The Salt Guild", "The Drowned Bell", "The Long Winter", "The Ferryman"].filter((t) => !planned.has(t.toLowerCase()));
+      if (/Only situations already under way/.test(system)) return { title: "", overview: "", items: [{ title: "Raiders Burn the Docks", type: "event", pitch: "Raiders are burning the docks tonight.", parent: "", folder: "", now: true }] };
       const items = [...new Set(titles)].slice(0, want).map((t, k) => ({ title: t, type: types[k % types.length], pitch: `${t} matters to the story.`, parent: k === 1 && titles[0] ? titles[0] : "", folder: "" }));
       return { title: /ALREADY PLANNED/.test(user) ? "" : "Mock World", overview: /ALREADY PLANNED/.test(user) ? "" : "A cold harbour town where the fog keeps secrets. Everyone owes someone.", items };
     }

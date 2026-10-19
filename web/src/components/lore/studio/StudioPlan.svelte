@@ -27,6 +27,7 @@
   const kept = $derived(draft.items.filter((i) => i.keep));
   // The census names no entry covers yet, most important first.
   const missing = $derived(uncovered(draft).sort((a, b) => ["core", "supporting", "minor"].indexOf(a.tier) - ["core", "supporting", "minor"].indexOf(b.tier)));
+  const NOW_STEER = 'Only situations already under way when the story opens, each with "now": true.';
   const planNames = (names: string[]) => session.act("outline", "/outline", { mode: "more", names });
   const unwritten = $derived(kept.filter((i) => i.action !== "off" && (!i.entry || (i.action === "change" && i.status === "planned")) && i.status !== "queued" && i.status !== "writing"));
 
@@ -239,6 +240,7 @@
     <div class="row wrap">
       <input class="input grow" bind:value={steer} placeholder="Ask for something: more villains, places outside the city, the gods…" aria-label="What to plan" />
       <button class="btn" onclick={() => session.act("outline", "/outline", { mode: "more", steer })} disabled={Boolean(session.busy) || !draft.source.text.trim()}><Plus size={15} /> {session.busy === "outline" ? "Planning…" : "Plan more"}</button>
+      <button class="btn ghost" onclick={() => session.act("outline", "/outline", { mode: "more", steer: NOW_STEER })} disabled={Boolean(session.busy) || !draft.source.text.trim()} title="Plan the situations already under way when the story opens (Current entries: in every scene until the story moves past them)"><Plus size={15} /> What's happening now</button>
       <button class="btn ghost" onclick={replan} disabled={Boolean(session.busy) || !draft.source.text.trim()}><RefreshCw size={15} /> Plan again</button>
     </div>
   </div>

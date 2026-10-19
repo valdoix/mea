@@ -873,7 +873,7 @@ export function uncovered(d: StudioDraft): CensusEntry[] {
 const outlineSchema = z.object({
   title: z.string().default(""),
   overview: z.string().default(""),
-  items: z.array(z.object({ title: z.string(), type: z.string().default(""), pitch: z.string().default(""), parent: z.string().default(""), folder: z.string().default("") })).default([]),
+  items: z.array(z.object({ title: z.string(), type: z.string().default(""), pitch: z.string().default(""), parent: z.string().default(""), folder: z.string().default(""), now: z.boolean().default(false) })).default([]),
 });
 
 type OutlineItem = z.infer<typeof outlineSchema>["items"][number];
@@ -901,12 +901,13 @@ async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?
           : `Plan about ${o.n} entries.`,
       o.census && !o.names ? "THE CENSUS lists what the world contains. Every core name in it gets an entry; then supporting ones, most useful to a scene first; then the concepts, events and rules that make the world work." : "",
       "One person per entry: never put two people in one entry (a family or team can have its own entry besides its members).",
-      `Each item: "title" (the name as the story would say it), "type" (one of: ${typeList}), "pitch" (one sentence: what the entry establishes in this version of the story and why a scene would need it), "parent" (the title of another planned entry it sits inside: a district inside a city, a member inside a faction; else ""), "folder" (a short path like "Places › Port Ellis", else "").`,
+      o.names ? "" : 'Also plan what is already under way when the story begins (an attack in progress, who is hiding where and from whom, what people wrongly believe right now): one entry per situation, titled for what is happening ("Raiders Burn the Docks", "Mira Hides Joss from the Guild"), type "event", with "now": true. These stay in every scene until the story moves past them, so plan only what is true at the opening, never backstory or what comes later. Every other item has "now": false.',
+      `Each item: "title" (the name as the story would say it), "type" (one of: ${typeList}), "pitch" (one sentence: what the entry establishes in this version of the story and why a scene would need it), "parent" (the title of another planned entry it sits inside: a district inside a city, a member inside a faction; else ""), "folder" (a short path like "Places › Port Ellis", else ""), "now" (true only for a situation under way at the opening).`,
       o.withOverview ? `Also "title" (a name for the lorebook, 1–5 words) and "overview" (80–150 words: the world's premise, tone, and the ground truths every scene should respect).` : 'Leave "overview" and "title" empty.',
       d.options.faithful ? "Use only what the source says: no invented names, places or facts." : "Prefer specific, playable details with tension: things characters can want, fear, visit, use or argue about. Invent freely where the material and canon are silent, but never against them.",
       d.basedOn ? "" : AVOID,
       o.steer?.trim() ? `The author asks: ${o.steer.trim()}` : "",
-      'Reply with JSON only: {"title": "…", "overview": "…", "items": [{"title": "…", "type": "…", "pitch": "…", "parent": "", "folder": ""}]}',
+      'Reply with JSON only: {"title": "…", "overview": "…", "items": [{"title": "…", "type": "…", "pitch": "…", "parent": "", "folder": "", "now": false}]}',
     ]
       .filter(Boolean)
       .join(" "),
@@ -939,7 +940,7 @@ function toItems(raw: OutlineItem[], taken: Set<string>, census: CensusEntry[]):
     for (const title of titles) {
       if (!title || taken.has(title.toLowerCase())) continue;
       taken.add(title.toLowerCase());
-      out.push(normItem({ title, type, pitch: titles.length > 1 ? (census.find((e) => covers([e.name], title))?.note || x.pitch.trim()) : x.pitch.trim(), folder: x.folder.trim(), parent: x.parent.trim() }));
+      out.push(normItem({ title, type, ...(x.now ? { category: "current" as const } : {}), pitch: titles.length > 1 ? (census.find((e) => covers([e.name], title))?.note || x.pitch.trim()) : x.pitch.trim(), folder: x.folder.trim(), parent: x.parent.trim() }));
     }
   }
   return out;
@@ -1165,6 +1166,9 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
     system: [
       `You write one lorebook entry for interactive fiction: "${it.title}"${it.type ? ` (${template!.label.toLowerCase()})` : ""}. The storyteller reads it only when the entry fires, so it must stand on its own.`,
       `"content": ${WORDS[d.options.length]} words, third person, present tense, plain declarative sentences a storyteller can use in a scene: concrete looks, behaviour, history, relationships and stakes.${template ? ` Cover what fits of: ${template.fields.join(", ")}.` : ""} No headings, no lists of adjectives, no meta commentary.`,
+      it.category === "current"
+        ? "This entry is a situation under way right now, at the story's opening: say what is happening, who is doing it and to whom, where, what it looks and sounds like, what each side wants, and what happens next if nobody steps in. Present tense throughout; no backstory beyond one clause of why. The storyteller keeps it in every scene until the story moves past it, so write it to be played: things people can run from, fight or walk into."
+        : "",
       "Tie it into the world: name the two or three other entries it matters most to and how (who they love, owe, fear or lie to; where it is; who holds it), using their exact titles. Show character through what they do and say, not adjectives; give the storyteller something to play (a want, a tension, a tell, a line of dialogue in their voice for people).",
       canonRule(d.basedOn),
       `"keys": 2–6 trigger words: the names, nicknames and short phrases a story uses when this matters. Never common words that would fire on every message. "aliases": other names it goes by (can be empty). "essentials": one sentence, the single most important fact.`,

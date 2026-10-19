@@ -3,6 +3,7 @@ import { customOf } from "../trackers/customcal";
 import { trackerConfig } from "../trackers/store";
 import { badRequest, notFound } from "../lib/http";
 import { getSetting } from "../lib/settings";
+import { currentTitle, isCurrent } from "../lore/format";
 import { scanEntriesFor } from "../lore/service";
 import { getCard } from "../services/characters";
 import { type ChatSettings, lastMessage, mustChat } from "../services/chats";
@@ -17,7 +18,7 @@ import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
 import { buildRoster, lorePersonName, type Roster } from "./roster";
 import { climateFrom, forecast, latitudeFrom, skyLine, type SkyInput } from "./sky";
-import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, type SimMode, tick, type TickInput } from "./storyteller";
+import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
 import { tellingPrompt, tellingSchema, validateTelling } from "./telling";
 import type { Arc, EndResult, Force, SimOp, Standing } from "./types";
 import { bearingsOn, conditionsFor, eventsOf, peopleOf, pullWords, webMod } from "./web";
@@ -65,6 +66,19 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
     genres,
     step: own.step ?? d.step,
   };
+}
+
+/** How things stand right now: the lorebooks' CURRENT entries, once each when merged books repeat one. */
+function loreSituations(chatId: string): Situation[] {
+  const chat = mustChat(chatId);
+  const out = new Map<string, Situation>();
+  for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
+    if (!e.enabled || !e.content.trim() || !isCurrent(e)) continue;
+    const title = currentTitle(e);
+    const key = title.toLowerCase();
+    if (title && !out.has(key)) out.set(key, { key, title, text: e.content.trim().slice(0, 1200) });
+  }
+  return [...out.values()];
 }
 
 /** People the lorebooks describe (a "Name", "Name - role" or "Character: Name" entry about a person). */
@@ -167,6 +181,7 @@ function tickInput(chatId: string, st: WorldState, roster: Roster, forced: boole
     forced,
     weather,
     namedDay: null,
+    situations: loreSituations(chatId),
   };
 }
 
