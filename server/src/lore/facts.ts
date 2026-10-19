@@ -479,7 +479,7 @@ export function deleteFact(id: string) {
 
 // ---------- in the prompt (1.2) ----------
 
-type FactText = { slot: string | null; value: string; knownBy: string[]; status: string; kind?: string };
+type FactText = { slot: string | null; value: string; knownBy: string[]; status: string; kind?: string; revealedTo?: string[]; out?: boolean };
 const SLOT_LABEL = (slot: string) => slot.charAt(0).toUpperCase() + slot.slice(1);
 
 /** One fact as the prompt says it: "Eyes: grey", a secret with its keepers, an unconfirmed one as likely. */
@@ -487,7 +487,15 @@ export function factLine(f: FactText, name?: string) {
   // 3.4: a "never" fact is said plainly, as a statement about them ("Wren can't swim."), so the model doesn't fill the gap with the opposite.
   const never = f.kind === "never" && name ? (f.value.toLowerCase().includes(name.toLowerCase()) ? f.value : `${name} ${f.value.charAt(0).toLowerCase()}${f.value.slice(1)}`).replace(/[.!]*$/, ".") : null;
   const text = never ?? (f.slot ? `${SLOT_LABEL(f.slot)}: ${f.value}` : f.value);
-  const tags = [f.status === "invented" ? "likely, not confirmed" : "", f.knownBy.length ? `secret — known only to ${f.knownBy.join(", ")}` : ""].filter(Boolean);
+  // Reliable state 2.2: a secret the story has since let out says who found out.
+  const secret = !f.knownBy.length
+    ? ""
+    : f.revealedTo?.length
+      ? f.out
+        ? `no longer a secret — once known only to ${f.knownBy.join(", ")}; ${f.revealedTo.join(", ")} found out`
+        : `secret — known to ${f.knownBy.join(", ")}, and since revealed to ${f.revealedTo.join(", ")}`
+      : `secret — known only to ${f.knownBy.join(", ")}`;
+  const tags = [f.status === "invented" ? "likely, not confirmed" : "", secret].filter(Boolean);
   return tags.length ? `${text} [${tags.join("; ")}]` : text;
 }
 

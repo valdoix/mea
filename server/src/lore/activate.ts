@@ -65,8 +65,13 @@ export interface ActivationInput {
   firedAgo?: Map<string, number>;
   /** docs/15, 5.1: entries whose date comes round today, with the line to say ("a year since the wedding"). */
   dated?: Map<string, string>;
-  /** Secrets the story has let out (trackers), so a lore secret about one stops calling it hidden. */
+  /** Secrets the story has let out (trackers): a secret `Now:` fact about one stops calling it hidden (2.2). */
   reveals?: Reveal[];
+  /**
+   * Reliable state 2.1: the reveal a lore secret is linked to in this chat (lore/secretlinks.ts).
+   * Without it, a lore secret is matched to `reveals` by its words.
+   */
+  secretReveal?: (entryId: string, index: number) => Reveal | undefined;
 }
 
 export interface NowFact {
@@ -106,10 +111,11 @@ type LoreEntryLike = { content: string; extra: Record<string, unknown> };
  * Lore secrets are told to the model with who knows them, so it keeps them in the right mouths (LORE-09).
  * One the story has since let out says so: the entry was written before the reveal.
  */
-function withSecrets(e: ScanEntry, content: string, reveals?: Reveal[]) {
-  const secrets = extraOf(e).secrets?.filter((s) => s.text?.trim()) ?? [];
-  if (!secrets.length) return content;
-  return `${content}\n${secrets.map((s) => secretLine(s, revealFor(s.text, reveals))).join("\n")}`;
+function withSecrets(e: ScanEntry, content: string, input: Pick<ActivationInput, "reveals" | "secretReveal">) {
+  const lines = (extraOf(e).secrets ?? []).flatMap((s, i) =>
+    s.text?.trim() ? [secretLine(s, input.secretReveal ? input.secretReveal(e.id, i) : revealFor(s.text, input.reveals))] : [],
+  );
+  return lines.length ? `${content}\n${lines.join("\n")}` : content;
 }
 
 function secretLine(s: { text: string; knownBy?: string[] }, r?: Reveal) {
@@ -437,6 +443,11 @@ export function activateLore(input: ActivationInput): ActivationResult {
   const sorted = [...active.values()].sort((a, b) => band(b) - band(a) || priority(b) - priority(a) || b.entry.order - a.entry.order);
   const accepted: ActivatedEntry[] = [];
   let used = 0;
+  // 2.2: a secret fact the story has let out says who found out.
+  const nowFact = (f: NowFact) => {
+    const r = f.knownBy.length ? revealFor(f.value, input.reveals) : undefined;
+    return { ...f, value: sub(f.value), ...(r ? { revealedTo: r.to, out: r.out } : {}) };
+  };
   // docs/15: what's true now rides after the core (and after the essentials, when trimmed).
   const withNow = (e: ScanEntry, content: string) => {
     const facts = input.facts?.get(e.id);
@@ -444,17 +455,17 @@ export function activateLore(input: ActivationInput): ActivationResult {
     const day = input.dated?.get(e.id);
     if (day) content = `${content}\n${day}.`;
     if (!facts?.length) return content;
-    const block = nowBlock(facts.map((f) => ({ ...f, value: sub(f.value) })), sub(e.comment || e.keys[0] || "") || undefined);
+    const block = nowBlock(facts.map(nowFact), sub(e.comment || e.keys[0] || "") || undefined);
     return `${content}\n${block}`;
   };
   for (const a of sorted) {
-    let content = withNow(a.entry, withSecrets(a.entry, sub(a.content), input.reveals));
+    let content = withNow(a.entry, withSecrets(a.entry, sub(a.content), input));
     let tokens = input.countTokens(content);
     let reason = a.reason;
     const p = Math.round(priority(a));
-    const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine({ ...f, value: sub(f.value) }, sub(a.entry.comment || a.entry.keys[0] || "") || undefined));
+    const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine(nowFact(f), sub(a.entry.comment || a.entry.keys[0] || "") || undefined));
     if (defaults.tokenBudget > 0 && used + tokens > defaults.tokenBudget) {
-      const short = withNow(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry)), input.reveals));
+      const short = withNow(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry)), input));
       const st = input.countTokens(short);
       if (a.kind !== "parent" && short.length < content.length && used + st <= defaults.tokenBudget) {
         content = short;

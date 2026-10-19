@@ -67,6 +67,8 @@ try {
     // Most of the secret's own words, so a short line that only names its people doesn't count.
     return hits >= 2 && hits / S.size >= 0.75;
   };
+  // Sentences the [CORRECTIONS] lane already answers ("The card says: "…" — written before #67").
+  const answered = [...prompt.matchAll(/The card says: "(.{20,60})/g)].map((m) => m[1]!.replace(/^- /, ""));
   const secrets = Object.values(st.facts)
     .filter((f) => f.secret || f.revealed.length)
     .map((f) => {
@@ -82,7 +84,7 @@ try {
         out,
         lines: lines
           .filter((l) => about(f.statement, l.text))
-          .map((l) => ({ n: l.n, text: l.text.trim().slice(0, 240), stale: Boolean(revealedTo.length) && HIDDEN.test(l.text) && !/no longer a secret|since revealed|came out/i.test(l.text) })),
+          .map((l) => ({ n: l.n, text: l.text.trim().slice(0, 240), answered: answered.some((a) => l.text.includes(a)), stale: Boolean(revealedTo.length) && HIDDEN.test(l.text) && !/no longer a secret|since revealed|came out|written before #\d+|since then \(#/i.test(l.text) })),
       };
     });
 
@@ -93,12 +95,13 @@ try {
     for (const s of secrets) {
       const state = s.out ? `out (revealed to ${s.revealedTo.join(", ")})` : `kept by ${s.keepers.join(", ") || "?"} from ${s.everyone ? "everyone else" : s.hiddenFrom.join(", ") || "nobody"}${s.revealedTo.length ? `; revealed to ${s.revealedTo.join(", ")}` : ""}`;
       console.log(`#${s.key}: ${s.statement}\n  ${state}`);
-      for (const l of s.lines) console.log(`  ${l.stale ? "STALE" : "     "} ${String(l.n).padStart(5)}  ${l.text}`);
+      for (const l of s.lines) console.log(`  ${l.stale ? (l.answered ? "fixed" : "STALE") : "     "} ${String(l.n).padStart(5)}  ${l.text}`);
       if (!s.lines.length) console.log("        (not in the prompt)");
       console.log();
     }
-    const stale = secrets.reduce((n, s) => n + s.lines.filter((l) => l.stale).length, 0);
-    console.log(stale ? `${stale} line${stale === 1 ? "" : "s"} still call a revealed secret hidden.` : "No line calls a revealed secret hidden.");
+    const stale = secrets.reduce((n, s) => n + s.lines.filter((l) => l.stale && !l.answered).length, 0);
+    const fixed = secrets.reduce((n, s) => n + s.lines.filter((l) => l.stale && l.answered).length, 0);
+    console.log(`${stale ? `${stale} line${stale === 1 ? "" : "s"} still call a revealed secret hidden.` : "No line calls a revealed secret hidden unanswered."}${fixed ? ` ${fixed} more ${fixed === 1 ? "is" : "are"} answered by [CORRECTIONS].` : ""}`);
     if (flag("--full")) console.log(`\n${"─".repeat(60)}\n${prompt}`);
   }
 } finally {

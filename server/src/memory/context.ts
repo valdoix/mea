@@ -2,6 +2,7 @@ import { type MemoryConfig, memoryConfig } from "../lib/settings";
 import { countTokens, MESSAGE_OVERHEAD } from "../lib/tokens";
 import type { HistoryMessage } from "../prompt/assemble";
 import type { WorldState } from "../trackers/types";
+import type { Reveal } from "../trackers/reveals";
 import { AUTHORITY } from "./canon";
 import { embeddingsEnabled, embedQueries, indexCoverage } from "./embed";
 import { norm, resolver } from "./entities";
@@ -10,7 +11,7 @@ import { journalText } from "./journals";
 import { cachedRewrite, cachedVerdict, contextText } from "./librarian";
 import { buildQueries, type LibrarianVerdict, type PovFilter, type QuerySpec, recall, type RecallStats } from "./recall";
 import { levelRows, memState, storyRow, type SummaryRow } from "./store";
-import { hashText } from "./text";
+import { contentWords, hashText } from "./text";
 
 /**
  * Builds the memory part of a prompt: which messages stay verbatim (CTX-05), the telescope of
@@ -123,7 +124,7 @@ interface TItem {
  * Everything up to `evicted` at decreasing resolution: scenes, folded into their chapter,
  * arc, and finally the Story So Far, oldest first, until it fits the budget.
  */
-export function telescope(chatId: string, evicted: number, budget: number) {
+export function telescope(chatId: string, evicted: number, budget: number, reveals: Reveal[] = []) {
   const scenes = levelRows(chatId, "scene").filter((s) => s.closed && (s.end_seq ?? 0) <= evicted);
   const chapters = levelRows(chatId, "chapter");
   const arcs = levelRows(chatId, "arc");
@@ -180,7 +181,7 @@ export function telescope(chatId: string, evicted: number, budget: number) {
     const kind = r.level === "scene" ? "Scene" : r.level === "chapter" ? "Chapter" : "Arc";
     return `### ${kind}: ${r.title || "Untitled"} (${range}${time})`;
   };
-  const text = parts.map((it) => `${heading(it.row, it)}\n${it.row.content.trim()}`).join("\n\n");
+  const text = parts.map((it) => `${heading(it.row, it)}\n${it.row.content.trim()}${sinceThen(it, parts, reveals)}`).join("\n\n");
   return {
     text,
     items: parts.map((it) => ({ id: it.row.id, level: it.row.level, title: it.row.title, startSeq: it.start, endSeq: it.end, tokens: it.tokens, state: it.row.state })) as TelescopeItem[],
@@ -188,6 +189,28 @@ export function telescope(chatId: string, evicted: number, budget: number) {
     dropped,
     gaps,
   };
+}
+
+/**
+ * Reliable state 2.4 (docs/16): a summary written before a secret came out still reads as it did
+ * then ("Shauna's pregnancy — Jackie doesn't know"). The last summary that mentions it, if it ends
+ * before the reveal, gets one line after it saying what's true since.
+ */
+function sinceThen(it: TItem, parts: TItem[], reveals: Reveal[]) {
+  const mentions = (r: Reveal, x: TItem) => {
+    const S = contentWords(r.statement);
+    const T = contentWords(x.row.content);
+    const hits = [...S].filter((w) => T.has(w)).length;
+    return hits >= 2 && hits / S.size >= 0.75;
+  };
+  const lines: string[] = [];
+  for (const r of reveals) {
+    if (r.seq <= it.end || !mentions(r, it)) continue;
+    // Only after the last summary before the reveal that mentions it.
+    if (parts.some((x) => x !== it && x.end > it.end && x.end < r.seq && mentions(r, x))) continue;
+    lines.push(`Since then (#${r.seq}): ${r.to.join(", ")} found out that ${r.statement.replace(/\.$/, "")}${r.out ? "; it's no longer a secret" : ""}.`);
+  }
+  return lines.length ? `\n${lines.join("\n")}` : "";
 }
 
 // ---------- Recall inputs (MEM-14, MEM-16, MEM-17, MEM-18, MEM-21, MEM-23) ----------
@@ -292,6 +315,8 @@ export interface BuildContextInput {
   target: number;
   inputs: MemoryInputs;
   seed: string;
+  /** Secrets that came out (trackers, as of the message being written), for the summaries written before (2.4). */
+  reveals?: Reveal[];
 }
 
 export function buildMemoryContext(input: BuildContextInput): MemoryContext {
@@ -322,7 +347,7 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
   const journalTokens = journal ? tok(journal) : 0;
 
   const compute = (evicted: number) => {
-    const t = telescope(input.chatId, evicted, Math.max(0, storyBudget - journalTokens));
+    const t = telescope(input.chatId, evicted, Math.max(0, storyBudget - journalTokens), input.reveals);
     const key = [
       input.chatId,
       state.version,

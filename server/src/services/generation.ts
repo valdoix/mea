@@ -50,6 +50,8 @@ import { assertQuota } from "./quota";
 import { applyBanned, chatExtras, consumeOnce, continueJoin, cutFourthWall, looksLikeRefusal, trimUnfinished } from "./chattools";
 import { evalCondition } from "../trackers/condition";
 import { revealsOf } from "../trackers/reveals";
+import { secretRevealer } from "../lore/secretlinks";
+import "../accuracy/corrections";
 import type { WorldState } from "../trackers/types";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
 import type { PromptExtra } from "../prompt/assemble";
@@ -610,6 +612,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     dated: tp?.state?.time ? datesToday(chatId, entries, tp.state.time, chatCalendar(chatId)) : undefined,
     // A lore secret the story has since let out stops calling it hidden.
     reveals: revealsOf(tp?.state),
+    secretReveal: secretRevealer(chatId, tp?.state ?? null, entries),
   });
   const loreMs = lap();
   // B1: memory and lore that state a secret kept off the page are reworded before the prompt.
@@ -711,6 +714,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
         target: Math.floor(contextTarget / (resolved.tokenRatio || 1)),
         inputs: memInputs,
         seed: `${chatId}:${messageCountOf(chatId)}`,
+        reveals: revealsOf(tp?.state),
       });
       memoryMs += performance.now() - s;
       return offpage ? { ...m, story: offpage(m.story, "the Story So Far"), recall: offpage(m.recall, "recalled memories") } : m;
