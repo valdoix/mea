@@ -4,7 +4,7 @@ import { confirmArrivals, elsewhereLane } from "../src/sim/crossings";
 import { lean, measureTension, targetTension } from "../src/sim/director";
 import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/sim/grammar";
 import { spreadNews } from "../src/sim/news";
-import { buildRoster, readStanding } from "../src/sim/roster";
+import { buildRoster, lorePersonName, readStanding } from "../src/sim/roster";
 import { forecast, weatherAt } from "../src/sim/sky";
 import { canStep, forcedStep, tick, type TickInput } from "../src/sim/storyteller";
 import { validateTelling } from "../src/sim/telling";
@@ -288,5 +288,24 @@ describe("director and sky", () => {
     expect(forecast(inp).length).toBe(4);
     const anchored = weatherAt({ ...inp, anchor: { minutes: 2990, text: "storm" } });
     expect(anchored.level).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("people from lore", () => {
+  const who = (comment: string, extra: Record<string, unknown> = {}, content = "She hunts vampires.") => lorePersonName({ comment, keys: [], content, extra });
+  test("a category tag in the title is not a name", () => {
+    expect(who("Character: Buffy Summers", { category: "character", type: "character" })).toBe("Buffy Summers");
+    expect(who("Faction: The Watchers Council", { category: "faction" })).toBeNull();
+    expect(who("History: Season Two (Angelus)", { category: "history" })).toBeNull();
+    expect(who("Location: Sunnydale", { category: "character", type: "character" })).toBeNull();
+    expect(who("Style: Buffy's Speech", { category: "voice" })).toBeNull();
+    expect(who("Upcoming: The Trio Targets the Slayer")).toBeNull();
+    expect(who("Rule: Spike's Chip")).toBeNull();
+    expect(who("Timeline Boundary - Beginning of Season Six", { category: "timeline", type: "rule" })).toBeNull();
+  });
+  test("plain and role titles still name people", () => {
+    expect(who("Mira")).toBe("Mira");
+    expect(who("Mira - the innkeeper")).toBe("Mira");
+    expect(who("Spike: the bleached vampire")).toBe("Spike");
   });
 });

@@ -15,7 +15,7 @@ import type { Op, WorldState } from "../trackers/types";
 import { confirmArrivals, elsewhereLane } from "./crossings";
 import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
-import { buildRoster, type Roster } from "./roster";
+import { buildRoster, lorePersonName, type Roster } from "./roster";
 import { climateFrom, forecast, latitudeFrom, skyLine, type SkyInput } from "./sky";
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, type SimMode, tick, type TickInput } from "./storyteller";
 import { tellingPrompt, tellingSchema, validateTelling } from "./telling";
@@ -67,18 +67,15 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
   };
 }
 
-/** People the lorebooks describe (a "Name" or "Name - role" entry about a person). */
+/** People the lorebooks describe (a "Name", "Name - role" or "Character: Name" entry about a person). */
 function lorePeople(chatId: string): { name: string; text: string }[] {
   const chat = mustChat(chatId);
   const out: { name: string; text: string }[] = [];
   for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
     if (!e.enabled) continue;
-    const title = (e.comment || e.keys[0] || "").trim();
-    const m = title.match(/^([A-Z][a-z'’-]+(?:\s+(?:of\s+)?[A-Z][a-z'’-]+){0,2})(?:\s*[-–—:|(].*)?$/);
-    if (!m) continue;
-    if (/\b(house|street|city|town|village|inn|tavern|castle|forest|river|guild|council|order|church|kingdom|empire|school|academy|lighthouse|harbou?r|isle|island|mountain|valley)\b/i.test(m[1]!)) continue;
-    if (!/\b(he|she|they|his|her|their|him)\b/i.test(e.content)) continue;
-    out.push({ name: m[1]!, text: e.content.slice(0, 1200) });
+    const name = lorePersonName(e);
+    if (!name) continue;
+    out.push({ name, text: e.content.slice(0, 1200) });
     if (out.length >= 60) break;
   }
   return out;
