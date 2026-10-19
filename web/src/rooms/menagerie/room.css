@@ -1,0 +1,416 @@
+/* =====================================================================
+   XII · MENAGERIE — a cabinet of curiosities
+   Ivory cards bordered in a Greek key, a Regency stripe for you and emerald velvet with a tassel
+   for what's kept, portraits in gilt ovals, a damask velvet rail behind gilded moulding, a velvet
+   swag over each chapter and a wax seal to send. Grown-up maximalism: no stickers, no tilts.
+   ===================================================================== */
+:root[data-theme="menagerie"][data-shell] h1 {
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: var(--accent-ink);
+}
+:root[data-theme="menagerie"][data-shell] h2,
+:root[data-theme="menagerie"][data-shell] .panel > h2:first-child {
+  font: italic 800 1.35rem/1.2 var(--font-display);
+}
+:root[data-theme="menagerie"][data-shell] .btn {
+  border-radius: 2px;
+  letter-spacing: 0.08em;
+}
+:root[data-theme="menagerie"][data-shell] .btn.primary {
+  border: 0;
+  color: var(--g1);
+  background: var(--velvet);
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    inset 0 0 0 3px var(--velvet),
+    inset 0 0 0 4px color-mix(in srgb, var(--g2) 70%, transparent),
+    0 8px 16px -10px rgb(0 0 0 / 60%);
+}
+:root[data-theme="menagerie"][data-mode="night"] .btn.primary {
+  background: var(--emer);
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    inset 0 0 0 3px var(--emer),
+    inset 0 0 0 4px color-mix(in srgb, var(--g2) 70%, transparent),
+    0 8px 16px -10px rgb(0 0 0 / 60%);
+}
+:root[data-theme="menagerie"][data-shell] .btn.primary:hover {
+  filter: brightness(1.08);
+}
+:root[data-theme="menagerie"][data-shell] .card,
+:root[data-theme="menagerie"][data-shell] .panel {
+  border-radius: var(--r-lg);
+  border: 0;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--g2) 70%, transparent),
+    inset 0 0 0 4px var(--surface),
+    inset 0 0 0 5px color-mix(in srgb, var(--g2) 40%, transparent),
+    var(--shadow-1);
+}
+:root[data-theme="menagerie"][data-shell] .chip {
+  border-radius: 2px;
+}
+:root[data-theme="menagerie"][data-shell] .seg button.on {
+  border-radius: 2px;
+  background: var(--emer);
+  color: var(--g1);
+  box-shadow: inset 0 0 0 1px var(--g2);
+}
+:root[data-theme="menagerie"][data-shell] .switch input:checked {
+  background: var(--emer);
+}
+:root[data-theme="menagerie"][data-shell] mark.hl,
+:root[data-theme="menagerie"][data-shell] .prose mark.hl {
+  background: linear-gradient(transparent 60%, color-mix(in srgb, var(--g2) 45%, transparent) 60% 94%, transparent 94%);
+  color: inherit;
+}
+
+/* the shell: a damask velvet rail behind gilded moulding, ivory panes in a fine gilt frame */
+:root[data-theme="menagerie"][data-shell] nav.rail {
+  border: 0;
+  border-radius: 4px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='84'%3E%3Cpath d='M28 6c6 10 18 16 18 30s-10 20-18 28c-8-8-18-14-18-28S22 16 28 6z' fill='%23000' fill-opacity='.2'/%3E%3Cpath d='M28 22c3 6 8 9 8 15s-5 10-8 13c-3-3-8-7-8-13s5-9 8-15z' fill='%23f7e6ad' fill-opacity='.08'/%3E%3Cg fill='%23000' fill-opacity='.2'%3E%3Ccircle r='4'/%3E%3Ccircle cx='56' r='4'/%3E%3Ccircle cy='84' r='4'/%3E%3Ccircle cx='56' cy='84' r='4'/%3E%3C/g%3E%3C/svg%3E") 50% 0 / 56px 84px,
+    linear-gradient(90deg, rgb(0 0 0 / 28%), transparent 30% 70%, rgb(0 0 0 / 28%)),
+    var(--velvet);
+  color: #f0dcc0;
+  box-shadow:
+    inset 0 0 0 2px var(--g2),
+    inset 0 0 0 4px var(--g3),
+    inset 0 0 0 5px color-mix(in srgb, var(--g1) 60%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="menagerie"][data-shell] nav.rail .nav,
+:root[data-theme="menagerie"][data-shell] nav.rail hr {
+  color: #f0dcc0;
+}
+:root[data-theme="menagerie"][data-shell] nav.rail .logo {
+  width: 56px;
+  background: none;
+  box-shadow: none;
+  place-items: center;
+  font: italic 900 2rem/1 var(--font-display);
+}
+:root[data-theme="menagerie"][data-shell] nav.rail .logo span {
+  background: linear-gradient(180deg, #f7e6ad, #c99a3e 60%, #7a5519);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  padding-right: 0.08em;
+}
+:root[data-theme="menagerie"][data-shell] nav.rail .nav.on {
+  border-radius: 2px;
+  background: var(--emer);
+  color: #f7e6ad !important;
+  box-shadow:
+    inset 0 0 0 1px #c99a3e,
+    0 4px 8px -4px rgb(0 0 0 / 60%);
+}
+:root[data-theme="menagerie"][data-shell] nav.rail .nav.on::before {
+  background: #c99a3e;
+}
+:root[data-theme="menagerie"][data-shell] .main-col,
+:root[data-theme="menagerie"][data-shell] .dock {
+  border: 0;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    inset 0 0 0 5px var(--surface),
+    inset 0 0 0 6px color-mix(in srgb, var(--g2) 55%, transparent),
+    var(--shadow-2);
+}
+:root[data-theme="menagerie"][data-shell] .chat.focus .main-col {
+  box-shadow: none;
+}
+:root[data-theme="menagerie"][data-shell] .bar .cname {
+  font: italic 800 1.85rem/1.05 var(--font-display);
+  color: var(--accent-ink);
+}
+:root[data-theme="menagerie"][data-shell] .bar .cname .ctitle {
+  font: 600 0.66rem var(--font-ui);
+  font-style: normal;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* messages: every card a different material */
+/* theirs: ivory inside a Greek-key border and a gilt rule */
+:root[data-theme="menagerie"][data-shell] .style-cards .msg .bubble {
+  position: relative;
+  border: 10px solid transparent;
+  border-radius: 0;
+  background:
+    linear-gradient(var(--tint-char), var(--tint-char)) padding-box,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%231f5a45'/%3E%3Cpath d='M0 8.8h8.8V1.2H2.9v5h2.9' fill='none' stroke='%23e9c977' stroke-width='1.2'/%3E%3C/svg%3E") 0 0 / 10px 10px border-box;
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    0 16px 26px -16px rgb(40 15 10 / 55%);
+}
+:root[data-theme="menagerie"][data-mode="night"] .style-cards .msg .bubble {
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    0 16px 26px -14px rgb(0 0 0 / 70%);
+}
+/* yours: a Regency stripe framed by a double gilt rule */
+:root[data-theme="menagerie"][data-shell] .style-cards .msg.user .bubble {
+  border: 0;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 14px, var(--stripe) 14px 18px, transparent 18px 30px, var(--stripe) 30px 31px),
+    var(--tint-user);
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    inset 0 0 0 4px var(--tint-user),
+    inset 0 0 0 5px var(--g2),
+    0 16px 26px -16px rgb(40 15 10 / 50%);
+}
+/* notes and the narrator: plain ivory with a single rule */
+:root[data-theme="menagerie"][data-shell] .style-cards .msg.system .bubble {
+  border: 0;
+  border-radius: 3px;
+  background: var(--tint-note);
+  box-shadow: inset 0 0 0 1px var(--g2);
+}
+/* what's kept is upholstered in emerald velvet, with a gold tassel hanging from it */
+:root[data-theme="menagerie"][data-shell] .style-cards .msg.bookmarked .bubble {
+  --text: #f6ead2;
+  --text-muted: #d9c8a4;
+  --text-faint: #c3b18e;
+  --dialogue: #f7e6ad;
+  --action: #d9c8a4;
+  --thought: #b8e0d6;
+  --accent-ink: #f7e6ad;
+  border: 0;
+  border-radius: 3px;
+  color: var(--text);
+  background: radial-gradient(120% 140% at 30% 0, color-mix(in srgb, var(--emer) 82%, #fff), var(--emer) 55%, color-mix(in srgb, var(--emer) 70%, #000));
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    inset 0 0 0 5px transparent,
+    inset 0 0 0 6px var(--g2),
+    0 16px 26px -14px rgb(0 0 0 / 60%);
+}
+:root[data-theme="menagerie"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+  display: block;
+  content: "";
+  left: auto;
+  right: 30px;
+  top: auto;
+  bottom: -30px;
+  width: 14px;
+  height: 34px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='34'%3E%3Cpath d='M7 0v9' stroke='%23c99a3e' stroke-width='1.5'/%3E%3Ccircle cx='7' cy='11' r='3.2' fill='%23e9c977'/%3E%3Cpath d='M3.5 13h7l3 18h-13z' fill='%23c99a3e'/%3E%3Cpath d='M4.5 15l-1 15M7 15v15M9.5 15l1 15' stroke='%237a5519' stroke-width='.8'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 3px 2px rgb(0 0 0 / 35%));
+  transform-origin: 50% 0;
+  animation: mn-swing 3.4s ease-in-out infinite alternate;
+}
+:root[data-theme="menagerie"][data-shell] .style-cards .msg.highlighted .bubble {
+  outline: 2px solid var(--g2);
+  outline-offset: 3px;
+}
+:root[data-theme="menagerie"][data-shell] .msg .name {
+  font: italic 800 1.15rem/1.1 var(--font-display);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent-ink);
+}
+:root[data-theme="menagerie"][data-shell] .msg.user .name {
+  color: var(--thought);
+}
+:root[data-theme="menagerie"][data-shell] .msg.bookmarked .name {
+  color: #f7e6ad;
+}
+/* portraits hang in gilt ovals with a rosette at the crown */
+:root[data-theme="menagerie"][data-shell] .msg .portrait {
+  position: relative;
+  isolation: isolate;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--velvet),
+    inset 0 0 12px rgb(0 0 0 / 30%);
+}
+:root[data-theme="menagerie"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% !important;
+}
+:root[data-theme="menagerie"][data-shell] .msg .portrait::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -8px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(from 20deg, var(--g3), var(--g1), var(--g2), var(--g3), var(--g1), var(--g2), var(--g3));
+  box-shadow:
+    0 0 0 1.5px var(--g3),
+    0 12px 18px -8px rgb(30 10 5 / 60%);
+}
+:root[data-theme="menagerie"][data-shell] .msg .portrait::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -15px;
+  width: 15px;
+  height: 15px;
+  margin-left: -7.5px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 40% 35%, var(--g1), var(--g2) 55%, var(--g3));
+  box-shadow: 0 0 0 1px var(--g3);
+}
+:root[data-theme="menagerie"][data-shell] .msg .portrait-col {
+  padding-top: 10px;
+}
+:root[data-theme="menagerie"][data-shell] .msg {
+  animation: mn-in 0.8s var(--ease) backwards;
+}
+/* the typing dots are pearls */
+:root[data-theme="menagerie"][data-shell] .typing span {
+  background: radial-gradient(circle at 35% 30%, #fff, var(--g1) 40%, var(--g2));
+}
+
+/* chapters: a velvet swag with gold fringe and tassels, the title in black italic */
+:root[data-theme="menagerie"][data-shell] .chapter-h {
+  padding-top: 3.8rem;
+}
+:root[data-theme="menagerie"][data-shell] .chapter-h::before {
+  top: 0;
+  width: min(24rem, 94%);
+  height: 3.2rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 336 56'%3E%3Cdefs%3E%3Cpath id='s' d='M0 0h84v8C70 34 14 34 0 8z'/%3E%3C/defs%3E%3Cg fill='%23c99a3e'%3E%3Cuse href='%23s' transform='translate(0 2)'/%3E%3Cuse href='%23s' transform='translate(84 2)'/%3E%3Cuse href='%23s' transform='translate(168 2)'/%3E%3Cuse href='%23s' transform='translate(252 2)'/%3E%3C/g%3E%3Cg fill='%236a1c22'%3E%3Cuse href='%23s'/%3E%3Cuse href='%23s' x='84'/%3E%3Cuse href='%23s' x='168'/%3E%3Cuse href='%23s' x='252'/%3E%3C/g%3E%3Crect width='336' height='6' fill='%234a1218'/%3E%3Crect y='6' width='336' height='2' fill='%23c99a3e'/%3E%3Cg%3E%3Cpath d='M84 8v12M168 8v12M252 8v12' stroke='%23c99a3e' stroke-width='1.5'/%3E%3Cg fill='%23e9c977'%3E%3Ccircle cx='84' cy='22' r='3.2'/%3E%3Ccircle cx='168' cy='22' r='3.2'/%3E%3Ccircle cx='252' cy='22' r='3.2'/%3E%3C/g%3E%3Cg fill='%23c99a3e'%3E%3Cpath d='M80.5 24h7l3 18h-13zM164.5 24h7l3 18h-13zM248.5 24h7l3 18h-13z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 4px 4px rgb(30 10 5 / 30%));
+}
+:root[data-theme="menagerie"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="menagerie"][data-shell] .ch-num {
+  font: 600 0.7rem var(--font-ui);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+:root[data-theme="menagerie"][data-shell] .ch-num b {
+  color: var(--accent-ink);
+}
+:root[data-theme="menagerie"][data-shell] .ch-title {
+  font: italic 900 clamp(2rem, 4.8vw, 3.1rem) / 1.05 var(--font-display);
+  letter-spacing: -0.015em;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--accent-ink);
+}
+:root[data-theme="menagerie"][data-mode="night"] .ch-title {
+  background: linear-gradient(180deg, var(--g1), var(--g2) 60%, var(--g3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-theme="menagerie"][data-shell] .ch-title::before,
+:root[data-theme="menagerie"][data-shell] .ch-title::after {
+  content: "❧";
+  display: inline-block;
+  margin: 0 0.45em;
+  font: normal 0.5em/1 var(--font-display);
+  vertical-align: middle;
+  color: var(--g2);
+  -webkit-text-fill-color: var(--g2);
+}
+:root[data-theme="menagerie"][data-shell] .ch-title::before {
+  transform: scaleX(-1);
+}
+:root[data-theme="menagerie"][data-shell] .sc-line {
+  height: 3px;
+  background: none;
+  border-block: 1px solid var(--g2);
+}
+
+/* composer: ivory in a gilt, velvet and gilt frame, and a wax seal to send */
+:root[data-theme="menagerie"][data-shell] .composer {
+  border-radius: 3px;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 2px var(--g2),
+    0 0 0 5px var(--velvet),
+    0 0 0 7px var(--g2),
+    0 14px 24px -10px rgb(30 10 5 / 50%);
+}
+:root[data-theme="menagerie"][data-shell] .send.primary {
+  border-radius: 48% 52% 45% 55% / 52% 46% 54% 48%;
+  color: rgb(40 0 0 / 55%);
+  background:
+    radial-gradient(circle at 35% 30%, rgb(255 255 255 / 28%), transparent 42%),
+    #9b2a2e;
+  box-shadow:
+    inset 0 0 0 4px rgb(0 0 0 / 14%),
+    inset 0 0 0 6px rgb(255 255 255 / 8%),
+    0 6px 12px -4px rgb(0 0 0 / 60%);
+}
+:root[data-theme="menagerie"][data-shell] .send.primary svg {
+  filter: drop-shadow(0 1px 0 rgb(255 255 255 / 30%));
+}
+:root[data-theme="menagerie"][data-shell] .send.primary:not(:disabled):hover {
+  transform: rotate(-8deg) scale(1.05);
+}
+
+/* home */
+:root[data-theme="menagerie"][data-shell] .hello h1 .spark {
+  color: var(--g2);
+}
+:root[data-theme="menagerie"][data-shell] .continue {
+  border-radius: 4px;
+  border: 0;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--g2),
+    inset 0 0 0 6px var(--surface),
+    inset 0 0 0 7px var(--g2),
+    var(--shadow-2);
+}
+:root[data-theme="menagerie"][data-shell] .continue .eyebrow {
+  letter-spacing: 0.28em;
+  color: var(--text-muted);
+}
+:root[data-theme="menagerie"][data-shell] .continue .title {
+  font: italic 900 clamp(2.3rem, 4.2vw, 3.3rem) / 1.03 var(--font-display);
+  color: var(--accent-ink);
+}
+:root[data-theme="menagerie"][data-shell] .hero-pic {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--velvet),
+    0 0 0 10px var(--g2),
+    0 0 0 11px var(--g3),
+    var(--shadow-2);
+}
+:root[data-theme="menagerie"][data-shell] .char {
+  border-radius: 4px;
+}
+:root[data-theme="menagerie"][data-shell] .char .name {
+  font: italic 800 1.6rem/1.05 var(--font-display);
+  color: var(--accent-ink);
+}
+
+@keyframes mn-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes mn-swing {
+  from {
+    transform: rotate(-5deg);
+  }
+  to {
+    transform: rotate(5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="menagerie"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+    animation: none;
+  }
+}

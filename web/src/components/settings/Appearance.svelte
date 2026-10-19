@@ -15,10 +15,10 @@
   // The picker shows each room in its own type, and a room you pick is dressed the moment you pick it.
   onMount(() => THEMES.forEach((t) => isRoom(t.id) && (loadThemeFonts(t.id), void loadThemeStyles(t.id))));
   const drifting = $derived(
-    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light" } as Record<string, string>)[app.theme] ?? "Drifting lights",
+    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light", meringue: app.night ? "Fairy lights twinkling and soft lights floating up" : "Clouds drifting and soft lights floating up", menagerie: app.night ? "Candles flickering and gold dust in the lamplight" : "Gold dust turning in the lamplight" } as Record<string, string>)[app.theme] ?? "Drifting lights",
   );
   const texture = $derived(
-    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
+    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks", meringue: "A faint gingham at the edges", menagerie: "Chintz on the walls" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
   );
   const page = $derived(living(s));
   const VOICE_HINTS: Record<LivingPage["voices"], string> = {
@@ -569,6 +569,22 @@
     background: linear-gradient(135deg, #fffaf6, #fbe3e6);
     border-radius: 999px;
     box-shadow: 0 0 0 1px #d8b27a, 0 6px 16px -6px rgb(160 60 90 / 45%);
+  }
+  .t-meringue .tname {
+    font: 400 1.35rem/1.1 "Young Serif", serif;
+    color: #b8507a;
+    text-shadow: none;
+    background: #fffaf5;
+    border-radius: 999px;
+    box-shadow: 0 0 0 2px #f2a7c0, 0 0 0 4px #fffaf5, 0 0 0 5.5px #9fd6bd;
+  }
+  .t-menagerie .tname {
+    font: italic 900 1.4rem/1.1 "Playfair Display Variable", serif;
+    color: #f7e6ad;
+    text-shadow: none;
+    background: #6a1c22;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px #c99a3e, inset 0 0 0 3px #6a1c22, inset 0 0 0 4px #c99a3e, 0 0 0 2px #1f5a45;
   }
   .t-marquee .tname {
     font: 400 1.9rem/1 "Neonderthaw", cursive;
