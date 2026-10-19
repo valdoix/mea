@@ -119,6 +119,20 @@ export const categoryOf = (e: { extra?: Record<string, unknown> }): Category | n
   return typeof c === "string" && (CATEGORIES as readonly string[]).includes(c) ? (c as Category) : null;
 };
 
+/** An entry's title without a merged book's "[source] " prefix. */
+export const loreTitle = (e: { comment: string; keys: string[] }) => (e.comment || e.keys[0] || "").replace(/^\s*\[[^\]]*\]\s*/, "").trim();
+
+const CURRENT_TAG = /^current\s*[:\-–—|]\s*/i;
+
+/**
+ * How things stand right now ("CURRENT - Hellions Raid Sunnydale", or the Current category): true
+ * from the first message, so it's in the scene whether or not anyone names it.
+ */
+export const isCurrent = (e: { comment: string; keys: string[]; extra?: Record<string, unknown> }) => categoryOf(e) === "current" || CURRENT_TAG.test(loreTitle(e));
+
+/** A current entry's situation, without its tag ("Hellions Raid Sunnydale"). */
+export const currentTitle = (e: { comment: string; keys: string[] }) => loreTitle(e).replace(CURRENT_TAG, "").trim();
+
 /**
  * Sets an entry's category; with `defaults`, also the category's position, priority and depth
  * (and "always on" for rules and the timeline boundary). The Codex type follows when it isn't set.

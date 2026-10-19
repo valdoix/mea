@@ -1,5 +1,6 @@
 import type { LoreEntry, LorebookSettings, LorePosition, Role } from "./types";
 import { factLine, nowBlock } from "./facts";
+import { currentTitle, isCurrent } from "./format";
 import { type Reveal, revealFor } from "../trackers/reveals";
 
 export interface ScanEntry extends LoreEntry {
@@ -245,6 +246,8 @@ export function activateLore(input: ActivationInput): ActivationResult {
   const present = new Set((input.present ?? []).map(normName).filter(Boolean));
   const match = (e: ScanEntry, text: string, level: number): MatchResult & { kind?: ActivatedEntry["kind"] } => {
     if (e.constant) return { ok: true, reason: "constant", score: 0, kind: "constant" };
+    // How things stand right now is in the scene from the first message, named or not.
+    if (isCurrent(e)) return { ok: true, reason: "current", score: 0, kind: "constant" };
     const x = extraOf(e);
     const keys = [...e.keys, ...(x.aliases ?? [])].filter((k) => k.trim());
     const cs = e.caseSensitive ?? e.book.caseSensitive ?? defaults.caseSensitive;
@@ -280,6 +283,7 @@ export function activateLore(input: ActivationInput): ActivationResult {
   };
 
   const candidates: ScanEntry[] = [];
+  const currents = new Set<string>();
   for (const e of input.entries) {
     if (!e.enabled) {
       setTrace(e, "inactive", "disabled");
@@ -301,6 +305,16 @@ export function activateLore(input: ActivationInput): ActivationResult {
     if (st?.cooldownUntil != null && st.cooldownUntil > messageCount) {
       setTrace(e, "inactive", `cooldown (${st.cooldownUntil - messageCount} more)`);
       continue;
+    }
+    // The same situation from a merged copy of the book is said once.
+    if (isCurrent(e)) {
+      const same = `${currentTitle(e).toLowerCase()}
+${e.content.trim()}`;
+      if (currents.has(same)) {
+        setTrace(e, "inactive", "the same situation is in another book");
+        continue;
+      }
+      currents.add(same);
     }
     candidates.push(e);
   }

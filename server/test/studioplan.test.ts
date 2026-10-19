@@ -16,6 +16,15 @@ beforeAll(async () => {
 });
 
 describe("the Lore Studio plans first (I2)", () => {
+  test("what's happening now is planned as Current entries", async () => {
+    const d = createDraft({ kind: "idea", text: "A harbour town called Port Ellis where the fog keeps secrets.", options: { size: "small" } });
+    await planOutline(d.id);
+    const cur = await planOutline(d.id, { mode: "more", steer: 'Only situations already under way when the story opens, each with "now": true.' });
+    const raid = cur.items.find((i) => i.title === "Raiders Burn the Docks")!;
+    expect(raid.category).toBe("current");
+    expect(cur.items.filter((i) => i.category === "current")).toHaveLength(1);
+  });
+
   test("plan items carry a category, versions are numbered, and the differences are named", async () => {
     const d = createDraft({ kind: "idea", text: "A harbour town called Port Ellis where the fog keeps secrets. The Salt Guild owns the docks.", options: { size: "small" } });
     const planned = await planOutline(d.id);

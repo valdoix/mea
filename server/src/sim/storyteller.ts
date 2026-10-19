@@ -61,6 +61,16 @@ export interface TickInput {
   weather?: string;
   /** A named day today (a festival, a birthday). */
   namedDay?: string | null;
+  /** How things stand right now, from the lorebooks' CURRENT entries. */
+  situations?: Situation[];
+}
+
+/** A CURRENT lore entry ("CURRENT - Hellions Raid Sunnydale"): something already under way. */
+export interface Situation {
+  /** The same in every book that carries it: the title, lower-cased. */
+  key: string;
+  title: string;
+  text: string;
 }
 
 export interface BeatCard {
@@ -248,6 +258,14 @@ export function tick(inp: TickInput): TickResult {
       out.sim.push({ type: "arc.set", id: hot.id, patch: { heat: hot.heat + 1, nextAt: Math.min(hot.nextAt, inp.now + 2 * HOUR) } });
       out.summary.push(`director: ${hot.leadName}'s ${SPECS[hot.kind].label.toLowerCase()} heats up`);
     }
+  }
+
+  // ---------- what the lore says is happening now ----------
+  // Already under way when the story starts: no dice, no proposal. It runs hot from the start.
+  for (const c of situationCands(inp).slice(0, 3)) {
+    const arc = newArc(c, inp);
+    out.sim.push({ type: "arc.new", arc: { ...arc, heat: 2 } });
+    out.summary.push(`under way: ${c.leadName} · ${SPECS[c.kind].label} (${c.why})`);
   }
 
   // ---------- new subplots ----------
@@ -792,6 +810,53 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
     }
     const injured = inp.state.chars[a.id]?.injuries.some((i) => i.severity >= 3);
     if (injured) push({ kind: "recovery", lead: a.id, leadName: a.name, cast: [], premise: `${a.name} is recovering from a bad injury.`, grounds: [`injury:${a.id}`], score: 2, why: "a serious injury" });
+  }
+  return out;
+}
+
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Subplots for the lore's CURRENT situations that haven't run yet. The lead is whoever the title
+ * starts with ("Spike Protects Dawn"), else the group it starts with ("Hellions Raid Sunnydale"),
+ * else the first person the entry names; someone in the scene leaves it to the scene. Once one has
+ * run, or you turned it down, it doesn't start again.
+ */
+export function situationCands(inp: TickInput): Cand[] {
+  const r = inp.roster;
+  const sim = inp.state.sim;
+  const had = [...Object.values(sim.arcs), ...Object.values(sim.proposals)];
+  const declined = new Set(sim.declined);
+  const people = [...r.actors.values()].filter((a) => !a.isUser);
+  // Where a text first names someone, by any part of their name ("Giles" for Rupert Giles).
+  const at = (text: string, a: RActor) => {
+    let best = -1;
+    for (const w of a.name.split(/\s+/).filter((w) => w.length >= 3)) {
+      const m = new RegExp(`\\b${escRe(w)}\\b`).exec(text);
+      if (m && (best < 0 || m.index < best)) best = m.index;
+    }
+    return best;
+  };
+  const named = (text: string) => people.map((a) => ({ a, i: at(text, a) })).filter((x) => x.i >= 0).sort((x, y) => x.i - y.i).map((x) => x.a);
+  const out: Cand[] = [];
+  for (const s of inp.situations ?? []) {
+    const ground = `current:${s.key}`;
+    if (had.some((x) => x.grounds.includes(ground))) continue;
+    const kind = kindFromText(s.title) ?? kindFromText(s.text, ["faction", "life", "pursuit"]);
+    if (!kind) continue;
+    const inTitle = named(s.title);
+    const first = inTitle[0] && at(s.title, inTitle[0]) === 0 ? inTitle[0] : undefined;
+    const group = first ? undefined : s.title.replace(/^the\s+/i, "").match(/^([A-Z][\w'’-]+)/)?.[1];
+    const lead = first ?? (group ? undefined : named(s.text)[0]);
+    if (lead && (!canAct(lead) || lead.ring === "onstage")) continue;
+    if (!lead && !group) continue;
+    const leadId = lead?.id ?? `faction:${group!.toLowerCase()}`;
+    const leadName = lead?.name ?? group!;
+    const cast = inTitle.filter((a) => a.id !== leadId).map((a) => a.id);
+    const key = `${leadId}|${kind}|${ground}`;
+    if (declined.has(key)) continue;
+    const premise = s.text.split(/(?<=[.!?])\s/)[0]?.trim() || s.title;
+    out.push({ kind, lead: leadId, leadName, cast, target: cast[0], premise, grounds: [ground], score: 5, why: `the lore: ${s.title}, now`, key });
   }
   return out;
 }
