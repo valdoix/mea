@@ -15,6 +15,7 @@ export const LANES = {
   pressures: { tag: "PRESSURES", label: "Hidden pressures" },
   promises: { tag: "PROMISES", label: "Promises on the clock" },
   slips: { tag: "LAST SLIPS", label: "Last reply's slips" },
+  corrections: { tag: "CORRECTIONS", label: "Written before it came out" },
 } as const;
 export type LaneId = keyof typeof LANES;
 

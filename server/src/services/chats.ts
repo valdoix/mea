@@ -143,6 +143,8 @@ export const chatSettingsSchema = z.object({
   craft: z.object({ paused: z.boolean(), ignored: z.array(z.string().max(120)).max(60) }).partial().optional(),
   /** C1: where the story stands in its source, and what hasn't happened yet. */
   canon: canonSchema.optional(),
+  /** Reliable state 2.1: lore secrets you linked to a tracker fact ("entryId:index" → fact key), or unlinked (""). */
+  secretLinks: z.record(z.string().max(120), z.string().max(120)).optional(),
   /** STEER-04: the style profile, over the character's. */
   style: z
     .object({

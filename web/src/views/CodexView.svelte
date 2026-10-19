@@ -10,7 +10,7 @@
   import { openMeusIn } from "../lib/meus.svelte";
   import { navigate } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
-  import type { ChronicleProposal, Codex, CodexEntity, Entity, Journal, PromiseEntry, QuizRun, SecretEntry } from "../lib/types";
+  import type { ChronicleProposal, Codex, CodexEntity, Entity, Journal, PromiseEntry, LoreSecretLink, QuizRun, SecretEntry } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -39,12 +39,22 @@
   let secrets = $state<SecretEntry[]>([]);
   // B2: exposure clocks, by the secret's key here ("tracker:<fact key>").
   let exposure = $state<Record<string, ExposureView>>({});
+  // Reliable state 2.1: the lore secrets each tracker secret is written in.
+  let loreLinks = $state<LoreSecretLink[]>([]);
   async function loadLedgers() {
     try {
-      const [r, x] = await Promise.all([get<{ promises: PromiseEntry[]; secrets: SecretEntry[] }>(`/api/chats/${id}/ledgers`), get<{ secrets: ExposureView[] }>(`/api/chats/${id}/exposure`).catch(() => ({ secrets: [] }))]);
+      const [r, x] = await Promise.all([get<{ promises: PromiseEntry[]; secrets: SecretEntry[]; loreLinks?: LoreSecretLink[] }>(`/api/chats/${id}/ledgers`), get<{ secrets: ExposureView[] }>(`/api/chats/${id}/exposure`).catch(() => ({ secrets: [] }))]);
       promises = r.promises;
       secrets = r.secrets;
+      loreLinks = r.loreLinks ?? [];
       exposure = Object.fromEntries(x.secrets.map((e) => [`tracker:${e.key}`, e]));
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function linkLore(ref: string, fact: string | null) {
+    try {
+      loreLinks = (await post<{ loreLinks: LoreSecretLink[] }>(`/api/chats/${id}/secrets/lore-link`, { ref, fact })).loreLinks;
     } catch (e) {
       errorToast(e);
     }
@@ -331,6 +341,13 @@
             </div>
             {#if s.knows.length}<div class="tiny faint">{s.knows.map((k) => `${k.name}: ${k.status}`).join(" · ")}</div>{/if}
             {#if exposure[s.key]}<ExposureDial chatId={id} x={exposure[s.key]!} onchange={loadLedgers} />{/if}
+            {#each loreLinks.filter((l) => `tracker:${l.fact ?? l.near}` === s.key) as l (l.ref)}
+              <div class="tiny row lorelink" class:near={!l.fact} title={l.text}>
+                <span class="grow">{l.fact ? "Also in lore" : l.unlinked ? "Not this (you said)" : "Maybe in lore"}: <b>{l.entry}</b> · <span class="faint">{l.text.length > 90 ? `${l.text.slice(0, 90)}…` : l.text}</span>{#if l.by === "you"} <span class="faint">(linked by you)</span>{/if}</span>
+                {#if l.fact}<button class="btn ghost small" onclick={() => linkLore(l.ref, null)} title="This lore secret is about something else">Unlink</button>
+                {:else}<button class="btn ghost small" onclick={() => linkLore(l.ref, l.near)} title="Treat this lore secret as this one: when it comes out, the lore says so">Link</button>{/if}
+              </div>
+            {/each}
           </div>
           <label class="switch tiny offp" title="Hold it back from the narration itself">
             <input type="checkbox" checked={Boolean(op)} onchange={(e) => (e.currentTarget.checked ? editOffpage(null, { label: s.statement, ref: s.key }) : op && void offpageAction(op, "delete"))} />
@@ -549,6 +566,13 @@
   }
   .ledger.done {
     opacity: 0.7;
+  }
+  .lorelink {
+    gap: 0.4rem;
+    align-items: center;
+  }
+  .lorelink.near {
+    opacity: 0.75;
   }
   .mini {
     width: auto;

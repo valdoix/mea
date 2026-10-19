@@ -28,6 +28,9 @@ import { reconcileIssues } from "../memory/reconcile";
 import { correctMemory, findWrong, rememberSelection } from "../memory/remember";
 import { warmMemory } from "../memory/warm";
 import { mustChat } from "../services/chats";
+import { loreSecretLinks, setSecretLink } from "../lore/secretlinks";
+import { scanEntriesFor } from "../lore/service";
+import { currentFold } from "../trackers/store";
 import { enqueue } from "../services/jobs";
 
 /** Phase 3 knowledge: entities, journals, ledgers, corrections, sleep, profiles, warm-up. */
@@ -99,8 +102,27 @@ knowledge.get("/chats/:id/entity-graph", (c) => {
 
 knowledge.get("/chats/:id/ledgers", (c) => {
   const id = c.req.param("id");
-  mustChat(id);
-  return c.json({ promises: promises(id), secrets: secrets(id) });
+  const chat = mustChat(id);
+  return c.json({ promises: promises(id), secrets: secrets(id), loreLinks: loreLinksFor(id, chat) });
+});
+
+/** Reliable state 2.1: which lore secret is about which tracker secret, in this chat. */
+function loreLinksFor(id: string, chat: ReturnType<typeof mustChat>) {
+  let st = null;
+  try {
+    st = currentFold(id).result.state;
+  } catch {
+    st = null;
+  }
+  return loreSecretLinks(id, st, scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId: id }));
+}
+
+knowledge.post("/chats/:id/secrets/lore-link", async (c) => {
+  const id = c.req.param("id");
+  const chat = mustChat(id);
+  const input = await body(c, z.object({ ref: z.string().min(3).max(120), fact: z.string().max(120).nullable() }));
+  setSecretLink(id, input.ref, input.fact);
+  return c.json({ loreLinks: loreLinksFor(id, chat) });
 });
 
 knowledge.post("/chats/:id/promises/mark", async (c) => {

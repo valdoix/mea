@@ -140,6 +140,8 @@ Bad state comes in through the ledger. This part makes each line say what the mo
 
 **Done when:** the three Jeff/Shauna lore secrets link to `#jeff-shauna`, the journal secret doesn't, and unlinking one stops its "No longer a secret" line.
 
+*Built differently:* tracker init is written by the model from the card text only, never from lore, and a fact's key is that chat's own. So the link can't live on the shared lore entry. It lives with the chat instead (`lore/secretlinks.ts`): matched by words (≥ 0.6), offered as **Link** when close (≥ 0.4), and overridden by you in `settings.secretLinks`. The chips are in **Codex › Promises & secrets**, under each tracker secret ("Also in lore: Shauna", **Unlink** / **Link**), not in the lorebook editor, which has no chat.
+
 ### 2.2 Lore facts follow reveals
 
 Living-lore facts can be secret too (`known_by`). They render `secret — known only to …` in `factLine` (`lore/facts.ts`) and ignore reveals.
@@ -150,6 +152,8 @@ Living-lore facts can be secret too (`known_by`). They render `secret — known 
 
 **Done when:** a secret fact on Shauna's entry renders as revealed in the Yellowjackets chat and as secret in a fresh chat with the same book.
 
+*Built:* the rendering only. The keep-up proposal was left out: the rendering already comes from the tracker as of the message being written, so it follows swipes, and a stored change would only be a second copy of the same state.
+
 ### 2.3 Card sentences tied to their secret
 
 **Seen:** "She does not yet know about Jeff and Shauna; when either surfaces, it hits her abruptly…" stays in the card. #111's knowledge-note line only answers it while Jackie is in the scene.
@@ -159,6 +163,8 @@ Living-lore facts can be secret too (`known_by`). They render `secret — known 
 - When the fact is revealed, the dynamic block gets: `The card was written before this came out: "She does not yet know about Jeff and Shauna…" — Jackie knows now (#67).` The card text itself is unchanged (principle 3).
 
 **Done when:** the Yellowjackets prompt carries that line with Jackie out of the scene too, and the stable prefix's hash is the same before and after the reveal.
+
+*Built differently:* the sentences are found when the prompt is built, not stored at init (`accuracy/corrections.ts`, the `[CORRECTIONS]` lane). The card is a few thousand words, so this is cheap, and it follows card edits without a fingerprint. Only card fields are read. Lore entry *content* that says the same thing (a constant world entry, say) is left for Part 3.
 
 ### 2.4 Summaries written before a reveal
 

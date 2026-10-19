@@ -43,6 +43,24 @@ import {
 import { sceneDigest } from "./digest";
 import { ftsQuery, hashText } from "./text";
 import { highlightsInRange } from "../services/notebook";
+import { revealsOf } from "../trackers/reveals";
+import { currentFold } from "../trackers/store";
+
+/**
+ * Reliable state 2.4: secrets that had come out by a message, said to the summarizer so a record
+ * doesn't call them hidden ("Jackie doesn't know") after the story let them out.
+ */
+function revealedBy(chatId: string, seq: number) {
+  let reveals: ReturnType<typeof revealsOf> = [];
+  try {
+    reveals = revealsOf(currentFold(chatId).result.state).filter((r) => r.seq <= seq);
+  } catch {
+    return "";
+  }
+  return reveals.length
+    ? `SECRETS ALREADY OUT by the end of these messages (don't record anyone as not knowing these after they found out):\n${reveals.map((r) => `- #${r.seq}: ${r.to.join(", ")} found out that ${r.statement.replace(/\.$/, "")}`).join("\n")}`
+    : "";
+}
 
 export function chatNames(chatId: string) {
   const chat = getChatRow(chatId);
@@ -107,6 +125,7 @@ async function runScenePass(row: SummaryRow, ctx: { job?: JobContext; instructio
     related.length ? `EXISTING MEMORIES that may be related:\n${related.map((a, i) => `A${i + 1} (${a.type}) ${a.content}`).join("\n")}` : "",
     ctx.instruction ? `Extra instruction from the author for this record: ${ctx.instruction}` : "",
     marked.length ? `The player marked these as favourite moments. Make sure the record keeps them (quote the key words):\n${marked.join("\n")}` : "",
+    revealedBy(row.chat_id, rows.at(-1)!.seq),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -315,7 +334,8 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
       return `${label(p)} ${i + 1}: ${p.title} (messages #${p.start_seq}–#${p.end_seq ?? "…"})${extra ? `\n${extra}` : ""}\n${p.content}${moments}`;
     })
     .join("\n\n");
-  const user = `${opts.instruction ? `Extra instruction from the author: ${opts.instruction}\n\n` : ""}RECORDS, oldest first:\n\n${body}`;
+  const out = revealedBy(row.chat_id, endSeq ?? parts.at(-1)?.end_seq ?? 0);
+  const user = `${opts.instruction ? `Extra instruction from the author: ${opts.instruction}\n\n` : ""}${out ? `${out}\n\n` : ""}RECORDS, oldest first:\n\n${body}`;
   opts.job?.note({ inputTokens: countTokens(user), level });
   const r = await callJson({ task: "summarizer", kind: level, chatId: row.chat_id, jobId: opts.job?.id, name: "summary_rollup", schema: rollupSchema, system: rollupSystem(level, names), user, maxTokens: memoryConfig().compression[level] === "detailed" ? 4000 : 3000, signal: opts.signal });
   r.data.moments = memoryConfig().moments ? carryMoments(parts) : [];

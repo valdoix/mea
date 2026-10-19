@@ -1156,6 +1156,19 @@ export interface SecretEntry {
   messageId: string | null;
   memoryIds: string[];
 }
+/** Reliable state 2.1: a lore secret and the tracker secret it's about in this chat. */
+export interface LoreSecretLink {
+  ref: string;
+  entryId: string;
+  index: number;
+  entry: string;
+  text: string;
+  knownBy: string[];
+  fact: string | null;
+  by: "match" | "you" | null;
+  near: string | null;
+  unlinked: boolean;
+}
 export interface Citation {
   ref: string;
   type: "tracker" | "memory" | "lore" | "card" | "message" | "lesson" | "secret";
