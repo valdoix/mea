@@ -21,9 +21,25 @@ export function parseStoryTime(s: unknown): StoryTime | null {
   if (m) return ymd(m[3]!, m[2]!, m[1]!, m[4], m[5]);
   m = t.match(/^(\d{1,4})\s*AC,?\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+moon,?\s+(?:day\s+)?(\d{1,2})(?:st|nd|rd|th)?(?:[\s,·]+(\d{1,2}):(\d{2}))?$/i);
   if (m) return ymd(m[1]!, m[2]!, m[3]!, m[4], m[5]);
+  // Written out, as the setup's placeholder shows: "9 October 2001", "14 March 1889 09:00",
+  // "October 9, 2001", "Tuesday, 9th of Oct 2001, 21:40".
+  const date = t.replace(/^(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?\.?,?\s+/i, "");
+  m = date.match(/^(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-z]{3,9})\.?,?\s+(\d{1,4})(?:[\s,·]+(\d{1,2}):(\d{2}))?$/i);
+  if (m && monthOf(m[2]!)) return ymd(m[3]!, String(monthOf(m[2]!)), m[1]!, m[4], m[5]);
+  m = date.match(/^([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{1,4})(?:[\s,·]+(\d{1,2}):(\d{2}))?$/i);
+  if (m && monthOf(m[1]!)) return ymd(m[3]!, String(monthOf(m[1]!)), m[2]!, m[4], m[5]);
   m = t.match(/^day\s*(\d{1,5})(?:[ ,]+(\d{1,2}):(\d{2}))?$/i);
   if (m) return { minutes: (Number(m[1]) - 1) * DAY + Number(m[2] ?? 12) * 60 + Number(m[3] ?? 0), form: "day" };
   return null;
+}
+
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+/** "October", "Oct", "Sept" → 10, 10, 9; anything else → null. */
+function monthOf(s: string): number | null {
+  const w = s.toLowerCase();
+  const i = w === "sept" ? 8 : MONTHS.findIndex((name) => name === w || (w.length === 3 && name.startsWith(w)));
+  return i < 0 ? null : i + 1;
 }
 
 function ymd(y: string, mo: string, d: string, h?: string, mi?: string): StoryTime | null {
