@@ -115,10 +115,31 @@ const REASONING_FLOOR = 1024;
 const REASONING_ROOM = 3000;
 /** M14: the most a truncated helper reply is retried with. */
 const MAX_RETRY_TOKENS = 32_000;
+/** Once a reply is flowing, only a stall this long stops it: a slow provider still finishes. */
+const HELPER_IDLE_MS = 90_000;
+/** A flowing reply still ends at this many times the task's timeout. */
+const HELPER_CAP_FACTOR = 4;
 
 async function once(r: ResolvedProfile, call: JsonCall<z.ZodType>, messages: ChatMessage[], structured: boolean, maxTokens?: number) {
+  // The task's timeout is for the reply to start; after that only a stall (or the cap) cuts it off.
   const timeoutMs = (getSetting("routing.timeouts")[call.task] ?? 120) * 1000;
-  const signal = call.signal ? AbortSignal.any([call.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
+  const startedAt = now();
+  let lastDeltaAt = null as number | null;
+  let timedOut = null as string | null;
+  const timer = new AbortController();
+  const watch = setInterval(() => {
+    const t = now();
+    if (lastDeltaAt == null ? t - startedAt > timeoutMs : t - lastDeltaAt > HELPER_IDLE_MS || t - startedAt > timeoutMs * HELPER_CAP_FACTOR) {
+      timedOut =
+        lastDeltaAt == null
+          ? `Timed out after ${Math.round(timeoutMs / 1000)} s`
+          : t - lastDeltaAt > HELPER_IDLE_MS
+            ? `The reply stalled: nothing new for ${HELPER_IDLE_MS / 1000} s`
+            : `Timed out after ${Math.round((timeoutMs * HELPER_CAP_FACTOR) / 1000)} s`;
+      timer.abort();
+    }
+  }, 1000);
+  const signal = call.signal ? AbortSignal.any([call.signal, timer.signal]) : timer.signal;
   const budget = maxTokens ?? (call.maxTokens ?? 4000) + (r.reasoning ? REASONING_ROOM : 0);
   const params = { ...r.params, max_tokens: r.reasoning ? Math.max(budget, REASONING_FLOOR) : budget, temperature: call.temperature ?? 0.3 };
   const responseFormat = structured ? { type: "json_schema", json_schema: { name: call.name, strict: false, schema: jsonSchemaOf(call.name, call.schema) } } : undefined;
@@ -136,6 +157,7 @@ async function once(r: ResolvedProfile, call: JsonCall<z.ZodType>, messages: Cha
   let firstTokenAt: number | null = null;
   try {
     const res = await r.provider.stream({ model: r.modelId, messages, params, signal, responseFormat }, (d) => {
+      if (d.text || d.reasoning) lastDeltaAt = now();
       if (d.text) {
         firstTokenAt ??= now();
         text += d.text;
@@ -144,10 +166,11 @@ async function once(r: ResolvedProfile, call: JsonCall<z.ZodType>, messages: Cha
     finishRequest(id, { status: "done", usage: res.usage, firstTokenAt, sentBody: res.sentBody, response: text, pricing: r.pricing, billing: r.billing });
     return { id, text, usage: res.usage, est, finishReason: res.finishReason, maxTokens: params.max_tokens };
   } catch (e) {
-    const timedOut = (e as Error).name === "TimeoutError" || ((e as Error).name === "AbortError" && !call.signal?.aborted);
-    const err = timedOut ? new ProviderError(`Timed out after ${Math.round(timeoutMs / 1000)} s`) : e;
+    const err = timedOut && !call.signal?.aborted ? new ProviderError(timedOut) : e;
     finishRequest(id, { status: "error", error: (err as Error).message, firstTokenAt, response: text || null });
     throw err;
+  } finally {
+    clearInterval(watch);
   }
 }
 
