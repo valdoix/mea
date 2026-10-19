@@ -19,6 +19,19 @@ describe("story calendars", () => {
     expect(parseStoryTime("2026-13-01")).toBeNull();
   });
 
+  test("written-out Gregorian dates parse, so a setup start like \"9 October 2001\" sets the clock", () => {
+    const noon = at("2001-10-09");
+    expect(at("9 October 2001")).toEqual(noon);
+    expect(at("9th of Oct 2001")).toEqual(noon);
+    expect(at("October 9, 2001")).toEqual(noon);
+    expect(at("Tuesday, 9 October 2001")).toEqual(noon);
+    expect(at("14 March 1889 09:00")).toEqual(at("1889-03-14 09:00"));
+    expect(at("Sept 3rd, 1999, 21:40")).toEqual(at("1999-09-03 21:40"));
+    expect(parseStoryTime("30 February 2001")).toBeNull();
+    expect(parseStoryTime("9 Octember 2001")).toBeNull();
+    expect(at("Day 3 21:40").form).toBe("day");
+  });
+
   test("Gregorian reads with weekday and month; Westeros with moons, AC and its night hours", () => {
     const g = describeWhen(at("2026-10-13 23:10"), "gregorian");
     expect(g.label).toBe("Tuesday, 13 October 2026 · 23:10");
