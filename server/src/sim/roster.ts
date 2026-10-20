@@ -165,6 +165,8 @@ export interface RosterInput {
   /** People from lorebooks (and the card's world): name + description. */
   lore: { name: string; text: string }[];
   userName: string;
+  /** docs/17, 5.2: the lore's Routine schedules, a line each ("dawn: Mira Vell, at the tower"). */
+  schedules?: string[];
 }
 
 /** "Willow" and "Willow Rosenberg" are the same person: one name is the other's first words. */
@@ -292,6 +294,23 @@ export function buildRoster(inp: RosterInput): Roster {
   // Knowledge stances.
   for (const f of Object.values(st.facts)) for (const [id, s] of Object.entries(f.stances)) actors.get(id)?.knows.set(f.key, s.status);
 
+  // docs/17, 5.2: a Routine entry's schedule gives people their routine, and puts the ones out of the scene where it says, now.
+  if (inp.schedules?.length) {
+    for (const [id, routine] of routinesFrom(inp.schedules, all.filter((a) => !a.isUser))) {
+      const a = actors.get(id)!;
+      if (!a.routine?.length) a.routine = routine;
+    }
+    const mod = st.time ? ((st.time.minutes % 1440) + 1440) % 1440 : null;
+    for (const a of all) {
+      if (mod == null || a.ring === "onstage" || st.sim.actors[a.id]?.where) continue;
+      const place = routinePlace(a, mod);
+      if (!place) continue;
+      a.where = place.split(/\s*›\s*/);
+      a.reach = reachOf(a.where, scene, a.standing);
+      a.travel = TRAVEL[a.reach];
+    }
+  }
+
   const byName = (name: string) => {
     const n = name.trim().toLowerCase();
     return all.find((a) => a.name.toLowerCase() === n || a.id === n) ?? all.find((a) => a.name.toLowerCase().split(" ")[0] === n);
@@ -314,6 +333,64 @@ export function parseRoutine(text: string | undefined): Actor["routine"] | undef
     if (m) out.push({ from: Number(m[1]), to: Number(m[2]), place: m[3]!.trim() });
   }
   return out.length ? out : undefined;
+}
+
+/** Times of day as hours, from and to (night runs past midnight). */
+const TIMES_OF_DAY: Record<string, [number, number]> = { dawn: [5, 8], sunrise: [5, 8], morning: [8, 12], noon: [12, 14], midday: [12, 14], afternoon: [14, 18], dusk: [18, 21], sunset: [18, 21], evening: [18, 22], night: [22, 5], midnight: [0, 3] };
+const HOUR_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+
+/** An hour from "6", "6am", "6 pm", "18:00" or "six", or null. */
+function hourOf(t: string): number | null {
+  const m = t.trim().toLowerCase().match(/^(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?(?:\s*o'?clock)?$/);
+  if (!m) return null;
+  let h = HOUR_WORDS[m[1]!] ?? Number(m[1]);
+  if (m[3]?.startsWith("p") && h < 12) h += 12;
+  if (m[3]?.startsWith("a") && h === 12) h = 0;
+  return h >= 0 && h < 24 ? h : null;
+}
+
+/** A schedule line's time: "dawn", "6–9", "9am-5pm", "six" (to: null means until the next line). */
+function timeSpan(t: string): { from: number; to: number | null } | null {
+  const w = t.trim().toLowerCase().replace(/^(?:at|from|by|in the|the)\s+/, "");
+  if (TIMES_OF_DAY[w]) return { from: TIMES_OF_DAY[w][0], to: TIMES_OF_DAY[w][1] };
+  const range = w.split(/\s*(?:-|–|—|to|until|till)\s*/);
+  if (range.length === 2) {
+    const a = hourOf(range[0]!);
+    const b = hourOf(range[1]!);
+    if (a != null && b != null) return { from: a, to: b };
+  }
+  const h = hourOf(w);
+  return h == null ? null : { from: h, to: null };
+}
+
+/**
+ * Routines from Routine schedule lines ("time: who, where" or "time — who — where"), for the
+ * people the roster knows by name. A single hour runs until the next line's (else three hours).
+ */
+export function routinesFrom(lines: string[], people: { id: string; name: string }[]): Map<string, NonNullable<Actor["routine"]>> {
+  const parsed: { from: number; to: number | null; rest: string }[] = [];
+  for (const line of lines) {
+    // "6–9: who, where" (the colon first, so a range's dash stays in the time), else "dawn — who — where".
+    const l = line.trim().replace(/^[-•]\s*/, "");
+    const m = l.match(/^(\d{1,2}:\d{2}(?:\s*(?:-|–|to)\s*\d{1,2}:\d{2})?)\s*(?::|—|–|-|,)\s*(.+)$/) ?? l.match(/^([^:]{1,24}):\s*(.+)$/) ?? l.match(/^(.{1,24}?)\s+(?:—|–|-)\s+(.+)$/);
+    const span = m && timeSpan(m[1]!);
+    if (span) parsed.push({ ...span, rest: m![2]! });
+  }
+  const starts = [...new Set(parsed.map((p) => p.from))].sort((a, b) => a - b);
+  const out = new Map<string, NonNullable<Actor["routine"]>>();
+  for (const p of parsed) {
+    const to = p.to ?? starts.find((h) => h > p.from) ?? (p.from + 3) % 24;
+    for (const a of people) {
+      // Their full name, else their first one ("Mira" for Mira Vell).
+      const words = [a.name, ...(a.name.includes(" ") ? [a.name.split(/\s+/)[0]!] : [])].filter((w) => w.length >= 3);
+      const re = words.map((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i")).find((r) => r.test(p.rest));
+      if (!re) continue;
+      const place = p.rest.replace(re, "").replace(/^[\s,—–-]+|[\s,.;]+$/g, "").replace(/^(?:at|in|on|by)\s+/i, "").trim();
+      if (!place) continue;
+      out.set(a.id, [...(out.get(a.id) ?? []), { from: p.from, to, place }]);
+    }
+  }
+  return out;
 }
 
 /** Where an actor's routine puts them at an hour, if anywhere. */

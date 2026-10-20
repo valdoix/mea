@@ -126,7 +126,7 @@
   const HUE: Record<Shelf, string> = { ground: "var(--butter)", people: "var(--rose)", world: "var(--sky)", time: "var(--mint)", scenes: "var(--lavender)" };
   const about = (i: StudioItem) => i.about ?? [];
   const isSat = (i: StudioItem) => about(i).some((a) => a !== "user");
-  const titleOf = (ref: string) => (ref === "user" ? "{{user}}" : (draft.items.find((x) => x.id === ref)?.title ?? (book?.entries.find((e) => `entry:${e.id}` === ref)?.comment || "")));
+  const titleOf = (ref: string) => (ref === "user" ? "{{user}}" : ref.startsWith("card:") ? draft.source.refName || "the card" : (draft.items.find((x) => x.id === ref)?.title ?? (book?.entries.find((e) => `entry:${e.id}` === ref)?.comment || "")));
   /** Each shelf's items in plan order, every satellite right under the person it's about. */
   const shelves = $derived.by(() => {
     const groups = [...kindsByShelf.map((s) => ({ id: s.id as Shelf | "other", label: s.label })), { id: "other" as const, label: "No kind yet" }].map((g) => ({ ...g, items: [] as StudioItem[] }));

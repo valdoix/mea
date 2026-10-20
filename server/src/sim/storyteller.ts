@@ -71,6 +71,8 @@ export interface Situation {
   key: string;
   title: string;
   text: string;
+  /** docs/17, 5.2: a Hook: offered as a proposal, never started on its own. */
+  hook?: boolean;
 }
 
 export interface BeatCard {
@@ -262,10 +264,17 @@ export function tick(inp: TickInput): TickResult {
 
   // ---------- what the lore says is happening now ----------
   // Already under way when the story starts: no dice, no proposal. It runs hot from the start.
-  for (const c of situationCands(inp).slice(0, 3)) {
+  const cands = situationCands(inp);
+  for (const c of cands.filter((x) => !x.grounds[0]!.startsWith("hook:")).slice(0, 3)) {
     const arc = newArc(c, inp);
     out.sim.push({ type: "arc.new", arc: { ...arc, heat: 2 } });
     out.summary.push(`under way: ${c.leadName} · ${SPECS[c.kind].label} (${c.why})`);
+  }
+  // docs/17, 5.2: a Hook is an opening the story can take: offered (the usual proposal card), never started on its own.
+  for (const c of cands.filter((x) => x.grounds[0]!.startsWith("hook:")).slice(0, 2)) {
+    const arc = newArc(c, inp);
+    out.sim.push({ type: "proposal.new", proposal: { id: `p:${arc.id}`, key: c.key, kind: c.kind, lead: c.lead, leadName: c.leadName, cast: c.cast, premise: arc.premise, want: arc.want, fear: arc.fear, grounds: c.grounds, secrecy: arc.secrecy, why: c.why, at: inp.now } });
+    out.summary.push(`proposed: ${c.leadName} · ${SPECS[c.kind].label} (${c.why})`);
   }
 
   // ---------- new subplots ----------
@@ -840,9 +849,10 @@ export function situationCands(inp: TickInput): Cand[] {
   const named = (text: string) => people.map((a) => ({ a, i: at(text, a) })).filter((x) => x.i >= 0).sort((x, y) => x.i - y.i).map((x) => x.a);
   const out: Cand[] = [];
   for (const s of inp.situations ?? []) {
-    const ground = `current:${s.key}`;
+    const ground = `${s.hook ? "hook" : "current"}:${s.key}`;
     if (had.some((x) => x.grounds.includes(ground))) continue;
-    const kind = kindFromText(s.title) ?? kindFromText(s.text, ["faction", "life", "pursuit"]);
+    // A hook is something to go after, when its words don't say otherwise.
+    const kind = kindFromText(s.title) ?? kindFromText(s.text, ["faction", "life", "pursuit"]) ?? (s.hook ? "pursuit" : null);
     if (!kind) continue;
     const inTitle = named(s.title);
     const first = inTitle[0] && at(s.title, inTitle[0]) === 0 ? inTitle[0] : undefined;
@@ -856,7 +866,7 @@ export function situationCands(inp: TickInput): Cand[] {
     const key = `${leadId}|${kind}|${ground}`;
     if (declined.has(key)) continue;
     const premise = s.text.split(/(?<=[.!?])\s/)[0]?.trim() || s.title;
-    out.push({ kind, lead: leadId, leadName, cast, target: cast[0], premise, grounds: [ground], score: 5, why: `the lore: ${s.title}, now`, key });
+    out.push({ kind, lead: leadId, leadName, cast, target: cast[0], premise, grounds: [ground], score: 5, why: s.hook ? `a hook in the lore: ${s.title}` : `the lore: ${s.title}, now`, key });
   }
   return out;
 }

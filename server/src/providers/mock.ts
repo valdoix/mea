@@ -267,6 +267,11 @@ function helperJson(name: string, user: string, system = ""): unknown {
         secrets: /"secrets": 0–2/.test(user) || !/MOCK_SECRET/.test(user) ? [] : [{ text: `${title} hides something.`, knownBy: [title] }],
       };
     }
+    case "studio_moments": {
+      // docs/17, 5.3: a moment the card names ("the night of the dark lamp"), and none when it names none.
+      const m = user.match(/\bthe night of the ([a-z]+(?: [a-z]+)?)/i);
+      return { items: m ? [{ title: `The Night of the ${m[1]!.replace(/\b\w/g, (c) => c.toUpperCase())}`, pitch: `The night of the ${m[1]} they still talk about.`, words: [`the ${m[1]!.toLowerCase()}`, "Mira"] }] : [] };
+    }
     case "studio_census": {
       // Everyone named in the material, plus a canon extra when it says it's based on something.
       const source = user.split(/\n\n(?:THE AUTHOR'S ANSWERS|TONE AND GENRE|STYLE NOTES|ENTRY KINDS)/)[0] ?? user;

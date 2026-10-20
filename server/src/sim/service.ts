@@ -3,7 +3,7 @@ import { customOf } from "../trackers/customcal";
 import { trackerConfig } from "../trackers/store";
 import { badRequest, notFound } from "../lib/http";
 import { getSetting } from "../lib/settings";
-import { currentTitle, isCurrent } from "../lore/format";
+import { categoryOf, currentTitle, isCurrent, loreTitle } from "../lore/format";
 import { scanEntriesFor } from "../lore/service";
 import { getCard } from "../services/characters";
 import { type ChatSettings, lastMessage, mustChat } from "../services/chats";
@@ -61,6 +61,8 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
     .map((e) => e.content)
     .join(" ");
   const place = placeClimate(`${cardText} ${setup?.answers?.canon?.source ?? ""} ${setup?.answers?.canon?.point ?? ""} ${always}`);
+  // docs/17, 5.2: a Climate entry says what the weather is like here, so it wins over the guess.
+  const lore = climateEntry(chatId, `${cardText} ${always}`);
   const genres = own.genres?.length ? own.genres : (s.story?.genre ?? "").split(/\s*[,/&]\s*|\s+and\s+/).filter(Boolean);
   return {
     mode: own.mode ?? d.mode,
@@ -69,8 +71,8 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
     seeding: own.seeding ?? d.seeding,
     fates: own.fates ?? d.fates,
     view: own.view ?? d.view,
-    climate: own.climate || place?.climate || climateFrom(cardText),
-    latitude: own.latitude ? latitudeFrom(own.latitude, { typed: true }) : (place?.latitude ?? latitudeFrom(cardText)),
+    climate: own.climate || (lore ? climateFrom(lore) : "") || place?.climate || climateFrom(cardText),
+    latitude: own.latitude ? latitudeFrom(own.latitude, { typed: true }) : lore && /°|latitude/i.test(lore) ? latitudeFrom(lore) : (place?.latitude ?? latitudeFrom(cardText)),
     climateAuto: !own.climate,
     tech: own.tech ?? detectTech(cardText),
     genres,
@@ -78,17 +80,47 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
   };
 }
 
-/** How things stand right now: the lorebooks' CURRENT entries, once each when merged books repeat one. */
+/**
+ * The lore's Climate entry for where the story is (the one whose names the story uses most, else the
+ * first), as text the climate is read from; null without one.
+ */
+function climateEntry(chatId: string, where: string): string | null {
+  const chat = mustChat(chatId);
+  const all = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).filter((e) => e.enabled && e.content.trim() && categoryOf(e) === "climate");
+  if (!all.length) return null;
+  const t = where.toLowerCase();
+  const named = (e: (typeof all)[number]) => [loreTitle(e), ...e.keys].filter((k) => k.trim().length >= 3).reduce((n, k) => n + t.split(k.toLowerCase()).length - 1, 0);
+  return [...all].sort((a, b) => named(b) - named(a))[0]!.content;
+}
+
+/**
+ * How things stand right now: the lorebooks' CURRENT entries, once each when merged books repeat
+ * one, and (docs/17, 5.2) their Hooks, which the storyteller offers and never starts on its own.
+ */
 function loreSituations(chatId: string): Situation[] {
   const chat = mustChat(chatId);
   const out = new Map<string, Situation>();
   for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
-    if (!e.enabled || !e.content.trim() || !isCurrent(e)) continue;
-    const title = currentTitle(e);
+    if (!e.enabled || !e.content.trim()) continue;
+    const hook = categoryOf(e) === "hook";
+    if (!hook && !isCurrent(e)) continue;
+    const title = hook ? loreTitle(e).replace(/^hook\s*[:—-]\s*/i, "").trim() : currentTitle(e);
     const key = title.toLowerCase();
-    if (title && !out.has(key)) out.set(key, { key, title, text: e.content.trim().slice(0, 1200) });
+    if (title && !out.has(key)) out.set(key, { key, title, text: e.content.trim().slice(0, 1200), ...(hook ? { hook: true } : {}) });
   }
   return [...out.values()];
+}
+
+/** docs/17, 5.2: the schedule lines of the lore's Routine entries ("dawn: Mira Vell, at the tower"). */
+function loreSchedules(chatId: string): string[] {
+  const chat = mustChat(chatId);
+  return scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })
+    .filter((e) => e.enabled && categoryOf(e) === "routine")
+    .flatMap((e) => {
+      const parts = (e.extra as { parts?: { schedule?: string[] | string } } | undefined)?.parts?.schedule;
+      return parts ? (Array.isArray(parts) ? parts : [parts]) : e.content.split("\n").filter((l) => /^\s*[-•]/.test(l));
+    })
+    .slice(0, 80);
 }
 
 /** People the lorebooks describe (a "Name", "Name - role" or "Character: Name" entry about a person). */
@@ -107,7 +139,7 @@ function lorePeople(chatId: string): { name: string; text: string }[] {
 
 export function rosterFor(chatId: string, state: WorldState): Roster {
   const fc = foldConfigFor(chatId);
-  return buildRoster({ state, profiles: castProfiles(chatId), lore: lorePeople(chatId), userName: fc.userName });
+  return buildRoster({ state, profiles: castProfiles(chatId), lore: lorePeople(chatId), userName: fc.userName, schedules: loreSchedules(chatId) });
 }
 
 function skyInput(chatId: string, state: WorldState, cfg: ResolvedWorldConfig): SkyInput | null {
