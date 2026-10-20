@@ -4,6 +4,7 @@
   import { ArrowDown, ArrowUp, Plus, RefreshCw, X } from "../../lib/icons";
   import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
   import type { Connection, EmbeddingStatus, Profile, Settings } from "../../lib/types";
+  import SpeedCheck from "./SpeedCheck.svelte";
 
   let { profiles, connections }: { profiles: Profile[]; connections: Connection[] } = $props();
 
@@ -91,6 +92,8 @@
 </script>
 
 {#if s}
+  <SpeedCheck />
+
   <section class="stack tight">
     <h2>Task routing</h2>
     <p class="tiny muted">
