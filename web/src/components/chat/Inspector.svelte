@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { opened } from "../../lib/gestures";
   import Modal from "../Modal.svelte";
   import { get, patch, post } from "../../lib/api";
   import { compact } from "../../lib/format";
@@ -226,7 +227,7 @@
 
         {#if data.trace.ceiling}
           {@const cl = data.trace.ceiling}
-          <details open={cl.cuts.length > 0}>
+          <details use:opened={cl.cuts.length > 0}>
             <summary><b>Ceiling</b> <span class="tiny muted">what Mea adds: {compact(cl.after)} of {compact(cl.tokens)} tokens{cl.auto ? " (automatic)" : ""}{cl.cuts.length ? ` · ${cl.cuts.length} cut to fit (${compact(cl.before - cl.after)} tokens)` : " · nothing cut"}</span></summary>
             {#each cl.cuts as c (c.key)}
               <div class="row between cut">

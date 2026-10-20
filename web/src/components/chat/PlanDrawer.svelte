@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { opened } from "../../lib/gestures";
   import { parsePlan, PLAN_STEPS, planSource } from "../../lib/plan";
 
   /**
@@ -17,7 +18,7 @@
 </script>
 
 {#if plan.steps.length || plan.rest || unplanned || planning}
-  <details class="plan" class:unplanned {open}>
+  <details class="plan" class:unplanned use:opened={open}>
     <summary>
       <span aria-hidden="true">◇</span>
       {#if unplanned}

@@ -180,3 +180,19 @@ export function portal(node: HTMLElement) {
     },
   };
 }
+
+/**
+ * A <details>'s starting state. `<details {open}>` would re-assign `open` every time anything else in
+ * the same template re-renders (the summary's text, a count), snapping shut a section you opened.
+ * This sets it once, and again only when the value itself changes.
+ */
+export function opened(node: HTMLDetailsElement, value: boolean) {
+  let last = value;
+  node.open = value;
+  return {
+    update(next: boolean) {
+      if (next !== last) node.open = next;
+      last = next;
+    },
+  };
+}
