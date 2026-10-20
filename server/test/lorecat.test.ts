@@ -7,7 +7,10 @@ import { createChat } from "../src/services/chats";
 import { writeDepthBook } from "../src/creator/books";
 import { db, run } from "../src/db/db";
 import { migrations } from "../src/db/migrations";
-import { categoryOf, dreamWeaverCategory, guessCategory, isCurrent, withCategory } from "../src/lore/format";
+import { CATEGORIES, CATEGORY_INFO, categoryOf, dreamWeaverCategory, guessCategory, isCurrent, kindsOn, kindTemplate, SHELVES, withCategory } from "../src/lore/format";
+import { SLOTS } from "../src/lore/slots";
+import { lorePersonName } from "../src/sim/roster";
+import { LORE_CATEGORIES } from "../../web/src/lib/lorecats";
 import { createLorebook, getEntries } from "../src/lore/service";
 import { defaultEntry } from "../src/lore/types";
 import { freshDb } from "./helpers";
@@ -101,5 +104,67 @@ describe("lorebook categories (I1)", () => {
     migrations.find((m) => m.id === 31)!.up!(db());
     const cat = (id: string) => categoryOf([...getEntries(bookId), ...getEntries(plain)].find((e) => e.id === id)!);
     expect([cat(old), cat(guessed), cat(picked), cat(elsewhere)]).toEqual([null, null, "current", "current"]);
+  });
+});
+
+describe("lore kinds (docs/17, Part 1)", () => {
+  test("the registry: every kind complete, orders unique per place, every shelf used, slots real", () => {
+    expect(CATEGORIES.length).toBe(28);
+    for (const c of CATEGORIES) {
+      const i = CATEGORY_INFO[c];
+      expect(i.id).toBe(c);
+      expect(i.label && i.hint && i.example).toBeTruthy();
+      expect(i.fields.length).toBeGreaterThan(0);
+      expect(i.lengthScale).toBeGreaterThan(0);
+      if (i.slots) expect(SLOTS.some((s) => s.group === i.slots)).toBe(true);
+    }
+    const seen = new Set<string>();
+    for (const c of CATEGORIES) {
+      const k = `${CATEGORY_INFO[c].position}:${CATEGORY_INFO[c].order}`;
+      expect(seen.has(k)).toBe(false);
+      seen.add(k);
+    }
+    for (const s of SHELVES) expect(kindsOn(s.id).length).toBeGreaterThan(0);
+    // The web's picker lists the same kinds, in the same order, on the same shelves.
+    expect(LORE_CATEGORIES.map((c): string[] => [c.id, c.shelf, c.label])).toEqual(CATEGORIES.map((c): string[] => [c, CATEGORY_INFO[c].shelf, CATEGORY_INFO[c].label]));
+    expect(kindTemplate("reaction", "Mira")).toBe("Mira. Trigger: \nWhat they do: \nWhat they say: \nWhy: ");
+  });
+
+  test("the guesser knows the new kinds, by tag, title and words", () => {
+    const cases: [string, string, string][] = [
+      ["Reaction: Mira, when her mother comes up", "", "reaction"],
+      ["Mira, when her mother comes up", "", "reaction"],
+      ["Moment: the lighthouse", "", "moment"],
+      ["The night we met", "", "moment"],
+      ["The Vell family", "", "family"],
+      ["Tidecalling magic", "", "power"],
+      ["Selkie species", "", "species"],
+      ["Gods of the Deep", "", "faith"],
+      ["Harbour slang", "", "lexicon"],
+      ["Currency of Port Ellis", "", "money"],
+      ["Weather in the bay", "", "climate"],
+      ["Hook: an inspection at dawn", "", "hook"],
+      ["Who relit the lamp?", "", "mystery"],
+      ["A day on the quay", "", "routine"],
+      ["Lamp oil", "A cask costs 4 crowns at the quay.", "money"],
+      ["The old feud", "Whenever someone mentions the war, Joss leaves the room.", "reaction"],
+      ["The lamp", "No one knows who relit it that night.", "mystery"],
+    ];
+    for (const [title, text, want] of cases) expect([title, g(title, text).category]).toEqual([title, want]);
+    // Kept apart from their neighbours.
+    expect(g("The Merchants' Trade Guild").category).toBe("faction");
+    expect(g("The Winter Festival").category).toBe("customs");
+    expect(g("Rules of the Guild").category).toBe("rule");
+    // A kind's tag never makes a person for the world sim.
+    expect(lorePersonName(defaultEntry({ comment: "Reaction: Mira", content: "She goes quiet." }))).toBeNull();
+  });
+
+  test("a new entry of a kind: its place, priority and parts to fill", async () => {
+    const bookId = createLorebook({ name: "Port Ellis" });
+    const e = await post(`/api/lorebooks/${bookId}/entries/kind`, { category: "lexicon", title: "Harbour slang" });
+    expect(e).toMatchObject({ comment: "Harbour slang", position: "before_char", order: 74, content: "Terms: \nWho says them: ", extra: { category: "lexicon", type: "concept" } });
+    const ar = await post(`/api/lorebooks/${bookId}/autosort`, {});
+    expect(ar.shelves.map((s: any) => s.id)).toEqual(["ground", "people", "world", "time", "scenes"]);
+    expect(ar.categories.find((c: any) => c.id === "mystery")).toMatchObject({ shelf: "time", subject: "none", fires: "topic" });
   });
 });

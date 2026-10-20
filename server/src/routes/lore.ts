@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { CATEGORIES, CATEGORY_INFO, categoryOf, guessCategory, withCategory } from "../lore/format";
+import { CATEGORIES, CATEGORY_INFO, categoryOf, guessCategory, kindTemplate, SHELVES, withCategory } from "../lore/format";
 import { createOffpage } from "../accuracy/offpage";
 import { stash } from "../services/undo";
 import { afterOriginSave } from "../services/versionsync";
@@ -166,7 +166,16 @@ lore.post("/lorebooks/:id/autosort", async (c) => {
     if (write) updateEntry(e.id, withCategory(e, g.category, { defaults: b.defaults, confidence: g.confidence }));
     return { entryId: e.id, title: e.comment || e.keys[0] || "(untitled)", category: write ? g.category : (had ?? g.category), confidence: had && !write ? 1 : g.confidence, why: had && !write ? "set by you" : g.why, guessed: !had || write };
   });
-  return c.json({ entries: out, categories: Object.values(CATEGORY_INFO) });
+  return c.json({ entries: out, categories: Object.values(CATEGORY_INFO), shelves: SHELVES });
+});
+
+/** docs/17: a new entry of a kind, in its place, with its parts as a template to fill. */
+lore.post("/lorebooks/:id/entries/kind", async (c) => {
+  const b = await body(c, z.object({ category: z.enum(CATEGORIES), title: z.string().max(200).default("") }));
+  must(getLorebook(c.req.param("id")), "Lorebook not found");
+  const e = createEntry(c.req.param("id"), withCategory(defaultEntry({ comment: b.title.trim(), content: kindTemplate(b.category) }), b.category, { defaults: true }));
+  reembed();
+  return c.json(e, 201);
 });
 
 /** One tap: this entry's category (and, with `defaults`, its place and priority). */
