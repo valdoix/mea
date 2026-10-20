@@ -1,4 +1,5 @@
 import { countTokens } from "../lib/tokens";
+import { textGivesAway } from "./shapes";
 
 /**
  * Quality checks for drafted lore (the studio's review step). Deterministic and instant:
@@ -7,7 +8,7 @@ import { countTokens } from "../lib/tokens";
  */
 
 export interface QualityIssue {
-  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown" | "leak";
+  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown" | "secret-in-text" | "leak";
   severity: "info" | "warn";
   message: string;
 }
@@ -88,6 +89,8 @@ export function checkEntries(entries: CheckedEntry[], opts: { existing?: { title
       const unknown = s.knownBy.filter((k) => k.trim() && !known.has(norm(k)));
       if (!s.knownBy.length) issues.push({ kind: "secret-unknown", severity: "info", message: `A secret nobody knows ("${s.text.slice(0, 50)}…"): the leak guard will keep it from every character.` });
       else if (unknown.length && unknown.length === s.knownBy.length && known.size > 1) issues.push({ kind: "secret-unknown", severity: "info", message: `Known by ${unknown.join(", ")}, who ${unknown.length > 1 ? "have" : "has"} no entry here.` });
+      // docs/17, 3.3: the open text mustn't say what the secret keeps.
+      if (textGivesAway(e.content, s.text)) issues.push({ kind: "secret-in-text", severity: "warn", message: `The text gives away its own secret ("${s.text.slice(0, 60)}…"): every scene would know it. Keep it to the secret.` });
     }
     out[e.id] = issues;
   }

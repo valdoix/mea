@@ -1851,6 +1851,8 @@ export interface StudioEntry {
   aliases: string[];
   essentials: string;
   secrets: { text: string; knownBy: string[] }[];
+  /** docs/17: the kind's parts (a voice's sample lines, a mystery's clues). */
+  parts?: Record<string, string | string[]>;
 }
 
 export interface StudioItem {

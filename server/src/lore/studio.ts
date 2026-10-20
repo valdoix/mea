@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CATEGORIES, CATEGORY_INFO, type Category, guessCategory, withCategory } from "./format";
 import { allowedKinds, cleanMix, isSatellite, type Mix, mixBrief, mixFromTypes, PLAN_WHEN } from "./mix";
+import { cleanParts, HIDDEN_PART, hiddenSecret, joinParts, KIND_BRIEF, type Parts, partsAsk, SHAPES, withFiring, wordsFor } from "./shapes";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -64,6 +65,8 @@ export interface StudioEntry {
   aliases: string[];
   essentials: string;
   secrets: { text: string; knownBy: string[] }[];
+  /** docs/17: the kind's parts (a voice's sample lines, a mystery's clues), joined into the content. */
+  parts?: Parts;
 }
 
 export interface StudioItem {
@@ -1284,7 +1287,22 @@ const entrySchema = z.object({
   aliases: z.array(z.string()).default([]),
   essentials: z.string().default(""),
   secrets: z.array(z.object({ text: z.string(), knownBy: z.array(z.string()).default([]) })).default([]),
+  parts: z.record(z.string(), z.union([z.string(), z.array(z.string())])).default({}),
 });
+
+/** A satellite's subjects: who it's about, with their names and what's written of them so far. */
+function subjectsOf(d: StudioDraft, it: StudioItem) {
+  const book = d.targetBookId ? getLorebook(d.targetBookId) : undefined;
+  return it.about.flatMap((ref) => {
+    if (ref === "user") return [];
+    if (ref.startsWith("entry:")) {
+      const e = book?.entries.find((x) => x.id === ref.slice(6));
+      return e ? [{ name: e.comment || e.keys[0] || "", aliases: extraOf(e).aliases ?? [], text: e.content.slice(0, 1500), research: "" }] : [];
+    }
+    const p = d.items.find((x) => x.id === ref);
+    return p ? [{ name: baseTitle(p.title), aliases: p.entry?.aliases ?? [], text: p.entry?.content.slice(0, 1500) || p.pitch, research: p.research?.text ?? "" }] : [];
+  });
+}
 
 /**
  * What an entry is written from, as fingerprints: the overview, your answers, canon, and its own
@@ -1378,8 +1396,15 @@ export async function runStudioJob(draftId: string, job?: JobContext) {
 
 export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobContext): Promise<StudioEntry> {
   // Canon people and places get their wiki page read first.
-  const it = { ...item, research: await entryPage(d, item) };
-  const template = it.type ? ENTRY_TEMPLATES[it.type] : null;
+  // A satellite reads its subject's page instead of looking up its own title.
+  const satellite = item.about.some((a) => a !== "user");
+  const it = { ...item, research: satellite ? item.research : await entryPage(d, item) };
+  const kind = it.category;
+  const template = kind ? { label: CATEGORY_INFO[kind].label, fields: CATEGORY_INFO[kind].fields } : it.type ? ENTRY_TEMPLATES[it.type] : null;
+  const subjects = subjectsOf(d, it);
+  const withUser = it.about.includes("user");
+  const shaped = Boolean(kind && SHAPES[kind]);
+  const hidden = Boolean(kind && HIDDEN_PART[kind]);
   const titleOf = (ref: string) => {
     if (ref.startsWith("entry:")) {
       const book = d.targetBookId ? getLorebook(d.targetBookId) : undefined;
@@ -1406,17 +1431,19 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
     schema: entrySchema,
     system: [
       `You write one lorebook entry for interactive fiction: "${it.title}"${it.type ? ` (${template!.label.toLowerCase()})` : ""}. The storyteller reads it only when the entry fires, so it must stand on its own.`,
-      `"content": ${WORDS[d.options.length]} words, third person, present tense, plain declarative sentences a storyteller can use in a scene: concrete looks, behaviour, history, relationships and stakes.${template ? ` Cover what fits of: ${template.fields.join(", ")}.` : ""} No headings, no lists of adjectives, no meta commentary.`,
-      it.category === "current"
-        ? "This entry is a situation under way right now, at the story's opening: say what is happening, who is doing it and to whom, where, what it looks and sounds like, what each side wants, and what happens next if nobody steps in. Present tense throughout; no backstory beyond one clause of why. The storyteller keeps it in every scene until the story moves past it, so write it to be played: things people can run from, fight or walk into."
-        : "",
+      `"content": ${wordsFor(WORDS[d.options.length], kind)} words, third person, present tense, plain declarative sentences a storyteller can use in a scene: concrete looks, behaviour, history, relationships and stakes.${template ? ` Cover what fits of: ${template.fields.join(", ")}.` : ""} No headings, no lists of adjectives, no meta commentary.`,
+      kind ? (KIND_BRIEF[kind] ?? "") : "",
+      kind && shaped ? partsAsk(kind) : "",
+      subjects.length || withUser ? `It's about ${[...subjects.map((s) => s.name), ...(withUser ? ["{{user}} (the player's character; never decide what {{user}} does or feels)"] : [])].join(" and ")}: stay true to what's written of them under IT'S ABOUT.` : "",
       "Tie it into the world: name the two or three other entries it matters most to and how (who they love, owe, fear or lie to; where it is; who holds it), using their exact titles. Show character through what they do and say, not adjectives; give the storyteller something to play (a want, a tension, a tell, a line of dialogue in their voice for people).",
       canonRule(d.basedOn),
       `"keys": 2–6 trigger words: the names, nicknames and short phrases a story uses when this matters. Never common words that would fire on every message. "aliases": other names it goes by (can be empty). "essentials": one sentence, the single most important fact.`,
-      d.options.secrets && !faithful ? `"secrets": 0–2 hidden truths that would change scenes if revealed, each with "knownBy" (who knows it, by name). Only where it fits; most entries have none.` : `"secrets": [] unless the source states a secret, with "knownBy" naming who knows it.`,
+      hidden ? `"secrets": the hidden truth (the same as its "truth" part), with "knownBy" naming who knows it.` : d.options.secrets && !faithful ? `"secrets": 0–2 hidden truths that would change scenes if revealed, each with "knownBy" (who knows it, by name). Only where it fits; most entries have none.` : `"secrets": [] unless the source states a secret, with "knownBy" naming who knows it.`,
       faithful ? "Use only what the source notes say; keep every name, number and fact exact; add nothing." : "Stay consistent with the overview, the source and the rest of the plan; invent only details that fit.",
       d.basedOn ? "" : AVOID,
-      'Reply with JSON only: {"content": "…", "keys": ["…"], "aliases": ["…"], "essentials": "…", "secrets": [{"text": "…", "knownBy": ["…"]}]}',
+      shaped
+        ? 'Reply with JSON only: {"content": "…", "parts": {…}, "keys": ["…"], "aliases": ["…"], "essentials": "…", "secrets": [{"text": "…", "knownBy": ["…"]}]}'
+        : 'Reply with JSON only: {"content": "…", "keys": ["…"], "aliases": ["…"], "essentials": "…", "secrets": [{"text": "…", "knownBy": ["…"]}]}',
     ]
       .filter(Boolean)
       .join(" "),
@@ -1431,8 +1458,10 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
       prefsBlock(d),
       others.length ? `THE REST OF THE LOREBOOK:\n${others.join("\n")}` : "",
       parent ? `IT SITS INSIDE: ${parent.title}: ${parent.essentials}` : "",
+      subjects.length ? `IT'S ABOUT:\n${subjects.map((s) => `${s.name}: ${s.text}`).join("\n\n")}` : "",
+      subjects.some((s) => s.research) ? `THEIR WIKI PAGE (canon: use these facts; the author's changes win):\n${subjects.find((s) => s.research)!.research.slice(0, 5000)}` : "",
       it.folder ? `FOLDER: ${it.folder}` : "",
-      `THIS ENTRY: ${it.title}${it.type ? ` (${it.type})` : ""}${it.pitch ? `: ${it.pitch}` : ""}`,
+      `THIS ENTRY: ${it.title}${kind ? ` (${kind})` : it.type ? ` (${it.type})` : ""}${it.pitch ? `: ${it.pitch}` : ""}`,
       it.source.trim() ? `SOURCE NOTES FOR THIS ENTRY:\n${it.source.trim().slice(0, 12_000)}` : "",
       it.research?.text ? `ITS WIKI PAGE (canon: use these facts; the author's changes win):\n${it.research.text}` : "",
       it.entry && it.steer.trim() ? `THE CURRENT DRAFT (rewrite it):\n${it.entry.content}` : "",
@@ -1448,13 +1477,22 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
   // A translated entry never keeps the original's name as a key or alias (unless it's part of the new one).
   const oldName = vs?.state === "changed" && vs.from && !name.toLowerCase().includes(vs.from.toLowerCase()) ? vs.from.toLowerCase() : "";
   const notOld = (k: string) => !oldName || k.trim().toLowerCase() !== oldName;
-  const keys = dedupe([name, ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim()) && notOld(k)));
+  // A kind keyed on its names takes its title as a key; a voice, a reaction or a term list doesn't ("Reaction: Mira, when…" isn't a word anyone says).
+  const titleKey = !kind || CATEGORY_INFO[kind].fires === "names" || CATEGORY_INFO[kind].fires === "meaning";
+  const keys = dedupe([...(titleKey ? [name] : []), ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim()) && notOld(k)));
+  const parts = cleanParts(kind, r.data.parts);
+  const secrets = r.data.secrets.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), knownBy: dedupe(s.knownBy) })).slice(0, 3);
+  // A hidden truth the writer left only in its parts is kept as a secret, by the people it's about.
+  const truth = hiddenSecret(kind, parts, subjects.map((s) => s.name));
+  if (truth && !secrets.some((s) => s.text.toLowerCase() === truth.text.toLowerCase())) secrets.unshift(truth);
+  const content = joinParts(kind, r.data.content, parts);
   return {
-    content: r.data.content.trim(),
-    keys: keys.slice(0, 8),
+    content,
+    keys: keys.slice(0, kind === "lexicon" ? 30 : 8),
     aliases: dedupe(r.data.aliases).filter((a) => notOld(a) && !keys.some((k) => k.toLowerCase() === a.toLowerCase())).slice(0, 6),
     essentials: r.data.essentials.trim() || firstSentences(r.data.content),
-    secrets: r.data.secrets.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), knownBy: dedupe(s.knownBy) })).slice(0, 3),
+    secrets: secrets.slice(0, 3),
+    ...(Object.keys(parts).length ? { parts } : {}),
   };
 }
 
@@ -1806,6 +1844,9 @@ export function commitDraft(id: string, input: CommitInput = {}) {
       let entry = defaultEntry({ comment: it.title, keys: e.keys, content: e.content, constant: it.constant, extra });
       // I1: the category's place and priority (an always-on choice of yours stays).
       if (it.category) entry = { ...withCategory(entry, it.category, { defaults: true }), ...(it.constant ? { constant: true } : {}) };
+      // docs/17, 3.4: what fires it, by kind (a voice with its person, a reaction on its topic, a relationship on both names).
+      if (it.category) entry = withFiring(entry, it.category, subjectsOf(d, it), e.parts ?? {});
+      if (e.parts && Object.keys(e.parts).length) entry = { ...entry, extra: { ...entry.extra, parts: e.parts } };
       const made = createEntry(bookId, entry);
       saved.set(it.id, made.id);
     }

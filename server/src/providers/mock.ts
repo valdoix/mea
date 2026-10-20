@@ -242,8 +242,24 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const notes = user.split("SOURCE NOTES FOR THIS ENTRY:\n")[1]?.split("\n\n")[0];
       const content = notes ? notes.trim() : `${title} is part of this world. ${m?.[3] ?? ""} People speak of it in low voices, and it shapes what happens next.`.replace(/\s+/g, " ").trim();
       const asks = user.match(/^THE AUTHOR ASKS: (.*)$/m)?.[1];
+      // A satellite names who it's about (docs/17), as a model reading IT'S ABOUT would.
+      const subject = user.match(/^IT'S ABOUT:\n(.+?):/m)?.[1];
+      // docs/17: a kind's parts, when asked for (lists get three, a few with their own shape).
+      const ask = system.match(/"parts": an object with these keys[^:]*: (.*?)\.(?: |$)/)?.[1] ?? "";
+      const LISTS: Record<string, string[]> = {
+        "sample lines": ["teasing: You'll want boots for that, little fish.", "angry: Say it again, in my tower.", "scared: Sit with me till it's light."],
+        terms: ["dark lamp: a night with no light in the tower", "little fish: a newcomer to the harbour", "keeper: whoever minds the lamp"],
+        schedule: ["dawn: the keeper, at the tower", "six: the fishwives, at the auction", "noon: the Guild, on its rounds"],
+        prices: ["lamp oil: a crown a cask", "a bed at the inn: two bits"],
+        coins: ["crown: twenty bits", "bit: a loaf of bread"],
+        clues: ["soot on the second key", "the father's wet boots", "the logbook's torn page"],
+      };
+      const parts = Object.fromEntries(
+        [...ask.matchAll(/"([a-z ]+)"( \[list\])? \(/g)].map(([, key, isList]) => [key, isList ? (LISTS[key!] ?? [`${key} one`, `${key} two`]) : key === "truth" ? "The keeper's father relit it himself with the hidden second key" : `${key} of ${title}`]),
+      );
       return {
-        content: asks ? `${content} (${asks})` : content,
+        ...(ask ? { parts } : {}),
+        content: `${asks ? `${content} (${asks})` : content}${subject ? ` It's about ${subject}.` : ""}`,
         // A version's translated entry: the mock keeps the original's name, as a careless model might.
         keys: [title, ...names(content).filter((n) => n !== title).slice(0, 1), ...(user.match(/^THE ORIGINAL'S ENTRY \("([^"]+)"\)/m)?.slice(1, 2) ?? [])],
         aliases: user.match(/^THE ORIGINAL'S ENTRY \("([^"]+)"\)/m)?.slice(1, 2) ?? [],

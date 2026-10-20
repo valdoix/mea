@@ -68,6 +68,7 @@ const entrySchema = z.object({
   aliases: z.array(z.string().max(100)).max(20),
   essentials: z.string().max(1000),
   secrets: z.array(z.object({ text: z.string().max(1000), knownBy: z.array(z.string().max(100)).max(20) })).max(10),
+  parts: z.record(z.string().max(60), z.union([z.string().max(4000), z.array(z.string().max(600)).max(40)])).optional(),
 });
 const itemSchema = z.object({
   title: z.string().max(200),
