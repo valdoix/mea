@@ -43,13 +43,43 @@ export function climateFrom(text: string | undefined): string {
   return "maritime";
 }
 
-export function latitudeFrom(text: string | undefined): number {
+/**
+ * Latitude from text. A setting the author typed may be a bare number ("34", "34N"); story text
+ * needs a degree sign or the word, so "circa 2001" isn't 70° north.
+ */
+export function latitudeFrom(text: string | undefined, opts: { typed?: boolean } = {}): number {
   const t = (text ?? "").toLowerCase();
-  const n = /(-?\d+(?:\.\d+)?)\s*°?\s*([ns])?/.exec(t);
+  const n = opts.typed
+    ? /(-?\d+(?:\.\d+)?)\s*°?\s*([ns])?/.exec(t)
+    : /(-?\d+(?:\.\d+)?)\s*°\s*([ns])?/.exec(t) ?? /latitude\s*(?:of\s*)?(-?\d+(?:\.\d+)?)\s*°?\s*([ns])?/.exec(t);
   if (n) return Math.max(-70, Math.min(70, Number(n[1]) * (n[2] === "s" ? -1 : 1)));
   if (/tropic|equator/.test(t)) return 10;
   if (/arctic|polar|subarctic/.test(t)) return 64;
   return /south/.test(t) ? -45 : 45;
+}
+
+/** Real places (and a few famous fictional towns) a story names: their climate and latitude. */
+const PLACES: [RegExp, string, number][] = [
+  [/\b(california|los angeles|san francisco|san diego|hollywood|sunnydale)\b/gi, "mediterranean", 34],
+  [/\b(seattle|portland|vancouver|forks)\b/gi, "maritime", 47],
+  [/\b(new york|manhattan|brooklyn|boston|chicago|toronto|detroit|hawkins|indiana|ohio)\b/gi, "continental", 41],
+  [/\b(texas|arizona|nevada|las vegas|phoenix|new mexico|albuquerque)\b/gi, "desert", 33],
+  [/\b(florida|miami|hawaii|honolulu|caribbean|jamaica|bali)\b/gi, "tropical", 22],
+  [/\b(london|england|scotland|ireland|wales|dublin|edinburgh|paris|amsterdam|hogwarts)\b/gi, "maritime", 52],
+  [/\b(rome|italy|greece|athens|spain|madrid|barcelona|lisbon|provence)\b/gi, "mediterranean", 40],
+  [/\b(tokyo|japan|seoul|korea|beijing|moscow|berlin|vienna|prague)\b/gi, "continental", 40],
+  [/\b(alaska|anchorage|iceland|reykjavik|norway|siberia)\b/gi, "subarctic", 62],
+  [/\b(sydney|melbourne|new zealand|auckland)\b/gi, "maritime", -36],
+];
+
+/** The place a story names most, as climate and latitude (null when it names none). */
+export function placeClimate(text: string | undefined): { climate: string; latitude: number } | null {
+  let best: { climate: string; latitude: number; n: number } | null = null;
+  for (const [re, climate, latitude] of PLACES) {
+    const n = (text ?? "").match(re)?.length ?? 0;
+    if (n && (!best || n > best.n)) best = { climate, latitude, n };
+  }
+  return best && { climate: best.climate, latitude: best.latitude };
 }
 
 /** Day of the year (1–366) for a story moment; "Day N" stories start in spring. */

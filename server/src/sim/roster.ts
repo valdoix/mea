@@ -63,6 +63,27 @@ function saidOf(text: string, re: RegExp, name?: string): boolean {
   return false;
 }
 
+const FAR_ALL = new RegExp(FAR.source, "gi");
+const PAST_LABEL = /^(?:history|past|origin|backstory|nickname|arc|youth|childhood|born)$/i;
+const PAST_WORDS = /\b(?:1\d{3}|20\d{2}|youth|born|childhood|grew up|once|used to|years ago|formerly)\b/i;
+
+/**
+ * A far-off place said of where they are now ("the Watchers Council in London", "abroad in
+ * Spain"), not of their past ("killed Slayers in New York in 1977", "his wild London youth").
+ */
+function farNow(text: string): boolean {
+  for (const m of text.matchAll(FAR_ALL)) {
+    const before = text.slice(0, m.index);
+    const start = Math.max(...[".", ";", "(", ")", "[", "]", "\n"].map((c) => before.lastIndexOf(c)));
+    const end = text.slice(m.index).search(/[.;()[\]\n]/);
+    const clause = text.slice(start + 1, end < 0 ? undefined : m.index + end);
+    if (PAST_WORDS.test(clause)) continue;
+    if (before[start] === "(" && PAST_LABEL.test(before.slice(0, start).match(/(\w+)\s*$/)?.[1] ?? "")) continue;
+    return true;
+  }
+  return false;
+}
+
 export function readStanding(text: string, name?: string): { standing?: Standing; where?: string } {
   const t = text.toLowerCase();
   if (saidOf(text, DEAD, name)) return { standing: "dead" };
@@ -71,7 +92,7 @@ export function readStanding(text: string, name?: string): { standing?: Standing
   if (/\b(pet|familiar|her (?:dog|cat|horse)|his (?:dog|cat|horse)|steed|dragon of)\b/.test(t)) return { standing: "companion" };
   const away = text.match(/\b(?:lives in|moved to|left for|works in|stationed in|studying in|now in)\s+([A-Z][\w'’ -]{2,40})/);
   if (away) return { standing: "away", where: away[1]!.trim() };
-  if (FAR.test(t)) return { standing: "away" };
+  if (farNow(text)) return { standing: "away" };
   return {};
 }
 
@@ -146,6 +167,14 @@ export interface RosterInput {
   userName: string;
 }
 
+/** "Willow" and "Willow Rosenberg" are the same person: one name is the other's first words. */
+export function samePerson(a: string, b: string): boolean {
+  const x = a.trim().toLowerCase().split(/\s+/);
+  const y = b.trim().toLowerCase().split(/\s+/);
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length > 0 && short.every((w, i) => w === long[i]);
+}
+
 export function buildRoster(inp: RosterInput): Roster {
   const st = inp.state;
   const scene = st.place;
@@ -196,7 +225,12 @@ export function buildRoster(inp: RosterInput): Roster {
   ];
   for (const u of unmet) {
     const id = keyOf(u.name).replace(/[^a-z0-9]+/g, "-");
-    if ([...actors.values()].some((a) => a.name.toLowerCase() === u.name.toLowerCase() || a.id === id)) continue;
+    const twin = [...actors.values()].find((a) => samePerson(a.name, u.name) || a.id === id);
+    if (twin) {
+      // The story calls them "Willow", the lore "Willow Rosenberg": one person, who keeps what the lore says.
+      if (!twin.isUser && u.text && !twin.text.includes(u.text.slice(0, 60))) twin.text = [twin.text, u.text].filter(Boolean).join(". ");
+      continue;
+    }
     if (u.name.toLowerCase() === inp.userName.toLowerCase()) continue;
     const simActor = st.sim.actors[id];
     const read = readStanding(u.text, u.name);

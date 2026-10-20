@@ -1738,6 +1738,8 @@ export interface WorldConfig {
   view: "director" | "surprise";
   climate: string;
   latitude: number;
+  /** The climate comes from the story, not a setting. */
+  climateAuto?: boolean;
   tech: "modern" | "historic" | "fantasy" | "future";
   genres: string[];
   step: number;

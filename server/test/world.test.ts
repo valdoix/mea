@@ -4,8 +4,8 @@ import { confirmArrivals, elsewhereLane } from "../src/sim/crossings";
 import { lean, measureTension, targetTension } from "../src/sim/director";
 import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/sim/grammar";
 import { spreadNews } from "../src/sim/news";
-import { buildRoster, lorePersonName, readStanding } from "../src/sim/roster";
-import { forecast, weatherAt } from "../src/sim/sky";
+import { buildRoster, lorePersonName, readStanding, samePerson } from "../src/sim/roster";
+import { forecast, latitudeFrom, placeClimate, weatherAt } from "../src/sim/sky";
 import { canStep, forcedStep, situationCands, tick, type TickInput } from "../src/sim/storyteller";
 import { validateTelling } from "../src/sim/telling";
 import { parseLine } from "../src/trackers/dsl";
@@ -345,5 +345,34 @@ describe("what the lore says is happening now", () => {
     // Once it's running it doesn't start again.
     advance(st, res);
     expect(situationCands(input(st, { situations })).some((c) => c.grounds[0] === "current:hellions raid port ellis")).toBe(false);
+  });
+});
+
+describe("names, places and climate", () => {
+  test("the story's short name and the lore's full name are one person", () => {
+    expect(samePerson("Willow", "Willow Rosenberg")).toBe(true);
+    expect(samePerson("Willow Rosenberg", "willow")).toBe(true);
+    expect(samePerson("Willow", "Tara Maclay")).toBe(false);
+    expect(samePerson("Rosenberg", "Willow Rosenberg")).toBe(false);
+    const st = world(base);
+    const r = buildRoster({ state: st, profiles: {}, lore: [{ name: "Joss Harlan", text: "Joss Harlan is a dockhand. He wants to buy his own boat." }], userName: "Alex" });
+    expect([...r.actors.values()].filter((a) => a.name.startsWith("Joss"))).toHaveLength(1);
+    expect(r.byName("Joss")!.text).toContain("dockhand");
+  });
+
+  test("far places in someone's past don't send them away", () => {
+    expect(readStanding("arc(killed Slayers in China in 1900 and New York in 1977; chipped in 1999)", "Spike").standing).toBeUndefined();
+    expect(readStanding("nickname(Ripper - his wild London youth)", "Rupert Giles").standing).toBeUndefined();
+    expect(readStanding("Quentin Travers is the head of the Watchers Council in London.", "Quentin Travers").standing).toBe("away");
+    expect(readStanding("location(abroad in Spain)", "Hank Summers").standing).toBe("away");
+  });
+
+  test("a year isn't a latitude; a named place sets the climate", () => {
+    expect(latitudeFrom("a Valley-girl flip, circa 2001")).toBe(45);
+    expect(latitudeFrom("at latitude 34 N")).toBe(34);
+    expect(latitudeFrom("51.5° N")).toBe(51.5);
+    expect(latitudeFrom("34", { typed: true })).toBe(34);
+    expect(placeClimate("The story begins in Sunnydale in October 2001. Giles has flown back to England. Sunnydale burns.")).toEqual({ climate: "mediterranean", latitude: 34 });
+    expect(placeClimate("A ship somewhere at sea.")).toBeNull();
   });
 });
