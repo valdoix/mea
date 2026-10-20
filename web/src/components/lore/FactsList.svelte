@@ -164,7 +164,7 @@
     }
   }
 
-  const ORIGIN: Record<LoreFact["origin"], string> = { card: "from the card", you: "yours", story: "from the story", tracker: "from the trackers", invented: "drafted" };
+  const ORIGIN: Record<LoreFact["origin"], string> = { card: "from the card", studio: "from the studio", you: "yours", story: "from the story", tracker: "from the trackers", invented: "drafted" };
   const label = (f: LoreFact) => (f.slot ? `${(slots.find((s) => s.key === f.slot)?.label ?? f.slot).replace(/^./, (c) => c.toUpperCase())}: ${f.value}` : f.value);
   const where = (f: LoreFact) => f.chatId ?? chatId;
 </script>

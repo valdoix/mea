@@ -139,7 +139,7 @@ describe("3.2 invented details at build time", () => {
     ]);
     // Unconfirmed: sent as likely.
     expect(factLine(r.invented[0]!)).toBe("Birthday: 19 January [likely, not confirmed]");
-    const item = inboxItems().find((i) => i.key === `lore-details:${fresh}`)!;
+    const item = inboxItems().find((i) => i.key === `lore-details:${bookId}`)!;
     expect(item.labels).toEqual({ accept: "Keep all", reject: "Clear them" });
     actOnInbox(item.key, "accept", "Birthday: 2 March\nleft-handed");
     const kept = factsNow(fresh, null);
