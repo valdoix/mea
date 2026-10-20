@@ -63,7 +63,8 @@ export function statsOf(rows: Row[]): SpeedStats {
   const counted = rows.filter((r) => r.status === "done" || (r.status === "error" && !/interrupted by restart/i.test(r.error ?? "")));
   const done = counted.filter((r) => r.status === "done" && r.finished_at);
   const waits = done.filter((r) => r.first_token_at).map((r) => (r.first_token_at! - r.started_at) / 1000);
-  const rates = done.filter((r) => (r.completion_tokens ?? 0) >= MIN_TOKENS && r.finished_at! > r.started_at).map((r) => r.completion_tokens! / ((r.finished_at! - r.started_at) / 1000));
+  // A call over in under a second (a cache, a canned reply) gives a meaningless rate.
+  const rates = done.filter((r) => (r.completion_tokens ?? 0) >= MIN_TOKENS && r.finished_at! - r.started_at >= 1000).map((r) => r.completion_tokens! / ((r.finished_at! - r.started_at) / 1000));
   return {
     n: counted.length,
     firstWord: round1(median(waits)),
