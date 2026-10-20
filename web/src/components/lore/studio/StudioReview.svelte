@@ -8,6 +8,7 @@
   import type { CharacterSummary, LorebookSummary, Persona, StudioDraft } from "../../../lib/types";
   import { tick } from "svelte";
   import StudioItemCard from "./StudioItemCard.svelte";
+  import { LORE_CATEGORIES, SHELVES } from "../../../lib/lorecats";
 
   let { session }: { session: StudioSession } = $props();
   const draft = $derived(session.draft!);
@@ -34,6 +35,13 @@
   const left = $derived(draft.items.filter((i) => !i.keep));
   const unsaved = $derived(written.filter((i) => !i.savedEntryId));
   const titleOf = (id: string) => draft.items.find((i) => i.id === id)?.title ?? "?";
+  // docs/17, 6.3: review by shelf, like the plan, with each shelf's cost.
+  const SHELF_OF = new Map<string, string>(LORE_CATEGORIES.map((c) => [c.id, c.shelf]));
+  const groups = $derived(
+    [...SHELVES.map((x) => ({ id: x.id as string, label: x.label })), { id: "other", label: "No kind yet" }]
+      .map((g) => ({ ...g, items: shown.filter((i) => (SHELF_OF.get(i.category ?? "") ?? "other") === g.id), cost: review?.shelves?.find((x) => x.shelf === g.id) }))
+      .filter((g) => g.items.length),
+  );
 
   async function jump(id: string) {
     filter = "all";
@@ -131,7 +139,7 @@
             <b class="grow">{c.problem}</b>
           </div>
           {#if c.fix}<div class="muted">{c.fix}</div>{/if}
-          {#if c.add}<div class="tiny">Add: <b>{c.add.title}</b>{c.add.pitch ? ` · ${c.add.pitch}` : ""}</div>{/if}
+          {#if c.add}<div class="tiny">{c.kind === "split" ? "Split out" : "Add"}: <b>{c.add.title}</b>{#if c.add.kind} <span class="chip tiny">{LORE_CATEGORIES.find((x) => x.id === c.add?.kind)?.label ?? c.add.kind}</span>{/if}{#if c.add.about?.length} about {c.add.about.map(titleOf).join(" & ")}{/if}{c.add.pitch ? ` · ${c.add.pitch}` : ""}</div>{/if}
           <div class="row wrap">
             {#each c.items as id (id)}<button class="link tiny" onclick={() => jump(id)}>{titleOf(id)}</button>{/each}
             <span class="grow"></span>
@@ -158,13 +166,21 @@
     </div>
   {/if}
 
-  <div class="items">
-    {#each shown as it (it.id)}
-      <StudioItemCard {session} item={it} issues={issuesOf(it.id)} stale={stale[it.id] ?? []} tokens={review?.tokens[it.id] ?? 0} bind:open={() => open[it.id] ?? false, (v) => (open[it.id] = v)} />
-    {:else}
-      <p class="muted small">{filter === "look" ? "Nothing needs a look." : filter === "unwritten" ? "Everything is written." : "Nothing planned yet. Go back to Plan."}</p>
-    {/each}
-  </div>
+  {#each groups as g (g.id)}
+    <div class="stack tight">
+      <div class="row between wrap shelf">
+        <b class="small">{g.label} <span class="tiny muted">{g.items.length}</span></b>
+        {#if g.cost && g.cost.tokens}<span class="tiny muted">{g.cost.tokens} tokens{#if g.cost.alwaysOnTokens} · <b class:always={g.cost.alwaysOnTokens > 0}>{g.cost.alwaysOnTokens} in every message</b>{/if}</span>{/if}
+      </div>
+      <div class="items">
+        {#each g.items as it (it.id)}
+          <StudioItemCard {session} item={it} issues={issuesOf(it.id)} stale={stale[it.id] ?? []} tokens={review?.tokens[it.id] ?? 0} bind:open={() => open[it.id] ?? false, (v) => (open[it.id] = v)} />
+        {/each}
+      </div>
+    </div>
+  {:else}
+    <p class="muted small">{filter === "look" ? "Nothing needs a look." : filter === "unwritten" ? "Everything is written." : "Nothing planned yet. Go back to Plan."}</p>
+  {/each}
 
   {#if left.length}
     <details>
@@ -240,6 +256,13 @@
   .items {
     display: grid;
     gap: 0.5rem;
+  }
+  .shelf {
+    padding: 0.2rem 0.1rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .always {
+    color: var(--accent-ink);
   }
   details .items {
     margin-top: 0.5rem;

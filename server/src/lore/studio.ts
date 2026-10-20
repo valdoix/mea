@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { CATEGORIES, CATEGORY_INFO, type Category, guessCategory, withCategory } from "./format";
+import { CATEGORIES, CATEGORY_INFO, type Category, guessCategory, SHELVES, withCategory } from "./format";
 import { allowedKinds, cleanMix, isSatellite, type Mix, mixBrief, mixFromTypes, PLAN_WHEN } from "./mix";
-import { cleanParts, HIDDEN_PART, hiddenSecret, joinParts, KIND_BRIEF, type Parts, partsAsk, SHAPES, voiceProblems, voiceSlotValues, withFiring, wordsFor } from "./shapes";
+import { cleanParts, HIDDEN_PART, hiddenSecret, joinParts, KIND_BRIEF, type Parts, partsAsk, SHAPES, voiceSlotValues, withFiring, wordsFor } from "./shapes";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -18,7 +18,7 @@ import { getPersona } from "../services/personas";
 import { essentialsOf, extraOf } from "./activate";
 import { ENTRY_TEMPLATES } from "./assist";
 import { baseTitle, cleanTitle, type EntryType, entryFromSource, firstSentences, parseDocument } from "./ingest";
-import { checkEntries, type EntryLength, STOCK_NAMES, STOCK_PHRASES } from "./quality";
+import { checkEntries, checkKinds, type EntryLength, STOCK_NAMES, STOCK_PHRASES } from "./quality";
 import { createEntry, createLorebook, getLorebook, type LinkType, linkLorebook, linkedBooks, updateEntry } from "./service";
 import { createFact } from "./facts";
 import { defaultEntry } from "./types";
@@ -174,7 +174,8 @@ export interface CritiqueIssue {
   items: string[];
   problem: string;
   fix: string;
-  add: { title: string; type: EntryType | null; pitch: string } | null;
+  /** A new plan line; with docs/17 (6.2) its kind, and who a satellite is about (item ids). */
+  add: { title: string; type: EntryType | null; pitch: string; kind?: Category | null; about?: string[] } | null;
 }
 
 export interface StudioDraft {
@@ -1585,15 +1586,37 @@ export function reviewDraft(id: string) {
     for (const i of drafted)
       for (const l of findLeaks(d.version.plan.map, [{ where: "field", key: i.id, label: i.title, text: [i.entry!.content, ...i.entry!.keys, ...i.entry!.aliases].join("\n") }]))
         (issues[i.id] ??= []).push({ kind: "leak", severity: "warn", message: l.state === "changed" ? `"${l.term}" is "${l.to}" in this version.` : `"${l.term}" doesn't exist in this version.` });
-  // docs/17, 4.1: a voice needs three sample lines, each something they'd say.
-  for (const i of drafted) if (i.category === "voice") for (const message of voiceProblems(i.entry!.parts ?? {})) (issues[i.id] ??= []).push({ kind: "voice", severity: "warn", message });
+  // docs/17, 6.1: each kind's own checks (a voice's sample lines, a mystery's clues, a routine's times…).
+  const inBook = book?.entries ?? [];
+  const known = [...d.items.filter((i) => i.keep).map((i) => baseTitle(i.title)), ...inBook.map((e) => e.comment), ...cast];
+  const history = [...d.items.filter((i) => i.keep && i.category === "history").map((i) => i.title), ...inBook.filter((e) => (e.extra as { category?: string }).category === "history").map((e) => e.comment)];
+  const byKind = checkKinds(
+    drafted.map((i) => {
+      const subjects = subjectsOf(d, i);
+      return { id: i.id, title: i.title, kind: i.category, content: i.entry!.content, keys: i.entry!.keys, parts: i.entry!.parts ?? {}, secrets: i.entry!.secrets, subjects: subjects.map((x) => x.name), missingSubjects: Math.max(0, i.about.filter((a) => a !== "user").length - subjects.length) };
+    }),
+    { basedOn: d.basedOn, length: d.options.length, known, history },
+  );
+  for (const [id, list] of Object.entries(byKind)) (issues[id] ??= []).push(...list);
   const tokens = Object.fromEntries(drafted.map((i) => [i.id, countTokens(i.entry!.content)]));
   const overviewTokens = d.options.overview ? countTokens(d.overview) : 0;
   const stale = Object.fromEntries(drafted.map((i) => [i.id, staleReasons(d, i)]).filter(([, r]) => r!.length));
+  // 6.3: the cost by shelf (the overview counts as ground truth); always-on is what every message pays.
+  const shelves = [...SHELVES.map((x) => x.id), "other" as const].map((shelf) => {
+    const mine = drafted.filter((i) => (i.category ? CATEGORY_INFO[i.category].shelf : "other") === shelf);
+    const own = shelf === "ground" ? overviewTokens : 0;
+    return {
+      shelf,
+      entries: mine.length,
+      tokens: mine.reduce((n, i) => n + (tokens[i.id] ?? 0), 0) + own,
+      alwaysOnTokens: mine.filter((i) => i.constant || i.category === "current").reduce((n, i) => n + (tokens[i.id] ?? 0), 0) + own,
+    };
+  });
   return {
     issues,
     tokens,
     stale,
+    shelves,
     cost: {
       entries: drafted.length,
       totalTokens: Object.values(tokens).reduce((a, b) => a + b, 0) + overviewTokens,
@@ -1637,7 +1660,7 @@ const critiqueSchema = z.object({
         kind: z.string().default("quality"),
         problem: z.string(),
         fix: z.string().default(""),
-        add: z.object({ title: z.string(), type: z.string().default(""), pitch: z.string().default("") }).nullable().optional(),
+        add: z.object({ title: z.string(), type: z.string().default(""), pitch: z.string().default(""), kind: z.string().default(""), about: z.array(z.string()).default([]) }).nullable().optional(),
       }),
     )
     .default([]),
@@ -1653,6 +1676,8 @@ export async function critiqueDraft(id: string) {
   const drafted = d.items.filter((i) => i.keep && i.entry);
   if (!drafted.length) throw badRequest("Write some entries first");
   const missing = uncovered(d).slice(0, 40);
+  // docs/17, 6.2: the shelf board's gaps, so an "add" comes with its kind and who it's about.
+  const gaps = kindGaps(d).map((g) => `${CATEGORY_INFO[g.kind].label}${g.label ? ` for ${g.label}` : ""}`);
   const r = await callJson({
     task: "summarizer",
     kind: "studio:critique",
@@ -1664,11 +1689,12 @@ export async function critiqueDraft(id: string) {
       '"flat" (generic, tells instead of shows, nothing a scene can use, stock phrasing);',
       d.basedOn ? `"canon" (gets ${d.basedOn} wrong where the author didn't change it, or misses canon detail that matters);` : "",
       '"keys" (trigger words too common to be safe, or missing the nicknames the story would use);',
-      '"split" (one entry covers two subjects that each need their own);',
-      '"gap" (a person, place or thing the entries lean on, or canon has, with no entry: give "add" with its title, type and a one-line pitch).',
+      '"split" (one entry covers two subjects that each need their own; or a Character entry is mostly how they talk, react or what they hide: give "add" for the entry to split out, with its "kind" (voice, reaction, secret…) and "about" (the person\'s exact title));',
+      '"gap" (a person, place or thing the entries lean on, or canon has, with no entry, or one of THE PLAN\'S GAPS: give "add" with its title, type, "kind" (from KINDS), "about" (exact titles, for an entry about a person) and a one-line pitch).',
+      `KINDS: ${CATEGORIES.join(", ")}.`,
       'Each issue cites entries by number (none for a gap), states the problem in one sentence, and gives "fix": an instruction a writer could follow as is ("Give Lottie her visions starting before the crash and her lithium; name her father"). At most 14 issues, most important first. If it\'s strong, return few.',
       canonRule(d.basedOn),
-      'Reply with JSON only: {"issues": [{"entries": [1], "kind": "flat", "problem": "…", "fix": "…", "add": null}]}',
+      'Reply with JSON only: {"issues": [{"entries": [1], "kind": "flat", "problem": "…", "fix": "…", "add": null}]} ("add": {"title": "…", "type": "…", "kind": "…", "about": ["…"], "pitch": "…"} where it applies)',
     ]
       .filter(Boolean)
       .join(" "),
@@ -1676,8 +1702,9 @@ export async function critiqueDraft(id: string) {
       d.overview.trim() ? `OVERVIEW:\n${d.overview.trim()}` : "",
       canonBlock(d.basedOn),
       researchBlock(d.research),
-      `ENTRIES:\n${drafted.map((i, k) => `${k + 1}. ${i.title}${i.type ? ` (${i.type})` : ""} [keys: ${i.entry!.keys.join(", ")}]: ${i.entry!.content.replace(/\s+/g, " ").slice(0, 900)}`).join("\n")}`,
+      `ENTRIES:\n${drafted.map((i, k) => `${k + 1}. ${i.title}${i.category ? ` (${i.category})` : i.type ? ` (${i.type})` : ""} [keys: ${i.entry!.keys.join(", ")}]: ${i.entry!.content.replace(/\s+/g, " ").slice(0, 900)}`).join("\n")}`,
       missing.length ? `IN THE CENSUS BUT NOT PLANNED: ${missing.map((e) => e.name).join(", ")}` : "",
+      gaps.length ? `THE PLAN'S GAPS: ${gaps.join("; ")}` : "",
     ]
       .filter(Boolean)
       .join("\n\n"),
@@ -1692,19 +1719,33 @@ export async function critiqueDraft(id: string) {
         items: x.entries.map((n) => drafted[n - 1]?.id).filter((v): v is string => Boolean(v)),
         problem: x.problem.trim(),
         fix: x.fix.trim(),
-        add: x.add?.title.trim() ? { title: cleanTitle(x.add.title), type: asType(x.add.type), pitch: x.add.pitch.trim() } : null,
+        add: x.add?.title.trim() ? critiqueAdd(cur, x.add) : null,
       }))
       .filter((x) => x.problem && (x.items.length || x.add))
       .slice(0, 14);
   });
 }
 
-/** Applies one of the editor's fixes: a rewrite of the entries it names with that steer, or the missing entry added to the plan. */
+/** An editor's "add", with its kind and (for a satellite) who it's about, as item ids. */
+function critiqueAdd(d: StudioDraft, a: { title: string; type: string; pitch: string; kind: string; about: string[] }): NonNullable<CritiqueIssue["add"]> {
+  const kind = asKind(a.kind);
+  const people = d.items.filter(isPerson);
+  const about = kind && isSatellite(kind) ? [...new Set(a.about.map((n) => people.find((p) => p.title.toLowerCase() === n.trim().toLowerCase())?.id ?? people.find((p) => covers([p.title], n))?.id).filter((v): v is string => Boolean(v)))] : [];
+  return { title: cleanTitle(a.title), type: kind ? (CATEGORY_INFO[kind].type ?? asType(a.type)) : asType(a.type), pitch: a.pitch.trim(), ...(kind ? { kind } : {}), ...(about.length ? { about } : {}) };
+}
+
+/**
+ * Applies one of the editor's fixes: a rewrite of the entries it names with that steer, or the
+ * missing entry added to the plan (with its kind; a split-out satellite about its person).
+ */
 export function applyCritique(id: string, issueId: string) {
   const d = mustDraft(id);
   const issue = d.critique?.find((x) => x.id === issueId);
   if (!issue) throw notFound("That note is gone");
-  if (issue.add && !d.items.some((i) => covers([i.title], issue.add!.title))) addItem(id, { title: issue.add.title, type: issue.add.type, pitch: issue.add.pitch });
+  const add = issue.add;
+  // A satellite is a duplicate only of one like it ("Voice: Mira Vell" isn't Mira Vell herself).
+  const dup = (i: StudioItem) => (add?.kind && isSatellite(add.kind) ? i.title.toLowerCase() === add.title.toLowerCase() || (i.category === add.kind && CATEGORY_INFO[add.kind].subject === "one" && i.about[0] === add.about?.[0]) : covers([i.title], add!.title));
+  if (add && !d.items.some(dup)) addItem(id, { title: add.title, type: add.type, pitch: add.pitch, ...(add.kind ? { category: add.kind } : {}), ...(add.about?.length ? { about: add.about } : {}) });
   if (issue.items.length) queueWrite(id, { itemIds: issue.items, steer: issue.fix || issue.problem });
   return mutate(id, (cur) => void (cur.critique = (cur.critique ?? []).filter((x) => x.id !== issueId)));
 }

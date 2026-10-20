@@ -65,10 +65,10 @@ describe("4.2–4.3 a studio book's voices and people", () => {
     const cur = getDraft(d.id)!;
     expect(cur.items.find((i) => i.id === voice.id)!.entry!.parts?.["pet names"]).toEqual(["pet names one", "pet names two"]);
     // Review: the mock's three sample lines pass; a flat one is flagged.
-    expect(reviewDraft(d.id).issues[voice.id]?.filter((i) => i.kind === "voice") ?? []).toEqual([]);
+    expect(reviewDraft(d.id).issues[voice.id]?.filter((i) => i.kind === "kind") ?? []).toEqual([]);
     const e = cur.items.find((i) => i.id === loose.id)!.entry!;
     patchItem(d.id, loose.id, { entry: { ...e, parts: { ...e.parts, "sample lines": ["quiet, slow and gentle"] } } });
-    expect(reviewDraft(d.id).issues[loose.id]!.filter((i) => i.kind === "voice")).toHaveLength(2);
+    expect(reviewDraft(d.id).issues[loose.id]!.filter((i) => i.kind === "kind")).toHaveLength(2);
 
     const { bookId } = commitDraft(d.id);
     const entries = getLorebook(bookId)!.entries;

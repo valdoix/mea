@@ -12,8 +12,8 @@ One PR per part. Build the next part while CI runs; merge only when green.
 | 2 | Planning by kind (recipes, mix, satellites, Pack, shelf board) | merged, PR #124 |
 | 3 | Writing by kind (`lore/shapes.ts`: briefs, parts, kept secrets, firing by kind) | merged, PR #125 |
 | 4 | Voices that hold | merged, PR #126 |
-| 5 | Kinds the story machinery reads (timeline boundary, sim-readable kinds, shared moments) | branch `claude/lore-kinds-writing-s57q65` |
-| 6 | Review by kind (per-kind checks, kind-aware critique, review by shelf) | todo |
+| 5 | Kinds the story machinery reads (timeline boundary, sim-readable kinds, shared moments) | merged, PR #127 |
+| 6 | Review by kind (per-kind checks, kind-aware critique, review by shelf) | branch `claude/lore-kinds-writing-s57q65` |
 | 7 | Cards and personas (companion/persona books, depth answers' kinds, entry ↔ card) | todo; needs 4 |
 
 ### Part 4 (2026-10-20)
@@ -29,6 +29,13 @@ One PR per part. Build the next part while CI runs; merge only when green.
 - 5.2: `sim/roster.ts` `routinesFrom` reads Routine schedule lines ("6–9: Tam Reed, at the quay", "noon — Tam — the Anchor", "18:00-21:00: Tam, home"); `buildRoster({ schedules })` gives people routines and places offstage ones by the clock. `sim/service.ts`: `loreSchedules`, `climateEntry` (a Climate entry beats the guessed climate), Hook entries go to `loreSituations` with `hook: true` and `tick` offers them as proposals (ground `hook:<title>`), never arcs.
 - 5.3: subjects can be `card:<id>` (the companion book's card). `companionMoments` plans Shared moments from the card's scenario / first message / examples (only stated ones when faithful), with `cues` (trigger words, never a name) that the writer keeps as keys. A shared moment never keys on its people's names (`withFiring`).
 - Tests: `server/test/lorestory.test.ts`.
+
+### Part 6 (2026-10-20)
+
+- 6.1: `quality.ts` `checkKinds` (issue kind `"kind"`, which replaced Part 4's `"voice"`): voice (3+ sample lines, no describing lines, no "never says" word used), current (present tense, ≤1 clause of backstory, who/where), upcoming (future, not already in History), relationship (names both, where it stands now), reaction (trigger, not keyed on the person), hidden-truth kinds (truth kept in secrets), mystery (3+ clues, a red herring unless lean), lexicon/money (5+, terms keyed), routine (3+ times, people known), timeline ("not yet" when based on canon), satellites (subject still exists). `reviewDraft` runs it and returns `shelves` (tokens and always-on by shelf; the overview counts as ground).
+- 6.2: the critique sees each entry's kind and the plan's gaps; an "add" carries `kind` and `about` (item ids); "split" can split out a satellite. `applyCritique` treats a satellite as a duplicate only of one like it.
+- 6.3: `StudioReview.svelte` groups by shelf with each shelf's cost; `StudioItemCard.svelte` shows the kind's parts above the text (sample lines as quotes, the truth marked "kept secret").
+- Tests: `server/test/lorereview.test.ts`.
 
 ## Things worth knowing
 

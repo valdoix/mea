@@ -8,12 +8,21 @@
   import { ChevronDown, ChevronRight, CircleAlert, ExternalLink, Loader, PenLine, Plus, RotateCcw, Trash, TriangleAlert, UserPen, Users } from "../../../lib/icons";
   import { STEERS, type StudioSession, typeMeta } from "../../../lib/studio.svelte";
   import type { StudioEntry, StudioIssue, StudioItem } from "../../../lib/types";
+  import { categoryLabel } from "../../../lib/lorecats";
 
   let { session, item, issues = [], stale = [], tokens = 0, open = $bindable(false) }: { session: StudioSession; item: StudioItem; issues?: StudioIssue[]; stale?: string[]; tokens?: number; open?: boolean } = $props();
 
   const meta = $derived(typeMeta(item.type));
   const busy = $derived(item.status === "queued" || item.status === "writing");
   const warns = $derived(issues.filter((i) => i.severity === "warn").length);
+
+  // docs/17, 6.3: the kind's shape above the text (sample lines as quotes, clues and prices as lists).
+  const HIDDEN = new Set(["truth"]);
+  const parts = $derived(Object.entries(item.entry?.parts ?? {}).filter(([, v]) => (Array.isArray(v) ? v.length : String(v).trim())));
+  const quoted = (line: string) => {
+    const m = line.match(/^\s*([a-z][\w ,'-]{0,24}):\s*(.+)$/i);
+    return m ? { mood: m[1]!.trim(), text: m[2]!.trim().replace(/^["“]|["”]$/g, "") } : { mood: "", text: line.replace(/^["“]|["”]$/g, "") };
+  };
 
   function saveEntry(p: Partial<StudioEntry>, delay = 500) {
     if (!item.entry) return;
@@ -76,6 +85,26 @@
         </ul>
       {/if}
 
+      {#if item.entry && parts.length}
+        <div class="shape">
+          <span class="label">{categoryLabel(item.category) || "Parts"}</span>
+          {#each parts as [key, value] (key)}
+            <div class="part" class:kept={HIDDEN.has(key)}>
+              <span class="tiny faint">{key}{HIDDEN.has(key) ? " · kept secret" : ""}</span>
+              {#if Array.isArray(value)}
+                {#if key === "sample lines"}
+                  {#each value as line, k (k)}{@const q = quoted(line)}<div class="small quote">“{q.text}”{#if q.mood}<span class="tiny faint"> {q.mood}</span>{/if}</div>{/each}
+                {:else}
+                  <ul class="small">{#each value as v, k (k)}<li>{v}</li>{/each}</ul>
+                {/if}
+              {:else}
+                <div class="small">{value}</div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+
       {#if item.entry}
         <fieldset class="stack" disabled={busy}>
           <label class="field">
@@ -132,6 +161,25 @@
 </div>
 
 <style>
+  .shape {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 8px;
+    background: var(--surface-2, var(--bg));
+    border: 1px solid var(--border);
+  }
+  .shape ul {
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+  .part.kept {
+    border-left: 3px solid var(--rose, #e9a3b5);
+    padding-left: 0.45rem;
+  }
+  .quote {
+    font-style: italic;
+  }
   .vsrc.kept {
     background: color-mix(in srgb, var(--sky, #9cc4ee) 28%, transparent);
   }

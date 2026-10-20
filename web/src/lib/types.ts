@@ -1956,7 +1956,7 @@ export interface CritiqueIssue {
   items: string[];
   problem: string;
   fix: string;
-  add: { title: string; type: LoreType | null; pitch: string } | null;
+  add: { title: string; type: LoreType | null; pitch: string; kind?: string | null; about?: string[] } | null;
 }
 
 export interface StudioDraft {
@@ -2012,6 +2012,8 @@ export interface StudioReview {
   /** Entries written before their sources changed, with what changed. */
   stale: Record<string, string[]>;
   cost: { entries: number; totalTokens: number; alwaysOnTokens: number; averageTokens: number };
+  /** docs/17, 6.3: the cost by shelf ("other" for entries with no kind); the overview counts as ground truth. */
+  shelves?: { shelf: string; entries: number; tokens: number; alwaysOnTokens: number }[];
 }
 
 // ---------- Phase 4: expand my idea, the character and persona creator ----------
