@@ -5,6 +5,8 @@ import { cleanParts, HIDDEN_PART, hiddenSecret, joinParts, KIND_BRIEF, type Part
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
+import { getSetting } from "../lib/settings";
+import { getProfile } from "../services/connections";
 import { countTokens } from "../lib/tokens";
 import { embeddingsEnabled } from "../memory/embed";
 import { getCard } from "../services/characters";
@@ -58,6 +60,8 @@ export interface StudioOptions {
   faithful: boolean;
   /** Save the overview as an always-on entry. */
   overview: boolean;
+  /** The profile this studio's model calls use (unset: Settings › Routing's lore studio choice). */
+  profileId?: string | null;
 }
 
 export interface StudioEntry {
@@ -727,6 +731,7 @@ export async function readBack(id: string, opts: { count?: number } = {}) {
   const r = await callJson({
     task: "helper",
     kind: "studio:readback",
+    profileId: studioProfile(d),
     name: "studio_readback",
     schema: readbackSchema,
     system: `You help an author build a lorebook for interactive fiction (roleplay). ${PURPOSE[d.source.kind]} Read their material, then reply with: "understood": 2–4 sentences on what you understood (premise, tone, what's central); "missing": up to 4 short phrases naming what's still unclear; ${BASED_ON_RULE} "questions": up to ${n} pointed questions worth asking, most important first, each with "why" (one short sentence on what the answer changes in the lorebook) and ${SUGGEST_RULE} Ask about tension, specifics and the author's intent, never trivia, and never what the material (or canon, for an existing work) already answers. Ask, never assert: a question's premise may state only what the author established; raise a new possibility as a question ("is there a faction that…"), never as a fact ("who leads the faction that…"), because an invented premise steers the author and leaks into their canon. One thing per question, in plain words. Reply with JSON only: {"understood": "…", "missing": ["…"], "basedOn": "", "questions": [{"q": "…", "why": "…", "suggestions": ["…", "…", "…"]}]}`,
@@ -747,7 +752,17 @@ export async function readBack(id: string, opts: { count?: number } = {}) {
 
 // ---------- expand my idea ----------
 
+/**
+ * The profile a draft's model calls try first: its own pick, else Settings › Routing's lore studio
+ * choice. Unset (or a deleted profile) leaves each call on its task's routing, as before.
+ */
+export function studioProfile(d: Pick<StudioDraft, "options">): string | null {
+  for (const id of [d.options.profileId, getSetting("routing.tasks").studio]) if (id && getProfile(id)) return id;
+  return null;
+}
+
 const expandCtx = (d: StudioDraft) => ({
+  profileId: studioProfile(d),
   idea: d.source.text.length > MAX_SOURCE_CHARS ? d.source.text.slice(0, MAX_SOURCE_CHARS) : d.source.text,
   answers: d.questions
     .filter((q) => q.answer.trim())
@@ -783,6 +798,7 @@ export async function directions(id: string, steer = "") {
   const r = await callJson({
     task: "helper",
     kind: "studio:directions",
+    profileId: studioProfile(d),
     name: "studio_directions",
     schema: directionsSchema,
     system: `You help an author shape a setting for interactive fiction. Offer three genuinely different directions their material could take: different central tensions, not three flavours of one. Each: "title" (2–5 words) and "pitch" (two concrete sentences). ${steer.trim() ? `Lean: ${steer.trim()}.` : ""} ${AVOID} Reply with JSON only: {"directions": [{"title": "…", "pitch": "…"}]}`,
@@ -806,6 +822,7 @@ export async function researchLore(id: string, opts: { urls?: string[] } = {}) {
   const r = await callText({
     task: "summarizer",
     kind: "studio:research",
+    profileId: studioProfile(d),
     system: BRIEF_RULE(d.basedOn || d.title),
     user: [`THE AUTHOR'S PREMISE (for what matters; the brief is canon only):\n${d.source.text.slice(0, 4000)}`, `THE RESEARCH:\n${g.text}`].join("\n\n"),
     maxTokens: 5000,
@@ -873,6 +890,7 @@ export async function takeCensus(id: string) {
   const r = await callJson({
     task: "summarizer",
     kind: "studio:census",
+    profileId: studioProfile(d),
     name: "studio_census",
     schema: censusSchema,
     system: [
@@ -930,6 +948,7 @@ async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?
   const r = await callJson({
     task: "summarizer",
     kind: "studio:outline",
+    profileId: studioProfile(d),
     name: "studio_outline",
     schema: outlineSchema,
     system: [
@@ -1250,6 +1269,7 @@ async function satellitePass(d: StudioDraft, pool: StudioItem[], targets: SatTar
   const r = await callJson({
     task: "summarizer",
     kind: "studio:satellites",
+    profileId: studioProfile(d),
     name: "studio_satellites",
     schema: satSchema,
     system: [
@@ -1317,6 +1337,7 @@ async function companionMoments(d: StudioDraft, pool: StudioItem[], taken: Set<s
   const r = await callJson({
     task: "summarizer",
     kind: "studio:moments",
+    profileId: studioProfile(d),
     name: "studio_moments",
     schema: momentSchema,
     system: [
@@ -1598,6 +1619,7 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
   const r = await callJson({
     task: "summarizer",
     kind: "studio:entry",
+    profileId: studioProfile(d),
     jobId: job?.id,
     name: "studio_entry",
     schema: entrySchema,
@@ -1736,6 +1758,7 @@ export async function consistencyCheck(id: string) {
   const r = await callJson({
     task: "summarizer",
     kind: "studio:consistency",
+    profileId: studioProfile(d),
     name: "studio_consistency",
     schema: consistencySchema,
     system:
@@ -1781,6 +1804,7 @@ export async function critiqueDraft(id: string) {
   const r = await callJson({
     task: "summarizer",
     kind: "studio:critique",
+    profileId: studioProfile(d),
     name: "studio_critique",
     schema: critiqueSchema,
     system: [
@@ -1890,6 +1914,7 @@ export async function cowriteLore(id: string, message: string) {
   const ask = async (looked: string) => (await callJson({
     task: "assistant",
     kind: "studio:cowrite",
+    profileId: studioProfile(d),
     name: "studio_cowrite",
     schema: cowriteSchema,
     system: [

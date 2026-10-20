@@ -5,7 +5,8 @@
   import { SlidersHorizontal } from "../../../lib/icons";
   import { kindsByShelf, type Shelf } from "../../../lib/lorecats";
   import type { StudioSession } from "../../../lib/studio.svelte";
-  import type { MixLevel, StudioOptions, StudioRecipe } from "../../../lib/types";
+  import { app } from "../../../lib/state.svelte";
+  import type { MixLevel, Profile, StudioOptions, StudioRecipe } from "../../../lib/types";
 
   let { session, open = false }: { session: StudioSession; open?: boolean } = $props();
   const o = $derived(session.draft!.options);
@@ -20,6 +21,14 @@
   $effect(() => {
     get<{ recipes: StudioRecipe[] }>("/api/lore-studio-recipes").then((r) => (recipes = r.recipes), () => {});
   });
+  // Which model this studio uses: its own pick, or Settings › Routing's.
+  let profiles = $state<Profile[]>([]);
+  $effect(() => {
+    get<{ profiles: Profile[] }>("/api/profiles").then((r) => (profiles = r.profiles), () => {});
+  });
+  const routed = $derived(profiles.find((p) => p.id === app.settings?.["routing.tasks"].studio)?.name ?? "memory summaries' profile");
+  const profileName = $derived(profiles.find((p) => p.id === o.profileId)?.name ?? "");
+
   // Solid shelf colours (a room's chips can be see-through).
   const HUE: Record<Shelf, string> = { ground: "var(--butter)", people: "var(--rose)", world: "var(--sky)", time: "var(--mint)", scenes: "var(--lavender)" };
   const STEPS: (MixLevel | undefined)[] = [undefined, "few", "each", "all"];
@@ -48,7 +57,7 @@
 </script>
 
 <details class="panel" use:opened={open}>
-  <summary class="small"><SlidersHorizontal size={15} /> <b>Shape of the lorebook</b> <span class="muted">{o.size === "complete" ? "everything" : o.size} · {o.length} entries{recipeName ? ` · ${recipeName}` : ""}{mixCount ? ` · ${mixCount} kinds, about ${estimate} entries` : ""}{session.draft!.basedOn ? ` · ${session.draft!.basedOn}` : ""}{o.tone ? ` · ${o.tone}` : ""}</span></summary>
+  <summary class="small"><SlidersHorizontal size={15} /> <b>Shape of the lorebook</b> <span class="muted">{o.size === "complete" ? "everything" : o.size} · {o.length} entries{recipeName ? ` · ${recipeName}` : ""}{mixCount ? ` · ${mixCount} kinds, about ${estimate} entries` : ""}{session.draft!.basedOn ? ` · ${session.draft!.basedOn}` : ""}{o.tone ? ` · ${o.tone}` : ""}{profileName ? ` · ${profileName}` : ""}</span></summary>
   <div class="stack body">
     <div class="field">
       <span class="label">Recipe <span class="faint">sets the mix below; tap again to clear</span></span>
@@ -96,6 +105,13 @@
       <label class="field"><span class="label">Tone and genre</span><input class="input" value={o.tone} oninput={(e) => set("tone", e.currentTarget.value, 600)} placeholder="quiet gothic, cozy fantasy, hard sci-fi…" /></label>
       <label class="field"><span class="label">Style notes for entries</span><input class="input" value={o.style} oninput={(e) => set("style", e.currentTarget.value, 600)} placeholder="British spelling; no modern slang" /></label>
     </div>
+    <label class="field">
+      <span class="label">Model <span class="faint">the profile that plans, researches and writes this lorebook</span></span>
+      <select class="select" value={o.profileId ?? ""} onchange={(e) => set("profileId", e.currentTarget.value || null)}>
+        <option value="">From Settings › Routing ({routed})</option>
+        {#each profiles as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+      </select>
+    </label>
     <div class="row wrap toggles">
       <label class="switch"><input type="checkbox" checked={o.secrets} onchange={(e) => set("secrets", e.currentTarget.checked)} /> Invent secrets (with who knows them)</label>
       <label class="switch"><input type="checkbox" checked={o.faithful} onchange={(e) => set("faithful", e.currentTarget.checked)} /> Only what the source says</label>

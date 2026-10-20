@@ -56,7 +56,7 @@ export interface Settings {
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
   "quota.cache": unknown;
   /** Helper task routing (CONN-03): profile ids; null falls back to the story profile. */
-  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null; planner?: string | null };
+  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null; planner?: string | null; /** The Lore Studio (unset: the memory summaries' profile, per call's task). */ studio?: string | null };
   /** Fallback chains per task (CONN-05): profile ids tried in order. */
   "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[]; planner?: string[] };
   /** Timeouts per task in seconds. Story: time to the first token. */

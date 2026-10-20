@@ -257,11 +257,13 @@ export interface TextCall {
   temperature?: number;
   /** Returns a problem to send back once ("the reply had no ledger lines"), or null when it's usable. */
   validate?: (text: string) => string | null;
+  /** A profile to try first, ahead of the task's routing (a Lore Studio's own pick). */
+  profileId?: string | null;
 }
 
 /** A plain-text helper call (tracker ledgers): the task's chain, quota deferral, one corrective retry. */
 export async function callText(call: TextCall): Promise<{ text: string; generationId: string; usage?: Usage; model: string; inputTokens: number }> {
-  const chain = resolveTaskChain(call.task);
+  const chain = resolveTaskChain(call.task, call.profileId ?? undefined);
   let lastError: unknown = null;
   const asJson = { ...call, name: "text", schema: z.any() } as JsonCall<z.ZodType>;
   for (const r of chain) {

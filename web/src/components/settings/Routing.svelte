@@ -145,6 +145,13 @@
         </label>
       </div>
     {/each}
+    <div class="card task row between wrap">
+      <div><b>Lore studio</b><div class="tiny muted">plans, researches and writes lorebooks; each studio can still pick its own under "Shape of the lorebook"</div></div>
+      <select class="select narrow" value={s["routing.tasks"].studio ?? ""} onchange={(e) => void save("routing.tasks", { ...s["routing.tasks"], studio: e.currentTarget.value || null })}>
+        <option value="">Same as memory summaries</option>
+        {#each profiles as p (p.id)}<option value={p.id}>{p.name}{billingOf(p) === "paygo" ? " (paid)" : ""}</option>{/each}
+      </select>
+    </div>
   </section>
 
   <section class="stack tight">
