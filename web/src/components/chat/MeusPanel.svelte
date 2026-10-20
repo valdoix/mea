@@ -8,7 +8,7 @@
   import { navigate } from "../../lib/router.svelte";
   import { wordDiff } from "../../lib/diff";
   import { onEvent } from "../../lib/events";
-  import { autosize } from "../../lib/gestures";
+  import { autosize, opened } from "../../lib/gestures";
   import { Check, Loader, MessagesSquare, Send, Trash, Undo } from "../../lib/icons";
   import { meus } from "../../lib/meus.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
@@ -291,7 +291,7 @@
             {:else if c.kind === "memory_forget" || c.kind === "codex_delete"}
               <span class="small diff"><span class="del">{c.before}</span></span>
             {:else if showsDiff(c)}
-              <details open={!long(c)}>
+              <details use:opened={!long(c)}>
                 <summary class="tiny muted">{long(c) ? "Show the changes" : "Changes"}</summary>
                 <p class="small diff">{#each wordDiff(c.before, c.after) as part, k (k)}<span class={part.type}>{part.text}</span>{/each}</p>
               </details>

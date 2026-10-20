@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { opened } from "../../lib/gestures";
   import Self from "./DataField.svelte";
   import { PERSON_KEYS } from "../../lib/dataedit";
   import { Plus, X } from "../../lib/icons";
@@ -24,7 +25,7 @@
 </script>
 
 {#if kind === "object" || kind === "list"}
-  <details class="group" open={!folded}>
+  <details class="group" use:opened={!folded}>
     <summary class="tiny">
       <b>{label}</b>
       <span class="faint">{kind === "list" ? `${v.length} ${v.length === 1 ? "entry" : "entries"}` : ""}</span>

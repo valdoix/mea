@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { opened } from "../../../lib/gestures";
   import Segmented from "../../Segmented.svelte";
   import { get } from "../../../lib/api";
   import { SlidersHorizontal } from "../../../lib/icons";
@@ -46,7 +47,7 @@
   }
 </script>
 
-<details class="panel" {open}>
+<details class="panel" use:opened={open}>
   <summary class="small"><SlidersHorizontal size={15} /> <b>Shape of the lorebook</b> <span class="muted">{o.size === "complete" ? "everything" : o.size} · {o.length} entries{recipeName ? ` · ${recipeName}` : ""}{mixCount ? ` · ${mixCount} kinds, about ${estimate} entries` : ""}{session.draft!.basedOn ? ` · ${session.draft!.basedOn}` : ""}{o.tone ? ` · ${o.tone}` : ""}</span></summary>
   <div class="stack body">
     <div class="field">

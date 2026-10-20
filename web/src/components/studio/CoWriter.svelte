@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { opened } from "../../lib/gestures";
   import DOMPurify from "dompurify";
   import { marked } from "marked";
   import { tick } from "svelte";
@@ -136,7 +137,7 @@
               {:else if c.kind === "add"}
                 <span class="small diff"><span class="add">{c.after}</span></span>
               {:else}
-                <details open={!long(c)}>
+                <details use:opened={!long(c)}>
                   <summary class="tiny muted">{long(c) ? "Show the changes" : "Changes"}</summary>
                   <p class="small diff">{#each wordDiff(c.before, c.after) as part, k (k)}<span class={part.type}>{part.text}</span>{/each}</p>
                 </details>

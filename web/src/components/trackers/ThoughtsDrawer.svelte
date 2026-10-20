@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { opened } from "../../lib/gestures";
   import { storyColors, voiceColor } from "../../lib/voices";
   import { trk } from "../../lib/trackers.svelte";
   import type { TrackerChange } from "../../lib/types";
@@ -16,7 +17,7 @@
 </script>
 
 {#if inner.length}
-  <details class="drawer" {open}>
+  <details class="drawer" use:opened={open}>
     <summary><span class="dots" aria-hidden="true">∴</span> What went unsaid <span class="count">{inner.length}</span></summary>
     <div class="in">
       {#each inner as c, i (i)}
