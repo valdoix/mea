@@ -1,4 +1,5 @@
 import { CATEGORY_INFO, type Category } from "./format";
+import { slotDef, VOICE_SLOTS } from "./slots";
 import type { LoreEntry } from "./types";
 
 /**
@@ -56,7 +57,7 @@ export const KIND_BRIEF: Partial<Record<Category, string>> = {
   rule: "This entry is a rule that must always hold: state it plainly, why it holds, and its exceptions. Short.",
   power: "This entry is a power (a magic, technology or ability): how it works in a scene, what it costs, and the limits a storyteller must respect.",
   ooc: "This entry is a note to the writer, out of character: style, pacing, point of view, limits. Imperative, short, no story content.",
-  voice: "This entry is how one person talks, written to be imitated. \"content\" is two sentences on the sound of them (rhythm, register, what they reach for), not adjectives about them; the sample lines carry the rest. The sample lines are new lines in their voice, never quotes from a source.",
+  voice: "This entry is how one person talks, written to be imitated. \"content\" is two sentences on the sound of them (rhythm, register, what they reach for), not adjectives about them; the sample lines carry the rest. Don't repeat the pet names, catchphrases, greeting or goodbye in the content: they go to the storyteller on their own. The sample lines are new lines in their voice, never quotes from a source.",
   relationship: "This entry is what's between two people: how they met, what each is to the other, the tension, and where it stands right now. Name both by their exact titles.",
   family: "This entry is a household or bloodline: its members with their roles, who leads it, how they get on, and the feuds.",
   moment: "This entry is one remembered moment two people share: when, where, what happened and what was said, and what it means to each of them now. Write it so mentioning it brings it all back.",
@@ -211,4 +212,54 @@ export function withFiring(e: LoreEntry, kind: Category, subjects: { name: strin
     if (terms.length) keys = [...new Set([...terms, ...keys])].slice(0, 30);
   }
   return { ...e, keys, secondaryKeys, logic, constant, extra };
+}
+
+// ---------- voices that hold (docs/17, Part 4) ----------
+
+/** A value that says there's nothing ("none", "-", "n/a"). */
+const EMPTY = /^(?:none|nothing|n\/?a|-+|—|no|\(none\)|not applicable|doesn't|does not)\.?$/i;
+const PRONOUN = /\b(?:i|i'm|i'll|i've|i'd|me|my|mine|we|us|our|you|you're|you'll|your|yours|it|it's|that|this|there|here|let's|don't|can't|won't)\b/i;
+
+/** Words that describe a voice: adjective endings, and the plain ones people use for voices. */
+const DESCRIBING = /(?:y|ly|ful|ous|ive|ish|ed|ing|al|ic|less|ent|ant|able|ible)$|^(?:warm|soft|low|gruff|dry|flat|sharp|cold|quiet|loud|slow|fast|terse|curt|harsh|gentle|calm|rough|smooth|sweet|blunt|crisp|deep|high|kind|bold|shy|proud|stern|wry|arch|coy)$/i;
+
+/** The words of a sample line, its mood dropped ("teasing: You'll want boots" → "You'll want boots"). */
+const lineOf = (s: string) => (s.match(/^\s*[a-z][\w ,'-]{0,24}:\s*(.+)$/i)?.[1] ?? s).trim().replace(/^["“]|["”]$/g, "");
+
+/** A line that's only describing words ("warm, gruff and teasing"), not something anyone would say. */
+export function onlyAdjectives(line: string): boolean {
+  const t = lineOf(line);
+  if (!t || /[?!]/.test(t) || PRONOUN.test(t)) return false;
+  const words = t.replace(/[.,;]/g, " ").split(/\s+/).filter(Boolean);
+  const bits = t.replace(/\.$/, "").split(/\s*(?:,|;|\band\b|\bbut\b)\s*/i).filter(Boolean);
+  const describing = bits.filter((b) => DESCRIBING.test(b.split(/\s+/).pop()!));
+  return words.length <= 8 && bits.length >= 2 && bits.every((b) => b.split(/\s+/).length <= 2) && describing.length * 2 >= bits.length;
+}
+
+/** What a Voice draft is missing: three sample lines, and lines that are speech, not adjectives. */
+export function voiceProblems(parts: Parts): string[] {
+  const lines = list(parts["sample lines"]);
+  const out: string[] = [];
+  if (lines.length < 3) out.push(lines.length ? `Only ${lines.length} sample line${lines.length > 1 ? "s" : ""}; three or more, in different moods, make the voice hold.` : "No sample lines: the storyteller needs three or more to imitate.");
+  const flat = lines.filter(onlyAdjectives);
+  if (flat.length) out.push(`${flat.map((l) => `“${lineOf(l)}”`).join(", ")} describe${flat.length > 1 ? "" : "s"} the voice instead of using it. Write what they'd say.`);
+  return out;
+}
+
+/**
+ * The voice slots a Voice entry's parts fill (4.2): pet names, catchphrases, swearing, greeting,
+ * goodbye and words they'd never use, one value each (a list slot gets one per item).
+ */
+export function voiceSlotValues(parts: Parts): { slot: string; value: string }[] {
+  const out: { slot: string; value: string }[] = [];
+  for (const slot of VOICE_SLOTS) {
+    const values = slotDef(slot)?.list ? list(parts[slot]) : [one(parts[slot])];
+    for (const v of values) {
+      let value = v.replace(/^["“]|["”]$/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
+      // "Swearing: none" says something (they don't); an empty pet name says nothing.
+      if (slot === "swearing" && EMPTY.test(value)) value = "doesn't swear";
+      if (value && !EMPTY.test(value) && !out.some((x) => x.slot === slot && x.value.toLowerCase() === value.toLowerCase())) out.push({ slot, value });
+    }
+  }
+  return out;
 }

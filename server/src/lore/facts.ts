@@ -16,10 +16,10 @@ import { durationIn, isSingleSlot, slotDef } from "./slots";
  */
 
 export type FactKind = "attribute" | "never" | "state" | "event" | "habit" | "voice" | "bond";
-export type FactOrigin = "card" | "you" | "story" | "tracker" | "invented";
+export type FactOrigin = "card" | "studio" | "you" | "story" | "tracker" | "invented";
 export type FactStatus = "active" | "superseded" | "disputed" | "invented";
 export const FACT_KINDS: FactKind[] = ["attribute", "never", "state", "event", "habit", "voice", "bond"];
-export const FACT_ORIGINS: FactOrigin[] = ["card", "you", "story", "tracker", "invented"];
+export const FACT_ORIGINS: FactOrigin[] = ["card", "studio", "you", "story", "tracker", "invented"];
 
 interface FactRow {
   id: string;

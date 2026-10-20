@@ -2,7 +2,7 @@ import { all } from "../db/db";
 import { registerInboxProvider } from "../accuracy/inbox";
 import { confirmFact, factLine, getFact, retireFact } from "./facts";
 import { afterApplied, cardText, decideUpdate, updateProposals } from "./keepup";
-import { decideDetails, inventedFacts } from "./details";
+import { decideBookDetails, detailsByBook, detailsText } from "./details";
 import { coverageFindings, fixFinding } from "./coverage";
 import { compactProposals, decideCompaction } from "./compact";
 import { now, run } from "../db/db";
@@ -44,27 +44,28 @@ registerInboxProvider({
   },
 });
 
-// 3.2: details drafted for a character's book, waiting for your yes (they belong to no chat).
+// 3.2: details drafted for a book's people, waiting for your yes (they belong to no chat).
+// docs/17, 4.3: one card per book, however many people it drafted for.
 registerInboxProvider({
   kind: "lore-details",
   source: "lore",
   global: true,
   items: () =>
-    inventedFacts().map((x) => ({
-      key: `lore-details:${x.entryId}`,
+    detailsByBook().map((b) => ({
+      key: `lore-details:${b.bookId}`,
       chatId: "",
       chatTitle: "",
-      title: `Details drafted for ${x.name || "an entry"}`,
-      why: "The card leaves these open, so Mea drafted them to keep every chat the same. Until you keep them they're sent as “likely”, not as fact.",
+      title: b.people.length > 1 ? `Details drafted for ${b.people.length} people` : `Details drafted for ${b.people[0]!.name || "an entry"}`,
+      why: "The lore leaves these open, so Mea drafted them to keep every chat the same. Until you keep them they're sent as “likely”, not as fact.",
       before: null,
-      after: x.facts.map((f) => factLine(f)).join("\n"),
+      after: detailsText(b),
       editable: true,
-      createdAt: Math.max(...x.facts.map((f) => f.createdAt)),
-      link: `/lorebooks/${x.bookId}?entry=${x.entryId}`,
+      createdAt: Math.max(...b.people.flatMap((x) => x.facts.map((f) => f.createdAt))),
+      link: b.people.length > 1 ? `/lorebooks/${b.bookId}` : `/lorebooks/${b.bookId}?entry=${b.people[0]!.entryId}`,
       labels: { accept: "Keep all", reject: "Clear them" },
     })),
   act: (id, action, edited) => {
-    decideDetails(id, action, { edited });
+    decideBookDetails(id, action, edited);
     return null;
   },
 });

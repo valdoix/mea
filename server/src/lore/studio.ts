@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CATEGORIES, CATEGORY_INFO, type Category, guessCategory, withCategory } from "./format";
 import { allowedKinds, cleanMix, isSatellite, type Mix, mixBrief, mixFromTypes, PLAN_WHEN } from "./mix";
-import { cleanParts, HIDDEN_PART, hiddenSecret, joinParts, KIND_BRIEF, type Parts, partsAsk, SHAPES, withFiring, wordsFor } from "./shapes";
+import { cleanParts, HIDDEN_PART, hiddenSecret, joinParts, KIND_BRIEF, type Parts, partsAsk, SHAPES, voiceProblems, voiceSlotValues, withFiring, wordsFor } from "./shapes";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -20,6 +20,7 @@ import { ENTRY_TEMPLATES } from "./assist";
 import { baseTitle, cleanTitle, type EntryType, entryFromSource, firstSentences, parseDocument } from "./ingest";
 import { checkEntries, type EntryLength, STOCK_NAMES, STOCK_PHRASES } from "./quality";
 import { createEntry, createLorebook, getLorebook, type LinkType, linkLorebook, linkedBooks, updateEntry } from "./service";
+import { createFact } from "./facts";
 import { defaultEntry } from "./types";
 import { findLeaks, type VariantPlan, variantBlock } from "../creator/variantcore";
 
@@ -1291,6 +1292,9 @@ const entrySchema = z.object({
 });
 
 /** A satellite's subjects: who it's about, with their names and what's written of them so far. */
+/** Whose voice a Voice entry is, from its title ("Voice: Mira Vell" → "Mira Vell"). */
+export const voiceOwner = (title: string) => baseTitle(title.replace(/^\s*voice\s*(?:of|:|—|-)\s*/i, "").replace(/['’]s voice\s*$/i, ""));
+
 function subjectsOf(d: StudioDraft, it: StudioItem) {
   const book = d.targetBookId ? getLorebook(d.targetBookId) : undefined;
   return it.about.flatMap((ref) => {
@@ -1434,6 +1438,7 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
       `"content": ${wordsFor(WORDS[d.options.length], kind)} words, third person, present tense, plain declarative sentences a storyteller can use in a scene: concrete looks, behaviour, history, relationships and stakes.${template ? ` Cover what fits of: ${template.fields.join(", ")}.` : ""} No headings, no lists of adjectives, no meta commentary.`,
       kind ? (KIND_BRIEF[kind] ?? "") : "",
       kind && shaped ? partsAsk(kind) : "",
+      kind === "voice" && d.basedOn ? "They're from an existing work: keep their canon speech (accent, dialect, signature words and turns of phrase) from what's written of them and their wiki page." : "",
       subjects.length || withUser ? `It's about ${[...subjects.map((s) => s.name), ...(withUser ? ["{{user}} (the player's character; never decide what {{user}} does or feels)"] : [])].join(" and ")}: stay true to what's written of them under IT'S ABOUT.` : "",
       "Tie it into the world: name the two or three other entries it matters most to and how (who they love, owe, fear or lie to; where it is; who holds it), using their exact titles. Show character through what they do and say, not adjectives; give the storyteller something to play (a want, a tension, a tell, a line of dialogue in their voice for people).",
       canonRule(d.basedOn),
@@ -1513,6 +1518,8 @@ export function reviewDraft(id: string) {
     for (const i of drafted)
       for (const l of findLeaks(d.version.plan.map, [{ where: "field", key: i.id, label: i.title, text: [i.entry!.content, ...i.entry!.keys, ...i.entry!.aliases].join("\n") }]))
         (issues[i.id] ??= []).push({ kind: "leak", severity: "warn", message: l.state === "changed" ? `"${l.term}" is "${l.to}" in this version.` : `"${l.term}" doesn't exist in this version.` });
+  // docs/17, 4.1: a voice needs three sample lines, each something they'd say.
+  for (const i of drafted) if (i.category === "voice") for (const message of voiceProblems(i.entry!.parts ?? {})) (issues[i.id] ??= []).push({ kind: "voice", severity: "warn", message });
   const tokens = Object.fromEntries(drafted.map((i) => [i.id, countTokens(i.entry!.content)]));
   const overviewTokens = d.options.overview ? countTokens(d.overview) : 0;
   const stale = Object.fromEntries(drafted.map((i) => [i.id, staleReasons(d, i)]).filter(([, r]) => r!.length));
@@ -1846,6 +1853,8 @@ export function commitDraft(id: string, input: CommitInput = {}) {
       if (it.category) entry = { ...withCategory(entry, it.category, { defaults: true }), ...(it.constant ? { constant: true } : {}) };
       // docs/17, 3.4: what fires it, by kind (a voice with its person, a reaction on its topic, a relationship on both names).
       if (it.category) entry = withFiring(entry, it.category, subjectsOf(d, it), e.parts ?? {});
+      // docs/17, 4.2: a voice with no subject picked still belongs to the person its title names ("Voice: Mira").
+      if (it.category === "voice" && !entry.extra.entity) entry = { ...entry, extra: { ...entry.extra, entity: voiceOwner(it.title) } };
       if (e.parts && Object.keys(e.parts).length) entry = { ...entry, extra: { ...entry.extra, parts: e.parts } };
       const made = createEntry(bookId, entry);
       saved.set(it.id, made.id);
@@ -1867,8 +1876,21 @@ export function commitDraft(id: string, input: CommitInput = {}) {
     cur.targetBookId = bookId;
     cur.stage = "done";
   });
+  // docs/17, 4.2: a voice's slots (pet names, catchphrases, greeting…) become canon facts, so the re-anchor and the drift alert use them from the first chat.
+  for (const it of items) {
+    const eid = saved.get(it.id);
+    if (it.action !== "write" || it.category !== "voice" || !eid || !it.entry?.parts) continue;
+    for (const v of voiceSlotValues(it.entry.parts)) createFact(eid, { value: v.value, slot: v.slot, kind: "voice", origin: "studio" });
+  }
   if (embeddingsEnabled()) enqueue("lore.embed", {}, { dedupeKey: "lore.embed", delayMs: 4000 });
   // docs/15, 3.2: a companion book's details stage: the card's small details, and the gaps drafted for your yes.
   if (d.source.kind === "character" && d.source.refId) enqueue("lore.details", { bookId, characterId: d.source.refId }, { dedupeKey: `lore.details:${bookId}`, delayMs: 2000, priority: 0 });
+  // docs/17, 4.3: and every person the studio wrote gets theirs (the card's own character is covered above).
+  const card = d.source.kind === "character" ? baseTitle(d.source.refName).toLowerCase() : "";
+  for (const it of items) {
+    const eid = saved.get(it.id);
+    if (it.action === "write" && eid && (it.category === "character" || (!it.category && it.type === "character")) && baseTitle(it.title).toLowerCase() !== card)
+      enqueue("lore.details", { bookId, entryId: eid }, { dedupeKey: `lore.details:${eid}`, delayMs: 2500, priority: 0 });
+  }
   return { bookId, added: saved.size + (wantOverview ? 1 : 0) };
 }

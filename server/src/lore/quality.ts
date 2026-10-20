@@ -8,7 +8,7 @@ import { textGivesAway } from "./shapes";
  */
 
 export interface QualityIssue {
-  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown" | "secret-in-text" | "leak";
+  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown" | "secret-in-text" | "leak" | "voice";
   severity: "info" | "warn";
   message: string;
 }

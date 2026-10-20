@@ -399,7 +399,7 @@ export interface LoreFact {
   untilSeq: number | null;
   messageId: string | null;
   swipeIdx: number;
-  origin: "card" | "you" | "story" | "tracker" | "invented";
+  origin: "card" | "studio" | "you" | "story" | "tracker" | "invented";
   locked: boolean;
   status: "active" | "superseded" | "disputed" | "invented";
   supersededBy: string | null;
