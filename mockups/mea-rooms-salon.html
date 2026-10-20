@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mea Room Salon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..800;1,6..96,400..700&family=Work+Sans:wght@400;500;600&family=Fredoka:wght@400;500;600;700&family=Chewy&family=Nunito:wght@400;600;800&family=Caveat:wght@400;600;700&family=Gochi+Hand&family=Patrick+Hand&family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Press+Start+2P&family=Pinyon+Script&family=Poiret+One&family=Limelight&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,500&family=Jost:wght@300;400;500&display=swap">
+<style>
+/* Layout: a gallery wall. Each room hangs as a full app mockup with a museum plaque; the frames hang salon-style below. */
+:root{
+  --wall:#e6e3ea; --wall-2:#d9d5df; --ink:#1f1c25; --ink-soft:#5d5868; --rule:#bdb7c6; --brass:#a27b3a;
+  --f-display:"Bodoni Moda",Didot,"Times New Roman",serif;
+  --f-ui:"Work Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--wall:#1b1a20;--wall-2:#24222b;--ink:#ece8f2;--ink-soft:#a39dad;--rule:#3c3946;--brass:#d2a75c;color-scheme:dark}}
+:root[data-theme="dark"]{--wall:#1b1a20;--wall-2:#24222b;--ink:#ece8f2;--ink-soft:#a39dad;--rule:#3c3946;--brass:#d2a75c;color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--wall);color:var(--ink);font:400 15px/1.55 var(--f-ui);padding:0 20px;overflow-x:hidden}
+.wrap{max-width:1180px;margin:0 auto;padding-block:56px 96px;display:grid;gap:88px}
+
+/* ---------- gallery chrome ---------- */
+.masthead{display:grid;gap:14px;max-width:760px}
+.eyebrow{font:600 11px/1 var(--f-ui);letter-spacing:.22em;text-transform:uppercase;color:var(--brass)}
+.masthead h1{font:500 clamp(42px,7vw,84px)/.95 var(--f-display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.masthead h1 i{font-weight:400}
+.masthead p{margin:0;color:var(--ink-soft);max-width:60ch;font-size:16px}
+
+.exhibit{display:grid;gap:22px}
+.plaque{display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:end;border-top:1px solid var(--rule);padding-top:16px}
+.plaque .no{font:italic 400 44px/1 var(--f-display);color:var(--brass)}
+.plaque h2{font:500 32px/1.05 var(--f-display);margin:0}
+.plaque .medium{grid-column:2;color:var(--ink-soft);font-size:13.5px;margin:0;max-width:70ch}
+.plaque .toggle{grid-row:1/3;grid-column:3;align-self:center}
+.toggle{display:inline-flex;border:1px solid var(--rule);border-radius:999px;padding:3px;gap:2px;background:var(--wall-2)}
+.toggle button{font:600 11px/1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;border:0;background:transparent;color:var(--ink-soft);padding:9px 14px;border-radius:999px;cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--wall)}
+.toggle button:focus-visible,.frame-card:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+@media (max-width:640px){.plaque{grid-template-columns:auto 1fr}.plaque .toggle{grid-row:auto;grid-column:1/-1;justify-self:start}}
+
+/* ---------- shared app skeleton ---------- */
+.app{--r:18px;position:relative;isolation:isolate;display:grid;grid-template-columns:230px minmax(0,1fr);min-height:640px;border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 30px 60px -30px rgba(20,10,40,.45),0 8px 18px -10px rgba(20,10,40,.3);transition:background-color .5s,color .5s}
+.app .bg{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.side{display:flex;flex-direction:column;gap:14px;padding:22px 16px;min-width:0}
+.brand{display:flex;align-items:center;gap:10px}
+.chats{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.chats li{display:flex;gap:10px;align-items:center;padding:8px 10px;min-width:0}
+.chats li span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main{display:flex;flex-direction:column;min-width:0}
+.head{display:flex;align-items:center;gap:14px;padding:16px 26px}
+.head .who{display:grid;min-width:0}
+.log{flex:1;display:flex;flex-direction:column;gap:22px;padding:22px 26px 10px}
+.msg{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:start;max-width:640px}
+.msg.me{grid-template-columns:minmax(0,1fr) auto;margin-left:auto}
+.msg.me .pt{order:2}
+.msg .bub{min-width:0}
+.msg p{margin:0}
+.msg p + p{margin-top:.55em}
+.composer{display:flex;gap:12px;align-items:center;padding:14px 26px 22px}
+.composer .field{flex:1;min-width:0;display:flex;align-items:center;padding:13px 18px}
+.pt{display:block;width:76px;aspect-ratio:4/5;max-width:100%;background-size:cover;background-position:center}
+.pt.sm{width:34px;aspect-ratio:1;border-radius:50%}
+@media (max-width:760px){.app{grid-template-columns:1fr}.side{display:none}.log,.head,.composer{padding-inline:16px}.pt{width:58px}}
+
+/* =========================================================
+   I. SUGAR RUSH
+   ========================================================= */
+.sugar{--bg:#ffe4ee;--bg2:#ffd0e1;--panel:rgba(255,255,255,.72);--ink:#5b2340;--ink-2:#a35a7c;--straw:#ff7aa8;--mint:#9fe8cf;--lemon:#ffe58a;--lilac:#c9b3ff;--cream:#fff8ef;--shell-me:#ffb3cd;--shell-them:#c9f3e3;--glow:transparent;
+  background:radial-gradient(120% 80% at 0% 0%,#fff3f8 0,transparent 60%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--ink);font:400 15.5px/1.55 "Nunito",system-ui,sans-serif}
+.sugar[data-mode="night"]{--bg:#2a0f2e;--bg2:#1a0920;--panel:rgba(60,18,64,.62);--ink:#ffe3f1;--ink-2:#e79cc4;--straw:#ff3d9a;--mint:#5ff5c9;--lemon:#ffe066;--lilac:#b48cff;--cream:#3d1640;--shell-me:#ff3d9a;--shell-them:#4a1f58;--glow:#ff3d9a;
+  background:radial-gradient(80% 60% at 85% 0%,#5a1a55 0,transparent 60%),linear-gradient(170deg,var(--bg),var(--bg2))}
+.sugar .sprinkles{position:absolute;inset:-200px 0 0 0;background-image:
+  radial-gradient(2px 6px at 20px 30px,var(--straw) 98%,transparent),
+  radial-gradient(6px 2px at 80px 70px,var(--mint) 98%,transparent),
+  radial-gradient(2px 6px at 140px 20px,var(--lemon) 98%,transparent),
+  radial-gradient(6px 2px at 50px 140px,var(--lilac) 98%,transparent),
+  radial-gradient(2px 6px at 170px 120px,#ff9f6b 98%,transparent),
+  radial-gradient(3px 3px at 110px 170px,var(--straw) 98%,transparent);
+  background-size:200px 200px;opacity:.55;animation:fall 22s linear infinite}
+@keyframes fall{to{transform:translate3d(0,200px,0)}}
+.sugar .gumdrop{position:absolute;width:58px;height:48px;border-radius:50% 50% 14px 14px;filter:drop-shadow(0 6px 8px rgba(120,20,70,.18));animation:bob 5s ease-in-out infinite}
+.sugar .gumdrop::after{content:"";position:absolute;left:12px;top:9px;width:14px;height:8px;border-radius:50%;background:rgba(255,255,255,.7);transform:rotate(-25deg)}
+.sugar .g1{right:28px;bottom:120px;background:var(--mint)}
+.sugar .g2{right:84px;bottom:92px;background:var(--lilac);width:44px;height:38px;animation-delay:-1.6s}
+.sugar .g3{right:22px;bottom:62px;background:var(--lemon);width:38px;height:32px;animation-delay:-3s}
+@keyframes bob{50%{transform:translateY(-8px) rotate(-4deg)}}
+.sugar .neon{position:absolute;right:30px;top:86px;font:400 40px/1 "Chewy",cursive;color:var(--straw);opacity:0;transform:rotate(-6deg);text-shadow:0 0 6px var(--straw),0 0 22px var(--straw),0 0 48px var(--straw);transition:opacity .6s}
+.sugar[data-mode="night"] .neon{opacity:.9;animation:buzz 6s steps(1) infinite}
+@keyframes buzz{0%,100%{opacity:.92}47%{opacity:.92}48%{opacity:.35}49%{opacity:.92}51%{opacity:.5}52%{opacity:.92}}
+.sugar .side{background:var(--panel);backdrop-filter:blur(10px);border-right:2px dashed color-mix(in srgb,var(--straw) 45%,transparent)}
+.sugar .brand b{font:400 30px/1 "Chewy",cursive;color:var(--straw);letter-spacing:.01em;text-shadow:2px 2px 0 var(--cream),3px 3px 0 color-mix(in srgb,var(--straw) 40%,transparent)}
+.sugar .brand small{font:700 10px/1.2 "Fredoka";letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.sugar .jar{display:flex;align-items:center;gap:10px;font:600 12px/1 "Fredoka";color:var(--ink-2);text-transform:uppercase;letter-spacing:.12em}
+.sugar .chats li{border-radius:16px;font:500 14.5px/1.2 "Fredoka"}
+.sugar .chats li.on{background:var(--cream);box-shadow:0 4px 0 color-mix(in srgb,var(--straw) 35%,transparent)}
+.sugar .chats li i{flex:none;width:12px;height:12px;border-radius:50%;box-shadow:inset -2px -2px 0 rgba(0,0,0,.12)}
+.sugar .side .tag{margin-top:auto;font:400 22px/1.1 "Chewy";color:var(--ink-2);transform:rotate(-3deg)}
+.sugar .head{border-bottom:2px dotted color-mix(in srgb,var(--straw) 40%,transparent)}
+.sugar .head .name{font:600 22px/1.1 "Fredoka"}
+.sugar .head .sub{font:600 11px/1.3 "Fredoka";letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.sugar .head .chip{margin-left:auto;font:700 11px/1 "Fredoka";letter-spacing:.1em;text-transform:uppercase;padding:8px 12px;border-radius:999px;background:var(--lemon);color:#6a4a00;box-shadow:0 3px 0 #e2b93f}
+.sugar .pt{border-radius:50%;width:70px;aspect-ratio:1;box-shadow:0 0 0 4px var(--cream),0 0 0 8px var(--straw),0 8px 14px -4px rgba(120,20,70,.4)}
+.sugar .msg.me .pt{box-shadow:0 0 0 4px var(--cream),0 0 0 8px var(--mint),0 8px 14px -4px rgba(20,90,70,.35)}
+.sugar .bub{position:relative;padding:16px 20px 18px;border-radius:30px;background:var(--shell-them);
+  box-shadow:inset 0 -7px 0 color-mix(in srgb,#000 6%,transparent),0 7px 0 -2px var(--cream),0 9px 0 -2px color-mix(in srgb,var(--straw) 25%,transparent),0 14px 22px -12px rgba(120,20,70,.35),0 0 26px -6px var(--glow)}
+.sugar .msg.me .bub{background:var(--shell-me)}
+.sugar[data-mode="night"] .msg.me .bub{color:#fff}
+.sugar .bub::before{content:"";position:absolute;left:18px;top:7px;width:46px;height:10px;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(1px)}
+.sugar .bub b.n{display:block;font:600 12px/1 "Fredoka";letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);margin-bottom:6px}
+.sugar .msg.me .bub b.n{color:color-mix(in srgb,var(--ink) 70%,transparent)}
+.sugar em{font-style:normal;color:var(--ink-2)}
+.sugar .reacts{display:flex;gap:6px;margin-top:12px}
+.sugar .reacts span{font:600 12px/1 "Fredoka";padding:5px 9px;border-radius:999px;background:var(--cream);color:var(--ink)}
+.sugar .typing{display:flex;gap:7px;align-items:center;padding-left:84px;font:600 12px "Fredoka";color:var(--ink-2)}
+.sugar .typing i{width:14px;height:14px;border-radius:50%;animation:gum 1.1s ease-in-out infinite;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 2px 2px 0 rgba(255,255,255,.6)}
+.sugar .typing i:nth-child(1){background:var(--straw)}
+.sugar .typing i:nth-child(2){background:var(--mint);animation-delay:.15s}
+.sugar .typing i:nth-child(3){background:var(--lemon);animation-delay:.3s;margin-right:6px}
+@keyframes gum{40%{transform:translateY(-9px)}60%{transform:translateY(0) scale(1.1,.88)}}
+.sugar .field{background:var(--cream);border-radius:999px;color:var(--ink-2);box-shadow:inset 0 3px 0 rgba(0,0,0,.05),0 0 0 2px color-mix(in srgb,var(--straw) 35%,transparent)}
+.sugar .cherry{flex:none;position:relative;width:56px;height:56px;border:0;border-radius:50%;cursor:pointer;background:radial-gradient(circle at 35% 30%,#ff8a9e 0,#e8173f 45%,#a1001f 100%);box-shadow:0 6px 0 #7a0016,0 12px 18px -6px rgba(160,0,30,.6)}
+.sugar .cherry::before{content:"";position:absolute;left:26px;top:-20px;width:20px;height:26px;border:3px solid #4d7a2a;border-color:#4d7a2a transparent transparent #4d7a2a;border-radius:60% 0 0 0;transform:rotate(18deg)}
+.sugar .cherry::after{content:"";position:absolute;left:14px;top:12px;width:12px;height:8px;border-radius:50%;background:rgba(255,255,255,.75);transform:rotate(-30deg)}
+
+/* =========================================================
+   II. DIARY LOCK
+   ========================================================= */
+.diary{--paper:#fdfbf5;--line:#b9d5f2;--margin:#f29bb5;--ink:#2b2a6b;--pen:#ff4fa3;--pen2:#3a8dff;--pen3:#9b5cff;--tape1:#ffd1e6;--tape2:#c7ecff;--tape3:#fff1a8;--sub:#7b77b5;
+  background-color:var(--paper);color:var(--ink);font:400 21px/32px "Patrick Hand","Comic Sans MS",cursive}
+.diary[data-mode="night"]{--paper:#141218;--line:#2b2836;--margin:#5a2340;--ink:#e9e6ff;--pen:#ff8fd0;--pen2:#7fd3ff;--pen3:#c9a6ff;--tape1:#4a2a43;--tape2:#1f3b4d;--tape3:#4a4220;--sub:#9a94c7}
+.diary .bg{background:
+  linear-gradient(90deg,transparent 0 62px,var(--margin) 62px 64px,transparent 64px 68px,var(--margin) 68px 69px,transparent 69px),
+  repeating-linear-gradient(180deg,transparent 0 31px,var(--line) 31px 32px)}
+.diary[data-mode="night"] .bg::after{content:"";position:absolute;inset:0;background-image:
+  radial-gradient(1.5px 1.5px at 30px 40px,#fff 98%,transparent),radial-gradient(1px 1px at 120px 90px,#ffd6f0 98%,transparent),radial-gradient(1.5px 1.5px at 210px 20px,#c6f0ff 98%,transparent),radial-gradient(1px 1px at 70px 170px,#fff 98%,transparent);
+  background-size:240px 200px;animation:twinkle 3.2s ease-in-out infinite alternate}
+@keyframes twinkle{from{opacity:.25}to{opacity:.8}}
+.diary .doodle{position:absolute;color:var(--pen);opacity:.55}
+.diary .side{position:relative;padding-left:88px;padding-right:0;background:transparent}
+.diary .brand{flex-direction:column;align-items:flex-start;gap:0}
+.diary .brand b{font:700 40px/1 "Caveat",cursive;color:var(--pen);transform:rotate(-4deg)}
+.diary .brand small{font:400 17px/1 "Gochi Hand";color:var(--sub);margin-top:4px}
+.diary .lock{display:inline-flex;align-items:center;gap:8px;font:400 16px "Gochi Hand";color:var(--sub)}
+.diary .chats{gap:10px}
+.diary .chats li{position:relative;padding:5px 14px 5px 16px;border-radius:0 6px 6px 0;font:400 19px/1.1 "Gochi Hand";color:#fff;margin-left:-26px;background:var(--c);clip-path:polygon(0 0,100% 0,100% 100%,0 100%,9px 50%);box-shadow:none}
+.diary .chats li.on{margin-left:-40px;padding-left:30px}
+.diary .chats li span{color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.15)}
+.diary .note{margin-top:auto;font:600 22px/1.1 "Caveat";color:var(--pen3);transform:rotate(-5deg);border:2px dashed var(--pen3);padding:8px 10px;border-radius:12px;margin-right:16px}
+.diary .head{padding-top:22px}
+.diary .head .name{font:700 34px/1 "Caveat";color:var(--pen2)}
+.diary .head .sub{font:400 17px/1 "Gochi Hand";color:var(--sub)}
+.diary .date{margin-left:auto;font:400 19px/1 "Gochi Hand";color:var(--pen);transform:rotate(3deg)}
+.diary .strip{flex:none;position:relative;display:grid;gap:5px;padding:6px 6px 16px;background:#fff;box-shadow:0 6px 14px -6px rgba(40,30,90,.35);transform:rotate(-4deg)}
+.diary .msg.me .strip{transform:rotate(3deg)}
+.diary .strip .pt{width:66px;aspect-ratio:1}
+.diary .strip .pt:nth-child(2){filter:grayscale(1) contrast(1.1)}
+.diary .strip::before{content:"";position:absolute;left:50%;top:-12px;width:62px;height:20px;translate:-50% 0;rotate:6deg;background:repeating-linear-gradient(45deg,var(--tape1) 0 6px,color-mix(in srgb,var(--tape1) 70%,#fff) 6px 12px);opacity:.92}
+.diary .msg.me .strip::before{background:repeating-linear-gradient(90deg,var(--tape2) 0 5px,color-mix(in srgb,var(--tape2) 60%,#fff) 5px 10px)}
+.diary .bub{padding:2px 4px}
+.diary .bub b.n{display:inline-block;font:700 28px/1 "Caveat";color:var(--pen);margin-bottom:2px}
+.diary .msg.me .bub b.n{color:var(--pen2)}
+.diary .msg.me{text-align:right}
+.diary .hl{background:linear-gradient(transparent 55%,color-mix(in srgb,var(--tape3) 90%,transparent) 55% 92%,transparent 92%)}
+.diary .sq{text-decoration:underline wavy var(--pen3);text-underline-offset:5px}
+.diary[data-mode="night"] .metal{background:linear-gradient(90deg,#ffb3e0,#fff,#9be7ff,#ffd9a8,#ffb3e0);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen 4s linear infinite}
+@keyframes sheen{to{background-position:200% 0}}
+.diary .typing{padding-left:96px;font:600 24px "Caveat";color:var(--sub)}
+.diary .typing i{display:inline-block;animation:scrib 1s steps(3) infinite}
+@keyframes scrib{0%{opacity:.2}50%{opacity:1}}
+.diary .field{border-bottom:2px solid var(--pen2);font:400 20px "Gochi Hand";color:var(--sub);padding-inline:4px}
+.diary .send{flex:none;font:400 20px "Gochi Hand";padding:8px 18px;border:2px solid var(--pen);color:var(--pen);background:transparent;border-radius:255px 15px 225px 15px/15px 225px 15px 255px;cursor:pointer;transform:rotate(-2deg)}
+
+/* =========================================================
+   III. ARCADE AFTERHOURS
+   ========================================================= */
+/* 1970s woodgrain cabinet by day; amber-and-green phosphor by night. Deliberately no cyan/magenta, which belong to Marquee. */
+.arcade{--bezel:#ecd9b0;--bezel2:#7a4a26;--screen:#fbf1dc;--ink:#3b2314;--p1:#d9531e;--p2:#5f8a1f;--p3:#e8a317;--p4:#2f7d32;--dim:#8a6a4e;--side-ink:#fbe7c0;--glow:0;--scan:.0;
+  background:var(--bezel);color:var(--ink);font:400 14.5px/1.6 "IBM Plex Mono",ui-monospace,monospace}
+.arcade[data-mode="night"]{--bezel:#0c0805;--bezel2:#140d07;--screen:#0c0805;--ink:#ffd38a;--p1:#ff6a2b;--p2:#ffb000;--p3:#fff1b8;--p4:#7dff5a;--dim:#9a7a52;--side-ink:#ffd38a;--glow:1;--scan:.34}
+.arcade .bg{background:radial-gradient(120% 90% at 50% 40%,transparent 55%,rgba(0,0,0,calc(.08 + .5*var(--glow))) 100%)}
+.arcade .side,.arcade .chats li{color:var(--side-ink)}
+.arcade[data-mode="day"] .side{background:repeating-linear-gradient(92deg,#7a4a26 0 7px,#6b3f1f 7px 9px,#82512b 9px 16px,#5f381c 16px 17px);border-right:6px solid #3b2314}
+.arcade[data-mode="day"] .chats li.on{color:var(--ink)}
+.arcade[data-mode="day"] .brand b{color:#ffcf6b;text-shadow:3px 3px 0 #3b2314}
+.arcade[data-mode="day"] .brand small,.arcade[data-mode="day"] .credits{color:#f3c98a}
+.arcade[data-mode="day"] .main::before{content:"";position:absolute;left:0;right:0;top:0;height:8px;background:linear-gradient(90deg,#d9531e 0 25%,#e8a317 25% 50%,#5f8a1f 50% 75%,#3b2314 75%)}
+.arcade .bg::before{content:"";position:absolute;inset:-4px 0 0;background:repeating-linear-gradient(180deg,rgba(0,0,0,var(--scan)) 0 1px,transparent 1px 3px);animation:roll 9s linear infinite}
+@keyframes roll{to{transform:translate3d(0,3px,0)}}
+.arcade .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--p2) 10%,transparent) 50%,transparent);height:120px;opacity:var(--glow);animation:sweep 7s linear infinite}
+@keyframes sweep{from{transform:translateY(-140px)}to{transform:translateY(760px)}}
+.arcade[data-mode="night"] .bg{background:radial-gradient(70% 50% at 70% 0%,rgba(255,176,0,.14),transparent 70%),radial-gradient(60% 50% at 0% 100%,rgba(125,255,90,.08),transparent 70%),radial-gradient(120% 90% at 50% 40%,transparent 55%,rgba(0,0,0,.6) 100%)}
+.arcade .side{background:var(--bezel2);border-right:4px solid var(--ink);gap:18px}
+.arcade[data-mode="night"] .side{border-right:1px solid color-mix(in srgb,var(--p2) 40%,transparent);background:rgba(18,15,29,.85)}
+.arcade .brand{flex-direction:column;align-items:flex-start;gap:6px}
+.arcade .brand b{font:700 21px/1.1 "Silkscreen";color:var(--p1);text-shadow:3px 3px 0 var(--ink)}
+.arcade[data-mode="night"] .brand b{text-shadow:0 0 8px var(--p1),0 0 22px var(--p1)}
+.arcade .brand small{font:400 8px/1.6 "Press Start 2P";color:var(--dim)}
+.arcade .stickers{display:flex;gap:6px}
+.arcade .stickers i{width:22px;height:22px;border-radius:50%;background:var(--c);box-shadow:inset -3px -3px 0 rgba(0,0,0,.2),0 2px 0 var(--ink)}
+.arcade .chats li{font:700 13px/1.2 "Silkscreen";padding:9px 10px;border:2px solid transparent;color:var(--ink)}
+.arcade .chats li.on{border-color:var(--ink);background:var(--screen);box-shadow:4px 4px 0 var(--p1)}
+.arcade[data-mode="night"] .chats li.on{border-color:var(--p2);background:transparent;box-shadow:0 0 12px color-mix(in srgb,var(--p2) 60%,transparent),inset 0 0 12px color-mix(in srgb,var(--p2) 25%,transparent)}
+.arcade .chats li.on::before{content:"▶";color:var(--p1);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.arcade .credits{margin-top:auto;font:400 9px/1.8 "Press Start 2P";color:var(--p3)}
+.arcade[data-mode="night"] .credits{text-shadow:0 0 6px var(--p3)}
+.arcade .main{margin:14px;border-radius:22px/30px;background:var(--screen);border:4px solid var(--ink);overflow:hidden;position:relative}
+.arcade[data-mode="night"] .main{border:1px solid color-mix(in srgb,var(--p2) 35%,transparent);box-shadow:inset 0 0 60px rgba(255,176,0,.08)}
+.arcade .hud{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 22px;font:400 10px/1.6 "Press Start 2P";border-bottom:2px dashed color-mix(in srgb,var(--ink) 30%,transparent)}
+.arcade .hud b{color:var(--p1);font-weight:400}
+.arcade .hud span:nth-child(2) b{color:var(--p3)}
+.arcade[data-mode="night"] .hud b{text-shadow:0 0 8px currentColor}
+.arcade .head .name{font:700 22px/1 "Silkscreen";letter-spacing:.02em}
+.arcade .head .sub{font:500 12px/1.5 "IBM Plex Mono";color:var(--dim)}
+.arcade .hearts{margin-left:auto;font:400 13px "Press Start 2P";color:var(--p1);letter-spacing:4px}
+.arcade .pxf{flex:none;padding:4px;background:var(--screen);box-shadow:0 -4px 0 0 var(--ink),0 4px 0 0 var(--ink),-4px 0 0 0 var(--ink),4px 0 0 0 var(--ink),8px 8px 0 0 var(--p2)}
+.arcade .msg.me .pxf{box-shadow:0 -4px 0 0 var(--ink),0 4px 0 0 var(--ink),-4px 0 0 0 var(--ink),4px 0 0 0 var(--ink),-8px 8px 0 0 var(--p1)}
+.arcade[data-mode="night"] .pxf{box-shadow:0 0 0 2px var(--p2),0 0 16px color-mix(in srgb,var(--p2) 70%,transparent)}
+.arcade[data-mode="night"] .msg.me .pxf{box-shadow:0 0 0 2px var(--p1),0 0 16px color-mix(in srgb,var(--p1) 70%,transparent)}
+.arcade .pt{width:64px;image-rendering:pixelated}
+.arcade .bub{padding:12px 16px;border:2px solid var(--ink);background:color-mix(in srgb,var(--screen) 80%,var(--p2) 6%);position:relative}
+.arcade .msg.me .bub{background:color-mix(in srgb,var(--screen) 82%,var(--p1) 8%)}
+.arcade[data-mode="night"] .bub{border-color:color-mix(in srgb,var(--p2) 55%,transparent);background:rgba(255,176,0,.04);text-shadow:0 0 6px rgba(255,190,90,.35)}
+.arcade[data-mode="night"] .msg.me .bub{border-color:color-mix(in srgb,var(--p4) 55%,transparent);background:rgba(125,255,90,.04);color:#c9ffb3;text-shadow:0 0 6px rgba(125,255,90,.3)}
+.arcade[data-mode="night"] .msg.me .bub b.n{color:var(--p4)}
+.arcade .bub b.n{display:block;font:400 9px/1 "Press Start 2P";color:var(--p2);margin-bottom:9px}
+.arcade .msg.me .bub b.n{color:var(--p1)}
+.arcade .act{color:var(--dim);font-style:italic}
+.arcade .pickup{display:inline-block;margin-top:10px;font:400 9px/1 "Press Start 2P";padding:7px 9px;background:var(--p3);color:#3b2314}
+.arcade[data-mode="night"] .pickup{background:transparent;color:var(--p3);border:1px solid var(--p3);box-shadow:0 0 10px color-mix(in srgb,var(--p3) 50%,transparent)}
+.arcade .typing{padding-left:92px;font:500 13px "IBM Plex Mono";color:var(--dim)}
+.arcade .typing i{display:inline-block;width:10px;height:17px;background:var(--p4);vertical-align:-3px;margin-left:4px;animation:blink 1s steps(1) infinite}
+.arcade[data-mode="night"] .typing i{box-shadow:0 0 10px var(--p4)}
+.arcade .field{border:2px solid var(--ink);font:500 13px "IBM Plex Mono";color:var(--dim)}
+.arcade[data-mode="night"] .field{border-color:color-mix(in srgb,var(--p2) 45%,transparent)}
+.arcade .start{flex:none;font:400 11px/1 "Press Start 2P";padding:15px 16px;border:0;cursor:pointer;background:var(--p1);color:#fff;box-shadow:0 5px 0 #8a2c08;border-radius:6px}
+.arcade[data-mode="night"] .start{background:transparent;color:var(--p1);border:2px solid var(--p1);box-shadow:0 0 14px var(--p1),inset 0 0 10px color-mix(in srgb,var(--p1) 40%,transparent);animation:blink 1.4s steps(1) infinite}
+
+/* =========================================================
+   IV. NOIR SALON
+   ========================================================= */
+.noir{--paper:#f1ece1;--card:#faf7f0;--lacquer:#12100e;--ink:#17140f;--sub:#6e6658;--gold:#a8823a;--gold2:#e0c07a;--smoke:0;
+  --step:polygon(10px 0,calc(100% - 10px) 0,calc(100% - 10px) 5px,calc(100% - 5px) 5px,calc(100% - 5px) 10px,100% 10px,100% calc(100% - 10px),calc(100% - 5px) calc(100% - 10px),calc(100% - 5px) calc(100% - 5px),calc(100% - 10px) calc(100% - 5px),calc(100% - 10px) 100%,10px 100%,10px calc(100% - 5px),5px calc(100% - 5px),5px calc(100% - 10px),0 calc(100% - 10px),0 10px,5px 10px,5px 5px,10px 5px);
+  background:var(--paper);color:var(--ink);font:400 18px/1.55 "Cormorant Garamond",Garamond,serif}
+.noir[data-mode="night"]{--paper:#0e0d0b;--card:#171513;--lacquer:#090807;--ink:#efe5cf;--sub:#a0957f;--gold:#c9a45a;--gold2:#f2d896;--smoke:1}
+.noir .fan{position:absolute;width:220px;height:220px;opacity:.38;background:repeating-radial-gradient(circle at 100% 100%,transparent 0 26px,var(--gold) 26px 27px),repeating-conic-gradient(from 270deg at 100% 100%,var(--gold) 0 .6deg,transparent .6deg 7.5deg);-webkit-mask:radial-gradient(circle at 100% 100%,#000 70%,transparent 71%);mask:radial-gradient(circle at 100% 100%,#000 70%,transparent 71%)}
+.noir .fan.tr{right:-1px;top:-1px;transform:scaleY(-1);transform-origin:center}
+.noir .fan.br{right:-1px;bottom:-1px}
+.noir .smoke{position:absolute;width:420px;height:260px;border-radius:50%;background:radial-gradient(closest-side,rgba(239,229,207,.10),transparent);filter:blur(18px);opacity:var(--smoke);transition:opacity .8s;animation:drift 26s ease-in-out infinite alternate}
+.noir .s1{left:30%;top:40%}.noir .s2{left:55%;top:8%;width:300px;animation-duration:34s;animation-delay:-9s}.noir .s3{left:60%;bottom:-40px;animation-duration:30s;animation-delay:-14s}
+@keyframes drift{from{transform:translate3d(-40px,20px,0) rotate(-6deg) scale(1)}to{transform:translate3d(60px,-40px,0) rotate(8deg) scale(1.25)}}
+.noir .side{background:var(--lacquer);color:#e9dfc8;border-right:1px solid var(--gold);gap:22px;padding-top:28px}
+.noir .brand{flex-direction:column;align-items:flex-start;gap:6px}
+.noir .brand b{font:400 30px/1 "Limelight",serif;color:var(--gold2);letter-spacing:.04em}
+.noir .brand small{font:400 12px/1.3 "Poiret One";letter-spacing:.22em;text-transform:uppercase;color:#bfb196}
+.noir .rule{height:9px;background:linear-gradient(var(--gold),var(--gold)) top/100% 1px no-repeat,linear-gradient(var(--gold),var(--gold)) bottom/100% 1px no-repeat;position:relative}
+.noir .rule::after{content:"";position:absolute;left:50%;top:50%;width:9px;height:9px;background:var(--gold2);transform:translate(-50%,-50%) rotate(45deg)}
+.noir .chats li{font:400 14px/1.2 "Poiret One";letter-spacing:.16em;text-transform:uppercase;color:#cfc3aa;border-bottom:1px solid rgba(201,164,90,.18)}
+.noir .chats li.on{color:var(--gold2)}
+.noir .chats li.on::before{content:"";flex:none;width:7px;height:7px;background:var(--gold2);transform:rotate(45deg)}
+.noir .side .addr{margin-top:auto;font:italic 400 15px/1.4 "Cormorant Garamond";color:#a69a80}
+.noir .head{padding-top:22px;padding-bottom:18px;border-bottom:1px solid var(--gold);box-shadow:0 4px 0 -3px var(--gold)}
+.noir .head .name{font:400 30px/1 "Limelight";letter-spacing:.03em}
+.noir .head .sub{font:italic 400 16px/1.3 "Cormorant Garamond";color:var(--sub)}
+.noir .head .no{margin-left:auto;text-align:right;font:400 11px/1.6 "Poiret One";letter-spacing:.24em;text-transform:uppercase;color:var(--gold)}
+.noir .deco{flex:none;padding:3px;background:linear-gradient(160deg,var(--gold2),var(--gold) 50%,#6d5220);clip-path:var(--step)}
+.noir .deco .pt{width:78px;clip-path:var(--step)}
+.noir .bub{position:relative;padding:16px 22px 18px;background:var(--card);border:1px solid color-mix(in srgb,var(--gold) 70%,transparent);outline:1px solid color-mix(in srgb,var(--gold) 35%,transparent);outline-offset:-6px}
+.noir .bub b.n{display:flex;align-items:center;gap:12px;font:400 12px/1 "Poiret One";letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:10px}
+.noir .bub b.n::after{content:"";width:46px;height:1px;background:var(--gold)}
+.noir .act{font-style:italic;color:var(--sub)}
+.noir .msg.me .bub{background:transparent}
+.noir .typing{padding-left:100px;font:italic 400 16px "Cormorant Garamond";color:var(--sub);display:flex;gap:9px;align-items:center}
+.noir .typing i{width:7px;height:7px;background:var(--gold);transform:rotate(45deg);animation:pulse 1.6s ease-in-out infinite}
+.noir .typing i:nth-child(2){animation-delay:.2s}.noir .typing i:nth-child(3){animation-delay:.4s;margin-right:6px}
+@keyframes pulse{50%{opacity:.25}}
+.noir .field{border-bottom:1px solid var(--gold);font:italic 400 18px "Cormorant Garamond";color:var(--sub);padding-inline:2px}
+.noir .send{flex:none;font:400 13px/1 "Poiret One";letter-spacing:.24em;text-transform:uppercase;padding:14px 22px;border:0;cursor:pointer;background:var(--lacquer);color:var(--gold2);clip-path:var(--step);box-shadow:inset 0 0 0 1px var(--gold)}
+.noir[data-mode="night"] .send{background:var(--gold);color:#0e0d0b}
+
+/* =========================================================
+   V. ROSEWATER VANITY
+   ========================================================= */
+.vanity{--bg1:#fbeaec;--bg2:#f2cfd6;--pearl:#fffaf6;--ink:#5a2c3a;--sub:#a26979;--gold:#c39557;--blush:#f2a7b5;--glow:#fff1e2;
+  background:radial-gradient(60% 45% at 50% -5%,var(--glow),transparent 70%),linear-gradient(175deg,var(--bg1),var(--bg2));color:var(--ink);font:300 15.5px/1.65 "Jost",system-ui,sans-serif}
+.vanity[data-mode="night"]{--bg1:#3b1027;--bg2:#1f0716;--pearl:#4b1b34;--ink:#f8e6d0;--sub:#d8a99f;--gold:#f0cf94;--blush:#c2577a;--glow:#7a2e4c}
+.vanity .bokeh{position:absolute;border-radius:50%;filter:blur(6px);opacity:.55;animation:float 18s ease-in-out infinite alternate}
+.vanity .b1{width:120px;height:120px;left:40%;top:12%;background:radial-gradient(circle,var(--glow),transparent 70%)}
+.vanity .b2{width:80px;height:80px;left:72%;top:55%;background:radial-gradient(circle,var(--blush),transparent 70%);animation-duration:23s}
+.vanity .b3{width:160px;height:160px;left:85%;top:6%;background:radial-gradient(circle,color-mix(in srgb,var(--gold) 60%,transparent),transparent 70%);animation-duration:27s;animation-delay:-8s}
+.vanity .b4{width:60px;height:60px;left:28%;top:75%;background:radial-gradient(circle,var(--glow),transparent 70%);animation-duration:21s;animation-delay:-4s}
+@keyframes float{to{transform:translate3d(-50px,30px,0) scale(1.2)}}
+.vanity .powder{position:absolute;inset:0;background-image:radial-gradient(1px 1px at 20px 30px,var(--gold) 98%,transparent),radial-gradient(1.4px 1.4px at 90px 110px,#fff 98%,transparent),radial-gradient(1px 1px at 150px 60px,var(--gold) 98%,transparent);background-size:180px 160px;opacity:.5;animation:twinkle 4s ease-in-out infinite alternate}
+.vanity .side{margin:14px 0 14px 14px;border-radius:26px;background:color-mix(in srgb,var(--pearl) 70%,transparent);backdrop-filter:blur(12px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 45%,transparent)}
+.vanity .brand{flex-direction:column;align-items:flex-start;gap:2px}
+.vanity .brand b{font:italic 400 32px/1 "Playfair Display",serif;color:var(--gold)}
+.vanity .brand small{font:400 10.5px/1.4 "Jost";letter-spacing:.26em;text-transform:uppercase;color:var(--sub)}
+.vanity .chats li{border-radius:999px;font:400 14.5px/1.2 "Jost"}
+.vanity .chats li i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px var(--pearl),0 0 0 3px color-mix(in srgb,var(--gold) 60%,transparent)}
+.vanity .chats li.on{background:var(--pearl);box-shadow:inset 0 0 0 1px var(--gold),0 6px 16px -10px rgba(120,40,70,.5);font-weight:500}
+.vanity .side .mood{margin-top:auto;font:italic 400 17px/1.35 "Playfair Display";color:var(--sub)}
+.vanity .head{padding-top:22px}
+.vanity .head .name{font:italic 400 30px/1 "Playfair Display"}
+.vanity .head .sub{font:400 11px/1.6 "Jost";letter-spacing:.24em;text-transform:uppercase;color:var(--sub)}
+.vanity .head .chip{margin-left:auto;font:italic 400 15px "Playfair Display";color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:6px 14px}
+.vanity .mirror{flex:none;position:relative;padding:10px}
+.vanity .mirror::before{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#fff8e6 0 2.6px,transparent 3.4px) 0 0/13px 13px;-webkit-mask:radial-gradient(closest-side,transparent calc(100% - 8px),#000 calc(100% - 7px));mask:radial-gradient(closest-side,transparent calc(100% - 8px),#000 calc(100% - 7px));filter:drop-shadow(0 0 3px #ffe6b0)}
+.vanity .mirror .pt{width:66px;aspect-ratio:3/4;border-radius:50%;box-shadow:0 0 0 2px var(--gold),0 8px 18px -6px rgba(120,40,70,.45)}
+.vanity .bub{position:relative;padding:15px 20px 16px;border-radius:26px 26px 26px 8px;background:linear-gradient(135deg,var(--pearl) 0%,color-mix(in srgb,var(--pearl) 82%,var(--blush)) 45%,var(--pearl) 60%,color-mix(in srgb,var(--pearl) 88%,var(--gold)) 100%);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 40%,transparent),inset 0 10px 18px -12px #fff,0 14px 26px -18px rgba(120,40,70,.6)}
+.vanity .msg.me .bub{border-radius:26px 26px 8px 26px;background:linear-gradient(135deg,color-mix(in srgb,var(--blush) 55%,var(--pearl)),color-mix(in srgb,var(--blush) 30%,var(--pearl)))}
+.vanity .bub b.n{display:block;font:italic 500 17px/1 "Playfair Display";color:var(--gold);margin-bottom:6px}
+.vanity .act{font-style:italic;color:var(--sub)}
+.vanity .fav{position:absolute;right:14px;bottom:-14px;border:0;cursor:pointer;font:500 12px/1 "Jost";padding:6px 10px;border-radius:999px;background:var(--pearl);color:#d23f6a;box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
+.vanity .burst{position:absolute;pointer-events:none;color:#ff6f96;font-size:14px;animation:heart .9s ease-out forwards}
+@keyframes heart{from{opacity:1;transform:translate(0,0) scale(.6)}to{opacity:0;transform:translate(var(--dx),-46px) scale(1.2)}}
+.vanity .typing{padding-left:96px;font:italic 400 16px "Playfair Display";color:var(--sub);display:flex;align-items:center;gap:7px}
+.vanity .typing i{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#ead8d0 70%);box-shadow:0 1px 2px rgba(0,0,0,.2);animation:pulse 1.4s ease-in-out infinite}
+.vanity .typing i:nth-child(2){animation-delay:.2s}.vanity .typing i:nth-child(3){animation-delay:.4s;margin-right:6px}
+.vanity .field{background:var(--pearl);border-radius:999px;font:italic 400 16px "Playfair Display";color:var(--sub);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
+.vanity .send{flex:none;width:54px;height:54px;border-radius:50%;border:0;cursor:pointer;background:radial-gradient(circle at 35% 30%,#fff3d6,var(--gold) 60%,#8f6528);color:#fff;font:italic 400 20px/1 "Playfair Display";box-shadow:0 8px 16px -8px rgba(120,80,20,.7)}
+
+/* =========================================================
+   FRAMES
+   ========================================================= */
+.frames{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:36px 26px}
+.frame-card{display:grid;grid-template-rows:280px auto;gap:14px;justify-items:center;align-items:center;padding:20px 12px 18px;background:var(--wall-2);border-radius:4px}
+.frame-card figcaption{text-align:center;display:grid;gap:3px}
+.frame-card figcaption b{font:500 19px/1.1 var(--f-display)}
+.frame-card figcaption small{font-size:12px;color:var(--ink-soft)}
+.frame-card figcaption .room{font:600 9.5px/1 var(--f-ui);letter-spacing:.18em;text-transform:uppercase;color:var(--brass)}
+.fx{position:relative}
+.fx .pt{width:132px}
+
+/* 1 macaron */
+.f-macaron .pt{width:150px;aspect-ratio:1;border-radius:50%;box-shadow:0 0 0 7px #fff8ef,0 0 0 16px #ffb3cd,0 0 0 18px #f78db3,0 14px 0 4px #fff3dc,0 22px 0 6px #ffb3cd,0 30px 26px 4px rgba(150,30,80,.3)}
+.f-macaron::after{content:"";position:absolute;inset:-18px;border-radius:50%;background-image:radial-gradient(2px 6px at 20% 10%,#9fe8cf 98%,transparent),radial-gradient(6px 2px at 85% 25%,#ffe58a 98%,transparent),radial-gradient(2px 6px at 92% 70%,#c9b3ff 98%,transparent),radial-gradient(6px 2px at 6% 60%,#ff7aa8 98%,transparent);pointer-events:none}
+/* 2 gumball machine */
+.f-gumball{display:grid;justify-items:center}
+.f-gumball .globe{position:relative;width:156px;aspect-ratio:1;border-radius:50%;overflow:hidden;box-shadow:0 0 0 6px #e8173f,inset 0 0 0 3px rgba(255,255,255,.6)}
+.f-gumball .globe .pt{width:100%;height:100%;aspect-ratio:auto}
+.f-gumball .globe::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(40% 26% at 32% 22%,rgba(255,255,255,.75),transparent 70%),radial-gradient(circle at 50% 50%,transparent 60%,rgba(120,180,255,.25))}
+.f-gumball .base{width:118px;height:70px;margin-top:6px;border-radius:12px 12px 20px 20px;background:linear-gradient(180deg,#ff3b5c,#c4002a);display:grid;place-items:center;box-shadow:0 8px 14px -6px rgba(140,0,30,.6)}
+.f-gumball .base::before{content:"";width:36px;height:36px;border-radius:50%;background:radial-gradient(circle,#ffe58a 0 30%,#d9a400 32% 58%,#fff1b0 60%);box-shadow:0 0 0 3px #8a0018}
+.f-gumball .tag{position:absolute;bottom:-10px;right:-18px;font:400 11px/1 "Chewy";background:#fff;color:#c4002a;padding:5px 8px;border-radius:999px;transform:rotate(-10deg);box-shadow:0 2px 0 #c4002a}
+/* 3 photo booth */
+.f-booth{display:grid;gap:6px;padding:8px 8px 26px;background:#fff;box-shadow:0 10px 20px -8px rgba(40,30,90,.45);transform:rotate(-3deg)}
+.f-booth .pt{width:92px;aspect-ratio:1}
+.f-booth .pt:nth-child(2){filter:grayscale(1) contrast(1.15)}
+.f-booth .pt:nth-child(3){filter:sepia(.6) saturate(1.3) hue-rotate(-20deg)}
+.f-booth::before{content:"";position:absolute;top:-14px;left:50%;width:84px;height:24px;translate:-50% 0;rotate:-8deg;background:repeating-linear-gradient(45deg,#ffd1e6 0 6px,#fff 6px 12px);opacity:.9}
+.f-booth::after{content:"best friends 4 ever";position:absolute;bottom:5px;left:0;right:0;text-align:center;font:600 15px/1 "Caveat";color:#ff4fa3}
+/* 4 polaroid */
+.f-polaroid{padding:10px 10px 40px;background:#fff;box-shadow:0 12px 22px -10px rgba(30,20,60,.5);transform:rotate(4deg)}
+.f-polaroid .pt{width:150px;aspect-ratio:1}
+.f-polaroid::before,.f-polaroid::after{content:"";position:absolute;width:56px;height:20px;background:repeating-linear-gradient(90deg,rgba(199,236,255,.9) 0 5px,rgba(255,255,255,.9) 5px 10px)}
+.f-polaroid::before{top:-8px;left:-16px;rotate:-35deg}
+.f-polaroid::after{top:-8px;right:-16px;rotate:35deg;background:repeating-linear-gradient(90deg,rgba(255,241,168,.95) 0 5px,rgba(255,255,255,.9) 5px 10px)}
+.f-polaroid .cap{position:absolute;left:0;right:0;bottom:8px;text-align:center;font:700 21px/1 "Caveat";color:#3a3a8a}
+.f-polaroid .cap i{color:#ff4fa3;font-style:normal}
+/* 5 heart locket */
+.f-locket{width:170px;height:200px;display:grid;justify-items:center}
+.f-locket .chain{width:90px;height:44px;border:3px dotted #c9a24a;border-bottom:0;border-radius:50% 50% 0 0}
+.f-locket .gold{position:relative;width:160px;height:146px;margin-top:-4px;background:linear-gradient(135deg,#fff3c4,#d4a73c 35%,#8a6514 60%,#f3d27a 85%);clip-path:path("M80 146C24 104 0 74 0 44C0 19 19 0 44 0C60 0 72 9 80 22C88 9 100 0 116 0C141 0 160 19 160 44C160 74 136 104 80 146Z");filter:drop-shadow(0 8px 10px rgba(80,50,0,.4))}
+.f-locket .gold .pt{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;transform:scale(.86);transform-origin:50% 44%;clip-path:path("M80 146C24 104 0 74 0 44C0 19 19 0 44 0C60 0 72 9 80 22C88 9 100 0 116 0C141 0 160 19 160 44C160 74 136 104 80 146Z")}
+/* 6 CRT */
+.f-crt{display:grid;justify-items:center}
+.f-crt .case{position:relative;padding:16px 16px 30px;background:linear-gradient(180deg,#efe6d2,#d6c8a8);border-radius:16px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.08),0 12px 20px -10px rgba(60,40,10,.5)}
+.f-crt .scr{position:relative;width:150px;height:126px;border-radius:18px/24px;overflow:hidden;box-shadow:0 0 0 5px #3b3a44,inset 0 0 20px rgba(0,0,0,.6)}
+.f-crt .scr .pt{width:100%;height:100%;aspect-ratio:auto;filter:saturate(1.4) contrast(1.1)}
+.f-crt .scr::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(0,0,0,.25) 0 1px,transparent 1px 3px),radial-gradient(circle at 50% 50%,transparent 55%,rgba(0,0,0,.45));}
+.f-crt .case::after{content:"";position:absolute;right:20px;bottom:11px;width:8px;height:8px;border-radius:50%;background:#39ff88;box-shadow:0 0 8px #39ff88}
+.f-crt .case::before{content:"MEA-86";position:absolute;left:18px;bottom:9px;font:400 7px/1 "Press Start 2P";color:#7a6a48}
+.f-crt .stand{width:70px;height:16px;background:#cdbd99;clip-path:polygon(15% 0,85% 0,100% 100%,0 100%)}
+/* 7 player select */
+.f-select{display:grid;justify-items:center;gap:12px;font:400 9px/1 "Press Start 2P";color:#ffb000}
+.f-select .px{padding:6px;background:#0c0805;box-shadow:0 -6px 0 0 #ffb000,0 6px 0 0 #ffb000,-6px 0 0 0 #ffb000,6px 0 0 0 #ffb000,0 0 0 12px #0c0805,0 0 26px 12px rgba(255,176,0,.4)}
+.f-select .pt{width:124px;image-rendering:pixelated}
+.f-select .lbl{display:flex;gap:10px;align-items:center;text-shadow:0 0 8px #ffb000}
+.f-select .lbl i{font-style:normal;color:#7dff5a;animation:blink 1s steps(1) infinite}
+.f-select .p1{position:absolute;top:-6px;left:-6px;background:#7dff5a;color:#0c0805;padding:5px 6px}
+/* 8 cameo */
+.f-cameo{width:168px;height:212px;border-radius:50%;padding:12px;background:conic-gradient(from 20deg,#fff1c1,#c99a2e,#7a5a10,#f6d980,#b5871f,#fff1c1);box-shadow:0 14px 24px -12px rgba(80,50,0,.6)}
+.f-cameo::before{content:"";position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle,#fffaf0 0 2.4px,transparent 3px) 0 0/12px 12px;-webkit-mask:radial-gradient(closest-side,transparent calc(100% - 9px),#000 calc(100% - 8px));mask:radial-gradient(closest-side,transparent calc(100% - 9px),#000 calc(100% - 8px));opacity:.95}
+.f-cameo .pt{width:100%;height:100%;aspect-ratio:auto;border-radius:50%;box-shadow:inset 0 0 0 3px #7a5a10}
+.f-cameo .ribbon{position:absolute;bottom:-12px;left:50%;translate:-50% 0;font:400 22px/1 "Pinyon Script",cursive;color:#7a5a10;background:#f8edd2;padding:4px 18px;border-radius:2px;box-shadow:0 2px 0 #c99a2e}
+/* 9 stained glass */
+.f-glass{width:170px;height:226px;padding:12px;border-radius:85px 85px 6px 6px;background:conic-gradient(from 0deg at 50% 40%,#c2185b 0 30deg,#283593 30deg 70deg,#f9a825 70deg 100deg,#00695c 100deg 140deg,#6a1b9a 140deg 180deg,#c2185b 180deg 220deg,#283593 220deg 260deg,#f9a825 260deg 300deg,#00695c 300deg 330deg,#6a1b9a 330deg);box-shadow:inset 0 0 0 3px #1b1a20,0 0 0 4px #1b1a20,0 16px 28px -10px rgba(40,20,80,.55)}
+.f-glass::after{content:"";position:absolute;inset:0;border-radius:inherit;background:repeating-conic-gradient(from 0deg at 50% 40%,#1b1a20 0 1.2deg,transparent 1.2deg 30deg);opacity:.85;pointer-events:none;-webkit-mask:linear-gradient(#000,#000) content-box exclude,linear-gradient(#000,#000);mask:linear-gradient(#000,#000) content-box exclude,linear-gradient(#000,#000);padding:12px}
+.f-glass .pt{width:100%;height:100%;aspect-ratio:auto;border-radius:74px 74px 2px 2px;box-shadow:inset 0 0 0 3px #1b1a20}
+/* 10 holo card */
+.f-holo{width:178px;height:248px;border-radius:12px;padding:9px;background:linear-gradient(115deg,#ff9ad5,#9ee8ff,#c6ff9e,#ffe39e,#d6a8ff,#ff9ad5);background-size:300% 300%;animation:holo 6s ease-in-out infinite alternate;box-shadow:0 18px 30px -14px rgba(60,20,90,.6)}
+@keyframes holo{to{background-position:100% 100%}}
+.f-holo .in{height:100%;display:grid;grid-template-rows:auto 1fr auto;gap:6px;background:#1c1530;border-radius:7px;padding:8px;color:#fff;font:600 10px/1.2 "Fredoka"}
+.f-holo .top{display:flex;justify-content:space-between;font:400 8px/1 "Press Start 2P";color:#ffe39e}
+.f-holo .pt{width:100%;height:100%;aspect-ratio:auto;border-radius:4px;position:relative}
+.f-holo .win{position:relative;overflow:hidden;border-radius:4px}
+.f-holo .win::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.45) 45%,rgba(160,230,255,.3) 52%,transparent 65%);background-size:250% 100%;animation:glint 3.5s ease-in-out infinite}
+@keyframes glint{from{background-position:120% 0}to{background-position:-60% 0}}
+.f-holo .stats{display:flex;justify-content:space-between;color:#c9b8ff}
+.f-holo .stats b{color:#fff}
+
+.foot{color:var(--ink-soft);font-size:13px;border-top:1px solid var(--rule);padding-top:16px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.foot i{font-family:var(--f-display);font-size:16px;color:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="masthead">
+    <span class="eyebrow">Mea · Room proposals · Autumn 2026</span>
+    <h1>Five rooms <i>&amp;</i> ten frames</h1>
+    <p>Full mockups for Sugar Rush, Diary Lock, Arcade Afterhours, Noir Salon and Rosewater Vanity, each with its day and night, followed by ten portrait frames to hang characters in. Flip each room between day and night with the switch on its plaque.</p>
+  </header>
+
+  <!-- ============ I. SUGAR RUSH ============ -->
+  <section class="exhibit" aria-labelledby="t-sugar">
+    <div class="plaque">
+      <span class="no">I.</span>
+      <h2 id="t-sugar">Sugar Rush</h2>
+      <p class="medium">A pastel candy shop. Macaron bubbles, falling sprinkles, gumball typing, a cherry to send. Day: <em>Sprinkles</em>. Night: <em>Midnight Snack</em>.</p>
+      <div class="toggle" data-for="sugar" role="group" aria-label="Sugar Rush mode"><button type="button" data-m="day" aria-pressed="true">Sprinkles</button><button type="button" data-m="night" aria-pressed="false">Midnight Snack</button></div>
+    </div>
+    <div class="app sugar" id="sugar" data-mode="day">
+      <div class="bg" aria-hidden="true"><div class="sprinkles"></div><span class="gumdrop g1"></span><span class="gumdrop g2"></span><span class="gumdrop g3"></span><span class="neon">open late ♥</span></div>
+      <aside class="side">
+        <div class="brand"><div><b>mea</b><br><small>sweet talk only</small></div></div>
+        <div class="jar">Candy jar</div>
+        <ul class="chats">
+          <li class="on"><i style="background:var(--straw)"></i><span>Clementine · bakery heist</span></li>
+          <li><i style="background:var(--mint)"></i><span>Pistachio prince</span></li>
+          <li><i style="background:var(--lemon)"></i><span>Lemon drop detective</span></li>
+          <li><i style="background:var(--lilac)"></i><span>Lavender witch tea</span></li>
+          <li><i style="background:#ff9f6b"></i><span>Peach fuzz roadtrip</span></li>
+        </ul>
+        <div class="tag">+ new treat</div>
+      </aside>
+      <div class="main">
+        <div class="head"><span class="pt sm" data-p="clem"></span><div class="who"><span class="name">Clementine</span><span class="sub">pastry chef · chaos agent</span></div><span class="chip">sugar 98%</span></div>
+        <div class="log">
+          <div class="msg"><span class="pt" data-p="clem"></span><div class="bub"><b class="n">Clementine</b><p><em>She slides a tray of glittering éclairs across the counter, eyes sparkling.</em> Okay, listen. The rival bakery is entering the Royal Bake-Off with a <em>stolen</em> recipe. My grandmother's.</p><p>We are getting it back. Tonight. Are you in?</p><div class="reacts"><span>🍓 3</span><span>✨ 1</span></div></div></div>
+          <div class="msg me"><span class="pt" data-p="you"></span><div class="bub"><b class="n">You</b><p>I'm in. But I'm driving the getaway ice-cream truck.</p></div></div>
+          <div class="msg"><span class="pt" data-p="clem"></span><div class="bub"><b class="n">Clementine</b><p><em>She gasps and throws a handful of sprinkles into the air like confetti.</em> The truck plays a jingle! We'll be the least subtle thieves in history. I love it.</p></div></div>
+          <div class="typing" aria-label="Clementine is typing"><i></i><i></i><i></i> Clementine is whisking up a reply</div>
+        </div>
+        <div class="composer"><div class="field">Write something sweet…</div><button class="cherry" type="button" aria-label="Send"></button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ II. DIARY LOCK ============ -->
+  <section class="exhibit" aria-labelledby="t-diary">
+    <div class="plaque">
+      <span class="no">II.</span>
+      <h2 id="t-diary">Diary Lock</h2>
+      <p class="medium">A teenage diary from 2003. Lined paper, gel pens, photo-booth portraits under washi tape, ribbon bookmarks for chats. Day: <em>Gel Pen</em>. Night: <em>Lights Out</em>, with metallic ink.</p>
+      <div class="toggle" data-for="diary" role="group" aria-label="Diary Lock mode"><button type="button" data-m="day" aria-pressed="true">Gel Pen</button><button type="button" data-m="night" aria-pressed="false">Lights Out</button></div>
+    </div>
+    <div class="app diary" id="diary" data-mode="day">
+      <div class="bg" aria-hidden="true">
+        <svg class="doodle" style="right:26px;top:110px" width="70" height="60" viewBox="0 0 70 60" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M35 54C12 38 4 28 4 17 4 9 10 4 17 4c7 0 13 5 18 12C40 9 46 4 53 4c7 0 13 5 13 13 0 11-8 21-31 37z"/></svg>
+        <svg class="doodle" style="right:110px;bottom:120px;color:var(--pen2)" width="52" height="52" viewBox="0 0 52 52" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M26 3l6 15 16 1-12 10 4 16-14-9-14 9 4-16L4 19l16-1z"/></svg>
+        <svg class="doodle" style="right:40px;bottom:40px;color:var(--pen3)" width="74" height="56" viewBox="0 0 74 56" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M37 28C30 10 12 2 6 10s8 20 31 18zM37 28C44 10 62 2 68 10s-8 20-31 18zM37 28c-5 10-16 22-22 18s4-14 22-18zM37 28c5 10 16 22 22 18s-4-14-22-18zM37 18v26"/></svg>
+      </div>
+      <aside class="side">
+        <div class="brand"><b>Dear Diary</b><small>keep out!! (unless ur cute)</small></div>
+        <span class="lock"><svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="8" width="12" height="9" rx="2"/><path d="M5 8V5a3 3 0 016 0v3"/></svg> locked w/ key</span>
+        <ul class="chats">
+          <li class="on" style="--c:#ff4fa3"><span>juniper ♥</span></li>
+          <li style="--c:#3a8dff"><span>summer camp</span></li>
+          <li style="--c:#9b5cff"><span>band practice</span></li>
+          <li style="--c:#29c4a0"><span>mall rats</span></li>
+          <li style="--c:#ff9f43"><span>sleepover</span></li>
+        </ul>
+        <div class="note">new page →</div>
+      </aside>
+      <div class="main">
+        <div class="head"><div class="who"><span class="name">Juniper</span><span class="sub">bff · lead guitar · tragic bangs</span></div><span class="date">fri, oct 10 ☆</span></div>
+        <div class="log">
+          <div class="msg"><div class="strip"><span class="pt" data-p="juni"></span><span class="pt" data-p="juni"></span></div><div class="bub"><b class="n">Juniper</b><p>OK so <span class="hl">he looked at me</span> during chem. Like actually looked. For 3 whole seconds!!!</p><p>I'm writing it down so it's <span class="sq metal">officially real</span>.</p></div></div>
+          <div class="msg me"><div class="strip"><span class="pt" data-p="you"></span><span class="pt" data-p="you"></span></div><div class="bub"><b class="n">me</b><p>3 seconds is basically a marriage proposal. what were you wearing</p></div></div>
+          <div class="msg"><div class="strip"><span class="pt" data-p="juni"></span><span class="pt" data-p="juni"></span></div><div class="bub"><b class="n">Juniper</b><p>the butterfly clips. ALL of them. <span class="hl">we need a plan</span> for the dance.</p></div></div>
+          <div class="typing">juniper is writing<i>…</i></div>
+        </div>
+        <div class="composer"><div class="field">dear diary, today…</div><button class="send" type="button">write it ♡</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ III. ARCADE AFTERHOURS ============ -->
+  <section class="exhibit" aria-labelledby="t-arcade">
+    <div class="plaque">
+      <span class="no">III.</span>
+      <h2 id="t-arcade">Arcade Afterhours</h2>
+      <p class="medium">A 1970s woodgrain cabinet left on overnight. Burnt orange, harvest gold and avocado by day; amber and green phosphor by night, kept clear of Marquee's cyan and magenta neon. Day: <em>Attract Mode</em>. Night: <em>High Score</em>.</p>
+      <div class="toggle" data-for="arcade" role="group" aria-label="Arcade Afterhours mode"><button type="button" data-m="day" aria-pressed="false">Attract Mode</button><button type="button" data-m="night" aria-pressed="true">High Score</button></div>
+    </div>
+    <div class="app arcade" id="arcade" data-mode="night">
+      <div class="bg" aria-hidden="true"></div>
+      <aside class="side">
+        <div class="brand"><b>MEA<br>AFTERHOURS</b><small>© 1986 CABINET 07</small></div>
+        <div class="stickers" aria-hidden="true"><i style="--c:var(--p1)"></i><i style="--c:var(--p2)"></i><i style="--c:var(--p3)"></i><i style="--c:var(--p4)"></i></div>
+        <ul class="chats">
+          <li class="on"><span>VEX // NEON RUN</span></li>
+          <li><span>DUNGEON DELVE</span></li>
+          <li><span>STARFOX REDUX</span></li>
+          <li><span>KAIJU KITCHEN</span></li>
+          <li><span>BOSS RUSH</span></li>
+        </ul>
+        <div class="credits">CREDITS 03<br>INSERT COIN</div>
+      </aside>
+      <div class="main">
+        <div class="hud"><span>1UP <b>004200</b></span><span>HI-SCORE <b>098350</b></span><span>STAGE <b>3-2</b></span></div>
+        <div class="head"><div class="who"><span class="name">VEX</span><span class="sub">netrunner · lvl 27 · ready player two?</span></div><span class="hearts" aria-label="3 lives">♥♥♥</span></div>
+        <div class="log">
+          <div class="msg"><span class="pxf"><span class="pt" data-p="vex"></span></span><div class="bub"><b class="n">VEX</b><p><span class="act">*cracks knuckles over a glowing keyboard*</span> Mall's closed. Security bots are on patrol loops. We've got eleven minutes to reach the top-floor arcade and pull the old cabinet's ROM chip.</p><span class="pickup">+500 MISSION</span></div></div>
+          <div class="msg me"><span class="pxf"><span class="pt" data-p="you"></span></span><div class="bub"><b class="n">P2 · YOU</b><p>I take the escalator. The broken one. Nobody watches the broken one.</p></div></div>
+          <div class="msg"><span class="pxf"><span class="pt" data-p="vex"></span></span><div class="bub"><b class="n">VEX</b><p>Big-brain move. <span class="act">*grins as the bot's sensor sweeps past you*</span> Combo x2. Keep going.</p></div></div>
+          <div class="typing">VEX is typing<i></i></div>
+        </div>
+        <div class="composer"><div class="field">&gt; ENTER YOUR MOVE_</div><button class="start" type="button">PRESS START</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ IV. NOIR SALON ============ -->
+  <section class="exhibit" aria-labelledby="t-noir">
+    <div class="plaque">
+      <span class="no">IV.</span>
+      <h2 id="t-noir">Noir Salon</h2>
+      <p class="medium">A Parisian salon after midnight. Black lacquer, gilt Deco fans, stepped gold portrait frames, double-ruled cards. Day: <em>Vernissage</em>. Night: <em>Après Minuit</em>, with drifting smoke.</p>
+      <div class="toggle" data-for="noir" role="group" aria-label="Noir Salon mode"><button type="button" data-m="day" aria-pressed="false">Vernissage</button><button type="button" data-m="night" aria-pressed="true">Après Minuit</button></div>
+    </div>
+    <div class="app noir" id="noir" data-mode="night">
+      <div class="bg" aria-hidden="true"><span class="fan tr"></span><span class="fan br"></span><span class="smoke s1"></span><span class="smoke s2"></span><span class="smoke s3"></span></div>
+      <aside class="side">
+        <div class="brand"><b>MEA</b><small>Speak softly; everyone's listening</small></div>
+        <div class="rule" aria-hidden="true"></div>
+        <ul class="chats">
+          <li class="on"><span>Madame Céleste</span></li>
+          <li><span>The Orient Express</span></li>
+          <li><span>A forged Modigliani</span></li>
+          <li><span>Le Chat Noir</span></li>
+          <li><span>Masquerade, 1926</span></li>
+        </ul>
+        <div class="addr">Nº 17, rue des Martyrs<br>Ring twice. Ask for no one.</div>
+      </aside>
+      <div class="main">
+        <div class="head"><div class="who"><span class="name">Madame Céleste</span><span class="sub">hostess, collector, liar by profession</span></div><span class="no">Salon Nº 17<br>02 h 40</span></div>
+        <div class="log">
+          <div class="msg"><span class="deco"><span class="pt" data-p="celeste"></span></span><div class="bub"><b class="n">Céleste</b><p><span class="act">She lowers her cigarette holder and studies you over the rim of a coupe.</span> "You came alone. Good. The painting on the east wall is a forgery, darling, and three people in this room know it."</p><p>"By sunrise, one of them will be ruined. I'd prefer it isn't me."</p></div></div>
+          <div class="msg me"><span class="deco"><span class="pt" data-p="you"></span></span><div class="bub"><b class="n">You</b><p>"Then tell me which two, and I'll decide whose side I'm on."</p></div></div>
+          <div class="msg"><span class="deco"><span class="pt" data-p="celeste"></span></span><div class="bub"><b class="n">Céleste</b><p><span class="act">A slow smile; the jazz trio slides into a minor key.</span> "Ah. A negotiator. How refreshing."</p></div></div>
+          <div class="typing"><i></i><i></i><i></i>Céleste is choosing her words</div>
+        </div>
+        <div class="composer"><div class="field">Your reply, in confidence…</div><button class="send" type="button">Send</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ V. ROSEWATER VANITY ============ -->
+  <section class="exhibit" aria-labelledby="t-vanity">
+    <div class="plaque">
+      <span class="no">V.</span>
+      <h2 id="t-vanity">Rosewater Vanity</h2>
+      <p class="medium">A dressing table at golden hour. Oval mirror portraits ringed with bulbs, pearl-sheen bubbles, soft bokeh and powder shimmer. Tap a heart to see the burst. Day: <em>Powder Room</em>. Night: <em>Night Out</em>.</p>
+      <div class="toggle" data-for="vanity" role="group" aria-label="Rosewater Vanity mode"><button type="button" data-m="day" aria-pressed="true">Powder Room</button><button type="button" data-m="night" aria-pressed="false">Night Out</button></div>
+    </div>
+    <div class="app vanity" id="vanity" data-mode="day">
+      <div class="bg" aria-hidden="true"><span class="powder"></span><span class="bokeh b1"></span><span class="bokeh b2"></span><span class="bokeh b3"></span><span class="bokeh b4"></span></div>
+      <aside class="side">
+        <div class="brand"><b>Rosewater</b><small>Blush, powder, prose</small></div>
+        <ul class="chats">
+          <li class="on" style="--c:#f2a7b5"><i></i><span>Delphine · opening night</span></li>
+          <li style="--c:#c39557"><i></i><span>Riviera summer</span></li>
+          <li style="--c:#b48cff"><i></i><span>The perfume heiress</span></li>
+          <li style="--c:#9fd8c8"><i></i><span>Ballet academy</span></li>
+          <li style="--c:#ffb38a"><i></i><span>Letters to Paris</span></li>
+        </ul>
+        <div class="mood">“A little lipstick, a lot of nerve.”</div>
+      </aside>
+      <div class="main">
+        <div class="head"><div class="who"><span class="name">Delphine</span><span class="sub">prima donna · understudy no more</span></div><span class="chip">curtain at eight</span></div>
+        <div class="log">
+          <div class="msg"><span class="mirror"><span class="pt" data-p="delph"></span></span><div class="bub"><b class="n">Delphine</b><p><span class="act">She meets your eyes in the mirror, a rouge brush paused mid-air.</span> Forty minutes to curtain and my hands won't stop shaking. Tell me something true, quickly.</p><button class="fav" type="button" aria-label="Favourite">♥ 12</button></div></div>
+          <div class="msg me"><span class="mirror"><span class="pt" data-p="you"></span></span><div class="bub"><b class="n">You</b><p>You were born for that stage. The understudy doesn't get the bouquet with her name already on the card.</p></div></div>
+          <div class="msg"><span class="mirror"><span class="pt" data-p="delph"></span></span><div class="bub"><b class="n">Delphine</b><p><span class="act">A shaky laugh, then a slow, steadier breath.</span> You read the card. Of course you did. Hand me the pearls?</p><button class="fav" type="button" aria-label="Favourite">♥ 4</button></div></div>
+          <div class="typing"><i></i><i></i><i></i>Delphine is fixing her lipstick</div>
+        </div>
+        <div class="composer"><div class="field">Whisper something to the mirror…</div><button class="send" type="button" aria-label="Send">♡</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FRAMES ============ -->
+  <section class="exhibit" aria-labelledby="t-frames">
+    <div class="plaque" style="grid-template-columns:auto 1fr">
+      <span class="no">VI.</span>
+      <h2 id="t-frames">Ten portrait frames</h2>
+      <p class="medium">Frames for character portraits, usable in any room. Each one is drawn in CSS around the same portrait slot, so they scale with the portrait size setting.</p>
+    </div>
+    <div class="frames">
+      <figure class="frame-card" tabindex="0"><div class="fx f-macaron"><span class="pt" data-p="clem"></span></div><figcaption><span class="room">Sugar Rush</span><b>Macaron</b><small>Two shells, a cream filling, sprinkles.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-gumball"><div class="globe"><span class="pt" data-p="peach"></span></div><div class="base"></div><span class="tag">25¢</span></div><figcaption><span class="room">Sugar Rush</span><b>Gumball Machine</b><small>Portrait under a glass globe.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-booth"><span class="pt" data-p="juni"></span><span class="pt" data-p="juni"></span><span class="pt" data-p="juni"></span></div><figcaption><span class="room">Diary Lock</span><b>Photo Booth</b><small>Colour, black-and-white, sepia.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-polaroid"><span class="pt" data-p="mint"></span><span class="cap">summer '03 <i>♥</i></span></div><figcaption><span class="room">Diary Lock</span><b>Taped Polaroid</b><small>Washi tape and a handwritten caption.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-locket"><div class="chain"></div><div class="gold"><span class="pt" data-p="rose"></span></div></div><figcaption><span class="room">Diary Lock</span><b>Heart Locket</b><small>Gold heart on a chain.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-crt"><div class="case"><div class="scr"><span class="pt" data-p="vex"></span></div></div><div class="stand"></div></div><figcaption><span class="room">Arcade Afterhours</span><b>CRT Monitor</b><small>Scanlines, curve, a power light.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-select"><div class="px" style="position:relative"><span class="pt" data-p="you"></span><span class="p1">P1</span></div><div class="lbl"><i>▶</i>SELECT</div></div><figcaption><span class="room">Arcade Afterhours</span><b>Player Select</b><small>Pixel border with a neon glow.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-holo"><div class="in"><div class="top"><span>VEX</span><span>★ SR</span></div><div class="win"><span class="pt" data-p="vex"></span></div><div class="stats"><span>ATK <b>88</b></span><span>CHA <b>97</b></span><span>LCK <b>12</b></span></div></div></div><figcaption><span class="room">Any room</span><b>Holo Card</b><small>Foil that shifts as you look.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-cameo"><span class="pt" data-p="rose"></span><span class="ribbon">Rosalind</span></div><figcaption><span class="room">Any room</span><b>Gilded Cameo</b><small>Gold oval with a pearl ring.</small></figcaption></figure>
+      <figure class="frame-card" tabindex="0"><div class="fx f-glass"><span class="pt" data-p="peach"></span></div><figcaption><span class="room">Any room</span><b>Stained Glass</b><small>Arched window in leaded jewel glass.</small></figcaption></figure>
+    </div>
+  </section>
+
+  <footer class="foot"><i>Mea room salon</i><span>Mockups only. Portraits are placeholder illustrations.</span></footer>
+</div>
+
+<script>
+// Placeholder portraits drawn as SVG so the page needs no image files.
+const P = {
+  clem:{bg:["#ffd0e1","#ffe58a"],skin:"#ffd7c2",hair:"#ff8a3d",top:"#ff7aa8",eye:"#5b2340",style:"buns"},
+  you:{bg:["#c9f3e3","#c9b3ff"],skin:"#c98e6b",hair:"#2b1d1a",top:"#29adff",eye:"#2b1d1a",style:"short"},
+  juni:{bg:["#c7ecff","#ffd1e6"],skin:"#f3c9a8",hair:"#3a2a5c",top:"#9b5cff",eye:"#2b2a6b",style:"bangs"},
+  vex:{bg:["#3a1a08","#1a2a0a"],skin:"#e8b896",hair:"#ff6a2b",top:"#2a1a0e",eye:"#7dff5a",style:"undercut"},
+  celeste:{bg:["#2a2622","#5a4a2e"],skin:"#f2d6c4",hair:"#141210",top:"#141210",eye:"#141210",style:"bob"},
+  delph:{bg:["#fbe3e6","#f7d9a8"],skin:"#f4cdb8",hair:"#a8553a",top:"#f2a7b5",eye:"#5a2e3a",style:"waves"},
+  peach:{bg:["#ffe1c7","#ffb3cd"],skin:"#8d5a3b",hair:"#1b1220",top:"#ff9f6b",eye:"#1b1220",style:"curls"},
+  mint:{bg:["#d6fff0","#fff1a8"],skin:"#ffe0cc",hair:"#f2d06b",top:"#9fe8cf",eye:"#2b4a3a",style:"bangs"},
+  rose:{bg:["#f6e3d7","#e9c9d2"],skin:"#f1cdb5",hair:"#5a2a1e",top:"#7a2340",eye:"#3a1a1a",style:"updo"}
+};
+function svg(p){
+  const h=p.hair, s=p.skin;
+  const back={buns:`<circle cx="34" cy="38" r="17" fill="${h}"/><circle cx="86" cy="38" r="17" fill="${h}"/><path d="M28 66c0-30 64-30 64 0v22H28z" fill="${h}"/>`,
+    short:`<path d="M32 62c0-28 56-30 56 0v8H32z" fill="${h}"/>`,
+    bangs:`<path d="M24 66c0-36 72-36 72 0v50H24z" fill="${h}"/>`,
+    undercut:`<path d="M34 60c0-26 52-28 52 0z" fill="${h}"/>`,
+    curls:`${[30,44,60,76,90,36,84].map((x,i)=>`<circle cx="${x}" cy="${i>4?70:44+Math.abs(60-x)/4}" r="14" fill="${h}"/>`).join("")}`,
+    updo:`<ellipse cx="60" cy="26" rx="18" ry="13" fill="${h}"/><path d="M32 64c0-30 56-30 56 0v6H32z" fill="${h}"/>`,
+    bob:`<path d="M28 70c0-40 64-40 64 0v26c-6 4-14 4-18 0H46c-4 4-12 4-18 0z" fill="${h}"/>`,
+    waves:`<path d="M26 66c0-38 68-38 68 0 4 14-2 30 4 44-10 4-20-2-24-8H46c-4 6-14 12-24 8 6-14 0-30 4-44z" fill="${h}"/>`}[p.style];
+  const front={buns:`<path d="M38 56c8-14 36-16 44 0-10-6-34-6-44 0z" fill="${h}"/>`,
+    short:`<path d="M34 58c10-18 44-20 54-2-14-4-30-6-54 2z" fill="${h}"/>`,
+    bangs:`<path d="M34 62c2-20 50-22 52 0-6-4-10-10-12-10-4 6-10 8-14 8-6 0-10-4-12-8-4 4-8 8-14 10z" fill="${h}"/>`,
+    undercut:`<path d="M40 54c10-20 46-22 54-4-12-2-26 0-38 10-4-4-10-6-16-6z" fill="${h}"/>`,
+    curls:`<circle cx="46" cy="50" r="9" fill="${h}"/><circle cx="60" cy="46" r="10" fill="${h}"/><circle cx="74" cy="50" r="9" fill="${h}"/>`,
+    updo:`<path d="M36 58c8-16 40-18 48 0-10-6-36-6-48 0z" fill="${h}"/>`,
+    bob:`<path d="M34 62c4-20 52-22 54-2-20-6-30-4-30 8-6-8-14-10-24-6z" fill="${h}"/><circle cx="40" cy="64" r="4" fill="${h}"/>`,
+    waves:`<path d="M34 60c6-20 48-22 52 0-8-8-20-10-26-4-8-6-18-4-26 4z" fill="${h}"/>`}[p.style];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.bg[0]}"/><stop offset="1" stop-color="${p.bg[1]}"/></linearGradient></defs><rect width="120" height="150" fill="url(#g)"/>${back}<rect x="52" y="88" width="16" height="20" fill="${s}"/><path d="M18 150c4-30 22-44 42-44s38 14 42 44z" fill="${p.top}"/><ellipse cx="60" cy="72" rx="25" ry="28" fill="${s}"/>${front}<ellipse cx="50" cy="74" rx="3" ry="4" fill="${p.eye}"/><ellipse cx="70" cy="74" rx="3" ry="4" fill="${p.eye}"/><circle cx="51" cy="72.5" r="1" fill="#fff"/><circle cx="71" cy="72.5" r="1" fill="#fff"/><ellipse cx="44" cy="84" rx="5" ry="3" fill="#ff7aa8" opacity=".35"/><ellipse cx="76" cy="84" rx="5" ry="3" fill="#ff7aa8" opacity=".35"/><path d="M54 88q6 5 12 0" stroke="#7a3a3a" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
+}
+const cache={};
+document.querySelectorAll(".pt[data-p]").forEach(el=>{
+  const k=el.dataset.p; cache[k]??="url(\"data:image/svg+xml,"+encodeURIComponent(svg(P[k]))+"\")";
+  el.style.backgroundImage=cache[k]; el.setAttribute("role","img"); el.setAttribute("aria-label",k==="you"?"Your portrait":"Character portrait");
+});
+document.querySelectorAll(".toggle").forEach(t=>{
+  const app=document.getElementById(t.dataset.for);
+  t.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    app.dataset.mode=b.dataset.m;t.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));});
+});
+// Rosewater: favouriting a message releases a few hearts.
+document.querySelectorAll(".vanity .fav").forEach(btn=>btn.addEventListener("click",()=>{
+  const n=parseInt(btn.textContent.replace(/\D/g,""))+1; btn.textContent="♥ "+n;
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  for(let i=0;i<6;i++){const h=document.createElement("span");h.className="burst";h.textContent="♥";
+    h.style.right=(20+i*4)+"px";h.style.bottom="0";h.style.setProperty("--dx",(i-2.5)*12+"px");h.style.animationDelay=i*40+"ms";
+    btn.parentElement.appendChild(h);h.addEventListener("animationend",()=>h.remove());}
+}));
+</script>
+</body>
+</html>
