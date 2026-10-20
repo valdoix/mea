@@ -27,4 +27,4 @@ One PR per part. Build the next part while CI runs; merge only when green.
 
 - In the cloud container, 3 timing tests in `server/test/review.test.ts` fail in the full suite (they pass alone, and pass in CI). Not caused by lore work.
 - The mock writer (`providers/mock.ts`, `studio_entry`) cuts a title at its first colon, so "Voice: Mira" parts read "greeting of Voice".
-- Uncommitted desktop leftovers (not part of the lore work): `.claude/launch.json`, `desktop/src-tauri/permissions/`, `mockups/mea-rooms-*.html`.
+- Desktop leftovers (not part of the lore work: `.claude/launch.json`, `desktop/src-tauri/permissions/`, `mockups/mea-rooms-*.html`) are in their own commit on the Part 4 branch. Drop that commit before a PR if they don't belong there.
