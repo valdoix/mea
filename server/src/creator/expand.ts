@@ -89,6 +89,8 @@ export interface ExpandContext {
   style?: string;
   /** Who this is in a chat (a card, a narrator, the player's own persona): see WHO_IS_WHO. */
   who?: string;
+  /** A profile to try first (a Lore Studio's own pick). */
+  profileId?: string | null;
   /** Lore Studio or creator id, for request history. */
   kindLabel?: string;
 }
@@ -115,6 +117,7 @@ export async function expandIdea(kind: ExpandKind, c: ExpandContext, opts: { pre
   const rework = Boolean(opts.previous?.sections.length);
   const r = await callJson({
     task: "summarizer",
+    profileId: c.profileId,
     kind: `expand:${kind}`,
     name: "idea_expand",
     schema: expandSchema,
@@ -150,6 +153,7 @@ export async function deepenSection(kind: ExpandKind, c: ExpandContext, e: Expan
   if (!s) throw new Error("Section not found");
   const r = await callText({
     task: "summarizer",
+    profileId: c.profileId,
     kind: `expand:${kind}:deepen`,
     system: [
       `Go deeper on one section of a fleshed-out ${LABEL[kind]}: "${s.heading}".`,

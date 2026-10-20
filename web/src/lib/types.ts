@@ -634,7 +634,7 @@ export interface Settings {
   "backup.dailyKeep": number;
   "onboarding.done": boolean;
   "lore.defaults": { scanDepth: number; tokenBudget: number; recursive: boolean; maxRecursion: number; caseSensitive: boolean; matchWholeWords: boolean };
-  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null; planner?: string | null };
+  "routing.tasks": { summarizer: string | null; helper: string | null; tracker: string | null; world: string | null; assistant?: string | null; planner?: string | null; studio?: string | null };
   "routing.fallbacks": { story: string[]; summarizer: string[]; helper: string[]; tracker: string[]; world: string[]; assistant?: string[]; planner?: string[] };
   "routing.timeouts": { story: number; summarizer: number; helper: number; tracker: number; world: number; assistant?: number; planner?: number };
   "routing.embeddings": { connectionId: string | null; model: string; dims: number };
@@ -1829,6 +1829,8 @@ export interface StudioOptions {
   secrets: boolean;
   faithful: boolean;
   overview: boolean;
+  /** The profile this studio uses (unset: Settings › Routing). */
+  profileId?: string | null;
 }
 
 export type MixLevel = "few" | "each" | "all";

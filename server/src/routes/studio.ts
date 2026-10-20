@@ -60,6 +60,7 @@ const optionsSchema = z.object({
   overview: z.boolean(),
   mix: z.partialRecord(z.enum(CATEGORIES), z.enum(MIX_LEVELS as [string, ...string[]])),
   recipe: z.string().max(40),
+  profileId: z.string().nullable(),
 });
 const linkSchema = z.object({ type: z.enum(["global", "character", "persona", "chat"]), id: z.string().default("") });
 const entrySchema = z.object({

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../src/app";
 import { normalizeCard } from "../src/cards/card";
-import { one } from "../src/db/db";
+import { all, one } from "../src/db/db";
 import { aliasesIn, parseDocument } from "../src/lore/ingest";
 import { checkEntries } from "../src/lore/quality";
 import { createLorebook, getLorebook, linkedBooks } from "../src/lore/service";
@@ -27,6 +27,7 @@ import { createCharacter } from "../src/services/characters";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { registerJob } from "../src/services/jobs";
 import { createPersona } from "../src/services/personas";
+import { getSetting, setSetting } from "../src/lib/settings";
 import { freshDb } from "./helpers";
 
 let app: ReturnType<typeof createApp>;
@@ -310,5 +311,41 @@ describe("API", () => {
     expect((await api("POST", "/api/lore-studio", { kind: "character" })).status).toBe(400);
     expect((await api("DELETE", `/api/lore-studio/${id}`)).json.ok).toBe(true);
     expect((await api("GET", `/api/lore-studio/${id}`)).status).toBe(404);
+  });
+});
+
+describe("the studio's own profile", () => {
+  test("a draft's pick, else Settings › Routing's, else the task's routing", async () => {
+    const conn = one<{ id: string }>("SELECT id FROM connections LIMIT 1")!.id;
+    const fast = createProfile({ name: "Fast", connectionId: conn, modelId: "mock/fast", params: {} });
+    // The model of the one studio call since the last look.
+    const seen = new Set<string>();
+    const lastModel = () => {
+      const rows = all<{ id: string; model_id: string }>("SELECT id, model_id FROM generations WHERE kind LIKE 'studio:%'").filter((r) => !seen.has(r.id));
+      for (const r of rows) seen.add(r.id);
+      return rows.length === 1 ? rows[0]!.model_id : `${rows.length} calls`;
+    };
+    lastModel();
+    const d = createDraft({ kind: "idea", text: "A harbour town called Port Ellis where the fog keeps secrets." });
+
+    await directions(d.id);
+    expect(lastModel()).toBe("mock/storyteller");
+
+    setSetting("routing.tasks", { ...getSetting("routing.tasks"), studio: fast });
+    await directions(d.id);
+    expect(lastModel()).toBe("mock/fast");
+
+    const story = one<{ id: string }>("SELECT id FROM profiles WHERE name = 'Story'")!.id;
+    const r = await api("PUT", `/api/lore-studio/${d.id}`, { options: { profileId: story } });
+    expect(r.status).toBe(200);
+    expect(getDraft(d.id)!.options.profileId).toBe(story);
+    await directions(d.id);
+    expect(lastModel()).toBe("mock/storyteller");
+
+    // A deleted profile falls back to the routing.
+    patchDraft(d.id, { options: { ...getDraft(d.id)!.options, profileId: "gone" } });
+    await directions(d.id);
+    expect(lastModel()).toBe("mock/fast");
+    setSetting("routing.tasks", { ...getSetting("routing.tasks"), studio: null });
   });
 });
