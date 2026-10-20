@@ -183,7 +183,11 @@ function helperJson(name: string, user: string, system = ""): unknown {
     case "lore_details": {
       // The card says grey eyes when it does; the rest is drafted.
       const eyes = user.match(/\b(grey|green|blue|brown) eyes\b/i)?.[1];
-      return { card: eyes ? [{ slot: "eyes", value: eyes.toLowerCase() }] : [], invented: [{ slot: "birthday", value: "19 January" }, { slot: "handedness", value: "left-handed" }, { slot: "nonsense", value: "dropped" }] };
+      // docs/17, 7.1: the voice a card or its bible states ("calls {{user}} “little fish”", "her catchphrase is “Tides willing”").
+      const pet = user.match(/calls (?:\{\{user\}\}|you) [“"]([^”"]+)[”"]/i)?.[1];
+      const phrase = user.match(/catchphrase is [“"]([^”"]+)[”"]/i)?.[1];
+      const voice = [...(pet ? [{ slot: "pet names", value: pet }] : []), ...(phrase ? [{ slot: "catchphrases", value: phrase }] : [])];
+      return { card: [...(eyes ? [{ slot: "eyes", value: eyes.toLowerCase() }] : []), ...voice], invented: [{ slot: "birthday", value: "19 January" }, { slot: "handedness", value: "left-handed" }, { slot: "nonsense", value: "dropped" }] };
     }
     case "lore_core_rewrite":
       // The rules' rewrite stands (same text back means "no better version").
@@ -215,7 +219,10 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const types = ["location", "character", "faction", "item", "concept", "event"];
       const titles = [...found, "The Old Harbour", "The Night Market", "The Salt Guild", "The Drowned Bell", "The Long Winter", "The Ferryman"].filter((t) => !planned.has(t.toLowerCase()));
       if (/Only situations already under way/.test(system)) return { title: "", overview: "", items: [{ title: "Raiders Burn the Docks", type: "event", pitch: "Raiders are burning the docks tonight.", parent: "", folder: "", now: true }] };
-      const items = [...new Set(titles)].slice(0, want).map((t, k) => ({ title: t, type: types[k % types.length], pitch: `${t} matters to the story.`, parent: k === 1 && titles[0] ? titles[0] : "", folder: "" }));
+      const items: Record<string, unknown>[] = [...new Set(titles)].slice(0, want).map((t, k) => ({ title: t, type: types[k % types.length], pitch: `${t} matters to the story.`, parent: k === 1 && titles[0] ? titles[0] : "", folder: "" }));
+      // docs/17, 7.1–7.2: a careless planner plans the card's or persona's own entry, voice and inner life.
+      const owner = user.match(/MOCK_OWNER (\w+)/)?.[1];
+      if (owner) items.push({ title: owner, kind: "character", pitch: "Them.", parent: "", folder: "" }, { title: `Voice: ${owner}`, kind: "voice", pitch: "How they talk.", parent: "", folder: "" }, { title: `Secret: what ${owner} hides`, kind: "secret", pitch: "Their secret.", parent: "", folder: "" }, { title: `Reaction: ${owner}, when the war comes up`, kind: "reaction", pitch: "Their reaction.", parent: "", folder: "" });
       return { title: /ALREADY PLANNED/.test(user) ? "" : "Mock World", overview: /ALREADY PLANNED/.test(user) ? "" : "A cold harbour town where the fog keeps secrets. Everyone owes someone.", items };
     }
     case "studio_satellites": {
@@ -401,7 +408,10 @@ function helperJson(name: string, user: string, system = ""): unknown {
     case "creator_depth_entry": {
       const q = user.match(/^QUESTION: (.*)$/m)?.[1] ?? "";
       const a = user.match(/^ANSWER \([^)]*\): (.*)$/m)?.[1] ?? "";
-      return { title: q.split(":")[0]!.slice(0, 40) || "Depth", content: `Mira ${a.replace(/^I /, "")}`.trim(), keys: names(a).length ? names(a) : ["past"] };
+      // docs/17, 7.3: something kept hidden is a Secret (its truth kept apart); else History. MOCK_KIND picks one.
+      const forced = user.match(/MOCK_KIND (\w+)/)?.[1];
+      const secret = !forced && /\b(hidden|hides|secret|never told)\b/i.test(a);
+      return { title: q.split(":")[0]!.slice(0, 40) || "Depth", content: secret ? "Mira keeps something from Tam." : `Mira ${a.replace(/^I /, "")}`.trim(), keys: names(a).length ? names(a) : ["past"], kind: forced ?? (secret ? "secret" : "history"), truth: secret ? `Mira ${a.replace(/^I /, "")}`.trim() : "" };
     }
     case "creator_depth_from_bible":
       return { entries: [{ title: "The missing page", content: "Mira tore a page from the logbook the night the ferry sank.", keys: ["logbook", "page"] }, { title: "Her brother", content: "Her brother left for the navy and stopped writing.", keys: ["brother"] }] };

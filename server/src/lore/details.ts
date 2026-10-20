@@ -54,10 +54,11 @@ type DetailsSource = { name: string; text: string; origin: "card" | "studio"; fi
  * Drafts the detail sheet for a character's entry: what the source states (canon) and what it
  * leaves open (invented, to confirm). Slots that already have a fact are left alone.
  */
-export async function draftDetails(entryId: string, characterId: string, job?: JobContext): Promise<{ card: LoreFact[]; invented: LoreFact[] }> {
+export async function draftDetails(entryId: string, characterId: string, job?: JobContext, extra = ""): Promise<{ card: LoreFact[]; invented: LoreFact[] }> {
   const card = getCard(characterId);
   if (!card) throw notFound("Character not found");
-  return draftDetailsFrom(entryId, { name: card.name, text: [card.description, card.personality, card.scenario].filter((x) => x.trim()).join("\n\n"), origin: "card" }, job);
+  // docs/17, 7.1: the example dialogue and the bible (its voice section) say how they talk: pet names, catchphrases, greetings.
+  return draftDetailsFrom(entryId, { name: card.name, text: [card.description, card.personality, card.scenario, card.mes_example ?? "", extra].filter((x) => x.trim()).join("\n\n"), origin: "card" }, job);
 }
 
 async function draftDetailsFrom(entryId: string, src: DetailsSource, job?: JobContext): Promise<{ card: LoreFact[]; invented: LoreFact[] }> {
@@ -101,7 +102,7 @@ async function draftDetailsFrom(entryId: string, src: DetailsSource, job?: JobCo
  * The job after a book is built: a companion book's character (from the card), or one person a
  * studio book wrote (docs/17, 4.3: from their entry, its text and parts).
  */
-export async function runDetailsJob(p: { bookId: string; characterId?: string; entryId?: string }, job?: JobContext) {
+export async function runDetailsJob(p: { bookId: string; characterId?: string; entryId?: string; extra?: string }, job?: JobContext) {
   if (!getLorebook(p.bookId)) return null;
   if (p.entryId) {
     const e = getLorebook(p.bookId)!.entries.find((x) => x.id === p.entryId);
@@ -116,7 +117,7 @@ export async function runDetailsJob(p: { bookId: string; characterId?: string; e
   }
   const card = p.characterId ? getCard(p.characterId) : undefined;
   if (!card) return null;
-  return draftDetails(detailsEntry(p.bookId, card.name), p.characterId!, job);
+  return draftDetails(detailsEntry(p.bookId, card.name), p.characterId!, job, p.extra ?? "");
 }
 
 // ---------- confirming them ----------

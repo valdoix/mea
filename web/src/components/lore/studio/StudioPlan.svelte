@@ -234,6 +234,9 @@
       </div>
     {/if}
   {/if}
+  {#if draft.planNotes?.length}
+    <ul class="tiny muted notes">{#each draft.planNotes as n, k (k)}<li>{n}</li>{/each}</ul>
+  {/if}
 
   {#each shelves as g (g.id)}
   <details class="shelf" open>
@@ -356,6 +359,10 @@
 </section>
 
 <style>
+  .notes {
+    margin: 0;
+    padding-left: 1.1rem;
+  }
   .board {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));

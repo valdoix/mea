@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CATEGORIES, CATEGORY_INFO, type Category, guessCategory, SHELVES, withCategory } from "./format";
-import { allowedKinds, cleanMix, isSatellite, type Mix, mixBrief, mixFromTypes, PLAN_WHEN } from "./mix";
+import { allowedKinds, cleanMix, DEFAULT_RECIPE, isSatellite, type Mix, mixBrief, mixFromTypes, PERSONA_BLOCKED, PLAN_WHEN, RECIPES } from "./mix";
 import { cleanParts, HIDDEN_PART, hiddenSecret, joinParts, KIND_BRIEF, type Parts, partsAsk, SHAPES, voiceSlotValues, withFiring, wordsFor } from "./shapes";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
@@ -200,6 +200,8 @@ export interface StudioDraft {
   basedOn: string;
   census: CensusEntry[] | null;
   critique: CritiqueIssue[] | null;
+  /** docs/17, 7.2: what the last plan left out, and why ("Left out “Voice: Ren”: a persona's voice is the player's…"). */
+  planNotes?: string[];
   /** The co-writer: the conversation, and the changes it's proposing. */
   chat: ChatTurn[];
   proposal: Proposal | null;
@@ -263,6 +265,7 @@ function hydrate(r: Row): StudioDraft {
     basedOn: d.basedOn ?? "",
     census: d.census ?? null,
     critique: d.critique ?? null,
+    planNotes: Array.isArray(d.planNotes) ? d.planNotes : [],
     chat: d.chat ?? [],
     proposal: d.proposal ?? null,
     research: d.research ?? null,
@@ -505,6 +508,9 @@ export function createDraft(input: CreateInput): StudioDraft {
   const id = newId();
   const t = now();
   const options = optionsOf(input.kind, input.options);
+  // docs/17, 7.1–7.2: from a card the Companion recipe, from a persona the Persona one (the mix still shows and can change).
+  const recipe = !input.options?.mix && !input.options?.types?.length && !input.options?.recipe ? RECIPES.find((r) => r.id === DEFAULT_RECIPE[input.kind]) : undefined;
+  if (recipe) Object.assign(options, { recipe: recipe.id, mix: { ...recipe.mix } });
   const d: StudioDraft = {
     id,
     title: input.title?.trim() || "",
@@ -1056,10 +1062,27 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     fresh.push(...toItems(data.items, taken, census, allowed).slice(0, more ? n : 120));
   }
 
+  // 7.1–7.2: never the card's or persona's own entry or voice (a model sometimes plans one anyway).
+  const dropped: string[] = [];
+  const keep = (xs: StudioItem[]) => {
+    const r = dropBlocked(d, xs);
+    dropped.push(...r.notes);
+    return r.kept;
+  };
+  fresh.splice(0, fresh.length, ...keep(fresh));
+  // 7.1: in a companion book, a reaction or secret the outline planned about the card's character is about the card.
+  if (d.source.kind === "character" && d.source.refId)
+    for (const it of fresh) if (it.category && isSatellite(it.category) && !it.about.length && titleIsOwners(d, it.title)) it.about = [`card:${d.source.refId}`];
   // The people's satellites, now that the people are planned (a fresh plan only; "more" and names add to it).
   if (!more && !named && sats.length) {
     const pool = [...keptOnReplan, ...fresh];
-    fresh.push(...(await satellitePass(d, pool, satelliteTargets(d, pool, sats), taken)));
+    const targets = satelliteTargets(d, pool, sats);
+    // 7.1: a companion book's satellites can be about the card itself (its reactions, bonds, secrets), never its voice.
+    const card = d.source.kind === "character" && d.source.refId ? getCard(d.source.refId) : undefined;
+    const cardKinds = sats.filter((k) => k !== "voice" && k !== "moment");
+    const cardPerson = card && cardKinds.length ? normItem({ id: `card:${d.source.refId}`, title: card.name, category: "character", pitch: card.description.slice(0, 300) }) : null;
+    if (cardPerson) targets.push({ person: cardPerson, kinds: cardKinds });
+    fresh.push(...keep(await satellitePass(d, cardPerson ? [...pool, cardPerson] : pool, targets, taken)));
   }
   // docs/17, 5.3: a companion book's shared moments, from what the card says happened.
   if (!more && !named && d.source.kind === "character" && d.source.refId && (!Object.keys(mix).length || mix.moment)) fresh.push(...(await companionMoments(d, [...keptOnReplan, ...fresh], taken)));
@@ -1087,7 +1110,82 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
       if (title.trim() && (cur.title === "Untitled world" || !cur.title.trim())) cur.title = cleanTitle(title);
     }
     if (cur.stage === "start" || cur.stage === "questions") cur.stage = "plan";
+    cur.planNotes = dropped;
     snapshotPlan(cur, more ? (opts.steer?.trim() ? `planned more: ${opts.steer.trim()}` : "planned more") : opts.steer?.trim() ? `planned: ${opts.steer.trim()}` : "the plan");
+  });
+}
+
+// ---------- the card and the persona (docs/17, 7.1–7.2) ----------
+
+/** Whether a name is the card's or persona's own ("Mira" for Mira Vell). */
+function isOwner(d: StudioDraft, name: string): boolean {
+  const own = d.source.kind === "character" || d.source.kind === "persona" ? d.source.refName.trim() : "";
+  const n = baseTitle(name).trim().toLowerCase();
+  return Boolean(own && n) && (n === own.toLowerCase() || n === own.split(/\s+/)[0]!.toLowerCase() || covers([own], n));
+}
+
+/** Whether a satellite's title is about the card or persona: the first name after its label ("Secret: what Ren hides" is Ren's; "what Joss keeps from Ren" is Joss's). */
+function titleIsOwners(d: StudioDraft, title: string): boolean {
+  const first = title.replace(/^[^:]*:\s*/, "").match(/[\p{Lu}][\p{L}'’-]+(?:\s+[\p{Lu}][\p{L}'’-]+)*/u)?.[0];
+  return Boolean(first && isOwner(d, first.replace(/['’]s$/, "")));
+}
+
+/**
+ * Why a planned entry can't be in this book, or "": the card's or persona's own Character or Voice
+ * entry (the card covers them, and has its own voice), and with the persona as subject, a kind that
+ * would speak, feel or decide for {{user}}.
+ */
+export function ownerBlock(d: StudioDraft, it: Pick<StudioItem, "title" | "category" | "about">): string {
+  if (d.source.kind !== "character" && d.source.kind !== "persona") return "";
+  const who = d.source.refName || (d.source.kind === "persona" ? "the persona" : "the character");
+  const card = d.source.refId ? `card:${d.source.refId}` : "";
+  if (it.category === "character" && isOwner(d, it.title)) return `${who} is covered by the ${d.source.kind === "persona" ? "persona" : "card"}, not an entry`;
+  if (it.category === "voice" && ((card && it.about.includes(card)) || isOwner(d, voiceOwner(it.title)))) return d.source.kind === "persona" ? `a persona's voice is the player's, never decided for them` : `${who}'s voice is the card's own`;
+  if (d.source.kind === "persona" && it.category && PERSONA_BLOCKED.includes(it.category)) {
+    const others = it.about.filter((a) => a !== "user");
+    const aboutPersona = !others.length && (it.about.includes("user") || titleIsOwners(d, it.title));
+    if (aboutPersona) return `${CATEGORY_INFO[it.category].label} about ${who} would decide for the player`;
+  }
+  return "";
+}
+
+/** Drops what can't be in this book, with a note on the plan for each (7.2: "has it dropped with a note"). */
+function dropBlocked(d: StudioDraft, items: StudioItem[]): { kept: StudioItem[]; notes: string[] } {
+  const notes: string[] = [];
+  const kept = items.filter((i) => {
+    const why = ownerBlock(d, i);
+    if (why) notes.push(`Left out “${i.title}”: ${why}.`);
+    return !why;
+  });
+  return { kept, notes };
+}
+
+// ---------- a person becomes a card (docs/17, 7.4) ----------
+
+/** A person's satellites in the plan (written ones), for a card made from them. */
+export function satellitesFor(d: StudioDraft, itemId: string): StudioItem[] {
+  return d.items.filter((i) => i.keep && i.entry && i.about.includes(itemId));
+}
+
+/**
+ * After a person's card is saved: their satellites are about the card now, and their Voice keeps
+ * its slot facts but loses its text (the card has its own voice; one voice text per person).
+ */
+export function promotedToCard(draftId: string, itemId: string, characterId: string) {
+  const d = getDraft(draftId);
+  if (!d) return;
+  const card = `card:${characterId}`;
+  const voices = d.items.filter((i) => i.category === "voice" && i.about.includes(itemId));
+  const book = d.committedBookId ? getLorebook(d.committedBookId) : undefined;
+  for (const v of voices) {
+    const e = v.savedEntryId ? book?.entries.find((x) => x.id === v.savedEntryId) : undefined;
+    if (!e || (e.extra as { retired?: string }).retired) continue;
+    const { id: eid, ...data } = e;
+    // Empty text never fires; the entry stays on, so voiceFacts() still finds its pet names and catchphrases.
+    updateEntry(eid, { ...data, content: "", extra: { ...data.extra, retired: "card", retiredText: e.content } });
+  }
+  mutate(draftId, (cur) => {
+    for (const i of cur.items) if (i.about.includes(itemId)) i.about = i.about.map((a) => (a === itemId ? card : a));
   });
 }
 
@@ -1270,8 +1368,10 @@ export async function planPack(id: string, itemId: string, kinds?: Category[]) {
   const taken = new Set([...d.items.map((i) => i.title.toLowerCase()), ...existingTitles(d).map((t) => t.toLowerCase())]);
   // A pack is one person's: "few" means one or two for them, not a spread.
   const solo = { ...d, options: { ...d.options, mix: Object.fromEntries(want.map((k) => [k, "each"])) as Mix } };
-  const fresh = await satellitePass(solo, d.items, [{ person, kinds: want }], taken);
+  // 7.2: the pack never holds what would speak for the persona.
+  const { kept: fresh, notes } = dropBlocked(d, await satellitePass(solo, d.items, [{ person, kinds: want }], taken));
   return mutate(id, (cur) => {
+    cur.planNotes = notes;
     // Right after the person and their other satellites, so they're written after them.
     const at = cur.items.reduce((last, i, k) => (i.id === itemId || i.about.includes(itemId) ? k : last), cur.items.length - 1);
     cur.items.splice(at + 1, 0, ...fresh);
@@ -1326,7 +1426,7 @@ export async function planGaps(id: string) {
     byPerson.set(person.id, t);
   }
   const taken = new Set([...d.items.map((i) => i.title.toLowerCase()), ...existingTitles(d).map((t) => t.toLowerCase())]);
-  const fresh = byPerson.size ? await satellitePass(d, d.items, [...byPerson.values()], taken) : [];
+  const fresh = byPerson.size ? dropBlocked(d, await satellitePass(d, d.items, [...byPerson.values()], taken)).kept : [];
   if (gaps.some((g) => g.kind === "rule")) {
     const data = await outlineCall(d, { n: 3, more: true, steer: 'Only the rules of this world (kind "rule"): laws that must always hold.', planned: d.items, withOverview: false, kinds: ["rule"] });
     fresh.push(...toItems(data.items, taken, d.census ?? [], ["rule"]));
@@ -1964,6 +2064,8 @@ export function commitDraft(id: string, input: CommitInput = {}) {
       // docs/17, 4.2: a voice with no subject picked still belongs to the person its title names ("Voice: Mira").
       if (it.category === "voice" && !entry.extra.entity) entry = { ...entry, extra: { ...entry.extra, entity: voiceOwner(it.title) } };
       if (e.parts && Object.keys(e.parts).length) entry = { ...entry, extra: { ...entry.extra, parts: e.parts } };
+      // 7.4: a voice for someone who's a card now keeps only its facts; the card has its own voice text.
+      if (it.category === "voice" && it.about.some((a) => a.startsWith("card:"))) entry = { ...entry, content: "", extra: { ...entry.extra, retired: "card", retiredText: e.content } };
       const made = createEntry(bookId, entry);
       saved.set(it.id, made.id);
     }
@@ -1992,7 +2094,8 @@ export function commitDraft(id: string, input: CommitInput = {}) {
   }
   if (embeddingsEnabled()) enqueue("lore.embed", {}, { dedupeKey: "lore.embed", delayMs: 4000 });
   // docs/15, 3.2: a companion book's details stage: the card's small details, and the gaps drafted for your yes.
-  if (d.source.kind === "character" && d.source.refId) enqueue("lore.details", { bookId, characterId: d.source.refId }, { dedupeKey: `lore.details:${bookId}`, delayMs: 2000, priority: 0 });
+  // docs/17, 7.1: the card's voice goes out as facts on its details entry (from the card and the bible this draft was opened with), never a second voice text.
+  if (d.source.kind === "character" && d.source.refId) enqueue("lore.details", { bookId, characterId: d.source.refId, extra: d.source.text.slice(0, 6000) }, { dedupeKey: `lore.details:${bookId}`, delayMs: 2000, priority: 0 });
   // docs/17, 4.3: and every person the studio wrote gets theirs (the card's own character is covered above).
   const card = d.source.kind === "character" ? baseTitle(d.source.refName).toLowerCase() : "";
   for (const it of items) {

@@ -5,13 +5,14 @@ import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
 import { countTokens } from "../lib/tokens";
 import { getLorebook, linkLorebook, linkedBooks } from "../lore/service";
-import { createDraft as createLoreDraft, getDraft as getLoreDraft, mutate as mutateLore } from "../lore/studio";
+import { createDraft as createLoreDraft, getDraft as getLoreDraft, mutate as mutateLore, promotedToCard, satellitesFor, type StudioItem } from "../lore/studio";
 import { createCharacter, getCard, getCharacterRow, updateCharacter } from "../services/characters";
 import { Deferred, enqueue, type JobContext } from "../services/jobs";
 import { callJson, callText } from "../services/llm";
 import { createPersona, getPersona, updatePersona } from "../services/personas";
 import { markPromoted } from "../lore/people";
-import { ensureRoleBook, parseAgency, setAgency, writeDepthBook, writeRulesBook } from "./books";
+import { DEPTH_KINDS, ensureRoleBook, parseAgency, setAgency, writeDepthBook, writeRulesBook } from "./books";
+import type { Category } from "../lore/format";
 import { type CardIssue, checkExamples, checkGreeting, checkPersona, checkProse, checkScenario } from "./checks";
 import { applyExpansionPatch, CRAFT, deepenSection, type Expansion, type ExpansionPatch, expandIdea, expansionBlock, tidy } from "./expand";
 import { type Criterion, deepenCap, failedNotes, type GateVerdict, judgeTemp, rubric, runGate, toVerdict, writeTemp } from "./gate";
@@ -116,6 +117,9 @@ export interface DepthEntry {
   gate?: GateVerdict | null;
   /** The entry it became in the depth book. */
   entryId?: string;
+  /** docs/17, 7.3: the kind it is (history, reaction, belief, secret, moment, relationship), and a secret's truth. */
+  kind?: Category | null;
+  truth?: string;
 }
 
 /** The character a persona is built to play opposite (complement or friction, but reusable). */
@@ -694,6 +698,8 @@ export function createCreatorDraft(input: CreatorInput): CreatorDraft {
     if (lore.committedBookId) d.worldBookIds = [...new Set([...d.worldBookIds, lore.committedBookId])];
     else d.loreDraftId = lore.id;
     d.options.tone ||= lore.options.tone;
+    // docs/17, 7.4: their voice, bonds and reactions come along and seed the bible (the writer keeps them).
+    d.bible = seedBible(input.kind, satellitesFor(lore, item.id), (ref) => (ref === "user" ? "{{user}}" : (lore.items.find((x) => x.id === ref)?.title ?? "")));
   }
   if (input.fromDraftId) {
     const src = mustCreator(input.fromDraftId);
@@ -746,6 +752,44 @@ export function createCreatorDraft(input: CreatorInput): CreatorDraft {
   return d;
 }
 
+/**
+ * The bible sections a person's satellites seed (docs/17, 7.4): the Voice entry's parts become the
+ * voice section (sample lines included), Relationships the relationships section, Reactions the
+ * "if this, then that" lines (a trigger and what they do). Only sections the kind has.
+ */
+export function seedBible(kind: CreatorKind, sats: StudioItem[], titleOf: (ref: string) => string): BibleSection[] {
+  const list = (v: string | string[] | undefined) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => x.trim()).filter(Boolean);
+  const one = (v: string | string[] | undefined) => list(v).join("; ");
+  const out: Record<string, string> = {};
+  const voice = sats.find((s) => s.category === "voice");
+  if (voice?.entry) {
+    const p = voice.entry.parts ?? {};
+    out.voice = [
+      voice.entry.content.replace(/\nSounds like:.*$/s, "").trim(),
+      [one(p.register) && `Register: ${one(p.register)}.`, one(p.rhythm) && `Rhythm: ${one(p.rhythm)}.`, one(p.vocabulary) && `Reaches for: ${one(p.vocabulary)}.`].filter(Boolean).join(" "),
+      list(p["pet names"]).length ? `Calls {{user}}: ${list(p["pet names"]).join(", ")}.` : "",
+      list(p.catchphrases).length ? `Says: ${list(p.catchphrases).map((x) => `“${x.replace(/^["“]|["”]$/g, "")}”`).join(", ")}.` : "",
+      [one(p.swearing) && `Swearing: ${one(p.swearing)}.`, one(p.greeting) && `Greets with “${one(p.greeting)}”.`, one(p.goodbye) && `Says goodbye with “${one(p.goodbye)}”.`].filter(Boolean).join(" "),
+      list(p["never says"]).length ? `Never says: ${list(p["never says"]).join(", ")}.` : "",
+      list(p.shifts).length ? `How it shifts: ${list(p.shifts).join("; ")}.` : "",
+      list(p["sample lines"]).length ? list(p["sample lines"]).map((l) => {
+        const m = l.match(/^\s*([a-z][\w ,'-]{0,24}):\s*(.+)$/i);
+        return m ? `(${m[1]!.trim()}) “${m[2]!.trim().replace(/^["“]|["”]$/g, "")}”` : `“${l.replace(/^["“]|["”]$/g, "")}”`;
+      }).join("\n") : "",
+    ].filter(Boolean).join("\n");
+  }
+  const bonds = sats.filter((s) => s.category === "relationship" && s.entry);
+  if (bonds.length) out.relationships = bonds.map((b) => `- ${b.about.map(titleOf).filter(Boolean).join(" & ") || b.title}: ${b.entry!.essentials || b.entry!.content.split(/(?<=[.!?])\s/).slice(0, 2).join(" ")}`).join("\n");
+  const reactions = sats.filter((s) => s.category === "reaction" && s.entry);
+  if (reactions.length)
+    out.tensions = reactions.map((r) => {
+      const p = r.entry!.parts ?? {};
+      const said = one(p.says);
+      return one(p.trigger) && one(p.does) ? `IF ${one(p.trigger)} THEN ${one(p.does)}${said ? `, saying “${said.replace(/^["“]|["”]$/g, "")}”` : ""}` : `- ${r.entry!.essentials || r.entry!.content.split(/(?<=[.!?])\s/)[0]}`;
+    }).join("\n");
+  return BIBLE[kind].filter((b) => out[b.key]?.trim()).map((b) => ({ key: b.key, label: b.label, text: out[b.key]! }));
+}
+
 // ---------- edits ----------
 
 export interface CreatorPatch {
@@ -773,7 +817,7 @@ export interface CreatorPatch {
   optional?: string[];
   taste?: string[];
   brief?: string;
-  depth?: { id?: string; title?: string; content?: string; keys?: string[]; remove?: boolean }[];
+  depth?: { id?: string; title?: string; content?: string; keys?: string[]; remove?: boolean; kind?: string | null; truth?: string }[];
   variant?: VariantPatch;
 }
 
@@ -893,6 +937,9 @@ export function patchCreator(id: string, p: CreatorPatch) {
           if (e.title !== undefined) cur.title = e.title;
           if (e.content !== undefined) cur.content = e.content;
           if (e.keys) cur.keys = e.keys.map((k) => k.trim()).filter(Boolean).slice(0, 12);
+          // docs/17, 7.3: one tap changes its kind (or clears it).
+          if (e.kind !== undefined) cur.kind = DEPTH_KINDS.find((k) => k === e.kind) ?? null;
+          if (e.truth !== undefined) cur.truth = e.truth;
         } else if (!e.id) d.depth.push({ id: newId(), title: e.title?.trim() || "Detail", content: e.content ?? "", keys: (e.keys ?? []).map((k) => k.trim()).filter(Boolean), from: "you" });
       }
   });
@@ -2252,18 +2299,21 @@ ${v("rules")}` : (base?.post_history_instructions ?? ""),
   const lore = d.loreDraftId ? getLoreDraft(d.loreDraftId) : undefined;
   const books = [...new Set([...d.worldBookIds, ...(lore?.committedBookId ? [lore.committedBookId] : [])])];
   for (const b of books) linkLorebook(b, d.kind, savedId!);
-  if (d.origin?.loreDraftId && d.origin.loreItemId && getLoreDraft(d.origin.loreDraftId))
+  if (d.origin?.loreDraftId && d.origin.loreItemId && getLoreDraft(d.origin.loreDraftId)) {
     mutateLore(d.origin.loreDraftId, (l) => {
       const it = l.items.find((i) => i.id === d.origin!.loreItemId);
       if (it) it.links = { ...it.links, creatorDraftId: d.id, ...(d.kind === "character" ? { characterId: savedId! } : { personaId: savedId! }) };
     });
+    // docs/17, 7.4: their satellites are about the card now, and their Voice's text gives way to the card's.
+    if (d.kind === "character") promotedToCard(d.origin.loreDraftId, d.origin.loreItemId, savedId!);
+  }
   // The depth book: deepening answers and depth entries, firing on meaning instead of riding every turn.
   let depthBookId = d.depthBookId;
   let depthIds: Record<string, string> = {};
   const depth = d.depth.filter((e) => e.content.trim());
   if (d.options.depthBook && depth.length) {
     depthBookId = ensureRoleBook("depth", owner, d.depthBookId);
-    depthIds = writeDepthBook(depthBookId, depth);
+    depthIds = writeDepthBook(depthBookId, depth, name);
   }
   // The rules book: always-on rules and a re-anchor, so the card plays to spec under any preset.
   let rulesBookId = d.rulesBookId;
@@ -2311,7 +2361,16 @@ const DEPTH_CRITERIA: Criterion[] = [
   { key: "premise_clean", label: "Premise clean", description: "Nothing from the question's framing that the answer didn't confirm survives; where the answer rejected the premise, the entry states the author's truth instead." },
 ];
 
-const depthSchema = z.object({ title: z.string().default(""), content: z.string().default(""), keys: z.array(z.string()).default([]) });
+const depthSchema = z.object({ title: z.string().default(""), content: z.string().default(""), keys: z.array(z.string()).default([]), kind: z.string().default(""), truth: z.string().default("") });
+
+/** docs/17, 7.3: what the composer asks for to pick a depth entry's kind. */
+const DEPTH_KIND_RULE = `"kind": what it is, one of ${DEPTH_KINDS.join(", ")}, or "" when none fits (a reaction is one topic and what they do when it comes up; a secret is something they keep). For a secret, "content" says only what others can see or have heard, and "truth" is the secret itself; otherwise "truth" is "".`;
+
+/** A composed entry's kind and truth, kept only when they fit. */
+const depthKind = (c: { kind: string; truth: string }) => {
+  const kind = DEPTH_KINDS.find((k) => k === c.kind.trim().toLowerCase()) ?? null;
+  return { ...(kind ? { kind } : {}), ...(kind === "secret" && c.truth.trim() ? { truth: tidy(c.truth) } : {}) };
+};
 
 /** One deepening Q&A as a self-contained entry, checked; revised once with what failed. */
 async function composeOne(d: CreatorDraft, q: CreatorQuestion): Promise<DepthEntry> {
@@ -2327,8 +2386,9 @@ async function composeOne(d: CreatorDraft, q: CreatorQuestion): Promise<DepthEnt
           `Compose one interview Q&A into ONE self-contained depth entry about ${name} that a storyteller can consult mid-scene; it surfaces only when its subject comes up. Write in the third person about them, by name; never address anyone, never mention the interview, the author or the question.`,
           "The question is scaffolding: take from it only what the answer confirms; where the answer rejects or corrects the question's premise, state the author's truth and let the rejected premise vanish. Keep the author's specifics verbatim; add nothing they didn't establish.",
           '"title": a short concrete title naming what it covers. "content": 1–4 sentences. "keys": 2–5 trigger words or names that would come up in a scene where it matters.',
+          DEPTH_KIND_RULE,
           fix ? `A first try failed these checks; fix exactly them: ${fix}` : "",
-          'Reply with JSON only: {"title": "…", "content": "…", "keys": ["…"]}',
+          'Reply with JSON only: {"title": "…", "content": "…", "keys": ["…"], "kind": "…", "truth": ""}',
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -2344,7 +2404,7 @@ async function composeOne(d: CreatorDraft, q: CreatorQuestion): Promise<DepthEnt
     c = await ask(failedNotes(gate));
     gate = await judge(c);
   }
-  return { id: newId(), title: c.title.trim() || q.q.slice(0, 60), content: tidy(c.content) || q.answer.trim(), keys: c.keys.map((k) => k.trim()).filter(Boolean).slice(0, 6), from: "answer", qid: q.id, gate };
+  return { id: newId(), title: c.title.trim() || q.q.slice(0, 60), content: tidy(c.content) || q.answer.trim(), keys: c.keys.map((k) => k.trim()).filter(Boolean).slice(0, 6), from: "answer", qid: q.id, gate, ...depthKind(c) };
 }
 
 const fromBibleSchema = z.object({ entries: z.array(depthSchema).default([]) });
@@ -2371,6 +2431,7 @@ export async function composeDepth(id: string, opts: { fromBible?: boolean } = {
         `From this bible for ${LABEL[d.kind]}, draft 3–8 triggered depth entries about ${name}: material worth knowing but not worth carrying every turn (formative events, the people in their life, secrets, places, possessions with a story). Nothing basic or always relevant: that stays in the ${d.kind === "persona" ? "persona's always-on text" : "card"}.`,
         who(d),
         'Each: "title" (short, concrete), "content" (1–3 sentences, third person by name, faithful to the bible), "keys" (2–5 trigger words or names).',
+        DEPTH_KIND_RULE,
         d.depth.length ? `Already there (don't repeat): ${d.depth.map((e) => e.title).join("; ")}` : "",
         'Reply with JSON only: {"entries": [{"title": "…", "content": "…", "keys": ["…"]}]}',
       ]
@@ -2381,7 +2442,7 @@ export async function composeDepth(id: string, opts: { fromBible?: boolean } = {
       temperature: writeTemp(0.6),
     });
     const text = (t: string) => (d.kind === "persona" ? unslipPersona(tidy(t), d.name) : tidy(t));
-    for (const e of r.data.entries.slice(0, 8)) if (e.content.trim()) made.push({ id: newId(), title: e.title.trim() || "Detail", content: text(e.content), keys: e.keys.map((k) => k.trim()).filter(Boolean).slice(0, 6), from: "bible" });
+    for (const e of r.data.entries.slice(0, 8)) if (e.content.trim()) made.push({ id: newId(), title: e.title.trim() || "Detail", content: text(e.content), keys: e.keys.map((k) => k.trim()).filter(Boolean).slice(0, 6), from: "bible", ...depthKind(e) });
   }
   return mutateCreator(id, (cur) => {
     const have = new Set(cur.depth.map((e) => e.qid).filter(Boolean));

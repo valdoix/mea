@@ -14,7 +14,18 @@
   const pending = $derived(draft.questions.filter((q) => q.section === "depth" && q.answer.trim() && !draft.depth.some((e) => e.qid === q.id)).length);
   const FROM: Record<string, string> = { answer: "from your answer", bible: "from the bible", you: "yours" };
 
-  function edit(id: string, patch: { title?: string; content?: string; keys?: string[] }) {
+  // docs/17, 7.3: each entry's kind (picked when it's composed), changed in one tap.
+  const KINDS = [
+    { id: "", label: "No kind" },
+    { id: "history", label: "History" },
+    { id: "reaction", label: "Reaction" },
+    { id: "belief", label: "Belief" },
+    { id: "secret", label: "Secret" },
+    { id: "moment", label: "Shared moment" },
+    { id: "relationship", label: "Relationship" },
+  ];
+
+  function edit(id: string, patch: { title?: string; content?: string; keys?: string[]; kind?: string | null; truth?: string }) {
     const e = session.draft!.depth.find((x) => x.id === id);
     if (e) Object.assign(e, patch);
     session.save({ depth: [{ id, ...patch }] }, `depth:${id}`);
@@ -43,10 +54,14 @@
     <div class="entry stack tight">
       <div class="row">
         <input class="input slim grow" value={e.title} oninput={(ev) => edit(e.id, { title: ev.currentTarget.value })} aria-label="Title" />
+        <select class="select mini" value={e.kind ?? ""} onchange={(ev) => edit(e.id, { kind: ev.currentTarget.value || null })} aria-label="Kind">
+          {#each KINDS as k (k.id)}<option value={k.id}>{k.label}</option>{/each}
+        </select>
         <span class="tiny faint">{FROM[e.from]}{e.entryId ? " · in the book" : ""}</span>
         <button class="btn ghost icon small" onclick={() => remove(e.id)} aria-label="Remove"><X size={13} /></button>
       </div>
       <textarea class="textarea small" use:autosize={{ max: 200, value: e.content }} value={e.content} placeholder="What surfaces…" oninput={(ev) => edit(e.id, { content: ev.currentTarget.value })}></textarea>
+      {#if e.kind === "secret"}<input class="input slim" value={e.truth ?? ""} placeholder="The secret itself (kept from the open text)" oninput={(ev) => edit(e.id, { truth: ev.currentTarget.value })} aria-label="The secret" />{/if}
       <input class="input slim" value={e.keys.join(", ")} placeholder="Trigger words, comma-separated" oninput={(ev) => edit(e.id, { keys: ev.currentTarget.value.split(",").map((k) => k.trim()).filter(Boolean) })} aria-label="Trigger words" />
       {#if e.gate && !e.gate.passed}<span class="tiny warn"><TriangleAlert size={11} /> {e.gate.criteria.filter((c) => !c.passed).map((c) => `${c.label}: ${c.note}`).join(" ")}</span>{/if}
     </div>
@@ -59,6 +74,11 @@
   .entry {
     border-top: 1px solid var(--border);
     padding-top: 0.5rem;
+  }
+  .mini {
+    width: auto;
+    padding: 0.25rem 0.4rem;
+    font-size: var(--fs-xs);
   }
   .slim {
     padding: 0.3rem 0.5rem;

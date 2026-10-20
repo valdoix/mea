@@ -151,7 +151,7 @@ creator.put("/creator/:id", async (c) => {
       optional: z.array(z.string().max(40)).max(10).optional(),
       taste: z.array(z.string().max(200)).max(24).optional(),
       brief: z.string().max(4000).optional(),
-      depth: z.array(z.object({ id: z.string().optional(), title: z.string().max(200).optional(), content: z.string().max(4000).optional(), keys: z.array(z.string().max(80)).max(12).optional(), remove: z.boolean().optional() })).max(60).optional(),
+      depth: z.array(z.object({ id: z.string().optional(), title: z.string().max(200).optional(), content: z.string().max(4000).optional(), keys: z.array(z.string().max(80)).max(12).optional(), remove: z.boolean().optional(), kind: z.string().max(40).nullable().optional(), truth: z.string().max(2000).optional() })).max(60).optional(),
       variant: variantPatch.optional(),
     }),
   );

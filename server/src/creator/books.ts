@@ -1,6 +1,7 @@
 import { badRequest, notFound } from "../lib/http";
 import { createEntry, createLorebook, deleteEntry, getLorebook, type LinkType, linkLorebook, linkedBooks, updateEntry } from "../lore/service";
-import { type BookRole, defaultEntry } from "../lore/types";
+import { type Category, withCategory } from "../lore/format";
+import { type BookRole, defaultEntry, type LoreEntry } from "../lore/types";
 import { getCard } from "../services/characters";
 
 /**
@@ -39,20 +40,37 @@ export interface DepthItem {
   content: string;
   keys: string[];
   entryId?: string;
+  /** docs/17, 7.3: the kind the composer picked (history, reaction, secret…), and a secret's truth. */
+  kind?: Category | null;
+  truth?: string;
 }
 
+/** The kinds a depth answer can be: inner material, never what rides every prompt (Current, Timeline, Rule, Scene). */
+export const DEPTH_KINDS: Category[] = ["history", "reaction", "belief", "secret", "moment", "relationship"];
+
 /** Writes depth entries into the depth book: new ones added, changed ones updated, nothing you added by hand touched. Returns entry ids by item id. */
-export function writeDepthBook(bookId: string, items: DepthItem[]): Record<string, string> {
+export function writeDepthBook(bookId: string, items: DepthItem[], owner = ""): Record<string, string> {
   const book = getLorebook(bookId);
   if (!book) throw notFound("Lorebook not found");
   const out: Record<string, string> = {};
+  const own = new Set([owner, ...owner.split(/\s+/)].filter((n) => n.length >= 2).map((n) => n.toLowerCase()));
   for (const it of items.filter((i) => i.content.trim())) {
-    const keys = it.keys.length ? it.keys : [it.title];
+    // docs/17, 7.3: only inner kinds; never Current, which would put it in every prompt and in the sim.
+    const kind = it.kind && DEPTH_KINDS.includes(it.kind) ? it.kind : null;
+    // A reaction fires on its topic, never on its owner's name (that's every scene they're in).
+    const topic = kind === "reaction" ? it.keys.filter((k) => !own.has(k.trim().toLowerCase())) : it.keys;
+    const keys = topic.length ? topic : it.keys.length ? it.keys : [it.title];
     const cur = it.entryId ? book.entries.find((e) => e.id === it.entryId) : undefined;
-    // No category: a depth entry is the character's inner life and past, and Current would put it in every prompt.
-    const base = defaultEntry({ comment: it.title, keys, content: it.content.trim(), extra: { creatorDepth: it.id } });
+    // A secret's truth is kept, with them as its keeper: the open text says only what can be seen.
+    const secrets = kind === "secret" && it.truth?.trim() ? [{ text: it.truth.trim(), knownBy: owner ? [owner] : [] }] : undefined;
+    const tag = <T extends LoreEntry>(e: T): T => {
+      const tagged = kind ? withCategory(e, kind) : e;
+      return secrets ? { ...tagged, extra: { ...tagged.extra, secrets } } : tagged;
+    };
+    // The kind's checks and Codex type, but the depth book's firing (after the character, by its words).
+    const base = tag(defaultEntry({ comment: it.title, keys, content: it.content.trim(), extra: { creatorDepth: it.id } }));
     if (cur) {
-      updateEntry(cur.id, { ...cur, comment: it.title, keys, content: it.content.trim() });
+      updateEntry(cur.id, tag({ ...cur, comment: it.title, keys, content: it.content.trim() }));
       out[it.id] = cur.id;
     } else out[it.id] = createEntry(bookId, { ...base, position: "after_char", order: 120 }).id;
   }
