@@ -113,7 +113,7 @@ function afterOpen(opts: { jobs?: boolean }) {
     runBondJob(String(p.chatId));
   });
   registerJob("lore.details", async (p, job) => {
-    await runDetailsJob(p as { bookId: string; characterId?: string; entryId?: string }, job);
+    await runDetailsJob(p as { bookId: string; characterId?: string; entryId?: string; extra?: string }, job);
   });
   registerJob("lore.keepup", async (p, job) => {
     await runKeepup(String(p.chatId), job);

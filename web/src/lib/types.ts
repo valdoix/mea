@@ -1978,6 +1978,8 @@ export interface StudioDraft {
   basedOn: string;
   census: CensusEntry[] | null;
   critique: CritiqueIssue[] | null;
+  /** docs/17, 7.2: what the last plan left out, and why. */
+  planNotes?: string[];
   chat: ChatTurn[];
   proposal: Proposal | null;
   research: Research | null;
@@ -2168,6 +2170,9 @@ export interface DepthEntry {
   qid?: string;
   gate?: GateVerdict | null;
   entryId?: string;
+  /** docs/17, 7.3: what it is (history, reaction, belief, secret, moment, relationship), and a secret's truth. */
+  kind?: string | null;
+  truth?: string;
 }
 
 export interface CreatorDraft {

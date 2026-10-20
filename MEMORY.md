@@ -13,8 +13,8 @@ One PR per part. Build the next part while CI runs; merge only when green.
 | 3 | Writing by kind (`lore/shapes.ts`: briefs, parts, kept secrets, firing by kind) | merged, PR #125 |
 | 4 | Voices that hold | merged, PR #126 |
 | 5 | Kinds the story machinery reads (timeline boundary, sim-readable kinds, shared moments) | merged, PR #127 |
-| 6 | Review by kind (per-kind checks, kind-aware critique, review by shelf) | branch `claude/lore-kinds-writing-s57q65` |
-| 7 | Cards and personas (companion/persona books, depth answers' kinds, entry ↔ card) | todo; needs 4 |
+| 6 | Review by kind (per-kind checks, kind-aware critique, review by shelf) | merged, PR #128 |
+| 7 | Cards and personas (companion/persona books, depth answers' kinds, entry ↔ card) | branch `claude/lore-kinds-writing-s57q65` |
 
 ### Part 4 (2026-10-20)
 
@@ -36,6 +36,15 @@ One PR per part. Build the next part while CI runs; merge only when green.
 - 6.2: the critique sees each entry's kind and the plan's gaps; an "add" carries `kind` and `about` (item ids); "split" can split out a satellite. `applyCritique` treats a satellite as a duplicate only of one like it.
 - 6.3: `StudioReview.svelte` groups by shelf with each shelf's cost; `StudioItemCard.svelte` shows the kind's parts above the text (sample lines as quotes, the truth marked "kept secret").
 - Tests: `server/test/lorereview.test.ts`.
+
+### Part 7 (2026-10-20)
+
+- 7.1: a draft from a card starts with the Companion recipe, from a persona with the new Persona recipe (`mix.ts` `DEFAULT_RECIPE`, set in `createDraft` when no mix/types/recipe is given). `planOutline` adds the card as a virtual person (`card:<id>`) to the satellite pass (no voice or moment; moments come from `companionMoments`), and links outline-planned satellites titled for the card to it. The card's details job gets the draft's source text (the bible) as `extra`, so the card's/bible's pet names and catchphrases become voice facts on the details entry.
+- 7.2: `ownerBlock` / `dropBlocked` (studio.ts): never the card's or persona's own Character or Voice entry; with the persona as subject (`about` only "user", or the first name in the title after the label is theirs), no Voice, Reaction, Belief or Secret (`PERSONA_BLOCKED`). Applied to the outline, the satellite pass, Pack and gaps; what's dropped goes to `draft.planNotes`, shown under the shelf board.
+- 7.3: `composeOne` and "Draft from the bible" ask for a `kind` (`DEPTH_KINDS`: history, reaction, belief, secret, moment, relationship) and a secret's `truth`; `writeDepthBook(bookId, items, owner)` tags the kind (`withCategory`, no defaults: depth firing stays), keeps a secret's truth in `secrets` with the owner, keys a reaction on its topic, and never saves Current. `CreatorDepth.svelte` has a kind picker (and the secret's truth field).
+- 7.4: `createCreatorDraft({ fromLore })` seeds the bible from the person's satellites (`seedBible`: Voice → voice section with sample lines, Relationships → relationships, Reactions → "if this, then that" (`tensions`)). On save, `promotedToCard` re-points satellites to `card:<id>` and blanks the Voice entry's text (kept in `extra.retiredText`; the entry stays on so its facts still reach the re-anchor). A Voice planned about a `card:` subject saves with no text.
+- 7.5: `worldContext` orders by shelf (`shelfRank`: ground truth and always-on entries, Current, Lexicon, Customs, then people, world, time, scenes) and leaves out satellites.
+- Tests: `server/test/lorecards.test.ts`.
 
 ## Things worth knowing
 

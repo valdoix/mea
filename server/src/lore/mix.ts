@@ -27,7 +27,19 @@ export const RECIPES: Recipe[] = [
   { id: "mystery", label: "Mystery", blurb: "a question, clues, who hides what", mix: { character: "each", secret: "each", mystery: "few", location: "each", routine: "few", belief: "few", hook: "few", timeline: "few" } },
   { id: "slice", label: "Slice of life", blurb: "days, habits, small places", mix: { character: "each", voice: "each", relationship: "few", routine: "few", customs: "few", location: "each", climate: "few", moment: "few" } },
   { id: "court", label: "Court intrigue", blurb: "houses, oaths, whispers", mix: { faction: "each", family: "few", character: "each", secret: "few", belief: "few", customs: "few", lexicon: "few", faith: "few", upcoming: "few" } },
+  // docs/17, 7.2: the people and past around your persona; nothing that speaks or feels for you.
+  { id: "persona", label: "Persona", blurb: "your people, your past, never your voice", mix: { character: "each", relationship: "each", family: "few", moment: "few", history: "few", location: "few", item: "few", faction: "few", secret: "few" } },
 ];
+
+/** The recipe a draft starts with when it opens from a card or a persona (docs/17, 7.1–7.2). */
+export const DEFAULT_RECIPE: Partial<Record<string, string>> = { character: "companion", persona: "persona" };
+
+/**
+ * docs/17, 7.2: with the persona as subject, the kinds that would decide what {{user}} says, feels
+ * or does: their voice, their reactions, their beliefs, a secret they keep. A Secret others keep
+ * from them is fine (it's about someone else).
+ */
+export const PERSONA_BLOCKED: Category[] = ["voice", "reaction", "belief", "secret"];
 
 /** What the census finds is always planned, whatever the mix. */
 export const WORLD_KINDS: Category[] = ["character", "location", "faction", "item"];
