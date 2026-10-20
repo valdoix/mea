@@ -17,6 +17,8 @@ export type MeaEvent =
   | { type: "draft.changed"; chatId: string; device: string | null }
   | { type: "library.changed"; what: "characters" | "personas" | "lorebooks" | "presets" | "connections" }
   | { type: "studio.changed"; draftId: string }
+  /** What a long studio action is doing now ("Taking the census…"); "" once it's done. */
+  | { type: "studio.step"; draftId: string; step: string }
   | { type: "creator.changed"; draftId: string }
   | { type: "inbox.changed" }
   | { type: "meus.changed"; chatId: string }

@@ -44,6 +44,11 @@ export class StudioSession {
   review = $state<StudioReview | null>(null);
   /** The action in flight ("readback", "outline", "write"…), for spinners and disabled buttons. */
   busy = $state("");
+  /** What the action in flight is doing now, as the server says ("Taking the census of the world…"). */
+  step = $state("");
+  /** Seconds into the current step, ticking while an action runs. */
+  elapsed = $state(0);
+  #stepAt = 0;
   missing = $state(false);
   saver = new DraftSaver(() => this.#queueReview());
   #refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -63,6 +68,11 @@ export class StudioSession {
 
   listen() {
     return onEvent((e) => {
+      if (e.type === "studio.step" && e.draftId === this.id) {
+        this.step = e.step;
+        this.#stepAt = Date.now();
+        this.elapsed = 0;
+      }
       if ((e.type === "studio.changed" && e.draftId === this.id) || e.type === "reconnected") {
         clearTimeout(this.#refreshTimer);
         this.#refreshTimer = setTimeout(() => void this.load(), 150);
@@ -120,6 +130,9 @@ export class StudioSession {
   /** Runs a studio action and takes its result. */
   async act(label: string, path: string, body?: unknown, method: "POST" | "DELETE" = "POST"): Promise<boolean> {
     this.busy = label;
+    this.#stepAt = Date.now();
+    this.elapsed = 0;
+    const ticker = setInterval(() => (this.elapsed = Math.floor((Date.now() - this.#stepAt) / 1000)), 1000);
     try {
       await this.flush();
       const r = await api<{ draft: StudioDraft }>(method, `/api/lore-studio/${this.id}${path}`, method === "POST" ? (body ?? {}) : body);
@@ -129,8 +142,16 @@ export class StudioSession {
       errorToast(e);
       return false;
     } finally {
+      clearInterval(ticker);
       this.busy = "";
+      this.step = "";
     }
+  }
+
+  /** A busy button's label: the step under way, and how long it's taken once that's worth saying. */
+  progress(fallback: string) {
+    const t = this.elapsed >= 10 ? ` ${Math.floor(this.elapsed / 60)}:${String(this.elapsed % 60).padStart(2, "0")}` : "";
+    return `${this.step || fallback}${t}`;
   }
 
   #queueReview() {

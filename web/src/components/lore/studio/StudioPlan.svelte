@@ -214,7 +214,7 @@
   {/if}
 
   {#if !draft.items.length}
-    <p class="muted small">No plan yet. {session.busy === "outline" ? "Planning…" : ""}</p>
+    <p class="muted small">No plan yet. {session.busy === "outline" ? session.progress("Planning…") : ""}</p>
   {/if}
 
   {#if draft.items.length}
@@ -230,7 +230,7 @@
     {#if gaps.length}
       <div class="row wrap gapline small">
         <span class="grow">{gapLine}</span>
-        <button class="btn small" onclick={() => session.act("gaps", "/gaps")} disabled={Boolean(session.busy)}><Plus size={14} /> {session.busy === "gaps" ? "Planning…" : "Plan them"}</button>
+        <button class="btn small" onclick={() => session.act("gaps", "/gaps")} disabled={Boolean(session.busy)}><Plus size={14} /> {session.busy === "gaps" ? session.progress("Planning…") : "Plan them"}</button>
       </div>
     {/if}
   {/if}
@@ -269,7 +269,7 @@
             {#each missingFor[it.id] ?? [] as k (k)}
               <button class="chip tiny miss" onclick={() => pack(it, [k])} disabled={Boolean(session.busy)} title="Plan this for {it.title}"><Plus size={11} /> {categoryLabel(k)}</button>
             {/each}
-            <button class="btn ghost small" onclick={() => pack(it)} disabled={Boolean(session.busy)} title="Plan everything {it.title} is missing: {(missingFor[it.id] ?? []).map(categoryLabel).join(', ')}">{session.busy === "pack" ? "Planning…" : "✦ Pack"}</button>
+            <button class="btn ghost small" onclick={() => pack(it)} disabled={Boolean(session.busy)} title="Plan everything {it.title} is missing: {(missingFor[it.id] ?? []).map(categoryLabel).join(', ')}">{session.busy === "pack" ? session.progress("Planning…") : "✦ Pack"}</button>
           </div>
         {/if}
         {#if open[it.id]}
@@ -298,7 +298,7 @@
         <span class="small"><UserSearch size={14} /> <b>Census</b> <span class="muted">{draft.census.length} people, places and things found{draft.basedOn ? `, ${draft.basedOn} canon included` : ""} · {missing.length ? `${missing.length} not in the plan yet` : "all of them are in the plan"}</span></span>
         <div class="row">
           <button class="btn ghost small" onclick={() => session.act("census", "/census")} disabled={Boolean(session.busy)} title="Look through the material and canon again">{session.busy === "census" ? "Counting…" : "Count again"}</button>
-          {#if missing.length}<button class="btn small" onclick={() => planNames(missing.map((e) => e.name))} disabled={Boolean(session.busy)}><Plus size={14} /> {session.busy === "outline" ? "Planning…" : `Plan all ${missing.length}`}</button>{/if}
+          {#if missing.length}<button class="btn small" onclick={() => planNames(missing.map((e) => e.name))} disabled={Boolean(session.busy)}><Plus size={14} /> {session.busy === "outline" ? session.progress("Planning…") : `Plan all ${missing.length}`}</button>{/if}
         </div>
       </div>
       {#if missing.length}
@@ -337,7 +337,7 @@
   <div class="panel stack tight">
     <div class="row wrap">
       <input class="input grow" bind:value={steer} placeholder="Ask for something: more villains, places outside the city, the gods…" aria-label="What to plan" />
-      <button class="btn" onclick={() => session.act("outline", "/outline", { mode: "more", steer })} disabled={Boolean(session.busy) || !draft.source.text.trim()}><Plus size={15} /> {session.busy === "outline" ? "Planning…" : "Plan more"}</button>
+      <button class="btn" onclick={() => session.act("outline", "/outline", { mode: "more", steer })} disabled={Boolean(session.busy) || !draft.source.text.trim()}><Plus size={15} /> {session.busy === "outline" ? session.progress("Planning…") : "Plan more"}</button>
       <button class="btn ghost" onclick={() => session.act("outline", "/outline", { mode: "more", steer: NOW_STEER })} disabled={Boolean(session.busy) || !draft.source.text.trim()} title="Plan the situations already under way when the story opens (Current entries: in every scene until the story moves past them)"><Plus size={15} /> What's happening now</button>
       <button class="btn ghost" onclick={replan} disabled={Boolean(session.busy) || !draft.source.text.trim()}><RefreshCw size={15} /> Plan again</button>
     </div>

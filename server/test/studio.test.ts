@@ -27,6 +27,7 @@ import { createCharacter } from "../src/services/characters";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { registerJob } from "../src/services/jobs";
 import { createPersona } from "../src/services/personas";
+import { subscribe } from "../src/lib/events";
 import { getSetting, setSetting } from "../src/lib/settings";
 import { freshDb } from "./helpers";
 
@@ -347,5 +348,40 @@ describe("the studio's own profile", () => {
     await directions(d.id);
     expect(lastModel()).toBe("mock/fast");
     setSetting("routing.tasks", { ...getSetting("routing.tasks"), studio: null });
+  });
+});
+
+describe("planning says which step it's on", () => {
+  test("census, outline, then done", async () => {
+    const d = createDraft({ kind: "idea", text: "A harbour town called Port Ellis where the fog keeps secrets. The Salt Guild owns the docks.", options: { size: "small" } });
+    const steps: string[] = [];
+    const stop = subscribe((e) => {
+      if (e.type === "studio.step" && e.draftId === d.id) steps.push(e.step);
+    });
+    try {
+      await planOutline(d.id);
+    } finally {
+      stop();
+    }
+    expect(steps[0]).toBe("Taking the census of the world…");
+    expect(steps).toContain("Outlining…");
+    expect(steps.at(-1)).toBe("");
+  });
+
+  test("a complete plan counts its batches", async () => {
+    const d = createDraft({ kind: "idea", text: "A harbour town called Port Ellis where the fog keeps secrets.", options: { size: "complete" } });
+    const steps: string[] = [];
+    const stop = subscribe((e) => {
+      if (e.type === "studio.step" && e.draftId === d.id) steps.push(e.step);
+    });
+    try {
+      await planOutline(d.id);
+    } finally {
+      stop();
+    }
+    const outline = steps.filter((s) => s.startsWith("Outlining"));
+    expect(outline[0]).toMatch(/^Outlining 1 of \d+…$/);
+    expect(outline.at(-1)).toMatch(/^Outlining (\d+) of \1: the concepts/);
+    expect(steps.at(-1)).toBe("");
   });
 });
