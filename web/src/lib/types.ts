@@ -1878,7 +1878,7 @@ export interface StudioItem {
   category?: string | null;
   action?: "write" | "change" | "off";
   targetEntryId?: string | null;
-  /** docs/17: who a satellite is about (item ids, "entry:<id>", or "user"). */
+  /** docs/17: who a satellite is about (item ids, "entry:<id>", "card:<id>", or "user"). */
   about?: string[];
   /** A version's entry (docs/14): the original entry it comes from, kept, translated or new. */
   versionSource?: { entryId: string | null; bookId: string | null; from: string; state: "kept" | "changed" | "new"; basis: string; text: string } | null;

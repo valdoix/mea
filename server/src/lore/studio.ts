@@ -105,9 +105,12 @@ export interface StudioItem {
   targetEntryId: string | null;
   /**
    * docs/17: who a satellite is about (a voice's person, a relationship's two): item ids,
-   * "entry:<id>" for an entry already in the book, or "user" for the player's character.
+   * "entry:<id>" for an entry already in the book, "card:<id>" for a companion book's card, or
+   * "user" for the player's character.
    */
   about: string[];
+  /** docs/17, 5.3: words a topic kind fires on, from the plan ("the dark lamp"): kept as keys when it's written. */
+  cues?: string[];
   /** A version's entry (docs/14): the original entry it comes from, and whether it's kept, translated or new. */
   versionSource: VersionSource | null;
 }
@@ -294,6 +297,7 @@ function normItem(i: Partial<StudioItem>): StudioItem {
     targetEntryId: i.targetEntryId ?? null,
     versionSource: i.versionSource ?? null,
     about: Array.isArray(i.about) ? i.about.filter((x) => typeof x === "string") : [],
+    ...(Array.isArray(i.cues) && i.cues.length ? { cues: i.cues.filter((x) => typeof x === "string") } : {}),
   };
 }
 
@@ -1056,6 +1060,10 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     const pool = [...keptOnReplan, ...fresh];
     fresh.push(...(await satellitePass(d, pool, satelliteTargets(d, pool, sats), taken)));
   }
+  // docs/17, 5.3: a companion book's shared moments, from what the card says happened.
+  if (!more && !named && d.source.kind === "character" && d.source.refId && (!Object.keys(mix).length || mix.moment)) fresh.push(...(await companionMoments(d, [...keptOnReplan, ...fresh], taken)));
+  // 5.1: a book based on an existing work holds a timeline boundary, so the story neither spoils nor skips canon.
+  if (!more && !named && wantsTimeline(d) && ![...keptOnReplan, ...fresh].some((i) => i.category === "timeline")) fresh.unshift(timelineItem(d));
 
   return mutate(id, (cur) => {
     // Parents come back as titles; point them at items (this plan's or the earlier ones).
@@ -1195,6 +1203,49 @@ async function satellitePass(d: StudioDraft, pool: StudioItem[], targets: SatTar
   return out;
 }
 
+const momentSchema = z.object({ items: z.array(z.object({ title: z.string(), pitch: z.string().default(""), words: z.array(z.string()).default([]) })).default([]) });
+
+/**
+ * Shared moments between the card's character and {{user}} (docs/17, 5.3): only what the card's
+ * scenario, first message and example dialogue say happened, never a history it contradicts. Each
+ * fires on words from the moment itself, so "remember the lighthouse?" brings it all back.
+ */
+async function companionMoments(d: StudioDraft, pool: StudioItem[], taken: Set<string>): Promise<StudioItem[]> {
+  const card = getCard(d.source.refId!);
+  if (!card) return [];
+  const level = d.options.mix.moment ?? "few";
+  const already = pool.filter((i) => i.category === "moment").map((i) => `- ${i.title}`);
+  const r = await callJson({
+    task: "summarizer",
+    kind: "studio:moments",
+    name: "studio_moments",
+    schema: momentSchema,
+    system: [
+      `You plan the shared moments of a companion lorebook: moments ${card.name} and {{user}} (the player's character) remember together. A storyteller brings one back whenever it's mentioned.`,
+      d.options.faithful
+        ? "Plan only moments the card states happened (in the scenario, the first message or the example dialogue). If it states none, plan none."
+        : "Plan moments the card states or clearly implies happened (in the scenario, the first message or the example dialogue). Never invent a history the card contradicts, and never decide what {{user}} felt.",
+      `${level === "few" ? "Two or three at most" : "One for each moment the card names"}. Never one under ALREADY PLANNED.`,
+      'Each item: "title" (what they\'d call it: "The Night of the Dark Lamp"), "pitch" (one sentence: what happened and what it means now), "words" (2–4 short phrases a chat would use about it: "the dark lamp", "that storm"; never just a name).',
+      'Reply with JSON only: {"items": [{"title": "…", "pitch": "…", "words": ["…"]}]}',
+    ].join(" "),
+    user: [`THE CARD: ${card.name}`, card.scenario.trim() ? `SCENARIO:\n${card.scenario.trim().slice(0, 3000)}` : "", card.first_mes.trim() ? `FIRST MESSAGE:\n${card.first_mes.trim().slice(0, 3000)}` : "", card.mes_example?.trim() ? `EXAMPLE DIALOGUE:\n${card.mes_example.trim().slice(0, 3000)}` : "", card.description.trim() ? `DESCRIPTION:\n${card.description.trim().slice(0, 2000)}` : "", already.length ? `ALREADY PLANNED:\n${already.join("\n")}` : ""].filter(Boolean).join("\n\n"),
+    maxTokens: 900,
+    temperature: d.options.faithful ? 0.2 : 0.5,
+  });
+  const out: StudioItem[] = [];
+  // Never just a name: "Mira" would bring the memory into every scene she's in.
+  const names = new Set([card.name, ...card.name.split(/\s+/), "{{user}}", "{{char}}"].map((n) => n.toLowerCase()));
+  for (const x of r.data.items.slice(0, level === "few" ? 3 : 8)) {
+    const title = cleanTitle(x.title);
+    if (!title || taken.has(title.toLowerCase())) continue;
+    taken.add(title.toLowerCase());
+    const cues = dedupe(x.words.map((w) => w.trim()).filter((w) => w.length >= 3 && w.length <= 40 && !names.has(w.toLowerCase()))).slice(0, 4);
+    out.push(normItem({ title, category: "moment", type: "event", pitch: x.pitch.trim(), about: [`card:${d.source.refId}`, "user"], cues }));
+  }
+  return out;
+}
+
 /** The default satellites a Pack plans when the mix names none. */
 function packKinds(d: StudioDraft): Category[] {
   const fromMix = (Object.keys(d.options.mix) as Category[]).filter(isSatellite);
@@ -1247,10 +1298,18 @@ export function kindGaps(d: StudioDraft): KindGap[] {
     }
   }
   const empty = !Object.keys(mix).length;
-  if (d.basedOn && (empty || mix.timeline) && !planned("timeline")) out.push({ kind: "timeline", about: [], label: "" });
+  if (wantsTimeline(d) && !planned("timeline")) out.push({ kind: "timeline", about: [], label: "" });
   if (mix.rule && !planned("rule")) out.push({ kind: "rule", about: [], label: "" });
   return out;
 }
+
+/** The timeline boundary a book based on an existing work plans (docs/17, 5.1). */
+function timelineItem(d: StudioDraft): StudioItem {
+  return normItem({ title: "Timeline: where the story stands", category: "timeline", type: "rule", constant: true, pitch: `Where the story stands at the opening${d.basedOn ? ` of ${d.basedOn}` : ""}: what has already happened, and the named events that haven't yet.` });
+}
+
+/** Whether a book wants a timeline boundary: based on an existing work, and the mix doesn't leave it out. */
+const wantsTimeline = (d: StudioDraft) => Boolean(d.basedOn.trim()) && (!Object.keys(d.options.mix).length || Boolean(d.options.mix.timeline));
 
 /** Plans every gap: the people's missing satellites in one call, a timeline boundary, rules. */
 export async function planGaps(id: string) {
@@ -1272,8 +1331,7 @@ export async function planGaps(id: string) {
     fresh.push(...toItems(data.items, taken, d.census ?? [], ["rule"]));
   }
   d = mutate(id, (cur) => {
-    if (gaps.some((g) => g.kind === "timeline") && !cur.items.some((i) => i.category === "timeline"))
-      cur.items.unshift(normItem({ title: "Timeline: where the story stands", category: "timeline", type: "rule", constant: true, pitch: `Where the story stands at the opening${cur.basedOn ? ` of ${cur.basedOn}` : ""}: what has already happened, and the named events that haven't yet.` }));
+    if (gaps.some((g) => g.kind === "timeline") && !cur.items.some((i) => i.category === "timeline")) cur.items.unshift(timelineItem(cur));
     cur.items.push(...fresh);
     snapshotPlan(cur, "filled the gaps");
   });
@@ -1291,14 +1349,23 @@ const entrySchema = z.object({
   parts: z.record(z.string(), z.union([z.string(), z.array(z.string())])).default({}),
 });
 
-/** A satellite's subjects: who it's about, with their names and what's written of them so far. */
 /** Whose voice a Voice entry is, from its title ("Voice: Mira Vell" → "Mira Vell"). */
 export const voiceOwner = (title: string) => baseTitle(title.replace(/^\s*voice\s*(?:of|:|—|-)\s*/i, "").replace(/['’]s voice\s*$/i, ""));
 
+/** A card's text as a subject: who they are, and what the card says happened. */
+function cardText(c: NonNullable<ReturnType<typeof getCard>>) {
+  return [c.description, c.personality, c.scenario, c.first_mes, c.mes_example].filter((x) => x?.trim()).join("\n\n");
+}
+
+/** A satellite's subjects: who it's about, with their names and what's written of them so far. */
 function subjectsOf(d: StudioDraft, it: StudioItem) {
   const book = d.targetBookId ? getLorebook(d.targetBookId) : undefined;
   return it.about.flatMap((ref) => {
     if (ref === "user") return [];
+    if (ref.startsWith("card:")) {
+      const c = getCard(ref.slice(5));
+      return c ? [{ name: c.name, aliases: [] as string[], text: cardText(c).slice(0, 2500), research: "" }] : [];
+    }
     if (ref.startsWith("entry:")) {
       const e = book?.entries.find((x) => x.id === ref.slice(6));
       return e ? [{ name: e.comment || e.keys[0] || "", aliases: extraOf(e).aliases ?? [], text: e.content.slice(0, 1500), research: "" }] : [];
@@ -1484,7 +1551,7 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
   const notOld = (k: string) => !oldName || k.trim().toLowerCase() !== oldName;
   // A kind keyed on its names takes its title as a key; a voice, a reaction or a term list doesn't ("Reaction: Mira, when…" isn't a word anyone says).
   const titleKey = !kind || CATEGORY_INFO[kind].fires === "names" || CATEGORY_INFO[kind].fires === "meaning";
-  const keys = dedupe([...(titleKey ? [name] : []), ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim()) && notOld(k)));
+  const keys = dedupe([...(titleKey ? [name] : []), ...(it.cues ?? []), ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim()) && notOld(k)));
   const parts = cleanParts(kind, r.data.parts);
   const secrets = r.data.secrets.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), knownBy: dedupe(s.knownBy) })).slice(0, 3);
   // A hidden truth the writer left only in its parts is kept as a secret, by the people it's about.

@@ -207,6 +207,12 @@ export function withFiring(e: LoreEntry, kind: Category, subjects: { name: strin
     logic = "and_any";
     extra.entity = a.name;
   }
+  if (info.fires === "topic" && info.subject === "two" && subjects.length) {
+    // A shared moment fires on its own words ("the dark lamp"), never on a name that's in every scene.
+    const own = lower(subjects.flatMap((x) => [...namesOf(x), ...x.name.split(/\s+/)]));
+    const kept = keys.filter((k) => !own.has(k.toLowerCase()));
+    if (kept.length) keys = kept;
+  }
   if (kind === "lexicon") {
     const terms = termsOf(parts);
     if (terms.length) keys = [...new Set([...terms, ...keys])].slice(0, 30);
