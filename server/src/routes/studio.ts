@@ -5,9 +5,14 @@ import { body } from "../lib/http";
 import { parseDocument } from "../lore/ingest";
 import { commitVersionLore, createVersionLore } from "../lore/versionlore";
 import { CATEGORIES } from "../lore/format";
+import { MIX_LEVELS, RECIPES } from "../lore/mix";
 import {
   addItem,
+  kindGaps,
+  missingSatellites,
   planDiff,
+  planGaps,
+  planPack,
   planExisting,
   applyCowrite,
   applyCritique,
@@ -53,6 +58,8 @@ const optionsSchema = z.object({
   secrets: z.boolean(),
   faithful: z.boolean(),
   overview: z.boolean(),
+  mix: z.partialRecord(z.enum(CATEGORIES), z.enum(MIX_LEVELS as [string, ...string[]])),
+  recipe: z.string().max(40),
 });
 const linkSchema = z.object({ type: z.enum(["global", "character", "persona", "chat"]), id: z.string().default("") });
 const entrySchema = z.object({
@@ -75,6 +82,8 @@ const itemSchema = z.object({
   entry: entrySchema.nullable(),
   // I1/I2: the lore category.
   category: z.enum(CATEGORIES).nullable(),
+  // docs/17: who a satellite is about.
+  about: z.array(z.string().max(100)).max(4),
 });
 
 /** Actions whose options are all optional also accept an empty body. */
@@ -177,8 +186,22 @@ studio.post("/lore-studio/:id/census", async (c) => c.json(d(await takeCensus(c.
 
 studio.get("/lore-studio/:id/gaps", (c) => {
   const draft = mustDraft(c.req.param("id"));
-  return c.json({ names: draft.source.kind === "book" && draft.source.refId ? missingNames(draft.source.refId) : [] });
+  // docs/17: what the mix asks for that the plan lacks, and what each person's Pack would add.
+  const missing = Object.fromEntries(draft.items.filter((i) => i.keep && i.category === "character").map((i) => [i.id, missingSatellites(draft, i.id)]));
+  return c.json({ names: draft.source.kind === "book" && draft.source.refId ? missingNames(draft.source.refId) : [], kinds: kindGaps(draft), missing });
 });
+
+/** docs/17: plans every kind gap (missing voices, a timeline boundary…). */
+studio.post("/lore-studio/:id/gaps", async (c) => c.json(d(await planGaps(c.req.param("id")))));
+
+/** docs/17: a person's Pack: the satellites they're missing (or just these kinds). */
+studio.post("/lore-studio/:id/pack", async (c) => {
+  const b = await body(c, z.object({ itemId: z.string(), kinds: z.array(z.enum(CATEGORIES)).max(12).optional() }));
+  return c.json(d(await planPack(c.req.param("id"), b.itemId, b.kinds)));
+});
+
+/** docs/17: the recipes, for the shape panel. */
+studio.get("/lore-studio-recipes", (c) => c.json({ recipes: RECIPES }));
 
 /** I2: an entry already in the book joins the plan, to change or switch off. */
 studio.post("/lore-studio/:id/existing", async (c) => {

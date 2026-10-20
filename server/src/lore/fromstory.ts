@@ -157,6 +157,7 @@ export function storyBookDraft(chatId: string, opts: StoryBookOptions = {}) {
       action: "write" as const,
       targetEntryId: null,
       versionSource: null,
+      about: [],
     }));
     cur.stage = "plan";
     cur.planVersions = [{ n: 1, at: Date.now(), why: `from the story, as of message ${b.asOf}`, items: cur.items.map((i) => ({ id: i.id, title: i.title, category: i.category, pitch: i.pitch, keep: i.keep, action: i.action })) }];

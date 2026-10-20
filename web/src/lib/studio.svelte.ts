@@ -19,7 +19,7 @@ export const LORE_TYPES: { value: LoreType; label: string; plural: string; icon:
 export const typeMeta = (t: LoreType | null) => LORE_TYPES.find((x) => x.value === t) ?? null;
 
 type DraftPatch = Partial<{ title: string; stage: StudioDraft["stage"]; text: string; options: Partial<StudioOptions>; answers: Record<string, string>; overview: string; targetBookId: string | null; links: StudioDraft["links"]; expansion: ExpansionPatch; basedOn: string }>;
-type ItemPatch = Partial<Pick<StudioItem, "title" | "type" | "pitch" | "parent" | "folder" | "source" | "constant" | "keep" | "steer">> & { entry?: StudioEntry | null };
+type ItemPatch = Partial<Pick<StudioItem, "title" | "type" | "pitch" | "parent" | "folder" | "source" | "constant" | "keep" | "steer" | "category" | "about">> & { entry?: StudioEntry | null };
 
 /** Keeps the sections you're editing when the server's copy of an expansion comes in. */
 export function mergeExpansion(local: Expansion | null, server: Expansion | null, saver: DraftSaver): Expansion | null {

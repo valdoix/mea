@@ -1820,11 +1820,29 @@ export interface StudioOptions {
   size: "small" | "medium" | "large" | "complete";
   length: "lean" | "standard" | "rich";
   types: LoreType[];
+  /** docs/17: how many of each kind the plan aims for (empty: the planner decides). */
+  mix: Partial<Record<string, MixLevel>>;
+  /** The recipe the mix came from ("" once changed). */
+  recipe: string;
   tone: string;
   style: string;
   secrets: boolean;
   faithful: boolean;
   overview: boolean;
+}
+
+export type MixLevel = "few" | "each" | "all";
+export interface StudioRecipe {
+  id: string;
+  label: string;
+  blurb: string;
+  mix: Partial<Record<string, MixLevel>>;
+}
+/** docs/17: what the mix asks for that the plan lacks (a person's missing voice, a timeline boundary). */
+export interface KindGap {
+  kind: string;
+  about: string[];
+  label: string;
 }
 
 export interface StudioEntry {
@@ -1858,6 +1876,8 @@ export interface StudioItem {
   category?: string | null;
   action?: "write" | "change" | "off";
   targetEntryId?: string | null;
+  /** docs/17: who a satellite is about (item ids, "entry:<id>", or "user"). */
+  about?: string[];
   /** A version's entry (docs/14): the original entry it comes from, kept, translated or new. */
   versionSource?: { entryId: string | null; bookId: string | null; from: string; state: "kept" | "changed" | "new"; basis: string; text: string } | null;
 }

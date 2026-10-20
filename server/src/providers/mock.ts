@@ -218,6 +218,24 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const items = [...new Set(titles)].slice(0, want).map((t, k) => ({ title: t, type: types[k % types.length], pitch: `${t} matters to the story.`, parent: k === 1 && titles[0] ? titles[0] : "", folder: "" }));
       return { title: /ALREADY PLANNED/.test(user) ? "" : "Mock World", overview: /ALREADY PLANNED/.test(user) ? "" : "A cold harbour town where the fog keeps secrets. Everyone owes someone.", items };
     }
+    case "studio_satellites": {
+      // One per person per kind (a "few" kind only for the first person); bonds pair with the next person, or {{user}}.
+      const block = user.split("THE PEOPLE:\n")[1]?.split("\n\n")[0] ?? "";
+      const people = block.split("\n").map((l) => l.match(/^- (.+?): ([a-z, ]+)/)).filter(Boolean).map((m) => ({ name: m![1]!, kinds: m![2]!.split(",").map((k) => k.trim()).filter(Boolean) }));
+      const others = (user.split("EVERYONE ELSE IN THE PLAN:\n")[1]?.split("\n")[0] ?? "").split(", ").filter((n) => n && n !== "(nobody)");
+      const few = (user.match(/^A FEW IN TOTAL: (.+)$/m)?.[1] ?? "").split(/,\s*/);
+      const title = (k: string, a: string, b: string) => ({ voice: `Voice: ${a}`, relationship: `${a} & ${b}`, moment: `Moment: ${a} and ${b} at the harbour`, reaction: `Reaction: ${a}, when the war comes up`, secret: `Secret: what ${a} hides`, belief: `${a} believes the lamp is haunted` })[k] ?? `${k}: ${a}`;
+      const items = people.flatMap((p, i) =>
+        p.kinds
+          .filter((k) => !few.includes(k) || i === 0)
+          .map((k) => {
+            const other = people[i + 1]?.name ?? others[0] ?? "{{user}}";
+            const about = ["relationship", "moment"].includes(k) ? [p.name, other] : [p.name];
+            return { title: title(k, p.name, other), kind: k, pitch: `${p.name}'s ${k}.`, about };
+          }),
+      );
+      return { items };
+    }
     case "studio_entry": {
       const m = user.match(/^THIS ENTRY: (.+?)(?: \((\w+)\))?(?:: (.*))?$/m);
       const title = m?.[1] ?? "Entry";
