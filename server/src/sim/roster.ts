@@ -137,7 +137,7 @@ function textTie(text: string, other: string): number {
 /** Title tags that say what kind of entry it is ("Faction: …", "History: …"); only a person tag names someone. */
 const PERSON_TAG = /^(?:characters?|npcs?|person|people|cast)$/i;
 const OTHER_TAG =
-  /^(?:timeline|rules?|ooc|relationships?|voice|style|speech|current|beliefs?|secrets?|factions?|upcoming|items?|locations?|history|customs?|scenes?|culture|region|city|town|place|places|setting|world|lore|events?|organi[sz]ations?|groups?|species|races?|creatures?|monsters?|concepts?|era|period|calendar|magic|atmosphere|slang|themes?|tone|notes?|misc|info|background|areas?|buildings?|country|nation|realm|artifacts?|objects?)$/i;
+  /^(?:timeline|rules?|ooc|relationships?|voice|style|speech|current|beliefs?|secrets?|factions?|upcoming|items?|locations?|history|customs?|scenes?|culture|region|city|town|place|places|setting|world|lore|events?|organi[sz]ations?|groups?|species|races?|creatures?|monsters?|concepts?|era|period|calendar|magic|atmosphere|slang|themes?|tone|notes?|misc|info|background|areas?|buildings?|country|nation|realm|artifacts?|objects?|reactions?|triggers?|moments?|memor(?:y|ies)|family|families|household|powers?|abilit(?:y|ies)|faith|religion|gods?|lexicon|glossary|money|trade|economy|currency|climate|weather|seasons?|hooks?|quests?|myster(?:y|ies)|routines?|schedule)$/i;
 const NOT_A_PERSON = new Set(["location", "item", "faction", "concept", "event", "rule"]);
 
 /** The person a lore entry is about ("Name", "Name - role", "Character: Name"), or null when it's about something else. */

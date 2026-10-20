@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lore Studio Kinds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400;1,9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&display=swap">
+<style>
+/* docs/17 mockup: the Lore Studio planning by kind. Shape (recipes + mix) → shelf board → plan with satellites → a Voice in review. */
+:root{
+  --bg:#f5f0ea; --glass:rgba(255,255,255,.64); --glass-2:rgba(255,255,255,.88); --ink:#33281f; --muted:#7f6d5f; --faint:#b3a294;
+  --line:rgba(120,90,60,.16); --accent:#a8553a; --accent-bg:#fbe3d8;
+  --good:#2c7d55; --goodbg:#dcf1e5; --warn:#b06a12; --warnbg:#fdebd0;
+  --blob1:#ffd9c4; --blob2:#d6e6ff; --blob3:#e8ffd9;
+  --f-ui:"Jost",system-ui,sans-serif; --f-name:"Fraunces",Georgia,serif; --f-read:"Newsreader",Georgia,serif;
+  --s-ground:28; --s-people:345; --s-world:200; --s-time:150; --s-scene:270;
+  --tint-l:93%; --tint-ink:38%;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17130f; --glass:rgba(38,31,25,.7); --glass-2:rgba(50,41,33,.92); --ink:#f3e9df; --muted:#c2ad9b; --faint:#85715f;
+  --line:rgba(240,200,160,.13); --accent:#f0a07f; --accent-bg:#4a2a1e; --good:#7fd5a5; --goodbg:#1b3a29; --warn:#f2b866; --warnbg:#43301a;
+  --blob1:#4a2a1c; --blob2:#1f2c48; --blob3:#25381c; --tint-l:22%; --tint-ink:80%; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17130f; --glass:rgba(38,31,25,.7); --glass-2:rgba(50,41,33,.92); --ink:#f3e9df; --muted:#c2ad9b; --faint:#85715f;
+  --line:rgba(240,200,160,.13); --accent:#f0a07f; --accent-bg:#4a2a1e; --good:#7fd5a5; --goodbg:#1b3a29; --warn:#f2b866; --warnbg:#43301a;
+  --blob1:#4a2a1c; --blob2:#1f2c48; --blob3:#25381c; --tint-l:22%; --tint-ink:80%; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--f-ui);padding:0 16px;overflow-x:hidden;min-height:100vh;
+  background-image:radial-gradient(40% 30% at 8% 15%,var(--blob1),transparent 70%),radial-gradient(35% 30% at 92% 40%,var(--blob2),transparent 70%),radial-gradient(40% 30% at 25% 92%,var(--blob3),transparent 70%);background-attachment:fixed}
+button{font:inherit;color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:32px 0 96px;display:grid;gap:18px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{margin:0;font:700 26px/1.1 var(--f-name)}
+.top h1 i{font-weight:400;color:var(--muted)}
+.steps{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.steps span{font:600 12px var(--f-ui);padding:5px 11px;border-radius:99px;color:var(--muted);border:1px solid var(--line)}
+.steps span.on{background:var(--accent);color:var(--bg);border-color:transparent}
+.theme{font:500 12px var(--f-ui);border:1px solid var(--line);background:var(--glass-2);color:var(--muted);border-radius:99px;padding:5px 12px;cursor:pointer}
+.panel{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:22px;padding:18px 20px}
+.ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ph h2{margin:0;font:italic 500 20px/1.1 var(--f-name);color:var(--accent)}
+.ph .sub{font:500 12.5px var(--f-ui);color:var(--muted)}
+.ph .right{margin-left:auto}
+.label{font:600 11px/1 var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:14px 0 8px}
+
+/* recipes */
+.recipes{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.recipe{text-align:left;cursor:pointer;border:1px solid var(--line);background:var(--glass-2);border-radius:14px;padding:10px 12px;display:grid;gap:2px;transition:transform .2s cubic-bezier(.3,1.6,.5,1),border-color .2s}
+.recipe:hover{transform:translateY(-2px)}
+.recipe b{font:700 14px/1.2 var(--f-name)}
+.recipe small{font-size:12px;color:var(--muted);line-height:1.3}
+.recipe .e{font-size:18px}
+.recipe.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+
+/* mix */
+.shelf-row{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.shelf-name{font:600 13px/1.3 var(--f-ui);display:flex;gap:6px;align-items:flex-start}
+.shelf-name .dot{width:9px;height:9px;border-radius:50%;margin-top:5px;background:hsl(var(--h) 65% 58%);flex:none}
+.kinds{display:flex;flex-wrap:wrap;gap:6px}
+.kind{--h:30;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;border-radius:99px;padding:3px 4px 3px 10px;font:500 13px/1.4 var(--f-ui);color:var(--muted);transition:background .15s}
+.kind .new{font:700 9px/1 var(--f-ui);color:var(--accent);letter-spacing:.04em}
+.kind .dial{display:inline-flex;gap:2px;padding:3px 5px;border-radius:99px;background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.kind .dial i{width:5px;height:10px;border-radius:2px;background:color-mix(in srgb,var(--ink) 16%,transparent)}
+.kind .lvl{font:600 10.5px/1 var(--f-ui);min-width:30px;text-align:right;padding-right:5px}
+.kind[data-l="1"],.kind[data-l="2"],.kind[data-l="3"]{background:hsl(var(--h) 80% var(--tint-l));color:hsl(var(--h) 45% var(--tint-ink));border-color:transparent;font-weight:600}
+.kind[data-l="1"] .dial i:nth-child(-n+1),.kind[data-l="2"] .dial i:nth-child(-n+2),.kind[data-l="3"] .dial i:nth-child(-n+3){background:hsl(var(--h) 60% 52%)}
+.mixsum{font:500 13px var(--f-ui);color:var(--muted);margin-top:10px}
+.mixsum b{color:var(--ink)}
+
+/* board */
+.board{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.tile{--h:30;border-radius:16px;padding:10px 12px;background:hsl(var(--h) 80% var(--tint-l));color:hsl(var(--h) 45% var(--tint-ink));display:grid;gap:4px;align-content:start}
+.tile b{font:700 13px/1.2 var(--f-name)}
+.tile .n{font:700 24px/1 var(--f-name)}
+.tile .n small{font:500 12px var(--f-ui);opacity:.7}
+.tile .ks{font:500 11.5px/1.35 var(--f-ui);opacity:.85}
+.gap{margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 12px;border-radius:12px;background:var(--warnbg);color:var(--warn);font:500 13.5px var(--f-ui)}
+.gap b{font-weight:700}
+.btn{cursor:pointer;border:1px solid var(--line);background:var(--glass-2);border-radius:99px;padding:5px 12px;font:600 12.5px var(--f-ui)}
+.btn.primary{background:var(--accent);color:var(--bg);border-color:transparent}
+.gap .btn{margin-left:auto}
+
+/* plan */
+.group{border-top:1px solid var(--line);padding:10px 0 4px}
+.group>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font:600 14px var(--f-ui)}
+.group>summary::-webkit-details-marker{display:none}
+.group>summary .dot{width:9px;height:9px;border-radius:50%;background:hsl(var(--h) 65% 58%)}
+.group>summary .c{color:var(--muted);font-weight:500;font-size:12.5px}
+.group>summary::after{content:"▾";margin-left:auto;color:var(--faint);transition:transform .2s}
+.group:not([open])>summary::after{transform:rotate(-90deg)}
+.items{display:grid;gap:8px;padding:10px 0 6px}
+.item{background:var(--glass-2);border:1px solid var(--line);border-radius:16px;padding:11px 13px;display:grid;gap:6px}
+.item .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.item .t{font:700 15px/1.25 var(--f-name)}
+.item .pitch{font:400 14.5px/1.45 var(--f-read);color:var(--muted)}
+.tag{--h:30;display:inline-flex;align-items:center;gap:4px;font:600 10.5px/1 var(--f-ui);letter-spacing:.05em;text-transform:uppercase;padding:4px 7px;border-radius:6px;background:hsl(var(--h) 80% var(--tint-l));color:hsl(var(--h) 45% var(--tint-ink))}
+.st{margin-left:auto;font:500 12px var(--f-ui);color:var(--good)}
+.st.plan{color:var(--faint)}
+.sats{display:flex;flex-wrap:wrap;gap:6px;padding-top:2px}
+.sat{--h:345;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;font:500 12.5px/1.3 var(--f-ui);background:hsl(var(--h) 80% var(--tint-l));color:hsl(var(--h) 45% var(--tint-ink));cursor:pointer;border:1px solid transparent}
+.sat.missing{background:transparent;border:1px dashed var(--faint);color:var(--muted)}
+.pack{margin-left:auto}
+.lock{font-size:12px;color:var(--muted);display:inline-flex;gap:5px;align-items:center;padding:5px 9px;border-radius:10px;background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.lock b{color:var(--ink);filter:blur(4px);transition:filter .2s;cursor:pointer}
+.lock:hover b{filter:none}
+
+/* review: voice */
+.voice{display:grid;grid-template-columns:1fr 240px;gap:16px}
+.sound{font:400 16px/1.6 var(--f-read);margin:0 0 12px}
+.lines{display:grid;gap:8px}
+.line{display:grid;grid-template-columns:78px 1fr;gap:10px;align-items:baseline}
+.line .mood{font:600 11px/1.2 var(--f-ui);text-transform:uppercase;letter-spacing:.06em;color:var(--faint);text-align:right}
+.line q{font:italic 400 16px/1.45 var(--f-read);quotes:"“" "”"}
+.line q::before,.line q::after{color:var(--accent)}
+.shifts{margin-top:12px;display:grid;gap:4px;font-size:13.5px;color:var(--muted)}
+.shifts b{color:var(--ink);font-weight:600}
+.facts{background:var(--glass-2);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:9px;align-content:start}
+.facts h3{margin:0;font:600 12px var(--f-ui);color:var(--muted);display:flex;gap:6px;align-items:center}
+.fact{display:grid;gap:3px}
+.fact span{font:600 10.5px/1 var(--f-ui);text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+.fact div{display:flex;flex-wrap:wrap;gap:4px}
+.fact em{font-style:normal;font-size:13px;padding:2px 8px;border-radius:8px;background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.fact em.no{text-decoration:line-through;text-decoration-color:var(--accent)}
+.checks{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px}
+.check{font:500 12.5px var(--f-ui);padding:4px 10px;border-radius:99px;background:var(--goodbg);color:var(--good)}
+.check.w{background:var(--warnbg);color:var(--warn)}
+.foot{font:500 12.5px var(--f-ui);color:var(--faint);text-align:center}
+
+@media (max-width:720px){
+  .board{grid-template-columns:repeat(2,1fr)}
+  .board .tile:last-child{grid-column:span 2}
+  .voice{grid-template-columns:1fr}
+  .shelf-row{grid-template-columns:1fr;gap:6px}
+  .line{grid-template-columns:1fr;gap:2px}.line .mood{text-align:left}
+  .steps{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Port Ellis <i>· Lore Studio</i></h1>
+    <div class="steps"><span>Start</span><span>Questions</span><span class="on">Plan</span><span>Review</span></div>
+    <button class="theme" id="theme">Light / dark</button>
+  </div>
+
+  <!-- ===== Shape of the lorebook ===== -->
+  <section class="panel">
+    <div class="ph"><h2>Shape of the lorebook</h2><span class="sub">pick a recipe, then turn kinds up or down · tap a kind to step it</span></div>
+    <div class="recipes" id="recipes"></div>
+    <div class="label">The mix</div>
+    <div id="mix"></div>
+    <div class="mixsum" id="mixsum"></div>
+  </section>
+
+  <!-- ===== Shelf board ===== -->
+  <section class="panel">
+    <div class="ph"><h2>The plan</h2><span class="sub">31 entries · 12 written</span><span class="right"><button class="btn">Plan more…</button></span></div>
+    <div class="board">
+      <div class="tile" style="--h:var(--s-ground)"><b>Ground truth</b><span class="n">4</span><span class="ks">Boundary · 2 Rules · Writer's notes</span></div>
+      <div class="tile" style="--h:var(--s-people)"><b>People</b><span class="n">14</span><span class="ks">5 Characters · Voice 3/5 · 3 Bonds · 2 Reactions · Secret</span></div>
+      <div class="tile" style="--h:var(--s-world)"><b>World</b><span class="n">7</span><span class="ks">3 Places · Faction · Lexicon · Money · Climate</span></div>
+      <div class="tile" style="--h:var(--s-time)"><b>Time</b><span class="n">5</span><span class="ks">Current · Mystery · Routine · Hook · History</span></div>
+      <div class="tile" style="--h:var(--s-scene)"><b>Scenes</b><span class="n">1</span><span class="ks">A storm at sea</span></div>
+    </div>
+    <div class="gap">⚠ <span><b>2 core people without a voice:</b> Joss, the Harbourmaster</span><button class="btn">Plan them</button></div>
+
+    <details class="group" open style="--h:var(--s-people)">
+      <summary><span class="dot"></span>People <span class="c">14</span></summary>
+      <div class="items">
+        <div class="item">
+          <div class="row"><span class="tag" style="--h:var(--s-people)">Character</span><span class="t">Mira Vell</span><span class="st">written</span></div>
+          <div class="pitch">The lighthouse keeper's daughter who keeps the lamp lit against the Guild's orders, and keeps Joss hidden in the oil store.</div>
+          <div class="sats">
+            <span class="sat">🗣 Voice: Mira</span>
+            <span class="sat">💞 Mira &amp; {{user}}</span>
+            <span class="sat">💞 Mira &amp; Joss</span>
+            <span class="sat">⚡ Reaction: when her mother comes up</span>
+            <span class="sat">🤫 Secret: the second key</span>
+            <span class="sat missing">＋ Shared moment</span>
+          </div>
+        </div>
+        <div class="item">
+          <div class="row"><span class="tag" style="--h:var(--s-people)">Character</span><span class="t">Joss Arden</span><span class="st">written</span></div>
+          <div class="pitch">A deserter from the Guild's fleet, owed money by half the docks, living in Mira's oil store under a false name.</div>
+          <div class="sats">
+            <span class="sat">💞 Mira &amp; Joss</span>
+            <span class="sat missing">＋ Voice</span>
+            <span class="sat missing">＋ Reaction</span>
+            <button class="btn pack">✦ Pack</button>
+          </div>
+        </div>
+        <div class="item">
+          <div class="row"><span class="tag" style="--h:var(--s-people)">Family</span><span class="t">The Vells</span><span class="st plan">planned</span></div>
+          <div class="pitch">Three generations of keepers; the mother drowned, the father drinks, and Mira does the work.</div>
+        </div>
+      </div>
+    </details>
+
+    <details class="group" open style="--h:var(--s-time)">
+      <summary><span class="dot"></span>Time <span class="c">5</span></summary>
+      <div class="items">
+        <div class="item">
+          <div class="row"><span class="tag" style="--h:var(--s-time)">Current</span><span class="t">Raiders Burn the Docks</span><span class="st">written</span></div>
+          <div class="pitch">Under way at the opening: the Saltknife crew is torching the Guild's warehouses on the east quay.</div>
+        </div>
+        <div class="item">
+          <div class="row"><span class="tag" style="--h:var(--s-time)">Mystery</span><span class="t">Who Relit the Lamp?</span><span class="st plan">planned</span></div>
+          <div class="pitch">The night the lamp went dark, it came back on with nobody in the tower. Four clues, one red herring.</div>
+          <div><span class="lock">🔒 Truth, kept by Mira's father: <b>he did, with the second key</b></span></div>
+        </div>
+        <div class="item">
+          <div class="row"><span class="tag" style="--h:var(--s-time)">Routine</span><span class="t">A Day on the Quay</span><span class="st plan">planned</span></div>
+          <div class="pitch">Dawn bell, the fish auction at six, the Guild's rounds at noon and dusk; the sim places people by it.</div>
+        </div>
+      </div>
+    </details>
+
+    <details class="group" style="--h:var(--s-world)">
+      <summary><span class="dot"></span>World <span class="c">7</span></summary>
+    </details>
+    <details class="group" style="--h:var(--s-ground)">
+      <summary><span class="dot"></span>Ground truth <span class="c">4</span></summary>
+    </details>
+  </section>
+
+  <!-- ===== Review: a Voice ===== -->
+  <section class="panel">
+    <div class="ph"><h2>Voice: Mira</h2><span class="sub">Review · satellite of Mira Vell · fires whenever she's in the scene · 142 tokens</span><span class="right"><button class="btn">More sample lines</button></span></div>
+    <div class="voice">
+      <div>
+        <p class="sound">Plain, low, and short: she answers questions with questions and drops the ends of sentences when she's tired. Harbour words, never Guild ones; she says “the lamp” as if there were only one in the world.</p>
+        <div class="lines">
+          <div class="line"><span class="mood">teasing</span><q>You’ll want boots for that, little fish. Or a boat. Or sense.</q></div>
+          <div class="line"><span class="mood">angry</span><q>Say it again. Go on. Say it in my tower.</q></div>
+          <div class="line"><span class="mood">scared</span><q>Don’t. Don’t go up. Just… sit with me till it’s light.</q></div>
+          <div class="line"><span class="mood">lying</span><q>Joss? Never heard of him. Tides willing, I never will.</q></div>
+        </div>
+        <div class="shifts">
+          <div><b>With {{user}}:</b> teases, uses pet names, finishes their sentences.</div>
+          <div><b>With the Guild:</b> polite to the point of insult; full sentences, no names.</div>
+        </div>
+        <div class="checks">
+          <span class="check">✓ 4 sample lines</span>
+          <span class="check">✓ lines are speech, not description</span>
+          <span class="check">✓ matches her voice slot (“low, a little hoarse”)</span>
+          <span class="check w">⚠ “lying” line names Joss, whom the Guild hunts: keep it?</span>
+        </div>
+      </div>
+      <aside class="facts">
+        <h3>→ saved as voice facts <span title="read by the re-anchor and the drift alert">ⓘ</span></h3>
+        <div class="fact"><span>Pet names for {{user}}</span><div><em>little fish</em><em>keeper</em></div></div>
+        <div class="fact"><span>Catchphrases</span><div><em>Tides willing</em></div></div>
+        <div class="fact"><span>Swearing</span><div><em>salt and sailors' curses, never blasphemy</em></div></div>
+        <div class="fact"><span>Greets with</span><div><em>You’re late.</em></div></div>
+        <div class="fact"><span>Goodbye</span><div><em>Mind the rocks.</em></div></div>
+        <div class="fact"><span>Never says</span><div><em class="no">sir</em><em class="no">babe</em></div></div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="foot">Mockup for docs/17 · nothing here is wired</div>
+</div>
+
+<script>
+const SHELVES=[
+  {id:"ground",name:"Ground truth",h:"var(--s-ground)",kinds:[["timeline","Timeline boundary"],["rule","Rule"],["power","Power",1],["ooc","Writer's notes"]]},
+  {id:"people",name:"People",h:"var(--s-people)",kinds:[["character","Character"],["voice","Voice"],["relationship","Relationship"],["family","Family",1],["moment","Shared moment",1],["reaction","Reaction",1],["belief","Belief"],["secret","Secret"]]},
+  {id:"world",name:"World",h:"var(--s-world)",kinds:[["location","Location"],["faction","Faction"],["species","Species",1],["item","Item"],["faith","Faith",1],["customs","Customs"],["lexicon","Lexicon",1],["money","Money and trade",1],["climate","Climate",1]]},
+  {id:"time",name:"Time",h:"var(--s-time)",kinds:[["history","History"],["current","Current"],["upcoming","Upcoming"],["hook","Hook",1],["mystery","Mystery",1],["routine","Routine",1]]},
+  {id:"scene",name:"Scenes",h:"var(--s-scene)",kinds:[["scene","Scene"]]},
+];
+const LV=["off","few","each","all"];
+const RECIPES=[
+  {id:"companion",e:"🫶",name:"Companion",d:"one person, their voice, your history",mix:{character:2,voice:2,relationship:1,moment:1,reaction:2,routine:1,current:1,ooc:1,location:1}},
+  {id:"adventure",e:"🗺",name:"Adventure world",d:"places, powers, people to meet",mix:{location:3,faction:2,species:1,power:1,item:1,hook:1,money:1,climate:1,history:1,current:1,character:2,rule:1}},
+  {id:"fandom",e:"📺",name:"Fandom AU",d:"canon, where it stands, what's changed",mix:{timeline:1,character:3,voice:2,relationship:2,secret:1,current:1,upcoming:1,lexicon:1,location:1}},
+  {id:"mystery",e:"🕯",name:"Mystery",d:"a question, clues, who hides what",mix:{character:2,secret:2,mystery:1,location:2,routine:1,belief:1,hook:1,timeline:1}},
+  {id:"slice",e:"☕",name:"Slice of life",d:"days, habits, small places",mix:{character:2,voice:2,relationship:1,routine:1,customs:1,location:2,climate:1,moment:1}},
+  {id:"court",e:"👑",name:"Court intrigue",d:"houses, oaths, whispers",mix:{faction:2,family:1,character:2,secret:1,belief:1,customs:1,lexicon:1,faith:1,upcoming:1}},
+];
+let mix={...RECIPES[0].mix}, recipe="companion";
+const rEl=document.getElementById("recipes"), mEl=document.getElementById("mix"), sEl=document.getElementById("mixsum");
+function render(){
+  rEl.innerHTML=RECIPES.map(r=>`<button class="recipe ${r.id===recipe?"on":""}" data-r="${r.id}"><span class="e">${r.e}</span><b>${r.name}</b><small>${r.d}</small></button>`).join("");
+  mEl.innerHTML=SHELVES.map(s=>`<div class="shelf-row" style="--h:${s.h}"><div class="shelf-name"><span class="dot"></span>${s.name}</div><div class="kinds">${s.kinds.map(([id,label,isNew])=>`<button class="kind" style="--h:${s.h}" data-k="${id}" data-l="${mix[id]||0}" aria-label="${label}: ${LV[mix[id]||0]}">${label}${isNew?'<span class="new">NEW</span>':""}<span class="dial"><i></i><i></i><i></i></span><span class="lvl">${LV[mix[id]||0]}</span></button>`).join("")}</div></div>`).join("");
+  const on=Object.values(mix).filter(Boolean).length;
+  const est=Object.values(mix).reduce((n,l)=>n+[0,2,4,7][l],0);
+  const name=RECIPES.find(r=>r.id===recipe)?.name??"Your own mix";
+  sEl.innerHTML=`<b>${name}</b> · ${on} kinds · about ${est} entries, plus everyone the census finds`;
+}
+rEl.onclick=e=>{const b=e.target.closest("[data-r]");if(!b)return;recipe=b.dataset.r;mix={...RECIPES.find(r=>r.id===recipe).mix};render()};
+mEl.onclick=e=>{const b=e.target.closest("[data-k]");if(!b)return;const k=b.dataset.k;mix[k]=((mix[k]||0)+1)%4;if(!mix[k])delete mix[k];recipe=null;render()};
+render();
+document.getElementById("theme").onclick=()=>{const d=document.documentElement;const dark=d.dataset.theme==="dark"||(!d.dataset.theme&&matchMedia("(prefers-color-scheme:dark)").matches);d.dataset.theme=dark?"light":"dark"};
+</script>
+</body>
+</html>

@@ -2,6 +2,8 @@
   import EntryEditor from "../components/lore/EntryEditor.svelte";
   import EnrichPanel from "../components/lore/EnrichPanel.svelte";
   import GrowPanel from "../components/lore/GrowPanel.svelte";
+  import KindOptions from "../components/lore/KindOptions.svelte";
+  import KindPicker from "../components/lore/KindPicker.svelte";
   import PeoplePanel from "../components/lore/PeoplePanel.svelte";
   import Menu, { type MenuItem } from "../components/Menu.svelte";
   import Segmented from "../components/Segmented.svelte";
@@ -97,11 +99,17 @@
     );
   }
 
-  async function addEntry() {
+  // docs/17: a new entry starts from its kind (its place, and its parts to fill in), or blank.
+  let kindOpen = $state(false);
+  async function addEntry(kind: string | null, title: string) {
     if (!book) return;
-    const e = await post<LoreEntry>(`/api/lorebooks/${id}/entries`, {});
-    book.entries.push(e);
-    open[e.id] = true;
+    try {
+      const e = kind ? await post<LoreEntry>(`/api/lorebooks/${id}/entries/kind`, { category: kind, title }) : await post<LoreEntry>(`/api/lorebooks/${id}/entries`, { comment: title });
+      book.entries.push(e);
+      open[e.id] = true;
+    } catch (err) {
+      errorToast(err);
+    }
   }
 
   async function removeEntry(e: LoreEntry) {
@@ -287,7 +295,7 @@
       <div class="row wrap">
         <label class="search input"><Search size={15} /><input bind:value={filter} placeholder="Filter entries" /></label>
         {#if categories.length}
-          <select class="select mini" bind:value={catFilter} aria-label="Category"><option value="">All categories</option>{#each categories as c (c.id)}<option value={c.id}>{c.label}</option>{/each}</select>
+          <select class="select mini" bind:value={catFilter} aria-label="Kind"><KindOptions none="All kinds" /></select>
           <button class="btn" onclick={autoSort} disabled={sorting || !book.entries.length} title="Guess a category for every entry without one, and give it that category's place and priority">{sorting ? "Sorting…" : "Auto-sort this book"}</button>
         {/if}
         {#if folders.length}
@@ -295,7 +303,7 @@
         {/if}
         <Segmented value={full ? "full" : "simple"} options={[{ value: "simple", label: "Simple" }, { value: "full", label: "Full" }]} onchange={(v) => { full = v === "full"; localStorage.setItem("mea.loreFull", full ? "1" : "0"); }} small />
         {#if !book.settings.chronicleFor}<button class="btn" onclick={() => navigate(`/lore-studio?book=${id}`)} title="Find what this book is missing and draft it with the Lore Studio"><WandSparkles size={16} /> Grow</button>{/if}
-        <button class="btn primary" onclick={addEntry}><Plus size={16} /> Entry</button>
+        <button class="btn primary" onclick={() => (kindOpen = true)}><Plus size={16} /> Entry</button>
       </div>
     </div>
 
@@ -317,7 +325,7 @@
               <label class="cat chip tiny" class:guess={!cur} title={cur ? (confOf(entry) < 1 ? `Auto-sorted (${guesses[entry.id]?.why ?? "a guess"}); tap to correct` : "Set by you") : `A guess from ${guesses[entry.id]?.why ?? "the entry"}; tap to set`}>
                 <i class="dot {dot(confOf(entry))}" aria-hidden="true"></i>
                 <select value={cur ?? guesses[entry.id]?.category ?? ""} onchange={(e) => setCategory(entry, e.currentTarget.value)} aria-label="Category of {entry.comment || 'this entry'}">
-                  {#each categories as c (c.id)}<option value={c.id} title={c.hint}>{c.label}</option>{/each}
+                  <KindOptions />
                 </select>
               </label>
             {:else if (entry.extra as { type?: string } | undefined)?.type}<span class="chip tiny hide-sm">{(entry.extra as { type?: string }).type}</span>{/if}
@@ -388,6 +396,7 @@
 {/if}
 
 <Menu bind:open={exportOpen} items={exportItems} anchor={exportBtn} title="Export" />
+<KindPicker bind:open={kindOpen} onpick={addEntry} />
 
 <style>
   .cat {

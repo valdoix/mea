@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get, post } from "../../../lib/api";
   import { confirm, promptText } from "../../../lib/dialogs.svelte";
-  import { LORE_CATEGORIES } from "../../../lib/lorecats";
+  import KindOptions from "../KindOptions.svelte";
   import { autosize } from "../../../lib/gestures";
   import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ListTree, PenLine, Plus, RefreshCw, Trash, UserSearch } from "../../../lib/icons";
   import { LORE_TYPES, type StudioSession, typeMeta, uncovered } from "../../../lib/studio.svelte";
@@ -160,9 +160,8 @@
             <option value="">Plain</option>
             {#each LORE_TYPES as t (t.value)}<option value={t.value}>{t.label}</option>{/each}
           </select>
-          <select class="select type" value={it.category ?? ""} onchange={(e) => edit(it, { category: e.currentTarget.value || null }, 0)} aria-label="Category" title={wasCat(it.id) ? `was ${wasCat(it.id)?.from ?? "none"}` : "Category: sets where the entry goes and how strongly"}>
-            <option value="">No category</option>
-            {#each LORE_CATEGORIES as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+          <select class="select type" value={it.category ?? ""} onchange={(e) => edit(it, { category: e.currentTarget.value || null }, 0)} aria-label="Kind" title={wasCat(it.id) ? `was ${wasCat(it.id)?.from ?? "none"}` : "Kind: sets where the entry goes and how strongly"}>
+            <KindOptions none="No kind" />
           </select>
           <input class="input name" value={it.title} oninput={(e) => edit(it, { title: e.currentTarget.value })} aria-label="Title" title={wasNamed(it.id) ? `was “${wasNamed(it.id)}”` : undefined} />
           {#if it.action === "change"}<span class="chip tiny butter" title="Changes the entry already in the book">change</span>{:else if it.action === "off"}<span class="chip tiny rose" title="Switched off when you save">switch off</span>{/if}
