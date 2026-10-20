@@ -4,7 +4,10 @@ import { normalizeCard } from "../src/cards/card";
 import { listOffpage } from "../src/accuracy/offpage";
 import { createCharacter } from "../src/services/characters";
 import { createChat } from "../src/services/chats";
-import { categoryOf, dreamWeaverCategory, guessCategory, withCategory } from "../src/lore/format";
+import { writeDepthBook } from "../src/creator/books";
+import { db, run } from "../src/db/db";
+import { migrations } from "../src/db/migrations";
+import { categoryOf, dreamWeaverCategory, guessCategory, isCurrent, withCategory } from "../src/lore/format";
 import { createLorebook, getEntries } from "../src/lore/service";
 import { defaultEntry } from "../src/lore/types";
 import { freshDb } from "./helpers";
@@ -36,7 +39,7 @@ describe("lorebook categories (I1)", () => {
   test("Dream Weaver books are recognised by their names", () => {
     expect(dreamWeaverCategory("DW Rules")).toBe("rule");
     expect(dreamWeaverCategory("Dream Weaver – NPCs")).toBe("character");
-    expect(dreamWeaverCategory("DW Depth")).toBe("current");
+    expect(dreamWeaverCategory("DW Depth")).toBeNull();
     expect(dreamWeaverCategory("My own book")).toBeNull();
     expect(guessCategory(defaultEntry({ comment: "Giles" }), "DW NPCs")).toMatchObject({ category: "character", why: "a Dream Weaver book" });
   });
@@ -67,5 +70,36 @@ describe("lorebook categories (I1)", () => {
     const chatId = createChat({ characterId: createCharacter(data) }).id;
     await post(`/api/lorebooks/${bookId}/entries/${secret!.id}/offpage`, { chatId });
     expect(listOffpage(chatId)[0]).toMatchObject({ label: "Willow pulled Buffy out of Heaven.", neverSay: ["Heaven"] });
+  });
+  test("depth books are never Current: the creator's entries, guesses, and ones saved before", () => {
+    // The creator's depth entries carry no category, so they fire on meaning, not in every prompt.
+    const bookId = createLorebook({ name: "Marisol depth book", settings: { role: "depth" } });
+    writeDepthBook(bookId, [{ id: "q1", title: "Why she won't swim", content: "Her brother drowned off the pier when she was nine.", keys: ["swim"] }]);
+    const [made] = getEntries(bookId);
+    expect(categoryOf(made!)).toBeNull();
+    expect(isCurrent(made!)).toBe(false);
+    expect(made).toMatchObject({ position: "after_char", order: 120, extra: { creatorDepth: "q1" } });
+    // A depth book's titles never guess Current; elsewhere they still do.
+    const status = defaultEntry({ comment: "Her status in the clan now", content: "Outcast since the trial." });
+    expect(guessCategory(status, "Marisol depth book").category).not.toBe("current");
+    expect(guessCategory(status, "Clan notes", "depth").category).not.toBe("current");
+    expect(guessCategory(status, "DW Depth").category).not.toBe("current");
+    expect(guessCategory(status, "Clan notes").category).toBe("current");
+    expect(guessCategory(defaultEntry({ comment: "Something", content: "x" }), "", "depth").why).not.toBe("a Dream Weaver book");
+
+    // Migration 31 repairs what was saved before: the creator's and guessed ones go, a Current you picked stays.
+    const put = (book: string, extra: Record<string, unknown>) => {
+      const id = crypto.randomUUID();
+      run("INSERT INTO lorebook_entries (id, lorebook_id, data, sort, created_at, updated_at) VALUES (?, ?, ?, 0, 0, 0)", id, book, JSON.stringify(defaultEntry({ comment: "x", extra })));
+      return id;
+    };
+    const plain = createLorebook({ name: "Sunnydale" });
+    const old = put(bookId, { creatorDepth: "q0", category: "current", categoryConfidence: 1 });
+    const guessed = put(bookId, { category: "current", categoryConfidence: 0.75 });
+    const picked = put(bookId, { category: "current", categoryConfidence: 1 });
+    const elsewhere = put(plain, { category: "current", categoryConfidence: 0.7 });
+    migrations.find((m) => m.id === 31)!.up!(db());
+    const cat = (id: string) => categoryOf([...getEntries(bookId), ...getEntries(plain)].find((e) => e.id === id)!);
+    expect([cat(old), cat(guessed), cat(picked), cat(elsewhere)]).toEqual([null, null, "current", "current"]);
   });
 });

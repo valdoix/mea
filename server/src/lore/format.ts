@@ -82,10 +82,12 @@ export function guessCategory(e: Pick<LoreEntry, "comment" | "content" | "keys" 
   const title = (e.comment || e.keys[0] || "").trim();
   const text = e.content ?? "";
   const dw = (role && ROLE_CATEGORY[role]) || dreamWeaverCategory(bookName);
-  for (const r of RULES) {
+  // Nothing in a depth book is a live situation, whatever its title says ("Her status in the clan").
+  const rules = isDepthBook(bookName, role) ? RULES.filter((r) => r.cat !== "current") : RULES;
+  for (const r of rules) {
     if (r.title?.test(title)) return { category: r.cat, confidence: r.weight, why: `the title ("${title.slice(0, 40)}")` };
   }
-  for (const r of RULES) {
+  for (const r of rules) {
     if (r.text?.test(text)) return { category: r.cat, confidence: r.weight - 0.2, why: "the words in it" };
   }
   if (dw) return { category: dw, confidence: 0.75, why: "a Dream Weaver book" };
@@ -102,17 +104,25 @@ export function guessCategory(e: Pick<LoreEntry, "comment" | "content" | "keys" 
 export function dreamWeaverCategory(bookName: string): Category | null {
   // Lumiverse's Weaver (and Mea's creator) name bound books "<Name> rules book", "<Name> NPC book"…
   const bound = bookName.match(/\b(rules|npc|people|depth|lore) book$/i)?.[1]?.toLowerCase();
-  if (bound) return ROLE_CATEGORY[bound === "npc" ? "people" : (bound as BookRole)];
+  if (bound) return ROLE_CATEGORY[bound === "npc" ? "people" : (bound as BookRole)] ?? null;
   if (!/\b(dream\s*weaver|dw)\b/i.test(bookName)) return null;
   if (/\brules?\b/i.test(bookName)) return "rule";
   if (/\bnpcs?\b|\bcharacters?\b/i.test(bookName)) return "character";
-  if (/\bdepth\b/i.test(bookName)) return "current";
+  // A Weaver depth book is a character's inner material, never what's happening now.
+  if (/\bdepth\b/i.test(bookName)) return null;
   if (/\blore\b|\bworld\b/i.test(bookName)) return "history";
   return null;
 }
 
-/** A book's role sets the category its entries start from. */
-export const ROLE_CATEGORY: Record<BookRole, Category> = { rules: "rule", people: "character", depth: "current", lore: "history" };
+/**
+ * A book's role sets the category its entries start from. Depth books have none: their entries are a
+ * character's inner life and past, and Current (always in the scene, a running subplot in the sim)
+ * would put every one of them in every prompt.
+ */
+export const ROLE_CATEGORY: Partial<Record<BookRole, Category>> = { rules: "rule", people: "character", lore: "history" };
+
+/** A depth book by its role or its name ("Marisol depth book", "DW Depth"). */
+export const isDepthBook = (bookName: string, role?: BookRole) => role === "depth" || /\bdepth book$/i.test(bookName) || (/\b(dream\s*weaver|dw)\b/i.test(bookName) && /\bdepth\b/i.test(bookName));
 
 export const categoryOf = (e: { extra?: Record<string, unknown> }): Category | null => {
   const c = (e.extra as { category?: unknown } | undefined)?.category;

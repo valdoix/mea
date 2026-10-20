@@ -1,5 +1,4 @@
 import { badRequest, notFound } from "../lib/http";
-import { CATEGORY_INFO, withCategory } from "../lore/format";
 import { createEntry, createLorebook, deleteEntry, getLorebook, type LinkType, linkLorebook, linkedBooks, updateEntry } from "../lore/service";
 import { type BookRole, defaultEntry } from "../lore/types";
 import { getCard } from "../services/characters";
@@ -50,11 +49,12 @@ export function writeDepthBook(bookId: string, items: DepthItem[]): Record<strin
   for (const it of items.filter((i) => i.content.trim())) {
     const keys = it.keys.length ? it.keys : [it.title];
     const cur = it.entryId ? book.entries.find((e) => e.id === it.entryId) : undefined;
-    const base = withCategory(defaultEntry({ comment: it.title, keys, content: it.content.trim(), extra: { creatorDepth: it.id } }), "current", { defaults: false });
+    // No category: a depth entry is the character's inner life and past, and Current would put it in every prompt.
+    const base = defaultEntry({ comment: it.title, keys, content: it.content.trim(), extra: { creatorDepth: it.id } });
     if (cur) {
       updateEntry(cur.id, { ...cur, comment: it.title, keys, content: it.content.trim() });
       out[it.id] = cur.id;
-    } else out[it.id] = createEntry(bookId, { ...base, position: "after_char", order: CATEGORY_INFO.current.order }).id;
+    } else out[it.id] = createEntry(bookId, { ...base, position: "after_char", order: 120 }).id;
   }
   return out;
 }
