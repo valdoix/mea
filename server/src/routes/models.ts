@@ -28,6 +28,7 @@ import { cancelJob, enqueue, listJobs, retryJob } from "../services/jobs";
 import { probeCache } from "../services/probe";
 import { quotaPlannerJson } from "../services/quota";
 import { getRequest, listRequests } from "../services/requests";
+import { SPEED_TASKS, speedReport, speedTest } from "../services/speed";
 
 export const models = new Hono();
 
@@ -118,6 +119,13 @@ models.get("/usage", (c) => c.json(usageSummary(Math.min(90, Number(c.req.query(
 models.post("/connections/:id/probe", async (c) => {
   const input = await body(c, z.object({ modelId: z.string().min(1) }));
   return c.json(await probeCache(c.req.param("id"), input.modelId));
+});
+
+/** Connection speed: each task's model, now against usually; a live test sends one short request. */
+models.get("/speed", (c) => c.json({ routes: speedReport() }));
+models.post("/speed/test", async (c) => {
+  const input = await body(c, z.object({ task: z.enum(SPEED_TASKS as [string, ...string[]]) }));
+  return c.json({ test: await speedTest(input.task as (typeof SPEED_TASKS)[number]), routes: speedReport() });
 });
 
 /** Quota planner (CONN-19): turns per day at current settings, by feature, plus pacing. */
