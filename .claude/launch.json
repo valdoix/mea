@@ -37,6 +37,20 @@
         "$env:MEA_PORT='7768'; $env:MEA_WEB_PORT='5174'; $env:MEA_DATA_DIR='C:/Users/User/AppData/Local/Temp/claude/C--Users-User-Documents-Mea/c6918ca0-ebd5-4e28-b2ff-ba5d59c461de/scratchpad/mea-data'; bun run dev"
       ],
       "port": 5174
+    },
+    {
+      "name": "verdant-mockup",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5195",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "C:/Users/User/Documents/Rimworld mods/Verdant/Mockup"
+      ],
+      "port": 5195
     }
   ]
 }

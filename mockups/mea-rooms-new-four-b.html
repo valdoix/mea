@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mea Rooms, Take Two</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..800;1,6..96,400..700&family=Work+Sans:wght@400;500;600&family=Young+Serif&family=Nunito:ital,wght@0,400;0,600;0,700;1,400&family=Tilt+Neon&family=Sora:wght@400;500;600&family=Playfair+Display:ital,wght@0,700;1,700;1,800;1,900&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Josefin+Sans:wght@400;600&family=Italiana&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Jost:wght@300;400;500&display=swap">
+<style>
+/* Layout: the same gallery wall as the first "new four" sheet. One more variant of each room, each a full app mockup with a day and a night, then a palette sheet. */
+:root{
+  --wall:#e6e3ea; --wall-2:#d9d5df; --ink:#1f1c25; --ink-soft:#5d5868; --rule:#bdb7c6; --brass:#a27b3a;
+  --f-display:"Bodoni Moda",Didot,"Times New Roman",serif;
+  --f-ui:"Work Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--wall:#1b1a20;--wall-2:#24222b;--ink:#ece8f2;--ink-soft:#a39dad;--rule:#3c3946;--brass:#d2a75c;color-scheme:dark}}
+:root[data-theme="dark"]{--wall:#1b1a20;--wall-2:#24222b;--ink:#ece8f2;--ink-soft:#a39dad;--rule:#3c3946;--brass:#d2a75c;color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--wall);color:var(--ink);font:400 15px/1.55 var(--f-ui);padding:0 16px;overflow-x:hidden}
+.wrap{max-width:1180px;margin:0 auto;padding-block:56px 96px;display:grid;gap:88px}
+
+/* ---------- gallery chrome ---------- */
+.masthead{display:grid;gap:14px;max-width:760px}
+.eyebrow{font:600 11px/1 var(--f-ui);letter-spacing:.22em;text-transform:uppercase;color:var(--brass)}
+.masthead h1{font:500 clamp(42px,7vw,84px)/.95 var(--f-display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.masthead h1 i{font-weight:400}
+.masthead p{margin:0;color:var(--ink-soft);max-width:60ch;font-size:16px}
+
+.exhibit{display:grid;gap:22px}
+.plaque{display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:end;border-top:1px solid var(--rule);padding-top:16px}
+.plaque .no{font:italic 400 44px/1 var(--f-display);color:var(--brass)}
+.plaque h2{font:500 32px/1.05 var(--f-display);margin:0}
+.plaque h2 small{font:italic 400 18px var(--f-display);color:var(--ink-soft);margin-left:8px}
+.plaque .medium{grid-column:2;color:var(--ink-soft);font-size:13.5px;margin:0;max-width:72ch}
+.plaque .toggle{grid-row:1/3;grid-column:3;align-self:center}
+.toggle{display:inline-flex;border:1px solid var(--rule);border-radius:999px;padding:3px;gap:2px;background:var(--wall-2)}
+.toggle button{font:600 11px/1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;border:0;background:transparent;color:var(--ink-soft);padding:9px 14px;border-radius:999px;cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--wall)}
+.toggle button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+@media (max-width:640px){.plaque{grid-template-columns:auto 1fr}.plaque .toggle{grid-row:auto;grid-column:1/-1;justify-self:start}}
+
+/* ---------- shared app skeleton ---------- */
+.app{position:relative;isolation:isolate;display:grid;grid-template-columns:236px minmax(0,1fr);min-height:660px;border-radius:14px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(20,10,40,.45),0 8px 18px -10px rgba(20,10,40,.3);transition:background-color .5s,color .5s}
+.app .bg{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.side{position:relative;display:flex;flex-direction:column;gap:14px;padding:22px 16px;min-width:0}
+.brand{display:flex;align-items:center;gap:10px}
+.chats{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.chats li{display:flex;gap:10px;align-items:center;padding:8px 10px;min-width:0}
+.chats li span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main{position:relative;display:flex;flex-direction:column;min-width:0}
+.head{display:flex;align-items:center;gap:14px;padding:16px 26px}
+.head .who{display:grid;min-width:0}
+.log{position:relative;flex:1;display:flex;flex-direction:column;gap:22px;padding:22px 26px 10px}
+.msg{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:start;max-width:640px}
+.msg.me{grid-template-columns:minmax(0,1fr) auto;margin-left:auto}
+.msg.me > :first-child{order:2}
+.msg .bub{min-width:0}
+.msg p{margin:0}
+.msg p + p{margin-top:.55em}
+.composer{display:flex;gap:12px;align-items:center;padding:14px 26px 22px}
+.composer .field{flex:1;min-width:0;display:flex;align-items:center;padding:13px 18px}
+.pt{display:block;width:72px;aspect-ratio:4/5;max-width:100%;background-size:cover;background-position:center}
+button{font:inherit;color:inherit}
+@media (max-width:760px){.app{grid-template-columns:1fr}.side{display:none}.log,.head,.composer{padding-inline:16px}.pt{width:56px}}
+
+/* =========================================================
+   I. MERINGUE — cozy in pastels (a Hearthside variant)
+   ========================================================= */
+.mer{--sky:linear-gradient(180deg,#fde4ec,#fdf0e0 45%,#e4f1ea);--q1:#f8d3df;--q2:#d3ebde;--q3:#fae6b4;--q4:#dcd5f2;--puff:rgba(255,255,255,.62);--tuft:#e2a2b8;--paper:#fffaf5;--me:#e6f3ec;--ink:#4a3a46;--ink-2:#86717f;--rose:#b8507a;--mint:#3a8a6b;--butter:#f3d27a;--line:rgba(160,110,140,.22);--shadow:rgba(170,110,140,.45);--tape-a:#f2b3c8;--tape-b:#a9dcc4;--send-ink:#fff;--glow:0;
+  background:var(--sky);color:var(--ink);font:400 15.5px/1.6 "Nunito",system-ui,sans-serif}
+.mer[data-mode="night"]{--sky:linear-gradient(180deg,#26233f,#332e55 55%,#41385f);--q1:#4f3f63;--q2:#36505a;--q3:#5d5249;--q4:#423f6c;--puff:rgba(255,255,255,.1);--tuft:#c9a3e0;--paper:#3a3556;--me:#30494f;--ink:#f6ecf4;--ink-2:#c6b6d2;--rose:#f5a8c5;--mint:#a6e0c6;--butter:#f4da92;--line:rgba(230,210,240,.16);--shadow:rgba(0,0,0,.55);--tape-a:#b47aa6;--tape-b:#5f9c88;--send-ink:#2e2a48;--glow:1}
+.mer .bg::before{content:"";position:absolute;inset:0;background:radial-gradient(55% 50% at 92% 0%,rgba(255,206,184,calc(.85 - .85*var(--glow))),transparent 70%),radial-gradient(45% 40% at 88% 14%,rgba(196,185,244,calc(.35*var(--glow))),transparent 70%);transition:background .6s}
+.mer .cloud{position:absolute;width:140px;height:42px;border-radius:999px;background:#fff;opacity:calc(.8 - .8*var(--glow));transition:opacity .6s}
+.mer .cloud::before,.mer .cloud::after{content:"";position:absolute;border-radius:50%;background:inherit}
+.mer .cloud::before{left:22px;top:-26px;width:60px;height:60px}
+.mer .cloud::after{left:66px;top:-16px;width:46px;height:46px}
+.mer .c1{right:70px;top:150px}.mer .c2{right:250px;top:96px;scale:.65}
+.mer .stars{position:absolute;inset:0 0 35% 236px;opacity:var(--glow);transition:opacity .6s;background:radial-gradient(circle,#fff 1px,transparent 1.6px) 0 0/53px 47px,radial-gradient(circle,#ffe0ef 1.3px,transparent 1.9px) 20px 30px/89px 71px,radial-gradient(circle,#d9f5e9 1px,transparent 1.6px) 40px 12px/67px 59px}
+.mer .moon{position:absolute;right:70px;top:110px;width:56px;height:56px;border-radius:50%;box-shadow:inset -13px 7px 0 0 #fff1cc;filter:drop-shadow(0 0 16px rgba(255,236,190,.55));opacity:var(--glow);transition:opacity .6s}
+.mer .garland{position:absolute;left:236px;top:0;width:calc(100% - 236px);height:64px;color:var(--ink-2)}
+.mer .flags{opacity:calc(1 - var(--glow));transition:opacity .6s}
+.mer .bulbs{opacity:var(--glow);transition:opacity .6s}
+.mer .bulbs circle{filter:drop-shadow(0 0 5px currentColor)}
+.mer .sill{position:absolute;right:34px;bottom:92px}
+.mer .side{background:radial-gradient(circle at 0 0,var(--tuft) 2.5px,transparent 3px) 0 0/44px 44px,radial-gradient(55% 55% at 40% 35%,var(--puff),transparent 75%) 0 0/44px 44px,conic-gradient(var(--q1) 0 25%,var(--q2) 0 50%,var(--q3) 0 75%,var(--q4) 0) 0 0/88px 88px;border-right:1px solid var(--line);box-shadow:inset -10px 0 20px -14px var(--shadow)}
+.mer .card{background:var(--paper);border-radius:18px;padding:12px 14px;box-shadow:0 8px 18px -12px var(--shadow)}
+.mer .brand b{display:block;font:400 30px/1 "Young Serif",serif;color:var(--rose);letter-spacing:-.01em}
+.mer .brand small{display:block;font:italic 400 13px "Nunito";color:var(--ink-2);margin-top:3px}
+.mer .chats li{background:var(--paper);border-radius:14px;font-weight:600;font-size:14px;box-shadow:0 4px 10px -8px var(--shadow)}
+.mer .chats li i{flex:none;width:10px;height:10px;border-radius:4px;background:var(--c)}
+.mer .chats li.on{box-shadow:0 0 0 2px var(--rose),0 8px 16px -10px var(--shadow)}
+.mer .chats li.on::after{content:"♡";margin-left:auto;color:var(--rose);font-weight:700}
+.mer .bake{position:relative;margin-top:auto;border-radius:0 0 18px 18px;padding-top:16px;font-size:13px;color:var(--ink-2)}
+.mer .bake::before{content:"";position:absolute;left:0;right:0;top:-8px;height:9px;background:radial-gradient(circle at 8px 9px,var(--paper) 7.5px,transparent 8px) 0 0/16px 9px repeat-x}
+.mer .bake b{display:block;font:400 15px/1.3 "Young Serif",serif;color:var(--ink);margin-bottom:2px}
+.mer .head{padding:58px 26px 14px;border-bottom:1.5px dashed var(--line)}
+.mer .head .name{font:400 26px/1.1 "Young Serif",serif}
+.mer .head .sub{font-size:13px;color:var(--ink-2)}
+.mer .chip{margin-left:auto;flex:none;font-weight:700;font-size:12.5px;padding:7px 13px;border-radius:999px;background:var(--butter);color:#4a3a46}
+.mer .doily{flex:none;position:relative;display:grid;place-items:center;padding:9px;filter:drop-shadow(0 6px 8px var(--shadow))}
+.mer .doily::before{content:"";position:absolute;inset:0;background:var(--paper);-webkit-mask:var(--scallop) center/100% 100% no-repeat;mask:var(--scallop) center/100% 100% no-repeat}
+.mer .doily::after{content:"";position:absolute;inset:4px;border-radius:50%;border:1.5px dotted var(--rose)}
+.mer .doily .pt{position:relative;z-index:1;width:58px;aspect-ratio:1;border-radius:50%}
+.mer .head .doily .pt{width:40px}
+.mer .bub{position:relative;background:var(--paper);border-radius:22px;padding:16px 20px 15px;box-shadow:0 12px 26px -18px var(--shadow),inset 0 0 0 1px var(--line)}
+.mer .msg.me .bub{background:var(--me)}
+.mer .bub::before{content:"";position:absolute;top:-9px;left:24px;width:62px;height:18px;transform:rotate(-4deg);border-radius:2px;opacity:.9;background:repeating-linear-gradient(90deg,rgba(255,255,255,.45) 0 5px,transparent 5px 10px),var(--tape-a)}
+.mer .msg.me .bub::before{left:auto;right:24px;transform:rotate(5deg);background:repeating-linear-gradient(90deg,rgba(255,255,255,.45) 0 5px,transparent 5px 10px),var(--tape-b)}
+.mer .n{display:block;font:400 15px "Young Serif",serif;color:var(--rose);margin-bottom:3px}
+.mer .msg.me .n{color:var(--mint)}
+.mer .act{font-style:italic;color:var(--ink-2)}
+.mer .keep{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.mer .keep span{font-weight:700;font-size:11.5px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--c) 26%,transparent)}
+.mer .typing{display:flex;align-items:center;gap:10px;font-style:italic;font-size:14px;color:var(--ink-2)}
+.mer .macs{display:inline-flex;gap:5px}
+.mer .macs i{display:block;width:16px;height:12px;border-radius:50%;background:linear-gradient(var(--c) 0 38%,var(--paper) 38% 62%,var(--c) 62%);box-shadow:0 2px 4px -2px var(--shadow)}
+.mer .composer .field{background:var(--paper);border-radius:999px;color:var(--ink-2);font-style:italic;padding:14px 22px;box-shadow:0 8px 20px -14px var(--shadow),inset 0 0 0 1.5px var(--line)}
+.mer .send{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:50%;border:0;background:var(--rose);color:var(--send-ink);cursor:pointer;box-shadow:0 8px 16px -8px var(--rose)}
+@media (max-width:1000px){.mer .sill,.mer .cloud,.mer .moon{display:none}}
+@media (max-width:760px){.mer .garland,.mer .stars{left:0;width:100%}}
+
+/* =========================================================
+   II. NEON MOTH — the arcade in neon (an Arcade variant)
+   ========================================================= */
+.neon{--wall:#f2ede9;--grout:#e2dad4;--side:rgba(255,255,255,.62);--glass:rgba(255,255,255,.74);--hair:rgba(40,30,60,.12);--ink:#1f1b29;--ink-2:#6c657a;--pink:#e3177a;--cyan:#0a9fc2;--lime:#56a000;--violet:#7438f0;--cab:#ddd5cf;--g:.12;--core:100%;--pool:.2;
+  background:var(--wall);color:var(--ink);font:400 15px/1.6 "Sora",system-ui,sans-serif}
+.neon[data-mode="night"]{--wall:#0c0a13;--grout:#16122a;--side:rgba(8,6,14,.78);--glass:rgba(18,14,30,.74);--hair:rgba(255,255,255,.08);--ink:#f2eefc;--ink-2:#a69dbd;--pink:#ff4fa8;--cyan:#3ff0ff;--lime:#b8ff3c;--violet:#a874ff;--cab:#16122a;--g:1;--core:35%;--pool:.55}
+.neon .tube{color:color-mix(in srgb,var(--c) var(--core),#fff);text-shadow:0 0 1px var(--c),0 0 calc(8px*var(--g)) var(--c),0 0 calc(22px*var(--g)) var(--c),0 0 calc(44px*var(--g)) var(--c)}
+.neon .bg{background:linear-gradient(var(--grout) 1px,transparent 1px) 0 0/36px 36px,linear-gradient(90deg,var(--grout) 1px,transparent 1px) 0 0/36px 36px,var(--wall)}
+.neon .bg::before{content:"";position:absolute;left:0;right:0;bottom:0;height:60%;opacity:var(--pool);background:radial-gradient(40% 60% at 35% 100%,var(--pink),transparent 70%),radial-gradient(40% 60% at 82% 100%,var(--cyan),transparent 70%);transition:opacity .5s}
+.neon .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 60% 40%,transparent 55%,rgba(0,0,0,calc(.06 + .4*var(--g))))}
+.neon .sign{position:absolute;right:58px;top:112px;display:grid;justify-items:center;gap:6px}
+.neon .sign svg{--c:var(--pink);color:color-mix(in srgb,var(--c) var(--core),#fff);filter:drop-shadow(0 0 1px var(--c)) drop-shadow(0 0 calc(8px*var(--g)) var(--c)) drop-shadow(0 0 calc(20px*var(--g)) var(--c))}
+.neon .sign span{--c:var(--lime);font:400 30px/1 "Tilt Neon",sans-serif;transform:rotate(-4deg)}
+.neon .cab{position:absolute;bottom:0;width:74px;height:160px;background:var(--cab);clip-path:polygon(8% 0,92% 0,92% 34%,100% 48%,100% 100%,0 100%,0 48%,8% 34%);opacity:calc(.5 + .2*var(--g))}
+.neon .cab::before{content:"";position:absolute;left:20%;right:20%;top:13%;height:19%;border-radius:3px;background:var(--c);opacity:calc(.2 + .25*var(--g))}
+.neon .cab::after{content:"";position:absolute;left:10%;right:10%;top:3%;height:6%;background:var(--c2);opacity:calc(.2 + .3*var(--g))}
+.neon .side{background:var(--side);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-right:1px solid var(--hair);gap:18px}
+.neon .side::after{content:"";position:absolute;top:26px;bottom:26px;right:-1px;width:2px;border-radius:2px;background:var(--violet);box-shadow:0 0 calc(10px*var(--g)) var(--violet),0 0 calc(24px*var(--g)) var(--violet);opacity:calc(.35 + .65*var(--g))}
+.neon .brand{flex-direction:column;align-items:flex-start;gap:4px}
+.neon .brand b{--c:var(--pink);font:400 48px/1 "Tilt Neon",sans-serif;font-weight:400}
+.neon .brand small{font:500 10px/1.4 "Sora";letter-spacing:.24em;text-transform:uppercase;color:var(--ink-2)}
+.neon .lbl{font:600 10px/1 "Sora";letter-spacing:.24em;text-transform:uppercase;color:var(--ink-2)}
+.neon .chats{gap:4px}
+.neon .chats li{border-radius:12px;font-size:14px;border:1.5px solid transparent}
+.neon .chats li i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 calc(10px*var(--g)) var(--c)}
+.neon .chats li.on{border-color:var(--cyan);box-shadow:0 0 calc(14px*var(--g)) -2px var(--cyan),inset 0 0 calc(12px*var(--g)) -6px var(--cyan)}
+.neon .juke{margin-top:auto;display:grid;gap:6px;border:1px solid var(--hair);border-radius:14px;padding:12px 14px;background:var(--glass);font-size:13px}
+.neon .juke .lbl{--c:var(--lime);display:flex;justify-content:space-between;align-items:flex-end}
+.neon .eq{display:flex;gap:3px;align-items:flex-end;height:14px}
+.neon .eq i{display:block;width:3px;height:var(--h);border-radius:2px;background:var(--lime);box-shadow:0 0 calc(6px*var(--g)) var(--lime)}
+.neon .juke small{color:var(--ink-2)}
+.neon .head{border-bottom:1px solid var(--hair);padding:18px 26px}
+.neon .ring{--c:var(--pink);flex:none;padding:3px;border-radius:16px;border:2px solid var(--c);box-shadow:0 0 calc(12px*var(--g)) var(--c),inset 0 0 calc(8px*var(--g)) var(--c)}
+.neon .msg.me .ring{--c:var(--cyan)}
+.neon .ring .pt{width:58px;aspect-ratio:1;border-radius:11px}
+.neon .head .ring .pt{width:42px}
+.neon .head .name{--c:var(--pink);font:400 28px/1.05 "Tilt Neon",sans-serif}
+.neon .head .sub{font-size:13px;color:var(--ink-2)}
+.neon .chip{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:8px;font:500 12px "Sora";padding:6px 13px;border-radius:999px;border:1.5px solid var(--hair);background:var(--glass)}
+.neon .chip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 calc(8px*var(--g)) var(--lime)}
+.neon .log{gap:24px}
+.neon .bub{--c:var(--pink);background:var(--glass);border:1.5px solid var(--c);border-radius:18px;padding:14px 18px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 0 calc(18px*var(--g)) -4px var(--c),inset 0 0 calc(18px*var(--g)) -8px var(--c)}
+.neon .msg.me .bub{--c:var(--cyan)}
+.neon .n{display:block;font:400 18px/1.2 "Tilt Neon",sans-serif;margin-bottom:4px}
+.neon .act{font-style:italic;color:var(--ink-2)}
+.neon .hl{--c:var(--lime)}
+.neon .stub{display:flex;gap:8px;margin-top:10px;font:500 10.5px/1 "Sora";letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.neon .stub span{padding:5px 9px;border-radius:6px;border:1px dashed color-mix(in srgb,var(--ink-2) 50%,transparent)}
+.neon .typing{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--ink-2)}
+.neon .buzz{display:inline-flex;gap:5px}
+.neon .buzz i{display:block;width:7px;height:7px;border-radius:50%;background:var(--pink);box-shadow:0 0 calc(8px*var(--g)) var(--pink)}
+.neon .composer .field{position:relative;background:var(--glass);border:1px solid var(--hair);border-radius:14px;color:var(--ink-2);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.neon .composer .field::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--pink),var(--violet),var(--cyan));box-shadow:0 0 calc(12px*var(--g)) var(--violet)}
+.neon .send{--c:var(--cyan);flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:50%;cursor:pointer;background:var(--glass);border:2px solid var(--c);color:color-mix(in srgb,var(--c) var(--core),#fff);box-shadow:0 0 calc(16px*var(--g)) var(--c),inset 0 0 calc(10px*var(--g)) var(--c)}
+.neon .send svg{filter:drop-shadow(0 0 calc(4px*var(--g)) var(--c))}
+@media (max-width:1000px){.neon .sign,.neon .cab{display:none}}
+
+/* =========================================================
+   III. MENAGERIE — grown-up maximalism (a Jubilee variant)
+   ========================================================= */
+.men{--wall:#eadcc0;--ink:#2a1a14;--ink-2:#6e5242;--ivory:#fbf4e4;--ox:#7a1f24;--velvet:#6a1c22;--emer:#1f5a45;--ochre:#c48a2c;--accent:#8e2a22;--teal:#1e5a63;--g1:#f7e6ad;--g2:#c99a3e;--g3:#7a5519;--shade:rgba(40,15,10,.45);--stripe:rgba(122,31,36,.07);--glow:0;--chintz:var(--chintz-d);
+  --tassel:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='34'%3E%3Cpath d='M42 0v9' stroke='%23c99a3e' stroke-width='1.5'/%3E%3Ccircle cx='42' cy='11' r='3.2' fill='%23e9c977'/%3E%3Cpath d='M38.5 13h7l3 18h-13z' fill='%23c99a3e'/%3E%3Cpath d='M39.5 15l-1 15M42 15v15M44.5 15l1 15' stroke='%237a5519' stroke-width='.8'/%3E%3C/svg%3E");
+  background:var(--wall);color:var(--ink);font:400 15px/1.62 "Libre Caslon Text",Georgia,serif}
+.men[data-mode="night"]{--wall:#231229;--ink:#f3e6d0;--ink-2:#cdb497;--ivory:#2e1a2c;--ox:#a8323a;--velvet:#4a1220;--emer:#1a4a3c;--ochre:#d9a24a;--accent:#eb9a7c;--teal:#8fc9c4;--g1:#ffeeb8;--g2:#d8aa4c;--g3:#6e4a12;--shade:rgba(0,0,0,.6);--stripe:rgba(255,220,170,.05);--glow:1;--chintz:var(--chintz-n)}
+.men .bg{background:var(--chintz) 0 0/150px 150px,var(--wall)}
+.men .bg::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 45% at 80% 55%,rgba(255,180,100,calc(.3*var(--glow))),transparent 70%),radial-gradient(130% 100% at 55% 40%,transparent 50%,rgba(20,5,10,calc(.14 + .45*var(--glow))) 100%)}
+.men .salon{position:absolute;right:30px;top:150px;width:210px;height:330px;filter:brightness(calc(1 - .22*var(--glow)))}
+.men .fr{position:absolute;padding:7px;background:linear-gradient(135deg,var(--g3),var(--g1) 30%,var(--g2) 55%,var(--g1) 75%,var(--g3));box-shadow:0 0 0 1px var(--g3),inset 0 0 0 2px rgba(0,0,0,.2),0 14px 20px -12px var(--shade)}
+.men .fr i{display:block;box-shadow:inset 0 0 0 2px rgba(0,0,0,.35),inset 0 0 18px rgba(0,0,0,.35)}
+.men .f1{left:0;top:0}.men .f1 i{width:110px;height:78px;background:radial-gradient(circle at 74% 30%,#f3e2b8 0 6px,transparent 7px),radial-gradient(14px 20px at 26% 54%,#2f4a2c 90%,transparent),linear-gradient(180deg,#c9a77a,#e6cf9e 50%,#6f7f4c 51%,#3f4f2a)}
+.men .f2{right:0;top:22px;border-radius:50%}.men .f2 .pt{width:70px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(0,0,0,.35)}
+.men .f3{left:22px;top:112px}.men .f3 i{width:92px;height:116px;background:radial-gradient(circle at 40% 64%,#b9432c 0 11px,transparent 12px),radial-gradient(circle at 60% 68%,#d9a24a 0 9px,transparent 10px),radial-gradient(circle at 50% 56%,#6a8a4a 0 7px,transparent 8px),linear-gradient(transparent 78%,#3a2414 78%),radial-gradient(circle at 50% 50%,#3a2a1a,#140c08 70%)}
+.men .f4{right:12px;top:150px}.men .f4 i{width:62px;height:62px;background:radial-gradient(10px 6px at 50% 58%,#3a2414 90%,transparent),linear-gradient(170deg,transparent 50%,#f3e6c8 50% 54%,transparent 54%) 48% 0/20px 70% no-repeat,linear-gradient(#9fb3b0 0 58%,#2c4a52 58%)}
+.men .candle{position:absolute;top:266px;width:9px;height:36px;border-radius:2px;background:linear-gradient(90deg,#e8dcc0,#fff8e8,#d4c6a8)}
+.men .candle::before{content:"";position:absolute;left:50%;top:-16px;width:9px;height:15px;margin-left:-4.5px;border-radius:50% 50% 50% 50%/62% 62% 38% 38%;background:radial-gradient(circle at 50% 70%,#fffbe0,#ffc35c 55%,#ff8a2a);box-shadow:0 0 14px 5px rgba(255,170,80,.55);opacity:var(--glow);transition:opacity .5s}
+.men .candle::after{content:"";position:absolute;left:-8px;right:-8px;bottom:-8px;height:8px;border-radius:2px;background:linear-gradient(var(--g1),var(--g2) 60%,var(--g3))}
+.men .side{background:var(--damask) 0 0/56px 84px,linear-gradient(90deg,rgba(0,0,0,.28),transparent 25% 75%,rgba(0,0,0,.28)),var(--velvet);color:#f6e8cf;border-right:9px solid transparent;border-image:linear-gradient(90deg,var(--g3),var(--g1) 35%,var(--g2) 60%,var(--g3)) 1;gap:16px;
+  --damask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='84'%3E%3Cpath d='M28 6c6 10 18 16 18 30s-10 20-18 28c-8-8-18-14-18-28S22 16 28 6z' fill='%23000' fill-opacity='.2'/%3E%3Cpath d='M28 22c3 6 8 9 8 15s-5 10-8 13c-3-3-8-7-8-13s5-9 8-15z' fill='%23f7e6ad' fill-opacity='.08'/%3E%3Cg fill='%23000' fill-opacity='.2'%3E%3Ccircle r='4'/%3E%3Ccircle cx='56' r='4'/%3E%3Ccircle cy='84' r='4'/%3E%3Ccircle cx='56' cy='84' r='4'/%3E%3C/g%3E%3C/svg%3E")}
+.men .brand{flex-direction:column;align-items:flex-start;gap:4px}
+.men .brand b{font:italic 900 50px/1 "Playfair Display",serif;background:linear-gradient(180deg,var(--g1),var(--g2) 60%,var(--g3));-webkit-background-clip:text;background-clip:text;color:transparent;padding-right:6px}
+.men .brand small,.men .lbl{font:600 10px/1.3 "Josefin Sans",sans-serif;letter-spacing:.3em;text-transform:uppercase;color:var(--g1)}
+.men .lbl{display:flex;align-items:center;gap:8px;opacity:.85}
+.men .lbl::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--g2),transparent)}
+.men .chats li{background:#f6ecd6;color:#2a1a14;border-radius:2px;font-size:13.5px;box-shadow:inset 0 0 0 1px #b38a4a,inset 0 0 0 3px #f6ecd6,inset 0 0 0 4px #b38a4a,0 4px 8px -4px rgba(0,0,0,.5)}
+.men[data-mode="night"] .chats li{background:#e9dcc0;box-shadow:inset 0 0 0 1px #b38a4a,inset 0 0 0 3px #e9dcc0,inset 0 0 0 4px #b38a4a,0 4px 8px -4px rgba(0,0,0,.5)}
+.men .chats li .num{flex:none;width:18px;font:italic 700 13px "Playfair Display",serif;color:#8e2a22}
+.men .chats li.on{background:var(--emer);color:var(--g1);box-shadow:inset 0 0 0 1px var(--g2),inset 0 0 0 3px var(--emer),inset 0 0 0 4px var(--g2),0 6px 12px -4px rgba(0,0,0,.55)}
+.men .chats li.on .num{color:var(--g1)}
+.men .curio{margin-top:auto;display:flex;gap:10px;align-items:center;font:italic 400 13px/1.45 "Libre Caslon Text",serif;color:#f0dcc0;border-top:1px solid rgba(247,230,173,.3);padding-top:14px}
+.men .pelmet{position:relative;flex:none;height:50px;background:radial-gradient(42px 30px at 50% 0,var(--velvet) 97%,transparent 100%) 0 16px/84px 30px repeat-x,radial-gradient(44px 33px at 50% 0,var(--g2) 97%,transparent 100%) 0 16px/84px 34px repeat-x,linear-gradient(var(--velvet) 0 13px,var(--g2) 13px 16px,transparent 16px)}
+.men .pelmet::after{content:"";position:absolute;left:0;right:0;top:16px;height:34px;background:var(--tassel) -42px 0/84px 34px repeat-x}
+.men .head{gap:16px;padding:10px 26px 14px;background:color-mix(in srgb,var(--ivory) 90%,transparent);border-bottom:4px double var(--g2)}
+.men .head .name{font:italic 800 30px/1.05 "Playfair Display",serif;color:var(--accent)}
+.men .head .sub{font:italic 400 14px "Libre Caslon Text",serif;color:var(--ink-2)}
+.men .cards{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.men .callc{font:600 10px/1 "Josefin Sans",sans-serif;letter-spacing:.2em;text-transform:uppercase;padding:9px 12px 8px;color:var(--g1);background:var(--bgc);box-shadow:inset 0 0 0 1px var(--g2),inset 0 0 0 3px var(--bgc),inset 0 0 0 4px var(--g2)}
+.men .gilt{flex:none;position:relative;padding:6px;border-radius:50%;background:conic-gradient(from 20deg,var(--g3),var(--g1),var(--g2),var(--g3),var(--g1),var(--g2),var(--g3));box-shadow:0 0 0 1.5px var(--g3),0 10px 16px -8px var(--shade)}
+.men .gilt::before{content:"";position:absolute;left:50%;top:-7px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--g1),var(--g2) 55%,var(--g3));box-shadow:0 0 0 1px var(--g3)}
+.men .gilt .pt{width:60px;border-radius:50%;box-shadow:0 0 0 3px var(--velvet),inset 0 0 12px rgba(0,0,0,.3)}
+.men .head .gilt .pt{width:40px}
+.men .log{padding-bottom:28px}
+.men .bub{position:relative;padding:16px 22px 17px;color:var(--ink);box-shadow:0 16px 26px -16px var(--shade)}
+.men .msg .bub{border:12px solid transparent;background:linear-gradient(var(--ivory),var(--ivory)) padding-box,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Crect width='12' height='12' fill='%231f5a45'/%3E%3Cpath d='M0 10.5h10.5v-9h-7v6h3.5' fill='none' stroke='%23e9c977' stroke-width='1.4'/%3E%3C/svg%3E") 0 0/12px 12px border-box;box-shadow:inset 0 0 0 1px var(--g2),0 16px 26px -16px var(--shade)}
+.men .msg.me .bub{border:0;border-radius:3px;background:repeating-linear-gradient(90deg,transparent 0 14px,var(--stripe) 14px 18px,transparent 18px 30px,var(--stripe) 30px 31px),var(--ivory);box-shadow:inset 0 0 0 1px var(--g2),inset 0 0 0 4px var(--ivory),inset 0 0 0 5px var(--g2),0 16px 26px -16px var(--shade)}
+.men .msg.velvet .bub{border:0;background:radial-gradient(120% 140% at 30% 0,color-mix(in srgb,var(--emer) 82%,#fff),var(--emer) 55%,color-mix(in srgb,var(--emer) 70%,#000));color:#f6ead2;box-shadow:inset 0 0 0 1px var(--g2),inset 0 0 0 5px transparent,inset 0 0 0 6px var(--g2),0 16px 26px -16px var(--shade)}
+.men .msg.velvet .bub::after{content:"";position:absolute;right:30px;bottom:-30px;width:14px;height:34px;background:var(--tassel) -35px 0/84px 34px no-repeat}
+.men .n{display:block;font:italic 800 19px/1.1 "Playfair Display",serif;color:var(--accent);margin-bottom:6px}
+.men .n small{font:600 9.5px "Josefin Sans",sans-serif;font-style:normal;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-2);margin-left:10px}
+.men .msg.me .n{color:var(--teal)}
+.men .velvet .n{color:var(--g1)}
+.men .velvet .n small{color:#cdb98f}
+.men .act{font-style:italic;color:var(--ink-2)}
+.men .velvet .act{color:#d9c8a4}
+.men .typing{display:flex;align-items:center;gap:10px;align-self:flex-start;padding:7px 14px;font:italic 400 14px "Libre Caslon Text",serif;background:color-mix(in srgb,var(--ivory) 92%,transparent);box-shadow:inset 0 0 0 1px var(--g2)}
+.men .pearls{display:inline-flex;gap:4px}
+.men .pearls i{display:block;width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--g1) 40%,var(--g2))}
+.men .rug{position:absolute;left:236px;right:0;bottom:0;height:88px;background:linear-gradient(var(--velvet) 0 7px,var(--g2) 7px 9px,transparent 9px),repeating-conic-gradient(from 45deg,var(--emer) 0 25%,var(--ochre) 0 50%) 0 9px/26px 26px}
+.men .rug::after{content:"";position:absolute;inset:9px 0 0;background:linear-gradient(90deg,transparent,rgba(0,0,0,.15) 50%,transparent),radial-gradient(circle,var(--velvet) 2.5px,transparent 3px) 13px 22px/26px 26px}
+.men .composer{padding:24px 30px 20px;gap:18px}
+.men .composer .field{background:var(--ivory);color:var(--ink-2);font:italic 400 15px "Libre Caslon Text",serif;border-radius:2px;box-shadow:0 0 0 2px var(--g2),0 0 0 5px var(--velvet),0 0 0 7px var(--g2),0 12px 20px -8px var(--shade)}
+.men .seal{flex:none;display:grid;place-items:center;width:62px;height:62px;border:0;cursor:pointer;border-radius:48% 52% 45% 55%/52% 46% 54% 48%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.28),transparent 42%),#9b2a2e;box-shadow:inset 0 0 0 6px rgba(0,0,0,.14),inset 0 0 0 8px rgba(255,255,255,.08),0 6px 12px -4px rgba(0,0,0,.6)}
+.men .seal span{font:italic 900 26px/1 "Playfair Display",serif;color:rgba(40,0,0,.45);text-shadow:0 1px 0 rgba(255,255,255,.28)}
+@media (min-width:1101px){.men .log{padding-right:250px}}
+@media (max-width:1100px){.men .salon{display:none}}
+@media (max-width:760px){.men .rug{left:0}.men .cards{margin-left:0;justify-content:flex-start}.men .head{flex-wrap:wrap}}
+
+/* =========================================================
+   IV. MAISON — the couture house (an Atelier variant)
+   ========================================================= */
+.mai{--bg:#f3efe8;--ink:#141312;--ink-2:#77716a;--hair:#d8d1c6;--accent:#9b7550;--btn:#141312;--btn-ink:#f3efe8;--sheen:rgba(255,255,255,.6);
+  background:var(--bg);color:var(--ink);font:400 15px/1.6 "Jost",system-ui,sans-serif}
+.mai[data-mode="night"]{--bg:#0f0e0e;--ink:#ece6dc;--ink-2:#8f887e;--hair:#2b2825;--accent:#c9ae84;--btn:#ece6dc;--btn-ink:#0f0e0e;--sheen:rgba(255,255,255,.035)}
+.mai .bg{background:linear-gradient(112deg,transparent 38%,var(--sheen) 50%,transparent 62%)}
+.mai[data-mode="night"] .bg{background:radial-gradient(55% 45% at 72% 0%,rgba(201,174,132,.11),transparent 70%),linear-gradient(112deg,transparent 38%,var(--sheen) 50%,transparent 62%)}
+.mai .lbl{font:500 10px/1.4 "Jost";letter-spacing:.32em;text-transform:uppercase;color:var(--ink-2)}
+.mai .side{border-right:1px solid var(--hair);padding:34px 22px;gap:30px}
+.mai .brand{flex-direction:column;align-items:flex-start;gap:8px}
+.mai .brand .lbl{letter-spacing:.5em;color:var(--ink)}
+.mai .brand b{font:400 48px/.9 "Italiana",serif;letter-spacing:.02em}
+.mai .chats{gap:0}
+.mai .chats li{padding:11px 0;gap:14px;align-items:baseline;border-bottom:1px solid var(--hair);color:var(--ink-2)}
+.mai .chats li:first-child{border-top:1px solid var(--hair)}
+.mai .chats li .num{flex:none;font:400 11px "Jost";letter-spacing:.1em;font-variant-numeric:tabular-nums}
+.mai .chats li span:last-child{font:italic 400 18px/1.2 "Cormorant Garamond",serif}
+.mai .chats li.on{color:var(--ink)}
+.mai .chats li.on .num{color:var(--accent)}
+.mai .season{margin-top:auto;display:grid;gap:4px}
+.mai .season b{font:italic 400 16px "Cormorant Garamond",serif;font-weight:400}
+.mai .head{padding:36px 48px 0;align-items:flex-start;gap:32px}
+.mai .head .who{gap:8px}
+.mai .head .lbl{color:var(--accent)}
+.mai .head .name{font:400 62px/.95 "Italiana",serif;letter-spacing:.01em}
+.mai .head .sub{font:italic 400 19px "Cormorant Garamond",serif;color:var(--ink-2)}
+.mai .plate{margin-left:auto;display:grid;gap:8px;flex:none}
+.mai .plate .pt{width:112px;filter:grayscale(1) contrast(1.08)}
+.mai .credits{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px 24px;margin:24px 48px 0;padding:12px 0;border-block:1px solid var(--hair)}
+.mai .credits b{font-weight:500;color:var(--ink)}
+.mai .log{padding:32px 48px 10px;gap:32px}
+.mai .msg{grid-template-columns:1fr;max-width:600px}
+.mai .n{display:flex;align-items:center;gap:12px;margin-bottom:10px;color:var(--accent)}
+.mai .n::after{content:"";width:36px;height:1px;background:var(--hair)}
+.mai .msg p{font:500 21px/1.45 "Cormorant Garamond",serif}
+.mai .act{font-style:italic;color:var(--ink-2)}
+.mai .msg.me{max-width:400px;text-align:right}
+.mai .msg.me .n{justify-content:flex-end}
+.mai .msg.me .n::after{order:-1}
+.mai .msg.me p{font:300 15.5px/1.65 "Jost"}
+.mai .pull{max-width:560px}
+.mai .pull blockquote{margin:0;font:400 34px/1.15 "Italiana",serif;text-wrap:balance}
+.mai .pull blockquote::before{content:"“";display:block;height:.5em;font:italic 400 2.4em/1 "Cormorant Garamond",serif;color:var(--accent)}
+.mai .pull .lbl{display:block;margin-top:12px}
+.mai .typing{display:flex;align-items:center;gap:14px;font:italic 400 17px "Cormorant Garamond",serif;color:var(--ink-2)}
+.mai .thread{width:64px;height:1px;background:var(--hair);position:relative;overflow:hidden}
+.mai .thread::after{content:"";position:absolute;inset:0;width:30%;background:var(--ink)}
+.mai .composer{padding:18px 48px 34px;gap:28px}
+.mai .composer .field{padding:12px 0;border-bottom:1px solid var(--ink);font:italic 400 19px "Cormorant Garamond",serif;color:var(--ink-2)}
+.mai .send{flex:none;border:0;cursor:pointer;padding:15px 28px;background:var(--btn);color:var(--btn-ink);font:500 10.5px/1 "Jost";letter-spacing:.32em;text-transform:uppercase}
+@media (max-width:760px){.mai .head,.mai .log,.mai .composer{padding-inline:18px}.mai .credits{margin-inline:18px}.mai .head{flex-wrap:wrap;gap:18px}.mai .head .name{font-size:42px}.mai .plate{margin-left:0;order:-1}.mai .plate .pt{width:80px}}
+
+/* ---------- palette sheet ---------- */
+.sheet{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}
+.card-s{background:var(--wall-2);border:1px solid var(--rule);border-radius:12px;padding:18px;display:grid;gap:12px}
+.card-s h3{margin:0;font:500 22px/1.1 var(--f-display)}
+.card-s .motto{margin:0;font:italic 400 15px var(--f-display);color:var(--ink-soft)}
+.card-s .row{display:grid;gap:6px}
+.card-s .row small{font:600 10px/1 var(--f-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+.sw{display:flex;border-radius:8px;overflow:hidden;height:30px;border:1px solid var(--rule)}
+.sw i{flex:1}
+.card-s .type{font-size:13px;color:var(--ink-soft);margin:0}
+.card-s .type b{color:var(--ink);font-weight:600}
+.foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;border-top:1px solid var(--rule);padding-top:16px;color:var(--ink-soft);font-size:13px}
+.foot i{font-family:var(--f-display);font-size:16px;color:var(--ink)}
+
+/* ---------- motion, only when it's welcome ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .mer .cloud{animation:drift 14s ease-in-out infinite alternate}
+  .mer .c2{animation-duration:19s;animation-delay:-6s}
+  .mer .macs i{animation:hop 1s ease-in-out infinite}
+  .mer .macs i:nth-child(2){animation-delay:.14s}.mer .macs i:nth-child(3){animation-delay:.28s}
+  .mer .bulbs circle{animation:twinkle 2.4s ease-in-out infinite alternate}
+  .mer .bulbs circle:nth-child(2n){animation-delay:-1.2s}
+  .neon .sign span{animation:flick 6s steps(1) infinite}
+  .neon .eq i{animation:eq .9s ease-in-out infinite alternate}
+  .neon .eq i:nth-child(2){animation-delay:-.3s}.neon .eq i:nth-child(3){animation-delay:-.6s}.neon .eq i:nth-child(4){animation-delay:-.15s}
+  .neon .buzz i{animation:buzz 1.2s ease-in-out infinite}
+  .neon .buzz i:nth-child(2){animation-delay:.2s}.neon .buzz i:nth-child(3){animation-delay:.4s}
+  .men .candle::before{animation:flame 1.8s ease-in-out infinite alternate}
+  .men .candle:nth-child(2n)::before{animation-delay:-.7s}
+  .men .pearls i{animation:hop 1.1s ease-in-out infinite}
+  .men .pearls i:nth-child(2){animation-delay:.15s}.men .pearls i:nth-child(3){animation-delay:.3s}
+  .mai .thread::after{animation:pen 2.6s ease-in-out infinite}
+}
+@keyframes drift{to{translate:-26px 4px}}
+@keyframes hop{50%{transform:translateY(-5px)}}
+@keyframes twinkle{to{opacity:.55}}
+@keyframes flick{0%,100%{opacity:1}91%{opacity:.35}92%{opacity:1}95%{opacity:.5}96%{opacity:1}}
+@keyframes eq{0%{height:3px}100%{height:var(--h)}}
+@keyframes buzz{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes flame{0%{transform:scale(1) rotate(-2deg)}100%{transform:scale(.9,1.08) rotate(3deg)}}
+@keyframes pen{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Mea · room proposals, take two</span>
+    <h1>The four rooms, <i>again</i></h1>
+    <p>Another version of each room from the first sheet. Cozy goes pastel, the arcade goes neon and stays a bar more than a game, maximalist grows up, and elegant gets sharper. Same Lantern shell; flip any of them between day and night with the switch on its plaque.</p>
+  </header>
+
+  <!-- ============ I. MERINGUE ============ -->
+  <section class="exhibit" aria-labelledby="t-mer">
+    <div class="plaque">
+      <span class="no">I.</span>
+      <h2 id="t-mer">Meringue <small>cozy, in pastels</small></h2>
+      <p class="medium">The Hearthside idea in sugared almond colours: a tearoom on a rainy morning. The sidebar is a puffy patchwork quilt with tufted buttons, portraits sit in paper doilies, cards are held down with washi tape, bunting hangs across the top, and the typing dots are macarons. Day: <em>Buttercream</em>, strawberry milk and mint. Night: <em>Moonmilk</em>, lavender dusk, the bunting turns to fairy lights.</p>
+      <div class="toggle" data-for="mer" role="group" aria-label="Meringue mode"><button type="button" data-m="day" aria-pressed="true">Buttercream</button><button type="button" data-m="night" aria-pressed="false">Moonmilk</button></div>
+    </div>
+    <div class="app mer" id="mer" data-mode="day">
+      <div class="bg" aria-hidden="true">
+        <span class="stars"></span><span class="moon"></span>
+        <span class="cloud c1"></span><span class="cloud c2"></span>
+        <svg class="garland" viewBox="0 0 900 70" preserveAspectRatio="none"></svg>
+        <svg class="sill" width="150" height="110" viewBox="0 0 150 110" style="stroke:var(--ink-2);stroke-width:1.5;stroke-linejoin:round">
+          <rect x="2" y="100" width="146" height="9" rx="3" style="fill:var(--q3)"/>
+          <path d="M22 76q-16 2-10 16q4 6 9 4" fill="none"/>
+          <path d="M78 86q14-2 18-18l5 2q-4 22-21 25" style="fill:var(--q1)"/>
+          <path d="M18 100q-6-34 32-34q38 0 32 34z" style="fill:var(--q1)"/>
+          <ellipse cx="50" cy="66" rx="17" ry="4.5" style="fill:var(--q4)"/>
+          <circle cx="50" cy="59" r="4.5" style="fill:var(--q4)"/>
+          <g style="fill:#fff;stroke:none;opacity:.8"><circle cx="36" cy="80" r="3"/><circle cx="52" cy="88" r="3"/><circle cx="66" cy="78" r="3"/><circle cx="44" cy="94" r="2.5"/><circle cx="62" cy="94" r="2.5"/></g>
+          <path d="M106 100l-4-22h30l-4 22z" style="fill:var(--q2)"/>
+          <path d="M117 78V48" fill="none" style="stroke:var(--mint)"/>
+          <path d="M117 70q-15-5-15-20q13 4 15 18z" style="fill:var(--q2)"/>
+          <path d="M107 40q0-14 10-17q10 3 10 17q-5 7-10 7t-10-7z" style="fill:#f2a7c0"/>
+        </svg>
+      </div>
+      <aside class="side">
+        <div class="brand card"><div><b>mea</b><small>a cup of something warm</small></div></div>
+        <ul class="chats">
+          <li class="on" style="--c:#f2a7c0"><i></i><span>Mabel's tearoom</span></li>
+          <li style="--c:#9fd6bd"><i></i><span>The flower shop upstairs</span></li>
+          <li style="--c:#f3d27a"><i></i><span>Picnic on Bramble Hill</span></li>
+          <li style="--c:#bfb3ee"><i></i><span>Knitting circle gossip</span></li>
+          <li style="--c:#f6b994"><i></i><span>The seaside postmistress</span></li>
+        </ul>
+        <div class="bake card"><b>Today's bake</b>Lemon drizzle, lavender shortbread, and one very lopsided Victoria sponge.</div>
+      </aside>
+      <div class="main">
+        <div class="head"><span class="doily"><span class="pt" data-p="mabel"></span></span><div class="who"><span class="name">Mabel</span><span class="sub">runs the tearoom on Pudding Lane · remembers your usual</span></div><span class="chip">🫖 scones in ten</span></div>
+        <div class="log">
+          <div class="msg"><span class="doily"><span class="pt" data-p="mabel"></span></span><div class="bub"><b class="n">Mabel</b><p><span class="act">She sets down a teapot in a knitted cosy and turns your cup the right way up.</span> You look like you walked here through the rain. Sit by the radiator, love. The lemon cake's just out.</p><div class="keep"><span style="--c:#f2a7c0">♡ kept</span><span style="--c:#9fd6bd">your usual: earl grey</span></div></div></div>
+          <div class="msg me"><span class="doily"><span class="pt" data-p="you"></span></span><div class="bub"><b class="n">You</b><p>I did walk through the rain. Is there any lavender shortbread left?</p></div></div>
+          <div class="msg"><span class="doily"><span class="pt" data-p="mabel"></span></span><div class="bub"><b class="n">Mabel</b><p><span class="act">A conspiratorial smile; a paper bag appears from under the counter.</span> I saved you the last three. Don't tell Mr Pemberton, he's been asking since ten.</p></div></div>
+          <div class="typing"><span class="macs" aria-hidden="true"><i style="--c:#f2a7c0"></i><i style="--c:#9fd6bd"></i><i style="--c:#bfb3ee"></i></span>Mabel is warming the pot</div>
+        </div>
+        <div class="composer"><div class="field">Say something sweet…</div><button class="send" type="button" aria-label="Send"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/></svg></button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ II. NEON MOTH ============ -->
+  <section class="exhibit" aria-labelledby="t-neon">
+    <div class="plaque">
+      <span class="no">II.</span>
+      <h2 id="t-neon">Neon Moth <small>arcade, in neon</small></h2>
+      <p class="medium">An arcade bar at two in the morning rather than a game screen. No health bars, no HUD: just glass-tube signage, cards outlined like neon, a jukebox in the sidebar and a row of cabinets glowing at the back of the room. Pink for them, cyan for you, lime and violet for trim. Day: <em>Matinee</em>, the tubes as coloured glass on white tile. Night: <em>Blacklight</em>, everything lit.</p>
+      <div class="toggle" data-for="neon" role="group" aria-label="Neon Moth mode"><button type="button" data-m="day" aria-pressed="false">Matinee</button><button type="button" data-m="night" aria-pressed="true">Blacklight</button></div>
+    </div>
+    <div class="app neon" id="neon" data-mode="night">
+      <div class="bg" aria-hidden="true">
+        <div class="sign"><svg width="96" height="74" viewBox="0 0 90 70" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M45 18v38"/><path d="M45 22C34 6 12 4 6 14c-6 10 10 22 39 18"/><path d="M45 22C56 6 78 4 84 14c6 10-10 22-39 18"/><path d="M45 36c-10 2-24 8-22 18 2 8 14 6 22-8"/><path d="M45 36c10 2 24 8 22 18-2 8-14 6-22-8"/><path d="M43 18c-3-6-8-9-12-9M47 18c3-6 8-9 12-9"/></svg><span class="tube">open late</span></div>
+        <span class="cab" style="right:30px;--c:var(--cyan);--c2:var(--pink)"></span>
+        <span class="cab" style="right:112px;--c:var(--violet);--c2:var(--lime)"></span>
+        <span class="cab" style="right:194px;--c:var(--pink);--c2:var(--cyan)"></span>
+      </div>
+      <aside class="side">
+        <div class="brand"><b class="tube">mea</b><small>arcade · bar · till 4am</small></div>
+        <span class="lbl">Tonight</span>
+        <ul class="chats">
+          <li class="on" style="--c:var(--pink)"><i></i><span>Juno · last call</span></li>
+          <li style="--c:var(--lime)"><i></i><span>Rooftop karaoke</span></li>
+          <li style="--c:var(--violet)"><i></i><span>The pinball prophet</span></li>
+          <li style="--c:var(--cyan)"><i></i><span>Night bus to nowhere</span></li>
+          <li style="--c:var(--pink)"><i></i><span>Vending machine oracle</span></li>
+        </ul>
+        <div class="juke"><span class="lbl"><span class="tube">Now playing</span><span class="eq" aria-hidden="true"><i style="--h:12px"></i><i style="--h:8px"></i><i style="--h:14px"></i><i style="--h:10px"></i></span></span>Midnight Static<small>side B · track 3</small></div>
+      </aside>
+      <div class="main">
+        <div class="head"><span class="ring"><span class="pt" data-p="juno"></span></span><div class="who"><span class="name tube">Juno</span><span class="sub">bartender at the Neon Moth · knows every song on the jukebox</span></div><span class="chip">last call 3:45</span></div>
+        <div class="log">
+          <div class="msg"><span class="ring"><span class="pt" data-p="juno"></span></span><div class="bub"><b class="n tube">Juno</b><p><span class="act">She leans on the claw machine, the one that never pays out, and taps the glass twice.</span> Closing in twenty. You've been feeding this thing quarters since midnight, so either you really want the moth plushie or you really don't want to go home.</p></div></div>
+          <div class="msg me"><span class="ring"><span class="pt" data-p="you"></span></span><div class="bub"><b class="n tube">You</b><p>Both. Mostly the second one.</p></div></div>
+          <div class="msg"><span class="ring"><span class="pt" data-p="juno"></span></span><div class="bub"><b class="n tube">Juno</b><p><span class="act">A small key slides across the counter, still warm from her pocket.</span> Then stay for cleanup. I'll open it up and you can just <span class="hl tube">take the stupid moth</span>.</p><div class="stub"><span>✦ kept</span><span>the claw machine key</span></div></div></div>
+          <div class="typing"><span class="buzz" aria-hidden="true"><i></i><i></i><i></i></span>Juno is typing</div>
+        </div>
+        <div class="composer"><div class="field">Say something before last call…</div><button class="send" type="button" aria-label="Send"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ III. MENAGERIE ============ -->
+  <section class="exhibit" aria-labelledby="t-men">
+    <div class="plaque">
+      <span class="no">III.</span>
+      <h2 id="t-men">Menagerie <small>maximalist, grown up</small></h2>
+      <p class="medium">Jubilee's more-is-more, but for adults: a collector's palazzo instead of a party. Chintz wallpaper with a salon hang of gilt frames, a damask velvet sidebar behind gilded moulding, chats as framed specimen labels, a velvet pelmet with tassels, a kilim underfoot, and every bubble a different material (Greek key, Regency stripe, emerald velvet). Send is a wax seal. No stickers, no tilts, no emoji. Day: <em>Palazzo</em>. Night: <em>Nocturne</em>, aubergine and candlelight.</p>
+      <div class="toggle" data-for="men" role="group" aria-label="Menagerie mode"><button type="button" data-m="day" aria-pressed="true">Palazzo</button><button type="button" data-m="night" aria-pressed="false">Nocturne</button></div>
+    </div>
+    <div class="app men" id="men" data-mode="day">
+      <div class="bg" aria-hidden="true">
+        <div class="salon">
+          <span class="fr f1"><i></i></span>
+          <span class="fr f2"><span class="pt" data-p="ancestor"></span></span>
+          <span class="fr f3"><i></i></span>
+          <span class="fr f4"><i></i></span>
+          <span class="candle" style="left:40px"></span><span class="candle" style="left:100px"></span><span class="candle" style="left:160px"></span>
+        </div>
+        <span class="rug"></span>
+      </div>
+      <aside class="side">
+        <div class="brand"><b>Mea</b><small>a cabinet of curiosities</small></div>
+        <span class="lbl">The rooms</span>
+        <ul class="chats">
+          <li class="on"><span class="num">i</span><span>The Contessa's dinner</span></li>
+          <li><span class="num">ii</span><span>Orient Express, 1934</span></li>
+          <li><span class="num">iii</span><span>The taxidermist's daughter</span></li>
+          <li><span class="num">iv</span><span>A villa in Tangier</span></li>
+          <li><span class="num">v</span><span>Box five at La Scala</span></li>
+        </ul>
+        <div class="curio"><svg width="34" height="80" viewBox="0 0 40 90" aria-hidden="true"><path d="M20 34v54" stroke="#c99a3e" stroke-width="1.4"/><g stroke="#3f7a52" stroke-width=".9" opacity=".8"><path d="M20 44l-12 6M20 52l-11 7M20 60l-9 8M20 44l12 6M20 52l11 7M20 60l9 8M20 68l-7 7M20 68l7 7"/></g><ellipse cx="20" cy="24" rx="16" ry="22" fill="#2f6b3f"/><ellipse cx="20" cy="22" rx="11" ry="15" fill="#c99a3e"/><ellipse cx="20" cy="21" rx="8" ry="11" fill="#1d5c66"/><ellipse cx="20" cy="20" rx="4.5" ry="7" fill="#1b2a6b"/></svg><span>Curio of the evening: a peacock feather, plucked in self-defence.</span></div>
+      </aside>
+      <div class="main">
+        <div class="pelmet" aria-hidden="true"></div>
+        <div class="head"><span class="gilt"><span class="pt" data-p="vivienne"></span></span><div class="who"><span class="name">Contessa Vivienne</span><span class="sub">collector of curiosities, forgeries and grudges</span></div><div class="cards"><span class="callc" style="--bgc:var(--ox)">Course vi of ix</span><span class="callc" style="--bgc:var(--emer)">The peacock is loose</span></div></div>
+        <div class="log">
+          <div class="msg"><span class="gilt"><span class="pt" data-p="vivienne"></span></span><div class="bub"><b class="n">The Contessa<small>at table</small></b><p><span class="act">She doesn't look up from carving the pheasant. A peacock picks its way across the tablecloth between you.</span> The Caravaggio in the east gallery is a forgery, darling. A very good one. I commissioned it myself in 1971.</p><p>What I'd like to know is who has stolen the forgery.</p></div></div>
+          <div class="msg me"><span class="gilt"><span class="pt" data-p="you"></span></span><div class="bub"><b class="n">You<small>the guest</small></b><p>Who else knew it was fake?</p></div></div>
+          <div class="msg velvet"><span class="gilt"><span class="pt" data-p="vivienne"></span></span><div class="bub"><b class="n">The Contessa<small>leaning in</small></b><p><span class="act">She sets down the knife, and every candle in the room seems to lean towards her.</span> Only the forger, and he has been dead for nine years. So either someone is very lucky, or someone is not as dead as he promised.</p></div></div>
+          <div class="typing"><span class="pearls" aria-hidden="true"><i></i><i></i><i></i></span>The Contessa is lighting a cigarillo</div>
+        </div>
+        <div class="composer"><div class="field">Lean across the table and reply…</div><button class="seal" type="button" aria-label="Send"><span>M</span></button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ IV. MAISON ============ -->
+  <section class="exhibit" aria-labelledby="t-mai">
+    <div class="plaque">
+      <span class="no">IV.</span>
+      <h2 id="t-mai">Maison <small>elegant, stylish</small></h2>
+      <p class="medium">Where Atelier is a literary journal, Maison is a fashion editorial: a couture house the night before the show. Thin Didone display at a large size against a light geometric sans, a black-and-white portrait plate with a look number, a credits line, lots of white space, and lines worth keeping set as pull quotes. One accent, camel by day and champagne by night. Day: <em>Ivory</em>. Night: <em>Soirée</em>.</p>
+      <div class="toggle" data-for="mai" role="group" aria-label="Maison mode"><button type="button" data-m="day" aria-pressed="true">Ivory</button><button type="button" data-m="night" aria-pressed="false">Soirée</button></div>
+    </div>
+    <div class="app mai" id="mai" data-mode="day">
+      <div class="bg" aria-hidden="true"></div>
+      <aside class="side">
+        <div class="brand"><span class="lbl">Maison</span><b>Mea</b></div>
+        <ul class="chats">
+          <li class="on"><span class="num">01</span><span>The final fitting</span></li>
+          <li><span class="num">02</span><span>A wedding at Lake Como</span></li>
+          <li><span class="num">03</span><span>The gallerist, Mayfair</span></li>
+          <li><span class="num">04</span><span>Kyoto, in the rain</span></li>
+          <li><span class="num">05</span><span>The last letter</span></li>
+        </ul>
+        <div class="season"><span class="lbl">Collection</span><b>Automne 2026, Paris</b></div>
+      </aside>
+      <div class="main">
+        <div class="head">
+          <div class="who"><span class="lbl">Final fitting · Faubourg Saint-Honoré</span><span class="name">Margaux Delacroix</span><span class="sub">Couturière. Has never once raised her voice.</span></div>
+          <div class="plate"><span class="pt" data-p="margaux"></span><span class="lbl">Look 01 · Toile</span></div>
+        </div>
+        <div class="credits lbl"><span>Margaux wears <b>chalk, pins, forty years of certainty</b></span><span>Scene VI · 3:12 a.m.</span></div>
+        <div class="log">
+          <div class="msg"><div class="bub"><b class="n lbl">Margaux</b><p><span class="act">She circles you once, slowly, a pin held between her lips.</span> The left shoulder sits a centimetre too proud. No one in the front row will notice. I will notice, and so will you, every time you raise your glass.</p></div></div>
+          <div class="msg me"><div class="bub"><b class="n lbl">You</b><p>Then fix it. The show is at ten; we have seven hours.</p></div></div>
+          <div class="msg pull"><div class="bub"><blockquote>Seven hours is a lifetime. I once remade a wedding gown in the back of a taxi.</blockquote><span class="lbl">Margaux · kept</span></div></div>
+          <div class="typing"><span class="thread" aria-hidden="true"></span>Margaux is pinning the hem</div>
+        </div>
+        <div class="composer"><div class="field">Write the next line…</div><button class="send" type="button">Send</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PALETTE SHEET ============ -->
+  <section class="exhibit" aria-labelledby="t-sheet">
+    <div class="plaque" style="grid-template-columns:auto 1fr">
+      <span class="no">V.</span>
+      <h2 id="t-sheet">Palette sheet</h2>
+      <p class="medium">The five picker swatches for each room by day and by night, and the typefaces, ready for each room's <code>index.ts</code>.</p>
+    </div>
+    <div class="sheet">
+      <div class="card-s"><h3>Meringue</h3><p class="motto">A cup of something warm</p>
+        <div class="row"><small>Buttercream</small><div class="sw"><i style="background:#fdf0e0"></i><i style="background:#b8507a"></i><i style="background:#3a8a6b"></i><i style="background:#f3d27a"></i><i style="background:#dcd5f2"></i></div></div>
+        <div class="row"><small>Moonmilk</small><div class="sw"><i style="background:#332e55"></i><i style="background:#f5a8c5"></i><i style="background:#a6e0c6"></i><i style="background:#f4da92"></i><i style="background:#c4b9f4"></i></div></div>
+        <p class="type"><b>Young Serif</b> for names · <b>Nunito</b> for text</p></div>
+      <div class="card-s"><h3>Neon Moth</h3><p class="motto">Open till four</p>
+        <div class="row"><small>Matinee</small><div class="sw"><i style="background:#f2ede9"></i><i style="background:#e3177a"></i><i style="background:#0a9fc2"></i><i style="background:#56a000"></i><i style="background:#7438f0"></i></div></div>
+        <div class="row"><small>Blacklight</small><div class="sw"><i style="background:#0c0a13"></i><i style="background:#ff4fa8"></i><i style="background:#3ff0ff"></i><i style="background:#b8ff3c"></i><i style="background:#a874ff"></i></div></div>
+        <p class="type"><b>Tilt Neon</b> for names and signs · <b>Sora</b> for text</p></div>
+      <div class="card-s"><h3>Menagerie</h3><p class="motto">A cabinet of curiosities</p>
+        <div class="row"><small>Palazzo</small><div class="sw"><i style="background:#eadcc0"></i><i style="background:#6a1c22"></i><i style="background:#1f5a45"></i><i style="background:#c99a3e"></i><i style="background:#8e2a22"></i></div></div>
+        <div class="row"><small>Nocturne</small><div class="sw"><i style="background:#231229"></i><i style="background:#4a1220"></i><i style="background:#1a4a3c"></i><i style="background:#d8aa4c"></i><i style="background:#eb9a7c"></i></div></div>
+        <p class="type"><b>Playfair Display</b> black italic for names · <b>Libre Caslon Text</b> for story · <b>Josefin Sans</b> caps for labels</p></div>
+      <div class="card-s"><h3>Maison</h3><p class="motto">The night before the show</p>
+        <div class="row"><small>Ivory</small><div class="sw"><i style="background:#f3efe8"></i><i style="background:#141312"></i><i style="background:#9b7550"></i><i style="background:#d8d1c6"></i><i style="background:#77716a"></i></div></div>
+        <div class="row"><small>Soirée</small><div class="sw"><i style="background:#0f0e0e"></i><i style="background:#ece6dc"></i><i style="background:#c9ae84"></i><i style="background:#2b2825"></i><i style="background:#8f887e"></i></div></div>
+        <p class="type"><b>Italiana</b> for names · <b>Cormorant Garamond</b> for story · <b>Jost</b> for labels and your lines</p></div>
+    </div>
+  </section>
+
+  <footer class="foot"><i>Mea room proposals, take two</i><span>Mockups only. Portraits are placeholder illustrations.</span></footer>
+</div>
+
+<script>
+// Placeholder portraits drawn as SVG so the page needs no image files (same generator as the room salon).
+const P = {
+  you:{bg:["#c9f3e3","#c9b3ff"],skin:"#c98e6b",hair:"#2b1d1a",top:"#29adff",eye:"#2b1d1a",style:"short"},
+  mabel:{bg:["#fde4ec","#e3f1ea"],skin:"#f2c6a8",hair:"#c9785a",top:"#f3d27a",eye:"#4a3a46",style:"buns"},
+  juno:{bg:["#2a1f4a","#ff4fa8"],skin:"#c58c66",hair:"#1a1426",top:"#3ff0ff",eye:"#1a1426",style:"bangs"},
+  vivienne:{bg:["#1f5a45","#c48a2c"],skin:"#e2b48e",hair:"#4a1a12",top:"#7a1f24",eye:"#2a1a14",style:"updo"},
+  ancestor:{bg:["#3a2a1a","#140c08"],skin:"#c9a07a",hair:"#2a1a10",top:"#1a120c",eye:"#1a120c",style:"short"},
+  margaux:{bg:["#ece7df","#b9b0a3"],skin:"#efd2bd",hair:"#141312",top:"#141312",eye:"#141312",style:"bangs"}
+};
+function svg(p){
+  const h=p.hair, s=p.skin;
+  const back={buns:`<circle cx="34" cy="38" r="17" fill="${h}"/><circle cx="86" cy="38" r="17" fill="${h}"/><path d="M28 66c0-30 64-30 64 0v22H28z" fill="${h}"/>`,
+    short:`<path d="M32 62c0-28 56-30 56 0v8H32z" fill="${h}"/>`,
+    bangs:`<path d="M24 66c0-36 72-36 72 0v50H24z" fill="${h}"/>`,
+    undercut:`<path d="M34 60c0-26 52-28 52 0z" fill="${h}"/>`,
+    curls:`${[30,44,60,76,90,36,84].map((x,i)=>`<circle cx="${x}" cy="${i>4?70:44+Math.abs(60-x)/4}" r="14" fill="${h}"/>`).join("")}`,
+    updo:`<ellipse cx="60" cy="26" rx="18" ry="13" fill="${h}"/><path d="M32 64c0-30 56-30 56 0v6H32z" fill="${h}"/>`,
+    waves:`<path d="M26 66c0-38 68-38 68 0 4 14-2 30 4 44-10 4-20-2-24-8H46c-4 6-14 12-24 8 6-14 0-30 4-44z" fill="${h}"/>`}[p.style];
+  const front={buns:`<path d="M38 56c8-14 36-16 44 0-10-6-34-6-44 0z" fill="${h}"/>`,
+    short:`<path d="M34 58c10-18 44-20 54-2-14-4-30-6-54 2z" fill="${h}"/>`,
+    bangs:`<path d="M34 62c2-20 50-22 52 0-6-4-10-10-12-10-4 6-10 8-14 8-6 0-10-4-12-8-4 4-8 8-14 10z" fill="${h}"/>`,
+    undercut:`<path d="M40 54c10-20 46-22 54-4-12-2-26 0-38 10-4-4-10-6-16-6z" fill="${h}"/>`,
+    curls:`<circle cx="46" cy="50" r="9" fill="${h}"/><circle cx="60" cy="46" r="10" fill="${h}"/><circle cx="74" cy="50" r="9" fill="${h}"/>`,
+    updo:`<path d="M36 58c8-16 40-18 48 0-10-6-36-6-48 0z" fill="${h}"/>`,
+    waves:`<path d="M34 60c6-20 48-22 52 0-8-8-20-10-26-4-8-6-18-4-26 4z" fill="${h}"/>`}[p.style];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.bg[0]}"/><stop offset="1" stop-color="${p.bg[1]}"/></linearGradient></defs><rect width="120" height="150" fill="url(#g)"/>${back}<rect x="52" y="88" width="16" height="20" fill="${s}"/><path d="M18 150c4-30 22-44 42-44s38 14 42 44z" fill="${p.top}"/><ellipse cx="60" cy="72" rx="25" ry="28" fill="${s}"/>${front}<ellipse cx="50" cy="74" rx="3" ry="4" fill="${p.eye}"/><ellipse cx="70" cy="74" rx="3" ry="4" fill="${p.eye}"/><circle cx="51" cy="72.5" r="1" fill="#fff"/><circle cx="71" cy="72.5" r="1" fill="#fff"/><ellipse cx="44" cy="84" rx="5" ry="3" fill="#ff7aa8" opacity=".35"/><ellipse cx="76" cy="84" rx="5" ry="3" fill="#ff7aa8" opacity=".35"/><path d="M54 88q6 5 12 0" stroke="#7a3a3a" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
+}
+const url = s => `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
+const cache={};
+document.querySelectorAll(".pt[data-p]").forEach(el=>{
+  const k=el.dataset.p; cache[k]??=url(svg(P[k]));
+  el.style.backgroundImage=cache[k]; el.setAttribute("role","img"); el.setAttribute("aria-label",k==="you"?"Your portrait":"Character portrait");
+});
+
+// Meringue: the doily scallop (used as a mask, so it takes the room's paper colour) and the bunting / fairy-light garland.
+const scallops=[...Array(20)].map((_,i)=>{const a=i/20*Math.PI*2;return `<circle cx="${(50+41*Math.cos(a)).toFixed(2)}" cy="${(50+41*Math.sin(a)).toFixed(2)}" r="8.5"/>`}).join("");
+document.documentElement.style.setProperty("--scallop",url(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42"/>${scallops}</svg>`));
+const hang=[[45,11.2],[135,21],[225,24.5],[315,21.8],[405,12.8],[495,12.8],[585,21.8],[675,24.5],[765,21],[855,11.2]];
+const flagC=["#f2a7c0","#f3d27a","#9fd6bd","#bfb3ee"], bulbC=["#ffd6e6","#fff0b8","#c9f5e2","#ddd5ff"];
+document.querySelectorAll(".garland").forEach(g=>{
+  g.innerHTML=`<path d="M0 4Q225 44 450 6Q675 44 900 4" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/>`+
+    `<g class="flags">${hang.map(([x,y],i)=>`<path d="M${x-15} ${y}h30l-15 26z" fill="${flagC[i%4]}"/>`).join("")}</g>`+
+    `<g class="bulbs">${hang.map(([x,y],i)=>`<circle cx="${x}" cy="${y+8}" r="5" fill="${bulbC[i%4]}" style="color:${bulbC[i%4]}"/>`).join("")}</g>`;
+});
+
+// Menagerie: the chintz wallpaper, one tile per mode.
+function chintz(L,F,C,a){
+  const petals=(x,y,r=7,d=8)=>[0,72,144,216,288].map(t=>{const q=(t-90)*Math.PI/180;return `<circle cx="${(x+d*Math.cos(q)).toFixed(1)}" cy="${(y+d*Math.sin(q)).toFixed(1)}" r="${r}"/>`}).join("");
+  const leaf=(x,y,rx,ry,r)=>`<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" transform="rotate(${r} ${x} ${y})"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150"><g opacity="${a}">`+
+    `<path d="M0 75C30 60 50 90 75 75S120 60 150 75" fill="none" stroke="${L}" stroke-width="1.6"/>`+
+    `<g fill="${L}">${leaf(22,30,15,5.5,-30)}${leaf(62,26,14,5,30)}${leaf(58,60,13,5,-40)}${leaf(88,96,15,5.5,30)}${leaf(128,96,14,5,-30)}${leaf(110,130,13,5,80)}${leaf(70,68,9,3.5,-20)}${leaf(140,68,9,3.5,25)}</g>`+
+    `<g fill="${F}">${petals(42,42)}${petals(108,108)}${petals(128,30,4.5,5)}${petals(22,118,4.5,5)}</g>`+
+    `<g fill="${C}"><circle cx="42" cy="42" r="4.5"/><circle cx="108" cy="108" r="4.5"/><circle cx="128" cy="30" r="2.5"/><circle cx="22" cy="118" r="2.5"/><circle cx="16" cy="96" r="3"/><circle cx="22" cy="102" r="3"/><circle cx="12" cy="104" r="3"/><circle cx="90" cy="20" r="3"/></g></g></svg>`;
+}
+const men=document.getElementById("men");
+men.style.setProperty("--chintz-d",url(chintz("#2f5d46","#b9432c","#c99a3e",.5)));
+men.style.setProperty("--chintz-n",url(chintz("#2f6b5e","#9c3d5e","#c99a3e",.45)));
+
+document.querySelectorAll(".toggle").forEach(t=>{
+  const app=document.getElementById(t.dataset.for);
+  t.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    app.dataset.mode=b.dataset.m;t.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));});
+});
+</script>
+</body>
+</html>
