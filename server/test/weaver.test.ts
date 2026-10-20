@@ -356,7 +356,7 @@ describe("growing a lorebook", () => {
     expect(guessCategory({ comment: "", content: "something", keys: [], constant: false }, "", "rules").category).toBe("rule");
     expect(dreamWeaverCategory("Marisol rules book")).toBe("rule");
     expect(dreamWeaverCategory("Saltmere NPC book")).toBe("character");
-    expect(dreamWeaverCategory("Marisol depth book")).toBe("current");
+    expect(dreamWeaverCategory("Marisol depth book")).toBeNull();
   });
 });
 

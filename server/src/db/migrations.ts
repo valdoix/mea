@@ -1338,6 +1338,40 @@ CREATE TABLE lore_keepup (
       if (!hasColumn(db, "lore_hits", "cut_at")) db.exec("ALTER TABLE lore_hits ADD COLUMN cut_at INTEGER");
     },
   },
+  {
+    id: 31,
+    name: "depth entries aren't current",
+    sql: "",
+    // Since Current means "in every scene" (PR #120), the creator's depth entries (tagged Current) and
+    // depth-book entries auto-sorted to Current rode every prompt. They lose the category; a Current
+    // you picked yourself (sure, in a book that isn't a depth book) stays.
+    up: (db) => {
+      const rows = db
+        .query<{ id: string; data: string; name: string; settings: string }, []>(
+          `SELECT e.id, e.data, b.name, b.settings FROM lorebook_entries e JOIN lorebooks b ON b.id = e.lorebook_id WHERE e.data LIKE '%"category":"current"%'`,
+        )
+        .all();
+      const save = db.query("UPDATE lorebook_entries SET data = ? WHERE id = ?");
+      for (const r of rows) {
+        let data: { extra?: Record<string, unknown> };
+        let role: unknown;
+        try {
+          data = JSON.parse(r.data);
+          role = (JSON.parse(r.settings || "{}") as { role?: unknown }).role;
+        } catch {
+          continue;
+        }
+        const x = data.extra ?? {};
+        if (x.category !== "current") continue;
+        const depthBook = role === "depth" || /\bdepth book$/i.test(r.name) || (/\b(dream\s*weaver|dw)\b/i.test(r.name) && /\bdepth\b/i.test(r.name));
+        const guessed = typeof x.categoryConfidence === "number" && x.categoryConfidence < 1;
+        if (!x.creatorDepth && !(depthBook && guessed)) continue;
+        delete x.category;
+        delete x.categoryConfidence;
+        save.run(JSON.stringify({ ...data, extra: x }), r.id);
+      }
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
