@@ -2,11 +2,12 @@
   import { get, post } from "../../../lib/api";
   import { confirm, promptText } from "../../../lib/dialogs.svelte";
   import KindOptions from "../KindOptions.svelte";
+  import { categoryLabel, kindsByShelf, LORE_CATEGORIES, type Shelf } from "../../../lib/lorecats";
   import { autosize } from "../../../lib/gestures";
   import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ListTree, PenLine, Plus, RefreshCw, Trash, UserSearch } from "../../../lib/icons";
-  import { LORE_TYPES, type StudioSession, typeMeta, uncovered } from "../../../lib/studio.svelte";
+  import { type StudioSession, typeMeta, uncovered } from "../../../lib/studio.svelte";
   import { errorToast } from "../../../lib/state.svelte";
-  import type { Lorebook, LoreType, StudioDraft, StudioItem } from "../../../lib/types";
+  import type { KindGap, Lorebook, StudioDraft, StudioItem } from "../../../lib/types";
   import StudioOptions from "./StudioOptions.svelte";
   import ResearchPanel from "../../studio/ResearchPanel.svelte";
 
@@ -15,7 +16,7 @@
   let open = $state<Record<string, boolean>>({});
   let steer = $state("");
   let newTitle = $state("");
-  let newType = $state<LoreType | "">("");
+  let newKind = $state("");
   let book = $state<Lorebook | null>(null);
 
   $effect(() => {
@@ -88,7 +89,7 @@
   async function add() {
     if (!newTitle.trim()) return;
     try {
-      const r = await post<{ draft: StudioDraft; itemId: string }>(`/api/lore-studio/${session.id}/items`, { title: newTitle.trim(), type: newType || null });
+      const r = await post<{ draft: StudioDraft; itemId: string }>(`/api/lore-studio/${session.id}/items`, { title: newTitle.trim(), category: newKind || null });
       session.apply(r.draft);
       newTitle = "";
     } catch (e) {
@@ -101,10 +102,14 @@
     await session.act("remove", `/items/${it.id}`, undefined, "DELETE");
   }
 
-  async function move(i: number, dir: -1 | 1) {
+  /** Moves an item past its neighbour in the list it's shown in (its shelf), keeping the rest of the order. */
+  async function move(it: StudioItem, dir: -1 | 1, shown: StudioItem[]) {
+    const k = shown.indexOf(it);
+    const other = shown[k + dir];
+    if (!other) return;
     const list = [...draft.items];
-    const j = i + dir;
-    if (j < 0 || j >= list.length) return;
+    const i = list.indexOf(it);
+    const j = list.indexOf(other);
     [list[i], list[j]] = [list[j]!, list[i]!];
     draft.items = list;
     await session.act("order", "/order", { ids: list.map((x) => x.id) });
@@ -114,6 +119,68 @@
     if (draft.items.length && !(await confirm({ title: "Plan again from scratch?", message: "Entries already written stay; the rest of the plan is replaced.", confirmLabel: "Plan again" }))) return;
     await session.act("outline", "/outline", { mode: "replace", steer });
   }
+
+  // ---------- docs/17: shelves, satellites, Pack and gaps ----------
+  const SHELF_OF = new Map<string, Shelf>(LORE_CATEGORIES.map((c) => [c.id, c.shelf]));
+  // Solid shelf colours (a room's chips can be see-through; these sit on busy backgrounds).
+  const HUE: Record<Shelf, string> = { ground: "var(--butter)", people: "var(--rose)", world: "var(--sky)", time: "var(--mint)", scenes: "var(--lavender)" };
+  const about = (i: StudioItem) => i.about ?? [];
+  const isSat = (i: StudioItem) => about(i).some((a) => a !== "user");
+  const titleOf = (ref: string) => (ref === "user" ? "{{user}}" : (draft.items.find((x) => x.id === ref)?.title ?? (book?.entries.find((e) => `entry:${e.id}` === ref)?.comment || "")));
+  /** Each shelf's items in plan order, every satellite right under the person it's about. */
+  const shelves = $derived.by(() => {
+    const groups = [...kindsByShelf.map((s) => ({ id: s.id as Shelf | "other", label: s.label })), { id: "other" as const, label: "No kind yet" }].map((g) => ({ ...g, items: [] as StudioItem[] }));
+    const ids = new Set(draft.items.map((i) => i.id));
+    const placed = new Set<string>();
+    const put = (i: StudioItem) => {
+      if (placed.has(i.id)) return;
+      placed.add(i.id);
+      groups.find((g) => g.id === (SHELF_OF.get(i.category ?? "") ?? "other"))!.items.push(i);
+    };
+    for (const i of draft.items) {
+      if (isSat(i) && ids.has(about(i).find((a) => a !== "user")!)) continue;
+      put(i);
+      // The person's satellites follow them, whatever shelf they'd be on.
+      for (const s of draft.items.filter((x) => isSat(x) && about(x).find((a) => a !== "user") === i.id)) {
+        if (placed.has(s.id)) continue;
+        placed.add(s.id);
+        groups.find((g) => g.id === (SHELF_OF.get(i.category ?? "") ?? "other"))!.items.push(s);
+      }
+    }
+    for (const i of draft.items) put(i);
+    return groups.filter((g) => g.items.length);
+  });
+  /** The board: kept entries per shelf, with a count for each kind. */
+  const board = $derived(
+    kindsByShelf.map((s) => {
+      const items = kept.filter((i) => SHELF_OF.get(i.category ?? "") === s.id);
+      const kinds = s.kinds.map((k) => ({ label: k.label, n: items.filter((i) => i.category === k.id).length, gaps: gaps.filter((g) => g.kind === k.id).length })).filter((k) => k.n || k.gaps);
+      return { ...s, n: items.length, kinds };
+    }),
+  );
+  let gaps = $state<KindGap[]>([]);
+  let missingFor = $state<Record<string, string[]>>({});
+  async function loadGaps() {
+    try {
+      const r = await get<{ kinds: KindGap[]; missing: Record<string, string[]> }>(`/api/lore-studio/${session.id}/gaps`);
+      gaps = r.kinds;
+      missingFor = r.missing;
+    } catch {
+      gaps = [];
+    }
+  }
+  $effect(() => {
+    void draft.items.length;
+    void JSON.stringify(draft.options.mix);
+    void session.busy;
+    void loadGaps();
+  });
+  const gapLine = $derived.by(() => {
+    const by = new Map<string, string[]>();
+    for (const g of gaps) by.set(g.kind, [...(by.get(g.kind) ?? []), g.label]);
+    return [...by].map(([k, names]) => (names.some(Boolean) ? `${names.length} without ${k === "voice" ? "a voice" : `a ${categoryLabel(k).toLowerCase()}`}: ${names.filter(Boolean).slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""}` : `no ${categoryLabel(k).toLowerCase()} yet`)).join(" · ");
+  });
+  const pack = (it: StudioItem, kinds?: string[]) => session.act("pack", "/pack", { itemId: it.id, ...(kinds ? { kinds } : {}) });
 
   const STATUS: Record<StudioItem["status"], string> = { planned: "", queued: "in line", writing: "writing…", drafted: "written", error: "failed" };
 </script>
@@ -150,16 +217,34 @@
     <p class="muted small">No plan yet. {session.busy === "outline" ? "Planning…" : ""}</p>
   {/if}
 
+  {#if draft.items.length}
+    <div class="board">
+      {#each board as s (s.id)}
+        <div class="tile" style:--hue={HUE[s.id]}>
+          <b>{s.label}</b>
+          <span class="n">{s.n}</span>
+          <span class="tiny ks">{s.kinds.map((k) => (k.gaps ? `${k.label} ${k.n}/${k.n + k.gaps}` : `${k.n} ${k.label}`)).join(" · ") || "nothing yet"}</span>
+        </div>
+      {/each}
+    </div>
+    {#if gaps.length}
+      <div class="row wrap gapline small">
+        <span class="grow">{gapLine}</span>
+        <button class="btn small" onclick={() => session.act("gaps", "/gaps")} disabled={Boolean(session.busy)}><Plus size={14} /> {session.busy === "gaps" ? "Planning…" : "Plan them"}</button>
+      </div>
+    {/if}
+  {/if}
+
+  {#each shelves as g (g.id)}
+  <details class="shelf" open>
+    <summary class="small"><span class="shelf-tag" style:--hue={g.id === "other" ? "var(--surface-2)" : HUE[g.id]}>{g.label}</span> <span class="muted">{g.items.filter((i) => i.keep).length}</span></summary>
   <div class="items">
-    {#each draft.items as it, i (it.id)}
+    {#each g.items as it, i (it.id)}
       {@const meta = typeMeta(it.type)}
-      <div class="item card" class:out={!it.keep} class:new={isNew(it.id)} class:changed={Boolean(wasNamed(it.id) || wasCat(it.id) || (showDiff && diff?.repitched.includes(it.id)))} style:margin-left={depthOf(it) ? "1.4rem" : undefined}>
+      {@const sat = isSat(it)}
+      <div class="item card" class:out={!it.keep} class:sat class:new={isNew(it.id)} class:changed={Boolean(wasNamed(it.id) || wasCat(it.id) || (showDiff && diff?.repitched.includes(it.id)))} style:margin-left={sat || depthOf(it) ? "1.4rem" : undefined}>
         <div class="irow">
           <input type="checkbox" checked={it.keep} onchange={(e) => edit(it, { keep: e.currentTarget.checked }, 0)} aria-label="Include {it.title}" title="Include in the lorebook" />
-          <select class="select type" value={it.type ?? ""} onchange={(e) => edit(it, { type: (e.currentTarget.value || null) as LoreType | null }, 0)} aria-label="Kind">
-            <option value="">Plain</option>
-            {#each LORE_TYPES as t (t.value)}<option value={t.value}>{t.label}</option>{/each}
-          </select>
           <select class="select type" value={it.category ?? ""} onchange={(e) => edit(it, { category: e.currentTarget.value || null }, 0)} aria-label="Kind" title={wasCat(it.id) ? `was ${wasCat(it.id)?.from ?? "none"}` : "Kind: sets where the entry goes and how strongly"}>
             <KindOptions none="No kind" />
           </select>
@@ -169,12 +254,21 @@
           {#if it.constant}<span class="chip tiny butter">always</span>{/if}
           <div class="tools">
             <button class="btn ghost icon small" onclick={() => (open[it.id] = !open[it.id])} aria-label="More" aria-expanded={Boolean(open[it.id])}>{#if open[it.id]}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}</button>
-            <button class="btn ghost icon small" onclick={() => move(i, -1)} disabled={i === 0} aria-label="Move up"><ArrowUp size={14} /></button>
-            <button class="btn ghost icon small" onclick={() => move(i, 1)} disabled={i === draft.items.length - 1} aria-label="Move down"><ArrowDown size={14} /></button>
+            <button class="btn ghost icon small" onclick={() => move(it, -1, g.items)} disabled={i === 0} aria-label="Move up"><ArrowUp size={14} /></button>
+            <button class="btn ghost icon small" onclick={() => move(it, 1, g.items)} disabled={i === g.items.length - 1} aria-label="Move down"><ArrowDown size={14} /></button>
             <button class="btn ghost icon small" onclick={() => remove(it)} aria-label="Remove"><Trash size={14} /></button>
           </div>
         </div>
         <input class="input pitch" value={it.pitch} oninput={(e) => edit(it, { pitch: e.currentTarget.value })} placeholder={meta ? `What this ${meta.label.toLowerCase()} establishes, and why a scene needs it` : "What this entry establishes"} aria-label="Pitch" />
+        {#if sat}<span class="tiny muted">About {about(it).map(titleOf).filter(Boolean).join(" & ")}</span>{/if}
+        {#if it.category === "character" && it.keep && (missingFor[it.id]?.length ?? 0) > 0}
+          <div class="row wrap sats">
+            {#each missingFor[it.id] ?? [] as k (k)}
+              <button class="chip tiny miss" onclick={() => pack(it, [k])} disabled={Boolean(session.busy)} title="Plan this for {it.title}"><Plus size={11} /> {categoryLabel(k)}</button>
+            {/each}
+            <button class="btn ghost small" onclick={() => pack(it)} disabled={Boolean(session.busy)} title="Plan everything {it.title} is missing: {(missingFor[it.id] ?? []).map(categoryLabel).join(', ')}">{session.busy === "pack" ? "Planning…" : "✦ Pack"}</button>
+          </div>
+        {/if}
         {#if open[it.id]}
           <div class="more">
             <label class="field"><span class="label">Sits inside</span>
@@ -192,6 +286,8 @@
       </div>
     {/each}
   </div>
+  </details>
+  {/each}
 
   {#if draft.census}
     <div class="panel stack tight coverage">
@@ -230,7 +326,7 @@
   {/if}
 
   <div class="row wrap addrow">
-    <select class="select type" bind:value={newType} aria-label="Kind of the new entry"><option value="">Plain</option>{#each LORE_TYPES as t (t.value)}<option value={t.value}>{t.label}</option>{/each}</select>
+    <select class="select type" bind:value={newKind} aria-label="Kind of the new entry"><KindOptions none="No kind" /></select>
     <input class="input grow" bind:value={newTitle} placeholder="Add an entry by name" onkeydown={(e) => e.key === "Enter" && add()} />
     <button class="btn" onclick={add} disabled={!newTitle.trim()}><Plus size={15} /> Add</button>
   </div>
@@ -260,6 +356,69 @@
 </section>
 
 <style>
+  .board {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+  .tile {
+    display: grid;
+    align-content: start;
+    gap: 0.15rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--hue) 38%, var(--surface));
+    color: var(--text);
+    font-size: var(--fs-xs);
+  }
+  .shelf-tag {
+    display: inline-flex;
+    padding: 0.15rem 0.6rem;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--hue) 45%, var(--surface));
+    color: var(--text);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+  }
+  .tile .n {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .tile .ks {
+    opacity: 0.85;
+  }
+  .gapline {
+    align-items: center;
+    padding: 0.45rem 0.7rem;
+    border-radius: 12px;
+    border: 1px dashed var(--accent);
+    background: var(--surface);
+  }
+  .gapline .grow {
+    flex: 1 1 14rem;
+  }
+  .shelf > summary {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+  }
+  .item.sat {
+    border-left: 3px solid var(--border-strong, var(--border));
+  }
+  .sats {
+    gap: 0.3rem;
+    align-items: center;
+  }
+  @media (max-width: 720px) {
+    .board {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
   .items {
     display: grid;
     gap: 0.45rem;
@@ -333,7 +492,7 @@
   .miss {
     cursor: pointer;
     border: 1px dashed var(--border);
-    background: none;
+    background: var(--surface);
     color: var(--text);
     font: inherit;
     font-size: var(--fs-xs);

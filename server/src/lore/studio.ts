@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { CATEGORIES, type Category, guessCategory, withCategory } from "./format";
+import { CATEGORIES, CATEGORY_INFO, type Category, guessCategory, withCategory } from "./format";
+import { allowedKinds, cleanMix, isSatellite, type Mix, mixBrief, mixFromTypes, PLAN_WHEN } from "./mix";
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -41,8 +42,12 @@ export interface StudioOptions {
   /** How many entries a plan aims for; "complete" plans every person, place and thing the census finds. */
   size: "small" | "medium" | "large" | "complete";
   length: EntryLength;
-  /** Kinds of entries to plan (empty: any). */
+  /** Kinds of entries to plan (empty: any). Older drafts; the mix replaces it. */
   types: EntryType[];
+  /** docs/17: how many of each kind the plan aims for (empty: the planner decides). */
+  mix: Mix;
+  /** The recipe the mix came from ("" once you change it). */
+  recipe: string;
   tone: string;
   style: string;
   /** Hidden truths with who knows them (LORE-09); the leak guard watches them. */
@@ -94,6 +99,11 @@ export interface StudioItem {
   action: "write" | "change" | "off";
   /** I2: the book's entry a change or switch-off is for. */
   targetEntryId: string | null;
+  /**
+   * docs/17: who a satellite is about (a voice's person, a relationship's two): item ids,
+   * "entry:<id>" for an entry already in the book, or "user" for the player's character.
+   */
+  about: string[];
   /** A version's entry (docs/14): the original entry it comes from, and whether it's kept, translated or new. */
   versionSource: VersionSource | null;
 }
@@ -198,6 +208,8 @@ export const defaultOptions = (kind: SourceKind = "idea"): StudioOptions => ({
   size: "medium",
   length: "standard",
   types: [],
+  mix: {},
+  recipe: "",
   tone: "",
   style: "",
   secrets: kind !== "document",
@@ -229,7 +241,7 @@ function hydrate(r: Row): StudioDraft {
     title: r.title,
     stage: d.stage ?? "start",
     source: { kind, text: "", refId: null, refName: "", fileName: "", ...d.source },
-    options: { ...defaultOptions(kind), ...d.options },
+    options: optionsOf(kind, d.options),
     readback: d.readback ?? null,
     questions: (d.questions ?? []).map((q) => ({ ...q, suggestions: q.suggestions ?? [] })),
     directions: d.directions ?? [],
@@ -277,7 +289,14 @@ function normItem(i: Partial<StudioItem>): StudioItem {
     action: i.action === "change" || i.action === "off" ? i.action : "write",
     targetEntryId: i.targetEntryId ?? null,
     versionSource: i.versionSource ?? null,
+    about: Array.isArray(i.about) ? i.about.filter((x) => typeof x === "string") : [],
   };
+}
+
+/** A draft's options, with the mix made from its kinds of entries when it predates the mix. */
+function optionsOf(kind: SourceKind, o: Partial<StudioOptions> = {}): StudioOptions {
+  const merged = { ...defaultOptions(kind), ...o };
+  return { ...merged, mix: o.mix ? cleanMix(o.mix) : mixFromTypes(merged.types ?? []), recipe: typeof o.recipe === "string" ? o.recipe : "" };
 }
 
 /** I2: a new numbered version of the plan, unless nothing in it changed. */
@@ -476,7 +495,7 @@ export interface CreateInput {
 export function createDraft(input: CreateInput): StudioDraft {
   const id = newId();
   const t = now();
-  const options = { ...defaultOptions(input.kind), ...input.options };
+  const options = optionsOf(input.kind, input.options);
   const d: StudioDraft = {
     id,
     title: input.title?.trim() || "",
@@ -583,7 +602,7 @@ export function patchDraft(id: string, p: DraftPatch) {
   });
 }
 
-export type ItemPatch = Partial<Pick<StudioItem, "title" | "type" | "pitch" | "parent" | "folder" | "source" | "constant" | "keep" | "steer" | "category">> & { entry?: StudioEntry | null };
+export type ItemPatch = Partial<Pick<StudioItem, "title" | "type" | "pitch" | "parent" | "folder" | "source" | "constant" | "keep" | "steer" | "category" | "about">> & { entry?: StudioEntry | null };
 
 export function patchItem(id: string, itemId: string, p: ItemPatch) {
   return mutate(id, (d) => {
@@ -598,7 +617,12 @@ export function patchItem(id: string, itemId: string, p: ItemPatch) {
     if (p.constant !== undefined) it.constant = p.constant;
     if (p.keep !== undefined) it.keep = p.keep;
     if (p.steer !== undefined) it.steer = p.steer;
-    if (p.category !== undefined) it.category = p.category && (CATEGORIES as readonly string[]).includes(p.category) ? p.category : null;
+    if (p.category !== undefined) {
+      it.category = p.category && (CATEGORIES as readonly string[]).includes(p.category) ? p.category : null;
+      // The kind says what the Codex calls it.
+      if (it.category && CATEGORY_INFO[it.category].type) it.type = CATEGORY_INFO[it.category].type!;
+    }
+    if (p.about !== undefined) it.about = p.about.filter((x) => x !== itemId);
     if (p.entry !== undefined) {
       it.entry = p.entry && { ...p.entry, keys: dedupe(p.entry.keys), aliases: dedupe(p.entry.aliases) };
       if (it.entry && it.status !== "queued" && it.status !== "writing") it.status = "drafted";
@@ -611,7 +635,8 @@ export function patchItem(id: string, itemId: string, p: ItemPatch) {
 export function addItem(id: string, p: ItemPatch) {
   let made: StudioItem | null = null;
   const d = mutate(id, (d) => {
-    made = normItem({ title: cleanTitle(p.title ?? "") || "New entry", type: p.type ?? null, category: p.category ?? null, pitch: p.pitch ?? "", parent: p.parent ?? "", folder: p.folder ?? "", source: p.source ?? "", constant: p.constant ?? false });
+    const category = p.category ?? null;
+    made = normItem({ title: cleanTitle(p.title ?? "") || "New entry", type: p.type ?? (category && CATEGORY_INFO[category].type) ?? null, category, pitch: p.pitch ?? "", parent: p.parent ?? "", folder: p.folder ?? "", source: p.source ?? "", constant: p.constant ?? false, about: p.about ?? [] });
     d.items.push(made);
   });
   return { draft: d, item: made! };
@@ -621,6 +646,7 @@ export function removeItem(id: string, itemId: string) {
   return mutate(id, (d) => {
     d.items = d.items.filter((i) => i.id !== itemId);
     for (const i of d.items) if (i.parent === itemId) i.parent = "";
+    for (const i of d.items) if (i.about.includes(itemId)) i.about = i.about.filter((x) => x !== itemId);
   });
 }
 
@@ -656,7 +682,7 @@ const answersBlock = (d: StudioDraft) => {
 };
 
 const prefsBlock = (d: StudioDraft) =>
-  [d.options.tone.trim() && `TONE AND GENRE: ${d.options.tone.trim()}`, d.options.style.trim() && `STYLE NOTES: ${d.options.style.trim()}`, d.options.types.length ? `ENTRY KINDS WANTED: ${d.options.types.join(", ")}` : ""].filter(Boolean).join("\n");
+  [d.options.tone.trim() && `TONE AND GENRE: ${d.options.tone.trim()}`, d.options.style.trim() && `STYLE NOTES: ${d.options.style.trim()}`, Object.keys(d.options.mix).length ? `ENTRY KINDS WANTED: ${Object.entries(d.options.mix).map(([k, l]) => `${k} (${l})`).join(", ")}` : ""].filter(Boolean).join("\n");
 
 const PURPOSE: Record<SourceKind, string> = {
   idea: "Build it from the author's idea and answers.",
@@ -795,6 +821,7 @@ const censusSchema = z.object({
   entities: z.array(z.object({ name: z.string(), type: z.string().default(""), tier: z.string().default("supporting"), note: z.string().default("") })).default([]),
 });
 
+const asKind = (t: string): Category | null => ((CATEGORIES as readonly string[]).includes(t.trim().toLowerCase()) ? (t.trim().toLowerCase() as Category) : null);
 const asType = (t: string): EntryType | null => ((ENTRY_TYPES as string[]).includes(t.trim().toLowerCase()) ? (t.trim().toLowerCase() as EntryType) : null);
 const asTier = (t: string): CensusEntry["tier"] => (/core|main|central|major/i.test(t) ? "core" : /minor|background|small/i.test(t) ? "minor" : "supporting");
 
@@ -873,17 +900,17 @@ export function uncovered(d: StudioDraft): CensusEntry[] {
 const outlineSchema = z.object({
   title: z.string().default(""),
   overview: z.string().default(""),
-  items: z.array(z.object({ title: z.string(), type: z.string().default(""), pitch: z.string().default(""), parent: z.string().default(""), folder: z.string().default(""), now: z.boolean().default(false) })).default([]),
+  items: z.array(z.object({ title: z.string(), kind: z.string().default(""), type: z.string().default(""), pitch: z.string().default(""), parent: z.string().default(""), folder: z.string().default(""), now: z.boolean().default(false), about: z.array(z.string()).default([]) })).default([]),
 });
 
 type OutlineItem = z.infer<typeof outlineSchema>["items"][number];
 
 /** One planning call: about n entries, or exactly the names given. */
-async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?: CensusEntry[]; census?: CensusEntry[]; steer?: string; planned: StudioItem[]; withOverview: boolean }) {
-  const planned = o.planned.map((i) => `- ${i.title}${i.type ? ` (${i.type})` : ""}${i.pitch ? `: ${i.pitch}` : ""}`);
+async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?: CensusEntry[]; census?: CensusEntry[]; steer?: string; planned: StudioItem[]; withOverview: boolean; kinds?: Category[] }) {
+  const planned = o.planned.map((i) => `- ${i.title}${i.category ?? i.type ? ` (${i.category ?? i.type})` : ""}${i.pitch ? `: ${i.pitch}` : ""}`);
   const existing = existingTitles(d);
   const gaps = d.source.kind === "book" && d.source.refId ? missingNames(d.source.refId) : [];
-  const typeList = (d.options.types.length ? d.options.types : ENTRY_TYPES).join(", ");
+  const kinds = o.kinds ?? allowedKinds(d.options.mix);
   const line = (e: CensusEntry) => `- ${e.name}${e.type ? ` (${e.type}, ${e.tier})` : ` (${e.tier})`}${e.note ? `: ${e.note}` : ""}`;
   const r = await callJson({
     task: "summarizer",
@@ -901,13 +928,14 @@ async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?
           : `Plan about ${o.n} entries.`,
       o.census && !o.names ? "THE CENSUS lists what the world contains. Every core name in it gets an entry; then supporting ones, most useful to a scene first; then the concepts, events and rules that make the world work." : "",
       "One person per entry: never put two people in one entry (a family or team can have its own entry besides its members).",
-      o.names ? "" : 'Also plan what is already under way when the story begins (an attack in progress, who is hiding where and from whom, what people wrongly believe right now): one entry per situation, titled for what is happening ("Raiders Burn the Docks", "Mira Hides Joss from the Guild"), type "event", with "now": true. These stay in every scene until the story moves past them, so plan only what is true at the opening, never backstory or what comes later. Every other item has "now": false.',
-      `Each item: "title" (the name as the story would say it), "type" (one of: ${typeList}), "pitch" (one sentence: what the entry establishes in this version of the story and why a scene would need it), "parent" (the title of another planned entry it sits inside: a district inside a city, a member inside a faction; else ""), "folder" (a short path like "Places › Port Ellis", else ""), "now" (true only for a situation under way at the opening).`,
+      o.names ? "" : 'Also plan what is already under way when the story begins (an attack in progress, who is hiding where and from whom, what people wrongly believe right now): one entry per situation, titled for what is happening ("Raiders Burn the Docks", "Mira Hides Joss from the Guild"), kind "current", with "now": true. These stay in every scene until the story moves past them, so plan only what is true at the opening, never backstory or what comes later. Every other item has "now": false.',
+      `Each item: "title" (the name as the story would say it), "kind" (one of the kinds under KINDS, as written), "pitch" (one sentence: what the entry establishes in this version of the story and why a scene would need it), "parent" (the title of another planned entry it sits inside: a district inside a city, a member inside a faction; else ""), "folder" (a short path like "Places › Port Ellis", else ""), "now" (true only for a situation under way at the opening).`,
       o.withOverview ? `Also "title" (a name for the lorebook, 1–5 words) and "overview" (80–150 words: the world's premise, tone, and the ground truths every scene should respect).` : 'Leave "overview" and "title" empty.',
       d.options.faithful ? "Use only what the source says: no invented names, places or facts." : "Prefer specific, playable details with tension: things characters can want, fear, visit, use or argue about. Invent freely where the material and canon are silent, but never against them.",
       d.basedOn ? "" : AVOID,
       o.steer?.trim() ? `The author asks: ${o.steer.trim()}` : "",
-      'Reply with JSON only: {"title": "…", "overview": "…", "items": [{"title": "…", "type": "…", "pitch": "…", "parent": "", "folder": "", "now": false}]}',
+      kinds.includes("current") ? "" : 'Plan nothing under way at the opening: "now" is always false.',
+      'Reply with JSON only: {"title": "…", "overview": "…", "items": [{"title": "…", "kind": "…", "pitch": "…", "parent": "", "folder": "", "now": false}]}',
     ]
       .filter(Boolean)
       .join(" "),
@@ -922,6 +950,7 @@ async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?
       existing.length ? `ALREADY IN THEIR LORE (don't repeat):\n${existing.slice(0, 120).join(", ")}` : "",
       gaps.length ? `NAMED IN THE BOOK BUT WITHOUT AN ENTRY (good candidates):\n${gaps.join(", ")}` : "",
       o.names ? `PLAN THESE:\n${o.names.map(line).join("\n")}` : o.census?.length ? `THE CENSUS:\n${o.census.map(line).join("\n")}` : "",
+      `KINDS (what each is for):\n${mixBrief(d.options.mix, kinds)}`,
     ]
       .filter(Boolean)
       .join("\n\n"),
@@ -932,15 +961,18 @@ async function outlineCall(d: StudioDraft, o: { n: number; more: boolean; names?
 }
 
 /** Plan items from the model's outline: people split one per entry, duplicates dropped. */
-function toItems(raw: OutlineItem[], taken: Set<string>, census: CensusEntry[]): StudioItem[] {
+function toItems(raw: OutlineItem[], taken: Set<string>, census: CensusEntry[], allowed: Category[] = [...CATEGORIES]): StudioItem[] {
   const out: StudioItem[] = [];
   for (const x of raw) {
-    const type = asType(x.type) ?? census.find((e) => covers([e.name], x.title))?.type ?? null;
+    const kind = asKind(x.kind) ?? (x.now ? "current" : null);
+    // A kind the mix leaves out isn't planned.
+    if (kind && !allowed.includes(kind)) continue;
+    const type = (kind && CATEGORY_INFO[kind].type) || asType(x.type) || census.find((e) => covers([e.name], x.title))?.type || null;
     const titles = type === "character" ? splitPeople(cleanTitle(x.title)) : [cleanTitle(x.title)];
     for (const title of titles) {
       if (!title || taken.has(title.toLowerCase())) continue;
       taken.add(title.toLowerCase());
-      out.push(normItem({ title, type, ...(x.now ? { category: "current" as const } : {}), pitch: titles.length > 1 ? (census.find((e) => covers([e.name], title))?.note || x.pitch.trim()) : x.pitch.trim(), folder: x.folder.trim(), parent: x.parent.trim() }));
+      out.push(normItem({ title, type, ...(kind ? { category: kind } : {}), pitch: titles.length > 1 ? (census.find((e) => covers([e.name], title))?.note || x.pitch.trim()) : x.pitch.trim(), folder: x.folder.trim(), parent: x.parent.trim() }));
     }
   }
   return out;
@@ -972,6 +1004,11 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     }
   }
   const census = d.census ?? [];
+  // docs/17: the kinds the mix allows; people's satellites (voices, bonds…) get their own pass after the people.
+  const mix = d.options.mix;
+  const allowed = allowedKinds(mix);
+  const sats = (Object.keys(mix) as Category[]).filter(isSatellite);
+  const worldKinds = sats.length ? allowed.filter((c) => !isSatellite(c)) : allowed;
   const keptOnReplan = more ? d.items : d.items.filter((i) => i.entry || i.status === "queued" || i.status === "writing");
   const taken = new Set([...keptOnReplan.map((i) => i.title.toLowerCase()), ...existingTitles(d).map((t) => t.toLowerCase())]);
   const fresh: StudioItem[] = [];
@@ -987,27 +1024,33 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     for (let k = 0; k < todo.length || (k === 0 && complete); k += BATCH) {
       const batch = todo.slice(k, k + BATCH);
       const first = k === 0 && !more;
-      const data = await outlineCall(d, { n: batch.length || PLAN_SIZE.large, more: !first, names: batch.length ? batch : undefined, census, steer: opts.steer, planned: [...keptOnReplan, ...fresh], withOverview: first });
+      const data = await outlineCall(d, { n: batch.length || PLAN_SIZE.large, more: !first, names: batch.length ? batch : undefined, census, steer: opts.steer, planned: [...keptOnReplan, ...fresh], withOverview: first, kinds: worldKinds });
       if (first) {
         title = data.title;
         overview = data.overview;
       }
-      fresh.push(...toItems(data.items, taken, census));
+      fresh.push(...toItems(data.items, taken, census, allowed));
       if (!batch.length) break;
     }
     // The ideas that hold the world together (concepts, rules, events) beyond the census's names.
     if (complete && !named) {
-      const data = await outlineCall(d, { n: 8, more: true, steer: ["Now the concepts, rules, events and places that make this world work and aren't planned yet.", opts.steer ?? ""].join(" "), planned: [...keptOnReplan, ...fresh], withOverview: false });
-      fresh.push(...toItems(data.items, taken, census));
+      const data = await outlineCall(d, { n: 8, more: true, steer: ["Now the concepts, rules, events and places that make this world work and aren't planned yet.", opts.steer ?? ""].join(" "), planned: [...keptOnReplan, ...fresh], withOverview: false, kinds: worldKinds });
+      fresh.push(...toItems(data.items, taken, census, allowed));
     }
   } else {
     const base = opts.count ?? (more ? Math.max(4, Math.round(PLAN_SIZE[d.options.size] / 3)) : PLAN_SIZE[d.options.size]);
     // Every core name fits, whatever the size.
     const n = more ? base : Math.max(base, census.filter((e) => e.tier === "core").length + 4);
-    const data = await outlineCall(d, { n, more, census, steer: opts.steer, planned: more ? d.items : [], withOverview: !more });
+    const data = await outlineCall(d, { n, more, census, steer: opts.steer, planned: more ? d.items : [], withOverview: !more, kinds: more ? allowed : worldKinds });
     title = data.title;
     overview = data.overview;
-    fresh.push(...toItems(data.items, taken, census).slice(0, more ? n : 120));
+    fresh.push(...toItems(data.items, taken, census, allowed).slice(0, more ? n : 120));
+  }
+
+  // The people's satellites, now that the people are planned (a fresh plan only; "more" and names add to it).
+  if (!more && !named && sats.length) {
+    const pool = [...keptOnReplan, ...fresh];
+    fresh.push(...(await satellitePass(d, pool, satelliteTargets(d, pool, sats), taken)));
   }
 
   return mutate(id, (cur) => {
@@ -1033,6 +1076,204 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     if (cur.stage === "start" || cur.stage === "questions") cur.stage = "plan";
     snapshotPlan(cur, more ? (opts.steer?.trim() ? `planned more: ${opts.steer.trim()}` : "planned more") : opts.steer?.trim() ? `planned: ${opts.steer.trim()}` : "the plan");
   });
+}
+
+// ---------- satellites (docs/17, 2.2–2.4) ----------
+
+/** One satellite to plan, or a few: these kinds about this person ("few" kinds are spread over the people). */
+interface SatTarget {
+  person: StudioItem;
+  kinds: Category[];
+}
+
+const isPerson = (i: StudioItem) => i.keep && i.action !== "off" && (i.category === "character" || (!i.category && i.type === "character"));
+
+/** The people a satellite is for: the census's core ones (all of them without a census), at most 10. */
+function corePeople(d: StudioDraft, pool: StudioItem[]): StudioItem[] {
+  const people = pool.filter(isPerson);
+  const core = (d.census ?? []).filter((e) => e.tier === "core").map((e) => e.name);
+  const picked = core.length ? people.filter((p) => covers(core, p.title) || core.some((n) => covers([p.title], n))) : people;
+  return (picked.length ? picked : people).slice(0, 10);
+}
+
+/** The satellites already planned about a person, by kind. */
+const satellitesOf = (pool: StudioItem[], personId: string) => pool.filter((i) => i.keep && i.about.includes(personId));
+
+/** Who gets which satellite kinds: "each" for every core person, "all" for every person, "few" for the core ones (the planner picks). */
+function satelliteTargets(d: StudioDraft, pool: StudioItem[], kinds: Category[]): SatTarget[] {
+  const core = corePeople(d, pool);
+  const everyone = pool.filter(isPerson).slice(0, 24);
+  const out = new Map<string, SatTarget>();
+  for (const k of kinds) {
+    const level = d.options.mix[k] ?? "few";
+    for (const p of level === "all" ? everyone : core) {
+      if (CATEGORY_INFO[k].subject === "one" && satellitesOf(pool, p.id).some((s) => s.category === k)) continue;
+      const t = out.get(p.id) ?? { person: p, kinds: [] };
+      t.kinds.push(k);
+      out.set(p.id, t);
+    }
+  }
+  return [...out.values()];
+}
+
+const satSchema = z.object({ items: z.array(z.object({ title: z.string(), kind: z.string().default(""), pitch: z.string().default(""), about: z.array(z.string()).default([]) })).default([]) });
+
+/** Default titles, when the planner leaves one out. */
+function satTitle(kind: Category, about: string[]): string {
+  const [a, b] = about;
+  if (kind === "voice") return `Voice: ${a}`;
+  if (kind === "relationship" && b) return `${a} & ${b}`;
+  return `${CATEGORY_INFO[kind].label}: ${about.join(" & ")}`;
+}
+
+/**
+ * Plans the satellites for these people in one call: each person's kinds, about them by exact
+ * title ("{{user}}" for the player's character), never one already planned.
+ */
+async function satellitePass(d: StudioDraft, pool: StudioItem[], targets: SatTarget[], taken: Set<string>): Promise<StudioItem[]> {
+  if (!targets.length) return [];
+  const kinds = [...new Set(targets.flatMap((t) => t.kinds))];
+  const few = kinds.filter((k) => d.options.mix[k] === "few");
+  const user = d.source.kind === "persona" ? d.source.refName || "{{user}}" : "{{user}}";
+  const already = pool.filter((i) => i.about.length).map((i) => `- ${i.title} (${i.category})`);
+  const r = await callJson({
+    task: "summarizer",
+    kind: "studio:satellites",
+    name: "studio_satellites",
+    schema: satSchema,
+    system: [
+      "You plan the entries of a lorebook that belong to its people: how each one talks, what's between two of them, how one reacts when a topic comes up, what one keeps secret, a moment two of them share. A storyteller sees each only when it matters, so each one needs a specific, playable subject.",
+      PURPOSE[d.source.kind],
+      "For each person under THE PEOPLE, plan the kinds listed after their name: one entry per kind, unless the kind is listed under A FEW IN TOTAL, which means a few spread over the people where it matters most.",
+      `Each item: "title" (following the kind's title pattern under KINDS), "kind" (as written), "pitch" (one sentence: what it establishes and when a scene needs it), "about" (the exact titles of the one or two people it's about; "${user}" for the player's character).`,
+      "A relationship or shared moment is about exactly two people, and only where there is something real between them. A reaction is one topic and one behaviour. Never plan one that's under ALREADY PLANNED.",
+      canonRule(d.basedOn),
+      'Reply with JSON only: {"items": [{"title": "…", "kind": "…", "pitch": "…", "about": ["…"]}]}',
+    ]
+      .filter(Boolean)
+      .join(" "),
+    user: [
+      d.overview.trim() ? `OVERVIEW:\n${d.overview.trim()}` : sourceBlock(d),
+      canonBlock(d.basedOn),
+      answersBlock(d),
+      `KINDS (what each is for):\n${kinds.map((k) => `- ${k}: ${PLAN_WHEN[k]}`).join("\n")}`,
+      few.length ? `A FEW IN TOTAL: ${few.join(", ")}` : "",
+      `THE PEOPLE:\n${targets.map((t) => `- ${t.person.title}: ${t.kinds.join(", ")}${t.person.entry?.essentials || t.person.pitch ? ` (${t.person.entry?.essentials || t.person.pitch})` : ""}`).join("\n")}`,
+      `EVERYONE ELSE IN THE PLAN:\n${pool.filter(isPerson).filter((p) => !targets.some((t) => t.person.id === p.id)).map((p) => p.title).slice(0, 40).join(", ") || "(nobody)"}`,
+      already.length ? `ALREADY PLANNED:\n${already.join("\n")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    maxTokens: Math.min(6000, 600 + targets.reduce((n, t) => n + t.kinds.length, 0) * 140),
+    temperature: d.options.faithful ? 0.3 : 0.7,
+  });
+  const people = pool.filter(isPerson);
+  const idOf = (name: string) => {
+    if (/^\{\{user\}\}$/i.test(name.trim()) || name.trim().toLowerCase() === user.toLowerCase()) return "user";
+    const n = name.trim().toLowerCase();
+    return people.find((p) => p.title.toLowerCase() === n)?.id ?? people.find((p) => covers([p.title], name))?.id ?? null;
+  };
+  const out: StudioItem[] = [];
+  for (const x of r.data.items) {
+    const kind = asKind(x.kind);
+    if (!kind || !kinds.includes(kind)) continue;
+    const about = [...new Set(x.about.map(idOf).filter((v): v is string => Boolean(v)))];
+    if (!about.some((a) => a !== "user")) continue;
+    if (CATEGORY_INFO[kind].subject === "one" && about.length > 1) about.length = 1;
+    // One voice (or reaction set…) per person: a second "each" one for the same person is dropped.
+    if (kind === "voice" && [...pool, ...out].some((i) => i.category === "voice" && i.about[0] === about[0])) continue;
+    const names = about.map((a) => (a === "user" ? "{{user}}" : people.find((p) => p.id === a)!.title));
+    const title = cleanTitle(x.title) || satTitle(kind, names);
+    if (taken.has(title.toLowerCase())) continue;
+    taken.add(title.toLowerCase());
+    out.push(normItem({ title, category: kind, type: CATEGORY_INFO[kind].type ?? null, pitch: x.pitch.trim(), about }));
+  }
+  return out;
+}
+
+/** The default satellites a Pack plans when the mix names none. */
+function packKinds(d: StudioDraft): Category[] {
+  const fromMix = (Object.keys(d.options.mix) as Category[]).filter(isSatellite);
+  if (fromMix.length) return fromMix;
+  return ["voice", "relationship", "reaction", ...(d.options.secrets ? (["secret"] as const) : [])];
+}
+
+/** The satellites a person is still missing (one-person kinds they don't have yet; bonds and moments always fit one more). */
+export function missingSatellites(d: StudioDraft, itemId: string): Category[] {
+  const have = new Set(satellitesOf(d.items, itemId).map((s) => s.category));
+  return packKinds(d).filter((k) => !have.has(k));
+}
+
+/** Pack: plans the satellites one person is missing (or just these kinds). */
+export async function planPack(id: string, itemId: string, kinds?: Category[]) {
+  const d = mustDraft(id);
+  const person = d.items.find((i) => i.id === itemId);
+  if (!person) throw notFound("Item not found");
+  const want = (kinds?.length ? kinds.filter(isSatellite) : missingSatellites(d, itemId)).filter((k) => !(CATEGORY_INFO[k].subject === "one" && satellitesOf(d.items, itemId).some((s) => s.category === k)));
+  if (!want.length) return d;
+  const taken = new Set([...d.items.map((i) => i.title.toLowerCase()), ...existingTitles(d).map((t) => t.toLowerCase())]);
+  // A pack is one person's: "few" means one or two for them, not a spread.
+  const solo = { ...d, options: { ...d.options, mix: Object.fromEntries(want.map((k) => [k, "each"])) as Mix } };
+  const fresh = await satellitePass(solo, d.items, [{ person, kinds: want }], taken);
+  return mutate(id, (cur) => {
+    // Right after the person and their other satellites, so they're written after them.
+    const at = cur.items.reduce((last, i, k) => (i.id === itemId || i.about.includes(itemId) ? k : last), cur.items.length - 1);
+    cur.items.splice(at + 1, 0, ...fresh);
+    snapshotPlan(cur, `a pack for ${person.title}`);
+  });
+}
+
+export interface KindGap {
+  kind: Category;
+  /** The person it's missing for (empty for a book-wide gap like the timeline boundary). */
+  about: string[];
+  label: string;
+}
+
+/** What the mix asks for that the plan doesn't have yet (docs/17, 2.4). */
+export function kindGaps(d: StudioDraft): KindGap[] {
+  const mix = d.options.mix;
+  const out: KindGap[] = [];
+  const book = d.targetBookId ? getLorebook(d.targetBookId) : undefined;
+  const inBook = (k: Category) => Boolean(book?.entries.some((e) => (e.extra as { category?: string }).category === k));
+  const planned = (k: Category) => d.items.some((i) => i.keep && i.category === k) || inBook(k);
+  for (const k of (Object.keys(mix) as Category[]).filter((c) => CATEGORY_INFO[c].subject === "one" && mix[c] !== "few")) {
+    for (const p of mix[k] === "all" ? d.items.filter(isPerson) : corePeople(d, d.items)) {
+      if (!satellitesOf(d.items, p.id).some((s) => s.category === k)) out.push({ kind: k, about: [p.id], label: p.title });
+    }
+  }
+  const empty = !Object.keys(mix).length;
+  if (d.basedOn && (empty || mix.timeline) && !planned("timeline")) out.push({ kind: "timeline", about: [], label: "" });
+  if (mix.rule && !planned("rule")) out.push({ kind: "rule", about: [], label: "" });
+  return out;
+}
+
+/** Plans every gap: the people's missing satellites in one call, a timeline boundary, rules. */
+export async function planGaps(id: string) {
+  let d = mustDraft(id);
+  const gaps = kindGaps(d);
+  if (!gaps.length) return d;
+  const byPerson = new Map<string, SatTarget>();
+  for (const g of gaps.filter((x) => x.about.length)) {
+    const person = d.items.find((i) => i.id === g.about[0]);
+    if (!person) continue;
+    const t = byPerson.get(person.id) ?? { person, kinds: [] };
+    t.kinds.push(g.kind);
+    byPerson.set(person.id, t);
+  }
+  const taken = new Set([...d.items.map((i) => i.title.toLowerCase()), ...existingTitles(d).map((t) => t.toLowerCase())]);
+  const fresh = byPerson.size ? await satellitePass(d, d.items, [...byPerson.values()], taken) : [];
+  if (gaps.some((g) => g.kind === "rule")) {
+    const data = await outlineCall(d, { n: 3, more: true, steer: 'Only the rules of this world (kind "rule"): laws that must always hold.', planned: d.items, withOverview: false, kinds: ["rule"] });
+    fresh.push(...toItems(data.items, taken, d.census ?? [], ["rule"]));
+  }
+  d = mutate(id, (cur) => {
+    if (gaps.some((g) => g.kind === "timeline") && !cur.items.some((i) => i.category === "timeline"))
+      cur.items.unshift(normItem({ title: "Timeline: where the story stands", category: "timeline", type: "rule", constant: true, pitch: `Where the story stands at the opening${cur.basedOn ? ` of ${cur.basedOn}` : ""}: what has already happened, and the named events that haven't yet.` }));
+    cur.items.push(...fresh);
+    snapshotPlan(cur, "filled the gaps");
+  });
+  return d;
 }
 
 // ---------- writing (background) ----------

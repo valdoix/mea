@@ -75,6 +75,7 @@ function item(p: Partial<StudioItem> & Pick<StudioItem, "title">): StudioItem {
     action: "write",
     targetEntryId: null,
     versionSource: null,
+    about: [],
     ...p,
   };
 }
