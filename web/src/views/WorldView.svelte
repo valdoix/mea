@@ -129,7 +129,7 @@
     }
   }
   function openSettings() {
-    if (w) cfg = { ...w.config, genres: [...w.config.genres] };
+    if (w) cfg = { ...w.config, climate: w.config.climateAuto ? "" : w.config.climate, genres: [...w.config.genres] };
     settingsOpen = true;
   }
   async function giveStory() {
@@ -548,12 +548,12 @@
       <label class="field"><span class="label">Telling</span><select class="select" bind:value={cfg.telling}><option value="model">A model writes the words</option><option value="engine">The engine's own words (no requests)</option></select></label>
       <label class="field"><span class="label">What you see</span><select class="select" bind:value={cfg.view}><option value="director">Everything (dice, grounds)</option><option value="surprise">Surprise me</option></select></label>
       <label class="field"><span class="label">Setting</span><select class="select" bind:value={cfg.tech}><option value="modern">Modern (calls, texts)</option><option value="historic">Historic (letters, notes)</option><option value="fantasy">Fantasy (letters, messengers)</option><option value="future">Future (messages)</option></select></label>
-      <label class="field"><span class="label">Climate</span><select class="select" bind:value={cfg.climate}>{#each ["maritime", "continental", "mediterranean", "desert", "tropical", "subarctic", "alpine"] as c (c)}<option value={c}>{c}</option>{/each}</select></label>
+      <label class="field"><span class="label">Climate</span><select class="select" bind:value={cfg.climate}><option value="">Automatic{w?.config.climateAuto ? ` (${w.config.climate})` : " (from the story)"}</option>{#each ["maritime", "continental", "mediterranean", "desert", "tropical", "subarctic", "alpine"] as c (c)}<option value={c}>{c}</option>{/each}</select></label>
       <label class="field"><span class="label">Step</span><input class="input" type="number" min="30" max="1440" step="30" bind:value={cfg.step} /><span class="hint">story minutes between moves</span></label>
       <label class="field"><span class="label">Genres</span><input class="input" value={(cfg.genres ?? []).join(", ")} onchange={(e) => (cfg.genres = e.currentTarget.value.split(/\s*,\s*/).filter(Boolean))} placeholder="mystery, romance" /></label>
     </div>
   </div>
-  {#snippet footer()}<button class="btn ghost" onclick={() => (settingsOpen = false)}>Cancel</button><button class="btn primary" onclick={() => ((settingsOpen = false), saveConfig({ ...$state.snapshot(cfg), latitude: undefined } as Partial<WorldConfig>))}>Save</button>{/snippet}
+  {#snippet footer()}<button class="btn ghost" onclick={() => (settingsOpen = false)}>Cancel</button><button class="btn primary" onclick={() => ((settingsOpen = false), saveConfig({ ...$state.snapshot(cfg), latitude: undefined, climateAuto: undefined } as Partial<WorldConfig>))}>Save</button>{/snippet}
 </Modal>
 
 <style>

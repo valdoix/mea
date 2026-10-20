@@ -17,7 +17,7 @@ import { confirmArrivals, elsewhereLane } from "./crossings";
 import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
 import { buildRoster, lorePersonName, type Roster } from "./roster";
-import { climateFrom, forecast, latitudeFrom, skyLine, type SkyInput } from "./sky";
+import { climateFrom, forecast, latitudeFrom, placeClimate, skyLine, type SkyInput } from "./sky";
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
 import { tellingPrompt, tellingSchema, validateTelling } from "./telling";
 import type { Arc, EndResult, Force, SimOp, Standing } from "./types";
@@ -32,6 +32,8 @@ export interface ResolvedWorldConfig {
   view: "director" | "surprise";
   climate: string;
   latitude: number;
+  /** The climate comes from the story (no setting of yours); the view offers it as "Automatic". */
+  climateAuto: boolean;
   tech: "modern" | "historic" | "fantasy" | "future";
   genres: string[];
   step: number;
@@ -52,6 +54,13 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
   const d = getSetting("world.defaults");
   const card = chat.character_id ? getCard(chat.character_id) : undefined;
   const cardText = card ? `${card.description} ${card.scenario}` : "";
+  // Where the story is: the card, the canon it's based on, and the lore that's always on (the timeline, what's happening now).
+  const setup = parseJson<{ answers?: { canon?: { source?: string; point?: string } } } | null>((chat as { chat_setup?: string | null }).chat_setup ?? null, null);
+  const always = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })
+    .filter((e) => e.enabled && (e.constant || isCurrent(e)))
+    .map((e) => e.content)
+    .join(" ");
+  const place = placeClimate(`${cardText} ${setup?.answers?.canon?.source ?? ""} ${setup?.answers?.canon?.point ?? ""} ${always}`);
   const genres = own.genres?.length ? own.genres : (s.story?.genre ?? "").split(/\s*[,/&]\s*|\s+and\s+/).filter(Boolean);
   return {
     mode: own.mode ?? d.mode,
@@ -60,8 +69,9 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
     seeding: own.seeding ?? d.seeding,
     fates: own.fates ?? d.fates,
     view: own.view ?? d.view,
-    climate: own.climate || climateFrom(cardText),
-    latitude: latitudeFrom(own.latitude || cardText),
+    climate: own.climate || place?.climate || climateFrom(cardText),
+    latitude: own.latitude ? latitudeFrom(own.latitude, { typed: true }) : (place?.latitude ?? latitudeFrom(cardText)),
+    climateAuto: !own.climate,
     tech: own.tech ?? detectTech(cardText),
     genres,
     step: own.step ?? d.step,
