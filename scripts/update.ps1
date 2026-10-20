@@ -69,6 +69,24 @@ function Finish([bool]$ok, [bool]$updated, [string]$message) {
   exit $(if ($ok) { 0 } else { 1 })
 }
 
+# Local edits and new files that already match $ref byte for byte (work that reached GitHub through
+# a PR but was also left in this folder) would block the switch or pull for nothing. Put those back
+# or remove them, since $ref brings the same content. Anything that differs stays and still blocks.
+function Clear-AlreadyUpstream([string]$ref) {
+  $edited = @(& $git diff --name-only HEAD 2>$null)
+  $added = @(& $git ls-files --others --exclude-standard 2>$null)
+  foreach ($file in $edited + $added) {
+    if (-not $file -or -not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
+    $theirs = (& $git rev-parse --verify --quiet "${ref}:$file" 2>$null | Select-Object -First 1)
+    if (-not $theirs) { continue }
+    $mine = (& $git hash-object -- $file 2>$null | Select-Object -First 1)
+    if ($mine -ne $theirs) { continue }
+    if ($edited -contains $file) { & $git checkout HEAD -- $file 2>$null | Out-Null }
+    else { Remove-Item -LiteralPath $file -Force }
+    Write-Log "$file already matches $ref; cleared the local copy so the update can go ahead."
+  }
+}
+
 function Test-MeaUp {
   try { return [bool](Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/ping" -TimeoutSec 3).ok } catch { return $false }
 }
@@ -100,6 +118,7 @@ if ($branch -ne $mainBranch) {
   & $git merge-base --is-ancestor HEAD "origin/$mainBranch" 2>$null
   if ($LASTEXITCODE -eq 0) {
     Write-Log "$branch is already in $mainBranch; switching to $mainBranch to update."
+    Clear-AlreadyUpstream "origin/$mainBranch"
     $switch = Invoke-Logged $git @("switch", $mainBranch)
     if ($LASTEXITCODE -ne 0) {
       $why = if ($switch -match "overwritten") { "files edited in Mea's folder would be overwritten (the list is in update.log)" } else { "git switch exited with $LASTEXITCODE" }
@@ -111,6 +130,12 @@ if ($branch -ne $mainBranch) {
     Write-Log "$branch has commits that aren't in $mainBranch yet, so this updates $branch only."
   }
 }
+
+if ($branch -eq $mainBranch -and -not $fromBranch) {
+  Invoke-Logged $git @("fetch", "origin") | Out-Null
+  if ($LASTEXITCODE -ne 0) { Finish $false $false "Couldn't reach GitHub to check for updates. Mea is still running as before." }
+}
+Clear-AlreadyUpstream "@{u}"
 
 # --ff-only never merges or overwrites your own changes; it refuses instead.
 $pull = Invoke-Logged $git @("pull", "--ff-only")
