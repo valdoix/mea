@@ -1018,10 +1018,31 @@ function toItems(raw: OutlineItem[], taken: Set<string>, census: CensusEntry[], 
  * to the plan instead of replacing it, and `names` plans exactly those (the coverage list's "Add").
  */
 export async function planOutline(id: string, opts: { mode?: "replace" | "more"; steer?: string; count?: number; names?: string[] } = {}) {
+  try {
+    return await outlineSteps(id, opts);
+  } finally {
+    step(id, "");
+  }
+}
+
+/** Tells the studio what a long action is doing now, so its button says more than "Planning…". */
+function step(id: string, text: string) {
+  publish({ type: "studio.step", draftId: id, step: text });
+}
+
+const kindLabels = (kinds: Category[]) => {
+  const names = kinds.map((k) => CATEGORY_INFO[k].label.toLowerCase());
+  // A long list would stretch the button; past three it's just their details.
+  if (names.length > 3) return "details";
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
+};
+
+async function outlineSteps(id: string, opts: { mode?: "replace" | "more"; steer?: string; count?: number; names?: string[] }) {
   let d = mustDraft(id);
   const more = opts.mode === "more" || Boolean(opts.names?.length);
   // A world based on an existing work reads up on it first (once).
   if (d.basedOn && !d.research?.brief && !d.options.faithful) {
+    step(id, `Reading up on ${d.basedOn}…`);
     try {
       d = await researchLore(id);
     } catch (e) {
@@ -1030,6 +1051,7 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
   }
   // A fresh plan takes a fresh census (a draft from a document plans from its own sections).
   if ((!more || !d.census) && d.source.kind !== "document" && !d.options.faithful) {
+    step(id, "Taking the census of the world…");
     try {
       d = await takeCensus(id);
     } catch (e) {
@@ -1055,8 +1077,11 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     // Exactly these names, in batches small enough that each gets a real pitch.
     const todo = named ?? census.filter((e) => !covers([...keptOnReplan.map((i) => i.title), ...existingTitles(d)], e.name)).sort((a, b) => ["core", "supporting", "minor"].indexOf(a.tier) - ["core", "supporting", "minor"].indexOf(b.tier));
     const BATCH = 18;
+    // Every batch, plus the ideas pass after a complete plan.
+    const calls = Math.max(1, Math.ceil(todo.length / BATCH)) + (complete && !named ? 1 : 0);
     for (let k = 0; k < todo.length || (k === 0 && complete); k += BATCH) {
       const batch = todo.slice(k, k + BATCH);
+      step(id, calls > 1 ? `Outlining ${k / BATCH + 1} of ${calls}…` : "Outlining…");
       const first = k === 0 && !more;
       const data = await outlineCall(d, { n: batch.length || PLAN_SIZE.large, more: !first, names: batch.length ? batch : undefined, census, steer: opts.steer, planned: [...keptOnReplan, ...fresh], withOverview: first, kinds: worldKinds });
       if (first) {
@@ -1068,6 +1093,7 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     }
     // The ideas that hold the world together (concepts, rules, events) beyond the census's names.
     if (complete && !named) {
+      step(id, `Outlining ${calls} of ${calls}: the concepts, rules and events…`);
       const data = await outlineCall(d, { n: 8, more: true, steer: ["Now the concepts, rules, events and places that make this world work and aren't planned yet.", opts.steer ?? ""].join(" "), planned: [...keptOnReplan, ...fresh], withOverview: false, kinds: worldKinds });
       fresh.push(...toItems(data.items, taken, census, allowed));
     }
@@ -1075,6 +1101,7 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     const base = opts.count ?? (more ? Math.max(4, Math.round(PLAN_SIZE[d.options.size] / 3)) : PLAN_SIZE[d.options.size]);
     // Every core name fits, whatever the size.
     const n = more ? base : Math.max(base, census.filter((e) => e.tier === "core").length + 4);
+    step(id, "Outlining…");
     const data = await outlineCall(d, { n, more, census, steer: opts.steer, planned: more ? d.items : [], withOverview: !more, kinds: more ? allowed : worldKinds });
     title = data.title;
     overview = data.overview;
@@ -1101,10 +1128,14 @@ export async function planOutline(id: string, opts: { mode?: "replace" | "more";
     const cardKinds = sats.filter((k) => k !== "voice" && k !== "moment");
     const cardPerson = card && cardKinds.length ? normItem({ id: `card:${d.source.refId}`, title: card.name, category: "character", pitch: card.description.slice(0, 300) }) : null;
     if (cardPerson) targets.push({ person: cardPerson, kinds: cardKinds });
+    if (targets.length) step(id, `Planning each person's ${kindLabels([...new Set(targets.flatMap((t) => t.kinds))])}…`);
     fresh.push(...keep(await satellitePass(d, cardPerson ? [...pool, cardPerson] : pool, targets, taken)));
   }
   // docs/17, 5.3: a companion book's shared moments, from what the card says happened.
-  if (!more && !named && d.source.kind === "character" && d.source.refId && (!Object.keys(mix).length || mix.moment)) fresh.push(...(await companionMoments(d, [...keptOnReplan, ...fresh], taken)));
+  if (!more && !named && d.source.kind === "character" && d.source.refId && (!Object.keys(mix).length || mix.moment)) {
+    step(id, "Planning shared moments…");
+    fresh.push(...(await companionMoments(d, [...keptOnReplan, ...fresh], taken)));
+  }
   // 5.1: a book based on an existing work holds a timeline boundary, so the story neither spoils nor skips canon.
   if (!more && !named && wantsTimeline(d) && ![...keptOnReplan, ...fresh].some((i) => i.category === "timeline")) fresh.unshift(timelineItem(d));
 
@@ -1435,7 +1466,7 @@ const wantsTimeline = (d: StudioDraft) => Boolean(d.basedOn.trim()) && (!Object.
 
 /** Plans every gap: the people's missing satellites in one call, a timeline boundary, rules. */
 export async function planGaps(id: string) {
-  let d = mustDraft(id);
+  const d = mustDraft(id);
   const gaps = kindGaps(d);
   if (!gaps.length) return d;
   const byPerson = new Map<string, SatTarget>();
@@ -1447,17 +1478,22 @@ export async function planGaps(id: string) {
     byPerson.set(person.id, t);
   }
   const taken = new Set([...d.items.map((i) => i.title.toLowerCase()), ...existingTitles(d).map((t) => t.toLowerCase())]);
-  const fresh = byPerson.size ? dropBlocked(d, await satellitePass(d, d.items, [...byPerson.values()], taken)).kept : [];
-  if (gaps.some((g) => g.kind === "rule")) {
-    const data = await outlineCall(d, { n: 3, more: true, steer: 'Only the rules of this world (kind "rule"): laws that must always hold.', planned: d.items, withOverview: false, kinds: ["rule"] });
-    fresh.push(...toItems(data.items, taken, d.census ?? [], ["rule"]));
+  try {
+    if (byPerson.size) step(id, `Planning each person's ${kindLabels([...new Set([...byPerson.values()].flatMap((t) => t.kinds))])}…`);
+    const fresh = byPerson.size ? dropBlocked(d, await satellitePass(d, d.items, [...byPerson.values()], taken)).kept : [];
+    if (gaps.some((g) => g.kind === "rule")) {
+      step(id, "Planning the world's rules…");
+      const data = await outlineCall(d, { n: 3, more: true, steer: 'Only the rules of this world (kind "rule"): laws that must always hold.', planned: d.items, withOverview: false, kinds: ["rule"] });
+      fresh.push(...toItems(data.items, taken, d.census ?? [], ["rule"]));
+    }
+    return mutate(id, (cur) => {
+      if (gaps.some((g) => g.kind === "timeline") && !cur.items.some((i) => i.category === "timeline")) cur.items.unshift(timelineItem(cur));
+      cur.items.push(...fresh);
+      snapshotPlan(cur, "filled the gaps");
+    });
+  } finally {
+    step(id, "");
   }
-  d = mutate(id, (cur) => {
-    if (gaps.some((g) => g.kind === "timeline") && !cur.items.some((i) => i.category === "timeline")) cur.items.unshift(timelineItem(cur));
-    cur.items.push(...fresh);
-    snapshotPlan(cur, "filled the gaps");
-  });
-  return d;
 }
 
 // ---------- writing (background) ----------

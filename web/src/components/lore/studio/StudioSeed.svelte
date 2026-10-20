@@ -63,7 +63,7 @@
       <MessageQuestion size={16} /> {session.busy === "readback" ? "Reading…" : "Ask me questions first"}
     </button>
     <button class="btn primary" onclick={() => session.act("outline", "/outline")} disabled={Boolean(session.busy) || !draft.source.text.trim()}>
-      <ListTree size={16} /> {session.busy === "outline" ? "Planning…" : "Plan the lorebook"}
+      <ListTree size={16} /> {session.busy === "outline" ? session.progress("Planning…") : "Plan the lorebook"}
     </button>
   </div>
   <p class="tiny muted">Questions are optional, but your answers are the best defence against generic lore: they outrank anything the model would invent.</p>

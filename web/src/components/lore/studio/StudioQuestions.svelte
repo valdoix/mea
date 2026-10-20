@@ -52,7 +52,7 @@
   <div class="row wrap actions">
     <span class="tiny muted grow">{answered} of {draft.questions.length} answered. Your answers are quoted to the model as the author's own words.</span>
     <button class="btn" onclick={() => session.act("readback", "/readback")} disabled={Boolean(session.busy)}><MessageQuestion size={16} /> {session.busy === "readback" ? "Thinking…" : "More questions"}</button>
-    <button class="btn primary" onclick={() => session.act("outline", "/outline")} disabled={Boolean(session.busy)}><ListTree size={16} /> {session.busy === "outline" ? "Planning…" : "Plan the lorebook"}</button>
+    <button class="btn primary" onclick={() => session.act("outline", "/outline")} disabled={Boolean(session.busy)}><ListTree size={16} /> {session.busy === "outline" ? session.progress("Planning…") : "Plan the lorebook"}</button>
   </div>
 </section>
 
