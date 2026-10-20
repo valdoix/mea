@@ -281,7 +281,10 @@ function helperJson(name: string, user: string, system = ""): unknown {
     }
     case "studio_critique": {
       const n = [...user.matchAll(/^(\d+)\. /gm)].length;
-      return { issues: n ? [{ entries: [1], kind: "flat", problem: "It tells instead of shows.", fix: "Show one habit in action.", add: null }, { entries: [], kind: "gap", problem: "The ferry has no entry.", fix: "", add: { title: "The Ferry", type: "location", pitch: "How people leave." } }] : [] };
+      // docs/17, 6.2: a Character entry that's mostly how they talk splits out a Voice about them (only when asked to split).
+      const person = /MOCK_SPLIT/.test(user) ? user.match(/^(\d+)\. (.+?) \(character\)/m) : null;
+      const split = person ? [{ entries: [Number(person[1])], kind: "split", problem: `${person[2]}'s entry is mostly how they talk.`, fix: "Move how they talk into a Voice.", add: { title: `Voice: ${person[2]}`, type: "character", kind: "voice", about: [person[2]], pitch: "How they talk." } }] : [];
+      return { issues: n ? [{ entries: [1], kind: "flat", problem: "It tells instead of shows.", fix: "Show one habit in action.", add: null }, { entries: [], kind: "gap", problem: "The ferry has no entry.", fix: "", add: { title: "The Ferry", type: "location", kind: "location", pitch: "How people leave." } }, ...split] : [] };
     }
     case "studio_cowrite": {
       const says = user.match(/^THE AUTHOR SAYS: (.*)$/m)?.[1] ?? "";

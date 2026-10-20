@@ -1,5 +1,6 @@
 import { countTokens } from "../lib/tokens";
-import { textGivesAway } from "./shapes";
+import type { Category } from "./format";
+import { HIDDEN_PART, type Parts, termsOf, textGivesAway, voiceProblems } from "./shapes";
 
 /**
  * Quality checks for drafted lore (the studio's review step). Deterministic and instant:
@@ -8,7 +9,7 @@ import { textGivesAway } from "./shapes";
  */
 
 export interface QualityIssue {
-  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown" | "secret-in-text" | "leak" | "voice";
+  kind: "no-keys" | "generic-key" | "key-clash" | "duplicate-title" | "stock-name" | "stock-phrase" | "thin" | "long" | "no-essentials" | "secret-unknown" | "secret-in-text" | "leak" | "kind";
   severity: "info" | "warn";
   message: string;
 }
@@ -93,6 +94,117 @@ export function checkEntries(entries: CheckedEntry[], opts: { existing?: { title
       if (textGivesAway(e.content, s.text)) issues.push({ kind: "secret-in-text", severity: "warn", message: `The text gives away its own secret ("${s.text.slice(0, 60)}…"): every scene would know it. Keep it to the secret.` });
     }
     out[e.id] = issues;
+  }
+  return out;
+}
+
+// ---------- checks by kind (docs/17, 6.1) ----------
+
+export interface KindChecked {
+  id: string;
+  title: string;
+  kind: Category | null;
+  content: string;
+  keys: string[];
+  parts: Parts;
+  secrets: { text: string; knownBy: string[] }[];
+  /** The names of who it's about (resolved), and how many of its subjects couldn't be found. */
+  subjects: string[];
+  missingSubjects: number;
+}
+
+const listOf = (v: string | string[] | undefined) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => String(x).trim()).filter(Boolean);
+const PAST = /\b(was|were|had|did|went|came|took|made|said|began|became|fled|died|left)\b/gi;
+const PRESENT = /\b(is|are|has|have|does|goes|comes|takes|makes|says|keeps|holds|wants|stands|waits|burns|hides|runs)\b/gi;
+const BACKSTORY = /\b(years ago|long ago|once,|used to|had been|as a child|in the past|decades? ago|generations? ago)\b/gi;
+const FUTURE = /\b(will|would|soon|coming|about to|going to|may|might|shall|when|before|until|at (?:midwinter|dawn|dusk)|next|by the)\b/i;
+const NOW = /\b(now|currently|these days|still|today|lately|at present|since then|no longer)\b/i;
+
+/**
+ * What each kind needs (docs/17, 6.1): a voice's sample lines, a Current entry in the present, an
+ * Upcoming one in the future, a relationship naming both and where it stands, a reaction's trigger,
+ * a kept truth, a mystery's clues, a lexicon's terms, a routine's times, a canon book's "not yet",
+ * and a satellite's subject that exists. Same severities as the rest of the checks.
+ */
+export function checkKinds(entries: KindChecked[], opts: { basedOn?: string; length?: EntryLength; known?: string[]; history?: string[] } = {}) {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const known = (opts.known ?? []).map(norm);
+  const isKnown = (name: string) => known.some((k) => k === norm(name) || k.includes(norm(name)) || norm(name).includes(k));
+  const out: Record<string, QualityIssue[]> = {};
+  for (const e of entries) {
+    const issues: QualityIssue[] = [];
+    const warn = (message: string) => issues.push({ kind: "kind", severity: "warn", message });
+    const info = (message: string) => issues.push({ kind: "kind", severity: "info", message });
+    const p = e.parts;
+    if (e.missingSubjects) warn(`It's about someone who isn't in the plan or the book any more. Pick who it's about, or leave it out.`);
+    switch (e.kind) {
+      case "voice": {
+        for (const m of voiceProblems(p)) warn(m);
+        // A sample line using a word they'd never use contradicts the voice.
+        const never = listOf(p["never says"]).map(norm).filter((w) => w.length >= 2);
+        const said = listOf(p["sample lines"]).filter((l) => never.some((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(l)));
+        if (said.length) warn(`A sample line uses a word they'd never use: “${said[0]}”.`);
+        break;
+      }
+      case "current": {
+        const past = e.content.match(PAST)?.length ?? 0;
+        const present = e.content.match(PRESENT)?.length ?? 0;
+        if (past > present && past >= 3) warn("Mostly in the past tense: a Current entry is what's happening now, written to be played.");
+        if ((e.content.match(BACKSTORY)?.length ?? 0) > 1) info("More than a clause of backstory: keep why it started to one clause.");
+        if (Object.keys(p).length && (!p.who || !p.where)) info(`It doesn't say ${!p.who ? "who is doing it" : "where it's happening"}.`);
+        break;
+      }
+      case "upcoming": {
+        if (!FUTURE.test(e.content)) warn("It reads as if it already happened: say what's coming, roughly when, and the signs.");
+        const past = (opts.history ?? []).find((h) => norm(h) && (norm(e.title).includes(norm(h)) || norm(h).includes(norm(e.title).replace(/^upcoming\s*[:—-]\s*/, ""))));
+        if (past) warn(`“${past}” is already in History: it can't be both coming and past.`);
+        break;
+      }
+      case "relationship": {
+        const missing = e.subjects.filter((n) => !new RegExp(`\\b${(n.split(/\s+/)[0] ?? n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(e.content));
+        if (missing.length) warn(`It never names ${missing.join(" or ")}.`);
+        if (!NOW.test(e.content)) info("It doesn't say where things stand between them now.");
+        break;
+      }
+      case "reaction": {
+        if (!p.trigger && !e.keys.length) warn("No trigger: say what sets it off, and key it on those words.");
+        const own = new Set(e.subjects.flatMap((n) => [n, ...n.split(/\s+/)]).map(norm));
+        const named = e.keys.filter((k) => own.has(norm(k)));
+        if (named.length) warn(`Keyed on ${named.map((k) => `“${k}”`).join(", ")}: it would fire whenever they're mentioned, not when the topic comes up.`);
+        break;
+      }
+      case "lexicon": {
+        const terms = termsOf(p);
+        if (terms.length < 5) warn(`Only ${terms.length} term${terms.length === 1 ? "" : "s"}: five or more give a scene words to use.`);
+        const keys = new Set(e.keys.map(norm));
+        const unkeyed = terms.filter((t) => !keys.has(norm(t)));
+        if (unkeyed.length) info(`Not keyed: ${unkeyed.slice(0, 5).map((t) => `“${t}”`).join(", ")}, so the entry won't come up when they're said.`);
+        break;
+      }
+      case "money": {
+        const n = listOf(p.prices).length + listOf(p.coins).length;
+        if (n < 5) warn(`Only ${n} coin${n === 1 ? "" : "s"} or price${n === 1 ? "" : "s"}: five or more let a scene haggle.`);
+        break;
+      }
+      case "routine": {
+        const lines = listOf(p.schedule);
+        if (lines.length < 3) warn(`Only ${lines.length} time${lines.length === 1 ? "" : "s"} in the schedule: three or more place people through a day.`);
+        const who = lines.flatMap((l) => (l.split(/:\s+/).slice(1).join(": ").split(/,|\s[—–-]\s/)[0] ?? "").match(/\b[A-Z][a-z]+(?: [A-Z][a-z]+)*/g) ?? []).filter((n) => !/^(The|A|An|At|In|On)$/.test(n));
+        const strangers = [...new Set(who.filter((n) => !isKnown(n)))];
+        if (strangers.length && known.length) info(`${strangers.slice(0, 3).join(", ")} ${strangers.length > 1 ? "aren't" : "isn't"} in the plan or the book.`);
+        break;
+      }
+      case "timeline":
+        if (opts.basedOn && !listOf(p["not yet"]).length) warn(`No “not yet” list: name the events of ${opts.basedOn} that haven't happened, so the story neither spoils nor skips them.`);
+        break;
+    }
+    if (e.kind === "mystery") {
+      const clues = listOf(p.clues).length;
+      if (clues < 3) warn(`Only ${clues} clue${clues === 1 ? "" : "s"}: three or more give a scene something to find.`);
+      if ((opts.length ?? "standard") !== "lean" && !listOf(p["red herrings"]).length) info("No false lead: one red herring keeps the answer from being obvious.");
+    }
+    if (e.kind && HIDDEN_PART[e.kind] && !e.secrets.length) warn("Its truth isn't kept as a secret: write it into the secrets, with who knows it, never into the open text.");
+    if (issues.length) out[e.id] = issues;
   }
   return out;
 }
