@@ -46,6 +46,15 @@ One PR per part. Build the next part while CI runs; merge only when green.
 - 7.5: `worldContext` orders by shelf (`shelfRank`: ground truth and always-on entries, Current, Lexicon, Customs, then people, world, time, scenes) and leaves out satellites.
 - Tests: `server/test/lorecards.test.ts`.
 
+## NanoGPT slow only in Mea (2026-10-21, branch `claude/ecstatic-sagan-j36ul9`)
+
+- Symptom: "Couldn't load models: HTTP 503", every time, and slow replies on NanoGPT.
+- Cause: `NanoGPTProvider.listModels` needed both `/api/subscription/v1/models` and `/api/v1/models`; the subscription list answering 503 failed the whole sync (pay-as-you-go too). Without a catalog `applyReasoning` sees no reasoning caps, so it stops sending `reasoning_effort: "none"`: reasoning models (GLM, Kimi, DeepSeek) think at full default effort before every reply and every helper call.
+- Fix (`providers/nanogpt.ts`): both lists are fetched in parallel and either may fail; catalog GETs retry once on 5xx or a dropped connection, with a 30 s timeout. Subscription flags come from the subscription list, or else from the catalog's own `subscription.included`. A subscription-only key with neither still fails, so it's never shown paid models. Tests: `server/test/providers.test.ts`.
+- Ruled out by measuring against a fake NanoGPT: Mea's prep adds ~0.1 s; the story request doesn't wait on helpers; ~80% of the prompt is a stable prefix (cache-friendly); Bun streams gzip/brotli SSE fine.
+- Still Mea-specific costs, by design: the mandatory planning pass (up to 400 words before the story), and a model that keeps skipping it costs 2–3 full-prompt requests per reply (plan step + write; `skipsPlans`). Helper calls after each reply share the NanoGPT key.
+- Not checked: the cloud container can't reach api.nano-gpt.com, so which NanoGPT endpoint really returns 503 wasn't confirmed live.
+
 ## Things worth knowing
 
 - In the cloud container, 3 timing tests in `server/test/review.test.ts` fail in the full suite (they pass alone, and pass in CI). Not caused by lore work.
