@@ -82,7 +82,10 @@ interface NetInfo extends EventTarget {
 export function meteredConnection() {
   const c = (navigator as Navigator & { connection?: NetInfo }).connection;
   if (!c) return false;
-  return Boolean(c.saveData) || c.type === "cellular" || ["slow-2g", "2g", "3g"].includes(c.effectiveType ?? "");
+  // Mea on this machine costs no data. And effectiveType is a throughput guess that says "3g" on
+  // plenty of desktop links, which halved every image; only the really slow guesses count.
+  if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return false;
+  return Boolean(c.saveData) || c.type === "cellular" || ["slow-2g", "2g"].includes(c.effectiveType ?? "");
 }
 export function onConnectionChange(fn: () => void) {
   const c = (navigator as Navigator & { connection?: NetInfo }).connection;
