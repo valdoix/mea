@@ -194,10 +194,10 @@ export async function syncModels(connectionId: string): Promise<number> {
     for (const m of models) {
       run(
         `INSERT INTO models (connection_id, model_id, name, context_length, max_output, capabilities, pricing, subscription, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), ?)
          ON CONFLICT(connection_id, model_id) DO UPDATE SET name = excluded.name, context_length = excluded.context_length,
            max_output = excluded.max_output, capabilities = excluded.capabilities, pricing = excluded.pricing,
-           subscription = excluded.subscription, updated_at = excluded.updated_at`,
+           subscription = CASE WHEN ? IS NULL THEN models.subscription ELSE excluded.subscription END, updated_at = excluded.updated_at`,
         connectionId,
         m.id,
         m.name ?? m.id,
@@ -205,12 +205,14 @@ export async function syncModels(connectionId: string): Promise<number> {
         m.maxOutput ?? null,
         JSON.stringify(m.capabilities ?? {}),
         JSON.stringify(m.pricing ?? {}),
-        m.subscription ? 1 : 0,
+        // Not said (NanoGPT's subscription list failed): the saved flag stays.
+        m.subscription == null ? null : m.subscription ? 1 : 0,
         t,
+        m.subscription == null ? null : 1,
       );
     }
   });
-  setExtra(connectionId, { lastSyncAt: t, lastError: null });
+  setExtra(connectionId, { lastSyncAt: t, lastError: provider instanceof NanoGPTProvider ? provider.subscriptionProblem : null });
   changed();
   return models.length;
 }

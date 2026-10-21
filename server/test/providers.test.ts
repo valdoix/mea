@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { NanoGPTProvider } from "../src/providers/nanogpt";
 import { OpenAIProvider } from "../src/providers/openai";
 import { ProviderError } from "../src/providers/types";
+import { createConnection, getConnectionRow, listModels, syncModels } from "../src/services/connections";
+import { freshDb } from "./helpers";
 
 let server: ReturnType<typeof Bun.serve>;
 let base = "";
@@ -146,10 +148,36 @@ describe("NanoGPT", () => {
       const err = await p.listModels({ subscriptionOnly: true }).catch((e) => e);
       expect(err).toBeInstanceOf(ProviderError);
       expect(err.message).toContain("HTTP 503");
-      // Pay-as-you-go still loads, with nothing marked as included.
-      expect((await p.listModels()).map((m) => [m.id, m.subscription])).toEqual([["anthropic/claude-sonnet-5.5", false]]);
+      // Pay-as-you-go still loads, saying it couldn't tell what's included (the sync keeps the saved flags).
+      expect((await p.listModels()).map((m) => [m.id, m.subscription])).toEqual([["anthropic/claude-sonnet-5.5", undefined]]);
+      expect(p.subscriptionProblem).toContain("subscription list didn't load (HTTP 503");
     } finally {
       down.stop(true);
+    }
+  });
+
+  test("a sync while the subscription list is down keeps each model's saved label and says why", async () => {
+    let down = false;
+    const nano = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === "/api/subscription/v1/models") return down ? new Response("Service Unavailable", { status: 503 }) : Response.json({ data: [{ id: "z-ai/glm-5.3" }] });
+        return Response.json({ data: [{ id: "z-ai/glm-5.3" }, { id: "anthropic/claude-sonnet-5.5" }] });
+      },
+    });
+    try {
+      freshDb();
+      const id = createConnection({ name: "Nano", kind: "nanogpt", billing: "paygo", baseUrl: `http://localhost:${nano.port}/api/v1`, apiKey: "k" });
+      const labels = () => Object.fromEntries(listModels(id).map((m) => [m.id, m.subscription]));
+      await syncModels(id);
+      expect(labels()).toEqual({ "z-ai/glm-5.3": true, "anthropic/claude-sonnet-5.5": false });
+      down = true;
+      await syncModels(id);
+      expect(labels()).toEqual({ "z-ai/glm-5.3": true, "anthropic/claude-sonnet-5.5": false });
+      expect(getConnectionRow(id)?.extra).toContain("subscription list didn't load");
+    } finally {
+      nano.stop(true);
     }
   });
 
