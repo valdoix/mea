@@ -92,6 +92,67 @@ describe("NanoGPT", () => {
     expect(sub.map((m) => m.id)).toEqual(["z-ai/glm-5.3"]);
   });
 
+  test("the subscription list answering 503 doesn't lose the catalog (or its reasoning flags)", async () => {
+    let subCalls = 0;
+    let flaky = 0;
+    const down = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === "/api/subscription/v1/models") {
+          subCalls++;
+          return new Response("Service Unavailable", { status: 503 });
+        }
+        if (url.pathname === "/api/v1/models") {
+          // Once flaky, then fine: asked again, it loads.
+          if (flaky++ === 0) return new Response("busy", { status: 503 });
+          return Response.json({
+            data: [
+              { id: "z-ai/glm-5.3", capabilities: { reasoning: true }, reasoning_efforts: ["none", "high"], subscription: { included: true } },
+              { id: "anthropic/claude-sonnet-5.5", subscription: { included: false } },
+            ],
+          });
+        }
+        return new Response("not found", { status: 404 });
+      },
+    });
+    try {
+      const p = new NanoGPTProvider({ baseUrl: `http://localhost:${down.port}/api/v1`, apiKey: "k" });
+      const all = await p.listModels();
+      expect(subCalls).toBe(2);
+      expect(all.map((m) => [m.id, m.subscription])).toEqual([
+        ["z-ai/glm-5.3", true],
+        ["anthropic/claude-sonnet-5.5", false],
+      ]);
+      expect(all[0]!.capabilities).toMatchObject({ reasoning: true, reasoning_efforts: ["none", "high"] });
+      // A subscription key gets only the included models, read from the catalog's own flags.
+      expect((await p.listModels({ subscriptionOnly: true })).map((m) => m.id)).toEqual(["z-ai/glm-5.3"]);
+    } finally {
+      down.stop(true);
+    }
+  });
+
+  test("a subscription key with no subscription list and no flags in the catalog fails rather than list paid models", async () => {
+    const down = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === "/api/subscription/v1/models") return new Response("Service Unavailable", { status: 503 });
+        return Response.json({ data: [{ id: "anthropic/claude-sonnet-5.5" }] });
+      },
+    });
+    try {
+      const p = new NanoGPTProvider({ baseUrl: `http://localhost:${down.port}/api/v1`, apiKey: "k" });
+      const err = await p.listModels({ subscriptionOnly: true }).catch((e) => e);
+      expect(err).toBeInstanceOf(ProviderError);
+      expect(err.message).toContain("HTTP 503");
+      // Pay-as-you-go still loads, with nothing marked as included.
+      expect((await p.listModels()).map((m) => [m.id, m.subscription])).toEqual([["anthropic/claude-sonnet-5.5", false]]);
+    } finally {
+      down.stop(true);
+    }
+  });
+
   test("quota normalizes weekly input tokens", async () => {
     const q = await new NanoGPTProvider({ baseUrl: base, apiKey: "k" }).getQuota();
     expect(q.weekly).toMatchObject({ used: 15_000_000, limit: 60_000_000, percentUsed: 0.25 });
