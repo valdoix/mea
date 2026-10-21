@@ -1,10 +1,21 @@
-import { describeError, OpenAIProvider } from "./openai";
+import { describeError, OpenAIProvider, type OpenAIOptions } from "./openai";
 import { type ModelInfo, ProviderError } from "./types";
 
 export const NANOGPT_BASE = "https://api.nano-gpt.com/api/v1";
 /** The detailed catalog is large; past this a request is treated as failed. */
 const CATALOG_TIMEOUT_MS = 30_000;
 const CATALOG_RETRY_MS = 1000;
+/**
+ * NanoGPT answers the same API on both hosts, and one can be down while the other works: on
+ * 2026-10-21 api.nano-gpt.com gave every request a bare 503 for hours while nano-gpt.com was fine.
+ */
+const MIRRORS: Record<string, string> = { "https://api.nano-gpt.com": "https://nano-gpt.com", "https://nano-gpt.com": "https://api.nano-gpt.com" };
+/** After a host fails and its mirror answers, requests start on the mirror for this long. */
+const MIRROR_STICKY_MS = 10 * 60_000;
+/** Which host to try first, per configured origin; shared by every NanoGPT connection. */
+const preferred = new Map<string, { origin: string; until: number }>();
+/** Gateway errors: the host, not the request, is the problem. */
+const hostDown = (status: number) => status === 502 || status === 503 || status === 504;
 
 export interface QuotaWindow {
   used: number | null;
@@ -39,9 +50,52 @@ function toModel(m: Record<string, any>, subscription: boolean | undefined): Mod
 export class NanoGPTProvider extends OpenAIProvider {
   /** Set by listModels when the models loaded but which ones the subscription includes couldn't be read. */
   subscriptionProblem: string | null = null;
+  /** The other host to try when this one is down; null for a custom base URL. */
+  private readonly mirror: string | null;
+
+  constructor(opts: OpenAIOptions, mirror?: string | null) {
+    super(opts);
+    this.mirror = mirror !== undefined ? mirror : (MIRRORS[this.origin] ?? null);
+  }
 
   private get origin() {
     return new URL(this.opts.baseUrl).origin;
+  }
+
+  /**
+   * A dropped connection or a gateway error is asked again once on the mirror host. Only before any
+   * reply has arrived: a stream cut off midway isn't repeated (it may already have been billed).
+   */
+  protected override async send(url: string, init: RequestInit): Promise<Response> {
+    if (!this.mirror || !url.startsWith(this.origin)) return super.send(url, init);
+    const pref = preferred.get(this.origin);
+    const first = pref && pref.until > Date.now() ? pref.origin : this.origin;
+    const second = first === this.origin ? this.mirror : this.origin;
+    const at = (origin: string) => origin + url.slice(this.origin.length);
+    let failed: unknown;
+    try {
+      const res = await super.send(at(first), init);
+      if (!hostDown(res.status)) return res;
+      failed = res;
+    } catch (e) {
+      if (init.signal?.aborted) throw e;
+      failed = e;
+    }
+    let res: Response;
+    try {
+      res = await super.send(at(second), init);
+    } catch (e) {
+      // Neither host answered usefully: report the first one's failure.
+      if (init.signal?.aborted) throw e;
+      if (failed instanceof Response) return failed;
+      throw failed;
+    }
+    if (failed instanceof Response) await failed.body?.cancel().catch(() => {});
+    if (!hostDown(res.status)) {
+      if (second === this.origin) preferred.delete(this.origin);
+      else preferred.set(this.origin, { origin: second, until: Date.now() + MIRROR_STICKY_MS });
+    }
+    return res;
   }
 
   /** A 5xx or a dropped connection is asked again once: NanoGPT's catalog endpoints hiccup. */
@@ -49,7 +103,7 @@ export class NanoGPTProvider extends OpenAIProvider {
     for (let attempt = 0; ; attempt++) {
       let res: Response;
       try {
-        res = await fetch(url, { headers: this.headers(), signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS) });
+        res = await this.send(url, { headers: this.headers(), signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS) });
       } catch (e) {
         if (attempt < 1) {
           await Bun.sleep(CATALOG_RETRY_MS);

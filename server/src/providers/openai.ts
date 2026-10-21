@@ -62,6 +62,11 @@ export class OpenAIProvider implements Provider {
     return `${this.opts.baseUrl.replace(/\/+$/, "")}${path}`;
   }
 
+  /** Every request goes through here, so a provider with more than one host can fall over to another. */
+  protected send(url: string, init: RequestInit): Promise<Response> {
+    return fetch(url, init);
+  }
+
   protected headers(): Record<string, string> {
     return {
       "Content-Type": "application/json",
@@ -74,7 +79,7 @@ export class OpenAIProvider implements Provider {
     const body = buildBody(req, this.opts.extraBody);
     let res: Response;
     try {
-      res = await fetch(this.url("/chat/completions"), { method: "POST", headers: { ...this.headers(), Accept: "text/event-stream" }, body: JSON.stringify(body), signal: req.signal });
+      res = await this.send(this.url("/chat/completions"), { method: "POST", headers: { ...this.headers(), Accept: "text/event-stream" }, body: JSON.stringify(body), signal: req.signal });
     } catch (e) {
       if ((e as Error).name === "AbortError") throw e;
       throw new ProviderError(`Couldn't reach the provider: ${(e as Error).message}`);
@@ -84,7 +89,7 @@ export class OpenAIProvider implements Provider {
       const text = await res.text().catch(() => "");
       if (!/reason/i.test(text)) throw httpError(res, describeError(res.status, text), text);
       delete body.reasoning_effort;
-      res = await fetch(this.url("/chat/completions"), { method: "POST", headers: { ...this.headers(), Accept: "text/event-stream" }, body: JSON.stringify(body), signal: req.signal });
+      res = await this.send(this.url("/chat/completions"), { method: "POST", headers: { ...this.headers(), Accept: "text/event-stream" }, body: JSON.stringify(body), signal: req.signal });
     }
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => "");
@@ -136,7 +141,7 @@ export class OpenAIProvider implements Provider {
   async embed(texts: string[], model: string, dims?: number, signal?: AbortSignal): Promise<EmbedResult> {
     let res: Response;
     try {
-      res = await fetch(this.url("/embeddings"), {
+      res = await this.send(this.url("/embeddings"), {
         method: "POST",
         headers: this.headers(),
         body: JSON.stringify({ model, input: texts, ...(dims ? { dimensions: dims } : {}), encoding_format: "float" }),
@@ -157,7 +162,7 @@ export class OpenAIProvider implements Provider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    const res = await fetch(this.url("/models"), { headers: this.headers() });
+    const res = await this.send(this.url("/models"), { headers: this.headers() });
     if (!res.ok) throw new ProviderError(describeError(res.status, await res.text().catch(() => "")), res.status);
     const json = (await res.json()) as { data?: Record<string, any>[] };
     return (json.data ?? []).map((m) => ({
