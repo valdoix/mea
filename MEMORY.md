@@ -46,7 +46,7 @@ One PR per part. Build the next part while CI runs; merge only when green.
 - 7.5: `worldContext` orders by shelf (`shelfRank`: ground truth and always-on entries, Current, Lexicon, Customs, then people, world, time, scenes) and leaves out satellites.
 - Tests: `server/test/lorecards.test.ts`.
 
-## NanoGPT slow only in Mea (2026-10-21, branch `claude/ecstatic-sagan-j36ul9`)
+## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
 - Symptom: "Couldn't load models: HTTP 503", every time, and slow replies on NanoGPT.
 - Cause: `NanoGPTProvider.listModels` needed both `/api/subscription/v1/models` and `/api/v1/models`; the subscription list answering 503 failed the whole sync (pay-as-you-go too). Without a catalog `applyReasoning` sees no reasoning caps, so it stops sending `reasoning_effort: "none"`: reasoning models (GLM, Kimi, DeepSeek) think at full default effort before every reply and every helper call.
