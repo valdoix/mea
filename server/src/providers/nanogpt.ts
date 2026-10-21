@@ -22,7 +22,8 @@ export interface Quota {
   fetchedAt: number;
 }
 
-function toModel(m: Record<string, any>, subscription: boolean): ModelInfo {
+/** `subscription` undefined: NanoGPT didn't say (the saved flag is kept). */
+function toModel(m: Record<string, any>, subscription: boolean | undefined): ModelInfo {
   return {
     id: String(m.id),
     name: m.name ?? m.id,
@@ -36,6 +37,9 @@ function toModel(m: Record<string, any>, subscription: boolean): ModelInfo {
 
 /** NanoGPT (CONN-11, CONN-13): detailed catalog, subscription catalog, quota. */
 export class NanoGPTProvider extends OpenAIProvider {
+  /** Set by listModels when the models loaded but which ones the subscription includes couldn't be read. */
+  subscriptionProblem: string | null = null;
+
   private get origin() {
     return new URL(this.opts.baseUrl).origin;
   }
@@ -75,6 +79,7 @@ export class NanoGPTProvider extends OpenAIProvider {
    * model reasons, so it can't ask it to stop, and every reply waits on a full thinking pass.
    */
   override async listModels(opts: { subscriptionOnly?: boolean } = {}): Promise<ModelInfo[]> {
+    this.subscriptionProblem = null;
     const [subRes, allRes] = await Promise.allSettled([this.listSubscriptionModels(), this.getJson(`${this.origin}/api/v1/models?detailed=true`)]);
     const sub = subRes.status === "fulfilled" ? subRes.value : null;
     const rows = allRes.status === "fulfilled" ? ((allRes.value.data ?? []) as Record<string, any>[]) : null;
@@ -84,11 +89,14 @@ export class NanoGPTProvider extends OpenAIProvider {
       throw (allRes as PromiseRejectedResult).reason;
     }
     // An authenticated detailed catalog marks each model's subscription itself.
-    const included = (m: Record<string, any>) => (sub ? sub.some((s) => s.id === String(m.id)) : m.subscription?.included === true);
+    const flagged = rows.some((m) => typeof m.subscription?.included === "boolean");
+    const included = (m: Record<string, any>) => (sub ? sub.some((s) => s.id === String(m.id)) : flagged ? m.subscription?.included === true : undefined);
+    this.subscriptionProblem =
+      sub || flagged ? null : `NanoGPT's subscription list didn't load (${(subRes as PromiseRejectedResult).reason?.message ?? "no answer"}), so which models your subscription includes is unknown. Sync again later.`;
     if (opts.subscriptionOnly) {
       if (sub) return sub;
       // Without either list, a subscription key would be shown paid models it would be billed for.
-      if (!rows.some((m) => typeof m.subscription?.included === "boolean")) throw (subRes as PromiseRejectedResult).reason;
+      if (!flagged) throw (subRes as PromiseRejectedResult).reason;
       return rows.filter(included).map((m) => toModel(m, true));
     }
     const all = rows.map((m) => toModel(m, included(m)));
