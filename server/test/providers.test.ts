@@ -181,6 +181,64 @@ describe("NanoGPT", () => {
     }
   });
 
+  test("a host that's down falls over to the mirror host, and later requests start there", async () => {
+    let downHits = 0;
+    const down = Bun.serve({
+      port: 0,
+      fetch() {
+        downHits++;
+        return new Response("", { status: 503 });
+      },
+    });
+    const up = Bun.serve({
+      port: 0,
+      async fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === "/api/v1/chat/completions") {
+          return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: "hi" }, finish_reason: "stop" }] })}
+
+data: [DONE]
+
+`, {
+            headers: { "Content-Type": "text/event-stream" },
+          });
+        }
+        if (url.pathname === "/api/v1/embeddings") return Response.json({ data: [{ index: 0, embedding: [1, 2] }] });
+        if (url.pathname === "/api/subscription/v1/models") return Response.json({ data: [{ id: "z-ai/glm-5.3" }] });
+        return Response.json({ data: [{ id: "z-ai/glm-5.3" }, { id: "anthropic/claude-sonnet-5.5" }] });
+      },
+    });
+    try {
+      const p = new NanoGPTProvider({ baseUrl: `http://localhost:${down.port}/api/v1`, apiKey: "k" }, `http://localhost:${up.port}`);
+      let text = "";
+      await p.stream({ model: "z-ai/glm-5.3", messages: [{ role: "user", content: "hello" }], params: {}, signal: new AbortController().signal }, (d) => (text += d.text ?? ""));
+      expect(text).toBe("hi");
+      expect(downHits).toBe(1);
+      // The mirror is remembered: the down host isn't asked again for a while.
+      expect((await p.listModels()).map((m) => [m.id, m.subscription])).toEqual([
+        ["z-ai/glm-5.3", true],
+        ["anthropic/claude-sonnet-5.5", false],
+      ]);
+      expect((await p.embed(["a"], "text-embedding-3-large")).vectors).toHaveLength(1);
+      expect(downHits).toBe(1);
+    } finally {
+      down.stop(true);
+      up.stop(true);
+    }
+  });
+
+  test("with both hosts down the error is the configured host's", async () => {
+    const down = Bun.serve({ port: 0, fetch: () => new Response("", { status: 503 }) });
+    try {
+      const p = new NanoGPTProvider({ baseUrl: `http://localhost:${down.port}/api/v1`, apiKey: "k" }, "http://localhost:1");
+      const err = await p.stream({ model: "m", messages: [], params: {}, signal: new AbortController().signal }, () => {}).catch((e) => e);
+      expect(err).toBeInstanceOf(ProviderError);
+      expect(err.message).toContain("HTTP 503");
+    } finally {
+      down.stop(true);
+    }
+  });
+
   test("quota normalizes weekly input tokens", async () => {
     const q = await new NanoGPTProvider({ baseUrl: base, apiKey: "k" }).getQuota();
     expect(q.weekly).toMatchObject({ used: 15_000_000, limit: 60_000_000, percentUsed: 0.25 });
