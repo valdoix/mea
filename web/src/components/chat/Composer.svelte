@@ -742,6 +742,7 @@
 
 <style>
   .composer-wrap {
+    position: relative;
     display: grid;
     gap: 0.4rem;
   }
@@ -762,11 +763,23 @@
   .tool.on {
     color: var(--accent-ink);
   }
+  /* Floats over the foot of the story: in the flow, every check that came and went resized the
+     story above it and the end of the reply jumped. */
   .spell {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    z-index: 5;
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
     margin-bottom: 0.35rem;
+    pointer-events: none;
+  }
+  .spell .schip {
+    pointer-events: auto;
+    box-shadow: var(--shadow-1);
   }
   .spell s {
     text-decoration-color: var(--danger);
