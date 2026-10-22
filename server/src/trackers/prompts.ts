@@ -7,7 +7,8 @@ import { AXES, LADDER, type WorldState } from "./types";
 export const GRAMMAR = `Write one change per line, only what changed in the NEW MESSAGES. Omission never means removal.
 clock: +45m | +2h | Day 3 21:40 | 2026-03-14 21:40   (time passed; never backwards unless "flashback")
 wx: rain → heavy rain                        at: City › District › Building › Room
-scene: <title of a new scene>                 mode: social|intimacy|conflict|investigation|travel|stealth|downtime|crisis
+scene: <title of a new scene>
+mode: social|intimacy|conflict|investigation|travel|stealth|downtime|crisis   (its own line; with every new scene)
 cast: Name@spot(activity) · Name@peri(at the bar) · Name@left(→ where) · Name@arrive   (after @ only spot|peri|left|arrive; places go in at:; with a new at: that moves the scene, name everyone who came along: whoever was present and isn't named stayed behind; @spot or @peri only for people the messages put in the scene, never someone only thought of, talked about or waiting elsewhere)
 mood Name: old → new | V-1 A2 D0              (named emotion; VAD optional: valence -3..3, arousal 0..5, dominance -3..3)
 body Name: fatigue 3; hunger +1; soaked; injury: left arm, wound, bandaged; healed: left arm
