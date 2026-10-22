@@ -53,8 +53,8 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 | Part | What | State |
 |---|---|---|
 | 1 | Lyrics in the library (`song_lyrics`, LRCLIB → YouTube Music lyrics tab, paste) | merged, PR #145 |
-| 2 | Lyric sheets and the moment | branch `claude/lyrics-sheets` |
-| 3 | Picking by the words | — |
+| 2 | Lyric sheets and the moment | merged, PR #146 |
+| 3 | Picking by the words | branch `claude/lyrics-picking` |
 | 4 | Landing the line (seek) | — |
 
 ### Part 1 (2026-10-22)
@@ -72,6 +72,13 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 - Fixed: `bigMoment` looked for change kinds `dead`/`ladder`, which the trackers never emit (`death`/`romance`), so deaths and romance never cut the music.
 - Mock: `lyric_sheet` and `story_moment` answer from word cues (`MOCK_CUES`).
 - Tests: `server/test/music-words.test.ts`.
+
+### Part 3 (2026-10-22)
+
+- `director.ts`: `wordsContext` (null when the dial is off, the moment has no situations or is from another scene (`momentHere`: moment key's scene = cue's), or no song is read; embeds the moment's gist with a 3 s wait), `wordsScore` (fit × weight, +0.5 for the peak on Lean in, +1 per 👍 capped at 2, Wrong words skips the passage for that situation). `pickTrack` adds it only for songs within 2 of the best mood score; `why` quotes the passage's first line (60 chars). `stillFits` takes words: fitting words hold, clashing ones (`clashes` in words.ts) cut. The roll after a reply is `seeded(chatId, seq, "music:" + cue.key)`.
+- Config `wordsDial` ("off" | "little" | "lean"), not `words`: `musicView` already has a per-song `words` map, and the spread would overwrite it.
+- Actions: `wrongWords` (keeps the song, clears `now.words`), `up` also raises `wordsYes`. `now.words` = { passage, situations, score } (Part 4 seeks with it).
+- Tests: `server/test/music-picking.test.ts`.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

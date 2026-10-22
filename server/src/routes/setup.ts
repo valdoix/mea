@@ -182,7 +182,7 @@ desk.get("/chats/:id/music", (c) => {
   return c.json(chatMusicView(c.req.param("id")));
 });
 desk.post("/chats/:id/music", async (c) => {
-  const b = await body(c, z.object({ action: z.enum(["on", "off", "playPause", "skip", "up", "down", "notForScene"]) }));
+  const b = await body(c, z.object({ action: z.enum(["on", "off", "playPause", "skip", "up", "down", "notForScene", "wrongWords"]) }));
   return c.json(await musicAction(c.req.param("id"), b.action));
 });
 
