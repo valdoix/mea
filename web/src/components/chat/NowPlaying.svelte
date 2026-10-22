@@ -22,6 +22,16 @@
   let { chatId }: { chatId: string } = $props();
   let v = $state<View | null>(null);
   let open = $state(false);
+  // The card hangs left from the chip; on a narrow screen it's moved back right to stay on screen.
+  let card = $state<HTMLElement | null>(null);
+  $effect(() => {
+    void v;
+    if (!open || !card) return;
+    const el = card;
+    el.style.translate = "";
+    const left = el.getBoundingClientRect().left;
+    if (left < 8) el.style.translate = `${8 - left}px 0`;
+  });
 
   async function load() {
     try {
@@ -98,7 +108,7 @@
         <Music size={13} /><span class="t">{v.now?.title ?? "Soundtrack on"}</span>
       </button>
       {#if open}
-        <span class="ctl card" role="group" aria-label="Soundtrack">
+        <span class="ctl card" role="group" aria-label="Soundtrack" bind:this={card}>
           <span class="btns">
           <button class="btn ghost icon small" onclick={() => act("playPause")} aria-label="Play or pause"><Pause size={14} /></button>
           <button class="btn ghost icon small" onclick={() => act("skip")} aria-label="Skip"><SkipForward size={14} /></button>
@@ -140,18 +150,27 @@
     display: grid;
     gap: 0.3rem;
     padding: 0.3rem;
+    /* As wide as the row of buttons (an absolute box would otherwise shrink to the chip's width and squeeze them). */
+    width: max-content;
+    max-width: calc(100vw - 2rem);
   }
   .btns {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.2rem;
     white-space: nowrap;
+  }
+  .btns > :global(*) {
+    flex: none;
   }
   .strip {
     display: grid;
     gap: 0.1rem;
     padding: 0.2rem 0.45rem 0.3rem;
-    max-width: 26rem;
+    /* The lyric strip wraps inside the buttons' width instead of widening the card. */
+    width: 0;
+    min-width: 100%;
     font-size: 0.85em;
     line-height: 1.35;
   }
