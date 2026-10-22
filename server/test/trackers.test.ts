@@ -210,6 +210,24 @@ describe("fold rules", () => {
     expect(f.secret!.from).toEqual([]);
   });
 
+  test("a mode written after a scene's title counts, and a new scene doesn't inherit the last one's", () => {
+    expect(parseLine("scene: The Kitchen Light | mode: downtime")!.args).toMatchObject({ to: "The Kitchen Light", mode: "downtime" });
+    expect(parseLine("scene: The Drive — mode: Crisis")!.args).toMatchObject({ to: "The Drive", mode: "crisis" });
+    expect(parseLine("scene: Old → New (mode: intimacy)")!.args).toMatchObject({ from: "Old", to: "New", mode: "intimacy" });
+    expect(parseLine("scene: Mode of Transport")!.args.mode).toBeUndefined();
+    const fold = (msgs: string[][]) => foldEvents(events(msgs), cfg()).state;
+    // The drive set travel; home again, the scene line names its own mode.
+    expect(fold([["scene: driving home", "mode: travel"], ["at: Sunnydale › home › kitchen", "scene: Cream Soup | mode: downtime"]]).mode).toBe("downtime");
+    // A new scene that names no mode leaves it unknown, not still travelling.
+    expect(fold([["scene: driving home", "mode: travel"], ["scene: Cream Soup"]]).mode).toBeUndefined();
+    // Named before the move in the same message, it holds.
+    expect(fold([["at: Road", "scene: driving home"], ["mode: downtime", "at: Home › kitchen", "scene: Cream Soup"]]).mode).toBe("downtime");
+    // Stored events from before the parser knew read again from their text.
+    const old: TrackerEvent = { id: "o1", messageId: "m2", seq: 2, source: "model", op: { op: "scene", args: { to: "Cream Soup | mode: downtime" }, raw: "scene: Cream Soup | mode: downtime" } };
+    const st = foldEvents([...events([["scene: driving home", "mode: travel"]]), old], cfg()).state;
+    expect([st.mode, st.sceneTitle]).toEqual(["downtime", "Cream Soup"]);
+  });
+
   test("ledger fields written into the cause still count (reliable state 1.1)", () => {
     const k = parseLine("know Jackie: Shauna is pregnant — heard Shauna confirm · knows · true")!;
     expect(k.args).toMatchObject({ fact: "Shauna is pregnant", status: "knows", truth: "true" });

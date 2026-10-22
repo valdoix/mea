@@ -293,9 +293,9 @@ export class Folder {
   // ---------- applying ----------
 
   apply(ev: TrackerEvent) {
-    // Knowledge lines the model wrote are read again from their text, so older ones get what the parser
-    // has learned since (fields in the cause, "kept by A, B"). The engine's own carry args the text doesn't.
-    if ((ev.op.op === "know" || ev.op.op === "secret") && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
+    // Knowledge and scene lines the model wrote are read again from their text, so older ones get what the
+    // parser has learned since (fields in the cause, "kept by A, B", a mode after the scene's title). The engine's own carry args the text doesn't.
+    if ((ev.op.op === "know" || ev.op.op === "secret" || ev.op.op === "scene") && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
       const op = parseLine(ev.op.raw);
       if (op?.op === ev.op.op) ev = { ...ev, op };
     }
@@ -410,10 +410,21 @@ export class Folder {
     t.move.carried = [];
   }
 
+  /** The message that last named the mode. */
+  private modeSeq = -1;
+
+  private setMode(mode: string, seq: number) {
+    this.state.mode = clip(mode).toLowerCase();
+    this.modeSeq = seq;
+  }
+
   private newScene(seq: number) {
     this.state.sceneNo++;
     this.state.sceneStartSeq = seq;
     this.state.sceneTitle = undefined;
+    // A new scene doesn't inherit the last one's mode (a drive's "travel" in the kitchen after), unless
+    // this same message named it.
+    if (this.modeSeq !== seq) this.state.mode = undefined;
     for (const c of Object.values(this.state.chars)) c.activity = undefined;
   }
 
@@ -612,6 +623,7 @@ export class Folder {
         return;
       }
       case "scene": {
+        if (a.mode) this.setMode(String(a.mode), seq);
         if (a.to && norm(a.to) !== norm(st.sceneTitle ?? "")) {
           const fresh = Boolean(st.sceneTitle);
           if (fresh) this.newScene(seq);
@@ -622,7 +634,7 @@ export class Folder {
         return;
       }
       case "mode":
-        st.mode = clip(a.to).toLowerCase();
+        this.setMode(String(a.to), seq);
         return;
       case "cast": {
         const turn = this.castTurn(ctx);

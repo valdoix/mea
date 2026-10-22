@@ -222,6 +222,9 @@ function dueOf(text: string) {
   return m ? m[1]!.trim() : undefined;
 }
 
+/** A mode written after a scene's title: "| mode: travel", "— mode: crisis", "(mode: intimacy)". */
+const MODE_TAIL = /\s*(?:[|—–;,(]|\s-)\s*mode\s*[:=]\s*([a-z]+)\s*\)?\s*$/i;
+
 export function parseLine(raw: string): Op | null {
   const line = raw.replace(/^\s*(?:[-*•]\s+|\d+[.)]\s+)/, "").trim();
   if (!line || /^<\/?ledger/i.test(line) || /^```/.test(line)) return null;
@@ -284,7 +287,10 @@ export function parseLine(raw: string): Op | null {
     case "look":
     case "mode":
     case "scene": {
-      const [from, to] = arrow(body);
+      // "scene: The Kitchen | mode: downtime": the grammar once showed both on one line, and models still write them so.
+      const tail = op === "scene" ? MODE_TAIL.exec(body) : null;
+      if (tail) a.mode = tail[1]!.toLowerCase();
+      const [from, to] = arrow(tail ? body.slice(0, tail.index) : body);
       a.from = from;
       a.to = to;
       if (op === "at") a.path = to.split(/\s*(?:›|>|»|\/)\s*/).map((s) => s.trim()).filter(Boolean);
