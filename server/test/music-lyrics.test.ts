@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { run } from "../src/db/db";
 import { setSetting } from "../src/lib/settings";
 import { findSongWords, lyricsStep, musicConfig, musicView, removeTracks, saveMusicConfig, setSongWords, songWords } from "../src/music/director";
 import { bestLrclib, cleanTitle, leadArtist, lyricsFor, parseLyrics, readLyricsTab, readNext, sameArtist } from "../src/music/lyrics";
@@ -30,6 +31,7 @@ beforeAll(() => {
     if (url.hostname === "music.youtube.com") {
       const body = JSON.parse(String(init?.body));
       if (url.pathname.endsWith("/next")) return json({ contents: { panel: [{ playlistPanelVideoRenderer: { videoId: body.videoId, lengthText: { runs: [{ text: /church|later/.test(body.videoId) ? "4:02" : "3:30" }] } } }], tabs: [{ tabRenderer: { endpoint: { browseEndpoint: { browseId: `MPLY${body.videoId}` } } } }] } });
+      if (body.browseId === "MPLYchurchfall1") return json({ contents: { sectionListRenderer: { contents: [{ musicDescriptionShelfRenderer: { description: { runs: [{ text: "Plain words while LRCLIB is down" }] } } }] } } });
       if (body.browseId === "MPLYplainsong01") return json({ contents: { sectionListRenderer: { contents: [{ musicDescriptionShelfRenderer: { description: { runs: [{ text: "First verse line\nSecond line\n\n\nChorus line" }] } } }] } } });
       return json({ contents: {} });
     }
@@ -146,6 +148,26 @@ describe("the library's words", () => {
       if (!(e instanceof Deferred) || /Lyrics:/.test(e.message)) throw e;
     });
     expect(lyricsFor("later000001")).toMatchObject({ source: "lrclib", timed: true });
+  });
+
+  test("LRCLIB down: YouTube Music's words are kept, and the song is looked up again a day later for timed ones", async () => {
+    setSetting("music.config", { ...musicConfig(), library: [...musicConfig().library, { videoId: "churchfall1", title: "Church Fallback", artist: "Hozier", moods: [], instrumental: false }] } as never);
+    lrclibDown = true;
+    await lyricsStep().catch((e) => {
+      if (!(e instanceof Deferred) || /Lyrics:/.test(e.message)) throw e;
+    });
+    lrclibDown = false;
+    expect(lyricsFor("churchfall1")).toMatchObject({ source: "ytmusic", timed: false, lines: [{ t: null, text: "Plain words while LRCLIB is down" }] });
+    // Not again at once…
+    asked.length = 0;
+    await lyricsStep().catch(() => {});
+    expect(asked.filter((a) => a.startsWith("lrclib.net"))).toEqual([]);
+    // …but a day later, and LRCLIB's timed words replace the plain ones.
+    run("UPDATE song_lyrics SET fetched_at = fetched_at - ? WHERE video_id = 'churchfall1'", 25 * 3600_000);
+    await lyricsStep().catch((e) => {
+      if (!(e instanceof Deferred) || /Lyrics:/.test(e.message)) throw e;
+    });
+    expect(lyricsFor("churchfall1")).toMatchObject({ source: "lrclib", timed: true });
   });
 
   test("pasted words win and stay; Find again replaces them; removing a song forgets its words", async () => {

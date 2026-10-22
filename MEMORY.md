@@ -87,6 +87,11 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 - `director.ts`: config `landLine` ("auto" = only with Lean in, "on", "off"). `landingFor` (cut only, words score ≥ 1.5, timed, not a leitmotif, not twice in a scene via `ChatMusic.landedScene`); `play(..., { land })` waits until the app reports the song (`landAt`, 5 s), then seeks; `now.landed`. `nowSinging` + `GET /chats/:id/music/line` feed the chip's lyric strip (polled every second while the card is open; Words toggles it, kept in localStorage).
 - Tests: `server/test/music-landing.test.ts` (end to end against a fake Companion Server).
 
+### LRCLIB stalls (2026-10-22)
+
+- Seen on the user's Mea: 13 of 359 songs had words; one 503 pair from LRCLIB (it blips, then answers fine) paused the whole backfill for 10 min.
+- Now `findLyrics` takes YouTube Music's words when LRCLIB fails, saved with `fetchedAt` set so the song is due again in a day (`RECHECK_SOON`); `dueForWords` re-looks at `ytmusic` plain rows (and misses) once `MISS_TTL` old. It throws only when nothing was found and a site was down. The job waits 2 min (`WORDS_DOWN_MS`), not 10.
+
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
 - Symptom: "Couldn't load models: HTTP 503", every time, and slow replies on NanoGPT.

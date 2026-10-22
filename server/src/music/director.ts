@@ -765,7 +765,12 @@ function wordsView(library: Track[]) {
 function dueForWords(cfg: MusicConfig): Track | null {
   const idx = lyricsIndex();
   const songs = cfg.library.filter((t) => !t.instrumental);
-  return songs.find((t) => !idx.has(t.videoId)) ?? songs.find((t) => idx.get(t.videoId)?.source === "none" && Date.now() - idx.get(t.videoId)!.fetchedAt > MISS_TTL) ?? null;
+  // A miss, or YouTube Music's plain words (LRCLIB may have timed ones since), once they're old enough.
+  const stale = (t: Track) => {
+    const l = idx.get(t.videoId);
+    return Boolean(l && (l.source === "none" || (l.source === "ytmusic" && !l.timed)) && Date.now() - l.fetchedAt > MISS_TTL);
+  };
+  return songs.find((t) => !idx.has(t.videoId)) ?? songs.find(stale) ?? null;
 }
 
 /** Looks the library's words up in the background (one job, one song at a time), when the switch is on. */
@@ -782,10 +787,13 @@ function markInstrumental(videoId: string) {
 
 /** Between songs, so the lyrics sites aren't asked for a whole library at once. */
 const WORDS_GAP_MS = 2_000;
+/** Both lyrics sites failing for a song: the next look is this much later. */
+const WORDS_DOWN_MS = 2 * 60_000;
 
 /**
  * The `music.lyrics` job: one song's words, then the job comes round again for the next one. A site
- * not answering waits ten minutes; turning the switch off ends it.
+ * not answering for a song (both of them, or LRCLIB with nothing on YouTube Music) waits two
+ * minutes; turning the switch off ends it.
  */
 export async function lyricsStep() {
   const cfg = musicConfig();
@@ -797,7 +805,7 @@ export async function lyricsStep() {
     if (found.instrumental) markInstrumental(t.videoId);
     else if (found.lines.length) sheetsSoon();
   } catch (e) {
-    if (e instanceof YtmError) throw new Deferred(`Lyrics: ${e.message}`, 10 * 60_000);
+    if (e instanceof YtmError) throw new Deferred(`Lyrics: ${e.message}`, WORDS_DOWN_MS);
     throw e;
   }
   if (dueForWords(musicConfig())) throw new Deferred("Looking up the next song's lyrics", WORDS_GAP_MS);
