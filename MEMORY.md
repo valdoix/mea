@@ -46,6 +46,24 @@ One PR per part. Build the next part while CI runs; merge only when green.
 - 7.5: `worldContext` orders by shelf (`shelfRank`: ground truth and always-on entries, Current, Lexicon, Customs, then people, world, time, scenes) and leaves out satellites.
 - Tests: `server/test/lorecards.test.ts`.
 
+## Lyric cues (design: `docs/18-lyric-cues.md`)
+
+One PR per part. Defaults as proposed: Words dial *A little*, Land the line on only with *Lean in*, one switch for LRCLIB + YouTube Music lyrics, ~30 situations.
+
+| Part | What | State |
+|---|---|---|
+| 1 | Lyrics in the library (`song_lyrics`, LRCLIB → YouTube Music lyrics tab, paste) | branch `claude/lyrics-library` |
+| 2 | Lyric sheets and the moment | — |
+| 3 | Picking by the words | — |
+| 4 | Landing the line (seek) | — |
+
+### Part 1 (2026-10-22)
+
+- `music/lyrics.ts`: `parseLyrics` (LRC or plain), `cleanTitle`/`leadArtist`/`sameArtist`, `bestLrclib` (artist's, within 5 s of the length, timed first), `findLyrics` (YouTube Music `next` gives the length and the `MPLY…` lyrics tab; LRCLIB `/api/search`; then the tab). One retry on a 5xx or dropped connection (LRCLIB blips with 503).
+- `director.ts`: `lyricsOnline` setting; the `music.lyrics` job does one song, then re-queues itself with `Deferred` (2 s); a site down waits 10 min. LRCLIB `instrumental` marks the track instrumental. `musicView` adds `words` and `wordsCount`.
+- Checked live: a music video's length (4:17) picks LRCLIB's 4:16 cut, not the 4:02 album one.
+- Tests: `server/test/music-lyrics.test.ts`.
+
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
 - Symptom: "Couldn't load models: HTTP 503", every time, and slow replies on NanoGPT.

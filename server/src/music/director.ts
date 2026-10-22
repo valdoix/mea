@@ -4,9 +4,11 @@ import { badRequest } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
 import { callJson } from "../services/llm";
 import { type ChatSettings, mustChat, updateChat } from "../services/chats";
+import { Deferred, enqueue } from "../services/jobs";
 import { storyDials } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
+import { findLyrics, forgetLyrics, lyricsFor, lyricsIndex, MISS_TTL, pasteLyrics } from "./lyrics";
 import { command, detectApp, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
@@ -38,6 +40,8 @@ export const musicConfigSchema = z.object({
   /** A song pinned to a person ("Spike") or a bond ("Spike & Buffy"): it comes back when they share a scene. */
   leitmotifs: z.array(z.object({ who: z.string().max(120), videoId: z.string().regex(/^[\w-]{11}$/) })).max(100).default([]),
   taste: z.object({ preferred: z.array(z.string().max(80)).max(40).default([]), banned: z.array(z.string().max(80)).max(40).default([]), instrumentalInDialogue: z.boolean().default(false) }).default({ preferred: [], banned: [], instrumentalInDialogue: false }),
+  /** docs/18, 1.2: look for the library's lyrics on LRCLIB and YouTube Music (title, artist and length only). */
+  lyricsOnline: z.boolean().default(false),
 });
 export type MusicConfig = z.infer<typeof musicConfigSchema> & { token?: string | null; app?: YtmApp | null };
 
@@ -51,7 +55,7 @@ export function musicView() {
   const found = tasteCache();
   // Per preferred artist: their songs in the library, or null until they've been looked up.
   const tasteFound = Object.fromEntries(rest.taste.preferred.map((a) => [a, found[a.toLowerCase()] ? rest.library.filter((t) => byArtist(t, a)).length : null]));
-  return { ...rest, connected: Boolean(token), canSearch: app === "pear", tasteFound };
+  return { ...rest, connected: Boolean(token), canSearch: app === "pear", tasteFound, ...wordsView(rest.library) };
 }
 /**
  * Changes only the fields sent. Pass the request as it came: the schema fills in its defaults even
@@ -66,6 +70,7 @@ export function saveMusicConfig(patch: Partial<z.infer<typeof musicConfigSchema>
   const next = { ...cur, ...Object.fromEntries(sent.map((k) => [k, parsed[k]])) };
   setSetting("music.config", next as never);
   if (sent.includes("taste")) void refreshTaste().catch(() => {});
+  if (sent.includes("lyricsOnline")) lyricsSoon();
   return musicView();
 }
 
@@ -121,6 +126,7 @@ function addToLibrary(tracks: Track[]) {
   const have = new Set(cfg.library.map((t) => t.videoId));
   const add = tracks.filter((t) => !have.has(t.videoId)).slice(0, Math.max(0, 500 - cfg.library.length));
   if (add.length) setSetting("music.config", { ...cfg, library: [...cfg.library, ...add] } as never);
+  if (add.length) lyricsSoon();
   return add.length;
 }
 
@@ -522,6 +528,7 @@ async function addPlaylist(listId: string, input: { moods?: Mood[]; instrumental
   // Added by hand: a song you'd removed before is yours again.
   const removed = removedIds();
   if (fresh.some((t) => removed.has(t.videoId))) setSetting("music.removed", [...removed].filter((id) => !fresh.some((t) => t.videoId === id)) as never);
+  if (fresh.length) lyricsSoon();
   return { ...musicView(), added: fresh.length };
 }
 
@@ -547,6 +554,7 @@ export async function addTrack(input: { link?: string; moods?: Mood[]; instrumen
   const now = musicConfig();
   setSetting("music.config", { ...now, library: [...now.library.filter((t) => t.videoId !== videoId), track] } as never);
   markRemoved(videoId, false);
+  lyricsSoon();
   return musicView();
 }
 
@@ -567,6 +575,93 @@ export function removeTracks(videoIds: string[]) {
   const cfg = musicConfig();
   setSetting("music.config", { ...cfg, library: cfg.library.filter((t) => !gone.has(t.videoId)) } as never);
   setSetting("music.removed", [...new Set([...removedIds(), ...gone])].slice(-2000) as never);
+  forgetLyrics(videoIds);
   return musicView();
 }
 export const removeTrack = (videoId: string) => removeTracks([videoId]);
+
+// ---------- the songs' words (docs/18, Part 1) ----------
+
+export type WordsState = "timed" | "plain" | "none" | "instrumental" | "pending";
+
+/** Per song: whether Mea has its words, and how many it has. */
+function wordsView(library: Track[]) {
+  const idx = lyricsIndex();
+  const words: Record<string, WordsState> = {};
+  for (const t of library) {
+    const l = idx.get(t.videoId);
+    words[t.videoId] = t.instrumental ? "instrumental" : !l ? "pending" : l.source === "none" ? "none" : l.timed ? "timed" : "plain";
+  }
+  const states = Object.values(words);
+  const count = (s: WordsState) => states.filter((x) => x === s).length;
+  return { words, wordsCount: { have: count("timed") + count("plain"), timed: count("timed"), pending: count("pending"), of: library.filter((t) => !t.instrumental).length } };
+}
+
+/** The next song to look up: one never looked for, then a miss from long enough ago. Not instrumentals, not words you pasted. */
+function dueForWords(cfg: MusicConfig): Track | null {
+  const idx = lyricsIndex();
+  const songs = cfg.library.filter((t) => !t.instrumental);
+  return songs.find((t) => !idx.has(t.videoId)) ?? songs.find((t) => idx.get(t.videoId)?.source === "none" && Date.now() - idx.get(t.videoId)!.fetchedAt > MISS_TTL) ?? null;
+}
+
+/** Looks the library's words up in the background (one job, one song at a time), when the switch is on. */
+export function lyricsSoon() {
+  if (!musicConfig().lyricsOnline) return;
+  enqueue("music.lyrics", {}, { dedupeKey: "music.lyrics", priority: -1, maxAttempts: 5 });
+}
+
+/** LRCLIB says a song has no words: it's an instrumental. */
+function markInstrumental(videoId: string) {
+  const cfg = musicConfig();
+  setSetting("music.config", { ...cfg, library: cfg.library.map((t) => (t.videoId === videoId ? { ...t, instrumental: true } : t)) } as never);
+}
+
+/** Between songs, so the lyrics sites aren't asked for a whole library at once. */
+const WORDS_GAP_MS = 2_000;
+
+/**
+ * The `music.lyrics` job: one song's words, then the job comes round again for the next one. A site
+ * not answering waits ten minutes; turning the switch off ends it.
+ */
+export async function lyricsStep() {
+  const cfg = musicConfig();
+  if (!cfg.lyricsOnline) return;
+  const t = dueForWords(cfg);
+  if (!t) return;
+  try {
+    if ((await findLyrics(t)).instrumental) markInstrumental(t.videoId);
+  } catch (e) {
+    if (e instanceof YtmError) throw new Deferred(`Lyrics: ${e.message}`, 10 * 60_000);
+    throw e;
+  }
+  if (dueForWords(musicConfig())) throw new Deferred("Looking up the next song's lyrics", WORDS_GAP_MS);
+}
+
+const inLibrary = (videoId: string) => {
+  const t = musicConfig().library.find((x) => x.videoId === videoId);
+  if (!t) throw badRequest("That song isn't in the library");
+  return t;
+};
+
+/** A song's words as Mea has them (null: not looked up yet). */
+export function songWords(videoId: string) {
+  inLibrary(videoId);
+  return lyricsFor(videoId);
+}
+
+/** Words you paste for a song (plain or LRC); empty text forgets them, and they're looked up again. */
+export function setSongWords(videoId: string, text: string) {
+  inLibrary(videoId);
+  pasteLyrics(videoId, text);
+  if (!text.trim()) lyricsSoon();
+  return { words: lyricsFor(videoId), view: musicView() };
+}
+
+/** Find again: forgets what Mea has (pasted words too) and looks the song up now. */
+export async function findSongWords(videoId: string) {
+  const t = inLibrary(videoId);
+  if (!musicConfig().lyricsOnline) throw badRequest("Turn on Find lyrics online first");
+  const found = await findLyrics(t);
+  if (found.instrumental) markInstrumental(videoId);
+  return { words: lyricsFor(videoId), view: musicView() };
+}

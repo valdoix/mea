@@ -19,7 +19,7 @@ import { exposureAfterReply } from "./trackers/exposure";
 import { pressuresAfterReply } from "./trackers/pressures";
 import { promisesAfterReply } from "./trackers/promises";
 import { asidesAfterReply } from "./accuracy/asides";
-import { musicAfterReply } from "./music/director";
+import { lyricsStep, musicAfterReply } from "./music/director";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
@@ -118,6 +118,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("lore.keepup", async (p, job) => {
     await runKeepup(String(p.chatId), job);
   });
+  registerJob("music.lyrics", async () => lyricsStep());
   registerJob("lore.embed", async () => {
     await embedLore();
   });
