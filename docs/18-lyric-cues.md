@@ -191,7 +191,7 @@ A **Words** dial in Settings â€º Music: *Off* (today), *A little* (words score Ã
 
 ### 4.1 Seek
 
-`seekTo(conn, seconds)` in `ytmusic.ts`: th-ch's app `POST /api/v1/seek-to { seconds }`; the Companion Server's `seekTo` command (to confirm against its docs while building; without it, the Companion Server never lands, rule 6).
+`seekTo(conn, seconds)` in `ytmusic.ts`: th-ch's app `POST /api/v1/seek-to { seconds }`; the Companion Server's `seekTo` command with the seconds as a plain number (confirmed in its API docs while building Part 4). Both apps can land.
 
 ### 4.2 When it lands
 
@@ -203,7 +203,7 @@ On a cut (`musicAfterReply` playing a new pick), when all hold:
 
 Then Mea plays the song, waits until the player reports it (the same wait `pearPlay` uses), and seeks to **the start of the section before the passage**, or to 8 s before the passage when the sections are long, landing on a line start, never mid-word. Starting cold on the chorus sounds like a skip; a bar or two of run-up sounds like a choice.
 
-Never landed: the next song lined up as one ends (it plays from the top, as a song following a song should), a song you skipped to yourself, or the leitmotif when it was already the last song played (it's a return, from the top).
+Never landed: the next song lined up as one ends (it plays from the top, as a song following a song should), a song you skipped to yourself, or the leitmotif of the people here (it's a return, from the top).
 
 After a landed song ends, the next pick avoids landing again for that scene, so a scene isn't a run of choruses.
 

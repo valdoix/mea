@@ -35,6 +35,8 @@
     lyricsOnline: boolean;
     /** docs/18, 3.2: how much a song's words count when picking. */
     wordsDial: "off" | "little" | "lean";
+    /** docs/18, 4.2: start a song at the passage that fits ("auto": only on Lean in). */
+    landLine: "auto" | "on" | "off";
     words: Record<string, WordsState>;
     /** read: songs whose words have been read for what they're about (their lyric sheet). */
     wordsCount: { have: number; timed: number; pending: number; of: number; read: number };
@@ -290,6 +292,15 @@
           <option value="lean">Lean in: the words count fully, and a fitting chorus more</option>
         </select>
       </label>
+      {#if cfg.wordsDial !== "off"}
+        <label class="field words-dial"><span class="label">Land the line</span>
+          <select class="select" value={cfg.landLine} onchange={(e) => save({ landLine: e.currentTarget.value as Config["landLine"] })}>
+            <option value="auto">With Lean in: a new song starts just before the passage that fits</option>
+            <option value="on">Always: a new song starts just before the passage that fits</option>
+            <option value="off">Never: songs play from the top</option>
+          </select>
+        </label>
+      {/if}
       {#if cfg.wordsCount.of}
         <p class="tiny muted">Words for {cfg.wordsCount.have} of {cfg.wordsCount.of} songs ({cfg.wordsCount.timed} timed{#if cfg.wordsCount.read < cfg.wordsCount.have}, {cfg.wordsCount.read} read so far{/if}){#if cfg.lyricsOnline && cfg.wordsCount.pending} · looking up {cfg.wordsCount.pending}…{/if}</p>
       {/if}

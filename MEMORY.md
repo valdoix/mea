@@ -54,8 +54,8 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 |---|---|---|
 | 1 | Lyrics in the library (`song_lyrics`, LRCLIB → YouTube Music lyrics tab, paste) | merged, PR #145 |
 | 2 | Lyric sheets and the moment | merged, PR #146 |
-| 3 | Picking by the words | branch `claude/lyrics-picking` |
-| 4 | Landing the line (seek) | — |
+| 3 | Picking by the words | merged, PR #147 |
+| 4 | Landing the line (seek) | branch `claude/lyrics-landing` |
 
 ### Part 1 (2026-10-22)
 
@@ -79,6 +79,13 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 - Config `wordsDial` ("off" | "little" | "lean"), not `words`: `musicView` already has a per-song `words` map, and the spread would overwrite it.
 - Actions: `wrongWords` (keeps the song, clears `now.words`), `up` also raises `wordsYes`. `now.words` = { passage, situations, score } (Part 4 seeks with it).
 - Tests: `server/test/music-picking.test.ts`.
+
+### Part 4 (2026-10-22)
+
+- `ytmusic.ts` `seekTo`: th-ch `POST /api/v1/seek-to {seconds}`; Companion Server `{command: "seekTo", data: seconds}` (a plain number, per its API docs).
+- `words.ts` `landingPoint`: the section before the passage when it starts ≤ 25 s earlier, else the last line starting ≥ 8 s before; null for a passage before 0:20 or ending < 40 s from the end. `passageTimes`.
+- `director.ts`: config `landLine` ("auto" = only with Lean in, "on", "off"). `landingFor` (cut only, words score ≥ 1.5, timed, not a leitmotif, not twice in a scene via `ChatMusic.landedScene`); `play(..., { land })` waits until the app reports the song (`landAt`, 5 s), then seeks; `now.landed`. `nowSinging` + `GET /chats/:id/music/line` feed the chip's lyric strip (polled every second while the card is open; Words toggles it, kept in localStorage).
+- Tests: `server/test/music-landing.test.ts` (end to end against a fake Companion Server).
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
