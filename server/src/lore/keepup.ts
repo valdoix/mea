@@ -17,6 +17,7 @@ import { describeMinutes } from "../trackers/clock";
 import { milestoneAtoms } from "./bond";
 import { getLorebook, linkedBooks, scanEntriesFor, updateEntry } from "./service";
 import type { LoreEntry } from "./types";
+import { CATEGORY_INFO, categoryOf, loreTitle, type Category } from "./format";
 
 /**
  * Entries that keep up (docs/15, part 2). When the story changes something an entry describes,
@@ -87,8 +88,55 @@ interface ProposalRow {
 }
 
 const normName = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+const plainKeys = (ks: string[] | undefined) => (ks ?? []).filter((k) => !/^\/.*\/[a-z]*$/.test(k.trim()));
 const namesOfEntry = (e: ScanEntry) =>
-  new Set([...e.keys.filter((k) => !/^\/.*\/[a-z]*$/.test(k.trim())), ...(extraOf(e).aliases ?? []), extraOf(e).entity ?? "", e.comment].map(normName).filter((n) => n.length >= 2));
+  new Set([...plainKeys(e.keys), ...(extraOf(e).aliases ?? []), extraOf(e).entity ?? "", e.comment].map(normName).filter((n) => n.length >= 2));
+
+/** The kinds that are the whole of one person or thing: where they are, what they carry, their nicknames belong here. */
+const PROFILE_KINDS = new Set<Category>(["character", "item"]);
+/** Two people in a title ("Willy the Snitch & Buffy Summers", "Mira and Joss"). */
+const PAIR = /\s(?:&|\+|and|x|\/)\s|\s*&\s*/i;
+
+/**
+ * The names an entry is the profile of, or none. A belief, a relationship or a voice fires on a
+ * person's name too, but the trackers' "Where" and a memory about their family aren't about it.
+ * Without a kind, the title has to be the name itself ("Gabriel", "Gabriel Brennan (the Watcher)").
+ */
+function profileNames(e: ScanEntry): Set<string> {
+  const cat = categoryOf(e);
+  const type = extraOf(e).type;
+  if (cat ? !PROFILE_KINDS.has(cat) : type && type !== "character" && type !== "item") return new Set();
+  const names = namesOfEntry(e);
+  if (cat) return names;
+  const head = loreTitle(e).replace(/\s*[([].*$/, "").split(/\s[-–—|]\s|[:,]/)[0]!;
+  if (PAIR.test(head)) return new Set();
+  const words = new Set([...names].flatMap((n) => n.split(" ")));
+  const hw = normName(head).split(" ").filter(Boolean);
+  return hw.length && hw.every((w) => words.has(w)) ? names : new Set();
+}
+
+const TOPIC_SKIP = new Set(["everyone", "everything", "always", "never", "about", "would", "could", "should", "must"]);
+
+/**
+ * Does a memory touch what a non-profile entry is about? A relationship needs both its people; any
+ * other kind (a belief, a moment) needs one of its own words beyond the names it fires on.
+ */
+function aboutTopic(e: ScanEntry, text: string): boolean {
+  const n = ` ${normName(text)} `;
+  const has = (name: string) => name.length >= 3 && n.includes(` ${name} `);
+  const second = plainKeys(e.secondaryKeys).map(normName);
+  const sides = second.length
+    ? [plainKeys(e.keys).map(normName), second]
+    : loreTitle(e).split(PAIR).length > 1
+      ? loreTitle(e).split(PAIR).map((s) => [normName(s), ...normName(s).split(" ").filter((w) => w.length >= 3 && !["the", "and"].includes(w))])
+      : null;
+  if (sides) return sides.every((side) => side.some(has));
+  const x = extraOf(e);
+  const names = new Set([...plainKeys(e.keys), ...plainKeys(e.secondaryKeys), ...(x.aliases ?? []), x.entity ?? ""].flatMap((k) => normName(k).split(" ")));
+  const topic = telling(loreTitle(e)).filter((w) => !names.has(w) && !TOPIC_SKIP.has(w));
+  // A loose stem, so "protect" finds "protects" and "belief" finds "believes".
+  return topic.some((w) => n.includes(` ${w.length > 5 ? w.slice(0, -1) : w}`));
+}
 
 /** One line of a diff: "Where: Riverrun → the inn at Saltpans", "+ Carries: a knife", "− Injury (arm): wound". */
 export function opLine(o: FactOp) {
@@ -139,7 +187,7 @@ function itemWants(it: Item, st: WorldState): Want[] {
 function trackedFor(entries: ScanEntry[], st: WorldState, personaBooks: Set<string> = new Set()) {
   const out: { entry: ScanEntry; wants: Want[] }[] = [];
   for (const e of entries) {
-    const names = namesOfEntry(e);
+    const names = profileNames(e);
     if (!names.size) continue;
     // 8.2: your persona's own lorebook keeps up with your character too.
     const c = Object.values(st.chars).find((x) => (!x.isUser || personaBooks.has(e.bookId)) && [x.name, ...x.aliases].some((n) => names.has(normName(n))));
@@ -195,9 +243,10 @@ interface AtomLite {
   msg: string | null;
 }
 
-function newAtoms(chatId: string, e: ScanEntry, since: number): AtomLite[] {
+/** The new memories about an entry, and how far it read (past the ones that weren't about it, so they aren't read again). */
+function newAtoms(chatId: string, e: ScanEntry, since: number): { atoms: AtomLite[]; at: number } {
   const names = [...namesOfEntry(e)].filter((n) => n.length >= 3);
-  if (!names.length) return [];
+  if (!names.length) return { atoms: [], at: since };
   const rows = all<AtomLite & { entities: string }>(
     `SELECT a.id, a.content, a.created_at, a.entities,
        (SELECT s.message_id FROM memory_sources s JOIN messages m ON m.id = s.message_id WHERE s.memory_id = a.id AND m.deleted_at IS NULL ORDER BY s.seq DESC LIMIT 1) AS msg
@@ -206,12 +255,22 @@ function newAtoms(chatId: string, e: ScanEntry, since: number): AtomLite[] {
     chatId,
     since,
   );
-  return rows.filter((a) => parseJson<string[]>(a.entities, []).some((n) => names.includes(normName(n))) || names.some((n) => normName(a.content).includes(n))).slice(-20);
+  const profile = profileNames(e).size > 0;
+  const atoms = rows
+    .filter((a) => parseJson<string[]>(a.entities, []).some((n) => names.includes(normName(n))) || names.some((n) => normName(a.content).includes(n)))
+    .filter((a) => profile || aboutTopic(e, a.content))
+    .slice(-20);
+  return { atoms, at: rows.at(-1)?.created_at ?? since };
 }
 
 async function memoryOps(chatId: string, e: ScanEntry, atoms: AtomLite[], facts: LoreFact[], job?: JobContext): Promise<FactOp[]> {
   if (!atoms.length || shouldShed("verification", chatId)) return [];
   const title = e.comment || e.keys[0] || "this entry";
+  const cat = categoryOf(e);
+  // Only what this entry covers: a belief's facts are about the belief, not the believer's scars.
+  const scope = profileNames(e).size
+    ? `This entry is the profile of ${title}.`
+    : `This entry is${cat ? ` a ${CATEGORY_INFO[cat].label.toLowerCase()} (${CATEGORY_INFO[cat].hint})` : ""} about "${title}" only, not a profile of the people it names. Propose only changes to what it covers; a fact about a person that isn't about this (their body, home, family, habits) belongs in their own entry: skip it. Most memories won't change it; an empty list is the usual answer.`;
   const F = facts.map((f, i) => ({ ref: `F${i + 1}`, f }));
   const A = atoms.map((a, i) => ({ ref: `M${i + 1}`, a }));
   let data: z.infer<typeof opsSchema>;
@@ -224,7 +283,7 @@ async function memoryOps(chatId: string, e: ScanEntry, atoms: AtomLite[], facts:
         jobId: job?.id,
         name: "lore_keepup",
         schema: opsSchema,
-        system: `You keep a lorebook entry's facts true to a story. You get the entry, its facts now (F1…) and new memories from the story (M1…). Propose only changes the memories clearly state about ${title}: a new lasting fact (a nickname, a habit, a new home, something they can or can't do), a new value for a fact (supersede it: name the fact), or a fact that stopped being true (retire it). Facts are short and exact: keep names, numbers, sides and colours word for word. Skip passing moods, one-off actions and anything already in the facts or the entry. Every operation must cite the memory it rests on. Reply with JSON only: {"ops": [{"op": "add|supersede|retire", "slot": "short label or null", "value": "the fact", "fact": "F2 for supersede/retire", "cite": "M3"}]}`,
+        system: `You keep a lorebook entry's facts true to a story. You get the entry, its facts now (F1…) and new memories from the story (M1…). ${scope} Propose only changes the memories clearly state about ${title}: a new lasting fact (a nickname, a habit, a new home, something they can or can't do), a new value for a fact (supersede it: name the fact), or a fact that stopped being true (retire it). Facts are short and exact: keep names, numbers, sides and colours word for word. Skip passing moods, one-off actions and anything already in the facts or the entry. Every operation must cite the memory it rests on. Reply with JSON only: {"ops": [{"op": "add|supersede|retire", "slot": "short label or null", "value": "the fact", "fact": "F2 for supersede/retire", "cite": "M3"}]}`,
         user: `ENTRY: ${title}\n${e.content.slice(0, 1500)}\n\nFACTS NOW:\n${F.map((x) => `${x.ref}. ${factLine(x.f)}`).join("\n") || "(none)"}\n\nNEW MEMORIES:\n${A.map((x) => `${x.ref}. ${x.a.content}`).join("\n")}`,
         maxTokens: 700,
       })
@@ -458,14 +517,18 @@ export async function runKeepup(chatId: string, job?: JobContext, opts: { memori
       continue;
     }
     const wants = tracked.get(e.id);
-    const atoms = opts.memories === false ? [] : newAtoms(chatId, e, cur.atoms_at);
-    if (!wants && !atoms.length) continue;
+    const read = opts.memories === false ? { atoms: [], at: cur.atoms_at } : newAtoms(chatId, e, cur.atoms_at);
+    const atoms = read.atoms;
+    if (!wants && !atoms.length) {
+      if (read.at !== cur.atoms_at) setCursor(e.id, chatId, latest, read.at);
+      continue;
+    }
     const facts = factsNow(e.id, chatId);
     let ops: FactOp[] = wants ? trackerOps(e.id, chatId, wants, facts, { changes, onPath }) : [];
     const taken = new Set(ops.map((o) => o.factId ?? `slot:${o.slot}`));
     // The memories' changes, minus any a tracker change already covers.
     for (const o of await memoryOps(chatId, e, atoms, facts, job)) if (!taken.has(o.factId ?? `slot:${o.slot}`) || !o.slot) ops.push(o);
-    setCursor(e.id, chatId, latest, atoms.at(-1)?.created_at ?? cur.atoms_at);
+    setCursor(e.id, chatId, latest, read.at);
     // Asked before and told no: not again for the same change.
     const no = rejectedSigs(e.id, chatId);
     ops = ops.filter((o) => !no.has(opSig(e.id, o)));

@@ -164,3 +164,25 @@ describe("2.2 proposals from memories", () => {
     expect(factsNow(wren, chatId).some((f) => f.value === "Birdie")).toBe(false);
   });
 });
+
+describe("only the entry a change is about", () => {
+  test("a belief or a relationship that fires on a name gets neither the trackers' facts nor the person's memories", async () => {
+    const belief = createEntry(bookId, defaultEntry({ comment: "Wren's Belief: The River Keeps Its Dead", keys: ["Wren"], content: "Wren believes the river keeps what it takes.", extra: { category: "belief", entity: "Wren" } })).id;
+    const pair = createEntry(bookId, defaultEntry({ comment: "Wren & Joss", keys: ["Wren"], content: "Wren and Joss grew up on the same pier." })).id;
+    const on = (id: string) => updateProposals(chatId).filter((p) => p.kind === "update" && p.entryId === id);
+    msgs.push(addMessage(chatId, "assistant", "Wren poles to Harlow Pier.", { name: "Wren" }));
+    story(10, ["at: Harlow Pier"]);
+    createAtom(chatId, { type: "fact", content: "Wren goes by Wrenny at the docks", entities: ["Wren"], importance: 6, messageIds: [msgs[10]!] });
+    await runKeepup(chatId);
+    expect(on(belief)).toHaveLength(0);
+    expect(on(pair)).toHaveLength(0);
+    // Wren's own entry still keeps up.
+    expect(cards().some((c) => c.diff.ops.some((o) => o.slot === "where" && o.value === "Harlow Pier"))).toBe(true);
+    // A memory about what the entry covers still reaches it.
+    createAtom(chatId, { type: "fact", content: "Wren goes by Ferrywoman since the river took her brother", entities: ["Wren"], importance: 6, messageIds: [msgs[9]!] });
+    createAtom(chatId, { type: "fact", content: "Wren goes by Pierkid around Joss", entities: ["Wren", "Joss"], importance: 6, messageIds: [msgs[9]!] });
+    await runKeepup(chatId);
+    expect(on(belief).flatMap((c) => c.diff.ops.map((o) => o.value))).toEqual(["Ferrywoman"]);
+    expect(on(pair).flatMap((c) => c.diff.ops.map((o) => o.value))).toEqual(["Pierkid"]);
+  });
+});
