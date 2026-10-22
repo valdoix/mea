@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { setSetting } from "../src/lib/settings";
-import { addTrack, chatMusicView, connectFinish, connectStart, cueFrom, musicAction, musicAfterReply, musicTick, musicConfig, musicView, pickTrack, saveMusicConfig } from "../src/music/director";
+import { addTrack, chatMusicView, connectFinish, connectStart, type Cue, cueFrom, type Mood, musicAction, musicAfterReply, musicTick, musicConfig, musicView, pickTrack, saveMusicConfig } from "../src/music/director";
 import { videoIdOf } from "../src/music/ytmusic";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
@@ -108,6 +108,25 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     await flush();
     expect(sent.filter((s) => s.path === "/command").length).toBe(cmds.length + 1);
     expect(chatMusicView(chatId).now?.title).toBe("Fight Song");
+    // The mood shifting within the scene: the song plays on (the next one follows the new mood).
+    const calmer = addMessage(chatId, "assistant", "She laughs it off.", { name: "Mira" });
+    writeEvents(chatId, { messageId: calmer, swipeIdx: 0 }, linesToOps(["mood Mira: happy"]).ops, "model");
+    musicAfterReply(chatId, calmer);
+    await flush();
+    expect(sent.filter((s) => s.path === "/command").length).toBe(cmds.length + 1);
+    expect(chatMusicView(chatId).now?.title).toBe("Fight Song");
+  });
+
+  test("the picker varies: the songs that fit take turns, none back while it's recent", () => {
+    const library = Array.from({ length: 12 }, (_, i) => ({ videoId: `v${String(i).padStart(10, "0")}`, title: `T${i}`, artist: "X", moods: [i < 8 ? "tense" : "calm"] as Mood[], instrumental: false }));
+    const cfg = { ...musicConfig(), leitmotifs: [], library };
+    const cue: Cue = { moods: ["tense"], intensity: 0, hour: null, weather: "", place: "", genre: null, present: [], key: "k" };
+    const played: string[] = [];
+    for (let i = 0; i < 40; i++) played.unshift(pickTrack(cfg, cue, { recent: played.slice(0, 60) })!.track.videoId);
+    // Every tense song, and no calm one.
+    expect(new Set(played)).toEqual(new Set(library.slice(0, 8).map((t) => t.videoId)));
+    // Of 8, the last 5 sit out: a song is at least 6 picks apart from itself.
+    played.forEach((v, i) => expect(played.slice(i + 1, i + 6)).not.toContain(v));
   });
 
   test("your hand: thumbs, skip, not for this scene, play/pause", async () => {

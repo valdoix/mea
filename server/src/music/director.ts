@@ -239,6 +239,8 @@ interface ChatMusic {
   notFor?: Record<string, string[]>;
   recent?: string[];
   lastKey?: string;
+  /** The scene the director last looked at: a new one is a beat. */
+  lastScene?: number;
   now?: { videoId: string; title: string; artist: string; key: string; why: string; at: number } | null;
 }
 const chatMusic = (chatId: string) => (parseJson<ChatSettings>(mustChat(chatId).settings, {}).music ?? {}) as ChatMusic;
@@ -256,26 +258,53 @@ export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { 
   const banned = cfg.taste.banned.map((a) => a.toLowerCase());
   const preferred = cfg.taste.preferred.map((a) => a.toLowerCase());
   const skip = new Set([...(music.notFor?.[cue.key] ?? []), ...(opts.exclude ?? [])]);
-  const recent = music.recent ?? [];
   const motif = leitmotifFor(cfg, cue.present);
-  let best: { track: Track; score: number; why: string } | null = null;
   // "Hozier & Bear McCreary" is a Hozier song.
   const byAny = (names: string[], artist: string) => names.some((a) => a && artist.toLowerCase().includes(a));
-  for (const t of cfg.library) {
-    if (skip.has(t.videoId) || byAny(banned, t.artist)) continue;
-    if (opts.dialogue && cfg.taste.instrumentalInDialogue && !t.instrumental) continue;
-    const overlap = t.moods.filter((m) => cue.moods.includes(m));
-    let score = overlap.length * 2 + (t.moods[0] && t.moods[0] === cue.moods[0] ? 1 : 0);
-    let why = overlap.length ? `fits: ${overlap.join(", ")}` : "nothing closer";
-    if (motif?.videoId === t.videoId) {
-      score += 6;
-      why = `${motif.who}'s theme`;
-    }
-    score += (music.votes?.[t.videoId] ?? 0) + (byAny(preferred, t.artist) ? 1 : 0) - (recent.includes(t.videoId) ? 3 : 0);
-    // A tie goes either way, so the same song doesn't always win.
-    if (!best || score > best.score || (score === best.score && Math.random() < 0.5)) best = { track: t, score, why };
-  }
-  return best ? { track: best.track, why: best.why } : null;
+  const allowed = cfg.library.filter((t) => !skip.has(t.videoId) && !byAny(banned, t.artist) && !(opts.dialogue && cfg.taste.instrumentalInDialogue && !t.instrumental));
+  // Songs played lately sit out, the latest first: as many as leaves a few that suit the lead mood
+  // (or, with none that do, a few of any), and always the last one if there's another.
+  const leads = allowed.filter((t) => cue.moods[0] && t.moods.includes(cue.moods[0]));
+  const pool = leads.length ? leads : allowed;
+  const recent = music.recent ?? [];
+  const out = new Set(recent.filter((v) => pool.some((t) => t.videoId === v)).slice(0, Math.max(Math.min(1, pool.length - 1), pool.length - FRESH_POOL)));
+  const scored = allowed
+    .filter((t) => !out.has(t.videoId))
+    .map((t) => {
+      const overlap = t.moods.filter((m) => cue.moods.includes(m));
+      let score = overlap.length * 2 + (t.moods[0] && t.moods[0] === cue.moods[0] ? 1 : 0);
+      let why = overlap.length ? `fits: ${overlap.join(", ")}` : "nothing closer";
+      if (motif?.videoId === t.videoId) {
+        score += 6;
+        why = `${motif.who}'s theme`;
+      }
+      score += (music.votes?.[t.videoId] ?? 0) + (byAny(preferred, t.artist) ? 1 : 0);
+      return { track: t, score, why, lead: Boolean(cue.moods[0] && t.moods.includes(cue.moods[0])) };
+    });
+  if (!scored.length) return null;
+  // The theme of the people here comes back whenever it hasn't played lately.
+  const theme = scored.find((s) => s.track.videoId === motif?.videoId);
+  if (theme) return { track: theme.track, why: theme.why };
+  // Not always the one best fit: any song close to it can play, the closer the likelier, and one
+  // still in the history (played a while ago) less so. One that misses the lead mood never stands
+  // in for one that has it.
+  const top = Math.max(...scored.map((s) => s.score));
+  const lead = scored.some((s) => s.lead && s.score === top);
+  const near = scored.filter((s) => s.score >= top - 2 && (s.lead || !lead)).map((s) => ({ ...s, weight: 3 ** (s.score - top) * (recent.includes(s.track.videoId) ? 0.4 : 1) }));
+  let roll = Math.random() * near.reduce((n, s) => n + s.weight, 0);
+  const pick = near.find((s) => (roll -= s.weight) < 0) ?? near.at(-1)!;
+  return { track: pick.track, why: pick.why };
+}
+
+/** How many songs a play history leaves to choose from, and how far back it goes. */
+const FRESH_POOL = 3;
+const HISTORY = 60;
+
+/** The song playing still suits the scene: it's the lead mood, or the theme of the people here. */
+function stillFits(cfg: MusicConfig, cue: Cue, videoId: string) {
+  if (leitmotifFor(cfg, cue.present)?.videoId === videoId) return true;
+  const t = cfg.library.find((x) => x.videoId === videoId);
+  return Boolean(t && cue.moods[0] && t.moods.includes(cue.moods[0]));
 }
 
 /** A big moment in this reply's records: someone died, a secret came out, a promise kept or broken, romance moved. */
@@ -292,13 +321,14 @@ type Pick = { track: Track; why: string };
 /** What's playing for this chat now (the header shows it), and what's played lately. */
 function remember(chatId: string, pick: Pick, key: string) {
   const m = chatMusic(chatId);
-  setChatMusic(chatId, { lastKey: key, recent: [pick.track.videoId, ...(m.recent ?? []).filter((v) => v !== pick.track.videoId)].slice(0, 6), now: { videoId: pick.track.videoId, title: pick.track.title, artist: pick.track.artist, key, why: pick.why, at: Date.now() } });
+  setChatMusic(chatId, { lastKey: key, recent: [pick.track.videoId, ...(m.recent ?? []).filter((v) => v !== pick.track.videoId)].slice(0, HISTORY), now: { videoId: pick.track.videoId, title: pick.track.title, artist: pick.track.artist, key, why: pick.why, at: Date.now() } });
 }
 
 async function play(chatId: string, cfg: MusicConfig, pick: Pick, key: string) {
   if (!cfg.token) return;
   await command(cfg, { command: "changeVideo", data: { videoId: pick.track.videoId } });
-  pending = null;
+  // A song already queued in the app still follows this one, so it stays lined up.
+  if (!pending?.queued || pending.track.videoId === pick.track.videoId) pending = null;
   remember(chatId, pick, key);
   watch(chatId);
 }
@@ -307,7 +337,7 @@ async function play(chatId: string, cfg: MusicConfig, pick: Pick, key: string) {
 
 /** The chat whose soundtrack is playing, and the song lined up to follow this one. */
 let active: string | null = null;
-let pending: (Pick & { key: string; chatId: string }) | null = null;
+let pending: (Pick & { key: string; chatId: string; queued: boolean }) | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let ticking = false;
 /** Seconds before the end that the next song is lined up. */
@@ -361,8 +391,11 @@ export async function musicTick() {
       const cue = cueFrom(currentFold(chatId).result.state, storyDials(mustChat(chatId)).genre);
       const pick = pickTrack(cfg, cue, m, { exclude: [m.now.videoId] });
       if (!pick) return;
-      pending = { ...pick, key: cue.key, chatId };
-      if (!ended && (await queueNext(cfg, pick.track.videoId))) return;
+      pending = { ...pick, key: cue.key, chatId, queued: false };
+    }
+    if (!ended && !pending.queued) {
+      pending.queued = await queueNext(cfg, pending.track.videoId);
+      if (pending.queued) return;
     }
     if (ended) await play(chatId, cfg, pending, pending.key);
   } catch (e) {
@@ -373,8 +406,10 @@ export async function musicTick() {
 }
 
 /**
- * The director (an onTrackerUpdate hook): music changes on beats only. Never throws; YouTube Music
- * not answering just means the music holds.
+ * The director (an onTrackerUpdate hook). A song plays to its end unless the story turns: a new
+ * scene or a big moment cuts to a new song, and only if the one playing doesn't suit it. A mood or
+ * the time of day shifting within a scene doesn't cut; the next song, picked as this one ends, follows
+ * it. Never throws; YouTube Music not answering just means the music holds.
  */
 export function musicAfterReply(chatId: string, messageId: string) {
   void (async () => {
@@ -388,11 +423,13 @@ export function musicAfterReply(chatId: string, messageId: string) {
     if (!cfg.library.length) return;
     const st = currentFold(chatId).result.state;
     const cue = cueFrom(st, storyDials(mustChat(chatId)).genre);
-    const beat = cue.key !== music.lastKey || bigMoment(messageId, chatId);
-    if (!beat) return;
+    const start = !music.now || !music.lastKey;
+    const turn = (music.lastScene !== undefined && st.sceneNo !== music.lastScene) || bigMoment(messageId, chatId);
+    if (!start && !(turn && !stillFits(cfg, cue, music.now!.videoId))) return void setChatMusic(chatId, { lastScene: st.sceneNo });
     const text = one<{ content: string }>("SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.id = ?", messageId)?.content ?? "";
-    const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: music.now ? [music.now.videoId] : [] });
+    const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: [music.now?.videoId, pending?.queued ? pending.track.videoId : undefined].filter((v): v is string => Boolean(v)) });
     if (pick) await play(chatId, cfg, pick, cue.key);
+    setChatMusic(chatId, { lastScene: st.sceneNo });
   })().catch((e) => {
     if (!(e instanceof YtmError)) console.error("[mea] soundtrack:", (e as Error).message);
   });
