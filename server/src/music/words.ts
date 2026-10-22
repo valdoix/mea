@@ -236,14 +236,17 @@ const GRIEF_MOOD = /\b(grief|griev|mourn|bereft|heartbroken)/i;
 const FEAR_MOOD = /\b(terrif|panic|horrif)/i;
 
 /**
- * Situations the tracker records already say, for free (2.3, layer 1): a death is grief, a secret
- * coming out a confession (a betrayal when trust fell with it), romance moving up first love or
- * devotion and down a goodbye, a promise broken a betrayal, someone leaving or coming back, a
- * fight, the road, and the scene after a fight.
+ * Situations the tracker records already say, for free (2.3, layer 1). Firm ones mean it: a death is
+ * grief, a secret coming out a confession (a betrayal when trust fell with it), romance moving up
+ * first love or devotion and down a goodbye, a promise broken a betrayal, a fight, the road, and the
+ * scene after a fight. Hints only might: someone walking off or turning up, a grieving or frightened
+ * mood. A hint alone is often wrong (a friend wandering to the next rack isn't a farewell), so the
+ * reply decides when it's read. Someone who stayed behind when the scene moved isn't anyone leaving.
  */
-export function situationsFromRecords(changes: Change[], st: WorldState, prev?: Moment | null): Situation[] {
-  const out: Situation[] = [];
-  const add = (s: Situation) => !out.includes(s) && out.push(s);
+export function recordsSay(changes: Change[], st: WorldState, prev?: Moment | null): { firm: Situation[]; hints: Situation[] } {
+  const firm: Situation[] = [];
+  const hints: Situation[] = [];
+  const add = (s: Situation, to = firm) => !firm.includes(s) && !to.includes(s) && to.push(s);
   const trustFell = changes.some((c) => c.kind === "bond" && /\.trust$/.test(c.path) && c.tone === "down");
   for (const c of changes) {
     if (c.kind === "death") add("grief");
@@ -253,17 +256,23 @@ export function situationsFromRecords(changes: Change[], st: WorldState, prev?: 
       if (c.tone === "down") add("goodbye");
       else add(tier >= 5 ? "devotion" : "first love");
     } else if (c.kind === "promise") add(/kept/i.test(c.text) ? "devotion" : "betrayal");
-    else if (c.kind === "cast" && /\b(left|stayed behind)\b/.test(c.text)) add("leaving");
-    else if (c.kind === "cast" && /\barrived\b/.test(c.text)) add("reunion");
-    else if (c.kind === "mood" && GRIEF_MOOD.test(String(c.to ?? ""))) add("grief");
-    else if (c.kind === "mood" && FEAR_MOOD.test(String(c.to ?? ""))) add("fear");
+    else if (c.kind === "cast" && /\bleft\b/.test(c.text)) add("leaving", hints);
+    else if (c.kind === "cast" && /\barrived\b/.test(c.text)) add("reunion", hints);
+    else if (c.kind === "mood" && GRIEF_MOOD.test(String(c.to ?? ""))) add("grief", hints);
+    else if (c.kind === "mood" && FEAR_MOOD.test(String(c.to ?? ""))) add("fear", hints);
   }
-  if (trustFell && !out.includes("betrayal")) add("betrayal");
+  if (trustFell) add("betrayal");
   const mode = (st.mode ?? "").toLowerCase();
   if (/conflict|fight|combat|battle/.test(mode)) add("the fight");
   else if (prev?.situations.includes("the fight")) add("aftermath");
   if (/travel|journey/.test(mode)) add("the road");
-  return out.slice(0, 4);
+  return { firm, hints: hints.filter((s) => !firm.includes(s)) };
+}
+
+/** Everything the records say, firm first. */
+export function situationsFromRecords(changes: Change[], st: WorldState, prev?: Moment | null): Situation[] {
+  const { firm, hints } = recordsSay(changes, st, prev);
+  return [...firm, ...hints].slice(0, 4);
 }
 
 const momentReply = z.object({ gist: z.string().default(""), situations: z.array(z.string()).default([]) });

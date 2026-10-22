@@ -108,6 +108,18 @@ describe("the moment (2.3)", () => {
     expect(situationsFromRecords([], st("conflict"))).toEqual(["the fight"]);
     expect(situationsFromRecords([], st("calm"), { situations: ["the fight"], gist: "", key: "", from: "records", at: 0 })).toEqual(["aftermath"]);
     expect(situationsFromRecords([change("promise", "Promise broken: be there")], st("travel"))).toEqual(["betrayal", "the road"]);
+    // The scene moving on without someone isn't anyone leaving.
+    expect(situationsFromRecords([change("cast", "Tam stayed behind (the café)")], st())).toEqual([]);
+  });
+
+  test("hints from the records (someone walking off, a sad mood) don't outvote the reply", async () => {
+    const text = "She drops the blue shirt in his basket. Forever, she thinks, and lets him keep his hand at her waist.";
+    const id = addMessage(chatId, "assistant", text, { name: "Mira" });
+    writeEvents(chatId, { messageId: id, swipeIdx: 0 }, linesToOps(["cast: Mira@spot · Spike@left", "mood Mira: heartbroken"]).ops, "model");
+    const state = currentFold(chatId).result.state;
+    expect(situationsFromRecords(currentFold(chatId).result.changes[id] ?? [], state)).toEqual(["leaving", "grief"]);
+    const m = await momentAt(chatId, id, state, cueFrom(state, null), text, null);
+    expect(m).toMatchObject({ situations: ["devotion"], from: "reply" });
   });
 
   test("with fewer than two from the records, one helper call reads the reply; the same beat reuses it", async () => {
