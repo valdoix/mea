@@ -163,8 +163,11 @@ function castArgs(rest: string) {
       const where = tags.filter((t) => t && !TIER_WORD.test(t)).join(", ");
       return { name: name!.trim(), tier, note: note || where || undefined };
     })
-    .filter((c) => c.name);
+    .filter((c) => c.name && !castLabel(c.name));
 }
+
+/** "traits: college-aged, lip ring" written into a cast line: a field about someone, never a person. */
+export const castLabel = (name: string) => /^[a-z][a-z ]{0,24}:\s*\S/i.test(name.trim());
 
 /** "a | b · c · d" → ["a", ["b","c","d"]] */
 function pipe(rest: string): [string, string[]] {

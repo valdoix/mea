@@ -91,3 +91,24 @@ describe("a regenerate with notes", () => {
     expect(turnKey(history, undefined, "  ")).toBe(turnKey(history));
   });
 });
+
+describe("fields written into a cast line", () => {
+  const line = "cast: Shannon@spot · traits: college-aged, lip ring, lanyard SHANNON, crossword, wordless";
+
+  test("are not people", () => {
+    const st = foldEvents(events([camp, [line]]), cfg).state;
+    const names = Object.values(st.chars).map((c) => c.name);
+    expect(names).toContain("Shannon");
+    for (const bad of ["traits: college-aged", "lip ring", "lanyard SHANNON", "crossword", "wordless"]) expect(names).not.toContain(bad);
+  });
+
+  test("events stored before the parser dropped them fold the same", () => {
+    const ev = events([camp, [line]]);
+    const cast = ev.at(-1)!;
+    cast.op = { ...cast.op, args: { list: [{ name: "Shannon", tier: "spot" }, { name: "traits: college-aged, lip ring, crossword", tier: "spot" }] } };
+    const names = Object.values(foldEvents(ev, cfg).state.chars).map((c) => c.name);
+    expect(names).toContain("Shannon");
+    expect(names).not.toContain("lip ring");
+    expect(names).not.toContain("crossword");
+  });
+});

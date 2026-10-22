@@ -3,7 +3,7 @@ import { itemsAt } from "./belongings";
 import type { SimOp } from "../sim/types";
 import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
-import { parseLine } from "./dsl";
+import { castLabel, parseLine } from "./dsl";
 import { applyPatch, type Change as PatchChange } from "./patch";
 import type { Template } from "./schema";
 import {
@@ -627,7 +627,9 @@ export class Folder {
       case "cast": {
         const turn = this.castTurn(ctx);
         turn.cast = true;
-        for (const it of (a.list as { name: string; tier: string; note?: string }[]).flatMap((x) => this.each(x.name).map((name) => ({ ...x, name })))) {
+        // Events stored before castArgs dropped "traits: …" bits still carry them.
+        const list = (a.list as { name: string; tier: string; note?: string }[]).filter((x) => !castLabel(x.name));
+        for (const it of list.flatMap((x) => this.each(x.name).map((name) => ({ ...x, name })))) {
           const c = this.person(it.name, seq);
           if (!c) continue;
           turn.named.add(c.id);
