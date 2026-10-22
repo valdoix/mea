@@ -48,6 +48,11 @@
     }),
   );
 
+  // Show only the portraits that fit, so the rail never overflows and the
+  // buttons at its foot stay put when stories or the quota ring come and go.
+  let storiesH = $state(0);
+  const fit = $derived(Math.max(0, Math.min(chats.length, Math.floor((storiesH - 17) / 50))));
+
   const nav = [
     { href: "/", label: "Home", icon: House, match: ["home", "character"] },
     { href: "/personas", label: "Personas", icon: Users, match: ["personas"] },
@@ -71,19 +76,18 @@
     </a>
   {/each}
 
-  {#if chats.length}
-    <hr />
-    <div class="stories">
-      {#each chats as c (c.id)}
+  <div class="stories" bind:clientHeight={storiesH}>
+    {#if fit}
+      <hr />
+      {#each chats.slice(0, fit) as c (c.id)}
         <a href="/chat/{c.id}" class="story" class:on={route.name === "chat" && route.params.id === c.id} aria-label={c.characterName ?? c.title}>
           <Avatar id={c.avatarId} name={c.characterName ?? "?"} size={40} />
           <span class="tip">{c.characterName ?? "Unknown"} · <span class="faint">{c.title}</span></span>
         </a>
       {/each}
-    </div>
-  {/if}
+    {/if}
+  </div>
 
-  <span class="grow"></span>
   {#if app.activity.running > 0}<span class="weaving" title="Working in the background"></span>{/if}
   <span class="quota"><QuotaRing /></span>
   <button class="nav" onclick={() => (palette.open = true)} aria-label="Jump to anything"><Search size={19} /><span class="tip">Jump to anything</span></button>
@@ -94,6 +98,7 @@
 
 <style>
   .rail {
+    position: relative;
     width: 76px;
     height: 100%;
     display: flex;
@@ -226,7 +231,8 @@
     flex-direction: column;
     gap: 10px;
     align-items: center;
-    flex: none;
+    flex: 1 1 0;
+    min-height: 8px;
   }
   .story {
     position: relative;
@@ -256,18 +262,17 @@
     width: max-content;
     max-width: min(22rem, calc(100vw - 80px));
   }
-  .grow {
-    flex: 1;
-    min-height: 8px;
-  }
   .weaving {
+    position: absolute;
+    top: 12px;
+    right: 10px;
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--sea);
     box-shadow: 0 0 10px var(--sea);
     animation: lantern-glow 1.2s ease-in-out infinite alternate;
-    margin-bottom: 6px;
+    pointer-events: none;
   }
   .quota {
     margin-bottom: 4px;
@@ -278,10 +283,6 @@
     opacity: 0.7;
   }
   @media (max-height: 720px) {
-    .stories,
-    hr {
-      display: none;
-    }
     .nav {
       height: 40px;
     }
