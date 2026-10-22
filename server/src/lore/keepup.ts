@@ -97,23 +97,41 @@ const PROFILE_KINDS = new Set<Category>(["character", "item"]);
 /** Two people in a title ("Willy the Snitch & Buffy Summers", "Mira and Joss"). */
 const PAIR = /\s(?:&|\+|and|x|\/)\s|\s*&\s*/i;
 
+/** A kind named in the title ("Voice: Gabriel", "Character - Gabriel"), and the rest of it. */
+function titledKind(e: ScanEntry): { kind: Category; rest: string } | null {
+  const m = loreTitle(e).match(/^\s*([^:|\-–—]+?)\s*(?::|\s[-–—|]\s)\s*(.+)$/);
+  if (!m) return null;
+  const label = normName(m[1]!);
+  const kind = (Object.keys(CATEGORY_INFO) as Category[]).find((k) => k === label || normName(CATEGORY_INFO[k].label) === label);
+  return kind ? { kind, rest: m[2]! } : null;
+}
+
+/** The entry's kind: the one it's set to, else one its title names. */
+const kindOf = (e: ScanEntry): Category | null => categoryOf(e) ?? titledKind(e)?.kind ?? null;
+
 /**
  * The names an entry is the profile of, or none. A belief, a relationship or a voice fires on a
  * person's name too, but the trackers' "Where" and a memory about their family aren't about it.
- * Without a kind, the title has to be the name itself ("Gabriel", "Gabriel Brennan (the Watcher)").
+ * Without a kind set, the title (after a "Character:" prefix) has to be the name itself ("Gabriel",
+ * "Character: Gabriel Brennan (the Watcher)"); "Voice: Gabriel" is a voice, not Gabriel.
  */
 function profileNames(e: ScanEntry): Set<string> {
   const cat = categoryOf(e);
+  const titled = cat ? null : titledKind(e);
+  const kind = cat ?? titled?.kind;
   const type = extraOf(e).type;
-  if (cat ? !PROFILE_KINDS.has(cat) : type && type !== "character" && type !== "item") return new Set();
+  if (kind ? !PROFILE_KINDS.has(kind) : type && type !== "character" && type !== "item") return new Set();
   const names = namesOfEntry(e);
   if (cat) return names;
-  const head = loreTitle(e).replace(/\s*[([].*$/, "").split(/\s[-–—|]\s|[:,]/)[0]!;
+  const head = (titled?.rest ?? loreTitle(e)).replace(/\s*[([].*$/, "").split(/\s[-–—|]\s|[:,]/)[0]!;
   if (PAIR.test(head)) return new Set();
   const words = new Set([...names].flatMap((n) => n.split(" ")));
   const hw = normName(head).split(" ").filter(Boolean);
   return hw.length && hw.every((w) => words.has(w)) ? names : new Set();
 }
+
+/** What a memory says when it's about how someone talks (stems: "call" finds "calls her little fish"). */
+const VOICE_WORDS = ["say", "said", "call", "voice", "talk", "speak", "spoke", "swear", "swore", "curse", "cursing", "accent", "phrase", "catchphrase", "greet", "nicknam", "pet name", "whisper", "mutter", "drawl", "stammer", "stutter", "tone", "word"];
 
 const TOPIC_SKIP = new Set(["everyone", "everything", "always", "never", "about", "would", "could", "should", "must"]);
 
@@ -134,6 +152,7 @@ function aboutTopic(e: ScanEntry, text: string): boolean {
   const x = extraOf(e);
   const names = new Set([...plainKeys(e.keys), ...plainKeys(e.secondaryKeys), ...(x.aliases ?? []), x.entity ?? ""].flatMap((k) => normName(k).split(" ")));
   const topic = telling(loreTitle(e)).filter((w) => !names.has(w) && !TOPIC_SKIP.has(w));
+  if (kindOf(e) === "voice" && VOICE_WORDS.some((w) => n.includes(` ${w}`))) return true;
   // A loose stem, so "protect" finds "protects" and "belief" finds "believes".
   return topic.some((w) => n.includes(` ${w.length > 5 ? w.slice(0, -1) : w}`));
 }
@@ -266,7 +285,7 @@ function newAtoms(chatId: string, e: ScanEntry, since: number): { atoms: AtomLit
 async function memoryOps(chatId: string, e: ScanEntry, atoms: AtomLite[], facts: LoreFact[], job?: JobContext): Promise<FactOp[]> {
   if (!atoms.length || shouldShed("verification", chatId)) return [];
   const title = e.comment || e.keys[0] || "this entry";
-  const cat = categoryOf(e);
+  const cat = kindOf(e);
   // Only what this entry covers: a belief's facts are about the belief, not the believer's scars.
   const scope = profileNames(e).size
     ? `This entry is the profile of ${title}.`

@@ -185,4 +185,20 @@ describe("only the entry a change is about", () => {
     expect(on(belief).flatMap((c) => c.diff.ops.map((o) => o.value))).toEqual(["Ferrywoman"]);
     expect(on(pair).flatMap((c) => c.diff.ops.map((o) => o.value))).toEqual(["Pierkid"]);
   });
+
+  test("“Voice: Wren” is a voice and “Character: Wren” is Wren, by the title alone", async () => {
+    const voice = createEntry(bookId, defaultEntry({ comment: "Voice: Wren", keys: ["Wren"], content: "Low, short, harbour words.", extra: { type: "character" } })).id;
+    const profile = createEntry(bookId, defaultEntry({ comment: "Character: Wren", keys: ["Wren"], content: "Wren pilots the ferry." })).id;
+    const on = (id: string) => updateProposals(chatId).filter((p) => p.kind === "update" && p.entryId === id).flatMap((c) => c.diff.ops);
+    msgs.push(addMessage(chatId, "assistant", "Wren poles to Pyke.", { name: "Wren" }));
+    story(11, ["at: Pyke Docks"]);
+    createAtom(chatId, { type: "fact", content: "Wren goes by Gull and lost her brother to the river", entities: ["Wren"], importance: 6, messageIds: [msgs[11]!] });
+    createAtom(chatId, { type: "fact", content: "Wren calls everyone at the docks love and goes by Skipper", entities: ["Wren"], importance: 6, messageIds: [msgs[11]!] });
+    await runKeepup(chatId);
+    // The voice gets neither the move nor her family, only how she talks.
+    expect(on(voice).map((o) => o.value)).toEqual(["Skipper"]);
+    // The profile keeps up with where she is and both memories.
+    expect(on(profile).some((o) => o.slot === "where" && o.value === "Pyke Docks")).toBe(true);
+    expect(on(profile).filter((o) => o.slot === "nickname").map((o) => o.value)).toEqual(expect.arrayContaining(["Gull", "Skipper"]));
+  });
 });
