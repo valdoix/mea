@@ -117,6 +117,12 @@ export function lyricsIndex(): Map<string, { source: LyricSource; timed: boolean
   return new Map(all<Row>("SELECT video_id, source, timed, fetched_at FROM song_lyrics").map((r) => [r.video_id, { source: r.source, timed: Boolean(r.timed), fetchedAt: r.fetched_at }]));
 }
 
+/** The lines of these songs, in one read. */
+export function lyricsLines(videoIds: string[]): Map<string, LyricLine[]> {
+  const want = new Set(videoIds);
+  return new Map(all<{ video_id: string; lines: string }>("SELECT video_id, lines FROM song_lyrics WHERE source != 'none'").filter((r) => want.has(r.video_id)).map((r) => [r.video_id, parseJson<LyricLine[]>(r.lines, [])]));
+}
+
 export function saveLyrics(l: Omit<Lyrics, "fetchedAt" | "instrumental">) {
   run(
     `INSERT INTO song_lyrics (video_id, source, timed, lines, duration, sheet, sheet_hash, fetched_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)

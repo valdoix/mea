@@ -12,7 +12,8 @@
   interface View {
     available: boolean;
     on: boolean;
-    now: { videoId: string; title: string; artist: string; why: string } | null;
+    /** words: the song was picked for its words (docs/18, Part 3). */
+    now: { videoId: string; title: string; artist: string; why: string; words?: { passage: number; situations: string[] } } | null;
     vote: number;
     /** docs/18, 2.3: what was happening at the last beat. */
     moment: { situations: string[]; gist: string } | null;
@@ -65,6 +66,7 @@
           <button class="btn ghost icon small" class:on={v.vote > 0} onclick={() => act("up")} aria-label="More like this" disabled={!v.now}><ThumbsUp size={14} /></button>
           <button class="btn ghost icon small" class:on={v.vote < 0} onclick={() => act("down")} aria-label="Less like this" disabled={!v.now}><ThumbsDown size={14} /></button>
           <button class="btn ghost small" onclick={() => act("notForScene")} disabled={!v.now}>Not for this scene</button>
+          {#if v.now?.words}<button class="btn ghost small" onclick={() => act("wrongWords")} title="Keep the song, but these words don't fit what's happening">Wrong words</button>{/if}
           <button class="btn ghost icon small" onclick={() => ((open = false), act("off"))} aria-label="Turn the soundtrack off" title="Off for this chat"><X size={14} /></button>
         </span>
       {/if}

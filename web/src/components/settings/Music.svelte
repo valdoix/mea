@@ -33,6 +33,8 @@
     tasteFound: Record<string, number | null>;
     /** docs/18: look for the library's lyrics on LRCLIB and YouTube Music. */
     lyricsOnline: boolean;
+    /** docs/18, 3.2: how much a song's words count when picking. */
+    wordsDial: "off" | "little" | "lean";
     words: Record<string, WordsState>;
     /** read: songs whose words have been read for what they're about (their lyric sheet). */
     wordsCount: { have: number; timed: number; pending: number; of: number; read: number };
@@ -281,6 +283,13 @@
         <label class="switch small"><input type="checkbox" checked={cfg.lyricsOnline} onchange={(e) => save({ lyricsOnline: e.currentTarget.checked })} /> Find lyrics online</label>
         <span class="tiny muted">Asks LRCLIB (lrclib.net) and YouTube Music for your songs' words, by title, artist and length only. They're kept on this PC, so the soundtrack can tell what a song is about.</span>
       </div>
+      <label class="field words-dial"><span class="label">Words</span>
+        <select class="select" value={cfg.wordsDial} onchange={(e) => save({ wordsDial: e.currentTarget.value as Config["wordsDial"] })}>
+          <option value="off">Off: pick by mood only</option>
+          <option value="little">A little: a song whose words fit what's happening is likelier</option>
+          <option value="lean">Lean in: the words count fully, and a fitting chorus more</option>
+        </select>
+      </label>
       {#if cfg.wordsCount.of}
         <p class="tiny muted">Words for {cfg.wordsCount.have} of {cfg.wordsCount.of} songs ({cfg.wordsCount.timed} timed{#if cfg.wordsCount.read < cfg.wordsCount.have}, {cfg.wordsCount.read} read so far{/if}){#if cfg.lyricsOnline && cfg.wordsCount.pending} · looking up {cfg.wordsCount.pending}…{/if}</p>
       {/if}
@@ -408,6 +417,9 @@
   .bulk {
     gap: 0.5rem;
     align-items: center;
+  }
+  .words-dial {
+    max-width: 34rem;
   }
   .tight {
     gap: 0.25rem;

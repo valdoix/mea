@@ -300,13 +300,14 @@ const VEC_FLOOR = 0.35;
  * (with vectors), who the song sings to (a "to-you" song fits two people together; an "about-them"
  * song one person alone), and a little for the chorus or the passage the song builds to.
  */
-export function wordsFit(sheet: LyricSheet | null, moment: Pick<Moment, "situations"> | null, opts: { vectors?: Map<number, Float32Array>; momentVec?: Float32Array | null; present?: number } = {}): Fit {
+export function wordsFit(sheet: LyricSheet | null, moment: Pick<Moment, "situations"> | null, opts: { vectors?: Map<number, Float32Array>; momentVec?: Float32Array | null; present?: number; /** Passages that don't count (Wrong words). */ skip?: Set<number> } = {}): Fit {
   if (!sheet || !moment?.situations.length || !sheet.passages.length) return { score: 0, passage: null };
   const want = new Set(moment.situations);
   const whole = sheet.situations.filter((s) => want.has(s)).length * 0.5;
   const voice = opts.present == null ? 0 : (sheet.voice === "to-you" || sheet.voice === "we") === opts.present >= 2 ? 0.25 : 0;
   let best: Fit = { score: 0, passage: null };
   sheet.passages.forEach((p, i) => {
+    if (opts.skip?.has(i)) return;
     let s = p.situations.filter((x) => want.has(x)).length * 1.5 + whole;
     const v = opts.vectors?.get(i);
     if (v && opts.momentVec) {
@@ -318,4 +319,22 @@ export function wordsFit(sheet: LyricSheet | null, moment: Pick<Moment, "situati
     if (s > best.score) best = { score: s, passage: i };
   });
   return { score: Math.min(3, Math.round(best.score * 100) / 100), passage: best.passage };
+}
+
+/** Situations a song can't play over: a celebration at a funeral, a homecoming as someone leaves. */
+const CLASH: [Situation, Situation][] = [
+  ["grief", "celebration"],
+  ["the fight", "peace"],
+  ["leaving", "homecoming"],
+  ["leaving", "reunion"],
+  ["goodbye", "reunion"],
+  ["heartbreak", "first love"],
+  ["betrayal", "devotion"],
+  ["alone", "reunion"],
+];
+
+/** The song's words go against the moment: one of its situations clashes with one of the moment's, and none is shared. */
+export function clashes(sheet: LyricSheet | null, moment: Pick<Moment, "situations"> | null) {
+  if (!sheet || !moment?.situations.length || sheet.situations.some((s) => moment.situations.includes(s))) return false;
+  return CLASH.some(([a, b]) => (sheet.situations.includes(a) && moment.situations.includes(b)) || (sheet.situations.includes(b) && moment.situations.includes(a)));
 }
