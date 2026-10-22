@@ -644,42 +644,90 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
 }
 
 /** Text as both the saved reply and the page read it: no quote marks, Markdown or extra spaces. */
-const plain = (s: string) => s.replace(/[\s"“”„'‘’*_~`\\]+/g, " ").trim().toLowerCase();
+const plain = (s: string) => s.replace(/[*_~`\\]+/g, "").replace(/[\s"“”„'‘’]+/g, " ").trim().toLowerCase();
+
+const SPACE = /[\s"“”„'‘’]/;
+const MARKDOWN = /[*_~`\\]/;
+const MARK = /["“”„«»*_~]/;
+const QUOTE = /["“”„«»]/;
+
+/** The page's dialogue spans grouped into lines: a line split by italics shows as several spans. */
+function spokenGroups(root: HTMLElement): HTMLElement[][] {
+  const groups: HTMLElement[][] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.parentElement?.closest(".art, .v-ui") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  let open: { spans: HTMLElement[]; block: Element | null } | null = null;
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    const span = node.parentElement?.closest<HTMLElement>(".dl") ?? null;
+    if (!span) {
+      if (node.data.length) open = null;
+      continue;
+    }
+    const block = span.closest("p, li, blockquote, td, th, h1, h2, h3, h4, div");
+    if (open && open.block === block) {
+      if (!open.spans.includes(span)) open.spans.push(span);
+    } else {
+      open = { spans: [span], block };
+      groups.push(open.spans);
+    }
+  }
+  return groups;
+}
 
 /**
  * Every quoted line of a message with who says it as the page reads it now, `line` given to `name`
- * instead: what a tap on a line saves, so the lines you didn't touch keep their colour. Lines are
- * the saved text's own (server lib quotedLines), each matched to the dialogue spans that show it.
- * Null when the tapped line can't be found in the text.
+ * instead: what a tap on a line saves, so the lines you didn't touch keep their colour. Each line
+ * is the stretch of the saved text that its dialogue spans show, found in order, so it pairs the
+ * quotes exactly the way the page did (a stray “ closing a line, a ” opening one). Null when the
+ * tapped line can't be found in the text.
  */
 export function respoken(root: HTMLElement, content: string, line: HTMLElement, name: string | null): { text: string; name: string | null; tone?: string }[] | null {
-  const spans = Array.from(root.querySelectorAll<HTMLElement>(".dl")).filter((s) => !s.closest(".art"));
-  const quotes = [...content.matchAll(/["“][^"“”\n]{1,600}["”“]/g)].map((m) => m[0]);
+  // The text as plain() reads it, with where each of its characters sits in the original.
+  let norm = "";
+  const at: number[] = [];
+  for (let i = 0; i < content.length; i++) {
+    const ch = content[i]!;
+    if (MARKDOWN.test(ch)) continue;
+    if (SPACE.test(ch)) {
+      if (norm && !norm.endsWith(" ")) (norm += " "), at.push(i);
+    } else (norm += ch.toLowerCase()), at.push(i);
+  }
   const out: { text: string; name: string | null; tone?: string }[] = [];
-  let j = 0;
+  let cursor = 0;
   let found = false;
-  for (const q of quotes) {
-    const want = plain(q);
-    let group: HTMLElement[] = [];
-    // A line can show as several spans (split by italics); a stray span in between is skipped.
-    for (let start = j; start < Math.min(spans.length, j + 4) && !group.length; start++) {
-      let got = "";
-      for (let k = start; k < spans.length; k++) {
-        got += spans[k]!.textContent ?? "";
-        const p = plain(got);
-        if (p === want) {
-          group = spans.slice(start, k + 1);
-          j = k + 1;
-          break;
-        }
-        if (!want.startsWith(p)) break;
+  for (const group of spokenGroups(root)) {
+    const want = plain(group.map((s) => s.textContent ?? "").join(""));
+    if (!want) continue;
+    // The first place it stands between quote marks; narration that says the same words doesn't count.
+    let hit: { start: number; end: number } | null = null;
+    let first: { start: number; end: number } | null = null;
+    for (let k = norm.indexOf(want, cursor); k >= 0; k = norm.indexOf(want, k + 1)) {
+      let start = at[k]!;
+      let end = at[k + want.length - 1]! + 1;
+      let s = start;
+      let e = end;
+      while (s > 0 && MARK.test(content[s - 1]!)) s--;
+      while (e < content.length && MARK.test(content[e]!)) e++;
+      const quoted = QUOTE.test(content.slice(s, start) + content.slice(end, e));
+      if (quoted) (start = s), (end = e);
+      first ??= { start, end };
+      if (quoted) {
+        hit = { start, end };
+        break;
       }
     }
-    const first = group[0];
+    hit ??= first;
+    if (!hit) continue;
+    const { end } = hit;
+    const next = at.findIndex((i) => i >= end);
+    cursor = next < 0 ? norm.length : next;
+    const lead = group[0]!;
     const mine = group.includes(line);
     if (mine) found = true;
-    const tone = first?.dataset.tone;
-    out.push({ text: q, name: mine ? name : first?.dataset.v ? first.title || null : null, ...(tone ? { tone } : {}) });
+    const tone = lead.dataset.tone;
+    out.push({ text: content.slice(hit.start, hit.end), name: mine ? name : lead.dataset.v ? lead.title || null : null, ...(tone ? { tone } : {}) });
   }
   return found ? out : null;
 }
