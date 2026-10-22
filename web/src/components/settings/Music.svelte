@@ -31,7 +31,19 @@
     canSearch: boolean;
     /** Each preferred artist's songs in the library; null until they've been looked up. */
     tasteFound: Record<string, number | null>;
+    /** docs/18: look for the library's lyrics on LRCLIB and YouTube Music. */
+    lyricsOnline: boolean;
+    words: Record<string, WordsState>;
+    wordsCount: { have: number; timed: number; pending: number; of: number };
   }
+  type WordsState = "timed" | "plain" | "none" | "instrumental" | "pending";
+  interface Words {
+    source: "lrclib" | "ytmusic" | "pasted" | "none";
+    timed: boolean;
+    lines: { t: number | null; text: string }[];
+  }
+  const WORDS_LABEL: Record<WordsState, string> = { timed: "words · timed", plain: "words", none: "no words", instrumental: "instrumental", pending: "words…" };
+  const SOURCE_LABEL: Record<Words["source"], string> = { lrclib: "from LRCLIB", ytmusic: "from YouTube Music", pasted: "pasted by you", none: "" };
   let cfg = $state<Config | null>(null);
   let code = $state<string | null>(null);
   let link = $state("");
@@ -62,7 +74,7 @@
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     return (cfg?.library ?? []).filter((t) => {
       if (artistPick && t.artist !== artistPick) return false;
-      const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""}`.toLowerCase();
+      const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""} ${WORDS_LABEL[cfg?.words[t.videoId] ?? "pending"]}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
   });
@@ -115,6 +127,44 @@
     const t = setTimeout(() => void load(), 4000);
     return () => clearTimeout(t);
   });
+  // Lyrics still being looked up: the badges fill in as they're found.
+  $effect(() => {
+    if (!cfg?.lyricsOnline || !cfg.wordsCount.pending) return;
+    const t = setTimeout(() => void load(), 5000);
+    return () => clearTimeout(t);
+  });
+  // One song's words, open under it: what Mea has, a box to paste your own, and Find again.
+  let wordsOf = $state<string | null>(null);
+  /** undefined while it loads; null: Mea has none. */
+  let words = $state<Words | null | undefined>(undefined);
+  let wordsText = $state("");
+  let wordsBusy = $state(false);
+  async function openWords(videoId: string) {
+    if (wordsOf === videoId) return void (wordsOf = null);
+    wordsOf = videoId;
+    words = undefined;
+    wordsText = "";
+    try {
+      words = (await get<{ words: Words | null }>(`/api/music/lyrics/${videoId}`)).words;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function wordsDo(req: () => Promise<{ words: Words | null; view: Config }>, done: string) {
+    wordsBusy = true;
+    try {
+      const r = await req();
+      words = r.words;
+      cfg = r.view;
+      wordsText = "";
+      toast(done, { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      wordsBusy = false;
+    }
+  }
+  const stamp = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
   async function save(patch: Partial<Config>) {
     try {
       cfg = await put<Config>("/api/music", patch);
@@ -213,6 +263,13 @@
         {#each MOODS as m (m)}<button type="button" class="chip" class:on={moods.includes(m)} onclick={() => (moods = toggle(moods, m))}>{m}</button>{/each}
         <label class="switch small"><input type="checkbox" bind:checked={instrumental} /> instrumental</label>
       </div>
+      <div class="row wrap">
+        <label class="switch small"><input type="checkbox" checked={cfg.lyricsOnline} onchange={(e) => save({ lyricsOnline: e.currentTarget.checked })} /> Find lyrics online</label>
+        <span class="tiny muted">Asks LRCLIB (lrclib.net) and YouTube Music for your songs' words, by title, artist and length only. They're kept on this PC, so the soundtrack can tell what a song is about.</span>
+      </div>
+      {#if cfg.wordsCount.of}
+        <p class="tiny muted">Words for {cfg.wordsCount.have} of {cfg.wordsCount.of} songs ({cfg.wordsCount.timed} timed){#if cfg.lyricsOnline && cfg.wordsCount.pending} · looking up {cfg.wordsCount.pending}…{/if}</p>
+      {/if}
       {#if libraryOpen || !cfg.library.length}
       <div class="stack" id="music-library">
       {#if cfg.library.length > 1}
@@ -232,8 +289,28 @@
       {/if}
       {#each shown as t (t.videoId)}
         <div class="track">
-          <div class="row between"><label class="pick small"><input type="checkbox" checked={pickedSet.has(t.videoId)} onchange={() => (picked = toggle(picked, t.videoId))} aria-label="Select {t.title}" /><span><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}{#if t.instrumental} <span class="tiny faint">instrumental</span>{/if}</span></label><button class="btn ghost icon small" onclick={() => song(del<Config>(`/api/music/library/${t.videoId}`))} aria-label="Remove {t.title}"><X size={13} /></button></div>
+          <div class="row between"><label class="pick small"><input type="checkbox" checked={pickedSet.has(t.videoId)} onchange={() => (picked = toggle(picked, t.videoId))} aria-label="Select {t.title}" /><span><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}</span></label><span class="row tight"><button type="button" class="chip tiny words {cfg.words[t.videoId] ?? 'pending'}" class:on={wordsOf === t.videoId} onclick={() => openWords(t.videoId)} aria-expanded={wordsOf === t.videoId} title="The song's words">{WORDS_LABEL[cfg.words[t.videoId] ?? "pending"]}</button><button class="btn ghost icon small" onclick={() => song(del<Config>(`/api/music/library/${t.videoId}`))} aria-label="Remove {t.title}"><X size={13} /></button></span></div>
           <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => song(patch<Config>(`/api/music/library/${t.videoId}`, { moods: toggle(t.moods, m) }))}>{m}</button>{/each}</div>
+          {#if wordsOf === t.videoId}
+            <div class="stack words-card">
+              {#if words?.lines.length}
+                <p class="tiny muted">{words.timed ? "Timed" : "Plain"} words, {SOURCE_LABEL[words.source]}.</p>
+                <div class="lyrics">{#each words.lines as l, i (i)}<div class:gap={!l.text}>{#if words.timed && l.t != null}<span class="faint at">{stamp(l.t)}</span>{/if}{l.text}</div>{/each}</div>
+              {:else if words === undefined}
+                <p class="tiny muted">Loading…</p>
+              {:else if words}
+                <p class="tiny muted">No words found for this song.</p>
+              {:else}
+                <p class="tiny muted">{cfg.lyricsOnline ? "Not looked up yet." : "No words yet. Paste them, or turn on Find lyrics online."}</p>
+              {/if}
+              <textarea class="input" rows="4" bind:value={wordsText} placeholder="Paste the words: plain, or LRC with times ([01:23.45] a line)" aria-label="Paste words for {t.title}"></textarea>
+              <div class="row wrap">
+                <button class="btn small" disabled={wordsBusy || !wordsText.trim()} onclick={() => wordsDo(() => put(`/api/music/lyrics/${t.videoId}`, { text: wordsText }), "Words saved")}>Save words</button>
+                {#if cfg.lyricsOnline}<button class="btn ghost small" disabled={wordsBusy} onclick={() => wordsDo(() => post(`/api/music/lyrics/${t.videoId}/find`, {}), "Looked again")}>{wordsBusy ? "Looking…" : "Find again"}</button>{/if}
+                {#if words?.source === "pasted"}<button class="btn ghost small" disabled={wordsBusy} onclick={() => wordsDo(() => put(`/api/music/lyrics/${t.videoId}`, { text: "" }), "Pasted words removed")}>Remove pasted words</button>{/if}
+              </div>
+            </div>
+          {/if}
         </div>
       {:else}
         {#if cfg.library.length}<p class="tiny muted">No song matches.</p>{:else}<p class="tiny muted">Nothing yet. Paste a song or playlist link, or play something in YouTube Music and Add what's playing.</p>{/if}
@@ -307,6 +384,32 @@
   .bulk {
     gap: 0.5rem;
     align-items: center;
+  }
+  .tight {
+    gap: 0.25rem;
+    align-items: center;
+  }
+  .words.none,
+  .words.pending {
+    opacity: 0.6;
+  }
+  .words-card {
+    padding-top: 0.3rem;
+    border-top: 1px solid var(--line, var(--border));
+  }
+  .lyrics {
+    max-height: 14rem;
+    overflow-y: auto;
+    font-size: 0.85em;
+    line-height: 1.45;
+  }
+  .lyrics .at {
+    display: inline-block;
+    min-width: 2.6em;
+    font-variant-numeric: tabular-nums;
+  }
+  .lyrics .gap {
+    height: 0.6em;
   }
   .track {
     display: grid;

@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
-import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig } from "../music/director";
+import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -159,6 +159,8 @@ desk.get("/chats/:id/plates", (c) => c.json(scenePlates(c.req.param("id"))));
 desk.get("/music", (c) => {
   // Preferred artists not looked up yet (or a week ago) are found in the background.
   void refreshTaste().catch(() => {});
+  // And songs without words yet are looked up, when that's on.
+  lyricsSoon();
   return c.json(musicView());
 });
 // The body as sent, not parsed here: the schema would add its defaults for every field left out.
@@ -170,6 +172,9 @@ desk.post("/music/library", async (c) => c.json(await addTrack(await body(c, z.o
 desk.patch("/music/library/:videoId", async (c) => c.json(retagTrack(c.req.param("videoId"), await body(c, z.object({ moods: z.array(z.enum(MOODS)).max(9).optional(), instrumental: z.boolean().optional() })))));
 desk.delete("/music/library/:videoId", (c) => c.json(removeTrack(c.req.param("videoId"))));
 desk.post("/music/library/remove", async (c) => c.json(removeTracks((await body(c, z.object({ ids: z.array(z.string().max(20)).max(500) }))).ids)));
+desk.get("/music/lyrics/:videoId", (c) => c.json({ words: songWords(c.req.param("videoId")) }));
+desk.put("/music/lyrics/:videoId", async (c) => c.json(setSongWords(c.req.param("videoId"), (await body(c, z.object({ text: z.string().max(20_000) }))).text)));
+desk.post("/music/lyrics/:videoId/find", async (c) => c.json(await findSongWords(c.req.param("videoId"))));
 desk.get("/chats/:id/music", (c) => {
   mustChat(c.req.param("id"));
   return c.json(chatMusicView(c.req.param("id")));

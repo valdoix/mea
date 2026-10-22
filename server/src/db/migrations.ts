@@ -1372,6 +1372,24 @@ CREATE TABLE lore_keepup (
       }
     },
   },
+  {
+    id: 32,
+    name: "song lyrics",
+    // docs/18, 1.1: the words of the soundtrack's songs, kept on this PC. `source = 'none'` remembers
+    // a miss (looked for again after a while); `sheet` is what Part 2 reads out of them.
+    sql: /* sql */ `
+CREATE TABLE IF NOT EXISTS song_lyrics (
+  video_id   TEXT PRIMARY KEY,
+  source     TEXT NOT NULL,
+  timed      INTEGER NOT NULL DEFAULT 0,
+  lines      TEXT NOT NULL DEFAULT '[]',
+  duration   REAL,
+  sheet      TEXT,
+  sheet_hash TEXT,
+  fetched_at INTEGER NOT NULL
+);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
