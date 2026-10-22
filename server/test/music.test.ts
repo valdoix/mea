@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { setSetting } from "../src/lib/settings";
+import { one } from "../src/db/db";
 import { addTrack, chatMusicView, connectFinish, connectStart, type Cue, cueFrom, type Mood, musicAction, musicAfterReply, musicTick, musicConfig, musicView, pickTrack, saveMusicConfig } from "../src/music/director";
 import { videoIdOf } from "../src/music/ytmusic";
 import { createCharacter } from "../src/services/characters";
@@ -155,6 +156,9 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     const next = chatMusicView(chatId).now!;
     expect(next.videoId).not.toBe(now.videoId);
     expect((cmds[0]?.body as { data: { videoId: string } }).data.videoId).toBe(next.videoId);
+    // The next song is picked for where the story is now, not where the scene began.
+    const last = one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND role = 'assistant' ORDER BY seq DESC LIMIT 1", chatId)!;
+    expect(chatMusicView(chatId).moment?.key.startsWith(`${last.id}|`)).toBe(true);
     // Something you put on yourself is left alone.
     playing = { id: "zzzzzzzzzzz", title: "Mine", author: "Me", durationSeconds: 100 };
     player = { trackState: 0, videoProgress: 100 };

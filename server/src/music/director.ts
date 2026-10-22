@@ -12,7 +12,7 @@ import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 import { findLyrics, forgetLyrics, type LyricLine, lyricsFor, lyricsIndex, lyricsLines, MISS_TTL, pasteLyrics } from "./lyrics";
 import type { Situation } from "./situations";
-import { clashes, embedPassages, landingPoint, passageTimes, forgetPassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, sheetFor, situationsFromRecords, songsToRead, wordsFit } from "./words";
+import { clashes, embedPassages, landingPoint, passageTimes, forgetPassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
 import { command, detectApp, seekTo, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
@@ -529,8 +529,11 @@ export async function musicTick() {
     const ended = !s.playing && left <= 2;
     if (left > LINE_UP && !ended) return;
     if (!pending || pending.chatId !== chatId) {
-      const cue = cueFrom(currentFold(chatId).result.state, storyDials(mustChat(chatId)).genre);
-      const pick = pickTrack(cfg, cue, m, { exclude: [m.now.videoId], words: await wordsContext(cfg, m, cue) });
+      const st = currentFold(chatId).result.state;
+      const cue = cueFrom(st, storyDials(mustChat(chatId)).genre);
+      await momentNow(chatId, st, cue);
+      const music = chatMusic(chatId);
+      const pick = pickTrack(cfg, cue, music, { exclude: [m.now.videoId], words: await wordsContext(cfg, music, cue) });
       if (!pick) return;
       pending = { ...pick, key: cue.key, chatId, queued: false };
     }
@@ -886,21 +889,25 @@ const anySheets = (cfg: MusicConfig) => cfg.library.some((t) => sheetFor(t.video
 // ---------- the moment (docs/18, 2.3) ----------
 
 /**
- * What's happening at a beat: the records first (free); with fewer than two situations from them,
- * one helper call reads the end of the reply. A swipe of the same beat reuses the moment. Without
- * any song read for its words, only the records are looked at. Never throws.
+ * What's happening at a beat: the records first (free); unless they firmly say two things, one helper
+ * call reads the end of the reply, and the reply outranks the records' hints (someone walking off,
+ * a sad mood). A swipe of the same beat reuses the moment. Without any song read for its words,
+ * only the records are looked at. Never throws.
  */
 export async function momentAt(chatId: string, messageId: string, st: WorldState, cue: Cue, text: string, prev: Moment | null) {
   try {
     if (prev?.key === `${messageId}|${cue.key}`) return prev;
     const changes = currentFold(chatId).result.changes[messageId] ?? [];
-    const records = situationsFromRecords(changes, st, prev);
+    const { firm, hints } = recordsSay(changes, st, prev);
+    const records = [...firm, ...hints].slice(0, 4);
     let moment: Moment = { situations: records, gist: "", key: `${messageId}|${cue.key}`, from: "records", at: Date.now() };
-    if (records.length < 2 && text.trim() && anySheets(musicConfig())) {
+    if (firm.length < 2 && text.trim() && anySheets(musicConfig())) {
       try {
         const r = await readMoment(text, cue, chatId);
-        const both = [...records, ...r.situations.filter((x) => !records.includes(x))].slice(0, 4);
-        moment = { ...moment, situations: both, gist: r.gist, from: records.length ? "both" : "reply" };
+        if (r.situations.length) {
+          const both = [...firm, ...r.situations.filter((x) => !firm.includes(x))].slice(0, 4);
+          moment = { ...moment, situations: both, gist: r.gist, from: firm.length ? "both" : "reply" };
+        }
       } catch (e) {
         console.error("[mea] soundtrack: couldn't read the moment:", (e as Error).message);
       }
@@ -910,6 +917,15 @@ export async function momentAt(chatId: string, messageId: string, st: WorldState
   } catch {
     return prev;
   }
+}
+
+/** The moment at the latest reply, before a song is picked mid-scene: the scene moves on between songs. */
+async function momentNow(chatId: string, st: WorldState, cue: Cue) {
+  const last = one<{ id: string; content: string }>(
+    "SELECT m.id, s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.chat_id = ? AND m.role = 'assistant' AND m.deleted_at IS NULL AND m.hidden = 0 ORDER BY m.seq DESC LIMIT 1",
+    chatId,
+  );
+  if (last) await momentAt(chatId, last.id, st, cue, last.content, chatMusic(chatId).moment ?? null);
 }
 
 // ---------- the line as it's sung (docs/18, 4.3) ----------
