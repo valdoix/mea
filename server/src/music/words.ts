@@ -338,3 +338,39 @@ export function clashes(sheet: LyricSheet | null, moment: Pick<Moment, "situatio
   if (!sheet || !moment?.situations.length || sheet.situations.some((s) => moment.situations.includes(s))) return false;
   return CLASH.some(([a, b]) => (sheet.situations.includes(a) && moment.situations.includes(b)) || (sheet.situations.includes(b) && moment.situations.includes(a)));
 }
+
+// ---------- landing the line (docs/18, Part 4) ----------
+
+/** A passage this early plays from the top anyway; one this close to the end has no song left after it. */
+const LAND_AFTER = 20;
+const LAND_TAIL = 40;
+/** The run-up before the passage when the section before it is long. */
+const RUN_UP = 8;
+/** The section before the passage is short enough to play whole as the run-up. */
+const SHORT_SECTION = 25;
+
+/** Where a timed passage starts and ends, in seconds. */
+export function passageTimes(sheet: LyricSheet, lines: LyricLine[], index: number): { start: number; end: number } | null {
+  const p = sheet.passages[index];
+  if (!p) return null;
+  const times = lines.slice(p.from, p.to + 1).map((l) => l.t).filter((t): t is number => t != null);
+  if (!times.length) return null;
+  return { start: Math.min(...times), end: Math.max(...times) };
+}
+
+/**
+ * Where to start a song so its passage lands on the moment (4.2), or null to play from the top: the
+ * start of the section before the passage when that section is short, otherwise the last line that
+ * starts at least 8 s before it (a bar or two of run-up, never mid-word). Not for a passage in the
+ * first 20 s, nor one ending less than 40 s before the song does.
+ */
+export function landingPoint(sheet: LyricSheet, lines: LyricLine[], index: number, duration: number | null): number | null {
+  const at = passageTimes(sheet, lines, index);
+  if (!at || at.start < LAND_AFTER) return null;
+  if (duration != null && duration - at.end < LAND_TAIL) return null;
+  const before = index > 0 ? passageTimes(sheet, lines, index - 1) : null;
+  if (before && at.start - before.start <= SHORT_SECTION) return before.start;
+  const starts = lines.map((l) => l.t).filter((t): t is number => t != null && t <= at.start - RUN_UP);
+  const point = starts.length ? Math.max(...starts) : at.start - RUN_UP;
+  return point < 5 ? null : point;
+}

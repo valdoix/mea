@@ -12,8 +12,8 @@ import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 import { findLyrics, forgetLyrics, type LyricLine, lyricsFor, lyricsIndex, lyricsLines, MISS_TTL, pasteLyrics } from "./lyrics";
 import type { Situation } from "./situations";
-import { clashes, embedPassages, forgetPassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, sheetFor, situationsFromRecords, songsToRead, wordsFit } from "./words";
-import { command, detectApp, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
+import { clashes, embedPassages, landingPoint, passageTimes, forgetPassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, sheetFor, situationsFromRecords, songsToRead, wordsFit } from "./words";
+import { command, detectApp, seekTo, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
  * The soundtrack (Almanac plan J3), on YouTube Music: a cue read from the story (mood, intensity,
@@ -48,6 +48,8 @@ export const musicConfigSchema = z.object({
   lyricsOnline: z.boolean().default(false),
   /** docs/18, 3.2: how much a song's words count: not at all, a little, or leaning in (the chorus that fits plays). */
   wordsDial: z.enum(["off", "little", "lean"]).default("little"),
+  /** docs/18, 4.2: start a song at the passage that fits ("auto": only when the dial is Lean in). */
+  landLine: z.enum(["auto", "on", "off"]).default("auto"),
 });
 export type MusicConfig = z.infer<typeof musicConfigSchema> & { token?: string | null; app?: YtmApp | null };
 
@@ -253,7 +255,9 @@ interface ChatMusic {
   lastKey?: string;
   /** The scene the director last looked at: a new one is a beat. */
   lastScene?: number;
-  now?: { videoId: string; title: string; artist: string; key: string; why: string; at: number; words?: PickWords } | null;
+  now?: { videoId: string; title: string; artist: string; key: string; why: string; at: number; words?: PickWords; /** Seconds in the song was started at (4.2). */ landed?: number } | null;
+  /** The scene a song was last started at its passage: the next song in it plays from the top. */
+  landedScene?: number;
   /** docs/18, 2.3: what was happening at the last beat. */
   moment?: Moment | null;
   /** docs/18, 3.3: "Wrong words": by situation, passages ("videoId#index") that don't count for it in this story. */
@@ -415,18 +419,59 @@ const dialogueHeavy = (text: string) => (text.match(/[“"][^”"]+[”"]/g) ?? 
 type Pick = { track: Track; why: string; words?: PickWords };
 
 /** What's playing for this chat now (the header shows it), and what's played lately. */
-function remember(chatId: string, pick: Pick, key: string) {
+function remember(chatId: string, pick: Pick, key: string, landed?: number) {
   const m = chatMusic(chatId);
-  setChatMusic(chatId, { lastKey: key, recent: [pick.track.videoId, ...(m.recent ?? []).filter((v) => v !== pick.track.videoId)].slice(0, HISTORY), now: { videoId: pick.track.videoId, title: pick.track.title, artist: pick.track.artist, key, why: pick.why, at: Date.now(), ...(pick.words ? { words: pick.words } : {}) } });
+  setChatMusic(chatId, { lastKey: key, recent: [pick.track.videoId, ...(m.recent ?? []).filter((v) => v !== pick.track.videoId)].slice(0, HISTORY), now: { videoId: pick.track.videoId, title: pick.track.title, artist: pick.track.artist, key, why: pick.why, at: Date.now(), ...(pick.words ? { words: pick.words } : {}), ...(landed != null ? { landed } : {}) } });
 }
 
-async function play(chatId: string, cfg: MusicConfig, pick: Pick, key: string) {
+/** How long to wait for the app to be on the new song before moving it to the passage. */
+const LAND_WAIT_MS = 5_000;
+
+async function play(chatId: string, cfg: MusicConfig, pick: Pick, key: string, opts: { land?: { at: number; scene: number } | null } = {}) {
   if (!cfg.token) return;
   await command(cfg, { command: "changeVideo", data: { videoId: pick.track.videoId } });
   // A song already queued in the app still follows this one, so it stays lined up.
   if (!pending?.queued || pending.track.videoId === pick.track.videoId) pending = null;
-  remember(chatId, pick, key);
+  const landed = opts.land ? await landAt(cfg, pick.track.videoId, opts.land.at) : false;
+  remember(chatId, pick, key, landed ? opts.land!.at : undefined);
+  if (landed) setChatMusic(chatId, { landedScene: opts.land!.scene });
   watch(chatId);
+}
+
+/** Once the app is on the song, moves it to the passage. False (the song plays from the top) if the app never gets there or can't seek. */
+async function landAt(cfg: MusicConfig, videoId: string, at: number) {
+  try {
+    const until = Date.now() + LAND_WAIT_MS;
+    for (;;) {
+      if ((await playerState(cfg)).videoId === videoId) break;
+      if (Date.now() >= until) return false;
+      await Bun.sleep(LAND_POLL_MS);
+    }
+    await seekTo(cfg, at);
+    return true;
+  } catch (e) {
+    if (!(e instanceof YtmError)) console.error("[mea] soundtrack: couldn't land the line:", (e as Error).message);
+    return false;
+  }
+}
+let LAND_POLL_MS = 200;
+/** Tests: no waiting between looks at the player. */
+export const landPollForTests = (ms: number) => void (LAND_POLL_MS = ms);
+
+/**
+ * Where to start a pick (4.2), or null for the top: on a cut only (never the next song lined up, nor
+ * a skip), with Land the line on, timed words whose passage fits well (1.5 or more), not the theme of
+ * the people here coming back, and not twice in one scene.
+ */
+export function landingFor(cfg: MusicConfig, music: ChatMusic, pick: Pick, sceneNo: number): number | null {
+  const on = cfg.landLine === "on" || (cfg.landLine === "auto" && cfg.wordsDial === "lean");
+  const w = pick.words;
+  if (!on || !w || w.score < 1.5 || music.landedScene === sceneNo) return null;
+  if (pick.why.endsWith("'s theme")) return null;
+  const sheet = sheetFor(pick.track.videoId);
+  const lyrics = lyricsFor(pick.track.videoId);
+  if (!sheet || !lyrics?.timed) return null;
+  return landingPoint(sheet, lyrics.lines, w.passage, lyrics.duration);
 }
 
 // ---------- one song after another ----------
@@ -529,7 +574,10 @@ export function musicAfterReply(chatId: string, messageId: string) {
     // The same reply picks the same song on every swipe (3.1).
     const seq = one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", messageId)?.seq ?? 0;
     const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: [music.now?.videoId, pending?.queued ? pending.track.videoId : undefined].filter((v): v is string => Boolean(v)), words, rand: seeded(chatId, seq, `music:${cue.key}`) });
-    if (pick) await play(chatId, cfg, pick, cue.key);
+    if (pick) {
+      const at = landingFor(cfg, chatMusic(chatId), pick, st.sceneNo);
+      await play(chatId, cfg, pick, cue.key, { land: at != null ? { at, scene: st.sceneNo } : null });
+    }
     setChatMusic(chatId, { lastScene: st.sceneNo });
   })().catch((e) => {
     if (!(e instanceof YtmError)) console.error("[mea] soundtrack:", (e as Error).message);
@@ -854,4 +902,28 @@ export async function momentAt(chatId: string, messageId: string, st: WorldState
   } catch {
     return prev;
   }
+}
+
+// ---------- the line as it's sung (docs/18, 4.3) ----------
+
+/**
+ * While the passage that fits plays (timed words only): the line being sung and the next, for the
+ * chip's lyric strip. Null outside the passage, or when the app is on another song.
+ */
+export async function nowSinging(chatId: string): Promise<{ current: string; next: string; elapsed: number } | null> {
+  const cfg = musicConfig();
+  const m = chatMusic(chatId);
+  const w = m.now?.words;
+  if (!cfg.token || !m.now || !w) return null;
+  const lyrics = lyricsFor(m.now.videoId);
+  const sheet = sheetFor(m.now.videoId);
+  if (!lyrics?.timed || !sheet) return null;
+  const at = passageTimes(sheet, lyrics.lines, w.passage);
+  const s = await playerState(cfg);
+  if (!at || s.videoId !== m.now.videoId || s.elapsed == null) return null;
+  if (s.elapsed < at.start - 1 || s.elapsed > at.end + 6) return null;
+  const p = sheet.passages[w.passage]!;
+  const rows = lyrics.lines.slice(p.from, p.to + 1).filter((l) => l.text && l.t != null);
+  const i = rows.findLastIndex((l) => l.t! <= s.elapsed!);
+  return { current: rows[i]?.text ?? "", next: rows[i + 1]?.text ?? "", elapsed: s.elapsed };
 }

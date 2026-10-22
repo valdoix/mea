@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
-import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
+import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, nowSinging, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -180,6 +180,10 @@ desk.post("/music/lyrics/:videoId/find", async (c) => c.json(await findSongWords
 desk.get("/chats/:id/music", (c) => {
   mustChat(c.req.param("id"));
   return c.json(chatMusicView(c.req.param("id")));
+});
+desk.get("/chats/:id/music/line", async (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ line: await nowSinging(c.req.param("id")).catch(() => null) });
 });
 desk.post("/chats/:id/music", async (c) => {
   const b = await body(c, z.object({ action: z.enum(["on", "off", "playPause", "skip", "up", "down", "notForScene", "wrongWords"]) }));

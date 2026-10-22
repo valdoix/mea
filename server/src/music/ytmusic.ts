@@ -152,6 +152,16 @@ async function pearPlay(conn: YtmConn, videoId: string, waitMs = 4_000) {
   await call(conn, "/api/v1/next", { method: "POST" });
 }
 
+/**
+ * Moves the song playing to this many seconds in (docs/18, 4.1): th-ch's API Server has
+ * `/seek-to`; the Companion Server takes a `seekTo` command with the seconds as a plain number.
+ */
+export async function seekTo(conn: YtmConn, seconds: number) {
+  const at = Math.max(0, Math.round(seconds * 10) / 10);
+  if (conn.app === "pear") return void (await call(conn, "/api/v1/seek-to", { method: "POST", body: { seconds: at } }));
+  await call(conn, "/api/v1/command", { method: "POST", body: { command: "seekTo", data: at } });
+}
+
 export async function command(conn: YtmConn, c: YtmCommand) {
   if (conn.app !== "pear") return void (await call(conn, "/api/v1/command", { method: "POST", body: c }));
   if (c.command === "changeVideo") return pearPlay(conn, c.data.videoId);
