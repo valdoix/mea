@@ -28,6 +28,8 @@ export interface Lyrics {
 
 /** A miss is looked for again after this long (lyrics often turn up on LRCLIB later). */
 export const MISS_TTL = 30 * 24 * 3600_000;
+/** Words taken from YouTube Music because LRCLIB was down are looked up again this soon, for timed ones. */
+const RECHECK_SOON = 24 * 3600_000;
 /** How far a match's length may be from the song's. */
 const LENGTH_SLACK = 5;
 const LRCLIB = "https://lrclib.net/api";
@@ -123,7 +125,11 @@ export function lyricsLines(videoIds: string[]): Map<string, LyricLine[]> {
   return new Map(all<{ video_id: string; lines: string }>("SELECT video_id, lines FROM song_lyrics WHERE source != 'none'").filter((r) => want.has(r.video_id)).map((r) => [r.video_id, parseJson<LyricLine[]>(r.lines, [])]));
 }
 
-export function saveLyrics(l: Omit<Lyrics, "fetchedAt" | "instrumental">) {
+/**
+ * Keeps a song's words. `fetchedAt` dates them for the next look (a miss, or YouTube Music's plain
+ * words, are looked for again once it's MISS_TTL old); it's now unless given.
+ */
+export function saveLyrics(l: Omit<Lyrics, "fetchedAt" | "instrumental"> & { fetchedAt?: number }) {
   run(
     `INSERT INTO song_lyrics (video_id, source, timed, lines, duration, sheet, sheet_hash, fetched_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
      ON CONFLICT(video_id) DO UPDATE SET source = excluded.source, timed = excluded.timed, lines = excluded.lines, duration = excluded.duration, fetched_at = excluded.fetched_at,
@@ -133,7 +139,7 @@ export function saveLyrics(l: Omit<Lyrics, "fetchedAt" | "instrumental">) {
     l.timed ? 1 : 0,
     JSON.stringify(l.lines),
     l.duration,
-    now(),
+    l.fetchedAt ?? now(),
   );
 }
 
@@ -233,13 +239,22 @@ export function readLyricsTab(data: unknown): string | null {
 }
 
 /**
- * Looks for a song's words online and keeps what it finds (or that it found none). Throws a
- * YtmError when a site isn't answering, so the miss isn't remembered and it's tried again later.
+ * Looks for a song's words online and keeps what it finds (or that it found none). LRCLIB not
+ * answering doesn't stop the song: YouTube Music's words are kept, dated so the song is looked up
+ * again in a day for timed ones. Throws a YtmError only when nothing was found and a site wasn't
+ * answering, so that miss isn't remembered and it's tried again later.
  */
 export async function findLyrics(track: { videoId: string; title: string; artist: string }, opts: { duration?: number | null } = {}): Promise<Lyrics> {
   const page = await ytm("next", { videoId: track.videoId }).then((d) => readNext(d, track.videoId));
   const duration = opts.duration ?? page.duration;
-  const hit = track.artist ? await fromLrclib(track.title, track.artist, duration) : null;
+  let down: YtmError | null = null;
+  const hit = track.artist
+    ? await fromLrclib(track.title, track.artist, duration).catch((e) => {
+        if (!(e instanceof YtmError)) throw e;
+        down = e;
+        return null;
+      })
+    : null;
   let found: Omit<Lyrics, "fetchedAt"> | null = null;
   if (hit?.instrumental && !hit.syncedLyrics && !hit.plainLyrics) found = { videoId: track.videoId, source: "lrclib", timed: false, lines: [], duration: hit.duration ?? duration, instrumental: true };
   else if (hit) found = { videoId: track.videoId, source: "lrclib", ...parseLyrics(hit.syncedLyrics || hit.plainLyrics || ""), duration: hit.duration ?? duration };
@@ -247,7 +262,9 @@ export async function findLyrics(track: { videoId: string; title: string; artist
     const text = readLyricsTab(await ytm("browse", { browseId: page.lyricsId }));
     if (text) found = { videoId: track.videoId, source: "ytmusic", ...parseLyrics(text), duration };
   }
+  if (down && !found?.lines.length) throw down;
   const out = found && (found.lines.length || found.instrumental) ? found : { videoId: track.videoId, source: "none" as const, timed: false, lines: [], duration };
-  saveLyrics(out);
-  return { ...out, fetchedAt: now() };
+  const fetchedAt = down ? now() - MISS_TTL + RECHECK_SOON : now();
+  saveLyrics({ ...out, fetchedAt });
+  return { ...out, fetchedAt };
 }
