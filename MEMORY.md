@@ -55,7 +55,7 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 | 1 | Lyrics in the library (`song_lyrics`, LRCLIB → YouTube Music lyrics tab, paste) | merged, PR #145 |
 | 2 | Lyric sheets and the moment | merged, PR #146 |
 | 3 | Picking by the words | merged, PR #147 |
-| 4 | Landing the line (seek) | branch `claude/lyrics-landing` |
+| 4 | Landing the line (seek) | merged, PR #148 |
 
 ### Part 1 (2026-10-22)
 
