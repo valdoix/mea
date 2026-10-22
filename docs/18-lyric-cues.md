@@ -128,7 +128,7 @@ interface LyricSheet {
 }
 ```
 
-Lines go in and gists come out. The sheet keeps line indexes, not text, so a passage's words are read from `song_lyrics.lines` when shown. A sheet is remade only when `lines` change (`sheet_hash`). With moods already tagged, the sheet may also correct them (a "bright" song that's about grief keeps *bright* but gains *melancholy* as a second mood).
+Lines go in numbered; in timed lyrics, a pause of more than 4.5 s between two lines is marked as a break, since LRC files rarely have blank lines between verses. Gists come out. The sheet keeps line indexes, not text, so a passage's words are read from `song_lyrics.lines` when shown. A sheet is remade only when `lines` change (`sheet_hash`). With moods already tagged, the sheet may also correct them (a "bright" song that's about grief keeps *bright* but gains *melancholy* as a second mood).
 
 Cost: a 300-song library is about 75 helper calls, once, spread over the background queue.
 
