@@ -52,8 +52,8 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 
 | Part | What | State |
 |---|---|---|
-| 1 | Lyrics in the library (`song_lyrics`, LRCLIB → YouTube Music lyrics tab, paste) | branch `claude/lyrics-library` |
-| 2 | Lyric sheets and the moment | — |
+| 1 | Lyrics in the library (`song_lyrics`, LRCLIB → YouTube Music lyrics tab, paste) | merged, PR #145 |
+| 2 | Lyric sheets and the moment | branch `claude/lyrics-sheets` |
 | 3 | Picking by the words | — |
 | 4 | Landing the line (seek) | — |
 
@@ -63,6 +63,15 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 - `director.ts`: `lyricsOnline` setting; the `music.lyrics` job does one song, then re-queues itself with `Deferred` (2 s); a site down waits 10 min. LRCLIB `instrumental` marks the track instrumental. `musicView` adds `words` and `wordsCount`.
 - Checked live: a music video's length (4:17) picks LRCLIB's 4:16 cut, not the 4:02 album one.
 - Tests: `server/test/music-lyrics.test.ts`.
+
+### Part 2 (2026-10-22)
+
+- `music/situations.ts`: the 30 situations, `situationsOf` (known ones only).
+- `music/words.ts`: `readSongs` (helper `lyric_sheet`, 4 songs per call, lines numbered; a timed pause over 4.5 s is sent as a bare "—" so the reader sees sections), `cleanSheet`, sheets in `song_lyrics.sheet` keyed by `linesHash`; `embedPassages` (owner `song`, id `videoId#i`, gist + situations, never words); `situationsFromRecords` (death → grief, reveal → confession or betrayal when trust fell, romance up/down, promise, cast left/arrived, mode fight/travel, aftermath); `readMoment` (helper `story_moment`); `wordsFit` (0–3 and best passage).
+- `director.ts`: `music.sheets` job (`sheetsStep`, adds one mood the words suggest); `momentAt` on a beat or the start, kept on `ChatMusic.moment` (key `messageId|cue.key`, so swipes reuse it); helper only with fewer than two situations from the records and some song already read. Nothing picks by words yet (Part 3).
+- Fixed: `bigMoment` looked for change kinds `dead`/`ladder`, which the trackers never emit (`death`/`romance`), so deaths and romance never cut the music.
+- Mock: `lyric_sheet` and `story_moment` answer from word cues (`MOCK_CUES`).
+- Tests: `server/test/music-words.test.ts`.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

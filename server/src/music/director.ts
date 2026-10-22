@@ -9,6 +9,7 @@ import { storyDials } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 import { findLyrics, forgetLyrics, lyricsFor, lyricsIndex, MISS_TTL, pasteLyrics } from "./lyrics";
+import { embedPassages, forgetPassageVectors, linesHash, type Moment, readMoment, readSongs, saveSheet, SHEET_BATCH, sheetFor, situationsFromRecords, songsToRead } from "./words";
 import { command, detectApp, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
@@ -248,6 +249,8 @@ interface ChatMusic {
   /** The scene the director last looked at: a new one is a beat. */
   lastScene?: number;
   now?: { videoId: string; title: string; artist: string; key: string; why: string; at: number } | null;
+  /** docs/18, 2.3: what was happening at the last beat. */
+  moment?: Moment | null;
 }
 const chatMusic = (chatId: string) => (parseJson<ChatSettings>(mustChat(chatId).settings, {}).music ?? {}) as ChatMusic;
 const setChatMusic = (chatId: string, patch: Partial<ChatMusic>) => updateChat(chatId, { settings: { music: { ...chatMusic(chatId), ...patch } } as ChatSettings });
@@ -314,9 +317,9 @@ function stillFits(cfg: MusicConfig, cue: Cue, videoId: string) {
 }
 
 /** A big moment in this reply's records: someone died, a secret came out, a promise kept or broken, romance moved. */
-function bigMoment(messageId: string, chatId: string) {
+export function bigMoment(messageId: string, chatId: string) {
   const changes = currentFold(chatId).result.changes[messageId] ?? [];
-  return changes.some((c) => (c.kind === "secret" && /revealed/i.test(c.text)) || c.kind === "dead" || c.kind === "ladder" || ((c.kind === "promise" || c.kind === "owe") && /kept|broken|stood up/i.test(c.text)) || (c.kind === "scene" && c.newScene));
+  return changes.some((c) => (c.kind === "secret" && /revealed/i.test(c.text)) || c.kind === "death" || c.kind === "romance" || ((c.kind === "promise" || c.kind === "owe") && /kept|broken|stood up/i.test(c.text)) || (c.kind === "scene" && c.newScene));
 }
 
 /** Mostly dialogue: instrumental-only taste applies. */
@@ -431,8 +434,10 @@ export function musicAfterReply(chatId: string, messageId: string) {
     const cue = cueFrom(st, storyDials(mustChat(chatId)).genre);
     const start = !music.now || !music.lastKey;
     const turn = (music.lastScene !== undefined && st.sceneNo !== music.lastScene) || bigMoment(messageId, chatId);
-    if (!start && !(turn && !stillFits(cfg, cue, music.now!.videoId))) return void setChatMusic(chatId, { lastScene: st.sceneNo });
     const text = one<{ content: string }>("SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.id = ?", messageId)?.content ?? "";
+    // A beat (or the start): what's happening now, for picking by the words.
+    if (start || turn) await momentAt(chatId, messageId, st, cue, text, music.moment ?? null);
+    if (!start && !(turn && !stillFits(cfg, cue, music.now!.videoId))) return void setChatMusic(chatId, { lastScene: st.sceneNo });
     const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: [music.now?.videoId, pending?.queued ? pending.track.videoId : undefined].filter((v): v is string => Boolean(v)) });
     if (pick) await play(chatId, cfg, pick, cue.key);
     setChatMusic(chatId, { lastScene: st.sceneNo });
@@ -482,7 +487,7 @@ export function chatMusicView(chatId: string) {
   }
   // The chat is open with its music on: keep it going (also after Mea restarts).
   if (cfg.enabled && cfg.token && m.on && m.now) watch(chatId);
-  return { available: cfg.enabled && Boolean(cfg.token), on: Boolean(m.on), now: m.now ?? null, cue, vote: m.now ? (m.votes?.[m.now.videoId] ?? 0) : 0 };
+  return { available: cfg.enabled && Boolean(cfg.token), on: Boolean(m.on), now: m.now ?? null, cue, vote: m.now ? (m.votes?.[m.now.videoId] ?? 0) : 0, moment: m.moment ?? null };
 }
 
 // ---------- connecting, and the library ----------
@@ -576,6 +581,7 @@ export function removeTracks(videoIds: string[]) {
   setSetting("music.config", { ...cfg, library: cfg.library.filter((t) => !gone.has(t.videoId)) } as never);
   setSetting("music.removed", [...new Set([...removedIds(), ...gone])].slice(-2000) as never);
   forgetLyrics(videoIds);
+  forgetPassageVectors(videoIds);
   return musicView();
 }
 export const removeTrack = (videoId: string) => removeTracks([videoId]);
@@ -587,6 +593,7 @@ export type WordsState = "timed" | "plain" | "none" | "instrumental" | "pending"
 /** Per song: whether Mea has its words, and how many it has. */
 function wordsView(library: Track[]) {
   const idx = lyricsIndex();
+  const unread = new Set(songsToRead(library.map((t) => t.videoId)).map((s) => s.videoId));
   const words: Record<string, WordsState> = {};
   for (const t of library) {
     const l = idx.get(t.videoId);
@@ -594,7 +601,8 @@ function wordsView(library: Track[]) {
   }
   const states = Object.values(words);
   const count = (s: WordsState) => states.filter((x) => x === s).length;
-  return { words, wordsCount: { have: count("timed") + count("plain"), timed: count("timed"), pending: count("pending"), of: library.filter((t) => !t.instrumental).length } };
+  const have = count("timed") + count("plain");
+  return { words, wordsCount: { have, timed: count("timed"), pending: count("pending"), of: library.filter((t) => !t.instrumental).length, read: have - library.filter((t) => unread.has(t.videoId) && !t.instrumental).length } };
 }
 
 /** The next song to look up: one never looked for, then a miss from long enough ago. Not instrumentals, not words you pasted. */
@@ -629,7 +637,9 @@ export async function lyricsStep() {
   const t = dueForWords(cfg);
   if (!t) return;
   try {
-    if ((await findLyrics(t)).instrumental) markInstrumental(t.videoId);
+    const found = await findLyrics(t);
+    if (found.instrumental) markInstrumental(t.videoId);
+    else if (found.lines.length) sheetsSoon();
   } catch (e) {
     if (e instanceof YtmError) throw new Deferred(`Lyrics: ${e.message}`, 10 * 60_000);
     throw e;
@@ -643,10 +653,10 @@ const inLibrary = (videoId: string) => {
   return t;
 };
 
-/** A song's words as Mea has them (null: not looked up yet). */
+/** A song's words as Mea has them (null: not looked up yet), and its lyric sheet once it's been read. */
 export function songWords(videoId: string) {
   inLibrary(videoId);
-  return lyricsFor(videoId);
+  return { words: lyricsFor(videoId), sheet: sheetFor(videoId) };
 }
 
 /** Words you paste for a song (plain or LRC); empty text forgets them, and they're looked up again. */
@@ -654,7 +664,8 @@ export function setSongWords(videoId: string, text: string) {
   inLibrary(videoId);
   pasteLyrics(videoId, text);
   if (!text.trim()) lyricsSoon();
-  return { words: lyricsFor(videoId), view: musicView() };
+  else sheetsSoon();
+  return { words: lyricsFor(videoId), sheet: sheetFor(videoId), view: musicView() };
 }
 
 /** Find again: forgets what Mea has (pasted words too) and looks the song up now. */
@@ -663,5 +674,76 @@ export async function findSongWords(videoId: string) {
   if (!musicConfig().lyricsOnline) throw badRequest("Turn on Find lyrics online first");
   const found = await findLyrics(t);
   if (found.instrumental) markInstrumental(videoId);
-  return { words: lyricsFor(videoId), view: musicView() };
+  else if (found.lines.length) sheetsSoon();
+  return { words: lyricsFor(videoId), sheet: sheetFor(videoId), view: musicView() };
+}
+
+// ---------- reading the songs (docs/18, 2.1-2.2) ----------
+
+/** Reads songs with words and no sheet in the background, a few per helper call. */
+export function sheetsSoon() {
+  if (!songsToRead(musicConfig().library.filter((t) => !t.instrumental).map((t) => t.videoId)).length) return;
+  enqueue("music.sheets", {}, { dedupeKey: "music.sheets", priority: -1 });
+}
+
+/**
+ * The `music.sheets` job: one helper call's worth of songs, then round again for the next few. A
+ * song whose words suggest a mood it isn't tagged with gains it (one at most, never replacing yours).
+ * With embeddings on, the passages get vectors; an embedding failure never loses a sheet.
+ */
+export async function sheetsStep() {
+  const cfg = musicConfig();
+  const todo = songsToRead(cfg.library.filter((t) => !t.instrumental).map((t) => t.videoId)).slice(0, SHEET_BATCH);
+  if (todo.length) {
+    const byId = new Map(cfg.library.map((t) => [t.videoId, t]));
+    const read = await readSongs(
+      todo.map((s) => ({ ...s, title: byId.get(s.videoId)?.title ?? "", artist: byId.get(s.videoId)?.artist ?? "" })),
+      MOODS,
+    );
+    for (const s of todo) {
+      const r = read.get(s.videoId);
+      if (r) saveSheet(s.videoId, r.sheet, linesHash(s.lines));
+    }
+    const fresh = musicConfig();
+    const extra = new Map([...read].filter(([id, r]) => r.mood && !fresh.library.find((t) => t.videoId === id)?.moods.includes(r.mood as Mood)).map(([id, r]) => [id, r.mood as Mood]));
+    if (extra.size) setSetting("music.config", { ...fresh, library: fresh.library.map((t) => (extra.has(t.videoId) && t.moods.length < 9 ? { ...t, moods: [...t.moods, extra.get(t.videoId)!] } : t)) } as never);
+  }
+  try {
+    await embedPassages(musicConfig().library.map((t) => ({ videoId: t.videoId, sheet: sheetFor(t.videoId) })).filter((x): x is { videoId: string; sheet: NonNullable<typeof x.sheet> } => Boolean(x.sheet)));
+  } catch (e) {
+    console.error("[mea] soundtrack: couldn't embed passages:", (e as Error).message);
+  }
+  if (songsToRead(musicConfig().library.filter((t) => !t.instrumental).map((t) => t.videoId)).length) throw new Deferred("Reading the next songs' lyrics", 1_000);
+}
+
+/** Any song in the library has a sheet: only then is the moment worth a helper call. */
+const anySheets = (cfg: MusicConfig) => cfg.library.some((t) => sheetFor(t.videoId));
+
+// ---------- the moment (docs/18, 2.3) ----------
+
+/**
+ * What's happening at a beat: the records first (free); with fewer than two situations from them,
+ * one helper call reads the end of the reply. A swipe of the same beat reuses the moment. Without
+ * any song read for its words, only the records are looked at. Never throws.
+ */
+export async function momentAt(chatId: string, messageId: string, st: WorldState, cue: Cue, text: string, prev: Moment | null) {
+  try {
+    if (prev?.key === `${messageId}|${cue.key}`) return prev;
+    const changes = currentFold(chatId).result.changes[messageId] ?? [];
+    const records = situationsFromRecords(changes, st, prev);
+    let moment: Moment = { situations: records, gist: "", key: `${messageId}|${cue.key}`, from: "records", at: Date.now() };
+    if (records.length < 2 && text.trim() && anySheets(musicConfig())) {
+      try {
+        const r = await readMoment(text, cue, chatId);
+        const both = [...records, ...r.situations.filter((x) => !records.includes(x))].slice(0, 4);
+        moment = { ...moment, situations: both, gist: r.gist, from: records.length ? "both" : "reply" };
+      } catch (e) {
+        console.error("[mea] soundtrack: couldn't read the moment:", (e as Error).message);
+      }
+    }
+    setChatMusic(chatId, { moment });
+    return moment;
+  } catch {
+    return prev;
+  }
 }

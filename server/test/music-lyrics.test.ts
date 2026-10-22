@@ -123,7 +123,7 @@ describe("the library's words", () => {
     expect(musicConfig().library.find((t) => t.videoId === "interlude01")?.instrumental).toBe(true);
     const v = musicView();
     expect(v.words).toEqual({ church00001: "timed", plainsong01: "plain", interlude01: "instrumental", nowhere0001: "none" });
-    expect(v.wordsCount).toEqual({ have: 2, timed: 1, pending: 0, of: 3 });
+    expect(v.wordsCount).toEqual({ have: 2, timed: 1, pending: 0, of: 3, read: 0 });
     // Only the title, artist and length went out.
     expect(new Set(asked.map((a) => a.split("/")[0]))).toEqual(new Set(["lrclib.net", "music.youtube.com"]));
     // Done: nothing more to look up.
@@ -152,7 +152,7 @@ describe("the library's words", () => {
     const r = setSongWords("nowhere0001", "[00:01.00] mine\n[00:04.00] all mine");
     expect(r.words).toMatchObject({ source: "pasted", timed: true });
     expect(r.view.words.nowhere0001).toBe("timed");
-    expect(songWords("nowhere0001")?.lines).toHaveLength(2);
+    expect(songWords("nowhere0001").words?.lines).toHaveLength(2);
     setSongWords("plainsong01", "");
     expect(lyricsFor("plainsong01")).toBeNull();
     const again = await findSongWords("plainsong01");

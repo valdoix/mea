@@ -541,9 +541,51 @@ function helperJson(name: string, user: string, system = ""): unknown {
       return { lessons: /MOCK_LESSON/.test(user) ? [{ text: "Keep the storm in every scene.", why: "The kept take kept the storm.", quote: "calm night" }] : [] };
     case "lesson_from_edit":
       return /MOCK_LESSON/.test(user) ? { lesson: "Mira doesn't apologise easily.", why: "You cut her apology." } : { lesson: "", why: "" };
+    // docs/18: a song's sheet from its numbered lines, and the story's moment, by plain word cues.
+    case "lyric_sheet":
+      return { songs: user.split(/^### /m).filter(Boolean).map(mockSheet) };
+    case "story_moment": {
+      const found = mockSituations(user);
+      return { gist: found.length ? `Someone is ${found[0]}` : "A quiet moment", situations: found };
+    }
     default:
       return {};
   }
+}
+
+const MOCK_CUES: [RegExp, string][] = [
+  [/\b(leav|gone|go away|walk(?:s|ed)? out|before (?:the )?morning)/i, "leaving"],
+  [/\b(goodbye|farewell)/i, "goodbye"],
+  [/\b(home|come back|came back|return)/i, "homecoming"],
+  [/\b(lie|lied|betray|traitor)/i, "betrayal"],
+  [/\b(worship|devot|always yours|forever)/i, "devotion"],
+  [/\b(miss you|long for|wait(?:ing)? for)/i, "longing"],
+  [/\b(dead|died|grave|mourn)/i, "grief"],
+  [/\b(fight|blade|war)/i, "the fight"],
+];
+const mockSituations = (text: string) => MOCK_CUES.filter(([re]) => re.test(text)).map(([, s]) => s).slice(0, 3);
+
+/** "id: \"Title\" by X" then "n: line" rows: passages split at "—" rows; the most repeated passage is the chorus. */
+function mockSheet(block: string) {
+  const id = block.match(/^([\w-]{11}):/)?.[1] ?? "";
+  // A bare "—" row is a pause between sections: the next line starts a new passage.
+  const rows = [...block.matchAll(/^(?:(\d+): (.*)|—)$/gm)].map((m) => ({ i: m[1] == null ? -1 : Number(m[1]), text: m[2] ?? "—" }));
+  const groups: { from: number; to: number; text: string }[] = [];
+  let pause = false;
+  for (const r of rows) {
+    if (r.text === "—") {
+      pause = r.i < 0;
+      continue;
+    }
+    const last = groups.at(-1);
+    if (last && last.to === r.i - 1 && !pause) (last.to = r.i), (last.text += `\n${r.text}`);
+    else groups.push({ from: r.i, to: r.i, text: r.text });
+    pause = false;
+  }
+  const seen = (t: string) => groups.filter((g) => g.text === t).length;
+  const passages = groups.map((g) => ({ from: g.from, to: g.to, kind: seen(g.text) > 1 ? "chorus" : "verse", gist: `about ${mockSituations(g.text)[0] ?? "something"}`, situations: mockSituations(g.text), peak: false }));
+  const all = mockSituations(rows.map((r) => r.text).join("\n"));
+  return { id, situations: all, themes: [], voice: /\byou(?:rs?)?\b/i.test(block) ? "to-you" : "self", passages, mood: all.includes("grief") ? "melancholy" : null };
 }
 
 /** Plain-text creative helpers (fields, deeper sections, extended answers), keyed by their prompt's wording. */

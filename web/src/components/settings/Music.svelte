@@ -34,9 +34,18 @@
     /** docs/18: look for the library's lyrics on LRCLIB and YouTube Music. */
     lyricsOnline: boolean;
     words: Record<string, WordsState>;
-    wordsCount: { have: number; timed: number; pending: number; of: number };
+    /** read: songs whose words have been read for what they're about (their lyric sheet). */
+    wordsCount: { have: number; timed: number; pending: number; of: number; read: number };
   }
   type WordsState = "timed" | "plain" | "none" | "instrumental" | "pending";
+  /** docs/18, 2.1: what the helper read out of a song's words. */
+  interface Sheet {
+    situations: string[];
+    themes: string[];
+    voice: "to-you" | "about-them" | "we" | "self";
+    passages: { from: number; to: number; kind: string; gist: string; situations: string[]; peak: boolean }[];
+  }
+  const VOICE_LABEL: Record<Sheet["voice"], string> = { "to-you": "sung to someone", "about-them": "about someone not there", we: "about us", self: "inward" };
   interface Words {
     source: "lrclib" | "ytmusic" | "pasted" | "none";
     timed: boolean;
@@ -137,24 +146,29 @@
   let wordsOf = $state<string | null>(null);
   /** undefined while it loads; null: Mea has none. */
   let words = $state<Words | null | undefined>(undefined);
+  let sheet = $state<Sheet | null>(null);
   let wordsText = $state("");
   let wordsBusy = $state(false);
   async function openWords(videoId: string) {
     if (wordsOf === videoId) return void (wordsOf = null);
     wordsOf = videoId;
     words = undefined;
+    sheet = null;
     wordsText = "";
     try {
-      words = (await get<{ words: Words | null }>(`/api/music/lyrics/${videoId}`)).words;
+      const r = await get<{ words: Words | null; sheet: Sheet | null }>(`/api/music/lyrics/${videoId}`);
+      words = r.words;
+      sheet = r.sheet;
     } catch (e) {
       errorToast(e);
     }
   }
-  async function wordsDo(req: () => Promise<{ words: Words | null; view: Config }>, done: string) {
+  async function wordsDo(req: () => Promise<{ words: Words | null; sheet: Sheet | null; view: Config }>, done: string) {
     wordsBusy = true;
     try {
       const r = await req();
       words = r.words;
+      sheet = r.sheet;
       cfg = r.view;
       wordsText = "";
       toast(done, { kind: "ok" });
@@ -268,7 +282,7 @@
         <span class="tiny muted">Asks LRCLIB (lrclib.net) and YouTube Music for your songs' words, by title, artist and length only. They're kept on this PC, so the soundtrack can tell what a song is about.</span>
       </div>
       {#if cfg.wordsCount.of}
-        <p class="tiny muted">Words for {cfg.wordsCount.have} of {cfg.wordsCount.of} songs ({cfg.wordsCount.timed} timed){#if cfg.lyricsOnline && cfg.wordsCount.pending} · looking up {cfg.wordsCount.pending}…{/if}</p>
+        <p class="tiny muted">Words for {cfg.wordsCount.have} of {cfg.wordsCount.of} songs ({cfg.wordsCount.timed} timed{#if cfg.wordsCount.read < cfg.wordsCount.have}, {cfg.wordsCount.read} read so far{/if}){#if cfg.lyricsOnline && cfg.wordsCount.pending} · looking up {cfg.wordsCount.pending}…{/if}</p>
       {/if}
       {#if libraryOpen || !cfg.library.length}
       <div class="stack" id="music-library">
@@ -295,6 +309,16 @@
             <div class="stack words-card">
               {#if words?.lines.length}
                 <p class="tiny muted">{words.timed ? "Timed" : "Plain"} words, {SOURCE_LABEL[words.source]}.</p>
+                {#if sheet}
+                  <div class="sheet">
+                    <p class="small">{#if sheet.situations.length}<b>{sheet.situations.join(", ")}</b>{" · "}{/if}{VOICE_LABEL[sheet.voice]}{#if sheet.themes.length}{" · "}<span class="muted">{sheet.themes.join(", ")}</span>{/if}</p>
+                    {#each sheet.passages as p, i (i)}
+                      <p class="tiny"><span class="faint at">{words.timed && words.lines[p.from]?.t != null ? stamp(words.lines[p.from]!.t!) : ""}</span><b>{p.kind}{p.peak ? " ★" : ""}</b>{" "}{p.gist}{#if p.situations.length}{" "}<span class="muted">· {p.situations.join(", ")}</span>{/if}</p>
+                    {/each}
+                  </div>
+                {:else}
+                  <p class="tiny muted">Not read for what it's about yet.</p>
+                {/if}
                 <div class="lyrics">{#each words.lines as l, i (i)}<div class:gap={!l.text}>{#if words.timed && l.t != null}<span class="faint at">{stamp(l.t)}</span>{/if}{l.text}</div>{/each}</div>
               {:else if words === undefined}
                 <p class="tiny muted">Loading…</p>
@@ -402,6 +426,15 @@
     overflow-y: auto;
     font-size: 0.85em;
     line-height: 1.45;
+  }
+  .sheet {
+    display: grid;
+    gap: 0.15rem;
+  }
+  .sheet .at {
+    display: inline-block;
+    min-width: 2.6em;
+    font-variant-numeric: tabular-nums;
   }
   .lyrics .at {
     display: inline-block;
