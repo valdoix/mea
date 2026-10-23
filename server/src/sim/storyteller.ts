@@ -316,6 +316,14 @@ export function tick(inp: TickInput): TickResult {
     }
   }
 
+  // A subplot or proposal about nobody (a lore title or a word taken for a person) drops at once.
+  const nobody = (lead: string) => !lead.startsWith("faction:") && !inp.roster.actors.has(lead) && !inp.state.chars[lead];
+  for (const a of arcs) if ((a.status === "running" || a.status === "held") && a.by === "engine" && !a.locked && nobody(a.lead)) out.sim.push({ type: "arc.set", id: a.id, patch: { status: "dropped" } });
+  for (const p of Object.values(sim.proposals)) {
+    const thread = p.grounds.find((g) => g.startsWith("thread:"));
+    const t = thread ? inp.state.threads[thread.slice(7)] : undefined;
+    if (nobody(p.lead) || (t && !threadNames(`${t.title} ${t.latest ?? ""}`, p.leadName))) out.sim.push({ type: "proposal.done", id: p.id, accepted: false });
+  }
   // Subplots that can't move for three story days drop; proposals go stale.
   for (const a of running) {
     const last = a.beats.at(-1)?.at ?? a.createdAt;
@@ -759,7 +767,7 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
     if (t.status === "resolved") continue;
     const text = `${t.title} ${t.latest ?? ""}`;
     for (const a of r.actors.values()) {
-      if (a.ring === "onstage" || a.isUser || !text.toLowerCase().includes(a.name.toLowerCase().split(" ")[0]!)) continue;
+      if (a.ring === "onstage" || a.isUser || !threadNames(text, a.name)) continue;
       const kind = kindFromText(text) ?? "pursuit";
       push({ kind, lead: a.id, leadName: a.name, cast: [], premise: `${a.name} has their own stake in "${t.title}": ${t.latest ?? t.title}.`, grounds: [`thread:${t.id}`], score: 3, why: `the thread "${t.title}"` });
     }
@@ -824,6 +832,12 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
 }
 
 const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** A thread names someone by their first name, as a whole capitalised word ("Rack", not "Nordstrom-rack"). */
+export function threadNames(text: string, name: string): boolean {
+  const first = name.split(/\s+/)[0] ?? "";
+  return first.length >= 2 && new RegExp(`(?<![\\w'’-])${escRe(first)}(?![\\w-])`).test(text);
+}
 
 /**
  * Subplots for the lore's CURRENT situations that haven't run yet. The lead is whoever the title

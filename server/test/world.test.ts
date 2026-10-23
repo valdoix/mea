@@ -6,7 +6,7 @@ import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/
 import { spreadNews } from "../src/sim/news";
 import { buildRoster, lorePersonName, readStanding, samePerson } from "../src/sim/roster";
 import { forecast, latitudeFrom, placeClimate, weatherAt } from "../src/sim/sky";
-import { canStep, forcedStep, situationCands, tick, type TickInput } from "../src/sim/storyteller";
+import { canStep, forcedStep, situationCands, threadNames, tick, type TickInput } from "../src/sim/storyteller";
 import { retellPrompt, softProblem, validateTelling } from "../src/sim/telling";
 import { parseLine } from "../src/trackers/dsl";
 import { foldEvents, type FoldConfig } from "../src/trackers/fold";
@@ -93,6 +93,15 @@ describe("roster", () => {
 });
 
 describe("storyteller", () => {
+  test("a subplot or proposal about nobody drops", () => {
+    const st = world(base);
+    st.sim.arcs["decline:upcoming:1"] = { id: "decline:upcoming:1", kind: "decline", lead: "upcoming", leadName: "Upcoming", cast: [], premise: "Upcoming: Willow may be drawn deeper.", want: "to stay in control", fear: "they hit bottom", grounds: ["lore:upcoming"], secrecy: "private", clock: { cur: 0, max: 6 }, tally: { win: 0, cost: 0, loss: 0 }, heat: 1, stage: "hook", beats: [], nextAt: 0, status: "running", by: "engine", createdAt: 0, seq: 0 };
+    st.sim.proposals["p:x"] = { id: "p:x", key: "upcoming|life|lore:upcoming", kind: "life", lead: "upcoming", leadName: "Upcoming", cast: [], premise: "", want: "", fear: "", grounds: [], secrecy: "private", why: "", at: st.time!.minutes };
+    const res = tick(input(st));
+    expect(res.sim).toContainEqual({ type: "arc.set", id: "decline:upcoming:1", patch: { status: "dropped" } });
+    expect(res.sim).toContainEqual({ type: "proposal.done", id: "p:x", accepted: false });
+  });
+
   test("the same stretch of time rolls the same dice", () => {
     const a = tick(input(world(base)));
     const b = tick(input(world(base)));
@@ -268,6 +277,15 @@ describe("crossings", () => {
     expect(used[0]).toMatchObject({ id: "a1", status: "used" });
     const unused = confirmArrivals({ arrivals, offered: lane.offered, prose: "They drink tea.", now: st.time!.minutes, castNames: ["Mira"] });
     expect(unused[0]).toMatchObject({ id: "a1", status: "offered", offers: 1 });
+  });
+});
+
+describe("who a thread names", () => {
+  test("a whole, capitalised first name, not part of another word", () => {
+    expect(threadNames("the Nordstrom-rack gesture, the green-blouse memory", "Rack")).toBe(false);
+    expect(threadNames("Willow could lead her to Rack.", "Rack")).toBe(true);
+    expect(threadNames("the photo Joyce caught laughing at something Dawn's friend said", "Dawn")).toBe(true);
+    expect(threadNames("at dawn the house was quiet", "Dawn")).toBe(false);
   });
 });
 
