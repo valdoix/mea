@@ -1390,6 +1390,21 @@ CREATE TABLE IF NOT EXISTS song_lyrics (
 );
 `,
   },
+  {
+    id: 33,
+    name: "cast factions",
+    // Groups on the Story page's Cast: a house, a crew, a guild, with the people in it (by cast name).
+    sql: /* sql */ `
+CREATE TABLE IF NOT EXISTS cast_factions (
+  id         TEXT PRIMARY KEY,
+  chat_id    TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  data       TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS cast_factions_chat ON cast_factions(chat_id);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

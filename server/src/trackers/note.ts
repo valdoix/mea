@@ -27,6 +27,8 @@ export interface NoteOptions {
   voices?: Record<string, string>;
   /** Pinned cast members, always described. */
   pinned?: { name: string; text: string }[];
+  /** The cast's factions; one with someone in the scene is named, with its people. */
+  factions?: { name: string; description?: string; members: { name: string; role?: string }[] }[];
   /** What reaches the scene from off the page (sim/crossings). */
   elsewhere?: string;
   nudges?: boolean;
@@ -228,6 +230,13 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     const here = present(st);
     const lines = here.sort((a, b) => Number(a.isUser) - Number(b.isUser) || Number(b.tier === "spot") - Number(a.tier === "spot")).map((c) => personLine(st, c, o, here));
     for (const p of o.pinned ?? []) if (!here.some((c) => c.name.toLowerCase() === p.name.toLowerCase())) lines.push(`- ${p.name} (not here; keep in mind): ${p.text}`);
+    const hereNames = new Set(here.map((c) => (c.isUser ? o.userName : c.name).trim().toLowerCase()));
+    for (const f of o.factions ?? []) {
+      if (!f.members.some((m) => hereNames.has(m.name.trim().toLowerCase()))) continue;
+      const who = f.members.slice(0, 10).map((m) => (m.role ? `${m.name} (${m.role})` : m.name)).join(", ");
+      const about = f.description?.trim() ? `; ${f.description.trim().replace(/\s+/g, " ").slice(0, 240)}` : "";
+      lines.push(`- Faction ${f.name}: ${who}${f.members.length > 10 ? ", …" : ""}${about}`);
+    }
     if (lines.length) lanes.push({ name: "present", lines: ["PRESENT:", ...lines], priority: 1 });
   }
 

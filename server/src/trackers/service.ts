@@ -19,6 +19,7 @@ import { buildNote, type NoteResult } from "./note";
 import { initPrompt, inlineInstruction, stateForModel, updatePrompt } from "./prompts";
 import {
   branchEvents,
+  castFactions,
   castProfiles,
   currentFold,
   eventsOf,
@@ -357,6 +358,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     sections: cfg.sections,
     voices,
     pinned,
+    factions: castFactions(chatId),
     nudges: cfg.nudges,
     elsewhere: opts.elsewhere,
     calendar: cfg.calendar,
