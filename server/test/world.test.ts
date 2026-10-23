@@ -6,8 +6,8 @@ import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/
 import { spreadNews } from "../src/sim/news";
 import { buildRoster, lorePersonName, readStanding, samePerson } from "../src/sim/roster";
 import { forecast, latitudeFrom, placeClimate, weatherAt } from "../src/sim/sky";
-import { canStep, forcedStep, situationCands, tick, type TickInput } from "../src/sim/storyteller";
-import { validateTelling } from "../src/sim/telling";
+import { canStep, forcedStep, situationCands, threadNames, tick, type TickInput } from "../src/sim/storyteller";
+import { retellPrompt, softProblem, validateTelling } from "../src/sim/telling";
 import { parseLine } from "../src/trackers/dsl";
 import { foldEvents, type FoldConfig } from "../src/trackers/fold";
 import type { WorldState } from "../src/trackers/types";
@@ -93,6 +93,15 @@ describe("roster", () => {
 });
 
 describe("storyteller", () => {
+  test("a subplot or proposal about nobody drops", () => {
+    const st = world(base);
+    st.sim.arcs["decline:upcoming:1"] = { id: "decline:upcoming:1", kind: "decline", lead: "upcoming", leadName: "Upcoming", cast: [], premise: "Upcoming: Willow may be drawn deeper.", want: "to stay in control", fear: "they hit bottom", grounds: ["lore:upcoming"], secrecy: "private", clock: { cur: 0, max: 6 }, tally: { win: 0, cost: 0, loss: 0 }, heat: 1, stage: "hook", beats: [], nextAt: 0, status: "running", by: "engine", createdAt: 0, seq: 0 };
+    st.sim.proposals["p:x"] = { id: "p:x", key: "upcoming|life|lore:upcoming", kind: "life", lead: "upcoming", leadName: "Upcoming", cast: [], premise: "", want: "", fear: "", grounds: [], secrecy: "private", why: "", at: st.time!.minutes };
+    const res = tick(input(st));
+    expect(res.sim).toContainEqual({ type: "arc.set", id: "decline:upcoming:1", patch: { status: "dropped" } });
+    expect(res.sim).toContainEqual({ type: "proposal.done", id: "p:x", accepted: false });
+  });
+
   test("the same stretch of time rolls the same dice", () => {
     const a = tick(input(world(base)));
     const b = tick(input(world(base)));
@@ -271,6 +280,15 @@ describe("crossings", () => {
   });
 });
 
+describe("who a thread names", () => {
+  test("a whole, capitalised first name, not part of another word", () => {
+    expect(threadNames("the Nordstrom-rack gesture, the green-blouse memory", "Rack")).toBe(false);
+    expect(threadNames("Willow could lead her to Rack.", "Rack")).toBe(true);
+    expect(threadNames("the photo Joyce caught laughing at something Dawn's friend said", "Dawn")).toBe(true);
+    expect(threadNames("at dawn the house was quiet", "Dawn")).toBe(false);
+  });
+});
+
 describe("telling validator", () => {
   const card = { id: "c", arc: "x", kind: "return" as const, stage: "rising", result: "loss" as const, lead: "Edda", cast: ["Mira"], where: "London", premise: "", want: "", fear: "", soFar: [], template: "", at: 0 };
   test("keeps the model honest", () => {
@@ -278,6 +296,22 @@ describe("telling validator", () => {
     expect(validateTelling("Edda met Gregor at the station.", card, { userName: "Alex", places: [] })).toContain("Gregor");
     expect(validateTelling("Edda called and Alex decided to meet her.", card, { userName: "Alex", places: [] })).toContain("user");
     expect(validateTelling("Edda managed to get on the train after all.", card, { userName: "Alex", places: [] })).toContain("loss");
+  });
+  test("lets the model name what the card already says", () => {
+    const giles = { ...card, lead: "Rupert Giles", cast: [], where: "England", premise: "Rupert Giles is thinking of coming back to Sunnydale.", result: "cost" as const };
+    expect(validateTelling("In England, Giles booked a flight back to Sunnydale. The ticket cost more than he had.", giles, { userName: "Alex", places: [] })).toBeNull();
+    expect(validateTelling("Giles called the Watchers Council. They stalled him.", giles, { userName: "Alex", places: [], known: ["Watchers Council"] })).toBeNull();
+  });
+  test("only story-changing problems keep the engine's words", () => {
+    expect(softProblem(validateTelling("Edda met Gregor at the station.", card, { userName: "Alex", places: [] })!)).toBe(true);
+    expect(softProblem(validateTelling("Edda called and Alex decided to meet her.", card, { userName: "Alex", places: [] })!)).toBe(false);
+    expect(softProblem(validateTelling("Edda managed to get on the train after all.", card, { userName: "Alex", places: [] })!)).toBe(false);
+  });
+  test("a second try says what went wrong", () => {
+    const misses = new Map([["c", { text: "Edda met Gregor.", problem: 'named someone or somewhere not on the card ("Gregor")' }]]);
+    const { user } = retellPrompt([card, { ...card, id: "d" }], misses, { userName: "Alex", truths: [], genres: [] });
+    expect(user).toContain('CARD c: your telling "Edda met Gregor." was turned back');
+    expect(user).toContain("CARD d: you left it out");
   });
 });
 

@@ -181,7 +181,7 @@ export function emptySim(): SimState {
 export type SimOp =
   | { type: "arc.new"; arc: Arc }
   | { type: "arc.beat"; id: string; beat: Beat; heat?: number; nextAt: number; place?: string[] }
-  | { type: "arc.tell"; id: string; at: number; text: string }
+  | { type: "arc.tell"; id: string; at: number; text: string; /** Which step, when it was told again later (several can share a minute); absent, the step at that minute. */ n?: number; ending?: boolean }
   | { type: "arc.end"; id: string; result: EndResult; text: string; at: number }
   | { type: "arc.fate"; id: string; result: EndResult; text: string; at: number }
   | { type: "arc.set"; id: string; patch: Partial<Pick<Arc, "status" | "premise" | "want" | "fear" | "push" | "bringIn" | "heat" | "locked" | "nextAt" | "foreshadowed" | "thread" | "cast" | "force" | "threadSeen">> }
@@ -193,4 +193,5 @@ export type SimOp =
   | { type: "faction.rel"; a: string; b: string; value: number }
   | { type: "proposal.new"; proposal: Proposal }
   | { type: "proposal.done"; id: string; accepted: boolean }
+  | { type: "proposal.set"; id: string; patch: Partial<Pick<Proposal, "premise" | "want" | "fear">> }
   | { type: "tick"; at: number; tension: number; target: number };

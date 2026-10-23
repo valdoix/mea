@@ -38,7 +38,7 @@ import { runJournalJob } from "./memory/journals";
 import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
 import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
-import { runTelling, worldAfterReply, worldLane } from "./sim/service";
+import { runTelling, runWording, worldAfterReply, worldLane } from "./sim/service";
 import { activeGenerations, setElsewhereLane } from "./services/generation";
 import { runSpeakerMarksJob } from "./services/speakermarks";
 
@@ -167,6 +167,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("memory.import", async (p, job) => runMemoryImport(p as { chatId: string; file: string; mode: "merge" | "replace" }, job));
   setElsewhereLane((chatId) => worldLane(chatId));
   registerJob("world.tell", async (p, job) => runTelling(p as Parameters<typeof runTelling>[0], job));
+  registerJob("world.word", async (p, job) => runWording(p as Parameters<typeof runWording>[0], job));
   registerJob("cache.probe", async (p) => {
     if (p.connectionId && p.modelId) await probeCache(String(p.connectionId), String(p.modelId));
     else await runDueProbes();

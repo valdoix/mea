@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { mustChat } from "../services/chats";
-import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, previewOutcome, runTick, setActor, worldView } from "../sim/service";
+import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, previewOutcome, retellStep, rewordSubplot, runTick, setActor, worldView } from "../sim/service";
 import { FORCES } from "../sim/types";
 
 /** The world off the page: subplots, arrivals, news, the director, your controls. */
@@ -44,6 +44,19 @@ world.post("/chats/:id/world/arcs/:arcId/force", async (c) => {
 world.post("/chats/:id/world/arcs/:arcId/preview", async (c) => {
   const input = await body(c, z.object({ outcome: z.enum(FORCES), salt: z.number().int().min(0).max(1_000_000).default(0) }));
   return c.json(await previewOutcome(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.outcome, input.salt));
+});
+
+/** Tell a step already taken (its index), or the ending (null), again in the model's words. */
+world.post("/chats/:id/world/arcs/:arcId/retell", async (c) => {
+  const input = await body(c, z.object({ step: z.number().int().min(0).nullable() }));
+  await retellStep(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.step);
+  return c.json(worldView(c.req.param("id")));
+});
+
+/** Word a waiting proposal, or a subplot the engine started, again in the model's words. */
+world.post("/chats/:id/world/reword/:subId", async (c) => {
+  await rewordSubplot(c.req.param("id"), decodeURIComponent(c.req.param("subId")));
+  return c.json(worldView(c.req.param("id")));
 });
 
 /** "Give someone a story." */

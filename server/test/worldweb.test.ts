@@ -101,9 +101,9 @@ describe("subplots bear on each other", () => {
     expect(card.names).toContain("Joss");
     const { user } = tellingPrompt([card], { userName: "Alex", truths: [], genres: [] });
     expect(user).toContain("MEANWHILE Joss's revenge");
-    // The telling may name Joss now: he is in what happened meanwhile.
+    // The telling may name Joss now: he is in what happened meanwhile (and nowhere else on a bare card).
     expect(validateTelling("Edda kept her post, though Joss had been asking about her. She is wary now.", card, { userName: "Alex", places: [] })).toBeNull();
-    const bare: BeatCard = { ...card, names: undefined };
+    const bare: BeatCard = { ...card, names: undefined, meanwhile: undefined };
     expect(validateTelling("Edda kept her post, though Joss had been asking about her. She is wary now.", bare, { userName: "Alex", places: [] })).not.toBeNull();
   });
 
