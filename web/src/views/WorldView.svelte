@@ -67,6 +67,19 @@
       busy = false;
     }
   }
+  // Past steps, endings and new subplots, told (or worded) again in the model's words.
+  let redoing = $state<string | null>(null);
+  async function redo(key: string, url: string, body: unknown = {}) {
+    redoing = key;
+    try {
+      w = await post<WorldViewData>(url, body);
+      toast("Told again in new words", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      redoing = null;
+    }
+  }
   async function act(url: string, body: unknown) {
     try {
       w = await post<WorldViewData>(url, body);
@@ -299,7 +312,7 @@
             <div class="tiny muted">{w.kinds[p.kind]?.label} · grows out of {p.why}</div>
             <div><b>{p.leadName}</b>: {p.premise}</div>
             <div class="tiny muted">Wants {p.want} · fears {p.fear}</div>
-            <div class="row"><button class="btn small primary" onclick={() => act(`/api/chats/${id}/world/proposals/${encodeURIComponent(p.id)}`, { accept: true })}>Let it happen</button><button class="btn small ghost" onclick={() => act(`/api/chats/${id}/world/proposals/${encodeURIComponent(p.id)}`, { accept: false })}>Not this</button></div>
+            <div class="row"><button class="btn small primary" onclick={() => act(`/api/chats/${id}/world/proposals/${encodeURIComponent(p.id)}`, { accept: true })}>Let it happen</button><button class="btn small ghost" onclick={() => act(`/api/chats/${id}/world/proposals/${encodeURIComponent(p.id)}`, { accept: false })}>Not this</button><button class="btn small ghost" disabled={redoing !== null} title="Word it again in the model's words" onclick={() => redo(p.id, `/api/chats/${id}/world/reword/${encodeURIComponent(p.id)}`)}>{redoing === p.id ? "Rewording…" : "Reword"}</button></div>
           </div>
         {/each}
       </section>
@@ -322,7 +335,7 @@
               <span class="tiny muted">{a.clock.cur}/{a.clock.max}</span>
             </div>
           </div>
-          <p class="small">{a.premise}</p>
+          <p class="small">{a.premise}{#if a.by === "engine"} <button class="linkish tiny" disabled={redoing !== null} title="Word it again in the model's words" onclick={() => redo(a.id, `/api/chats/${id}/world/reword/${encodeURIComponent(a.id)}`)}>{redoing === a.id ? "rewording…" : "reword"}</button>{/if}</p>
           <div class="tiny muted">Wants {a.want} · fears {a.fear}{director ? ` · heat ${a.heat}` : ""}{director ? ` · ${a.tally.win} won, ${a.tally.cost} at a cost, ${a.tally.loss} lost` : ""}</div>
           {#if director && a.grounds.length}<div class="tiny faint">Rests on: {a.grounds.join(", ")}</div>{/if}
           {#if a.fate}
@@ -336,14 +349,15 @@
           {#if a.beats.length}
             <ol class="beats">
               {#each a.beats.slice(-6) as b, i (`${b.at}:${i}`)}
+                {@const n = a.beats.length - Math.min(6, a.beats.length) + i}
                 <li>
                   <span class="tiny faint">{b.stage}{b.forced ? ` · your call${director ? ` → ${resultWord[b.result]}` : ""}` : director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && !b.forced && b.why.length ? ` (${b.why.join(", ")})` : ""}{b.answers && b.twist !== "collide" ? ` · answering ${b.answers}` : ""}</span>
-                  <div class="small">{b.text}</div>
+                  <div class="small">{b.text} <button class="linkish tiny" disabled={redoing !== null} title="Tell this step again in the model's words" onclick={() => redo(`${a.id}#${n}`, `/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}/retell`, { step: n })}>{redoing === `${a.id}#${n}` ? "retelling…" : "retell"}</button></div>
                 </li>
               {/each}
             </ol>
           {/if}
-          {#if a.ending}<div class="small ending">Ending ({a.ending.result}): {a.ending.text}</div>{/if}
+          {#if a.ending}<div class="small ending">Ending ({a.ending.result}): {a.ending.text} <button class="linkish tiny" disabled={redoing !== null} title="Tell the ending again in the model's words" onclick={() => redo(`${a.id}#end`, `/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}/retell`, { step: null })}>{redoing === `${a.id}#end` ? "retelling…" : "retell"}</button></div>{/if}
           {#if a.ties.length || a.stands.length}
             <div class="ties" aria-label="How other subplots bear on this one">
               <div class="tiny muted">Tied to{#if director && a.pull} <span class="chip tiny" class:up={a.pull.mod > 0} class:down={a.pull.mod < 0}>{a.pull.mod > 0 ? "+1" : "−1"} to its next roll</span>{/if}</div>
@@ -665,6 +679,14 @@
     cursor: pointer;
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+  .linkish.tiny {
+    font-size: var(--fs-xs);
+    opacity: 0.75;
+  }
+  .linkish:disabled {
+    cursor: default;
+    opacity: 0.4;
   }
   .ctl {
     gap: 0.2rem;

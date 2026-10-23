@@ -91,6 +91,10 @@ function helperJson(name: string, user: string, system = ""): unknown {
       return { recap: "Previously: you came back to the lighthouse through the storm, and Mira was waiting with tea." };
     case "tracker_gate":
       return { changed: !/MOCK_NO_CHANGE/.test(user) };
+    case "world_wording":
+      return {
+        items: [...user.matchAll(/^ITEM (\S+)\n[\s\S]*?^ENGINE'S PREMISE (.+)$/gm)].map((m) => ({ id: m[1], premise: `Worded: ${m[2]}`, want: "keep going", fear: "it all comes apart" })),
+      };
     case "world_telling":
       return {
         beats: [...user.matchAll(/^CARD (\S+)[\s\S]*?^ENGINE'S WORDS (.+)$/gm)].map((m) => ({ card: m[1], text: `Off the page: ${m[2]}` })),
@@ -723,6 +727,7 @@ function guessSchema(system: string) {
   if (system.includes('"memories"')) return "scene_memory";
   if (system.includes('"changed"')) return "tracker_gate";
   if (system.includes('"beats"')) return "world_telling";
+  if (system.includes('"items"') && system.includes("subplots")) return "world_wording";
   if (system.includes('"verdict"')) return "summary_check";
   if (system.includes('"newScene"')) return "scene_boundary";
   if (system.includes('"openThreads"')) return "summary_rollup";

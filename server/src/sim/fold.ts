@@ -30,8 +30,12 @@ export function applySim(sim: SimState, op: SimOp, seq: number) {
     }
     case "arc.tell": {
       const arc = sim.arcs[op.id];
+      if (op.ending) {
+        if (arc?.ending) arc.ending.text = op.text;
+        return;
+      }
       // Several beats can share a minute (forced steps): tell the earliest one still untold.
-      const beat = arc?.beats.find((b) => b.at === op.at && b.told !== "model") ?? arc?.beats.findLast((b) => b.at === op.at);
+      const beat = op.n != null ? arc?.beats[op.n] : (arc?.beats.find((b) => b.at === op.at && b.told !== "model") ?? arc?.beats.findLast((b) => b.at === op.at));
       if (beat) {
         beat.text = op.text;
         beat.told = "model";
@@ -99,6 +103,11 @@ export function applySim(sim: SimState, op: SimOp, seq: number) {
     case "proposal.new":
       sim.proposals[op.proposal.id] = op.proposal;
       return;
+    case "proposal.set": {
+      const p = sim.proposals[op.id];
+      if (p) sim.proposals[op.id] = { ...p, ...op.patch };
+      return;
+    }
     case "proposal.done": {
       const p = sim.proposals[op.id];
       if (!p) return;

@@ -902,6 +902,20 @@ export function newArc(c: Cand, inp: TickInput): Arc {
   };
 }
 
+/** A card for a step already taken (n), or the ending (null), so it can be told again in new words. */
+export function pastCard(arc: Arc, n: number | null, inp: TickInput): BeatCard | null {
+  if (n === null) {
+    const e = arc.ending;
+    if (!e) return null;
+    const last = arc.beats.at(-1);
+    return cardFor(arc, { at: e.at, result: "win", stage: last?.stage ?? "climax", text: e.text, roll: [0, 0], mod: 0, why: [], told: "template", seq: 0 }, inp, true, e.result);
+  }
+  const beat = arc.beats[n];
+  if (!beat) return null;
+  // What came before this step only: its card can't see what happened after it.
+  return cardFor({ ...arc, beats: arc.beats.slice(0, n) }, beat, inp, false);
+}
+
 function cardFor(arc: Arc, beat: Beat, inp: TickInput, ending: boolean, end?: EndResult, W?: TickWeb, answer?: Answer): BeatCard {
   // What the tied subplots did before this step (never this step itself), and what stands about its people.
   const before = (W?.events ?? []).filter((e) => e.arc !== arc.id && e.at <= beat.at);

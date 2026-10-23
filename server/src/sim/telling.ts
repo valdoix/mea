@@ -36,18 +36,44 @@ Reply with JSON only: {"beats":[{"card":"<id>","text":"…"}]}`;
   return { system, user: `${user}\n\nWORLD TELLING: tell each card.` };
 }
 
+/** A second try for the cards whose telling failed: the same cards, with what went wrong. */
+export function retellPrompt(cards: BeatCard[], misses: Map<string, { text: string; problem: string }>, o: { userName: string; truths: string[]; genres: string[] }) {
+  const { system, user } = tellingPrompt(cards, o);
+  const notes = cards
+    .map((c) => {
+      const m = misses.get(c.id);
+      return m ? `CARD ${c.id}: your telling "${m.text.trim()}" was turned back (${m.problem}). Tell it again without that.` : `CARD ${c.id}: you left it out. Tell it.`;
+    })
+    .join("\n");
+  return { system, user: `${user}\n\nLAST TRY:\n${notes}` };
+}
+
 const COMMON = new Set(
   "The A An It In On At By For With From After Before When While Then But And Or Off Somewhere Nobody Someone Everyone Later Meanwhile That This Their His Her They She He Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April May June July August September October November December Day Night Morning Evening".split(" "),
 );
 
+/**
+ * Problems the model's words survive: they still read better than the engine's sentence, so after a
+ * second try they're used anyway. The rest (deciding for the user's character, turning the outcome
+ * around) would change the story, so the engine's sentence stands.
+ */
+export function softProblem(problem: string): boolean {
+  return problem === "too long" || problem === "dialogue" || problem.startsWith("named ");
+}
+
 /** Checks a telling; returns the problem, or null when it can be used. */
-export function validateTelling(text: string, card: BeatCard, o: { userName: string; places: string[] }): string | null {
+export function validateTelling(text: string, card: BeatCard, o: { userName: string; places: string[]; known?: string[] }): string | null {
   const words = text.trim().split(/\s+/);
+  if (!text.trim()) return "empty";
   if (words.length > 75) return "too long";
   if (/["“”]/.test(text) && /\b(said|says|asked|told)\b/.test(text) && /["“][^"”]{10,}["”]/.test(text)) return "dialogue";
   const u = o.userName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (new RegExp(`\\b${u}\\s+(?:\\w+ed|\\w+s|was|is|had|felt|thought|knew|decided|agreed)\\b`, "i").test(text)) return "decided something for the user's character";
-  const allowed = new Set([card.lead, ...card.cast, ...(card.names ?? []), o.userName, ...o.places].flatMap((n) => n.split(/[\s›]+/)).map((w) => w.replace(/[^\w'-]/g, "").toLowerCase()));
+  // Anything the card itself says (where, the premise, earlier steps, what bears on it) is fair to name.
+  const said = [card.where, card.premise, card.want, card.fear, card.template, card.answers ?? "", ...card.soFar, ...(card.meanwhile ?? []), ...(card.stands ?? [])];
+  const allowed = new Set(
+    [card.lead, ...card.cast, ...(card.names ?? []), o.userName, ...o.places, ...(o.known ?? []), ...said].flatMap((n) => n.split(/[\s›]+/)).map((w) => w.replace(/[^\w'-]/g, "").replace(/'s$/, "").toLowerCase()),
+  );
   // Capitalised words not at the start of a sentence must be names the card allows.
   const tokens = text.match(/(?<![.!?]\s)(?<!^)\b[A-Z][a-z'’-]{2,}\b/g) ?? [];
   for (const t of tokens) {

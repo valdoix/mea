@@ -268,7 +268,7 @@ export function beatTemplate(o: BeatWords): string {
       .replace(/\{is\}/g, group ? "are" : "is")
       .replace(/\{has\}/g, group ? "have" : "has");
   const placeWord = o.place ? o.place.split(/\s*›\s*/).at(-1)! : "";
-  const where = placeWord && !want.toLowerCase().includes(placeWord.toLowerCase()) && placeWord.toLowerCase() !== town.toLowerCase() ? `At ${placeWord}, ` : "";
+  const where = placeWord && !want.toLowerCase().includes(placeWord.toLowerCase()) && placeWord.toLowerCase() !== town.toLowerCase() ? `In ${placeWord}, ` : "";
   const first = `${where}${where ? lead : cap(lead)} ${fill(spec.moves[o.stage])}.`;
   const twist = o.twist ? ` ${sentence(o.twist)}` : "";
   const then = o.result === "win" ? fill(spec.state) : o.result === "cost" ? sentence(fill(o.price ?? spec.prices[0]!)) : sentence(fill(o.worse ?? spec.worse[0]!));

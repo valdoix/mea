@@ -18,8 +18,9 @@ import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
 import { buildRoster, lorePersonName, type Roster } from "./roster";
 import { climateFrom, forecast, latitudeFrom, placeClimate, skyLine, type SkyInput } from "./sky";
-import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
-import { tellingPrompt, tellingSchema, validateTelling } from "./telling";
+import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, pastCard, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
+import { retellPrompt, softProblem, tellingPrompt, tellingSchema, validateTelling } from "./telling";
+import { tidyWording, validateWording, type WordingCard, wordingPrompt, wordingSchema } from "./wording";
 import type { Arc, EndResult, Force, SimOp, Standing } from "./types";
 import { bearingsOn, conditionsFor, eventsOf, peopleOf, pullWords, webMod } from "./web";
 
@@ -200,6 +201,9 @@ export function runTick(chatId: string, messageId: string | null, forced: boolea
   const idx = anchor ? (messageId && swipeIdx != null ? swipeIdx : -1) : 0;
   writeEvents(chatId, { messageId: anchor, swipeIdx: idx }, [...simOps(res.sim), ...res.ledger], "engine");
   if (cfg.telling === "model" && res.cards.length) enqueue("world.tell", { chatId, messageId: anchor, swipeIdx: idx, cards: res.cards }, { priority: 2, chatId });
+  // New subplots the engine offered or started get the story's words too.
+  const fresh = res.sim.flatMap((o) => (o.type === "proposal.new" ? [o.proposal.id] : o.type === "arc.new" && o.arc.by === "engine" && !o.arc.locked ? [o.arc.id] : []));
+  if (cfg.telling === "model" && fresh.length) enqueue("world.word", { chatId, messageId: anchor, swipeIdx: idx, ids: fresh }, { priority: 2, chatId });
   return res;
 }
 
@@ -246,23 +250,139 @@ export function worldLane(chatId: string): string | undefined {
 // ---------- telling ----------
 
 export async function runTelling(p: { chatId: string; messageId: string | null; swipeIdx?: number; cards: BeatCard[] }, job?: JobContext) {
-  const st = currentFold(p.chatId).result.state;
-  const fc = foldConfigFor(p.chatId);
-  const chat = mustChat(p.chatId);
-  const s = parseJson<ChatSettings>(chat.settings, {});
-  const { system, user } = tellingPrompt(p.cards, { userName: fc.userName, truths: s.truths ?? [], genres: worldConfig(p.chatId).genres });
-  const res = await callJson({ task: "world", kind: "world:telling", chatId: p.chatId, jobId: job?.id, name: "world_telling", schema: tellingSchema, system, user, maxTokens: 1200 });
-  job?.note({ inputTokens: res.inputTokens });
-  const places = Object.values(st.places).flatMap((x) => x.path);
-  const ops: SimOp[] = [];
-  for (const b of res.data.beats) {
-    const card = p.cards.find((c) => c.id === b.card);
-    if (!card) continue;
-    const problem = validateTelling(b.text, card, { userName: fc.userName, places: [...places, st.place.join(" ")] });
-    if (problem) continue;
-    ops.push({ type: "arc.tell", id: card.arc, at: card.at, text: b.text.trim() });
-  }
+  const told = await tellCards(p.chatId, p.cards, { job });
+  const ops: SimOp[] = p.cards.filter((c) => told.has(c.id)).map((c) => ({ type: "arc.tell", id: c.arc, at: c.at, text: told.get(c.id)! }));
   if (ops.length) writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.messageId ? (p.swipeIdx ?? -1) : 0 }, simOps(ops), "engine");
+}
+
+/**
+ * The model tells the cards; returns the words for each card it told. A telling that misses gets one
+ * more try; after that, one that's off only in ways that don't change the story is used anyway.
+ * `again`: the story already reads these words; the model gives them new ones.
+ */
+async function tellCards(chatId: string, cards: BeatCard[], opts: { job?: JobContext; again?: boolean } = {}): Promise<Map<string, string>> {
+  const st = currentFold(chatId).result.state;
+  const fc = foldConfigFor(chatId);
+  const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
+  const o = { userName: fc.userName, truths: s.truths ?? [], genres: worldConfig(chatId).genres };
+  const check = { userName: fc.userName, places: [...Object.values(st.places).flatMap((x) => x.path), st.place.join(" ")], known: [...Object.values(st.chars).map((c) => c.name), ...o.truths] };
+  const fresh = opts.again ? "\nTELL IT AGAIN: the story already reads ENGINE'S WORDS here. Keep what happened; give it new words of your own." : "";
+  const job = opts.job;
+  const told = new Map<string, string>();
+  const misses = new Map<string, { text: string; problem: string }>();
+  const take = (beats: { card: string; text: string }[]) => {
+    for (const b of beats) {
+      const card = cards.find((c) => c.id === b.card);
+      if (!card || told.has(card.id)) continue;
+      const problem = validateTelling(b.text, card, check);
+      if (problem) misses.set(card.id, { text: b.text, problem });
+      else {
+        told.set(card.id, b.text.trim());
+        misses.delete(card.id);
+      }
+    }
+  };
+  const { system, user } = tellingPrompt(cards, o);
+  const res = await callJson({ task: "world", kind: "world:telling", chatId, jobId: job?.id, name: "world_telling", schema: tellingSchema, system, user: user + fresh, maxTokens: 1200 });
+  job?.note({ inputTokens: res.inputTokens });
+  take(res.data.beats);
+  // The model's words are what the story should read: a telling that missed gets one more try.
+  const again = cards.filter((c) => !told.has(c.id));
+  if (again.length) {
+    const first = new Map(misses);
+    const r = retellPrompt(again, first, o);
+    try {
+      const res2 = await callJson({ task: "world", kind: "world:telling", chatId, jobId: job?.id, name: "world_telling", schema: tellingSchema, system: r.system, user: r.user + fresh, maxTokens: 1200 });
+      take(res2.data.beats);
+    } catch {
+      // The first try's words still stand in where they can.
+    }
+    // Still off only in ways that don't change the story: the model's words beat the engine's.
+    for (const [id, m] of misses) if (softProblem(m.problem)) told.set(id, m.text.trim());
+    for (const [id, m] of first) if (!told.has(id) && softProblem(m.problem)) told.set(id, m.text.trim());
+  }
+  return told;
+}
+
+// ---------- wording new subplots ----------
+
+/** Word the proposals and engine-started subplots a tick made (by id), in the story's words. */
+export async function runWording(p: { chatId: string; messageId: string | null; swipeIdx?: number; ids: string[] }, job?: JobContext) {
+  const ops = await wordSubplots(p.chatId, p.ids, job);
+  if (ops.length) writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.messageId ? (p.swipeIdx ?? -1) : 0 }, simOps(ops), "engine");
+}
+
+/** A waiting proposal, or a subplot the engine started, worded again in the model's words. */
+export async function rewordSubplot(chatId: string, id: string) {
+  const ops = await wordSubplots(chatId, [id], undefined, true);
+  if (!ops.length) throw badRequest("The model's wording didn't hold up this time; try again");
+  return control(chatId, ops);
+}
+
+async function wordSubplots(chatId: string, ids: string[], job?: JobContext, again = false): Promise<SimOp[]> {
+  const st = currentFold(chatId).result.state;
+  const fc = foldConfigFor(chatId);
+  const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
+  const o = { userName: fc.userName, truths: s.truths ?? [], genres: worldConfig(chatId).genres };
+  const name = (who: string) => st.sim.actors[who]?.name ?? who;
+  const cards: WordingCard[] = ids.flatMap((id) => {
+    const p = st.sim.proposals[id];
+    if (p) return [{ id, kind: p.kind, lead: p.leadName, cast: p.cast.map(name), premise: p.premise, want: p.want, fear: p.fear, why: p.why }];
+    const a = st.sim.arcs[id];
+    // Words you wrote (or edited) are yours: they're never reworded.
+    if (a && a.by === "engine" && (!a.locked || again)) return [{ id, kind: a.kind, lead: a.leadName, cast: a.cast.map(name), premise: a.premise, want: a.want, fear: a.fear, why: a.grounds.join(", ") || "the story so far" }];
+    return [];
+  });
+  if (!cards.length) return [];
+  const freshly = again ? "\nWORD IT AGAIN: the story already reads the engine's words above. Give it new words of your own." : "";
+  const worded = new Map<string, { premise: string; want: string; fear: string }>();
+  const misses = new Map<string, { w: { premise: string; want: string; fear: string }; problem: string }>();
+  const take = (items: { id: string; premise: string; want: string; fear: string }[]) => {
+    for (const it of items) {
+      if (!cards.some((c) => c.id === it.id) || worded.has(it.id)) continue;
+      const problem = validateWording(it, o);
+      if (problem) misses.set(it.id, { w: it, problem });
+      else {
+        worded.set(it.id, tidyWording(it));
+        misses.delete(it.id);
+      }
+    }
+  };
+  const { system, user } = wordingPrompt(cards, o);
+  const res = await callJson({ task: "world", kind: "world:wording", chatId, jobId: job?.id, name: "world_wording", schema: wordingSchema, system, user: user + freshly, maxTokens: 1200 });
+  job?.note({ inputTokens: res.inputTokens });
+  take(res.data.items);
+  const left = cards.filter((c) => !worded.has(c.id));
+  if (left.length) {
+    const notes = left.map((c) => (misses.get(c.id) ? `ITEM ${c.id}: turned back (${misses.get(c.id)!.problem}). Word it again without that.` : `ITEM ${c.id}: you left it out. Word it.`)).join("\n");
+    try {
+      const r = wordingPrompt(left, o);
+      const res2 = await callJson({ task: "world", kind: "world:wording", chatId, jobId: job?.id, name: "world_wording", schema: wordingSchema, system: r.system, user: `${r.user}${freshly}\n\nLAST TRY:\n${notes}`, maxTokens: 1200 });
+      take(res2.data.items);
+    } catch {
+      // The first try's words still stand in where they can.
+    }
+    // Too long is still the story's words; deciding for the user's character is not.
+    for (const [id, m] of misses) if (m.problem === "too long" && !worded.has(id)) worded.set(id, tidyWording(m.w));
+  }
+  return cards.flatMap((c): SimOp[] => {
+    const w = worded.get(c.id);
+    if (!w) return [];
+    return st.sim.proposals[c.id] ? [{ type: "proposal.set", id: c.id, patch: w }] : [{ type: "arc.set", id: c.id, patch: w }];
+  });
+}
+
+/** Tell a step already taken (n), or the ending (null), again in the model's words. */
+export async function retellStep(chatId: string, id: string, n: number | null) {
+  const st = currentFold(chatId).result.state;
+  const arc = mustArc(st, id);
+  if (!st.time) throw badRequest("The story clock isn't set yet");
+  const card = pastCard(arc, n, tickInput(chatId, st, rosterFor(chatId, st), true));
+  if (!card) throw notFound("That step isn't there any more");
+  const told = await tellCards(chatId, [card], { again: true });
+  const text = told.get(card.id);
+  if (!text) throw badRequest("The model's telling didn't hold up this time; try again");
+  return control(chatId, [{ type: "arc.tell", id, at: card.at, text, ...(n === null ? { ending: true } : { n }) }]);
 }
 
 // ---------- your controls ----------

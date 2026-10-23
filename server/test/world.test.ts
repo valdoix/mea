@@ -7,7 +7,7 @@ import { spreadNews } from "../src/sim/news";
 import { buildRoster, lorePersonName, readStanding, samePerson } from "../src/sim/roster";
 import { forecast, latitudeFrom, placeClimate, weatherAt } from "../src/sim/sky";
 import { canStep, forcedStep, situationCands, tick, type TickInput } from "../src/sim/storyteller";
-import { validateTelling } from "../src/sim/telling";
+import { retellPrompt, softProblem, validateTelling } from "../src/sim/telling";
 import { parseLine } from "../src/trackers/dsl";
 import { foldEvents, type FoldConfig } from "../src/trackers/fold";
 import type { WorldState } from "../src/trackers/types";
@@ -278,6 +278,22 @@ describe("telling validator", () => {
     expect(validateTelling("Edda met Gregor at the station.", card, { userName: "Alex", places: [] })).toContain("Gregor");
     expect(validateTelling("Edda called and Alex decided to meet her.", card, { userName: "Alex", places: [] })).toContain("user");
     expect(validateTelling("Edda managed to get on the train after all.", card, { userName: "Alex", places: [] })).toContain("loss");
+  });
+  test("lets the model name what the card already says", () => {
+    const giles = { ...card, lead: "Rupert Giles", cast: [], where: "England", premise: "Rupert Giles is thinking of coming back to Sunnydale.", result: "cost" as const };
+    expect(validateTelling("In England, Giles booked a flight back to Sunnydale. The ticket cost more than he had.", giles, { userName: "Alex", places: [] })).toBeNull();
+    expect(validateTelling("Giles called the Watchers Council. They stalled him.", giles, { userName: "Alex", places: [], known: ["Watchers Council"] })).toBeNull();
+  });
+  test("only story-changing problems keep the engine's words", () => {
+    expect(softProblem(validateTelling("Edda met Gregor at the station.", card, { userName: "Alex", places: [] })!)).toBe(true);
+    expect(softProblem(validateTelling("Edda called and Alex decided to meet her.", card, { userName: "Alex", places: [] })!)).toBe(false);
+    expect(softProblem(validateTelling("Edda managed to get on the train after all.", card, { userName: "Alex", places: [] })!)).toBe(false);
+  });
+  test("a second try says what went wrong", () => {
+    const misses = new Map([["c", { text: "Edda met Gregor.", problem: 'named someone or somewhere not on the card ("Gregor")' }]]);
+    const { user } = retellPrompt([card, { ...card, id: "d" }], misses, { userName: "Alex", truths: [], genres: [] });
+    expect(user).toContain('CARD c: your telling "Edda met Gregor." was turned back');
+    expect(user).toContain("CARD d: you left it out");
   });
 });
 

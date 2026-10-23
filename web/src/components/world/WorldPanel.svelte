@@ -109,6 +109,7 @@
         <div class="st-keys">
           <button class="st-key small primary" type="button" onclick={() => decide(`/api/chats/${chatId}/world/proposals/${encodeURIComponent(p.id)}`, { accept: true })}>Let it happen</button>
           <button class="st-key small ghost" type="button" onclick={() => decide(`/api/chats/${chatId}/world/proposals/${encodeURIComponent(p.id)}`, { accept: false })}>Not this</button>
+          <button class="st-key small ghost" type="button" title="Word it again in the model's words" onclick={() => decide(`/api/chats/${chatId}/world/reword/${encodeURIComponent(p.id)}`, {})}>Reword</button>
         </div>
       </div>
     {/each}
