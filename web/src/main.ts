@@ -37,11 +37,30 @@ import { loadThemeStyles } from "./lib/themes";
 
 registerServiceWorker();
 
+// A tab opened before a rebuild still asks for the old build's chunks, which are gone:
+// load the new build instead, at most once a minute so a down server doesn't loop.
+const STALE_CHUNK = /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Unable to preload CSS/i;
+function reloadForNewBuild(): boolean {
+  try {
+    const last = Number(sessionStorage.getItem("mea:chunk-reload") ?? 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem("mea:chunk-reload", String(Date.now()));
+  } catch {
+    // No session storage: reload anyway, the next build will match.
+  }
+  location.reload();
+  return true;
+}
+window.addEventListener("vite:preloadError", (e) => {
+  if (reloadForNewBuild()) e.preventDefault();
+});
+
 // L1: an action that failed with nobody to catch it still says so, once.
 let lastRejection = { message: "", at: 0 };
 window.addEventListener("unhandledrejection", (e) => {
   const r = e.reason;
   if (r instanceof DOMException && r.name === "AbortError") return;
+  if (r instanceof Error && STALE_CHUNK.test(r.message) && reloadForNewBuild()) return;
   // Unpaired and locked answers have their own screens.
   if (r instanceof ApiError && (r.code === "unpaired" || r.status === 423)) return;
   const message = r instanceof Error ? r.message : String(r);
