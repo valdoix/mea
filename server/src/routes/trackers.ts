@@ -14,11 +14,13 @@ import { hudLine } from "../trackers/note";
 import { STARTER_TEMPLATES, templateInput } from "../trackers/schema";
 import { timeskip, trackerPrompt, userEdit } from "../trackers/service";
 import {
+  castFactions,
   castKey,
   castProfiles,
   characterTrackerDefaults,
   clearEvents,
   currentFold,
+  deleteCastFaction,
   deleteCastProfile,
   deleteEvent,
   deleteTemplate,
@@ -30,6 +32,7 @@ import {
   linesToOps,
   listTemplates,
   moveCastProfile,
+  saveCastFaction,
   saveCastProfile,
   saveTemplate,
   setCharacterTrackerDefaults,
@@ -386,8 +389,45 @@ trackers.delete("/chats/:id/cast/:name", (c) => {
   if (c.req.query("forget")) {
     const ch = Object.values(currentFold(chatId).result.state.chars).find((x) => !x.isUser && [x.name, ...x.aliases].some((n) => castKey(n) === castKey(name)));
     if (ch) userEdit(chatId, [{ op: "edit", args: { path: ["chars", ch.id], value: null }, raw: `edit ${JSON.stringify(["chars", ch.id])} = null` }]);
+    // Forgotten people leave their factions too.
+    for (const f of castFactions(chatId)) if (f.members.some((m) => castKey(m.name) === castKey(name))) saveCastFaction(chatId, f.id, { members: f.members.filter((m) => castKey(m.name) !== castKey(name)) });
   }
   deleteCastProfile(chatId, name);
+  return c.json({ ok: true });
+});
+
+// ---------- factions: groups of the cast ----------
+
+const factionInput = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  description: z.string().max(2000).optional(),
+  color: z.string().max(20).optional(),
+  members: z.array(z.object({ name: z.string().trim().min(1).max(80), role: z.string().max(120).optional() })).max(200).optional(),
+});
+
+trackers.get("/chats/:id/factions", (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  return c.json({ factions: castFactions(chatId) });
+});
+
+trackers.post("/chats/:id/factions", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const input = await body(c, factionInput.extend({ name: z.string().trim().min(1).max(80) }));
+  return c.json(saveCastFaction(chatId, null, input), 201);
+});
+
+trackers.put("/chats/:id/factions/:fid", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  return c.json(saveCastFaction(chatId, c.req.param("fid"), await body(c, factionInput)));
+});
+
+trackers.delete("/chats/:id/factions/:fid", (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  deleteCastFaction(chatId, c.req.param("fid"));
   return c.json({ ok: true });
 });
 

@@ -57,6 +57,7 @@ export function exportMemory(chatId: string) {
       .filter((e) => e.message_id == null || seqOf.has(e.message_id))
       .map((e) => ({ seq: e.message_id ? seqOf.get(e.message_id)! : null, swipe: e.swipe_idx, source: e.source, ord: e.ord, op: parseJson(e.op, {}) })),
     cast: all<Record<string, unknown>>("SELECT name, data FROM cast_profiles WHERE chat_id = ?", chatId).map((r) => ({ name: r.name, data: parseJson(r.data as string, {}) })),
+    factions: all<Record<string, unknown>>("SELECT name, data FROM cast_factions WHERE chat_id = ?", chatId).map((r) => ({ name: r.name, data: parseJson(r.data as string, {}) })),
     notes: all<Record<string, unknown>>("SELECT title, body, pinned FROM notes WHERE chat_id = ? AND deleted_at IS NULL", chatId),
     highlights: all<{ message_id: string; text: string; note: string }>("SELECT message_id, text, note FROM highlights WHERE chat_id = ?", chatId)
       .filter((h) => seqOf.has(h.message_id))
@@ -74,6 +75,7 @@ const fileSchema = z.object({
   journals: z.array(z.record(z.string(), z.unknown())).default([]),
   trackers: z.array(z.record(z.string(), z.unknown())).default([]),
   cast: z.array(z.record(z.string(), z.unknown())).default([]),
+  factions: z.array(z.record(z.string(), z.unknown())).default([]),
   notes: z.array(z.record(z.string(), z.unknown())).default([]),
   highlights: z.array(z.record(z.string(), z.unknown())).default([]),
 });
@@ -110,7 +112,7 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
   const data = fileSchema.parse(JSON.parse(readFileSync(p.file, "utf8")));
   const chatId = p.chatId;
   const msgBySeq = new Map(all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId).map((r) => [r.seq, r.id]));
-  const total = data.summaries.length + data.memories.length + data.entities.length + data.journals.length + data.trackers.length + data.cast.length + data.notes.length + data.highlights.length;
+  const total = data.summaries.length + data.memories.length + data.entities.length + data.journals.length + data.trackers.length + data.cast.length + data.factions.length + data.notes.length + data.highlights.length;
   let done = 0;
   const progress = (label: string) => {
     publish({ type: "import.progress", chatId, done, total, label });
@@ -136,7 +138,7 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
 
   if (p.mode === "replace")
     steps.push(() => {
-      for (const t of ["summaries", "memories", "journals", "cast_profiles", "highlights"]) run(`DELETE FROM ${t} WHERE chat_id = ?`, chatId);
+      for (const t of ["summaries", "memories", "journals", "cast_profiles", "cast_factions", "highlights"]) run(`DELETE FROM ${t} WHERE chat_id = ?`, chatId);
       // Entities you deleted stay deleted (M30).
       run("DELETE FROM entities WHERE chat_id = ? AND deleted_at IS NULL", chatId);
       run("DELETE FROM tracker_events WHERE chat_id = ? AND source != 'user'", chatId);
@@ -231,6 +233,11 @@ export async function runMemoryImport(p: { chatId: string; file: string; mode: "
   chunks(data.cast, "cast", (r) => {
     const name = str(r.name).trim();
     if (name) run("INSERT INTO cast_profiles (chat_id, name_key, name, data, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(chat_id, name_key) DO NOTHING", chatId, name.toLowerCase().replace(/\s+/g, " "), name, json(r.data, {}), t);
+  });
+  chunks(data.factions, "factions", (r) => {
+    const name = str(r.name).trim();
+    // On a merge, a faction already here by that name is kept as it is.
+    if (name && !one("SELECT 1 FROM cast_factions WHERE chat_id = ? AND name = ? COLLATE NOCASE", chatId, name)) run("INSERT INTO cast_factions (id, chat_id, name, data, updated_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, name, json(r.data, {}), t);
   });
   chunks(data.notes, "notes", (r) => {
     if (one("SELECT 1 FROM notes WHERE chat_id = ? AND title = ? AND body = ? AND deleted_at IS NULL", chatId, str(r.title), str(r.body))) return;

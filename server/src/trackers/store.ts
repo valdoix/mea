@@ -179,6 +179,7 @@ export function saveCastProfile(chatId: string, name: string, patch: Partial<Cas
 
 /** A profile follows its person to a new name, or into the person they turned out to be (fields already set there win). */
 export function moveCastProfile(chatId: string, from: string, to: string) {
+  moveFactionMember(chatId, from, to);
   const all = castProfiles(chatId);
   const src = all[castKey(from)];
   if (!src || castKey(from) === castKey(to)) return;
@@ -191,6 +192,77 @@ export function moveCastProfile(chatId: string, from: string, to: string) {
 export function deleteCastProfile(chatId: string, name: string) {
   run("DELETE FROM cast_profiles WHERE chat_id = ? AND name_key = ?", chatId, castKey(name));
   invalidate(chatId);
+}
+
+// ---------- factions: groups of the cast ----------
+
+export interface FactionMember {
+  name: string;
+  /** Their place in it: "captain", "new recruit". */
+  role?: string;
+}
+
+export interface CastFaction {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  members: FactionMember[];
+}
+
+export function castFactions(chatId: string): CastFaction[] {
+  const rows = all<{ id: string; name: string; data: string }>("SELECT id, name, data FROM cast_factions WHERE chat_id = ? ORDER BY name COLLATE NOCASE", chatId);
+  return rows.map((r) => {
+    const d = parseJson<Partial<CastFaction>>(r.data, {});
+    return { ...d, id: r.id, name: r.name, members: d.members ?? [] };
+  });
+}
+
+/** One entry per person: the same name twice (in any case or spacing) keeps the first. */
+function tidyMembers(members: FactionMember[]): FactionMember[] {
+  const seen = new Set<string>();
+  const out: FactionMember[] = [];
+  for (const m of members) {
+    const name = m.name.trim();
+    if (!name || seen.has(castKey(name))) continue;
+    seen.add(castKey(name));
+    out.push(m.role?.trim() ? { name, role: m.role.trim() } : { name });
+  }
+  return out;
+}
+
+/** Creates a faction (no id) or changes one; fields left out stay as they were. */
+export function saveCastFaction(chatId: string, id: string | null, patch: Partial<Omit<CastFaction, "id">>): CastFaction {
+  const cur = id ? castFactions(chatId).find((f) => f.id === id) : undefined;
+  if (id && !cur) throw notFound("No such faction");
+  const name = patch.name?.trim() || cur?.name;
+  if (!name) throw badRequest("A faction needs a name");
+  const next: CastFaction = { ...cur, ...patch, id: cur?.id ?? newId(), name, members: tidyMembers(patch.members ?? cur?.members ?? []) };
+  const { id: fid, name: _, ...data } = next;
+  run(
+    "INSERT INTO cast_factions (id, chat_id, name, data, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, data = excluded.data, updated_at = excluded.updated_at",
+    fid,
+    chatId,
+    name,
+    JSON.stringify(data),
+    now(),
+  );
+  invalidate(chatId);
+  return next;
+}
+
+export function deleteCastFaction(chatId: string, id: string) {
+  run("DELETE FROM cast_factions WHERE chat_id = ? AND id = ?", chatId, id);
+  invalidate(chatId);
+}
+
+/** A member renamed, or merged into someone else, keeps their place under the new name. */
+function moveFactionMember(chatId: string, from: string, to: string) {
+  if (castKey(from) === castKey(to)) return;
+  for (const f of castFactions(chatId)) {
+    if (!f.members.some((m) => castKey(m.name) === castKey(from))) continue;
+    saveCastFaction(chatId, f.id, { members: f.members.map((m) => (castKey(m.name) === castKey(from) ? { ...m, name: to.trim() } : m)) });
+  }
 }
 
 // ---------- events ----------

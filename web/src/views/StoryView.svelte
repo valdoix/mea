@@ -11,14 +11,14 @@
   import { del, get, post, put } from "../lib/api";
   import { diffLines, editLine } from "../lib/dataedit";
   import { confirm } from "../lib/dialogs.svelte";
-  import { ArrowLeft, Merge, MessagesSquare, Pin, Trash, Upload } from "../lib/icons";
+  import { ArrowLeft, Merge, MessagesSquare, Pin, Plus, Trash, Upload, X } from "../lib/icons";
   import { openMeusIn } from "../lib/meus.svelte";
   import { trackerEdit } from "../lib/trackers.svelte";
   import { uploadImage } from "../lib/images";
   import { navigate } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
   import { voiceColor } from "../lib/voices";
-  import type { CastPerson, CastProfile, TrackerChange } from "../lib/types";
+  import type { CastFaction, CastPerson, CastProfile, TrackerChange } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -85,6 +85,7 @@
       people = r.people;
       userName = r.userName;
       void loadPressures();
+      void loadFactions();
     } catch (e) {
       errorToast(e);
     }
@@ -131,6 +132,7 @@
   function openEdit(p: CastPerson | null) {
     editing = p;
     form = p ? { ...(p.profile ?? {}), name: p.name } : { name: "" };
+    joined = p ? factionsOf(p).map((f) => f.id) : [];
     story = p?.char ? storyOf(p.char) : null;
     mergeInto = "";
     editOpen = true;
@@ -162,6 +164,7 @@
         if (lines.length && !(await trackerEdit(id, lines))) return;
       }
       await put(`/api/chats/${id}/cast/${encodeURIComponent(editing?.name ?? form.name)}`, $state.snapshot(form));
+      await saveMemberships(form.name.trim());
       editOpen = false;
       toast("Saved", { kind: "ok" });
       await loadCast();
@@ -218,6 +221,80 @@
     try {
       await put(`/api/chats/${id}/cast/${encodeURIComponent(p.name)}`, { pinned: !p.profile?.pinned });
       await loadCast();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+
+  // ---------- factions: groups of the cast ----------
+  let factions = $state<CastFaction[]>([]);
+  async function loadFactions() {
+    try {
+      factions = (await get<{ factions: CastFaction[] }>(`/api/chats/${id}/factions`)).factions;
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  const nameKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, " ");
+  const isMember = (f: CastFaction, name: string) => f.members.some((m) => nameKey(m.name) === nameKey(name));
+  const factionsOf = (p: CastPerson) => factions.filter((f) => [p.name, ...p.aliases].some((n) => isMember(f, n)));
+  /** The factions ticked in a person's editor, saved with the rest of them (a rename has already moved them on the server). */
+  let joined = $state<string[]>([]);
+  async function saveMemberships(name: string) {
+    const was = editing ? [editing.name, ...editing.aliases, name] : [name];
+    const fresh = (await get<{ factions: CastFaction[] }>(`/api/chats/${id}/factions`)).factions;
+    for (const f of fresh) {
+      const inIt = was.some((n) => isMember(f, n));
+      const wants = joined.includes(f.id);
+      if (inIt === wants) continue;
+      const members = wants ? [...f.members, { name }] : f.members.filter((m) => !was.some((n) => nameKey(n) === nameKey(m.name)));
+      await put(`/api/chats/${id}/factions/${f.id}`, { members });
+    }
+  }
+
+  let factionOpen = $state(false);
+  let factionEditing = $state<CastFaction | null>(null);
+  let factionForm = $state<{ name: string; description: string; color: string; members: { name: string; role?: string }[] }>({ name: "", description: "", color: "", members: [] });
+  let addPick = $state("");
+  let addName = $state("");
+  function openFaction(f: CastFaction | null) {
+    factionEditing = f;
+    factionForm = { name: f?.name ?? "", description: f?.description ?? "", color: f?.color ?? "", members: (f?.members ?? []).map((m) => ({ ...m })) };
+    addPick = "";
+    addName = "";
+    factionOpen = true;
+  }
+  /** Everyone who could join: the cast and you, less who's already in. */
+  const candidates = $derived([...people.filter((p) => !p.dead).map((p) => p.name), ...(userName ? [userName] : [])].filter((n) => !factionForm.members.some((m) => nameKey(m.name) === nameKey(n))));
+  function addMember(name: string) {
+    name = name.trim();
+    if (!name || factionForm.members.some((m) => nameKey(m.name) === nameKey(name))) return;
+    factionForm.members.push({ name });
+  }
+  async function saveFaction() {
+    if (!factionForm.name.trim()) return;
+    // A name typed but not added yet still counts.
+    addMember(addName);
+    addName = "";
+    try {
+      const body = $state.snapshot(factionForm);
+      if (factionEditing) await put(`/api/chats/${id}/factions/${factionEditing.id}`, body);
+      else await post(`/api/chats/${id}/factions`, body);
+      factionOpen = false;
+      toast("Saved", { kind: "ok" });
+      await loadFactions();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function deleteFaction() {
+    const f = factionEditing;
+    if (!f) return;
+    if (!(await confirm({ title: `Delete ${f.name}?`, message: "The faction goes; its people stay in the cast.", confirmLabel: "Delete", danger: true }))) return;
+    try {
+      await del(`/api/chats/${id}/factions/${f.id}`);
+      factionOpen = false;
+      await loadFactions();
     } catch (e) {
       errorToast(e);
     }
@@ -295,6 +372,26 @@
     <RelGraph chatId={id} bind:focus={webFocus} />
   {:else}
     <div class="row between">
+      <h2 class="section">Factions</h2>
+      <button class="btn small" onclick={() => openFaction(null)}><Plus size={14} /> Add a faction</button>
+    </div>
+    {#if factions.length}
+      <div class="factions">
+        {#each factions as f (f.id)}
+          <div class="faction card">
+            <div class="row between"><b class="row"><span class="dot" style:background={f.color || voiceColor(f.name)}></span>{f.name}</b><button class="btn ghost small" onclick={() => openFaction(f)}>Edit</button></div>
+            {#if f.description}<div class="tiny muted wraps">{f.description}</div>{/if}
+            <div class="row wrap members">
+              {#each f.members as m (m.name)}<span class="chip tiny">{m.name}{#if m.role}<span class="faint"> · {m.role}</span>{/if}</span>{:else}<span class="tiny faint">No members yet</span>{/each}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {:else}
+      <p class="tiny muted">Houses, crews, guilds, sides: group the cast so the story knows who stands with whom. A faction with someone in the scene is named in the prompt.</p>
+    {/if}
+    <h2 class="section">People</h2>
+    <div class="row between">
       <p class="tiny muted">Everyone the story has met, plus anyone you add. Voice notes go into the prompt only when that person is in the scene; pinned people are always kept in mind.</p>
       <button class="btn small" onclick={() => openEdit(null)}>Add a person</button>
     </div>
@@ -307,6 +404,7 @@
               <div class="row"><b>{p.name}</b>{#if p.present}<span class="chip mint tiny">here</span>{/if}{#if p.dead}<span class="chip tiny">†</span>{/if}{#if p.profile?.standing && p.profile.standing !== "here"}<span class="chip tiny">{p.profile.standing}</span>{/if}</div>
               <div class="tiny muted wraps">{p.profile?.role ?? p.profile?.description ?? p.wants ?? ""}</div>
               {#if p.aliases.length}<div class="tiny faint wraps">also {p.aliases.join(", ")}</div>{/if}
+              {#if factionsOf(p).length}<div class="row wrap members">{#each factionsOf(p) as f (f.id)}<span class="chip tiny"><span class="dot" style:background={f.color || voiceColor(f.name)}></span>{f.name}</span>{/each}</div>{/if}
             </div>
             <button class="btn ghost icon small" class:on={p.profile?.pinned} onclick={() => togglePin(p)} aria-label="Pin" title="Always keep in mind"><Pin size={14} /></button>
           </div>
@@ -387,6 +485,14 @@
       <Belongings chatId={id} charId={editing.char.id} name={editing.name} people={[...people.filter((x) => x.char && !x.dead).map((x) => x.name), ...(userName ? [userName] : [])]} />
       <button class="btn ghost small start" onclick={() => editing && allFields(editing)}>Every field (meters, injuries, journal…)</button>
     {/if}
+    {#if factions.length}
+      <div class="field">
+        <span class="label">Factions</span>
+        <div class="row wrap members">
+          {#each factions as f (f.id)}<label class="switch"><input type="checkbox" value={f.id} bind:group={joined} /> {f.name}</label>{/each}
+        </div>
+      </div>
+    {/if}
     <label class="switch"><input type="checkbox" bind:checked={form.pinned} /> Always keep in mind (described in every prompt)</label>
     <label class="switch"><input type="checkbox" bind:checked={form.out} /> Leave them out of the world off the page</label>
     {#if editing}
@@ -406,6 +512,66 @@
   {#snippet footer()}
     <button class="btn ghost" onclick={() => (editOpen = false)}>Cancel</button>
     <button class="btn primary" onclick={saveProfile} disabled={!form.name.trim()}>Save</button>
+  {/snippet}
+</Modal>
+
+<Modal bind:open={factionOpen} title={factionEditing ? factionEditing.name : "Add a faction"} size="md">
+  <div class="stack">
+    <label class="field"><span class="label">Name</span><input class="input" bind:value={factionForm.name} placeholder="The Harbour Guild" /></label>
+    <label class="field"><span class="label">What they are</span><textarea class="textarea" rows="3" bind:value={factionForm.description} placeholder="Who they are, what they want, who they're against"></textarea></label>
+    <label class="field">
+      <span class="label">Colour</span>
+      <span class="row"><input type="color" class="swatch" value={factionForm.color || voiceColor(factionForm.name || "?")} oninput={(e) => (factionForm.color = e.currentTarget.value)} />{#if factionForm.color}<button class="btn ghost small" onclick={() => (factionForm.color = "")}>Automatic</button>{/if}</span>
+    </label>
+    <h3 class="sub">Members</h3>
+    {#each factionForm.members as m, i (m.name)}
+      <div class="row member">
+        <Avatar id={people.find((p) => nameKey(p.name) === nameKey(m.name))?.profile?.avatarId ?? null} name={m.name} size={28} />
+        <span class="grow">{m.name}</span>
+        <input class="input role" bind:value={m.role} placeholder="Their place in it" aria-label="{m.name}'s place in it" />
+        <button class="btn ghost icon small" onclick={() => factionForm.members.splice(i, 1)} aria-label="Remove {m.name}"><X size={14} /></button>
+      </div>
+    {:else}
+      <p class="tiny muted">Nobody yet.</p>
+    {/each}
+    <div class="row wrap merge">
+      <select
+        class="select grow"
+        bind:value={addPick}
+        aria-label="Add someone from the cast"
+        onchange={() => {
+          addMember(addPick);
+          addPick = "";
+        }}
+      >
+        <option value="">Add someone from the cast…</option>
+        {#each candidates as n (n)}<option value={n}>{n}</option>{/each}
+      </select>
+      <input
+        class="input grow"
+        bind:value={addName}
+        placeholder="…or type a name"
+        onkeydown={(e) => {
+          if (e.key === "Enter") {
+            addMember(addName);
+            addName = "";
+          }
+        }}
+      />
+      <button
+        class="btn small"
+        disabled={!addName.trim()}
+        onclick={() => {
+          addMember(addName);
+          addName = "";
+        }}><Plus size={14} /> Add</button
+      >
+    </div>
+  </div>
+  {#snippet footer()}
+    {#if factionEditing}<button class="btn ghost danger" onclick={deleteFaction}><Trash size={14} /> Delete</button>{/if}
+    <button class="btn ghost" onclick={() => (factionOpen = false)}>Cancel</button>
+    <button class="btn primary" onclick={saveFaction} disabled={!factionForm.name.trim()}>Save</button>
   {/snippet}
 </Modal>
 
@@ -480,6 +646,37 @@
   }
   .person.dead {
     opacity: 0.6;
+  }
+  .section {
+    margin: 0.4rem 0 0;
+    font-size: 1.05rem;
+  }
+  .factions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 0.6rem;
+  }
+  .faction {
+    padding: 0.7rem;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .members {
+    gap: 0.3rem;
+  }
+  .dot {
+    display: inline-block;
+    width: 0.6em;
+    height: 0.6em;
+    margin-right: 0.35em;
+    border-radius: 50%;
+    flex: none;
+  }
+  .member {
+    gap: 0.5rem;
+  }
+  .role {
+    max-width: 12rem;
   }
   .grid {
     display: grid;

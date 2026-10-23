@@ -1574,6 +1574,15 @@ export interface CastProfile {
   out?: boolean;
 }
 
+/** A group of the cast (a house, a crew, a guild), with its people by name. */
+export interface CastFaction {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  members: { name: string; role?: string }[];
+}
+
 export interface StoryWhen {
   calendar: "gregorian" | "westeros" | `custom:${string}`;
   form: "date" | "day";
