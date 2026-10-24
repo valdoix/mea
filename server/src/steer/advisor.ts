@@ -82,8 +82,10 @@ export function planFor(chatId: string, key: string): Plan | null {
   return r ? parseJson<Plan>(r.plan, planSchema.parse({})) : null;
 }
 
-export function recentPlans(chatId: string, limit = 10) {
-  return all<PlanRow>("SELECT * FROM advisor_plans WHERE chat_id = ? ORDER BY created_at DESC LIMIT ?", chatId, limit).map((r) => ({
+/** With `played`, only the plans a reply was written from (not the drafts made while you typed, nor a passed-over take's). */
+export function recentPlans(chatId: string, limit = 10, opts: { played?: boolean } = {}) {
+  const played = opts.played ? " AND used_at IS NOT NULL" : "";
+  return all<PlanRow>(`SELECT * FROM advisor_plans WHERE chat_id = ?${played} ORDER BY created_at DESC LIMIT ?`, chatId, limit).map((r) => ({
     id: r.id,
     plan: parseJson<Plan>(r.plan, planSchema.parse({})),
     used: r.used_at != null,
@@ -105,7 +107,29 @@ const userRule = (user: string, persona: PersonaMode | null) =>
       ? `plan ${user} only inside what the player directed this turn`
       : `never decide what ${user} does, says, thinks or feels`;
 
-const ADVISOR_SYSTEM = (char: string, user: string, persona: PersonaMode | null) => `You are the private story advisor for an ongoing roleplay between ${char} (written by the AI) and ${user} (the player's character). Before ${char}'s next reply, you write a short plan the writer will follow loosely. The player never sees it.
+/**
+ * Earlier plans are beats the story already played. Told only to "stay consistent" with them, the
+ * planner staged the same discovery reply after reply (Dawn finding Buffy's hands, three times).
+ */
+const PLAYED_RULE =
+  "Your earlier plans were already written into the story: what they planned has happened, so build on it and never stage it again (a discovery, confession or reaction that already played stays played). Pick up where the last reply ended, and follow the player's latest message even where it moves past your earlier plans";
+
+/**
+ * A message as the planner reads it: whole when it fits, else its opening and its ending, since
+ * how a reply ends is where the next one starts (the old cut kept only the first 1200 characters,
+ * so a long reply's last beats never reached the planner, and it planned them again).
+ */
+export function excerpt(text: string, max: number) {
+  if (text.length <= max) return text;
+  const head = Math.floor(max * 0.35);
+  return `${text.slice(0, head).trimEnd()}\n[…]\n${text.slice(text.length - (max - head)).trimStart()}`;
+}
+
+/** The newest two messages (the last reply and your answer) are read near whole; older ones, cut. */
+const RECENT_LAST_CHARS = 9000;
+const RECENT_OLDER_CHARS = 1500;
+
+const ADVISOR_SYSTEM =(char: string, user: string, persona: PersonaMode | null) => `You are the private story advisor for an ongoing roleplay between ${char} (written by the AI) and ${user} (the player's character). Before ${char}'s next reply, you write a short plan the writer will follow loosely. The player never sees it.
 
 Plan the NEXT reply only:
 - "direction": one or two sentences: where this reply should take the scene, in response to what ${user} just did or said.
@@ -113,7 +137,7 @@ Plan the NEXT reply only:
 - "threads": up to 2 open threads, promises or secrets worth touching now (only if it fits naturally).
 - "reminders": continuity facts the reply must respect (time, place, injuries, who knows what).
 - "avoid": up to 3 things to avoid (repeating earlier beats, rushing, an echo of the last reply).
-Stay consistent with your earlier plans unless the story moved somewhere else; ${userRule(user, persona)}.
+${PLAYED_RULE}; ${userRule(user, persona)}.
 Reply with JSON only: {"direction":"…","beats":["…"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
 
 /**
@@ -142,7 +166,7 @@ You plan; you never write. The writer chooses every word, image and line of dial
 - each beat is one fragment of 15 words at most: "she grips his hand, then lets go", never a paragraph;
 - no self-talk, no "Wait", no checking your own work: the pass is the labelled lines and nothing else.
 
-Stay consistent with your earlier plans unless the story moved somewhere else; ${userRule(user, persona)}.
+${PLAYED_RULE}; ${userRule(user, persona)}.
 Reply with JSON only: {"pass":"the whole pass as labelled lines, NOW — … through VOICE — … (never a one-word tag)","direction":"one sentence","beats":["2–4 short fragments, in order"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
 
 /** Planner beats longer than this are cut at a clause boundary (GLM writes paragraphs whatever it's told). */
@@ -196,13 +220,14 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
   } catch {
     // trackers are optional
   }
-  const prev = recentPlans(chatId, cfg.advisorMemory).reverse();
-  if (prev.length) parts.push(`YOUR EARLIER PLANS (oldest first):\n${prev.map((p, i) => `${i + 1}. ${p.plan.direction}${p.plan.beats.length ? ` Beats: ${p.plan.beats.join("; ")}` : ""}`).join("\n")}`);
+  const prev = recentPlans(chatId, cfg.advisorMemory, { played: true }).reverse();
+  if (prev.length) parts.push(`YOUR EARLIER PLANS, ALREADY PLAYED IN THE STORY (oldest first):\n${prev.map((p, i) => `${i + 1}. ${p.plan.direction}${p.plan.beats.length ? ` Beats: ${p.plan.beats.join("; ")}` : ""}`).join("\n")}`);
   const chat = mustChat(chatId);
   const s = parseJson<ChatSettings>(chat.settings, {});
   const steering = [s.pacing ? `pace: ${s.pacing}` : "", s.length ? `length: ${s.length}` : "", ...activeGuidance(s, chat.character_id, null).map((g) => g.text), s.cue ? `cue for this reply: ${s.cue}` : ""].filter(Boolean);
   if (steering.length) parts.push(`THE PLAYER'S STEERING:\n${steering.map((x) => `- ${x}`).join("\n")}`);
-  const recent = history.slice(-8).map((m) => `${m.role === "user" ? names.user : m.role === "assistant" ? names.char : "Note"}: ${cleanText(m.content).slice(0, 1200)}`);
+  const last8 = history.slice(-8);
+  const recent = last8.map((m, i) => `${m.role === "user" ? names.user : m.role === "assistant" ? names.char : "Note"}: ${excerpt(cleanText(m.content), i >= last8.length - 2 ? RECENT_LAST_CHARS : RECENT_OLDER_CHARS)}`);
   parts.push(`RECENT MESSAGES:\n${recent.join("\n\n")}`);
   if (draft?.trim()) parts.push(`${names.user.toUpperCase()} IS ABOUT TO SAY:\n${draft.trim().slice(0, 2000)}`);
   if (cfg.planner) {

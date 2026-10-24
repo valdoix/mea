@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import type { MeaEvent } from "../src/lib/events";
 import { subscribe } from "../src/lib/events";
 import { normalizeCard } from "../src/cards/card";
-import { all, one } from "../src/db/db";
+import { all, newId, one, run } from "../src/db/db";
 import { defaultMemoryConfig, defaultSteer, setSetting } from "../src/lib/settings";
 import { buildSummary, carryMoments, storyNeedsRebuild } from "../src/memory/build";
 import { voiceRule, rollupSystem, sceneSystem } from "../src/memory/prompts";
@@ -17,7 +17,7 @@ import { createConnection, createProfile, syncModels } from "../src/services/con
 import { prefetch, previewPrompt, startStory } from "../src/services/generation";
 import { registerJob } from "../src/services/jobs";
 import { createPersona } from "../src/services/personas";
-import { planFor, recentPlans, runAdvisor, turnKey } from "../src/steer/advisor";
+import { excerpt, planFor, recentPlans, runAdvisor, turnKey } from "../src/steer/advisor";
 import { decideEdit, runEditorJob } from "../src/steer/editor";
 import { normalizeQuotes, styleFor, styleText } from "../src/steer/style";
 import { freshDb } from "./helpers";
@@ -137,6 +137,28 @@ describe("the advisor (STEER-01, STEER-02)", () => {
     const used = all<{ used_at: number | null }>("SELECT used_at FROM advisor_plans WHERE chat_id = ?", bchat);
     expect(used).toHaveLength(1);
     expect(used[0]!.used_at).not.toBeNull();
+  });
+  test("the same scene doesn't repeat: the advisor reads how the last reply ended, and only plans that played", async () => {
+    const rchat = createChat({ characterId: charId }).id;
+    updateChat(rchat, { settings: { advisor: true } });
+    // A long reply whose last beat is past the old 1200-character cut.
+    addMessage(rchat, "assistant", `The porch light hums. ${"She looks at the door. ".repeat(120)}Dawn finds the dirt under her nails.`, { name: "Mira" });
+    addMessage(rchat, "user", "We go inside.", { name: "Ash" });
+    // A draft plan never written into a reply, and one that was.
+    run("INSERT INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, 'draft', ?, 1)", newId(), rchat, JSON.stringify({ direction: "UNSENT DRAFT PLAN", beats: [] }));
+    run("INSERT INTO advisor_plans (id, chat_id, key, plan, used_at, created_at) VALUES (?, ?, 'sent', ?, 2, 2)", newId(), rchat, JSON.stringify({ direction: "PLAYED PLAN", beats: [] }));
+    await runAdvisor(rchat);
+    const req = one<{ request: string }>("SELECT request FROM generations WHERE chat_id = ? AND kind = 'advisor' ORDER BY started_at DESC LIMIT 1", rchat)!.request;
+    expect(req).toContain("Dawn finds the dirt under her nails.");
+    expect(req).toContain("ALREADY PLAYED");
+    expect(req).toContain("PLAYED PLAN");
+    expect(req).not.toContain("UNSENT DRAFT PLAN");
+    expect(req).toContain("never stage it again");
+    // Cut messages keep their opening and their ending.
+    const cut = excerpt(`start ${"x".repeat(5000)} end`, 1000);
+    expect(cut.length).toBeLessThan(1010);
+    expect(cut).toStartWith("start");
+    expect(cut).toEndWith("end");
   });
 });
 
