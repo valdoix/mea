@@ -3,7 +3,7 @@ import { buildAnchor } from "../src/accuracy/anchor";
 import { guardIssues } from "../src/accuracy/guards";
 import { normalizeCard } from "../src/cards/card";
 import { getSetting, setSetting } from "../src/lib/settings";
-import { meaPreset } from "../src/prompt/mea";
+import { MEA_PRESET_VERSION, meaPreset } from "../src/prompt/mea";
 import { createCharacter, getCard } from "../src/services/characters";
 import { addMessage, createChat, mustChat, updateChat } from "../src/services/chats";
 import { storyDials } from "../src/services/layers";
@@ -80,4 +80,11 @@ describe("the Persona and Romance controls drive the rest of Mea", () => {
     expect(buildAnchor({ card: card(), userName: "Alex", characterId: charId, persona: "full_cast" })).not.toContain("never Alex");
     updateChat(chatId, { settings: { controls: {} } });
   });
+});
+
+// The installed copy updates only when the version goes up: text changed without a bump never reaches a running install.
+test("a change to Mea's preset comes with a new version", () => {
+  const hash = new Bun.CryptoHasher("sha256").update(JSON.stringify(meaPreset())).digest("hex").slice(0, 16);
+  // Changed the preset? Raise MEA_PRESET_VERSION in prompt/mea.ts, then put both new values here.
+  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 11, hash: "6cf7685a256f6bc7" });
 });
