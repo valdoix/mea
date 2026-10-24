@@ -7,6 +7,7 @@ import { originChanges } from "../services/versionsync";
 import { chatMap, retellOptions } from "../services/versionchat";
 import { getSetting } from "../lib/settings";
 import { scanEntriesFor } from "../lore/service";
+import { sinceCardPage } from "../lore/sincecard";
 import { listJournals } from "../memory/journals";
 import { chatNames } from "../memory/build";
 import { duplicateSuggestions, listEntities } from "../memory/entities";
@@ -109,6 +110,11 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     canonLine(chatId),
   ].filter(Boolean);
   if (steer.length) blocks.push(`HOW THE STORY IS STEERED:\n${steer.join("\n")}`);
+
+  // Since the card: who the character and persona are now, where the cards no longer say it.
+  const since = sinceCardPage(chatId).people.filter((p) => p.lines.length);
+  const sinceLine = (f: (typeof since)[number]["lines"][number]) => `  [${f.id}] ${f.slot ? `${f.slot}: ` : ""}${f.value}${f.locked ? " (yours)" : ""}`;
+  if (since.length) blocks.push(`SINCE THE CARD (this chat's note on how they've changed; the cards stay as written; [line ids]):\n${since.map((p) => `${p.name} (${p.who}):\n${p.lines.map(sinceLine).join("\n")}`).join("\n")}`);
 
   const recap = storyRow(chatId);
   if (recap?.content?.trim()) blocks.push(`THE STORY SO FAR (the running summary, to #${recap.end_seq}):\n${clip(recap.content.trim(), 2500)}`);

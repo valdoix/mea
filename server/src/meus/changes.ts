@@ -14,6 +14,7 @@ import { addFact, createFact, factLine, factsNow, retireFact, supersedeFact, upd
 import { cardText, decideUpdate, updateProposals } from "../lore/keepup";
 import { decideDetails } from "../lore/details";
 import { bondEntry } from "../lore/bond";
+import { addSinceLine, SINCE_WHO, type SinceWho, sinceCardEntry, sinceWhos } from "../lore/sincecard";
 import { createNote, deleteNote } from "../services/notebook";
 import { arcAction, authorArc, decideFate, decideProposal, setActor } from "../sim/service";
 import { createEntity, deleteEntity, ENTITY_KINDS, type EntityKind, type EntityRow, type EntityStatus, getEntityRow, mergeEntities, resolver, restoreEntity, unmergeEntity, updateEntity } from "../memory/entities";
@@ -53,7 +54,7 @@ export const CHANGE_KINDS = [
   '{"kind": "steer", "length": "short|normal|long", "pacing": "slow|normal|fast", "guidance": ["chip names to switch on"], "guidance_off": ["chip names"], "guidance_once": ["chip names, for the next reply only"], "authors_note": "…", "story": {"genre", "tone", "pov", "tense", "style", "intensity", "language"}} (only what changes);',
   '{"kind": "split", "from": "<cast name>", "name": "<the other person>", "aliases": ["names that belong to the other person"], "lines": ["ledger lines about the other person, after they exist"]} when one cast entry is really two people;',
   '{"kind": "world", "arc": "<subplot id>", "action": "hold|resume|nudge|bring_in|drop|edit", "premise": "…", "want": "…", "fear": "…"}; {"kind": "world_arc", "lead": "<name>", "premise": "…"} a new subplot off the page; {"kind": "world_proposal", "id": "…", "accept": true}; {"kind": "world_fate", "arc": "<id>", "choice": "accept|soften|page"}; {"kind": "world_person", "name": "…", "where": "Town › Place", "standing": "…", "flag": "out|hold|wake|none"};',
-  '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"}; {"kind": "lore_fact", "entry": "<entry id or title>", "action": "add|change|retire", "value": "one short exact fact, e.g. Scar on her left hand", "slot": "<optional: eyes, hair, home…>", "fact": "<for change/retire: the fact id, or give the slot or the old value as old>", "message": <message number it comes from, optional>} keeps a small exact fact on a lore entry for this chat (it follows swipes; the entry text stays as written); {"kind": "lore_update", "proposal": "<id from a lore-update inbox key>", "action": "apply|reject"} decides a proposed change to the facts of a lore entry; {"kind": "lore_detail", "entry": "<entry id or title>", "action": "confirm|edit|clear", "slot": "<one slot, or leave out for all>", "value": "<for edit>"} keeps, edits or clears details Mea drafted for a character (sent as likely until kept); {"kind": "bond", "action": "add|edit|retire", "slot": "stands|calls|inside joke|thread|milestone|knows", "value": "…", "line": "<bond line id, for edit/retire>"} changes a line of the Bond (companion chats);',
+  '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"}; {"kind": "lore_fact", "entry": "<entry id or title>", "action": "add|change|retire", "value": "one short exact fact, e.g. Scar on her left hand", "slot": "<optional: eyes, hair, home…>", "fact": "<for change/retire: the fact id, or give the slot or the old value as old>", "message": <message number it comes from, optional>} keeps a small exact fact on a lore entry for this chat (it follows swipes; the entry text stays as written); {"kind": "lore_update", "proposal": "<id from a lore-update inbox key>", "action": "apply|reject"} decides a proposed change to the facts of a lore entry; {"kind": "lore_detail", "entry": "<entry id or title>", "action": "confirm|edit|clear", "slot": "<one slot, or leave out for all>", "value": "<for edit>"} keeps, edits or clears details Mea drafted for a character (sent as likely until kept); {"kind": "bond", "action": "add|edit|retire", "slot": "stands|calls|inside joke|thread|milestone|knows", "value": "…", "line": "<bond line id, for edit/retire>"} changes a line of the Bond (companion chats); {"kind": "since_card", "who": "character|persona", "action": "add|edit|retire", "slot": "temperament|toward|believes|wants|fears|habit|looks|life (optional)", "value": "one short line, present tense, e.g. toward Alex: trusts him with the keys", "line": "<line id, for edit/retire>"} changes this chat\'s Since the card note: who they are now where the card no longer says it (the card itself stays as written);',
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
   '{"kind": "retell", "version": "<name of another version of this character, from the brief>", "arc": "<summary id, or empty for the story so far>", "title": "…", "text": "the retold recap: what happened, moved into that version’s world through its map, past tense, under 250 words", "greeting": "the new chat’s opening message: the character picking up where the recap ends, never writing {{user}}’s actions or words"} starts a new chat with that version, opening on your greeting (not its usual one);',
@@ -598,6 +599,26 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
         continue;
       }
       out.push({ kind, target: line?.id ?? slot, label: `Bond · ${action === "add" ? slot : (line!.slot ?? "line")} · ${action}`, before: line?.value ?? "", after: action === "retire" ? "" : str(c.value), data: { action, slot, value: str(c.value), why } });
+    } else if (kind === "since_card") {
+      // Since the card: a line of this chat's note on who they are now.
+      const who = (SINCE_WHO.includes(str(c.who).toLowerCase() as SinceWho) ? str(c.who).toLowerCase() : "character") as SinceWho;
+      const action = ["edit", "retire"].includes(str(c.action).toLowerCase()) ? str(c.action).toLowerCase() : "add";
+      const entryId = sinceCardEntry(chatId, who, false);
+      const line = entryId && str(c.line) ? factsNow(entryId, chatId).find((f) => f.id === str(c.line)) : undefined;
+      if (!sinceWhos(chatId).includes(who)) {
+        dropped.push(who === "persona" ? "this chat has no persona" : "this chat has no character");
+        continue;
+      }
+      if (action !== "add" && !line) {
+        dropped.push("there's no such line on the Since the card note");
+        continue;
+      }
+      if (action !== "retire" && !str(c.value)) {
+        dropped.push("a Since the card line needs its words");
+        continue;
+      }
+      const slot = str(c.slot).toLowerCase() || null;
+      out.push({ kind, target: line?.id ?? who, label: `Since the card · ${who} · ${action}`, before: line ? `${line.slot ? `${line.slot}: ` : ""}${line.value}` : "", after: action === "retire" ? "" : `${slot ? `${slot}: ` : ""}${str(c.value)}`, data: { action, who, slot, value: str(c.value).slice(0, 300), why } });
     } else if (kind === "lore_update") {
       const ref = str(c.proposal).replace(/^lore-update:/, "");
       const p = updateProposals(chatId).find((x) => x.id === ref);
@@ -1014,6 +1035,11 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       if (d.action === "edit") return [{ t: "stash", token: updateFact(c.target, { value: String(d.value), locked: true }, { force: true }).undo }];
       const entryId = bondEntry(chatId)!;
       return [{ t: "stash", token: createFact(entryId, { value: String(d.value), slot: String(d.slot), kind: d.slot === "milestone" ? "event" : "bond", chatId, messageId: one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", chatId)?.id ?? null, origin: "you", locked: true }).undo }];
+    }
+    case "since_card": {
+      if (d.action === "retire") return [{ t: "stash", token: retireFact(c.target, { chatId }).undo }];
+      if (d.action === "edit") return [{ t: "stash", token: updateFact(c.target, { value: String(d.value), locked: true }, { force: true }).undo }];
+      return [{ t: "stash", token: addSinceLine(chatId, d.who as SinceWho, String(d.value), (d.slot as string | null) ?? null).undo }];
     }
     case "lore_detail":
       return [{ t: "stash", token: decideDetails(c.target, d.action === "clear" ? "reject" : "accept", { slot: d.slot as string | undefined, value: d.action === "edit" ? (d.value as string) : undefined }) }];

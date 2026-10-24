@@ -1087,6 +1087,8 @@ export interface MemoryConfig {
   chronicle: boolean;
   /** docs/15, part 2: propose updates to lore entries the story changes. */
   loreKeepup: boolean;
+  /** Since the card: a per-chat note of how the character and persona have changed. */
+  sinceCard: boolean;
   /** docs/15, 6.1: lore tiers. */
   loreTiers: boolean;
   /** SUM-10 */

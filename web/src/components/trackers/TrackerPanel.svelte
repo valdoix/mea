@@ -8,6 +8,7 @@
   import PromisesPanel from "./PromisesPanel.svelte";
   // docs/15, part 4: loaded when the Story panel opens (it isn’t needed for first paint).
   const bondPanel = import("./BondPanel.svelte");
+  const sincePanel = import("./SinceCardPanel.svelte");
   import { editOffpage, offpageFor } from "../../lib/offpage.svelte";
   import { living } from "../../lib/living";
   import { readClock } from "../../lib/storytime";
@@ -415,6 +416,7 @@
     {/if}
 
     {#await bondPanel then m}<m.default {chatId} />{/await}
+    {#await sincePanel then m}<m.default {chatId} />{/await}
     <PromisesPanel {chatId} />
     <LessonsPanel {chatId} />
     <OffpagePanel />
