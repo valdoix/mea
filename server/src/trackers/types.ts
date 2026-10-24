@@ -318,6 +318,8 @@ export interface Place {
 
 export interface WorldState {
   time: Moment | null;
+  /** When the clock was first set: the story's opening, the "tonight" a card's scenario speaks of. */
+  start?: Moment;
   weather: { now: string; prev?: string; seq: number } | null;
   place: string[];
   sceneNo: number;
