@@ -673,7 +673,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     kind === "story" && opts.writtenPlan
       ? { id: "advisor", name: "Its own plan", content: directorPlanText(planSchema.parse({ pass: opts.writtenPlan })), depth: 0, planner: true, pass: opts.writtenPlan }
       : kind === "story"
-        ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise), note: opts.feedback })
+        ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise), note: opts.feedback, excludeMessageId: opts.excludeMessageId })
         : null;
   const style = styleExtra(chatId);
   const advisorMs = lap();
@@ -1182,7 +1182,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           planSkips++;
           finishRequest(requestId, { status: "retried", error: "retried: the reply skipped its plan again", firstTokenAt });
           // The last resort: the planner model (or the helper it borrows) writes the pass, and the writer writes from it.
-          const plan = await rescuePlan(gen.chatId, historyForPrompt(gen.chatId, { excludeMessageId: action === "swipe" ? gen.messageId : undefined }), gen.abort.signal);
+          const plan = await rescuePlan(gen.chatId, historyForPrompt(gen.chatId, { excludeMessageId: action === "swipe" ? gen.messageId : undefined }), gen.abort.signal, action === "swipe" ? gen.messageId : undefined);
           if (gen.abort.signal.aborted) throw e;
           if (plan) {
             await writeFrom(plan);
