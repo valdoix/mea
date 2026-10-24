@@ -151,7 +151,7 @@ export function thinkRouter() {
 /** The plan watch: a "plan" shorter than this is a one-line outline, not the pass. */
 const PLAN_MIN_WORDS = 15;
 
-const PLAN_HEADER = /^\s*(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:\([^)\n]*\)\s*)?[—–:-]/;
+const PLAN_HEADER = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:\([^)\n]*\)\s*)?[—–:-]/;
 const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning)>/gi;
 
 /**
@@ -1043,7 +1043,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (story.length < 40 && !story.includes("\n")) return;
         watching = false;
         // A plan written out without its tags is moved to reasoning when the reply ends (M17).
-        if (/^(?:\*\*|#+\s*)?(?:\[BEFORE YOU WRITE|NOW|SEAL|KNOW)\b/i.test(story)) return;
+        // A plan written as a list ("• NOW: …") is still the plan.
+        if (/^(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:\[BEFORE YOU WRITE|NOW|SEAL|KNOW)\b/i.test(story)) return;
         if (gen.reasoning.trim().split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS) return;
         planSkipped = true;
         attempt.abort();

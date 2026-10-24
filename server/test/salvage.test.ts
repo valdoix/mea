@@ -82,6 +82,15 @@ describe("M17: a written-out plan leaves the story", () => {
   test("the story right under the last step, with no blank line, stays story", () => {
     expect(splitLeakedPlan("NOW — dusk.\nVOICE — short\nMira looks up.").text).toBe("Mira looks up.");
   });
+  test("a plan written as a bulleted list leaves the story too", () => {
+    const reply = "• NOW: ~21:53, the hallway, Buffy on the stairs.\n• SEAL: DID — Gabriel offered the mug.\n• MINDS: Buffy — wants to stop the bleeding · fears the mirror · tactic: body before voice\n\nBuffy is off the stair before she decides to move.";
+    const out = splitLeakedPlan(reply);
+    expect(out.text).toBe("Buffy is off the stair before she decides to move.");
+    expect(out.reasoning).toContain("• SEAL: DID");
+  });
+  test("a bulleted list in the prose is not a plan", () => {
+    expect(splitLeakedPlan("Mira lists what's left:\n• Now: the bread.\n• Move: later.").reasoning).toBe("");
+  });
 });
 
 describe("the story box: only what's inside <story> is prose", () => {
