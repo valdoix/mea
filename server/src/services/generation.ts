@@ -153,6 +153,8 @@ const PLAN_MIN_WORDS = 15;
 
 const PLAN_HEADER = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:\([^)\n]*\)\s*)?[—–:-]/;
 const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning)>/gi;
+/** The pass's stop rule echoed as a step of its own ("STOP — After VOICE, close and write."). Capitals only: "Stop — " is speech. */
+const PLAN_STOP = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?STOP(?: RULE)?(?:\*\*)?\s*[—–:.-]/;
 
 /**
  * A line of the planning pass that isn't a step header: the pass's own markers, a tier line, a bullet
@@ -161,6 +163,7 @@ const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning)>/gi;
 function planLine(line: string): boolean {
   return (
     PLAN_HEADER.test(line) ||
+    PLAN_STOP.test(line) ||
     /^\s*(?:\[BEFORE YOU WRITE|STOP RULE\b|<\/?(?:think|thinking|plan|reasoning)>)/i.test(line) ||
     /^\s*[*#([]*\s*(?:tier|beat)?\s*[:—–-]?\s*(?:routine|charged|pivotal)\b[^\n]{0,40}$/i.test(line) ||
     /^\s+\S|^\s*[-*•]\s/.test(line) ||
@@ -219,6 +222,19 @@ export function splitLeakedPlan(text: string): { text: string; reasoning: string
   }
   const story = [tail, ...lines.slice(end + 1)].join("\n").replace(/^\s+/, "");
   return { text: story, reasoning: lines.slice(0, end + 1).join("\n").replace(PLAN_TAGS, "").trim() };
+}
+
+/**
+ * The pass's tail left in the text when the plan itself went to the route's reasoning: the reply
+ * opens with the echoed stop rule (and maybe a VOICE line) before the story, or is only that. Those
+ * lines are plan; whatever follows them is the story.
+ */
+export function splitStopLine(text: string): { text: string; reasoning: string } {
+  const lines = text.split("\n");
+  let end = 0;
+  while (end < lines.length && (!lines[end]!.trim() || PLAN_HEADER.test(lines[end]!) || PLAN_STOP.test(lines[end]!))) end++;
+  if (!lines.slice(0, end).some((l) => PLAN_STOP.test(l))) return { text, reasoning: "" };
+  return { text: lines.slice(end).join("\n").replace(/^\s+/, ""), reasoning: lines.slice(0, end).join("\n").trim() };
 }
 
 /**
@@ -351,7 +367,7 @@ export function planOnly(text: string, reasoning: string): string | null {
   // The trackers' <ledger> block isn't story: a plan and a ledger with nothing between is still only a plan.
   let story = text.replace(/<ledger\b[\s\S]*$/i, "");
   let plan = reasoning;
-  for (const split of [splitStoryBox, splitThink, splitLeakedPlan]) {
+  for (const split of [splitStoryBox, splitThink, splitLeakedPlan, splitStopLine]) {
     const out = split(story);
     if (out.reasoning) {
       story = out.text;
@@ -1289,9 +1305,9 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     // M17: inline reasoning (<think>…</think>) from OpenAI-style routes goes to the reasoning field,
     // and so does anything before the story box, or a plan written out without either.
     if (action !== "continue") {
-      for (const split of [splitStoryBox, splitThink, splitLeakedPlan]) {
+      for (const split of [splitStoryBox, splitThink, splitLeakedPlan, splitStopLine]) {
         const out = split(text);
-        if (out.reasoning && (split !== splitLeakedPlan || out.text.replace(/<ledger\b[\s\S]*$/i, "").trim())) {
+        if (out.reasoning && ((split !== splitLeakedPlan && split !== splitStopLine) || out.text.replace(/<ledger\b[\s\S]*$/i, "").trim())) {
           text = out.text;
           reasoning = [reasoning, out.reasoning].filter(Boolean).join("\n\n");
         }
