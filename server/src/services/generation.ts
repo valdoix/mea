@@ -65,6 +65,7 @@ import { anchorExtra } from "../accuracy/anchor";
 import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
+import { fileNoteFacts, lessonsToFacts } from "../steer/notefacts";
 import { checkPlan, planCorrection, type PlanFinding } from "../steer/plancheck";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
@@ -837,6 +838,8 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
   if (activeGenerations(chatId).length) throw new HttpError(409, "A reply is already being written in this chat");
   const last = lastMessage(chatId);
   if (action !== "new" && (!last || last.id !== opts.messageId || last.role !== "assistant")) throw new HttpError(400, "Only the latest reply can be swiped or continued");
+  // docs/19 5.1: your note as you wrote it (before an angle or "keep this" adds to it), read for facts to keep.
+  const note = opts.feedback?.trim();
   // A2: an angle is a one-shot note for this take.
   if (opts.angle) opts = { ...opts, feedback: [angleNote(opts.angle, last?.name ?? getCard(mustChat(chatId).character_id ?? "")?.name ?? "the character"), opts.feedback].filter(Boolean).join(" ") };
   // A2: "Keep this, redo the rest": the new take starts as the kept part, then is continued.
@@ -852,6 +855,13 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
     redo = { idx, prefix, previous: current.content.slice(prefix.length).trim() };
     const rest = takeShapeNote(redo.previous);
     opts = { ...opts, feedback: [`Everything up to here is kept word for word; write the rest anew${rest ? `, not as the earlier take went on (${rest})` : ""}.`, opts.feedback].filter(Boolean).join(" ") };
+  }
+
+  // docs/19 5.2: lessons that only say who knows what become stances before this reply reads them.
+  try {
+    lessonsToFacts(chatId);
+  } catch (e) {
+    console.error("[mea] lessons weren't moved to the records:", e);
   }
 
   let prepared: Prepared;
@@ -901,6 +911,8 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
   const gen: ActiveGeneration = { id: generationId, chatId, messageId, swipeIdx, abort: new AbortController(), text: baseText, reasoning: "" };
   active.set(generationId, gen);
   publish({ type: "gen.start", chatId, messageId, swipeIdx, generationId });
+  // docs/19 5.1: what the note states as true is saved, so the next reply holds it too.
+  if (note) void fileNoteFacts(chatId, messageId, note).catch((e) => console.error("[mea] the note's facts weren't saved:", e));
   // C2: a failure after the reply must never become an unhandled rejection (Bun exits on those).
   // A redo streams exactly like a continue of its new take.
   void runStory(gen, prepared, action === "redo" ? "continue" : action, baseText, opts.feedback, opts.auto).catch((e) => console.error("[mea] reply failed:", e));

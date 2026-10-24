@@ -250,11 +250,15 @@ Suggested order: **1 → 2 → 5 → 3 → 4 → 6**. Part 1 is small and fixes 
 
 **Done when:** six of the eight notes above, run as a golden scenario, each leave a record and the next reply holds it. (The other two describe this reply's moment, not a lasting fact.)
 
+*Built:* `steer/notefacts.ts`, run as a reply starts with your note as you wrote it (before an angle adds to it). A clause that names its person ("buffy doesn't know that giles has left") becomes your `know` line by rules; a fact that names its people ("Gabriel bought the socks with Buffy") becomes a story truth. Clauses with "she" and "he" go to the helper once, which must quote the note. The record sits on the message the reply answers, so every take and every reply after reads it. Chips: **Saved: …** with Undo and **That's only for this reply**; either way the same note isn't saved again. Of the eight, five leave records (seven lines in all). "Buffy doesn't know those details about him" doesn't say which details, so it's left as a note; the phone call and "he thinks it" are this reply's moment. No SEAL note for "didn't say": it's a moment, and the note already reaches the writer.
+
 ### 5.2 Lessons that are facts move to facts
 
 A lesson learned from a swipe that states knowledge ("Dawn doesn't know that Buffy was in heaven…") is offered as a stance instead, linked to the fact. The style lessons stay lessons.
 
 **Done when:** this chat's knowledge lessons show as stances, with **Keep as a lesson** to undo.
+
+*Built:* `lessonsToFacts` (notefacts.ts), rules only, before every reply. A story lesson (kept or suggested) that is one "X doesn't know / knows …" clause becomes a `know` line ("— a lesson you kept") and the lesson is switched off. The chip on its reply reads **Now a record: …** with Undo (the lesson back as it was) and **Keep as a lesson**. A lesson is moved only once.
 
 ---
 

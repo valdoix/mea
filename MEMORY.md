@@ -53,10 +53,10 @@ One PR per part, in the order 1 → 2 → 5 → 3 → 4 → 6. Merge when green.
 | Part | What | State |
 |---|---|---|
 | 1 | The planner reads the records | merged, PR #165 |
-| 2 | The plan check | branch `claude/plan-check` |
+| 2 | The plan check | merged, PR #166 |
 | 3 | Knowledge per person | — |
 | 4 | One fact, one key | — |
-| 5 | Your corrections stick | — |
+| 5 | Your corrections stick | branch `claude/corrections-stick` |
 | 6 | Measure it | — |
 
 ### Part 1 (2026-10-24)
@@ -72,6 +72,13 @@ One PR per part, in the order 1 → 2 → 5 → 3 → 4 → 6. Merge when green.
 - 2.2 `prepare`: `planCorrection` under the plan (planner, plan step, rescue); `Prepared.planCheck`, `meta.planCheck` (`corrected`; a writer's own plan is checked after). `PlanDrawer` shows them under KNOW (`planCheckLine` in shared/plan.ts).
 - 2.3 `heldLeaks` → `FoldConfig.held`: a reply's `know` line matching its own open leak flag is held until the flag is dismissed; `flagsChanged` (checker.ts) invalidates the fold on every flag write.
 - Tests: `server/test/plancheck.test.ts`.
+
+### Part 5 (2026-10-24)
+
+- 5.1 `steer/notefacts.ts` `fileNoteFacts` (called in `startStory` with the raw note): `readNote` (rules: `knowledgeClaim` for "X doesn't know/knows …", named plain facts → truths; STYLE and MOMENT clauses skipped), the rest to helper `note_facts` (must quote). `know` lines go via `userEditAt` on the message the reply answers (`anchorFor`); truths into `settings.truths`. Filing kinds `note-know` / `note-truth`; a label already filed (even undone) isn't saved again.
+- 5.2 `lessonsToFacts` (before `prepare` in `startStory`): a one-clause knowledge lesson → `know` line, lesson `off`, filing `lesson-fact` (`data.lesson`, `was`, `ids`); notMeant = "Keep as a lesson".
+- Mock: `note_facts` reads "she" as Buffy, "he" as Gabriel.
+- Tests: `server/test/notefacts.test.ts`.
 
 ## Lyric cues (design: `docs/18-lyric-cues.md`)
 

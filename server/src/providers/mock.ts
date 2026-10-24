@@ -553,6 +553,17 @@ function helperJson(name: string, user: string, system = ""): unknown {
       return { lessons: /MOCK_LESSON/.test(user) ? [{ text: "Keep the storm in every scene.", why: "The kept take kept the storm.", quote: "calm night" }] : [] };
     case "lesson_from_edit":
       return /MOCK_LESSON/.test(user) ? { lesson: "Mira doesn't apologise easily.", why: "You cut her apology." } : { lesson: "", why: "" };
+    // docs/19 5.1: a note's clauses, with "she" as Buffy and "he" as Gabriel (the test chat's pair).
+    case "note_facts":
+      return {
+        facts: [...user.matchAll(/^- (.+)$/gm)].map(([, c]) => {
+          const fact = c!.replace(/\bshe['’]s\b/gi, "Buffy is").replace(/\bshe\b/gi, "Buffy").replace(/\b(?:he|him)\b/gi, "Gabriel");
+          const unaware = /\bdoesn['’]t know\b/i.test(c!);
+          if (/\b(?:those|these) details\b/i.test(c!)) return { kind: "direction", who: "", fact: "", quote: c };
+          if (unaware) return { kind: "unaware", who: "Buffy", fact: fact.replace(/^Buffy doesn['’]t know (?:that )?/i, ""), quote: c };
+          return { kind: /\b(?:already|yesterday|took|washed|told)\b/i.test(c!) ? "truth" : "direction", who: "", fact, quote: c };
+        }),
+      };
     // docs/18: a song's sheet from its numbered lines, and the story's moment, by plain word cues.
     case "lyric_sheet":
       return { songs: user.split(/^### /m).filter(Boolean).map(mockSheet) };
