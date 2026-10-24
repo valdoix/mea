@@ -1,4 +1,5 @@
 import { countTokens } from "../lib/tokens";
+import { contentWords, overlap } from "../memory/text";
 import { lostGiftLines, roomLine } from "./belongings";
 import { type CalendarId, describeWhen, noteTime } from "./calendars";
 import { parseStoryTime, shortStoryTime, timeOfDay, formatStoryTime } from "./clock";
@@ -39,6 +40,8 @@ export interface NoteOptions {
   persona?: PersonaMode | null;
   /** The kind of request: impersonation and expansion write the user, so the note doesn't forbid it. */
   kind?: string;
+  /** The player's newest message (and note for this reply): what people here already know about it goes in KNOWLEDGE. */
+  focus?: string;
 }
 
 /** How the note names the player's character: the same rule as the Persona control (sealed when unset). */
@@ -79,6 +82,49 @@ function bondWords(b: Bond): string {
 
 function present(st: WorldState) {
   return Object.values(st.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead);
+}
+
+/** Words of talk and narration that never say what a message is about. */
+const PROSE = new Set(
+  "actually really maybe okay yeah wait asks asked tells told tell says know knows knew think thinks thought want wants wanted every something anything nothing everything always thing things look looks looked back right well gonna going come comes came gets take takes took make makes made give gives gave first last next today tonight".split(" "),
+);
+
+/** Content words, plurals folded ("socks" meets "sock"), names of the cast left out. */
+function topicWords(st: WorldState, text: string) {
+  const names = new Set(Object.values(st.chars).flatMap((c) => c.name.toLowerCase().split(/\s+/)));
+  const out = new Set<string>();
+  for (const w of contentWords(text, 4)) if (!names.has(w) && !PROSE.has(w)) out.add(w.length > 4 ? w.replace(/s$/, "") : w);
+  return out;
+}
+
+/**
+ * "Dawn already knows: Gabriel bought Dawn socks (Buffy told her on the phone)": facts the focus
+ * touches. Words weigh by how rare they are among the facts, so "socks" picks the socks and
+ * "bought" alone (in every errand) picks nothing: a fact needs a word in at most three facts, or several commoner ones.
+ */
+function alreadyKnown(st: WorldState, here: Set<string>, focus?: string): string[] {
+  const want = focus?.trim() ? topicWords(st, focus) : null;
+  if (!want?.size) return [];
+  const facts = Object.values(st.facts).map((f) => ({ f, words: topicWords(st, f.statement) }));
+  const df = new Map<string, number>();
+  for (const { words } of facts) for (const w of words) df.set(w, (df.get(w) ?? 0) + 1);
+  const weight = (w: string) => Math.log(facts.length / df.get(w)!);
+  const enough = Math.log(facts.length / 3);
+  const hits: { who: string; statement: string; route?: string; score: number; seq: number }[] = [];
+  for (const { f, words } of facts) {
+    let score = 0;
+    for (const w of words) if (want.has(w)) score += weight(w);
+    if (score <= 0 || score < enough) continue;
+    for (const [id, s] of Object.entries(f.stances)) {
+      if (!here.has(id) || st.chars[id]?.isUser || (s.status !== "knows" && s.status !== "believes")) continue;
+      hits.push({ who: st.chars[id]?.name ?? id, statement: f.statement, route: s.route, score, seq: s.seq });
+    }
+  }
+  hits.sort((a, b) => b.score - a.score || b.seq - a.seq);
+  // The same thing learned twice ("Gabe bought Dawn cat socks", "Gabriel bought Dawn socks") is said once.
+  const kept: typeof hits = [];
+  for (const h of hits) if (!kept.some((k) => k.who === h.who && overlap(contentWords(k.statement), contentWords(h.statement)) >= 0.4)) kept.push(h);
+  return kept.map((h) => `${h.who} already knows: ${h.statement}${h.route ? ` (${h.route})` : ""}`);
 }
 
 function carried(st: WorldState, id: string) {
@@ -292,6 +338,9 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
       const near = Object.entries(e.near).filter(([id]) => !st.chars[id]?.isUser).sort((a, b) => b[1].score - a[1].score)[0];
       lines.unshift(`Close to coming out (${e.cur}/${e.max}): ${f.statement}${near ? `; ${st.chars[near[0]]?.name ?? near[0]} is closest` : ""}. Let it surface only through what people can see and infer.`);
     }
+    // What the player's message brings up that someone here already learned on the page (told on a call,
+    // there when it happened): without it a gift they were told about is written as a surprise.
+    lines.unshift(...alreadyKnown(st, here, o.focus).slice(0, 3));
     if (lines.length) lanes.push({ name: "knowledge", lines: ["KNOWLEDGE (act only on what each person knows):", ...lines.slice(0, 8).map((l) => `- ${l}`)], priority: 3 });
   }
 

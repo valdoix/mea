@@ -335,7 +335,7 @@ export interface TrackerPromptParts {
   config: ResolvedTrackerConfig;
 }
 
-export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string; kind: string; elsewhere?: string }): TrackerPromptParts {
+export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string; kind: string; elsewhere?: string; focus?: string }): TrackerPromptParts {
   const cfg = trackerConfig(chatId);
   const fold = opts.excludeMessageId ? foldAt(chatId, { excludeMessageId: opts.excludeMessageId }) : currentFold(chatId).result;
   const state = fold.state;
@@ -365,6 +365,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     season: cfg.season,
     persona: storyDials(mustChat(chatId)).persona,
     kind: opts.kind,
+    focus: opts.focus,
   });
   const inline =
     cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar })) : null;
