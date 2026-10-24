@@ -169,6 +169,20 @@ describe("the card's opening, once the clock has moved past it", () => {
     expect(extra!.content).toContain("is the past");
   });
 
+  test("a clock that switches from Day 1 to a calendar keeps its start", () => {
+    const st = foldEvents(
+      [
+        { id: "s1", messageId: "m1", seq: 1, source: "model", op: parseLine("clock: Day 1 00:15")! },
+        { id: "s2", messageId: "m2", seq: 2, source: "model", op: parseLine("clock: +6h45m")! },
+        { id: "s3", messageId: "m3", seq: 3, source: "user", op: parseLine("clock: 2001-10-10 07:00")! },
+        { id: "s4", messageId: "m4", seq: 4, source: "model", op: parseLine("clock: +15h53m")! },
+      ],
+      cfg,
+    ).state;
+    expect(st.time!.form).toBe("date");
+    expect(findOpening(st, cardPieces(card))[0]!.now).toBe("that is the story's opening, last night (about 23 hours ago), not now");
+  });
+
   test("the first hours of the story need no correction, and nor does a card with no present in it", () => {
     expect(findOpening(at("Day 1 00:15", "+2h"), cardPieces(card))).toEqual([]);
     expect(findOpening(at("Day 1 00:15", "+30h"), [{ where: "card", text: "Buffy is the Slayer." }])).toEqual([]);
