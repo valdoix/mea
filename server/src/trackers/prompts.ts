@@ -20,6 +20,7 @@ think Name: "Damn it, not now. If she finds the letter I'm finished."       jour
    (think: first person, in their own head-voice: their words, slang, oaths, grudges and worries, only what they know, about what's in front of them; a raw reaction, not narration, summary or poetry)
 dead Name — cause
 bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${AXES.join(", ")}; usually ±1, ±2 major; write the change, not old → new)
+   (fear is fear OF them: they are a threat. worry is fear FOR them: they might get hurt, caught or lost. Dreading what happens to someone you care about is worry, never fear.)
    (a hidden truth coming out — a lie, an affair, a secret pregnancy — drops trust for whoever it was kept from; think about who else it touches: whose partner, whose family, whose best friend)
 ladder A>B: 3 — evidence   (romance rungs: ${LADDER.map((n, i) => `${i} ${n}`).join(", ")})
    (ladder is ONLY romantic or sexual interest. Shock, tension, loyalty or closeness between friends or family is a bond, never a ladder. A rung drops only for betrayal, neglect, cruelty or a lie.)

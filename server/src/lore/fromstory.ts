@@ -2,7 +2,7 @@ import { all, parseJson } from "../db/db";
 import { listOffpage } from "../accuracy/offpage";
 import { type ChatSettings, mustChat } from "../services/chats";
 import { foldAt } from "../trackers/store";
-import { BIPOLAR_AXES, type WorldState } from "../trackers/types";
+import { type Axis, AXIS_WORDS, BIPOLAR_AXES, type WorldState } from "../trackers/types";
 import { exportStWorldInfo } from "./convert";
 import { type Category, withCategory } from "./format";
 import { createDraft, mutate } from "./studio";
@@ -42,7 +42,7 @@ function bondWords(axes: Record<string, number | undefined>) {
     if (!v) continue;
     const bip = (BIPOLAR_AXES as readonly string[]).includes(k);
     const strength = Math.abs(v) >= 3 ? "deep " : Math.abs(v) >= 2 ? "" : "some ";
-    out.push(bip && v < 0 ? `${strength}lack of ${k}` : `${strength}${k}`);
+    out.push(bip && v < 0 ? `${strength}lack of ${k}` : `${strength}${AXIS_WORDS[k as Axis] ?? k}`);
   }
   return out.join(", ");
 }

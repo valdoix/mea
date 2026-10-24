@@ -9,11 +9,13 @@ import type { Fact, WorldState } from "../trackers/types";
  * - knowledge: "X doesn't know …", "has told no one", "known only to …" about a fact X (or
  *   someone) has since learned;
  * - deaths: someone the trackers have dead, said to be alive, waiting, on their way.
+ * - time (findOpening): the card's "tonight", "right now" and scenario are the story's opening,
+ *   which the clock may be most of a day past.
  *
  * Each finding names where it is, the sentence, and what's true now, with the message it changed at.
  */
 export interface Finding {
-  kind: "knowledge" | "death";
+  kind: "knowledge" | "death" | "time";
   /** Where in the prompt: "card", "lore", "the Story So Far", "recalled memories". */
   where: string;
   sentence: string;
@@ -127,6 +129,50 @@ export function findOutdated(st: WorldState | null | undefined, pieces: { where:
         }
       }
     }
+  }
+  return out;
+}
+
+/** Words that put an event at the moment the card was written ("right now" isn't one: "what she wants right now" is who she is). */
+// Opening a sentence or clause ("Tonight she clawed out…"), not "what's on TV tonight".
+const PRESENT = /(?:(?:^|[,;:—–]\s*|\b(?:and|but|then|when|until|since)\s+)(?:tonight|today|this (?:morning|afternoon|evening|night)|a little (?:past|after) (?:midnight|noon|dawn|dusk))|\bjust now|\b(?:has|have) just)\b/i;
+const DAY = 1440;
+
+/** How long ago the opening was, as people say it: "last night", "earlier today", "three days ago". */
+export function agoPhrase(start: number, now: number): string {
+  const hour = (m: number) => Math.floor((((m % DAY) + DAY) % DAY) / 60);
+  const day = (m: number) => Math.floor(m / DAY);
+  const night = (m: number) => hour(m) < 6 || hour(m) >= 18;
+  // The evening a night belongs to: 00:15 on the 10th is the night of the 9th.
+  const evening = (m: number) => day(m) - (hour(m) < 6 ? 1 : 0);
+  const n = night(start) ? evening(now) - evening(start) : day(now) - day(start);
+  if (n <= 0) return night(start) ? "earlier tonight" : "earlier today";
+  if (n === 1) return night(start) ? "last night" : "yesterday";
+  if (n === 2) return night(start) ? "the night before last" : "the day before yesterday";
+  return `${n} days ago`;
+}
+
+const hoursAgo = (m: number) => (m < 48 * 60 ? `about ${Math.round(m / 60)} hours ago` : `${Math.round(m / DAY)} days ago`);
+
+/**
+ * The card is written at the story's opening: its "tonight she clawed out of her grave" and its
+ * scenario ("a little past midnight on the cemetery road") stay in the prompt while the clock runs
+ * on, and a reply a day later says "three hours ago". Once the clock is three hours or more past
+ * where it started, the card's present-tense sentences (and the scenario's first) are corrected
+ * with when that really was. Card pieces only: memory and lore carry their own times.
+ */
+export function findOpening(st: WorldState | null | undefined, pieces: { where: string; text: string; scenario?: boolean }[]): Finding[] {
+  const start = st?.start;
+  const now = st?.time;
+  if (!start || !now || start.form !== now.form || now.minutes - start.minutes < 180) return [];
+  const when = `that is the story's opening, ${agoPhrase(start.minutes, now.minutes)} (${hoursAgo(now.minutes - start.minutes)}), not now`;
+  const out: Finding[] = [];
+  for (const piece of pieces) {
+    if (piece.where !== "card") continue;
+    const all = sentencesOf(piece.text);
+    const said = all.filter((s) => PRESENT.test(s)).slice(0, 2);
+    const hit = said.length ? said : piece.scenario && all[0] ? [all[0]] : [];
+    for (const s of hit) if (out.length < 3 && !out.some((f) => f.sentence === s)) out.push({ kind: "time", where: piece.where, sentence: s, now: when, seq: 1, ref: "opening" });
   }
   return out;
 }

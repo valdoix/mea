@@ -5,7 +5,7 @@ import { parseStoryTime, shortStoryTime, timeOfDay, formatStoryTime } from "./cl
 import { METER_WORDS, meterWords, SEVERITY, STAMINA } from "./drift";
 import type { Field, Template } from "./schema";
 import type { PersonaMode } from "../services/layers";
-import { BIPOLAR_AXES, type Bond, type Character, LADDER, type WorldState } from "./types";
+import { AXIS_WORDS, BIPOLAR_AXES, type Bond, type Character, LADDER, type WorldState } from "./types";
 
 /**
  * The story-state note (TRK-06, after ALMANAC's <ledger-note>): verified state placed shallow
@@ -69,9 +69,10 @@ function bondWords(b: Bond): string {
   say(ax.affection, "fondness", "dislike");
   say(ax.respect, "respect", "contempt");
   say(ax.comfort, "ease", "unease");
-  for (const k of ["attraction", "fear", "resentment", "rivalry", "obligation", "familiarity"] as const) {
+  for (const k of ["attraction", "fear", "worry", "resentment", "rivalry", "obligation", "familiarity"] as const) {
     const v = ax[k] ?? 0;
-    if (v >= 2) parts.push(v >= 4 ? `strong ${k}` : k);
+    const w = AXIS_WORDS[k] ?? k;
+    if (v >= 2) parts.push(v >= 4 ? `strong ${w}` : w);
   }
   return [b.label, ...parts.slice(0, 4)].filter(Boolean).join(", ");
 }
