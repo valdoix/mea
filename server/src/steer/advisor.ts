@@ -1,9 +1,9 @@
 import { publish } from "../lib/events";
 import { z } from "zod";
 import { all, newId, now, one, parseJson, run } from "../db/db";
-import { defaultSteer, getSetting, type SteerConfig } from "../lib/settings";
+import { defaultSteer, getSetting, memoryConfig, type SteerConfig } from "../lib/settings";
 import { chatNames } from "../memory/build";
-import { storyRow } from "../memory/store";
+import { memState, storyRow } from "../memory/store";
 import { cleanText, hashText } from "../memory/text";
 import type { HistoryMessage, PromptExtra } from "../prompt/assemble";
 import { type ChatSettings, historyForPrompt, mustChat } from "../services/chats";
@@ -14,7 +14,12 @@ import { shouldShed } from "../services/quota";
 import { trackerPrompt } from "../trackers/service";
 import { gatherLanes } from "../prompt/lanes";
 import { PLANNING } from "../prompt/mea";
-import { currentFold } from "../trackers/store";
+import { foldAt } from "../trackers/store";
+import { correctMemory } from "../accuracy/corrections";
+import { countTokens } from "../lib/tokens";
+import { buildMemoryContext, memoryInputs } from "../memory/context";
+import { revealsOf } from "../trackers/reveals";
+import type { WorldState } from "../trackers/types";
 
 /**
  * The advisor ("council-lite", STEER-01): before a reply, a helper model writes a short private
@@ -202,15 +207,76 @@ export function undraft(p: Plan): Plan {
   };
 }
 
-function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig & { planner?: boolean }, note?: string) {
+/** docs/19 1.1: how much of the Story So Far (its newest chapters) and of the lanes the planner reads, in tokens. */
+const STORY_TOKENS = 1500;
+const LANES_TOKENS = 2500;
+const RECALL_TOKENS = 2500;
+
+/** The newest chapters (paragraphs, in a story with no headings) that fit, whole: the planner plans the next beat, so the latest past matters most. */
+export function newestChapters(text: string, budget: number) {
+  const byHeading = text.split(/\n(?=#{2,3} )/);
+  const sep = byHeading.length > 1 ? "\n" : "\n\n";
+  const chapters = byHeading.length > 1 ? byHeading : text.split(/\n{2,}/);
+  const kept: string[] = [];
+  let used = 0;
+  for (const c of chapters.reverse()) {
+    const t = countTokens(c);
+    if (used + t > budget && kept.length) break;
+    kept.unshift(c);
+    used += t;
+  }
+  return kept.join(sep);
+}
+
+/** Whole pieces in order while they fit; one that doesn't is left out, never cut mid-line. */
+function wholeFit(pieces: string[], budget: number) {
+  const kept: string[] = [];
+  let used = 0;
+  for (const p of pieces) {
+    const t = countTokens(p);
+    if (used + t > budget) continue;
+    kept.push(p);
+    used += t;
+  }
+  return kept;
+}
+
+/** The recalled memories the writer would get for this turn (CANON 4), for the planner's KNOW step. */
+async function planRecall(chatId: string, history: HistoryMessage[], state: WorldState, draft?: string) {
+  if (!memoryConfig().enabled) return "";
+  try {
+    const names = chatNames(chatId);
+    const inputs = await memoryInputs(chatId, { history, draft, chatMode: mustChat(chatId).mode, state, names });
+    // The window as it stands: more room would bring old scenes back, and recall only searches what has left it.
+    const evicted = memState(chatId).evictedThrough;
+    const window = history.reduce((n, h) => ((h.seq ?? 0) > evicted ? n + countTokens(h.content) : n), 0);
+    const m = buildMemoryContext({ chatId, history, available: window, target: Math.round(RECALL_TOKENS / Math.max(0.01, memoryConfig().budget.recall)), inputs, seed: `${chatId}:plan`, reveals: revealsOf(state) });
+    return correctMemory(state, m.recall, "recalled memories").text.trim();
+  } catch (e) {
+    console.error("[mea] the planner's recall failed:", (e as Error).message);
+    return "";
+  }
+}
+
+/**
+ * The planner's input. It reads the story state as the writer does (docs/19 1.3): the fold before the
+ * take being replaced, and the facts the player's message touches; the note whole (it fits its own
+ * budget by lane), never cut at a length mid-line.
+ */
+export async function advisorInput(chatId: string, history: HistoryMessage[], draft: string | undefined, cfg: SteerConfig & { planner?: boolean }, note?: string, excludeMessageId?: string) {
   const names = chatNames(chatId);
   const parts: string[] = [];
   const story = storyRow(chatId);
-  if (story?.content) parts.push(`STORY SO FAR:\n${story.content.slice(0, 3000)}`);
+  if (story?.content) parts.push(`STORY SO FAR (its latest chapters):\n${newestChapters(story.content, STORY_TOKENS)}`);
   try {
-    const note = trackerPrompt(chatId, { kind: "story" }).note?.text;
-    if (note) parts.push(`STORY STATE:\n${note.slice(0, 2000)}`);
-    const st = currentFold(chatId).result.state;
+    const focus = [draft?.trim() || history.findLast((m) => m.role === "user")?.content, note].filter(Boolean).join("\n");
+    const tp = trackerPrompt(chatId, { kind: "story", excludeMessageId, focus });
+    if (tp.note?.text) parts.push(`STORY STATE:\n${tp.note.text}`);
+    const st = tp.state;
+    if (cfg.planner) {
+      const recall = await planRecall(chatId, history, st, draft);
+      if (recall) parts.push(`WHAT HAPPENED EARLIER THAT MAY MATTER NOW (recalled memories; the past, never to be staged again):\n${recall}`);
+    }
     const open = Object.values(st.threads)
       .filter((t) => t.status !== "resolved")
       .sort((a, b) => b.lastSeq - a.lastSeq)
@@ -233,9 +299,9 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
   if (cfg.planner) {
     // H3: the planner also sees the lanes (lessons, canon, pressures, promises…) the writer would.
     try {
-      const st = currentFold(chatId).result.state;
-      const lanes = gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).map((l) => l.content.trim()).filter(Boolean);
-      if (lanes.length) parts.push(`WHAT MEA'S FEATURES ADD THIS TURN:\n${lanes.join("\n\n").slice(0, 5000)}`);
+      const st = foldAt(chatId, { excludeMessageId }).state;
+      const lanes = wholeFit(gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).map((l) => l.content.trim()).filter(Boolean), LANES_TOKENS);
+      if (lanes.length) parts.push(`WHAT MEA'S FEATURES ADD THIS TURN:\n${lanes.join("\n\n")}`);
     } catch {
       // lanes are optional
     }
@@ -245,7 +311,7 @@ function advisorInput(chatId: string, history: HistoryMessage[], draft: string |
 }
 
 /** Writes (or returns the cached) plan for a turn. Never throws: no plan just means no guidance. */
-export async function runAdvisor(chatId: string, opts: { history?: HistoryMessage[]; draft?: string; note?: string; signal?: AbortSignal } = {}): Promise<Plan | null> {
+export async function runAdvisor(chatId: string, opts: { history?: HistoryMessage[]; draft?: string; note?: string; signal?: AbortSignal; excludeMessageId?: string } = {}): Promise<Plan | null> {
   const cfg = steerFor(chatId);
   if (!cfg.advisorOn || shouldShed("advisor", chatId)) return null;
   const history = opts.history ?? historyForPrompt(chatId);
@@ -263,7 +329,7 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
   }
   const p = (async () => {
     try {
-      const { system, user } = advisorInput(chatId, history, opts.draft, cfg, opts.note);
+      const { system, user } = await advisorInput(chatId, history, opts.draft, cfg, opts.note, opts.excludeMessageId);
       const r = cfg.planner
         ? await callJson({ task: "planner", kind: "planner", chatId, name: "planner_plan", schema: planSchema, system, user, maxTokens: 1800, temperature: 0.5, signal: opts.signal, profileId: cfg.plannerProfileId })
         : await callJson({ task: "helper", kind: "advisor", chatId, name: "advisor_plan", schema: planSchema, system, user, maxTokens: 700, temperature: 0.6, signal: opts.signal });
@@ -288,10 +354,10 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
  * between), so the planner model, or the helper it borrows, writes the pass for this reply. Runs
  * whether or not the chat uses a separate planner, and isn't kept as the chat's plan. Null when it fails too.
  */
-export async function rescuePlan(chatId: string, history: HistoryMessage[], signal?: AbortSignal): Promise<string | null> {
+export async function rescuePlan(chatId: string, history: HistoryMessage[], signal?: AbortSignal, excludeMessageId?: string): Promise<string | null> {
   try {
     const cfg = steerFor(chatId);
-    const { system, user } = advisorInput(chatId, history, undefined, { ...cfg, planner: true });
+    const { system, user } = await advisorInput(chatId, history, undefined, { ...cfg, planner: true }, undefined, excludeMessageId);
     const r = await callJson({ task: "planner", kind: "planner", chatId, name: "planner_plan", schema: planSchema, system, user, maxTokens: 1800, temperature: 0.5, signal, profileId: cfg.plannerProfileId });
     return undraft(r.data).pass.trim() || null;
   } catch (e) {
@@ -322,7 +388,7 @@ export function planText(p: Plan) {
  * The plan for the reply being prepared. With `wait`, a plan that isn't ready yet is waited for
  * up to the configured few seconds; without it (the inspector's preview), only a ready plan is used.
  */
-export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean; note?: string }): Promise<(PromptExtra & { planner?: boolean; pass?: string }) | null> {
+export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean; note?: string; excludeMessageId?: string }): Promise<(PromptExtra & { planner?: boolean; pass?: string }) | null> {
   const cfg = steerFor(chatId);
   if (!cfg.advisorOn) return null;
   const note = opts.note?.trim() || undefined;
@@ -332,7 +398,7 @@ export async function advisorExtra(chatId: string, history: HistoryMessage[], op
   const wait = cfg.planner ? PLANNER_WAIT_S : cfg.advisorWait;
   if (!plan && opts.wait && wait > 0) {
     publish({ type: "gen.prep", chatId, stage: "planning" });
-    plan = await Promise.race([runAdvisor(chatId, { history, note }), Bun.sleep(wait * 1000).then(() => null)]);
+    plan = await Promise.race([runAdvisor(chatId, { history, note, excludeMessageId: opts.excludeMessageId }), Bun.sleep(wait * 1000).then(() => null)]);
   }
   // L10: no plan for the words as sent: the newest one written for this turn while you typed will do
   // (never one that didn't hear the note, or heard another).

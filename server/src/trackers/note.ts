@@ -89,42 +89,75 @@ const PROSE = new Set(
   "actually really maybe okay yeah wait asks asked tells told tell says know knows knew think thinks thought want wants wanted every something anything nothing everything always thing things look looks looked back right well gonna going come comes came gets take takes took make makes made give gives gave first last next today tonight".split(" "),
 );
 
-/** Content words, plurals folded ("socks" meets "sock"), names of the cast left out. */
-function topicWords(st: WorldState, text: string) {
+/** Content words with how often each comes up, plurals folded ("socks" meets "sock"), names of the cast left out. */
+function topicCounts(st: WorldState, text: string) {
   const names = new Set(Object.values(st.chars).flatMap((c) => c.name.toLowerCase().split(/\s+/)));
-  const out = new Set<string>();
-  for (const w of contentWords(text, 4)) if (!names.has(w) && !PROSE.has(w)) out.add(w.length > 4 ? w.replace(/s$/, "") : w);
+  const out = new Map<string, number>();
+  for (const raw of text.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'-]*/gu) ?? []) {
+    const w = raw.replace(/'s$/, "").replace(/['-]+$/, "");
+    if (!contentWords(w, 4).size || names.has(w) || PROSE.has(w)) continue;
+    const k = w.length > 4 ? w.replace(/s$/, "") : w;
+    out.set(k, (out.get(k) ?? 0) + 1);
+  }
   return out;
 }
 
+const topicWords = (st: WorldState, text: string) => new Set(topicCounts(st, text).keys());
+
+const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know" };
+
 /**
- * "Dawn already knows: Gabriel bought Dawn socks (Buffy told her on the phone)": facts the focus
- * touches. Words weigh by how rare they are among the facts, so "socks" picks the socks and
- * "bought" alone (in every errand) picks nothing: a fact needs a word in at most three facts, or several commoner ones.
+ * FACTS IN PLAY (docs/19 1.2): the facts and things the player's message touches, each with every
+ * stance someone here has on it and how they came by it ("Dawn knows (Buffy told her, #267)"), and
+ * a thing's trail. Words weigh by how rare they are among the facts and things, so "socks" picks
+ * the socks and "bought" alone (in every errand) picks nothing: a hit needs a word in at most three
+ * of them, or several commoner ones. Someone with no stance isn't listed: no record isn't "not told".
  */
-function alreadyKnown(st: WorldState, here: Set<string>, focus?: string): string[] {
-  const want = focus?.trim() ? topicWords(st, focus) : null;
+export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: string) => string, max = 4): string[] {
+  // What the message is about: a word said twice ("the socks… Socks.") weighs twice.
+  const want = focus?.trim() ? topicCounts(st, focus) : null;
   if (!want?.size) return [];
-  const facts = Object.values(st.facts).map((f) => ({ f, words: topicWords(st, f.statement) }));
+  const here = new Set(present(st).map((c) => c.id));
+  const whom = (id: string) => (id.startsWith("place:") ? id.slice(6).replace(/^at /, "") : nameOf(id));
+  const docs = [
+    ...Object.values(st.facts).map((f) => ({ fact: f, item: undefined, text: f.statement })),
+    ...Object.values(st.items).map((i) => ({ fact: undefined, item: i, text: i.name })),
+  ].map((d) => ({ ...d, words: topicWords(st, d.text) }));
   const df = new Map<string, number>();
-  for (const { words } of facts) for (const w of words) df.set(w, (df.get(w) ?? 0) + 1);
-  const weight = (w: string) => Math.log(facts.length / df.get(w)!);
-  const enough = Math.log(facts.length / 3);
-  const hits: { who: string; statement: string; route?: string; score: number; seq: number }[] = [];
-  for (const { f, words } of facts) {
+  for (const { words } of docs) for (const w of words) df.set(w, (df.get(w) ?? 0) + 1);
+  const weight = (w: string) => Math.log(docs.length / df.get(w)!);
+  const enough = Math.log(docs.length / 3);
+  const hits: { line: string; text: string; score: number; seq: number; item: boolean }[] = [];
+  for (const d of docs) {
     let score = 0;
-    for (const w of words) if (want.has(w)) score += weight(w);
+    for (const w of d.words) if (want.has(w)) score += weight(w) * want.get(w)!;
     if (score <= 0 || score < enough) continue;
-    for (const [id, s] of Object.entries(f.stances)) {
-      if (!here.has(id) || st.chars[id]?.isUser || (s.status !== "knows" && s.status !== "believes")) continue;
-      hits.push({ who: st.chars[id]?.name ?? id, statement: f.statement, route: s.route, score, seq: s.seq });
+    if (d.fact) {
+      const who = Object.entries(d.fact.stances)
+        .filter(([id]) => here.has(id) && !st.chars[id]?.isUser)
+        .sort((a, b) => a[1].seq - b[1].seq)
+        .map(([id, s]) => `${nameOf(id)} ${STANCE_WORDS[s.status] ?? s.status}${s.route || s.seq ? ` (${[s.route, s.seq ? `#${s.seq}` : ""].filter(Boolean).join(", ")})` : ""}`);
+      if (!who.length) continue;
+      hits.push({ line: `${d.fact.statement}: ${who.join("; ")}`, text: d.text, score, seq: d.fact.lastSeq, item: false });
+    } else if (d.item) {
+      const i = d.item;
+      const trail = i.custody.slice(-3).map((c) => `${[c.from, c.to].filter((x): x is string => Boolean(x)).map(whom).join(" → ")}${c.how ? ` (${c.how})` : ""}${c.seq ? ` #${c.seq}` : ""}`);
+      const now = i.gone ? "gone" : i.holder ? `${i.holder.startsWith("place:") ? "in" : "with"} ${whom(i.holder)}${i.where ? ` (${i.where})` : ""}` : i.where ? `at ${i.where}` : "";
+      const bits = [now, i.gift ? `a gift from ${nameOf(i.gift)}` : "", trail.length ? `trail: ${trail.join("; ")}` : ""].filter(Boolean);
+      if (bits.length) hits.push({ line: `${i.name}: ${bits.join(" · ")}`, text: d.text, score, seq: i.lastSeq, item: true });
     }
   }
   hits.sort((a, b) => b.score - a.score || b.seq - a.seq);
-  // The same thing learned twice ("Gabe bought Dawn cat socks", "Gabriel bought Dawn socks") is said once.
+  // A weak match ("warm" in a line about a hug) only counts when nothing stronger was found.
+  const top = hits[0]?.score ?? 0;
+  // The same thing written twice ("Gabe bought Dawn cat socks", "Gabriel bought Dawn socks") is said once;
+  // a fact and the thing it's about are both kept.
   const kept: typeof hits = [];
-  for (const h of hits) if (!kept.some((k) => k.who === h.who && overlap(contentWords(k.statement), contentWords(h.statement)) >= 0.4)) kept.push(h);
-  return kept.map((h) => `${h.who} already knows: ${h.statement}${h.route ? ` (${h.route})` : ""}`);
+  for (const h of hits) {
+    if (h.score < top / 2) break;
+    if (!kept.some((k) => k.item === h.item && overlap(contentWords(k.text), contentWords(h.text)) >= 0.5)) kept.push(h);
+  }
+  return kept.slice(0, max).map((h) => h.line);
 }
 
 function carried(st: WorldState, id: string) {
@@ -272,6 +305,14 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     if (lines.length) lanes.push({ name: "now", lines, priority: 0 });
   }
 
+  // FACTS IN PLAY: what the player's message brings up, and who here already knows it. Without it a
+  // gift someone was told about on a call is written as a surprise.
+  if (on(o, "knowledge")) {
+    const nameOf = (id: string) => (st.chars[id]?.isUser ? o.userName : (st.chars[id]?.name ?? id));
+    const lines = inPlay(st, o.focus, nameOf);
+    if (lines.length) lanes.push({ name: "inplay", lines: ["FACTS IN PLAY (what this message touches, from the records; true over any guess):", ...lines.map((l) => `- ${l}`)], priority: 1 });
+  }
+
   // PRESENT
   if (on(o, "cast")) {
     const here = present(st);
@@ -338,9 +379,6 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
       const near = Object.entries(e.near).filter(([id]) => !st.chars[id]?.isUser).sort((a, b) => b[1].score - a[1].score)[0];
       lines.unshift(`Close to coming out (${e.cur}/${e.max}): ${f.statement}${near ? `; ${st.chars[near[0]]?.name ?? near[0]} is closest` : ""}. Let it surface only through what people can see and infer.`);
     }
-    // What the player's message brings up that someone here already learned on the page (told on a call,
-    // there when it happened): without it a gift they were told about is written as a surprise.
-    lines.unshift(...alreadyKnown(st, here, o.focus).slice(0, 3));
     if (lines.length) lanes.push({ name: "knowledge", lines: ["KNOWLEDGE (act only on what each person knows):", ...lines.slice(0, 8).map((l) => `- ${l}`)], priority: 3 });
   }
 
@@ -402,7 +440,7 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   };
 }
 
-const ORDER = ["now", "present", "voices", "stakes", "knowledge", "custom", "elsewhere", "hooks"];
+const ORDER = ["now", "inplay", "present", "voices", "stakes", "knowledge", "custom", "elsewhere", "hooks"];
 
 /** A one-line HUD (TRK-27): "Thu 23:10 · Lighthouse · Mira: wistful". */
 export function hudLine(st: WorldState, templates: Template[] = [], calendar: CalendarId = "gregorian"): string {

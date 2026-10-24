@@ -46,6 +46,26 @@ One PR per part. Build the next part while CI runs; merge only when green.
 - 7.5: `worldContext` orders by shelf (`shelfRank`: ground truth and always-on entries, Current, Lexicon, Customs, then people, world, time, scenes) and leaves out satellites.
 - Tests: `server/test/lorecards.test.ts`.
 
+## Reliable knowledge (design: `docs/19-reliable-knowledge.md`)
+
+One PR per part, in the order 1 → 2 → 5 → 3 → 4 → 6. Merge when green.
+
+| Part | What | State |
+|---|---|---|
+| 1 | The planner reads the records | branch `claude/planner-reads-records` |
+| 2 | The plan check | — |
+| 3 | Knowledge per person | — |
+| 4 | One fact, one key | — |
+| 5 | Your corrections stick | — |
+| 6 | Measure it | — |
+
+### Part 1 (2026-10-24)
+
+- 1.1 `steer/advisor.ts` `advisorInput` (now async, exported): the note whole, `newestChapters` (Story So Far by tokens, newest chapters or paragraphs), `wholeFit` lanes (2,500 tokens), `planRecall` (CANON 4 for the planner, with the window as it stands: a bigger `available` restores old scenes and recall finds nothing).
+- 1.2 `trackers/note.ts` `inPlay`: FACTS IN PLAY lane (priority 1, after NOW), replacing #164's "already knows" lines. Facts and items scored together: idf among them × how often the message says the word, hits within half the best. No stance, no line.
+- 1.3 `excludeMessageId` and `focus` reach the planner (`advisorExtra` → `runAdvisor` / `rescuePlan` → `advisorInput`).
+- Tests: `server/test/plannerrecords.test.ts`.
+
 ## Lyric cues (design: `docs/18-lyric-cues.md`)
 
 One PR per part. Defaults as proposed: Words dial *A little*, Land the line on only with *Lean in*, one switch for LRCLIB + YouTube Music lyrics, ~30 situations.

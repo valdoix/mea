@@ -119,6 +119,8 @@ Suggested order: **1 → 2 → 5 → 3 → 4 → 6**. Part 1 is small and fixes 
 
 **Done when:** the planner's request for #323 contains KNOWLEDGE and the sock memories.
 
+*Built:* the note goes whole (it already fits its own token budget by lane), the Story So Far as its newest chapters by tokens (paragraphs in a story with no headings: this chat's has none), the lanes as whole lanes up to 2,500 tokens, and the recalled memories (2,500 tokens, the window as it stands, so recall searches what the writer's does). The `check-budgets` grep was left out; `plannerrecords.test.ts` checks the input instead. On #323 the planner's input grew from 27k to 43k characters.
+
 ### 1.2 Facts in play
 
 **What you get:** the beat's facts in one place, for the planner and the writer:
@@ -136,11 +138,15 @@ Suggested order: **1 → 2 → 5 → 3 → 4 → 6**. Part 1 is small and fixes 
 
 **Done when:** #322's prompt shows the socks block above, and a message about cards shows the card facts and nothing about socks.
 
+*Built differently:* `inPlay` in `trackers/note.ts`, a lane of its own (FACTS IN PLAY, priority 1, after NOW) that replaces #164's "already knows" lines. Facts and things are scored together, by rarity among them times how often the message says the word, keeping hits within half the best. Someone with no stance isn't listed: no record isn't "not told" (Buffy picked the socks but has no stance on "Gabe bought Dawn socks"). The memories aren't under it; the planner gets them whole (1.1) and the writer already has them.
+
 ### 1.3 The right fold on a swipe
 
 `advisorInput` calls `trackerPrompt(chatId, { kind: "story" })` with no `excludeMessageId`. On a swipe the planner reads the state *after* the take being replaced, including what that take invented. Pass the same `excludeMessageId` and `focus` the writer uses.
 
 **Done when:** a golden swipe scenario's planner input has no line from the replaced take.
+
+*Built:* `excludeMessageId` goes from `prepare` through `advisorExtra`, `runAdvisor` and `rescuePlan` to the note and the lanes; checked in `plannerrecords.test.ts`, not a golden scenario.
 
 ---
 
