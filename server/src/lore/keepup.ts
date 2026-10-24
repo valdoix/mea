@@ -18,6 +18,7 @@ import { milestoneAtoms } from "./bond";
 import { getLorebook, linkedBooks, scanEntriesFor, updateEntry } from "./service";
 import type { LoreEntry } from "./types";
 import { CATEGORY_INFO, categoryOf, loreTitle, type Category } from "./format";
+import { setSinceRead, sinceAtoms, sinceCardEntry, sinceCardOf, sinceCardOps, sinceRead, sinceScanEntry, sinceWhos } from "./sincecard";
 
 /**
  * Entries that keep up (docs/15, part 2). When the story changes something an entry describes,
@@ -58,6 +59,8 @@ export interface FactOp {
   kind?: FactKind;
   /** 5.2: why it's asked ("About six weeks have passed on the story's clock."). */
   note?: string;
+  /** Since the card: the card's sentence this line updates, word for word. */
+  against?: string;
 }
 
 export interface UpdateDiff {
@@ -504,11 +507,14 @@ export interface KeepupResult {
  */
 export async function runKeepup(chatId: string, job?: JobContext, opts: { memories?: boolean } = {}): Promise<KeepupResult> {
   const res: KeepupResult = { proposed: [], applied: [], core: [] };
-  if (!memoryConfig().loreKeepup) return res;
+  const cfg = memoryConfig();
   const chat = getChatRow(chatId);
   if (!chat || chat.deleted_at) return res;
-  const entries = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).filter((e) => e.enabled);
-  if (!entries.length) return res;
+  const onPath = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC", chatId);
+  const latest = onPath[0]?.seq ?? 0;
+  if (cfg.sinceCard && opts.memories !== false) await sinceCardKeepup(chatId, latest, res, job);
+  const entries = cfg.loreKeepup ? scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).filter((e) => e.enabled && !sinceCardOf(e)) : [];
+  if (!entries.length) return finish(chatId, res);
   let st: WorldState | null = null;
   let changes: Record<string, { path: string }[]> = {};
   try {
@@ -518,8 +524,6 @@ export async function runKeepup(chatId: string, job?: JobContext, opts: { memori
   } catch {
     st = null;
   }
-  const onPath = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC", chatId);
-  const latest = onPath[0]?.seq ?? 0;
   const personaBooks = new Set(chat.persona_id ? linkedBooks("persona", chat.persona_id).map((b) => b.id) : []);
   const tracked = new Map(st ? trackedFor(entries, st, personaBooks).map((t) => [t.entry.id, t.wants]) : []);
   for (const e of entries) {
@@ -548,30 +552,61 @@ export async function runKeepup(chatId: string, job?: JobContext, opts: { memori
     // The memories' changes, minus any a tracker change already covers.
     for (const o of await memoryOps(chatId, e, atoms, facts, job)) if (!taken.has(o.factId ?? `slot:${o.slot}`) || !o.slot) ops.push(o);
     setCursor(e.id, chatId, latest, read.at);
-    // Asked before and told no: not again for the same change.
-    const no = rejectedSigs(e.id, chatId);
-    ops = ops.filter((o) => !no.has(opSig(e.id, o)));
-    if (!ops.length) continue;
-    const locked = ops.filter((o) => o.locked);
-    const free = ops.filter((o) => !o.locked);
-    const level = keepupLevel(e.bookId);
-    const auto = free.filter((o) => level === "all" || (level === "tracker" && o.origin === "tracker"));
-    const ask = free.filter((o) => !auto.includes(o));
-    if (auto.length) {
-      const applied = applyOps(e.id, chatId, auto);
-      fileApplied(chatId, e, auto, applied);
-      res.applied.push({ entryId: e.id, ops: auto });
+    await deliver(chatId, e, ops, res, job);
+  }
+  return finish(chatId, res);
+}
+
+/** Operations for an entry, minus ones told no before: applied (by the book's trust level) or asked as cards. */
+async function deliver(chatId: string, e: ScanEntry, ops: FactOp[], res: KeepupResult, job?: JobContext, opts: { core?: boolean } = {}) {
+  // Asked before and told no: not again for the same change.
+  const no = rejectedSigs(e.id, chatId);
+  ops = ops.filter((o) => !no.has(opSig(e.id, o)));
+  if (!ops.length) return;
+  const locked = ops.filter((o) => o.locked);
+  const free = ops.filter((o) => !o.locked);
+  const level = keepupLevel(e.bookId);
+  const auto = free.filter((o) => level === "all" || (level === "tracker" && o.origin === "tracker"));
+  const ask = free.filter((o) => !auto.includes(o));
+  if (auto.length) {
+    const applied = applyOps(e.id, chatId, auto);
+    fileApplied(chatId, e, auto, applied);
+    res.applied.push({ entryId: e.id, ops: auto });
+    if (opts.core !== false) {
       const core = await proposeCore(chatId, e, auto, job);
       if (core) res.core.push(core);
     }
-    if (ask.length) res.proposed.push(upsertCard(chatId, e, ask, false));
-    if (locked.length) res.proposed.push(upsertCard(chatId, e, locked, true));
   }
+  if (ask.length) res.proposed.push(upsertCard(chatId, e, ask, false));
+  if (locked.length) res.proposed.push(upsertCard(chatId, e, locked, true));
+}
+
+function finish(chatId: string, res: KeepupResult) {
   if (res.proposed.length || res.applied.length || res.core.length) {
     publish({ type: "inbox.changed" });
     publish({ type: "memory.changed", chatId });
   }
   return res;
+}
+
+/**
+ * Since the card: new memories about the character or the persona that show a lasting change from
+ * the card become lines on the chat's Since the card entry (made the first time there's something
+ * to read). The entry's text is fixed, so there's no core rewrite to offer.
+ */
+async function sinceCardKeepup(chatId: string, latest: number, res: KeepupResult, job?: JobContext) {
+  for (const who of sinceWhos(chatId)) {
+    const since = sinceRead(chatId, who);
+    const read = sinceAtoms(chatId, who, since);
+    if (read.at !== since) setSinceRead(chatId, who, read.at);
+    if (!read.atoms.length) continue;
+    const existing = sinceCardEntry(chatId, who, false);
+    const ops = await sinceCardOps(chatId, who, read.atoms, existing ? factsNow(existing, chatId) : [], job);
+    if (!ops.length) continue;
+    // The entry is made the first time there's a line to propose, not before.
+    const e = sinceScanEntry(existing ?? sinceCardEntry(chatId, who)!, chatId, who);
+    if (e) await deliver(chatId, e, ops, res, job, { core: false });
+  }
 }
 
 // ---------- 5.2 things that wear off ----------
@@ -685,7 +720,7 @@ export async function afterApplied(id: string) {
   const chat = getChatRow(r.chat_id);
   if (!chat) return null;
   const e = scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId: r.chat_id }).find((x) => x.id === r.entry_id);
-  return e ? proposeCore(r.chat_id, e, diffOf(r).ops) : null;
+  return e && !sinceCardOf(e) ? proposeCore(r.chat_id, e, diffOf(r).ops) : null;
 }
 
 /** For the Inbox card: the title, why, and the diff as lines. */
@@ -694,6 +729,18 @@ export function cardText(p: UpdateProposal) {
     return { title: `${p.title}: its text still says the old thing`, why: `It says “${p.diff.core!.stale[0]?.slice(0, 120) ?? ""}”. Keep the rewritten text, edit it, or leave it for now.`, before: p.diff.core!.before, after: p.diff.core!.after };
   const lines = p.diff.ops.map(opLine);
   const from = p.diff.ops.find((o) => o.citeText)?.citeText;
+  // Since the card: the card stays as written; the line goes on this chat's note beside it.
+  if (p.title.startsWith("Since the card:")) {
+    const against = p.diff.ops.find((o) => o.against)?.against;
+    return {
+      title: p.diff.contradiction ? `${p.title}: the story contradicts a line you wrote` : p.title,
+      why: p.diff.contradiction
+        ? "You wrote this line, so it wasn't changed. Keep yours, or update it to what the story says."
+        : `${against ? `The card says “${against.slice(0, 140)}”. ` : ""}From the story${from ? `: “${from.slice(0, 140)}”` : ""}. Applying adds it to this chat's note on who they are now; the card itself isn't changed.`,
+      before: null,
+      after: lines.join("\n"),
+    };
+  }
   const tracker = p.diff.ops.every((o) => o.origin === "tracker");
   const worn = p.diff.ops.find((o) => o.note)?.note;
   return {

@@ -293,6 +293,11 @@ export function activateLore(input: ActivationInput): ActivationResult {
       setTrace(e, "inactive", "empty content");
       continue;
     }
+    // Since the card: the note says nothing until it has a line.
+    if ((e.extra as { sinceCard?: unknown }).sinceCard && !input.facts?.get(e.id)?.length) {
+      setTrace(e, "inactive", "nothing has changed since the card yet");
+      continue;
+    }
     const st = timedState(input.state[e.id], e, messageCount);
     if (e.delay > 0 && messageCount < e.delay) {
       setTrace(e, "inactive", `delayed until message ${e.delay}`);

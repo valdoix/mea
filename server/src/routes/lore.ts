@@ -36,6 +36,7 @@ import "../lore/keepupinbox";
 import { slotsFor } from "../lore/slots";
 import { decideDetails, draftDetails } from "../lore/details";
 import { bondPage, markMilestone } from "../lore/bond";
+import { addSinceLine, SINCE_WHO, sinceCardPage } from "../lore/sincecard";
 import { canonEntryFor, coverageFindings, fixFinding, mergeEntries } from "../lore/coverage";
 import { compactEntry, decideCompaction } from "../lore/compact";
 import { updateChat } from "../services/chats";
@@ -369,6 +370,13 @@ lore.post("/chats/:id/bond/settings", async (c) => {
   const b = await body(c, z.object({ personaFacts: z.boolean().nullable() }));
   updateChat(c.req.param("id"), { settings: { personaFacts: b.personaFacts } });
   return c.json(bondPage(c.req.param("id")));
+});
+// ---------- since the card ----------
+
+lore.get("/chats/:id/since-card", (c) => c.json(sinceCardPage(c.req.param("id"))));
+lore.post("/chats/:id/since-card", async (c) => {
+  const b = await body(c, z.object({ who: z.enum(SINCE_WHO as [string, ...string[]]), value: z.string().min(1).max(300), slot: z.string().max(40).nullable().optional() }));
+  return c.json(addSinceLine(c.req.param("id"), b.who as (typeof SINCE_WHO)[number], b.value, b.slot), 201);
 });
 /** 4.2: "Mark as a milestone" on a message. */
 lore.post("/messages/:id/milestone", async (c) => {

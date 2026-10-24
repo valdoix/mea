@@ -45,6 +45,7 @@ The brief also lists the guidance chips (and which are on), the author's note, a
 | Length, pacing, guidance chips (on, off, next reply only), the author's note, story settings | chat settings |
 | The world off the page: hold, resume, nudge, bring in, drop or rewrite a subplot; start one; accept or turn down a proposal; accept, soften or keep a fate for the page; where someone is | `arcAction`, `authorArc`, `decideProposal`, `decideFate`, `setActor` (they now return their event ids) |
 | A lorebook entry this chat uses: edit or add | `updateEntry`, `createEntry` |
+| Since the card: how the character or persona has changed in this chat (add, edit, retire a line) | `addSinceLine`, `updateFact`, `retireFact` (`lore/sincecard.ts`) |
 | A note in your notebook | `createNote` |
 | A continuity inbox note: accept (with an edit) or reject | `actOnInbox` (a world proposal goes through `decideProposal`) |
 
@@ -54,7 +55,7 @@ The brief also lists the guidance chips (and which are on), the author's note, a
 - **The cards themselves** go to the Studio: when you ask to change the character card or the persona card, Meus says so and its reply has **Open … in the Studio**, which opens the card in the Creator Studio with your request typed into Meus there.
 - **Undo** (`undoStep`) reverses a set, last change first. Ledger and world events are deleted, profiles, Codex rows, summaries, journals and lore entries are restored, a merge is unmerged, memories are restored or removed (a memory merge stands both again), a message gets its old text back or is shown again, notes are removed, and settings get their old values.
 
-**What it won't change:** the character card and the persona card (it hands them to Meus in the Studio), other chats, and app settings.
+**What it won't change:** the character card and the persona card (it hands them to Meus in the Studio; how they've changed in *this* story goes on the chat's Since the card note instead), other chats, and app settings.
 
 If the story is rewound below what Meus last read, the panel says so under the header: earlier answers may not hold.
 

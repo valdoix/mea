@@ -184,6 +184,14 @@ function helperJson(name: string, user: string, system = ""): unknown {
       }
       return { ops };
     }
+    case "since_card": {
+      // "MOCK_SINCE temperament: warm with strangers" becomes a line; "card:" quotes the card (real or not).
+      // Only memories that start with the person's name are about them.
+      const who = user.match(/^(?:CARD|PERSONA): (.+)$/m)?.[1]?.trim() ?? "";
+      const ops: Record<string, unknown>[] = [];
+      for (const m of user.matchAll(/^(M\d+)\. (\S+).*MOCK_SINCE (\w+): ([^|]+?)(?: \| card: (.+))?$/gm)) if (m[2] === who) ops.push({ op: "add", slot: m[3], value: m[4]!.trim(), cite: m[1], card: m[5] ?? null });
+      return { ops };
+    }
     case "lore_details": {
       // The card says grey eyes when it does; the rest is drafted.
       const eyes = user.match(/\b(grey|green|blue|brown) eyes\b/i)?.[1];

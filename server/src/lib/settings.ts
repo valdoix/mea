@@ -320,6 +320,8 @@ export interface MemoryConfig {
   chronicle: boolean;
   /** docs/15, part 2: propose updates to lore entries when the story changes what they describe. */
   loreKeepup: boolean;
+  /** Since the card: keep a per-chat note of how the character and persona have changed since their cards were written. */
+  sinceCard: boolean;
   /** docs/15, 6.1: the focus of the scene gets its full lore entry, the rest around it their essentials. */
   loreTiers: boolean;
   /** SUM-10: Tight / Balanced / Detailed per summary level. */
@@ -365,6 +367,7 @@ export const defaultMemoryConfig: MemoryConfig = {
   checkerModel: true,
   chronicle: true,
   loreKeepup: true,
+  sinceCard: true,
   loreTiers: true,
   compression: { scene: "balanced", chapter: "balanced", arc: "balanced", story: "balanced" },
   moments: true,
