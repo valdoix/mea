@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { vetPattern } from "../src/lib/regex";
-import { planFrom, planOnly, splitLeakedPlan, splitStoryBox, storyRouter } from "../src/services/generation";
+import { planFrom, planOnly, splitLeakedPlan, splitStopLine, splitStoryBox, storyRouter } from "../src/services/generation";
 
 describe("the plan step's answer", () => {
   const pass = "NOW — dusk, the lamp room. SEAL — Ash arrived and spoke. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short.";
@@ -144,6 +144,21 @@ describe("the plan-only watch: a reply that is only its plan", () => {
     expect(planOnly("<think>NOW — dusk.</think>", "")).toBeNull();
     expect(planOnly("", "")).toBeNull();
     expect(planOnly("Mira looks up from the logbook.", pass)).toBeNull();
+  });
+  test("the stop rule echoed as the whole text, after a plan in the route's reasoning, is only a plan", () => {
+    expect(planOnly("STOP — After VOICE, close and write.", pass)).toBe(`${pass}\n\nSTOP — After VOICE, close and write.`);
+    expect(planOnly("**STOP RULE:** done.\n\n<ledger>\nclock: +5m\n</ledger>", pass)).not.toBeNull();
+    expect(planOnly("STOP — After VOICE, close and write.\n\nMira looks up.", pass)).toBeNull();
+  });
+});
+
+describe("the echoed stop rule", () => {
+  test("leading STOP lines go to the reasoning, the story after them stays", () => {
+    expect(splitStopLine("STOP — After VOICE, close and write.\n\nMira looks up.")).toEqual({ text: "Mira looks up.", reasoning: "STOP — After VOICE, close and write." });
+    expect(splitStopLine("VOICE — short.\nSTOP: write.\nMira looks up.")).toEqual({ text: "Mira looks up.", reasoning: "VOICE — short.\nSTOP: write." });
+  });
+  test("speech and story are left alone", () => {
+    for (const t of ["Stop — she said — wait.", "\"STOP — now!\" Mira yelled.", "Mira looks up.\nSTOP — later", "VOICE — short.\nMira looks up."]) expect(splitStopLine(t).reasoning).toBe("");
   });
 });
 

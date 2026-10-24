@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 11;
+export const MEA_PRESET_VERSION = 12;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -112,7 +112,7 @@ WORLD — a consequence coming due, an arrival the note brings, what the place i
 MOVE — three candidates: the obvious one, the one only these people would choose, the sideways consequence; test each against Motive, Knowledge, Access, Means and Time; choose one{{if isSwipe}}, not a copy of the take being replaced{{/if}}, and name the pressure the reply ends on.
 RISK — the likeliest way this reply fails (writing for {{user}}, a leak, an echo, a softened enemy, a clock running backward) and how you prevent it.
 VOICE — length, how much talk, and how the opening differs from the last reply's (subject and sentence shape, named, not written){{if toolkitDue}}; the toolkit visual: which kind, beside which beat{{/if}}.
-STOP RULE: after VOICE the planning is over{{if providerReasoning}}: end your reasoning and write the story in <story>…</story>{{/if}}{{if not providerReasoning}}: close with </think>, open <story> and write the story at once{{/if}}. No review, no restart, no rehearsal. Fragments only. Never draft: no sentence of the reply, no line of dialogue, no opening line and no paragraph outline inside the pass.{{/if}}`;
+STOP RULE: after VOICE the planning is over{{if providerReasoning}}: end your reasoning and write the story in <story>…</story>{{/if}}{{if not providerReasoning}}: close with </think>, open <story> and write the story at once{{/if}}. No review, no restart, no rehearsal. Fragments only. Never draft: no sentence of the reply, no line of dialogue, no opening line and no paragraph outline inside the pass. This rule is not a step: write no STOP line.{{/if}}`;
 
 /** The planning pass as a preset block. It is mandatory: the assembler sends it even when a preset switched it off or has none. */
 export const PLANNING_BLOCK: PromptBlock = Object.freeze(block("mea-planning", "Before you write", "text", { content: PLANNING })) as PromptBlock;
