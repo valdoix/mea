@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
-import { cardPieces, correctionsLane, correctMemory } from "../src/accuracy/corrections";
+import { cardPieces, correctionsLane, correctMemory, personaPieces } from "../src/accuracy/corrections";
 import { agoPhrase, findOpening, findOutdated } from "../src/accuracy/promptcheck";
 import { newId, now, run } from "../src/db/db";
 import { activateLore, type ScanEntry } from "../src/lore/activate";
@@ -137,6 +137,12 @@ describe("the prompt check (Part 3)", () => {
     expect(extra!.content).toContain('- The card says: "Misty doesn\'t know that Jackie loves James." — written before #2. Misty knows now: Jackie loves James.');
     expect(correctionsLane(st(), [{ where: "card", text: "Misty is kind." }]).extra).toBeNull();
     expect(correctMemory(st(), "### Scene\nBen is waiting at the cabin.", "Story So Far").text).toContain("### Out of date in the records above");
+  });
+
+  test("the persona is checked like the card", () => {
+    expect(personaPieces("  ")).toEqual([]);
+    const { extra } = correctionsLane(st(), personaPieces("Misty is new in town. Misty doesn't know that Jackie loves James."));
+    expect(extra!.content).toContain('- The persona says: "Misty doesn\'t know that Jackie loves James." — written before #2. Misty knows now: Jackie loves James.');
   });
 });
 

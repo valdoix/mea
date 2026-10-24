@@ -18,6 +18,9 @@ const clip = (s: string, n = 220) => (s.length > n ? `${s.slice(0, n - 1)}…` :
 export const cardPieces = (card: CardData) =>
   [card.description, card.personality, card.scenario, card.system_prompt, card.post_history_instructions].map((text, i) => ({ where: "card", text, ...(i === 2 ? { scenario: true } : {}) })).filter((p) => p.text);
 
+/** The persona is written once too ("has never met her", "doesn't know about the letter"), and shared by every chat it plays in. */
+export const personaPieces = (text: string) => (text.trim() ? [{ where: "persona", text }] : []);
+
 /** One correction as the prompt says it. */
 export const correctionLine = (f: Finding) =>
   f.kind === "time" ? `- The ${f.where} says: "${clip(f.sentence)}" — ${f.now}.` : `- The ${f.where} says: "${clip(f.sentence)}" — written before #${f.seq}. ${f.now.charAt(0).toUpperCase()}${f.now.slice(1)}.`;
