@@ -572,7 +572,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     await waitForChatJobs(chatId, ["tracker.update", "tracker.init"], { timeoutMs: TRACKER_WAIT_MS, exceptMessageId: opts.excludeMessageId, onWait: () => publish({ type: "gen.prep", chatId, stage: "trackers" }) });
   let tp: ReturnType<typeof trackerPrompt> | null = null;
   try {
-    tp = trackerPrompt(chatId, { excludeMessageId: opts.excludeMessageId, kind, elsewhere: elsewhereLane?.(chatId) });
+    const focus = [history.findLast((m) => m.role === "user")?.content, opts.feedback].filter(Boolean).join("\n");
+    tp = trackerPrompt(chatId, { excludeMessageId: opts.excludeMessageId, kind, elsewhere: elsewhereLane?.(chatId), focus });
   } catch (e) {
     console.error("[mea] trackers unavailable for this prompt:", e);
   }
