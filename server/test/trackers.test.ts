@@ -203,6 +203,19 @@ describe("fold rules", () => {
     expect(r.state.bonds["mira>user"]!.axes).toMatchObject({ trust: -1, resentment: 1 });
   });
 
+  test("fear of someone and fear for someone are separate axes", () => {
+    const r = foldEvents(
+      events([["cast: Mira@spot · Joss@spot · Alex@spot", "bond Mira>Joss: fear +2 — he drew a knife", "bond Mira>Alex: fear for +2 — he went into the storm", "bond Joss>Alex: worries +1 — the boat is late"]]),
+      cfg(),
+    );
+    expect(r.state.bonds["mira>joss"]!.axes).toEqual({ fear: 2 });
+    expect(r.state.bonds["mira>user"]!.axes).toEqual({ worry: 2 });
+    expect(r.state.bonds["joss>user"]!.axes).toEqual({ worry: 1 });
+    const note = buildNote(r.state, { userName: "Alex", seq: 1 }).text;
+    expect(note).toContain("fear of them");
+    expect(note).toContain("worry for them");
+  });
+
   test("knowledge and secrets", () => {
     const r = foldEvents(events([["secret #thief: Alex stole the locket | kept by Alex · from Mira"], ["reveal #thief: to Mira — he confessed"]]), cfg());
     const f = r.state.facts.thief!;
