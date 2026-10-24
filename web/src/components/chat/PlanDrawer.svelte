@@ -1,15 +1,24 @@
 <script lang="ts">
   import { opened } from "../../lib/gestures";
-  import { parsePlan, PLAN_STEPS, planSource } from "../../lib/plan";
+  import { parsePlan, PLAN_STEPS, planCheckLine, planSource, type PlanCheckFinding } from "../../lib/plan";
 
   /**
    * The plan this reply was written from, in a drawer above it. Planning is mandatory, so every
    * story reply has one; the drawer folds it away by default, like "What went unsaid", and splits
    * the pass into its steps. While the reply streams, the steps fill in as they're planned.
    */
-  let { reasoning, how, streaming = false, writing = false, open = false }: { reasoning: string | null; how?: unknown; streaming?: boolean; writing?: boolean; open?: boolean } = $props();
+  let {
+    reasoning,
+    how,
+    checks,
+    streaming = false,
+    writing = false,
+    open = false,
+  }: { reasoning: string | null; how?: unknown; checks?: unknown; streaming?: boolean; writing?: boolean; open?: boolean } = $props();
 
   const plan = $derived(parsePlan(reasoning));
+  // docs/19 2.2: where the plan's "who knows" disagreed with the records, shown under that step.
+  const caught = $derived(Array.isArray(checks) ? (checks as PlanCheckFinding[]).filter((c) => c && typeof c.claim === "string") : []);
   const label = (key: string) => PLAN_STEPS.find((s) => s.key === key)!;
   const source = $derived(planSource(how));
   const unplanned = $derived(how === "none" && !plan.steps.length);
@@ -26,6 +35,7 @@
       {:else if plan.steps.length}
         {planning ? "Planning…" : "The plan"}
         {#if plan.tier}<span class="tier" style:--tc={TIER_COLOR[plan.tier]}>{plan.tier}</span>{/if}
+        {#if caught.length}<span class="caught" title="Where this plan's “who knows” disagreed with the story's records">{caught.length} checked</span>{/if}
         <span class="count">{plan.steps.length} step{plan.steps.length === 1 ? "" : "s"}</span>
       {:else}
         {planning ? "Thinking…" : "Reasoning"}
@@ -38,6 +48,16 @@
             <li class="step {s.key.toLowerCase()}">
               <span class="key" title={label(s.key).hint}>{label(s.key).label}</span>
               <span class="text">{s.text}</span>
+              {#if s.key === "KNOW" && caught.length}
+                <ul class="checks">
+                  {#each caught as c, i (i)}
+                    <li>
+                      <span class="said">“{c.claim}”</span>
+                      <span>{planCheckLine(c)}</span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
             </li>
           {/each}
         </ol>
@@ -91,6 +111,32 @@
   .count {
     margin-left: auto;
     color: var(--text-muted);
+  }
+  .caught {
+    padding: 0 0.45rem;
+    border-radius: 9px;
+    font-size: 0.68rem;
+    background: color-mix(in srgb, var(--warn) 18%, transparent);
+    color: color-mix(in srgb, var(--warn) 75%, var(--text));
+  }
+  .checks {
+    grid-column: 2;
+    margin: 0.2rem 0 0;
+    padding: 0.35rem 0.55rem;
+    list-style: none;
+    display: grid;
+    gap: 0.3rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--warn) 9%, transparent);
+    font-size: var(--fs-xs);
+  }
+  .checks li {
+    display: grid;
+    gap: 0.1rem;
+  }
+  .said {
+    color: var(--text-muted);
+    font-style: italic;
   }
   .in {
     padding: 0 0.8rem 0.75rem;
@@ -148,6 +194,9 @@
     .step {
       grid-template-columns: 1fr;
       gap: 0;
+    }
+    .checks {
+      grid-column: 1;
     }
   }
 </style>

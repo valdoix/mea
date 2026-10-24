@@ -406,7 +406,26 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
     templates: templatesFor(cfg),
     stamina,
     seedTraits,
+    held: heldLeaks(chatId),
   };
+}
+
+/**
+ * docs/19 2.3: the open leak flags on the showing takes ("Dawn doesn't know: …"), so the fold doesn't
+ * teach someone a secret only a slip let out. The checker invalidates the fold when its flags change.
+ */
+export function heldLeaks(chatId: string): NonNullable<FoldConfig["held"]> {
+  const out: NonNullable<FoldConfig["held"]> = [];
+  const rows = all<{ message_id: string; issues: string }>(
+    "SELECT f.message_id, f.issues FROM continuity_flags f JOIN messages m ON m.id = f.message_id AND m.active_swipe = f.swipe_idx WHERE f.chat_id = ? AND f.status = 'open' AND m.deleted_at IS NULL",
+    chatId,
+  );
+  for (const r of rows)
+    for (const i of parseJson<{ kind?: string; fix?: string; dismissed?: boolean }[]>(r.issues, [])) {
+      const m = i.kind === "leak" && !i.dismissed ? i.fix?.match(/^(.+?) doesn['’]t know: ([\s\S]+)$/) : null;
+      if (m) out.push({ messageId: r.message_id, who: m[1]!.trim(), text: m[2]!.trim() });
+    }
+  return out;
 }
 
 /** Eye and hair colour, scars and the like, stated in a description (they hold against the story). */

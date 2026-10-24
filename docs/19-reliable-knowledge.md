@@ -162,6 +162,8 @@ Suggested order: **1 → 2 → 5 → 3 → 4 → 6**. Part 1 is small and fixes 
 
 **Done when:** #323's plan gives one finding ("Dawn doesn't know Buffy picked the socks" ✕ "Dawn knows: Gabe bought Dawn cat socks — Buffy told her, #267"), and the 20 latest plans of two other chats give none that aren't real.
 
+*Built:* `steer/plancheck.ts`, KNOW only (MINDS' misreads aren't claims about the records). A claim stops at the next one ("knows she's alive · does NOT know heaven" is two). The match uses `trackers/topics.ts`, now shared with FACTS IN PLAY. A claim that says most of the fact's own words is strong; one that only touches it ("the socks' origin" and "era of origin") counts only when the player's message is about that fact. Over the last 80 plans in Pretty Hands: #323 (the socks) and #213 ("Buffy doesn't know she loves him" ✕ she knows Gabriel almost said it, a true correction). The other chats weren't checked, because there's only this one in production.
+
 ### 2.2 One repair, or a correction to the writer
 
 - With the separate planner and time left: one repair call. "The records say: … Fix KNOW and MOVE; keep everything else." It runs only when 2.1 found something.
@@ -169,6 +171,8 @@ Suggested order: **1 → 2 → 5 → 3 → 4 → 6**. Part 1 is small and fixes 
 - The plan drawer shows the finding next to KNOW, so you see it was caught.
 
 **Done when:** a swipe of #323 never writes the socks as news to Dawn (golden 6.1).
+
+*Built differently:* no repair call. The `[PLAN CORRECTION]` goes under the plan for every plan that reaches the writer before it writes: the separate planner's, the plan step's, and the rescue. It adds no wait and no cost, and the writer already follows the plan line by line. A plan the writer writes in its own reasoning can only be checked after the reply, so it's saved as found, not corrected. Each reply keeps its findings in `meta.planCheck` (with `corrected`). The drawer shows them under KNOW, and the summary gets a "checked" badge. Whether the swipe holds is for golden 6.1.
 
 ### 2.3 The reply checked before the tracker trusts it
 
@@ -180,6 +184,8 @@ Suggested order: **1 → 2 → 5 → 3 → 4 → 6**. Part 1 is small and fixes 
 - Bond moves above ±3 in one reply need a cause the reply supports. Otherwise they're clamped, with a verdict the model sees next turn.
 
 **Done when:** a golden reply with a leak leaves the leaked fact *unaware* until you dismiss the flag.
+
+*Built:* leaks only, the flag kind that names a person and a fact. `heldLeaks` (store.ts) reads the open leak flags on the showing takes into `FoldConfig.held`. A model `know` line in that reply that would teach the flagged person a fact like the flagged one is held, with the verdict "held: … counts once you dismiss the flag or fix the sentence". Every flag change folds again (`flagsChanged` in checker.ts). The bond clamp was already there (TRK-11: ±2, ±3 for a big cause), so nothing new is needed.
 
 ---
 

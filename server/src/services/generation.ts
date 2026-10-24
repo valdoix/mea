@@ -65,6 +65,7 @@ import { anchorExtra } from "../accuracy/anchor";
 import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
+import { checkPlan, planCorrection, type PlanFinding } from "../steer/plancheck";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
@@ -460,6 +461,11 @@ interface Prepared {
   planKey: string | null;
   /** H3: the planning pass this reply is written from (the separate planner's, or the writer's own from a try that stopped at its plan): shown as its reasoning. */
   plannedPass: string | null;
+  /** docs/19 2.1: where the plan this reply is written from disagreed with the records (corrected for the writer). */
+  planCheck: PlanFinding[];
+  /** The story state and focus the plan is checked against, for a plan written in the reply itself. */
+  checkState: WorldState | null;
+  focus: string;
   /** PERF-10: where the time went before the request was sent, in ms. */
   timing: Timing;
   /** The cast's numbered voices, so each speaker mark is read back as the cast's own name. */
@@ -525,6 +531,20 @@ function droppedMarks(history: HistoryMessage[]): boolean {
 }
 
 
+/**
+ * docs/19 2.2: the plan check's findings kept on the reply, for the plan drawer and the notebook. A plan
+ * from the planner or the plan step was checked before the writer ran (corrected); a plan the writer
+ * wrote in its own reasoning can only be checked after.
+ */
+function planCheckMeta(p: Prepared, planAsked: boolean, reasoning: string) {
+  const found = p.planCheck.length
+    ? p.planCheck.map((f) => ({ ...f, corrected: true }))
+    : planAsked && !p.plannedPass
+      ? checkPlan(p.checkState, reasoning, p.focus).map((f) => ({ ...f, corrected: false }))
+      : [];
+  return found.length ? { planCheck: found } : {};
+}
+
 /** Gathers everything for one request: card, persona, preset, profile, lore, memory, prompt. */
 export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareOptions = {}): Promise<Prepared> {
   // PERF-10: a stopwatch for each stage of putting the prompt together.
@@ -571,8 +591,9 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   if (opts.advise)
     await waitForChatJobs(chatId, ["tracker.update", "tracker.init"], { timeoutMs: TRACKER_WAIT_MS, exceptMessageId: opts.excludeMessageId, onWait: () => publish({ type: "gen.prep", chatId, stage: "trackers" }) });
   let tp: ReturnType<typeof trackerPrompt> | null = null;
+  // What the player's message (and the note for this reply) is about: FACTS IN PLAY and the plan check read it.
+  const focus = [history.findLast((m) => m.role === "user")?.content, opts.feedback].filter(Boolean).join("\n");
   try {
-    const focus = [history.findLast((m) => m.role === "user")?.content, opts.feedback].filter(Boolean).join("\n");
     tp = trackerPrompt(chatId, { excludeMessageId: opts.excludeMessageId, kind, elsewhere: elsewhereLane?.(chatId), focus });
   } catch (e) {
     console.error("[mea] trackers unavailable for this prompt:", e);
@@ -669,12 +690,16 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   // H3: room for the reply as it will really be asked for (the profile's max_tokens, plus thinking).
   const reserve = resolved.provider.outputTokens?.(resolved.modelId, samplers) ?? samplers.max_tokens ?? 1200;
   // STEER-01: the advisor's private plan for this turn (usually written while you typed).
-  const plan =
+  const planned =
     kind === "story" && opts.writtenPlan
       ? { id: "advisor", name: "Its own plan", content: directorPlanText(planSchema.parse({ pass: opts.writtenPlan })), depth: 0, planner: true, pass: opts.writtenPlan }
       : kind === "story"
         ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise), note: opts.feedback, excludeMessageId: opts.excludeMessageId })
         : null;
+  // docs/19 2.1–2.2: a plan that says someone doesn't know what the records have them told (or the
+  // reverse) gets a correction under it, and the writer follows the records.
+  const planCheck = planned && "pass" in planned && planned.pass && tp?.state ? checkPlan(tp.state, planned.pass, focus) : [];
+  const plan = planned && planCheck.length ? { ...planned, content: `${planned.content}\n\n${planCorrection(planCheck)}` } : planned;
   const style = styleExtra(chatId);
   const advisorMs = lap();
   let memoryMs = 0;
@@ -769,7 +794,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     ? { mode: resolved.cacheMode, ttl: cfg.cacheTtl, prefixEnd: assembled.cacheMarks.prefixEnd, historyEnd: assembled.cacheMarks.historyEnd }
     : undefined;
   const trackers = tp ? { tokens: tp.note?.tokens ?? 0, lanes: tp.note?.lanes ?? [], inline: Boolean(tp.inline) } : null;
-  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history, undefined, opts.feedback) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, timing, voices, speakerMarks: marks };
+  return { characterId: chat.character_id, card, userName, resolved, presetId: preset.id, samplers, assembled, lore, cache, trackers, planKey: plan && !opts.writtenPlan ? turnKey(history, undefined, opts.feedback) : null, plannedPass: plan?.planner ? (plan.pass ?? null) : null, planCheck, checkState: tp?.state ?? null, focus, timing, voices, speakerMarks: marks };
 }
 
 function requestFor(p: Prepared, ids: { chatId: string; messageId?: string; swipeId?: string; kind: string }) {
@@ -1391,6 +1416,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         ...(speakers.length ? { speakers } : {}),
         // Where the plan came from: its own pass, the plan step, or a separate planner (none when it skipped it).
         ...(planAsked ? { plan: planHow ?? (p.plannedPass ? "planner" : reasoning.trim().split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS ? "own" : "none") } : {}),
+        // docs/19 2.2: what the plan check found: corrected before the writer ran, or (a plan written in the reply) found after.
+        ...planCheckMeta(p, planAsked, reasoning),
         ...(cutOff ? { cutOff: true } : {}),
         ...(guarded && text !== original ? { guard: { ...guarded.meta, original: original.slice(0, 20_000) } } : {}),
       },

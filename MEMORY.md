@@ -52,8 +52,8 @@ One PR per part, in the order 1 → 2 → 5 → 3 → 4 → 6. Merge when green.
 
 | Part | What | State |
 |---|---|---|
-| 1 | The planner reads the records | branch `claude/planner-reads-records` |
-| 2 | The plan check | — |
+| 1 | The planner reads the records | merged, PR #165 |
+| 2 | The plan check | branch `claude/plan-check` |
 | 3 | Knowledge per person | — |
 | 4 | One fact, one key | — |
 | 5 | Your corrections stick | — |
@@ -65,6 +65,13 @@ One PR per part, in the order 1 → 2 → 5 → 3 → 4 → 6. Merge when green.
 - 1.2 `trackers/note.ts` `inPlay`: FACTS IN PLAY lane (priority 1, after NOW), replacing #164's "already knows" lines. Facts and items scored together: idf among them × how often the message says the word, hits within half the best. No stance, no line.
 - 1.3 `excludeMessageId` and `focus` reach the planner (`advisorExtra` → `runAdvisor` / `rescuePlan` → `advisorInput`).
 - Tests: `server/test/plannerrecords.test.ts`.
+
+### Part 2 (2026-10-24)
+
+- 2.1 `steer/plancheck.ts` `checkPlan(state, plan, focus)`: KNOW claims ("X doesn't know …" / "X knows …"), cut at the next claim, matched by `trackers/topics.ts` (shared with `inPlay`), against the stance. Strong = says most of the fact's words; otherwise the fact must be what the message is about.
+- 2.2 `prepare`: `planCorrection` under the plan (planner, plan step, rescue); `Prepared.planCheck`, `meta.planCheck` (`corrected`; a writer's own plan is checked after). `PlanDrawer` shows them under KNOW (`planCheckLine` in shared/plan.ts).
+- 2.3 `heldLeaks` → `FoldConfig.held`: a reply's `know` line matching its own open leak flag is held until the flag is dismissed; `flagsChanged` (checker.ts) invalidates the fold on every flag write.
+- Tests: `server/test/plancheck.test.ts`.
 
 ## Lyric cues (design: `docs/18-lyric-cues.md`)
 
