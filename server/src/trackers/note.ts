@@ -1,5 +1,6 @@
 import { countTokens } from "../lib/tokens";
 import { contentWords, overlap } from "../memory/text";
+import { topicCounts, topicScorer } from "./topics";
 import { lostGiftLines, roomLine } from "./belongings";
 import { type CalendarId, describeWhen, noteTime } from "./calendars";
 import { parseStoryTime, shortStoryTime, timeOfDay, formatStoryTime } from "./clock";
@@ -84,26 +85,6 @@ function present(st: WorldState) {
   return Object.values(st.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead);
 }
 
-/** Words of talk and narration that never say what a message is about. */
-const PROSE = new Set(
-  "actually really maybe okay yeah wait asks asked tells told tell says know knows knew think thinks thought want wants wanted every something anything nothing everything always thing things look looks looked back right well gonna going come comes came gets take takes took make makes made give gives gave first last next today tonight".split(" "),
-);
-
-/** Content words with how often each comes up, plurals folded ("socks" meets "sock"), names of the cast left out. */
-function topicCounts(st: WorldState, text: string) {
-  const names = new Set(Object.values(st.chars).flatMap((c) => c.name.toLowerCase().split(/\s+/)));
-  const out = new Map<string, number>();
-  for (const raw of text.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'-]*/gu) ?? []) {
-    const w = raw.replace(/'s$/, "").replace(/['-]+$/, "");
-    if (!contentWords(w, 4).size || names.has(w) || PROSE.has(w)) continue;
-    const k = w.length > 4 ? w.replace(/s$/, "") : w;
-    out.set(k, (out.get(k) ?? 0) + 1);
-  }
-  return out;
-}
-
-const topicWords = (st: WorldState, text: string) => new Set(topicCounts(st, text).keys());
-
 const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know" };
 
 /**
@@ -119,18 +100,16 @@ export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: s
   if (!want?.size) return [];
   const here = new Set(present(st).map((c) => c.id));
   const whom = (id: string) => (id.startsWith("place:") ? id.slice(6).replace(/^at /, "") : nameOf(id));
-  const docs = [
+  const raw = [
     ...Object.values(st.facts).map((f) => ({ fact: f, item: undefined, text: f.statement })),
     ...Object.values(st.items).map((i) => ({ fact: undefined, item: i, text: i.name })),
-  ].map((d) => ({ ...d, words: topicWords(st, d.text) }));
-  const df = new Map<string, number>();
-  for (const { words } of docs) for (const w of words) df.set(w, (df.get(w) ?? 0) + 1);
-  const weight = (w: string) => Math.log(docs.length / df.get(w)!);
-  const enough = Math.log(docs.length / 3);
+  ];
+  const scorer = topicScorer(st, raw.map((d) => d.text));
+  const docs = raw.map((d, i) => ({ ...d, words: scorer.words[i]! }));
+  const enough = scorer.enough;
   const hits: { line: string; text: string; score: number; seq: number; item: boolean }[] = [];
   for (const d of docs) {
-    let score = 0;
-    for (const w of d.words) if (want.has(w)) score += weight(w) * want.get(w)!;
+    const score = scorer.score(want, d.words);
     if (score <= 0 || score < enough) continue;
     if (d.fact) {
       const who = Object.entries(d.fact.stances)

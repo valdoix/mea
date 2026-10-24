@@ -334,7 +334,7 @@
     </header>
 
     {#if !isUser && !editing && (message.reasoning || message.meta?.plan === "none")}
-      <PlanDrawer reasoning={message.reasoning} how={message.meta?.plan} {streaming} writing={Boolean(message.content)} open={page.plan === "always"} />
+      <PlanDrawer reasoning={message.reasoning} how={message.meta?.plan} checks={message.meta?.planCheck} {streaming} writing={Boolean(message.content)} open={page.plan === "always"} />
     {/if}
 
     {#if editing}

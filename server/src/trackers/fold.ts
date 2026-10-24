@@ -56,6 +56,11 @@ export interface FoldConfig {
   stamina?: Record<string, string>;
   /** Stable traits read from the card and persona (lower-case name → trait lines). */
   seedTraits?: Record<string, string[]>;
+  /**
+   * docs/19 2.3: leaks the checker flagged in a reply, still open. The reply's own ledger can't
+   * teach that person that fact until the flag is dismissed or the sentence fixed.
+   */
+  held?: { messageId: string; who: string; text: string }[];
 }
 
 export interface FoldResult {
@@ -973,6 +978,12 @@ export class Folder {
             continue;
           }
           if (cur && cur.status === status) continue;
+          // 2.3: what a flagged leak let out doesn't count as learned while the flag is open.
+          const held = /knows|believes|suspects/.test(status) && this.ai(ctx) && ctx.ev.messageId ? this.cfg.held?.find((h) => h.messageId === ctx.ev.messageId && norm(h.who) === norm(holder.name) && overlap(h.text, f.statement) >= 0.4) : undefined;
+          if (held) {
+            if (one) return this.reject(ctx, `held: the checker flagged this reply for letting it out to ${holder.name}; it counts once you dismiss the flag or fix the sentence`);
+            continue;
+          }
           f.stances[holder.id] = { status, route: a.route ?? op.cause, seq, ...(ctx.ev.source === "user" ? { set: true } : {}) };
           if (f.secret?.from.includes(holder.id) && /knows|believes|suspects/.test(status)) f.secret.from = f.secret.from.filter((x) => x !== holder.id);
           this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });

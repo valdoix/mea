@@ -20,7 +20,7 @@ import { userEdit } from "../trackers/service";
 import { flagAllowed, guardsFor, puppetScope, type PuppetScope } from "./guards";
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
 import { runSlips, slipAllowed, slipContext } from "./slips";
-import { currentFold, foldAt, linesToOps } from "../trackers/store";
+import { currentFold, foldAt, invalidate, linesToOps } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 
 /**
@@ -371,7 +371,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
     t,
     t,
   );
-  publish({ type: "continuity.changed", chatId, messageId });
+  flagsChanged(chatId, messageId);
   return withIds;
 }
 
@@ -410,7 +410,7 @@ function mustFlag(id: string) {
 function save(r: FlagRow, issues: Issue[], status?: string) {
   const open = issues.filter((i) => !i.dismissed).length;
   run("UPDATE continuity_flags SET issues = ?, status = ?, updated_at = ? WHERE id = ?", JSON.stringify(issues), status ?? (open ? "open" : "resolved"), now(), r.id);
-  publish({ type: "continuity.changed", chatId: r.chat_id, messageId: r.message_id });
+  flagsChanged(r.chat_id, r.message_id);
   return flagOut(one<FlagRow>("SELECT * FROM continuity_flags WHERE id = ?", r.id)!);
 }
 
@@ -514,7 +514,7 @@ export function mergeIssues(chatId: string, messageId: string, swipeIdx: number,
     t,
     t,
   );
-  publish({ type: "continuity.changed", chatId, messageId });
+  flagsChanged(chatId, messageId);
 }
 
 /** CON-12, after the trackers read a reply (an onTrackerUpdate hook). */
@@ -524,4 +524,10 @@ export function recordTimeline(chatId: string, messageId: string) {
   const sw = one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", messageId, m.active_swipe);
   const ctx = slipContext({ chatId, text: sw?.content ?? "", seq: m.seq, messageId, role: m.role, speaker: m.name ?? "", state: null, guards: guardsFor(chatId), continuity: memoryConfig().continuity, leaks: false });
   mergeIssues(chatId, messageId, m.active_swipe, "timeline", runSlips(ctx, "trackers"));
+}
+
+/** A reply's flags changed: the page hears, and the fold folds again (docs/19 2.3: an open leak holds what it let out). */
+function flagsChanged(chatId: string, messageId: string) {
+  invalidate(chatId, { messageId });
+  publish({ type: "continuity.changed", chatId, messageId });
 }
