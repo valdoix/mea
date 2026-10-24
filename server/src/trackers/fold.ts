@@ -145,7 +145,8 @@ const METER_ALIASES: Record<string, Meter> = {
 };
 const AXIS_ALIASES: Record<string, Axis> = {
   trust: "trust", affection: "affection", love: "affection", fondness: "affection", respect: "respect", familiarity: "familiarity", comfort: "comfort",
-  safety: "comfort", attraction: "attraction", desire: "attraction", fear: "fear", resentment: "resentment", resent: "resentment", anger: "resentment",
+  safety: "comfort", attraction: "attraction", desire: "attraction", fear: "fear", "fear of": "fear", "afraid of": "fear", dread: "fear",
+  worry: "worry", worries: "worry", "fear for": "worry", "fears for": "worry", "afraid for": "worry", concern: "worry", resentment: "resentment", resent: "resentment", anger: "resentment",
   obligation: "obligation", debt: "obligation", rivalry: "rivalry", rival: "rivalry", jealousy: "rivalry",
 };
 const BIG_CAUSE = /\b(betray\w*|rescue\w*|saved?\b|saving|unforgiv\w*|life|died|death|confess\w*|attack\w*|abandon\w*)\b/i;

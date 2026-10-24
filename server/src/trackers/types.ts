@@ -115,9 +115,11 @@ export interface Pressure {
 }
 
 export const BIPOLAR_AXES = ["trust", "affection", "respect", "comfort"] as const;
-export const UNIPOLAR_AXES = ["familiarity", "attraction", "fear", "resentment", "obligation", "rivalry"] as const;
+export const UNIPOLAR_AXES = ["familiarity", "attraction", "fear", "worry", "resentment", "obligation", "rivalry"] as const;
 export const AXES = [...BIPOLAR_AXES, ...UNIPOLAR_AXES] as const;
 export type Axis = (typeof AXES)[number];
+/** How an axis reads in words where its name alone is ambiguous: fear OF them (a threat) vs fear FOR them (they might come to harm). */
+export const AXIS_WORDS: Partial<Record<Axis, string>> = { fear: "fear of them", worry: "worry for them" };
 
 export interface BondMove {
   axis: Axis;

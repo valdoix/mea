@@ -238,7 +238,7 @@ trackers.get("/chats/:id/trackers/graph", (c) => {
   const edges = Object.values(st.bonds).map((b) => {
     const a = b.axes;
     const warmth = ((a.trust ?? 0) + (a.affection ?? 0) + (a.respect ?? 0) + (a.comfort ?? 0)) / 4;
-    const heat = Math.max(a.attraction ?? 0, a.fear ?? 0, a.resentment ?? 0, a.rivalry ?? 0);
+    const heat = Math.max(a.attraction ?? 0, a.fear ?? 0, a.worry ?? 0, a.resentment ?? 0, a.rivalry ?? 0);
     // G2: the bond's history, for "click a line" (each change with Jump to the message).
     const history = b.history.slice(-24).map((h) => ({ axis: h.axis, delta: h.delta, to: h.to, cause: h.cause ?? null, seq: h.seq }));
     return { from: b.from, to: b.to, label: b.label ?? null, axes: b.axes, tags: b.tags, warmth, heat, ladder: st.ladders[`${b.from}>${b.to}`]?.tier ?? null, history };
