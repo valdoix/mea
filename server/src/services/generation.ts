@@ -51,7 +51,7 @@ import { applyBanned, chatExtras, consumeOnce, continueJoin, cutFourthWall, look
 import { evalCondition } from "../trackers/condition";
 import { revealsOf } from "../trackers/reveals";
 import { secretRevealer } from "../lore/secretlinks";
-import { cardPieces, correctionsLane, correctMemory } from "../accuracy/corrections";
+import { cardPieces, correctionsLane, correctMemory, personaPieces } from "../accuracy/corrections";
 import type { Finding } from "../accuracy/promptcheck";
 import type { WorldState } from "../trackers/types";
 import { fileInlineLedger, scheduleTrackers, trackerPrompt } from "../trackers/service";
@@ -634,12 +634,13 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     };
   }
 
-  // Reliable state 3.2: card and lore text the story has moved past, answered in the dynamic block.
+  // Reliable state 3.2: card, persona and lore text the story has moved past, answered in the dynamic block.
   const correcting = cfg.correctOutdated && (kind === "story" || kind === "continue") && Boolean(tp?.state);
   const outdated: Finding[] = [];
   const corrections = correcting
     ? correctionsLane(tp!.state, [
         ...cardPieces(card),
+        ...personaPieces(personaPrompt(persona)),
         ...[...lore.placements.before_char, ...lore.placements.after_char, ...lore.placements.an_top, ...lore.placements.an_bottom, ...lore.placements.ex_top, ...lore.placements.ex_bottom, ...lore.placements.triggered, ...lore.placements.depth.map((d) => d.content)].map((text) => ({ where: "lore", text })),
       ])
     : null;
