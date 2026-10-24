@@ -345,6 +345,7 @@ export class Folder {
     const prev = this.state.time;
     const from = prev && prev.form === form ? prev.minutes : null;
     this.state.time = { minutes: to, form };
+    if (!prev) this.state.start = { minutes: to, form };
     // M26: a switch of clock form starts the count again; nothing drifts across it.
     if (prev && prev.form !== form) for (const c of Object.values(this.state.chars)) c.driftAt = to;
     if (from == null) {

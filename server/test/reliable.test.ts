@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
-import { correctionsLane, correctMemory } from "../src/accuracy/corrections";
-import { findOutdated } from "../src/accuracy/promptcheck";
+import { cardPieces, correctionsLane, correctMemory } from "../src/accuracy/corrections";
+import { agoPhrase, findOpening, findOutdated } from "../src/accuracy/promptcheck";
 import { newId, now, run } from "../src/db/db";
 import { activateLore, type ScanEntry } from "../src/lore/activate";
 import { factLine } from "../src/lore/facts";
@@ -137,6 +137,47 @@ describe("the prompt check (Part 3)", () => {
     expect(extra!.content).toContain('- The card says: "Misty doesn\'t know that Jackie loves James." — written before #2. Misty knows now: Jackie loves James.');
     expect(correctionsLane(st(), [{ where: "card", text: "Misty is kind." }]).extra).toBeNull();
     expect(correctMemory(st(), "### Scene\nBen is waiting at the cabin.", "Story So Far").text).toContain("### Out of date in the records above");
+  });
+});
+
+describe("the card's opening, once the clock has moved past it", () => {
+  const card = normalizeCard({
+    spec: "chara_card_v2",
+    data: {
+      name: "Buffy",
+      description: "Buffy is twenty and has died twice. Tonight she clawed out of her own grave with bare hands, splinters under her nails. She is the Slayer.",
+      scenario: "October 9 2001, a little past midnight on the cemetery road. Buffy stands barefoot at the edge of her open grave.",
+      first_mes: "…",
+    },
+  }).data;
+  const at = (...clock: string[]) => fold([["cast: Buffy@spot · Alex@spot", `clock: ${clock[0]}`], ...clock.slice(1).map((c) => [`clock: ${c}`])]);
+
+  test("a day on, the card's \"tonight\" is last night", () => {
+    // The grave at 00:15, a night's sleep, the whole next day: 22:53 the same calendar day.
+    const st = at("Day 1 00:15", "+6h45m", "+15h53m");
+    const found = findOpening(st, cardPieces(card));
+    expect(found.map((f) => f.sentence)).toEqual(["Tonight she clawed out of her own grave with bare hands, splinters under her nails.", "October 9 2001, a little past midnight on the cemetery road."]);
+    expect(found[0]!.now).toBe("that is the story's opening, last night (about 23 hours ago), not now");
+    const { extra } = correctionsLane(st, cardPieces(card));
+    expect(extra!.content).toContain(`- The card says: "Tonight she clawed out of her own grave with bare hands, splinters under her nails." — that is the story's opening, last night (about 23 hours ago), not now.`);
+    expect(extra!.content).toContain("is the past");
+  });
+
+  test("the first hours of the story need no correction, and nor does a card with no present in it", () => {
+    expect(findOpening(at("Day 1 00:15", "+2h"), cardPieces(card))).toEqual([]);
+    expect(findOpening(at("Day 1 00:15", "+30h"), [{ where: "card", text: "Buffy is the Slayer." }])).toEqual([]);
+    expect(findOpening(at("Day 1 00:15", "+30h"), [{ where: "lore", text: "Tonight the Bronze is packed." }])).toEqual([]);
+  });
+
+  test("how long ago, as people say it", () => {
+    const h = (d: number, hh: number, mm = 0) => (d - 1) * 1440 + hh * 60 + mm;
+    expect(agoPhrase(h(1, 0, 15), h(1, 22, 53))).toBe("last night");
+    expect(agoPhrase(h(1, 0, 15), h(1, 4))).toBe("earlier tonight");
+    expect(agoPhrase(h(1, 21), h(2, 9))).toBe("last night");
+    expect(agoPhrase(h(1, 21), h(3, 9))).toBe("the night before last");
+    expect(agoPhrase(h(1, 10), h(1, 16))).toBe("earlier today");
+    expect(agoPhrase(h(1, 10), h(2, 16))).toBe("yesterday");
+    expect(agoPhrase(h(1, 10), h(5, 16))).toBe("4 days ago");
   });
 });
 
