@@ -125,6 +125,15 @@ function helperJson(name: string, user: string, system = ""): unknown {
         issues: [{ kind: "fact", severity: "major", claim: "MOCK_CONTRADICTION", conflict: "The facts say otherwise.", cites: [ref], fix: "Follow the established facts.", canon: `${who} keeps the brass lantern in the cellar.` }],
       };
     }
+    case "ties_check": {
+      // A passage saying MOCK_TIE (MOCKTIE once markdown is cleaned) gets its tie wrong, against the first record.
+      const passages = (user.split("PASSAGES:")[1] ?? "").split("\n");
+      const slips = passages.flatMap((l) => {
+        const n = l.match(/^(\d+)\. .*MOCK_?TIE/)?.[1];
+        return n ? [{ passage: Number(n), conflict: "The records say otherwise.", cites: ["R1"], fix: "Keep the tie the records set up.", right: l.replace(/^\d+\. /, "").replace(/MOCK_?TIE/, "").trim() }] : [];
+      });
+      return { slips };
+    }
     case "continuity_verify": {
       // An issue whose story passages say MOCK_SETTLED is settled in the reply's favour.
       const verdicts = [...user.matchAll(/^ISSUE (\d+)[\s\S]*?(?=^ISSUE |(?![\s\S]))/gm)].map((m) => ({ id: m[1]!, stands: !/MOCK_SETTLED/.test(m[0]) }));

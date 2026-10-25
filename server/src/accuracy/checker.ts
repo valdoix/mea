@@ -20,6 +20,7 @@ import { userEdit } from "../trackers/service";
 import { flagAllowed, guardsFor, puppetScope, type PuppetScope } from "./guards";
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
 import { runSlips, slipAllowed, slipContext } from "./slips";
+import { tieIssues } from "./ties";
 import { currentFold, foldAt, invalidate, linesToOps } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 
@@ -164,7 +165,7 @@ async function settledByStory(chatId: string, seq: number, found: Omit<Issue, "i
   }
 }
 
-/** Kinds the story's own words can settle. */
+/** Kinds the story's own words can settle. Not "ties": an earlier reply with the same slip would settle it the wrong way. */
 const STORY_SETTLES = new Set(["fact", "past", "trait", "place", "time", "dead", "name", "who"]);
 
 /** How many messages before the reply the helper pass reads whole (who said and did what just now). */
@@ -315,6 +316,14 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   // CON-12: the timeline check runs once the trackers have read the reply; keep what it found.
   const earlier = one<FlagRow>("SELECT * FROM continuity_flags WHERE message_id = ? AND swipe_idx = ?", messageId, swipeIdx);
   issues.push(...parseJson<Issue[]>(earlier?.issues, []).filter((i) => i.kind === "timeline").map(({ id: _id, ...rest }) => rest));
+  // Ties across generations, against the memories that set them up (ties.ts). The helper runs only when the rules find one.
+  if (cfg.continuity && m.role === "assistant" && slipAllowed("ties", g) && !shouldShed("continuity", chatId)) {
+    try {
+      issues.push(...(await tieIssues(chatId, sw.content, m.seq, opts.job)));
+    } catch (e) {
+      opts.job?.note({ tiesError: (e as Error).message.slice(0, 200) });
+    }
+  }
   const useModel = cfg.continuity && (opts.model ?? (cfg.checkerModel && !shouldShed("continuity", chatId)));
   if (useModel) {
     const sheet = factSheet(chatId, sw.content, st, m.seq);

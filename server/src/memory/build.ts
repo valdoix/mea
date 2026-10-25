@@ -45,6 +45,8 @@ import { ftsQuery, hashText } from "./text";
 import { highlightsInRange } from "../services/notebook";
 import { revealsOf } from "../trackers/reveals";
 import { currentFold } from "../trackers/store";
+import { sentences } from "../accuracy/rules";
+import { tieCheck } from "../accuracy/ties";
 
 /**
  * Reliable state 2.4: secrets that had come out by a message, said to the summarizer so a record
@@ -102,6 +104,8 @@ interface SceneBuild {
   sourceHash: string;
   sourceTokens: number;
   rows: ReturnType<typeof ledger>;
+  /** Notes that still get a family tie wrong (accuracy/ties.ts): kept, but disputed. */
+  disputed?: Set<string>;
 }
 
 async function runScenePass(row: SummaryRow, ctx: { job?: JobContext; instruction?: string; signal?: AbortSignal }): Promise<SceneBuild | null> {
@@ -175,7 +179,42 @@ async function runScenePass(row: SummaryRow, ctx: { job?: JobContext; instructio
       }
     }
   }
-  return { output, verification, related, sourceHash, sourceTokens, rows };
+
+  // Ties across generations (accuracy/ties.ts): the scene's text can get one wrong, and a note that
+  // keeps it word for word turns the slip into a fact. Written again once; a note still wrong is kept disputed.
+  let disputed = new Set<string>();
+  if (!shouldShed("verification", row.chat_id)) {
+    const check = (o: SceneOutput) =>
+      tieCheck(row.chat_id, [...o.memories.map((m) => m.content), ...sentences(o.summary)], row.start_seq, { job: ctx.job, signal: ctx.signal, notScene: row.id, what: "memories" }).catch((e: Error) => {
+        ctx.job?.note({ tiesError: e.message.slice(0, 200) });
+        return [];
+      });
+    const passage = (o: SceneOutput, n: number) => (n < o.memories.length ? o.memories[n]!.content : sentences(o.summary)[n - o.memories.length]!);
+    let ties = await check(output);
+    if (ties.length) {
+      const found = ties.map((t) => ({ claim: passage(output, t.passage), reason: `family tie: ${t.conflict}` }));
+      verification = { ...(verification ?? { verdict: "major", omissions: [] }), verdict: "major", unsupported: [...(verification?.unsupported ?? []), ...found] };
+      if (cfg.autoRepair) {
+        const repaired = await callJson({
+          task: "summarizer",
+          kind: "scene-repair",
+          chatId: row.chat_id,
+          jobId: ctx.job?.id,
+          name: "scene_memory",
+          schema: sceneSchema,
+          system: sceneSystem(names),
+          user: `${user}\n\nA checker compared this record with the EXISTING MEMORIES and found it gets who is related to whom, or who knew whom, wrong. The scene's own words may have the slip; the earlier memories hold. Write the record again, fixing these:\n${ties.map((t) => `- "${passage(output, t.passage)}": ${t.conflict}${t.right ? ` (keep: ${t.right})` : ""}`).join("\n")}`,
+          maxTokens: 5000,
+          signal: ctx.signal,
+        });
+        output = repaired.data;
+        verification = { ...verification, repaired: true };
+        ties = await check(output);
+      }
+      disputed = new Set(ties.filter((t) => t.passage < output.memories.length).map((t) => output.memories[t.passage]!.content));
+    }
+  }
+  return { output, verification, related, sourceHash, sourceTokens, rows, disputed };
 }
 
 /** Writes a finished scene record and replaces the scene's AI-made atoms (MEM-05, MEM-07). */
@@ -228,7 +267,7 @@ function applyScene(row: SummaryRow, b: SceneBuild) {
         .map((label) => b.related[Number(String(label).replace(/\D/g, "")) - 1])
         .filter((a): a is AtomRow => Boolean(a));
       // Your edits win: an AI fact can't overrule a memory you edited or pinned; it's marked disputed instead.
-      const locked = targets.some((t) => t.user_edited || t.pinned);
+      const locked = targets.some((t) => t.user_edited || t.pinned) || Boolean(b.disputed?.has(m.content));
       const id = insertAtom(
         row.chat_id,
         row.id,
