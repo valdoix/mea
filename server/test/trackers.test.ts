@@ -9,6 +9,7 @@ import { revealFor, revealsOf } from "../src/trackers/reveals";
 import { activateLore } from "../src/lore/activate";
 import { defaultEntry } from "../src/lore/types";
 import { STARTER_TEMPLATES, templateSchemaZ } from "../src/trackers/schema";
+import { inlineInstruction, updatePrompt } from "../src/trackers/prompts";
 
 const cfg = (over: Partial<FoldConfig> = {}): FoldConfig => ({
   userName: "Alex",
@@ -433,5 +434,15 @@ describe("one person, one entry", () => {
     expect(Object.keys(r.state.bonds).some((k) => k.includes("joss"))).toBe(false);
     expect(r.state.threads.heist!.title).toBe("The heist");
     expect(Object.values(r.verdicts).at(-1)!.ok).toBe(false);
+  });
+});
+
+describe("private thoughts", () => {
+  test("every reply asks for a think line per person at the spot, never the sealed player's", () => {
+    const sealed = updatePrompt({ state: "", messages: "", userName: "Alex", charName: "Mira", sealed: true, romance: "slow" }).system;
+    expect(sealed).toContain("every reply gets a think line for each person at the spot except Alex");
+    const open = updatePrompt({ state: "", messages: "", userName: "Alex", charName: "Mira", sealed: false, romance: "slow" }).system;
+    expect(open).toContain("for each person at the spot, their reaction");
+    expect(inlineInstruction("")).toContain("think: every reply, one line for each person @spot");
   });
 });
