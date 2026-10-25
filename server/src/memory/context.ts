@@ -5,7 +5,7 @@ import type { WorldState } from "../trackers/types";
 import type { Reveal } from "../trackers/reveals";
 import { AUTHORITY } from "./canon";
 import { embeddingsEnabled, embedQueries, indexCoverage } from "./embed";
-import { norm, resolver } from "./entities";
+import { norm, placeName, resolver } from "./entities";
 import { formatRecallBlock, type RecallItem, TimeIndex } from "./format";
 import { journalText } from "./journals";
 import { cachedRewrite, cachedVerdict, contextText } from "./librarian";
@@ -258,7 +258,7 @@ export async function memoryInputs(
         ...Object.values(st.chars)
           .filter((c) => !c.isUser && !c.dead && (c.tier === "spot" || c.tier === "peri"))
           .map((c) => c.name),
-        ...(st.place.length ? [st.place.at(-1)!] : []),
+        ...(st.place.length ? [placeName(st.place).name] : []),
       ]
     : [];
   const contexts = [contextText(o.history.slice(0, -1)), contextText(o.history)];

@@ -193,6 +193,39 @@ interface Seen {
   strong: boolean;
 }
 
+/** Words a room's name can be made of without saying whose room it is ("upstairs guest room", "walk-in closet"). */
+const ROOM_WORDS = new Set(
+  "the a kitchen bathroom bedroom bed living dining family guest master spare main room rooms hallway hall stairs stair staircase landing porch driveway garage basement attic closet walk in study office den yard backyard garden patio balcony foyer entry entryway pantry laundry cellar upstairs downstairs upper lower front back side en suite ensuite door doorway table counter sofa couch window shower bath bathtub tub sink stove fridge".split(" "),
+);
+const PLAIN_HOUSE = /\b(residence|house|home)\b/gi;
+
+/** Where a tracker step ends, without its aside: "hallway \u2192 Kitchen (carried her down)" is "Kitchen". */
+const roomOf = (name: string) => name.split("\u2192").at(-1)!.replace(/\([^)]*\)?/g, " ").replace(/\s+/g, " ").trim();
+
+/** A place named only by its room ("kitchen", "guest bathroom"): it doesn't say which house it's in. */
+export function genericPlace(name: string) {
+  const words = norm(roomOf(name)).split(" ").filter(Boolean);
+  return words.length > 0 && words.every((w) => ROOM_WORDS.has(w));
+}
+
+/**
+ * A tracker place's name: its room, with the building it's in when the room alone is generic
+ * ("Summers Residence kitchen", also "Summers kitchen"), so two houses' kitchens stay two places.
+ */
+export function placeName(path: string[]): { name: string; aliases: string[] } {
+  const leaf = path.at(-1)?.trim() ?? "";
+  if (!genericPlace(leaf)) return { name: leaf, aliases: [] };
+  const building = path
+    .slice(0, -1)
+    .map(roomOf)
+    .reverse()
+    .find((p) => p && !genericPlace(p));
+  if (!building) return { name: leaf, aliases: [] };
+  const room = roomOf(leaf).toLowerCase();
+  const short = building.replace(PLAIN_HOUSE, " ").replace(/\s+/g, " ").trim();
+  return { name: `${building} ${room}`, aliases: short && short !== building ? [`${short} ${room}`] : [] };
+}
+
 const synced = new Map<string, string>();
 
 const NOT_NAMES = new Set(["you", "i", "me", "we", "they", "he", "she", "it", "everyone", "nobody", "user", "char"]);
@@ -402,7 +435,10 @@ export function syncEntities(chatId: string, force = false) {
         data: { isUser: c.isUser || undefined, isMain: c.isMain || undefined },
       });
     }
-    for (const p of Object.values(st.places)) add(p.name, "place", { last: p.lastSeq, mentions: p.visits, source: "tracker", strong: true, data: { path: p.path } });
+    for (const p of Object.values(st.places)) {
+      const named = placeName(p.path.length ? p.path : [p.name]);
+      add(named.name, "place", { aliases: named.aliases, last: p.lastSeq, mentions: p.visits, source: "tracker", strong: true, data: { path: p.path } });
+    }
     for (const it of Object.values(st.items)) {
       // A thing never shares a record with a person of the same name (its status would become theirs).
       const k = entityKey(it.name);
