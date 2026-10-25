@@ -155,7 +155,6 @@
         {#if cfg.dialed?.length}<p class="tiny muted">{cfg.dialed.includes("sealed") && cfg.dialed.includes("romance") ? "Your character's inner life and the romance pace are" : cfg.dialed.includes("sealed") ? "Your character's inner life is" : "The romance pace is"} set by this chat's preset (its Persona and Romance pace controls in the chat panel).</p>{/if}
         <label class="switch"><input type="checkbox" bind:checked={cfg.limits} onchange={save} /> Slow changes: cap how far a bond or meter moves in one reply</label>
         <label class="switch"><input type="checkbox" bind:checked={cfg.nudges} onchange={save} /> Offer quiet threads and planted details back to the model as optional hooks</label>
-        <label class="switch"><input type="checkbox" bind:checked={cfg.gate} onchange={save} /> Skip the update when nothing changed (a tiny check first; saves quota, can miss small things)</label>
         <label class="switch"><input type="checkbox" checked={cfg.strictness === "strict"} onchange={(e) => ((cfg!.strictness = e.currentTarget.checked ? "strict" : "lenient"), save())} /> Strict: refuse relationship, knowledge and item changes without a reason</label>
 
         <div class="field">

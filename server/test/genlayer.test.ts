@@ -47,6 +47,7 @@ beforeAll(() => {
             { id: "overflow", context_length: 64000 },
             { id: "truncated", context_length: 64000 },
             { id: "thinker", context_length: 64000 },
+            { id: "clipped", context_length: 64000 },
             { id: "claude-opus-4-7", max_input_tokens: 1000000, max_tokens: 128000 },
           ],
         });
@@ -96,6 +97,8 @@ beforeAll(() => {
       if (body.model === "nodone") return sse([{ choices: [{ delta: { content: "Half a sent" } }] }]);
       // A model that reasons and can't stop: the first try thinks through its whole budget and writes nothing.
       if (body.model === "thinker") return Response.json({ choices: [{ message: { content: n === 1 ? "" : "clock: +5m" }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
+      // Thinking ate most of the budget: the first try stops after one line that still parses.
+      if (body.model === "clipped") return Response.json({ choices: [{ message: { content: n === 1 ? "clock" : 'clock: +5m\nthink Mira: "Not now."' }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
       if (body.model === "truncated") {
         const content = n === 1 ? '{"items":["a","b",' : '{"items":["a"]}';
         return Response.json({ choices: [{ message: { content }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
@@ -340,6 +343,19 @@ describe("helper prompts and calls (M14, M15, M16, M17, M18, M33, L3)", () => {
     expect(calls.every((c) => c.effort === "low")).toBe(true);
     // Cut off while thinking: asked again as before, not shown an empty reply to correct.
     expect(calls[1]!.turns).toBe(2);
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: null, world: null });
+  });
+
+  test("a cut-off reply that still parses is asked again with more room", async () => {
+    const conn = createConnection({ name: "Local 4", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    const helper = createProfile({ name: "Clipped", connectionId: conn, modelId: "clipped", params: {} });
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: helper, world: null });
+    seen.length = 0;
+    const r = await callText({ task: "tracker", kind: "tracker", system: "Write ledger lines.", user: "go", maxTokens: 900, validate: (t) => (t.trim() ? null : "That had no ledger lines.") });
+    expect(r.text).toContain("think Mira");
+    const calls = seen.filter((s) => s.model === "clipped");
+    expect(calls.map((c) => c.max_tokens)).toEqual([900, 1800]);
     setSetting("routing.tasks", { summarizer: null, helper: null, tracker: null, world: null });
   });
 

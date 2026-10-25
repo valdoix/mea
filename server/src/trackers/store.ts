@@ -22,7 +22,6 @@ export interface ResolvedTrackerConfig {
   mode: "helper" | "inline" | "off";
   cadence: "every" | "everyN" | "scene" | "manual";
   everyN: number;
-  gate: boolean;
   sections: Record<Section, boolean>;
   templates: string[];
   romance: "off" | "slow" | "measured" | "fast" | "established";
@@ -43,7 +42,6 @@ export const DEFAULT_TRACKERS: ResolvedTrackerConfig = {
   mode: "helper",
   cadence: "every",
   everyN: 3,
-  gate: false,
   sections: Object.fromEntries(ALL_SECTIONS.map((s) => [s, true])) as Record<Section, boolean>,
   templates: [],
   romance: "slow",

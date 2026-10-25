@@ -224,7 +224,6 @@ export interface TrackerDefaults {
   mode?: "helper" | "inline" | "off";
   cadence?: "every" | "everyN" | "scene" | "manual";
   everyN?: number;
-  gate?: boolean;
   sections?: Record<string, boolean>;
   romance?: "off" | "slow" | "measured" | "fast" | "established";
   sealed?: boolean;

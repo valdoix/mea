@@ -1559,7 +1559,6 @@ export interface TrackerConfig {
   mode: "helper" | "inline" | "off";
   cadence: "every" | "everyN" | "scene" | "manual";
   everyN: number;
-  gate: boolean;
   sections: Record<TrackerSection, boolean>;
   templates: string[];
   romance: "off" | "slow" | "measured" | "fast" | "established";
