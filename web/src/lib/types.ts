@@ -536,6 +536,21 @@ export interface Connection {
   lastSyncAt: number | null;
   lastError: string | null;
   format?: "openai" | "anthropic";
+  /** A LinkAPI connection: it can show its balance (CONN-25). */
+  linkApi?: boolean;
+  wallet?: { userId: string; tokenMask: string | null } | null;
+}
+
+/** LinkAPI balance (CONN-25); amounts are New API quota units. */
+export interface LinkApiBalance {
+  currency: { perUnit: number; symbol: string; rate: number; tokens: boolean };
+  key: { name: string | null; granted: number; used: number; available: number; unlimited: boolean; expiresAt: number | null } | null;
+  keyError: string | null;
+  wallet: { available: number; used: number; requests: number | null; group: string | null } | null;
+  walletError: string | null;
+  usage: { days: number; models: { model: string; requests: number; tokens: number; quota: number }[]; partial: boolean; source: "data" | "logs" } | null;
+  usageError: string | null;
+  fetchedAt: number;
 }
 
 export interface ModelInfo {
