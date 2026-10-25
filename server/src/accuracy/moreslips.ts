@@ -200,6 +200,15 @@ SLIPS.push(
     on: (c) => c.role === "assistant" && c.continuity,
     run: () => [],
   },
+  {
+    // Rules pick the sentences, the helper reads them (ties.ts, run by checker.ts).
+    id: "ties",
+    label: "Family ties",
+    description: "Who is whose ancestor, and who knew them, against the memories that set it up (the helper model, only when a reply names such a tie).",
+    phase: "reply",
+    on: (c) => c.role === "assistant" && c.continuity,
+    run: () => [],
+  },
 );
 
 // ---------- the next turn hears the last reply's slips ----------
