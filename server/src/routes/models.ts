@@ -5,8 +5,10 @@ import { z } from "zod";
 import { body, must } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
 import {
+  cachedBalance,
   cachedQuota,
   connectionInput,
+  connectionUpdate,
   createConnection,
   createProfile,
   deleteConnection,
@@ -16,11 +18,13 @@ import {
   listModels,
   listProfiles,
   profileInput,
+  refreshBalance,
   refreshQuota,
   starModel,
   syncModels,
   updateConnection,
   updateProfile,
+  walletSecretId,
 } from "../services/connections";
 import { cacheStats, usageSummary } from "../services/usage";
 import { config } from "../config";
@@ -47,7 +51,7 @@ models.post("/connections", async (c) => {
 });
 
 models.put("/connections/:id", async (c) => {
-  const input = await body(c, connectionInput.partial());
+  const input = await body(c, connectionUpdate);
   must(updateConnection(c.req.param("id"), input) || undefined, "Connection not found");
   return c.json({ connection: listConnections().find((x) => x.id === c.req.param("id")) });
 });
@@ -55,11 +59,13 @@ models.put("/connections/:id", async (c) => {
 models.delete("/connections/:id", (c) => {
   const id = c.req.param("id");
   const secret = one<{ secret_id: string | null }>("SELECT secret_id FROM connections WHERE id = ?", id)?.secret_id ?? "";
-  // The connection, its key, its model list, and which profiles pointed at it.
+  const wallet = walletSecretId(id) ?? "";
+  // The connection, its keys, its model list, and which profiles pointed at it.
   const undo = stash(
     "Connection",
     [
       { table: "secrets", where: "id = ?", params: [secret] },
+      { table: "secrets", where: "id = ?", params: [wallet] },
       { table: "connections", where: "id = ?", params: [id] },
       { table: "models", where: "connection_id = ?", params: [id] },
       { table: "profiles", where: "connection_id = ?", params: [id] },
@@ -71,6 +77,14 @@ models.delete("/connections/:id", (c) => {
 });
 
 models.post("/connections/:id/sync", async (c) => c.json({ count: await syncModels(c.req.param("id")) }));
+
+/** LinkAPI key balance, wallet and per-model usage (CONN-25). */
+models.get("/connections/:id/balance", (c) => c.json({ balance: cachedBalance(c.req.param("id")) }));
+
+models.post("/connections/:id/balance/refresh", async (c) => {
+  const days = Number(c.req.query("days")) === 7 ? 7 : 30;
+  return c.json({ balance: await refreshBalance(c.req.param("id"), days) });
+});
 
 models.get("/models", (c) => c.json({ models: listModels(c.req.query("connectionId") || undefined) }));
 

@@ -9,6 +9,7 @@ import { getSetting, setSetting } from "../lib/settings";
 import { MockProvider } from "../providers/mock";
 import { NANOGPT_BASE, NanoGPTProvider, type Quota } from "../providers/nanogpt";
 import { AnthropicProvider } from "../providers/anthropic";
+import { isLinkApi, LinkApiBilling, type LinkApiBalance } from "../providers/linkapi";
 import { OpenAIProvider } from "../providers/openai";
 import type { CacheHint, GenerationParams, ModelInfo, Provider } from "../providers/types";
 import { recordQuotaSample } from "./quota";
@@ -36,6 +37,10 @@ interface ConnectionExtra {
   headers?: Record<string, string>;
   /** Wire format for generic connections (CONN-23). */
   format?: ApiFormat;
+  /** LinkAPI dashboard access token (a secret) and user ID, for the wallet and per-model usage (CONN-25). */
+  wallet?: { secretId: string; userId: string } | null;
+  /** The last LinkAPI balance read (CONN-25). */
+  balance?: LinkApiBalance;
 }
 
 const changed = () => publish({ type: "library.changed", what: "connections" });
@@ -47,7 +52,13 @@ export const connectionInput = z.object({
   apiKey: z.string().trim().optional(),
   billing: z.enum(["subscription", "paygo", "unknown"]).default("unknown"),
   format: z.enum(["openai", "anthropic"]).optional(),
+  /** LinkAPI wallet access (CONN-25): an empty token removes it. */
+  walletToken: z.string().trim().max(512).optional(),
+  walletUserId: z.string().trim().regex(/^\d{1,12}$/, "The user ID is a number").optional(),
 });
+
+/** No defaults on an update: a field left out keeps its value (billing used to fall back to "unknown"). */
+export const connectionUpdate = connectionInput.extend({ billing: connectionInput.shape.billing.unwrap() }).partial();
 
 function rowToConnection(r: ConnectionRow) {
   const extra = parseJson<ConnectionExtra>(r.extra, {});
@@ -63,6 +74,8 @@ function rowToConnection(r: ConnectionRow) {
     lastSyncAt: extra.lastSyncAt ?? null,
     lastError: extra.lastError ?? null,
     format: (extra.format ?? "openai") as ApiFormat,
+    linkApi: r.kind === "openai" && isLinkApi(r.base_url),
+    wallet: extra.wallet ? { userId: extra.wallet.userId, tokenMask: maskSecret(getSecret(extra.wallet.secretId)) } : null,
   };
 }
 
@@ -132,6 +145,11 @@ export function updateConnection(id: string, input: Partial<z.infer<typeof conne
     id,
   );
   if (input.format && row.kind === "openai") setExtra(id, { format: input.format });
+  if (input.walletToken !== undefined) setWallet(id, input.walletToken, input.walletUserId);
+  else if (input.walletUserId) {
+    const w = parseJson<ConnectionExtra>(row.extra, {}).wallet;
+    if (w) setExtra(id, { wallet: { ...w, userId: input.walletUserId } });
+  }
   changed();
   return true;
 }
@@ -142,6 +160,8 @@ export function deleteConnection(id: string) {
   tx(() => {
     run("DELETE FROM connections WHERE id = ?", id);
     if (row.secret_id) deleteSecret(row.secret_id);
+    const wallet = parseJson<ConnectionExtra>(row.extra, {}).wallet;
+    if (wallet) deleteSecret(wallet.secretId);
   });
   changed();
 }
@@ -150,6 +170,26 @@ function setExtra(id: string, patch: ConnectionExtra) {
   const row = getConnectionRow(id);
   if (!row) return;
   run("UPDATE connections SET extra = ? WHERE id = ?", JSON.stringify({ ...parseJson<ConnectionExtra>(row.extra, {}), ...patch }), id);
+}
+
+/** Saves or (empty token) removes the LinkAPI wallet access; the old balance read is dropped. */
+function setWallet(id: string, token: string, userId?: string) {
+  const row = getConnectionRow(id)!;
+  const old = parseJson<ConnectionExtra>(row.extra, {}).wallet;
+  refreshRedaction();
+  if (!token) {
+    if (old) deleteSecret(old.secretId);
+    setExtra(id, { wallet: null, balance: undefined });
+    return;
+  }
+  const uid = userId || old?.userId;
+  if (!uid) throw badRequest("Add your LinkAPI user ID with the access token");
+  setExtra(id, { wallet: { secretId: putSecret(token, old?.secretId), userId: uid }, balance: undefined });
+}
+
+export function walletSecretId(id: string): string | null {
+  const row = getConnectionRow(id);
+  return (row && parseJson<ConnectionExtra>(row.extra, {}).wallet?.secretId) ?? null;
 }
 
 export function providerFor(connectionId: string): Provider {
@@ -515,6 +555,39 @@ function quietHelper(r: ResolvedProfile) {
   const efforts = Array.isArray(caps?.reasoning_efforts) ? (caps.reasoning_efforts as unknown[]).map(String) : [];
   const least = EFFORTS_LEAST_FIRST.find((e) => efforts.includes(e));
   if (least) r.params.reasoning_effort = least;
+}
+
+// ---------- LinkAPI balance (CONN-25) ----------
+
+function linkApiRow(id: string) {
+  const row = getConnectionRow(id);
+  if (!row) throw badRequest("Connection not found");
+  if (row.kind !== "openai" || !isLinkApi(row.base_url)) throw badRequest("Balance is only available for LinkAPI connections");
+  return row;
+}
+
+export function cachedBalance(id: string): LinkApiBalance | null {
+  return parseJson<ConnectionExtra>(linkApiRow(id).extra, {}).balance ?? null;
+}
+
+export async function refreshBalance(id: string, days = 30): Promise<LinkApiBalance> {
+  const row = linkApiRow(id);
+  const extra = parseJson<ConnectionExtra>(row.extra, {});
+  const token = extra.wallet ? getSecret(extra.wallet.secretId) : undefined;
+  const billing = new LinkApiBilling({
+    baseUrl: row.base_url,
+    apiKey: getSecret(row.secret_id),
+    wallet: token && extra.wallet ? { accessToken: token, userId: extra.wallet.userId } : null,
+    headers: extra.headers,
+  });
+  let balance: LinkApiBalance;
+  try {
+    balance = await billing.balance(days);
+  } catch (e) {
+    throw badRequest(`Couldn't read the LinkAPI balance: ${(e as Error).message}`);
+  }
+  setExtra(id, { balance });
+  return balance;
 }
 
 // ---------- Quota (CONN-13, CONN-19) ----------

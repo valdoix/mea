@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
+  import LinkApiBalance from "./LinkApiBalance.svelte";
   import QuotaRing from "../QuotaRing.svelte";
   import ModelPicker from "./ModelPicker.svelte";
   import Routing from "./Routing.svelte";
@@ -242,6 +243,7 @@
             </label>
           {/if}
           {#if c.lastError}<div class="tiny" style="color:var(--danger)">{c.lastError}</div>{/if}
+          {#if c.linkApi && c.hasKey}<LinkApiBalance connection={c} onchange={load} />{/if}
         </div>
         <div class="row">
           <button class="btn ghost icon small" onclick={() => sync(c)} disabled={syncing[c.id]} aria-label="Reload models"><RefreshCw size={15} class={syncing[c.id] ? "spin" : ""} /></button>
