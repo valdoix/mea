@@ -17,7 +17,7 @@ look Name: what they wear and visible marks now   (the whole look, replacing the
 trait Name: green eyes; red hair in a braid   (only lasting features, first time described)
 drive Name: want: …; fear: …; need: …; tactic: …      mask Name: shown: calm; felt: panic; tell: …
 think Name: "Damn it, not now. If she finds the letter I'm finished."       journal Name: "a turning point, in their own slant"
-   (think: first person, in their own head-voice: their words, slang, oaths, grudges and worries, only what they know, about what's in front of them; a raw reaction, not narration, summary or poetry)
+   (think: every reply, one line for each person @spot, even when little else changed, never for a character marked sealed; first person, in their own head-voice: their words, slang, oaths, grudges and worries, only what they know, about what's in front of them; a raw reaction, not narration, summary or poetry)
 dead Name — cause
 bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${AXES.join(", ")}; usually ±1, ±2 major; write the change, not old → new)
    (fear is fear OF them: they are a threat. worry is fear FOR them: they might get hurt, caught or lost. Dreading what happens to someone you care about is worry, never fear.)
@@ -110,6 +110,7 @@ export function updatePrompt(o: { state: string; messages: string; userName: str
   const system = `You keep the story ledger for a roleplay between ${o.userName} (the user's character) and ${o.charName}. Read the NEW MESSAGES and write what changed in the story world, as ledger lines.
 Rules:
 - Only changes the messages show or clearly imply. Never invent events. Small talk changes little; write nothing for what stayed the same.
+- Thoughts are the exception: every reply gets a think line for each person at the spot${o.sealed ? ` except ${o.userName}` : ""}, their reaction to this moment.
 - Time: estimate time passed from the action (a short exchange: +2m to +10m; a meal: +45m) unless the text states a time.
 - People: use the names the story uses. New named people get a cast line when they appear.
 - Relationships change only when the aftermath differs from before; intensity is not progress. Not everyone warms up.${o.sealed ? `\n- ${o.userName}'s inner life is the user's: never write mood, think, drive, mask, journal or bond lines from ${o.userName}'s side.` : ""}
