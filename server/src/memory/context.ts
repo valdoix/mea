@@ -5,7 +5,7 @@ import type { WorldState } from "../trackers/types";
 import type { Reveal } from "../trackers/reveals";
 import { AUTHORITY } from "./canon";
 import { embeddingsEnabled, embedQueries, indexCoverage } from "./embed";
-import { norm, resolver } from "./entities";
+import { norm, placeName, resolver } from "./entities";
 import { formatRecallBlock, type RecallItem, TimeIndex } from "./format";
 import { journalText } from "./journals";
 import { cachedRewrite, cachedVerdict, contextText } from "./librarian";
@@ -258,7 +258,7 @@ export async function memoryInputs(
         ...Object.values(st.chars)
           .filter((c) => !c.isUser && !c.dead && (c.tier === "spot" || c.tier === "peri"))
           .map((c) => c.name),
-        ...(st.place.length ? [st.place.at(-1)!] : []),
+        ...(st.place.length ? [placeName(st.place).name] : []),
       ]
     : [];
   const contexts = [contextText(o.history.slice(0, -1)), contextText(o.history)];
@@ -313,6 +313,8 @@ export interface BuildContextInput {
   available: number;
   /** The prompt size target (CTX-01), for the memory layer shares (MEM-38: everything scales with it). */
   target: number;
+  /** Tokens the verbatim window keeps even when the memory blocks would take them. */
+  floor?: number;
   inputs: MemoryInputs;
   seed: string;
   /** Secrets that came out (trackers, as of the message being written), for the summaries written before (2.4). */
@@ -326,11 +328,13 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
   const recallBudget = Math.round(cfg.budget.recall * input.target);
   const msgs = input.history.map((m) => ({ seq: m.seq ?? 0, tokens: tok(m.content) }));
   const primary = input.inputs.queries[0]?.text ?? "";
+  const floor = input.floor ?? 0;
+  const room = (memoryTokens: number) => Math.max(floor, input.available - memoryTokens);
 
   if (!cfg.enabled) {
-    const w = chooseWindow({ msgs, boundaries: [], evicted: state.evictedThrough, budget: input.available, lowWater: cfg.lowWater });
+    const w = chooseWindow({ msgs, boundaries: [], evicted: state.evictedThrough, budget: room(0), lowWater: cfg.lowWater });
     const history = input.history.filter((m) => (m.seq ?? 0) > w.evicted);
-    return { story: "", recall: "", history, evictedThrough: w.evicted, trace: emptyTrace(w, history, input.available, primary) };
+    return { story: "", recall: "", history, evictedThrough: w.evicted, trace: emptyTrace(w, history, room(0), primary) };
   }
 
   const scenes = levelRows(input.chatId, "scene");
@@ -389,11 +393,11 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
   };
 
   let c = compute(state.evictedThrough);
-  let w = chooseWindow({ msgs, boundaries, evicted: state.evictedThrough, budget: Math.max(0, input.available - c.tokens), lowWater: cfg.lowWater });
+  let w = chooseWindow({ msgs, boundaries, evicted: state.evictedThrough, budget: room(c.tokens), lowWater: cfg.lowWater });
   if (w.evicted !== state.evictedThrough) {
     c = compute(w.evicted);
     // The memory block grew with the move; make sure the window still fits.
-    const w2 = chooseWindow({ msgs, boundaries, evicted: w.evicted, budget: Math.max(0, input.available - c.tokens), lowWater: cfg.lowWater });
+    const w2 = chooseWindow({ msgs, boundaries, evicted: w.evicted, budget: room(c.tokens), lowWater: cfg.lowWater });
     if (w2.evicted > w.evicted) {
       w = { ...w2, moved: "advanced" };
       c = compute(w.evicted);
@@ -409,7 +413,7 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
     trace: {
       enabled: true,
       evictedThrough: w.evicted,
-      window: { messages: history.length, tokens: windowTokens, budget: Math.max(0, input.available - c.tokens), target: input.target, moved: w.moved, unsafe: w.unsafe },
+      window: { messages: history.length, tokens: windowTokens, budget: room(c.tokens), target: input.target, moved: w.moved, unsafe: w.unsafe },
       gaps: c.t.gaps,
       telescope: c.t.items,
       telescopeTokens: c.t.tokens,

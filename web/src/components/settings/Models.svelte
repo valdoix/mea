@@ -287,10 +287,10 @@
         <div class="grid">
           <label class="field">
             <span class="label">Prompt size target</span>
-            <input class="input" type="number" min="4000" step="1000" value={p.params.context_target ?? 48000} oninput={(e) => setParam(p, "context_target", e.currentTarget.value, true)} />
+            <input class="input" type="number" min="4000" step="1000" value={p.params.context_target ?? 48000} onchange={(e) => setParam(p, "context_target", e.currentTarget.value, true)} />
             {#if est}<span class="hint">≈ {est.now} replies/day now · ≈ {est.full} with all memory helpers (later phases)</span>{/if}
           </label>
-          <label class="field"><span class="label">Max reply tokens</span><input class="input" type="number" min="64" step="50" value={p.params.max_tokens ?? ""} placeholder="preset" oninput={(e) => setParam(p, "max_tokens", e.currentTarget.value, true)} /></label>
+          <label class="field"><span class="label">Max reply tokens</span><input class="input" type="number" min="64" step="50" value={p.params.max_tokens ?? ""} placeholder="preset" onchange={(e) => setParam(p, "max_tokens", e.currentTarget.value, true)} /></label>
           <label class="field"><span class="label">Temperature</span><input class="input" type="number" min="0" max="2" step="0.05" value={p.params.temperature ?? ""} placeholder="preset" oninput={(e) => setParam(p, "temperature", e.currentTarget.value)} /></label>
           <label class="field">
             <span class="label">Reasoning effort</span>

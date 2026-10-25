@@ -762,12 +762,13 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
       // CON-03: who the character is, near the end of the prompt (stronger while the voice drifts).
       ...(kind === "story" || kind === "continue" ? [anchorExtra(chatId, card, userName, chat.character_id)].filter((x): x is PromptExtra => Boolean(x)) : []),
     ],
-    memory: (available) => {
+    memory: (available, floor) => {
       const s = performance.now();
       const m = buildMemoryContext({
         chatId,
         history,
         available,
+        floor,
         target: Math.floor(contextTarget / (resolved.tokenRatio || 1)),
         inputs: memInputs,
         seed: `${chatId}:${messageCountOf(chatId)}`,
@@ -1481,7 +1482,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       if (status === "done" && !guarded?.retry) scheduleEditor(gen.chatId, gen.messageId, gen.swipeIdx);
       if (chat.character_id) touchCharacter(chat.character_id);
     }
-    if (usage?.promptTokens) recordCalibration(p.resolved.connection.id, p.resolved.modelId, p.assembled.estPromptTokens, usage.promptTokens);
+    if (usage?.promptTokens) recordCalibration(p.resolved.connection.id, p.resolved.modelId, p.assembled.estPromptTokens, usage.promptTokens, p.assembled.messages.reduce((n, m) => n + m.content.length, 0));
     if (p.resolved.billing === "subscription") enqueue("quota.refresh", {}, { dedupeKey: "quota.refresh", delayMs: 3000 });
     // A finished turn may have settled older messages: let memory catch up in the background (SUM-07).
     // C3 / H5: a swipe or continue changed a reply memory may already have read.

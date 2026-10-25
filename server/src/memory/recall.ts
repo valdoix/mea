@@ -4,7 +4,7 @@ import { countTokens } from "../lib/tokens";
 import { type AtomRow, sourcesLive } from "./atoms";
 import { deepSearch, RECALL_CUE } from "./deep";
 import { chatVectors, cosine } from "./embed";
-import { core, entityCard, entityFacts, norm, resolver, type EntityRow } from "./entities";
+import { core, entityCard, entityFacts, genericPlace, norm, resolver, type EntityRow } from "./entities";
 import type { RecallItem, TimeIndex } from "./format";
 import type { SummaryRow } from "./store";
 import { contentWords, ftsQuery, overlap } from "./text";
@@ -344,7 +344,7 @@ export function recall(input: RecallInput) {
     const presentRows = input.present.map((n) => res.find(n)).filter((e): e is EntityRow => Boolean(e));
     const seenIds = new Set<string>();
     const targets = [...presentRows.map((e) => ({ e, why: "in the scene" })), ...mentioned.map((e) => ({ e, why: "just mentioned" }))].filter(
-      ({ e }) => !seenIds.has(e.id) && seenIds.add(e.id) && !res.namesOf(e).some((n) => input.skipCards.has(norm(n))) && (e.kind === "person" || e.kind === "group" || e.kind === "object" || e.kind === "place"),
+      ({ e }) => !seenIds.has(e.id) && seenIds.add(e.id) && !res.namesOf(e).some((n) => input.skipCards.has(norm(n))) && (e.kind === "person" || e.kind === "group" || e.kind === "object" || (e.kind === "place" && !genericPlace(e.name))),
     );
     for (const { e, why } of targets.slice(0, 4)) {
       const facts = entityFacts(chatId, e, 8, { atoms, res });

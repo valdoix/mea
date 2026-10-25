@@ -8,7 +8,7 @@ import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { type AtomRow, getAtom, insertAtom, mergeAtoms, supersede } from "./atoms";
 import { chatVectors, cosine, embeddingsEnabled } from "./embed";
-import { type EntityData, entityFacts, getEntityRow, mergeEntities, duplicateSuggestions, norm, resolver } from "./entities";
+import { type EntityData, entityFacts, genericPlace, getEntityRow, mergeEntities, duplicateSuggestions, norm, resolver } from "./entities";
 import { queueBuilds } from "./scheduler";
 import { memState, touchMemory } from "./store";
 import { contentWords, ftsQuery, overlap } from "./text";
@@ -138,7 +138,8 @@ export async function consolidate(chatId: string, job?: JobContext) {
   const res = resolver(chatId);
   if (!shouldShed("verification", chatId)) {
     const stale = res.rows
-      .filter((e) => ["person", "place", "group", "object"].includes(e.kind))
+      // A bare "kitchen" gathers every house's kitchen: a description of it would mix them.
+      .filter((e) => ["person", "place", "group", "object"].includes(e.kind) && !(e.kind === "place" && genericPlace(e.name)))
       .filter((e) => {
         const d = parseJson<EntityData & { refreshedAt?: number; refreshedMentions?: number }>(e.data, {});
         return !(d.locked ?? []).includes("description") && !d.isUser && e.mentions >= 3 && e.mentions !== d.refreshedMentions;

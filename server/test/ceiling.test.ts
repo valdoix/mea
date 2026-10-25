@@ -60,8 +60,9 @@ describe("the prompt ceiling (H1)", () => {
   });
 
   test("the room freed goes back to the history", () => {
-    const tight = assemblePrompt(base({ ceiling: { tokens: 50_000, order: [] } }));
-    const freed = assemblePrompt(base({ ceiling: { tokens: 300, order: defaultMemoryConfig.cutOrder } }));
+    // A target small enough that the whole history doesn't fit inside the window floor.
+    const tight = assemblePrompt(base({ contextTarget: 5000, ceiling: { tokens: 50_000, order: [] } }));
+    const freed = assemblePrompt(base({ contextTarget: 5000, ceiling: { tokens: 300, order: defaultMemoryConfig.cutOrder } }));
     expect(freed.trace.history.included).toBeGreaterThan(tight.trace.history.included);
   });
 
