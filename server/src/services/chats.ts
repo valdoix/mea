@@ -19,7 +19,6 @@ export const trackerConfigSchema = z.object({
   mode: z.enum(["helper", "inline", "off"]).optional(),
   cadence: z.enum(["every", "everyN", "scene", "manual"]).optional(),
   everyN: z.number().int().min(2).max(20).optional(),
-  gate: z.boolean().optional(),
   sections: z.record(z.string(), z.boolean()).optional(),
   templates: z.array(z.string()).max(20).optional(),
   romance: z.enum(["off", "slow", "measured", "fast", "established"]).optional(),

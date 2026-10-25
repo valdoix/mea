@@ -41,7 +41,6 @@ export const SERVICE_PROMPTS: ServicePrompt[] = [
   { id: "memory.sleep", group: "Memory", label: "Sleep (consolidation)", help: "Digests trivia and refreshes entity descriptions.", match: is("digest", "entity") },
   { id: "memory.recap", group: "Memory", label: "Recap", help: "The “previously on” recap.", match: is("recap") },
   { id: "trackers.ledger", group: "Trackers and world", label: "Tracker ledger", help: "Writes the story-state ledger after each reply.", match: is("tracker", "tracker:start") },
-  { id: "trackers.gate", group: "Trackers and world", label: "Tracker gate", help: "Decides whether anything trackable changed.", match: is("gate:tracker") },
   { id: "world.telling", group: "Trackers and world", label: "The world off the page", help: "Tells what happened elsewhere.", match: is("world:telling") },
   { id: "world.wording", group: "Trackers and world", label: "New subplots", help: "Words the subplots the world offers or starts.", match: is("world:wording") },
   { id: "accuracy.checker", group: "Accuracy", label: "Continuity checker", help: "Checks replies against established facts.", match: is("continuity") },

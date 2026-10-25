@@ -153,7 +153,6 @@
     </div>
     <label class="switch"><input type="checkbox" checked={defaults.sealed ?? true} onchange={(e) => setDefault("sealed", e.currentTarget.checked)} /> Keep my character's inner life mine</label>
     <label class="switch"><input type="checkbox" checked={defaults.limits ?? true} onchange={(e) => setDefault("limits", e.currentTarget.checked)} /> Slow changes: cap how far a bond or meter moves in one reply</label>
-    <label class="switch"><input type="checkbox" checked={defaults.gate ?? false} onchange={(e) => setDefault("gate", e.currentTarget.checked)} /> Skip updates when nothing changed (saves quota)</label>
     <p class="tiny muted">A preset with Persona or Romance pace controls (like Mea's own) sets those two for its chats.</p>
   </section>
 

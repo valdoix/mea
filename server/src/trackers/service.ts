@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { all, one, run } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest } from "../lib/http";
@@ -9,10 +8,9 @@ import { cleanText } from "../memory/text";
 import { getCard } from "../services/characters";
 import { addMessage, getMessageRow, getSwipes, lastMessage, type LedgerChange, mustChat, updateSwipe } from "../services/chats";
 import { enqueue, type JobContext } from "../services/jobs";
-import { callJson, callText } from "../services/llm";
+import { callText } from "../services/llm";
 import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona, personaPrompt } from "../services/personas";
-import { shouldShed } from "../services/quota";
 import { describeMinutes, parseDuration } from "./clock";
 import { parseLedger } from "./dsl";
 import { buildNote, type NoteResult } from "./note";
@@ -121,30 +119,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   const messages = messagesFor(p.chatId, p.messageId, { user: fc.userName, char: fc.mainName });
   if (!messages) return;
 
-  // CONN-14: an optional cheap check skips updates when nothing changed (off under maximum accuracy).
-  if (cfg.gate || shouldShed("gates", p.chatId)) {
-    try {
-      const gate = await callJson({
-        task: "helper",
-        kind: "gate:tracker",
-        chatId: p.chatId,
-        jobId: job?.id,
-        name: "tracker_gate",
-        schema: z.object({ changed: z.boolean() }),
-        system: 'Does the story world change in these messages: time passing, a move, a mood, a relationship, an item, an injury, a new fact or thread? Pure banter that changes nothing is "no". Reply with JSON only: {"changed": true|false}',
-        user: messages,
-        maxTokens: 30,
-      });
-      if (!gate.data.changed) {
-        writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, [{ op: "clock", args: { plus: 2 }, raw: "clock: +2m" }], "model", { replace: ["model"] });
-        syncTrackerMemories(p.chatId, p.messageId);
-        return;
-      }
-    } catch {
-      // The gate is only an optimisation.
-    }
-  }
-
+  // No "nothing changed" gate: every reply gets its people's private thoughts, so every reply is read.
   const { system, user } = updatePrompt({
     state: stateForModel(before, { userName: fc.userName, templates: fc.templates, sealed: cfg.sealed, calendar: cfg.calendar }),
     messages,
@@ -160,7 +135,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
     jobId: job?.id,
     system,
     user,
-    maxTokens: 900,
+    maxTokens: 1600,
     validate: (t) => (parseLedger(t).ops.length ? null : "That had no ledger lines. Write one change per line, like: clock: +5m"),
   });
   job?.note({ inputTokens: res.inputTokens });

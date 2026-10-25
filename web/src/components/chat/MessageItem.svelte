@@ -16,6 +16,7 @@
     EyeOff,
     Eye,
     Pencil,
+    RefreshCw,
     RotateCcw,
     ScrollText,
     StepForward,
@@ -214,6 +215,7 @@
     if (message.swipeCount > 1) list.push({ label: "Compare versions", icon: Columns2, onclick: oncompare });
     if (isLast && message.role === "assistant" && onangle) list.push({ label: "Swipe with an angle…", icon: Shuffle, onclick: () => openAngles(null), disabled: !canGenerate });
     // D1: run every check on this reply again.
+    if (canRetryTrackers) list.push({ label: "Retry trackers", icon: RefreshCw, onclick: retryTrackers, disabled: streaming || trk.running });
     if (message.role === "assistant" && onflagchange) list.push({ label: "Check again", icon: ShieldCheck, onclick: checkAgain, disabled: streaming });
     // A1: what the takes you passed over got wrong, as lessons.
     if (message.role === "assistant" && message.swipeCount > 1) list.push({ label: "Learn from this swipe", icon: GraduationCap, onclick: () => learnFrom(message.id), disabled: streaming });
@@ -236,6 +238,17 @@
     try {
       const r = await post<{ fact: { value: string }; undo: string }>(`/api/messages/${message.id}/milestone`, {});
       toast(`Milestone: ${r.fact.value}`, { kind: "ok", action: { label: "Undo", run: () => void post(`/api/undo/${r.undo}`).catch(errorToast) } });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  /** The trackers read this reply again: its moods, thoughts and changes are written over. */
+  const canRetryTrackers = $derived(message.role === "assistant" && trk.chatId === message.chatId && trk.data?.config.mode !== "off");
+  async function retryTrackers() {
+    try {
+      await post(`/api/chats/${message.chatId}/trackers/run`, { messageId: message.id });
+      trk.running = true;
+      toast("Reading this reply again…");
     } catch (e) {
       errorToast(e);
     }
@@ -420,6 +433,7 @@
         {#if isLast && !streaming}
           <button class="btn ghost small" onclick={() => onregen()} disabled={!canGenerate} title="Regenerate (Alt+R)"><RotateCcw size={14} /> <span class="hide-sm">Regenerate</span></button>
           {#if message.content}<button class="btn ghost small" onclick={oncontinue} disabled={!canGenerate} title="Continue this reply"><StepForward size={14} /> <span class="hide-sm">Continue</span></button>{/if}
+          {#if canRetryTrackers && message.content}<button class="btn ghost small" onclick={retryTrackers} disabled={trk.running} title="Read this reply's moods, thoughts and changes again"><RefreshCw size={14} /> <span class="hide-sm">Retry trackers</span></button>{/if}
         {/if}
         {#if message.meta?.model && !app.isMobile}<span class="tiny faint model wraps" title="Model">{message.meta.model}</span>{/if}
         {#if message.meta?.generationId && !streaming}<button class="btn ghost icon small receipt" onclick={oninspect} aria-label="What this reply was given: memories, summaries, lore" title="What this reply was given"><Info size={14} /></button>{/if}

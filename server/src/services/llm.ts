@@ -292,6 +292,12 @@ export async function callText(call: TextCall): Promise<{ text: string; generati
         throw e;
       }
       const problem = call.validate?.(res.text) ?? null;
+      if (!problem && attempt === 0 && cutOff(res)) {
+        // Cut off at the cap, a reply that parses is still only its first lines (a lone "clock" after the
+        // thinking ate the budget): ask again with more room, and keep the cut one only if that fails.
+        const retry = await once(r, asJson, messages, false, Math.min(MAX_RETRY_TOKENS, res.maxTokens * 2)).catch(() => null);
+        if (retry && !call.validate?.(retry.text)) res = retry;
+      }
       if (!problem) return { text: res.text, generationId: res.id, usage: res.usage, model: r.modelId, inputTokens: res.usage?.promptTokens ?? res.est };
       lastError = new Error(problem);
       if (cutOff(res)) maxTokens = Math.min(MAX_RETRY_TOKENS, res.maxTokens * 2);
