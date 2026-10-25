@@ -8,6 +8,9 @@ import { expandMacros, type MacroContext } from "./macros";
 import { PLANNING_BLOCK, TOOLKIT_TAGS } from "./mea";
 import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock } from "./preset";
 
+/** Share of the target the verbatim window keeps whatever else is in the prompt: the summaries can't stand in for the last few turns. */
+export const WINDOW_FLOOR = 0.3;
+
 /** M12: the line that marks a main prompt as Mea's Charter (prompt/mea.ts), which a card's system prompt doesn't replace. */
 const CHARTER_MARK = "What decides, highest first";
 
@@ -55,7 +58,7 @@ export interface AssembleInput {
    * Memory (MEM-02): given the tokens left for memory + history, returns the Story So Far,
    * recalled memories, and the verbatim window. Without it, history is trimmed newest-first.
    */
-  memory?: (available: number) => MemoryContext;
+  memory?: (available: number, floor: number) => MemoryContext;
   /** Provider tokens per estimated token for this model (CTX-03). */
   tokenRatio?: number;
   /** Strip markup and reasoning from messages older than this depth (CTX-07). 0 = off. */
@@ -314,6 +317,8 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   const ratio = input.tokenRatio && input.tokenRatio > 0 ? input.tokenRatio : 1;
   // H3: the reply's room comes off the target in provider tokens, then the rest is scaled to Mea's estimate.
   const effectiveTarget = Math.floor(Math.max(0, input.contextTarget - reserve) / ratio);
+  // The newest messages always keep this much room, even when the fixed blocks and memory fill the target.
+  const floor = Math.round(effectiveTarget * WINDOW_FLOOR);
 
   const inline: Inline[] = [];
   const depthItems: DepthItem[] = [];
@@ -506,7 +511,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
   const available = Math.max(0, effectiveTarget - fixed - 32);
 
   // Memory: the Story So Far, recalled memories, and which messages stay verbatim.
-  const mem = input.memory?.(available);
+  const mem = input.memory?.(available, floor);
   const memoryInline = inline.find((i): i is Extract<Inline, { kind: "memory" }> => i.kind === "memory");
   const storyText = mem?.story && memoryInline ? mem.story : "";
   const recallMemory = mem?.recall && recallItem ? mem.recall : "";
@@ -567,7 +572,7 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
     ceilingTrace = { tokens: cap, auto, before, after: total, cuts };
   }
   const memoryTokens = (story ? tok(story) : 0) + (recallMem ? tok(recallMem) : 0);
-  const historyBudget = Math.max(0, available + freed - memoryTokens);
+  const historyBudget = Math.max(floor, available + freed - memoryTokens);
   const source = mem?.history ?? input.history;
 
   // Newest messages first until the budget is used; always keep the latest message.

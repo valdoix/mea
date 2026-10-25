@@ -317,9 +317,13 @@ export function learnContextLimit(connectionId: string, modelId: string, limit: 
   run("UPDATE models SET learned_context = ? WHERE connection_id = ? AND model_id = ?", limit, connectionId, modelId);
 }
 
-/** Running ratio of provider-reported prompt tokens to Mea's estimate (CTX-03). */
-export function recordCalibration(connectionId: string, modelId: string, estimated: number, reported: number) {
+/** No tokenizer packs prose tighter than this; a report under it counts something besides the prompt (a relay's own system prompt, retries). */
+const MIN_CHARS_PER_TOKEN = 1.8;
+
+/** Running ratio of provider-reported prompt tokens to Mea's estimate (CTX-03). `chars` is the prompt's length, to drop reports no tokenizer could give. */
+export function recordCalibration(connectionId: string, modelId: string, estimated: number, reported: number, chars?: number) {
   if (estimated < 200 || reported < 200) return;
+  if (chars != null && chars / reported < MIN_CHARS_PER_TOKEN) return;
   const ratio = Math.max(0.5, Math.min(2, reported / estimated));
   const cur = one<{ calibration: number | null }>("SELECT calibration FROM models WHERE connection_id = ? AND model_id = ?", connectionId, modelId);
   if (!cur) return;
