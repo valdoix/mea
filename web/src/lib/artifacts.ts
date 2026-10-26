@@ -31,6 +31,10 @@ export type FreeformDrawer = (body: string, scope: string) => string | null;
 const KINDS = ARTIFACT_KINDS.join("|");
 const PAIRED = new RegExp(`<(${KINDS})\\b([^>]*)>([\\s\\S]*?)<\\/\\1\\s*>`, "gi");
 const SELF = new RegExp(`<(${KINDS})\\b([^>]*?)\\/>`, "gi");
+// A tag the model opened and never closed runs to the next blank line. Not <vtk>: its HTML can hold blank lines.
+const OPEN_KINDS = ARTIFACT_KINDS.filter((k) => k !== "vtk").join("|");
+const UNCLOSED = new RegExp(`<(${OPEN_KINDS})\\b([^>]*)>\\n*((?:(?!\\n[ \\t]*\\n)[\\s\\S])*)`, "gi");
+const STRAY_CLOSE = new RegExp(`<\\/(?:${OPEN_KINDS})\\s*>`, "gi");
 const TOKEN = (i: number) => `MEAARTIFACT${i}END`;
 
 function parseAttrs(s: string): Record<string, string> {
@@ -40,14 +44,18 @@ function parseAttrs(s: string): Record<string, string> {
   return out;
 }
 
-/** Cuts the artifacts out, leaving a token paragraph where each one stood. */
-export function extractArtifacts(text: string): { text: string; found: Artifact[] } {
+/**
+ * Cuts the artifacts out, leaving a token paragraph where each one stood. On a finished reply
+ * (`finished`), a tag the model forgot to close still draws, up to the next blank line.
+ */
+export function extractArtifacts(text: string, finished = false): { text: string; found: Artifact[] } {
   const found: Artifact[] = [];
   const take = (kind: string, attrs: string, body: string) => {
     found.push({ kind: kind.toLowerCase() as ArtifactKind, attrs: parseAttrs(attrs), body: body.replace(/^\n+|\s+$/g, "") });
     return `\n\n${TOKEN(found.length - 1)}\n\n`;
   };
-  const out = text.replace(PAIRED, (_m, k: string, a: string, b: string) => take(k, a, b)).replace(SELF, (_m, k: string, a: string) => take(k, a, ""));
+  let out = text.replace(PAIRED, (_m, k: string, a: string, b: string) => take(k, a, b)).replace(SELF, (_m, k: string, a: string) => take(k, a, ""));
+  if (finished) out = out.replace(UNCLOSED, (_m, k: string, a: string, b: string) => take(k, a, b)).replace(STRAY_CLOSE, "");
   return { text: out, found };
 }
 
