@@ -73,7 +73,11 @@
                         <span class="toward">{@render orb(b.toward, "sm")}{b.toward}</span>
                       </div>
                     {:else if b.type === "know"}
-                      <div><span class="verb">{b.verb}</span> <q class="know">{b.text}</q></div>
+                      <div>
+                        <span class="verb">{b.verb}</span> <q class="know">{b.text}</q>
+                        <!-- News that travelled off the page: they weren't in the scene, so say how it reached them. -->
+                        {#if b.c.source === "engine" && b.c.reason}<span class="offpage">off the page · {b.c.reason}</span>{/if}
+                      </div>
                     {:else if b.type === "vow"}
                       <div>
                         <span class="verb">{b.verb}</span>{#if b.whom}&nbsp;<b>{b.whom}</b>{/if}
@@ -315,6 +319,11 @@
   .know {
     font: italic 400 1.02em/1.45 var(--font-story);
     quotes: "“" "”";
+  }
+  .offpage {
+    display: block;
+    font: 400 var(--fs-xs) / 1.5 var(--font-ui);
+    color: var(--text-faint);
   }
   .know::before,
   .know::after {

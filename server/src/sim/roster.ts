@@ -42,7 +42,7 @@ const EXTENDED = "uncle|aunt|cousin|nephew|niece|grandmother|grandfather|grandso
 const WORK = "boss|employer|employee|servant|maid|squire|liege|knight|master|apprentice|assistant|friend|ally|confidant|colleague|partner|rival|enemy|neighbou?r|landlord|tenant|teacher|student|captain|commander|handler";
 const FAR = /\b(abroad|overseas|another country|across the sea|far away|the capital|the north|the south|europe|england|london|paris|tokyo|new york|america)\b/i;
 
-const DEAD = /\b(?:died|was killed|is dead|deceased|passed away|was murdered)\b/gi;
+const DEAD = /\b(?:died|was killed|is dead|(?:has|had) been dead|deceased|passed away|was murdered)\b/gi;
 const CONSTRUCT = /\b(?:android|robot|golem|automaton|construct)\b/gi;
 const CAPTIVE = /\b(?:imprisoned|in prison|in jail|captive|held prisoner|locked up|kidnapped)\b/gi;
 /** What may stand before the phrase in a clause about the person themself ("She has", "who was", "is a"). */
@@ -231,6 +231,13 @@ export function buildRoster(inp: RosterInput): Roster {
     if (twin) {
       // The story calls them "Willow", the lore "Willow Rosenberg": one person, who keeps what the lore says.
       if (!twin.isUser && u.text && !twin.text.includes(u.text.slice(0, 60))) twin.text = [twin.text, u.text].filter(Boolean).join(". ");
+      // The lore says they're dead ("She has been dead since 1998"): nobody off the page tells them news.
+      if (twin.ring === "offstage" && !twin.isUser && !twin.isMain && twin.standing === "here" && !inp.profiles[keyOf(twin.name)]?.standing && readStanding(u.text, u.name).standing === "dead") {
+        twin.standing = "dead";
+        twin.dead = true;
+        twin.reach = "none";
+        twin.travel = TRAVEL.none;
+      }
       continue;
     }
     if (u.name.toLowerCase() === inp.userName.toLowerCase()) continue;

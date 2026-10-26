@@ -6,7 +6,9 @@ import type { NewsHop } from "./types";
 /**
  * News off the page (ALMANAC 09 §8): big facts travel person to person along ties, with delays
  * and distortion. Nobody acts on news that hasn't reached them; secrets don't spread from
- * their keepers; nobody passes on news about themselves.
+ * their keepers; nobody passes on news about themselves. News about your character or the main
+ * one stays on the page (who finds out about them is the story's to tell), and news about
+ * someone only reaches people who know them.
  */
 const BIG = /\b(alive|back from the dead|came back|is back|returned|died|dead|killed|murder\w*|pregnan\w*|married|engaged|broke up|divorc\w*|arrested|in jail|escaped|betray\w*|stole|fired|quit|left town|moved away|attack\w*|raid\w*|fire\b|burned|hurt|hospital|missing|kidnapp\w*|exposed|secret|affair|lied|engaged|kissed|dating|together)\b/i;
 const HAS = new Set(["knows", "believes", "suspects"]);
@@ -25,8 +27,16 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
   const ops: Op[] = [];
   const max = o.max ?? 4;
   const pairsDone = new Set<string>();
+  const actors = [...o.roster.actors.values()];
+  const first = (name: string) => name.toLowerCase().split(" ")[0]!;
+  const named = (statement: string) => {
+    const words = new Set(statement.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []);
+    return actors.filter((a) => first(a.name).length > 1 && words.has(first(a.name)));
+  };
   const facts = Object.values(o.state.facts).filter((f) => BIG.test(f.statement));
   for (const f of facts) {
+    const about = named(f.statement);
+    if (about.some((a) => a.isUser || a.isMain)) continue;
     const secretKeepers = new Set(f.secret?.keepers ?? []);
     for (const [holderId, stance] of Object.entries(f.stances)) {
       if (hops.length >= max) break;
@@ -42,6 +52,8 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
         // News about yourself isn't passed on, and isn't news to you.
         if (f.statement.toLowerCase().includes(other.name.toLowerCase().split(" ")[0]!) || f.statement.toLowerCase().includes(holder.name.toLowerCase().split(" ")[0]!)) continue;
         if (f.secret?.from.includes(otherId)) continue;
+        // Bob never met Buffy: news of her means nothing to him.
+        if (about.some((a) => a.id !== holderId && !other.ties.has(a.id))) continue;
         const pair = [holderId, otherId].sort().join("|");
         if (pairsDone.has(pair)) continue;
         const { c, medium } = contact(holder, other, o.tech);
