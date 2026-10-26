@@ -89,6 +89,17 @@ describe("roster", () => {
     expect(readStanding("status(chipped, has counted every day since Buffy died)", "Spike").standing).toBeUndefined();
     expect(readStanding("She is an android built in her maker's image.", "Ada").standing).toBe("construct");
     expect(readStanding("Warren builds robots in his garage.", "Warren Mears").standing).toBeUndefined();
+    expect(readStanding("Angelus breaks her neck. She has been dead since 1998.", "Jenny Calendar").standing).toBe("dead");
+  });
+
+  test("someone on the page whose lore says they're dead hears no news", () => {
+    const st = world([...base, "cast: Jenny Calendar@left", "know Joss: The chandlery burned down in the storm | saw it · knows", "bond Joss>Jenny Calendar: affection 3 — old friends"]);
+    const roster = buildRoster({ state: st, profiles: {}, lore: [{ name: "Jenny Calendar", text: "Jenny Calendar teaches computers. She has been dead since 1998." }], userName: "Alex" });
+    const jenny = roster.byName("Jenny Calendar")!;
+    expect(jenny.ring).toBe("offstage");
+    expect(jenny.dead).toBe(true);
+    const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
+    expect(ops.some((o) => o.subject === "Jenny Calendar")).toBe(false);
   });
 });
 
@@ -251,7 +262,7 @@ describe("storyteller", () => {
 
 describe("news", () => {
   test("big news travels along ties; secrets don't leave their keepers", () => {
-    const st = world([...base, "bond Joss>Edda: trust 3; affection 3 — old friends", "know Joss: Old Tom died in the storm | heard it · knows"]);
+    const st = world([...base, "bond Joss>Edda: trust 3; affection 3 — old friends", "know Joss: The chandlery burned down in the storm | heard it · knows"]);
     let hops = 0;
     for (let i = 0; i < 30; i++) {
       const r = spreadNews({ state: st, roster: input(st).roster, hours: 24, rand: Math.random, tech: "modern", now: 0 });
@@ -259,6 +270,25 @@ describe("news", () => {
       expect(r.hops.every((h) => h.fact !== "joss-debt")).toBe(true);
     }
     expect(hops).toBeGreaterThan(0);
+  });
+
+  test("news of the leads stays on the page; news of someone reaches only people who know them", () => {
+    const st = world([
+      ...base,
+      "cast: Bob@left · Wren@left",
+      "bond Joss>Edda: trust 3; affection 3 — old friends",
+      "bond Joss>Bob: trust 3 — workmates",
+      "bond Joss>Wren: trust 3 — cousins",
+      "bond Wren>Edda: trust 2 — neighbours",
+      "know Joss: Mira is pregnant | saw it · knows",
+      "know Joss: Edda got engaged | heard it · knows",
+    ]);
+    const roster = input(st).roster;
+    const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0, max: 20 });
+    expect(ops.some((o) => o.raw?.includes("#mira-is-pregnant"))).toBe(false);
+    const told = ops.filter((o) => o.raw?.includes("#edda-got-engaged")).map((o) => o.subject);
+    expect(told).toContain("Wren");
+    expect(told).not.toContain("Bob");
   });
 });
 

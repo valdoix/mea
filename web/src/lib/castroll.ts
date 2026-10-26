@@ -6,6 +6,7 @@ export interface TrackerChange {
   reason?: string;
   tone?: "up" | "down" | "due" | "warn";
   flag?: string;
+  source?: string;
 }
 
 /**
