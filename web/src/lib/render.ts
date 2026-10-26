@@ -290,7 +290,7 @@ export function renderMessage(input: string, scopeClass: string, opts: { artifac
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   // The visual toolkit's tags (<letter>, <texts>, <mind>…) are cut out before Markdown and drawn from escaped text.
-  const cut = extractArtifacts(markSpeakers(input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, ""), opts.speakers));
+  const cut = extractArtifacts(markSpeakers(input.replace(/<ledger\b[\s\S]*?(?:<\/ledger\s*>|$)/gi, ""), opts.speakers), true);
   const found = cut.found;
   const text = applyFx(cut.text, dressed);
 
