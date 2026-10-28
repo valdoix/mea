@@ -134,6 +134,19 @@ function helperJson(name: string, user: string, system = ""): unknown {
       });
       return { slips };
     }
+    case "continuity_retell": {
+      // A retelling saying MOCK_RETELL tells its first passage wrong.
+      const verdicts = [...user.matchAll(/^RETELLING (\d+)[^\n]*\nPASSAGES:\n#(\d+)/gm)].map((m) => {
+        const block = user.slice(m.index!).split(/\n\nRETELLING /)[0]!;
+        return { retelling: Number(m[1]), source: Number(m[2]), wrong: /MOCK_?RETELL/.test(block.split("\nPASSAGES:")[0]!), conflict: "It happened elsewhere, earlier.", fix: "Tell it as it happened." };
+      });
+      return { verdicts };
+    }
+    case "beats": {
+      // docs/20 1.1's backfill: a beat for each reply asked for.
+      const seqs = [...(user.match(/^Write a beat for each of: (.*)$/m)?.[1] ?? "").matchAll(/#(\d+)/g)].map((m) => Number(m[1]));
+      return { beats: seqs.map((seq) => ({ seq, text: `Something happens at #${seq}` })) };
+    }
     case "continuity_verify": {
       // An issue whose story passages say MOCK_SETTLED is settled in the reply's favour.
       const verdicts = [...user.matchAll(/^ISSUE (\d+)[\s\S]*?(?=^ISSUE |(?![\s\S]))/gm)].map((m) => ({ id: m[1]!, stands: !/MOCK_SETTLED/.test(m[0]) }));

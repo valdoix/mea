@@ -20,6 +20,7 @@ import { userEdit } from "../trackers/service";
 import { flagAllowed, guardsFor, puppetScope, type PuppetScope } from "./guards";
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
 import { runSlips, slipAllowed, slipContext } from "./slips";
+import { retellIssues } from "./retell";
 import { tieIssues } from "./ties";
 import { currentFold, foldAt, invalidate, linesToOps } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
@@ -327,6 +328,14 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
       issues.push(...(await tieIssues(chatId, sw.content, m.seq, opts.job)));
     } catch (e) {
       opts.job?.note({ tiesError: (e as Error).message.slice(0, 200) });
+    }
+  }
+  // docs/20 Part 3: a story retold against the passage it tells. Rules find the retellings and their sources; the helper runs only when there is one.
+  if (cfg.continuity && m.role === "assistant" && slipAllowed("retell", g) && !shouldShed("continuity", chatId)) {
+    try {
+      issues.push(...(await retellIssues(chatId, sw.content, m.seq, st, { job: opts.job, model: opts.model ?? cfg.checkerModel })));
+    } catch (e) {
+      opts.job?.note({ retellError: (e as Error).message.slice(0, 200) });
     }
   }
   const useModel = cfg.continuity && (opts.model ?? (cfg.checkerModel && !shouldShed("continuity", chatId)));
