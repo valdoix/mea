@@ -19,6 +19,7 @@ import { correctMemory } from "../accuracy/corrections";
 import { countTokens } from "../lib/tokens";
 import { buildMemoryContext, memoryInputs } from "../memory/context";
 import { revealsOf } from "../trackers/reveals";
+import { beatNames, todayText } from "../trackers/today";
 import type { WorldState } from "../trackers/types";
 
 /**
@@ -117,7 +118,7 @@ const userRule = (user: string, persona: PersonaMode | null) =>
  * planner staged the same discovery reply after reply (Dawn finding Buffy's hands, three times).
  */
 const PLAYED_RULE =
-  "Your earlier plans were already written into the story: what they planned has happened, so build on it and never stage it again (a discovery, confession or reaction that already played stays played). Pick up where the last reply ended, and follow the player's latest message even where it moves past your earlier plans. When someone retells or brings up something that already happened (the story promised at dinner, last night's fight), it happened where, when and how the story shows it: take it from WHERE THE OPEN PROMISES WERE MADE or the messages, never from a guess or a character's own loose recollection";
+  "Your earlier plans were already written into the story: what they planned has happened, so build on it and never stage it again (a discovery, confession or reaction that already played stays played). Pick up where the last reply ended, and follow the player's latest message even where it moves past your earlier plans. When someone retells or brings up something that already happened (the story promised at dinner, last night's fight), it happened where, when and how the story shows it: take it from TODAY SO FAR, WHERE THE OPEN PROMISES WERE MADE or the messages, never from a guess or a character's own loose recollection";
 
 /** A text's content words, stemmed loosely ("jealousy" and "jealous" meet), for telling what a promise is about. */
 const words = (s: string) => (s.toLowerCase().match(/\p{L}{4,}/gu) ?? []).map((w) => w.slice(0, 6));
@@ -327,6 +328,9 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     if (open.length) parts.push(`OPEN THREADS:\n${open.map((t) => `- ${t}`).join("\n")}`);
     const origins = promiseOrigins(st, history, names, history.at(-8)?.seq ?? Infinity, [...history.slice(-2).map((m) => m.content), focus].join("\n"));
     if (origins.length) parts.push(`WHERE THE OPEN PROMISES WERE MADE (what was said then; the past, as it happened):\n${origins.join("\n\n")}`);
+    // docs/20 1.2: the day in order, so a plan that retells today places it where it happened.
+    const today = todayText(st, beatNames(chatId, st));
+    if (today) parts.push(`TODAY SO FAR:\n${today}`);
   } catch {
     // trackers are optional
   }
@@ -344,7 +348,8 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     // H3: the planner also sees the lanes (lessons, canon, pressures, promises…) the writer would.
     try {
       const st = foldAt(chatId, { excludeMessageId }).state;
-      const lanes = wholeFit(gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).map((l) => l.content.trim()).filter(Boolean), LANES_TOKENS);
+      // TODAY SO FAR is already above, whole.
+      const lanes = wholeFit(gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).filter((l) => l.lane !== "today").map((l) => l.content.trim()).filter(Boolean), LANES_TOKENS);
       if (lanes.length) parts.push(`WHAT MEA'S FEATURES ADD THIS TURN:\n${lanes.join("\n\n")}`);
     } catch {
       // lanes are optional

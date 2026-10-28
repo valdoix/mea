@@ -17,6 +17,7 @@ import { runLessonsJob } from "./steer/lessons";
 import { runRewordJob } from "./accuracy/offpage";
 import { exposureAfterReply } from "./trackers/exposure";
 import { pressuresAfterReply } from "./trackers/pressures";
+import { backfillBeats, beatsAfterUpdate } from "./trackers/today";
 import { promisesAfterReply } from "./trackers/promises";
 import { asidesAfterReply } from "./accuracy/asides";
 import { lyricsStep, musicAfterReply, sheetsStep } from "./music/director";
@@ -137,6 +138,9 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("tracker.init", async (p, job) => runTrackerInit(p as { chatId: string }, job));
   // The world off the page (Phase 2): ticks once the story clock moves; the model only tells.
   onTrackerUpdate(worldAfterReply);
+  // docs/20 1.1: today's replies read before beats existed get theirs.
+  registerJob("tracker.beats", async (p, job) => backfillBeats((p as { chatId: string }).chatId, job));
+  onTrackerUpdate((chatId) => beatsAfterUpdate(chatId));
   // Phase 5 guards: the timeline check once the clock has moved (CON-12), the voice now and then (CON-10).
   onTrackerUpdate(recordTimeline);
   // docs/15, 5.2: once the clock has moved, states that should have worn off ask "over by now?".

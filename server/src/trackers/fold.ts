@@ -10,6 +10,7 @@ import {
   AXES,
   type Axis,
   BIPOLAR_AXES,
+  type Beat,
   type Bond,
   type Change,
   type Character,
@@ -99,6 +100,9 @@ const norm = (s: string) =>
 export const slug = (s: string) => norm(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "x";
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 const clip = (s: string | undefined) => (s ?? "").trim();
+const cut = (s: string, n: number) => (s.trim().length > n ? `${s.trim().slice(0, n - 1).trimEnd()}…` : s.trim());
+/** Beats kept in the state: a few story days of replies. */
+const MAX_BEATS = 400;
 /** A name as the model wrote it, without a place or note: "Jackie Taylor@down-slope (finding James)" → "Jackie Taylor". */
 export const personName = (s: string) => s.replace(/\s*@.*$/, "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 
@@ -332,6 +336,11 @@ export class Folder {
       if (each.length > 1) for (const subject of each) this.applyOp({ ...ev.op, subject }, ctx);
       else this.applyOp(ev.op, ctx);
       if (ev.op.op === "cast" || ev.op.op === "at" || ev.op.op === "clock") this.promiseChecks(ctx);
+      // A beat is stamped with where and when its reply ends, whichever order the lines came in.
+      if (ev.op.op === "cast" || ev.op.op === "at" || ev.op.op === "clock") {
+        const b = this.state.beats?.at(-1);
+        if (b?.seq === ev.seq) this.stamp(b);
+      }
     } catch (e) {
       ctx.verdict = { raw: ev.op.raw, ok: false, reason: `couldn't apply: ${(e as Error).message}` };
     }
@@ -389,6 +398,15 @@ export class Folder {
     if (to - from >= 180) this.newScene(ctx.ev.seq);
     for (const n of ctx.notes.splice(0)) this.push(ctx, { kind: "body", text: `${n.who}: ${n.text}`, subject: n.who, path: `chars.${slug(n.who)}.body`, tone: "up" });
     this.dueChecks(ctx);
+  }
+
+  /** docs/20 1.1: a beat takes the story's time, place and people as they stand now. */
+  private stamp(b: Beat) {
+    const st = this.state;
+    b.minutes = st.time?.minutes ?? null;
+    b.form = st.time?.form;
+    b.place = [...st.place];
+    b.who = Object.values(st.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead).map((c) => c.id);
   }
 
   /** E2: where and when the story is, for an object's history. */
@@ -1366,6 +1384,18 @@ export class Folder {
         this.push(ctx, { kind: "motif", text: `Running bit: ${clip(a.text)}`, path: `motifs.${id}` });
         return;
       }
+      case "beat": {
+        if (!a.text) return this.reject(ctx, "what happened?");
+        const beats = (st.beats ??= []);
+        // One beat per reply: a second line for the same reply adds to it.
+        const last = beats.at(-1);
+        const b = last?.seq === seq ? last : { text: "", seq, minutes: null, place: [], who: [] };
+        if (b !== last) beats.push(b);
+        b.text = b.text ? `${b.text}; ${cut(a.text, 240)}` : cut(a.text, 240);
+        this.stamp(b);
+        if (beats.length > MAX_BEATS) beats.splice(0, beats.length - MAX_BEATS);
+        return;
+      }
       case "milestone": {
         if (!a.text) return this.reject(ctx, "what milestone?");
         if (st.milestones.some((m) => overlap(m.text, a.text) > 0.8)) return;
@@ -1503,6 +1533,7 @@ export class Folder {
     }
     for (const e of Object.values(st.calendar)) e.who = uniq(e.who.map((x) => swap(x)!));
     for (const m of st.milestones) m.who = uniq(m.who.map((x) => swap(x)!));
+    for (const b of st.beats ?? []) b.who = uniq(b.who.map((x) => swap(x)!));
     st.locks = st.locks.map((l) => l.replace(`chars.${from.id}`, `chars.${into.id}`).replace(new RegExp(`(^|[.>])${from.id}(?=$|[.>])`, "g"), `$1${into.id}`));
   }
 

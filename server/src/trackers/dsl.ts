@@ -14,14 +14,14 @@ import { leadingDuration } from "./clock";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
   thought: "think", thoughts: "think", inner: "think", relationship: "bond", romance: "ladder", knowledge: "know", inventory: "item",
   debt: "owe", favour: "owe", favor: "owe", vow: "promise", due: "deadline", chekhov: "plant", faction: "clockf", reputation: "rep",
   calendar: "event", appointment: "plan", callback: "motif", bit: "motif", died: "dead", death: "dead", drives: "drive", wants: "drive",
-  injury: "body", condition: "body", traits: "trait", title: "scene",
+  injury: "body", condition: "body", traits: "trait", title: "scene", happened: "beat", events: "beat",
 };
 
 export interface ParseResult {
@@ -267,7 +267,7 @@ export function parseLine(raw: string): Op | null {
     } else if (!left) rest = right;
   }
   rest = rest.trim();
-  const [body, cause] = ["think", "journal", "motif", "scene"].includes(op) ? [rest, undefined] : splitCause(rest);
+  const [body, cause] = ["think", "journal", "motif", "scene", "beat"].includes(op) ? [rest, undefined] : splitCause(rest);
   const out: Op = { op, subject, object, args: {}, cause, raw: line };
   const a = out.args;
   switch (op) {
@@ -327,6 +327,12 @@ export function parseLine(raw: string): Op | null {
     case "think":
     case "journal":
       a.text = body.replace(/^["“]|["”]$/g, "").trim();
+      break;
+    case "beat":
+      // "beat Gabriel: asks…" names its first person like a subject; the beat is the whole line.
+      a.text = (out.subject ? `${out.subject}${out.object ? ` > ${out.object}` : ""} ${body}` : body).trim();
+      out.subject = undefined;
+      out.object = undefined;
       break;
     case "dead":
       a.text = body;
