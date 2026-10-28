@@ -43,6 +43,8 @@ export interface NoteOptions {
   kind?: string;
   /** The player's newest message (and note for this reply): what people here already know about it goes in KNOWLEDGE. */
   focus?: string;
+  /** docs/20 2.2: a message number as its moment ("#467, 11:57 at Summers Residence › Front Yard"), for records a reply might retell. */
+  moment?: (seq: number) => string;
 }
 
 /** How the note names the player's character: the same rule as the Persona control (sealed when unset). */
@@ -94,7 +96,7 @@ const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believ
  * the socks and "bought" alone (in every errand) picks nothing: a hit needs a word in at most three
  * of them, or several commoner ones. Someone with no stance isn't listed: no record isn't "not told".
  */
-export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: string) => string, max = 4): string[] {
+export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: string) => string, max = 4, moment: (seq: number) => string = (s) => `#${s}`): string[] {
   // What the message is about: a word said twice ("the socks… Socks.") weighs twice.
   const want = focus?.trim() ? topicCounts(st, focus) : null;
   if (!want?.size) return [];
@@ -115,12 +117,12 @@ export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: s
       const who = Object.entries(d.fact.stances)
         .filter(([id]) => here.has(id) && !st.chars[id]?.isUser)
         .sort((a, b) => a[1].seq - b[1].seq)
-        .map(([id, s]) => `${nameOf(id)} ${STANCE_WORDS[s.status] ?? s.status}${s.route || s.seq ? ` (${[s.route, s.seq ? `#${s.seq}` : ""].filter(Boolean).join(", ")})` : ""}`);
+        .map(([id, s]) => `${nameOf(id)} ${STANCE_WORDS[s.status] ?? s.status}${s.route || s.seq ? ` (${[s.route, s.seq ? moment(s.seq) : ""].filter(Boolean).join(", ")})` : ""}`);
       if (!who.length) continue;
       hits.push({ line: `${d.fact.statement}: ${who.join("; ")}`, text: d.text, score, seq: d.fact.lastSeq, item: false });
     } else if (d.item) {
       const i = d.item;
-      const trail = i.custody.slice(-3).map((c) => `${[c.from, c.to].filter((x): x is string => Boolean(x)).map(whom).join(" → ")}${c.how ? ` (${c.how})` : ""}${c.seq ? ` #${c.seq}` : ""}`);
+      const trail = i.custody.slice(-3).map((c) => `${[c.from, c.to].filter((x): x is string => Boolean(x)).map(whom).join(" → ")}${c.how ? ` (${c.how})` : ""}${c.seq ? ` ${moment(c.seq)}` : ""}`);
       const now = i.gone ? "gone" : i.holder ? `${i.holder.startsWith("place:") ? "in" : "with"} ${whom(i.holder)}${i.where ? ` (${i.where})` : ""}` : i.where ? `at ${i.where}` : "";
       const bits = [now, i.gift ? `a gift from ${nameOf(i.gift)}` : "", trail.length ? `trail: ${trail.join("; ")}` : ""].filter(Boolean);
       if (bits.length) hits.push({ line: `${i.name}: ${bits.join(" · ")}`, text: d.text, score, seq: i.lastSeq, item: true });
@@ -258,6 +260,7 @@ export interface NoteResult {
 
 export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   const budget = o.budget ?? 700;
+  const moment = o.moment ?? ((s: number) => `#${s}`);
   const quiet = o.quietAfter ?? 40;
   const lanes: { name: string; lines: string[]; priority: number }[] = [];
 
@@ -288,7 +291,7 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   // gift someone was told about on a call is written as a surprise.
   if (on(o, "knowledge")) {
     const nameOf = (id: string) => (st.chars[id]?.isUser ? o.userName : (st.chars[id]?.name ?? id));
-    const lines = inPlay(st, o.focus, nameOf);
+    const lines = inPlay(st, o.focus, nameOf, 4, moment);
     if (lines.length) lanes.push({ name: "inplay", lines: ["FACTS IN PLAY (what this message touches, from the records; true over any guess):", ...lines.map((l) => `- ${l}`)], priority: 1 });
   }
 
@@ -320,7 +323,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
       // E3: a reminder shortly before it's due ("You promised Willow: be at the Bronze at nine — in 40 min").
       const left = due != null && now != null ? due - now : null;
       const when = left != null && left >= 0 && left <= 180 ? ` — in ${left < 120 ? `${left} min` : `${Math.round(left / 60)} h`}` : ob.status === "due" ? " (due now)" : ob.due ? ` (due ${ob.due.text})` : "";
-      if (ob.kind === "promise") lines.push(`${ob.meet ? "Meeting" : "Promise"}: ${nm(ob.who)} promised ${nm(ob.whom)}: ${ob.what}${ob.meet ? ` (at ${ob.meet})` : ""}${when}`);
+      // docs/20 2.2: where and when it was promised, so a story about it is told from there.
+      if (ob.kind === "promise") lines.push(`${ob.meet ? "Meeting" : "Promise"}: ${nm(ob.who)} promised ${nm(ob.whom)}: ${ob.what}${ob.meet ? ` (at ${ob.meet})` : ""} (made ${moment(ob.seq)})${when}`);
       else lines.push(`Debt: ${nm(ob.who)} → ${nm(ob.whom)}: ${ob.what}${when}`);
     }
     for (const d of Object.values(st.deadlines)) {
@@ -349,7 +353,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     // A secret that came out: the card or lore may still call it hidden, so say who knows now.
     for (const f of Object.values(st.facts)) {
       const to = [...new Set(f.revealed.flatMap((r) => r.to))].filter((id) => here.has(id) && !st.chars[id]?.isUser);
-      if (to.length) lines.unshift(`No longer a secret from ${to.map((id) => st.chars[id]?.name ?? id).join(", ")}: ${f.statement} (it came out; anything that says they don't know is out of date)`);
+      const out = f.revealed.at(-1);
+      if (to.length) lines.unshift(`No longer a secret from ${to.map((id) => st.chars[id]?.name ?? id).join(", ")}: ${f.statement} (it came out${out ? ` ${moment(out.seq)}${out.how ? `, ${out.how}` : ""}` : ""}; anything that says they don't know is out of date)`);
     }
     // B2: a secret close to coming out (its exposure clock at 4 of 6 or more), and who is closest.
     for (const [key, e] of Object.entries(st.exposure ?? {})) {
