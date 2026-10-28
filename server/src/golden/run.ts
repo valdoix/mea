@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { one, run as sql } from "../db/db";
-import { checkReply } from "../accuracy/checker";
+import { checkReply, dismissIssue } from "../accuracy/checker";
 // The rest of the slip registry (not here, the clock backwards, planning left in…) registers on import.
 import "../accuracy/moreslips";
 import { createOffpage } from "../accuracy/offpage";
@@ -39,7 +39,13 @@ const scenarioSchema = z.object({
   /** Lorebook entries linked to the chat, with their secrets (LORE-09). */
   lore: z.array(z.object({ keys: z.array(z.string()), content: z.string(), secrets: z.array(z.object({ text: z.string(), knownBy: z.array(z.string()).default([]) })).default([]) })).default([]),
   canon: z.object({ source: z.string(), point: z.string(), later: z.array(z.object({ kind: z.enum(["event", "character", "reveal", "term"]), text: z.string(), terms: z.array(z.string()) })) }).optional(),
-  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).default([]),
+  /**
+   * The story so far. docs/20: a message can carry its own ledger lines (its time, place, promises),
+   * and a reply can be checked as it lands, its flags kept or dismissed (a deliberate retelling).
+   */
+  history: z
+    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string(), ledger: z.array(z.string()).default([]), check: z.enum(["keep", "dismiss"]).optional() }))
+    .default([]),
   /** Run the planner (the advisor, or the separate planner when the chat asks for one) before the prompt is read. */
   runPlanner: z.boolean().default(false),
   prompt: z.object({ contains: z.array(z.string()).default([]), lacks: z.array(z.string()).default([]) }).optional(),
@@ -122,7 +128,15 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
     for (const o of s.offpage) createOffpage(chatId, o);
     if (s.lore.length) book = createLorebook({ name: `[story check] ${s.name}`, entries: s.lore.map((e) => defaultEntry({ keys: e.keys, comment: e.keys[0], content: e.content, extra: { secrets: e.secrets } })), links: [{ target_type: "chat", target_id: chatId }] });
     if (s.canon) setCanon(chatId, { ...s.canon, later: s.canon.later.map((l, i) => ({ ...l, id: `g${i}` })), wont: [] });
-    for (const m of s.history) addMessage(chatId, m.role, m.content, m.role === "assistant" ? { name: s.card.name } : {});
+    for (const m of s.history) {
+      const id = addMessage(chatId, m.role, m.content, m.role === "assistant" ? { name: s.card.name } : {});
+      if (m.ledger.length) writeEvents(chatId, { messageId: id, swipeIdx: 0 }, linesToOps(m.ledger).ops, "model");
+      if (m.check) {
+        const issues = (await checkReply(chatId, id, 0, { model: false })) ?? [];
+        const flag = one<{ id: string }>("SELECT id FROM continuity_flags WHERE message_id = ?", id);
+        if (m.check === "dismiss" && flag) for (const i of issues) dismissIssue(flag.id, i.id);
+      }
+    }
 
     if (s.runPlanner) {
       const plan = await runAdvisor(chatId);

@@ -90,7 +90,7 @@ const ROW = "SELECT m.id, m.seq, m.role, s.content FROM messages m JOIN swipes s
  * ("jealous" for "romantic feelings"), but "tell Dawn about the jealousy question" was promised in
  * the reply that tells it right.
  */
-export function retellSources(chatId: string, st: WorldState | null, seq: number, r: Retelling, max = 4): Source[] {
+export function retellSources(chatId: string, st: WorldState | null, seq: number, r: Retelling, max = 4, times?: TimeIndex): Source[] {
   const names = new Set(Object.values(st?.chars ?? {}).flatMap((c) => [...stems([c.name, ...(c.aliases ?? [])].join(" "))]));
   const want = [...stems(r.text)];
   if (!want.some((w) => !names.has(w))) return [];
@@ -128,7 +128,7 @@ export function retellSources(chatId: string, st: WorldState | null, seq: number
   const docs = [...rows.values()].map((x) => ({ x, words: stems(`${beats.get(x.seq) ?? ""} ${cleanText(x.content)}`) }));
   const df = new Map<string, number>();
   for (const d of docs) for (const w of want) if (d.words.has(w)) df.set(w, (df.get(w) ?? 0) + 1);
-  const ti = new TimeIndex(chatId);
+  const ti = times ?? new TimeIndex(chatId);
   const scored = docs
     .map((d) => {
       const shared = want.filter((w) => d.words.has(w));
@@ -304,3 +304,50 @@ registerLane("retold", (ctx) => {
   const lines = toldWrong(ctx.chatId, ctx.excludeMessageId);
   return lines.length ? lane("retold", null, `Earlier replies told these wrong. Don't build on their version; anyone who brings it up again tells it as it happened:\n${lines.join("\n")}`, { depth: 1 }) : null;
 });
+
+// ---------- docs/20 6.2: how often the story is retold, and how often wrong ----------
+
+export interface RetellStats {
+  /** Retellings the rules found in the replies. */
+  found: number;
+  /** Of those, how many had a source on the page to check against. */
+  matched: number;
+  /** Retellings flagged as told wrong, still standing. */
+  flagged: number;
+  /** Flags you dismissed (a deliberate retelling). */
+  dismissed: number;
+  /** The newest reply told wrong. */
+  last?: { messageId: string; seq: number };
+}
+
+/** For Story health: the replies' retellings, from their text and their flags (nothing stored). */
+export function retellStats(chatId: string, st: WorldState | null, replies: { id: string; seq: number; idx: number }[]): RetellStats {
+  const out: RetellStats = { found: 0, matched: 0, flagged: 0, dismissed: 0 };
+  if (!replies.length) return out;
+  const texts = all<{ message_id: string; idx: number; content: string }>(
+    `SELECT message_id, idx, content FROM swipes WHERE message_id IN (${replies.map(() => "?").join(",")})`,
+    ...replies.map((r) => r.id),
+  );
+  const flags = all<{ message_id: string; swipe_idx: number; issues: string }>(
+    `SELECT message_id, swipe_idx, issues FROM continuity_flags WHERE message_id IN (${replies.map(() => "?").join(",")})`,
+    ...replies.map((r) => r.id),
+  );
+  // One time index for all of them: building it reads the whole chat.
+  const times = new TimeIndex(chatId);
+  for (const r of replies) {
+    const text = texts.find((t) => t.message_id === r.id && t.idx === r.idx)?.content ?? "";
+    for (const t of findRetellings(text)) {
+      out.found++;
+      if (retellSources(chatId, st, r.seq, t, 1, times).length) out.matched++;
+    }
+    const issues = parseJson<Issue[]>(flags.find((f) => f.message_id === r.id && f.swipe_idx === r.idx)?.issues, []).filter((i) => i.kind === "retell");
+    for (const i of issues) {
+      if (i.dismissed) out.dismissed++;
+      else {
+        out.flagged++;
+        out.last = { messageId: r.id, seq: r.seq };
+      }
+    }
+  }
+  return out;
+}

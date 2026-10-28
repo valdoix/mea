@@ -74,7 +74,7 @@ Measured on a copy of the production database, as of #509. Six things failed, an
 | 5.2 | A wrong recollection gets a correction line | 3.3, 5.1 |
 | **Part 6 · Measure it** | | |
 | 6.1 | Golden scenarios from this chat | Parts 1–4 |
-| 6.2 | Retelling accuracy on the Accuracy page | 3.3 |
+| 6.2 | Retelling accuracy in Story health | 3.3 |
 
 **Order:** 0 → 1 → 3 → 2 → 4 → 5 → 6. Part 0 is live damage. Part 1 is what everything else reads.
 
@@ -210,4 +210,4 @@ When 3.3 flags a wrong recollection and you leave the flag up, the correction go
 
 ### 6.2 Retelling accuracy
 
-The Accuracy page counts retellings found, matched, flagged and dismissed per chat, so a rise shows up before you find it in the prose.
+Story health (the panel that scores the last 20 replies) has a "Retold past" line: retellings found, how many had a source on the page to check against, how many were flagged as told wrong, and how many you dismissed. It opens the newest reply told wrong. Worked out from the replies and their flags, so nothing new is stored, and a rise shows up before you find it in the prose. (Built in PR #183.)

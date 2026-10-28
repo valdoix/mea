@@ -4,6 +4,7 @@ import { sceneSystem, verifySystem } from "../src/memory/prompts";
 import { gatherLanes } from "../src/prompt/lanes";
 import { findRetellings, retellSources, toldWrong, whenConflict } from "../src/accuracy/retell";
 import "../src/accuracy/moreslips";
+import { storyHealth } from "../src/accuracy/health";
 import { normalizeCard } from "../src/cards/card";
 import { one } from "../src/db/db";
 import { defaultMemoryConfig, setSetting } from "../src/lib/settings";
@@ -127,5 +128,18 @@ describe("talk isn't record (docs/20 5.1)", () => {
   test("the scene archivist records a retelling as said, and its check catches one recorded as the event", () => {
     expect(sceneSystem({ char: "Buffy", user: "Gabriel" })).toContain("record it as what they said, with who said it");
     expect(verifySystem()).toContain("someone's account of an earlier event recorded as the event itself");
+  });
+});
+
+describe("retelling accuracy in Story health (docs/20 6.2)", () => {
+  test("found, checked against the page, told wrong, dismissed", () => {
+    const h = storyHealth(chatId);
+    expect(h.retold).toBeDefined();
+    const r = h.retold!;
+    expect(r.found).toBeGreaterThanOrEqual(r.matched);
+    expect(r.matched).toBeGreaterThan(0);
+    expect(r.flagged).toBeGreaterThan(0);
+    expect(r.dismissed).toBeGreaterThan(0);
+    expect(r.last?.seq).toBeGreaterThan(0);
   });
 });

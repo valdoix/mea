@@ -1,0 +1,72 @@
+{
+  "name": "deliberate-retelling",
+  "about": "docs/20 5.2: a retelling you dismissed was meant (a lie, a joke): nothing corrects it later.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy Summers, twenty, back in Sunnydale. Quick, guarded, funny.",
+    "first_mes": "Revello Drive."
+  },
+  "user": "Gabriel",
+  "ledger": [
+    "clock: 2001-10-11 11:00",
+    "at: Sunnydale › Grocery Store",
+    "cast: Buffy@spot · Gabriel@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "At the curb outside the house, still in the car, Gabriel asks: \"Have you ever had romantic feelings towards Spike?\"",
+      "ledger": [
+        "clock: 2001-10-11 11:51",
+        "at: Sunnydale › Summers House › Curb",
+        "beat: In the car at the curb, Gabriel asks Buffy whether she ever had romantic feelings for Spike"
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "\"No. Never. And Dawn is hearing about this jealousy question at dinner,\" Buffy says, and gets out of the car.",
+      "ledger": [
+        "promise Buffy → Gabriel: tell Dawn about the jealousy question at dinner | open [due 2001-10-11 15:05]",
+        "beat: Buffy says no, and promises to tell Dawn about the jealousy question at dinner"
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Inside, he gets the tools out."
+    },
+    {
+      "role": "assistant",
+      "content": "The wrench turns. Gabriel fixes the kitchen faucet, sleeves rolled, biceps everywhere, while Buffy watches from the counter.",
+      "ledger": [
+        "clock: 2001-10-11 12:17",
+        "at: Sunnydale › Summers House › Kitchen",
+        "beat: Gabriel fixes the kitchen faucet while Buffy watches"
+      ]
+    },
+    {
+      "role": "user",
+      "content": "We pick Dawn up and come home for tacos. \"Go on, tell her the story,\" he grumbles.",
+      "ledger": [
+        "clock: 2001-10-11 15:10",
+        "cast: Buffy@spot · Gabriel@spot · Dawn@spot"
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "Buffy grins. “Okay. So. This morning. Kitchen. He was fixing the faucet, biceps everywhere, and he asked me, and I quote, should I be jealous of Spike?”",
+      "check": "dismiss"
+    },
+    {
+      "role": "user",
+      "content": "Dawn is still laughing."
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "[TODAY SO FAR]"
+    ],
+    "lacks": [
+      "[TOLD WRONG]"
+    ]
+  }
+}

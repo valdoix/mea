@@ -5,6 +5,8 @@ import { craftReport } from "../steer/craft";
 import { lessonsFor } from "../steer/lessons";
 import { trackerConfig } from "../trackers/store";
 import type { Issue } from "./checker";
+import { currentFold } from "../trackers/store";
+import { type RetellStats, retellStats } from "./retell";
 
 /**
  * Story health (Almanac plan D3): one score for the last 20 replies, from what Mea already keeps:
@@ -33,6 +35,8 @@ export interface Health {
   parts: HealthItem[];
   /** One score per week, oldest first (the last eight weeks that had replies). */
   trend: { week: number; score: number }[];
+  /** docs/20 6.2: the replies' retellings, and how many were told wrong. */
+  retold?: RetellStats;
 }
 
 const WINDOW = 20;
@@ -148,7 +152,14 @@ const WEEK = 7 * 24 * 3600_000;
 /** Story health now, and week by week. */
 export function storyHealth(chatId: string): Health {
   mustChat(chatId);
-  const now = compute(chatId, repliesIn(chatId), true);
+  const replies = repliesIn(chatId);
+  const now = compute(chatId, replies, true);
+  let retold: RetellStats | undefined;
+  try {
+    retold = retellStats(chatId, currentFold(chatId).result.state, replies);
+  } catch {
+    retold = undefined;
+  }
   const trend: Health["trend"] = [];
   const first = one<{ t: number | null }>("SELECT MIN(created_at) AS t FROM messages WHERE chat_id = ? AND role = 'assistant' AND deleted_at IS NULL", chatId)?.t;
   if (first != null) {
@@ -161,7 +172,7 @@ export function storyHealth(chatId: string): Health {
       if (rs.length) trend.push({ week: from, score: compute(chatId, rs, false).score });
     }
   }
-  return { ...now, trend };
+  return { ...now, trend, ...(retold?.found ? { retold } : {}) };
 }
 
 /** The dot on Home's chat cards, cached a few minutes (it's read for many chats at once). */
