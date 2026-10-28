@@ -133,6 +133,26 @@ export function overlap(a: string, b: string) {
 }
 const STOP = new Set("the and for with from that this was were has have had her his their them she they you are not but into onto over about".split(" "));
 
+/** Words that say when or how a promise is kept, not what it is. */
+const PROMISE_STOP = new Set("tell make give take every tonight tomorrow today after before later then again soon right going will promise".split(" "));
+const stems = (s: string) => new Set((norm(s).match(/[a-z]{4,}/g) ?? []).filter((w) => !STOP.has(w) && !PROMISE_STOP.has(w)).map((w) => w.slice(0, 6)));
+
+/**
+ * A promise to one person said again to another: one names the other's listener ("tell Dawn about
+ * the jealousy question" to Gabriel, "the jealousy story at dinner" to Dawn), and they share two
+ * words besides. A shared listener is never enough: two promises to Gabriel both name Gabriel.
+ */
+export function restated(a: string, aTo: string, b: string, bTo: string) {
+  const first = (n: string) => n.trim().split(/\s+/)[0]!.toLowerCase();
+  if (!aTo || !bTo || first(aTo) === first(bTo)) return false;
+  const names = (s: string) => new RegExp(`\\b${first(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  if (!names(bTo).test(a) && !names(aTo).test(b)) return false;
+  const drop = new Set([first(aTo), first(bTo)].map((w) => w.slice(0, 6)));
+  const A = [...stems(a)].filter((w) => !drop.has(w));
+  const B = stems(b);
+  return A.filter((w) => B.has(w)).length >= 2;
+}
+
 const TRAIT_KIND: [TraitKind, RegExp][] = [
   ["eyes", /\beyes?\b/i],
   ["hair", /\bhair\b|\bbald\b|\bbraid|\bcurls\b/i],
@@ -536,7 +556,9 @@ export class Folder {
       const win = o.window ?? (o.meet ? 60 : 1440);
       let verdict: "kept" | "broken" | null = null;
       if (o.meet && o.whom && now >= due - win && now <= due + win && here(o.who) && here(o.whom) && at(o.meet)) verdict = "kept";
-      else if (now > due + win) verdict = "broken";
+      // Never broken sooner than its window after it was made: a time already behind the clock when
+      // it was promised ("at dinner, 15:05", said at 15:10) is a slip, not a promise broken on arrival.
+      else if (now > Math.max(due, o.made ?? due) + win) verdict = "broken";
       if (!verdict) continue;
       o.status = verdict;
       o.auto = true;
@@ -549,11 +571,16 @@ export class Folder {
   /** "Day 4 06:00", "tomorrow", "tonight", "+2h", "in 3 days" → story minutes. */
   private when(text: string | undefined): number | null {
     if (!text) return null;
-    const t = text.trim().toLowerCase();
+    let t = text.trim().toLowerCase();
     const abs = parseStoryTime(text.replace(/^(?:at|on|by)\s+/i, ""));
-    if (abs) return abs.minutes;
     const now = this.now();
+    const form = this.state.time?.form;
+    if (abs && (now == null || !form || abs.form === form)) return abs.minutes;
     if (now == null) return null;
+    // A day count on a calendar clock ("Day 1 15:05" on 11 October 2001), or a date on a day count, is
+    // off this clock: read as minute 905 of year one, Buffy's promise to Dawn broke as she made it. Its
+    // time of day is what was meant.
+    if (abs) t = t.match(/(\d{1,2}:\d{2})\s*$/)?.[1] ?? "";
     const day = Math.floor(now / 1440) * 1440;
     const hm = t.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
     const at = (base: number) => {
@@ -1234,7 +1261,8 @@ export class Folder {
         const whom = op.object ? this.person(op.object, seq) : undefined;
         if (!who || !a.what) return this.reject(ctx, `write ${op.op} A → B: what | status [due …]`);
         const id = this.obligationId(op.op, who.id, whom?.id, a.what);
-        const o = (st.obligations[id] ??= { id, kind: op.op, who: who.id, whom: whom?.id, what: clip(a.what), status: "open", seq });
+        const made = this.now();
+        const o = (st.obligations[id] ??= { id, kind: op.op, who: who.id, whom: whom?.id, what: clip(a.what), status: "open", seq, ...(made != null ? { made } : {}) });
         if (a.due) o.due = { minutes: this.when(a.due), text: a.due };
         // E3: a meeting, its window, and how much it matters.
         if (a.meet) o.meet = clip(a.meet);
@@ -1518,8 +1546,14 @@ export class Folder {
   }
 
   obligationId(kind: string, who: string, whom: string | undefined, what: string) {
+    const own = `${kind}:${who}>${whom ?? "-"}:${slug(what)}`;
     const close = Object.values(this.state.obligations).find((o) => o.kind === kind && o.who === who && o.whom === whom && overlap(o.what, what) >= 0.5);
-    return close?.id ?? `${kind}:${who}>${whom ?? "-"}:${slug(what)}`;
+    if (close || this.state.obligations[own]) return close?.id ?? own;
+    // The same promise said again to someone else: "tell Dawn about the jealousy question at dinner"
+    // to Gabriel (#467), then "the jealousy/Spike story at dinner" to Dawn (#501). One record, or
+    // one is kept while the other breaks.
+    const again = Object.values(this.state.obligations).find((o) => o.kind === kind && o.who === who && (o.status === "open" || o.status === "due") && restated(o.what, o.whom ? this.nameOf(o.whom) : "", what, whom ? this.nameOf(whom) : ""));
+    return again?.id ?? own;
   }
 }
 
