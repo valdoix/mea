@@ -213,6 +213,8 @@ export interface Obligation {
   status: "open" | "due" | "kept" | "broken" | "paid" | "forgiven" | "lapsed" | "excused";
   due?: { minutes: number | null; text: string };
   seq: number;
+  /** Story minutes when it was made: the clock never breaks it sooner than its window after that. */
+  made?: number;
   /** Kept/broken already moved the bond. */
   felt?: boolean;
   /** E3: a meeting (both there, at this place, in the window). */
