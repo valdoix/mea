@@ -219,6 +219,23 @@ describe("timeline sanity (CON-12)", () => {
     clockAt(fine, "clock: +3d");
     expect(timelineIssues(tchat, fine)).toHaveLength(0);
   });
+  test("a clock the prose reads aloud an hour off the story clock", () => {
+    const chat = createChat({ characterId: charId }).id;
+    const at = (messageId: string | null, line: string) => writeEvents(chat, { messageId, swipeIdx: -1 }, linesToOps([line]).ops, "model");
+    at(null, "clock: 2001-10-11 17:20");
+    const off = addMessage(chat, "assistant", "The clock somewhere in the house — Buffy can hear it now, faint, in the kitchen maybe — ticks toward 16:50. Sundown in forty minutes.", { name: "Mira" });
+    at(off, "clock: +30m");
+    const i = timelineIssues(chat, off)[0];
+    expect(i?.claim).toBe("clock somewhere in the house — Buffy can hear it now, faint, in the kitchen maybe — ticks toward 16:50");
+    expect(i?.conflict).toContain("16:50");
+    expect(i?.fix).toContain("17:50");
+    const near = addMessage(chat, "assistant", "The kitchen clock ticks past 18:02, and it's 6:05 by the time she sits.", { name: "Mira" });
+    at(near, "clock: +15m");
+    expect(timelineIssues(chat, near)).toHaveLength(0);
+    const plan = addMessage(chat, "assistant", "They'll meet at 21:00, after the patrol. Her phone screen glows, the timer showing 03:41.", { name: "Mira" });
+    at(plan, "clock: +5m");
+    expect(timelineIssues(chat, plan)).toHaveLength(0);
+  });
   test("lands in the reply's notes next to the other checks", async () => {
     const m = addMessage(tchat, "assistant", "Mira pours the tea and sits.", { name: "Mira" });
     clockAt(m, "clock: Day 1 06:00");

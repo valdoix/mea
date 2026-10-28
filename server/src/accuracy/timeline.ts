@@ -92,5 +92,43 @@ export function timelineIssues(chatId: string, messageId: string): Omit<Issue, "
         by: "rules",
       });
   }
+  // A clock the prose reads aloud ("the kitchen clock ticks toward 16:50") against the story clock.
+  const read = out.length || FLASHBACK.test(text) ? null : misreadClock(text, before, after);
+  if (read)
+    out.push({
+      kind: "timeline",
+      severity: "minor",
+      claim: read.said,
+      conflict: `The reply reads the time as ${read.time}, but the story clock says ${clock(after)}.`,
+      citations: cite(`story clock after this reply: ${clock(after)}`),
+      fix: `It's ${clock(after)}.`,
+      by: "rules",
+    });
   return out;
+}
+
+const READING = /\b(?:clocks?|watch|phone|display)\b[^.!?\n]{0,120}?\b(\d{1,2}):(\d{2})\b|\bit(?:'s|’s| is)\s+(?:already\s+|nearly\s+|almost\s+|just\s+)?(?:past\s+)?(\d{1,2}):(\d{2})\b/gi;
+/** How far a clock reading may sit outside the reply's span of story time before it's a slip. */
+const READ_SLACK = 15;
+
+/** The first clock reading in the prose that sits more than a quarter hour outside the reply's span of story time. */
+export function misreadClock(text: string, before: number, after: number): { said: string; time: string } | null {
+  const lo = Math.min(before, after) - READ_SLACK;
+  const hi = Math.max(before, after) + READ_SLACK;
+  for (const m of text.matchAll(READING)) {
+    const h = Number(m[1] ?? m[3]);
+    const min = Number(m[2] ?? m[4]);
+    // A timer or a countdown shows how long, not what time it is.
+    if (h > 23 || min > 59 || /\b(?:timer|countdown|stopwatch)\b/i.test(m[0])) continue;
+    // "5:50" may be the afternoon's; read a 12-hour time both ways.
+    const day = [h * 60 + min, ...(h <= 12 ? [((h + 12) % 24) * 60 + min] : [])];
+    let off = Infinity;
+    for (let d = Math.floor(lo / 1440) - 1; d <= Math.floor(hi / 1440) + 1; d++)
+      for (const c of day) {
+        const at = d * 1440 + c;
+        off = Math.min(off, at < lo ? lo - at : at > hi ? at - hi : 0);
+      }
+    if (off > 0) return { said: m[0].trim(), time: `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}` };
+  }
+  return null;
 }
