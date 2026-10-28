@@ -118,7 +118,49 @@ const userRule = (user: string, persona: PersonaMode | null) =>
  * planner staged the same discovery reply after reply (Dawn finding Buffy's hands, three times).
  */
 const PLAYED_RULE =
-  "Your earlier plans were already written into the story: what they planned has happened, so build on it and never stage it again (a discovery, confession or reaction that already played stays played). Pick up where the last reply ended, and follow the player's latest message even where it moves past your earlier plans. Something that already happened today happened where, when and how TODAY SO FAR says: a plan that has someone retell it takes it from there, never from a guess or a character's own loose recollection";
+  "Your earlier plans were already written into the story: what they planned has happened, so build on it and never stage it again (a discovery, confession or reaction that already played stays played). Pick up where the last reply ended, and follow the player's latest message even where it moves past your earlier plans. When someone retells or brings up something that already happened (the story promised at dinner, last night's fight), it happened where, when and how the story shows it: take it from TODAY SO FAR, WHERE THE OPEN PROMISES WERE MADE or the messages, never from a guess or a character's own loose recollection";
+
+/** A text's content words, stemmed loosely ("jealousy" and "jealous" meet), for telling what a promise is about. */
+const words = (s: string) => (s.toLowerCase().match(/\p{L}{4,}/gu) ?? []).map((w) => w.slice(0, 6));
+
+/** How much of each promise's moment the planner reads: your message that led to it, and the reply it was made in. */
+const ORIGIN_ASK_CHARS = 700;
+const ORIGIN_REPLY_CHARS = 1800;
+const ORIGIN_MAX = 3;
+
+/**
+ * Where each open promise was made, for the ones the recent messages no longer show. Told only
+ * "Buffy promised to tell Dawn about the jealousy question", the planner made the question up
+ * and put it in the kitchen that morning; it was asked in the car, before the faucet.
+ */
+export function promiseOrigins(state: WorldState, history: HistoryMessage[], names: { char: string; user: string }, shownFrom: number, focus = "") {
+  const nm = (id?: string) => (!id ? "someone" : state.chars[id]?.isUser ? names.user : (state.chars[id]?.name ?? id));
+  const speaker = (m: HistoryMessage) => (m.role === "user" ? names.user : m.role === "assistant" ? names.char : "Note");
+  // The promises the latest messages are about come first ("the jealousy story"), then the ones falling due, then the newest.
+  const said = new Set(words(focus));
+  const now = state.time?.minutes ?? null;
+  const rank = (o: WorldState["obligations"][string]) => {
+    const about = words(o.what).filter((w) => said.has(w)).length;
+    const due = o.status === "due" || (o.due?.minutes != null && now != null && o.due.minutes - now <= 1440) ? 1 : 0;
+    return about * 2 + due;
+  };
+  const open = Object.values(state.obligations)
+    .filter((o) => (o.status === "open" || o.status === "due") && o.seq < shownFrom)
+    .sort((a, b) => rank(b) - rank(a) || b.seq - a.seq)
+    .slice(0, ORIGIN_MAX);
+  const out: string[] = [];
+  for (const o of open) {
+    const i = history.findIndex((m) => m.seq === o.seq);
+    if (i < 0) continue;
+    const made = history[i]!;
+    const ask = made.role !== "user" ? history.slice(0, i).findLast((m) => m.role === "user") : undefined;
+    const lines = [`- ${nm(o.who)} promised ${nm(o.whom)}: ${o.what}`];
+    if (ask) lines.push(`  ${speaker(ask)}: ${excerpt(cleanText(ask.content), ORIGIN_ASK_CHARS)}`);
+    lines.push(`  ${speaker(made)}: ${excerpt(cleanText(made.content), ORIGIN_REPLY_CHARS)}`);
+    out.push(lines.join("\n"));
+  }
+  return out;
+}
 
 /**
  * A message as the planner reads it: whole when it fits, else its opening and its ending, since
@@ -284,6 +326,8 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
       .map((t) => `${t.title}${t.status === "stalled" ? " (stalled)" : ""}${t.latest ? `: ${t.latest}` : ""}`)
       .slice(0, 8);
     if (open.length) parts.push(`OPEN THREADS:\n${open.map((t) => `- ${t}`).join("\n")}`);
+    const origins = promiseOrigins(st, history, names, history.at(-8)?.seq ?? Infinity, [...history.slice(-2).map((m) => m.content), focus].join("\n"));
+    if (origins.length) parts.push(`WHERE THE OPEN PROMISES WERE MADE (what was said then; the past, as it happened):\n${origins.join("\n\n")}`);
     // docs/20 1.2: the day in order, so a plan that retells today places it where it happened.
     const today = todayText(st, beatNames(chatId, st));
     if (today) parts.push(`TODAY SO FAR:\n${today}`);
