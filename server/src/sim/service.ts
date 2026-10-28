@@ -124,23 +124,28 @@ function loreSchedules(chatId: string): string[] {
     .slice(0, 80);
 }
 
-/** People the lorebooks describe (a "Name", "Name - role" or "Character: Name" entry about a person). */
-function lorePeople(chatId: string): { name: string; text: string }[] {
+/** People the lorebooks describe (a "Name", "Name - role" or "Character: Name" entry about a person), and the rest of the lore's text. */
+function lorePeople(chatId: string): { people: { name: string; text: string }[]; notes: string[] } {
   const chat = mustChat(chatId);
-  const out: { name: string; text: string }[] = [];
+  const people: { name: string; text: string }[] = [];
+  const notes: string[] = [];
   for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
     if (!e.enabled) continue;
     const name = lorePersonName(e);
-    if (!name) continue;
-    out.push({ name, text: e.content.slice(0, 1200) });
-    if (out.length >= 60) break;
+    if (!name) {
+      if (notes.length < 200) notes.push(e.content.slice(0, 2000));
+      continue;
+    }
+    if (people.length < 60) people.push({ name, text: e.content.slice(0, 1200) });
+    else notes.push(e.content.slice(0, 2000));
   }
-  return out;
+  return { people, notes };
 }
 
 export function rosterFor(chatId: string, state: WorldState): Roster {
   const fc = foldConfigFor(chatId);
-  return buildRoster({ state, profiles: castProfiles(chatId), lore: lorePeople(chatId), userName: fc.userName, schedules: loreSchedules(chatId) });
+  const { people, notes } = lorePeople(chatId);
+  return buildRoster({ state, profiles: castProfiles(chatId), lore: people, notes, userName: fc.userName, schedules: loreSchedules(chatId) });
 }
 
 function skyInput(chatId: string, state: WorldState, cfg: ResolvedWorldConfig): SkyInput | null {

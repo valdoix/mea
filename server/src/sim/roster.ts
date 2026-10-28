@@ -63,6 +63,41 @@ function saidOf(text: string, re: RegExp, name?: string): boolean {
   return false;
 }
 
+const DIES = /\b(?:killed by|murdered by|slain by|was killed|was murdered|was slain|died|is dead|passed away)\b/i;
+/** Between a name and its death: words that make the clause about someone or something else, or undo it. */
+const NOT_THEIR_DEATH = /'s\b|’s\b|\b(?:that|when|while|whose|who|whom|saw|watched|learned|heard|told|after|before|since|because|as|if|until|her|his|their|him|them|nearly|almost|never|not|faked|thought|believed|presumed)\b|n't\b/i;
+const UNDONE = /\b(?:came back|brought back|back from the dead|resurrected|revived|raised|returned|rose again)\b/i;
+
+/**
+ * Whether any lore says this person died ("Kendra was Called and later killed by Drusilla"):
+ * their name, then a death in the same sentence with nothing between that makes it someone
+ * else's ("Willow saw Tara die", "Joyce's mother died", "Kendra lent it to Buffy and died")
+ * or takes it back ("died and came back").
+ */
+export function diedInLore(name: string, texts: string[], others: string[]): boolean {
+  const names = [name, ...(name.includes(" ") ? [name.split(/\s+/)[0]!] : [])].filter((w) => w.length >= 3).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!names.length) return false;
+  const at = new RegExp(`\\b(?:${names.join("|")})\\b`, "gi");
+  // "Angelus, murdering Jenny Calendar", "Drusilla killed Kendra".
+  const killedThem = new RegExp(`\\b(?:killed|killing|murdered|murdering|slew|slaying|slays)\\s+(?:${names.join("|")})\\b`, "i");
+  const otherWords = new Set(others.flatMap((o) => o.toLowerCase().split(/\s+/)).filter((w) => w.length >= 3 && !name.toLowerCase().split(/\s+/).includes(w)));
+  for (const text of texts)
+    for (const sentence of text.split(/[.;!?\n]/)) {
+      if (UNDONE.test(sentence)) continue;
+      if (killedThem.test(sentence) && !/\b(?:nearly|almost|tried to|trying to|wants? to|plans? to)\s+(?:killed|killing|murdered|murdering|slew|slaying|slays)\b/i.test(sentence)) return true;
+      for (const m of sentence.matchAll(at)) {
+        const after = sentence.slice(m.index + m[0].length);
+        const d = after.match(DIES);
+        if (!d || d.index! > 60) continue;
+        const between = after.slice(0, d.index);
+        if (NOT_THEIR_DEATH.test(between)) continue;
+        if ((between.toLowerCase().match(/[\p{L}'’-]+/gu) ?? []).some((w) => otherWords.has(w))) continue;
+        return true;
+      }
+    }
+  return false;
+}
+
 const FAR_ALL = new RegExp(FAR.source, "gi");
 const PAST_LABEL = /^(?:history|past|origin|backstory|nickname|arc|youth|childhood|born)$/i;
 const PAST_WORDS = /\b(?:1\d{3}|20\d{2}|youth|born|childhood|grew up|once|used to|years ago|formerly)\b/i;
@@ -167,6 +202,8 @@ export interface RosterInput {
   userName: string;
   /** docs/17, 5.2: the lore's Routine schedules, a line each ("dawn: Mira Vell, at the tower"). */
   schedules?: string[];
+  /** The rest of the lore (history, items, events), where a death is often told. */
+  notes?: string[];
 }
 
 /** "Willow" and "Willow Rosenberg" are the same person: one name is the other's first words. */
@@ -276,6 +313,18 @@ export function buildRoster(inp: RosterInput): Roster {
 
   // Ties: bonds both ways, then what descriptions say about each other.
   const all = [...actors.values()];
+
+  // A death told anywhere in the lore ("Kendra was Called and later killed by Drusilla"): nobody off the page tells them news.
+  const loreTexts = [...inp.lore.map((l) => l.text), ...(inp.notes ?? [])];
+  const everyone = all.map((a) => a.name);
+  for (const a of all) {
+    if (a.dead || a.ring === "onstage" || a.isUser || a.isMain || inp.profiles[keyOf(a.name)]?.standing) continue;
+    if (!diedInLore(a.name, loreTexts, everyone)) continue;
+    a.standing = "dead";
+    a.dead = true;
+    a.reach = "none";
+    a.travel = TRAVEL.none;
+  }
   const tie = (a: string, b: string, s: number) => {
     if (a === b) return;
     const A = actors.get(a);

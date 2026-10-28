@@ -7,7 +7,8 @@ import type { NewsHop } from "./types";
  * News off the page (ALMANAC 09 §8): big facts travel person to person along ties, with delays
  * and distortion. Nobody acts on news that hasn't reached them; secrets don't spread from
  * their keepers; nobody passes on news about themselves. News about your character or the main
- * one stays on the page (who finds out about them is the story's to tell), and news about
+ * one stays on the page (who finds out about them is the story's to tell), as does anything
+ * they'd tell or be told, and news about
  * someone only reaches people who know them.
  */
 const BIG = /\b(alive|back from the dead|came back|is back|returned|died|dead|killed|murder\w*|pregnan\w*|married|engaged|broke up|divorc\w*|arrested|in jail|escaped|betray\w*|stole|fired|quit|left town|moved away|attack\w*|raid\w*|fire\b|burned|hurt|hospital|missing|kidnapp\w*|exposed|secret|affair|lied|engaged|kissed|dating|together)\b/i;
@@ -33,7 +34,8 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
     const words = new Set(statement.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []);
     return actors.filter((a) => first(a.name).length > 1 && words.has(first(a.name)));
   };
-  const facts = Object.values(o.state.facts).filter((f) => BIG.test(f.statement));
+  // "The thermostat hasn't moved since Joyce died" isn't news of a death: only the main clause counts.
+  const facts = Object.values(o.state.facts).filter((f) => BIG.test(f.statement.replace(/\b(?:ever since|since|after|before|until|when)\b[^,;.]*/gi, "")));
   for (const f of facts) {
     const about = named(f.statement);
     if (about.some((a) => a.isUser || a.isMain)) continue;
@@ -42,12 +44,13 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
       if (hops.length >= max) break;
       if (!HAS.has(stance.status)) continue;
       const holder = o.roster.actors.get(holderId);
-      if (!holder || holder.dead || holder.isUser || holder.ring === "onstage") continue;
+      // The main character's talk is the story's to tell, even when they've stepped out of the scene.
+      if (!holder || holder.dead || holder.isUser || holder.isMain || holder.ring === "onstage") continue;
       if (secretKeepers.has(holderId)) continue;
       for (const [otherId, strength] of holder.ties) {
         if (hops.length >= max) break;
         const other = o.roster.actors.get(otherId);
-        if (!other || other.dead || other.isUser || other.ring === "onstage") continue;
+        if (!other || other.dead || other.isUser || other.isMain || other.ring === "onstage") continue;
         if (other.knows.has(f.key) && other.knows.get(f.key) !== "unaware") continue;
         // News about yourself isn't passed on, and isn't news to you.
         if (f.statement.toLowerCase().includes(other.name.toLowerCase().split(" ")[0]!) || f.statement.toLowerCase().includes(holder.name.toLowerCase().split(" ")[0]!)) continue;
