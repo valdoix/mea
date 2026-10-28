@@ -23,6 +23,8 @@ import { runSlips, slipAllowed, slipContext } from "./slips";
 import { tieIssues } from "./ties";
 import { currentFold, foldAt, invalidate, linesToOps } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
+import { formatStoryTime } from "../trackers/clock";
+import { beatNames, todayLines } from "../trackers/today";
 
 /**
  * The continuity checker (CON-02) and the knowledge-leak guard (CON-06). After each reply:
@@ -220,13 +222,16 @@ function factSheet(chatId: string, reply: string, st: WorldState | null, seq: nu
     add("S", { type: "message", label: `#${r.seq} (${who})`, messageId: r.id, seq: r.seq }, `Message #${r.seq}, written by ${who}${r.role === "user" ? " (the player)" : ""}: ${cleanText(r.content).replace(/\s+/g, " ")}`);
   }
   if (st) {
-    if (st.time) add("T", { type: "tracker", label: "story time" }, `Story time now: ${Math.floor(st.time.minutes / 1440) + 1}d ${String(Math.floor((st.time.minutes % 1440) / 60)).padStart(2, "0")}:${String(st.time.minutes % 60).padStart(2, "0")}`);
+    // A calendar clock's minutes count from year one: "730000d 15:15" told the checker nothing.
+    if (st.time) add("T", { type: "tracker", label: "story time" }, `Story time now: ${formatStoryTime(st.time)}`);
     if (st.place.length) add("T", { type: "tracker", label: "place" }, `Place now: ${st.place.join(" › ")}`);
     for (const c of Object.values(st.chars)) {
       // Everyone the story has met is listed, even with nothing known about them yet: a name missing here reads as a stranger.
       const bits = [c.traits.map((t) => t.text).join(", "), c.look ?? "", c.dead ? "DEAD" : "", c.tier === "spot" || c.tier === "peri" ? "present" : c.place ? `at ${c.place}` : "", c.firstSeq ? `in the story since #${c.firstSeq}` : ""].filter(Boolean);
       add("T", { type: "tracker", label: c.name, seq: c.lastSeq, messageId: msg.get(c.lastSeq) ?? null }, `${c.name}${c.isUser ? " (the player's character)" : ""}: ${bits.join("; ")}`);
     }
+    // docs/20 1.2: the day in order, so a reply that retells today can be checked against where and when it happened.
+    for (const b of todayLines(st, beatNames(chatId, st))) add("B", { type: "tracker", label: `today, #${b.seq}`, seq: b.seq, messageId: msg.get(b.seq) ?? null }, `Today: ${b.text}`);
     for (const f of Object.values(st.facts).slice(-20)) {
       const who = Object.entries(f.stances)
         .map(([id, s]) => `${st.chars[id]?.name ?? id} ${s.status}`)
@@ -261,7 +266,7 @@ function factSheet(chatId: string, reply: string, st: WorldState | null, seq: nu
       add("R", { type: r.type, label: r.label, id: r.id }, `Story RULE: ${r.text}`);
       rules++;
     }
-  return { lines, cites, rules };
+  return { lines, cites, rules, today: [...cites.keys()].some((k) => k.startsWith("B")) };
 }
 
 /** Rules the helper pass also checks a reply against (kept lessons, A1). */
@@ -336,7 +341,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           jobId: opts.job?.id,
           name: "continuity_check",
           schema: modelSchema,
-          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Watch who said and did what: a line, an act or an idea credited to the wrong person, whether it was said in the recent messages (S ids, quoted in full) or earlier in this same reply (kind "who"; cite the S id, or none when the reply contradicts itself). The S messages are the story itself and outrank the other FACTS. Watch who is where: someone the FACTS have present arriving as if they had been away, or someone the FACTS have elsewhere in the room with no arrival, is a contradiction (kind "place"). Check a look or trait against the person it describes, never someone else in the same sentence ("her eyes went to his blue ones" is about him). Not style, not things the facts don't cover, not new details that merely add to them. The FACTS are summaries kept by helpers and can lag behind the story (an object handed back, a change of clothes): a reply describing a later change isn't wrong for it.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."; for an invented past, the event as the reply tells it, never its denial). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
+          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Watch who said and did what: a line, an act or an idea credited to the wrong person, whether it was said in the recent messages (S ids, quoted in full) or earlier in this same reply (kind "who"; cite the S id, or none when the reply contradicts itself). The S messages are the story itself and outrank the other FACTS. Watch who is where: someone the FACTS have present arriving as if they had been away, or someone the FACTS have elsewhere in the room with no arrival, is a contradiction (kind "place"). Check a look or trait against the person it describes, never someone else in the same sentence ("her eyes went to his blue ones" is about him). Not style, not things the facts don't cover, not new details that merely add to them. The FACTS are summaries kept by helpers and can lag behind the story (an object handed back, a change of clothes): a reply describing a later change isn't wrong for it.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""}${sheet.today ? ` The B facts are today in order, each at its time and place: a reply that tells one of those events at another time or place, in another order, or with other words in someone's mouth contradicts it (kind "${slipAllowed("past", g) ? "past" : "fact"}"; cite the B id).` : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."; for an invented past, the event as the reply tells it, never its denial). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
           user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content)}`,
         });
         for (const i of r.data.issues) {

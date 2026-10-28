@@ -9,7 +9,7 @@ import { emptySim, type SimState } from "../sim/types";
 export type OpName =
   | "clock" | "wx" | "at" | "scene" | "mode" | "cast" | "mood" | "body" | "look" | "trait" | "drive" | "mask" | "think" | "journal" | "dead"
   | "bond" | "ladder" | "know" | "secret" | "reveal" | "item" | "thread" | "owe" | "promise" | "deadline" | "plant" | "payoff" | "clue"
-  | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
+  | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "beat" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
   // B2: a secret's exposure clock (written by the engine and by you, never by the model)
   | "expose"
   // E1: a character's hidden pressure (the engine and you, never the model)
@@ -346,6 +346,8 @@ export interface WorldState {
   calendar: Record<string, CalendarEvent>;
   motifs: Record<string, Motif>;
   milestones: Milestone[];
+  /** docs/20 1.1: what happened, one line per reply, stamped with the story time, place and who was there. */
+  beats: Beat[];
   places: Record<string, Place>;
   /** Custom template values (TRK-01): { templateKey: { field: value } }. */
   custom: Record<string, Record<string, unknown>>;
@@ -409,10 +411,23 @@ export function emptyWorld(): WorldState {
     calendar: {},
     motifs: {},
     milestones: [],
+    beats: [],
     places: {},
     custom: {},
     locks: [],
     sim: emptySim(),
     lastSeq: 0,
   };
+}
+
+/** docs/20 1.1: one reply's events in a line, where and when they happened. */
+export interface Beat {
+  text: string;
+  seq: number;
+  /** Story minutes after the reply (null before the clock is set). */
+  minutes: number | null;
+  form?: "date" | "day";
+  place: string[];
+  /** Who was in the scene (ids). */
+  who: string[];
 }

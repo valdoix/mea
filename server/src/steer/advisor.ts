@@ -19,6 +19,7 @@ import { correctMemory } from "../accuracy/corrections";
 import { countTokens } from "../lib/tokens";
 import { buildMemoryContext, memoryInputs } from "../memory/context";
 import { revealsOf } from "../trackers/reveals";
+import { beatNames, todayText } from "../trackers/today";
 import type { WorldState } from "../trackers/types";
 
 /**
@@ -117,7 +118,7 @@ const userRule = (user: string, persona: PersonaMode | null) =>
  * planner staged the same discovery reply after reply (Dawn finding Buffy's hands, three times).
  */
 const PLAYED_RULE =
-  "Your earlier plans were already written into the story: what they planned has happened, so build on it and never stage it again (a discovery, confession or reaction that already played stays played). Pick up where the last reply ended, and follow the player's latest message even where it moves past your earlier plans";
+  "Your earlier plans were already written into the story: what they planned has happened, so build on it and never stage it again (a discovery, confession or reaction that already played stays played). Pick up where the last reply ended, and follow the player's latest message even where it moves past your earlier plans. Something that already happened today happened where, when and how TODAY SO FAR says: a plan that has someone retell it takes it from there, never from a guess or a character's own loose recollection";
 
 /**
  * A message as the planner reads it: whole when it fits, else its opening and its ending, since
@@ -283,6 +284,9 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
       .map((t) => `${t.title}${t.status === "stalled" ? " (stalled)" : ""}${t.latest ? `: ${t.latest}` : ""}`)
       .slice(0, 8);
     if (open.length) parts.push(`OPEN THREADS:\n${open.map((t) => `- ${t}`).join("\n")}`);
+    // docs/20 1.2: the day in order, so a plan that retells today places it where it happened.
+    const today = todayText(st, beatNames(chatId, st));
+    if (today) parts.push(`TODAY SO FAR:\n${today}`);
   } catch {
     // trackers are optional
   }
@@ -300,7 +304,8 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     // H3: the planner also sees the lanes (lessons, canon, pressures, promises…) the writer would.
     try {
       const st = foldAt(chatId, { excludeMessageId }).state;
-      const lanes = wholeFit(gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).map((l) => l.content.trim()).filter(Boolean), LANES_TOKENS);
+      // TODAY SO FAR is already above, whole.
+      const lanes = wholeFit(gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).filter((l) => l.lane !== "today").map((l) => l.content.trim()).filter(Boolean), LANES_TOKENS);
       if (lanes.length) parts.push(`WHAT MEA'S FEATURES ADD THIS TURN:\n${lanes.join("\n\n")}`);
     } catch {
       // lanes are optional

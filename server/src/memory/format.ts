@@ -54,22 +54,32 @@ export function relativeTime(then: number, nowMin: number): string {
   return y === 1 ? "a year ago" : `${y} years ago`;
 }
 
-/** Story time per message (from the trackers) and place per scene (from scene records). */
+/** Story time and place per message (from the trackers), and place per scene (from scene records) where the trackers have none. */
 export class TimeIndex {
   private seqs: number[] = [];
   private minutes: number[] = [];
+  private placeSeqs: number[] = [];
+  private placeNames: string[] = [];
   private scenePlace = new Map<string, string>();
   private sceneTime = new Map<string, string>();
   readonly now: number | null;
   constructor(chatId: string) {
     let times: Record<string, string | null> = {};
+    let places: Record<string, string> = {};
     try {
-      times = currentFold(chatId).times;
+      const f = currentFold(chatId);
+      times = f.times;
+      places = f.places ?? {};
     } catch {
       times = {};
     }
     const rows = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq", chatId);
     for (const r of rows) {
+      const p = places[r.id];
+      if (p) {
+        this.placeSeqs.push(r.seq);
+        this.placeNames.push(p.split(" › ").slice(-2).join(" › "));
+      }
       const t = times[r.id];
       if (!t) continue;
       this.seqs.push(r.seq);
@@ -84,27 +94,40 @@ export class TimeIndex {
   }
   /** Story minutes at a message (the latest known at or before it). */
   at(seq: number | null): number | null {
-    if (seq == null || !this.seqs.length) return null;
-    let lo = 0;
-    let hi = this.seqs.length - 1;
-    let best = -1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if (this.seqs[mid]! <= seq) {
-        best = mid;
-        lo = mid + 1;
-      } else hi = mid - 1;
-    }
-    return best < 0 ? null : this.minutes[best]!;
+    const i = latest(this.seqs, seq);
+    return i < 0 ? null : this.minutes[i]!;
   }
   when(seq: number | null, sceneId?: string | null): string | null {
     const t = this.at(seq);
     if (t != null && this.now != null) return relativeTime(t, this.now);
     return sceneId ? (this.sceneTime.get(sceneId) ?? null) : null;
   }
-  where(sceneId?: string | null): string | null {
+  /**
+   * Where a memory happened: the place at its own message, since a scene can move (the drive home
+   * was filed "at Gabriel's kitchen", where its scene began); the scene's place when the trackers
+   * have none. A whole scene's summary passes no seq and keeps the scene's place.
+   */
+  where(sceneId?: string | null, seq?: number | null): string | null {
+    const i = latest(this.placeSeqs, seq ?? null);
+    if (i >= 0) return this.placeNames[i]!;
     return sceneId ? (this.scenePlace.get(sceneId) ?? null) : null;
   }
+}
+
+/** The index of the latest seq at or before this one, or -1. */
+function latest(seqs: number[], seq: number | null) {
+  if (seq == null || !seqs.length) return -1;
+  let lo = 0;
+  let hi = seqs.length - 1;
+  let best = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (seqs[mid]! <= seq) {
+      best = mid;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  return best;
 }
 
 const RECALL_HEADERS: Record<MemoryConfig["format"], string> = {

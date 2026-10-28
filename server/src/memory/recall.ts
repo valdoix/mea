@@ -298,7 +298,7 @@ export function recall(input: RecallInput) {
   const decorate = (it: RecallItem, sceneId: string | null, who: string[] = []): RecallItem => ({
     ...it,
     when: input.times.when(it.seq, sceneId),
-    where: input.times.where(sceneId),
+    where: input.times.where(sceneId, it.ownerType === "summary" ? null : it.seq),
     who: who.length ? who : undefined,
   });
   const itemFor = (key: string, slot: RecallItem["slot"], extraReason?: string): RecallItem | null => {
@@ -460,7 +460,7 @@ export function recall(input: RecallInput) {
         tokens,
         seq: h.seq,
         when: input.times.when(h.seq, h.sceneId),
-        where: input.times.where(h.sceneId),
+        where: input.times.where(h.sceneId, h.seq),
       });
       used += tokens;
       stats.deep++;

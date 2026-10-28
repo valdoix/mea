@@ -18,6 +18,8 @@ trait Name: green eyes; red hair in a braid   (only lasting features, first time
 drive Name: want: …; fear: …; need: …; tactic: …      mask Name: shown: calm; felt: panic; tell: …
 think Name: "Damn it, not now. If she finds the letter I'm finished."       journal Name: "a turning point, in their own slant"
    (think: every reply, one line for each person @spot, even when little else changed, never for a character marked sealed; first person, in their own head-voice: their words, slang, oaths, grudges and worries, only what they know, about what's in front of them; a raw reaction, not narration, summary or poetry)
+beat: Alex asks Mira whether she ever loved Joss; she says no and promises to tell Sam at supper
+   (beat: every reply, one line, last: what happened in the NEW MESSAGES, in order, at most 25 words: who did or said what, with the names; plain facts, never how it read; a line said that matters goes in as said)
 dead Name — cause
 bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${AXES.join(", ")}; usually ±1, ±2 major; write the change, not old → new)
    (fear is fear OF them: they are a threat. worry is fear FOR them: they might get hurt, caught or lost. Dreading what happens to someone you care about is worry, never fear.)

@@ -447,6 +447,8 @@ interface CacheEntry {
   result: FoldResult;
   /** State time after each message (CHAT-20). */
   times: Record<string, string | null>;
+  /** docs/20 1.3: where the story was after each message ("Sunnydale › Revello Drive › kitchen"). */
+  places?: Record<string, string>;
 }
 
 const versions = new Map<string, number>();
@@ -489,6 +491,8 @@ interface Snapshot {
   changes: FoldResult["changes"];
   verdicts: FoldResult["verdicts"];
   times: Record<string, string | null>;
+  /** docs/20 1.3: where the story was after each message ("Sunnydale › Revello Drive › kitchen"). */
+  places?: Record<string, string>;
 }
 interface SnapshotSet {
   key: string;
@@ -565,11 +569,13 @@ function foldBranch(chatId: string, opts: { uptoSeq?: number; excludeMessageId?:
 
   const f = new Folder(cfg, base ? structuredClone(base.state) : undefined);
   let times: Record<string, string | null> = {};
+  let places: Record<string, string> = {};
   if (base) {
     // Earlier messages' chips and verdicts are final: later events only add their own.
     f.changes = { ...base.changes };
     f.verdicts = { ...base.verdicts };
     times = { ...base.times };
+    places = { ...base.places };
   }
   const events = branchEvents(chatId, { uptoSeq: opts.uptoSeq, excludeMessageId: opts.excludeMessageId, afterSeq: base?.seq });
   let done = base?.seq ?? 0;
@@ -578,15 +584,16 @@ function foldBranch(chatId: string, opts: { uptoSeq?: number; excludeMessageId?:
     const point = Math.floor((ev.seq - 1) / SNAP_EVERY) * SNAP_EVERY;
     if (point > done) {
       if (set && point <= limit && !set.list.some((s) => s.seq === point)) {
-        set.list.push({ seq: point, state: structuredClone(f.state), changes: { ...f.changes }, verdicts: { ...f.verdicts }, times: { ...times } });
+        set.list.push({ seq: point, state: structuredClone(f.state), changes: { ...f.changes }, verdicts: { ...f.verdicts }, times: { ...times }, places: { ...places } });
         set.list.sort((a, b) => a.seq - b.seq);
       }
       done = point;
     }
     f.apply(ev);
     if (ev.messageId && f.state.time) times[ev.messageId] = `${f.state.time.minutes}:${f.state.time.form}`;
+    if (ev.messageId && f.state.place.length) places[ev.messageId] = f.state.place.join(" › ");
   }
-  return { result: { state: f.state, changes: f.changes, verdicts: f.verdicts } as FoldResult, times };
+  return { result: { state: f.state, changes: f.changes, verdicts: f.verdicts } as FoldResult, times, places };
 }
 
 /** The fold from the very first event, ignoring snapshots: the reference the snapshots must match (tests). */
