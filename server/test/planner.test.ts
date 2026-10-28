@@ -8,7 +8,8 @@ import { createConnection, createProfile, syncModels } from "../src/services/con
 import { subscribe } from "../src/lib/events";
 import { previewPrompt, startStory } from "../src/services/generation";
 import { pauseJobs, registerJob } from "../src/services/jobs";
-import { editPlan, planFor, plannerSteps, runAdvisor, steerFor, turnKey, undraft } from "../src/steer/advisor";
+import { editPlan, planFor, plannerSteps, promiseOrigins, runAdvisor, steerFor, turnKey, undraft } from "../src/steer/advisor";
+import type { WorldState } from "../src/trackers/types";
 import { freshDb } from "./helpers";
 
 let chatId = "";
@@ -111,5 +112,34 @@ describe("a separate planner model (H3)", () => {
     const p = await previewPrompt(chatId);
     expect(block(p, "mea-planning")?.included).toBe(true);
     updateChat(chatId, { settings: { planning: "reply" } });
+  });
+});
+
+describe("where the open promises were made", () => {
+  const names = { char: "Buffy", user: "Gabriel" };
+  const msg = (seq: number, role: "user" | "assistant", content: string) => ({ id: `m${seq}`, role, content, seq });
+  const promise = (id: string, what: string, seq: number, due?: number) => ({ id, kind: "promise" as const, who: "buffy", whom: "user", what, status: "open" as const, seq, ...(due != null ? { due: { minutes: due, text: "tonight" } } : {}) });
+  const state = (obligations: ReturnType<typeof promise>[]) =>
+    ({ chars: { buffy: { name: "Buffy" }, user: { name: "Gabriel", isUser: true } }, obligations: Object.fromEntries(obligations.map((o) => [o.id, o])), time: { minutes: 1000 } }) as unknown as WorldState;
+  const history = [
+    msg(1, "user", "In the car: \"Have you ever had romantic feelings towards Spike?\""),
+    msg(2, "assistant", "\"No. And Dawn's hearing about this at dinner, I promise.\" She gets out of the car."),
+    msg(3, "user", "He fixes the faucet."),
+    msg(4, "assistant", "\"I promise I'll make you pancakes.\""),
+    msg(5, "user", "Dawn asks for the jealousy story."),
+  ];
+
+  test("the planner reads the moment a promise was made: what led to it and the reply it was made in", () => {
+    const out = promiseOrigins(state([promise("p1", "tell Dawn about the jealousy question at dinner", 2)]), history, names, 5);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toContain("Buffy promised Gabriel: tell Dawn about the jealousy question at dinner");
+    expect(out[0]).toContain("Gabriel: In the car: \"Have you ever had romantic feelings towards Spike?\"");
+    expect(out[0]).toContain("Buffy: \"No. And Dawn's hearing about this at dinner");
+  });
+
+  test("the one the latest messages are about comes first; ones still on screen are left out", () => {
+    const st = state([promise("p1", "tell Dawn about the jealousy question at dinner", 2), promise("p2", "make him pancakes", 4)]);
+    expect(promiseOrigins(st, history, names, 5, "Dawn asks for the jealousy story.")[0]).toContain("jealousy question");
+    expect(promiseOrigins(st, history, names, 3)).toHaveLength(1);
   });
 });
