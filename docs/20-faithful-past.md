@@ -53,7 +53,7 @@ Measured on a copy of the production database, as of #509. Six things failed, an
 | **Part 0 · Stop the bleeding** | | |
 | 0.1 | "Day 1 15:05" resolves to today, not to story day 1 | — |
 | 0.2 | One promise, one record: a repeat merges into the first | — |
-| 0.3 | A clock verdict waits for the scene it names, and never rewrites the past | 0.1 |
+| 0.3 | The clock never breaks a promise sooner than its window after it was made | 0.1 |
 | **Part 1 · The day in order** | | |
 | 1.1 | A beat per reply: time · place · who · what happened | — |
 | 1.2 | TODAY SO FAR for the writer, advisor and checker | 1.1 |
@@ -93,9 +93,11 @@ Measured on a copy of the production database, as of #509. Six things failed, an
 
 A new promise with the same promiser and nearly the same *what* (content words, as in `promiseOrigins`) as an open one becomes a re-statement: it may add a due time or a second person promised, but it keeps the first one's id and seq. "Tell Dawn the jealousy story at dinner" (#501, to Dawn) joins "tell Dawn about the jealousy question at dinner" (#467, to Gabriel).
 
-### 0.3 The clock waits for the scene
+### 0.3 The clock waits
 
-When a promise names a scene ("at dinner", "after tacos"), it isn't broken by the clock while that scene is going on or hasn't started yet. A broken verdict reaches memory only once it's settled: not overturned in the next two replies, and not kept later on the same day.
+A promise records the story time it was made (`made`). The clock never breaks it sooner than its window after that, even when its due time was already behind the clock when it was promised ("at dinner, 15:05", said at 15:10). A later "kept" in either wording still overturns a clock verdict and takes its bond moves back, as it already did.
+
+Not built in Part 0: keeping a broken verdict out of memory until it's settled. Once Part 1's beats exist, a verdict can wait for the scene a promise names ("at dinner") instead of the clock.
 
 ---
 
