@@ -26,7 +26,7 @@ import type { Found } from "./slips";
  */
 
 /** Words that point at an earlier moment of the story ("back in the chair" and "before the clock" are too common to count). */
-const BACK =
+export const BACK =
   /\b(this (?:morning|afternoon|evening)|earlier(?: today| tonight)?|last night|yesterday|the other (?:day|night)|an? (?:hour|few hours|minute|few minutes) ago|when (?:you|he|she|they|we) (?:asked|said|told|called|did|were|got)|(?:you|he|she|they) (?:asked|told) (?:me|us|her|him)|remember when|and I quote|word for word|(?:his|her|your|their) exact words)\b/i;
 
 export interface Retelling {
@@ -58,6 +58,10 @@ export function findRetellings(reply: string): Retelling[] {
 export interface Source {
   seq: number;
   messageId: string;
+  /** Who wrote it: the player ("user") or the character. */
+  role?: string;
+  /** The moment of a promise the retelling keeps (where the event it tells happened). */
+  promised?: boolean;
   /** The beat for it, when there is one ("Gabriel asks Buffy whether…"). */
   beat?: string;
   /** The message's own words, around what the retelling shares with it. */
@@ -75,6 +79,8 @@ export const hhmm = (m: number) => `${pad(Math.floor((((m % DAY) + DAY) % DAY) /
 const stems = (text: string) => new Set([...contentWords(text)].flatMap((w) => w.split(/[-']/)).filter((w) => w.length >= 4).map((w) => w.slice(0, 6)));
 
 type Row = { id: string; seq: number; role: string; content: string };
+/** What any promise to tell something says: never what it's about. */
+const PROMISE_WORDS = new Set(["tell", "telli", "about", "promis", "tonigh", "today", "after", "befor", "later", "story", "stories", "whole"]);
 const ROW = "SELECT m.id, m.seq, m.role, s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe";
 
 /**
@@ -84,7 +90,7 @@ const ROW = "SELECT m.id, m.seq, m.role, s.content FROM messages m JOIN swipes s
  * ("jealous" for "romantic feelings"), but "tell Dawn about the jealousy question" was promised in
  * the reply that tells it right.
  */
-export function retellSources(chatId: string, st: WorldState | null, seq: number, r: Retelling, max = 4): (Source & { promised?: boolean })[] {
+export function retellSources(chatId: string, st: WorldState | null, seq: number, r: Retelling, max = 4): Source[] {
   const names = new Set(Object.values(st?.chars ?? {}).flatMap((c) => [...stems([c.name, ...(c.aliases ?? [])].join(" "))]));
   const want = [...stems(r.text)];
   if (!want.some((w) => !names.has(w))) return [];
@@ -102,11 +108,18 @@ export function retellSources(chatId: string, st: WorldState | null, seq: number
       // a query FTS can't parse finds nothing
     }
   const seqs = [...beats.keys()];
-  // The promise this retelling keeps: the reply it was made in, and the message that led to it.
-  for (const o of Object.values(st?.obligations ?? {})) {
-    if (o.seq >= seq) continue;
-    const shared = [...stems(o.what)].filter((w) => !names.has(w) && want.includes(w));
-    if (!shared.length) continue;
+  // The promise this retelling keeps: the reply it was made in, and the message that led to it. Only
+  // the one that shares the most with it: a word no other promise has ("jealousy") counts two, one
+  // many share ("dinner") one, and it takes two.
+  const earlier = Object.values(st?.obligations ?? {}).filter((o) => o.seq < seq);
+  const own = new Map(earlier.map((o) => [o, [...stems(o.what)].filter((w) => !names.has(w) && !PROMISE_WORDS.has(w))]));
+  const spread = new Map<string, number>();
+  for (const ws of own.values()) for (const w of ws) spread.set(w, (spread.get(w) ?? 0) + 1);
+  const promises = earlier
+    .map((o) => ({ o, n: own.get(o)!.filter((w) => want.includes(w)).reduce((n, w) => n + (spread.get(w) === 1 ? 2 : 1), 0) }))
+    .filter((x) => x.n >= 2);
+  const most = Math.max(0, ...promises.map((x) => x.n));
+  for (const { o } of promises.filter((x) => x.n === most).sort((x, y) => x.o.seq - y.o.seq).slice(0, 1)) {
     seqs.push(o.seq, o.seq - 1);
     kept.add(o.seq).add(o.seq - 1);
   }
@@ -123,6 +136,8 @@ export function retellSources(chatId: string, st: WorldState | null, seq: number
       return {
         seq: d.x.seq,
         messageId: d.x.id,
+        role: d.x.role,
+        promised: kept.has(d.x.seq),
         beat: beats.get(d.x.seq),
         passage: excerpt(d.x.content, contentWords(r.text), 520),
         minutes: ti.at(d.x.seq),
@@ -165,7 +180,7 @@ export function whenConflict(word: string | null, src: number | null, now: numbe
 }
 
 /** The best source is clear when it outscores the next by half again. */
-const clear = (s: Source[]) => s.length > 0 && (s.length === 1 || s[0]!.score >= s[1]!.score * 1.5);
+export const clear = (s: Source[]) => s.length > 0 && (s.length === 1 || s[0]!.score >= s[1]!.score * 1.5);
 
 const where = (s: Source) => [s.minutes != null ? hhmm(s.minutes) : null, s.place ? s.place.split(" › ").slice(-2).join(" › ") : null].filter(Boolean).join(", ");
 const cite = (s: Source) => ({ ref: `S${s.seq}`, type: "message" as const, label: `#${s.seq}${where(s) ? ` (${where(s)})` : ""}${s.beat ? `: ${s.beat}` : ""}`, messageId: s.messageId, seq: s.seq });

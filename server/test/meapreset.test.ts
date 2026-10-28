@@ -86,5 +86,5 @@ describe("the Persona and Romance controls drive the rest of Mea", () => {
 test("a change to Mea's preset comes with a new version", () => {
   const hash = new Bun.CryptoHasher("sha256").update(JSON.stringify(meaPreset())).digest("hex").slice(0, 16);
   // Changed the preset? Raise MEA_PRESET_VERSION in prompt/mea.ts, then put both new values here.
-  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 12, hash: "7aeb65a6d4caaf9f" });
+  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 13, hash: "db809ccd8e0e4e54" });
 });

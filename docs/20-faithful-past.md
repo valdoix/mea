@@ -2,7 +2,7 @@
 
 **Written:** October 28, 2026 · **Base:** Mea `main` after PR #174, with PR #175 (a promise comes with the moment it was made)
 
-In *Filed Under Stay*, Gabriel asked Buffy "Have you ever had romantic feelings towards Spike?" in the car outside Revello Drive (#466). Buffy promised to tell Dawn at dinner (#467). Then he fixed the faucet (#468–#471). At #509, Buffy tells Dawn the story: "This morning. Kitchen. He's fixing the faucet… and then he says — and I quote — 'Should I be jealous of Spike?'" The place, the time and the line are all wrong.
+In *Filed Under Stay*, Gabriel asked Buffy "Have you ever had romantic feelings towards Spike?" in the car outside Revello Drive (#466). Buffy promised to tell Dawn at dinner (#467). Then he fixed the faucet (#468–#471). At #509, Buffy tells Dawn the story: "This morning. Kitchen. He's fixing the faucet… and then he says — and I quote — 'Should I be jealous of Spike?'" The place and the line are wrong, and it's tied to the faucet, which came after.
 
 PR #175 fixed one path: the advisor now reads the moment each open promise was made. This plan is about the class of bug: **the story's own past, told back wrong**.
 
@@ -67,7 +67,7 @@ Measured on a copy of the production database, as of #509. Six things failed, an
 | 3.2 | Find each one's source on the page | 1.1, 3.1 |
 | 3.3 | Compare when, where, who and the quoted words; flag with the source | 3.2 |
 | **Part 4 · The plan answers to the page** | | |
-| 4.1 | A plan's claims about the past cite a beat or a message | 1.2 |
+| 4.1 | A plan that retells gets the record under it | Part 3 |
 | 4.2 | The writer is told: the transcript outranks the plan | — |
 | **Part 5 · Talk isn't record** | | |
 | 5.1 | What a character says happened is stored as said, not as happened | — |
@@ -175,9 +175,9 @@ Then one model call compares the quoted words and the order of events, citing th
 
 ## Part 4 · The plan answers to the page
 
-### 4.1 Claims about the past cite something
+### 4.1 A plan that retells gets the record under it
 
-The plan check (docs/19 Part 2) gains one rule. A *Keep straight* line, or a beat that says when or where something happened, needs a beat id or a message number. A claim with no source is dropped and the writer is told to look in the transcript. "The jealousy question happened 'this morning' per the promise" fails: the promise names no time.
+As built (PR #181): a plan line that has someone retell what already happened ("reenacts", "tells Dawn the story", "delivers the jealousy story", or a word that points back) is looked up with Part 3's source finder. The moment of the promise it keeps (the message that led to it and the reply it was made in), or, for a line that says when, the one passage that clearly matches, goes under the plan as THE RECORD, with its time and place. A time word the record can't fit gets a correction line. This grounds the plan instead of dropping its claims: the car question was at 11:51, which *is* "this morning", so a time rule alone would have passed #509's plan; what it got wrong was the place and the words. Rules only, no model call: the writer doesn't wait.
 
 ### 4.2 The transcript outranks the plan
 

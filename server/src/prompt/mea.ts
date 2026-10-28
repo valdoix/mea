@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 12;
+export const MEA_PRESET_VERSION = 13;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -106,7 +106,7 @@ export const PLANNING = `{{if kind == story}}[BEFORE YOU WRITE — the planning 
 Tier: {{if ctl.planning == thorough}}every step in full, 400 words at most.{{else}}classify the beat first. Routine (small talk, a simple action, travel with nothing at stake): NOW, SEAL, MINDS, MOVE and VOICE, a line each, 90 words at most. Charged (conflict, negotiation, intimacy, lies in play, three or more speakers, a romance test): every step, WORLD a line, 220 words at most. Pivotal (a reveal, a betrayal, violence, a death, a skip, a deadline, an arrival, intimacy escalating, a genre climax): every step in full, 400 words at most.{{/if}}
 NOW — from the [Story state] note: the time now and when this reply ends; the place; who is present, in the spotlight or at the edge; whether the weather turns; a new scene or the same one.
 SEAL — the player's message sorted into SAID / DID / ATTEMPTED / INTENDS / STATED / OOC: SAID (only the words spoken aloud, never the narration's), DID and STATED are true, ATTEMPTED gets the world's answer, INTENDS is not yet done; {{if userSealed}}the line you won't cross for {{user}}{{else}}what {{user}} wants, fears and does next, within the persona rule{{/if}}; where the reply stops.
-KNOW — each fact this beat touches: who holds it and how, or nobody; what comes out this beat and who is in earshot; the most tempting leak and how you avoid it.
+KNOW — each fact this beat touches: who holds it and how, or nobody; what comes out this beat and who is in earshot; the most tempting leak and how you avoid it. Anything retold happened where, when and how the story shows it, not as a plan or a character remembers it.
 MINDS — each spotlight character's want · fear · tactic · named feeling · mask against feeling · a side not shown lately · what they misread · what they'd do without {{user}}. The edge: a line each.
 WORLD — a consequence coming due, an arrival the note brings, what the place itself does, or none.
 MOVE — three candidates: the obvious one, the one only these people would choose, the sideways consequence; test each against Motive, Knowledge, Access, Means and Time; choose one{{if isSwipe}}, not a copy of the take being replaced{{/if}}, and name the pressure the reply ends on.
