@@ -32,6 +32,7 @@ import {
   writeEvents,
 } from "./store";
 import type { Change, Op, WorldState } from "./types";
+import { momentsOf } from "./moments";
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
@@ -341,6 +342,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     persona: storyDials(mustChat(chatId)).persona,
     kind: opts.kind,
     focus: opts.focus,
+    moment: momentsOf(chatId),
   });
   const inline =
     cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar })) : null;

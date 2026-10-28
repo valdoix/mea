@@ -20,6 +20,7 @@ import { countTokens } from "../lib/tokens";
 import { buildMemoryContext, memoryInputs } from "../memory/context";
 import { revealsOf } from "../trackers/reveals";
 import { beatNames, todayText } from "../trackers/today";
+import { momentsOf } from "../trackers/moments";
 import type { WorldState } from "../trackers/types";
 
 /**
@@ -316,6 +317,8 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     const tp = trackerPrompt(chatId, { kind: "story", excludeMessageId, focus });
     if (tp.note?.text) parts.push(`STORY STATE:\n${tp.note.text}`);
     const st = tp.state;
+    // docs/20 2.3: where and when each thread last moved.
+    const moment = momentsOf(chatId);
     if (cfg.planner) {
       const recall = await planRecall(chatId, history, st, draft);
       if (recall) parts.push(`WHAT HAPPENED EARLIER THAT MAY MATTER NOW (recalled memories; the past, never to be staged again):\n${recall}`);
@@ -323,7 +326,7 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     const open = Object.values(st.threads)
       .filter((t) => t.status !== "resolved")
       .sort((a, b) => b.lastSeq - a.lastSeq)
-      .map((t) => `${t.title}${t.status === "stalled" ? " (stalled)" : ""}${t.latest ? `: ${t.latest}` : ""}`)
+      .map((t) => `${t.title}${t.status === "stalled" ? " (stalled)" : ""}${t.latest ? `: ${t.latest}` : ""} (${moment(t.lastSeq)})`)
       .slice(0, 8);
     if (open.length) parts.push(`OPEN THREADS:\n${open.map((t) => `- ${t}`).join("\n")}`);
     const origins = promiseOrigins(st, history, names, history.at(-8)?.seq ?? Infinity, [...history.slice(-2).map((m) => m.content), focus].join("\n"));
