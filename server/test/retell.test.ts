@@ -1,6 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { canonFor, checkReply } from "../src/accuracy/checker";
-import { findRetellings, retellSources, whenConflict } from "../src/accuracy/retell";
+import { canonFor, checkReply, dismissIssue } from "../src/accuracy/checker";
+import { sceneSystem, verifySystem } from "../src/memory/prompts";
+import { gatherLanes } from "../src/prompt/lanes";
+import { findRetellings, retellSources, toldWrong, whenConflict } from "../src/accuracy/retell";
+import "../src/accuracy/moreslips";
 import { normalizeCard } from "../src/cards/card";
 import { one } from "../src/db/db";
 import { defaultMemoryConfig, setSetting } from "../src/lib/settings";
@@ -94,5 +97,35 @@ describe("the flag (docs/20 3.3)", () => {
   test("a story told right isn't flagged", async () => {
     const reply = say("assistant", "Buffy says: “This morning at the diner we had pancakes and coffee, and it was the best breakfast of my whole life, honestly.”");
     expect((await checkReply(chatId, reply, 0, { model: true }))!.some((i) => i.kind === "retell")).toBe(false);
+  });
+});
+
+describe("a story told wrong stays corrected (docs/20 5.2)", () => {
+  test("the next replies hear what really happened; LAST SLIPS doesn't say it twice", async () => {
+    const reply = say("assistant", "Buffy grins. “Okay. So. This morning. Kitchen. He was fixing the faucet and he asked me, and I quote, should I be jealous of Spike? MOCK_RETELL The jealousy question.”");
+    await checkReply(chatId, reply, 0, { model: true });
+    say("assistant", "Dawn laughs.");
+    const lines = toldWrong(chatId);
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines[0]).toStartWith(`- Told wrong at #${seqOf(reply)}: «`);
+    expect(lines[0]).toContain("What happened:");
+    const lanes = gatherLanes({ chatId, kind: "story", state: null, history: [], characterId: "" });
+    expect(lanes.find((l) => l.lane === "retold")?.content).toContain("TOLD WRONG");
+    expect(lanes.find((l) => l.lane === "slips")?.content ?? "").not.toContain("Tell it as it happened");
+  });
+
+  test("a retelling you dismissed was meant: it stays as written", async () => {
+    const reply = say("assistant", "Buffy, lying through her teeth: “This morning in the kitchen he asked me, and I quote, should I be jealous of Spike? MOCK_RETELL Total lie, Dawnie.”");
+    const issues = (await checkReply(chatId, reply, 0, { model: true }))!;
+    const flag = one<{ id: string }>("SELECT id FROM continuity_flags WHERE message_id = ?", reply)!;
+    for (const i of issues.filter((x) => x.kind === "retell")) dismissIssue(flag.id, i.id);
+    expect(toldWrong(chatId).some((l) => l.includes(`#${seqOf(reply)}:`))).toBe(false);
+  });
+});
+
+describe("talk isn't record (docs/20 5.1)", () => {
+  test("the scene archivist records a retelling as said, and its check catches one recorded as the event", () => {
+    expect(sceneSystem({ char: "Buffy", user: "Gabriel" })).toContain("record it as what they said, with who said it");
+    expect(verifySystem()).toContain("someone's account of an earlier event recorded as the event itself");
   });
 });

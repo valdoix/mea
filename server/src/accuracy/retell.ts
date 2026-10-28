@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { all } from "../db/db";
+import { all, one, parseJson } from "../db/db";
+import { lane, registerLane } from "../prompt/lanes";
+import type { Issue } from "./checker";
 import { chatNames } from "../memory/build";
 import { excerpt } from "../memory/deep";
 import { cleanText, contentWords, ftsQuery } from "../memory/text";
@@ -248,3 +250,42 @@ export async function retellIssues(chatId: string, text: string, seq: number, st
   }
   return out;
 }
+
+// ---------- docs/20 5.2: a story told wrong stays corrected ----------
+
+/** How many replies back a wrong retelling is still said, and how many lines at most. */
+const TOLD_BACK = 8;
+const TOLD_MAX = 4;
+
+/**
+ * The retellings flagged in the last few replies, with what really happened. LAST SLIPS passes on
+ * one reply's fixes; a story told wrong is told again (the faucet setting came up at #487, #501 and
+ * #509), so its correction stays for eight replies. A flag you dismissed was a deliberate retelling
+ * (a lie, a joke, a faulty memory) and stays as written.
+ */
+export function toldWrong(chatId: string, excludeMessageId?: string): string[] {
+  const before = excludeMessageId ? (one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", excludeMessageId)?.seq ?? Infinity) : Infinity;
+  const recent = all<{ id: string; seq: number }>(
+    "SELECT id, seq FROM messages WHERE chat_id = ? AND role = 'assistant' AND deleted_at IS NULL AND seq < ? ORDER BY seq DESC LIMIT ?",
+    chatId,
+    Number.isFinite(before) ? before : Number.MAX_SAFE_INTEGER,
+    TOLD_BACK,
+  );
+  if (!recent.length) return [];
+  const seqs = new Map(recent.map((r) => [r.id, r.seq]));
+  const flags = all<{ message_id: string; swipe_idx: number; issues: string }>(
+    `SELECT f.message_id, f.swipe_idx, f.issues FROM continuity_flags f JOIN messages m ON m.id = f.message_id AND m.active_swipe = f.swipe_idx WHERE f.message_id IN (${recent.map(() => "?").join(",")})`,
+    ...recent.map((r) => r.id),
+  );
+  const lines: { seq: number; line: string }[] = [];
+  for (const f of flags)
+    for (const i of parseJson<Issue[]>(f.issues, []))
+      if (i.kind === "retell" && !i.dismissed) lines.push({ seq: seqs.get(f.message_id)!, line: `- Told wrong at #${seqs.get(f.message_id)}: «${i.claim.length > 140 ? `${i.claim.slice(0, 139).trimEnd()}…` : i.claim}» What happened: ${i.conflict}` });
+  return lines.sort((a, b) => b.seq - a.seq).slice(0, TOLD_MAX).map((l) => l.line);
+}
+
+registerLane("retold", (ctx) => {
+  if (ctx.kind !== "story" && ctx.kind !== "continue") return null;
+  const lines = toldWrong(ctx.chatId, ctx.excludeMessageId);
+  return lines.length ? lane("retold", null, `Earlier replies told these wrong. Don't build on their version; anyone who brings it up again tells it as it happened:\n${lines.join("\n")}`, { depth: 1 }) : null;
+});
