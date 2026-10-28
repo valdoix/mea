@@ -209,6 +209,15 @@ SLIPS.push(
     on: (c) => c.role === "assistant" && c.continuity,
     run: () => [],
   },
+  {
+    // docs/20 Part 3: rules find the retelling and its source, the helper compares them (retell.ts, run by checker.ts).
+    id: "retell",
+    label: "Retold past",
+    description: "A character telling something that already happened at another time or place, or with other words, against the message it tells (rules, then the helper model when a reply retells something).",
+    phase: "reply",
+    on: (c) => c.role === "assistant" && c.continuity,
+    run: () => [],
+  },
 );
 
 // ---------- the next turn hears the last reply's slips ----------
