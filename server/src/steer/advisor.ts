@@ -421,12 +421,13 @@ export async function rescuePlan(chatId: string, history: HistoryMessage[], sign
 /** H3: the separate planner's plan, as the writer gets it: the pass is done, so it writes only the prose. */
 export function directorPlanText(p: Plan) {
   const body = [p.pass.trim(), p.direction ? `Direction: ${p.direction}` : "", p.beats.length ? `Beats:\n${p.beats.map((b) => `- ${b}`).join("\n")}` : "", p.reminders.length ? `Keep straight: ${p.reminders.join("; ")}` : "", p.avoid.length ? `Avoid: ${p.avoid.join("; ")}` : ""].filter(Boolean).join("\n");
-  return `<director-plan>\n${body}\n</director-plan>\nThe planning pass for this reply is done, above. Don't plan again and don't open with <think>: write only the reply, following the plan; never mention it. The plan says what happens: every word, image and line of dialogue is yours.`;
+  return `<director-plan>\n${body}\n</director-plan>\nThe planning pass for this reply is done, above. Don't plan again and don't open with <think>: write only the reply, following the plan; never mention it. The plan says what happens: every word, image and line of dialogue is yours. Where the plan and the story so far disagree about what already happened, the story is right.`;
 }
 
 export function planText(p: Plan) {
   const lines = [
-    "[Private plan for this reply, from the story advisor. Follow it loosely; never mention it.]",
+    // docs/20 4.2: the writer followed "Buffy reenacts the morning" over the car scene in its own context.
+    "[Private plan for this reply, from the story advisor. Follow it loosely; never mention it. Where it and the story so far disagree about what already happened (where, when, who, what was said), the story is right.]",
     p.direction ? `Direction: ${p.direction}` : "",
     p.beats.length ? `Beats:\n${p.beats.map((b) => `- ${b}`).join("\n")}` : "",
     p.threads.length ? `Threads worth touching: ${p.threads.join("; ")}` : "",

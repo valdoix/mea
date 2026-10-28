@@ -3,6 +3,7 @@ import { sentencesOf } from "../accuracy/promptcheck";
 import { contentWords } from "../memory/text";
 import { topicCounts, topicScorer } from "../trackers/topics";
 import type { Character, Fact, WorldState } from "../trackers/types";
+import { BACK, clear, hhmm, retellSources, type Source, whenConflict } from "../accuracy/retell";
 
 /**
  * The plan check (docs/19 Part 2): the plan's KNOW step says who knows what, and nothing checked
@@ -106,4 +107,58 @@ export function planCorrection(findings: PlanFinding[]): string {
       : `- The plan says «${f.claim}». The records: ${records}. Write ${f.who} as knowing that much; anything beyond it is the plan's call.`;
   });
   return `[PLAN CORRECTION — where the plan and the records disagree about who knows what, the records are right]\n${lines.join("\n")}`;
+}
+
+// ---------- docs/20 Part 4: a plan that retells answers to the record ----------
+
+/** Plan lines that have someone tell what already happened: a word that points back, or a story told. */
+const RETELLS = /\b(?:retell|retells|retelling|reenact|reenacts|re-enacts|recount|recounts|recalls|reminisces|tells? (?:\w+ ){0,3}(?:about|the story|the whole story)|delivers? the (?:promised )?(?:\w+ )?story|the (?:\w+ )?story (?:of|about)|story time|throws? \w+ under the bus)\b/i;
+/** How much of each record passage the writer reads. */
+const RECORD_CHARS = 420;
+
+export interface PlanRecord {
+  /** The plan's line. */
+  claim: string;
+  /** The record it retells: the promise's moment, or the one clear match. */
+  sources: Source[];
+  /** A time word the record can't fit ("not this morning: it happened yesterday at 20:33"). */
+  when: string | null;
+}
+
+/**
+ * What a plan retells, found in the record. Told "Buffy reenacts the morning: Gabriel asking
+ * whether he should be jealous of Spike", the writer set the question at the faucet; the record
+ * has it asked at the curb, by Gabriel's car, in other words (#466). Rules only: the passages a
+ * promise to tell it was made in, or the one passage that clearly matches, go under the plan.
+ */
+export function planRecords(chatId: string, st: WorldState | null | undefined, plan: string | null | undefined, seq: number): PlanRecord[] {
+  if (!st || !plan?.trim()) return [];
+  const now = st.time?.minutes ?? null;
+  const out: PlanRecord[] = [];
+  for (const s of sentencesOf(plan)) {
+    if (out.length >= 2) break;
+    // A bare "earlier" in a plan is an adjective as often as not ("eating his earlier plate").
+    const back = s.match(BACK)?.[1]?.toLowerCase();
+    if (!RETELLS.test(s) && (!back || back === "earlier")) continue;
+    const when = s.match(/\b(this morning|this afternoon|this evening|last night|yesterday)\b/i)?.[1]?.toLowerCase() ?? null;
+    const found = retellSources(chatId, st, seq, { text: s, when });
+    const promised = found.filter((x) => x.promised).sort((a, b) => a.seq - b.seq);
+    // Without a promise to go by, only a line that says when gets the passage that clearly matches: its time can be checked.
+    const sources = promised.length ? promised : when && clear(found) ? found.slice(0, 1) : [];
+    if (!sources.length || out.some((o) => o.sources.some((x) => sources.some((y) => y.seq === x.seq)))) continue;
+    const at = sources.at(-1)!;
+    out.push({ claim: s.trim(), sources, when: whenConflict(when, at.minutes, now) });
+  }
+  return out;
+}
+
+/** What the writer reads under the plan: the record of what it retells, which outranks the plan's version. */
+export function planRecordText(records: PlanRecord[], names: { char: string; user: string }): string {
+  if (!records.length) return "";
+  const at = (s: Source) => [s.minutes != null ? hhmm(s.minutes) : null, s.place].filter(Boolean).join(", ");
+  const lines = records.map((r) => {
+    const passages = r.sources.map((s) => `  #${s.seq}${at(s) ? ` (${at(s)})` : ""} ${s.role === "user" ? names.user : names.char}: ${s.passage.length > RECORD_CHARS ? `${s.passage.slice(0, RECORD_CHARS - 1).trimEnd()}…` : s.passage}`);
+    return [`- The plan: «${r.claim}»${r.when ? ` Not as the plan has it: ${r.when}.` : ""}`, ...passages].join("\n");
+  });
+  return `[THE RECORD — the plan has someone tell what already happened. Tell it as it happened here: the place, the time, the order and the words said. Where the plan's version differs, the record is right]\n${lines.join("\n")}`;
 }
