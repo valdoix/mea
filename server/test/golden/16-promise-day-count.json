@@ -1,0 +1,39 @@
+{
+  "name": "promise-day-count",
+  "about": "docs/20 Part 0: a promise due \"Day 1 15:05\" on a calendar clock is due at 15:05 today, not broken on arrival in year one.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy Summers, twenty, back in Sunnydale. Quick, guarded, funny.",
+    "first_mes": "Revello Drive."
+  },
+  "user": "Gabriel",
+  "ledger": [
+    "clock: 2001-10-11 14:58",
+    "at: Sunnydale › Summers House › Kitchen",
+    "cast: Buffy@spot · Gabriel@spot · Dawn@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "Dawn wants the story now."
+    },
+    {
+      "role": "assistant",
+      "content": "“At dinner. Five past three. Tacos on the table, Dawnie.”",
+      "ledger": [
+        "promise Buffy → Dawn: the jealousy story at dinner, 15:05 | open [due Day 1 15:05]"
+      ]
+    }
+  ],
+  "after": {
+    "lines": [
+      "clock: 2001-10-11 15:20"
+    ],
+    "expect": [
+      {
+        "path": "obligations.*.status",
+        "equals": "due"
+      }
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "name": "retold-past",
+  "about": "docs/20: a story told back is told as it happened. The day is in the prompt in order, the promise says where it was made, a retelling set at the faucet is caught, and one told right isn't.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy Summers, twenty, back in Sunnydale. Quick, guarded, funny.",
+    "first_mes": "Revello Drive."
+  },
+  "user": "Gabriel",
+  "ledger": [
+    "clock: 2001-10-11 11:00",
+    "at: Sunnydale › Grocery Store",
+    "cast: Buffy@spot · Gabriel@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "At the curb outside the house, still in the car, Gabriel asks: \"Have you ever had romantic feelings towards Spike?\"",
+      "ledger": [
+        "clock: 2001-10-11 11:51",
+        "at: Sunnydale › Summers House › Curb",
+        "beat: In the car at the curb, Gabriel asks Buffy whether she ever had romantic feelings for Spike"
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "\"No. Never. And Dawn is hearing about this jealousy question at dinner,\" Buffy says, and gets out of the car.",
+      "ledger": [
+        "promise Buffy → Gabriel: tell Dawn about the jealousy question at dinner | open [due 2001-10-11 15:05]",
+        "beat: Buffy says no, and promises to tell Dawn about the jealousy question at dinner"
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Inside, he gets the tools out."
+    },
+    {
+      "role": "assistant",
+      "content": "The wrench turns. Gabriel fixes the kitchen faucet, sleeves rolled, biceps everywhere, while Buffy watches from the counter.",
+      "ledger": [
+        "clock: 2001-10-11 12:17",
+        "at: Sunnydale › Summers House › Kitchen",
+        "beat: Gabriel fixes the kitchen faucet while Buffy watches"
+      ]
+    },
+    {
+      "role": "user",
+      "content": "We pick Dawn up and come home for tacos. \"Go on, tell her the story,\" he grumbles.",
+      "ledger": [
+        "clock: 2001-10-11 15:10",
+        "cast: Buffy@spot · Gabriel@spot · Dawn@spot"
+      ]
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "[TODAY SO FAR]",
+      "11:51 · Summers House › Curb",
+      "(made #3, 11:51 at Summers House › Curb)"
+    ],
+    "lacks": []
+  },
+  "bad": [
+    {
+      "reply": "Buffy grins. “Okay. So. This morning. Kitchen. He was fixing the faucet, biceps everywhere, and he asked me, and I quote, should I be jealous of Spike?”",
+      "expect": [
+        "retell"
+      ]
+    }
+  ],
+  "reply": "Buffy grins at Dawn. “So. This morning, out at the curb, still in his car, he asked me if I'd ever had romantic feelings towards Spike. Romantic feelings! Towards Spike!”",
+  "forbid": [
+    "retell"
+  ],
+  "after": {
+    "lines": [
+      "promise Buffy → Gabriel: tell Dawn about the jealousy question at dinner | kept"
+    ],
+    "expect": [
+      {
+        "path": "obligations.*.status",
+        "equals": "kept"
+      }
+    ]
+  }
+}

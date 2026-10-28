@@ -25,6 +25,8 @@
     replies: number;
     parts: Part[];
     trend: { week: number; score: number }[];
+    /** docs/20 6.2: retellings in these replies, and how many were told wrong. */
+    retold?: { found: number; matched: number; flagged: number; dismissed: number; last?: { messageId: string; seq: number } };
   }
   let { chatId }: { chatId: string } = $props();
   let h = $state<Health | null>(null);
@@ -102,6 +104,13 @@
           </li>
         {/each}
       </ul>
+      {#if h.retold}
+        {@const r = h.retold}
+        <button type="button" class="part" onclick={() => r.last && navigate(`/chat/${chatId}?m=${r.last.messageId}`)} disabled={!r.last} title={r.last ? `Show #${r.last.seq}` : undefined}>
+          <span class="lbl">Retold past</span>
+          <small>{r.found} retelling{r.found === 1 ? "" : "s"}, {r.matched} checked against the page · {r.flagged} told wrong{r.dismissed ? ` · ${r.dismissed} dismissed` : ""}</small>
+        </button>
+      {/if}
       {#if top3.length}<div class="st-keys"><button class="st-key" type="button" onclick={fixTop3}><Wand size={14} /> Fix the top {top3.length === 3 ? "3" : top3.length}</button></div>{/if}
     </Module>
   </div>
