@@ -66,7 +66,7 @@ import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
 import { fileNoteFacts, lessonsToFacts } from "../steer/notefacts";
-import { checkPlan, planCorrection, type PlanFinding } from "../steer/plancheck";
+import { checkPlan, planCorrection, type PlanFinding, planRecords, planRecordText } from "../steer/plancheck";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
@@ -700,7 +700,10 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   // docs/19 2.1–2.2: a plan that says someone doesn't know what the records have them told (or the
   // reverse) gets a correction under it, and the writer follows the records.
   const planCheck = planned && "pass" in planned && planned.pass && tp?.state ? checkPlan(tp.state, planned.pass, focus) : [];
-  const plan = planned && planCheck.length ? { ...planned, content: `${planned.content}\n\n${planCorrection(planCheck)}` } : planned;
+  // docs/20 4.1: a plan that has someone retell what already happened gets the record of it under it.
+  const records = planned && tp?.state ? planRecords(chatId, tp.state, "pass" in planned && planned.pass ? `${planned.pass}\n${planned.content}` : planned.content, (history.at(-1)?.seq ?? 0) + 1) : [];
+  const under = [planCheck.length ? planCorrection(planCheck) : "", planRecordText(records, { char: card?.name ?? "Character", user: userName })].filter(Boolean);
+  const plan = planned && under.length ? { ...planned, content: `${planned.content}\n\n${under.join("\n\n")}` } : planned;
   const style = styleExtra(chatId);
   const advisorMs = lap();
   let memoryMs = 0;
