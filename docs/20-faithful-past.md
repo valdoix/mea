@@ -111,6 +111,8 @@ The tracker update already reads every reply. It writes one more line: `beat: <w
 
 A user message and the reply to it share a beat. A beat is part of the ledger, so it moves with swipes, edits and rewinds like every other tracker event.
 
+Today's replies the trackers read before beats existed get theirs from a backfill (`tracker.beats`). It runs after a tracker update, takes 30 replies per helper call, and does each reply once. (Built in PR #178.)
+
 ### 1.2 TODAY SO FAR
 
 A new lane: the story day's beats, oldest first, within a budget (about 600 tokens; on a long day the oldest beats fold into one line per hour). It goes to:
