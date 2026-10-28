@@ -4,7 +4,7 @@ import { confirmArrivals, elsewhereLane } from "../src/sim/crossings";
 import { lean, measureTension, targetTension } from "../src/sim/director";
 import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/sim/grammar";
 import { spreadNews } from "../src/sim/news";
-import { buildRoster, lorePersonName, readStanding, samePerson } from "../src/sim/roster";
+import { buildRoster, diedInLore, lorePersonName, readStanding, samePerson } from "../src/sim/roster";
 import { forecast, latitudeFrom, placeClimate, weatherAt } from "../src/sim/sky";
 import { canStep, forcedStep, situationCands, threadNames, tick, type TickInput } from "../src/sim/storyteller";
 import { retellPrompt, softProblem, validateTelling } from "../src/sim/telling";
@@ -289,6 +289,36 @@ describe("news", () => {
     const told = ops.filter((o) => o.raw?.includes("#edda-got-engaged")).map((o) => o.subject);
     expect(told).toContain("Wren");
     expect(told).not.toContain("Bob");
+  });
+
+  test("the main character tells nobody off the page, even out of the scene", () => {
+    const st = world([...base, "cast: Mira@left", "bond Mira>Edda: trust 3; affection 3 — sisters", "know Mira: The chandlery burned down in the storm | saw it · knows"]);
+    const roster = input(st).roster;
+    expect(roster.byName("Mira")!.ring).toBe("offstage");
+    const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0, max: 20 });
+    expect(ops.some((o) => o.raw?.includes("told by Mira"))).toBe(false);
+  });
+
+  test("a death in passing isn't news", () => {
+    const st = world([...base, "bond Joss>Edda: trust 3; affection 3 — old friends", "know Joss: the thermostat hasn't been touched since Old Tom died | saw it · knows"]);
+    const { ops } = spreadNews({ state: st, roster: input(st).roster, hours: 500, rand: () => 0, tech: "modern", now: 0, max: 20 });
+    expect(ops).toHaveLength(0);
+  });
+
+  test("a death told anywhere in the lore keeps them from hearing news", () => {
+    expect(diedInLore("Kendra Young", ["In 1997-98 Spike and Drusilla came to town, Kendra was Called and later killed by Drusilla."], ["Spike", "Drusilla"])).toBe(true);
+    expect(diedInLore("Jenny Calendar", ["Angel became Angelus, murdering Jenny Calendar."], ["Angel"])).toBe(true);
+    expect(diedInLore("Willow", ["Willow saw Tara die and nearly ended the world."], ["Tara"])).toBe(false);
+    expect(diedInLore("Willow", ["Willow's mother died young."], [])).toBe(false);
+    expect(diedInLore("Kendra Young", ["Kendra Young lent it to Buffy and died before it was returned."], ["Buffy Summers"])).toBe(false);
+    expect(diedInLore("Buffy", ["Buffy died in 2001 and came back."], [])).toBe(false);
+    expect(diedInLore("Tara", ["Warren tried to kill Tara."], ["Warren"])).toBe(false);
+
+    const st = world([...base, "cast: Kendra Young@left", "know Joss: The chandlery burned down in the storm | saw it · knows", "bond Joss>Kendra Young: affection 3 — old friends"]);
+    const roster = buildRoster({ state: st, profiles: {}, lore: [{ name: "Kendra Young", text: "Kendra Young is a Slayer raised by her Watcher." }], notes: ["Kendra was Called and later killed by Drusilla."], userName: "Alex" });
+    expect(roster.byName("Kendra Young")!.dead).toBe(true);
+    const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
+    expect(ops.some((o) => o.subject === "Kendra Young")).toBe(false);
   });
 });
 
