@@ -230,7 +230,7 @@ registerLane("slips", (ctx) => {
     : one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND role = 'assistant' AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1", ctx.chatId);
   if (!last) return null;
   const flags = all<FlagRow>("SELECT * FROM continuity_flags WHERE message_id = ? AND status = 'open'", last.id);
-  const open = flags.flatMap((f) => parseJson<Issue[]>(f.issues, [])).filter((i) => !i.dismissed && i.kind !== "puppet");
+  const open = flags.flatMap((f) => parseJson<Issue[]>(f.issues, [])).filter((i) => !i.dismissed && i.kind !== "puppet" && i.kind !== "retell"); // a retelling has its own lane (retell.ts), for longer
   if (!open.length) return null;
   const fixes = [...new Set(open.map((i) => i.fix))].slice(0, 6);
   return lane("slips", null, `${ctx.excludeMessageId ? "The take being replaced" : "The last reply"} slipped; don't repeat it:\n${fixes.map((f) => `- ${f}`).join("\n")}`, { depth: 0 });

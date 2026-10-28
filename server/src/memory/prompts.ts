@@ -93,6 +93,7 @@ Rules:
 - ${voiceRule(cfg.voice)}
 - ${PRESERVE}
 - Record only what the scene actually shows. Don't guess motives or add events.
+- When someone tells, recalls or refers to something that happened before this scene, record it as what they said, with who said it ("Buffy tells Dawn that Gabriel asked whether he should be jealous of Spike"), never as the event itself or its time and place: a character can misremember, and the event's own record comes from the scene that showed it.
 - "summary": one compact paragraph (${SCENE_WORDS[level]} words) of what happened, in order.
 - "events", "decisions", "stateChanges" (injuries, outfits, possessions, location, time), "relationshipShifts", "threadsOpened" (new mysteries, plans, promises), "threadsClosed": short phrases, empty lists when nothing applies.
 - "quotes": up to 4 lines worth remembering, copied word for word, each with the [#number] it comes from as "seq".
@@ -109,7 +110,7 @@ Reply with one JSON object only, shaped like:
 export function verifySystem() {
   return `You check a scene record against the scene's source messages.
 List:
-1. "unsupported": statements in the record (summary or memories) that the source doesn't support: wrong names or numbers, invented events, wrong person doing something, wrong order. Quote the claim and say why.
+1. "unsupported": statements in the record (summary or memories) that the source doesn't support: wrong names or numbers, invented events, wrong person doing something, wrong order, or someone's account of an earlier event recorded as the event itself. Quote the claim and say why.
 2. "omissions": important things in the source the record leaves out: promises, secrets, decisions, injuries, gifts, names, revealed facts. Give the [#number] where it happens.
 Be strict about facts and relaxed about wording and style.
 "verdict": "ok" (no problems), "minor" (small omissions only), or "major" (any unsupported claim, or an important omission).
