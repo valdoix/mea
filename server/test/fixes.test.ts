@@ -28,6 +28,20 @@ describe("locateSentence", () => {
     expect(at(text, `Daenerys rides a dragon over the wall`)).toBeNull();
   });
 
+  test("matches single-quoted claims against double-quoted dialogue", () => {
+    const text = `Her eyes drop.\n\n“My love.”\n\nTwo words. The new one. The one he dropped this morning, sleepy, and now he’s using it *here*.\n\nShe climbs onto the bed.`;
+    expect(at(text, `'My love.' Two words. The new one. The one he dropped this morning`)).toBe(
+      `“My love.”\n\nTwo words. The new one. The one he dropped this morning, sleepy, and now he’s using it *here*.`,
+    );
+  });
+
+  test("falls back to a run of sentences when a retyped claim spans several", () => {
+    const text = `Night. “Say it again.” Not a request. The girl who heard it all night wants it again. “I love you.” He says it. Immediate. Morning comes.`;
+    expect(at(text, `The girl who heard it all night wants it again. I love you. He says it. Immediate`)).toBe(
+      `The girl who heard it all night wants it again. “I love you.” He says it. Immediate.`,
+    );
+  });
+
   test("skips markup", () => {
     const text = `<p>She <b>runs</b> home.</p><p>Night falls.</p>`;
     expect(at(text, `She runs home.`)).toContain(`She <b>runs</b> home.`);

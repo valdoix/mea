@@ -24,10 +24,11 @@ function sentenceSpans(text: string) {
   return spans.filter((s) => text.slice(s.start, s.end).trim());
 }
 
-const FOLD: Record<string, string> = { "“": '"', "”": '"', "„": '"', "«": '"', "»": '"', "‘": "'", "’": "'", "—": "-", "–": "-" };
+// Single and double quotes fold together: the checker often retypes “My love.” as 'My love.'.
+const FOLD: Record<string, string> = { "“": '"', "”": '"', "„": '"', "«": '"', "»": '"', "‘": '"', "’": '"', "'": '"', "—": "-", "–": "-" };
 
 /**
- * `text` folded for matching (no markup or markdown marks, plain quotes and dashes, "..." as "…",
+ * `text` folded for matching (no markup or markdown marks, one plain quote mark, plain dashes, "..." as "…",
  * one space, lower case), with `at[i]` the index in `text` that folded character i came from.
  */
 function fold(text: string) {
@@ -60,7 +61,7 @@ function fold(text: string) {
 
 /** The sentence(s) of `text` the finding's claim comes from (claims can be clipped, cleaned or retyped). */
 export function locateSentence(text: string, claim: string): { start: number; end: number; sentence: string } | null {
-  const want = fold(cleanText(claim)).out.replace(/^[\s"'…-]+|[\s"'…]+$/g, "");
+  const want = fold(cleanText(claim)).out.replace(/^[\s"…-]+|[\s"…]+$/g, "");
   if (!want) return null;
   const hay = fold(text);
   let from = -1;
@@ -76,15 +77,23 @@ export function locateSentence(text: string, claim: string): { start: number; en
   }
   const spans = sentenceSpans(text);
   if (from < 0) {
-    // Retyped: the sentence holding most of the claim's words, if that's most of them.
-    const words = (s: string) => new Set(s.match(/[\p{L}\p{N}']+/gu) ?? []);
+    // Retyped: the run of sentences holding most of the claim's words, if that's most of them
+    // (the shortest run on a tie, so a one-sentence claim still lands on one sentence).
+    const words = (s: string) => new Set(s.match(/[\p{L}\p{N}]+/gu) ?? []);
     const need = words(want);
     if (need.size < 3) return null;
+    const own = spans.map((s) => words(fold(text.slice(s.start, s.end)).out));
     let best = 0;
-    for (const s of spans) {
-      const have = words(fold(text.slice(s.start, s.end)).out);
-      const share = [...need].filter((w) => have.has(w)).length / need.size;
-      if (share > best) [best, from, to] = [share, s.start, s.end];
+    let runs = Infinity;
+    for (let i = 0; i < spans.length; i++) {
+      const have = new Set<string>();
+      let size = 0;
+      for (let j = i; j < spans.length && size < need.size * 2 + 10; j++) {
+        for (const w of own[j]!) have.add(w);
+        size += own[j]!.size;
+        const share = [...need].filter((w) => have.has(w)).length / need.size;
+        if (share > best || (share === best && j - i < runs)) [best, runs, from, to] = [share, j - i, spans[i]!.start, spans[j]!.end];
+      }
     }
     if (best < 0.7) return null;
   }
