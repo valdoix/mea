@@ -1,4 +1,6 @@
 import { all, one, parseJson } from "../db/db";
+import { textBasis } from "../lore/facts";
+import { publish } from "../lib/events";
 import { customOf } from "../trackers/customcal";
 import { trackerConfig } from "../trackers/store";
 import { badRequest, notFound } from "../lib/http";
@@ -16,7 +18,8 @@ import type { Op, WorldState } from "../trackers/types";
 import { confirmArrivals, elsewhereLane } from "./crossings";
 import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
-import { buildRoster, lorePersonName, type Roster } from "./roster";
+import { buildRoster, lorePersonName, type Roster, samePerson } from "./roster";
+import { checkRead, saveSheet, sheetKey, sheetPrompt, sheetSchema, sheetsFor } from "./sheet";
 import { climateFrom, forecast, latitudeFrom, placeClimate, skyLine, type SkyInput } from "./sky";
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, pastCard, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
 import { retellPrompt, softProblem, tellingPrompt, tellingSchema, validateTelling } from "./telling";
@@ -145,7 +148,59 @@ function lorePeople(chatId: string): { people: { name: string; text: string }[];
 export function rosterFor(chatId: string, state: WorldState): Roster {
   const fc = foldConfigFor(chatId);
   const { people, notes } = lorePeople(chatId);
-  return buildRoster({ state, profiles: castProfiles(chatId), lore: people, notes, userName: fc.userName, schedules: loreSchedules(chatId) });
+  return buildRoster({ state, profiles: castProfiles(chatId), lore: people, notes, userName: fc.userName, schedules: loreSchedules(chatId), sheets: sheetsFor(chatId) });
+}
+
+// ---------- the person sheet (docs/21 Part 2) ----------
+
+const SHEET_BATCH = 20;
+
+/** The people whose lore hasn't been read yet, or has changed since (their text, and its hash). */
+export function sheetsToRead(chatId: string, st: WorldState = currentFold(chatId).result.state): { name: string; text: string; basis: string }[] {
+  const fc = foldConfigFor(chatId);
+  const { people } = lorePeople(chatId);
+  const roster = buildRoster({ state: st, profiles: castProfiles(chatId), lore: people, userName: fc.userName });
+  const have = sheetsFor(chatId);
+  return [...roster.actors.values()]
+    .filter((a) => !a.isUser && !a.isMain && a.text.trim().length >= 20)
+    .map((a) => ({ name: a.name, text: a.text.slice(0, 1500), basis: textBasis(`${a.name}: ${a.text}`) }))
+    .filter((p) => have[sheetKey(p.name)]?.basis !== p.basis);
+}
+
+/** Ask for a reading when someone's lore is new or changed; one job per chat at a time. */
+export function queueSheets(chatId: string, st?: WorldState) {
+  if (!sheetsToRead(chatId, st).length) return false;
+  enqueue("world.sheet", { chatId }, { dedupeKey: `world.sheet:${chatId}`, priority: 3, chatId });
+  return true;
+}
+
+/** The model reads each person's lore once: kind, alive or not, where, in the story's present. */
+export async function readSheets(p: { chatId: string }, job?: JobContext) {
+  const chatId = p.chatId;
+  const st = currentFold(chatId).result.state;
+  const todo = sheetsToRead(chatId, st).slice(0, SHEET_BATCH * 3);
+  if (!todo.length) return { read: 0 };
+  const chat = mustChat(chatId);
+  const card = chat.character_id ? getCard(chat.character_id) : undefined;
+  const setting = [card?.name, card?.scenario, card?.description].filter(Boolean).join(". ").replace(/\s+/g, " ").slice(0, 900) || "a story";
+  const o = { setting, now: st.time ? formatStoryTime(st.time) : "unknown", town: st.place[0] ?? "" };
+  let read = 0;
+  for (let i = 0; i < todo.length; i += SHEET_BATCH) {
+    const batch = todo.slice(i, i + SHEET_BATCH);
+    const { system, user } = sheetPrompt(batch, o);
+    const res = await callJson({ task: "world", kind: "world:sheet", chatId, jobId: job?.id, name: "world_sheet", schema: sheetSchema, system, user, maxTokens: 2400 });
+    job?.note({ inputTokens: res.inputTokens });
+    for (const r of res.data.people ?? []) {
+      // "Dawn" may come back as "Dawn Summers": the same person, if no one else in the batch fits.
+      const who = batch.find((b) => sheetKey(b.name) === sheetKey(r.name ?? "")) ?? batch.find((b) => samePerson(b.name, r.name ?? ""));
+      const sheet = who && checkRead(r, who.text, who.basis);
+      if (!who || !sheet) continue;
+      saveSheet(chatId, who.name, sheet);
+      read++;
+    }
+  }
+  publish({ type: "trackers.changed", chatId });
+  return { read };
 }
 
 function skyInput(chatId: string, state: WorldState, cfg: ResolvedWorldConfig): SkyInput | null {
@@ -209,6 +264,8 @@ export function runTick(chatId: string, messageId: string | null, forced: boolea
   // New subplots the engine offered or started get the story's words too.
   const fresh = res.sim.flatMap((o) => (o.type === "proposal.new" ? [o.proposal.id] : o.type === "arc.new" && o.arc.by === "engine" && !o.arc.locked ? [o.arc.id] : []));
   if (cfg.telling === "model" && fresh.length) enqueue("world.word", { chatId, messageId: anchor, swipeIdx: idx, ids: fresh }, { priority: 2, chatId });
+  // docs/21 Part 2: anyone whose lore is new or changed gets read before the world guesses about them again.
+  queueSheets(chatId, st);
   return res;
 }
 
@@ -648,6 +705,8 @@ export function worldView(chatId: string) {
       travel: Number.isFinite(a.travel) ? a.travel : null,
       ties: [...a.ties.entries()].map(([id, s]) => ({ id, name: roster.actors.get(id)?.name ?? id, strength: s })),
       flag: a.flag ?? null,
+      // docs/21 Part 2: where their standing and place came from (you, the story, the lore read, or a guess).
+      basis: a.basis,
       arcs: Object.values(st.sim.arcs).filter((x) => x.lead === a.id && (x.status === "running" || x.status === "held" || x.status === "fate")).map((x) => x.id),
     }));
   const surprise = cfg.view === "surprise";
@@ -684,6 +743,9 @@ export function worldView(chatId: string) {
     lastTickAt: st.sim.lastTickAt != null ? formatStoryTime({ minutes: st.sim.lastTickAt, form: st.time?.form ?? "day" }) : null,
     ticks: st.sim.ticks,
     people,
+    // Off the page and placed by nobody: the engine is guessing about them until the lore is read or you say.
+    guessing: people.filter((p) => p.ring !== "onstage" && !p.flag && p.basis.where !== "you" && p.basis.where !== "story" && p.basis.where !== "lore" && p.basis.standing !== "lore" && p.basis.standing !== "you").length,
+    toRead: sheetsToRead(chatId, st).length,
     town: roster.town,
     factionRel: st.sim.factionRel,
   };

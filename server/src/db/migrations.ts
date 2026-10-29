@@ -1405,6 +1405,20 @@ CREATE TABLE IF NOT EXISTS cast_factions (
 CREATE INDEX IF NOT EXISTS cast_factions_chat ON cast_factions(chat_id);
 `,
   },
+  {
+    id: 34,
+    name: "person sheets",
+    // docs/21 Part 2: what the lore says about each person, read once by the model: alive or not, where, in the story's present.
+    sql: /* sql */ `
+CREATE TABLE IF NOT EXISTS world_sheets (
+  chat_id    TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  name_key   TEXT NOT NULL,
+  data       TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (chat_id, name_key)
+);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

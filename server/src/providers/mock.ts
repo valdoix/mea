@@ -95,6 +95,17 @@ function helperJson(name: string, user: string, system = ""): unknown {
       return {
         items: [...user.matchAll(/^ITEM (\S+)\n[\s\S]*?^ENGINE'S PREMISE (.+)$/gm)].map((m) => ({ id: m[1], premise: `Worded: ${m[2]}`, want: "keep going", fear: "it all comes apart" })),
       };
+    case "world_sheet":
+      // Reads "dead", "last seen in X" and "cat" the way a model would; everyone else is alive and here.
+      return {
+        people: user.split(/^ENTRY /m).slice(1).map((chunk) => {
+          const [head, ...rest] = chunk.split("\n");
+          const t = rest.join("\n");
+          const seen = t.match(/last seen in ([A-Z][\w ]+?)(?: in |[.;)\]]|$)/);
+          const quote = (t.match(/[^.;()[\]]*(?:\bdead\b|last seen in|\bcat\b)[^.;()[\]]*/i)?.[0] ?? "").trim();
+          return { name: head!.trim(), kind: /\bcat\b/i.test(t) ? "animal" : "person", status: /\bdead\b/i.test(t) ? "dead" : seen ? "absent" : "alive", whereabouts: seen?.[1] ?? null, far: Boolean(seen), inStory: "now", quote };
+        }),
+      };
     case "world_telling":
       return {
         beats: [...user.matchAll(/^CARD (\S+)[\s\S]*?^ENGINE'S WORDS (.+)$/gm)].map((m) => ({ card: m[1], text: `Off the page: ${m[2]}` })),
@@ -768,6 +779,7 @@ function guessSchema(system: string) {
   if (system.includes('"memories"')) return "scene_memory";
   if (system.includes('"changed"')) return "tracker_gate";
   if (system.includes('"beats"')) return "world_telling";
+  if (system.includes('"inStory"')) return "world_sheet";
   if (system.includes('"items"') && system.includes("subplots")) return "world_wording";
   if (system.includes('"verdict"')) return "summary_check";
   if (system.includes('"newScene"')) return "scene_boundary";

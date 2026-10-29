@@ -1788,8 +1788,11 @@ export interface WorldPerson {
   travel: number | null;
   ties: { id: string; name: string; strength: number }[];
   flag: string | null;
+  /** docs/21 Part 2: where their standing and place came from, and the lore's words when the sheet decided. */
+  basis: { standing: WorldBasis; where: WorldBasis; quote?: string };
   arcs: string[];
 }
+export type WorldBasis = "you" | "story" | "lore" | "guess" | "none";
 
 /** How a live subplot is tied to the others: each tied subplot's latest step, which way it pulls, and what stands. */
 export interface ArcTies {
@@ -1814,6 +1817,9 @@ export interface WorldViewData {
   lastTickAt: string | null;
   ticks: number;
   people: WorldPerson[];
+  /** People off the page the engine is guessing about, and people whose lore hasn't been read yet. */
+  guessing: number;
+  toRead: number;
   town: string;
 }
 
