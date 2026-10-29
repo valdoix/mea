@@ -2,7 +2,7 @@ import { mentions } from "../trackers/mentions";
 import type { Fact, Op, WorldState } from "../trackers/types";
 import { chanceIn } from "./dice";
 import { reach } from "./reach";
-import { type Roster, TIE_STRENGTH } from "./roster";
+import { type RActor, type Roster, TIE_STRENGTH } from "./roster";
 import type { NewsHop } from "./types";
 
 /**
@@ -14,16 +14,21 @@ import type { NewsHop } from "./types";
 const BIG = /\b(alive|back from the dead|came back|is back|returned|died|dead|killed|murder\w*|pregnan\w*|married|engaged|broke up|divorc\w*|arrested|in jail|escaped|betray\w*|stole|fired|quit|left town|moved away|attack\w*|raid\w*|fire\b|burned|hurt|in (?:the )?hospital|hospitali[sz]ed|missing|kidnapp\w*|exposed|secret|affair|lied|engaged|kissed|dating|together)\b/i;
 const HAS = new Set(["knows", "believes", "suspects", "heard"]);
 
+/**
+ * Whom a fact is about: the fold read it with the cast in hand (docs/21 4.3: aliases, your name,
+ * "Gabriel's"); people only the lore knows aren't in the cast, so they're found by name, the same way.
+ */
+export function factAbout(f: Fact, actors: RActor[]): RActor[] {
+  return actors.filter((a) => (a.ring === "unmet" || !f.about ? mentions(f.statement, a.name) : f.about.includes(a.id)));
+}
+
 export function spreadNews(o: { state: WorldState; roster: Roster; hours: number; rand: () => number; tech: string; max?: number; now: number }): { hops: NewsHop[]; ops: Op[] } {
   const hops: NewsHop[] = [];
   const ops: Op[] = [];
   const max = o.max ?? 4;
   const pairsDone = new Set<string>();
   const actors = [...o.roster.actors.values()];
-  // docs/21 4.3: the fold read who a fact is about with the cast in hand (aliases, your name, "Gabriel's").
-  // People only the lore knows aren't in the cast, so they're found by name here, the same way.
-  const named = (f: Fact) =>
-    actors.filter((a) => (a.ring === "unmet" || !f.about ? mentions(f.statement, a.name) : f.about.includes(a.id)));
+  const named = (f: Fact) => factAbout(f, actors);
   // "The thermostat hasn't moved since Joyce died" isn't news of a death: only the main clause counts.
   const facts = Object.values(o.state.facts).filter((f) => BIG.test(f.statement.replace(/\b(?:ever since|since|after|before|until|when)\b[^,;.]*/gi, "")));
   for (const f of facts) {

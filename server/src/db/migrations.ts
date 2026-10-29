@@ -1419,6 +1419,18 @@ CREATE TABLE IF NOT EXISTS world_sheets (
 );
 `,
   },
+  {
+    id: 35,
+    name: "world audit",
+    // docs/21 6.2: the world's check of its own work, kept after each change so the Inbox only reads it.
+    sql: /* sql */ `
+CREATE TABLE IF NOT EXISTS world_audit (
+  chat_id    TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+  data       TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
