@@ -32,6 +32,21 @@ describe("who comes along on a move", () => {
     expect(Object.values(st.chars).find((c) => c.name === "Shauna")!.tier).toBe("spot");
   });
 
+  test("someone who leaves for where the scene goes is in it", () => {
+    const home = [["at: Revello Drive › Bedroom", "cast: James@spot · Jackie@spot"]];
+    const tier = (st: ReturnType<typeof foldEvents>["state"], name: string) => Object.values(st.chars).find((c) => c.name === name)!.tier;
+    expect(tier(foldEvents(events([...home, ["cast: Jackie@left(→ kitchen)", "at: Revello Drive › Kitchen"]]), cfg).state, "Jackie")).toBe("spot");
+    expect(tier(foldEvents(events([...home, ["at: Revello Drive › Kitchen", "cast: Jackie@left(→ the kitchen)"]]), cfg).state, "Jackie")).toBe("spot");
+    expect(tier(foldEvents(events([...home, ["cast: Jackie@left(→ the porch)", "at: Revello Drive › Kitchen"]]), cfg).state, "Jackie")).toBe("off");
+  });
+
+  test("a thought for someone away brings them in", () => {
+    const st = foldEvents(events([camp, ["cast: Nat@left(→ the lake)"], ['think Nat: "Back already. Nobody noticed."']]), cfg).state;
+    expect(Object.values(st.chars).find((c) => c.name === "Nat")!.tier).toBe("spot");
+    const same = foldEvents(events([camp, ["cast: Nat@left(→ the lake)", 'think Nat: "Finally, some quiet."']]), cfg).state;
+    expect(Object.values(same.chars).find((c) => c.name === "Nat")!.tier).toBe("off");
+  });
+
   test("a move without a cast line takes everyone along", () => {
     const st = foldEvents(events([camp, ["at: clearing › cabin"]]), cfg).state;
     expect(Object.values(st.chars).find((c) => c.name === "Shauna")!.place).toBe("clearing › cabin");
