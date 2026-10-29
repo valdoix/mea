@@ -4,6 +4,7 @@ import type { SimOp } from "../sim/types";
 import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { castLabel, parseLine } from "./dsl";
+import { mentions } from "./mentions";
 import { applyPatch, type Change as PatchChange } from "./patch";
 import type { Template } from "./schema";
 import {
@@ -285,6 +286,8 @@ export class Folder {
     for (const t of this.cfg.seedTraits?.[opts.isUser ? "user" : key] ?? []) c.traits.push({ kind: traitKind(t), text: t, by: "card", seq: 0 });
     // A secret kept from everyone is kept from whoever turns up later too.
     if (!opts.isUser) for (const f of Object.values(this.state.facts)) if (f.secret?.everyone && !f.secret.keepers.includes(id)) f.secret.from.push(id);
+    // docs/21 4.3: facts said before they turned up may be about them.
+    for (const f of Object.values(this.state.facts)) if (!f.about?.includes(id) && mentions(f.statement, clean)) f.about = [...(f.about ?? []), id];
     return c;
   }
 
@@ -1451,7 +1454,15 @@ export class Folder {
     const f = (st.facts[k] ??= { key: k, statement: clip(statement), truth: (truth as Truth) ?? "true", stances: {}, revealed: [], firstSeq: seq, lastSeq: seq });
     f.lastSeq = seq;
     if (truth) f.truth = truth as Truth;
+    f.about = this.aboutOf(f.statement);
     return f;
+  }
+
+  /** docs/21 4.3: the people a statement names, by name, alias, or (for you) your name. */
+  aboutOf(statement: string): string[] {
+    return Object.values(this.state.chars)
+      .filter((c) => [c.name, ...c.aliases, ...(c.isUser && this.cfg.userName ? [this.cfg.userName] : [])].some((n) => mentions(statement, n)))
+      .map((c) => c.id);
   }
 
   /** Folds one person into another (the same person written two ways): every bond, item, secret and promise follows. */
@@ -1509,6 +1520,7 @@ export class Folder {
       }
     }
     for (const f of Object.values(st.facts)) {
+      if (f.about) f.about = uniq(f.about.map((x) => swap(x)!));
       const s = f.stances[from.id];
       if (s) {
         if (!f.stances[into.id] || f.stances[into.id]!.seq < s.seq) f.stances[into.id] = s;

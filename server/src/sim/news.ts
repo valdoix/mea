@@ -1,4 +1,5 @@
-import type { Op, WorldState } from "../trackers/types";
+import { mentions } from "../trackers/mentions";
+import type { Fact, Op, WorldState } from "../trackers/types";
 import { chanceIn } from "./dice";
 import { canAct, type RActor, type Roster } from "./roster";
 import type { NewsHop } from "./types";
@@ -32,16 +33,14 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
   const max = o.max ?? 4;
   const pairsDone = new Set<string>();
   const actors = [...o.roster.actors.values()];
-  const first = (name: string) => name.toLowerCase().split(" ")[0]!;
-  const named = (statement: string) => {
-    // "Gabriel's organization" is about Gabriel.
-    const words = new Set((statement.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []).map((w) => w.replace(/['’]s?$/, "")));
-    return actors.filter((a) => first(a.name).length > 1 && words.has(first(a.name)));
-  };
+  // docs/21 4.3: the fold read who a fact is about with the cast in hand (aliases, your name, "Gabriel's").
+  // People only the lore knows aren't in the cast, so they're found by name here, the same way.
+  const named = (f: Fact) =>
+    actors.filter((a) => (a.ring === "unmet" || !f.about ? mentions(f.statement, a.name) : f.about.includes(a.id)));
   // "The thermostat hasn't moved since Joyce died" isn't news of a death: only the main clause counts.
   const facts = Object.values(o.state.facts).filter((f) => BIG.test(f.statement.replace(/\b(?:ever since|since|after|before|until|when)\b[^,;.]*/gi, "")));
   for (const f of facts) {
-    const about = named(f.statement);
+    const about = named(f);
     if (about.some((a) => a.isUser || a.isMain)) continue;
     const secretKeepers = new Set(f.secret?.keepers ?? []);
     for (const [holderId, stance] of Object.entries(f.stances)) {
@@ -60,7 +59,7 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
         if (strength < 2) continue;
         if (other.knows.has(f.key) && other.knows.get(f.key) !== "unaware") continue;
         // News about yourself isn't passed on, and isn't news to you.
-        if (f.statement.toLowerCase().includes(other.name.toLowerCase().split(" ")[0]!) || f.statement.toLowerCase().includes(holder.name.toLowerCase().split(" ")[0]!)) continue;
+        if (about.some((a) => a.id === otherId || a.id === holderId)) continue;
         if (f.secret?.from.includes(otherId)) continue;
         // Bob never met Buffy: news of her means nothing to him.
         if (about.some((a) => a.id !== holderId && !other.ties.has(a.id))) continue;
