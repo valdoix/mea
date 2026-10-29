@@ -13,7 +13,9 @@
   import { ChevronDown, Info } from "../../lib/icons";
   import { storyColors, voiceColor } from "../../lib/voices";
   import { trk } from "../../lib/trackers.svelte";
-  import { byRank, castRoll } from "../../lib/castroll";
+  import { byRank, castRoll, type TrackerChange as Change } from "../../lib/castroll";
+  import { post } from "../../lib/api";
+  import { errorToast, toast } from "../../lib/state.svelte";
   import type { TrackerChange } from "../../lib/types";
 
   /** The cast roll: what this reply changed, filed under the person it happened to. */
@@ -32,7 +34,49 @@
   const sourceLabel: Record<string, string> = { model: "the tracker model", inline: "the story model", user: "you", init: "the card", timeskip: "a time skip", engine: "the world off the page" };
   const tip = (c: { reason?: string; flag?: string }) => [c.reason, c.flag].filter(Boolean).join(" · ") || undefined;
   const count = (n: number) => `${n} change${n === 1 ? "" : "s"}`;
+
+  // docs/21 1.1–1.3: what the world did off the page says why, and can be taken back where it shows.
+  let asking = $state<string | null>(null);
+  let busy = $state(false);
+  const teller = (c: Change) => c.reason?.match(/^told by (.+?), /)?.[1];
+  async function undo(c: Change, also?: "apart" | "out") {
+    if (!c.event || !trk.chatId || busy) return;
+    busy = true;
+    try {
+      const r = await post<{ removed: number }>(`/api/chats/${trk.chatId}/world/undo/${c.event}`, also ? { also } : {});
+      const more = r.removed > 2 ? ` and ${r.removed - 2} that came from it` : "";
+      toast(also === "apart" ? `Undone${more}; they won't pass things on to each other` : also === "out" ? `Undone${more}; ${c.subject} sits out the world off the page` : `Undone${more}`, { kind: "ok" });
+      asking = null;
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      busy = false;
+    }
+  }
 </script>
+
+{#snippet engine(c: Change)}
+  {#if c.source === "engine" && c.event}
+    <div class="eng">
+      {#if c.why?.length}
+        <details class="whyd">
+          <summary>Why</summary>
+          <ul>{#each c.why as w, k (k)}<li class:assumed={/assumed/.test(w)}>{w}</li>{/each}</ul>
+        </details>
+      {/if}
+      {#if asking === c.event}
+        <span class="undo-q">
+          <button class="lnk" disabled={busy} onclick={() => undo(c)}>Just undo</button>
+          {#if teller(c)}<button class="lnk" disabled={busy} onclick={() => undo(c, "apart")}>{short(teller(c)!)} and {short(c.subject ?? "")} don't talk</button>{/if}
+          {#if c.subject}<button class="lnk" disabled={busy} onclick={() => undo(c, "out")}>{short(c.subject)} isn't in the story now</button>{/if}
+          <button class="lnk faint" onclick={() => (asking = null)}>Keep it</button>
+        </span>
+      {:else}
+        <button class="lnk" onclick={() => (asking = c.event!)}>Undo</button>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
 {#snippet orb(name: string, size: "sm" | "md" | "lg")}
   <span class="orb {size}" style:--vc={color(name)} aria-hidden="true">{short(name).slice(0, 1)}</span>
@@ -65,6 +109,7 @@
                 {#each r.beats as b, j (j)}
                   <div class="beat" class:flagged={Boolean(b.c.flag)} title={tip(b.c)}>
                     <span class="e" aria-hidden="true">{icon[b.c.kind] ?? "•"}</span>
+                    <div class="bc">
                     {#if b.type === "feel"}
                       <div class="feel">
                         <span class="verb">feels</span>
@@ -90,6 +135,8 @@
                         {b.text}
                       </div>
                     {/if}
+                    {@render engine(b.c)}
+                    </div>
                   </div>
                 {/each}
               </div>
@@ -315,6 +362,55 @@
   .meter b {
     font-size: 0.92em;
     margin-left: 0.15rem;
+  }
+  .bc {
+    min-width: 0;
+  }
+  .eng {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2rem 0.7rem;
+    margin-top: 0.15rem;
+    font: 400 var(--fs-xs) / 1.5 var(--font-ui);
+    color: var(--text-faint);
+  }
+  .whyd summary {
+    cursor: pointer;
+    color: var(--text-muted);
+  }
+  .whyd[open] {
+    flex-basis: 100%;
+  }
+  .whyd ul {
+    margin: 0.2rem 0 0.1rem;
+    padding-left: 1.1rem;
+  }
+  .whyd li.assumed {
+    color: var(--warn, #b7791f);
+  }
+  .undo-q {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.7rem;
+  }
+  .lnk {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    text-underline-offset: 2px;
+  }
+  .lnk.faint {
+    color: var(--text-faint);
+  }
+  .lnk:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   .know {
     font: italic 400 1.02em/1.45 var(--font-story);

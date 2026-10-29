@@ -689,17 +689,18 @@ function endArc(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => num
 export function consequences(arc: Arc, result: EndResult, text: string, inp: TickInput): Op[] {
   const ops: Op[] = [];
   const spec = SPECS[arc.kind];
+  const why = [`a subplot ended (${result}): ${arc.premise}`];
   const target = arc.target ? inp.roster.actors.get(arc.target) : undefined;
   const lead = inp.roster.actors.get(arc.lead);
   if (spec.bond && target && lead && !lead.isUser) {
     const d = result === "met" ? spec.bond.met : result === "price" ? Math.round(spec.bond.met / 2) || Math.sign(spec.bond.met) : result === "lost" ? spec.bond.lost : 0;
-    if (d) ops.push({ op: "bond", subject: lead.name, object: target.name, args: { moves: [{ axis: spec.bond.axis, delta: d }], tagsAdd: [], tagsRemove: [] }, cause: text, raw: `bond ${lead.name}>${target.name}: ${spec.bond.axis} ${d > 0 ? "+" : ""}${d} — ${text}` });
+    if (d) ops.push({ op: "bond", subject: lead.name, object: target.name, args: { moves: [{ axis: spec.bond.axis, delta: d }], tagsAdd: [], tagsRemove: [] }, cause: text, why, raw: `bond ${lead.name}>${target.name}: ${spec.bond.axis} ${d > 0 ? "+" : ""}${d} — ${text}` });
   }
   // What happened is now a fact its people know (and news that can travel).
   const key = `arc-${arc.id.replace(/[^a-z0-9]+/gi, "-").slice(0, 40)}`;
   const statement = text.replace(/^In the end, /, "");
   const holders = [lead?.name ?? arc.leadName, ...(target ? [target.name] : [])];
-  for (const h of holders) ops.push({ op: "know", subject: h, args: { fact: statement, key, status: "knows", truth: "true", route: "lived it" }, cause: "off the page", raw: `know ${h}: #${key} | lived it · knows` });
+  for (const h of holders) ops.push({ op: "know", subject: h, args: { fact: statement, key, status: "knows", truth: "true", route: "lived it" }, cause: "off the page", why, raw: `know ${h}: #${key} | lived it · knows` });
   if (arc.secrecy === "secret" && target && (result === "met" || result === "price"))
     ops.push({ op: "secret", subject: `#${key}`, args: { key, fact: statement, keepers: [arc.leadName], from: [target.name] }, raw: `secret #${key}: ${statement} | kept by ${arc.leadName} · from ${target.name}` });
   // Faction subplots move their clock.
