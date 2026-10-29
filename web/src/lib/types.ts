@@ -1525,6 +1525,9 @@ export interface TrackerChange {
   flag?: string;
   memory?: boolean;
   source: "model" | "inline" | "user" | "init" | "timeskip" | "engine";
+  /** The world off the page: its event (for undo) and what the rules acted on. */
+  event?: string;
+  why?: string[];
 }
 
 export interface TemplateField {

@@ -356,7 +356,8 @@ export class Folder {
     ctx.verdict.warn = ctx.verdict.warn ? `${ctx.verdict.warn}; ${w}` : w;
   }
   private push(ctx: Ctx, c: Omit<Change, "source">) {
-    ctx.changes.push({ ...c, source: ctx.ev.source });
+    const engine = ctx.ev.source === "engine" ? { event: ctx.ev.id, ...(ctx.ev.op.why?.length ? { why: ctx.ev.op.why } : {}) } : {};
+    ctx.changes.push({ ...c, source: ctx.ev.source, ...engine });
   }
   private isLocked(path: string) {
     const p = path.toLowerCase();

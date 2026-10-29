@@ -20,6 +20,8 @@ export interface RActor extends Actor {
   reach: Reach;
   travel: number;
   ties: Map<string, number>;
+  /** Where each tie came from, for the why under an engine change ("Tara's description: …"). */
+  tieWhy: Map<string, string>;
   text: string;
   want?: string;
   fear?: string;
@@ -152,21 +154,18 @@ function reachOf(where: string[] | undefined, scene: string[], standing: Standin
 
 const tieWords = (strength: number) => new RegExp(`\\b(${strength === 3 ? CLOSE : strength === 2 ? EXTENDED : WORK})\\b`, "i");
 
-/** How strongly A's description ties them to B (0 when it doesn't name B). */
-function textTie(text: string, other: string): number {
-  if (!other || other.length < 3) return 0;
+/** How strongly A's description ties them to B (0 when it doesn't name B), and the words that did it. */
+function textTie(text: string, other: string): { s: number; around: string } {
+  if (!other || other.length < 3) return { s: 0, around: "" };
   // Who they were to someone long ago ("history(… the woman William, later Spike, loved in 1880)") isn't a tie now.
   text = text.replace(/\b(\w+)\s*\(([^()]*)\)/g, (m, label: string) => (PAST_LABEL.test(label) ? "" : m));
   const esc = other.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`.{0,40}\\b${esc}\\b.{0,40}`, "gi");
-  let best = 0;
+  let best = { s: 0, around: "" };
   for (const m of text.matchAll(re)) {
     const around = m[0];
-    if (/\b(estranged|former|ex-|drifted|used to be)\b/i.test(around)) best = Math.max(best, 1);
-    else if (tieWords(3).test(around)) best = Math.max(best, 3);
-    else if (tieWords(2).test(around)) best = Math.max(best, 2);
-    else if (tieWords(1).test(around)) best = Math.max(best, 2);
-    else best = Math.max(best, 1);
+    const s = /\b(estranged|former|ex-|drifted|used to be)\b/i.test(around) ? 1 : tieWords(3).test(around) ? 3 : tieWords(2).test(around) || tieWords(1).test(around) ? 2 : 1;
+    if (s > best.s) best = { s, around: around.trim() };
   }
   return best;
 }
@@ -251,6 +250,7 @@ export function buildRoster(inp: RosterInput): Roster {
       reach,
       travel: TRAVEL[reach],
       ties: new Map(),
+      tieWhy: new Map(),
       text,
       want: c.drives.want,
       fear: c.drives.fear,
@@ -313,6 +313,7 @@ export function buildRoster(inp: RosterInput): Roster {
       reach,
       travel: TRAVEL[reach],
       ties: new Map(),
+      tieWhy: new Map(),
       text: u.text,
       want: u.text.match(/\bwants? (?:to )?([^.;]{4,80})/i)?.[1],
       fear: u.text.match(/\bfears? ([^.;]{4,80})/i)?.[1],
@@ -336,27 +337,39 @@ export function buildRoster(inp: RosterInput): Roster {
     a.reach = "none";
     a.travel = TRAVEL.none;
   }
-  const tie = (a: string, b: string, s: number) => {
+  const tie = (a: string, b: string, s: number, why: string) => {
     if (a === b) return;
     const A = actors.get(a);
     const B = actors.get(b);
     if (!A || !B) return;
+    if (s > (A.ties.get(b) ?? 0)) A.tieWhy.set(b, why);
+    if (Math.min(s, 2) > (B.ties.get(a) ?? 0)) B.tieWhy.set(a, why);
     A.ties.set(b, Math.max(A.ties.get(b) ?? 0, s));
     B.ties.set(a, Math.max(B.ties.get(a) ?? 0, Math.min(s, 2)));
   };
   for (const b of Object.values(st.bonds)) {
     const ax = b.axes;
     const s = Math.min(3, 1 + Math.round((Math.abs(ax.trust ?? 0) + Math.abs(ax.affection ?? 0) + (ax.familiarity ?? 0) + (ax.attraction ?? 0) + (ax.rivalry ?? 0) + (ax.resentment ?? 0)) / 4));
-    tie(b.from, b.to, s);
+    tie(b.from, b.to, s, `a bond on the page (${actors.get(b.from)?.name ?? b.from} → ${actors.get(b.to)?.name ?? b.to})`);
   }
   for (const a of all) for (const b of all) if (a !== b && a.text) {
-    const s = textTie(a.text, b.name.split(" ")[0]!.length > 3 ? b.name : b.name);
-    if (s) tie(a.id, b.id, s);
+    const t = textTie(a.text, b.name);
+    if (t.s) tie(a.id, b.id, t.s, `${a.name}'s description: "…${t.around}…"`);
   }
   // The main character and the user are always tied.
   const main = all.find((a) => a.isMain);
   const user = all.find((a) => a.isUser);
-  if (main && user) tie(main.id, user.id, 3);
+  if (main && user) tie(main.id, user.id, 3, "the main character and you");
+  // You said they don't talk (an undone piece of news, docs/21 1.3): no tie either way, whatever the lore says.
+  for (const a of all)
+    for (const name of inp.profiles[keyOf(a.name)]?.apart ?? []) {
+      const b = all.find((x) => x !== a && samePerson(x.name, name));
+      if (!b) continue;
+      for (const [x, y] of [[a, b], [b, a]] as const) {
+        x.ties.delete(y.id);
+        x.tieWhy.delete(y.id);
+      }
+    }
 
   // Knowledge stances.
   for (const f of Object.values(st.facts)) for (const [id, s] of Object.entries(f.stances)) actors.get(id)?.knows.set(f.key, s.status);

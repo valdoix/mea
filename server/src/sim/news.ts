@@ -1,6 +1,6 @@
 import type { Op, WorldState } from "../trackers/types";
 import { chanceIn } from "./dice";
-import type { RActor, Roster } from "./roster";
+import { canAct, type RActor, type Roster } from "./roster";
 import type { NewsHop } from "./types";
 
 /**
@@ -15,13 +15,15 @@ import type { NewsHop } from "./types";
 const BIG = /\b(alive|back from the dead|came back|is back|returned|died|dead|killed|murder\w*|pregnan\w*|married|engaged|broke up|divorc\w*|arrested|in jail|escaped|betray\w*|stole|fired|quit|left town|moved away|attack\w*|raid\w*|fire\b|burned|hurt|in (?:the )?hospital|hospitali[sz]ed|missing|kidnapp\w*|exposed|secret|affair|lied|engaged|kissed|dating|together)\b/i;
 const HAS = new Set(["knows", "believes", "suspects"]);
 
-function contact(a: RActor, b: RActor, tech: string): { c: number; medium: string } {
-  const aw = (a.where ?? []).join(" › ").toLowerCase();
-  const bw = (b.where ?? []).join(" › ").toLowerCase();
-  if (aw && aw === bw) return { c: 1, medium: "in person" };
-  if (a.reach !== "far" && b.reach !== "far" && a.reach !== "none" && b.reach !== "none") return { c: 0.6, medium: "in person" };
+function contact(a: RActor, b: RActor, tech: string): { c: number; medium: string; why: string } {
+  const aw = (a.where ?? []).join(" › ");
+  const bw = (b.where ?? []).join(" › ");
+  if (aw && aw.toLowerCase() === bw.toLowerCase()) return { c: 1, medium: "in person", why: `place: both at ${aw}` };
+  const placed = (x: RActor, w: string) => (w ? `${x.name} at ${w}` : `${x.name}'s place not known, assumed ${x.reach}`);
+  const places = `${placed(a, aw)}; ${placed(b, bw)}`;
+  if (a.reach !== "far" && b.reach !== "far" && a.reach !== "none" && b.reach !== "none") return { c: 0.6, medium: "in person", why: `place: near each other (${places})` };
   const medium = tech === "modern" || tech === "future" ? "by phone" : tech === "fantasy" ? "by letter" : "by letter";
-  return { c: 0.3, medium };
+  return { c: 0.3, medium, why: `place: far apart (${places})` };
 }
 
 export function spreadNews(o: { state: WorldState; roster: Roster; hours: number; rand: () => number; tech: string; max?: number; now: number }): { hops: NewsHop[]; ops: Op[] } {
@@ -47,12 +49,13 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
       if (!HAS.has(stance.status)) continue;
       const holder = o.roster.actors.get(holderId);
       // The main character's talk is the story's to tell, even when they've stepped out of the scene.
-      if (!holder || holder.dead || holder.isUser || holder.isMain || holder.ring === "onstage") continue;
+      // Nor do the dead, a pet, or someone you took out of the simulation.
+      if (!holder || !canAct(holder) || holder.isMain || holder.ring === "onstage") continue;
       if (secretKeepers.has(holderId)) continue;
       for (const [otherId, strength] of holder.ties) {
         if (hops.length >= max) break;
         const other = o.roster.actors.get(otherId);
-        if (!other || other.dead || other.isUser || other.isMain || other.ring === "onstage") continue;
+        if (!other || !canAct(other) || other.isMain || other.ring === "onstage") continue;
         // News goes to people you're close to, not to everyone your lore happens to name.
         if (strength < 2) continue;
         if (other.knows.has(f.key) && other.knows.get(f.key) !== "unaware") continue;
@@ -63,9 +66,10 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
         if (about.some((a) => a.id !== holderId && !other.ties.has(a.id))) continue;
         const pair = [holderId, otherId].sort().join("|");
         if (pairsDone.has(pair)) continue;
-        const { c, medium } = contact(holder, other, o.tech);
+        const { c, medium, why: place } = contact(holder, other, o.tech);
         const talk = holder.guarded ? 0.2 : 1;
-        if (o.rand() >= chanceIn(0.1 * strength * c * talk, o.hours)) continue;
+        const chance = chanceIn(0.1 * strength * c * talk, o.hours);
+        if (o.rand() >= chance) continue;
         pairsDone.add(pair);
         const secondHand = /told|heard|rumou?r/.test(stance.route ?? "");
         const distorted = secondHand && o.rand() < 0.25;
@@ -78,6 +82,13 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
           subject: other.name,
           args: { fact: f.statement, key: f.key, status, truth: distorted ? "partial" : f.truth, route: `told by ${holder.name}, ${medium}${distorted ? " (garbled)" : ""}` },
           cause: `news off the page`,
+          // docs/21 1.2: what the rules acted on, so a wrong guess shows on the chip.
+          why: [
+            `${holder.name} knew it: ${stance.route ?? "from the page"}`,
+            `tie: ${holder.tieWhy.get(otherId) ?? "close"}`,
+            place,
+            `chance: ${Math.round(chance * 100)}% over ${Math.round(o.hours)} h${holder.guarded ? ` (${holder.name} is guarded)` : ""}`,
+          ],
           raw: `know ${other.name}: #${f.key} | told by ${holder.name}, ${medium} · ${status}`,
         });
       }

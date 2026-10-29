@@ -102,6 +102,17 @@ describe("roster", () => {
     expect(ops.some((o) => o.subject === "Jenny Calendar")).toBe(false);
   });
 
+  test("news says why it travelled, and someone you took out hears none", () => {
+    const st = world([...base, "know Joss: The chandlery burned down in the storm | saw it · knows", "bond Joss>Kit: affection 3 — old friends", "cast: Kit@left"]);
+    const roster = buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex" });
+    const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
+    const kit = ops.find((o) => o.subject === "Kit")!;
+    expect(kit.why).toContain("tie: a bond on the page (Joss → Kit)");
+    expect(kit.why?.some((w) => w.startsWith("place: ") && w.includes("Kit's place not known, assumed"))).toBe(true);
+    const out = buildRoster({ state: st, profiles: { kit: { name: "Kit", out: true } }, lore: [], userName: "Alex" });
+    expect(spreadNews({ state: st, roster: out, hours: 500, rand: () => 0, tech: "modern", now: 0 }).ops.some((o) => o.subject === "Kit")).toBe(false);
+  });
+
   test("news about your character stays on the page, even in the possessive", () => {
     const st = world([...base, "know Joss: Alex's shop burned down last night | Alex told him · knows", "bond Joss>Kit: affection 3 — old friends", "cast: Kit@left"]);
     const roster = buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex" });

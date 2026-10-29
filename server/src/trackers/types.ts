@@ -28,6 +28,8 @@ export interface Op {
   object?: string;
   args: Record<string, any>;
   cause?: string;
+  /** The world off the page: the evidence the rules acted on ("tie: …", "place: …"), for the chip. */
+  why?: string[];
   raw: string;
 }
 
@@ -379,6 +381,9 @@ export interface Change {
   newScene?: boolean;
   memory?: boolean;
   source: EventSource;
+  /** The world off the page: the event behind it (so you can undo it) and why the engine did it. */
+  event?: string;
+  why?: string[];
 }
 
 export interface Verdict {

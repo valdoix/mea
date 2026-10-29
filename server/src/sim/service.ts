@@ -1,4 +1,4 @@
-import { one, parseJson } from "../db/db";
+import { all, one, parseJson } from "../db/db";
 import { customOf } from "../trackers/customcal";
 import { trackerConfig } from "../trackers/store";
 import { badRequest, notFound } from "../lib/http";
@@ -11,7 +11,7 @@ import { enqueue, type JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { formatStoryTime } from "../trackers/clock";
 import { slug } from "../trackers/fold";
-import { castKey, castProfiles, currentFold, foldConfigFor, writeEvents } from "../trackers/store";
+import { castKey, castProfiles, currentFold, deleteEvents, foldConfigFor, saveCastProfile, writeEvents } from "../trackers/store";
 import type { Op, WorldState } from "../trackers/types";
 import { confirmArrivals, elsewhereLane } from "./crossings";
 import { type Personality, PERSONALITIES } from "./director";
@@ -554,7 +554,57 @@ export function decideFate(chatId: string, id: string, choice: "accept" | "softe
   return control(chatId, [{ type: "arc.end", id, result, text, at: st.time.minutes }], ledger);
 }
 
-export function setActor(chatId: string, name: string, patch: { standing?: string; where?: string; flag?: "out" | "hold" | "wake" | null }) {
+/** What an undo of an engine change also says (docs/21 1.3): the two don't talk, or this person sits out the simulation. */
+export type UndoAlso = "apart" | "out";
+
+/**
+ * Takes back a change the world made off the page (docs/21 1.1). News goes with its hop and with
+ * everything that travelled on from it (undoing Spike → Tara also undoes Tara → Willow). `also`
+ * keeps it from happening again, on the cast profiles, which every branch reads.
+ */
+export function undoEngine(chatId: string, eventId: string, also?: UndoAlso): { removed: number } {
+  mustChat(chatId);
+  type Row = { id: string; message_id: string | null; swipe_idx: number; source: string; op: string };
+  const row = one<Row>("SELECT id, message_id, swipe_idx, source, op FROM tracker_events WHERE chat_id = ? AND id = ?", chatId, eventId);
+  if (!row) throw notFound("That change is gone already");
+  if (row.source !== "engine") throw badRequest("Only the world's own changes can be undone here");
+  const ids = new Set<string>();
+  const told = (op: Op) => (op.op === "know" ? String(op.args.route ?? "").match(/^told by (.+?), /)?.[1] : undefined);
+  const take = (r: Row) => {
+    if (ids.has(r.id)) return;
+    ids.add(r.id);
+    const op = parseJson<Op>(r.op, { op: "sim", args: {}, raw: "" } as Op);
+    if (!told(op) || !op.subject) return;
+    const key = String(op.args.key ?? "");
+    // The hop record beside it.
+    for (const h of all<Row>(
+      "SELECT id, message_id, swipe_idx, source, op FROM tracker_events WHERE chat_id = ? AND source = 'engine' AND message_id IS ? AND swipe_idx = ? AND json_extract(op, '$.args.type') = 'news' AND json_extract(op, '$.args.hop.fact') = ? AND json_extract(op, '$.args.hop.to') = ?",
+      chatId, r.message_id, r.swipe_idx, key, op.subject,
+    ))
+      ids.add(h.id);
+    // And whatever they passed on.
+    for (const next of all<Row>(
+      "SELECT id, message_id, swipe_idx, source, op FROM tracker_events WHERE chat_id = ? AND source = 'engine' AND json_extract(op, '$.op') = 'know' AND json_extract(op, '$.args.key') = ? AND json_extract(op, '$.args.route') LIKE ?",
+      chatId, key, `told by ${op.subject}, %`,
+    ))
+      take(next);
+  };
+  take(row);
+
+  const op = parseJson<Op>(row.op, { op: "sim", args: {}, raw: "" } as Op);
+  if (also === "out" && op.subject) saveCastProfile(chatId, op.subject, { out: true });
+  if (also === "apart" && op.subject) {
+    const other = told(op) ?? op.object;
+    if (other) {
+      const cur = castProfiles(chatId)[castKey(op.subject)]?.apart ?? [];
+      if (!cur.some((n) => n.toLowerCase() === other.toLowerCase())) saveCastProfile(chatId, op.subject, { apart: [...cur, other] });
+    }
+  }
+  deleteEvents(chatId, [...ids]);
+  return { removed: ids.size };
+}
+
+export function setActor(chatId: string, name: string, patch:{ standing?: string; where?: string; flag?: "out" | "hold" | "wake" | null }) {
   const st = currentFold(chatId).result.state;
   const roster = rosterFor(chatId, st);
   const a = roster.byName(name);

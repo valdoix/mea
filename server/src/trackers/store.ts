@@ -150,6 +150,8 @@ export interface CastProfile {
   role?: string;
   /** Don't simulate them off the page. */
   out?: boolean;
+  /** People they don't talk to off the page, whatever the lore says (docs/21 1.3). */
+  apart?: string[];
 }
 
 export const castKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
@@ -314,7 +316,14 @@ export function writeEvents(chatId: string, anchor: { messageId: string | null; 
 }
 
 export function deleteEvent(chatId: string, id: string) {
-  run("DELETE FROM tracker_events WHERE chat_id = ? AND id = ?", chatId, id);
+  deleteEvents(chatId, [id]);
+}
+
+export function deleteEvents(chatId: string, ids: string[]) {
+  if (!ids.length) return;
+  tx(() => {
+    for (const id of ids) run("DELETE FROM tracker_events WHERE chat_id = ? AND id = ?", chatId, id);
+  });
   invalidate(chatId);
   publish({ type: "trackers.changed", chatId });
 }
