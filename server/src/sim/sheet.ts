@@ -11,6 +11,15 @@ import type { Standing } from "./types";
 export type SheetKind = "person" | "animal" | "group" | "thing";
 export type SheetStatus = "alive" | "dead" | "absent" | "captive" | "changed" | "unknown";
 export type SheetWhen = "now" | "past" | "later" | "unknown";
+/** docs/21 Part 3: what two people are to each other (roster.ts says what each kind does). */
+export type TieType = "close" | "friend" | "knows" | "knowsOf" | "past" | "enemy";
+export const TIE_TYPES: TieType[] = ["close", "friend", "knows", "knowsOf", "past", "enemy"];
+export interface SheetTie {
+  name: string;
+  type: TieType;
+  inTouch: boolean;
+  quote?: string;
+}
 
 export interface Sheet {
   kind: SheetKind;
@@ -22,6 +31,8 @@ export interface Sheet {
   inStory: SheetWhen;
   /** The words of their lore the reading rests on. */
   quote?: string;
+  /** Who their lore says they know, and whether they're in touch now. */
+  ties?: SheetTie[];
   /** The text it was read from (a hash), so a change reads it again. */
   basis: string;
   at: number;
@@ -77,6 +88,7 @@ export const sheetSchema = z.object({
       far: z.boolean().optional(),
       inStory: z.string(),
       quote: z.string().optional(),
+      ties: z.array(z.object({ name: z.string(), type: z.string(), inTouch: z.boolean().optional(), quote: z.string().optional() })).optional(),
     }),
   ),
 });
@@ -86,13 +98,14 @@ export type SheetRead = z.infer<typeof sheetSchema>["people"][number];
 export function sheetPrompt(people: { name: string; text: string }[], o: { setting: string; now: string; town: string }) {
   const system = [
     "You read a story's lore and say, for each entry, what it means for the story's present. You only report what the text says or plainly implies; when it doesn't say, answer unknown or null.",
-    'Return JSON: {"people":[{"name","kind","status","whereabouts","far","inStory","quote"}]}, one item per entry, names exactly as given.',
+    'Return JSON: {"people":[{"name","kind","status","whereabouts","far","inStory","quote","ties":[{"name","type","inTouch","quote"}]}]}, one item per entry, names exactly as given.',
     "kind: person (someone who could act on their own), animal (a pet or beast), group (a faction, family, crew), thing (a place, object, idea, or a title that isn't a person).",
     "status, now: alive · dead (dead and not back) · absent (alive but gone from the story's town: moved away, left, last seen elsewhere) · captive · changed (alive but can't act as themself: soulless, petrified, possessed) · unknown.",
     "A vampire or other undead who walks and acts is alive here. Someone who died and came back is alive.",
     "whereabouts: where they are now, as a short place name, or null. far: true when that's away from the story's town (another city, country, dimension).",
     "inStory: now (alive in the story's present, wherever they are: someone away in another city is still now) · past (dead before the story's present) · later (not born or not yet arrived in the story's time) · unknown.",
     "quote: the few words of their entry your reading rests on, copied exactly; empty when nothing says.",
+    "ties: the people their entry names and what they are to each other now: close (family, partner, best friend) · friend (friend, ally, colleague, someone they work with) · knows (met, acquainted) · knowsOf (knows the name only) · past (knew each other once; not now) · enemy. inTouch: true when they talk or see each other in the story's present; false when they're estranged, apart or out of contact. quote: the words it rests on.",
   ].join("\n");
   const user = [
     `THE STORY: ${o.setting}`,
@@ -116,7 +129,10 @@ export function checkRead(r: SheetRead, text: string, basis: string): Sheet | nu
   const flat = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
   const quote = r.quote?.trim() && flat(text).includes(flat(r.quote)) ? r.quote.trim() : undefined;
   const where = r.whereabouts?.trim() || null;
-  return { kind, status, whereabouts: where && where.length <= 80 ? where : null, far: Boolean(r.far), inStory, ...(quote ? { quote } : {}), basis, at: now() };
+  const ties = (r.ties ?? [])
+    .filter((t) => TIE_TYPES.includes(t.type as TieType) && t.name?.trim())
+    .map((t) => ({ name: t.name.trim(), type: t.type as TieType, inTouch: Boolean(t.inTouch), ...(t.quote?.trim() && flat(text).includes(flat(t.quote)) ? { quote: t.quote.trim() } : {}) }));
+  return { kind, status, whereabouts: where && where.length <= 80 ? where : null, far: Boolean(r.far), inStory, ...(quote ? { quote } : {}), ...(ties.length ? { ties } : {}), basis, at: now() };
 }
 
 /** Forget every reading in a chat, so the next one reads everyone again. */

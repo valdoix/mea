@@ -38,6 +38,12 @@
       reading = false;
     }
   }
+  const TIE: Record<string, string> = { close: "close", friend: "friend", knows: "knows", knowsOf: "knows of", past: "used to know", enemy: "enemy" };
+  /** "Tara (close)", "Drusilla (used to know, not in touch)", "Bob (friend, guessed)". */
+  function tieLine(t: WorldPerson["ties"][number]): string {
+    const bits = [TIE[t.type] ?? t.type, ...(t.inTouch || t.type === "knowsOf" || t.type === "past" ? [] : ["not in touch"]), ...(t.by === "guess" ? ["guessed"] : [])];
+    return `${t.name} (${bits.join(", ")})`;
+  }
   const BASIS: Record<string, string> = { you: "you set it", story: "from the story", lore: "from the lore", guess: "guessed", none: "nobody says" };
   /** Where what the world thinks of them comes from: "from the lore: “last seen in Los Angeles”", "standing guessed · place: nobody says". */
   function sourceLine(p: WorldPerson): string {
@@ -475,6 +481,9 @@
           {#if peopleView === "list"}<label class="switch small" title="What each person carries and hasn't said, and what you know that they don't"><input type="checkbox" bind:checked={irony} /> Dramatic irony</label>{/if}
         </div>
       </div>
+      {#each w.twins as name (name)}
+        <div class="row wrap guess"><span class="tiny">Two people in the story's records are called {name}. If they're one person, open either and merge them; the world treats them as two until then.</span></div>
+      {/each}
       {#if w.guessing || w.toRead}
         <div class="row wrap guess">
           <span class="tiny">{[w.guessing ? `The world is guessing where ${w.guessing} ${w.guessing === 1 ? "person is" : "people are"} and whether they can act.` : "", w.toRead ? `${w.toRead} ${w.toRead === 1 ? "person's" : "people's"} lore hasn't been read yet.` : ""].filter(Boolean).join(" ")}</span>
@@ -501,7 +510,7 @@
                   {#if c.pressure && c.pressure.stage !== "resolved"}<div class="tiny irony">Carries: {c.pressure.text} <span class="faint">({c.pressure.stage})</span></div>{/if}
                   {#if c.youKnow.length}<div class="tiny irony">You know, they don't: {c.youKnow.join(" · ")}</div>{/if}
                 {/if}
-                {#if director && p.ties.length}<div class="tiny faint">Tied to {p.ties.map((t) => `${t.name} (${["", "slight", "some", "close", "strong", "deep"][Math.min(5, Math.max(0, Math.round(t.strength)))] || "slight"})`).join(", ")}</div>{/if}
+                {#if director && p.ties.length}<div class="tiny faint">Tied to {p.ties.map(tieLine).join(", ")}</div>{/if}
                 {#if p.ring !== "onstage"}
                   <div class="row wrap picks">
                     <select class="select tiny pick" value={p.standing} onchange={(e) => setPerson(p.name, { standing: e.currentTarget.value })} aria-label="Standing">

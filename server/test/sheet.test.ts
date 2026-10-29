@@ -4,6 +4,7 @@ import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { registerJob } from "../src/services/jobs";
+import { spreadNews } from "../src/sim/news";
 import { buildRoster } from "../src/sim/roster";
 import { readSheets, rosterFor, sheetsToRead } from "../src/sim/service";
 import { checkRead, type Sheet, sheetsFor } from "../src/sim/sheet";
@@ -98,5 +99,55 @@ describe("reading the lore", () => {
     expect((await readSheets({ chatId })).read).toBe(0);
     saveCastProfile(chatId, "Dru", { description: "Dru is a seer, back in town and dead set on revenge." });
     expect(sheetsToRead(chatId).map((p) => p.name)).toEqual(["Dru"]);
+  });
+});
+
+describe("ties (docs/21 Part 3)", () => {
+  const news = (st: ReturnType<typeof world>, r: ReturnType<typeof buildRoster>) => spreadNews({ state: st, roster: r, hours: 500, rand: () => 0, tech: "modern", now: 0, max: 20 }).ops.map((o) => o.subject);
+  const fact = "know Joss: The chandlery burned down in the storm | saw it · knows";
+
+  test("a tie has a kind and says whether they're in touch; only in-touch ties that talk carry news", () => {
+    const st = world([...base, fact]);
+    const lore = [
+      { name: "Dru", text: "Dru is a seer and former lover of Joss." },
+      { name: "Kit", text: "Kit is Joss's sister. She runs the ferry." },
+      { name: "Bea", text: "Bea is a smuggler who has heard of Joss." },
+    ];
+    const r = buildRoster({ state: st, profiles: {}, lore, userName: "Alex" });
+    const joss = r.byName("Joss")!;
+    const kind = (n: string) => joss.tieKind.get(r.byName(n)!.id);
+    expect(kind("Dru")).toMatchObject({ type: "past", inTouch: false, by: "guess" });
+    expect(kind("Kit")).toMatchObject({ type: "close", inTouch: true, by: "guess" });
+    expect(kind("Bea")).toMatchObject({ type: "knowsOf", inTouch: false });
+    // Knowing only of someone, or knowing them once, isn't a tie the subplots count.
+    expect(joss.ties.has(r.byName("Bea")!.id)).toBe(false);
+    expect(news(st, r)).toEqual(["Kit"]);
+  });
+
+  test("the lore read's ties beat the old reading, and 'not in touch' holds back news", () => {
+    const st = world([...base, fact]);
+    const lore = [{ name: "Kit", text: "Kit is Joss's sister. She runs the ferry." }];
+    const sheets = { kit: { kind: "person", status: "alive", whereabouts: null, far: false, inStory: "now", basis: "x", at: 0, ties: [{ name: "Joss", type: "close", inTouch: false, quote: "hasn't spoken to Joss in years" }] } as Sheet };
+    const r = buildRoster({ state: st, profiles: {}, lore, userName: "Alex", sheets });
+    expect(r.byName("Joss")!.tieKind.get(r.byName("Kit")!.id)).toMatchObject({ type: "close", inTouch: false, by: "lore" });
+    expect(news(st, r)).toEqual([]);
+  });
+
+  test("a bond on the page beats the lore, and a quiet one gives way to it", () => {
+    const st = world([...base, fact, "cast: Kit@left", "bond Joss>Kit: affection 3 — old friends"]);
+    const sheets = { kit: { kind: "person", status: "alive", whereabouts: null, far: false, inStory: "now", basis: "x", at: 0, ties: [{ name: "Joss", type: "enemy", inTouch: false }] } as Sheet };
+    const r = buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex", sheets });
+    expect(r.byName("Joss")!.tieKind.get("kit")).toMatchObject({ type: "friend", inTouch: true, by: "story" });
+    st.lastSeq = 500;
+    // Quiet for 500 messages: the lore's word wins; with no lore, a friendly bond is still taken as in touch.
+    expect(buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex", sheets }).byName("Joss")!.tieKind.get("kit")).toMatchObject({ type: "enemy", inTouch: false, by: "lore" });
+    expect(buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex" }).byName("Joss")!.tieKind.get("kit")).toMatchObject({ type: "friend", inTouch: true, by: "guess" });
+  });
+
+  test("the lore's full name finds the person the story knows by an alias", () => {
+    const st = world([...base, "cast: Giles@left"]);
+    st.chars.giles!.aliases.push("Rupert Giles");
+    const r = buildRoster({ state: st, profiles: {}, lore: [{ name: "Rupert Giles", text: "Rupert Giles is a Watcher. He has just left for England." }], userName: "Alex" });
+    expect([...r.actors.values()].filter((a) => /giles/i.test(a.name)).map((a) => a.name)).toEqual(["Giles"]);
   });
 });

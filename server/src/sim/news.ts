@@ -1,7 +1,7 @@
 import { mentions } from "../trackers/mentions";
 import type { Fact, Op, WorldState } from "../trackers/types";
 import { chanceIn } from "./dice";
-import { canAct, type RActor, type Roster } from "./roster";
+import { CARRIES_NEWS, canAct, type RActor, type Roster, TIE_STRENGTH, TIE_WORDS } from "./roster";
 import type { NewsHop } from "./types";
 
 /**
@@ -51,18 +51,20 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
       // Nor do the dead, a pet, or someone you took out of the simulation.
       if (!holder || !canAct(holder) || holder.isMain || holder.ring === "onstage") continue;
       if (secretKeepers.has(holderId)) continue;
-      for (const [otherId, strength] of holder.ties) {
+      for (const [otherId, tie] of holder.tieKind) {
         if (hops.length >= max) break;
         const other = o.roster.actors.get(otherId);
         if (!other || !canAct(other) || other.isMain || other.ring === "onstage") continue;
-        // News goes to people you're close to, not to everyone your lore happens to name.
-        if (strength < 2) continue;
+        // docs/21 Part 3: news goes along ties that talk, between people in touch now. Not to a name in someone's
+        // lore, an old flame long gone (Drusilla), or someone they knew once (Halfrek, as Cecily).
+        if (!CARRIES_NEWS.has(tie.type) || !tie.inTouch) continue;
+        const strength = TIE_STRENGTH[tie.type];
         if (other.knows.has(f.key) && other.knows.get(f.key) !== "unaware") continue;
         // News about yourself isn't passed on, and isn't news to you.
         if (about.some((a) => a.id === otherId || a.id === holderId)) continue;
         if (f.secret?.from.includes(otherId)) continue;
         // Bob never met Buffy: news of her means nothing to him.
-        if (about.some((a) => a.id !== holderId && !other.ties.has(a.id))) continue;
+        if (about.some((a) => a.id !== holderId && !other.tieKind.has(a.id))) continue;
         const pair = [holderId, otherId].sort().join("|");
         if (pairsDone.has(pair)) continue;
         const { c, medium, why: place } = contact(holder, other, o.tech);
@@ -84,7 +86,7 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
           // docs/21 1.2: what the rules acted on, so a wrong guess shows on the chip.
           why: [
             `${holder.name} knew it: ${stance.route ?? "from the page"}`,
-            `tie: ${holder.tieWhy.get(otherId) ?? "close"}`,
+            `tie: ${TIE_WORDS[tie.type]}, in touch${tie.by === "guess" ? " (assumed)" : ""}: ${tie.why}`,
             place,
             `chance: ${Math.round(chance * 100)}% over ${Math.round(o.hours)} h${holder.guarded ? ` (${holder.name} is guarded)` : ""}`,
           ],
