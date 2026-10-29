@@ -125,7 +125,7 @@ export function readStanding(text: string, name?: string): { standing?: Standing
   if (saidOf(text, CONSTRUCT, name)) return { standing: "construct" };
   if (saidOf(text, CAPTIVE, name)) return { standing: "captive" };
   if (/\b(pet|familiar|her (?:dog|cat|horse)|his (?:dog|cat|horse)|steed|dragon of)\b/.test(t)) return { standing: "companion" };
-  const away = text.match(/\b(?:lives in|moved to|left for|works in|stationed in|studying in|now in)\s+([A-Z][\w'’ -]{2,40})/);
+  const away = text.match(/\b(?:lives in|moved to|left for|works in|stationed in|studying in|now in|last seen in)\s+([A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){0,3})/);
   if (away) return { standing: "away", where: away[1]!.trim() };
   if (farNow(text)) return { standing: "away" };
   return {};
@@ -155,6 +155,8 @@ const tieWords = (strength: number) => new RegExp(`\\b(${strength === 3 ? CLOSE 
 /** How strongly A's description ties them to B (0 when it doesn't name B). */
 function textTie(text: string, other: string): number {
   if (!other || other.length < 3) return 0;
+  // Who they were to someone long ago ("history(… the woman William, later Spike, loved in 1880)") isn't a tie now.
+  text = text.replace(/\b(\w+)\s*\(([^()]*)\)/g, (m, label: string) => (PAST_LABEL.test(label) ? "" : m));
   const esc = other.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`.{0,40}\\b${esc}\\b.{0,40}`, "gi");
   let best = 0;
@@ -269,11 +271,20 @@ export function buildRoster(inp: RosterInput): Roster {
       // The story calls them "Willow", the lore "Willow Rosenberg": one person, who keeps what the lore says.
       if (!twin.isUser && u.text && !twin.text.includes(u.text.slice(0, 60))) twin.text = [twin.text, u.text].filter(Boolean).join(". ");
       // The lore says they're dead ("She has been dead since 1998"): nobody off the page tells them news.
-      if (twin.ring === "offstage" && !twin.isUser && !twin.isMain && twin.standing === "here" && !inp.profiles[keyOf(twin.name)]?.standing && readStanding(u.text, u.name).standing === "dead") {
-        twin.standing = "dead";
-        twin.dead = true;
-        twin.reach = "none";
-        twin.travel = TRAVEL.none;
+      if (twin.ring === "offstage" && !twin.isUser && !twin.isMain && twin.standing === "here" && !inp.profiles[keyOf(twin.name)]?.standing) {
+        const read = readStanding(u.text, u.name);
+        if (read.standing === "dead") {
+          twin.standing = "dead";
+          twin.dead = true;
+          twin.reach = "none";
+          twin.travel = TRAVEL.none;
+        } else if (read.standing === "away" && !twin.where) {
+          // "Last seen in Los Angeles": the story hasn't put them anywhere, so the lore's word stands.
+          twin.standing = "away";
+          if (read.where) twin.where = [read.where];
+          twin.reach = reachOf(twin.where, scene, "away");
+          twin.travel = TRAVEL[twin.reach];
+        }
       }
       continue;
     }

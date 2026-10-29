@@ -9,9 +9,10 @@ import type { NewsHop } from "./types";
  * their keepers; nobody passes on news about themselves. News about your character or the main
  * one stays on the page (who finds out about them is the story's to tell), as does anything
  * they'd tell or be told, and news about
- * someone only reaches people who know them.
+ * someone only reaches people who know them. Only real ties carry it: a passing mention in
+ * someone's lore ("her former lover", "once loved her in 1880") passes nothing on.
  */
-const BIG = /\b(alive|back from the dead|came back|is back|returned|died|dead|killed|murder\w*|pregnan\w*|married|engaged|broke up|divorc\w*|arrested|in jail|escaped|betray\w*|stole|fired|quit|left town|moved away|attack\w*|raid\w*|fire\b|burned|hurt|hospital|missing|kidnapp\w*|exposed|secret|affair|lied|engaged|kissed|dating|together)\b/i;
+const BIG = /\b(alive|back from the dead|came back|is back|returned|died|dead|killed|murder\w*|pregnan\w*|married|engaged|broke up|divorc\w*|arrested|in jail|escaped|betray\w*|stole|fired|quit|left town|moved away|attack\w*|raid\w*|fire\b|burned|hurt|in (?:the )?hospital|hospitali[sz]ed|missing|kidnapp\w*|exposed|secret|affair|lied|engaged|kissed|dating|together)\b/i;
 const HAS = new Set(["knows", "believes", "suspects"]);
 
 function contact(a: RActor, b: RActor, tech: string): { c: number; medium: string } {
@@ -31,7 +32,8 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
   const actors = [...o.roster.actors.values()];
   const first = (name: string) => name.toLowerCase().split(" ")[0]!;
   const named = (statement: string) => {
-    const words = new Set(statement.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []);
+    // "Gabriel's organization" is about Gabriel.
+    const words = new Set((statement.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? []).map((w) => w.replace(/['’]s?$/, "")));
     return actors.filter((a) => first(a.name).length > 1 && words.has(first(a.name)));
   };
   // "The thermostat hasn't moved since Joyce died" isn't news of a death: only the main clause counts.
@@ -51,6 +53,8 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
         if (hops.length >= max) break;
         const other = o.roster.actors.get(otherId);
         if (!other || other.dead || other.isUser || other.isMain || other.ring === "onstage") continue;
+        // News goes to people you're close to, not to everyone your lore happens to name.
+        if (strength < 2) continue;
         if (other.knows.has(f.key) && other.knows.get(f.key) !== "unaware") continue;
         // News about yourself isn't passed on, and isn't news to you.
         if (f.statement.toLowerCase().includes(other.name.toLowerCase().split(" ")[0]!) || f.statement.toLowerCase().includes(holder.name.toLowerCase().split(" ")[0]!)) continue;
