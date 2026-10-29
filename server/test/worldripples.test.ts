@@ -106,6 +106,7 @@ describe("subplots ripple into each other", () => {
     delete st.sim.arcs.guard;
     const r = input(st).roster;
     r.actors.get(kai.id)!.ties.set(edda.id, 3);
+    r.actors.get(kai.id)!.tieKind.set(edda.id, { type: "close", inTouch: true, by: "story", why: "test" });
     const from = st.sim.arcs.revenge!;
     const ev = { arc: from.id, lead: from.lead, leadName: "Joss", kind: from.kind, result: "win", text: "Joss struck at Edda.", at: now };
     const c = sparkFrom({ from, ev, stage: "crisis", depth: 0 }, Object.values(st.sim.arcs), r, new Set());

@@ -1,7 +1,8 @@
 import { parseLine } from "../trackers/dsl";
 import type { Op, Thread, WorldState } from "../trackers/types";
 import { SPECS } from "./grammar";
-import { canAct, type Roster } from "./roster";
+import { canLead, reach } from "./reach";
+import { type Roster } from "./roster";
 import type { Cand } from "./storyteller";
 import type { Arc, EndResult, Twist } from "./types";
 import { type ArcEvent, peopleOf, swing, tied } from "./web";
@@ -128,7 +129,7 @@ export function sparkFrom(rp: Ripple, arcs: Arc[], r: Roster, declined: Set<stri
   const against = kind === "revenge" ? f.lead : x.id;
   const running = arcs.filter((a) => a.status === "running" || a.status === "fate");
   const c = [...r.actors.values()]
-    .filter((c) => c.id !== x.id && c.id !== f.lead && !c.isUser && canAct(c) && c.ring !== "onstage" && (c.ties.get(x.id) ?? 0) >= 2)
+    .filter((c) => c.id !== x.id && c.id !== f.lead && canLead(c).ok && reach(c, x, "ripple").ok)
     .filter((c) => running.filter((a) => a.lead === c.id).length < 2 && !running.some((a) => a.lead === c.id && a.target === against))
     .filter((c) => aware(f, c.id, r, rp.twist === "slip" || !!ev.ending) && !declined.has(`${c.id}|${kind}|arc:${f.id}`))
     .sort((a, b) => (b.ties.get(x.id) ?? 0) - (a.ties.get(x.id) ?? 0) || a.id.localeCompare(b.id))[0];

@@ -137,7 +137,10 @@ describe("roster", () => {
     const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
     const kit = ops.find((o) => o.subject === "Kit")!;
     expect(kit.why).toContain("tie: friend, in touch: a bond on the page (Joss → Kit)");
-    expect(kit.why?.some((w) => w.startsWith("place: ") && w.includes("Kit's place not known, assumed"))).toBe(true);
+    // docs/21 Part 4: nowhere known for Kit, so not in person: by phone in a modern story, and not at all without one.
+    expect(kit.why).toContain("place: not known to be near (Joss at Port Ellis › Harbour; Kit's place not known), so by phone");
+    expect(kit.args.route).toBe("told by Joss, by phone");
+    expect(spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "fantasy", now: 0 }).ops.some((o) => o.subject === "Kit")).toBe(false);
     const out = buildRoster({ state: st, profiles: { kit: { name: "Kit", out: true } }, lore: [], userName: "Alex" });
     expect(spreadNews({ state: st, roster: out, hours: 500, rand: () => 0, tech: "modern", now: 0 }).ops.some((o) => o.subject === "Kit")).toBe(false);
   });
