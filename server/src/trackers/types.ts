@@ -164,6 +164,8 @@ export interface Fact {
   secret?: { keepers: string[]; from: string[]; everyone?: boolean };
   stances: Record<string, { status: KnowStatus; route?: string; seq: number; set?: boolean }>;
   revealed: { to: string[]; seq: number; how?: string }[];
+  /** docs/21 4.3: who it's about (character ids), read once with the cast in hand. */
+  about?: string[];
   firstSeq: number;
   lastSeq: number;
 }

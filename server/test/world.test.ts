@@ -4,6 +4,7 @@ import { confirmArrivals, elsewhereLane } from "../src/sim/crossings";
 import { lean, measureTension, targetTension } from "../src/sim/director";
 import { beatTemplate, endTemplate, kindFromText, SPECS, stageOf } from "../src/sim/grammar";
 import { spreadNews } from "../src/sim/news";
+import { mentions } from "../src/trackers/mentions";
 import { buildRoster, diedInLore, lorePersonName, readStanding, samePerson } from "../src/sim/roster";
 import { forecast, latitudeFrom, placeClimate, weatherAt } from "../src/sim/sky";
 import { canStep, forcedStep, situationCands, threadNames, tick, type TickInput } from "../src/sim/storyteller";
@@ -100,6 +101,34 @@ describe("roster", () => {
     expect(jenny.dead).toBe(true);
     const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
     expect(ops.some((o) => o.subject === "Jenny Calendar")).toBe(false);
+  });
+
+  test("a name is a capitalised whole word, possessive or not", () => {
+    expect(mentions("Gabriel's organization in LA", "Gabriel Winters")).toBe(true);
+    expect(mentions("Buffy Summers' house burned", "Buffy Summers")).toBe(true);
+    expect(mentions("He will be back", "Will")).toBe(false);
+    expect(mentions("A dozen vampires attacked", "Oz")).toBe(false);
+    expect(mentions("Oz left town", "Oz")).toBe(true);
+    expect(mentions("Tara's girlfriend", "Tara Maclay")).toBe(true);
+    expect(mentions("Gabriel's house", "Gabriel's mom (name unknown")).toBe(false);
+  });
+
+  test("facts know who they're about: your name, the cast, and people who turn up later", () => {
+    const st = world([...base, "know Joss: Alex's boat sank in the harbour | saw it · knows", "know Joss: Kit's shop burned down | heard it · knows"]);
+    const boat = Object.values(st.facts).find((f) => f.statement.startsWith("Alex's"))!;
+    expect(boat.about).toEqual(["user"]);
+    const shop = Object.values(st.facts).find((f) => f.statement.startsWith("Kit's"))!;
+    expect(shop.about).toEqual([]);
+    const later = world([...base, "know Joss: Kit's shop burned down | heard it · knows", "cast: Kit@left"]);
+    expect(Object.values(later.facts).find((f) => f.statement.startsWith("Kit's"))!.about).toEqual(["kit"]);
+  });
+
+  test("a short name inside another word isn't news about them", () => {
+    // "dozen" isn't Oz: he hears it. News that names him isn't passed to him.
+    const st = world([...base, "know Joss: A dozen vampires attacked the docks | saw it · knows", "know Joss: Oz was attacked at the docks | saw it · knows", "bond Joss>Oz: affection 3 — old friends", "cast: Oz@left"]);
+    const roster = buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex" });
+    const toOz = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0, max: 10 }).ops.filter((o) => o.subject === "Oz").map((o) => o.args.fact);
+    expect(toOz).toEqual(["A dozen vampires attacked the docks"]);
   });
 
   test("news says why it travelled, and someone you took out hears none", () => {
