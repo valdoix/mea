@@ -436,12 +436,27 @@ export class Folder {
    * before who aren't in it stayed behind: three walking to the cabin don't bring the camp. Only
    * when the cast line names someone who came along; one that just notes a change says nothing.
    */
-  private turnCast: { key: string; named: Set<string>; cast: boolean; move?: { from: string[]; carried: string[] } } | null = null;
+  private turnCast: { key: string; named: Set<string>; cast: boolean; move?: { from: string[]; carried: string[] }; heading: Map<string, string> } | null = null;
 
   private castTurn(ctx: Ctx) {
     const key = `${ctx.ev.messageId ?? ""}:${ctx.ev.seq}:${ctx.ev.source}`;
-    if (this.turnCast?.key !== key) this.turnCast = { key, named: new Set(), cast: false };
+    if (this.turnCast?.key !== key) this.turnCast = { key, named: new Set(), cast: false, heading: new Map() };
     return this.turnCast;
+  }
+
+  /** "Buffy@left(→ kitchen)" when the scene is the kitchen: she went where the scene is, so she's in it. */
+  private goesHere(dest: string) {
+    const here = this.state.place.at(-1);
+    const bare = (s: string) => norm(s.replace(/^the\s+/i, ""));
+    return Boolean(here && bare(dest.split(" › ").at(-1)!) === bare(here));
+  }
+
+  private comeIn(ctx: Ctx, c: Character, seq: number) {
+    c.tier = "spot";
+    c.place = this.state.place.join(" › ") || c.place;
+    c.activity = undefined;
+    c.lastSeq = seq;
+    this.push(ctx, { kind: "cast", text: `${c.name} arrived`, subject: c.name, path: `chars.${c.id}.tier` });
   }
 
   private leftBehind(ctx: Ctx) {
@@ -672,6 +687,11 @@ export class Folder {
         if (moved) this.newScene(seq);
         const along = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri");
         for (const c of along) c.place = path.join(" › ");
+        // Whoever this message sent ahead to where the scene now goes is in it.
+        for (const [id, dest] of this.castTurn(ctx).heading) {
+          const c = st.chars[id];
+          if (c && c.tier === "off" && !c.dead && this.goesHere(dest)) this.comeIn(ctx, c, seq);
+        }
         if (moved) {
           const t = this.castTurn(ctx);
           t.move = { from: before, carried: along.map((c) => c.id) };
@@ -708,7 +728,10 @@ export class Folder {
             continue;
           }
           const was = c.tier;
-          const tier = /^(left|leave|leaves|off|away|gone|exit\w*)$/.test(it.tier) ? "off" : /^peri/.test(it.tier) ? "peri" : "spot";
+          const dest = it.note && /→/.test(it.note) ? it.note.replace(/^.*→\s*/, "").trim() : "";
+          const leaving = /^(left|leave|leaves|off|away|gone|exit\w*)$/.test(it.tier);
+          if (leaving && dest) turn.heading.set(c.id, dest);
+          const tier = leaving && !(dest && this.goesHere(dest)) ? "off" : /^peri/.test(it.tier) ? "peri" : "spot";
           c.tier = tier;
           c.activity = it.note ? clip(it.note.replace(/^(→|←)\s*/, "")) : tier === "off" ? undefined : c.activity;
           if (tier !== "off") {
@@ -854,6 +877,8 @@ export class Folder {
         const c = this.person(op.subject, seq);
         if (!c || !a.text) return this.reject(ctx, "whose thoughts?");
         if (c.isUser && this.cfg.sealedPersona && this.ai(ctx)) return this.reject(ctx, "your character's inner life is yours to write");
+        // The tracker writes thoughts only for people in the scene: one for someone it has away means they came in without a cast line.
+        if ((ctx.ev.source === "model" || ctx.ev.source === "inline") && !c.isUser && !c.dead && c.tier !== "spot" && c.tier !== "peri" && !this.castTurn(ctx).named.has(c.id)) this.comeIn(ctx, c, seq);
         c.thoughts = { text: a.text.trim(), seq };
         // A private change: the thoughts drawer under the reply reads it; the chips never show it.
         this.push(ctx, { kind: "thought", text: `${c.name} thinks`, subject: c.name, path: `chars.${c.id}.thoughts`, to: c.thoughts.text });

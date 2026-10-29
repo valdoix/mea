@@ -58,6 +58,9 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   const away = Object.values(st.chars).filter((c) => !here.includes(c) && !c.isUser && !c.dead).slice(-8);
   if (here.length) L.push(`cast: ${here.map((c) => `${nm(c.id)}@${c.tier}${c.activity ? `(${clip(c.activity, 40)})` : ""}`).join(" · ")}`);
   if (away.length) L.push(`known, not here: ${away.map((c) => c.name).join(", ")}`);
+  // The player away (a shower, an errand) has to be brought back with a cast line too, so say so.
+  const me = Object.values(st.chars).find((c) => c.isUser && !here.includes(c));
+  if (me) L.push(`${o.userName} is not in the scene${me.place ? ` (${clip(me.place, 40)})` : ""}: when the messages put them back in it, write ${o.userName}@arrive`);
   for (const c of here) {
     const bits: string[] = [];
     if (c.mood) bits.push(`mood ${c.mood.name}`);
