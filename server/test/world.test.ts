@@ -101,6 +101,36 @@ describe("roster", () => {
     const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
     expect(ops.some((o) => o.subject === "Jenny Calendar")).toBe(false);
   });
+
+  test("news about your character stays on the page, even in the possessive", () => {
+    const st = world([...base, "know Joss: Alex's shop burned down last night | Alex told him · knows", "bond Joss>Kit: affection 3 — old friends", "cast: Kit@left"]);
+    const roster = buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex" });
+    const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
+    expect(ops).toEqual([]);
+  });
+
+  test("a passing mention in someone's lore carries no news", () => {
+    const st = world([...base, "know Joss: The chandlery burned down in the storm | saw it · knows"]);
+    const roster = buildRoster({
+      state: st,
+      profiles: {},
+      lore: [
+        { name: "Dru", text: "Dru is a seer and former lover of Joss. [ status(left him; last seen in Los Angeles in early 2001) ]" },
+        { name: "Hallie", text: "Hallie is a demon. [ history(once loved by Joss in 1880 London) ] She still visits Anya." },
+      ],
+      userName: "Alex",
+    });
+    expect(roster.byName("Dru")!.standing).toBe("away");
+    expect(roster.byName("Dru")!.where).toEqual(["Los Angeles"]);
+    expect(roster.byName("Hallie")!.ties.has("joss")).toBe(false);
+    const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
+    expect(ops.map((o) => o.subject)).not.toContain("Dru");
+    expect(ops.map((o) => o.subject)).not.toContain("Hallie");
+    // Someone who's been on the page, with nowhere set by the story, is where their lore says.
+    const met = buildRoster({ state: world([...base, "cast: Dru@left"]), profiles: {}, lore: [{ name: "Dru", text: "Dru is a seer. [ status(last seen in Los Angeles in early 2001) ]" }], userName: "Alex" });
+    expect(met.byName("Dru")!.standing).toBe("away");
+    expect(met.byName("Dru")!.reach).toBe("far");
+  });
 });
 
 describe("storyteller", () => {
