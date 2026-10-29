@@ -19,7 +19,7 @@
   let author = $state({ name: "", premise: "" });
   let editArc = $state<Arc | null>(null);
   let arcForm = $state({ premise: "", want: "", fear: "" });
-  let cfg = $state<WorldConfig>({ mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", view: "director", climate: "maritime", latitude: 45, tech: "modern", genres: [], step: 120 });
+  let cfg = $state<WorldConfig>({ mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", news: "ask", view: "director", climate: "maritime", latitude: 45, tech: "modern", genres: [], step: 120 });
 
   // E1: dramatic irony: what each person carries, and what you know that they don't.
   let irony = $state(false);
@@ -332,9 +332,17 @@
       </section>
     </div>
 
-    {#if w.proposals.length}
+    {#if w.proposals.length || w.newsAsk.length}
       <section class="stack tight">
         <h2>Waiting for your word</h2>
+        {#each w.newsAsk as n (n.id)}
+          <div class="card item">
+            <div class="tiny muted">News · {n.hop.medium}</div>
+            <div><b>{n.hop.to}</b> could hear it from <b>{n.hop.from}</b>: {n.hop.statement}</div>
+            {#if n.op.why?.length}<details class="tiny muted"><summary>Why</summary><ul class="whyl">{#each n.op.why as y, k (k)}<li>{y}</li>{/each}</ul></details>{/if}
+            <div class="row"><button class="btn small primary" onclick={() => act(`/api/chats/${id}/world/news/${encodeURIComponent(n.id)}`, { accept: true })}>Let it travel</button><button class="btn small ghost" onclick={() => act(`/api/chats/${id}/world/news/${encodeURIComponent(n.id)}`, { accept: false })}>Not this</button></div>
+          </div>
+        {/each}
         {#each w.proposals as p (p.id)}
           <div class="card item">
             <div class="tiny muted">{w.kinds[p.kind]?.label} · grows out of {p.why}</div>
@@ -597,6 +605,7 @@
     <div class="grid">
       <label class="field"><span class="label">New subplots</span><select class="select" bind:value={cfg.seeding}><option value="ask">Ask me first</option><option value="auto">Let them start</option><option value="off">Only mine</option></select></label>
       <label class="field"><span class="label">Endings that can't be undone</span><select class="select" bind:value={cfg.fates}><option value="ask">Ask me</option><option value="page">Only on the page</option><option value="allow">Let them happen</option></select></label>
+      <label class="field" title={'Off the page, people only ever "have probably heard": the story shows whether they really know.'}><span class="label">News between people</span><select class="select" bind:value={cfg.news}><option value="ask">Ask me first</option><option value="auto">Let it travel</option><option value="off">Keep it on the page</option></select></label>
       <label class="field"><span class="label">Telling</span><select class="select" bind:value={cfg.telling}><option value="model">A model writes the words</option><option value="engine">The engine's own words (no requests)</option></select></label>
       <label class="field"><span class="label">What you see</span><select class="select" bind:value={cfg.view}><option value="director">Everything (dice, grounds)</option><option value="surprise">Surprise me</option></select></label>
       <label class="field"><span class="label">Setting</span><select class="select" bind:value={cfg.tech}><option value="modern">Modern (calls, texts)</option><option value="historic">Historic (letters, notes)</option><option value="fantasy">Fantasy (letters, messengers)</option><option value="future">Future (messages)</option></select></label>

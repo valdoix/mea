@@ -103,6 +103,17 @@ export function applySim(sim: SimState, op: SimOp, seq: number) {
     case "proposal.new":
       sim.proposals[op.proposal.id] = op.proposal;
       return;
+    case "news.ask":
+      (sim.newsAsk ??= {})[op.pending.id] = op.pending;
+      return;
+    case "news.done": {
+      const p = sim.newsAsk?.[op.id];
+      if (!p) return;
+      delete sim.newsAsk![op.id];
+      // Turned down: not asked again.
+      if (!op.accepted) sim.declined = [...sim.declined, `news:${p.hop.fact}:${p.hop.to.toLowerCase()}`].slice(-100);
+      return;
+    }
     case "proposal.set": {
       const p = sim.proposals[op.id];
       if (p) sim.proposals[op.id] = { ...p, ...op.patch };

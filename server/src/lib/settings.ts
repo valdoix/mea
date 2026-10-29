@@ -240,6 +240,8 @@ export interface WorldDefaults {
   telling: "model" | "engine";
   seeding: "auto" | "ask" | "off";
   fates: "page" | "ask" | "allow";
+  /** docs/21 5.3: news off the page travels on its own, waits for your word, or doesn't travel. */
+  news: "auto" | "ask" | "off";
   view: "director" | "surprise";
   step: number;
 }
@@ -406,7 +408,7 @@ export const defaults: Settings = {
   "quota.calibration": { cachedWeight: null, samples: 0, updatedAt: null },
   "backup.mirror": { dir: "", encrypt: true, keep: 14, lastAt: null, lastError: null, secretId: null },
   "trackers.defaults": {},
-  "world.defaults": { mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", view: "director", step: 120 },
+  "world.defaults": { mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", news: "ask", view: "director", step: 120 },
   "chat.guidance": [
     { id: "g-slow", name: "Slow down", text: "Slow the pace: stay in this moment, with detail and interiority, and don't skip ahead.", mode: "once" },
     { id: "g-dialogue", name: "More dialogue", text: "Lean on dialogue this reply; keep narration light.", mode: "once" },

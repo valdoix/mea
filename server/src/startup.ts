@@ -31,6 +31,7 @@ import { runDetailsJob } from "./lore/details";
 import { runBondJob } from "./lore/bond";
 import { runCompactJob } from "./lore/compact";
 import "./lore/keepupinbox";
+import "./sim/newsinbox";
 import { embedLore } from "./lore/semantic";
 import { runEnrichJob } from "./lore/enrich";
 import { runStudioJob } from "./lore/studio";

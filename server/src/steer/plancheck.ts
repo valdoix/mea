@@ -37,7 +37,7 @@ const POS = String.raw`(?:already\s+|also\s+|now\s+)?(?:knows|has\s+learned|lear
 const TAIL = String.raw`(?:\s+(?:that|about|of|how|why|who|what|where|when|if|whether))?[\s:,—–-]*(.+)`;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const KNOWING = new Set(["knows", "believes"]);
-const STATUS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know" };
+const STATUS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know", heard: "has probably heard" };
 
 /** The plan's knowledge sentences: its KNOW step, or the whole pass when it has no steps. */
 function knowText(plan: string) {

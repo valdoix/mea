@@ -12,7 +12,7 @@ import type { NewsHop } from "./types";
  * of them, and only to people who know whom it's about. Nobody acts on news that hasn't reached them.
  */
 const BIG = /\b(alive|back from the dead|came back|is back|returned|died|dead|killed|murder\w*|pregnan\w*|married|engaged|broke up|divorc\w*|arrested|in jail|escaped|betray\w*|stole|fired|quit|left town|moved away|attack\w*|raid\w*|fire\b|burned|hurt|in (?:the )?hospital|hospitali[sz]ed|missing|kidnapp\w*|exposed|secret|affair|lied|engaged|kissed|dating|together)\b/i;
-const HAS = new Set(["knows", "believes", "suspects"]);
+const HAS = new Set(["knows", "believes", "suspects", "heard"]);
 
 export function spreadNews(o: { state: WorldState; roster: Roster; hours: number; rand: () => number; tech: string; max?: number; now: number }): { hops: NewsHop[]; ops: Op[] } {
   const hops: NewsHop[] = [];
@@ -50,7 +50,8 @@ export function spreadNews(o: { state: WorldState; roster: Roster; hours: number
         pairsDone.add(pair);
         const secondHand = /told|heard|rumou?r/.test(stance.route ?? "");
         const distorted = secondHand && o.rand() < 0.25;
-        const status = distorted ? "believes" : "knows";
+        // docs/21 5.1: off the page it's hearsay; the page makes it knowing (or not).
+        const status = "heard";
         const hop: NewsHop = { at: o.now, fact: f.key, statement: f.statement, from: holder.name, to: other.name, medium, ...(distorted ? { distorted: "a garbled version" } : {}) };
         hops.push(hop);
         other.knows.set(f.key, status);
