@@ -4,6 +4,7 @@ import { type DirectorLean, escalationTarget, lean, measureTension, type Persona
 import { routeFor } from "./crossings";
 import { beatTemplate, endTemplate, GENRE_LEAN, kindFromText, SPECS, stageOf } from "./grammar";
 import { spreadNews } from "./news";
+import { canLead, reach } from "./reach";
 import { awakeAt, awakeSet, canAct, type RActor, type Roster } from "./roster";
 import { arcWords, type Reaction, reactionsTo, type Ripple, sparkFrom, threadNote, threadOf, type ThreadPull, threadPulls } from "./ripples";
 import type { Arc, ArcKind, Beat, EndResult, Proposal, Result, Route, SimOp, Twist } from "./types";
@@ -198,16 +199,14 @@ export function tick(inp: TickInput): TickResult {
     if (W.moved.has(arc.id)) continue;
     const lead = inp.roster.actors.get(arc.lead);
     const isFaction = arc.lead.startsWith("faction:");
-    if (!isFaction && (!lead || !canAct(lead))) {
+    if (!isFaction && !canLead(lead).ok) {
       if (lead?.dead) {
         out.sim.push({ type: "arc.set", id: arc.id, patch: { status: "dropped" } });
         out.summary.push(`${arc.leadName}'s ${SPECS[arc.kind].label.toLowerCase()} ended: they can no longer act`);
       }
+      // On hold, in the scene, or left out: it waits (docs/21 Part 4's gate).
       continue;
     }
-    if (lead?.flag === "hold") continue;
-    // Someone on the page acts on the page: their subplot waits until they leave the scene.
-    if (lead?.ring === "onstage") continue;
     // A thread it's about just moved: it answers now.
     const due = !!W.pulls.get(arc.id)?.due;
     const rate = paceOf(arc, inp.mode, L);
@@ -490,8 +489,7 @@ const eventOf = (arc: Arc, b: Beat): ArcEvent => ({ arc: arc.id, lead: arc.lead,
 export function canStep(arc: Arc, roster: Roster): boolean {
   if (arc.status !== "running") return false;
   if (arc.lead.startsWith("faction:")) return true;
-  const lead = roster.actors.get(arc.lead);
-  return !!lead && canAct(lead) && lead.flag !== "hold" && lead.ring !== "onstage";
+  return canLead(roster.actors.get(arc.lead)).ok;
 }
 
 /**
@@ -623,7 +621,7 @@ function rollBeat(arc: Arc, lead: RActor | undefined, inp: TickInput, r: () => n
 function drawTwist(arc: Arc, inp: TickInput, r: () => number, W: TickWeb): [Twist, string, Arc?] | null {
   const lead = inp.roster.actors.get(arc.lead);
   const options: [Twist, string, Arc?][] = [];
-  const tie = lead ? [...lead.ties.entries()].filter(([id, s]) => s >= 2 && id !== arc.target && !arc.cast.includes(id)).map(([id]) => inp.roster.actors.get(id)).find((a) => a && !a.isUser && !a.dead) : undefined;
+  const tie = lead ? [...lead.tieKind.keys()].filter((id) => id !== arc.target && !arc.cast.includes(id)).map((id) => inp.roster.actors.get(id)).find((a) => reach(lead, a, "meet").ok) : undefined;
   if (tie) options.push(["tie", `${tie.name} got pulled into it`]);
   if (inp.weather && /storm|heavy|snow|fog/.test(inp.weather)) options.push(["weather", `The ${inp.weather.split(",")[0]} got in the way`]);
   if (inp.namedDay) options.push(["calendar", `${inp.namedDay} changed the plan`]);
@@ -757,7 +755,7 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
     const key = `${c.lead}|${c.kind}|${[...c.grounds].sort().join(",")}`;
     if (declined.has(key) || waiting.has(c.lead) || busy(c.lead) || has(c.lead, c.kind)) return;
     const a = r.actors.get(c.lead);
-    if (!c.lead.startsWith("faction:") && (!a || !canAct(a) || a.ring === "onstage")) return;
+    if (!c.lead.startsWith("faction:") && !canLead(a).ok) return;
     const relevance = a ? Math.max(0, ...[...a.ties.entries()].filter(([id]) => id === user?.id || r.actors.get(id)?.ring === "onstage").map(([, s]) => s)) : 1;
     out.push({ ...c, key, score: c.score + (lean.has(c.kind) ? 1 : 0) + relevance * 0.5 + (awake.some((x) => x.id === c.lead) ? 0.5 : 0) });
   };
@@ -811,7 +809,7 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
   // Grief for the dead.
   for (const c of Object.values(st.chars)) {
     if (!c.dead) continue;
-    const mourner = [...r.actors.values()].find((a) => (a.ties.get(c.id) ?? 0) >= 2 && canAct(a) && a.ring !== "onstage");
+    const mourner = [...r.actors.values()].find((a) => canLead(a).ok && reach(a, r.actors.get(c.id), "ripple").ok);
     if (mourner) push({ kind: "loss", lead: mourner.id, leadName: mourner.name, cast: [c.id], premise: `${mourner.name} is grieving ${c.name}.`, grounds: [`death:${c.id}`], score: 3, why: `${c.name}'s death` });
   }
   // Faction clocks.
@@ -873,7 +871,7 @@ export function situationCands(inp: TickInput): Cand[] {
     const first = inTitle[0] && at(s.title, inTitle[0]) === 0 ? inTitle[0] : undefined;
     const group = first ? undefined : s.title.replace(/^the\s+/i, "").match(/^([A-Z][\w'’-]+)/)?.[1];
     const lead = first ?? (group ? undefined : named(s.text)[0]);
-    if (lead && (!canAct(lead) || lead.ring === "onstage")) continue;
+    if (lead && !canLead(lead).ok) continue;
     if (!lead && !group) continue;
     const leadId = lead?.id ?? `faction:${group!.toLowerCase()}`;
     const leadName = lead?.name ?? group!;

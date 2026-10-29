@@ -1,7 +1,8 @@
 import type { WorldState } from "../trackers/types";
 import { pick } from "./dice";
 import { SPECS } from "./grammar";
-import { canAct, type RActor, type Roster, TRAVEL } from "./roster";
+import { canLead, reach } from "./reach";
+import { type RActor, type Roster, TRAVEL } from "./roster";
 import type { Arc, Arrival, Route, SimOp } from "./types";
 
 /**
@@ -53,7 +54,7 @@ export function routeFor(o: {
   for (const r of spec.routes) {
     if (o.recentRoutes.at(-1) === r && spec.routes.length > 1) continue;
     if (r === "omen" && (arc.foreshadowed || !OMENS[arc.kind] || (o.stage !== "crisis" && o.stage !== "reversal"))) continue;
-    if (r === "entrance" && (!lead || !canAct(lead) || lead.travel > 60 || !(o.stage === "crisis" || o.stage === "climax" || arc.bringIn) || o.result === "loss")) continue;
+    if (r === "entrance" && (!lead || !canLead(lead).ok || lead.travel > 60 || !(o.stage === "crisis" || o.stage === "climax" || arc.bringIn) || o.result === "loss")) continue;
     if (r === "ambient" && (!lead || lead.travel > TRAVEL.town) && arc.kind !== "faction") continue;
     options.push(r);
   }
@@ -67,17 +68,18 @@ export function routeFor(o: {
   switch (route) {
     case "carrier": {
       // Someone close to the lead, never the one the subplot is about; onstage people first.
-      const candidates = [...ties.entries()]
-        .filter(([id, s]) => s >= 2 && id !== arc.target && id !== user?.id)
-        .map(([id]) => roster.actors.get(id))
-        .filter((a): a is RActor => Boolean(a && !a.dead && !a.isUser));
+      const candidates = [...ties.keys()]
+        .filter((id) => id !== arc.target && id !== user?.id)
+        .map((id) => roster.actors.get(id))
+        .filter((a): a is RActor => Boolean(a && reach(lead, a, "meet").ok));
       const carrier = candidates.find((a) => a.ring === "onstage") ?? candidates[0];
       if (!carrier) return null;
       return { ...base, carrier: carrier.name, text: `${carrier.name} knows something about ${arc.leadName}: ${short}`, until: until(route) };
     }
     case "signal": {
-      const toUser = user && (ties.get(user.id) ?? 0) >= 2;
-      const callee = toUser ? user : onstage.find((a) => (ties.get(a.id) ?? 0) >= 2 && a.id !== arc.target);
+      // A call or a letter needs a tie that talks, between people in touch.
+      const toUser = user && (ties.get(user.id) ?? 0) >= 2 && reach(lead, user, "call").ok;
+      const callee = toUser ? user : onstage.find((a) => (ties.get(a.id) ?? 0) >= 2 && a.id !== arc.target && reach(lead, a, "call").ok);
       if (!callee) return null;
       const m = medium(o.tech, (ties.get(callee.id) ?? 0) >= 3);
       return { ...base, carrier: arc.leadName, to: callee.isUser ? "user" : callee.name, medium: m, text: `A ${m} from ${arc.leadName} for ${callee.isUser ? "the user's character" : callee.name}: ${short}`, until: m === "call" ? o.now + 6 * 60 : until(route) };

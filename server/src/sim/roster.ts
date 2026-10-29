@@ -455,7 +455,7 @@ export function buildRoster(inp: RosterInput): Roster {
       const k = keys.find((x) => x === sheetKey(a.name)) ?? keys.find((x) => samePerson(x, a.name));
       for (const t of (k ? inp.sheets[k]!.ties : undefined) ?? []) {
         const b = all.find((x) => x !== a && (samePerson(x.name, t.name) || sheetKey(x.name) === sheetKey(t.name)));
-        if (b) setTie(a.id, b.id, { type: t.type, inTouch: t.inTouch, by: "lore", why: `${a.name}'s lore: ${TIE_WORDS[t.type]}${t.inTouch ? ", in touch" : ", not in touch"}${t.quote ? ` ("${t.quote}")` : ""}` });
+        if (b) setTie(a.id, b.id, { type: t.type, inTouch: t.inTouch, by: "lore", why: `${a.name}'s lore${t.quote ? `: "${t.quote}"` : ""}` });
       }
     }
   }
