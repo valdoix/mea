@@ -55,8 +55,20 @@ export function extractArtifacts(text: string, finished = false): { text: string
     return `\n\n${TOKEN(found.length - 1)}\n\n`;
   };
   let out = text.replace(PAIRED, (_m, k: string, a: string, b: string) => take(k, a, b)).replace(SELF, (_m, k: string, a: string) => take(k, a, ""));
-  if (finished) out = out.replace(UNCLOSED, (_m, k: string, a: string, b: string) => take(k, a, b)).replace(STRAY_CLOSE, "");
+  if (finished) {
+    out = out.replace(UNCLOSED, (_m, k: string, a: string, b: string) => take(k, a, b)).replace(STRAY_CLOSE, "");
+    out = out.split(/(\n[ \t]*\n)/).map((p) => (bareMind(p) ? take("mind", "", p) : p)).join("");
+  }
   return { text: out, found };
+}
+
+/**
+ * A mind the model wrote without its tag: one paragraph of five or more short lines, no markup,
+ * with a lone "!", "?" or "~" line among them. Prose never stacks lines like that.
+ */
+function bareMind(p: string): boolean {
+  const lines = p.trim().split("\n").map((l) => l.trim());
+  return lines.length >= 5 && lines.every((l) => l && l.length <= 80 && !/[<>]/.test(l)) && lines.some((l) => /^[!?~]+$/.test(l));
 }
 
 /** While a reply streams, a visual of the model's own that hasn't closed yet shows as a sketch in progress. */
@@ -635,6 +647,8 @@ function drawMind(a: Artifact, s: number): string {
       const rot = ((r() - 0.5) * 14).toFixed(1);
       const dx = ((r() - 0.5) * 10).toFixed(0);
       const st = `--r:${rot}deg;--x:${dx}px;--d:${(i * 0.09).toFixed(2)}s`;
+      // A marker alone on its line is a break between beats: it falls as debris, not an empty scream.
+      if (/^[!?~]+$/.test(l)) return `<span class="art-debris" style="${st};--sz:${(2 + r() * 1.4).toFixed(2)}em">${esc(l)}</span>`;
       if (/^!/.test(l)) return `<span class="art-scream" style="${st};--sz:${(1.6 + r() * 1).toFixed(2)}em">${inline(l.replace(/^!+\s*/, ""))}</span>`;
       if (/^\?/.test(l)) return `<span class="art-spiral" style="${st}">${inline(l.replace(/^\?+\s*/, ""))}</span>`;
       if (/^~/.test(l)) return `<span class="art-drift" style="${st}">${inline(l.replace(/^~+\s*/, ""))}</span>`;
