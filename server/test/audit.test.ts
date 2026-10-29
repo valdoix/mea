@@ -68,5 +68,8 @@ describe("the world's own audit", () => {
     expect(unread.title).toBe("The world is guessing about 1 person");
     refreshAudit(id);
     expect(inboxItems({ chatId: id }).find((i) => i.key === `worldaudit:${id}:unread`)?.labels?.accept).toBe("Read their lore");
+    // Asked to read: while the reading is queued or running, the card waits instead of coming straight back.
+    actOnInbox(`worldaudit:${id}:unread`, "accept");
+    expect(inboxItems({ chatId: id }).some((i) => i.key === `worldaudit:${id}:unread`)).toBe(false);
   });
 });

@@ -396,7 +396,7 @@
       <button class="btn small" onclick={() => openEdit(null)}>Add a person</button>
     </div>
     <div class="cast">
-      {#each people as p (p.key)}
+      {#each people as p (p.id || p.key)}
         <div class="person card" class:dead={p.dead}>
           <div class="row">
             <Avatar id={p.profile?.avatarId ?? null} name={p.name} size={44} />

@@ -178,7 +178,7 @@
         <span class="tlabel"><Clapperboard size={12} /> Cut to…</span>
         <select class="select" value="" disabled={busy} onchange={(e) => e.currentTarget.value && cue({ kind: "cut", to: e.currentTarget.value }, `The next reply cuts to ${e.currentTarget.value.split(" › ").at(-1)}`)}>
           <option value="">Someone or somewhere</option>
-          {#if desk.away.length}<optgroup label="People">{#each desk.away as p (p.name)}<option value={p.name}>{p.name}{p.where ? ` (${p.where.split(" › ").at(-1)})` : ""}</option>{/each}</optgroup>{/if}
+          {#if desk.away.length}<optgroup label="People">{#each desk.away as p, i (`${p.name}:${i}`)}<option value={p.name}>{p.name}{p.where ? ` (${p.where.split(" › ").at(-1)})` : ""}</option>{/each}</optgroup>{/if}
           {#if desk.places.length}<optgroup label="Places">{#each desk.places as p (p.path)}<option value={p.path}>{p.name}</option>{/each}</optgroup>{/if}
         </select>
       </label>
@@ -186,7 +186,7 @@
         <span class="tlabel"><Users size={12} /> Bring someone in</span>
         <select class="select" value="" disabled={busy || !desk.away.length} onchange={(e) => e.currentTarget.value && cue({ kind: "bring", who: e.currentTarget.value }, `${e.currentTarget.value} comes into the scene next`)}>
           <option value="">{desk.away.length ? "Who" : "Everyone's here"}</option>
-          {#each desk.away as p (p.name)}<option value={p.name}>{p.name}</option>{/each}
+          {#each desk.away as p, i (`${p.name}:${i}`)}<option value={p.name}>{p.name}</option>{/each}
         </select>
       </label>
     </div>
