@@ -1,6 +1,7 @@
 import { categoryOf } from "../lore/format";
 import type { CastProfile } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
+import { type Basis, offStory, type Sheet, sheetKey, sheetStanding } from "./sheet";
 import type { Actor, Standing } from "./types";
 
 /**
@@ -29,6 +30,8 @@ export interface RActor extends Actor {
   knows: Map<string, string>;
   lastSeq: number;
   dead: boolean;
+  /** docs/21 Part 2: where their standing and place came from, and the lore's words when the sheet decided. */
+  basis: { standing: Basis; where: Basis; quote?: string };
 }
 
 export interface Roster {
@@ -205,6 +208,8 @@ export interface RosterInput {
   schedules?: string[];
   /** The rest of the lore (history, items, events), where a death is often told. */
   notes?: string[];
+  /** docs/21 Part 2: the person sheets the model read from the lore, by name. */
+  sheets?: Record<string, Sheet>;
 }
 
 /** "Willow" and "Willow Rosenberg" are the same person: one name is the other's first words. */
@@ -228,8 +233,10 @@ export function buildRoster(inp: RosterInput): Roster {
     const text = [prof?.description, prof?.role, c.drives.want && `wants ${c.drives.want}`].filter(Boolean).join(". ");
     const read = readStanding(text, c.name);
     const standing: Standing = c.dead ? "dead" : ((prof?.standing as Standing) ?? simActor?.standing ?? read.standing ?? "here");
+    const standingBy: Basis = c.dead ? "story" : prof?.standing || simActor?.standing ? "you" : read.standing ? "guess" : "none";
     const onstage = c.tier === "spot" || c.tier === "peri";
     const where = simActor?.where ?? (prof?.where ? prof.where.split(/\s*›\s*/) : c.place ? c.place.split(/\s*›\s*/) : undefined);
+    const whereBy: Basis = simActor?.where || prof?.where ? "you" : c.place ? "story" : "none";
     const reach = onstage ? "here" : reachOf(where, scene, standing);
     add({
       id: c.id,
@@ -257,6 +264,7 @@ export function buildRoster(inp: RosterInput): Roster {
       knows: new Map(),
       lastSeq: c.lastSeq,
       dead: standing === "dead",
+      basis: { standing: onstage ? "story" : standingBy, where: onstage ? "story" : whereBy },
     });
   }
   // People you added on the Cast page and people from the lore who haven't been on the page.
@@ -274,6 +282,7 @@ export function buildRoster(inp: RosterInput): Roster {
       if (twin.ring === "offstage" && !twin.isUser && !twin.isMain && twin.standing === "here" && !inp.profiles[keyOf(twin.name)]?.standing) {
         const read = readStanding(u.text, u.name);
         if (read.standing === "dead") {
+          twin.basis.standing = "guess";
           twin.standing = "dead";
           twin.dead = true;
           twin.reach = "none";
@@ -281,7 +290,11 @@ export function buildRoster(inp: RosterInput): Roster {
         } else if (read.standing === "away" && !twin.where) {
           // "Last seen in Los Angeles": the story hasn't put them anywhere, so the lore's word stands.
           twin.standing = "away";
-          if (read.where) twin.where = [read.where];
+          twin.basis.standing = "guess";
+          if (read.where) {
+            twin.where = [read.where];
+            twin.basis.where = "guess";
+          }
           twin.reach = reachOf(twin.where, scene, "away");
           twin.travel = TRAVEL[twin.reach];
         }
@@ -294,6 +307,8 @@ export function buildRoster(inp: RosterInput): Roster {
     const standing: Standing = (u.prof?.standing as Standing) ?? simActor?.standing ?? read.standing ?? "here";
     const where = simActor?.where ?? (u.prof?.where ? u.prof.where.split(/\s*›\s*/) : read.where ? [read.where] : undefined);
     const reach = reachOf(where, scene, standing);
+    const standingBy: Basis = u.prof?.standing || simActor?.standing ? "you" : read.standing ? "guess" : "none";
+    const whereBy: Basis = simActor?.where || u.prof?.where ? "you" : read.where ? "guess" : "none";
     add({
       id,
       name: u.name,
@@ -320,7 +335,45 @@ export function buildRoster(inp: RosterInput): Roster {
       knows: new Map(),
       lastSeq: 0,
       dead: standing === "dead",
+      basis: { standing: standingBy, where: whereBy },
     });
+  }
+
+  // docs/21 Part 2: what the lore read says comes before the guesses, and after what you set and the story showed.
+  if (inp.sheets) {
+    const keys = Object.keys(inp.sheets);
+    for (const a of [...actors.values()]) {
+      if (a.isUser || a.isMain || a.ring === "onstage") continue;
+      const k = keys.find((x) => x === sheetKey(a.name)) ?? keys.find((x) => samePerson(x, a.name));
+      const sh = k ? inp.sheets[k]! : undefined;
+      if (!sh) continue;
+      // A faction, an object, or someone whose part was over before the story: not someone the world moves.
+      if (a.ring === "unmet" && offStory(sh) && !inp.profiles[keyOf(a.name)]) {
+        actors.delete(a.id);
+        continue;
+      }
+      let moved = false;
+      if (a.basis.standing === "guess" || a.basis.standing === "none") {
+        const s = sheetStanding(sh);
+        // The story put them somewhere since the lore was written: its place stands over the lore's "away".
+        if (s && !(s === "away" && a.basis.where === "story")) {
+          a.standing = s;
+          a.dead = s === "dead";
+          a.basis.standing = "lore";
+          moved = true;
+        }
+      }
+      if ((a.basis.where === "guess" || a.basis.where === "none") && sh.whereabouts) {
+        a.where = [sh.whereabouts];
+        a.basis.where = "lore";
+        moved = true;
+      }
+      if (!moved) continue;
+      if (sh.quote) a.basis.quote = sh.quote;
+      // The sheet knows near from far even when the place's name doesn't match the scene's.
+      a.reach = a.dead ? "none" : sh.far || a.standing === "away" ? "far" : a.basis.where === "lore" ? "town" : reachOf(a.where, scene, a.standing);
+      a.travel = TRAVEL[a.reach];
+    }
   }
 
   // Ties: bonds both ways, then what descriptions say about each other.
@@ -331,7 +384,10 @@ export function buildRoster(inp: RosterInput): Roster {
   const everyone = all.map((a) => a.name);
   for (const a of all) {
     if (a.dead || a.ring === "onstage" || a.isUser || a.isMain || inp.profiles[keyOf(a.name)]?.standing) continue;
+    // The sheet read their whole entry; the old guess doesn't overrule it.
+    if (a.basis.standing === "lore" || a.basis.standing === "you" || a.basis.standing === "story") continue;
     if (!diedInLore(a.name, loreTexts, everyone)) continue;
+    a.basis.standing = "guess";
     a.standing = "dead";
     a.dead = true;
     a.reach = "none";

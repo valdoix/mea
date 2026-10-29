@@ -43,6 +43,7 @@ export const SERVICE_PROMPTS: ServicePrompt[] = [
   { id: "trackers.ledger", group: "Trackers and world", label: "Tracker ledger", help: "Writes the story-state ledger after each reply.", match: is("tracker", "tracker:start") },
   { id: "world.telling", group: "Trackers and world", label: "The world off the page", help: "Tells what happened elsewhere.", match: is("world:telling") },
   { id: "world.wording", group: "Trackers and world", label: "New subplots", help: "Words the subplots the world offers or starts.", match: is("world:wording") },
+  { id: "world.sheet", group: "Trackers and world", label: "Who people are now", help: "Reads each person's lore once: alive or not, where, and whether they belong to the story's present.", match: is("world:sheet") },
   { id: "accuracy.checker", group: "Accuracy", label: "Continuity checker", help: "Checks replies against established facts.", match: is("continuity") },
   { id: "accuracy.archivist", group: "Accuracy", label: "Archivist", help: "Answers questions about the story with citations.", match: is("archivist") },
   { id: "accuracy.quiz", group: "Accuracy", label: "Memory quiz", help: "Asks and answers the memory quiz.", match: is("quiz", "quiz:answer") },

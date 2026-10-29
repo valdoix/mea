@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { mustChat } from "../services/chats";
-import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, previewOutcome, retellStep, rewordSubplot, runTick, setActor, undoEngine, worldView } from "../sim/service";
+import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, previewOutcome, retellStep, queueSheets, rewordSubplot, runTick, setActor, undoEngine, worldView } from "../sim/service";
+import { clearSheets } from "../sim/sheet";
 import { FORCES } from "../sim/types";
 
 /** The world off the page: subplots, arrivals, news, the director, your controls. */
@@ -76,6 +77,15 @@ world.post("/chats/:id/world/fates/:arcId", async (c) => {
   const input = await body(c, z.object({ choice: z.enum(["accept", "soften", "page"]) }));
   decideFate(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.choice);
   return c.json(worldView(c.req.param("id")));
+});
+
+/** docs/21 Part 2: read the lore of anyone whose sheet is missing or out of date (`again`: everyone). */
+world.post("/chats/:id/world/sheets/read", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const input = await body(c, z.object({ again: z.boolean().optional() }));
+  if (input.again) clearSheets(chatId);
+  return c.json({ queued: queueSheets(chatId) });
 });
 
 /** Take back something the world did off the page (docs/21 1.1), and maybe keep it from happening again. */

@@ -25,6 +25,28 @@
   let irony = $state(false);
   // G2: the people as a list, or as the relationship graph.
   let peopleView = $state<"list" | "graph">("list");
+  // docs/21 Part 2: the model reads each person's lore once; until then the engine guesses.
+  let reading = $state(false);
+  async function readLore(again = false) {
+    reading = true;
+    try {
+      const r = await post<{ queued: boolean }>(`/api/chats/${id}/world/sheets/read`, again ? { again } : {});
+      toast(r.queued ? "Reading their lore; the people update when it's done" : "Everyone's lore is read already", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      reading = false;
+    }
+  }
+  const BASIS: Record<string, string> = { you: "you set it", story: "from the story", lore: "from the lore", guess: "guessed", none: "nobody says" };
+  /** Where what the world thinks of them comes from: "from the lore: “last seen in Los Angeles”", "standing guessed · place: nobody says". */
+  function sourceLine(p: WorldPerson): string {
+    if (p.ring === "onstage") return "";
+    const b = p.basis;
+    const quote = b.quote ? `: “${b.quote}”` : "";
+    if (b.standing === b.where) return `${BASIS[b.standing]}${b.standing === "lore" ? quote : ""}`;
+    return `standing ${BASIS[b.standing]}${b.standing === "lore" ? quote : ""} · place: ${BASIS[b.where]}${b.where === "lore" && b.standing !== "lore" ? quote : ""}`;
+  }
   let carried = $state<Record<string, PressurePerson>>({});
   async function loadIrony() {
     try {
@@ -453,6 +475,12 @@
           {#if peopleView === "list"}<label class="switch small" title="What each person carries and hasn't said, and what you know that they don't"><input type="checkbox" bind:checked={irony} /> Dramatic irony</label>{/if}
         </div>
       </div>
+      {#if w.guessing || w.toRead}
+        <div class="row wrap guess">
+          <span class="tiny">{[w.guessing ? `The world is guessing where ${w.guessing} ${w.guessing === 1 ? "person is" : "people are"} and whether they can act.` : "", w.toRead ? `${w.toRead} ${w.toRead === 1 ? "person's" : "people's"} lore hasn't been read yet.` : ""].filter(Boolean).join(" ")}</span>
+          {#if w.toRead}<button class="btn small" disabled={reading} onclick={() => readLore()}>Read their lore</button>{:else}<button class="btn small ghost" disabled={reading} onclick={() => readLore(true)}>Read it all again</button>{/if}
+        </div>
+      {/if}
       {#if peopleView === "graph"}
         <RelGraph chatId={id} />
       {:else}
@@ -466,6 +494,7 @@
                   <div class="small"><b>{p.name}</b> {#if p.standing !== "here"}<span class="chip tiny">{p.standing}</span>{/if}{#if p.flag}<span class="chip tiny">{p.flag}</span>{/if}</div>
                   <button class="btn ghost icon tiny-icon" onclick={() => openPerson(p)} aria-label="Edit, merge or delete {p.name}" title="Edit, merge or delete"><Pencil size={14} /></button>
                 </div>
+                {#if sourceLine(p)}<div class="tiny faint" class:guessed={p.basis.where === "guess" || p.basis.where === "none" || p.basis.standing === "guess"}>{sourceLine(p)}</div>{/if}
                 <div class="tiny muted">{p.where ?? ""}{p.travel != null && p.ring !== "onstage" ? ` · ${p.travel < 60 ? `${p.travel} min` : `${Math.round(p.travel / 60)} h`} away` : ""}{p.arcs.length ? ` · ${p.arcs.length} subplot${p.arcs.length > 1 ? "s" : ""}` : ""}</div>
                 {#if irony && carried[p.name.toLowerCase()]}
                   {@const c = carried[p.name.toLowerCase()]!}
@@ -702,6 +731,15 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
     gap: 0.5rem;
+  }
+  .guess {
+    gap: 0.4rem 0.8rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: var(--r, 12px);
+    border: 1px dashed color-mix(in srgb, var(--warn, #b7791f) 50%, var(--border));
+  }
+  .guessed {
+    color: var(--warn, #b7791f);
   }
   .pp {
     border: 1px solid var(--border);
