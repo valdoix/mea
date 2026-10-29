@@ -1,7 +1,7 @@
 import { categoryOf } from "../lore/format";
 import type { CastProfile } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
-import { type Basis, offStory, type Sheet, sheetKey, sheetStanding } from "./sheet";
+import { type Basis, offStory, type Sheet, sheetKey, sheetStanding, type TieType } from "./sheet";
 import type { Actor, Standing } from "./types";
 
 /**
@@ -23,6 +23,8 @@ export interface RActor extends Actor {
   ties: Map<string, number>;
   /** Where each tie came from, for the why under an engine change ("Tara's description: …"). */
   tieWhy: Map<string, string>;
+  /** docs/21 Part 3: each tie's kind, whether they're in touch, and where that came from. */
+  tieKind: Map<string, Tie>;
   text: string;
   want?: string;
   fear?: string;
@@ -157,18 +159,47 @@ function reachOf(where: string[] | undefined, scene: string[], standing: Standin
 
 const tieWords = (strength: number) => new RegExp(`\\b(${strength === 3 ? CLOSE : strength === 2 ? EXTENDED : WORK})\\b`, "i");
 
-/** How strongly A's description ties them to B (0 when it doesn't name B), and the words that did it. */
-function textTie(text: string, other: string): { s: number; around: string } {
-  if (!other || other.length < 3) return { s: 0, around: "" };
+/**
+ * docs/21 Part 3: what two people are to each other. close, friend and knows can carry news (if they're
+ * in touch); knowsOf (a name only) and past (they did know each other) can't; enemy only matters to subplots.
+ */
+export type { TieType };
+export interface Tie {
+  type: TieType;
+  /** In touch now: they talk, write, see each other. A tie can be real and dormant. */
+  inTouch: boolean;
+  by: Basis;
+  why: string;
+}
+/** The old strengths the subplots read: knowing only of someone, or knowing them long ago, isn't a tie. */
+export const TIE_STRENGTH: Record<TieType, number> = { close: 3, friend: 2, enemy: 2, knows: 1, knowsOf: 0, past: 0 };
+/** Ties that pass news on. */
+export const CARRIES_NEWS = new Set<TieType>(["close", "friend", "knows"]);
+export const TIE_WORDS: Record<TieType, string> = { close: "close", friend: "friend", knows: "knows", knowsOf: "knows of", past: "used to know", enemy: "enemy" };
+
+/** A tie from an on-page bond's feelings. */
+export function bondTie(ax: Partial<Record<string, number>>): TieType {
+  const warm = Math.abs(ax.affection ?? 0) + Math.abs(ax.trust ?? 0) + (ax.attraction ?? 0);
+  const cold = (ax.rivalry ?? 0) + (ax.resentment ?? 0);
+  if (cold >= 3 && cold > warm) return "enemy";
+  if (warm >= 4 || (ax.attraction ?? 0) >= 3) return "close";
+  if (warm >= 1) return "friend";
+  return "knows";
+}
+
+/** How A's description ties them to B (null when it doesn't name B), and the words that did it. */
+function textTie(text: string, other: string): { type: TieType; around: string } | null {
+  if (!other || other.length < 3) return null;
   // Who they were to someone long ago ("history(… the woman William, later Spike, loved in 1880)") isn't a tie now.
   text = text.replace(/\b(\w+)\s*\(([^()]*)\)/g, (m, label: string) => (PAST_LABEL.test(label) ? "" : m));
   const esc = other.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`.{0,40}\\b${esc}\\b.{0,40}`, "gi");
-  let best = { s: 0, around: "" };
+  const order: TieType[] = ["knowsOf", "past", "knows", "enemy", "friend", "close"];
+  let best: { type: TieType; around: string } | null = null;
   for (const m of text.matchAll(re)) {
     const around = m[0];
-    const s = /\b(estranged|former|ex-|drifted|used to be)\b/i.test(around) ? 1 : tieWords(3).test(around) ? 3 : tieWords(2).test(around) || tieWords(1).test(around) ? 2 : 1;
-    if (s > best.s) best = { s, around: around.trim() };
+    const type: TieType = /\b(estranged|former|ex-|drifted|used to be)\b/i.test(around) ? "past" : tieWords(3).test(around) ? "close" : /\b(rival|enemy|nemesis|foe)\b/i.test(around) ? "enemy" : tieWords(1).test(around) ? "friend" : tieWords(2).test(around) ? "knows" : "knowsOf";
+    if (!best || order.indexOf(type) > order.indexOf(best.type)) best = { type, around: around.trim() };
   }
   return best;
 }
@@ -258,6 +289,7 @@ export function buildRoster(inp: RosterInput): Roster {
       travel: TRAVEL[reach],
       ties: new Map(),
       tieWhy: new Map(),
+      tieKind: new Map(),
       text,
       want: c.drives.want,
       fear: c.drives.fear,
@@ -274,7 +306,8 @@ export function buildRoster(inp: RosterInput): Roster {
   ];
   for (const u of unmet) {
     const id = keyOf(u.name).replace(/[^a-z0-9]+/g, "-");
-    const twin = [...actors.values()].find((a) => samePerson(a.name, u.name) || a.id === id);
+    // Also by the names the story knows them by: the tracker's "Giles" has "Rupert Giles" as an alias.
+    const twin = [...actors.values()].find((a) => samePerson(a.name, u.name) || a.id === id || (st.chars[a.id]?.aliases ?? []).some((x) => samePerson(x, u.name)));
     if (twin) {
       // The story calls them "Willow", the lore "Willow Rosenberg": one person, who keeps what the lore says.
       if (!twin.isUser && u.text && !twin.text.includes(u.text.slice(0, 60))) twin.text = [twin.text, u.text].filter(Boolean).join(". ");
@@ -329,6 +362,7 @@ export function buildRoster(inp: RosterInput): Roster {
       travel: TRAVEL[reach],
       ties: new Map(),
       tieWhy: new Map(),
+      tieKind: new Map(),
       text: u.text,
       want: u.text.match(/\bwants? (?:to )?([^.;]{4,80})/i)?.[1],
       fear: u.text.match(/\bfears? ([^.;]{4,80})/i)?.[1],
@@ -393,38 +427,61 @@ export function buildRoster(inp: RosterInput): Roster {
     a.reach = "none";
     a.travel = TRAVEL.none;
   }
-  const tie = (a: string, b: string, s: number, why: string) => {
-    if (a === b) return;
-    const A = actors.get(a);
-    const B = actors.get(b);
-    if (!A || !B) return;
-    if (s > (A.ties.get(b) ?? 0)) A.tieWhy.set(b, why);
-    if (Math.min(s, 2) > (B.ties.get(a) ?? 0)) B.tieWhy.set(a, why);
-    A.ties.set(b, Math.max(A.ties.get(b) ?? 0, s));
-    B.ties.set(a, Math.max(B.ties.get(a) ?? 0, Math.min(s, 2)));
+  // docs/21 Part 3: one tie per pair, both ways. What you said beats the page, the page the lore read, the lore read the old guesses.
+  const RANK: Record<Basis, number> = { you: 4, story: 3, lore: 2, guess: 1, none: 0 };
+  const setTie = (a: string, b: string, t: Tie) => {
+    if (a === b || !actors.has(a) || !actors.has(b)) return;
+    for (const [x, y] of [[a, b], [b, a]] as const) {
+      const X = actors.get(x)!;
+      const cur = X.tieKind.get(y);
+      if (cur && (RANK[cur.by] > RANK[t.by] || (cur.by === t.by && TIE_STRENGTH[cur.type] >= TIE_STRENGTH[t.type] && (cur.inTouch || !t.inTouch)))) continue;
+      X.tieKind.set(y, t);
+    }
   };
+  // A bond on the page: what they are to each other. Moved lately, it's the story's word that they're in touch;
+  // quiet for a long stretch, it says less than the lore read, and is taken like any other guess.
   for (const b of Object.values(st.bonds)) {
-    const ax = b.axes;
-    const s = Math.min(3, 1 + Math.round((Math.abs(ax.trust ?? 0) + Math.abs(ax.affection ?? 0) + (ax.familiarity ?? 0) + (ax.attraction ?? 0) + (ax.rivalry ?? 0) + (ax.resentment ?? 0)) / 4));
-    tie(b.from, b.to, s, `a bond on the page (${actors.get(b.from)?.name ?? b.from} → ${actors.get(b.to)?.name ?? b.to})`);
+    const last = Math.max(0, ...b.history.map((h) => h.seq));
+    const type = bondTie(b.axes);
+    const lately = st.lastSeq - last <= 150;
+    const why = `a bond on the page (${actors.get(b.from)?.name ?? b.from} → ${actors.get(b.to)?.name ?? b.to})`;
+    if (lately) setTie(b.from, b.to, { type, inTouch: true, by: "story", why });
+    else setTie(b.from, b.to, { type, inTouch: type === "close" || type === "friend", by: "guess", why: `${why}, quiet lately` });
   }
+  // The lore read (Part 2's sheet) names who they know and whether they're in touch.
+  if (inp.sheets) {
+    const keys = Object.keys(inp.sheets);
+    for (const a of all) {
+      const k = keys.find((x) => x === sheetKey(a.name)) ?? keys.find((x) => samePerson(x, a.name));
+      for (const t of (k ? inp.sheets[k]!.ties : undefined) ?? []) {
+        const b = all.find((x) => x !== a && (samePerson(x.name, t.name) || sheetKey(x.name) === sheetKey(t.name)));
+        if (b) setTie(a.id, b.id, { type: t.type, inTouch: t.inTouch, by: "lore", why: `${a.name}'s lore: ${TIE_WORDS[t.type]}${t.inTouch ? ", in touch" : ", not in touch"}${t.quote ? ` ("${t.quote}")` : ""}` });
+      }
+    }
+  }
+  // The old reading of descriptions: close and friendly words are taken to mean in touch, and marked as a guess.
   for (const a of all) for (const b of all) if (a !== b && a.text) {
     const t = textTie(a.text, b.name);
-    if (t.s) tie(a.id, b.id, t.s, `${a.name}'s description: "…${t.around}…"`);
+    if (!t) continue;
+    const inTouch = t.type === "close" || t.type === "friend";
+    setTie(a.id, b.id, { type: t.type, inTouch, by: "guess", why: `${a.name}'s description: "…${t.around}…"${inTouch ? " (in touch assumed)" : ""}` });
   }
   // The main character and the user are always tied.
   const main = all.find((a) => a.isMain);
   const user = all.find((a) => a.isUser);
-  if (main && user) tie(main.id, user.id, 3, "the main character and you");
+  if (main && user) setTie(main.id, user.id, { type: "close", inTouch: true, by: "story", why: "the main character and you" });
   // You said they don't talk (an undone piece of news, docs/21 1.3): no tie either way, whatever the lore says.
   for (const a of all)
     for (const name of inp.profiles[keyOf(a.name)]?.apart ?? []) {
       const b = all.find((x) => x !== a && samePerson(x.name, name));
       if (!b) continue;
-      for (const [x, y] of [[a, b], [b, a]] as const) {
-        x.ties.delete(y.id);
-        x.tieWhy.delete(y.id);
-      }
+      a.tieKind.delete(b.id);
+      b.tieKind.delete(a.id);
+    }
+  for (const a of all)
+    for (const [id, t] of a.tieKind) {
+      if (TIE_STRENGTH[t.type]) a.ties.set(id, TIE_STRENGTH[t.type]);
+      a.tieWhy.set(id, t.why);
     }
 
   // Knowledge stances.

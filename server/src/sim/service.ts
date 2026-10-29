@@ -18,7 +18,7 @@ import type { Op, WorldState } from "../trackers/types";
 import { confirmArrivals, elsewhereLane } from "./crossings";
 import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
-import { buildRoster, lorePersonName, type Roster, samePerson } from "./roster";
+import { buildRoster, lorePersonName, type Roster, samePerson, TIE_STRENGTH } from "./roster";
 import { checkRead, saveSheet, sheetKey, sheetPrompt, sheetSchema, sheetsFor } from "./sheet";
 import { climateFrom, forecast, latitudeFrom, placeClimate, skyLine, type SkyInput } from "./sky";
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, pastCard, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
@@ -154,6 +154,8 @@ export function rosterFor(chatId: string, state: WorldState): Roster {
 // ---------- the person sheet (docs/21 Part 2) ----------
 
 const SHEET_BATCH = 20;
+/** Bumped when the reading asks for more (2: ties), so everyone is read again once. */
+const SHEET_VERSION = 2;
 
 /** The people whose lore hasn't been read yet, or has changed since (their text, and its hash). */
 export function sheetsToRead(chatId: string, st: WorldState = currentFold(chatId).result.state): { name: string; text: string; basis: string }[] {
@@ -163,7 +165,7 @@ export function sheetsToRead(chatId: string, st: WorldState = currentFold(chatId
   const have = sheetsFor(chatId);
   return [...roster.actors.values()]
     .filter((a) => !a.isUser && !a.isMain && a.text.trim().length >= 20)
-    .map((a) => ({ name: a.name, text: a.text.slice(0, 1500), basis: textBasis(`${a.name}: ${a.text}`) }))
+    .map((a) => ({ name: a.name, text: a.text.slice(0, 1500), basis: textBasis(`${SHEET_VERSION}|${a.name}: ${a.text}`) }))
     .filter((p) => have[sheetKey(p.name)]?.basis !== p.basis);
 }
 
@@ -191,8 +193,13 @@ export async function readSheets(p: { chatId: string }, job?: JobContext) {
     const res = await callJson({ task: "world", kind: "world:sheet", chatId, jobId: job?.id, name: "world_sheet", schema: sheetSchema, system, user, maxTokens: 2400 });
     job?.note({ inputTokens: res.inputTokens });
     for (const r of res.data.people ?? []) {
-      // "Dawn" may come back as "Dawn Summers": the same person, if no one else in the batch fits.
-      const who = batch.find((b) => sheetKey(b.name) === sheetKey(r.name ?? "")) ?? batch.find((b) => samePerson(b.name, r.name ?? ""));
+      // "Dawn" may come back as "Dawn Summers", "Giles" as "Rupert Giles": the same person, if only one in the batch fits.
+      const words = (r.name ?? "").toLowerCase().split(/\s+/);
+      const one = <T,>(xs: T[]) => (xs.length === 1 ? xs[0] : undefined);
+      const who =
+        batch.find((b) => sheetKey(b.name) === sheetKey(r.name ?? "")) ??
+        one(batch.filter((b) => samePerson(b.name, r.name ?? ""))) ??
+        one(batch.filter((b) => !b.name.includes(" ") && words.includes(b.name.toLowerCase())));
       const sheet = who && checkRead(r, who.text, who.basis);
       if (!who || !sheet) continue;
       saveSheet(chatId, who.name, sheet);
@@ -703,7 +710,7 @@ export function worldView(chatId: string) {
       where: a.where?.join(" › ") ?? null,
       reach: a.reach,
       travel: Number.isFinite(a.travel) ? a.travel : null,
-      ties: [...a.ties.entries()].map(([id, s]) => ({ id, name: roster.actors.get(id)?.name ?? id, strength: s })),
+      ties: [...a.tieKind.entries()].map(([id, t]) => ({ id, name: roster.actors.get(id)?.name ?? id, strength: TIE_STRENGTH[t.type], type: t.type, inTouch: t.inTouch, by: t.by })),
       flag: a.flag ?? null,
       // docs/21 Part 2: where their standing and place came from (you, the story, the lore read, or a guess).
       basis: a.basis,
@@ -746,6 +753,10 @@ export function worldView(chatId: string) {
     // Off the page and placed by nobody: the engine is guessing about them until the lore is read or you say.
     guessing: people.filter((p) => p.ring !== "onstage" && !p.flag && p.basis.where !== "you" && p.basis.where !== "story" && p.basis.where !== "lore" && p.basis.standing !== "lore" && p.basis.standing !== "you").length,
     toRead: sheetsToRead(chatId, st).length,
+    // Two people in the story's records with one name: likely one person written twice, for you to merge.
+    twins: Object.values(Object.groupBy(Object.values(st.chars).filter((c) => !c.isUser), (c) => sheetKey(c.name)))
+      .filter((g) => (g?.length ?? 0) > 1)
+      .map((g) => g!.map((c) => c.name)[0]!),
     town: roster.town,
     factionRel: st.sim.factionRel,
   };

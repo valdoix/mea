@@ -136,7 +136,7 @@ describe("roster", () => {
     const roster = buildRoster({ state: st, profiles: {}, lore: [], userName: "Alex" });
     const { ops } = spreadNews({ state: st, roster, hours: 500, rand: () => 0, tech: "modern", now: 0 });
     const kit = ops.find((o) => o.subject === "Kit")!;
-    expect(kit.why).toContain("tie: a bond on the page (Joss → Kit)");
+    expect(kit.why).toContain("tie: friend, in touch: a bond on the page (Joss → Kit)");
     expect(kit.why?.some((w) => w.startsWith("place: ") && w.includes("Kit's place not known, assumed"))).toBe(true);
     const out = buildRoster({ state: st, profiles: { kit: { name: "Kit", out: true } }, lore: [], userName: "Alex" });
     expect(spreadNews({ state: st, roster: out, hours: 500, rand: () => 0, tech: "modern", now: 0 }).ops.some((o) => o.subject === "Kit")).toBe(false);

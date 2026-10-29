@@ -1786,7 +1786,8 @@ export interface WorldPerson {
   where: string | null;
   reach: string;
   travel: number | null;
-  ties: { id: string; name: string; strength: number }[];
+  /** docs/21 Part 3: what they are to each other, whether they're in touch now, and where that came from. */
+  ties: { id: string; name: string; strength: number; type: "close" | "friend" | "knows" | "knowsOf" | "past" | "enemy"; inTouch: boolean; by: WorldBasis }[];
   flag: string | null;
   /** docs/21 Part 2: where their standing and place came from, and the lore's words when the sheet decided. */
   basis: { standing: WorldBasis; where: WorldBasis; quote?: string };
@@ -1820,6 +1821,8 @@ export interface WorldViewData {
   /** People off the page the engine is guessing about, and people whose lore hasn't been read yet. */
   guessing: number;
   toRead: number;
+  /** Names two people in the story's records share: probably one person, written twice. */
+  twins: string[];
   town: string;
 }
 
