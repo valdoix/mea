@@ -39,7 +39,9 @@ export function auditWorld(chatId: string): AuditFinding[] {
   const cfg = worldConfig(chatId);
   if (cfg.mode === "off") return [];
   const st = currentFold(chatId).result.state;
-  const key = stamp(chatId);
+  // Being read now (you just asked, or a world step did): no card until it's done; it says what's left then.
+  const reading = Boolean(one("SELECT 1 FROM jobs WHERE kind = 'world.sheet' AND dedupe_key = ? AND status IN ('queued', 'running')", `world.sheet:${chatId}`));
+  const key = `${stamp(chatId)}|${reading}`;
   const hit = memo.get(st);
   if (hit?.stamp === key) return hit.findings;
 
@@ -74,7 +76,7 @@ export function auditWorld(chatId: string): AuditFinding[] {
     });
   }
   const unread = sheetsToRead(chatId, st).length;
-  if (unread) findings.push({ id: "unread", kind: "unread", title: `The world is guessing about ${unread} ${unread === 1 ? "person" : "people"}`, why: ["Their lore hasn't been read yet, so the world guesses whether they're alive, where they are and whom they talk to."], after: "Read their lore now?" });
+  if (unread && !reading) findings.push({ id: "unread", kind: "unread", title: `The world is guessing about ${unread} ${unread === 1 ? "person" : "people"}`, why: ["Their lore hasn't been read yet, so the world guesses whether they're alive, where they are and whom they talk to."], after: "Read their lore now?" });
   memo.set(st, { stamp: key, findings });
   return findings;
 }
