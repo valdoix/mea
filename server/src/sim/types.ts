@@ -170,16 +170,29 @@ export interface SimState {
   incidents: { at: number; text: string; place?: string[]; seq: number }[];
   proposals: Record<string, Proposal>;
   declined: string[];
+  /** docs/21 5.3: news waiting for your word (news: ask), by id. */
+  newsAsk?: Record<string, PendingNews>;
   ticks: number;
 }
 
+/** A piece of news the world would pass on, held until you let it (or don't). */
+export interface PendingNews {
+  id: string;
+  hop: NewsHop;
+  /** The "know" line it writes when you let it travel, with its why. */
+  op: { op: "know"; subject: string; args: Record<string, unknown>; cause?: string; why?: string[]; raw: string };
+  at: number;
+}
+
 export function emptySim(): SimState {
-  return { lastTickAt: null, tension: [], arcs: {}, arrivals: {}, actors: {}, factionRel: {}, news: [], incidents: [], proposals: {}, declined: [], ticks: 0 };
+  return { lastTickAt: null, tension: [], arcs: {}, arrivals: {}, actors: {}, factionRel: {}, news: [], incidents: [], proposals: {}, declined: [], newsAsk: {}, ticks: 0 };
 }
 
 /** One engine-written change to the off-page world (stored as an op "sim"). */
 export type SimOp =
   | { type: "arc.new"; arc: Arc }
+  | { type: "news.ask"; pending: PendingNews }
+  | { type: "news.done"; id: string; accepted: boolean }
   | { type: "arc.beat"; id: string; beat: Beat; heat?: number; nextAt: number; place?: string[] }
   | { type: "arc.tell"; id: string; at: number; text: string; /** Which step, when it was told again later (several can share a minute); absent, the step at that minute. */ n?: number; ending?: boolean }
   | { type: "arc.end"; id: string; result: EndResult; text: string; at: number }

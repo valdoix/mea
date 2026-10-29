@@ -33,6 +33,7 @@ export interface ResolvedWorldConfig {
   telling: "model" | "engine";
   seeding: "auto" | "ask" | "off";
   fates: "page" | "ask" | "allow";
+  news: "auto" | "ask" | "off";
   view: "director" | "surprise";
   climate: string;
   latitude: number;
@@ -74,6 +75,8 @@ export function worldConfig(chatId: string): ResolvedWorldConfig {
     telling: own.telling ?? d.telling,
     seeding: own.seeding ?? d.seeding,
     fates: own.fates ?? d.fates,
+    // Saved before docs/21 5.3, the defaults have no news setting: ask.
+    news: own.news ?? d.news ?? "ask",
     view: own.view ?? d.view,
     climate: own.climate || (lore ? climateFrom(lore) : "") || place?.climate || climateFrom(cardText),
     latitude: own.latitude ? latitudeFrom(own.latitude, { typed: true }) : lore && /°|latitude/i.test(lore) ? latitudeFrom(lore) : (place?.latitude ?? latitudeFrom(cardText)),
@@ -288,6 +291,7 @@ function tickInput(chatId: string, st: WorldState, roster: Roster, forced: boole
     director: cfg.director,
     seeding: cfg.seeding,
     fates: cfg.fates,
+    news: cfg.news,
     genres: cfg.genres,
     tech: cfg.tech,
     from: st.sim.lastTickAt,
@@ -595,6 +599,20 @@ export function decideProposal(chatId: string, id: string, accept: boolean) {
   return control(chatId, ops);
 }
 
+/**
+ * docs/21 5.3: news that waited for your word. Let it travel and it's written as the world's own
+ * (hearsay, with its why, undoable from its chip); turn it down and it isn't asked again.
+ */
+export function decideNews(chatId: string, id: string, accept: boolean) {
+  const st = currentFold(chatId).result.state;
+  const p = st.sim.newsAsk?.[id];
+  if (!p) throw notFound("That news is gone already");
+  const last = lastMessage(chatId);
+  const ops: SimOp[] = [{ type: "news.done", id, accepted: accept }, ...(accept ? [{ type: "news" as const, hop: p.hop }] : [])];
+  writeEvents(chatId, { messageId: last?.id ?? null, swipeIdx: last ? -1 : 0 }, [...simOps(ops), ...(accept ? [p.op as Op] : [])], "engine", { replace: [] });
+  return worldView(chatId);
+}
+
 /** Fates (ALMANAC 09 §12): accept the ending, soften it, or keep it for a scene on the page. */
 export function decideFate(chatId: string, id: string, choice: "accept" | "soften" | "page") {
   const st = currentFold(chatId).result.state;
@@ -744,6 +762,7 @@ export function worldView(chatId: string) {
     arcs,
     arrivals: Object.values(st.sim.arrivals).sort((a, b) => b.at - a.at),
     proposals: Object.values(st.sim.proposals),
+    newsAsk: Object.values(st.sim.newsAsk ?? {}).sort((a, b) => b.at - a.at),
     news: [...st.sim.news].reverse(),
     incidents: [...st.sim.incidents].reverse(),
     tension: st.sim.tension,

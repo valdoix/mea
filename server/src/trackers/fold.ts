@@ -1035,7 +1035,7 @@ export class Folder {
           }
           f.stances[holder.id] = { status, route: a.route ?? op.cause, seq, ...(ctx.ev.source === "user" ? { set: true } : {}) };
           if (f.secret?.from.includes(holder.id) && /knows|believes|suspects/.test(status)) f.secret.from = f.secret.from.filter((x) => x !== holder.id);
-          this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });
+          this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : status === "heard" ? "now has heard" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });
         }
         return;
       }

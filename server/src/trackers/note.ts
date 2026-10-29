@@ -87,7 +87,9 @@ function present(st: WorldState) {
   return Object.values(st.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead);
 }
 
-const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know" };
+const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know", heard: "has probably heard, off the page" };
+/** docs/21 5.2: hearsay the page never confirmed stops counting after this many messages. */
+export const HEARSAY_FADES = 80;
 
 /**
  * FACTS IN PLAY (docs/19 1.2): the facts and things the player's message touches, each with every
@@ -348,6 +350,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
         if (s.status === "unaware") lines.push(`${who} doesn't know: ${f.statement}${f.secret?.keepers.length ? ` (kept by ${f.secret.keepers.map((k) => (st.chars[k]?.isUser ? o.userName : st.chars[k]?.name ?? k)).join(", ")})` : ""}`);
         else if (s.status === "wrong") lines.push(`${who} has it wrong: ${f.statement}`);
         else if (s.status === "suspects" || s.status === "doubts") lines.push(`${who} ${s.status}: ${f.statement}`);
+        // docs/21 5.1: news that reached them off the page is a maybe: they may bring it up, or may have it garbled.
+        else if (s.status === "heard" && o.seq - s.seq <= HEARSAY_FADES) lines.push(`${who} has probably heard, off the page${s.route ? ` (${s.route})` : ""}: ${f.statement}. Not certain; let it show only if it fits.`);
       }
     }
     // A secret that came out: the card or lore may still call it hidden, so say who knows now.

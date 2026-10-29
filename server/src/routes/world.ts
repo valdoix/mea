@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { body } from "../lib/http";
 import { mustChat } from "../services/chats";
-import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, previewOutcome, retellStep, queueSheets, rewordSubplot, runTick, setActor, undoEngine, worldView } from "../sim/service";
+import { arcAction, authorArc, decideFate, decideProposal, forceOutcome, previewOutcome, retellStep, decideNews, queueSheets, rewordSubplot, runTick, setActor, undoEngine, worldView } from "../sim/service";
 import { clearSheets } from "../sim/sheet";
 import { FORCES } from "../sim/types";
 
@@ -77,6 +77,12 @@ world.post("/chats/:id/world/fates/:arcId", async (c) => {
   const input = await body(c, z.object({ choice: z.enum(["accept", "soften", "page"]) }));
   decideFate(c.req.param("id"), decodeURIComponent(c.req.param("arcId")), input.choice);
   return c.json(worldView(c.req.param("id")));
+});
+
+/** docs/21 5.3: let a piece of news travel, or not. */
+world.post("/chats/:id/world/news/:newsId", async (c) => {
+  const input = await body(c, z.object({ accept: z.boolean() }));
+  return c.json(decideNews(c.req.param("id"), decodeURIComponent(c.req.param("newsId")), input.accept));
 });
 
 /** docs/21 Part 2: read the lore of anyone whose sheet is missing or out of date (`again`: everyone). */

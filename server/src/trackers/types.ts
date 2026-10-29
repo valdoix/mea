@@ -153,7 +153,8 @@ export interface Ladder {
   history: { tier: number; evidence?: string; seq: number }[];
 }
 
-export type KnowStatus = "knows" | "believes" | "suspects" | "doubts" | "wrong" | "unaware";
+/** heard (docs/21 5.1): news that reached them off the page, not yet shown on it; a maybe, never a certainty. */
+export type KnowStatus = "knows" | "believes" | "suspects" | "doubts" | "wrong" | "unaware" | "heard";
 export type Truth = "true" | "false" | "partial" | "unknown";
 
 export interface Fact {

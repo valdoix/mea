@@ -7,7 +7,7 @@ import { spreadNews } from "./news";
 import { canLead, reach } from "./reach";
 import { awakeAt, awakeSet, canAct, type RActor, type Roster } from "./roster";
 import { arcWords, type Reaction, reactionsTo, type Ripple, sparkFrom, threadNote, threadOf, type ThreadPull, threadPulls } from "./ripples";
-import type { Arc, ArcKind, Beat, EndResult, Proposal, Result, Route, SimOp, Twist } from "./types";
+import type { Arc, ArcKind, Beat, EndResult, PendingNews, Proposal, Result, Route, SimOp, Twist } from "./types";
 import { type ArcEvent, bearingsOn, conditionsFor, eventsOf, meanwhileLines, peopleOf, standsLines, tied, touches, webMod } from "./web";
 
 /**
@@ -49,6 +49,8 @@ export interface TickInput {
   director: Personality;
   seeding: "auto" | "ask" | "off";
   fates: "page" | "ask" | "allow";
+  /** docs/21 5.3: auto (travels, as hearsay), ask (waits for your word), off. Absent: auto. */
+  news?: "auto" | "ask" | "off";
   genres: string[];
   tech: string;
   /** Story minutes: the previous tick and now. */
@@ -161,13 +163,25 @@ export function tick(inp: TickInput): TickResult {
   out.target = target;
 
   // News travels first: it wakes people and unlocks subplots.
-  if (hours > 0) {
+  if (hours > 0 && inp.news !== "off") {
+    // News waiting for your word, or turned down, isn't news to them again.
+    for (const p of Object.values(st.sim.newsAsk ?? {})) inp.roster.byName(p.hop.to)?.knows.set(p.hop.fact, "heard");
+    for (const k of st.sim.declined) {
+      const m = k.match(/^news:([^:]+):(.+)$/);
+      if (m) inp.roster.byName(m[2]!)?.knows.set(m[1]!, "heard");
+    }
     const news = spreadNews({ state: st, roster: inp.roster, hours, rand: R("news"), tech: inp.tech, now: inp.now });
-    for (const h of news.hops) {
+    news.hops.forEach((h, i) => {
+      if (inp.news === "ask") {
+        const op = news.ops[i]! as PendingNews["op"];
+        out.sim.push({ type: "news.ask", pending: { id: `${h.fact}:${h.to.toLowerCase()}:${inp.now}`, hop: h, op, at: inp.now } });
+        out.summary.push(`asks: ${h.to} could hear from ${h.from}: ${h.statement}`);
+        return;
+      }
       out.sim.push({ type: "news", hop: h });
       out.summary.push(`${h.to} heard from ${h.from}: ${h.statement}`);
-    }
-    out.ledger.push(...news.ops);
+      out.ledger.push(news.ops[i]!);
+    });
   }
 
   const arcs = Object.values(sim.arcs);
@@ -225,7 +239,7 @@ export function tick(inp: TickInput): TickResult {
       continue;
     }
     const factGround = arc.grounds.find((g) => g.startsWith("fact:"))?.slice(5);
-    if (factGround && lead && !arc.force && !["knows", "believes", "suspects"].includes(lead.knows.get(factGround) ?? "")) {
+    if (factGround && lead && !arc.force && !["knows", "believes", "suspects", "heard"].includes(lead.knows.get(factGround) ?? "")) {
       out.sim.push({ type: "arc.set", id: arc.id, patch: { nextAt: inp.now + 4 * HOUR } });
       continue;
     }

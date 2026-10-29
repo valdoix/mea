@@ -226,6 +226,12 @@
           </select>
         </label>
         <label class="field">
+          <span class="label">News between people</span>
+          <select class="select" value={s["world.defaults"].news ?? "ask"} onchange={(e) => save("world.defaults", { ...s["world.defaults"], news: e.currentTarget.value as NonNullable<Settings["world.defaults"]["news"]> })}>
+            <option value="ask">Ask me first</option><option value="auto">Let it travel</option><option value="off">Keep it on the page</option>
+          </select>
+        </label>
+        <label class="field">
           <span class="label">Telling</span>
           <select class="select" value={s["world.defaults"].telling} onchange={(e) => save("world.defaults", { ...s["world.defaults"], telling: e.currentTarget.value as Settings["world.defaults"]["telling"] })}>
             <option value="model">A model writes the words</option><option value="engine">The engine's words (no requests)</option>

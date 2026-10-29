@@ -42,6 +42,7 @@ export const worldConfigSchema = z.object({
   telling: z.enum(["model", "engine"]).optional(),
   seeding: z.enum(["auto", "ask", "off"]).optional(),
   fates: z.enum(["page", "ask", "allow"]).optional(),
+  news: z.enum(["auto", "ask", "off"]).optional(),
   view: z.enum(["director", "surprise"]).optional(),
   climate: short(80).optional(),
   latitude: short(40).optional(),

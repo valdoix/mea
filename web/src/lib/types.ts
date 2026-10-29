@@ -656,7 +656,7 @@ export interface Settings {
   "memory.config": MemoryConfig;
   "quota.degradeAt": number;
   "trackers.defaults": Partial<TrackerConfig>;
-  "world.defaults": { mode: WorldConfig["mode"]; director: WorldConfig["director"]; telling: WorldConfig["telling"]; seeding: WorldConfig["seeding"]; fates: WorldConfig["fates"]; view: WorldConfig["view"]; step: number };
+  "world.defaults": { mode: WorldConfig["mode"]; director: WorldConfig["director"]; telling: WorldConfig["telling"]; seeding: WorldConfig["seeding"]; fates: WorldConfig["fates"]; news?: WorldConfig["news"]; view: WorldConfig["view"]; step: number };
   "chat.guidance": GuidanceChip[];
   "chat.banned": { list: { phrase: string; replace?: string }[]; action: "flag" | "regenerate" | "replace"; remind: boolean };
   "chat.cutoff": "continue" | "trim" | "off";
@@ -1764,6 +1764,8 @@ export interface WorldConfig {
   telling: "model" | "engine";
   seeding: "auto" | "ask" | "off";
   fates: "page" | "ask" | "allow";
+  /** docs/21 5.3: news off the page travels on its own, waits for your word, or doesn't travel. */
+  news: "auto" | "ask" | "off";
   view: "director" | "surprise";
   climate: string;
   latitude: number;
@@ -1812,6 +1814,8 @@ export interface WorldViewData {
   arcs: (Arc & ArcTies)[];
   arrivals: Arrival[];
   proposals: SimProposal[];
+  /** News waiting for your word, with why the world would pass it on. */
+  newsAsk: { id: string; hop: SimState["news"][number]; op: { why?: string[] }; at: number }[];
   news: SimState["news"];
   incidents: SimState["incidents"];
   tension: SimState["tension"];
