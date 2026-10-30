@@ -116,7 +116,15 @@ if ($branch -ne $mainBranch) {
   Invoke-Logged $git @("fetch", "origin") | Out-Null
   if ($LASTEXITCODE -ne 0) { Finish $false $false "Couldn't reach GitHub to check for updates. Mea is still running as before." }
   & $git merge-base --is-ancestor HEAD "origin/$mainBranch" 2>$null
-  if ($LASTEXITCODE -eq 0) {
+  $inMain = ($LASTEXITCODE -eq 0)
+  if (-not $inMain) {
+    # A squash merge puts the work on main under a new commit, so ask instead whether merging this
+    # branch into main would change anything. A branch with work main lacks gives a different tree.
+    $mergedTree = (& $git merge-tree --write-tree "origin/$mainBranch" HEAD 2>$null | Select-Object -First 1)
+    $mainTree = (& $git rev-parse "origin/$mainBranch^{tree}" 2>$null | Select-Object -First 1)
+    $inMain = ($mergedTree -and $mergedTree -eq $mainTree)
+  }
+  if ($inMain) {
     Write-Log "$branch is already in $mainBranch; switching to $mainBranch to update."
     Clear-AlreadyUpstream "origin/$mainBranch"
     $switch = Invoke-Logged $git @("switch", $mainBranch)
@@ -144,9 +152,10 @@ if ($LASTEXITCODE -ne 0) {
   $why = ($lines | Where-Object { $_ -match "error|fatal|overwritten|diverge|not possible|no tracking" } | Select-Object -First 1)
   if (-not $why -and $lines.Count) { $why = $lines[-1] }
   if (-not $why) { $why = "git pull exited with $LASTEXITCODE." }
-  $why = $why.Trim().TrimEnd(":")
+  $why = $why.Trim().TrimEnd(":", ".")
   if ($pull -match "local changes") { $why = "files edited in Mea's folder would be overwritten (the list is in update.log)" }
   elseif ($pull -match "diverge|not possible to fast-forward") { $why = "Mea's folder has its own commits that aren't on GitHub" }
+  elseif ($pull -match "no such ref was fetched") { $why = "$branch is gone from GitHub and has work $mainBranch doesn't" }
   if ($fromBranch) { Invoke-Logged $git @("switch", $fromBranch) | Out-Null }
   Finish $false $false "Couldn't update: $why. Mea is still running as before."
 }
