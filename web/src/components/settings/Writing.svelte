@@ -195,6 +195,7 @@
       <label class="switch"><input type="checkbox" checked={s["chat.retry"].empty} onchange={(e) => save("chat.retry", { ...s["chat.retry"], empty: e.currentTarget.checked })} /> Try again once after an empty reply</label>
       <label class="switch"><input type="checkbox" checked={s["chat.retry"].refusal} onchange={(e) => save("chat.retry", { ...s["chat.retry"], refusal: e.currentTarget.checked })} /> Try again once after a refusal (with the next model in the chain, if any)</label>
       <label class="switch"><input type="checkbox" checked={s["chat.retry"].serverErrors} onchange={(e) => save("chat.retry", { ...s["chat.retry"], serverErrors: e.currentTarget.checked })} /> Retry a server error on the same model before falling back</label>
+      <label class="switch"><input type="checkbox" checked={s["chat.retry"].opening !== false} onchange={(e) => save("chat.retry", { ...s["chat.retry"], opening: e.currentTarget.checked })} /> Write a reply again, once, if it arrives without its opening</label>
     </section>
 
     <section class="panel stack">
