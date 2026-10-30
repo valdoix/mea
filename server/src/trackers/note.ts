@@ -90,6 +90,8 @@ function present(st: WorldState) {
 const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know", heard: "has probably heard, off the page" };
 /** docs/21 5.2: hearsay the page never confirmed stops counting after this many messages. */
 export const HEARSAY_FADES = 80;
+/** A fact last touched this many messages ago may describe how things were, not are ("the fridge has three eggs"). */
+export const FACT_DATES = 40;
 
 /**
  * FACTS IN PLAY (docs/19 1.2): the facts and things the player's message touches, each with every
@@ -97,8 +99,9 @@ export const HEARSAY_FADES = 80;
  * a thing's trail. Words weigh by how rare they are among the facts and things, so "socks" picks
  * the socks and "bought" alone (in every errand) picks nothing: a hit needs a word in at most three
  * of them, or several commoner ones. Someone with no stance isn't listed: no record isn't "not told".
+ * A fact older than FACT_DATES says so: "the fridge has three eggs" from two days ago isn't the fridge now.
  */
-export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: string) => string, max = 4, moment: (seq: number) => string = (s) => `#${s}`): string[] {
+export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: string) => string, max = 4, moment: (seq: number) => string = (s) => `#${s}`, now?: number): string[] {
   // What the message is about: a word said twice ("the socks… Socks.") weighs twice.
   const want = focus?.trim() ? topicCounts(st, focus) : null;
   if (!want?.size) return [];
@@ -121,7 +124,9 @@ export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: s
         .sort((a, b) => a[1].seq - b[1].seq)
         .map(([id, s]) => `${nameOf(id)} ${STANCE_WORDS[s.status] ?? s.status}${s.route || s.seq ? ` (${[s.route, s.seq ? moment(s.seq) : ""].filter(Boolean).join(", ")})` : ""}`);
       if (!who.length) continue;
-      hits.push({ line: `${d.fact.statement}: ${who.join("; ")}`, text: d.text, score, seq: d.fact.lastSeq, item: false });
+      const age = now != null ? now - d.fact.lastSeq : 0;
+      const then = age > FACT_DATES ? ` · recorded ${age} messages ago: how things stood then, which may have changed since` : "";
+      hits.push({ line: `${d.fact.statement}: ${who.join("; ")}${then}`, text: d.text, score, seq: d.fact.lastSeq, item: false });
     } else if (d.item) {
       const i = d.item;
       const trail = i.custody.slice(-3).map((c) => `${[c.from, c.to].filter((x): x is string => Boolean(x)).map(whom).join(" → ")}${c.how ? ` (${c.how})` : ""}${c.seq ? ` ${moment(c.seq)}` : ""}`);
@@ -293,8 +298,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   // gift someone was told about on a call is written as a surprise.
   if (on(o, "knowledge")) {
     const nameOf = (id: string) => (st.chars[id]?.isUser ? o.userName : (st.chars[id]?.name ?? id));
-    const lines = inPlay(st, o.focus, nameOf, 4, moment);
-    if (lines.length) lanes.push({ name: "inplay", lines: ["FACTS IN PLAY (what this message touches, from the records; true over any guess):", ...lines.map((l) => `- ${l}`)], priority: 1 });
+    const lines = inPlay(st, o.focus, nameOf, 4, moment, o.seq);
+    if (lines.length) lanes.push({ name: "inplay", lines: ["FACTS IN PLAY (what this message touches, from the records; true over any guess, but an old one says how things stood then):", ...lines.map((l) => `- ${l}`)], priority: 1 });
   }
 
   // PRESENT

@@ -56,6 +56,13 @@ describe("FACTS IN PLAY", () => {
     expect(text.indexOf("FACTS IN PLAY")).toBeLessThan(text.indexOf("PRESENT"));
   });
 
+  test("a fact recorded long ago says it's how things stood then", () => {
+    const fresh = note(SOCKS);
+    expect(fresh).not.toContain("how things stood then, which");
+    const later = buildNote(currentFold(chatId).result.state, { userName: "Gabe", seq: 300, focus: SOCKS }).text;
+    expect(later).toMatch(/- Gabe bought Dawn blue cat socks: Dawn knows \(Buffy told her on the phone, #\d+\).* · recorded \d+ messages ago: how things stood then/);
+  });
+
   test("someone who isn't here, a common word alone, or no message: nothing", () => {
     expect(note(SOCKS)).not.toContain("Joyce knows");
     expect(note("He bought groceries.")).not.toContain("FACTS IN PLAY");
