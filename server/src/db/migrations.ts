@@ -1431,6 +1431,50 @@ CREATE TABLE IF NOT EXISTS world_audit (
 );
 `,
   },
+  {
+    id: 36,
+    name: "request log bodies last",
+    // SQLite reads a row's columns in order, so with the request/trace/response text (tens of KB each) ahead of
+    // status, billing and the times, every count over the request log walked hundreds of MB and froze the server
+    // (the "Reconnecting to Mea…" stalls). The same columns, the big text last. New small columns go before it
+    // (a rebuild like this one), never by ALTER TABLE ADD COLUMN, which would put them after the text again.
+    up: (db) => {
+      rebuildTable(db, "generations", {
+        create: `CREATE TABLE generations (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT,
+  message_id TEXT,
+  swipe_id TEXT,
+  kind TEXT NOT NULL,
+  task TEXT NOT NULL DEFAULT 'story',
+  connection_id TEXT,
+  model_id TEXT,
+  profile_id TEXT,
+  job_id TEXT,
+  billing TEXT NOT NULL DEFAULT 'unknown',
+  status TEXT NOT NULL DEFAULT 'running',
+  est_prompt_tokens INTEGER,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
+  cached_tokens INTEGER,
+  cache_write_tokens INTEGER,
+  cost REAL,
+  started_at INTEGER NOT NULL,
+  first_token_at INTEGER,
+  finished_at INTEGER,
+  error TEXT,
+  request TEXT,
+  trace TEXT,
+  response TEXT
+)`,
+        keep: "1 = 1",
+        after: `CREATE INDEX IF NOT EXISTS generations_chat ON generations(chat_id, started_at);
+CREATE INDEX IF NOT EXISTS generations_started ON generations(started_at);
+CREATE INDEX IF NOT EXISTS generations_task ON generations(task, started_at);
+CREATE INDEX IF NOT EXISTS generations_job ON generations(job_id) WHERE job_id IS NOT NULL;`,
+      });
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
