@@ -132,8 +132,8 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 
 | Part | What | State |
 |---|---|---|
-| 0 | Tools and quick wins | branch `claude/closed-loops-part0` |
-| 1 | One record of what's open | branch `claude/closed-loops-part1` |
+| 0 | Tools and quick wins | merged, PR #202 |
+| 1 | One record of what's open | PR #203 |
 | 2 | Where things stand | — |
 | 3 | The gates | — |
 | 4 | Flags worth reading | — |
