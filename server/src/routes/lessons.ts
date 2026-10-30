@@ -4,6 +4,7 @@ import { body, must } from "../lib/http";
 import { type ChatSettings, getMessageRow, mustChat } from "../services/chats";
 import { parseJson } from "../db/db";
 import { banPhrase, craftOn, craftReport, setCraft } from "../steer/craft";
+import { showKindAgain } from "../accuracy/checker";
 import { healthDot, storyHealth } from "../accuracy/health";
 
 const getChatSettings = (id: string) => parseJson<ChatSettings>(mustChat(id).settings, {});
@@ -68,6 +69,13 @@ lessons.post("/craft/ban", async (c) => {
 // ---------- D3: story health ----------
 
 lessons.get("/chats/:id/story-health", (c) => c.json(storyHealth(c.req.param("id"))));
+
+/** docs/22 4.2: a quiet kind of flag shows on replies again. */
+lessons.post("/chats/:id/story-health/show-kind", async (c) => {
+  const input = await body(c, z.object({ key: z.string().min(1).max(60) }));
+  showKindAgain(c.req.param("id"), input.key);
+  return c.json(storyHealth(c.req.param("id")));
+});
 
 /** The dots on Home's chat cards. */
 lessons.get("/story-health/dots", (c) => {

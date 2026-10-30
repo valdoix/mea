@@ -11,13 +11,14 @@ import { chatNames } from "../memory/build";
 import { correctMemory } from "../memory/remember";
 import { excerpt } from "../memory/deep";
 import { cleanText, contentWords, ftsQuery } from "../memory/text";
-import { editMessage, getMessageRow, mustChat, updateSwipe } from "../services/chats";
+import { type ChatSettings, editMessage, getMessageRow, mustChat, updateChat, updateSwipe } from "../services/chats";
 import { replaceTerm, universeCheckOn } from "../services/versionchat";
 import type { JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { userEdit } from "../trackers/service";
 import { flagAllowed, guardsFor, puppetScope, type PuppetScope } from "./guards";
+import { citesClosed, flagKey, flagKinds, quietKeys, wavedThrough } from "./quiet";
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
 import { runSlips, slipAllowed, slipContext } from "./slips";
 import { retellIssues } from "./retell";
@@ -61,6 +62,10 @@ export interface Issue {
   canon?: { memory?: string; wrong?: string; trackerLine?: string; /** docs/15, 3.3: the lore fact the reply's version replaces. */ fact?: { id: string; value: string } };
   by: "rules" | "model";
   dismissed?: boolean;
+  /** docs/22 4.2: it went away because you acted on it: its sentence rewritten, or its version made canon. Not waved off. */
+  settled?: "fixed" | "accepted";
+  /** docs/22 4.2: its kind has gone quiet, so it isn't showing on the reply. Worked out as it's read, never stored. */
+  quiet?: boolean;
   /** docs/14, part 6: a one-tap fix that swaps a word in the reply (a name from the original's world). */
   replace?: { from: string; to: string };
 }
@@ -145,7 +150,8 @@ function storyPassages(chatId: string, beforeSeq: number, about: string): Passag
  */
 async function settledByStory(chatId: string, seq: number, found: Omit<Issue, "id">[], job?: JobContext): Promise<Set<number>> {
   const asks = found
-    .map((i, n) => ({ n, i, passages: i.by === "model" && STORY_SETTLES.has(i.kind) ? storyPassages(chatId, seq, `${i.claim} ${i.conflict}`) : [] }))
+    // docs/22 4.1: not one that cites something finished. The earlier replies with the same slip would settle it the wrong way.
+    .map((i, n) => ({ n, i, passages: i.by === "model" && STORY_SETTLES.has(i.kind) && !citesClosed(i) ? storyPassages(chatId, seq, `${i.claim} ${i.conflict}`) : [] }))
     .filter((a) => a.passages.length);
   if (!asks.length) return new Set();
   const names = chatNames(chatId);
@@ -243,9 +249,10 @@ export function factSheet(chatId: string, reply: string, st: WorldState | null, 
         .join(", ");
       add("T", { type: "tracker", label: f.statement, seq: f.firstSeq, messageId: msg.get(f.firstSeq) ?? null }, `${f.secret ? "SECRET " : ""}${f.statement}${who ? ` (${who})` : ""}`);
     }
-    // docs/22 2.1: what's finished, from the ledger. A reply that has one still to come contradicts it.
-    const done = [...alreadyHappened(chatId, st).map((h) => ({ text: `Already happened: ${h.text}`, seq: h.seq })), ...doneLoops(st).slice(-DONE_SHEET).map((l) => ({ text: `Done: ${l.what}`, seq: l.closed! }))];
-    for (const d of done) add("D", { type: "tracker", label: d.text, seq: d.seq, messageId: msg.get(d.seq) ?? null }, `${d.text} (#${d.seq})`);
+    // docs/22 2.1: what's finished, from the ledger. A reply that has one still to come contradicts it. What you've waved through has left it (3.3).
+    const waved = wavedThrough(chatId);
+    const done: { text: string; seq: number; id?: string }[] = [...alreadyHappened(chatId, st).map((h) => ({ text: `Already happened: ${h.text}`, seq: h.seq })), ...doneLoops(st).slice(-DONE_SHEET).map((l) => ({ text: `Done: ${l.what}`, seq: l.closed!, id: l.id }))];
+    for (const d of done) if (!waved.has(d.id ?? d.text)) add("D", { type: "tracker", label: d.text, ...(d.id ? { id: d.id } : {}), seq: d.seq, messageId: msg.get(d.seq) ?? null }, `${d.text} (#${d.seq})`);
   }
   const q = ftsQuery(reply, 20);
   const atoms = [
@@ -274,7 +281,8 @@ export function factSheet(chatId: string, reply: string, st: WorldState | null, 
       add("R", { type: r.type, label: r.label, id: r.id }, `Story RULE: ${r.text}`);
       rules++;
     }
-  return { lines, cites, rules, today: [...cites.keys()].some((k) => k.startsWith("B")) };
+  const keys = [...cites.keys()];
+  return { lines, cites, rules, today: keys.some((k) => k.startsWith("B")), done: keys.some((k) => k.startsWith("D")) };
 }
 
 /** Rules the helper pass also checks a reply against (kept lessons, A1). */
@@ -357,7 +365,7 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           jobId: opts.job?.id,
           name: "continuity_check",
           schema: modelSchema,
-          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Watch who said and did what: a line, an act or an idea credited to the wrong person, whether it was said in the recent messages (S ids, quoted in full) or earlier in this same reply (kind "who"; cite the S id, or none when the reply contradicts itself). The S messages are the story itself and outrank the other FACTS. Watch who is where: someone the FACTS have present arriving as if they had been away, or someone the FACTS have elsewhere in the room with no arrival, is a contradiction (kind "place"). Check a look or trait against the person it describes, never someone else in the same sentence ("her eyes went to his blue ones" is about him). Not style, not things the facts don't cover, not new details that merely add to them. The FACTS are summaries kept by helpers and can lag behind the story (an object handed back, a change of clothes): a reply describing a later change isn't wrong for it.${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""}${sheet.today ? ` The B facts are today in order, each at its time and place: a reply that tells one of those events at another time or place, in another order, or with other words in someone's mouth contradicts it (kind "${slipAllowed("past", g) ? "past" : "fact"}"; cite the B id).` : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."; for an invented past, the event as the reply tells it, never its denial). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
+          system: `You check one new reply of a roleplay against the story's established facts. List only real contradictions: a fact, trait, name, place, time, or who-knows-what that the reply gets wrong compared with the FACTS. Watch who said and did what: a line, an act or an idea credited to the wrong person, whether it was said in the recent messages (S ids, quoted in full) or earlier in this same reply (kind "who"; cite the S id, or none when the reply contradicts itself). The S messages are the story itself and outrank the other FACTS. Watch who is where: someone the FACTS have present arriving as if they had been away, or someone the FACTS have elsewhere in the room with no arrival, is a contradiction (kind "place"). Check a look or trait against the person it describes, never someone else in the same sentence ("her eyes went to his blue ones" is about him). Not style, not things the facts don't cover, not new details that merely add to them. The FACTS are summaries kept by helpers and can lag behind the story (an object handed back, a change of clothes): a reply describing a later change isn't wrong for it.${sheet.done ? ' The D facts don\'t lag: they are the record of what finished, at the message shown. A reply, thoughts and dialogue included, that has one still to come (planning it, waiting for it, promising it, listing it next) contradicts it (kind "fact"; cite the D id), even when a recent S message has it still to come too: that is the same mistake repeated. Remembering it, or doing it again on purpose, doesn\'t.' : ""}${leakGuardOn(chatId) ? " Also flag a character referring to a SECRET they don't know." : ""}${sheet.rules ? ' Also flag the reply breaking a story RULE (kind "lesson", cite the R id).' : ""}${slipAllowed("past", g) ? ' Also flag a claim about something that happened before this scene (an earlier event, a promise, a conversation) that neither the FACTS nor the memories hold (kind "past"; cite the nearest fact if any).' : ""}${sheet.today ? ` The B facts are today in order, each at its time and place: a reply that tells one of those events at another time or place, in another order, or with other words in someone's mouth contradicts it (kind "${slipAllowed("past", g) ? "past" : "fact"}"; cite the B id).` : ""} Quote the reply's words in "claim", say what the facts say in "conflict", cite the fact ids like "T2" or "M5" in "cites", and write a one-line correction in "fix". In "canon", write one self-contained sentence of what would be true if the reply's version were kept, naming who it's about (for example "Mira's eyes are grey."; for an invented past, the event as the reply tells it, never its denial). Reply with JSON only: {"issues": [{"kind": "fact", "severity": "major", "claim": "…", "conflict": "…", "cites": ["T1"], "fix": "…", "canon": "…"}]}`,
           user: `FACTS:\n${sheet.lines.join("\n")}\n\nNEW REPLY (by ${m.name ?? names.char}):\n${cleanText(sw.content)}`,
         });
         for (const i of r.data.issues) {
@@ -406,9 +414,11 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
 }
 
 /** A reply's notes as shown: puppet flags follow the Persona control as it is now, not as it was when checked. */
-export function flagOut(r: FlagRow, scope: PuppetScope = scopeFor(r.chat_id)) {
-  const issues = parseJson<Issue[]>(r.issues, []).filter((i) => flagAllowed(i, scope));
-  const open = issues.filter((i) => !i.dismissed).length;
+export function flagOut(r: FlagRow, scope: PuppetScope = scopeFor(r.chat_id), quiet = quietKeys(r.chat_id)) {
+  const issues = parseJson<Issue[]>(r.issues, [])
+    .filter((i) => flagAllowed(i, scope))
+    .map((i) => (!i.dismissed && quiet.has(flagKey(i)) ? { ...i, quiet: true } : i));
+  const open = issues.filter((i) => !i.dismissed && !i.quiet).length;
   return { id: r.id, messageId: r.message_id, swipeIdx: r.swipe_idx, status: r.status === "open" && !open ? "clean" : r.status, issues, open, updatedAt: r.updated_at };
 }
 
@@ -427,7 +437,8 @@ export function flagsFor(chatId: string, opts: { messageIds?: string[]; open?: b
     rows = rows.filter((r) => ids.has(r.message_id));
   }
   const scope = scopeFor(chatId);
-  const out = rows.map((r) => flagOut(r, scope));
+  const quiet = quietKeys(chatId);
+  const out = rows.map((r) => flagOut(r, scope, quiet));
   return opts.open ? out.filter((f) => f.status === "open") : out;
 }
 
@@ -444,10 +455,22 @@ function save(r: FlagRow, issues: Issue[], status?: string) {
   return flagOut(one<FlagRow>("SELECT * FROM continuity_flags WHERE id = ?", r.id)!);
 }
 
-export function dismissIssue(flagId: string, issueId: string | null) {
+/** "Dismiss all" means the notes you can see. `settled` says you acted on it, rather than waved it off. */
+export function dismissIssue(flagId: string, issueId: string | null, settled?: Issue["settled"]) {
   const r = mustFlag(flagId);
-  const issues = parseJson<Issue[]>(r.issues, []).map((i) => (issueId == null || i.id === issueId ? { ...i, dismissed: true } : i));
+  const quiet = quietKeys(r.chat_id);
+  const issues = parseJson<Issue[]>(r.issues, []).map((i) => ((issueId == null ? !quiet.has(flagKey(i)) : i.id === issueId) ? { ...i, dismissed: true, ...(settled ? { settled } : {}) } : i));
   return save(r, issues);
+}
+
+/** docs/22 4.2, the one tap back: the kind's flags show again, its waiting ones too, and its count starts over. */
+export function showKindAgain(chatId: string, key: string) {
+  if (!flagKinds(chatId).some((k) => k.key === key)) throw notFound("No flags of that kind");
+  const settings = parseJson<ChatSettings>(mustChat(chatId).settings, {});
+  updateChat(chatId, { settings: { flagsBack: { ...settings.flagsBack, [key]: now() } } });
+  // What a quiet flag had stopped holding waits again (docs/19 2.3).
+  invalidate(chatId);
+  publish({ type: "continuity.changed", chatId, messageId: "" });
 }
 
 /** "Accept and update canon": the reply's version becomes a confirmed memory (and a tracker line). */
@@ -473,14 +496,15 @@ export function acceptIssue(flagId: string, issueId: string) {
   }
   return save(
     r,
-    issues.map((i) => (i.id === issueId ? { ...i, dismissed: true } : i)),
+    issues.map((i) => (i.id === issueId ? { ...i, dismissed: true, settled: "accepted" as const } : i)),
   );
 }
 
-/** The notes "regenerate with fix" sends with the swipe. */
+/** The notes "regenerate with fix" sends with the swipe: the ones showing on it. */
 export function fixNotes(flagId: string) {
   const r = mustFlag(flagId);
-  const open = parseJson<Issue[]>(r.issues, []).filter((i) => !i.dismissed);
+  const quiet = quietKeys(r.chat_id);
+  const open = parseJson<Issue[]>(r.issues, []).filter((i) => !i.dismissed && !quiet.has(flagKey(i)));
   return { chatId: r.chat_id, messageId: r.message_id, feedback: `Keep continuity: ${open.map((i) => i.fix).join(" ")}` };
 }
 
@@ -507,7 +531,7 @@ export function replaceIssue(flagId: string, issueId: string) {
   }
   return save(
     r,
-    issues.map((i) => (i.id === issueId || (i.kind === issue.kind && i.replace?.from === issue.replace!.from) ? { ...i, dismissed: true } : i)),
+    issues.map((i) => (i.id === issueId || (i.kind === issue.kind && i.replace?.from === issue.replace!.from) ? { ...i, dismissed: true, settled: "fixed" as const } : i)),
   );
 }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { post } from "../../lib/api";
+  import { FLAG_KINDS } from "../../lib/flagkinds";
   import { Check, GraduationCap, Pencil, RotateCcw, ShieldAlert, X } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
   import type { Citation, ContinuityFlag } from "../../lib/types";
@@ -8,9 +9,8 @@
   let { flag, canRegenerate, onchange, oncite }: { flag: ContinuityFlag; canRegenerate: boolean; onchange: (f: ContinuityFlag | null) => void; oncite: (c: Citation) => void } = $props();
 
   let open = $state(false);
-  const issues = $derived(flag.issues.filter((i) => !i.dismissed));
+  const issues = $derived(flag.issues.filter((i) => !i.dismissed && !i.quiet));
   const major = $derived(issues.some((i) => i.severity === "major"));
-  const KIND: Record<string, string> = { trait: "appearance", dead: "the dead", name: "a name", time: "time of day", place: "place", fact: "a fact", leak: "who knows what", pov: "point of view", tense: "tense", puppet: "writing for you", timeline: "the timeline", lesson: "a lesson you kept", offpage: "a secret kept off the page", canon: "later canon", nothere: "someone not in the scene", undone: "something already done", clockback: "the clock going back", planning: "planning left in", past: "an invented past", who: "who said or did it", universe: "this version's world", ties: "a family tie", retell: "something retold" };
   /** D1: findings about the whole reply (its voice, its time, planning in it) aren't one sentence to fix. */
   const WHOLE = new Set(["pov", "tense", "timeline", "planning"]);
   /** A citation that points somewhere (guard notes cite a rule, not a source). */
@@ -61,7 +61,7 @@
 {#if issues.length}
   <div class="cn" class:major>
     <button class="toggle tiny" onclick={() => (open = !open)} aria-expanded={open}>
-      <ShieldAlert size={13} /> {issues.length} continuity {issues.length === 1 ? "note" : "notes"}{#if !open}: {issues.map((i) => KIND[i.kind] ?? i.kind).join(", ")}{/if}
+      <ShieldAlert size={13} /> {issues.length} continuity {issues.length === 1 ? "note" : "notes"}{#if !open}: {issues.map((i) => FLAG_KINDS[i.kind] ?? i.kind).join(", ")}{/if}
     </button>
     {#if open}
       <div class="list">

@@ -14,6 +14,7 @@ import { reconcileIssues } from "../memory/reconcile";
 import { scanEntriesFor } from "../lore/service";
 import { mustChat } from "../services/chats";
 import { flagAllowed, puppetScope } from "../accuracy/guards";
+import { flagKey, quietKeys } from "../accuracy/quiet";
 import { worldView } from "../sim/service";
 import type { Looked } from "../assistant/core";
 import { castKey, castProfiles, currentFold } from "../trackers/store";
@@ -225,7 +226,8 @@ function checks(chatId: string): Looked | null {
     chatId,
   );
   const scope = puppetScope(chatId);
-  for (const f of flags) for (const i of parseJson<{ message?: string; text?: string; kind?: string; severity?: string; dismissed?: boolean }[]>(f.issues, []).filter((x) => !x.dismissed && flagAllowed({ kind: x.kind ?? "", severity: x.severity ?? "" }, scope))) L.push(`#${f.seq} ${i.kind ? `(${i.kind}) ` : ""}${i.message ?? i.text ?? JSON.stringify(i)}`);
+  const quiet = quietKeys(chatId);
+  for (const f of flags) for (const i of parseJson<{ message?: string; text?: string; kind?: string; by?: "rules" | "model"; severity?: string; dismissed?: boolean }[]>(f.issues, []).filter((x) => !x.dismissed && !quiet.has(flagKey({ kind: x.kind ?? "", by: x.by ?? "rules" })) && flagAllowed({ kind: x.kind ?? "", severity: x.severity ?? "" }, scope))) L.push(`#${f.seq} ${i.kind ? `(${i.kind}) ` : ""}${i.message ?? i.text ?? JSON.stringify(i)}`);
   for (const r of reconcileIssues(chatId)) for (const i of r.issues) L.push(`scene "${r.title}" (#${r.startSeq}–${r.endSeq ?? "now"}) [${r.id}]: ${i.message}`);
   return { title: "Checks · what's flagged", text: L.length ? clip(L.join("\n"), 6000) : "The app's checks haven't flagged anything; compare the latest messages with the records yourself." };
 }

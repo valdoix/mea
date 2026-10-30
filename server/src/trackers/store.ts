@@ -1,3 +1,5 @@
+import type { Issue } from "../accuracy/checker";
+import { flagKey, quietKeys } from "../accuracy/quiet";
 import type { CalendarId } from "./calendars";
 import { all, dbGeneration, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
@@ -424,31 +426,37 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
  */
 export function heldLeaks(chatId: string): NonNullable<FoldConfig["held"]> {
   const out: NonNullable<FoldConfig["held"]> = [];
-  for (const r of openFlags(chatId))
-    for (const i of parseJson<{ kind?: string; fix?: string; dismissed?: boolean }[]>(r.issues, [])) {
-      const m = i.kind === "leak" && !i.dismissed ? i.fix?.match(/^(.+?) doesn['’]t know: ([\s\S]+)$/) : null;
-      if (m) out.push({ messageId: r.message_id, who: m[1]!.trim(), text: m[2]!.trim() });
-    }
+  for (const { messageId, issue: i } of openIssues(chatId, "leak")) {
+    const m = i.fix?.match(/^(.+?) doesn['’]t know: ([\s\S]+)$/);
+    if (m) out.push({ messageId, who: m[1]!.trim(), text: m[2]!.trim() });
+  }
   return out;
 }
 
 /** docs/22 3.3: the same for a reply with something done still to come: its loop, off the flag's citation. */
 export function heldDone(chatId: string): NonNullable<FoldConfig["heldDone"]> {
   const out: NonNullable<FoldConfig["heldDone"]> = [];
-  for (const r of openFlags(chatId))
-    for (const i of parseJson<{ kind?: string; citations?: { id?: string }[]; dismissed?: boolean }[]>(r.issues, [])) {
-      const loop = i.kind === "undone" && !i.dismissed ? i.citations?.[0]?.id : undefined;
-      if (loop) out.push({ messageId: r.message_id, loop });
-    }
+  for (const { messageId, issue: i } of openIssues(chatId, "undone")) {
+    const loop = i.citations?.[0]?.id;
+    if (loop) out.push({ messageId, loop });
+  }
   return out;
 }
 
-/** The open flags on the showing takes. */
-const openFlags = (chatId: string) =>
-  all<{ message_id: string; issues: string }>(
+/**
+ * One kind's open flags on the showing takes. Not a quiet kind's (docs/22 4.2): what holds a record
+ * back has to be where you can see it and say no.
+ */
+function openIssues(chatId: string, kind: string) {
+  const rows = all<{ message_id: string; issues: string }>(
     "SELECT f.message_id, f.issues FROM continuity_flags f JOIN messages m ON m.id = f.message_id AND m.active_swipe = f.swipe_idx WHERE f.chat_id = ? AND f.status = 'open' AND m.deleted_at IS NULL",
     chatId,
   );
+  const found = rows.flatMap((r) => parseJson<Issue[]>(r.issues, []).filter((i) => i.kind === kind && !i.dismissed).map((issue) => ({ messageId: r.message_id, issue })));
+  if (!found.length) return [];
+  const quiet = quietKeys(chatId);
+  return found.filter((f) => !quiet.has(flagKey(f.issue)));
+}
 
 /** Eye and hair colour, scars and the like, stated in a description (they hold against the story). */
 export function cardTraits(text: string): string[] {

@@ -9,6 +9,7 @@ import type { JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { TimeIndex } from "../memory/format";
 import type { WorldState } from "../trackers/types";
+import { flagKey, quietKeys } from "./quiet";
 import { sentences } from "./rules";
 import type { Found } from "./slips";
 
@@ -293,9 +294,10 @@ export function toldWrong(chatId: string, excludeMessageId?: string): string[] {
     ...recent.map((r) => r.id),
   );
   const lines: { seq: number; line: string }[] = [];
+  const quiet = quietKeys(chatId);
   for (const f of flags)
     for (const i of parseJson<Issue[]>(f.issues, []))
-      if (i.kind === "retell" && !i.dismissed) lines.push({ seq: seqs.get(f.message_id)!, line: `- Told wrong at #${seqs.get(f.message_id)}: «${i.claim.length > 140 ? `${i.claim.slice(0, 139).trimEnd()}…` : i.claim}» What happened: ${i.conflict}` });
+      if (i.kind === "retell" && !i.dismissed && !quiet.has(flagKey(i))) lines.push({ seq: seqs.get(f.message_id)!, line: `- Told wrong at #${seqs.get(f.message_id)}: «${i.claim.length > 140 ? `${i.claim.slice(0, 139).trimEnd()}…` : i.claim}» What happened: ${i.conflict}` });
   return lines.sort((a, b) => b.seq - a.seq).slice(0, TOLD_MAX).map((l) => l.line);
 }
 

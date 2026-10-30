@@ -269,9 +269,29 @@ While that flag is open, what the reply wrote that matches the loop is held, as 
 
 Its fact sheet says the facts "can lag behind the story", which is why #599 passed. Done loops and ALREADY HAPPENED are on the sheet since Part 2, as `D` entries, so "Then groceries" contradicts something it can cite. What's left is telling it those don't lag.
 
+As built, the prompt says the `D` lines don't lag, and that they hold even against a recent message with the same thing still to come, since that's the mistake repeated: from #623 to #629 the recent messages all had it wrong. A flag citing a `D` line also skips the pass that lets the story's own words settle a flag, for the same reason. A loop you've waved through (3.3) leaves the sheet, so the model can't raise it again. "Fix this sentence" isn't waving it through, which it was until now: fixing an `undone` flag's sentence used to wave its loop through for good.
+
+It's untested with a real model: the mock answers for the checker.
+
 ### 4.2 A kind you always dismiss stops interrupting
 
 48 of 51 flags were dismissed, and `past` alone was 16 of 17. A flag nobody trusts hides the one that matters. Story health tracks dismissals per kind. A kind dismissed more than 80% of the time over at least 20 flags stops showing on the reply, and stays in the panel with the reason. Undoing that is one tap. Rules that cite a closed record, like `undone`, are measured apart from the model's guesses.
+
+**Those numbers were wrong, and it changes what's counted.** `dismissed` is also what "Fix this sentence" and "Accept" set, so it can't tell a flag you waved off from one that worked. Of the 110 `fact` flags marked dismissed on this chat, 82 were on a reply you edited and 21 had their canon accepted. Counted as written, five kinds would have gone quiet on the first run, `fact` at 96%. So what counts here is a flag waved off with the reply left as it was: not `settled` (new, set by the fix and accept routes), not on a take with edits, and its canon not in a memory you confirmed. An edit that had nothing to do with the flag counts as acting on it too, so this errs toward showing a flag.
+
+| Filed Under Stay | `dismissed` | Waved off |
+|---|---|---|
+| `fact` | 110 of 114 (96%) | 15 (13%) |
+| `lesson` | 41 of 44 (93%) | 7 (16%) |
+| `tense` | 37 of 40 (93%) | 2 (5%) |
+| `past` | 29 of 29 (100%) | 8 (28%) |
+| `clockback` | 23 of 24 (96%) | 9 (38%) |
+
+So nothing goes quiet on either real chat today, and the premise that flags are mostly ignored doesn't hold on this data. Most of them got acted on. 4.2 is a guard for a kind that goes bad, not a fix for one that already has.
+
+As built, in `accuracy/quiet.ts`. It's worked out from the flags, per chat; the only thing stored is when you asked to see a kind again. What's measured together is a kind and a source: `record` for a flag citing a closed record (`undone`, or a model flag citing a `D` line), else `rules` or `model`. So a model that guesses badly can't silence its own flags that cite the ledger. Once a kind is quiet its count stops, because a flag nobody sees can't be waved off, and counting those would bring the kind back by itself. "Show on replies again" starts the count over.
+
+A quiet flag is hidden everywhere it would act on you or the model, not just on the reply: "regenerate with fix", "Dismiss all", the slips and retold lanes, Meus's checks, the plan stats, and the health score, since nobody's going to dismiss what they can't see. It also stops holding records back (3.3, docs/19 2.3): what holds a record has to be where you can see it and say no. Asking to see the kind again holds them again.
 
 ---
 
