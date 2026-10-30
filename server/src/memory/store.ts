@@ -51,7 +51,7 @@ export interface ChatMemoryState {
   /** M29: bumped by a rebuild from scratch, so a pass already running stops instead of writing into it. */
   epoch?: number;
   /** docs/22 1.4: what a chat's old records say is open or done, waiting for your word in the Inbox. */
-  loopBackfill?: { state: "review" | "done"; at: number; closed: LoopCandidate[]; open: LoopCandidate[]; over?: LoopCandidate[] };
+  loopBackfill?: { state: "review" | "done" | "declined"; at: number; closed: LoopCandidate[]; open: LoopCandidate[]; over?: LoopCandidate[] };
 }
 
 export interface LoopCandidate {

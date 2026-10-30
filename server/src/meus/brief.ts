@@ -19,6 +19,7 @@ import { type ChatSettings, mustChat } from "../services/chats";
 import { layered } from "../services/layers";
 import { formatStoryTime } from "../trackers/clock";
 import { stateForModel } from "../trackers/prompts";
+import { standing } from "../trackers/stands";
 import { castKey, castProfiles, currentFold, foldConfigFor, templatesFor, trackerConfig } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 
@@ -92,6 +93,9 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     const fc = foldConfigFor(chatId);
     const cfg = trackerConfig(chatId);
     blocks.push(`THE STORY STATE NOW (the trackers' records, as ledger lines):\n${stateForModel(st, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar })}`);
+    const { stands, happened } = standing(chatId, st);
+    if (stands) blocks.push(`WHERE THINGS STAND:\n${stands}`);
+    if (happened) blocks.push(`ALREADY HAPPENED:\n${happened}`);
   }
 
   // The story's own rules and notes, which Meus can also change.

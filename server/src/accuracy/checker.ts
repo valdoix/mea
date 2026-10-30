@@ -22,6 +22,8 @@ import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRul
 import { runSlips, slipAllowed, slipContext } from "./slips";
 import { retellIssues } from "./retell";
 import { tieIssues } from "./ties";
+import { doneLoops } from "../trackers/loops";
+import { alreadyHappened } from "../trackers/stands";
 import { currentFold, foldAt, invalidate, linesToOps } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 import { formatStoryTime } from "../trackers/clock";
@@ -173,6 +175,8 @@ const STORY_SETTLES = new Set(["fact", "past", "trait", "place", "time", "dead",
 
 /** How many messages before the reply the helper pass reads whole (who said and did what just now). */
 const RECENT = 4;
+/** How many closed loops the fact sheet lists, the newest kept. */
+const DONE_SHEET = 12;
 
 /**
  * Tense and point of view are read by counting words, which can't tell the scene's own narration
@@ -201,7 +205,7 @@ async function voiceSettled(chatId: string, text: string, found: Omit<Issue, "id
 }
 
 /** A cited fact sheet for the helper pass: the last few messages, story state, confirmed memories, lore, the card. */
-function factSheet(chatId: string, reply: string, st: WorldState | null, seq: number) {
+export function factSheet(chatId: string, reply: string, st: WorldState | null, seq: number) {
   const cites = new Map<string, Citation>();
   const lines: string[] = [];
   const add = (prefix: string, c: Omit<Citation, "ref">, text: string) => {
@@ -239,6 +243,9 @@ function factSheet(chatId: string, reply: string, st: WorldState | null, seq: nu
         .join(", ");
       add("T", { type: "tracker", label: f.statement, seq: f.firstSeq, messageId: msg.get(f.firstSeq) ?? null }, `${f.secret ? "SECRET " : ""}${f.statement}${who ? ` (${who})` : ""}`);
     }
+    // docs/22 2.1: what's finished, from the ledger. A reply that has one still to come contradicts it.
+    const done = [...alreadyHappened(chatId, st).map((h) => ({ text: `Already happened: ${h.text}`, seq: h.seq })), ...doneLoops(st).slice(-DONE_SHEET).map((l) => ({ text: `Done: ${l.what}`, seq: l.closed! }))];
+    for (const d of done) add("D", { type: "tracker", label: d.text, seq: d.seq, messageId: msg.get(d.seq) ?? null }, `${d.text} (#${d.seq})`);
   }
   const q = ftsQuery(reply, 20);
   const atoms = [

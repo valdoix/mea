@@ -42,6 +42,8 @@ export function loopCandidates(chatId: string, st: WorldState) {
   const close = (text: string, after: number, loop?: string) => {
     const d = match(text, after);
     if (!d) return false;
+    // A loop closed it, so it's no new loop: only an open loop of another wording is left to close.
+    if (d.strict && !loop) return true;
     // Named as the record that closed it: while open it was "still unsaid, due tonight", and that's what it can't go on saying.
     const c = closed.get(d.text) ?? { what: d.text, kind: "errand", seq: d.seq, how: d.text, items: [] };
     if (!c.items.includes(text)) c.items.push(text);
@@ -147,7 +149,8 @@ registerInboxProvider({
   act: (id, action, edited) => {
     const p = memState(id).loopBackfill;
     if (!p) return null;
-    if (action === "reject") setMemState(id, { loopBackfill: { ...p, state: "done" } });
+    // Not asked again, and its summaries go on saying what's open: the loops were never told the rest.
+    if (action === "reject") setMemState(id, { loopBackfill: { ...p, state: "declined" } });
     else {
       const lines = edited ? new Set(edited.split("\n").map((l) => l.trim())) : null;
       applyBackfill(id, lines ? (c) => lines.has(line(c)) : undefined);

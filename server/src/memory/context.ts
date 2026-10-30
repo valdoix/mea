@@ -319,15 +319,16 @@ export async function memoryInputs(
   };
 }
 
-const STORY_HEADER = `[${AUTHORITY.summary} a record of what happened earlier in this story, oldest first. It is canon: keep every reply consistent with it. Use it as background knowledge; don't retell it, quote it, or mention that it exists. A list "as of" a message says what was open then: its "tonight" and "tomorrow" mean that day, and a later record can have settled it.]`;
+const STORY_HEADER = (ledger: boolean) =>
+  `[${AUTHORITY.summary} a record of what happened earlier in this story, oldest first. It is canon: keep every reply consistent with it. Use it as background knowledge; don't retell it, quote it, or mention that it exists. ${ledger ? "It says what happened; what's open now is under WHERE THINGS STAND." : `A list "as of" a message says what was open then: its "tonight" and "tomorrow" mean that day, and a later record can have settled it.`}]`;
 const CORE_HEADER = `### ${AUTHORITY.user} core memories (always true unless the story changes them)`;
 
-export function formatStory(telescopeText: string, pinned: RecallItem[], journal = "", povName: string | null = null) {
+export function formatStory(telescopeText: string, pinned: RecallItem[], journal = "", povName: string | null = null, ledger = false) {
   const parts: string[] = [];
   if (telescopeText.trim()) parts.push(telescopeText);
   if (journal.trim() && povName) parts.push(`### ${povName}'s own memory (first person, ${povName}'s view; what ${povName} feels and keeps private)\n${journal.trim()}`);
   if (pinned.length) parts.push(`${CORE_HEADER}\n${pinned.map((p) => `- ${p.content}`).join("\n")}`);
-  return parts.length ? `${STORY_HEADER}\n\n${parts.join("\n\n")}` : "";
+  return parts.length ? `${STORY_HEADER(ledger)}\n\n${parts.join("\n\n")}` : "";
 }
 
 // ---------- Putting it together ----------
@@ -420,7 +421,7 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
       recallCache.set(key, r);
       if (recallCache.size > 60) recallCache.delete(recallCache.keys().next().value!);
     }
-    const story = formatStory(t.text, r.items.filter((i) => i.slot === "pinned"), journal, inp.povName);
+    const story = formatStory(t.text, r.items.filter((i) => i.slot === "pinned"), journal, inp.povName, lens.ledger);
     const recallText = formatRecallBlock(r.items, cfg.format, inp.pov ? inp.povName : null);
     return { t, r, story, recallText, tokens: (story ? tok(story) : 0) + (recallText ? tok(recallText) : 0) };
   };

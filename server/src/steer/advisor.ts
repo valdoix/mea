@@ -12,7 +12,8 @@ import { type PersonaMode, storyDials } from "../services/layers";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { trackerPrompt } from "../trackers/service";
-import { gatherLanes } from "../prompt/lanes";
+import { standing } from "../trackers/stands";
+import { gatherLanes, type LaneId } from "../prompt/lanes";
 import { PLANNING } from "../prompt/mea";
 import { foldAt } from "../trackers/store";
 import { correctMemory } from "../accuracy/corrections";
@@ -275,6 +276,9 @@ export function newestChapters(text: string, budget: number) {
   return kept.join(sep);
 }
 
+/** Lanes the planner reads in their own place in its input. */
+const ABOVE = new Set<LaneId>(["today", "stands", "happened"]);
+
 /** Whole pieces in order while they fit; one that doesn't is left out, never cut mid-line. */
 function wholeFit(pieces: string[], budget: number) {
   const kept: string[] = [];
@@ -324,6 +328,10 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     const since = afterStory(chatId, (history.at(-8)?.seq ?? 1) - 1, SINCE_TOKENS, lens);
     if (since) parts.push(`SINCE THEN (the records from there up to the recent messages; what happens here happened, whatever was left open before it):\n${since}`);
     if (tp.note?.text) parts.push(`STORY STATE:\n${tp.note.text}`);
+    // docs/22 2.1: the ledger says what's open, whatever a record above left open.
+    const { stands, happened } = standing(chatId, st, [...history.slice(-4).map((m) => m.content), focus].join("\n"));
+    if (stands) parts.push(`WHERE THINGS STAND:\n${stands}`);
+    if (happened) parts.push(`ALREADY HAPPENED:\n${happened}`);
     // docs/20 2.3: where and when each thread last moved.
     const moment = momentsOf(chatId);
     if (cfg.planner) {
@@ -359,8 +367,8 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     // H3: the planner also sees the lanes (lessons, canon, pressures, promises…) the writer would.
     try {
       const st = foldAt(chatId, { excludeMessageId }).state;
-      // TODAY SO FAR is already above, whole.
-      const lanes = wholeFit(gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).filter((l) => l.lane !== "today").map((l) => l.content.trim()).filter(Boolean), LANES_TOKENS);
+      // TODAY SO FAR and where things stand are already above, whole.
+      const lanes = wholeFit(gatherLanes({ chatId, kind: "story", state: st, history, characterId: chat.character_id ?? "" }).filter((l) => !ABOVE.has(l.lane)).map((l) => l.content.trim()).filter(Boolean), LANES_TOKENS);
       if (lanes.length) parts.push(`WHAT MEA'S FEATURES ADD THIS TURN:\n${lanes.join("\n\n")}`);
     } catch {
       // lanes are optional

@@ -18,6 +18,8 @@ export const LANES = {
   corrections: { tag: "CORRECTIONS", label: "Out of date: what changed since" },
   today: { tag: "TODAY SO FAR", label: "Today so far" },
   retold: { tag: "TOLD WRONG", label: "Told wrong before" },
+  stands: { tag: "WHERE THINGS STAND", label: "Where things stand" },
+  happened: { tag: "ALREADY HAPPENED", label: "Already happened" },
 } as const;
 export type LaneId = keyof typeof LANES;
 

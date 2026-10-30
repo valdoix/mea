@@ -6,6 +6,7 @@ import { historyForPrompt } from "../services/chats";
 import { callJson } from "../services/llm";
 import { cachedQuota } from "../services/connections";
 import { trackerPrompt } from "../trackers/service";
+import { standing } from "../trackers/stands";
 import type { WorldState } from "../trackers/types";
 import { chatNames } from "./build";
 import { lensOf, summaryText } from "./openlist";
@@ -48,7 +49,8 @@ function storyContext(chatId: string) {
     .slice(-4)
     .map((c) => `- ${c.title}: ${summaryText(c, lens).slice(0, 400)}`)
     .join("\n");
-  return [story?.content ? `STORY SO FAR:\n${summaryText(story, lens)}` : "", chapters ? `LATEST CHAPTERS:\n${chapters}` : "", state, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
+  const { stands, happened } = standing(chatId, st);
+  return [story?.content ? `STORY SO FAR:\n${summaryText(story, lens)}` : "", chapters ? `LATEST CHAPTERS:\n${chapters}` : "", state, stands && `WHERE THINGS STAND:\n${stands}`, happened && `ALREADY HAPPENED:\n${happened}`, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
 }
 
 /** The cached recap if the story hasn't moved since, else a fresh one. */
