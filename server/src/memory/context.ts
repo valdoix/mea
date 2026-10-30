@@ -10,6 +10,7 @@ import { formatRecallBlock, type RecallItem, TimeIndex } from "./format";
 import { journalText } from "./journals";
 import { cachedRewrite, cachedVerdict, contextText } from "./librarian";
 import { buildQueries, type LibrarianVerdict, type PovFilter, type QuerySpec, recall, type RecallStats } from "./recall";
+import { type Done, doneMatcher, type DoneMatch, doneRecords, openAsOf } from "./openlist";
 import { levelRows, memState, storyRow, type SummaryRow } from "./store";
 import { contentWords, hashText } from "./text";
 
@@ -124,7 +125,7 @@ interface TItem {
  * Everything up to `evicted` at decreasing resolution: scenes, folded into their chapter,
  * arc, and finally the Story So Far, oldest first, until it fits the budget.
  */
-export function telescope(chatId: string, evicted: number, budget: number, reveals: Reveal[] = []) {
+export function telescope(chatId: string, evicted: number, budget: number, reveals: Reveal[] = [], done: Done[] = [], match: DoneMatch = () => null) {
   const scenes = levelRows(chatId, "scene").filter((s) => s.closed && (s.end_seq ?? 0) <= evicted);
   const chapters = levelRows(chatId, "chapter");
   const arcs = levelRows(chatId, "arc");
@@ -174,14 +175,8 @@ export function telescope(chatId: string, evicted: number, budget: number, revea
   }
   if (evicted > lastCovered) gaps.push({ startSeq: lastCovered + 1, endSeq: evicted, reason: "not segmented yet" });
   const parts = items.filter((i) => i.tokens > 0);
-  const heading = (r: SummaryRow, it: TItem) => {
-    const range = `#${it.start}–#${it.end}`;
-    const time = r.story_time ? ` · ${r.story_time}` : "";
-    if (r.level === "story") return `### The story so far (through message #${it.end})`;
-    const kind = r.level === "scene" ? "Scene" : r.level === "chapter" ? "Chapter" : "Arc";
-    return `### ${kind}: ${r.title || "Untitled"} (${range}${time})`;
-  };
-  const text = parts.map((it) => `${heading(it.row, it)}\n${it.row.content.trim()}${sinceThen(it, parts, reveals)}`).join("\n\n");
+  const shown = new Set<string>();
+  const text = parts.map((it) => `${heading(it.row, it.start, it.end)}\n${openAsOf(it.row.content.trim(), it.end, done, match, shown, detailed(it.row) ? it.start : undefined)}${sinceThen(it, parts, reveals)}`).join("\n\n");
   return {
     text,
     items: parts.map((it) => ({ id: it.row.id, level: it.row.level, title: it.row.title, startSeq: it.start, endSeq: it.end, tokens: it.tokens, state: it.row.state })) as TelescopeItem[],
@@ -189,6 +184,42 @@ export function telescope(chatId: string, evicted: number, budget: number, revea
     dropped,
     gaps,
   };
+}
+
+/** A chapter or a scene says what closed in it; an arc or the Story So Far already tells it. */
+const detailed = (r: SummaryRow) => r.level === "scene" || r.level === "chapter";
+
+function heading(r: SummaryRow, start: number, end: number) {
+  const time = r.story_time ? ` · ${r.story_time}` : "";
+  if (r.level === "story") return `### The story so far (through message #${end}${time})`;
+  const kind = r.level === "scene" ? "Scene" : r.level === "chapter" ? "Chapter" : "Arc";
+  return `### ${kind}: ${r.title || "Untitled"} (#${start}–#${end}${time})`;
+}
+
+/**
+ * What the planner reads after the Story So Far, which only moves when an arc closes: the closed
+ * chapters since it ends and the scenes after them, up to the recent messages it reads whole, newest
+ * kept. At #629 that was everything from #533 to #620, the "I love you" with it, and none of it was there.
+ */
+export function afterStory(chatId: string, through: number, budget: number, st: WorldState | null | undefined) {
+  const from = storyRow(chatId)?.end_seq ?? 0;
+  const fits = (r: SummaryRow) => r.closed && usable(r) && r.start_seq > from && r.start_seq <= through;
+  const chapters = levelRows(chatId, "chapter").filter(fits);
+  const last = chapters.at(-1)?.end_seq ?? from;
+  const rows = [...chapters, ...levelRows(chatId, "scene").filter((s) => fits(s) && s.start_seq > last)];
+  const done = doneRecords(chatId, st);
+  const match = doneMatcher(st, done);
+  const shown = new Set<string>();
+  const kept: string[] = [];
+  let used = 0;
+  for (const r of rows.reverse()) {
+    const text = `${heading(r, r.start_seq, r.end_seq!)}\n${openAsOf(r.content.trim(), r.end_seq!, done, match, shown, detailed(r) ? r.start_seq : undefined)}`;
+    const t = countTokens(text);
+    if (used + t > budget) break;
+    kept.unshift(text);
+    used += t;
+  }
+  return kept.join("\n\n");
 }
 
 /**
@@ -291,7 +322,7 @@ export async function memoryInputs(
   };
 }
 
-const STORY_HEADER = `[${AUTHORITY.summary} a record of what happened earlier in this story, oldest first. It is canon: keep every reply consistent with it. Use it as background knowledge; don't retell it, quote it, or mention that it exists.]`;
+const STORY_HEADER = `[${AUTHORITY.summary} a record of what happened earlier in this story, oldest first. It is canon: keep every reply consistent with it. Use it as background knowledge; don't retell it, quote it, or mention that it exists. A list "as of" a message says what was open then: its "tonight" and "tomorrow" mean that day, and a later record can have settled it.]`;
 const CORE_HEADER = `### ${AUTHORITY.user} core memories (always true unless the story changes them)`;
 
 export function formatStory(telescopeText: string, pinned: RecallItem[], journal = "", povName: string | null = null) {
@@ -319,6 +350,8 @@ export interface BuildContextInput {
   seed: string;
   /** Secrets that came out (trackers, as of the message being written), for the summaries written before (2.4). */
   reveals?: Reveal[];
+  /** The story state as of the message being written: what's been done since a summary, on the branch shown. */
+  state?: WorldState | null;
 }
 
 export function buildMemoryContext(input: BuildContextInput): MemoryContext {
@@ -350,8 +383,11 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
   const journal = inp.journal && tok(inp.journal) <= storyBudget * 0.35 ? inp.journal : inp.journal.slice(0, Math.max(0, Math.floor(storyBudget * 0.35 * 3.5)));
   const journalTokens = journal ? tok(journal) : 0;
 
+  const done = doneRecords(input.chatId, input.state);
+  const doneMatch = doneMatcher(input.state, done);
+
   const compute = (evicted: number) => {
-    const t = telescope(input.chatId, evicted, Math.max(0, storyBudget - journalTokens), input.reveals);
+    const t = telescope(input.chatId, evicted, Math.max(0, storyBudget - journalTokens), input.reveals, done, doneMatch);
     const key = [
       input.chatId,
       state.version,
@@ -383,6 +419,8 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
         times,
         skipCards: inp.skipCards,
         povName: inp.povName,
+        done,
+        doneMatch,
       });
       recallCache.set(key, r);
       if (recallCache.size > 60) recallCache.delete(recallCache.keys().next().value!);

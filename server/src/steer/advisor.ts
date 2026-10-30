@@ -17,7 +17,8 @@ import { PLANNING } from "../prompt/mea";
 import { foldAt } from "../trackers/store";
 import { correctMemory } from "../accuracy/corrections";
 import { countTokens } from "../lib/tokens";
-import { buildMemoryContext, memoryInputs } from "../memory/context";
+import { afterStory, buildMemoryContext, memoryInputs } from "../memory/context";
+import { doneMatcher, doneRecords, openAsOf } from "../memory/openlist";
 import { revealsOf } from "../trackers/reveals";
 import { beatNames, todayText } from "../trackers/today";
 import { momentsOf } from "../trackers/moments";
@@ -253,6 +254,8 @@ export function undraft(p: Plan): Plan {
 
 /** docs/19 1.1: how much of the Story So Far (its newest chapters) and of the lanes the planner reads, in tokens. */
 const STORY_TOKENS = 1500;
+/** The chapters and scenes after it: an arc's worth, about four chapters. */
+const SINCE_TOKENS = 4500;
 const LANES_TOKENS = 2500;
 const RECALL_TOKENS = 2500;
 
@@ -294,7 +297,7 @@ async function planRecall(chatId: string, history: HistoryMessage[], state: Worl
     // The window as it stands: more room would bring old scenes back, and recall only searches what has left it.
     const evicted = memState(chatId).evictedThrough;
     const window = history.reduce((n, h) => ((h.seq ?? 0) > evicted ? n + countTokens(h.content) : n), 0);
-    const m = buildMemoryContext({ chatId, history, available: window, target: Math.round(RECALL_TOKENS / Math.max(0.01, memoryConfig().budget.recall)), inputs, seed: `${chatId}:plan`, reveals: revealsOf(state) });
+    const m = buildMemoryContext({ chatId, history, available: window, target: Math.round(RECALL_TOKENS / Math.max(0.01, memoryConfig().budget.recall)), inputs, seed: `${chatId}:plan`, reveals: revealsOf(state), state });
     return correctMemory(state, m.recall, "recalled memories").text.trim();
   } catch (e) {
     console.error("[mea] the planner's recall failed:", (e as Error).message);
@@ -311,12 +314,16 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
   const names = chatNames(chatId);
   const parts: string[] = [];
   const story = storyRow(chatId);
-  if (story?.content) parts.push(`STORY SO FAR (its latest chapters):\n${newestChapters(story.content, STORY_TOKENS)}`);
+  const storyPart = (text: string) => `STORY SO FAR (its latest chapters, through #${story!.end_seq}${story!.story_time ? `, ${story!.story_time}` : ""}):\n${newestChapters(text, STORY_TOKENS)}`;
   try {
     const focus = [draft?.trim() || history.findLast((m) => m.role === "user")?.content, note].filter(Boolean).join("\n");
     const tp = trackerPrompt(chatId, { kind: "story", excludeMessageId, focus });
-    if (tp.note?.text) parts.push(`STORY STATE:\n${tp.note.text}`);
     const st = tp.state;
+    const done = doneRecords(chatId, st);
+    if (story?.content) parts.push(storyPart(openAsOf(story.content, story.end_seq ?? 0, done, doneMatcher(st, done))));
+    const since = afterStory(chatId, (history.at(-8)?.seq ?? 1) - 1, SINCE_TOKENS, st);
+    if (since) parts.push(`SINCE THEN (the records from there up to the recent messages; what happens here happened, whatever was left open before it):\n${since}`);
+    if (tp.note?.text) parts.push(`STORY STATE:\n${tp.note.text}`);
     // docs/20 2.3: where and when each thread last moved.
     const moment = momentsOf(chatId);
     if (cfg.planner) {
@@ -336,6 +343,7 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     if (today) parts.push(`TODAY SO FAR:\n${today}`);
   } catch {
     // trackers are optional
+    if (story?.content && !parts.length) parts.push(storyPart(story.content));
   }
   const prev = recentPlans(chatId, cfg.advisorMemory, { played: true }).reverse();
   if (prev.length) parts.push(`YOUR EARLIER PLANS, ALREADY PLAYED IN THE STORY (oldest first):\n${prev.map((p, i) => `${i + 1}. ${p.plan.direction}${p.plan.beats.length ? ` Beats: ${p.plan.beats.join("; ")}` : ""}`).join("\n")}`);

@@ -580,6 +580,7 @@ export class Folder {
       else if (now > Math.max(due, o.made ?? due) + win) verdict = "broken";
       if (!verdict) continue;
       o.status = verdict;
+      o.settled = ctx.ev.seq;
       o.auto = true;
       const who = this.nameOf(o.who);
       this.push(ctx, { kind: "promise", text: verdict === "kept" ? `Promise kept: ${o.what}` : o.meet ? `${o.whom ? this.nameOf(o.whom) : "Someone"} was stood up: ${o.what}` : `Promise broken: ${o.what}`, subject: who, path: `obligations.${o.id}`, reason: verdict === "kept" ? "both were there in time" : "the time passed", tone: verdict === "kept" ? "up" : "down", memory: true });
@@ -1301,6 +1302,7 @@ export class Folder {
         const fresh = o.seq === seq && o.status === "open" && !o.felt;
         if (status && status !== o.status) {
           o.status = status;
+          o.settled = seq;
           o.auto = ctx.ev.source === "engine";
           this.push(ctx, { kind: op.op, text: `${cap(op.op === "owe" ? "debt" : "promise")} ${status}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause, tone: status === "kept" || status === "paid" ? "up" : status === "broken" ? "down" : "due", memory: status === "broken" || status === "kept" });
           if (op.op === "promise" && whom) this.feelPromise(o, ctx, seq);

@@ -232,6 +232,8 @@ export interface Obligation {
   auto?: boolean;
   /** E3: what the verdict moved on the bond, so an override can take it back. */
   moves?: { axis: Axis; delta: number }[];
+  /** The message its status last changed at. */
+  settled?: number;
 }
 
 export interface Deadline {

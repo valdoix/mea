@@ -138,6 +138,7 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 
 ## Things worth knowing
 
+- A summary's open list is what was open then. `memory/openlist.ts` is the one door: anything showing a summary to a model goes through `openAsOf`, or "still unsaid, due tonight" reads as now (docs/20, after Part 6).
 - In the cloud container, 3 timing tests in `server/test/review.test.ts` fail in the full suite (they pass alone, and pass in CI). Not caused by lore work.
 - The mock writer (`providers/mock.ts`, `studio_entry`) cuts a title at its first colon, so "Voice: Mira" parts read "greeting of Voice".
 - Desktop leftovers (`.claude/launch.json`, `desktop/src-tauri/permissions/`, `mockups/mea-rooms-*.html`) went into main with PR #126, in their own commit.
