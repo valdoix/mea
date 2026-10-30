@@ -30,6 +30,7 @@ import { runKeepup, runTimeKeepup } from "./lore/keepup";
 import { runDetailsJob } from "./lore/details";
 import { runBondJob } from "./lore/bond";
 import { runCompactJob } from "./lore/compact";
+import "./accuracy/undone";
 import "./lore/keepupinbox";
 import { backfillLoops } from "./accuracy/loopinbox";
 import "./sim/newsinbox";

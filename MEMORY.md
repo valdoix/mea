@@ -134,8 +134,8 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 |---|---|---|
 | 0 | Tools and quick wins | merged, PR #202 |
 | 1 | One record of what's open | merged, PR #203 |
-| 2 | Where things stand | PR #204 |
-| 3 | The gates | — |
+| 2 | Where things stand | merged, PR #204 |
+| 3 | The gates | PR #205 |
 | 4 | Flags worth reading | — |
 | 5 | You can see it | — |
 
@@ -161,6 +161,14 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 - `Lens.ledger` (backfill `done`, trackers on) takes the open line out of `summaryText` and switches the story header. "Not these" is state `declined`, which keeps a chat on the old rules. `sceneRecords` reads each scene's rating and moments from the door.
 - `replay --accept-backfill` shows the prompts as if the card were approved. A chat keeps its old lists until then, so the real saving needs the card.
 - Tests: `server/test/stands.test.ts`.
+
+### Part 3 (2026-10-31)
+
+- 3.1 `Finding.kind` `done`. `doneAhead(st, { lists })` in `promptcheck.ts` is the one test of "looks ahead at a done loop": `lists` adds the to-do shapes, for replies and plans only. Card, persona and lore get the strict one.
+- 3.2 `replanDone` in `advisor.ts`, called from `advisorExtra` when it may wait. `Plan.replanned` makes it once; `editPlan` sets it. Generation kind `planner:replan`. `ledgerThreads` in `plancheck.ts`; `standing(..., ids)` shows ids to the planner.
+- 3.3 `accuracy/undone.ts`, slip `undone`, loaded from `startup.ts` and `golden/run.ts`, not `checker.ts` (slips.ts's own imports reach the checker, so importing it there risks reading `SLIPS` too early). `heldDone` in `store.ts` reads the loop off the flag's citation; `FoldConfig.heldDone` and `doneHeld` in the fold. A dismissed `undone` waves that loop through for the chat.
+- To check a rule change against a real chat, run it over every reply on a copy, as docs/22 3.3 did: 145 replies took under a minute. It went from 175 flags to 2.
+- Tests: `server/test/gates.test.ts`.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

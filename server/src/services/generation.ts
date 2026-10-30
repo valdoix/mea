@@ -695,7 +695,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     kind === "story" && opts.writtenPlan
       ? { id: "advisor", name: "Its own plan", content: directorPlanText(planSchema.parse({ pass: opts.writtenPlan })), depth: 0, planner: true, pass: opts.writtenPlan }
       : kind === "story"
-        ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise), note: opts.feedback, excludeMessageId: opts.excludeMessageId })
+        ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise), note: opts.feedback, excludeMessageId: opts.excludeMessageId, state: tp?.state })
         : null;
   // docs/19 2.1–2.2: a plan that says someone doesn't know what the records have them told (or the
   // reverse) gets a correction under it, and the writer follows the records.

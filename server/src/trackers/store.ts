@@ -414,6 +414,7 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
     stamina,
     seedTraits,
     held: heldLeaks(chatId),
+    heldDone: heldDone(chatId),
   };
 }
 
@@ -423,17 +424,31 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
  */
 export function heldLeaks(chatId: string): NonNullable<FoldConfig["held"]> {
   const out: NonNullable<FoldConfig["held"]> = [];
-  const rows = all<{ message_id: string; issues: string }>(
-    "SELECT f.message_id, f.issues FROM continuity_flags f JOIN messages m ON m.id = f.message_id AND m.active_swipe = f.swipe_idx WHERE f.chat_id = ? AND f.status = 'open' AND m.deleted_at IS NULL",
-    chatId,
-  );
-  for (const r of rows)
+  for (const r of openFlags(chatId))
     for (const i of parseJson<{ kind?: string; fix?: string; dismissed?: boolean }[]>(r.issues, [])) {
       const m = i.kind === "leak" && !i.dismissed ? i.fix?.match(/^(.+?) doesn['’]t know: ([\s\S]+)$/) : null;
       if (m) out.push({ messageId: r.message_id, who: m[1]!.trim(), text: m[2]!.trim() });
     }
   return out;
 }
+
+/** docs/22 3.3: the same for a reply with something done still to come: its loop, off the flag's citation. */
+export function heldDone(chatId: string): NonNullable<FoldConfig["heldDone"]> {
+  const out: NonNullable<FoldConfig["heldDone"]> = [];
+  for (const r of openFlags(chatId))
+    for (const i of parseJson<{ kind?: string; citations?: { id?: string }[]; dismissed?: boolean }[]>(r.issues, [])) {
+      const loop = i.kind === "undone" && !i.dismissed ? i.citations?.[0]?.id : undefined;
+      if (loop) out.push({ messageId: r.message_id, loop });
+    }
+  return out;
+}
+
+/** The open flags on the showing takes. */
+const openFlags = (chatId: string) =>
+  all<{ message_id: string; issues: string }>(
+    "SELECT f.message_id, f.issues FROM continuity_flags f JOIN messages m ON m.id = f.message_id AND m.active_swipe = f.swipe_idx WHERE f.chat_id = ? AND f.status = 'open' AND m.deleted_at IS NULL",
+    chatId,
+  );
 
 /** Eye and hair colour, scars and the like, stated in a description (they hold against the story). */
 export function cardTraits(text: string): string[] {

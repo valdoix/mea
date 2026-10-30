@@ -1,5 +1,7 @@
+import { aboutWords, doneMatcher } from "../memory/openlist";
 import { contentWords } from "../memory/text";
-import type { Fact, WorldState } from "../trackers/types";
+import { doneLoops, openLoops } from "../trackers/loops";
+import type { Fact, Loop, WorldState } from "../trackers/types";
 
 /**
  * Reliable state 3.1 (docs/16): text in the prompt that says something the trackers say is no
@@ -11,11 +13,13 @@ import type { Fact, WorldState } from "../trackers/types";
  * - deaths: someone the trackers have dead, said to be alive, waiting, on their way.
  * - time (findOpening): the card's "tonight", "right now" and scenario are the story's opening,
  *   which the clock may be most of a day past.
+ * - done (docs/22 3.1): something finished, said to be still to come. However it got into the text,
+ *   this is the last place it can be caught.
  *
  * Each finding names where it is, the sentence, and what's true now, with the message it changed at.
  */
 export interface Finding {
-  kind: "knowledge" | "death" | "time";
+  kind: "knowledge" | "death" | "time" | "done";
   /** Where in the prompt: "card", "lore", "the Story So Far", "recalled memories". */
   where: string;
   sentence: string;
@@ -32,7 +36,7 @@ export const HIDDEN = /\b(?:doesn['’]t (?:yet )?know|does not (?:yet )?know|do
 /** Says who alone knows, rather than who doesn't. */
 const EXCLUSIVE = /\b(?:known only to|told no ?one|hasn['’]t told|no one knows|nobody knows|secret(?:ly)?)\b/i;
 /** Sentences that already say what changed (our own corrections, "since then" lines). */
-const ALREADY = /no longer a secret|since revealed|came out|found out|since then \(#|written before #\d+/i;
+const ALREADY = /no longer a secret|since revealed|came out|found out|since then \(#|written before #\d+|^closed here:|done since:/i;
 /** Said of someone alive. */
 const ALIVE = /\b(?:is|are) (?:still )?(?:alive|waiting|fine|safe|at home|on (?:his|her|their) way)\b|\blives (?:in|at|with)\b|\bwill (?:come|return|be back)\b/i;
 const DEATH_WORDS = /\b(?:died|dead|death|killed|late|grave|funeral|mourn\w*|ghost|memory of)\b/i;
@@ -57,6 +61,62 @@ const list = (names: string[]) => (names.length > 4 ? `${names.slice(0, 3).join(
 const stems = (text: string) => new Set([...contentWords(text)].map((w) => (w.length >= 4 ? w.replace(/(?:ing|ed|es|s|e)$/, "") : w)));
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** A line with something still to come, and one that knows it's past. */
+export const AHEAD = /\b(?:tonight|tomorrow|still|due|pending|waiting|waits|unsaid|not yet|hasn['’]t)\b/i;
+export const PAST = /\b(?:already|again|since|anymore|no longer)\b/i;
+
+/** Words of a sentence saying it's still to come, rather than a mood that lasts ("the fridge still hums"). */
+const COMING = /\b(?:tonight|tomorrow|pending|due|unsaid|not yet|hasn['’]t)\b/i;
+/** A to-do around a word: "Then groceries.", "she needs the groceries", "the grocery run". */
+const BEFORE = String.raw`(?:then|needs?|gotta|go get|go buy|have to|has to|time to)\s+(?:[\p{L}'’-]+\s+)?`;
+const AFTER = String.raw`\s+(?:run|trip)`;
+
+/** The word as it's written: "grocery" meets "groceries", "sock" meets "socks". */
+const written = (w: string) => (w.endsWith("y") ? `${esc(w.slice(0, -1))}(?:y|ies)` : `${esc(w)}(?:e?s)?`);
+
+/**
+ * What a done loop goes by: the words only it has, in at least two of its wordings and most of them.
+ * Nine ways of saying the groceries agree on "grocery". A loop worded once has none: one line's words
+ * say too little ("clothes outside the guest-room door" isn't every "clothes").
+ */
+function anchorsOf(st: WorldState | null | undefined, loops: Loop[]) {
+  const wordings = loops.map((l) => [...new Set([l.what, ...l.from])].map((t) => aboutWords(st, t)));
+  const seen = new Map<string, number>();
+  for (const ws of wordings) for (const w of new Set(ws.flatMap((x) => [...x]))) seen.set(w, (seen.get(w) ?? 0) + 1);
+  return wordings.map((ws) =>
+    [...new Set(ws.flatMap((x) => [...x]))].filter((w) => {
+      const n = ws.filter((x) => x.has(w)).length;
+      return seen.get(w) === 1 && n >= 2 && n * 2 >= ws.length;
+    }),
+  );
+}
+
+/**
+ * The done loop a sentence sets up as still to come, if any. It says most of a wording the loop has
+ * had, with a word for what's coming: a stale line repeats its own. With `lists`, for what's being
+ * written now (a reply, a plan), a to-do around what the loop goes by counts too ("Then groceries."),
+ * since a list only says one word. A card or a persona is timeless: "someone needs to laugh" is who
+ * he is. Sharing words isn't enough: on 145 real replies that made 175 flags, nearly all wrong.
+ * What's still open and also fits keeps the sentence, and a loop that repeats is never done.
+ */
+export function doneAhead(st: WorldState | null | undefined, { lists = false } = {}): (sentence: string) => Loop | null {
+  const loops = doneLoops(st);
+  if (!loops.length) return () => null;
+  const of = new Map(loops.flatMap((l) => [l.what, ...l.from].map((text) => [text, l] as const)));
+  const match = doneMatcher(st, [...of].map(([text, l]) => ({ text, seq: l.closed!, strict: true })));
+  const open = doneMatcher(st, openLoops(st).map((l) => ({ text: l.what, seq: 1 })));
+  const live = new Set(openLoops(st).flatMap((l) => [...aboutWords(st, l.what)]));
+  const todos = (lists ? anchorsOf(st, loops) : []).flatMap((words, i) => {
+    const alive = words.filter((w) => !live.has(w)).map(written);
+    return alive.length ? [{ loop: loops[i]!, re: new RegExp(`\\b(?:${BEFORE}(?:${alive.join("|")})\\b|(?:${alive.join("|")})${AFTER}\\b)`, "iu") }] : [];
+  });
+  return (s) => {
+    if (PAST.test(s) || open(s, 0)) return null;
+    const hit = COMING.test(s) ? match(s, 0) : null;
+    return (hit ? of.get(hit.text) : undefined) ?? todos.find((t) => t.re.test(s))?.loop ?? null;
+  };
+}
 
 export function findOutdated(st: WorldState | null | undefined, pieces: { where: string; text: string }[]): Finding[] {
   if (!st) return [];
@@ -83,6 +143,8 @@ export function findOutdated(st: WorldState | null | undefined, pieces: { where:
   const dead = chars.filter((c) => c.dead);
   const diedAt = (id: string, name: string) => st.milestones.find((m) => m.who.includes(id) && /died/.test(m.text))?.seq ?? st.chars[id]?.lastSeq ?? 0;
   const nm = (id: string) => st.chars[id]?.name ?? id;
+
+  const ahead = doneAhead(st);
 
   const out: Finding[] = [];
   const seen = new Set<string>();
@@ -126,7 +188,13 @@ export function findOutdated(st: WorldState | null | undefined, pieces: { where:
         if (c) {
           seen.add(`${piece.where}|${s}`);
           out.push({ kind: "death", where: piece.where, sentence: s, now: `${c.name} is dead`, seq: diedAt(c.id, c.name), ref: c.id });
+          continue;
         }
+      }
+      const loop = ahead(s);
+      if (loop) {
+        seen.add(`${piece.where}|${s}`);
+        out.push({ kind: "done", where: piece.where, sentence: s, now: `Already happened: ${loop.what}`, seq: loop.closed!, ref: loop.id });
       }
     }
   }

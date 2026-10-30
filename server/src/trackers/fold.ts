@@ -65,6 +65,8 @@ export interface FoldConfig {
    * teach that person that fact until the flag is dismissed or the sentence fixed.
    */
   held?: { messageId: string; who: string; text: string }[];
+  /** docs/22 3.3: done loops a reply was flagged for having still to come. What it filed about them waits for the flag. */
+  heldDone?: { messageId: string; loop: string }[];
 }
 
 export interface FoldResult {
@@ -370,6 +372,14 @@ export class Folder {
   }
   private ai(ctx: Ctx) {
     return ctx.ev.source !== "user";
+  }
+  /** Whether this reply is flagged for having this done thing still to come. Words only: anything else it filed stands. */
+  private doneHeld(ctx: Ctx, what: string) {
+    if (!this.ai(ctx) || !ctx.ev.messageId) return false;
+    return (this.cfg.heldDone ?? []).some((h) => {
+      const l = h.messageId === ctx.ev.messageId ? this.state.loops?.[h.loop] : undefined;
+      return Boolean(l && [l.what, ...l.from].some((w) => overlap(w, what) >= 0.5));
+    });
   }
   private needCause(ctx: Ctx, op: Op) {
     if (op.cause || !this.ai(ctx) || ctx.ev.source === "init" || ctx.ev.source === "engine") return true;
@@ -1347,6 +1357,7 @@ export class Folder {
         const who = this.person(op.subject, seq);
         const whom = op.object ? this.person(op.object, seq) : undefined;
         if (!who || !a.what) return this.reject(ctx, `write ${op.op} A → B: what | status [due …]`);
+        if (this.doneHeld(ctx, a.what)) return this.reject(ctx, "held: the checker flagged this reply for having this still to come; it counts once you dismiss the flag or fix the sentence");
         const id = this.obligationId(op.op, who.id, whom?.id, a.what);
         const made = this.now();
         const o = (st.obligations[id] ??= { id, kind: op.op, who: who.id, whom: whom?.id, what: clip(a.what), status: "open", seq, ...(made != null ? { made } : {}) });
@@ -1372,6 +1383,7 @@ export class Folder {
       case "loop": {
         if (a.action === "new") {
           if (!a.what?.trim()) return this.reject(ctx, "write loop: what | promise|plan|errand|question");
+          if (this.doneHeld(ctx, a.what)) return this.reject(ctx, "held: the checker flagged this reply for having this still to come; it counts once you dismiss the flag or fix the sentence");
           const l = this.openLoop(a.what, (a.kind ?? "errand") as Loop["kind"], seq, a.due ? { due: { minutes: this.when(a.due), text: clip(a.due) } } : {});
           for (const t of (a.from as string[] | undefined) ?? []) if (!l.from.includes(t)) l.from.push(t);
           if (a.done) this.closeLoop(l, seq, a.how, ctx);
@@ -1481,6 +1493,7 @@ export class Folder {
       case "event":
       case "plan": {
         if (!a.title) return this.reject(ctx, `write ${op.op} Title: when | kind | who: …`);
+        if (this.doneHeld(ctx, a.title)) return this.reject(ctx, "held: the checker flagged this reply for having this still to come; it counts once you dismiss the flag or fix the sentence");
         const id = slug(a.title);
         const kind = (a.kind ?? (/birthday/i.test(a.title) ? "birthday" : /anniversar/i.test(a.title) ? "anniversary" : op.op === "plan" ? "plan" : "recurring")) as "plan";
         const e = (st.calendar[id] ??= { id, title: clip(a.title), kind, when: "", at: null, who: [], seq });

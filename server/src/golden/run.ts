@@ -5,6 +5,7 @@ import { one, run as sql } from "../db/db";
 import { checkReply, dismissIssue } from "../accuracy/checker";
 // The rest of the slip registry (not here, the clock backwards, planning left in…) registers on import.
 import "../accuracy/moreslips";
+import "../accuracy/undone";
 import { createOffpage } from "../accuracy/offpage";
 import { setCanon } from "../accuracy/canoncut";
 import { normalizeCard } from "../cards/card";

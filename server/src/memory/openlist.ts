@@ -56,7 +56,7 @@ const GENERIC = new Set("promise promised plan question answer need still open l
 const PROMISED = /\b(?:promis|vow)/i;
 
 /** What a text is about, for matching: hyphens split, the cast and the generic left out. */
-function aboutWords(st: WorldState | null | undefined, text: string) {
+export function aboutWords(st: WorldState | null | undefined, text: string) {
   const out = new Set<string>();
   for (const raw of topicCounts({ chars: st?.chars ?? {} } as WorldState, text.replace(/[-‐–]/g, " ")).keys()) {
     const w = raw.replace(/ie$/, "y");

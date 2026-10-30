@@ -244,7 +244,7 @@
             <summary><b>Out of date</b> <span class="tiny muted">{data.trace.outdated.length} line{data.trace.outdated.length === 1 ? "" : "s"} the story has moved past, answered in the prompt</span></summary>
             {#each data.trace.outdated as o, i (i)}
               <div class="lane">
-                <p class="tiny muted">{o.where} · {o.kind === "time" ? "the opening, now past" : `${o.kind === "death" ? "a death" : "who knows"} · changed at #${o.seq}`}</p>
+                <p class="tiny muted">{o.where} · {o.kind === "time" ? "the opening, now past" : o.kind === "done" ? `already happened · at #${o.seq}` : `${o.kind === "death" ? "a death" : "who knows"} · changed at #${o.seq}`}</p>
                 <pre class="lane-t">"{o.sentence}"
 → {o.now}</pre>
               </div>
