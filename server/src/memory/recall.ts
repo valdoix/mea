@@ -317,7 +317,9 @@ export function recall(input: RecallInput) {
     }
     const r = sumById.get(id);
     if (!r) return null;
-    const content = `Earlier, ${r.level} "${r.title}" (#${r.start_seq}–#${r.end_seq}): ${r.content}`;
+    // What a past summary left open was open then; a later scene may have done it ("Grocery trip beginning").
+    const body = r.content.replace(/^(Left open|Still open): /m, `$1 as of #${r.end_seq} (may be done since): `);
+    const content = `Earlier, ${r.level} "${r.title}" (#${r.start_seq}–#${r.end_seq}): ${body}`;
     return decorate({ ownerType: "summary", id, type: r.level, content, slot, score: s?.score ?? 0, reasons, tokens: countTokens(content) + 9, seq: r.end_seq }, r.level === "scene" ? r.id : null);
   };
   const take = (keys: string[], slot: RecallItem["slot"], cap: number, reason?: string) => {
