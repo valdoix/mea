@@ -133,8 +133,8 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 | Part | What | State |
 |---|---|---|
 | 0 | Tools and quick wins | merged, PR #202 |
-| 1 | One record of what's open | PR #203 |
-| 2 | Where things stand | built, PR to follow #203 |
+| 1 | One record of what's open | merged, PR #203 |
+| 2 | Where things stand | PR #204 |
 | 3 | The gates | — |
 | 4 | Flags worth reading | — |
 | 5 | You can see it | — |
