@@ -568,19 +568,44 @@ export async function previewOutcome(chatId: string, id: string, outcome: Force,
   return { landsNow: true, outcome, salt, result: beat?.result ?? null, stage: beat?.stage ?? null, text, told, arrivals, why: beat?.why ?? [], ripples: res.summary.slice(1) };
 }
 
-/** "Give someone a story": a premise in your words, started at once (it locks). */
-export function authorArc(chatId: string, name: string, premise: string) {
+/** The groups the story knows: its faction clocks and stances, groups leading subplots, reputations, and the lore's faction entries. */
+export function knownFactions(chatId: string, st: WorldState = currentFold(chatId).result.state): string[] {
+  const names = [
+    ...Object.values(st.clocks).map((k) => k.faction),
+    ...Object.keys(st.sim.factionRel).flatMap((k) => k.split("|")),
+    ...Object.values(st.sim.arcs).filter((a) => a.lead.startsWith("faction:")).map((a) => a.leadName),
+    ...Object.values(st.rep).map((r) => r.group),
+  ];
+  const chat = mustChat(chatId);
+  for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {
+    if (!e.enabled) continue;
+    const title = loreTitle(e);
+    const tagged = title.match(/^(?:factions?|organi[sz]ations?|groups?)\s*:\s*(.+)$/i)?.[1];
+    if (tagged) names.push(tagged.trim());
+    else if (categoryOf(e) === "faction" && title) names.push(title);
+  }
+  const out = new Map<string, string>();
+  for (const n of names) if (n?.trim() && !out.has(n.trim().toLowerCase())) out.set(n.trim().toLowerCase(), n.trim());
+  return [...out.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/** "Give someone a story": a premise in your words, started at once (it locks). `group`: the lead is a faction, known or new. */
+export function authorArc(chatId: string, name: string, premise: string, group = false) {
   const st = currentFold(chatId).result.state;
   if (!st.time) throw badRequest("The story clock isn't set yet");
   const roster = rosterFor(chatId, st);
-  const lead = roster.byName(name);
-  if (!lead || lead.isUser) throw badRequest(`Nobody called "${name}" is known to the story yet; add them on the Cast page first`);
-  const kind = kindFromText(premise) ?? "pursuit";
+  const person = group ? undefined : roster.byName(name);
+  // A group by name: one the story knows, or any name when you say it's a group.
+  const faction = person && !person.isUser ? undefined : (knownFactions(chatId, st).find((f) => f.toLowerCase() === name.trim().toLowerCase()) ?? (group ? name.trim() : undefined));
+  if (!faction && (!person || person.isUser)) throw badRequest(`Nobody called "${name}" is known to the story yet; add them on the Cast page first, or start it as a group`);
+  const lead = faction ? { id: `faction:${faction.toLowerCase()}`, name: faction } : person!;
+  const kind = faction ? (kindFromText(premise, []) ?? "faction") : (kindFromText(premise) ?? "pursuit");
   const others = [...roster.actors.values()].filter((a) => a.id !== lead.id && premise.includes(a.name.split(" ")[0]!));
   const want = premise.match(/\b(?:wants?|hopes?|needs?|tries|plans?|means|intends?|sets? out|vows?)\s+to\s+([^.;,!?]+)/i)?.[1];
   const cfg = worldConfig(chatId);
   const inp = { chatId, state: st, roster, mode: cfg.mode === "off" ? "living" : cfg.mode, now: st.time.minutes } as unknown as TickInput;
-  const arc = newArc({ kind, lead: lead.id, leadName: lead.name, cast: others.map((a) => a.id), target: others[0]?.id, premise: premise.trim(), want: want ? `to ${want.trim()}` : undefined, grounds: ["player"], score: 1, why: "your story", key: `${lead.id}|${kind}|player` }, inp);
+  const grounds = faction ? ["player", `faction:${faction}`] : ["player"];
+  const arc = newArc({ kind, lead: lead.id, leadName: lead.name, cast: others.map((a) => a.id), target: others[0]?.id, premise: premise.trim(), want: want ? `to ${want.trim()}` : undefined, grounds, score: 1, why: "your story", key: `${lead.id}|${kind}|player` }, inp);
   const ids = control(chatId, [{ type: "arc.new", arc: { ...arc, by: "player", locked: true, push: true, nextAt: st.time.minutes } }]);
   return { ...arc, eventIds: ids };
 }
@@ -778,5 +803,7 @@ export function worldView(chatId: string) {
       .map((g) => g!.map((c) => c.name)[0]!),
     town: roster.town,
     factionRel: st.sim.factionRel,
+    // The groups you can give a story to.
+    factions: knownFactions(chatId, st),
   };
 }
