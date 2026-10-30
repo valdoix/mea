@@ -2,6 +2,7 @@ import { applySim } from "../sim/fold";
 import { itemsAt } from "./belongings";
 import type { SimOp } from "../sim/types";
 import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
+import { loopId, repeats } from "./loops";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { castLabel, parseLine } from "./dsl";
 import { mentions } from "./mentions";
@@ -20,6 +21,7 @@ import {
   type KnowStatus,
   LADDER,
   type Ladder,
+  type Loop,
   METERS,
   type Meter,
   type Obligation,
@@ -537,6 +539,60 @@ export class Folder {
     o.felt = true;
   }
 
+  /** docs/22 1.1: a promise or a plan is a loop, and saying it again doesn't make a second one. */
+  private openLoop(what: string, kind: Loop["kind"], seq: number, link: Partial<Loop> = {}) {
+    const loops = (this.state.loops ??= {});
+    const all = Object.values(loops);
+    const same = all.find((l) => (link.obligation && l.obligation === link.obligation) || (link.calendar && l.calendar === link.calendar)) ?? loops[loopId(what)] ?? all.find((l) => l.status === "open" && overlap(l.what, what) >= 0.7);
+    if (same) {
+      Object.assign(same, link);
+      if (!same.from.includes(what)) same.from.push(what);
+      return same;
+    }
+    const l: Loop = { id: loopId(what), what: clip(what), kind, status: "open", opened: seq, from: [what], ...(repeats(what) ? { repeats: true } : {}), ...link };
+    loops[l.id] = l;
+    return l;
+  }
+
+  /** It happened. A promise behind it is kept and warms the bond, a plan is off the calendar, and one that repeats stays open. */
+  private closeLoop(l: Loop, seq: number, how: string | undefined, ctx: Ctx) {
+    if (l.repeats) {
+      l.last = seq;
+      return;
+    }
+    if (l.status === "done") return;
+    l.status = "done";
+    l.closed = seq;
+    if (how) l.how = clip(how);
+    this.push(ctx, { kind: "loop", text: `Done: ${l.what}`, path: `loops.${l.id}`, reason: how, tone: "up" });
+    const st = this.state;
+    const o = l.obligation ? st.obligations[l.obligation] : undefined;
+    if (o && o.status !== "kept" && o.status !== "paid") {
+      o.status = o.kind === "owe" ? "paid" : "kept";
+      o.settled = seq;
+      o.auto = false;
+      this.push(ctx, { kind: o.kind, text: `${o.kind === "owe" ? "Debt paid" : "Promise kept"}: ${o.what}`, subject: this.nameOf(o.who), path: `obligations.${o.id}`, reason: how, tone: "up", memory: true });
+      if (o.kind === "promise" && o.whom) this.feelPromise(o, ctx, seq);
+    }
+    const e = l.calendar ? st.calendar[l.calendar] : undefined;
+    if (e) e.done = true;
+  }
+
+  /** A promise's verdict reaches its loop. One already closed stays closed at the message it happened. */
+  private settleLoop(o: Obligation, seq: number) {
+    const l = Object.values(this.state.loops ?? {}).find((x) => x.obligation === o.id);
+    if (!l || l.repeats) return;
+    const done = o.status === "kept" || o.status === "paid";
+    if (o.status === "open" || o.status === "due") {
+      l.status = "open";
+      delete l.closed;
+      delete l.how;
+    } else if (l.status === "open" || (done && l.status !== "done")) {
+      l.status = done ? "done" : o.status === "forgiven" || o.status === "excused" ? "dropped" : "lapsed";
+      l.closed = seq;
+    }
+  }
+
   /** One bond axis, by d (clamped); returns what it actually moved. */
   private nudgeBond(from: string, to: string, axis: Axis, d: number, cause: string, ctx: Ctx, seq: number) {
     const st = this.state;
@@ -581,6 +637,7 @@ export class Folder {
       if (!verdict) continue;
       o.status = verdict;
       o.settled = ctx.ev.seq;
+      this.settleLoop(o, ctx.ev.seq);
       o.auto = true;
       const who = this.nameOf(o.who);
       this.push(ctx, { kind: "promise", text: verdict === "kept" ? `Promise kept: ${o.what}` : o.meet ? `${o.whom ? this.nameOf(o.whom) : "Someone"} was stood up: ${o.what}` : `Promise broken: ${o.what}`, subject: who, path: `obligations.${o.id}`, reason: verdict === "kept" ? "both were there in time" : "the time passed", tone: verdict === "kept" ? "up" : "down", memory: true });
@@ -1299,15 +1356,49 @@ export class Folder {
         if (a.importance) o.importance = a.importance;
         if (a.window) o.window = parseDuration(String(a.window).replace(/^(\d+)(\w)/, "$1 $2")) ?? o.window;
         const status = a.status as typeof o.status | undefined;
+        this.openLoop(o.what, "promise", seq, { obligation: o.id, ...(o.due ? { due: o.due } : {}) });
         const fresh = o.seq === seq && o.status === "open" && !o.felt;
         if (status && status !== o.status) {
           o.status = status;
           o.settled = seq;
+          this.settleLoop(o, seq);
           o.auto = ctx.ev.source === "engine";
           this.push(ctx, { kind: op.op, text: `${cap(op.op === "owe" ? "debt" : "promise")} ${status}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause, tone: status === "kept" || status === "paid" ? "up" : status === "broken" ? "down" : "due", memory: status === "broken" || status === "kept" });
           if (op.op === "promise" && whom) this.feelPromise(o, ctx, seq);
         } else if (fresh) this.push(ctx, { kind: op.op, text: `${op.op === "owe" ? `${who.name} owes ${whom?.name ?? "someone"}` : `${who.name} ${o.meet ? `will meet ${whom?.name ?? "someone"} at ${o.meet}` : `promised${whom ? ` ${whom.name}` : ""}`}`}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause });
         this.promiseChecks(ctx);
+        return;
+      }
+      case "loop": {
+        if (a.action === "new") {
+          if (!a.what?.trim()) return this.reject(ctx, "write loop: what | promise|plan|errand|question");
+          const l = this.openLoop(a.what, (a.kind ?? "errand") as Loop["kind"], seq, a.due ? { due: { minutes: this.when(a.due), text: clip(a.due) } } : {});
+          for (const t of (a.from as string[] | undefined) ?? []) if (!l.from.includes(t)) l.from.push(t);
+          if (a.done) this.closeLoop(l, seq, a.how, ctx);
+          return;
+        }
+        const l = st.loops?.[op.subject ?? ""];
+        if (!l) return this.reject(ctx, "no such loop");
+        if (a.action === "done") return this.closeLoop(l, seq, a.how, ctx);
+        if (a.action === "dropped") {
+          if (l.status !== "open") return;
+          l.status = "dropped";
+          l.closed = seq;
+          if (a.how) l.how = clip(a.how);
+        } else if (a.action === "open") {
+          l.status = "open";
+          delete l.closed;
+          delete l.how;
+          const o = l.obligation ? st.obligations[l.obligation] : undefined;
+          if (o && o.status !== "open" && o.status !== "due") {
+            o.status = "open";
+            o.settled = seq;
+            this.feelPromise(o, ctx, seq);
+          }
+          const e = l.calendar ? st.calendar[l.calendar] : undefined;
+          if (e) e.done = false;
+        }
+        this.push(ctx, { kind: "loop", text: `${a.action === "open" ? "Open again" : "Dropped"}: ${l.what}`, path: `loops.${l.id}`, reason: a.how });
         return;
       }
       case "deadline": {
@@ -1399,6 +1490,10 @@ export class Folder {
         }
         e.who = uniq([...e.who, ...((a.who as string[]) ?? []).map((n) => this.findChar(n)?.id ?? n)]);
         if (a.done) e.done = true;
+        if (kind === "plan" || kind === "appointment") {
+          const l = this.openLoop(e.title, "plan", seq, { calendar: e.id, ...(e.when ? { due: { minutes: e.at, text: e.when } } : {}) });
+          if (e.done) this.closeLoop(l, seq, undefined, ctx);
+        }
         if (e.seq === seq) this.push(ctx, { kind: "calendar", text: `${cap(kind)}: ${e.title}${e.when ? ` (${e.when})` : ""}`, path: `calendar.${id}` });
         return;
       }

@@ -14,7 +14,7 @@ import { leadingDuration } from "./clock";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "loop", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
@@ -527,6 +527,20 @@ export function parseLine(raw: string): Op | null {
       a.kind = meta.find((m) => /^(birthday|anniversary|holiday|appointment|plan|recurring)$/i.test(m))?.toLowerCase() ?? (op === "plan" ? "plan" : undefined);
       a.who = (meta.find((m) => /^who\s*[:=]/i.test(m)) ?? "").replace(/^who\s*[:=]\s*/i, "").split(/\s*(?:,|&|\band\b)\s*/).filter(Boolean);
       a.done = meta.some((m) => /^(done|cancelled|canceled)$/i.test(m));
+      break;
+    }
+    case "loop": {
+      // "loop L1a2b3: done — the words that show it", or a new one: "loop: buy groceries | errand [due tomorrow]".
+      const [main, meta] = pipe(body);
+      if (out.subject) {
+        a.action = main.match(/^(done|dropped|open)\b/i)?.[1]?.toLowerCase() ?? "done";
+        a.how = cause?.replace(/^["“]|["”]$/g, "");
+        break;
+      }
+      a.action = "new";
+      a.what = main.replace(/\s*\[due [^\]]+\]/i, "").trim();
+      a.kind = meta.find((m) => /^(promise|plan|errand|question)\b/i.test(m))?.match(/^\w+/)?.[0]?.toLowerCase() ?? "errand";
+      a.due = body.match(/\[due\s+([^\]]+)\]/i)?.[1];
       break;
     }
     case "motif":

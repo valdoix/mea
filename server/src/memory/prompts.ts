@@ -25,6 +25,8 @@ export const sceneSchema = z.object({
   relationshipShifts: list,
   threadsOpened: list,
   threadsClosed: list,
+  loopsClosed: z.array(z.object({ id: z.string(), seq: z.coerce.number().catch(0), quote: z.string().default("") })).default([]),
+  loopsOpened: z.array(z.object({ what: z.string(), kind: z.string().default("errand"), seq: z.coerce.number().catch(0) })).default([]),
   quotes: z.array(z.object({ speaker: z.string(), text: z.string(), seq: z.coerce.number().optional() })).default([]),
   storyTime: z.string().default(""),
   locations: list,
@@ -96,6 +98,8 @@ Rules:
 - When someone tells, recalls or refers to something that happened before this scene, record it as what they said, with who said it ("Buffy tells Dawn that Gabriel asked whether he should be jealous of Spike"), never as the event itself or its time and place: a character can misremember, and the event's own record comes from the scene that showed it.
 - "summary": one compact paragraph (${SCENE_WORDS[level]} words) of what happened, in order.
 - "events", "decisions", "stateChanges" (injuries, outfits, possessions, location, time), "relationshipShifts", "threadsOpened" (new mysteries, plans, promises), "threadsClosed": short phrases, empty lists when nothing applies.
+- "loopsClosed": each of the OPEN LOOPS this scene finished: it happened on the page, not just got talked about or planned. Give its "id", the [#number] it happened at as "seq", and as "quote" the words that show it, copied exactly from that message.
+- "loopsOpened": what the story now expects to happen that isn't among the OPEN LOOPS: a promise, a plan, an errand, or a question someone owes an answer to, as "what" (one plain line), "kind" (promise, plan, errand, question) and "seq". Not moods, mysteries or running jokes.
 - "quotes": up to 4 lines worth remembering, copied word for word, each with the [#number] it comes from as "seq".
 - "storyTime": the in-story time span if the scene shows it (e.g. "Day 3, evening → night"), else "".
 - "memories": atomic, self-contained notes, ${SCENE_MEMORIES[level]}; one idea each, written so they make sense alone (use names).${cfg.moments ? `
@@ -104,7 +108,7 @@ Rules:
 - "importance": how much this scene matters to the whole story, 1–10.
 
 Reply with one JSON object only, shaped like:
-{"title":"…","summary":"…","events":[],"decisions":[],"stateChanges":[],"relationshipShifts":[],"threadsOpened":[],"threadsClosed":[],"quotes":[{"speaker":"…","text":"…","seq":0}],"storyTime":"","locations":[],"participants":[],"importance":5,${cfg.moments ? `"moments":[{"tag":"promise","text":"…","seq":0}],` : ""}"memories":[{"type":"fact","content":"…","entities":[],"importance":5,"emotions":[],"sources":[0],"knownBy":[],"supersedes":[],"confidence":0.9}]}`;
+{"title":"…","summary":"…","events":[],"decisions":[],"stateChanges":[],"relationshipShifts":[],"threadsOpened":[],"threadsClosed":[],"loopsClosed":[{"id":"L1a2b3","seq":0,"quote":"…"}],"loopsOpened":[{"what":"…","kind":"errand","seq":0}],"quotes":[{"speaker":"…","text":"…","seq":0}],"storyTime":"","locations":[],"participants":[],"importance":5,${cfg.moments ? `"moments":[{"tag":"promise","text":"…","seq":0}],` : ""}"memories":[{"type":"fact","content":"…","entities":[],"importance":5,"emotions":[],"sources":[0],"knownBy":[],"supersedes":[],"confidence":0.9}]}`;
 }
 
 export function verifySystem() {

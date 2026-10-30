@@ -50,6 +50,20 @@ export interface ChatMemoryState {
   rebuild?: { startedAt: number; estimate: Record<string, number | null> } | null;
   /** M29: bumped by a rebuild from scratch, so a pass already running stops instead of writing into it. */
   epoch?: number;
+  /** docs/22 1.4: what a chat's old records say is open or done, waiting for your word in the Inbox. */
+  loopBackfill?: { state: "review" | "done"; at: number; closed: LoopCandidate[]; open: LoopCandidate[]; over?: LoopCandidate[] };
+}
+
+export interface LoopCandidate {
+  what: string;
+  kind: string;
+  seq: number;
+  /** The record that closed it. */
+  how?: string;
+  /** Every wording it had while open. */
+  items: string[];
+  /** A loop that already exists. */
+  loop?: string;
 }
 
 const DEFAULT_STATE: ChatMemoryState = { segmentedThrough: 0, evictedThrough: 0, version: 0 };

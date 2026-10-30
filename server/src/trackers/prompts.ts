@@ -1,6 +1,7 @@
 import { type CalendarId, calendarHint } from "./calendars";
 import { formatStoryTime } from "./clock";
 import type { Field, Template } from "./schema";
+import { openLoops } from "./loops";
 import { AXES, LADDER, type WorldState } from "./types";
 
 /** The ledger grammar, compact enough to send with every tracker call. */
@@ -31,6 +32,7 @@ secret #key: fact | kept by A · from B        reveal #key: to B — how
 item Thing: A → B — how (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
 room A: Town › Place | room|home|shop (whose place it is)     keeps A: item @ place (theirs, kept there)
 thread Title: new|advance|complicate|stall(blocker)|resolve — detail
+loop L1a2b3: done — the words that show it   (an open loop the NEW MESSAGES finished; the words copied exactly from them; loop L1a2b3: dropped — why, if it's called off)
 owe A → B: what | open|paid [due Day 4]       promise A>B: what | open|kept|broken [due tomorrow 9:00]
 promise A>B: be at the Bronze | meet @ the Bronze · minor|major|vital [due 21:00] [window 30m]   (a meeting: Mea checks who turns up)
 deadline Title: Day 3 18:00                   plant detail — possible payoff     payoff detail — how it paid off
@@ -85,6 +87,7 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   const threads = Object.values(st.threads).filter((t) => t.status !== "resolved").slice(-10);
   for (const t of threads) L.push(`thread ${t.title}: ${t.status}${t.latest ? ` — ${clip(t.latest, 80)}` : ""}`);
   for (const ob of Object.values(st.obligations).filter((x) => x.status === "open" || x.status === "due").slice(-8)) L.push(`${ob.kind} ${nm(ob.who)} → ${ob.whom ? nm(ob.whom) : "?"}: ${ob.what} | ${ob.status}`);
+  for (const l of openLoops(st).slice(-12)) L.push(`loop ${l.id}: ${clip(l.what, 90)}${l.repeats ? " (repeats)" : ""}`);
   for (const d of Object.values(st.deadlines).filter((x) => !x.done)) L.push(`deadline ${d.title}: ${d.text}`);
   for (const f of Object.values(st.facts).filter((x) => x.secret)) L.push(`secret #${f.key}: ${clip(f.statement, 80)}`);
   for (const g of Object.values(st.gauges)) L.push(`gauge ${g.name}: ${g.cur}/${g.max}`);
@@ -116,6 +119,7 @@ export function updatePrompt(o: { state: string; messages: string; userName: str
 Rules:
 - Only changes the messages show or clearly imply. Never invent events. Small talk changes little; write nothing for what stayed the same.
 - Thoughts are the exception: every reply gets a think line for each person at the spot${o.sealed ? ` except ${o.userName}` : ""}, their reaction to this moment.
+- Open loops: the state lists what the story is waiting for. Did the NEW MESSAGES finish any of them? It happened on the page, not just got talked about or planned: write a loop line for it, and keep any promise's own line out of it.
 - Time: estimate time passed from the action (a short exchange: +2m to +10m; a meal: +45m) unless the text states a time.
 - People: use the names the story uses. New named people get a cast line when they appear.
 - Relationships change only when the aftermath differs from before; intensity is not progress. Not everyone warms up.${o.sealed ? `\n- ${o.userName}'s inner life is the user's: never write mood, think, drive, mask, journal or bond lines from ${o.userName}'s side.` : ""}

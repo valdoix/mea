@@ -31,6 +31,7 @@ import { runDetailsJob } from "./lore/details";
 import { runBondJob } from "./lore/bond";
 import { runCompactJob } from "./lore/compact";
 import "./lore/keepupinbox";
+import { backfillLoops } from "./accuracy/loopinbox";
 import "./sim/newsinbox";
 import "./sim/audit";
 import { embedLore } from "./lore/semantic";
@@ -142,6 +143,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(worldAfterReply);
   // docs/20 1.1: today's replies read before beats existed get theirs.
   registerJob("tracker.beats", async (p, job) => backfillBeats((p as { chatId: string }).chatId, job));
+  registerJob("loops.backfill", async (p, job) => backfillLoops((p as { chatId: string }).chatId, job));
   onTrackerUpdate((chatId) => beatsAfterUpdate(chatId));
   // Phase 5 guards: the timeline check once the clock has moved (CON-12), the voice now and then (CON-10).
   onTrackerUpdate(recordTimeline);
