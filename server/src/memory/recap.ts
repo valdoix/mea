@@ -6,7 +6,9 @@ import { historyForPrompt } from "../services/chats";
 import { callJson } from "../services/llm";
 import { cachedQuota } from "../services/connections";
 import { trackerPrompt } from "../trackers/service";
+import type { WorldState } from "../trackers/types";
 import { chatNames } from "./build";
+import { lensOf, summaryText } from "./openlist";
 import { ledger, lastSeq, levelRows, memState, setMemState, storyRow } from "./store";
 import { cleanText, hashText } from "./text";
 
@@ -32,17 +34,21 @@ function storyContext(chatId: string) {
     .map((m) => `${m.role === "user" ? names.user : m.role === "assistant" ? names.char : "Note"}: ${cleanText(m.content).slice(0, 1500)}`)
     .join("\n\n");
   let state = "";
+  let st: WorldState | null = null;
   try {
-    state = trackerPrompt(chatId, { kind: "story" }).note?.text ?? "";
+    const tp = trackerPrompt(chatId, { kind: "story" });
+    state = tp.note?.text ?? "";
+    st = tp.state;
   } catch {
     // trackers are optional context
   }
+  const lens = lensOf(chatId, st);
   const chapters = levelRows(chatId, "chapter")
     .filter((c) => c.state === "ready" && c.title)
     .slice(-4)
-    .map((c) => `- ${c.title}: ${c.content.slice(0, 400)}`)
+    .map((c) => `- ${c.title}: ${summaryText(c, lens).slice(0, 400)}`)
     .join("\n");
-  return [story?.content ? `STORY SO FAR:\n${story.content}` : "", chapters ? `LATEST CHAPTERS:\n${chapters}` : "", state, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
+  return [story?.content ? `STORY SO FAR:\n${summaryText(story, lens)}` : "", chapters ? `LATEST CHAPTERS:\n${chapters}` : "", state, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
 }
 
 /** The cached recap if the story hasn't moved since, else a fresh one. */

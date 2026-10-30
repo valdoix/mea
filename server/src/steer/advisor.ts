@@ -18,7 +18,7 @@ import { foldAt } from "../trackers/store";
 import { correctMemory } from "../accuracy/corrections";
 import { countTokens } from "../lib/tokens";
 import { afterStory, buildMemoryContext, memoryInputs } from "../memory/context";
-import { doneMatcher, doneRecords, openAsOf } from "../memory/openlist";
+import { lensOf, summaryText } from "../memory/openlist";
 import { revealsOf } from "../trackers/reveals";
 import { beatNames, todayText } from "../trackers/today";
 import { momentsOf } from "../trackers/moments";
@@ -319,9 +319,9 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     const focus = [draft?.trim() || history.findLast((m) => m.role === "user")?.content, note].filter(Boolean).join("\n");
     const tp = trackerPrompt(chatId, { kind: "story", excludeMessageId, focus });
     const st = tp.state;
-    const done = doneRecords(chatId, st);
-    if (story?.content) parts.push(storyPart(openAsOf(story.content, story.end_seq ?? 0, done, doneMatcher(st, done))));
-    const since = afterStory(chatId, (history.at(-8)?.seq ?? 1) - 1, SINCE_TOKENS, st);
+    const lens = lensOf(chatId, st);
+    if (story?.content) parts.push(storyPart(summaryText(story, lens)));
+    const since = afterStory(chatId, (history.at(-8)?.seq ?? 1) - 1, SINCE_TOKENS, lens);
     if (since) parts.push(`SINCE THEN (the records from there up to the recent messages; what happens here happened, whatever was left open before it):\n${since}`);
     if (tp.note?.text) parts.push(`STORY STATE:\n${tp.note.text}`);
     // docs/20 2.3: where and when each thread last moved.

@@ -1,6 +1,11 @@
 import { all, parseJson } from "../db/db";
+import { formatStoryTime, shortStoryTime } from "../trackers/clock";
+import { trackerConfig } from "../trackers/store";
 import { topicCounts } from "../trackers/topics";
 import type { WorldState } from "../trackers/types";
+import type { AtomRow } from "./atoms";
+import { TimeIndex } from "./format";
+import type { SummaryRow } from "./store";
 
 /**
  * What a summary left open was open then. The Story So Far only moves when an arc closes, so at
@@ -10,6 +15,9 @@ import type { WorldState } from "../trackers/types";
  * prompt. So a record says what closed in it, its open list reads as of its last message, and an
  * item a later record clearly closed comes off that list. All at render time: nothing stored
  * changes, and a rewind or a swipe takes the closure with it.
+ *
+ * This is the door: a model reads a summary through `summaryText` and a plan or promise memory
+ * through `memoryText`, however it got there (doors.test.ts holds every other reader to a reason).
  */
 
 export interface Done {
@@ -21,6 +29,17 @@ export interface Done {
 }
 
 export type DoneMatch = (text: string, after: number) => Done | null;
+
+/** How a record reads as of now: what's been done since it, and which day a message fell on. */
+export interface Lens {
+  done: Done[];
+  match: DoneMatch;
+  /** The day of a message, or the one `plus` days after it: "Thu", "Day 3". */
+  day: (seq: number, plus?: number) => string | null;
+}
+
+/** Records read as they were written, for where nothing is known yet. */
+export const PLAIN: Lens = { done: [], match: () => null, day: () => null };
 
 /** How many closed threads a chapter or scene lists: it has its own account of the rest. */
 const CLOSED_MAX = 6;
@@ -83,6 +102,18 @@ export function doneMatcher(st: WorldState | null | undefined, done: Done[]): Do
   };
 }
 
+/** The lens for this chat, on the branch `st` is from. A calendar of the story's own has its own weekdays, so it goes undated. */
+export function lensOf(chatId: string, st: WorldState | null | undefined, times = new TimeIndex(chatId)): Lens {
+  const done = doneRecords(chatId, st);
+  const form = st?.time?.form;
+  const named = form === "day" || trackerConfig(chatId).calendar === "gregorian";
+  const day = (seq: number, plus = 0) => {
+    const at = times.at(seq);
+    return at == null || !form || !named ? null : shortStoryTime(formatStoryTime({ minutes: at + plus * 1440, form })).replace(/\s*[· ]\s*\d{1,2}:\d{2}$/, "");
+  };
+  return { done, match: doneMatcher(st, done), day };
+}
+
 /** Every open item a later record closed, in its own words: what a plan built on a stale list repeats. */
 export function closedItems(chatId: string, match: DoneMatch): (Done & { closed: Done })[] {
   const out = new Map<string, Done & { closed: Done }>();
@@ -96,15 +127,29 @@ export function closedItems(chatId: string, match: DoneMatch): (Done & { closed:
   return [...out.values()];
 }
 
+const RELATIVE = /\b(?:tonight|today|tomorrow|this (?:morning|afternoon|evening))\b(?!\s*\()/gi;
+
+/** "Tonight" says which night: a stored "tonight" is the night it was written, and it reads as this one. */
+function dated(text: string, seq: number, lens: Lens) {
+  return text.replace(RELATIVE, (w) => {
+    const day = lens.day(seq, /^tomorrow/i.test(w) ? 1 : 0);
+    return day ? `${w} (${day})` : w;
+  });
+}
+
 const OPEN_LINE = /^(Left open|Still open): (.*)$/m;
 
 /**
- * A record as it reads now: what closed in it (a chapter or a scene, from `start`), its open list
- * "as of" its last message, and what later records closed off that list, each said once (`shown`).
+ * A summary as a model reads it: what closed in it (a chapter or a scene), its open list "as of" its
+ * last message and dated, and what later records closed off that list, each said once (`shown`).
  */
-export function openAsOf(content: string, end: number, done: Done[], match: DoneMatch, shown = new Set<string>(), start?: number) {
+export function summaryText(r: Pick<SummaryRow, "content" | "level" | "start_seq" | "end_seq">, lens: Lens, shown = new Set<string>()) {
+  const { done, match } = lens;
+  const content = r.content.trim();
+  const end = r.end_seq ?? 0;
   const fresh = (d: Done) => !shown.has(d.text) && Boolean(shown.add(d.text));
-  const here = start == null ? [] : done.filter((d) => !d.strict && d.seq >= start && d.seq <= end).slice(-CLOSED_MAX).filter(fresh);
+  const detailed = r.level === "scene" || r.level === "chapter";
+  const here = detailed ? done.filter((d) => !d.strict && d.seq >= r.start_seq && d.seq <= end).slice(-CLOSED_MAX).filter(fresh) : [];
   const closed = here.length ? `Closed here: ${here.map((d) => d.text).join("; ")}` : "";
   const m = content.match(OPEN_LINE);
   if (!m) return closed ? `${content}\n${closed}` : content;
@@ -113,8 +158,16 @@ export function openAsOf(content: string, end: number, done: Done[], match: Done
     const d = match(item, end);
     if (d) since.set(d.text, d);
     return !d;
-  });
+  }).map((item) => dated(item, end, lens));
   const told = [...since.values()].filter(fresh);
   const lines = [closed, left.length ? `${m[1]} as of #${end}: ${left.join("; ")}` : "", told.length ? `Done since: ${told.map((d) => `${d.text} (#${d.seq})`).join("; ")}` : ""].filter(Boolean);
   return content.replace(OPEN_LINE, () => lines.join("\n")).trim();
+}
+
+/** A memory as a model reads it: a plan or a promise says which day it meant, and if it's been done since. */
+export function memoryText(a: Pick<AtomRow, "content" | "type" | "max_seq">, lens: Lens) {
+  if (a.type !== "plan" && a.type !== "promise") return a.content;
+  const seq = a.max_seq ?? 0;
+  const d = lens.match(a.content, seq);
+  return `${dated(a.content, seq, lens)}${d ? ` (done since: ${d.text}, #${d.seq})` : ""}`;
 }

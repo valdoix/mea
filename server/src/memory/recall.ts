@@ -7,7 +7,7 @@ import { chatVectors, cosine } from "./embed";
 import { core, entityCard, entityFacts, genericPlace, norm, resolver, type EntityRow } from "./entities";
 import type { RecallItem, TimeIndex } from "./format";
 import type { SummaryRow } from "./store";
-import { type Done, type DoneMatch, openAsOf } from "./openlist";
+import { type Lens, memoryText, PLAIN, summaryText } from "./openlist";
 import { contentWords, ftsQuery, overlap } from "./text";
 
 /**
@@ -56,9 +56,8 @@ export interface RecallInput {
   /** Names never given an entity card (the main character and you are already in the prompt). */
   skipCards: Set<string>;
   povName: string | null;
-  /** What later records closed, and its matcher, for a recalled summary's open list. */
-  done?: Done[];
-  doneMatch?: DoneMatch;
+  /** How old records read now: dated, and without what's been done since. */
+  lens?: Lens;
 }
 
 export interface RecallStats {
@@ -144,17 +143,18 @@ export function recall(input: RecallInput) {
   const { chatId, evicted, budget, cfg } = input;
   const stats: RecallStats = { candidates: 0, filteredPov: 0, signaled: 0, queries: input.queries.map((q) => q.label), librarian: "none", deep: 0, entities: [], diversity: cfg.diversity };
   const res = resolver(chatId);
+  const lens = input.lens ?? PLAIN;
 
   const pinnedRows = all<AtomRow>("SELECT * FROM memories WHERE chat_id = ? AND pinned = 1 AND deleted_at IS NULL AND status IN ('active', 'disputed') ORDER BY COALESCE(min_seq, 0)", chatId);
   const allPinned: RecallItem[] = pinnedRows.map((a) => ({
     ownerType: "memory",
     id: a.id,
     type: a.type,
-    content: a.content,
+    content: memoryText(a, lens),
     slot: "pinned",
     score: 1,
     reasons: ["pinned"],
-    tokens: countTokens(a.content) + 3,
+    tokens: countTokens(memoryText(a, lens)) + 3,
     seq: a.max_seq,
     confirmed: Boolean(a.user_edited),
   }));
@@ -313,8 +313,9 @@ export function recall(input: RecallInput) {
       const a = atomById.get(id);
       if (!a) return null;
       if (a.importance >= 8) reasons.push(`important (${a.importance}/10)`);
+      const content = memoryText(a, lens);
       return decorate(
-        { ownerType: "memory", id, type: a.type, content: a.content, slot, score: s?.score ?? 0, reasons, tokens: countTokens(a.content) + 9, seq: a.max_seq, confirmed: Boolean(a.user_edited), disputed: a.status === "disputed" },
+        { ownerType: "memory", id, type: a.type, content, slot, score: s?.score ?? 0, reasons, tokens: countTokens(content) + 9, seq: a.max_seq, confirmed: Boolean(a.user_edited), disputed: a.status === "disputed" },
         a.scene_id,
         parseJson<string[]>(a.known_by, []),
       );
@@ -322,7 +323,7 @@ export function recall(input: RecallInput) {
     const r = sumById.get(id);
     if (!r) return null;
     // What a past summary left open was open then; a later scene may have done it ("Grocery trip beginning").
-    const body = openAsOf(r.content, r.end_seq ?? 0, input.done ?? [], input.doneMatch ?? (() => null));
+    const body = summaryText(r, lens);
     const content = `Earlier, ${r.level} "${r.title}" (#${r.start_seq}–#${r.end_seq}): ${body}`;
     return decorate({ ownerType: "summary", id, type: r.level, content, slot, score: s?.score ?? 0, reasons, tokens: countTokens(content) + 9, seq: r.end_seq }, r.level === "scene" ? r.id : null);
   };

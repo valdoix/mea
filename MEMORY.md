@@ -126,6 +126,26 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 - Seen on the user's Mea: 13 of 359 songs had words; one 503 pair from LRCLIB (it blips, then answers fine) paused the whole backfill for 10 min.
 - Now `findLyrics` takes YouTube Music's words when LRCLIB fails, saved with `fetchedAt` set so the song is due again in a day (`RECHECK_SOON`); `dueForWords` re-looks at `ytmusic` plain rows (and misses) once `MISS_TTL` old. It throws only when nothing was found and a site was down. The job waits 2 min (`WORDS_DOWN_MS`), not 10.
 
+## Closed loops (design: `docs/22-closed-loops.md`)
+
+One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
+
+| Part | What | State |
+|---|---|---|
+| 0 | Tools and quick wins | branch `claude/closed-loops-part0` |
+| 1 | One record of what's open | — |
+| 2 | Where things stand | — |
+| 3 | The gates | — |
+| 4 | Flags worth reading | — |
+| 5 | You can see it | — |
+
+### Part 0 (2026-10-31)
+
+- 0.1 `scripts/replay.ts` (`bun run replay`): rewinds a throwaway copy to just before a message, mock provider only, and rebuilds both prompts and the plan checks. `--find`, `--out`. Use it instead of hand-written queries; an excluded message alone leaves what came after it in the fold.
+- 0.2 `storyNeedsRebuild` targets the last closed chapter; `telescope` lets a chapter fold into the Story So Far while its arc is open.
+- 0.3 `dated` in `openlist.ts`: open items and plan or promise memories say "tonight (Thu)". A custom calendar goes undated.
+- 0.4 `Lens` (`lensOf`), `summaryText`, `memoryText`; `recap.ts`, `meus/brief.ts` and the Archivist moved over. Tests: `server/test/doors.test.ts`, `server/test/openlist.test.ts`.
+
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
 - Symptom: "Couldn't load models: HTTP 503", every time, and slow replies on NanoGPT.
@@ -138,7 +158,7 @@ One PR per part. Defaults as proposed: Words dial *A little*, Land the line on o
 
 ## Things worth knowing
 
-- A summary's open list is what was open then. `memory/openlist.ts` is the one door: anything showing a summary to a model goes through `openAsOf`, or "still unsaid, due tonight" reads as now (docs/20, after Part 6).
+- A summary's open list is what was open then. `memory/openlist.ts` is the one door: a model reads a summary through `summaryText`, or "still unsaid, due tonight" reads as now (docs/20, after Part 6). `doors.test.ts` holds every other reader to a reason.
 - In the cloud container, 3 timing tests in `server/test/review.test.ts` fail in the full suite (they pass alone, and pass in CI). Not caused by lore work.
 - The mock writer (`providers/mock.ts`, `studio_entry`) cuts a title at its first colon, so "Voice: Mira" parts read "greeting of Voice".
 - Desktop leftovers (`.claude/launch.json`, `desktop/src-tauri/permissions/`, `mockups/mea-rooms-*.html`) went into main with PR #126, in their own commit.
