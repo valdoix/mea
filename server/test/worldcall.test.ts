@@ -52,6 +52,25 @@ describe("calling a subplot's next beat", () => {
   });
 });
 
+describe("a group's own story", () => {
+  test("a faction the story knows, or a new one you call a group, can lead a subplot", () => {
+    userEdit(chatId, linesToOps(["clockf Harbour Guild: take the docks 1/6"]).ops);
+    expect(worldView(chatId).factions).toContain("Harbour Guild");
+    // Known by name: it leads its own subplot, and Joss is in it.
+    const guild = authorArc(chatId, "harbour guild", "The Harbour Guild plans to buy up every boat in the bay, Joss's first.");
+    expect(guild.lead).toBe("faction:harbour guild");
+    expect(guild.leadName).toBe("Harbour Guild");
+    expect(guild.cast).toContain("joss");
+    expect(guild.grounds).toContain("faction:Harbour Guild");
+    expect(state().sim.arcs[guild.id]!.by).toBe("player");
+    // A name nobody knows is refused, unless you say it's a group.
+    expect(() => authorArc(chatId, "The Tide Wardens", "The Tide Wardens mean to close the harbour.")).toThrow();
+    const wardens = authorArc(chatId, "The Tide Wardens", "The Tide Wardens mean to close the harbour.", true);
+    expect(wardens.lead).toBe("faction:the tide wardens");
+    expect(worldView(chatId).factions).toContain("The Tide Wardens");
+  });
+});
+
 describe("the World page's ties", () => {
   test("every subplot comes with what it's tied to", () => {
     const v = worldView(chatId);

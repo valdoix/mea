@@ -60,10 +60,10 @@ world.post("/chats/:id/world/reword/:subId", async (c) => {
   return c.json(worldView(c.req.param("id")));
 });
 
-/** "Give someone a story." */
+/** "Give someone a story": a person, or a group (a faction). */
 world.post("/chats/:id/world/arcs", async (c) => {
-  const input = await body(c, z.object({ name: z.string().trim().min(1).max(80), premise: z.string().trim().min(5).max(600) }));
-  authorArc(c.req.param("id"), input.name, input.premise);
+  const input = await body(c, z.object({ name: z.string().trim().min(1).max(80), premise: z.string().trim().min(5).max(600), group: z.boolean().optional() }));
+  authorArc(c.req.param("id"), input.name, input.premise, input.group);
   return c.json(worldView(c.req.param("id")), 201);
 });
 

@@ -16,7 +16,7 @@
   let busy = $state(false);
   let settingsOpen = $state(false);
   let authorOpen = $state(false);
-  let author = $state({ name: "", premise: "" });
+  let author = $state({ name: "", premise: "", as: "person" as "person" | "group" });
   let editArc = $state<Arc | null>(null);
   let arcForm = $state({ premise: "", want: "", fear: "" });
   let cfg = $state<WorldConfig>({ mode: "living", director: "steady", telling: "model", seeding: "ask", fates: "ask", news: "ask", view: "director", climate: "maritime", latitude: 45, tech: "modern", genres: [], step: 120 });
@@ -175,9 +175,9 @@
   }
   async function giveStory() {
     try {
-      w = await post<WorldViewData>(`/api/chats/${id}/world/arcs`, author);
+      w = await post<WorldViewData>(`/api/chats/${id}/world/arcs`, { name: author.name, premise: author.premise, group: author.as === "group" });
       authorOpen = false;
-      author = { name: "", premise: "" };
+      author = { name: "", premise: "", as: "person" };
       toast("Their story begins", { kind: "ok" });
     } catch (e) {
       errorToast(e);
@@ -541,9 +541,16 @@
 
 <Modal bind:open={authorOpen} title="Give someone a story" size="md">
   <div class="stack">
-    <label class="field"><span class="label">Who</span>
-      <input class="input" list="world-people" bind:value={author.name} />
-      <datalist id="world-people">{#each w?.people ?? [] as p (p.id)}<option value={p.name}></option>{/each}</datalist>
+    <div><Segmented bind:value={author.as} small options={[{ value: "person" as const, label: "A person" }, { value: "group" as const, label: "A group" }]} /></div>
+    <label class="field"><span class="label">{author.as === "group" ? "Which group" : "Who"}</span>
+      {#if author.as === "group"}
+        <input class="input" list="world-factions" bind:value={author.name} placeholder="The Harbour Guild" />
+        <datalist id="world-factions">{#each w?.factions ?? [] as f (f)}<option value={f}></option>{/each}</datalist>
+        <span class="hint">A faction, family or crew: one the story knows, or a new one.</span>
+      {:else}
+        <input class="input" list="world-people" bind:value={author.name} />
+        <datalist id="world-people">{#each w?.people ?? [] as p (p.id)}<option value={p.name}></option>{/each}</datalist>
+      {/if}
     </label>
     <label class="field"><span class="label">Their story</span><textarea class="textarea" rows="3" bind:value={author.premise} placeholder="Joss wants to buy back his father's boat before the Guild sells it."></textarea><span class="hint">In your words. The engine picks the kind, grounds it, and starts it at once; it never rewrites what you wrote.</span></label>
   </div>

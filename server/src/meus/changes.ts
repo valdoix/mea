@@ -53,7 +53,7 @@ export const CHANGE_KINDS = [
   '{"kind": "cue", "text": "…"} a one-time instruction for the next reply; {"kind": "ooc", "text": "…"} a standing out-of-character note; {"kind": "truth", "text": "…"} a story truth sent every turn; {"kind": "timeskip", "duration": "3 days", "note": "…"};',
   '{"kind": "steer", "length": "short|normal|long", "pacing": "slow|normal|fast", "guidance": ["chip names to switch on"], "guidance_off": ["chip names"], "guidance_once": ["chip names, for the next reply only"], "authors_note": "…", "story": {"genre", "tone", "pov", "tense", "style", "intensity", "language"}} (only what changes);',
   '{"kind": "split", "from": "<cast name>", "name": "<the other person>", "aliases": ["names that belong to the other person"], "lines": ["ledger lines about the other person, after they exist"]} when one cast entry is really two people;',
-  '{"kind": "world", "arc": "<subplot id>", "action": "hold|resume|nudge|bring_in|drop|edit", "premise": "…", "want": "…", "fear": "…"}; {"kind": "world_arc", "lead": "<name>", "premise": "…"} a new subplot off the page; {"kind": "world_proposal", "id": "…", "accept": true}; {"kind": "world_fate", "arc": "<id>", "choice": "accept|soften|page"}; {"kind": "world_person", "name": "…", "where": "Town › Place", "standing": "…", "flag": "out|hold|wake|none"};',
+  '{"kind": "world", "arc": "<subplot id>", "action": "hold|resume|nudge|bring_in|drop|edit", "premise": "…", "want": "…", "fear": "…"}; {"kind": "world_arc", "lead": "<name>", "premise": "…", "group": true when the lead is a faction} a new subplot off the page; {"kind": "world_proposal", "id": "…", "accept": true}; {"kind": "world_fate", "arc": "<id>", "choice": "accept|soften|page"}; {"kind": "world_person", "name": "…", "where": "Town › Place", "standing": "…", "flag": "out|hold|wake|none"};',
   '{"kind": "lore", "id": "<entry id>", "comment": "title", "keys": ["…"], "content": "…"} edits a lorebook entry this chat uses; {"kind": "lore_add", "book": "<book id or name>", "comment": "title", "keys": ["…"], "content": "…"}; {"kind": "lore_fact", "entry": "<entry id or title>", "action": "add|change|retire", "value": "one short exact fact, e.g. Scar on her left hand", "slot": "<optional: eyes, hair, home…>", "fact": "<for change/retire: the fact id, or give the slot or the old value as old>", "message": <message number it comes from, optional>} keeps a small exact fact on a lore entry for this chat (it follows swipes; the entry text stays as written); {"kind": "lore_update", "proposal": "<id from a lore-update inbox key>", "action": "apply|reject"} decides a proposed change to the facts of a lore entry; {"kind": "lore_detail", "entry": "<entry id or title>", "action": "confirm|edit|clear", "slot": "<one slot, or leave out for all>", "value": "<for edit>"} keeps, edits or clears details Mea drafted for a character (sent as likely until kept); {"kind": "bond", "action": "add|edit|retire", "slot": "stands|calls|inside joke|thread|milestone|knows", "value": "…", "line": "<bond line id, for edit/retire>"} changes a line of the Bond (companion chats); {"kind": "since_card", "who": "character|persona", "action": "add|edit|retire", "slot": "temperament|toward|believes|wants|fears|habit|looks|life (optional)", "value": "one short line, present tense, e.g. toward Alex: trusts him with the keys", "line": "<line id, for edit/retire>"} changes this chat\'s Since the card note: who they are now where the card no longer says it (the card itself stays as written);',
   '{"kind": "note", "title": "…", "body": "…"} saves a note in the player\'s notebook for this chat;',
   '{"kind": "inbox", "key": "<inbox key>", "action": "accept|reject", "text": "edited text, if any"} decides a note in the continuity inbox;',
@@ -481,7 +481,7 @@ export function checkChanges(chatId: string, raw: Raw[]): { changes: Omit<Propos
           dropped.push("the world off the page starts once the story clock is set");
           continue;
         }
-        out.push({ kind, target: lead, label: `World · a subplot for ${lead}`, before: "", after: premise, data: { lead, premise, why } });
+        out.push({ kind, target: lead, label: `World · a subplot for ${lead}`, before: "", after: premise, data: { lead, premise, group: c.group === true, why } });
       } else if (kind === "world_proposal") {
         const p = st.sim.proposals[str(c.id)];
         if (!p) {
@@ -1008,7 +1008,7 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       return [{ t: "events", ids: arcAction(chatId, c.target, action, (d.patch as { premise?: string }) ?? {}) }];
     }
     case "world_arc":
-      return [{ t: "events", ids: authorArc(chatId, String(d.lead), String(d.premise)).eventIds }];
+      return [{ t: "events", ids: authorArc(chatId, String(d.lead), String(d.premise), d.group === true).eventIds }];
     case "world_proposal":
       return [{ t: "events", ids: decideProposal(chatId, c.target, Boolean(d.accept)) }];
     case "world_fate":

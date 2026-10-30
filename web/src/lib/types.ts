@@ -1828,6 +1828,8 @@ export interface WorldViewData {
   /** Names two people in the story's records share: probably one person, written twice. */
   twins: string[];
   town: string;
+  /** The groups the story knows (faction clocks, stances, the lore), which can be given a story too. */
+  factions: string[];
 }
 
 export interface GuidanceChip {
