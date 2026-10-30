@@ -1,4 +1,6 @@
 import { parsePlan, type PlanTier } from "../../../shared/plan";
+import type { Issue } from "../accuracy/checker";
+import { flagKey, quietKeys } from "../accuracy/quiet";
 import { all, parseJson } from "../db/db";
 import { mustChat } from "../services/chats";
 
@@ -58,10 +60,12 @@ export function planOutcomes(scope: { chatId: string } | { model: string }, limi
     "chatId" in scope ? scope.chatId : scope.model,
     limit,
   );
+  const quiet = new Map<string, Set<string>>();
   return rows.reverse().map((r) => {
     const meta = parseJson<{ plan?: string; model?: string }>(r.meta, {});
     const plan = parsePlan(r.reasoning);
-    const issues = parseJson<{ kind: string; dismissed?: boolean }[]>(r.issues ?? "[]", []);
+    if (!quiet.has(r.chat_id)) quiet.set(r.chat_id, quietKeys(r.chat_id));
+    const issues = parseJson<Issue[]>(r.issues ?? "[]", []);
     return {
       messageId: r.id,
       chatId: r.chat_id,
@@ -73,7 +77,7 @@ export function planOutcomes(scope: { chatId: string } | { model: string }, limi
       steps: plan.steps.length,
       tries: Math.max(1, r.tries),
       edited: Boolean(r.edited),
-      slips: issues.filter((i) => !i.dismissed).map((i) => i.kind),
+      slips: issues.filter((i) => !i.dismissed && !quiet.get(r.chat_id)!.has(flagKey(i))).map((i) => i.kind),
     };
   });
 }

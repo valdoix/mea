@@ -130,7 +130,9 @@ function helperJson(name: string, user: string, system = ""): unknown {
     }
     case "continuity_check": {
       if (!/MOCK_CONTRADICTION/.test(user)) return { issues: [] };
-      const ref = user.match(/^\[([TML]\d+)\]/m)?.[1] ?? "T1";
+      // MOCK_CITE_DONE: the reply has something finished still to come, which the prompt has to say can be flagged.
+      const done = /MOCK_CITE_DONE/.test(user) && /The D facts don't lag/.test(system) ? user.match(/^\[(D\d+)\]/m)?.[1] : undefined;
+      const ref = done ?? user.match(/^\[([TML]\d+)\]/m)?.[1] ?? "T1";
       // M28: like the real checker, a self-contained sentence of what keeping the reply's version means.
       const who = user.match(/NEW REPLY \(by ([^)]+)\)/)?.[1] ?? "The narrator";
       return {

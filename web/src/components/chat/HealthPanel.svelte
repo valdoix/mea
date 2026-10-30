@@ -1,11 +1,13 @@
 <script lang="ts">
   import Module from "../desk/Module.svelte";
-  import { get } from "../../lib/api";
+  import { get, post } from "../../lib/api";
   import { dockRequest, openDock } from "../../lib/dock.svelte";
   import { onEvent } from "../../lib/events";
+  import { FLAG_KINDS } from "../../lib/flagkinds";
   import { WandSparkles as Wand } from "../../lib/icons";
   import { openMeusIn } from "../../lib/meus.svelte";
   import { navigate } from "../../lib/router.svelte";
+  import { errorToast, toast } from "../../lib/state.svelte";
 
   /**
    * D3: story health for the last 20 replies. Each part opens what drags it down; "Fix the top 3"
@@ -28,7 +30,22 @@
     trend: { week: number; score: number }[];
     /** docs/20 6.2: retellings in these replies, and how many were told wrong. */
     retold?: { found: number; matched: number; flagged: number; dismissed: number; last?: { messageId: string; seq: number } };
+    /** docs/22 4.2: each kind of flag, how often you waved it off, and whether it's gone quiet. */
+    flags: FlagKind[];
   }
+  interface FlagKind {
+    key: string;
+    kind: string;
+    source: "record" | "rules" | "model";
+    flags: number;
+    waved: number;
+    quiet: boolean;
+    reason?: string;
+    waiting: { messageId: string; seq: number; claim: string }[];
+    waitingCount: number;
+  }
+  const SOURCE = { record: "from the record", rules: "by rules", model: "the helper's guess" };
+  const kindName = (k: FlagKind) => `${FLAG_KINDS[k.kind] ?? k.kind} (${SOURCE[k.source]})`;
   let { chatId }: { chatId: string } = $props();
   let h = $state<Health | null>(null);
   let open = $state(false);
@@ -68,6 +85,17 @@
     if ("messageId" in o) navigate(`/chat/${chatId}?m=${o.messageId}`);
     else if ("dock" in o) openDock(o.dock, o.section);
     else navigate(o.href);
+  }
+  const quietKinds = $derived((h?.flags ?? []).filter((k) => k.quiet));
+  /** The rest with enough flags to say anything, the most waved off first. */
+  const loudKinds = $derived((h?.flags ?? []).filter((k) => !k.quiet && k.flags >= 5).sort((a, b) => b.waved / b.flags - a.waved / a.flags));
+  async function showAgain(k: FlagKind) {
+    try {
+      h = await post<Health>(`/api/chats/${chatId}/story-health/show-kind`, { key: k.key });
+      toast(`Showing ${FLAG_KINDS[k.kind] ?? k.kind} on replies again`, { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
   }
   const top3 = $derived((h?.parts ?? []).filter((p) => p.ask && p.score < 90).sort((a, b) => a.score - b.score).slice(0, 3));
   function fixTop3() {
@@ -112,6 +140,21 @@
           <span class="lbl">Retold past</span>
           <small>{r.found} retelling{r.found === 1 ? "" : "s"}, {r.matched} checked against the page · {r.flagged} told wrong{r.dismissed ? ` · ${r.dismissed} dismissed` : ""}</small>
         </button>
+      {/if}
+      {#each quietKinds as k (k.key)}
+        <div class="quiet">
+          <div class="row">
+            <span class="lbl">Quiet: {kindName(k)}</span>
+            <button type="button" class="btn ghost small" onclick={() => showAgain(k)}>Show on replies again</button>
+          </div>
+          <small>{k.reason}{k.waitingCount ? ` ${k.waitingCount} not showing.` : ""}</small>
+          {#each k.waiting as w (w.messageId + w.claim)}
+            <button type="button" class="waiting" onclick={() => navigate(`/chat/${chatId}?m=${w.messageId}`)} title="Show #{w.seq}"><small>#{w.seq}: “{w.claim}”</small></button>
+          {/each}
+        </div>
+      {/each}
+      {#if loudKinds.length}
+        <div class="kinds"><small>Waved off with the reply left as it was: {loudKinds.map((k) => `${kindName(k)} ${k.waved} of ${k.flags}`).join(" · ")}</small></div>
       {/if}
       {#if top3.length}<div class="st-keys"><button class="st-key" type="button" onclick={fixTop3}><Wand size={14} /> Fix the top {top3.length === 3 ? "3" : top3.length}</button></div>{/if}
     </Module>
@@ -188,5 +231,34 @@
   .n {
     text-align: end;
     font-variant-numeric: tabular-nums;
+  }
+  .quiet {
+    display: grid;
+    gap: 2px;
+    margin: 0 0 8px;
+    padding: 4px 6px;
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+  .quiet .row {
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .quiet small,
+  .kinds small {
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .waiting {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .kinds {
+    margin: 0 0 8px;
+    padding: 0 6px;
   }
 </style>

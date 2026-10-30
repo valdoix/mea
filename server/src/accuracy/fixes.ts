@@ -140,5 +140,5 @@ export async function fixIssueSentence(flagId: string, issueId: string) {
   const fixed = await rewriteSentence({ chatId: f.chat_id, text: sw.content, sentence: at.sentence, instruction: issue.fix });
   const text = sw.content.slice(0, at.start) + fixed + sw.content.slice(at.end);
   editMessage(m.id, text);
-  return { flag: dismissIssue(flagId, issueId), before: at.sentence, after: fixed };
+  return { flag: dismissIssue(flagId, issueId, "fixed"), before: at.sentence, after: fixed };
 }

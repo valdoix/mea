@@ -145,6 +145,8 @@ export const chatSettingsSchema = z.object({
   canon: canonSchema.optional(),
   /** Reliable state 2.1: lore secrets you linked to a tracker fact ("entryId:index" → fact key), or unlinked (""). */
   secretLinks: z.record(z.string().max(120), z.string().max(120)).optional(),
+  /** docs/22 4.2: when you asked to see a quiet kind of flag again (its key → then); its count starts from there. */
+  flagsBack: z.record(z.string().max(60), z.number()).optional(),
   /** STEER-04: the style profile, over the character's. */
   style: z
     .object({

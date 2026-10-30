@@ -7,6 +7,7 @@ import { trackerConfig } from "../trackers/store";
 import type { Issue } from "./checker";
 import { currentFold } from "../trackers/store";
 import { loopsPart } from "./loophealth";
+import { type FlagKind, flagKey, flagKinds, quietKeys } from "./quiet";
 import { type RetellStats, retellStats } from "./retell";
 
 /**
@@ -40,6 +41,8 @@ export interface Health {
   trend: { week: number; score: number }[];
   /** docs/20 6.2: the replies' retellings, and how many were told wrong. */
   retold?: RetellStats;
+  /** docs/22 4.2: each kind of flag: how often you waved it off, and whether it's gone quiet. */
+  flags: FlagKind[];
 }
 
 const WINDOW = 20;
@@ -67,8 +70,8 @@ function repliesIn(chatId: string, opts: { limit?: number; from?: number; to?: n
   ).reverse();
 }
 
-/** The open findings on a set of replies (on the take that's showing). */
-function openIssues(replies: Reply[]) {
+/** The open findings on a set of replies (on the take that's showing). A quiet kind isn't one: nobody's going to dismiss what they can't see. */
+function openIssues(quiet: Set<string>, replies: Reply[]) {
   if (!replies.length) return [] as { issue: Issue; reply: Reply }[];
   const byId = new Map(replies.map((r) => [r.id, r]));
   const rows = all<{ message_id: string; swipe_idx: number; issues: string }>(`SELECT message_id, swipe_idx, issues FROM continuity_flags WHERE message_id IN (${replies.map(() => "?").join(",")})`, ...replies.map((r) => r.id));
@@ -76,14 +79,14 @@ function openIssues(replies: Reply[]) {
     const r = byId.get(f.message_id);
     if (!r || r.idx !== f.swipe_idx) return [];
     return parseJson<Issue[]>(f.issues, [])
-      .filter((i) => !i.dismissed)
+      .filter((i) => !i.dismissed && !quiet.has(flagKey(i)))
       .map((issue) => ({ issue, reply: r }));
   });
 }
 
-function compute(chatId: string, replies: Reply[], live: boolean): Omit<Health, "trend"> {
+function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<string>): Omit<Health, "trend" | "flags"> {
   const n = replies.length;
-  const issues = openIssues(replies);
+  const issues = openIssues(quiet, replies);
   const parts: HealthItem[] = [];
   const latest = (pred: (i: Issue) => boolean) => [...issues].reverse().find((x) => pred(x.issue));
 
@@ -159,7 +162,9 @@ const WEEK = 7 * 24 * 3600_000;
 export function storyHealth(chatId: string): Health {
   mustChat(chatId);
   const replies = repliesIn(chatId);
-  const now = compute(chatId, replies, true);
+  const flags = flagKinds(chatId);
+  const quiet = new Set(flags.filter((k) => k.quiet).map((k) => k.key));
+  const now = compute(chatId, replies, true, quiet);
   let retold: RetellStats | undefined;
   try {
     retold = retellStats(chatId, currentFold(chatId).result.state, replies);
@@ -175,10 +180,10 @@ export function storyHealth(chatId: string): Health {
       const from = to - WEEK;
       if (to < first) continue;
       const rs = repliesIn(chatId, { from, to, limit: 200 });
-      if (rs.length) trend.push({ week: from, score: compute(chatId, rs, false).score });
+      if (rs.length) trend.push({ week: from, score: compute(chatId, rs, false, quiet).score });
     }
   }
-  return { ...now, trend, ...(retold?.found ? { retold } : {}) };
+  return { ...now, trend, flags, ...(retold?.found ? { retold } : {}) };
 }
 
 /** The dot on Home's chat cards, cached a few minutes (it's read for many chats at once). */
@@ -190,7 +195,7 @@ export function healthDot(chatId: string) {
   try {
     const n = repliesIn(chatId);
     if (n.length >= 3) {
-      const h = compute(chatId, n, false);
+      const h = compute(chatId, n, false, quietKeys(chatId));
       v = { score: h.score, level: h.level };
     }
   } catch {

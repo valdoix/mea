@@ -1209,6 +1209,8 @@ export interface ContinuityIssue {
   canon?: { memory: string; wrong?: string; trackerLine?: string };
   by: "rules" | "model";
   dismissed?: boolean;
+  /** docs/22 4.2: its kind has gone quiet: it stays out of the reply, and in Story health. */
+  quiet?: boolean;
   /** docs/14, part 6: a one-tap fix, the version's name for the original's. */
   replace?: { from: string; to: string };
 }

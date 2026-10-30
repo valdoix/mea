@@ -1,8 +1,7 @@
-import { all, parseJson } from "../db/db";
 import { cleanText } from "../memory/text";
 import type { WorldState } from "../trackers/types";
-import type { Issue } from "./checker";
 import { doneAhead, sentencesOf } from "./promptcheck";
+import { wavedThrough } from "./quiet";
 import { type Found, SLIPS } from "./slips";
 
 /**
@@ -13,17 +12,9 @@ import { type Found, SLIPS } from "./slips";
  * the reply filed about that loop waits (`heldDone`); dismissing it says the story meant to.
  */
 
-/** Loops you've waved through: someone lying, misremembering, or a thing that really does come round again. */
-function waved(chatId: string) {
-  const out = new Set<string>();
-  for (const r of all<{ issues: string }>("SELECT issues FROM continuity_flags WHERE chat_id = ? AND issues LIKE '%\"undone\"%'", chatId))
-    for (const i of parseJson<Issue[]>(r.issues, [])) if (i.kind === "undone" && i.dismissed) for (const c of i.citations) if (c.id) out.add(c.id);
-  return out;
-}
-
 export function undoneRule(chatId: string, text: string, st: WorldState): Found[] {
   const ahead = doneAhead(st, { lists: true });
-  const skip = waved(chatId);
+  const skip = wavedThrough(chatId);
   const out: Found[] = [];
   for (const s of sentencesOf(cleanText(text))) {
     const l = ahead(s);
