@@ -18,6 +18,7 @@ import { cleanText } from "../memory/text";
 import { type ChatSettings, mustChat } from "../services/chats";
 import { layered } from "../services/layers";
 import { formatStoryTime } from "../trackers/clock";
+import { correctMemory } from "../accuracy/corrections";
 import { stateForModel } from "../trackers/prompts";
 import { standing } from "../trackers/stands";
 import { castKey, castProfiles, currentFold, foldConfigFor, templatesFor, trackerConfig } from "../trackers/store";
@@ -122,7 +123,7 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
   if (since.length) blocks.push(`SINCE THE CARD (this chat's note on how they've changed; the cards stay as written; [line ids]):\n${since.map((p) => `${p.name} (${p.who}):\n${p.lines.map(sinceLine).join("\n")}`).join("\n")}`);
 
   const recap = storyRow(chatId);
-  if (recap?.content?.trim()) blocks.push(`THE STORY SO FAR (the running summary, to #${recap.end_seq}):\n${clip(summaryText(recap, lensOf(chatId, st)), 2500)}`);
+  if (recap?.content?.trim()) blocks.push(`THE STORY SO FAR (the running summary, to #${recap.end_seq}):\n${correctMemory(st, clip(summaryText(recap, lensOf(chatId, st)), 2500), "Story So Far").text}`);
 
   const recent = all<{ seq: number; name: string | null; role: string; content: string; hidden: number }>(
     `SELECT m.seq, m.name, m.role, m.hidden, s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe

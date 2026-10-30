@@ -230,21 +230,36 @@ An item is weighed by its scene's rating. What the tracker chose or a first-kind
 
 ### 3.1 The prompt lint
 
-The last check before a request goes out, on the assembled messages, whatever their source. It extends `accuracy/promptcheck.ts`, which already does this for knowledge and deaths, with a third kind, `done`: a sentence that looks ahead at a done loop. Hits go in the CORRECTIONS lane, so card and lore text are covered too, and to the request's trace, so the Inspector shows them.
+It extends `accuracy/promptcheck.ts`, which already does this for knowledge and deaths, with a new kind, `done`: a sentence that says most of a wording a done loop has had, with a word for what's coming ("tonight", "unsaid"). Card, persona and lore hits go in the CORRECTIONS lane, memory hits right under the block, and all of them to the request's trace, so the Inspector shows them.
 
-This is the one gate that doesn't depend on knowing the paths. PR #201 covered the writer and the planner, and `recap.ts` and `meus/brief.ts` were still outside it, which is what principle 3 is for.
+As built, it's a check on each source, not one pass over the final messages. A last pass would have to tell Mea's own corrections and WHERE THINGS STAND from what it's checking, and it could only add a line after the fact. It reads the card, persona, lore, Story So Far and recall for the writer, the Story So Far and SINCE THEN for the planner, and the records the recap and Meus's brief read. An author's note and the chat's standing notes aren't read: you wrote those.
+
+A card is timeless, so this is the strict test: "someone needs to laugh" in Gabriel's persona has a to-do's shape and isn't one.
 
 ### 3.2 Replan once
 
-PR #201 puts a correction under a plan that waits for something done. That's weak: at #629 the claim was in KNOW, MOVE and threads, and the writer reads the plan first. So when `pendingDone` fires on a plan the separate planner wrote, it gets one retry with the finding, built on `rescuePlan`. If the retry still fails, the correction stands. It costs a call only when there's something wrong.
+PR #201 puts a correction under a plan that waits for something done. That's weak: at #629 the claim was in KNOW, MOVE and threads, and the writer reads the plan first. So when `pendingDone` fires on a plan the separate planner wrote, it gets one retry with the finding. If the retry still fails, or still waits for it, the first plan stands with its correction. It costs a call only when there's something wrong, and it runs under the same wait as the planner, so a late retry leaves the first plan.
 
-The plan's `threads` become ids: the planner picks from the open loops, and an id that isn't open is dropped. A plan can't carry a thread the ledger doesn't have.
+`Plan.replanned` is what makes it once: a prepare can run several times for one reply. A plan you edited has it set from the start, because your edit isn't second-guessed, and a preview never calls the model. The call's kind is `planner:replan`, which is what 5.3 counts.
+
+The plan's `threads` become ids: the planner and the advisor see ids under WHERE THINGS STAND (the writer doesn't), an open loop's id reads as the loop, an open thread's title stays, and anything else is dropped. A plan can't carry a thread the ledger doesn't have. With the trackers off there's no ledger to ask, so a plan keeps what it wrote.
 
 ### 3.3 A reply can't reopen what's closed
 
-A new checker kind, `undone`, by rules: a sentence in the reply, thoughts and dialogue included, that looks ahead at a done loop. It's flagged with the quote and the message it closed at, and it offers "regenerate with fix".
+A new checker kind, `undone`, by rules: a sentence in the reply, thoughts and dialogue included, that looks ahead at a done loop. It's flagged with the quote and the message it closed at, and it offers "regenerate with fix". Plans use the same test, so a plan's "the grocery run" goes to 3.2.
 
-While that flag is open, what the reply wrote that matches the loop is held, as `heldLeaks` does for leaks (docs/19 2.3). `plan grocery run: tonight` would have waited for your word. A `repeats` loop never fires, and neither does anyone lying or misremembering once you dismiss the flag (docs/20 5.2).
+Sharing words doesn't work for this. A list says one word ("Then groceries."), and prose shares words all the time ("the groceries wait in the fridge"). Measured on this chat's 145 replies from #300 on, with every backfill candidate accepted:
+
+| Rule | Flags | Right |
+|---|---|---|
+| Three shared words and a word for later, as plans use | 2 | 0, and it missed both real ones |
+| A word only that loop has, and a word for later | 175 | Few: nearly every one read was wrong |
+| That word inside a to-do ("then X", "needs X", "the X run") | 6 | 2 |
+| The same, on a loop worded at least twice, closer to the word | 2 | 2: #599 and #629 |
+
+So it has two tests: most of a wording, with a word for what's coming, or a to-do around what the loop goes by. What a loop goes by is a word only it has, in at least two of its wordings and most of them. That means a thing the records only mentioned once can't be flagged this way, which is the price of not crying wolf. These rules were tuned on this one chat, so another chat may need them loosened or tightened, and 5.4's goldens only pin this one.
+
+While that flag is open, what the reply wrote that matches the loop is held, as `heldLeaks` does for leaks (docs/19 2.3): a promise, a plan or a loop, by the loop id on the flag. `plan grocery run: tonight` would have waited for your word, and everything else the reply filed stands. A `repeats` loop never fires. Dismissing a flag waves that loop through for good: someone lying or misremembering (docs/20 5.2), or a thing that really does come round again. The groceries are the case in point: a second grocery run is a real thing to want, and one tap says so.
 
 ---
 

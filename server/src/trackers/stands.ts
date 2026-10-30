@@ -57,9 +57,9 @@ function dueText(st: WorldState, l: Loop, lens: Lens) {
 }
 
 /** One open loop, with whose promise it is: a promise's own words often have no subject. */
-function openItem(st: WorldState, l: Loop, lens: Lens) {
+function openItem(st: WorldState, l: Loop, lens: Lens, ids: boolean) {
   const who = l.obligation ? st.chars[st.obligations[l.obligation]?.who ?? ""]?.name : undefined;
-  return `${who ? `${who}: ` : ""}${dated(clip(l.what, ITEM), l.opened, lens)}${dueText(st, l, lens)}`;
+  return `${who ? `${who}: ` : ""}${dated(clip(l.what, ITEM), l.opened, lens)}${dueText(st, l, lens)}${ids ? ` (${l.id})` : ""}`;
 }
 
 /** Whole items while they fit, in the order given. */
@@ -147,12 +147,12 @@ export function alreadyHappened(chatId: string, st: WorldState) {
   return items.slice(0, kept).sort((a, b) => a.seq - b.seq).map(({ text, seq }) => ({ text, seq }));
 }
 
-/** The two blocks, as text. `focus` is what the story is on now: the loops it touches come first. */
-export function standing(chatId: string, st: WorldState | null | undefined, focus = "") {
+/** The two blocks, as text. `focus` is what the story is on now: the loops it touches come first. With `ids`, a plan can name a loop. */
+export function standing(chatId: string, st: WorldState | null | undefined, focus = "", ids = false) {
   if (!st || trackerConfig(chatId).mode === "off") return { stands: "", happened: "" };
   const lens = lensOf(chatId, st);
   const about = topicWords(st, focus);
-  const open = distinct(rankedOpen(st, about), (l) => l.what).map((l) => openItem(st, l, lens));
+  const open = distinct(rankedOpen(st, about), (l) => l.what).map((l) => openItem(st, l, lens, ids));
   const shown = fit(open, OPEN_TOKENS);
   const quiet = open.length - shown.length;
   const done = fit(distinct(rankedDone(st, about), (l) => l.what).map((l) => `${dated(clip(l.what, ITEM), l.opened, lens)} (#${l.closed})`), DONE_TOKENS);

@@ -15,7 +15,8 @@ import { trackerPrompt } from "../trackers/service";
 import { standing } from "../trackers/stands";
 import { gatherLanes, type LaneId } from "../prompt/lanes";
 import { PLANNING } from "../prompt/mea";
-import { foldAt } from "../trackers/store";
+import { foldAt, trackerConfig } from "../trackers/store";
+import { ledgerThreads, pendingDone, planCorrection } from "./plancheck";
 import { correctMemory } from "../accuracy/corrections";
 import { countTokens } from "../lib/tokens";
 import { afterStory, buildMemoryContext, memoryInputs } from "../memory/context";
@@ -51,6 +52,8 @@ export const planSchema = z.object({
   avoid: z.array(z.string()).default([]),
   /** H3: the separate planner's whole planning pass (fragments), which the writer follows. */
   pass: z.string().default(""),
+  /** docs/22 3.2: it's had its one retry, or it's yours. Either way it stands, with any correction under it. */
+  replanned: z.boolean().optional(),
 });
 export type Plan = z.infer<typeof planSchema>;
 
@@ -185,7 +188,7 @@ const ADVISOR_SYSTEM =(char: string, user: string, persona: PersonaMode | null) 
 Plan the NEXT reply only:
 - "direction": one or two sentences: where this reply should take the scene, in response to what ${user} just did or said.
 - "beats": 2–4 concrete beats to hit, in order. Small and specific; leave room for ${user} to act.
-- "threads": up to 2 open threads, promises or secrets worth touching now (only if it fits naturally).
+- "threads": up to 2 open threads, promises or secrets worth touching now (only if it fits naturally): an open thread's title, or the id of something under WHERE THINGS STAND ("L1a2b3"). Anything else is dropped.
 - "reminders": continuity facts the reply must respect (time, place, injuries, who knows what).
 - "avoid": up to 3 things to avoid (repeating earlier beats, rushing, an echo of the last reply).
 ${PLAYED_RULE}; ${userRule(user, persona)}.
@@ -218,7 +221,7 @@ You plan; you never write. The writer chooses every word, image and line of dial
 - no self-talk, no "Wait", no checking your own work: the pass is the labelled lines and nothing else.
 
 ${PLAYED_RULE}; ${userRule(user, persona)}.
-Reply with JSON only: {"pass":"the whole pass as labelled lines, NOW — … through VOICE — … (never a one-word tag)","direction":"one sentence","beats":["2–4 short fragments, in order"],"threads":["…"],"reminders":["…"],"avoid":["…"]}`;
+Reply with JSON only: {"pass":"the whole pass as labelled lines, NOW — … through VOICE — … (never a one-word tag)","direction":"one sentence","beats":["2–4 short fragments, in order"],"threads":["an open thread's title, or an id from WHERE THINGS STAND like L1a2b3; anything else is dropped"],"reminders":["…"],"avoid":["…"]}`;
 
 /** Planner beats longer than this are cut at a clause boundary (GLM writes paragraphs whatever it's told). */
 const BEAT_MAX_WORDS = 20;
@@ -324,12 +327,13 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
     const tp = trackerPrompt(chatId, { kind: "story", excludeMessageId, focus });
     const st = tp.state;
     const lens = lensOf(chatId, st);
-    if (story?.content) parts.push(storyPart(summaryText(story, lens)));
+    // docs/22 3.1: a line of a record that looks ahead at something done is answered right under it.
+    if (story?.content) parts.push(correctMemory(st, storyPart(summaryText(story, lens)), "Story So Far").text);
     const since = afterStory(chatId, (history.at(-8)?.seq ?? 1) - 1, SINCE_TOKENS, lens);
-    if (since) parts.push(`SINCE THEN (the records from there up to the recent messages; what happens here happened, whatever was left open before it):\n${since}`);
+    if (since) parts.push(correctMemory(st, `SINCE THEN (the records from there up to the recent messages; what happens here happened, whatever was left open before it):\n${since}`, "records since").text);
     if (tp.note?.text) parts.push(`STORY STATE:\n${tp.note.text}`);
     // docs/22 2.1: the ledger says what's open, whatever a record above left open.
-    const { stands, happened } = standing(chatId, st, [...history.slice(-4).map((m) => m.content), focus].join("\n"));
+    const { stands, happened } = standing(chatId, st, [...history.slice(-4).map((m) => m.content), focus].join("\n"), true);
     if (stands) parts.push(`WHERE THINGS STAND:\n${stands}`);
     if (happened) parts.push(`ALREADY HAPPENED:\n${happened}`);
     // docs/20 2.3: where and when each thread last moved.
@@ -401,7 +405,7 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
       const r = cfg.planner
         ? await callJson({ task: "planner", kind: "planner", chatId, name: "planner_plan", schema: planSchema, system, user, maxTokens: 1800, temperature: 0.5, signal: opts.signal, profileId: cfg.plannerProfileId })
         : await callJson({ task: "helper", kind: "advisor", chatId, name: "advisor_plan", schema: planSchema, system, user, maxTokens: 700, temperature: 0.6, signal: opts.signal });
-      const plan = cfg.planner ? undraft(r.data) : r.data;
+      const plan = fromLedger(chatId, cfg.planner ? undraft(r.data) : r.data, opts.excludeMessageId);
       run("INSERT OR REPLACE INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, key, JSON.stringify(plan), now());
       // Keep a short history per chat.
       run("DELETE FROM advisor_plans WHERE chat_id = ? AND id NOT IN (SELECT id FROM advisor_plans WHERE chat_id = ? ORDER BY created_at DESC LIMIT 40)", chatId, chatId);
@@ -415,6 +419,36 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
   })();
   running.set(`${chatId}:${key}`, p);
   return p;
+}
+
+/** A plan's threads as the ledger has them. With the trackers off there's no ledger to ask. */
+function fromLedger(chatId: string, plan: Plan, excludeMessageId?: string): Plan {
+  if (!plan.threads.length || trackerConfig(chatId).mode === "off") return plan;
+  return { ...plan, threads: ledgerThreads(foldAt(chatId, { excludeMessageId }).state, plan.threads) };
+}
+
+/**
+ * docs/22 3.2: a correction under a plan is weak. At #629 the "I love you" was in the plan's KNOW and
+ * MOVE and in its threads, and the writer reads the plan first. So a plan the planner wrote that
+ * waits for something done gets one more try, told what's wrong. If that one still waits for it, the
+ * first plan stands with its correction. It costs a call only when there's something wrong.
+ */
+async function replanDone(chatId: string, history: HistoryMessage[], plan: Plan, state: WorldState, key: string, o: { note?: string; excludeMessageId?: string }) {
+  const waits = (p: Plan) => pendingDone(chatId, state, `${p.pass}\n${directorPlanText(p)}`);
+  const found = waits(plan);
+  if (plan.replanned || !found.length || shouldShed("advisor", chatId)) return plan;
+  const cfg = steerFor(chatId);
+  let next: Plan = { ...plan, replanned: true };
+  try {
+    const { system, user } = await advisorInput(chatId, history, undefined, { ...cfg, planner: true }, o.note, o.excludeMessageId);
+    const r = await callJson({ task: "planner", kind: "planner:replan", chatId, name: "planner_plan", schema: planSchema, system, user: `${user}\n\nYOUR FIRST PLAN FOR THIS REPLY WAITED FOR SOMETHING THAT ALREADY HAPPENED. Plan it again from where the story really is.\n${planCorrection(found)}`, maxTokens: 1800, temperature: 0.5, profileId: cfg.plannerProfileId });
+    const better = fromLedger(chatId, undraft(r.data), o.excludeMessageId);
+    if (better.pass.trim() && !waits(better).length) next = { ...better, replanned: true };
+  } catch (e) {
+    console.error("[mea] the replan failed:", (e as Error).message);
+  }
+  run("INSERT OR REPLACE INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, key, JSON.stringify(next), now());
+  return next;
 }
 
 /**
@@ -457,7 +491,7 @@ export function planText(p: Plan) {
  * The plan for the reply being prepared. With `wait`, a plan that isn't ready yet is waited for
  * up to the configured few seconds; without it (the inspector's preview), only a ready plan is used.
  */
-export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean; note?: string; excludeMessageId?: string }): Promise<(PromptExtra & { planner?: boolean; pass?: string }) | null> {
+export async function advisorExtra(chatId: string, history: HistoryMessage[], opts: { wait: boolean; note?: string; excludeMessageId?: string; state?: WorldState | null }): Promise<(PromptExtra & { planner?: boolean; pass?: string }) | null> {
   const cfg = steerFor(chatId);
   if (!cfg.advisorOn) return null;
   const note = opts.note?.trim() || undefined;
@@ -476,6 +510,10 @@ export async function advisorExtra(chatId: string, history: HistoryMessage[], op
     if (r) plan = parseJson<Plan>(r.plan, planSchema.parse({}));
   }
   if (!plan) return null;
+  if (opts.wait && opts.state && cfg.planner && plan.pass.trim()) {
+    const first = plan;
+    plan = await Promise.race([replanDone(chatId, history, plan, opts.state, key, { note, excludeMessageId: opts.excludeMessageId }), Bun.sleep(PLANNER_WAIT_S * 1000).then(() => first)]);
+  }
   if (cfg.planner && plan.pass.trim()) return { id: "advisor", name: "Director's plan", content: directorPlanText(plan), depth: 0, planner: true, pass: plan.pass.trim() };
   return { id: "advisor", name: "Advisor's plan", content: planText(plan), depth: 0 };
 }
@@ -485,7 +523,7 @@ export async function advisorExtra(chatId: string, history: HistoryMessage[], op
  * and kept unused so the regenerated take (the same turn) is written from it.
  */
 export function editPlan(chatId: string, generationId: string, text: string, key?: string) {
-  const plan: Plan = planSchema.parse({ pass: text.trim().slice(0, 6000) });
+  const plan: Plan = planSchema.parse({ pass: text.trim().slice(0, 6000), replanned: true });
   const row = one<PlanRow>("SELECT * FROM advisor_plans WHERE chat_id = ? AND generation_id = ?", chatId, generationId);
   if (row) run("UPDATE advisor_plans SET plan = ?, used_at = NULL, generation_id = NULL WHERE id = ?", JSON.stringify(plan), row.id);
   else if (key) run("INSERT OR REPLACE INTO advisor_plans (id, chat_id, key, plan, created_at) VALUES (?, ?, ?, ?, ?)", newId(), chatId, key, JSON.stringify(plan), now());

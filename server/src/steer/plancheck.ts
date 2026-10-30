@@ -1,5 +1,5 @@
 import { parsePlan } from "../../../shared/plan";
-import { sentencesOf } from "../accuracy/promptcheck";
+import { AHEAD, doneAhead, PAST, sentencesOf } from "../accuracy/promptcheck";
 import { closedItems, doneMatcher, doneRecords } from "../memory/openlist";
 import { contentWords } from "../memory/text";
 import { openLoops } from "../trackers/loops";
@@ -97,32 +97,44 @@ function clash(f: Fact, id: string, says: "unaware" | "knows") {
   return s === "unaware" || s === "wrong" || Boolean(f.secret?.from.includes(id) && !KNOWING.has(s ?? ""));
 }
 
-/** A plan line with something still to come, and one that knows it's past. */
-const AHEAD = /\b(?:tonight|tomorrow|still|due|pending|waiting|waits|unsaid|not yet|hasn['’]t)\b/i;
-const PAST = /\b(?:already|again|since|anymore|no longer)\b/i;
-
 /**
  * A plan that waits for what the story has done. #629's said "tonight holds her promised whole-word
  * 'I love you' after Dawn sleeps", and "don't stage the confession early": she'd said it the night
  * before. A line is matched against the open items later records closed, in their own wording,
  * since a plan built on a stale list repeats it. Only a scene's word closes it: a kept promise can
  * come round again (tacos every Friday), and something still open that the line also fits keeps it.
+ * A line that sets up a done loop counts as well ("the grocery run").
  */
 export function pendingDone(chatId: string, st: WorldState | null | undefined, plan: string | null | undefined): PlanFinding[] {
   if (!st || !plan?.trim()) return [];
   const items = closedItems(chatId, st, doneMatcher(st, doneRecords(chatId, st))).filter((i) => !i.closed.strict);
-  if (!items.length) return [];
   const match = doneMatcher(st, items.map((i) => ({ ...i, strict: true })));
   const stillOpen = doneMatcher(st, openLoops(st).map((l) => ({ text: l.what, seq: 1 })));
+  const ahead = doneAhead(st, { lists: true });
   const out: PlanFinding[] = [];
+  const add = (claim: string, fact: string, seq: number) => {
+    if (!out.some((o) => o.fact === fact)) out.push({ claim: claim.trim(), who: "", says: "pending", fact, status: "done", seq, strong: true });
+  };
   for (const s of sentencesOf(plan)) {
-    if (!AHEAD.test(s) || PAST.test(s) || stillOpen(s, 0)) continue;
-    const hit = match(s, 0);
+    const hit = AHEAD.test(s) && !PAST.test(s) && !stillOpen(s, 0) ? match(s, 0) : null;
     const item = hit && items.find((i) => i.text === hit.text);
-    if (!item || out.some((o) => o.fact === item.closed.text)) continue;
-    out.push({ claim: s.trim(), who: "", says: "pending", fact: item.closed.text, status: "done", seq: item.closed.seq, strong: true });
+    if (item) add(s, item.closed.text, item.closed.seq);
+    else {
+      const l = ahead(s);
+      if (l) add(s, l.what, l.closed!);
+    }
   }
   return out.slice(0, 2);
+}
+
+/** docs/22 3.2: a plan can't carry a thread the ledger doesn't have. An open loop's id reads as the loop, an open thread's title stays, and the rest goes. */
+export function ledgerThreads(st: WorldState, threads: string[]) {
+  const loops = new Map(openLoops(st).map((l) => [l.id, l.what]));
+  const titles = new Set(Object.values(st.threads).filter((t) => t.status !== "resolved").map((t) => t.title.toLowerCase()));
+  return threads.flatMap((t) => {
+    const what = loops.get(t.match(/\bL[0-9a-z]{5}\b/)?.[0] ?? "");
+    return what ? [what] : titles.has(t.trim().toLowerCase()) ? [t.trim()] : [];
+  });
 }
 
 /** What the writer is told: where the plan and the records disagree, the records win. */

@@ -82,6 +82,7 @@ function helperJson(name: string, user: string, system = ""): unknown {
     // H3: the separate planner returns the whole pass (and says whether it saw the lanes).
     case "planner_plan":
       if (/MOCK_PLANNER_FAIL/.test(user)) throw new Error("mock planner failure");
+      if (/MOCK_PLANNER_WAITS/.test(user)) return { pass: "NOW — the kitchen.\nMOVE — then groceries.\nVOICE — short.", direction: "", beats: [], threads: [], reminders: [], avoid: [] };
       return { pass: `NOW — the lamp room, night.\nMOVE — she answers honestly.${/WHAT MEA'S FEATURES ADD/.test(user) ? "\nLANES — seen." : ""}\nVOICE — short, quiet.`, direction: "Answer honestly.", beats: ["A small gesture", "One honest line"], threads: [], reminders: [], avoid: [] };
     case "scene_boundary":
       return { newScene: !/MOCK_SAME_SCENE/.test(user), reason: "mock" };

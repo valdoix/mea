@@ -22,8 +22,11 @@ export const cardPieces = (card: CardData) =>
 export const personaPieces = (text: string) => (text.trim() ? [{ where: "persona", text }] : []);
 
 /** One correction as the prompt says it. */
-export const correctionLine = (f: Finding) =>
-  f.kind === "time" ? `- The ${f.where} says: "${clip(f.sentence)}" — ${f.now}.` : `- The ${f.where} says: "${clip(f.sentence)}" — written before #${f.seq}. ${f.now.charAt(0).toUpperCase()}${f.now.slice(1)}.`;
+export const correctionLine = (f: Finding) => {
+  if (f.kind === "time") return `- The ${f.where} says: "${clip(f.sentence)}" — ${f.now}.`;
+  if (f.kind === "done") return `- The ${f.where} says: "${clip(f.sentence)}" — that's over. ${f.now} (#${f.seq}).`;
+  return `- The ${f.where} says: "${clip(f.sentence)}" — written before #${f.seq}. ${f.now.charAt(0).toUpperCase()}${f.now.slice(1)}.`;
+};
 
 /** Said once under the opening's lines: the moment is past, and so is what it says people look like. */
 const OPENING_AFTER = "What the card says of that moment (where people are, what they wear, what is on their hands) is the past: the story since has changed it, and anyone who speaks of it says when it really was.";

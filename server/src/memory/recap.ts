@@ -5,6 +5,7 @@ import { countTokens } from "../lib/tokens";
 import { historyForPrompt } from "../services/chats";
 import { callJson } from "../services/llm";
 import { cachedQuota } from "../services/connections";
+import { correctMemory } from "../accuracy/corrections";
 import { trackerPrompt } from "../trackers/service";
 import { standing } from "../trackers/stands";
 import type { WorldState } from "../trackers/types";
@@ -50,7 +51,8 @@ function storyContext(chatId: string) {
     .map((c) => `- ${c.title}: ${summaryText(c, lens).slice(0, 400)}`)
     .join("\n");
   const { stands, happened } = standing(chatId, st);
-  return [story?.content ? `STORY SO FAR:\n${summaryText(story, lens)}` : "", chapters ? `LATEST CHAPTERS:\n${chapters}` : "", state, stands && `WHERE THINGS STAND:\n${stands}`, happened && `ALREADY HAPPENED:\n${happened}`, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
+  const records = correctMemory(st, [story?.content ? `STORY SO FAR:\n${summaryText(story, lens)}` : "", chapters ? `LATEST CHAPTERS:\n${chapters}` : ""].filter(Boolean).join("\n\n"), "records").text;
+  return [records, state, stands && `WHERE THINGS STAND:\n${stands}`, happened && `ALREADY HAPPENED:\n${happened}`, `RECENT MESSAGES:\n${recent}`].filter(Boolean).join("\n\n");
 }
 
 /** The cached recap if the story hasn't moved since, else a fresh one. */
