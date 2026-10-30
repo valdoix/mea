@@ -5,9 +5,9 @@
   /** P1: what Mea filed from this message, each with Undo (and "That's not what I meant" for guesses). */
   let { messageId }: { messageId: string } = $props();
   const list = $derived(filed.byMessage[messageId] ?? []);
-  const icon: Record<string, string> = { lesson: "📏", promise: "🤝", truth: "📌", calendar: "📅", motif: "🔁", plant: "🌱", offpage: "🔒", owner: "🏷", clock: "🕰", canon: "📚", lore_update: "📖", "note-know": "👁", "note-truth": "📌", "lesson-fact": "👁" };
+  const icon: Record<string, string> = { lesson: "📏", promise: "🤝", truth: "📌", calendar: "📅", motif: "🔁", plant: "🌱", offpage: "🔒", owner: "🏷", clock: "🕰", canon: "📚", lore_update: "📖", "note-know": "👁", "note-truth": "📌", "note-loop": "✅", "lesson-fact": "👁" };
   // docs/19 5.1: a fact saved from your note for a reply can be taken back as only meant for that reply.
-  const fromNote = (kind: string) => kind === "note-know" || kind === "note-truth";
+  const fromNote = (kind: string) => kind === "note-know" || kind === "note-truth" || kind === "note-loop";
 </script>
 
 {#if list.length}

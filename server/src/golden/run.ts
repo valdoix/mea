@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { one, run as sql } from "../db/db";
+import { all, one, run as sql } from "../db/db";
 import { checkReply, dismissIssue } from "../accuracy/checker";
 // The rest of the slip registry (not here, the clock backwards, planning left in…) registers on import.
 import "../accuracy/moreslips";
@@ -12,11 +12,12 @@ import { normalizeCard } from "../cards/card";
 import { createLorebook, softDeleteLorebook } from "../lore/service";
 import { defaultEntry } from "../lore/types";
 import { createCharacter } from "../services/characters";
-import { addMessage, createChat, getMessageRow, softDeleteChat, softDeleteMessage, updateChat } from "../services/chats";
+import { addMessage, createChat, getMessageRow, historyForPrompt, softDeleteChat, softDeleteMessage, updateChat } from "../services/chats";
 import { previewPrompt, startStory } from "../services/generation";
 import { createPersona } from "../services/personas";
-import { runAdvisor } from "../steer/advisor";
+import { advisorExtra, advisorInput, runAdvisor, steerFor } from "../steer/advisor";
 import { currentFold, dryRunOps, linesToOps, writeEvents } from "../trackers/store";
+import type { Op } from "../trackers/types";
 
 /**
  * Golden scenarios (Almanac plan K1): a fixed set of scenes that grade Mea's preset and pipeline
@@ -43,13 +44,28 @@ const scenarioSchema = z.object({
   /**
    * The story so far. docs/20: a message can carry its own ledger lines (its time, place, promises),
    * and a reply can be checked as it lands, its flags kept or dismissed (a deliberate retelling).
+   * `closes` are loops finished at that message, with every wording they've had (docs/22).
    */
   history: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string(), ledger: z.array(z.string()).default([]), check: z.enum(["keep", "dismiss"]).optional() }))
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string(),
+        ledger: z.array(z.string()).default([]),
+        closes: z.array(z.object({ what: z.string(), from: z.array(z.string()).default([]) })).default([]),
+        check: z.enum(["keep", "dismiss"]).optional(),
+      }),
+    )
     .default([]),
+  /** Take back this many of the newest messages before anything's read. */
+  rewind: z.number().default(0),
   /** Run the planner (the advisor, or the separate planner when the chat asks for one) before the prompt is read. */
   runPlanner: z.boolean().default(false),
+  /** Plans sent back for waiting on something done, once the plan is read as a reply would. */
+  replans: z.number().optional(),
   prompt: z.object({ contains: z.array(z.string()).default([]), lacks: z.array(z.string()).default([]) }).optional(),
+  /** The same, of what the separate planner is given. */
+  plannerInput: z.object({ contains: z.array(z.string()).default([]), lacks: z.array(z.string()).default([]) }).optional(),
   /** A good reply: none of `forbid` may be flagged. */
   reply: z.string().optional(),
   forbid: z.array(z.string()).default([]),
@@ -57,8 +73,8 @@ const scenarioSchema = z.object({
   bad: z.array(z.object({ reply: z.string(), expect: z.array(z.string()) })).default([]),
   /** Ledger lines a tracker might write: every line must read and apply (or, with `ok: false`, not). */
   ledgerShape: z.array(z.object({ lines: z.array(z.string()), ok: z.boolean() })).default([]),
-  /** Records after the reply: lines written with it, then path checks ("obligations.*.status" = "kept"). */
-  after: z.object({ lines: z.array(z.string()), expect: z.array(z.object({ path: z.string(), equals: z.unknown() })) }).optional(),
+  /** Records after the reply: lines written with it, then path checks ("obligations.*.status" = "kept"), and paths with nothing there. */
+  after: z.object({ lines: z.array(z.string()), expect: z.array(z.object({ path: z.string(), equals: z.unknown() })).default([]), none: z.array(z.string()).default([]) }).optional(),
 });
 export type Scenario = z.infer<typeof scenarioSchema>;
 
@@ -132,6 +148,7 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
     for (const m of s.history) {
       const id = addMessage(chatId, m.role, m.content, m.role === "assistant" ? { name: s.card.name } : {});
       if (m.ledger.length) writeEvents(chatId, { messageId: id, swipeIdx: 0 }, linesToOps(m.ledger).ops, "model");
+      if (m.closes.length) writeEvents(chatId, { messageId: id, swipeIdx: 0 }, m.closes.map((c): Op => ({ op: "loop", args: { action: "new", what: c.what, kind: "errand", from: c.from, done: true, how: c.what }, raw: `loop: ${c.what}` })), "memory");
       if (m.check) {
         const issues = (await checkReply(chatId, id, 0, { model: false })) ?? [];
         const flag = one<{ id: string }>("SELECT id FROM continuity_flags WHERE message_id = ?", id);
@@ -139,9 +156,21 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
       }
     }
 
+    for (const { id } of all<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?", chatId, s.rewind)) softDeleteMessage(id);
+
     if (s.runPlanner) {
       const plan = await runAdvisor(chatId);
       check("the planner ran", true, plan ? (plan.pass || plan.direction).slice(0, 120) : "no plan: the writer plans for itself");
+    }
+    if (s.plannerInput) {
+      const { user } = await advisorInput(chatId, historyForPrompt(chatId), undefined, { ...steerFor(chatId), planner: true });
+      for (const c of s.plannerInput.contains) check(`planner reads "${c.slice(0, 40)}"`, user.includes(c));
+      for (const c of s.plannerInput.lacks) check(`planner doesn't read "${c.slice(0, 40)}"`, !user.includes(c));
+    }
+    if (s.replans != null) {
+      await advisorExtra(chatId, historyForPrompt(chatId), { wait: true, state: currentFold(chatId).result.state });
+      const n = one<{ n: number }>("SELECT COUNT(*) AS n FROM generations WHERE chat_id = ? AND kind = 'planner:replan'", chatId)?.n ?? 0;
+      check(`${s.replans} plan${s.replans === 1 ? "" : "s"} sent back`, n === s.replans, `got ${n}`);
     }
     if (s.prompt) {
       const p = await previewPrompt(chatId);
@@ -189,6 +218,10 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
       for (const e of s.after.expect) {
         const vs = pathValues(st, e.path);
         check(`${e.path} = ${JSON.stringify(e.equals)}`, vs.length > 0 && vs.every((v) => JSON.stringify(v) === JSON.stringify(e.equals)), `got ${JSON.stringify(vs).slice(0, 120)}`);
+      }
+      for (const p of s.after.none) {
+        const vs = pathValues(st, p);
+        check(`nothing at ${p}`, !vs.length, `got ${JSON.stringify(vs).slice(0, 120)}`);
       }
     }
   } finally {

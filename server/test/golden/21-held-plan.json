@@ -1,0 +1,50 @@
+{
+  "name": "held-plan",
+  "about": "Filed Under Stay #629's tracker lines: what a flagged reply filed about something done waits, and the rest stands.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy works nights at the records office in Sunnydale.",
+    "first_mes": "The lamp hums."
+  },
+  "ledger": [
+    "clock: Day 1 12:00",
+    "at: Sunnydale > The kitchen",
+    "cast: Buffy@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "assistant",
+      "content": "Bought, and carried in.",
+      "closes": [
+        {
+          "what": "The grocery portion of the Thursday list — completed",
+          "from": [
+            "The Thursday list: groceries, then tacos",
+            "We'll buy you groceries tomorrow",
+            "the grocery run for the house"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "And cilantro?"
+    }
+  ],
+  "reply": "He needs cilantro, she says, and the grocery run is a two-person operation.",
+  "after": {
+    "lines": [
+      "plan Grocery run: tonight",
+      "plan Dinner at the Bronze: tonight"
+    ],
+    "expect": [
+      {
+        "path": "calendar.dinner-at-the-bronze.title",
+        "equals": "Dinner at the Bronze"
+      }
+    ],
+    "none": [
+      "calendar.grocery-run"
+    ]
+  }
+}

@@ -258,6 +258,12 @@ export interface Loop {
   calendar?: string;
   /** Every wording that's known to be this loop. */
   from: string[];
+  /** Your word is on it, so no model changes it (docs/19 principle 7). */
+  yours?: boolean;
+  /** You closed it yourself, because nothing else did (docs/22 5.3). */
+  byHand?: boolean;
+  /** The message you reopened it at: what closes it again has to come after. */
+  reopened?: number;
 }
 
 export interface Deadline {

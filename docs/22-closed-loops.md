@@ -281,9 +281,19 @@ Its fact sheet says the facts "can lag behind the story", which is why #599 pass
 
 In the story dock: open loops, newest first, then done ones with the quote that closed them. One tap closes, reopens or drops, and it holds (docs/19 principle 7). Today's "mark as kept" keeps working and becomes the same action. It should be needed rarely, and 5.3 counts how often it is.
 
+As built, what holds is this. A loop you closed or called off stays that way: a model's line about it is refused, and only you can reopen it. A loop you reopened can't be closed by anything up to the message you reopened it at, so a rebuilt scene can't put the same close back, but a later reply that really does it still can. Otherwise a reopened loop could only ever be closed by hand, and it would sit in WHERE THINGS STAND as open after it happened, which is the bug this plan is about.
+
+A hand close lands on the newest message, not the one it happened at: the panel doesn't know which that was. So the "(#N)" on a loop you closed is when you said so.
+
+Both "mark as kept" routes already write a `promise` line, so the fold does the joining: a promise you settle marks its loop as yours and by hand. Calling a loop off now settles what it stands for, which it didn't before: its promise goes to `excused`, so it can't break later and hurt the bond, and its plan comes off the calendar.
+
 ### 5.2 A note closes the loop
 
 "We already did the grocery run" on a reply goes through `fileNoteFacts` (docs/19 5.1) and closes the loop. A note then fixes the record, not just one take.
+
+Rules first: a clause that says it's over (already, did, done, happened, finished), doesn't say it isn't, and has every word of one of the loop's wordings. Every word, because "she already moved the boxes to the house" mustn't close the move to Gabriel's house. "Was" isn't enough: a thing called off "was" too. The rest goes to the note's helper, which now sees the open loops by id and can answer `closes`. That's how "Buffy already said I love you" reaches "say the word tonight", which shares none of its words. A plain fact that names its people used to skip the helper; one that says something's over now goes to it first, but only while something is open, and it stands as a story truth if the helper doesn't close anything. That's the one new call, and it's on a call that already existed.
+
+It closes at the message before the reply, as a note's other records do. The chip has Undo and "That's only for this reply", and either opens the loop again. It's untested with a real model: the mock answers for the helper.
 
 ### 5.3 Story health: Open loops
 
@@ -299,6 +309,10 @@ A new part of Story health, worked out from the ledger, with nothing new stored:
 
 It opens the worst one.
 
+As built, in `accuracy/loophealth.ts`, on the live score only (the weekly trend and Home's dots don't count it). "By hand" is of the last 25 closes, since they're rare and 20 replies would say nothing; a card you approved doesn't count as by hand. The age of the Story So Far is closed chapters it hasn't taken in, which says a rollup stopped better than a number of messages does: a chapter's worth behind is normal. Lag counts the messages between a loop's message and a model's record of it. A rebuilt scene rewrites its events, so it can read high. The stale lines are `trace.outdated` of kind `done` on those replies, by where they were.
+
+On *Filed Under Stay*, on a copy: 54 out of 100 with the card approved, 28 without. Worst is a real find: the Story So Far ends at #532, three chapters behind. Without the card it's 11 of the last 21 closes by hand, with it 8 of the last 25, and "Pick up Dawn" and the tacos are past due until the card drops them. Neither lag nor the stale lines have anything to count yet: no reply has been written with those parts in place. The weights are a first guess.
+
 ### 5.4 Golden scenarios
 
 | Scenario | Checks |
@@ -310,6 +324,8 @@ It opens the worst one.
 | The move to Gabriel's house | stays open through "offer him the hills house" |
 | A rewind past #542 | the loop reopens, and the three words are pending again |
 | A deliberate lie about the past, dismissed | no flag again |
+
+As built, `19` to `25` in `server/test/golden/`, on the mock, and each one was seen to fail with what it guards switched off. They're small scenes in this chat's words, not the chat itself, so they pin the rules and not your real ledger. In the first, the mock's retry still waits for it, so the check is that the plan went back once; `gates.test.ts` has the retry that comes back clean.
 
 ---
 

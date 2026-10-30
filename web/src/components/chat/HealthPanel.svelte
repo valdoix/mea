@@ -16,8 +16,9 @@
     label: string;
     score: number;
     detail: string;
-    open?: { messageId: string; seq: number } | { dock: "chat" | "story"; section?: string } | { href: string };
+    open?: { messageId: string; seq: number } | { dock: "chat" | "story" | "memory"; section?: string } | { href: string };
     ask?: string;
+    notes?: string[];
   }
   interface Health {
     score: number;
@@ -47,7 +48,7 @@
   let t: ReturnType<typeof setTimeout>;
   $effect(() =>
     onEvent((e) => {
-      if ((e.type === "continuity.changed" || e.type === "gen.end" || e.type === "lessons.changed") && e.chatId === chatId) {
+      if ((e.type === "continuity.changed" || e.type === "gen.end" || e.type === "lessons.changed" || e.type === "trackers.changed") && e.chatId === chatId) {
         clearTimeout(t);
         t = setTimeout(load, 2000);
       }
@@ -100,6 +101,7 @@
               <span class="bar" aria-hidden="true"><i class:fair={p.score < 80} class:poor={p.score < 60} style:width="{p.score}%"></i></span>
               <span class="n">{p.score}</span>
               <small>{p.detail}</small>
+              {#each p.notes ?? [] as n}<small>{n}</small>{/each}
             </button>
           </li>
         {/each}

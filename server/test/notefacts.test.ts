@@ -62,7 +62,7 @@ describe("reading a note (5.1)", () => {
   test("rules read what names its people, and leave the rest to the helper", () => {
     const st = state();
     expect(readNote(st, NOTES[0]!).facts).toEqual([{ kind: "know", who: "Buffy", status: "unaware", fact: "Giles has left", label: "Buffy doesn't know: Giles has left" }]);
-    expect(readNote(st, NOTES[1]!)).toEqual({ facts: [], unsure: [NOTES[1]!] });
+    expect(readNote(st, NOTES[1]!)).toEqual({ facts: [], unsure: [NOTES[1]!], over: [] });
     const socks = readNote(st, NOTES[7]!);
     expect(socks.facts.map((f) => f.text)).toEqual(["Gabriel bought the socks with Buffy"]);
     expect(socks.unsure).toEqual(["she's the one who told him Dawn's eyes color"]);
@@ -70,7 +70,7 @@ describe("reading a note (5.1)", () => {
 
   test("style and this reply's moment are never touched", () => {
     const st = state();
-    for (const n of ["make it warmer", "Slower, more of her hands", NOTES[5]!, NOTES[6]!]) expect(readNote(st, n)).toEqual({ facts: [], unsure: [] });
+    for (const n of ["make it warmer", "Slower, more of her hands", NOTES[5]!, NOTES[6]!]) expect(readNote(st, n)).toEqual({ facts: [], unsure: [], over: [] });
   });
 });
 

@@ -1,0 +1,47 @@
+{
+  "name": "already-bought",
+  "about": "Filed Under Stay #599: the groceries are done, and \"Then groceries\" is flagged.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy works nights at the records office in Sunnydale.",
+    "first_mes": "The lamp hums."
+  },
+  "ledger": [
+    "clock: Day 1 12:00",
+    "at: Sunnydale > The kitchen",
+    "cast: Buffy@spot · Ash@spot"
+  ],
+  "history": [
+    {
+      "role": "assistant",
+      "content": "Bought, and carried in.",
+      "closes": [
+        {
+          "what": "The grocery portion of the Thursday list — completed",
+          "from": [
+            "The Thursday list: groceries, then tacos",
+            "We'll buy you groceries tomorrow",
+            "the grocery run for the house"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "What's the plan?"
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "The grocery portion of the Thursday list"
+    ]
+  },
+  "bad": [
+    {
+      "reply": "\"Coffee first,\" she says. Then groceries.",
+      "expect": [
+        "undone"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "name": "already-said",
+  "about": "Filed Under Stay #629: the three words and the groceries are done, so the planner reads them as done, and a plan that still waits for them goes back once.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy works nights at the records office in Sunnydale.",
+    "first_mes": "The lamp hums."
+  },
+  "settings": {
+    "planning": "planner"
+  },
+  "ledger": [
+    "clock: Day 1 12:00",
+    "at: Sunnydale > The kitchen",
+    "cast: Buffy@spot · Ash@spot",
+    "loop: Spike's answer about the crypt | question"
+  ],
+  "history": [
+    {
+      "role": "assistant",
+      "content": "Bought, and carried in.",
+      "closes": [
+        {
+          "what": "The grocery portion of the Thursday list — completed",
+          "from": [
+            "The Thursday list: groceries, then tacos",
+            "We'll buy you groceries tomorrow",
+            "the grocery run for the house"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "She says it. All of it.",
+      "closes": [
+        {
+          "what": "Buffy's promise to say the whole word tonight, eyes open, no takebacks",
+          "from": [
+            "Buffy's promise to say the whole word tonight, eyes open, no takebacks",
+            "say the whole word tonight"
+          ]
+        }
+      ],
+      "ledger": [
+        "milestone: Buffy said 'I love you' — Buffy"
+      ]
+    },
+    {
+      "role": "user",
+      "content": "What now? MOCK_PLANNER_WAITS"
+    }
+  ],
+  "runPlanner": true,
+  "replans": 1,
+  "plannerInput": {
+    "contains": [
+      "Done lately:",
+      "Buffy said 'I love you'",
+      "Open: Spike's answer about the crypt"
+    ],
+    "lacks": [
+      "Open: Buffy's promise"
+    ]
+  }
+}

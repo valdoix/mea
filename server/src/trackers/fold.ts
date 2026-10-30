@@ -574,6 +574,7 @@ export class Folder {
     l.status = "done";
     l.closed = seq;
     if (how) l.how = clip(how);
+    this.ownLoop(l, ctx);
     this.push(ctx, { kind: "loop", text: `Done: ${l.what}`, path: `loops.${l.id}`, reason: how, tone: "up" });
     const st = this.state;
     const o = l.obligation ? st.obligations[l.obligation] : undefined;
@@ -588,18 +589,52 @@ export class Folder {
     if (e) e.done = true;
   }
 
+  /** Called off: nobody's waiting for it, so its promise isn't left to break and its plan comes off the calendar. */
+  private dropLoop(l: Loop, seq: number, ctx: Ctx) {
+    const st = this.state;
+    const o = l.obligation ? st.obligations[l.obligation] : undefined;
+    if (o && (o.status === "open" || o.status === "due")) {
+      o.status = "excused";
+      o.settled = seq;
+      o.auto = false;
+      this.feelPromise(o, ctx, seq);
+    }
+    const e = l.calendar ? st.calendar[l.calendar] : undefined;
+    if (e) e.done = true;
+  }
+
+  /** It's yours once you've had your say, and it counts as by hand if a tap or a note did it: a card you approved doesn't. */
+  private ownLoop(l: Loop, ctx: Ctx, hand = Boolean(ctx.ev.op.args.hand)) {
+    if (ctx.ev.source !== "user") return;
+    l.yours = true;
+    if (hand) l.byHand = true;
+    else delete l.byHand;
+  }
+
+  /** What only you can change: a loop you closed, or one you reopened, up to where you did. */
+  private loopHeld(l: Loop, seq: number) {
+    return l.status === "open" ? (l.reopened ?? -1) >= seq : Boolean(l.yours);
+  }
+
   /** A promise's verdict reaches its loop. One already closed stays closed at the message it happened. */
-  private settleLoop(o: Obligation, seq: number) {
+  private settleLoop(o: Obligation, seq: number, ctx: Ctx, mine = ctx.ev.source === "user") {
     const l = Object.values(this.state.loops ?? {}).find((x) => x.obligation === o.id);
-    if (!l || l.repeats) return;
+    if (!l || l.repeats || (!mine && this.loopHeld(l, seq))) return;
     const done = o.status === "kept" || o.status === "paid";
     if (o.status === "open" || o.status === "due") {
       l.status = "open";
       delete l.closed;
       delete l.how;
+      if (mine) {
+        delete l.yours;
+        delete l.byHand;
+        l.reopened = seq;
+      }
     } else if (l.status === "open" || (done && l.status !== "done")) {
       l.status = done ? "done" : o.status === "forgiven" || o.status === "excused" ? "dropped" : "lapsed";
       l.closed = seq;
+      // "Mark as kept" is the same act as closing the loop by hand.
+      if (mine) this.ownLoop(l, ctx, true);
     }
   }
 
@@ -647,7 +682,7 @@ export class Folder {
       if (!verdict) continue;
       o.status = verdict;
       o.settled = ctx.ev.seq;
-      this.settleLoop(o, ctx.ev.seq);
+      this.settleLoop(o, ctx.ev.seq, ctx, false);
       o.auto = true;
       const who = this.nameOf(o.who);
       this.push(ctx, { kind: "promise", text: verdict === "kept" ? `Promise kept: ${o.what}` : o.meet ? `${o.whom ? this.nameOf(o.whom) : "Someone"} was stood up: ${o.what}` : `Promise broken: ${o.what}`, subject: who, path: `obligations.${o.id}`, reason: verdict === "kept" ? "both were there in time" : "the time passed", tone: verdict === "kept" ? "up" : "down", memory: true });
@@ -1372,7 +1407,7 @@ export class Folder {
         if (status && status !== o.status) {
           o.status = status;
           o.settled = seq;
-          this.settleLoop(o, seq);
+          this.settleLoop(o, seq, ctx);
           o.auto = ctx.ev.source === "engine";
           this.push(ctx, { kind: op.op, text: `${cap(op.op === "owe" ? "debt" : "promise")} ${status}: ${o.what}`, subject: who.name, path: `obligations.${id}`, reason: op.cause, tone: status === "kept" || status === "paid" ? "up" : status === "broken" ? "down" : "due", memory: status === "broken" || status === "kept" });
           if (op.op === "promise" && whom) this.feelPromise(o, ctx, seq);
@@ -1391,16 +1426,22 @@ export class Folder {
         }
         const l = st.loops?.[op.subject ?? ""];
         if (!l) return this.reject(ctx, "no such loop");
+        if (ctx.ev.source !== "user" && this.loopHeld(l, seq)) return this.reject(ctx, "held: you settled this loop, and it stays as you left it");
         if (a.action === "done") return this.closeLoop(l, seq, a.how, ctx);
         if (a.action === "dropped") {
           if (l.status !== "open") return;
           l.status = "dropped";
           l.closed = seq;
           if (a.how) l.how = clip(a.how);
+          this.ownLoop(l, ctx);
+          this.dropLoop(l, seq, ctx);
         } else if (a.action === "open") {
           l.status = "open";
           delete l.closed;
           delete l.how;
+          delete l.yours;
+          delete l.byHand;
+          if (ctx.ev.source === "user") l.reopened = seq;
           const o = l.obligation ? st.obligations[l.obligation] : undefined;
           if (o && o.status !== "open" && o.status !== "due") {
             o.status = "open";
