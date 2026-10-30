@@ -7,6 +7,7 @@ import { chatVectors, cosine } from "./embed";
 import { core, entityCard, entityFacts, genericPlace, norm, resolver, type EntityRow } from "./entities";
 import type { RecallItem, TimeIndex } from "./format";
 import type { SummaryRow } from "./store";
+import { type Done, type DoneMatch, openAsOf } from "./openlist";
 import { contentWords, ftsQuery, overlap } from "./text";
 
 /**
@@ -55,6 +56,9 @@ export interface RecallInput {
   /** Names never given an entity card (the main character and you are already in the prompt). */
   skipCards: Set<string>;
   povName: string | null;
+  /** What later records closed, and its matcher, for a recalled summary's open list. */
+  done?: Done[];
+  doneMatch?: DoneMatch;
 }
 
 export interface RecallStats {
@@ -318,7 +322,7 @@ export function recall(input: RecallInput) {
     const r = sumById.get(id);
     if (!r) return null;
     // What a past summary left open was open then; a later scene may have done it ("Grocery trip beginning").
-    const body = r.content.replace(/^(Left open|Still open): /m, `$1 as of #${r.end_seq} (may be done since): `);
+    const body = openAsOf(r.content, r.end_seq ?? 0, input.done ?? [], input.doneMatch ?? (() => null));
     const content = `Earlier, ${r.level} "${r.title}" (#${r.start_seq}–#${r.end_seq}): ${body}`;
     return decorate({ ownerType: "summary", id, type: r.level, content, slot, score: s?.score ?? 0, reasons, tokens: countTokens(content) + 9, seq: r.end_seq }, r.level === "scene" ? r.id : null);
   };

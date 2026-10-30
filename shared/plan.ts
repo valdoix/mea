@@ -87,11 +87,11 @@ export function planSource(how: unknown): string | null {
   }
 }
 
-/** docs/19 2.2: where the plan disagreed with the records about who knows what (the reply's meta.planCheck). */
+/** docs/19 2.2: where the plan disagreed with the records about who knows what, or what's already happened (the reply's meta.planCheck). */
 export interface PlanCheckFinding {
   claim: string;
   who: string;
-  says: "unaware" | "knows";
+  says: "unaware" | "knows" | "pending";
   fact: string;
   status: string;
   route?: string;
@@ -103,6 +103,7 @@ export interface PlanCheckFinding {
 
 /** A finding read back as one line: what the records say, and what became of it. */
 export function planCheckLine(f: PlanCheckFinding): string {
+  if (f.says === "pending") return `The records: already done, ${f.fact} (#${f.seq}). ${f.corrected ? "The writer was told." : "Found after the reply: this plan was written in it."}`;
   const status: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know" };
   const how = [f.route, f.seq ? `#${f.seq}` : ""].filter(Boolean).join(", ");
   return `The records: ${f.who} ${status[f.status] ?? f.status} ${f.fact}${how ? ` (${how})` : ""}. ${f.corrected ? "The writer was told." : "Found after the reply: this plan was written in it."}`;

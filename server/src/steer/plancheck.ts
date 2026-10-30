@@ -1,5 +1,6 @@
 import { parsePlan } from "../../../shared/plan";
 import { sentencesOf } from "../accuracy/promptcheck";
+import { closedItems, doneMatcher, doneRecords } from "../memory/openlist";
 import { contentWords } from "../memory/text";
 import { topicCounts, topicScorer } from "../trackers/topics";
 import type { Character, Fact, WorldState } from "../trackers/types";
@@ -21,8 +22,8 @@ export interface PlanFinding {
   /** The plan's sentence. */
   claim: string;
   who: string;
-  /** What the plan says about them: that they don't know, or that they do. */
-  says: "unaware" | "knows";
+  /** What the plan says about them: that they don't know, or that they do; or that something done is still to come. */
+  says: "unaware" | "knows" | "pending";
   fact: string;
   /** The stance the records have, with how and when. */
   status: string;
@@ -95,10 +96,39 @@ function clash(f: Fact, id: string, says: "unaware" | "knows") {
   return s === "unaware" || s === "wrong" || Boolean(f.secret?.from.includes(id) && !KNOWING.has(s ?? ""));
 }
 
+/** A plan line with something still to come, and one that knows it's past. */
+const AHEAD = /\b(?:tonight|tomorrow|still|due|pending|waiting|waits|unsaid|not yet|hasn['’]t)\b/i;
+const PAST = /\b(?:already|again|since|anymore|no longer)\b/i;
+
+/**
+ * A plan that waits for what the story has done. #629's said "tonight holds her promised whole-word
+ * 'I love you' after Dawn sleeps", and "don't stage the confession early": she'd said it the night
+ * before. A line is matched against the open items later records closed, in their own wording,
+ * since a plan built on a stale list repeats it. Only a scene's word closes it: a kept promise can
+ * come round again (tacos every Friday), and something still open that the line also fits keeps it.
+ */
+export function pendingDone(chatId: string, st: WorldState | null | undefined, plan: string | null | undefined): PlanFinding[] {
+  if (!st || !plan?.trim()) return [];
+  const items = closedItems(chatId, doneMatcher(st, doneRecords(chatId, st))).filter((i) => !i.closed.strict);
+  if (!items.length) return [];
+  const match = doneMatcher(st, items.map((i) => ({ ...i, strict: true })));
+  const stillOpen = doneMatcher(st, Object.values(st.obligations).filter((o) => o.status === "open" || o.status === "due").map((o) => ({ text: o.what, seq: 1 })));
+  const out: PlanFinding[] = [];
+  for (const s of sentencesOf(plan)) {
+    if (!AHEAD.test(s) || PAST.test(s) || stillOpen(s, 0)) continue;
+    const hit = match(s, 0);
+    const item = hit && items.find((i) => i.text === hit.text);
+    if (!item || out.some((o) => o.fact === item.closed.text)) continue;
+    out.push({ claim: s.trim(), who: "", says: "pending", fact: item.closed.text, status: "done", seq: item.closed.seq, strong: true });
+  }
+  return out.slice(0, 2);
+}
+
 /** What the writer is told: where the plan and the records disagree, the records win. */
 export function planCorrection(findings: PlanFinding[]): string {
   if (!findings.length) return "";
   const lines = findings.slice(0, 4).map((f) => {
+    if (f.says === "pending") return `- The plan says «${f.claim}». The records: already done, ${f.fact} (#${f.seq}). That's the past: nobody waits for it, plans it or promises it again.`;
     const how = [f.route, f.seq ? `#${f.seq}` : ""].filter(Boolean).join(", ");
     const records = `${f.who} ${STATUS[f.status] ?? f.status}: ${f.fact}${how ? ` (${how})` : ""}`;
     if (f.says === "knows") return `- The plan says «${f.claim}». The records: ${records}. ${f.who} can't act on it in this reply.`;
@@ -106,7 +136,7 @@ export function planCorrection(findings: PlanFinding[]): string {
       ? `- The plan says «${f.claim}». The records: ${records}. Write ${f.who} as knowing it.`
       : `- The plan says «${f.claim}». The records: ${records}. Write ${f.who} as knowing that much; anything beyond it is the plan's call.`;
   });
-  return `[PLAN CORRECTION — where the plan and the records disagree about who knows what, the records are right]\n${lines.join("\n")}`;
+  return `[PLAN CORRECTION — where the plan and the records disagree about who knows what or what has happened, the records are right]\n${lines.join("\n")}`;
 }
 
 // ---------- docs/20 Part 4: a plan that retells answers to the record ----------

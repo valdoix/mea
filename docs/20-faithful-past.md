@@ -197,6 +197,27 @@ When 3.3 flags a wrong recollection and you leave the flag up, the correction go
 
 ---
 
+## After Part 6 · Open lists answer to what closed
+
+In *Filed Under Stay*, Buffy said "I love you" at #542. At #629 the plan still read "tonight holds her promised whole-word 'I love you' after Dawn sleeps", and "don't stage the confession early". The tracker had the promise kept and the scene record had it fulfilled. What went wrong, measured on a copy of the production database:
+
+| Where | What happened |
+|---|---|
+| The Story So Far | It's rewritten when an arc closes. It ended at #532, ten messages short, with "still unsaid, due tonight", no date on it, and read like now for 97 messages. |
+| The planner | It reads the Story So Far and the last 8 messages. The chapters between (#533–#620) reached it only if recall happened to pick them, and "sleeves, dinner" doesn't. |
+| The scene records | Each lists what it closed, and only the rollup builder read that. Prompts got "Left open" and never "closed". |
+| The plan | The writer follows it. Nothing compared a plan's "still to come" with what was done. |
+
+As built (`memory/openlist.ts`), all at render time, so nothing stored changes and a rewind takes a closure with it:
+
+- A chapter or scene says what closed in it (`Closed here:`).
+- Every open list reads "as of" its last message, and the header says its "tonight" means that day.
+- An item a later record clearly closed comes off the list, and `Done since:` says so. Clearly: 558 open items measured, and word overlap alone can't tell "the whole word, no takebacks" (0.35, true) from "the filing system" (0.37, false), so it takes most of a thread's words, or three at 0.4, or 0.33 when both sides name a promise. A kept promise needs three shared words: "offer him the hills house" would have closed the move.
+- The planner reads `SINCE THEN`: the closed chapters after the Story So Far, then scenes, newest kept, 4,500 tokens.
+- `pendingDone` (`steer/plancheck.ts`) puts a correction under a plan line that looks ahead at something a scene closed, matching the open item's own words, since a stale plan repeats them. A kept promise doesn't count here: tacos come round every Friday.
+
+---
+
 ## Part 6 · Measure it
 
 ### 6.1 Golden scenarios
