@@ -10,6 +10,7 @@ import { embedQueries, embeddingsEnabled } from "../memory/embed";
 import { entityCard, entityFacts, resolver } from "../memory/entities";
 import { TimeIndex } from "../memory/format";
 import { promises, secrets } from "../memory/ledgers";
+import { lensOf, summaryText } from "../memory/openlist";
 import { recall } from "../memory/recall";
 import { memState, storyRow } from "../memory/store";
 import { cleanText, contentWords, overlap } from "../memory/text";
@@ -120,7 +121,7 @@ export async function gatherSources(chatId: string, question: string, limit = 18
   for (const { m } of ranked.slice(0, 4))
     push({ key: `quote:${m.id}`, type: "quote", label: `${m.name ?? m.role}, #${m.seq}`, excerpt: cleanText(m.content).replace(/\s+/g, " ").slice(0, 400), seq: m.seq, messageId: m.id, ownerId: m.id });
   const story = storyRow(chatId);
-  if (story?.content && sources.length < 6) push({ key: `story:${story.id}`, type: "story", label: "The story so far", excerpt: story.content.slice(0, 1200), seq: story.end_seq, messageId: null, ownerId: story.id });
+  if (story?.content && sources.length < 6) push({ key: `story:${story.id}`, type: "story", label: "The story so far", excerpt: summaryText(story, lensOf(chatId, null)).slice(0, 1200), seq: story.end_seq, messageId: null, ownerId: story.id });
   return sources.slice(0, limit).map((s, i): ArchiveCitation & { key: string } => ({ ...s, n: i + 1 }));
 }
 

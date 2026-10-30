@@ -595,9 +595,10 @@ export async function confirmBoundary(chatId: string, recent: string, next: stri
 
 export function storyNeedsRebuild(chatId: string) {
   const story = storyRow(chatId);
-  const arcs = levelRows(chatId, "arc").filter((a) => a.closed && a.state === "ready");
-  const target = arcs.at(-1)?.end_seq ?? null;
-  if (target == null) return false;
+  // By the chapter, not the arc: an arc is about 180 messages, and its "where things stand" read as now for all of them.
+  const ready = (level: "arc" | "chapter") => levelRows(chatId, level).filter((r) => r.closed && r.state === "ready").at(-1)?.end_seq ?? 0;
+  const target = Math.max(ready("arc"), ready("chapter"));
+  if (!target) return false;
   if (!story) return true;
   if (story.state === "stale" || story.state === "pending") return story.state === "stale" || (story.end_seq ?? 0) < target;
   return story.state === "ready" && (story.end_seq ?? 0) < target;

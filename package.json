@@ -16,6 +16,7 @@
     "budgets": "bun scripts/check-budgets.ts",
     "bench": "bun scripts/bench-long-chat.ts",
     "golden": "bun scripts/golden.ts",
+    "replay": "bun scripts/replay.ts",
     "icons": "bun scripts/gen-icons.ts",
     "app:desktop": "cd desktop && tauri build",
     "app:android": "cd mobile && bun install && bun run apk"

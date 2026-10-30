@@ -12,6 +12,7 @@ import { listJournals } from "../memory/journals";
 import { chatNames } from "../memory/build";
 import { duplicateSuggestions, listEntities } from "../memory/entities";
 import { promises, secrets } from "../memory/ledgers";
+import { lensOf, summaryText } from "../memory/openlist";
 import { storyRow } from "../memory/store";
 import { cleanText } from "../memory/text";
 import { type ChatSettings, mustChat } from "../services/chats";
@@ -117,7 +118,7 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
   if (since.length) blocks.push(`SINCE THE CARD (this chat's note on how they've changed; the cards stay as written; [line ids]):\n${since.map((p) => `${p.name} (${p.who}):\n${p.lines.map(sinceLine).join("\n")}`).join("\n")}`);
 
   const recap = storyRow(chatId);
-  if (recap?.content?.trim()) blocks.push(`THE STORY SO FAR (the running summary, to #${recap.end_seq}):\n${clip(recap.content.trim(), 2500)}`);
+  if (recap?.content?.trim()) blocks.push(`THE STORY SO FAR (the running summary, to #${recap.end_seq}):\n${clip(summaryText(recap, lensOf(chatId, st)), 2500)}`);
 
   const recent = all<{ seq: number; name: string | null; role: string; content: string; hidden: number }>(
     `SELECT m.seq, m.name, m.role, m.hidden, s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe

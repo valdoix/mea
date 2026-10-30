@@ -10,7 +10,7 @@ import { formatRecallBlock, type RecallItem, TimeIndex } from "./format";
 import { journalText } from "./journals";
 import { cachedRewrite, cachedVerdict, contextText } from "./librarian";
 import { buildQueries, type LibrarianVerdict, type PovFilter, type QuerySpec, recall, type RecallStats } from "./recall";
-import { type Done, doneMatcher, type DoneMatch, doneRecords, openAsOf } from "./openlist";
+import { type Lens, lensOf, PLAIN, summaryText } from "./openlist";
 import { levelRows, memState, storyRow, type SummaryRow } from "./store";
 import { contentWords, hashText } from "./text";
 
@@ -125,7 +125,7 @@ interface TItem {
  * Everything up to `evicted` at decreasing resolution: scenes, folded into their chapter,
  * arc, and finally the Story So Far, oldest first, until it fits the budget.
  */
-export function telescope(chatId: string, evicted: number, budget: number, reveals: Reveal[] = [], done: Done[] = [], match: DoneMatch = () => null) {
+export function telescope(chatId: string, evicted: number, budget: number, reveals: Reveal[] = [], lens: Lens = PLAIN) {
   const scenes = levelRows(chatId, "scene").filter((s) => s.closed && (s.end_seq ?? 0) <= evicted);
   const chapters = levelRows(chatId, "chapter");
   const arcs = levelRows(chatId, "arc");
@@ -141,7 +141,9 @@ export function telescope(chatId: string, evicted: number, budget: number, revea
     if (it.row.level === "arc") return story && usable(story) && story.end_seq != null && story.end_seq <= evicted && story.end_seq >= it.end ? story : null;
     const list = it.row.level === "scene" ? chapters : arcs;
     const p = [...list].reverse().find((r) => r.start_seq <= it.start);
-    return p && p.closed && (p.end_seq ?? Infinity) <= evicted && usable(p) ? p : null;
+    if (p && p.closed && (p.end_seq ?? Infinity) <= evicted && usable(p)) return p;
+    // The Story So Far moves by the chapter, so it can cover a chapter whose arc is still open.
+    return it.row.level === "chapter" && story && usable(story) && story.end_seq != null && story.end_seq <= evicted && story.end_seq >= it.end ? story : null;
   };
 
   let dropped = 0;
@@ -176,7 +178,7 @@ export function telescope(chatId: string, evicted: number, budget: number, revea
   if (evicted > lastCovered) gaps.push({ startSeq: lastCovered + 1, endSeq: evicted, reason: "not segmented yet" });
   const parts = items.filter((i) => i.tokens > 0);
   const shown = new Set<string>();
-  const text = parts.map((it) => `${heading(it.row, it.start, it.end)}\n${openAsOf(it.row.content.trim(), it.end, done, match, shown, detailed(it.row) ? it.start : undefined)}${sinceThen(it, parts, reveals)}`).join("\n\n");
+  const text = parts.map((it) => `${heading(it.row, it.start, it.end)}\n${summaryText(it.row, lens, shown)}${sinceThen(it, parts, reveals)}`).join("\n\n");
   return {
     text,
     items: parts.map((it) => ({ id: it.row.id, level: it.row.level, title: it.row.title, startSeq: it.start, endSeq: it.end, tokens: it.tokens, state: it.row.state })) as TelescopeItem[],
@@ -185,9 +187,6 @@ export function telescope(chatId: string, evicted: number, budget: number, revea
     gaps,
   };
 }
-
-/** A chapter or a scene says what closed in it; an arc or the Story So Far already tells it. */
-const detailed = (r: SummaryRow) => r.level === "scene" || r.level === "chapter";
 
 function heading(r: SummaryRow, start: number, end: number) {
   const time = r.story_time ? ` · ${r.story_time}` : "";
@@ -201,19 +200,17 @@ function heading(r: SummaryRow, start: number, end: number) {
  * chapters since it ends and the scenes after them, up to the recent messages it reads whole, newest
  * kept. At #629 that was everything from #533 to #620, the "I love you" with it, and none of it was there.
  */
-export function afterStory(chatId: string, through: number, budget: number, st: WorldState | null | undefined) {
+export function afterStory(chatId: string, through: number, budget: number, lens: Lens) {
   const from = storyRow(chatId)?.end_seq ?? 0;
   const fits = (r: SummaryRow) => r.closed && usable(r) && r.start_seq > from && r.start_seq <= through;
   const chapters = levelRows(chatId, "chapter").filter(fits);
   const last = chapters.at(-1)?.end_seq ?? from;
   const rows = [...chapters, ...levelRows(chatId, "scene").filter((s) => fits(s) && s.start_seq > last)];
-  const done = doneRecords(chatId, st);
-  const match = doneMatcher(st, done);
   const shown = new Set<string>();
   const kept: string[] = [];
   let used = 0;
   for (const r of rows.reverse()) {
-    const text = `${heading(r, r.start_seq, r.end_seq!)}\n${openAsOf(r.content.trim(), r.end_seq!, done, match, shown, detailed(r) ? r.start_seq : undefined)}`;
+    const text = `${heading(r, r.start_seq, r.end_seq!)}\n${summaryText(r, lens, shown)}`;
     const t = countTokens(text);
     if (used + t > budget) break;
     kept.unshift(text);
@@ -383,11 +380,10 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
   const journal = inp.journal && tok(inp.journal) <= storyBudget * 0.35 ? inp.journal : inp.journal.slice(0, Math.max(0, Math.floor(storyBudget * 0.35 * 3.5)));
   const journalTokens = journal ? tok(journal) : 0;
 
-  const done = doneRecords(input.chatId, input.state);
-  const doneMatch = doneMatcher(input.state, done);
+  const lens = lensOf(input.chatId, input.state, times);
 
   const compute = (evicted: number) => {
-    const t = telescope(input.chatId, evicted, Math.max(0, storyBudget - journalTokens), input.reveals, done, doneMatch);
+    const t = telescope(input.chatId, evicted, Math.max(0, storyBudget - journalTokens), input.reveals, lens);
     const key = [
       input.chatId,
       state.version,
@@ -419,8 +415,7 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
         times,
         skipCards: inp.skipCards,
         povName: inp.povName,
-        done,
-        doneMatch,
+        lens,
       });
       recallCache.set(key, r);
       if (recallCache.size > 60) recallCache.delete(recallCache.keys().next().value!);
