@@ -41,6 +41,7 @@ import {
   touchMemory,
 } from "./store";
 import { sceneDigest } from "./digest";
+import { applySceneLoops, loopBlock } from "./loops";
 import { ftsQuery, hashText } from "./text";
 import { highlightsInRange } from "../services/notebook";
 import { revealsOf } from "../trackers/reveals";
@@ -127,6 +128,7 @@ async function runScenePass(row: SummaryRow, ctx: { job?: JobContext; instructio
     `Characters: ${names.char} (the character), ${names.user} (the player's character).`,
     prev ? `Previous scene, for continuity only (don't record it again): ${prev.title}: ${prev.content.slice(0, 1500)}` : "",
     related.length ? `EXISTING MEMORIES that may be related:\n${related.map((a, i) => `A${i + 1} (${a.type}) ${a.content}`).join("\n")}` : "",
+    loopBlock(row.chat_id, row.start_seq, rows.at(-1)!.seq),
     ctx.instruction ? `Extra instruction from the author for this record: ${ctx.instruction}` : "",
     marked.length ? `The player marked these as favourite moments. Make sure the record keeps them (quote the key words):\n${marked.join("\n")}` : "",
     revealedBy(row.chat_id, rows.at(-1)!.seq),
@@ -286,6 +288,7 @@ function applyScene(row: SummaryRow, b: SceneBuild) {
       );
       if (!locked) for (const t of targets) supersede(t.id, id);
     }
+    applySceneLoops(row.chat_id, row.start_seq, row.end_seq ?? b.rows.at(-1)?.seq ?? row.start_seq, o, b.rows);
     parentsStale(cur);
   });
 }

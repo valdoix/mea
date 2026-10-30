@@ -1,5 +1,6 @@
 import { all, parseJson } from "../db/db";
 import { formatStoryTime, shortStoryTime } from "../trackers/clock";
+import { doneLoops } from "../trackers/loops";
 import { trackerConfig } from "../trackers/store";
 import { topicCounts } from "../trackers/topics";
 import type { WorldState } from "../trackers/types";
@@ -24,8 +25,10 @@ export interface Done {
   /** What was finished, in the words of the record that says so. */
   text: string;
   seq: number;
-  /** A kept promise: a scene says when a thing really closed, and a promise's few words ("offer him the hills house") fit other threads. */
+  /** A closed loop: a scene says when a thing really closed, and a promise's few words ("offer him the hills house") fit other threads. */
   strict?: boolean;
+  /** Wordings known to be it, so no matching is needed for them. */
+  items?: string[];
 }
 
 export type DoneMatch = (text: string, after: number) => Done | null;
@@ -64,8 +67,9 @@ export function doneRecords(chatId: string, st: WorldState | null | undefined): 
   for (const s of all<{ end_seq: number; data: string }>("SELECT end_seq, data FROM summaries WHERE chat_id = ? AND level = 'scene' AND closed = 1 AND end_seq IS NOT NULL", chatId)) {
     for (const t of parseJson<{ threadsClosed?: string[] }>(s.data, {}).threadsClosed ?? []) if (t?.trim()) out.push({ text: t.trim(), seq: s.end_seq });
   }
-  for (const o of Object.values(st?.obligations ?? {})) {
-    if ((o.status === "kept" || o.status === "paid") && o.settled != null) out.push({ text: `${o.status === "kept" ? "Promise kept" : "Paid"}: ${o.what}`, seq: o.settled, strict: true });
+  for (const l of doneLoops(st)) {
+    const o = l.obligation ? st?.obligations[l.obligation] : undefined;
+    out.push({ text: o ? `${o.status === "paid" ? "Paid" : "Promise kept"}: ${l.what}` : l.what, seq: l.closed!, strict: true, items: l.from });
   }
   return out.sort((a, b) => a.seq - b.seq);
 }
@@ -81,7 +85,10 @@ export function doneMatcher(st: WorldState | null | undefined, done: Done[]): Do
   for (const ws of words) for (const w of ws) df.set(w, (df.get(w) ?? 0) + 1);
   const weight = (w: string) => 1 / Math.sqrt(df.get(w) ?? 1);
   const sum = (ws: Iterable<string>) => [...ws].reduce((n, w) => n + weight(w), 0);
+  const known = new Map(done.flatMap((d) => (d.items ?? []).map((t) => [t, d] as const)));
   return (text, after) => {
+    const sure = known.get(text);
+    if (sure) return sure.seq > after ? sure : null;
     const item = aboutWords(st, text);
     const promised = PROMISED.test(text);
     let best: Done | null = null;
@@ -115,8 +122,9 @@ export function lensOf(chatId: string, st: WorldState | null | undefined, times 
 }
 
 /** Every open item a later record closed, in its own words: what a plan built on a stale list repeats. */
-export function closedItems(chatId: string, match: DoneMatch): (Done & { closed: Done })[] {
+export function closedItems(chatId: string, st: WorldState | null | undefined, match: DoneMatch): (Done & { closed: Done })[] {
   const out = new Map<string, Done & { closed: Done }>();
+  for (const l of doneLoops(st)) for (const text of l.from) out.set(text, { text, seq: l.closed!, closed: { text: l.what, seq: l.closed! } });
   for (const r of all<{ end_seq: number; data: string }>("SELECT end_seq, data FROM summaries WHERE chat_id = ? AND end_seq IS NOT NULL AND TRIM(content) != ''", chatId)) {
     const d = parseJson<{ threadsOpened?: string[]; openThreads?: string[] }>(r.data, {});
     for (const text of [...(d.threadsOpened ?? []), ...(d.openThreads ?? [])]) {

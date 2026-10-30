@@ -2,6 +2,7 @@ import { parsePlan } from "../../../shared/plan";
 import { sentencesOf } from "../accuracy/promptcheck";
 import { closedItems, doneMatcher, doneRecords } from "../memory/openlist";
 import { contentWords } from "../memory/text";
+import { openLoops } from "../trackers/loops";
 import { topicCounts, topicScorer } from "../trackers/topics";
 import type { Character, Fact, WorldState } from "../trackers/types";
 import { BACK, clear, hhmm, retellSources, type Source, whenConflict } from "../accuracy/retell";
@@ -109,10 +110,10 @@ const PAST = /\b(?:already|again|since|anymore|no longer)\b/i;
  */
 export function pendingDone(chatId: string, st: WorldState | null | undefined, plan: string | null | undefined): PlanFinding[] {
   if (!st || !plan?.trim()) return [];
-  const items = closedItems(chatId, doneMatcher(st, doneRecords(chatId, st))).filter((i) => !i.closed.strict);
+  const items = closedItems(chatId, st, doneMatcher(st, doneRecords(chatId, st))).filter((i) => !i.closed.strict);
   if (!items.length) return [];
   const match = doneMatcher(st, items.map((i) => ({ ...i, strict: true })));
-  const stillOpen = doneMatcher(st, Object.values(st.obligations).filter((o) => o.status === "open" || o.status === "due").map((o) => ({ text: o.what, seq: 1 })));
+  const stillOpen = doneMatcher(st, openLoops(st).map((l) => ({ text: l.what, seq: 1 })));
   const out: PlanFinding[] = [];
   for (const s of sentencesOf(plan)) {
     if (!AHEAD.test(s) || PAST.test(s) || stillOpen(s, 0)) continue;

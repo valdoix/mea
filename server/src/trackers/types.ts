@@ -9,7 +9,7 @@ import { emptySim, type SimState } from "../sim/types";
 export type OpName =
   | "clock" | "wx" | "at" | "scene" | "mode" | "cast" | "mood" | "body" | "look" | "trait" | "drive" | "mask" | "think" | "journal" | "dead"
   | "bond" | "ladder" | "know" | "secret" | "reveal" | "item" | "thread" | "owe" | "promise" | "deadline" | "plant" | "payoff" | "clue"
-  | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "beat" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
+  | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "beat" | "loop" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
   // B2: a secret's exposure clock (written by the engine and by you, never by the model)
   | "expose"
   // E1: a character's hidden pressure (the engine and you, never the model)
@@ -19,7 +19,7 @@ export type OpName =
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 
-export type EventSource = "model" | "inline" | "user" | "init" | "timeskip" | "engine";
+export type EventSource = "model" | "inline" | "user" | "init" | "timeskip" | "engine" | "memory";
 
 /** One parsed ledger line. */
 export interface Op {
@@ -236,6 +236,30 @@ export interface Obligation {
   settled?: number;
 }
 
+/** docs/22 1.1: something the story expects to happen. Closing it happens once, here. */
+export interface Loop {
+  /** "L1a2b3", from its first wording (loops.ts). */
+  id: string;
+  what: string;
+  kind: "promise" | "plan" | "errand" | "question";
+  status: "open" | "done" | "dropped" | "lapsed";
+  opened: number;
+  /** The message it really happened at. */
+  closed?: number;
+  /** The line that closes it. */
+  how?: string;
+  due?: { minutes: number | null; text: string };
+  /** "Tacos every Friday": an instance closes, and the loop stays open. */
+  repeats?: boolean;
+  /** The last instance of one that repeats. */
+  last?: number;
+  /** The promise or calendar plan that is this loop. */
+  obligation?: string;
+  calendar?: string;
+  /** Every wording that's known to be this loop. */
+  from: string[];
+}
+
 export interface Deadline {
   id: string;
   title: string;
@@ -346,6 +370,8 @@ export interface WorldState {
   items: Record<string, Item>;
   threads: Record<string, Thread>;
   obligations: Record<string, Obligation>;
+  /** docs/22 1.1: what's open, by id. */
+  loops: Record<string, Loop>;
   deadlines: Record<string, Deadline>;
   plants: Record<string, Plant>;
   clues: Clue[];
@@ -414,6 +440,7 @@ export function emptyWorld(): WorldState {
     items: {},
     threads: {},
     obligations: {},
+    loops: {},
     deadlines: {},
     plants: {},
     clues: [],

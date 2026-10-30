@@ -218,6 +218,8 @@ function afterScene(chatId: string, summaryId: string) {
     console.error("[mea] reconcile failed:", e);
   }
   if (cfg.journals) enqueue("memory.journal", { chatId }, { dedupeKey: `memory.journal:${chatId}`, delayMs: 20_000, priority: 0, chatId });
+  // docs/22 1.4: once per chat, what its older records already opened and closed.
+  if (!memState(chatId).loopBackfill) enqueue("loops.backfill", { chatId }, { dedupeKey: `loops.backfill:${chatId}`, delayMs: 40_000, priority: 0, chatId });
   if (cfg.chronicle) enqueue("lore.chronicle", { chatId }, { dedupeKey: `lore.chronicle:${chatId}`, delayMs: 30_000, priority: 0, chatId });
   // docs/15, part 2: entries the story changed get update cards (or, by the book's trust level, the change).
   // docs/15, part 4: a companion chat's Bond, kept current (the first scene makes it).

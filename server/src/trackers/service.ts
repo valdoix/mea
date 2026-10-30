@@ -13,6 +13,7 @@ import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona, personaPrompt } from "../services/personas";
 import { describeMinutes, parseDuration } from "./clock";
 import { parseLedger } from "./dsl";
+import { closingOps } from "./loops";
 import { buildNote, type NoteResult } from "./note";
 import { initPrompt, inlineInstruction, stateForModel, updatePrompt } from "./prompts";
 import {
@@ -144,7 +145,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   // The message may have been swiped or edited while the model was writing.
   const now = getMessageRow(p.messageId);
   if (!now || now.deleted_at || now.active_swipe !== p.swipeIdx) return;
-  writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, parsed.ops, "model", { replace: ["model"] });
+  writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, closingOps(parsed.ops, messages), "model", { replace: ["model"] });
   afterUpdate(p.chatId, p.messageId, p.swipeIdx);
 }
 

@@ -132,8 +132,8 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 
 | Part | What | State |
 |---|---|---|
-| 0 | Tools and quick wins | branch `claude/closed-loops-part0` |
-| 1 | One record of what's open | — |
+| 0 | Tools and quick wins | merged, PR #202 |
+| 1 | One record of what's open | PR #203 |
 | 2 | Where things stand | — |
 | 3 | The gates | — |
 | 4 | Flags worth reading | — |
@@ -145,6 +145,15 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 - 0.2 `storyNeedsRebuild` targets the last closed chapter; `telescope` lets a chapter fold into the Story So Far while its arc is open.
 - 0.3 `dated` in `openlist.ts`: open items and plan or promise memories say "tonight (Thu)". A custom calendar goes undated.
 - 0.4 `Lens` (`lensOf`), `summaryText`, `memoryText`; `recap.ts`, `meus/brief.ts` and the Archivist moved over. Tests: `server/test/doors.test.ts`, `server/test/openlist.test.ts`.
+
+### Part 1 (2026-10-31)
+
+- 1.1 `trackers/loops.ts`, `Loop` in `types.ts`, `st.loops`. A `loop` op: `loop L1a2b3: done — words`, `dropped`, `open`, or `loop: what | kind`. Promises and calendar plans get a loop in the fold (`openLoop`, `closeLoop`, `settleLoop`). An id hashes the first wording.
+- 1.2 `memory/loops.ts`: `loopBlock` (what the scene build sees), `applySceneLoops` (checks quotes, writes events with source `memory`, wipes the scene's old ones). Scene schema: `loopsClosed`, `loopsOpened`.
+- 1.3 `stateForModel` lists open loops; `closingOps` drops a closing line whose words aren't in the new messages.
+- 1.4 `accuracy/loopinbox.ts`: `loopCandidates` (rules), `backfillLoops` (job `loops.backfill`, once per chat, queued after a scene), Inbox kind `loops`, `applyBackfill`. State in `memState.loopBackfill`.
+- `doneRecords` now reads loops, not obligations. Done records from loops are `strict` (three shared words) with exact `items`: without that, "offer him the hills house" closes the move.
+- Tests: `server/test/loops.test.ts`.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

@@ -163,6 +163,8 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const verdicts = [...user.matchAll(/^ISSUE (\d+)[\s\S]*?(?=^ISSUE |(?![\s\S]))/gm)].map((m) => ({ id: m[1]!, stands: !/MOCK_SETTLED/.test(m[0]) }));
       return { verdicts };
     }
+    case "loops_backfill":
+      return { closed: [...user.matchAll(/^C(\d+)\./gm)].map((m) => Number(m[1])), open: [...user.matchAll(/^O(\d+)\./gm)].map((m) => ({ n: Number(m[1]), kind: "errand" })), over: [...user.matchAll(/^P(\d+)\./gm)].map((m) => Number(m[1])) };
     case "archivist_answer": {
       const first = user.match(/^\[1\] \([^)]*\) (.*)$/m)?.[1];
       return first ? { answer: `According to the archive [1], ${firstSentence(first)}`, cites: [1], confidence: "sure" } : { answer: "The story hasn't established that.", cites: [], confidence: "unknown" };

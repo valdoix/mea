@@ -105,7 +105,7 @@ describe("an open list reads as of its record", () => {
   test("a kept promise's few words don't close a thread that only shares them", () => {
     const done = doneRecords(chatId, state());
     const kept = done.find((d) => d.text.startsWith("Promise kept"));
-    expect(kept).toEqual({ text: "Promise kept: offer him the hills house", seq: expect.any(Number), strict: true });
+    expect(kept).toEqual({ text: "Promise kept: offer him the hills house", seq: expect.any(Number), strict: true, items: ["offer him the hills house"] });
     expect(doneMatcher(state(), done)("Moving Buffy, Dawn, and Ruth into Gabriel's house in the hills", 1)).toBeNull();
   });
 

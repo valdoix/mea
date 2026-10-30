@@ -147,34 +147,38 @@ interface Loop {
   how?: string;          // the line that closes it, quoted
   due?: { minutes: number | null; text: string };
   repeats?: boolean;     // tacos every Friday: an instance closes, the loop stays open
-  from: string[];        // the obligation, calendar entry and summary items that are this loop
+  obligation?: string;   // the promise or calendar plan that is this loop
+  calendar?: string;
+  from: string[];        // every wording known to be this loop
 }
 ```
 
-Loops live in the tracker ledger as `loop` events, so they follow swipes, edits and rewinds like everything else, and `st.loops` comes from the fold. An obligation or a calendar `plan` *is* a loop: it gets one automatically, so promises keep working as they do. Threads stay as they are. Most of the 63 are motifs ("Joyce's light"), which is why 4 resolved isn't the bug it looks like. A thread only becomes a loop if it has an end.
+As built: an id comes from a hash of the loop's first wording, so a swipe or an edit elsewhere can't renumber it. Loops live in the tracker ledger as `loop` events, so they follow swipes, edits and rewinds like everything else, and `st.loops` comes from the fold. An obligation or a calendar `plan` *is* a loop: it gets one automatically, so promises keep working as they do. Closing one keeps the promise and warms the bond once, at the message it happened; marking it kept later changes nothing. Scene-written events have their own source, `memory`, so a tracker reading a reply again leaves them alone. Threads stay as they are. Most of the 63 are motifs ("Joyce's light"), which is why 4 resolved isn't the bug it looks like. A thread only becomes a loop if it has an end.
 
 A loop that's opened twice is one loop: the same matching as promise merging (docs/20 0.2), and the scene build can say so by id (1.2).
 
 ### 1.2 Scenes close loops by id
 
-The scene build already runs and already writes `threadsClosed`. Give it the open loops, numbered, as it already gets EXISTING MEMORIES for `supersedes`:
+The scene build already runs and already writes `threadsClosed`. It now gets the loops open in the scene by id, as it already gets EXISTING MEMORIES for `supersedes`:
 
 ```
-"closes": [{ "id": "L12", "seq": 542, "quote": "I love you" }]
-"opens":  [{ "what": "...", "kind": "errand", "sameAs": "L9" }]
+"loopsClosed": [{ "id": "L1a2b3", "seq": 542, "quote": "I love you" }]
+"loopsOpened": [{ "what": "...", "kind": "errand", "seq": 320 }]
 ```
 
-A closure must quote the scene, and the rule checks the quote is there (as `note_facts` does). What's checked becomes a `loop` event on that message. This replaces guessing with a lookup: no word matching, and no extra call.
+A closure must quote the scene, and the rule checks the quote is there, moving it to the message that really has it. What's checked becomes a `loop` event on that message, written again with each rebuild of the scene. This replaces guessing with a lookup: no word matching, and no extra call. A second wording of an open loop merges into it (word overlap of 0.7).
 
 ### 1.3 The tracker closes them too
 
-Scenes close after the fact, and a scene can run 20 messages. The tracker update sees open loops in `stateForModel` and gets one line: `done L12: <quote>`. Its prompt asks the question nothing asks now: **did anything open finish in this reply?** A wrong close costs little, since anyone can reopen it (5.1), and the scene build can correct it.
+Scenes close after the fact, and a scene can run 20 messages. The tracker update sees open loops in `stateForModel` and gets one line: `loop L1a2b3: done — <quote>`. Its prompt asks the question nothing asked before: **did anything open finish in this reply?** The quote has to be in the new messages, or the line is left out. A wrong close costs little, since anyone can reopen it (5.1), and the scene build can correct it.
 
 ### 1.4 Backfill
 
-Once per chat, in one background batch: open items from the summaries, the loops they merge into, and which later scenes closed them. PR #201's matcher finds the candidates, and a helper confirms each by quote. What it closes goes to the Inbox as one card ("23 things the story finished"), because it rewrites what the story thinks is open.
+As built, once per chat, in one helper call after the next scene: PR #201's rules find what later records closed, what's still listed as open, and old loops that may be over. The helper reads where the story is now and says which are real. The closing record's own line is the evidence, not a message quote: it comes from a model that read the scene, and quoting every scene would mean sending them all. A closed loop is named after that record, because its wording while open was "still unsaid, due tonight". What comes back goes to the Inbox as one card ("23 things the story finished"), because it rewrites what the story thinks is open. You can take out any line, and nothing changes without your yes.
 
-**Done when:** on this chat, the three words and the groceries are done loops with the right message numbers, and the move to Gabriel's house is open.
+A line in a card that's a loop already and has no closing record reads "Over": old loops nobody closed, like Wednesday's "Pick up Dawn". The ledger has no `lapsed` rule for plans yet, so this is how they go for now.
+
+**Done when:** on this chat, the three words and the groceries are done loops with the right message numbers, and the move to Gabriel's house is open. (On a copy with every candidate accepted: the words at #546, the groceries at #462, the move open. The helper's own answers haven't been seen yet.)
 
 ---
 

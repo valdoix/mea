@@ -11,6 +11,7 @@ const REASONS: Record<string, string> = {
   "accuracy/canoncut.ts": "looks for canon terms by rule; no model reads the text",
   "accuracy/codex.ts": "the Codex page: you read it, and it says what it's through",
   "accuracy/inbox.ts": "review cards for proposed summaries",
+  "accuracy/loopinbox.ts": "reads open lists as data, to find what's a loop",
   "memory/build.ts": "writes summaries: a rollup reads its parts as history",
   "memory/deep.ts": "finds messages to quote; the quotes are the page",
   "memory/embed.ts": "embeddings, for search",
