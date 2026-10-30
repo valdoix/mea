@@ -1,6 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import { vetPattern } from "../src/lib/regex";
-import { planFrom, planOnly, splitLeakedPlan, splitStopLine, splitStoryBox, storyRouter } from "../src/services/generation";
+import { opensMidSentence } from "../src/services/chattools";
+import { planFrom, planOnly, splitLeakedPlan, splitStopLine, splitStoryBox, splitStrayClose, storyRouter } from "../src/services/generation";
+
+describe("a reply that arrives without its opening", () => {
+  test("the openings that were really lost", () => {
+    expect(opensMidSentence("works fine. It’s — it’s Mom’s old one, but it works —”\n\n“Dawn.”\n\nBuffy’s voice.")).toBe(true);
+    expect(opensMidSentence("—are dark denim, fitted, the pair in her closet.\n\nThe car hums.")).toBe(true);
+    expect(opensMidSentence("”*Bamboozled*. You just said it. “\n\nHer eyes are on his mouth.")).toBe(true);
+  });
+  test("whole openings, and a story written all in lowercase, are left alone", () => {
+    for (const t of ["The rain held. She waited.", "“Dawn.”\n\nBuffy’s voice.", "“No,” she said. “Not now.”", "—The door slams.\n\nMira turns.", "the rain held. she waited.\n\nnobody came.", "*Next week.*\n\nThe timeline landed."]) expect(opensMidSentence(t)).toBe(false);
+  });
+  test("a route's misplaced split: the reasoning's last words and its closing tag leave the text", () => {
+    expect(splitStrayClose("now.\n</think>\n\n\n“Babe.”\n\nBuffy repeats it.")).toEqual({ text: "“Babe.”\n\nBuffy repeats it.", reasoning: "now." });
+    expect(splitStrayClose("Mira looks up.")).toEqual({ text: "Mira looks up.", reasoning: "" });
+    expect(opensMidSentence(splitStrayClose("now.\n</think>\n\n“Babe.”\n\nBuffy repeats it.").text)).toBe(false);
+  });
+});
 
 describe("the plan step's answer", () => {
   const pass = "NOW — dusk, the lamp room. SEAL — Ash arrived and spoke. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short.";

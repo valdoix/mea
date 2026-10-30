@@ -47,7 +47,7 @@ import { layered, presetForRequest } from "./layers";
 import { applyCardVariant, applyPersonaVariant, getVariant } from "./variants";
 import { sendPush } from "./push";
 import { assertQuota } from "./quota";
-import { applyBanned, chatExtras, consumeOnce, continueJoin, cutFourthWall, looksLikeRefusal, trimUnfinished } from "./chattools";
+import { applyBanned, chatExtras, consumeOnce, continueJoin, cutFourthWall, looksLikeRefusal, opensMidSentence, trimUnfinished } from "./chattools";
 import { evalCondition } from "../trackers/condition";
 import { revealsOf } from "../trackers/reveals";
 import { secretRevealer } from "../lore/secretlinks";
@@ -87,6 +87,16 @@ export function splitThink(text: string): { text: string; reasoning: string } {
   const m = text.match(/^\s*<(think|thinking|plan|reasoning)>([\s\S]*?)(?:<\/\1>|$)\s*/i);
   if (!m) return { text, reasoning: "" };
   return { text: text.slice(m[0].length), reasoning: m[2]!.trim() };
+}
+
+/**
+ * A route that split its reply from its reasoning in the wrong place: the last words of the reasoning
+ * and the closing tag open the text ("now.\n</think>\n\n“Babe.”"). Those go back with the reasoning.
+ */
+export function splitStrayClose(text: string): { text: string; reasoning: string } {
+  const m = text.match(/^([^<]{0,400})<\/(?:think|thinking|plan|reasoning)>\s*/i);
+  if (!m) return { text, reasoning: "" };
+  return { text: text.slice(m[0].length), reasoning: m[1]!.trim() };
 }
 
 const THINK_OPEN = ["<think>", "<thinking>", "<plan>", "<reasoning>"];
@@ -1154,6 +1164,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       };
       // H3: a reply written from a finished plan shows that plan as its reasoning.
       if (p.plannedPass && !gen.reasoning.trim()) addReasoning(`${p.plannedPass}\n\n`);
+      const planBefore = gen.reasoning;
       try {
         const result = await p.resolved.provider.stream(
           { model: p.resolved.modelId, messages: p.assembled.messages, params: p.samplers, signal: attempt.signal, cache: p.cache },
@@ -1199,6 +1210,21 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         }
         // CONN-09: an empty reply or a refusal gets one more try (the next model in the chain if there is one).
         const retry = getSetting("chat.retry");
+        // A reply that arrived without its opening: the same model again, since nothing is wrong with what it was asked.
+        if (action !== "continue" && retry.opening !== false && !smartRetried && !gen.abort.signal.aborted && opensMidSentence(splitStrayClose(written).text)) {
+          smartRetried = true;
+          finishRequest(requestId, { status: "retried", error: `retried: the reply opened mid-sentence («${written.slice(0, 60)}»)`, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+          notes.push("written again: the first try arrived without its opening");
+          gen.text = baseText;
+          gen.reasoning = planBefore;
+          pendingText = "";
+          pendingReasoning = "";
+          first_ = true;
+          firstTokenAt = null;
+          publish({ type: "gen.delta", chatId: gen.chatId, messageId: gen.messageId, generationId: gen.id, text: "", reasoning: gen.reasoning, reset: true });
+          requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
+          continue;
+        }
         const why = !written.trim() && retry.empty ? "empty reply" : retry.refusal && looksLikeRefusal(written) ? "refusal" : null;
         if (why && !smartRetried && !gen.abort.signal.aborted) {
           smartRetried = true;
@@ -1350,9 +1376,9 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     // M17: inline reasoning (<think>…</think>) from OpenAI-style routes goes to the reasoning field,
     // and so does anything before the story box, or a plan written out without either.
     if (action !== "continue") {
-      for (const split of [splitStoryBox, splitThink, splitLeakedPlan, splitStopLine]) {
+      for (const split of [splitStoryBox, splitThink, splitStrayClose, splitLeakedPlan, splitStopLine]) {
         const out = split(text);
-        if (out.reasoning && ((split !== splitLeakedPlan && split !== splitStopLine) || out.text.replace(/<ledger\b[\s\S]*$/i, "").trim())) {
+        if (out.reasoning && ((split !== splitLeakedPlan && split !== splitStopLine && split !== splitStrayClose) || out.text.replace(/<ledger\b[\s\S]*$/i, "").trim())) {
           text = out.text;
           reasoning = [reasoning, out.reasoning].filter(Boolean).join("\n\n");
         }

@@ -82,8 +82,8 @@ export interface Settings {
   "chat.banned": { list: { phrase: string; replace?: string }[]; action: "flag" | "regenerate" | "replace"; remind: boolean };
   /** CHAT-14: a reply cut off by the length limit. */
   "chat.cutoff": "continue" | "trim" | "off";
-  /** CONN-09: retry empty replies, refusals and server errors. */
-  "chat.retry": { empty: boolean; refusal: boolean; serverErrors: boolean };
+  /** CONN-09: retry empty replies, refusals, server errors and replies that arrive without their opening. */
+  "chat.retry": { empty: boolean; refusal: boolean; serverErrors: boolean; opening: boolean };
   /** PROMPT-08: regex scripts for display, the prompt, or the stored text. */
   "regex.scripts": RegexScript[];
   /** PROMPT-09: helper prompt sets, and the one in use (null: Mea's defaults). */
@@ -436,7 +436,7 @@ export const defaults: Settings = {
     remind: false,
   },
   "chat.cutoff": "continue",
-  "chat.retry": { empty: true, refusal: true, serverErrors: true },
+  "chat.retry": { empty: true, refusal: true, serverErrors: true, opening: true },
   "regex.scripts": [],
   "prompts.sets": [],
   "prompts.active": null,

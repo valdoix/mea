@@ -177,6 +177,20 @@ export function continueJoin(base: string, head: string): number | null {
 /** How much of a continue's opening, word for word, means it went back over the reply. */
 const REPLAY_MIN = 60;
 
+/**
+ * A reply whose opening never arrived: it starts in lowercase, on a dash into lowercase, or with a
+ * closing quote before any opening one ("works fine. It's Mom's old one —”"). A story written all in
+ * lowercase isn't one: the sentences after the first have to start with a capital.
+ */
+export function opensMidSentence(text: string): boolean {
+  const t = text.replace(/^\s+/, "");
+  const line = t.split("\n")[0] ?? "";
+  const closes = line.indexOf("”");
+  const open = line.indexOf("“");
+  if (!/^(?:[—–-]+\s*)?[a-z]/.test(t) && !(closes >= 0 && (open < 0 || closes < open))) return false;
+  return /(?:\n\s*\n|[.!?…]["”’*_]*\s+)["“‘*_]*[A-Z]/.test(t);
+}
+
 /** CONN-09: a reply that refuses rather than writes. Short and apologetic, with the usual words. */
 export function looksLikeRefusal(text: string): boolean {
   const t = text.trim();

@@ -94,6 +94,12 @@ beforeAll(() => {
         const content = n % 2 ? plan : story;
         return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
       }
+      if (body.model === "cutopening") {
+        // The route loses the reply's opening on the first try; the second arrives whole.
+        const story = "“My phone works fine. It holds a charge.”\n\nMira sets the kettle on the stove without asking.";
+        const content = n === 1 ? story.slice(10) : story;
+        return sse([{ choices: [{ delta: { reasoning: "NOW — night, the lighthouse, Mira and Ash. SEAL — Ash stepped in. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short." } }] }, ...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+      }
       if (body.model === "nodone") return sse([{ choices: [{ delta: { content: "Half a sent" } }] }]);
       // A model that reasons and can't stop: the first try thinks through its whole budget and writes nothing.
       if (body.model === "thinker") return Response.json({ choices: [{ message: { content: n === 1 ? "" : "clock: +5m" }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
@@ -584,6 +590,27 @@ describe("sending (H8, C2, H3)", () => {
     expect(reply.content).toBe("Mira sets the kettle on the stove without asking, and the lamp above them ticks as it turns.");
     expect(reply.reasoning).toContain("MOVE — she offers tea");
     expect(JSON.parse(reply.meta).notes).toContain("the first try wrote only its plan: the story was written from it");
+  });
+
+  test("a reply that arrives without its opening is written again, once, by the same model", async () => {
+    const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    setSetting("routing.story", createProfile({ name: "Cut opening", connectionId: conn, modelId: "cutopening", params: {} }));
+    const chatId = newChat();
+    counts.delete("cutopening");
+    const end = waitFor((e) => e.type === "gen.end" && (e as any).chatId === chatId);
+    const r = await api("POST", `/api/chats/${chatId}/send`, { content: "I step inside." });
+    expect(r.status).toBe(200);
+    expect(((await end) as any).status).toBe("done");
+    expect(counts.get("cutopening")).toBe(2);
+    const reply = all<{ content: string; reasoning: string | null; meta: string }>("SELECT s.content, s.reasoning, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
+    expect(reply.content.startsWith("“My phone works fine.")).toBe(true);
+    // The first try's plan isn't kept next to the second's.
+    expect(reply.reasoning!.match(/NOW —/g)!.length).toBe(1);
+    expect(JSON.parse(reply.meta).notes).toContain("written again: the first try arrived without its opening");
+    const rows = all<{ status: string; error: string | null }>("SELECT status, error FROM generations WHERE chat_id = ? AND task = 'story' ORDER BY started_at", chatId);
+    expect(rows[0]!.status).toBe("retried");
+    expect(rows[0]!.error).toContain("works fine");
   });
 
   test("the overflow retry always sends a smaller prompt (H3)", async () => {

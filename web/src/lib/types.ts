@@ -660,7 +660,7 @@ export interface Settings {
   "chat.guidance": GuidanceChip[];
   "chat.banned": { list: { phrase: string; replace?: string }[]; action: "flag" | "regenerate" | "replace"; remind: boolean };
   "chat.cutoff": "continue" | "trim" | "off";
-  "chat.retry": { empty: boolean; refusal: boolean; serverErrors: boolean };
+  "chat.retry": { empty: boolean; refusal: boolean; serverErrors: boolean; opening: boolean };
   "regex.scripts": RegexScript[];
   "prompts.sets": PromptSet[];
   "prompts.active": string | null;
