@@ -4,7 +4,9 @@
  * here can reach a provider and the running app's data is only read. The prompts are built by today's
  * code from what the story knew then. Memory the copy keeps from later is what a rewind keeps.
  *
- *   bun scripts/replay.ts <chat id or part of its title> --seq 629 [--find "still unsaid"] [--out dir] [--db path/to/mea.db]
+ * `--accept-backfill` says yes to every loop the rules find, for how the prompts read once a chat's card is approved.
+ *
+ *   bun scripts/replay.ts <chat id or part of its title> --seq 629 [--find "still unsaid"] [--out dir] [--db path/to/mea.db] [--accept-backfill]
  */
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,6 +17,7 @@ const args = process.argv.slice(2);
 const opt = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
 const OPTIONS = new Set(["--seq", "--find", "--out", "--db"]);
 const which = args.find((a, i) => !a.startsWith("--") && !OPTIONS.has(args[i - 1] ?? ""));
+const acceptBackfill = args.includes("--accept-backfill");
 const seq = Number(opt("--seq"));
 if (!which || !Number.isInteger(seq) || seq < 1) {
   console.error('Usage: bun scripts/replay.ts <chat id or title> --seq 629 [--find "text"] [--out dir] [--db path/to/mea.db]');
@@ -44,13 +47,16 @@ process.env.MEA_DEV = "1";
 const { ensureDirs, paths } = await import("../server/src/config");
 const { all, closeDb, one, openDb, run } = await import("../server/src/db/db");
 const { loadMasterKey } = await import("../server/src/lib/crypto");
+const { countTokens } = await import("../server/src/lib/tokens");
 const { onRewind } = await import("../server/src/memory/scheduler");
-const { storyRow } = await import("../server/src/memory/store");
+const { setMemState, storyRow } = await import("../server/src/memory/store");
+const { applyBackfill, loopCandidates } = await import("../server/src/accuracy/loopinbox");
 const { historyForPrompt, rewindAfter } = await import("../server/src/services/chats");
 const { createConnection, syncModels } = await import("../server/src/services/connections");
 const { prepare } = await import("../server/src/services/generation");
 const { pauseJobs } = await import("../server/src/services/jobs");
 const { advisorInput, steerFor } = await import("../server/src/steer/advisor");
+const { standing } = await import("../server/src/trackers/stands");
 const { checkPlan, pendingDone, planCorrection } = await import("../server/src/steer/plancheck");
 const { currentFold } = await import("../server/src/trackers/store");
 
@@ -95,6 +101,11 @@ try {
   rewindAfter(before.id);
   onRewind(chat.id, before.seq);
 
+  if (acceptBackfill) {
+    setMemState(chat.id, { loopBackfill: { state: "review", at: Date.now(), ...loopCandidates(chat.id, currentFold(chat.id).result.state) } });
+    applyBackfill(chat.id);
+  }
+
   // `prepare` needs a model: the mock, on the profiles the chat's budgets come from.
   const mock = createConnection({ name: "Replay", kind: "mock", billing: "subscription" });
   await syncModels(mock);
@@ -113,6 +124,8 @@ try {
   console.log(`  Story So Far: ${story?.end_seq != null ? `through #${story.end_seq}, ${before.seq - story.end_seq} messages behind` : "none"}`);
   console.log(`  Planner input: ${planner.user.length.toLocaleString()} characters`);
   console.log(`  Writer prompt: ${writer.length.toLocaleString()} characters`);
+  const { stands, happened } = standing(chat.id, st, history.slice(-4).map((m) => m.content).join("\n"));
+  console.log(`\n[WHERE THINGS STAND] ${countTokens(stands)} tokens\n${stands}\n\n[ALREADY HAPPENED] ${countTokens(happened)} tokens\n${happened}`);
 
   if (stored) {
     let pass = "";

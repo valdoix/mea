@@ -134,7 +134,7 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 |---|---|---|
 | 0 | Tools and quick wins | merged, PR #202 |
 | 1 | One record of what's open | PR #203 |
-| 2 | Where things stand | — |
+| 2 | Where things stand | built, PR to follow #203 |
 | 3 | The gates | — |
 | 4 | Flags worth reading | — |
 | 5 | You can see it | — |
@@ -154,6 +154,13 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 - 1.4 `accuracy/loopinbox.ts`: `loopCandidates` (rules), `backfillLoops` (job `loops.backfill`, once per chat, queued after a scene), Inbox kind `loops`, `applyBackfill`. State in `memState.loopBackfill`.
 - `doneRecords` now reads loops, not obligations. Done records from loops are `strict` (three shared words) with exact `items`: without that, "offer him the hills house" closes the move.
 - Tests: `server/test/loops.test.ts`.
+
+### Part 2 (2026-10-31)
+
+- `trackers/stands.ts`: `standing(chatId, st, focus)` gives both blocks as text, `alreadyHappened` the turning points. One lane provider registers `stands` and `happened`. The planner, recap and Meus's brief read `standing` directly; the checker's sheet has `D` lines.
+- `Lens.ledger` (backfill `done`, trackers on) takes the open line out of `summaryText` and switches the story header. "Not these" is state `declined`, which keeps a chat on the old rules. `sceneRecords` reads each scene's rating and moments from the door.
+- `replay --accept-backfill` shows the prompts as if the card were approved. A chat keeps its old lists until then, so the real saving needs the card.
+- Tests: `server/test/stands.test.ts`.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

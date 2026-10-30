@@ -239,7 +239,7 @@ describe("old chats", () => {
     expect(card.after).toContain("Open: Dawn's answer on the move");
   });
 
-  test("your yes puts them in the ledger, and the old list reads through them", async () => {
+  test("your yes puts them in the ledger, and the old list leaves the summaries", async () => {
     fresh();
     await backfillLoops(id);
     actOnInbox(`loops:${id}`, "accept");
@@ -249,8 +249,7 @@ describe("old chats", () => {
     expect(openLoops(st).map((l) => l.what)).toContain("Dawn's answer on the move");
     expect(inboxItems({ chatId: id }).find((i) => i.kind === "loops")).toBeUndefined();
     const text = summaryText({ content: `x\nStill open: ${OPEN}`, level: "story", start_seq: 1, end_seq: 4 }, lensOf(id, st));
-    expect(text).not.toContain("still unsaid");
-    expect(text).toContain("Done since:");
+    expect(text).toBe("x");
   });
 
   test("a line you take out stays out; no is no", async () => {
@@ -263,7 +262,8 @@ describe("old chats", () => {
     await backfillLoops(id);
     actOnInbox(`loops:${id}`, "reject");
     expect(Object.keys(currentFold(id).result.state.loops)).toHaveLength(0);
-    expect(memState(id).loopBackfill?.state).toBe("done");
+    expect(memState(id).loopBackfill?.state).toBe("declined");
+    expect(inboxItems({ chatId: id }).find((i) => i.kind === "loops")).toBeUndefined();
   });
 
   test("a promise that's already a loop closes as itself", async () => {
@@ -279,6 +279,18 @@ describe("old chats", () => {
     const st = currentFold(id).result.state;
     expect(openLoops(st)).toHaveLength(0);
     expect(Object.values(st.obligations)[0]!.status).toBe("kept");
+  });
+
+  test("what a loop already closed isn't a second loop", () => {
+    id = chat();
+    reply(id, "Soon.");
+    const n = reply(id, "Paint.");
+    add("scene", 1, 1, { threadsOpened: ["Pick paint at the hardware store with Dawn"] });
+    lines(id, n, "cast: Buffy@spot · Gabe@spot", "promise Buffy>Gabe: help Dawn pick paint at the hardware store | open");
+    lines(id, reply(id, "Picked."), "promise Buffy>Gabe: help Dawn pick paint at the hardware store | kept");
+    const c = loopCandidates(id, currentFold(id).result.state);
+    expect(c.closed).toEqual([]);
+    expect(c.open).toEqual([]);
   });
 
   test("an old loop nobody closed can be called over, and only by a yes", async () => {

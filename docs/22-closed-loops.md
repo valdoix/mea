@@ -186,28 +186,43 @@ A line in a card that's a loop already and has no closing record reads "Over": o
 
 ### 2.1 WHERE THINGS STAND
 
-A new lane built from `st.loops` at render time, never summarized. It goes to the writer, the planner and the checker:
+A new lane built from `st.loops` at render time, never summarized. As built (`trackers/stands.ts`), it goes to the writer, the planner, the recap and Meus, and what's finished goes on the checker's fact sheet as `D` lines:
 
 ```
-WHERE THINGS STAND (the record: what's open now)
-Open: Dawn's yes on the move (L4) · Spike's answer (L7) · retaliation, tonight (L31, due 22:00)
-Done lately: said "I love you" (#542) · groceries (#462) · paint picked (#621)
+[WHERE THINGS STAND]
+This is what's open now, from the record. Summaries and memories say what was open then, and lose to this.
+Open: clothes-and-paint trip (due Sat 03:00) · Buffy Summers: full retaliation tonight (Fri) · and 32 quieter
+Done lately: help pick paint at hardware store tomorrow (Fri) (#621) · pickup at three, then paint for her room (#619)
 ```
 
-About 300 tokens. Loops due soon and the recently active come first, and quiet ones fold into a count. It sits outside the cached prefix, beside the story state, so it can change on every reply.
+About 300 tokens. Loops due in the next day come first, then the ones the newest messages are about, then the newest, and the same thing worded twice shows once. Quiet ones fold into a count. "Tonight" and a due time read as a day, and a promise says whose it is. It sits outside the cached prefix, beside the story state, so it can change on every reply.
 
-The "Still open" line then leaves every summary in a prompt, and `Left open` with it. They stay in the Inspector as history. This is the change that ends the class: a summary can no longer say what's open, right or wrong. `openAsOf` shrinks to `Closed here`, and PR #201's matcher stays only for chats that haven't been backfilled.
+Ids stay out of it for now: nothing reads them until the plan's threads become ids in 3.2.
+
+The "Still open" line then leaves every summary in a prompt, and `Left open` with it. They stay in the Inspector as history. This is the change that ends the class: a summary can no longer say what's open, right or wrong.
+
+That happens per chat, once its backfill card is approved (or had nothing to ask). Until then, if you said "Not these", or with the trackers off, summaries keep their lists and PR #201's rules: the loops don't know everything yet, and nothing else would say. `Lens.ledger` is that switch, and the story header says which of the two a chat is on.
+
+Measured on this chat at #629 with every candidate accepted: all 12 open lists leave the writer's prompt and all 6 leave the planner's. With both new blocks in, the writer's prompt is 781 characters shorter than before and the planner's 1,650 shorter. Until the card is approved, the two blocks are added on top: about 600 tokens more on this chat.
 
 ### 2.2 ALREADY HAPPENED
 
 The other half of the question: a short, permanent list of the turning points, so "have they said it?" is answered by something other than recall's luck.
 
 ```
-ALREADY HAPPENED (never staged as a first again)
-Girlfriend, yes (#217) · first time (#239) · said "I love you" (#542) · Dawn knows they're together (#317)
+[ALREADY HAPPENED]
+Never staged as a first again.
+Gabriel asked Buffy to be his girlfriend; she said yes (#217) · first time making love (#239) · Buffy said 'I love you' (#541)
 ```
 
-It comes from `st.milestones`, done loops marked as turning points, and ladder moves. The tracker prompt asks for `milestone:` on any first between people, and a scene's `moments` can raise one, so the first "I love you" can't be missed. Capped at 20 lines, by importance.
+As built, it comes from four places, read as the fold and the scene records stand, so a rewind takes them with it:
+
+- `st.milestones`. The tracker prompt now asks for a `milestone` line on any first between people, and the state it reads lists the last ten, so it can see what's there.
+- The highest rung two people reached, from "Spoken" up, as one line.
+- A vital promise kept. Loops have no turning-point mark, and `importance` already says this.
+- The scene's `moments`, read at render time, so old chats have them without a backfill. A confession, a first kiss or a death needs a scene rated 9 or more, and a turning point a 10. On this chat 15 of the 301 moments pass, and #541 is one: the tracker never wrote it as a milestone.
+
+An item is weighed by its scene's rating. What the tracker chose or a first-kind moment counts for one more, and so does anything that says "first" or "I love you". The first telling of a thing stands for the rest, by word overlap at 0.6: at 0.5, "Buffy realizes she is in love with Gabriel" (#211) swallowed "Buffy said 'I love you'" (#541). Capped at 20 lines and 250 tokens.
 
 ---
 
@@ -237,7 +252,7 @@ While that flag is open, what the reply wrote that matches the loop is held, as 
 
 ### 4.1 The checker cites loops
 
-Its fact sheet says the facts "can lag behind the story", which is why #599 passed. Done loops and milestones are sheet entries with L ids that don't lag, so "Then groceries" contradicts something it can cite.
+Its fact sheet says the facts "can lag behind the story", which is why #599 passed. Done loops and ALREADY HAPPENED are on the sheet since Part 2, as `D` entries, so "Then groceries" contradicts something it can cite. What's left is telling it those don't lag.
 
 ### 4.2 A kind you always dismiss stops interrupting
 
@@ -294,5 +309,5 @@ It opens the worst one.
 
 - **A wrong close hides a live thread.** That's why closures must quote, a backfill waits for you, and a closed loop is one tap from open. The golden for the move guards the worst case seen so far.
 - **Repeating things read as finished.** `repeats` has to be set when a loop opens ("every Friday"). The tracker prompt asks for it, and `undone` skips those loops.
-- **The note grows.** Parts 2.1 and 2.2 add about 500 tokens to every reply. Taking the open lists out of summaries gives much of that back: the Story So Far's line alone is 1,500 characters, and every chapter and scene shown has one. Measure it with replay before calling it even.
+- **The note grows.** Parts 2.1 and 2.2 add about 550 tokens to every reply. On this chat, taking the open lists out of summaries gives it all back (2.1 has the numbers), but only once the backfill is approved.
 - **Loop ids on an old chat.** Until a chat is backfilled, PR #201's rules keep working, so nothing gets worse on the way.

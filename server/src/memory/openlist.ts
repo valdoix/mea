@@ -6,7 +6,7 @@ import { topicCounts } from "../trackers/topics";
 import type { WorldState } from "../trackers/types";
 import type { AtomRow } from "./atoms";
 import { TimeIndex } from "./format";
-import type { SummaryRow } from "./store";
+import { memState, type SummaryRow } from "./store";
 
 /**
  * What a summary left open was open then. The Story So Far only moves when an arc closes, so at
@@ -19,6 +19,8 @@ import type { SummaryRow } from "./store";
  *
  * This is the door: a model reads a summary through `summaryText` and a plan or promise memory
  * through `memoryText`, however it got there (doors.test.ts holds every other reader to a reason).
+ * Once a chat's loops are the record (docs/22 2.1), its summaries stop saying what's open at all:
+ * WHERE THINGS STAND says that, and a summary can't get it wrong.
  */
 
 export interface Done {
@@ -39,6 +41,8 @@ export interface Lens {
   match: DoneMatch;
   /** The day of a message, or the one `plus` days after it: "Thu", "Day 3". */
   day: (seq: number, plus?: number) => string | null;
+  /** The ledger answers what's open: a backfilled chat with its trackers on. */
+  ledger?: boolean;
 }
 
 /** Records read as they were written, for where nothing is known yet. */
@@ -118,7 +122,17 @@ export function lensOf(chatId: string, st: WorldState | null | undefined, times 
     const at = times.at(seq);
     return at == null || !form || !named ? null : shortStoryTime(formatStoryTime({ minutes: at + plus * 1440, form })).replace(/\s*[· ]\s*\d{1,2}:\d{2}$/, "");
   };
-  return { done, match: doneMatcher(st, done), day };
+  const ledger = Boolean(st) && trackerConfig(chatId).mode !== "off" && memState(chatId).loopBackfill?.state === "done";
+  return { done, match: doneMatcher(st, done), day, ledger };
+}
+
+/** Each closed scene's span, its rating and its dramatic moments, oldest first. */
+export function sceneRecords(chatId: string) {
+  return all<{ start_seq: number; end_seq: number; data: string }>("SELECT start_seq, end_seq, data FROM summaries WHERE chat_id = ? AND level = 'scene' AND closed = 1 AND end_seq IS NOT NULL ORDER BY end_seq", chatId).map((s) => {
+    const d = parseJson<{ importance?: number; moments?: { tag?: string; text?: string; seq?: number }[] }>(s.data, {});
+    const moments = (d.moments ?? []).flatMap((m) => (m.tag && m.text?.trim() ? [{ tag: m.tag, text: m.text, seq: m.seq ?? 0 }] : []));
+    return { start: s.start_seq, end: s.end_seq, importance: d.importance ?? 5, moments };
+  });
 }
 
 /** Every open item a later record closed, in its own words: what a plan built on a stale list repeats. */
@@ -138,7 +152,7 @@ export function closedItems(chatId: string, st: WorldState | null | undefined, m
 const RELATIVE = /\b(?:tonight|today|tomorrow|this (?:morning|afternoon|evening))\b(?!\s*\()/gi;
 
 /** "Tonight" says which night: a stored "tonight" is the night it was written, and it reads as this one. */
-function dated(text: string, seq: number, lens: Lens) {
+export function dated(text: string, seq: number, lens: Lens) {
   return text.replace(RELATIVE, (w) => {
     const day = lens.day(seq, /^tomorrow/i.test(w) ? 1 : 0);
     return day ? `${w} (${day})` : w;
@@ -146,6 +160,7 @@ function dated(text: string, seq: number, lens: Lens) {
 }
 
 const OPEN_LINE = /^(Left open|Still open): (.*)$/m;
+const WHOLE_OPEN_LINE = /\n?^(?:Left open|Still open): .*$/m;
 
 /**
  * A summary as a model reads it: what closed in it (a chapter or a scene), its open list "as of" its
@@ -161,6 +176,7 @@ export function summaryText(r: Pick<SummaryRow, "content" | "level" | "start_seq
   const closed = here.length ? `Closed here: ${here.map((d) => d.text).join("; ")}` : "";
   const m = content.match(OPEN_LINE);
   if (!m) return closed ? `${content}\n${closed}` : content;
+  if (lens.ledger) return content.replace(WHOLE_OPEN_LINE, () => (closed ? `\n${closed}` : "")).trim();
   const since = new Map<string, Done>();
   const left = m[2]!.split(/;\s+/).filter((item) => {
     const d = match(item, end);
