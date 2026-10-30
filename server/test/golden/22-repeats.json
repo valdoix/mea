@@ -1,0 +1,47 @@
+{
+  "name": "repeats",
+  "about": "Tacos every Friday: an instance closes, the loop stays open, and a plan for this Friday's isn't flagged.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy works nights at the records office in Sunnydale.",
+    "first_mes": "The lamp hums."
+  },
+  "ledger": [
+    "clock: Day 1 12:00",
+    "at: Sunnydale > The kitchen",
+    "cast: Buffy@spot · Ash@spot",
+    "loop: Tacos every Friday | plan"
+  ],
+  "history": [
+    {
+      "role": "assistant",
+      "content": "Tacos. Again.",
+      "closes": [
+        {
+          "what": "Tacos every Friday",
+          "from": [
+            "Tacos every Friday",
+            "Friday tacos at the house"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "This Friday too?"
+    }
+  ],
+  "reply": "Friday tacos at the house tonight, she says. Then tacos, then the taco run.",
+  "forbid": [
+    "undone"
+  ],
+  "after": {
+    "lines": [],
+    "expect": [
+      {
+        "path": "loops.*.status",
+        "equals": "open"
+      }
+    ]
+  }
+}

@@ -5,9 +5,10 @@ import { getMessageRow, mustChat } from "../services/chats";
 import { fileItem, registerFilingKind } from "../services/filings";
 import { registerStatusTile } from "../services/status";
 import { formatStoryTime, shortStoryTime } from "./clock";
+import { pastDue } from "./loops";
 import { currentFold, invalidate, linesToOps, writeEvents } from "./store";
 import { userEditAt } from "./service";
-import type { Obligation, WorldState } from "./types";
+import type { Loop, Obligation, Op, WorldState } from "./types";
 
 /**
  * Promises on the clock (Almanac plan E3). Promises and meetings carry a time window; the fold
@@ -244,6 +245,43 @@ export function setPromise(chatId: string, id: string, verdict: PromiseVerdict) 
   const ids = userEditAt(chatId, linesToOps([`promise ${nm(o.who)}>${nm(o.whom)}: ${o.what} | ${verdict} — ${why}`]).ops);
   publish({ type: "trackers.changed", chatId });
   return { ids, promise: promisesFor(chatId).find((p) => p.id === id) ?? null };
+}
+
+/** docs/22 5.1: every loop for the panel, what's open first, each newest first. */
+export function loopsFor(chatId: string) {
+  const st = currentFold(chatId).result.state;
+  const late = new Set(pastDue(st).map((l) => l.id));
+  const view = (l: Loop) => ({
+    id: l.id,
+    what: l.what,
+    kind: l.kind,
+    status: l.status,
+    who: l.obligation ? (st.chars[st.obligations[l.obligation]?.who ?? ""]?.name ?? null) : null,
+    opened: l.opened,
+    closed: l.closed ?? null,
+    how: l.how ?? null,
+    byHand: Boolean(l.byHand),
+    repeats: Boolean(l.repeats),
+    last: l.last ?? null,
+    late: late.has(l.id),
+    due: l.due?.minutes != null ? shortStoryTime(formatStoryTime({ minutes: l.due.minutes, form: st.time?.form ?? "day" })) : (l.due?.text ?? null),
+  });
+  const of = (l: Loop) => (l.status === "open" ? l.opened : (l.closed ?? l.opened));
+  return Object.values(st.loops ?? {})
+    .sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || of(b) - of(a) || Number(Boolean(b.byHand)) - Number(Boolean(a.byHand)))
+    .map(view);
+}
+
+export type LoopAction = "done" | "dropped" | "open";
+
+/** One tap: it happened, it's off, or it's open again. It holds, and reopening undoes either. */
+export function setLoop(chatId: string, id: string, action: LoopAction) {
+  const l = currentFold(chatId).result.state.loops?.[id];
+  if (!l) throw notFound("No such loop");
+  const op: Op = { op: "loop", subject: id, args: { action, hand: true }, raw: `loop ${id}: ${action}` };
+  const ids = userEditAt(chatId, [op]);
+  publish({ type: "trackers.changed", chatId });
+  return { ids, loop: loopsFor(chatId).find((x) => x.id === id) ?? null };
 }
 
 const inWords = (min: number) => (min < 60 ? `${min} min` : min < 1440 ? `${Math.round(min / 60)} h` : `${Math.round(min / 1440)} d`);

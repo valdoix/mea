@@ -1,0 +1,39 @@
+{
+  "name": "rewound-past",
+  "about": "A rewind past the moment reopens the loop: the three words are pending again.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy works nights at the records office in Sunnydale.",
+    "first_mes": "The lamp hums."
+  },
+  "ledger": [
+    "clock: Day 1 12:00",
+    "at: Sunnydale > The kitchen",
+    "cast: Buffy@spot · Ash@spot",
+    "loop: Buffy's promise to say the whole word tonight, eyes open, no takebacks | promise"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "Well?"
+    },
+    {
+      "role": "assistant",
+      "content": "She says it. All of it.",
+      "closes": [
+        {
+          "what": "Buffy's promise to say the whole word tonight, eyes open, no takebacks"
+        }
+      ]
+    }
+  ],
+  "rewind": 1,
+  "prompt": {
+    "contains": [
+      "Open: Buffy's promise to say the whole word tonight"
+    ],
+    "lacks": [
+      "Done lately:"
+    ]
+  }
+}

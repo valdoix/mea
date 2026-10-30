@@ -6,6 +6,7 @@ import { lessonsFor } from "../steer/lessons";
 import { trackerConfig } from "../trackers/store";
 import type { Issue } from "./checker";
 import { currentFold } from "../trackers/store";
+import { loopsPart } from "./loophealth";
 import { type RetellStats, retellStats } from "./retell";
 
 /**
@@ -15,7 +16,7 @@ import { type RetellStats, retellStats } from "./retell";
  * Nothing new is stored; the weekly trend is worked out from the same records.
  */
 
-export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost";
+export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost" | "loops";
 export interface HealthItem {
   part: HealthPart;
   label: string;
@@ -24,9 +25,11 @@ export interface HealthItem {
   /** What it counted ("3 slips in 20 replies"). */
   detail: string;
   /** Where the cause is: a reply, or a panel. */
-  open?: { messageId: string; seq: number } | { dock: "chat" | "story"; section?: string } | { href: string };
+  open?: { messageId: string; seq: number } | { dock: "chat" | "story" | "memory"; section?: string } | { href: string };
   /** For "Fix the top 3": what to ask Meus. */
   ask?: string;
+  /** The numbers behind it, one a line. */
+  notes?: string[];
 }
 export interface Health {
   score: number;
@@ -41,13 +44,13 @@ export interface Health {
 
 const WINDOW = 20;
 const LEAKS = new Set(["leak", "offpage", "canon", "puppet"]);
-const SLIPS = new Set(["trait", "dead", "time", "name", "place", "fact", "pov", "tense", "timeline", "nothere", "clockback", "past", "planning", "who", "ties", "retell"]);
-const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1 };
+const SLIPS = new Set(["trait", "dead", "time", "name", "place", "fact", "pov", "tense", "timeline", "nothere", "clockback", "past", "planning", "who", "ties", "retell", "undone"]);
+const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1, loops: 2 };
 
 const level = (s: number): Health["level"] => (s >= 80 ? "good" : s >= 60 ? "fair" : "poor");
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
-interface Reply {
+export interface Reply {
   id: string;
   seq: number;
   idx: number;
@@ -78,7 +81,7 @@ function openIssues(replies: Reply[]) {
   });
 }
 
-function compute(chatId: string, replies: Reply[], withCraft: boolean): Omit<Health, "trend"> {
+function compute(chatId: string, replies: Reply[], live: boolean): Omit<Health, "trend"> {
   const n = replies.length;
   const issues = openIssues(replies);
   const parts: HealthItem[] = [];
@@ -102,7 +105,7 @@ function compute(chatId: string, replies: Reply[], withCraft: boolean): Omit<Hea
     detail: `${leaks.length} leak${leaks.length === 1 ? "" : "s"} (secrets, later canon, writing for you)`,
     ...(l1 ? { open: { messageId: l1.reply.id, seq: l1.reply.seq }, ask: `#${l1.reply.seq}: ${l1.issue.conflict} (${l1.issue.fix})` } : {}),
   });
-  if (withCraft) {
+  if (live) {
     const habits = craftReport(chatId).habits;
     parts.push({ part: "repetition", label: "Repetition", score: clamp(100 - habits.length * 12), detail: habits.length ? habits.slice(0, 2).map((h) => h.detail).join("; ") : "nothing repeated much", open: { dock: "chat", section: "craft" }, ...(habits[0] ? { ask: `the replies keep using ${habits[0].avoid} (${habits[0].detail})` } : {}) });
   }
@@ -141,6 +144,9 @@ function compute(chatId: string, replies: Reply[], withCraft: boolean): Omit<Hea
   const paid = gens.filter((g) => g.cost != null && g.cost > 0);
   const avgCost = paid.length ? paid.reduce((a, g) => a + g.cost!, 0) / paid.length : 0;
   parts.push({ part: "cost", label: "Cost", score: clamp(100 - Math.max(0, avgFull - 0.75) * 300), detail: `prompts ${Math.round(avgFull * 100)}% full${avgCost ? ` · $${avgCost.toFixed(3)} a reply` : ""}`, open: { href: "/settings/usage" } });
+
+  const loops = live ? loopsPart(chatId, replies) : null;
+  if (loops) parts.push(loops);
 
   const weight = parts.reduce((a, p) => a + WEIGHTS[p.part], 0);
   const score = clamp(parts.reduce((a, p) => a + p.score * WEIGHTS[p.part], 0) / Math.max(1, weight));

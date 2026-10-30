@@ -3,13 +3,15 @@ import { all, now, one, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
 import { chatNames } from "../memory/build";
 import { type ChatSettings, getMessageRow, lastMessage, mustChat, updateChat } from "../services/chats";
+import { contentWords } from "../memory/text";
 import { lessonsFor } from "./lessons";
 import { fileItem, type Filing, registerFilingKind } from "../services/filings";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { userEditAt } from "../trackers/service";
+import { openLoops } from "../trackers/loops";
 import { currentFold, deleteEvent, linesToOps } from "../trackers/store";
-import type { Character, WorldState } from "../trackers/types";
+import type { Character, Loop, Op, WorldState } from "../trackers/types";
 
 /**
  * Your corrections stick (docs/19 Part 5). A note for a reply ("buffy doesn't know that giles has
@@ -22,18 +24,25 @@ import type { Character, WorldState } from "../trackers/types";
  * Rules first: a clause that names its person ("Buffy doesn't know …") is read by rules. A clause
  * that might be a fact but needs reading ("she doesn't know that he worked as a lifeguard": who is
  * she, who is he) goes to the helper once, which must quote the note.
+ *
+ * A note that says something open already happened ("we already did the grocery run") closes its
+ * loop (docs/22 5.2), so it fixes the record and not just one take.
  */
 
 export interface NoteFact {
-  kind: "know" | "truth";
+  kind: "know" | "truth" | "loop";
   /** The chip's text. */
   label: string;
   /** know: the person, whether they know, and what. */
   who?: string;
   status?: "knows" | "unaware";
   fact?: string;
-  /** truth: the sentence that holds. */
+  /** truth: the sentence that holds. loop: the words that close it. */
   text?: string;
+  /** loop: the one it closes. */
+  loop?: string;
+  /** The note's own words, when the helper read it. */
+  quote?: string;
 }
 
 /** Asks for the reply's style or direction, not a fact: "make it warmer", "she takes his hand", "write in present tense". */
@@ -44,6 +53,9 @@ const MOMENT = /\b(?:already\s+ongoing|still\s+ongoing|right\s+now|in\s+this\s+(
 const FACTUAL = /\b(?:already|yesterday|earlier|before|last\s+night|has\s+been|have\s+been|had\s+been|was|were|is\s+the\s+one|are\s+the\s+ones|did|bought|told|gave|left|took|cleaned|washed|used|met|knows?|doesn['’]t\s+know|does\s+not\s+know)\b/i;
 const NEG = /\b(?:doesn['’]t|does\s+not|don['’]t|didn['’]t)\s+(?:yet\s+)?know\b|\bhasn['’]t\s+(?:been\s+told|heard|learned)\b|\bhas\s+no\s+idea\b|\bis\s+unaware\b/i;
 const POS = /\b(?:already\s+)?knows\b|\bhas\s+(?:been\s+told|learned)\b|\bfound\s+out\b/i;
+/** Says something's over. Not "was", which a thing called off is too. */
+const OVER = /\b(?:already|did|done|happened|finished)\b/i;
+const NOT_YET = /\b(?:not|never|yet|still|hasn['’]t|haven['’]t|didn['’]t|won['’]t|isn['’]t)\b/i;
 const PRONOUN = /\b(?:he|she|they|him|her|his|hers|them|their|it|those|these|this|that)\b/i;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -75,10 +87,26 @@ export function knowledgeClaim(st: WorldState, clause: string): { who: Character
   return null;
 }
 
-/** What rules can read on their own, and the clauses that might be facts but need the helper. */
-export function readNote(st: WorldState, note: string): { facts: NoteFact[]; unsure: string[] } {
+/**
+ * The open loop a clause says is over: it says every word of a wording, so "she already moved the
+ * boxes" doesn't close the move to his house. Wordings of two words or more: one says too little.
+ */
+export function closedByNote(st: WorldState, clause: string): Loop | null {
+  if (!OVER.test(clause) || NOT_YET.test(clause)) return null;
+  const said = contentWords(clause);
+  return openLoops(st).find((l) => !l.repeats && [l.what, ...l.from].some((t) => {
+    const words = [...contentWords(t)];
+    return words.length >= 2 && words.every((w) => said.has(w));
+  })) ?? null;
+}
+
+const clipped = (s: string) => (s.length > 120 ? `${s.slice(0, 119).trimEnd()}…` : s);
+
+/** What rules can read on their own, the clauses that might be facts but need the helper, and plain facts it should see first. */
+export function readNote(st: WorldState, note: string): { facts: NoteFact[]; unsure: string[]; over: string[] } {
   const facts: NoteFact[] = [];
   const unsure: string[] = [];
+  const over: string[] = [];
   const cast = Object.values(st.chars);
   const named = (s: string) => cast.some((c) => names(c).some((n) => new RegExp(`(?<![\\p{L}])${esc(n)}(?![\\p{L}])`, "iu").test(s)));
   for (const c of clausesOf(note)) {
@@ -88,20 +116,29 @@ export function readNote(st: WorldState, note: string): { facts: NoteFact[]; uns
       facts.push({ kind: "know", who: k.who.name, status: k.status, fact: k.fact, label: `${k.who.name} ${k.status === "knows" ? "knows" : "doesn't know"}: ${k.fact}` });
       continue;
     }
+    const done = k ? null : closedByNote(st, c);
+    if (done) {
+      facts.push({ kind: "loop", loop: done.id, text: c, label: `Done: ${clipped(done.what)}` });
+      continue;
+    }
     if (!FACTUAL.test(c)) continue;
     // A plain fact that names its people ("Gabriel bought the socks with Buffy") holds as written.
-    if (!k && named(c) && !/^(?:he|she|they)\b/i.test(c) && !PRONOUN.test(c.replace(/\b(?:his|her|their)\b/gi, ""))) facts.push({ kind: "truth", text: cap(c), label: cap(c) });
-    else unsure.push(c);
+    if (!k && named(c) && !/^(?:he|she|they)\b/i.test(c) && !PRONOUN.test(c.replace(/\b(?:his|her|their)\b/gi, ""))) {
+      // Unless it may be an open loop in other words: the helper can tell, and it stands if it can't.
+      if (OVER.test(c) && !NOT_YET.test(c) && openLoops(st).length) over.push(c);
+      else facts.push({ kind: "truth", text: cap(c), label: cap(c) });
+    } else unsure.push(c);
   }
-  return { facts, unsure };
+  return { facts, unsure, over };
 }
 
 const helperSchema = z.object({
   facts: z
     .array(
       z.object({
-        kind: z.enum(["knows", "unaware", "truth", "direction", "moment"]).catch("direction"),
+        kind: z.enum(["knows", "unaware", "truth", "closes", "direction", "moment"]).catch("direction"),
         who: z.string().default(""),
+        loop: z.string().default(""),
         fact: z.string().default(""),
         quote: z.string().default(""),
       }),
@@ -114,26 +151,36 @@ async function askHelper(chatId: string, st: WorldState, clauses: string[]): Pro
   if (!clauses.length || shouldShed("lessons", chatId)) return [];
   const n = chatNames(chatId);
   const here = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri").map((c) => (c.isUser ? `${n.user} (the player)` : c.name));
+  const open = openLoops(st).slice(-12);
   const system = `You read a player's note to the writer of a story and pick out what it states as true about the story, so it can be saved. The story's main character is ${n.char}; the player plays ${n.user}. People in the scene: ${here.join(", ") || "unknown"}.
 For each clause, answer one item:
 - "unaware": someone doesn't know something. who = their name; fact = what they don't know, with every pronoun replaced by a name.
 - "knows": someone already knows something (same rules).
 - "truth": something that happened or holds, said as fact ("she already washed her mouth", "her nails were cleaned yesterday"). fact = the sentence with names for pronouns.
+- "closes": it says one of the OPEN THINGS already happened on the page. loop = its id. Only when it's plainly that one, and it's over, not just talked about.
 - "moment": true of this reply only ("the call is already ongoing").
 - "direction": what the player wants written, or a style ("make it warmer", "she takes his hand").
 A vague fact ("those details") is "direction". quote = the clause's own words, exactly.`;
   try {
-    const r = await callJson({ task: "helper", kind: "note facts", chatId, name: "note_facts", schema: helperSchema, system, user: `NOTE CLAUSES:\n${clauses.map((c) => `- ${c}`).join("\n")}`, maxTokens: 600, temperature: 0.1 });
+    const r = await callJson({ task: "helper", kind: "note facts", chatId, name: "note_facts", schema: helperSchema, system, user: `${open.length ? `OPEN THINGS:\n${open.map((l) => `${l.id}: ${clipped(l.what)}`).join("\n")}\n\n` : ""}NOTE CLAUSES:\n${clauses.map((c) => `- ${c}`).join("\n")}`, maxTokens: 600, temperature: 0.1 });
     const out: NoteFact[] = [];
     const people = Object.values(st.chars).filter((c) => !c.isUser);
     for (const f of r.data.facts) {
       // It must quote the note, and say something.
-      if (!f.fact.trim() || !clauses.some((c) => c.toLowerCase().includes(f.quote.trim().toLowerCase().slice(0, 40)) && f.quote.trim().length >= 6)) continue;
+      const quote = f.quote.trim();
+      const clause = quote.length >= 6 ? clauses.find((c) => c.toLowerCase().includes(quote.toLowerCase().slice(0, 40))) : undefined;
+      if (!clause) continue;
+      if (f.kind === "closes") {
+        const l = open.find((x) => x.id === f.loop.trim());
+        if (l) out.push({ kind: "loop", loop: l.id, text: clause, quote: clause, label: `Done: ${clipped(l.what)}` });
+        continue;
+      }
+      if (!f.fact.trim()) continue;
       const fact = cap(f.fact.trim().replace(/[\s.]+$/, ""));
-      if (f.kind === "truth") out.push({ kind: "truth", text: fact, label: fact });
+      if (f.kind === "truth") out.push({ kind: "truth", text: fact, quote: clause, label: fact });
       else if (f.kind === "knows" || f.kind === "unaware") {
         const who = people.find((c) => names(c).some((x) => x.toLowerCase() === f.who.trim().toLowerCase()));
-        if (who) out.push({ kind: "know", who: who.name, status: f.kind, fact, label: `${who.name} ${f.kind === "knows" ? "knows" : "doesn't know"}: ${fact}` });
+        if (who) out.push({ kind: "know", who: who.name, status: f.kind, fact, quote: clause, label: `${who.name} ${f.kind === "knows" ? "knows" : "doesn't know"}: ${fact}` });
       }
     }
     return out;
@@ -156,9 +203,12 @@ function anchorFor(chatId: string, replyId: string) {
  */
 export async function fileNoteFacts(chatId: string, replyId: string, note: string): Promise<Filing[]> {
   const st = currentFold(chatId).result.state;
-  const { facts, unsure } = readNote(st, note);
-  facts.push(...(await askHelper(chatId, st, unsure)));
-  const before = new Map(all<{ label: string; status: string }>("SELECT label, status FROM filings WHERE chat_id = ? AND kind IN ('note-know', 'note-truth')", chatId).map((r) => [r.label.toLowerCase(), r.status]));
+  const { facts, unsure, over } = readNote(st, note);
+  const read = await askHelper(chatId, st, [...unsure, ...over]);
+  const closes = new Set(read.filter((f) => f.kind === "loop").map((f) => f.quote));
+  facts.push(...read.filter((f) => f.kind === "loop" || !over.includes(f.quote ?? "")));
+  for (const c of over) if (!closes.has(c)) facts.push({ kind: "truth", text: cap(c), label: cap(c) });
+  const before = new Map(all<{ label: string; status: string }>("SELECT label, status FROM filings WHERE chat_id = ? AND kind IN ('note-know', 'note-truth', 'note-loop')", chatId).map((r) => [r.label.toLowerCase(), r.status]));
   const anchor = anchorFor(chatId, replyId);
   const out: Filing[] = [];
   for (const f of facts) {
@@ -170,6 +220,11 @@ export async function fileNoteFacts(chatId: string, replyId: string, note: strin
       if (!ops.length) continue;
       const ids = userEditAt(chatId, ops, anchor);
       out.push(fileItem(chatId, { messageId: replyId, kind: "note-know", label, data: { ids } }));
+    } else if (f.kind === "loop") {
+      const how = `your note: ${f.text}`;
+      const op: Op = { op: "loop", subject: f.loop, args: { action: "done", how, hand: true }, raw: `loop ${f.loop}: done — ${how}` };
+      const ids = userEditAt(chatId, [op], anchor);
+      out.push(fileItem(chatId, { messageId: replyId, kind: "note-loop", label, data: { ids } }));
     } else if (f.text) {
       const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
       const truths = [...(s.truths ?? [])];
@@ -223,9 +278,9 @@ const backToLesson = (status?: string) => (f: Filing) => {
 registerFilingKind("lesson-fact", { undo: (f) => backToLesson()(f), notMeant: backToLesson("kept") });
 
 // Undo, or "That's only for this reply" (the filing stays as undone, so the same note isn't saved again).
-for (const kind of ["note-know", "note-truth"] as const) {
+for (const kind of ["note-know", "note-truth", "note-loop"] as const) {
   const undo = (f: Filing) => {
-    if (kind === "note-know") for (const id of (f.data.ids as string[] | undefined) ?? []) deleteEvent(f.chatId, id);
+    if (kind !== "note-truth") for (const id of (f.data.ids as string[] | undefined) ?? []) deleteEvent(f.chatId, id);
     else {
       const s = parseJson<ChatSettings>(mustChat(f.chatId).settings, {});
       updateChat(f.chatId, { settings: { truths: (s.truths ?? []).filter((t) => t !== f.data.text) } });

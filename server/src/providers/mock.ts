@@ -593,6 +593,8 @@ function helperJson(name: string, user: string, system = ""): unknown {
     case "note_facts":
       return {
         facts: [...user.matchAll(/^- (.+)$/gm)].map(([, c]) => {
+          const loop = user.match(/^(L\w+): /m)?.[1];
+          if (loop && /\bsaid I love you\b/i.test(c!)) return { kind: "closes", loop, who: "", fact: "", quote: c };
           const fact = c!.replace(/\bshe['’]s\b/gi, "Buffy is").replace(/\bshe\b/gi, "Buffy").replace(/\b(?:he|him)\b/gi, "Gabriel");
           const unaware = /\bdoesn['’]t know\b/i.test(c!);
           if (/\b(?:those|these) details\b/i.test(c!)) return { kind: "direction", who: "", fact: "", quote: c };

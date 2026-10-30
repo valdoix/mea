@@ -135,9 +135,9 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 | 0 | Tools and quick wins | merged, PR #202 |
 | 1 | One record of what's open | merged, PR #203 |
 | 2 | Where things stand | merged, PR #204 |
-| 3 | The gates | PR #205 |
+| 3 | The gates | merged, PR #205 |
 | 4 | Flags worth reading | — |
-| 5 | You can see it | — |
+| 5 | You can see it | built, PR to follow #205 |
 
 ### Part 0 (2026-10-31)
 
@@ -169,6 +169,15 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 - 3.3 `accuracy/undone.ts`, slip `undone`, loaded from `startup.ts` and `golden/run.ts`, not `checker.ts` (slips.ts's own imports reach the checker, so importing it there risks reading `SLIPS` too early). `heldDone` in `store.ts` reads the loop off the flag's citation; `FoldConfig.heldDone` and `doneHeld` in the fold. A dismissed `undone` waves that loop through for the chat.
 - To check a rule change against a real chat, run it over every reply on a copy, as docs/22 3.3 did: 145 replies took under a minute. It went from 175 flags to 2.
 - Tests: `server/test/gates.test.ts`.
+
+### Part 5 (2026-10-31)
+
+- 5.1 `loopsFor`, `setLoop` in `trackers/promises.ts`, routes in `routes/offpage.ts`, `web/.../trackers/LoopsPanel.svelte`, dock section `loops`. `Loop.yours` (your word's on it), `byHand` (a tap or a note, set by `args.hand` or a `promise` line of yours; a card's `loop` lines are `user` too and aren't by hand), `reopened` (seq). `loopHeld` in the fold is the rule. `dropLoop` settles the promise and the calendar: dropping used to leave a promise open to break.
+- `promiseChecks` runs inside whichever event got there, a user's too, so `settleLoop` takes `mine` and it passes false. Don't read `ctx.ev.source` for "you said so" there.
+- 5.2 `closedByNote` and `readNote`'s `over` in `steer/notefacts.ts`, filing kind `note-loop`. It compares `contentWords`, not `aboutWords`, which drops "run" and the cast, so "the grocery run" would be one word.
+- 5.3 `accuracy/loophealth.ts`, `HealthItem.notes`. `compute`'s `withCraft` is now `live`.
+- 5.4 goldens 19 to 25. History can say `closes`; a scenario can say `rewind`, `replans`, `plannerInput`, `after.none`. To be sure a golden bites, switch off what it guards and run it: all seven did, though a first try at the hold only reached two of its three call sites.
+- A script outside `scripts/` that imports `server/src` by absolute path gets a second copy of `db.ts` (forward vs back slashes) and "Database is not open". Put a throwaway in `scripts/`, and delete it.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

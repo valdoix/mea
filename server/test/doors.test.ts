@@ -8,6 +8,7 @@ import { join, relative } from "node:path";
  * bug. So a file that reads summaries goes through the door or says here why it doesn't.
  */
 const REASONS: Record<string, string> = {
+  "accuracy/loophealth.ts": "only where the rollups end, for Story health: no summary's text",
   "accuracy/canoncut.ts": "looks for canon terms by rule; no model reads the text",
   "accuracy/codex.ts": "the Codex page: you read it, and it says what it's through",
   "accuracy/inbox.ts": "review cards for proposed summaries",

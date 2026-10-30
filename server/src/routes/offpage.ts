@@ -9,7 +9,7 @@ import { fileItem } from "../services/filings";
 import { parseStoryTime } from "../trackers/clock";
 import { exposureFor, nudgeExposure } from "../trackers/exposure";
 import { pressureAction, pressuresView } from "../trackers/pressures";
-import { promisesFor, setPromise } from "../trackers/promises";
+import { loopsFor, promisesFor, setLoop, setPromise } from "../trackers/promises";
 import { canonOf, laterItem, moveCutoff, queueSuggest, setCanon } from "../accuracy/canoncut";
 import { canonSchema, mustChat } from "../services/chats";
 
@@ -152,4 +152,17 @@ offpage.get("/chats/:id/promises", (c) => {
 offpage.post("/chats/:id/promises/:pid", async (c) => {
   const b = await body(c, z.object({ verdict: z.enum(["kept", "broken", "excused", "forgiven", "open"]) }));
   return c.json(setPromise(c.req.param("id"), c.req.param("pid"), b.verdict));
+});
+
+// ---------- docs/22 5.1: what the story is waiting for ----------
+
+offpage.get("/chats/:id/loops", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ loops: loopsFor(c.req.param("id")) });
+});
+
+/** It happened, it's off, or it's open again. */
+offpage.post("/chats/:id/loops/:lid", async (c) => {
+  const b = await body(c, z.object({ action: z.enum(["done", "dropped", "open"]) }));
+  return c.json(setLoop(c.req.param("id"), c.req.param("lid"), b.action));
 });

@@ -1,0 +1,39 @@
+{
+  "name": "still-moving",
+  "about": "The move to Gabriel's house stays open through a promise that shares its subject: \"offer him the hills house\".",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy works nights at the records office in Sunnydale.",
+    "first_mes": "The lamp hums."
+  },
+  "ledger": [
+    "clock: Day 1 12:00",
+    "at: Sunnydale > The kitchen",
+    "cast: Buffy@spot · Ash@spot",
+    "loop: The move to Gabriel's house | plan"
+  ],
+  "history": [
+    {
+      "role": "assistant",
+      "content": "She offers him the hills house.",
+      "closes": [
+        {
+          "what": "offer him the hills house"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "So when do we move?"
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "Open: The move to Gabriel's house"
+    ]
+  },
+  "reply": "The move to Gabriel's house is still due, she says, and the boxes are not packed yet.",
+  "forbid": [
+    "undone"
+  ]
+}

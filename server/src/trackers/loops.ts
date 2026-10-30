@@ -29,6 +29,12 @@ export const doneLoops = (st: WorldState | null | undefined): Loop[] =>
     .filter((l) => l.status === "done" && !l.repeats && l.closed != null)
     .sort((a, b) => a.closed! - b.closed!);
 
+/** What's open and past its time on the clock. One that repeats just comes round again. */
+export const pastDue = (st: WorldState | null | undefined): Loop[] => {
+  const now = st?.time?.minutes;
+  return now == null ? [] : openLoops(st).filter((l) => !l.repeats && l.due?.minutes != null && l.due.minutes < now);
+};
+
 const plain = (s: string) => s.toLowerCase().replace(/&nbsp;/g, " ").replace(/[*_~"“”'‘’«»`]/g, "").replace(/[—–-]+/g, " ").replace(/\s+/g, " ").trim();
 
 /** Whether a closing line is really in the text: quote marks, emphasis and spacing aside. */

@@ -5,6 +5,7 @@
   import TrackerSettings from "./TrackerSettings.svelte";
   import LessonsPanel from "./LessonsPanel.svelte";
   import OffpagePanel from "./OffpagePanel.svelte";
+  import LoopsPanel from "./LoopsPanel.svelte";
   import PromisesPanel from "./PromisesPanel.svelte";
   // docs/15, part 4: loaded when the Story panel opens (it isn’t needed for first paint).
   const bondPanel = import("./BondPanel.svelte");
@@ -418,6 +419,7 @@
     {#await bondPanel then m}<m.default {chatId} />{/await}
     {#await sincePanel then m}<m.default {chatId} />{/await}
     <PromisesPanel {chatId} />
+    <LoopsPanel {chatId} />
     <LessonsPanel {chatId} />
     <OffpagePanel />
 
