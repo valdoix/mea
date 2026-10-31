@@ -124,8 +124,20 @@ if ($branch -ne $mainBranch) {
     $mainTree = (& $git rev-parse "origin/$mainBranch^{tree}" 2>$null | Select-Object -First 1)
     $inMain = ($mergedTree -and $mergedTree -eq $mainTree)
   }
+  if (-not $inMain) {
+    # That check misses a squash merge once main has changed the same lines again. A branch GitHub has
+    # deleted, with every commit here already pushed, has nothing left to pull or to lose: it's finished.
+    $tracked = (& $git config "branch.$branch.merge" 2>$null | Select-Object -First 1)
+    if ($tracked) {
+      & $git ls-remote --exit-code origin $tracked 2>$null | Out-Null
+      if ($LASTEXITCODE -eq 2) {
+        $unpushed = (& $git rev-list --count HEAD --not --remotes=origin 2>$null | Select-Object -First 1)
+        $inMain = ($unpushed -eq "0")
+      }
+    }
+  }
   if ($inMain) {
-    Write-Log "$branch is already in $mainBranch; switching to $mainBranch to update."
+    Write-Log "$branch is finished; switching to $mainBranch to update."
     Clear-AlreadyUpstream "origin/$mainBranch"
     $switch = Invoke-Logged $git @("switch", $mainBranch)
     if ($LASTEXITCODE -ne 0) {
