@@ -37,7 +37,7 @@
     queueMicrotask(() => {
       const w = menu?.offsetWidth ?? 220;
       const h = menu?.offsetHeight ?? 200;
-      pos = { left: Math.max(8, Math.min(x - (point ? 0 : w), innerWidth - w - 8)), top: Math.min(y, innerHeight - h - 8) };
+      pos = { left: Math.max(8, Math.min(x - (point ? 0 : w), innerWidth - w - 8)), top: Math.max(8, Math.min(y, innerHeight - h - 8)) };
       // M41: the menu takes focus as it opens, so arrow keys work right away.
       itemsEl()[0]?.focus({ preventScroll: true });
     });
@@ -107,6 +107,10 @@
     min-width: 13rem;
     padding: 0.35rem;
     display: grid;
+    align-content: start;
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     box-shadow: var(--shadow-2);
     transform-origin: top right;
   }
