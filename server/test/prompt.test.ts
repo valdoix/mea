@@ -252,6 +252,22 @@ describe("Mea's default preset", () => {
     expect(p).not.toContain("[SCENE · INTIMACY");
   });
 
+  test("sex scene pacing is sent before the tracker has called it an intimacy scene", () => {
+    const pace = "Never finish a sex scene in one reply";
+    const plan = "the one step this reply covers";
+    for (const intimacy of ["explicit", "sensual"]) {
+      const p = all({ controlValues: { intimacy } });
+      expect(p).not.toContain("[SCENE ·");
+      expect(p).toContain(pace);
+      expect(p).toContain(plan);
+    }
+    for (const intimacy of ["off", "fade"]) {
+      const p = all({ controlValues: { intimacy } });
+      expect(p).not.toContain(pace);
+      expect(p).not.toContain(plan);
+    }
+  });
+
   test("an empty send lets the world move", () => {
     const p = assemblePrompt(base({ history: [story[0]!] })).messages.at(-1)!.content;
     expect(p).toContain("The player waits");

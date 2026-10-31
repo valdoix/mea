@@ -488,6 +488,7 @@ The turn frame rotates one of these into the spotlight each turn. Your own banne
 - **Desire is personal:** people keep their voice, humour and hang-ups.
 - **Consent lives in the scene,** and a change is honoured at once.
 - **Phases are climbed across replies,** never in one: charge → approach → consent → undressing → … → aftermath. The next morning is part of the story.
+- **The pace rule rides in This reply and the plan pass,** not only the scene module: the tracker sets `mode = intimacy` after a reply, so the module misses the reply where a scene starts. At Sensual and Explicit, each reply covers one step, and the climax waits for the player or for several replies at full pitch.
 - **Bodies stay in a specific room.**
 - The level, style and vocabulary come from the controls. A banned list of erotic clichés is kept short.
 
