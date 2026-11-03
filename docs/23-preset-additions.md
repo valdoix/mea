@@ -2,7 +2,7 @@
 
 > Source: the six presets and one guide in `Downloads\new presets` (2026-11-03). Target: Mea's built-in preset, [server/src/prompt/mea.ts](../server/src/prompt/mea.ts) (v15).
 > Builds on [10-default-preset.md](10-default-preset.md), which analysed the earlier versions of three of these lines.
-> **Status: being built** (2026-11-03), one PR per part in the order of §9. Part 1, preset v16, covers §3, the Social module and module lines of §4, the controls of §5 except Canon, Continuity and Vessel, and §6 except the placement test. **Measured cost:** v16 sends about 1k tokens more than v15 with the defaults (5,976 → 6,971 in the prompt test).
+> **Status: built** (2026-11-03), PRs #214–#220 and the episode-breaks PR. Not built: the placement test (§6), trust by dimension, the small-events deck for 1-on-1 scenes, the thoughts drawer, the thread keeper, and scene shapes for the advisor (§7, first table). **Measured cost:** v16 sends about 1k tokens more than v15 with the defaults (5,976 → 6,971 in the prompt test).
 >
 > The second pass (2026-11-03) went deeper into HopThorne's procedure library, Paramnesia VI's genre directors and the rest of Writer's Block v3. It added §3.9–3.17, the module edits in §4, four more controls, three planning additions and nine engine items.
 

@@ -1,4 +1,4 @@
-import { all, one, run } from "../db/db";
+import { all, one, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest } from "../lib/http";
 import { dropAtoms, insertAtom, isDuplicate } from "../memory/atoms";
@@ -6,7 +6,7 @@ import { touchMemory } from "../memory/store";
 import { detectBoundary } from "../memory/segment";
 import { cleanText } from "../memory/text";
 import { getCard } from "../services/characters";
-import { addMessage, getMessageRow, getSwipes, lastMessage, type LedgerChange, mustChat, updateSwipe } from "../services/chats";
+import { addMessage, type ChatSettings, getMessageRow, getSwipes, lastMessage, type LedgerChange, mustChat, updateChat, updateSwipe } from "../services/chats";
 import { enqueue, type JobContext } from "../services/jobs";
 import { callText } from "../services/llm";
 import { storyDials } from "../services/layers";
@@ -26,13 +26,14 @@ import {
   foldConfigFor,
   hasBase,
   hasEvents,
+  linesToOps,
   onTrackerLedgerEdit,
   type ResolvedTrackerConfig,
   templatesFor,
   trackerConfig,
   writeEvents,
 } from "./store";
-import type { Change, Op, WorldState } from "./types";
+import { AXES, type Change, METERS, type Op, type WorldState } from "./types";
 import { momentsOf } from "./moments";
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
@@ -273,6 +274,68 @@ export function userEditAt(chatId: string, ops: Op[], messageId?: string | null)
   mustChat(chatId);
   const anchor = messageId ?? lastMessage(chatId)?.id ?? null;
   return writeEvents(chatId, { messageId: anchor, swipeIdx: anchor ? -1 : 0 }, ops, "user");
+}
+
+// ---------- episode breaks (docs/23, part 8) ----------
+
+/**
+ * The tracker lines that put the story back to its status quo (Writer's Block's episodic mode):
+ * injuries heal, conditions clear, meters, moods, bonds and romance rungs return to the baseline.
+ * People, places, items, facts and threads stay; so does a death.
+ */
+export function episodeLines(cur: WorldState, base: WorldState): string[] {
+  const lines: string[] = [];
+  const why = " — a new episode";
+  for (const c of Object.values(cur.chars)) {
+    if (c.dead) continue;
+    const b = base.chars[c.id];
+    const body: string[] = [];
+    for (const i of c.injuries) if (!b?.injuries.some((x) => x.where === i.where)) body.push(`healed: ${i.where}`);
+    for (const k of c.conditions) if (!b?.conditions.some((x) => x.text === k.text)) body.push(`no longer ${k.text}`);
+    if (b) {
+      for (const m of METERS) {
+        const now = c.meters[m];
+        const was = b.meters[m];
+        if (now != null && was != null && now !== was) body.push(`${m} ${now} → ${was}`);
+      }
+    }
+    if (body.length) lines.push(`body ${c.name}: ${body.join("; ")}`);
+    if (b?.mood && c.mood?.name !== b.mood.name) lines.push(`mood ${c.name}: ${c.mood?.name ?? "none"} → ${b.mood.name}`);
+  }
+  const nameOf = (id: string) => cur.chars[id]?.name;
+  for (const [key, bond] of Object.entries(cur.bonds)) {
+    const from = nameOf(bond.from);
+    const to = nameOf(bond.to);
+    if (!from || !to) continue;
+    const was = base.bonds[key]?.axes ?? {};
+    const moves = AXES.filter((a) => (bond.axes[a] ?? 0) !== (was[a] ?? 0)).map((a) => `${a} ${bond.axes[a] ?? 0} → ${was[a] ?? 0}`);
+    if (moves.length) lines.push(`bond ${from}>${to}: ${moves.join("; ")}${why}`);
+  }
+  for (const [key, ladder] of Object.entries(cur.ladders)) {
+    const [a, b] = key.split(">");
+    const from = nameOf(a!);
+    const to = nameOf(b!);
+    const was = base.ladders[key]?.tier ?? 0;
+    if (from && to && ladder.tier !== was) lines.push(`ladder ${from}>${to}: ${was}${why}`);
+  }
+  return lines;
+}
+
+/** "/episode": a marker, and the status quo restored from the story's opening (or the baseline the first break kept). */
+export function newEpisode(chatId: string, title?: string) {
+  const settings = parseJson<ChatSettings>(mustChat(chatId).settings, {});
+  const opening = one<{ seq: number }>("SELECT MIN(seq) AS seq FROM messages WHERE chat_id = ? AND role = 'assistant' AND deleted_at IS NULL", chatId)?.seq;
+  if (opening == null) throw badRequest("There's no story yet to start a new episode of");
+  const baselineSeq = settings.episodes?.baselineSeq ?? opening;
+  const n = (settings.episodes?.n ?? 1) + 1;
+  const base = foldAt(chatId, { uptoSeq: baselineSeq }).state;
+  const lines = episodeLines(currentFold(chatId).result.state, base);
+  const messageId = addMessage(chatId, "system", `*Episode ${n}${title?.trim() ? `: ${title.trim()}` : ""}*`, { name: "New episode", meta: { episode: n } });
+  const { ops } = linesToOps(lines);
+  if (ops.length) writeEvents(chatId, { messageId, swipeIdx: -1 }, ops, "user");
+  updateChat(chatId, { settings: { episodes: { baselineSeq, n } } });
+  afterUpdate(chatId, messageId);
+  return { messageId, episode: n, restored: lines.length };
 }
 
 // ---------- time skips (TRK-10) ----------
