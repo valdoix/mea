@@ -13,6 +13,9 @@
    */
   const MOODS = ["calm", "tender", "melancholy", "tense", "dread", "bright", "epic", "mystery", "night"] as const;
   type Mood = (typeof MOODS)[number];
+  /** Mirrors `server/src/music/versions.ts`. */
+  const VERSIONS = ["live", "remix", "acoustic", "sped up", "demo"] as const;
+  type Version = (typeof VERSIONS)[number];
   interface Track {
     videoId: string;
     title: string;
@@ -26,7 +29,7 @@
     connected: boolean;
     library: Track[];
     leitmotifs: { who: string; videoId: string }[];
-    taste: { preferred: string[]; banned: string[]; instrumentalInDialogue: boolean };
+    taste: { preferred: string[]; banned: string[]; instrumentalInDialogue: boolean; blockVersions: Version[] };
     /** th-ch's app can search, so preferred artists' songs join the library by themselves. */
     canSearch: boolean;
     /** Each preferred artist's songs in the library; null until they've been looked up. */
@@ -78,15 +81,22 @@
   // Search the library: every word must match a title, an artist or a mood; and one artist, if picked.
   let query = $state("");
   let artistPick = $state("");
+  // Each artist on their own: "Camila Cabello & Ed Sheeran" counts for both, so picking one shows their duets too.
+  const artistsOf = (artist: string) => artist.split(/\s*(?:&|,|\bfeat\.?|\bft\.?|\bwith\b)\s*/i).map((a) => a.trim()).filter(Boolean);
+  const byArtist = (t: Track, a: string) => artistsOf(t.artist).some((x) => x.toLowerCase() === a.toLowerCase());
   const artists = $derived.by(() => {
-    const n = new Map<string, number>();
-    for (const t of cfg?.library ?? []) if (t.artist) n.set(t.artist, (n.get(t.artist) ?? 0) + 1);
-    return [...n.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const n = new Map<string, [string, number]>();
+    for (const t of cfg?.library ?? [])
+      for (const a of new Set(artistsOf(t.artist))) {
+        const k = a.toLowerCase();
+        n.set(k, [n.get(k)?.[0] ?? a, (n.get(k)?.[1] ?? 0) + 1]);
+      }
+    return [...n.values()].sort((a, b) => a[0].localeCompare(b[0]));
   });
   const shown = $derived.by(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     return (cfg?.library ?? []).filter((t) => {
-      if (artistPick && t.artist !== artistPick) return false;
+      if (artistPick && !byArtist(t, artistPick)) return false;
       const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""} ${WORDS_LABEL[cfg?.words[t.videoId] ?? "pending"]}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
@@ -111,6 +121,25 @@
       cfg = await post<Config>("/api/music/library/remove", { ids: picked });
       picked = [];
       toast(`Removed ${n} song${n === 1 ? "" : "s"}`, { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  /**
+   * Every song by one artist, in one go. An artist you prefer comes off that list too: otherwise the
+   * next lookup would bring in songs of theirs you haven't removed yet.
+   */
+  async function removeArtist(artist: string) {
+    const ids = (cfg?.library ?? []).filter((t) => byArtist(t, artist)).map((t) => t.videoId);
+    const preferred = cfg!.taste.preferred.filter((a) => a.toLowerCase() !== artist.toLowerCase());
+    const wasPreferred = preferred.length < cfg!.taste.preferred.length;
+    if (!ids.length || !(await confirm({ title: `Remove all ${ids.length} song${ids.length === 1 ? "" : "s"} by ${artist}?`, message: `Duets with them go too.${wasPreferred ? ` ${artist} also comes off your preferred artists, so no more of their songs are added.` : ""} Lookups won't add these back. To keep them out for good, add them to Never play.`, confirmLabel: "Remove", danger: true }))) return;
+    try {
+      cfg = await post<Config>("/api/music/library/remove", { ids });
+      if (wasPreferred) await save({ taste: { ...cfg!.taste, preferred } });
+      picked = picked.filter((id) => !ids.includes(id));
+      artistPick = "";
+      toast(`Removed ${ids.length} song${ids.length === 1 ? "" : "s"} by ${artist}`, { kind: "ok" });
     } catch (e) {
       errorToast(e);
     }
@@ -311,6 +340,7 @@
           <input class="input grow" type="search" bind:value={query} placeholder="Search by title, artist or mood" aria-label="Search the library" />
           {#if artists.length > 1}<select class="select" bind:value={artistPick} aria-label="Only this artist"><option value="">All artists</option>{#each artists as [a, n] (a)}<option value={a}>{a} ({n})</option>{/each}</select>{/if}
           {#if filtering}<span class="tiny muted">{shown.length} of {cfg.library.length}</span>{/if}
+          {#if artistPick}<button class="btn small danger" onclick={() => removeArtist(artistPick)}><X size={13} /> Remove all by {artistPick}</button>{/if}
         </div>
         <div class="row wrap bulk">
           <label class="switch small"><input type="checkbox" checked={allShownPicked} onchange={pickShown} disabled={!shown.length} /> Select {filtering ? "all shown" : "all"}</label>
@@ -386,6 +416,11 @@
         <p class="tiny muted">{cfg.taste.preferred.map((a) => `${a}: ${cfg!.tasteFound[a] == null ? "looking…" : `${cfg!.tasteFound[a]} in the library`}`).join(" · ")}</p>
       {/if}
       <label class="field"><span class="label">Never play</span><input class="input" value={cfg.taste.banned.join(", ")} onchange={(e) => save({ taste: { ...cfg!.taste, banned: listOf(e.currentTarget.value) } })} placeholder="comma-separated artists" /></label>
+      <div class="field">
+        <span class="label">Never play these versions</span>
+        <div class="row wrap">{#each VERSIONS as v (v)}<button type="button" class="chip" class:on={cfg.taste.blockVersions.includes(v)} aria-pressed={cfg.taste.blockVersions.includes(v)} onclick={() => save({ taste: { ...cfg!.taste, blockVersions: toggle(cfg!.taste.blockVersions, v) } })}>{v}</button>{/each}</div>
+        <p class="tiny muted">Told from the song's title, like "(Live at Red Rocks)" or "(Wookie Remix)". They stay in the library; Mea just skips them, and your artists' lookups don't add new ones.</p>
+      </div>
       <label class="switch"><input type="checkbox" checked={cfg.taste.instrumentalInDialogue} onchange={(e) => save({ taste: { ...cfg!.taste, instrumentalInDialogue: e.currentTarget.checked } })} /> Instrumental only during dialogue</label>
     </section>
   </div>

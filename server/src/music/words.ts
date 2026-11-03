@@ -137,6 +137,21 @@ export function sheetFor(videoId: string): LyricSheet | null {
   return parseJson<LyricSheet | null>(r.sheet, null);
 }
 
+/**
+ * What each of these songs is about (its sheet's situations, most important first), read in one go
+ * for the theme check. A sheet of older words still says what the song is about.
+ */
+export function songThemes(videoIds: string[]): Map<string, Situation[]> {
+  const want = new Set(videoIds);
+  const out = new Map<string, Situation[]>();
+  for (const r of all<{ video_id: string; sheet: string }>("SELECT video_id, sheet FROM song_lyrics WHERE sheet IS NOT NULL")) {
+    if (!want.has(r.video_id)) continue;
+    const sits = parseJson<LyricSheet | null>(r.sheet, null)?.situations;
+    if (sits?.length) out.set(r.video_id, sits);
+  }
+  return out;
+}
+
 /** Songs with words and no sheet for them (or a sheet of older words), among these. */
 export function songsToRead(videoIds: string[]): { videoId: string; lines: LyricLine[] }[] {
   const want = new Set(videoIds);
@@ -266,6 +281,8 @@ export function recordsSay(changes: Change[], st: WorldState, prev?: Moment | nu
   if (/conflict|fight|combat|battle/.test(mode)) add("the fight");
   else if (prev?.situations.includes("the fight")) add("aftermath");
   if (/travel|journey/.test(mode)) add("the road");
+  // An intimate scene is most likely about desire; the reply decides when it's read.
+  if (/intimacy/.test(mode)) add("desire", hints);
   return { firm, hints: hints.filter((s) => !firm.includes(s)) };
 }
 
@@ -330,9 +347,11 @@ export function wordsFit(sheet: LyricSheet | null, moment: Pick<Moment, "situati
   return { score: Math.min(3, Math.round(best.score * 100) / 100), passage: best.passage };
 }
 
-/** Situations a song can't play over: a celebration at a funeral, a homecoming as someone leaves. */
+/** Situations a song can't play over: a celebration or a love song at a funeral, a homecoming as someone leaves. */
 const CLASH: [Situation, Situation][] = [
   ["grief", "celebration"],
+  ["grief", "desire"],
+  ["grief", "first love"],
   ["the fight", "peace"],
   ["leaving", "homecoming"],
   ["leaving", "reunion"],
