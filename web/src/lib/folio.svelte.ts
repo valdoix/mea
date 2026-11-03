@@ -18,6 +18,8 @@ export interface FolioColumn {
   /** The message it was pulled out of. */
   from?: number;
   pinned: boolean;
+  /** Dragged to a width of its own; unset is the default. */
+  width?: number;
 }
 
 export interface Workspace {
@@ -91,6 +93,19 @@ export function togglePin(key: string) {
   if (!c) return;
   c.pinned = !c.pinned;
   changed();
+}
+
+/** A column's width: kept between a usable minimum and most of the window. null goes back to the default. */
+export const COLUMN_MIN = 260;
+export function columnMax() {
+  return Math.max(COLUMN_MIN, Math.min(900, Math.round(window.innerWidth * 0.6)));
+}
+export function setColumnWidth(key: string, w: number | null, persist = true) {
+  const c = folio.columns.find((x) => x.key === key);
+  if (!c) return;
+  if (w == null) delete c.width;
+  else c.width = Math.round(Math.max(COLUMN_MIN, Math.min(columnMax(), w)));
+  if (persist) changed();
 }
 
 export function moveColumn(key: string, to: number) {
