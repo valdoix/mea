@@ -280,7 +280,7 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     if (st.weather) now.push(st.weather.now);
     if (st.place.length) now.push(st.place.join(" › "));
     if (st.sceneTitle) now.push(`scene: ${st.sceneTitle}`);
-    if (st.mode) now.push(`mode: ${st.mode}`);
+    if (st.mode) now.push(`mode: ${st.mode}${st.talk ? ` (${st.talk})` : ""}`);
     const cal = on(o, "calendar") ? calendarToday(st) : [];
     const lines = now.length ? [`NOW: ${now.join(" · ")}`] : [];
     if (cal.length) lines.push(`CALENDAR: ${cal.join("; ")}`);

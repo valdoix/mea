@@ -44,6 +44,8 @@ export function resolveRef(st: WorldState, ref: string): Val {
       return st.place.join(" › ");
     case "mode":
       return st.mode ?? null;
+    case "talk":
+      return st.talk ?? null;
     case "scene":
       return st.sceneTitle ?? null;
     case "present":

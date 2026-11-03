@@ -250,6 +250,12 @@ describe("Mea's default preset", () => {
     const p = all({ when: (c) => c === "mode = conflict" });
     expect(p).toContain("[SCENE · CONFLICT");
     expect(p).not.toContain("[SCENE · INTIMACY");
+    // docs/23: a social scene's kind of talk rides with the Social module; aftermath has a module of its own.
+    const talk = all({ when: (c) => c === "mode = social" || c === "talk = apology" });
+    expect(talk).toContain("[SCENE · SOCIAL");
+    expect(talk).toContain("[THIS TALK · APOLOGY]");
+    expect(talk).not.toContain("[THIS TALK · BREAKUP]");
+    expect(all({ when: (c) => c === "mode = aftermath" })).toContain("[SCENE · AFTERMATH");
   });
 
   test("sex scene pacing is sent before the tracker has called it an intimacy scene", () => {

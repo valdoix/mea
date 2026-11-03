@@ -20,6 +20,7 @@ import {
   type EventSource,
   type KnowStatus,
   LADDER,
+  TALKS,
   type Ladder,
   type Loop,
   METERS,
@@ -492,7 +493,11 @@ export class Folder {
   private modeSeq = -1;
 
   private setMode(mode: string, seq: number) {
-    this.state.mode = clip(mode).toLowerCase();
+    // "social (apology)", "social: apology", "social · apology": the mode, and the kind of talk it names.
+    const m = /^([a-z]+)\s*(?:[(:·,—–-]\s*([a-z]+)\s*\)?)?/.exec(clip(mode).toLowerCase());
+    this.state.mode = m?.[1] ?? clip(mode).toLowerCase();
+    const talk = TALKS.find((t) => t === m?.[2]);
+    this.state.talk = this.state.mode === "social" ? talk : undefined;
     this.modeSeq = seq;
   }
 
@@ -502,7 +507,10 @@ export class Folder {
     this.state.sceneTitle = undefined;
     // A new scene doesn't inherit the last one's mode (a drive's "travel" in the kitchen after), unless
     // this same message named it.
-    if (this.modeSeq !== seq) this.state.mode = undefined;
+    if (this.modeSeq !== seq) {
+      this.state.mode = undefined;
+      this.state.talk = undefined;
+    }
     for (const c of Object.values(this.state.chars)) c.activity = undefined;
   }
 

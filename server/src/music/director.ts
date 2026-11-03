@@ -237,6 +237,7 @@ export function cueFrom(st: WorldState, genre: string | null): Cue {
   if (/intimacy|romance/.test(mode)) bump("tender", 3);
   if (/investigation|mystery/.test(mode)) bump("mystery", 3);
   if (/travel|journey/.test(mode)) bump("epic", 2);
+  if (/aftermath/.test(mode)) bump("melancholy", 3);
   const wx = (st.weather?.now ?? "").toLowerCase();
   if (/storm|thunder/.test(wx)) bump("tense", 2);
   else if (/rain|drizzle|fog|mist/.test(wx)) bump("melancholy", 1);

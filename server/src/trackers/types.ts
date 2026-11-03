@@ -143,6 +143,10 @@ export interface Bond {
 
 export const LADDER = ["Strangers", "Aware", "Interested", "Charged", "Tested", "Spoken", "Together", "Established"];
 
+/** The kinds of talk a social scene can name (docs/23 §4): each has its own line in the preset. */
+export const TALKS = ["confrontation", "apology", "confession", "breakup", "request", "interrogation"] as const;
+export type Talk = (typeof TALKS)[number];
+
 export interface Ladder {
   from: string;
   to: string;
@@ -367,6 +371,8 @@ export interface WorldState {
   sceneTitle?: string;
   sceneStartSeq: number;
   mode?: string;
+  /** docs/23: what kind of talk a social scene is ("social (apology)"), for the matching scene line. */
+  talk?: Talk;
   chars: Record<string, Character>;
   bonds: Record<string, Bond>;
   ladders: Record<string, Ladder>;
