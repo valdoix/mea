@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { checkReply } from "../src/accuracy/checker";
 import { actOnInbox, inboxCounts, inboxItems, registerInboxProvider } from "../src/accuracy/inbox";
-import { runSlips, slipCatalog, slipContext, SLIPS } from "../src/accuracy/slips";
+import { runSlips, slipAllowed, slipCatalog, slipContext, SLIPS } from "../src/accuracy/slips";
 import { normalizeCard } from "../src/cards/card";
 import { all, one } from "../src/db/db";
 import { defaultGuards, defaultMemoryConfig, setSetting } from "../src/lib/settings";
@@ -61,6 +61,16 @@ describe("the slip registry (P1)", () => {
     const off = slipCatalog(chatId, { ...defaultGuards, pov: false, slips: { dead: false } }, { continuity: true, leaks: true });
     expect(off.find((s) => s.id === "pov")?.on).toBe(false);
     expect(off.find((s) => s.id === "dead")?.on).toBe(false);
+  });
+
+  test("an opt-in check (docs/23: convenient arrivals) is off until switched on", () => {
+    const def = slipCatalog(chatId, { ...defaultGuards }, { continuity: true, leaks: false }).find((s) => s.id === "convenience")!;
+    expect(def).toMatchObject({ on: false, runs: false, optIn: true });
+    expect(slipAllowed("convenience", { ...defaultGuards })).toBe(false);
+    const on = slipCatalog(chatId, { ...defaultGuards, slips: { convenience: true } }, { continuity: true, leaks: false }).find((s) => s.id === "convenience")!;
+    expect(on).toMatchObject({ on: true, runs: true });
+    // Ordinary checks still default to on.
+    expect(slipAllowed("dead", { ...defaultGuards })).toBe(true);
   });
 
   test("a check that throws is skipped, never the pass", () => {

@@ -49,6 +49,8 @@ export interface Slip {
   run: (text: string, state: WorldState | null, ctx: SlipContext) => Found[];
   /** The guard setting that also governs it, so Chat › Guards shows one switch, not two. */
   setting?: keyof GuardsConfig;
+  /** Off until you switch it on (a check whose flags are a matter of taste). */
+  optIn?: boolean;
 }
 
 const assistant = (ctx: SlipContext) => ctx.role === "assistant";
@@ -103,12 +105,22 @@ export const SLIPS: Slip[] = [
     on: (c) => assistant(c) && universeCheckOn(c.chatId),
     run: (t, _s, c) => universeLeaks(c.chatId, t),
   },
+  {
+    // docs/23 (HopThorne's living-fiction check): the continuity checker's model looks for it; nothing runs here.
+    id: "convenience",
+    label: "Convenient arrivals",
+    description: "A helper, an exit, a weapon, supplies or a witness that turns up only because the scene needed it, with nothing earlier to set it up.",
+    phase: "reply",
+    optIn: true,
+    on: (c) => c.continuity && assistant(c),
+    run: () => [],
+  },
 ];
 
 export const slipById = (id: string) => SLIPS.find((s) => s.id === id);
 
 /** The per-chat toggle (Chat › Guards): on unless switched off. */
-export const slipAllowed = (id: string, guards: GuardsConfig) => guards.slips?.[id] !== false;
+export const slipAllowed = (id: string, guards: GuardsConfig) => (slipById(id)?.optIn ? guards.slips?.[id] === true : guards.slips?.[id] !== false);
 
 export function slipContext(o: Omit<SlipContext, "rules" | "guard">): SlipContext {
   let r: RuleInput | null = null;
@@ -146,6 +158,6 @@ export function slipCatalog(chatId: string, guards: GuardsConfig, env: { continu
   const ctx = slipContext({ chatId, text: "", seq: 0, messageId: "-", role: "assistant", speaker: "", state: null, guards, ...env });
   return SLIPS.map((s) => {
     const on = slipAllowed(s.id, guards) && (!s.setting || guards[s.setting] !== false) && !(s.setting === "names" && guards.names === "off");
-    return { id: s.id, label: s.label, description: s.description, phase: s.phase, setting: s.setting ?? null, on, runs: on && s.on(ctx) };
+    return { id: s.id, label: s.label, description: s.description, phase: s.phase, setting: s.setting ?? null, on, runs: on && s.on(ctx), optIn: Boolean(s.optIn) };
   });
 }
