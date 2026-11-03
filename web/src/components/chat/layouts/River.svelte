@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Maximize2 } from "../../../lib/icons";
+  import { ChevronDown, Maximize2 } from "../../../lib/icons";
   import type { Boundary } from "../../../lib/types";
 
   /** Stage: the story as a river under the composer: its chapters, its marks and where you are. Click to jump. */
@@ -10,6 +10,7 @@
     marks,
     onjump,
     onopen,
+    onhide,
   }: {
     chapters: Boundary[];
     max: number;
@@ -17,6 +18,7 @@
     marks: { seq: number; kind: string; title: string }[];
     onjump: (seq: number) => void;
     onopen: () => void;
+    onhide: () => void;
   } = $props();
 
   const spans = $derived.by(() => {
@@ -48,4 +50,5 @@
   </div>
   <span class="r-end">#{max}</span>
   <button class="btn ghost icon small" onclick={onopen} aria-label="Open the river: the whole story on a map" title="Open the river"><Maximize2 size={15} /></button>
+  <button class="btn ghost icon small" onclick={onhide} aria-label="Hide the chapters" title="Hide the chapters"><ChevronDown size={15} /></button>
 </div>

@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import Avatar from "../../Avatar.svelte";
   import ScenePlate, { type PlaceKind } from "../ScenePlate.svelte";
-  import { ArrowLeft, ChevronDown, ChevronUp, Clock, CloudRain, MapPin } from "../../../lib/icons";
+  import { ArrowLeft, ChevronDown, ChevronUp, Clock, CloudRain, MapPin, Milestone } from "../../../lib/icons";
   import { app } from "../../../lib/state.svelte";
   import { trk } from "../../../lib/trackers.svelte";
   import type { Boundary, ChatDetail, TrackerCharacter } from "../../../lib/types";
@@ -23,6 +23,7 @@
     onback,
     oncast,
     ontoggle,
+    onshowriver = null,
   }: {
     detail: ChatDetail;
     plate: { place: string[]; weather: string | null; hour: number | null } | null;
@@ -36,6 +37,8 @@
     onback: () => void;
     oncast: (id: string) => void;
     ontoggle: () => void;
+    /** The way back to the chapter river, while it's put away. */
+    onshowriver?: (() => void) | null;
   } = $props();
 
   const st = $derived(trk.data?.state ?? null);
@@ -83,6 +86,7 @@
     </div>
     <div class="s-tools">
       {@render tools()}
+      {#if onshowriver}<button class="btn ghost icon" onclick={onshowriver} aria-label="Show the chapters" title="Show the chapters"><Milestone size={18} /></button>{/if}
       {#if !app.isMobile}<button class="btn ghost icon" onclick={ontoggle} aria-label={slim ? "Show the whole scene" : "Fold the scene away"} title={slim ? "Show the whole scene" : "Fold the scene away"}>{#if slim}<ChevronDown size={18} />{:else}<ChevronUp size={18} />{/if}</button>{/if}
     </div>
     {#if !slim && people.length}

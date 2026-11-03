@@ -121,6 +121,8 @@
   --t-fast: 140ms;
   --t: 220ms;
   --measure: 46rem;
+  /* Between a portrait and its text: wide enough for the rooms' frames, which hang past the portrait. */
+  --portrait-gap: 2rem;
   --sidebar-w: 288px;
   --dock-w: 380px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);

@@ -855,8 +855,15 @@
 }
 
 /* ---------- Stage: the floor ---------- */
+/* The chat width is the text's; the portrait gets its own room beside it. */
+:root[data-layout="stage"] {
+  --stage-w: calc(var(--chat-w, var(--measure)) + var(--portrait-w, 76px) + var(--portrait-gap));
+}
 :root[data-layout="stage"] .column {
-  max-width: min(var(--chat-w, var(--measure)), 46rem);
+  max-width: var(--stage-w);
+}
+:root[data-layout="stage"] .composer-area {
+  max-width: calc(var(--stage-w) + 2rem);
 }
 .chat.stage-sheet .composer-area,
 .chat.stage-sheet .river-wrap,
@@ -1013,7 +1020,7 @@
 }
 .river {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 0.7rem;
   font: 500 0.75rem var(--font-display);
@@ -1608,7 +1615,7 @@
 :root[data-layout="folio"] .style-book .msg,
 :root[data-layout="stage"] .style-book .msg {
   grid-template-columns: var(--portrait-w, 76px) minmax(0, 1fr);
-  gap: 1rem;
+  gap: 1rem var(--portrait-gap);
 }
 :root[data-layout="folio"] .style-book .msg .portrait-col,
 :root[data-layout="stage"] .style-book .msg .portrait-col {

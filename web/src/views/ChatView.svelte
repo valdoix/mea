@@ -1260,6 +1260,7 @@
           onback={() => back("/")}
           oncast={(c) => ((riverOpen = false), (closeUp = closeUp === c ? null : c))}
           ontoggle={() => setDevice("bandSlim", !device.bandSlim)}
+          onshowriver={device.riverHidden && !app.isMobile && endSeq > 1 && !closeUp && !riverOpen ? () => setDevice("riverHidden", false) : null}
         >
           {#snippet tools()}{@render barTools()}{/snippet}
         </L.StageBand>{/if}
@@ -1468,8 +1469,8 @@
         {/if}
         <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} {preview} oninspect={() => openInspector(null)} lastMessageId={endId} />
       </div>
-      {#if stageOn && !app.isMobile && endSeq > 1 && !layout.focus && L}
-        <div class="river-wrap"><L.River {chapters} max={endSeq} current={viewSeq || endSeq} marks={scrubMarks} onjump={(seq) => void jumpTo(seq)} onopen={() => ((closeUp = null), (riverOpen = true))} /></div>
+      {#if stageOn && !app.isMobile && endSeq > 1 && !layout.focus && !device.riverHidden && L}
+        <div class="river-wrap"><L.River {chapters} max={endSeq} current={viewSeq || endSeq} marks={scrubMarks} onjump={(seq) => void jumpTo(seq)} onopen={() => ((closeUp = null), (riverOpen = true))} onhide={() => setDevice("riverHidden", true)} /></div>
       {/if}
     </div>
 
@@ -2237,7 +2238,7 @@
     overflow-wrap: anywhere;
   }
   .column.style-cards .scene-h {
-    margin-left: calc(var(--portrait-w, 76px) + 1rem);
+    margin-left: calc(var(--portrait-w, 76px) + var(--portrait-gap));
   }
   .column.style-book .sc-body {
     flex-direction: column;

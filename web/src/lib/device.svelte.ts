@@ -39,6 +39,8 @@ export interface DevicePrefs {
   plates: boolean;
   /** Stage: the scene folded to one line above the story. */
   bandSlim: boolean;
+  /** Stage: the chapter river under the composer put away. */
+  riverHidden: boolean;
   /** Weatherglass: the sky follows the scene, or stays pinned to one weather. */
   roomWeather: "scene" | "fair" | "cloudy" | "rain" | "fog" | "snow" | "storm";
 }
@@ -50,7 +52,7 @@ export const PORTRAIT_PRESETS = { small: 56, large: 76, grand: 104, towering: 15
 export const PORTRAIT_RANGE = { min: 48, max: 260 } as const;
 
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true, bandSlim: false, roomWeather: "scene" };
+const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true, bandSlim: false, riverHidden: false, roomWeather: "scene" };
 
 function read(): DevicePrefs {
   try {
