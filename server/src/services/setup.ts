@@ -228,7 +228,7 @@ export async function previewOpening(chatId: string, a: Pick<SetupAnswers, "tone
   const opening = (card?.first_mes ?? "").slice(0, 1200);
   if (!opening.trim()) return { text: "" };
   const genre = GENRES.find((g) => g.id === a.genres[0])?.label ?? a.genres[0] ?? "";
-  const pov = a.persona === "full_cast" ? "the player's character may be written too" : "never write the player's character's words or choices";
+  const pov = a.persona === "full_cast" || a.persona === "vessel" ? "the player's character may be written too" : "never write the player's character's words or choices";
   const res = await callText({
     task: "helper",
     kind: "setup_preview",

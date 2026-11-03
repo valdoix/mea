@@ -120,6 +120,12 @@ export function controlValue(c: PresetControl, values: ControlValues = {}): bool
 }
 
 /** Every control's value, for {{ctl.id}} in blocks. */
+/**
+ * Whether the story may write the player's character under the Persona control (Director, Full cast,
+ * Vessel): the one test behind {{userSealed}}, the puppet guard, the planner and the editor (docs/23, part 4).
+ */
+export const writesUser = (persona: string | null | undefined) => persona === "director" || persona === "full_cast" || persona === "vessel";
+
 export function controlValues(controls: PresetControl[], values: ControlValues = {}): Record<string, string> {
   return Object.fromEntries(controls.map((c) => [c.id, String(controlValue(c, values))]));
 }

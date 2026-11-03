@@ -29,6 +29,7 @@ export function essence(card: CardData) {
 /** The anchor's last line follows the preset's Persona control (sealed when there's none). */
 function personaLine(name: string, user: string, persona: PersonaMode | null | undefined) {
   if (persona === "full_cast") return `Write ${name}, the world and ${user} true to who each of them is.`;
+  if (persona === "vessel") return `Write ${name}, the world and ${user}: ${user} acts on the player's urges unless one cuts against who ${user} is.`;
   if (persona === "director") return `Write ${name} and the world; write ${user} only inside the player's direction.`;
   if (persona === "continuity") return `Write ${name} and the world, never ${user}'s words, thoughts, feelings or choices; you may only finish an action ${user} began.`;
   return `Write ${name} and the world, never ${user}'s words, actions or thoughts.`;

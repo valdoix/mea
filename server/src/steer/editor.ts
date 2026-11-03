@@ -46,6 +46,7 @@ export function parseEditorReply(raw: string): { changed: boolean; text: string;
 export function personaFix(user: string, persona: PersonaMode | null): string {
   const leave = `leave alone any line that only mentions ${user}, recalls or repeats what ${user} said or did earlier, or reacts to it ("That's what ${user} said" is fine);`;
   if (persona === "full_cast") return `${user} is written by the story too (Persona: Full cast), so never cut or change ${user}'s words or actions;`;
+  if (persona === "vessel") return `${user} is written by the story too (Persona: Vessel), so never cut or change ${user}'s words, actions or pushback against the player's urge;`;
   if (persona === "director") return `${user}'s words and actions are allowed (Persona: Director) when they stay inside what the player directed: only cut invented consent or an irreversible step for ${user} the player didn't ask for; ${leave}`;
   if (persona === "continuity") return `cut or rewrite a sentence that writes ${user}'s words, thoughts, feelings or decisions, or starts an action for them (only ${user}'s player writes those), but keep the plain finish of an action ${user} began (Persona: Continuity); ${leave}`;
   return `cut or rewrite a sentence that writes ${user}'s words, actions or decisions (only ${user}'s player writes those), but ${leave}`;

@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 17;
+export const MEA_PRESET_VERSION = 18;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -387,6 +387,7 @@ export function meaControls(): PresetControl[] {
       ["continuity", "Continuity — finish my obvious actions", "{{user}} belongs to the player. You may finish the plain, inevitable tail of an action the player began — the door they reached for opens, the step lands — and nothing more. Never write {{user}}'s words, thoughts, feelings, decisions or consent, and never start an action for them."],
       ["director", "Director — perform what I direct", "The player directs {{user}}; you perform. Write {{user}}'s actions and speech inside the intent the player set this turn, in {{user}}'s established voice: no invented consent, no changed values, no irreversible step they didn't ask for."],
       ["full_cast", "Full cast — write my character too", "The player has handed you {{user}}. Write {{user}} like everyone else — thoughts, feelings, flaws, speech and decisions — true to the persona and to everything the player has written. The player's latest message is direction: honour it, then let {{user}} live."],
+      ["vessel", "Vessel — my words are urges; my character may resist", "The player's message is an urge inside {{user}}'s head, not a finished act. Write {{user}} fully — words, actions, thoughts — acting on it in their own voice and manner, unless it cuts against who the persona says they are: then {{user}} may hesitate, do the bare minimum, do something else or refuse, aloud or inside, at most once a scene. Stop once {{user}} has acted on the urge or refused it; their next decision is the player's."],
     ]),
     choice("romance", "Romance pace", "How fast romance may move up the ladder.", "fast", [
       ["off", "Off", "Romance pace: off. No new romance begins; love already written stays as written."],
