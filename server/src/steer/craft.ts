@@ -32,6 +32,10 @@ export interface Stats {
   gestures: string[];
   /** 3–5 word phrases (lower case), each once per take. */
   grams: string[];
+  /** docs/23: the stock moves the preset's tells list names (apophasis, litotes…), each once per take. */
+  tells: string[];
+  /** docs/23 (sensory dedup): fixed traits as described ("her grey eyes", "the smell of cedar"), each once per take. */
+  features: string[];
 }
 
 const STOP = new Set("the a an and or but of to in on at for with as by from that this it its is was were be been he she they his her their him them i you your we our my me not no so then there here".split(" "));
@@ -49,6 +53,36 @@ const GESTURES: [string, RegExp][] = [
   ["white knuckles", /knuckles? (?:went |turned |whiten(?:ed|ing)?|white)/i],
   ["a voice barely above a whisper", /barely above a whisper/i],
 ];
+/** The preset's tells (docs/23 §3.4), by what they look like on the page. */
+const TELLS: [string, RegExp][] = [
+  ["saying what didn't happen (\"she didn't flinch\"): write what she did", /\b(?:did(?:n['’]t| not)|never) (?:flinch|look away|blink|hesitate|waver|back down|move a muscle)\b/i],
+  ["litotes (\"not unkind\"): the plain word", /\bnot un[a-z]{3,}\b|\bless than (?:certain|sure|thrilled|pleased|subtle|convinced|happy)\b/i],
+  ["\"nobody's ever…\", \"say it again\"", /\b(?:no one|nobody|no-one)(?:['’]s| has) ever\b|\bsay it again\b|\bfirst time (?:anyone|someone|somebody)\b/i],
+  ["\"the laugh people laugh when…\": this laugh, this once", /\bthe (\p{L}+) (?:people|someone|you|one) \1s? when\b/iu],
+  ["a mouth opening and closing", /\bmouth (?:open(?:s|ed)?|opening)[^.!?]{0,30}\bclos(?:e|es|ed|ing)\b/i],
+  ["correction framing (\"it wasn't X — it was Y\"): say Y, once", /\b(?:it|this|that) (?:was|is)n['’]t [^.!?\n]{1,40}?(?:[.;,—–]|--)\s*(?:it|this|that) (?:was|is)\b/i],
+];
+/** What a "her grey eyes" can't start with: possessive filler, not a description. */
+const NOT_DESCRIPTIVE = new Set("own other two whole very same usual".split(" "));
+const FEATURE = /\b(his|her|their|\p{Lu}\p{Ll}+['’]s)\s+((?:[a-z]+(?:-[a-z]+)?\s+){1,2})(eyes|hair|curls|braid|lips|voice|skin|freckles|scent|perfume|cologne|scar|tattoo)\b/gu;
+// A second word only when the phrase ends there ("of wet dog."), so a verb after it stays out ("of cedar hung").
+const SMELL = /\b(?:scent|smell)(?:ed|s)? of ([a-z]+(?: [a-z]+(?=[,.;:!?]))?)/gi;
+
+/** Fixed traits as the take describes them, lower case: "her grey eyes", "mira's red hair", "the smell of cedar". */
+function featuresOf(text: string): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(FEATURE)) {
+    const adj = m[2]!.trim().split(/\s+/);
+    if (adj.some((w) => STOP.has(w) || NOT_DESCRIPTIVE.has(w) || /ly$/.test(w))) continue;
+    out.add(`${m[1]!.toLowerCase()} ${adj.join(" ")} ${m[3]}`);
+  }
+  for (const m of text.matchAll(SMELL)) {
+    const what = m[1]!.toLowerCase().split(" ").filter((w) => !STOP.has(w));
+    if (what.length) out.add(`the smell of ${what.join(" ")}`);
+  }
+  return [...out];
+}
+
 const sentencesOf = (t: string) => t.split(/(?<=[.!?…]["”')\]*]*)\s+|\n+/).map((s) => s.trim()).filter((s) => /[\p{L}]/u.test(s));
 
 /** The numbers for one take. */
@@ -82,6 +116,8 @@ export function craftStats(text: string): Stats {
     similes: [...clean.matchAll(/\b(?:like a|like an|as if|as though) ([\p{L}'’-]+(?: [\p{L}'’-]+)?)/giu)].map((m) => m[1]!.toLowerCase()),
     gestures: GESTURES.filter(([, re]) => re.test(clean)).map(([name]) => name),
     grams: [...grams],
+    tells: TELLS.filter(([, re]) => re.test(clean)).map(([name]) => name),
+    features: featuresOf(clean),
   };
 }
 
@@ -101,7 +137,7 @@ function statsFor(id: string, text: string) {
 export interface Habit {
   /** Stable key, for "It's fine". */
   key: string;
-  kind: "phrase" | "opening" | "shape" | "filter" | "emdash" | "ellipsis" | "triads" | "dialogue" | "gesture" | "simile";
+  kind: "phrase" | "opening" | "shape" | "filter" | "emdash" | "ellipsis" | "triads" | "dialogue" | "gesture" | "simile" | "tell";
   /** What the model is told to avoid. */
   avoid: string;
   /** For you: the numbers. */
@@ -127,8 +163,13 @@ function recent(chatId: string, beforeSeq?: number) {
 
 const WINDOW = 8;
 
+/** Sensory dedup looks this far back: a trait described in two of them is already on the page. */
+const DEDUP_WINDOW = 3;
+
 export interface CraftReport {
   habits: Habit[];
+  /** Fixed traits described in at least two of the last three replies ("her grey eyes"). */
+  described: string[];
   /** This turn's numbers (for the Inspector's meter). */
   meter: { replies: number; filter: number; emdash: number; ellipsis: number; triads: number; dialogue: number; baselineDialogue: number | null; topOpening: { word: string; share: number } | null };
 }
@@ -197,13 +238,21 @@ export function craftReport(chatId: string, opts: { beforeSeq?: number } = {}): 
     const twice = [...sim].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1])[0];
     if (twice) habits.push({ key: `simile:${twice[0]}`, kind: "simile", avoid: `the simile "like ${twice[0]}"`, detail: `"${twice[0]}" ${twice[1]} times`, weight: 2 + twice[1] });
     else if (per100(simTotal, words) > 1.2) habits.push({ key: "similes", kind: "simile", avoid: "so many similes: say what the thing is", detail: `${per100(simTotal, words).toFixed(1)} similes per 100 words`, weight: 1.5 });
+    // The preset's tells, when they keep coming back anyway.
+    const tells = new Map<string, number>();
+    for (const r of win) for (const t of r.s.tells) tells.set(t, (tells.get(t) ?? 0) + 1);
+    for (const [t, n] of [...tells].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 2)) habits.push({ key: `tell:${t.slice(0, 40)}`, kind: "tell", avoid: t, detail: `${n} times in the last ${win.length} replies`, weight: 2 + n });
   }
+  const seen = new Map<string, number>();
+  for (const r of rows.slice(-DEDUP_WINDOW)) for (const f of r.s.features) seen.set(f, (seen.get(f) ?? 0) + 1);
+  const described = [...seen].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([f]) => f);
   const opens = win.flatMap((r) => r.s.openings);
   const tally = new Map<string, number>();
   for (const o of opens) tally.set(o, (tally.get(o) ?? 0) + 1);
   const top = [...tally].sort((a, b) => b[1] - a[1])[0];
   return {
     habits: habits.filter((h) => !ignored.has(h.key)).sort((a, b) => b.weight - a.weight),
+    described,
     meter: {
       replies: win.length,
       filter: Math.round(rate("filter", win, words) * 10) / 10,
@@ -276,7 +325,9 @@ registerLane("craft", (ctx) => {
   if (r.meter.replies < 2) return null;
   const avoid = r.habits.slice(0, 3);
   const tech = techniqueFor(ctx.chatId, ctx.excludeMessageId ? replyNo - 1 : replyNo);
-  return lane("craft", null, `${avoid.length ? `The last replies lean on these; avoid them in this one:\n${avoid.map((h) => `- ${h.avoid}`).join("\n")}\n` : ""}Try this once, where it fits: ${tech}`, { depth: 1 });
+  // Sensory dedup (docs/23): a trait already described twice lately comes back only if something about it changes.
+  const described = r.described.length ? `\nAlready on the page in the last replies: ${r.described.map((f) => `"${f}"`).join(", ")}. Bring one back only if it changes or someone reacts to it.` : "";
+  return lane("craft", null, `${avoid.length ? `The last replies lean on these; avoid them in this one:\n${avoid.map((h) => `- ${h.avoid}`).join("\n")}\n` : ""}Try this once, where it fits: ${tech}${described}`, { depth: 1 });
 });
 
 registerStatusTile((chatId) => {
