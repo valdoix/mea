@@ -245,6 +245,14 @@ describe("Mea's default preset", () => {
     expect(die(all({ mode: "narrator", controlValues: values, swipe: { rejected: "x" } }))).toBe(first);
   });
 
+  test("canon (docs/23): silent without a source, the chosen fidelity with one", () => {
+    expect(all()).not.toContain("[CANON]");
+    const p = all({ canonSource: "Buffy the Vampire Slayer", controlValues: { canon: "au" } });
+    expect(p).toContain("[CANON] This story comes from Buffy the Vampire Slayer. An alternate universe");
+    expect(p).toContain("A pairing being popular in the fandom is no evidence of anything.");
+    expect(p).not.toContain("Canon holds");
+  });
+
   test("vessel writes the player's character: no seal line", () => {
     expect(all({ controlValues: { persona: "vessel" } })).not.toContain("Stop before you would speak");
   });

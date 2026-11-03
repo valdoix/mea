@@ -194,7 +194,9 @@ function personLine(st: WorldState, c: Character, o: NoteOptions, here: Characte
   const tail: string[] = [];
   if (c.activity) tail.push(c.activity);
   if (c.look) tail.push(`wearing: ${c.look}`);
-  if (c.traits.length) tail.push(`always: ${c.traits.map((t) => t.text).join("; ")}`);
+  // Voice traits go to VOICES (docs/23), where the way someone talks is read.
+  const fixed = c.traits.filter((t) => t.kind !== "voice");
+  if (fixed.length) tail.push(`always: ${fixed.map((t) => t.text).join("; ")}`);
   if (on(o, "items")) {
     const items = carried(st, c.id);
     if (items.length) tail.push(`has: ${items.map((i) => `${i.name}${i.where ? ` (${i.where})` : ""}`).join(", ")}`);
@@ -425,9 +427,10 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     if (lines.length) lanes.push({ name: "custom", lines, priority: 4 });
   }
 
-  if (o.voices) {
-    const here = present(st);
-    const lines = here.map((c) => [c.name, o.voices![c.name.toLowerCase()]] as const).filter(([, v]) => v).map(([n, v]) => `- ${n}: ${v}`);
+  {
+    // Your cast notes first; otherwise the accent and register the tracker filed as a voice trait.
+    const voiceOf = (c: Character) => o.voices?.[c.name.toLowerCase()] || c.traits.filter((t) => t.kind === "voice").map((t) => t.text.replace(/^voice:\s*/i, "")).join("; ");
+    const lines = present(st).map((c) => [c.name, voiceOf(c)] as const).filter(([, v]) => v).map(([n, v]) => `- ${n}: ${v}`);
     if (lines.length) lanes.push({ name: "voices", lines: ["VOICES:", ...lines], priority: 2 });
   }
 

@@ -37,6 +37,8 @@ export interface AssembleInput {
   card: CardData;
   userName: string;
   personaText: string;
+  /** docs/23: the work this story comes from (the chat's canon cutoff), for {{canonSource}}. */
+  canonSource?: string;
   /** The persona's pronouns ("she/her/her"), for {{user_they}}, {{user_them}}, {{user_their}}. */
   userPronouns?: string;
   mode: "companion" | "narrator";
@@ -243,7 +245,7 @@ export function toolkitRhythm(pace: string | undefined, history: { role: string;
 /**
  * Values blocks can read about the reply being written: {{kind}}, {{turn}}, {{isFirst}}, {{isSwipe}},
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
- * {{userSealed}} (the Persona control), {{ledger}} (inline tracker mode), {{planned}} (a separate planner planned it), {{providerReasoning}} (the route reasons natively), {{modelFamily}},
+ * {{userSealed}} (the Persona control), {{canonSource}} (the work the story comes from), {{ledger}} (inline tracker mode), {{planned}} (a separate planner planned it), {{providerReasoning}} (the route reasons natively), {{modelFamily}},
  * {{speakerMarks}} / {{speakerRoster}} / {{marksDropped}} (speaker marks: on, the numbered cast, the last reply left them out),
  * {{toolkitDue}} / {{toolkitRest}} (the visual toolkit's rhythm: this reply carries a visual, or rests), and {{ctl.id}} for every preset control.
  */
@@ -266,6 +268,7 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     lastClosing: edge(lastReply, 14, "close"),
     persona,
     userSealed: writesUser(persona) ? "" : "yes",
+    canonSource: input.canonSource?.trim() ?? "",
     ledger: input.extras?.some((e) => e.id === "ledger") ? "yes" : "",
     // H3: a separate planner planned this reply (the writer's own pass is left out).
     planned: input.skipBlocks?.includes("mea-planning") ? "yes" : "",

@@ -171,7 +171,8 @@ const TRAIT_KIND: [TraitKind, RegExp][] = [
   ["age", /\b(\d{1,3}|teen|twenties|thirties|forties|fifties|sixties)\b.*\b(years?|old|age)\b|\baged?\b/i],
   ["face", /\b(face|jaw|nose|lips|cheekbones|beard|stubble)\b/i],
 ];
-export const traitKind = (text: string): TraitKind => TRAIT_KIND.find(([, re]) => re.test(text))?.[0] ?? "other";
+// "voice: broad Glaswegian" is a voice even though "broad" reads as a build.
+export const traitKind = (text: string): TraitKind => (/^\s*voice\s*:|\baccent\b/i.test(text) ? "voice" : (TRAIT_KIND.find(([, re]) => re.test(text))?.[0] ?? "other"));
 
 const METER_ALIASES: Record<string, Meter> = {
   tired: "fatigue", tiredness: "fatigue", exhaustion: "fatigue", fatigue: "fatigue", hunger: "hunger", hungry: "hunger", thirst: "thirst", thirsty: "thirst",

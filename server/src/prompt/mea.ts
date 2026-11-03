@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 18;
+export const MEA_PRESET_VERSION = 19;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -109,6 +109,9 @@ Mea keeps the story's memory and hands you what matters, verified:
 - If a detail you need isn't there, don't invent a past event, promise, death or conversation to fill the gap: keep it vague, or let a character not remember.
 - Notes, plans and anything marked for the narrator never reach a character's mouth.
 - With no [Story state] note, hold the thread yourself: people stay where they were last seen, objects with whoever last held them, promises open until kept or broken.`;
+
+/** docs/23: how faithful to its source a story from an existing work is (the Canon control); silent without a canon source. */
+const CANON = `{{if canonSource}}[CANON] This story comes from {{canonSource}}. {{if ctl.canon == strict}}Canon holds — voices, world rules, relationships, how things work — except where the player has changed it.{{/if}}{{if ctl.canon == guided}}Its canon is a strong reference — voices, world rules, relationships — but the story's own facts and the player's choices win.{{/if}}{{if ctl.canon == au}}An alternate universe: the people stay recognisable while the declared changes hold, and later canon events don't follow on their own.{{/if}}{{if ctl.canon == crossover}}A crossover: each source keeps its own rules, powers and voices unless the story merges them.{{/if}} What you know of that canon isn't what the characters know: anything later in it, or offstage in it, stays unknown until the story brings it. A pairing being popular in the fandom is no evidence of anything.{{/if}}`;
 
 /**
  * The planning pass sits at the end of the prompt, after the history, the way ALMANAC's Director's
@@ -523,6 +526,19 @@ export function meaControls(): PresetControl[] {
       true,
     ),
     choice(
+      "canon",
+      "Canon",
+      "For a story from an existing work (its canon source, set in Story setup or Canon): how closely it follows that work.",
+      "guided",
+      [
+        ["guided", "Guided — canon as a strong reference", ""],
+        ["strict", "Strict — canon holds unless I change it", ""],
+        ["au", "Alternate universe", ""],
+        ["crossover", "Crossover", ""],
+      ],
+      true,
+    ),
+    choice(
       "reveals",
       "Reveals",
       "How fast secrets surface.",
@@ -669,6 +685,7 @@ export function meaPreset(): Preset {
       block("mea-toolkit", "Visual toolkit", "text", { content: TOOLKIT }),
       block("controls", "Story preferences (controls)", "controls"),
       block("mea-notes", "Reading Mea's notes", "text", { content: NOTES }),
+      block("mea-canon", "Canon", "text", { content: CANON }),
       block("character", "Character", "character"),
       block("lore_before", "Lore (before)", "lore_before"),
       block("persona", "Persona", "persona"),
