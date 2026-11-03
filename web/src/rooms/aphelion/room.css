@@ -1,0 +1,303 @@
+/* =====================================================================
+   APHELION — farthest from anything
+   Ship's instruments. A white hull with a big porthole by day; at night the walls go and there's
+   only space and one barely moving planet. Cards are cut-corner transmissions.
+   ===================================================================== */
+:root[data-theme="aphelion"][data-shell] {
+  --cut: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  --cut-user: polygon(14px 0, 100% 0, 100% 100%, 0 100%, 0 14px);
+}
+:root[data-theme="aphelion"][data-shell] h1 {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+:root[data-theme="aphelion"][data-shell] h2,
+:root[data-theme="aphelion"][data-shell] .panel > h2:first-child {
+  font: 600 0.74rem/1.2 var(--font-deco);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+:root[data-theme="aphelion"][data-shell] .btn {
+  border-radius: 0;
+}
+:root[data-theme="aphelion"][data-shell] .btn.primary {
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+:root[data-theme="aphelion"][data-shell] .card,
+:root[data-theme="aphelion"][data-shell] .panel {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+:root[data-theme="aphelion"][data-shell] .chip {
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  font-family: var(--font-deco);
+  font-size: 0.7rem;
+}
+:root[data-theme="aphelion"][data-shell] .seg,
+:root[data-theme="aphelion"][data-shell] .seg button.on {
+  border-radius: 0;
+}
+:root[data-theme="aphelion"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="aphelion"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+:root[data-theme="aphelion"][data-shell] nav.rail {
+  border: 0;
+  border-right: 1px solid var(--border-strong);
+  border-radius: 0;
+  color: var(--text-muted);
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .nav {
+  color: var(--text-muted);
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .logo {
+  border-radius: 0;
+  background:
+    linear-gradient(var(--accent), var(--accent)) 0 0 / 12px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 0 0 / 2px 12px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 100% 100% / 12px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 100% 100% / 2px 12px no-repeat;
+  box-shadow: none;
+  color: var(--text) !important;
+  font: 700 1.6rem/1 var(--font-display);
+  animation: none;
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .logo:hover {
+  transform: none;
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .nav.on {
+  border-radius: 0;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-ink) !important;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+:root[data-theme="aphelion"][data-shell] .main-col,
+:root[data-theme="aphelion"][data-shell] .dock {
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+:root[data-theme="aphelion"][data-shell] .bar .cname {
+  font: 700 1.8rem/1 var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+:root[data-theme="aphelion"][data-shell] .bar .cname .ctitle {
+  font: 400 0.76rem var(--font-deco);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+:root[data-theme="aphelion"][data-shell] .style-cards .msg .bubble {
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: 0;
+  background: var(--tint-char);
+  clip-path: var(--cut);
+  box-shadow: none;
+}
+:root[data-theme="aphelion"][data-shell] .style-cards .msg.user .bubble {
+  border-left: 0;
+  border-right: 2px solid var(--accent);
+  background: var(--tint-user);
+  clip-path: var(--cut-user);
+}
+:root[data-theme="aphelion"][data-shell] .style-cards .msg .bubble::before {
+  display: none;
+}
+:root[data-theme="aphelion"][data-shell] .msg .name {
+  font: 600 0.76rem/1.3 var(--font-deco);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink) !important;
+}
+:root[data-theme="aphelion"][data-shell] .msg .name::after {
+  content: " // RX";
+  color: var(--text-faint);
+}
+:root[data-theme="aphelion"][data-shell] .msg.user .name::after {
+  content: " // TX";
+}
+:root[data-theme="aphelion"][data-shell] .msg .time {
+  font: 400 0.7rem var(--font-deco);
+}
+/* reticle corners around a desaturated portrait */
+:root[data-theme="aphelion"][data-shell] .msg .portrait {
+  padding: 4px;
+  border-radius: 0;
+  background:
+    linear-gradient(var(--accent), var(--accent)) 0 0 / 10px 1.5px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 0 0 / 1.5px 10px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 100% 100% / 10px 1.5px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 100% 100% / 1.5px 10px no-repeat;
+  box-shadow: none;
+}
+:root[data-theme="aphelion"][data-shell] .msg .portrait .avatar {
+  border-radius: 0 !important;
+  filter: saturate(0.6) contrast(1.05);
+}
+:root[data-theme="aphelion"][data-shell] .msg:hover .portrait {
+  transform: none;
+}
+:root[data-theme="aphelion"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+:root[data-theme="aphelion"][data-shell] .chapter-h {
+  border-block: 1px solid var(--border-strong);
+}
+:root[data-theme="aphelion"][data-shell] .ch-title {
+  font: 700 1.6rem/1.1 var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+:root[data-theme="aphelion"][data-shell] .ch-num {
+  font: 400 0.72rem var(--font-deco);
+}
+:root[data-theme="aphelion"][data-shell] .composer {
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+:root[data-theme="aphelion"][data-shell] .send.primary {
+  border-radius: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+:root[data-theme="aphelion"][data-shell] .continue,
+:root[data-theme="aphelion"][data-shell] .char {
+  border-radius: 0;
+}
+:root[data-theme="aphelion"][data-shell] .hero-pic,
+:root[data-theme="aphelion"][data-shell] .hero-pic .avatar {
+  border-radius: 0 !important;
+}
+
+/* ---------- the backdrop ---------- */
+.a-aphelion {
+  background: linear-gradient(180deg, #e6e9ec, #cfd5da);
+}
+.a-aphelion.night {
+  background: linear-gradient(180deg, #02050a, #000);
+}
+.a-aphelion .grid {
+  inset: 0;
+  background:
+    linear-gradient(rgb(30 50 70 / 9%) 1px, transparent 1px) 0 0 / 100% 48px,
+    linear-gradient(90deg, rgb(30 50 70 / 9%) 1px, transparent 1px) 0 0 / 48px 100%;
+}
+.a-aphelion.night .grid {
+  display: none;
+}
+.a-aphelion .field {
+  display: none;
+  inset: -40px;
+  background:
+    radial-gradient(circle, #fff 1px, transparent 1.6px) 0 0 / 101px 89px,
+    radial-gradient(circle, #cfe2ff 1px, transparent 1.5px) 30px 24px / 139px 121px,
+    radial-gradient(circle, #fff 0.7px, transparent 1.2px) 60px 70px / 67px 61px;
+  animation: ap-twinkle 7s ease-in-out infinite alternate;
+}
+.a-aphelion.night .field {
+  display: block;
+}
+@keyframes ap-twinkle {
+  to {
+    opacity: 0.62;
+  }
+}
+.a-aphelion .port {
+  right: -8vmin;
+  bottom: -10vmin;
+  width: 88vmin;
+  height: 88vmin;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle, #fff 1px, transparent 1.6px) 0 0 / 71px 67px,
+    radial-gradient(circle, #cfe2ff 1px, transparent 1.5px) 30px 24px / 113px 97px,
+    #04070d;
+  box-shadow:
+    0 0 0 14px #b8c1c9,
+    0 0 0 16px #828e98;
+}
+.a-aphelion.night .port {
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+.a-aphelion .planet {
+  position: absolute;
+  left: 24%;
+  top: 24%;
+  width: 82%;
+  height: 82%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 26% 24%, #d98a4b, #6c2e12 62%, #000 86%);
+  box-shadow: -5px -5px 44px -6px #d98a4b;
+  will-change: transform;
+  animation: ap-drift 300s linear infinite alternate;
+}
+.a-aphelion.night .planet {
+  background: radial-gradient(circle at 26% 24%, #3f9db8, #07202e 62%, #000 86%);
+  box-shadow: -5px -5px 44px -6px #3f9db8;
+}
+@keyframes ap-drift {
+  to {
+    transform: translate(-40px, -22px);
+  }
+}
+.a-aphelion .telem {
+  left: 96px;
+  bottom: 18px;
+  display: flex;
+  gap: 1.6em;
+  font: 400 0.68rem/1 var(--font-deco);
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+@media (max-width: 760px) {
+  .a-aphelion .telem {
+    display: none;
+  }
+}
+
+:root[data-theme="aphelion"][data-shell] .ch-title {
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+.a-aphelion.still *,
+.a-aphelion.still *::before,
+.a-aphelion.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-aphelion *,
+  .a-aphelion *::before,
+  .a-aphelion *::after {
+    animation: none !important;
+  }
+}

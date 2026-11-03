@@ -1,0 +1,275 @@
+/* =====================================================================
+   THE DEEP END — mind the pressure
+   Sunlight rippling over sand by day; black water and glowing plankton at night. Cards float like
+   bubbles, and the plankton scatters from your cursor and from what you send.
+   ===================================================================== */
+:root[data-theme="deepend"][data-shell] h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent-ink);
+}
+:root[data-theme="deepend"][data-shell] h2,
+:root[data-theme="deepend"][data-shell] .panel > h2:first-child {
+  font: 700 1.1rem/1.2 var(--font-display);
+}
+:root[data-theme="deepend"][data-shell] .btn {
+  border-radius: 99px;
+}
+:root[data-theme="deepend"][data-shell] .btn.primary {
+  border: 0;
+  background: radial-gradient(circle at 32% 26%, #fff, var(--glow) 55%, #22b9ab);
+  color: #03303c;
+  box-shadow: 0 0 18px -4px var(--glow);
+}
+:root[data-theme="deepend"][data-shell] .card,
+:root[data-theme="deepend"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-radius: 26px;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+:root[data-theme="deepend"][data-shell] .chip {
+  border-radius: 99px;
+}
+:root[data-theme="deepend"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="deepend"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+:root[data-theme="deepend"][data-shell] nav.rail {
+  border: 1px solid var(--edge);
+  color: #e5fbff;
+  background: var(--trench);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:root[data-theme="deepend"][data-shell] nav.rail .nav {
+  color: #e5fbff;
+}
+:root[data-theme="deepend"][data-shell] nav.rail .logo {
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, #fff, var(--glow) 55%, #22b9ab);
+  color: #03303c !important;
+  font: 700 1rem/1 var(--font-display);
+  letter-spacing: -0.03em;
+  box-shadow: 0 0 22px -4px var(--glow);
+}
+:root[data-theme="deepend"][data-shell] nav.rail .nav.on {
+  border-radius: 99px;
+  background: rgb(255 255 255 / 16%);
+  color: var(--glow) !important;
+  box-shadow: 0 0 14px -6px var(--glow);
+}
+:root[data-theme="deepend"][data-shell] .main-col,
+:root[data-theme="deepend"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: 26px;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+:root[data-theme="deepend"][data-shell] .bar .cname {
+  font: 700 1.75rem/1.05 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+:root[data-theme="deepend"][data-shell] .bar .cname .ctitle {
+  font: 400 0.92rem var(--font-ui);
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+:root[data-theme="deepend"][data-shell] .style-cards .msg .bubble {
+  border: 1px solid var(--edge);
+  border-radius: 26px;
+  background: var(--tint-char);
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="deepend"][data-shell] .style-cards .msg.user .bubble {
+  background: var(--tint-user);
+}
+:root[data-theme="deepend"][data-shell] .style-cards .msg .bubble::before {
+  display: none;
+}
+:root[data-theme="deepend"][data-shell][data-mode="night"] .style-cards .msg .bubble {
+  box-shadow: 0 0 26px -12px var(--glow);
+}
+:root[data-theme="deepend"][data-shell] .style-cards .msg:not(.streaming) .bubble {
+  animation: dp-bob 7s ease-in-out infinite alternate;
+}
+:root[data-theme="deepend"][data-shell] .style-cards .msg:nth-child(3n) .bubble {
+  animation-duration: 8.5s;
+  animation-delay: -2.5s;
+}
+:root[data-theme="deepend"][data-shell] .style-cards .msg:nth-child(3n + 1) .bubble {
+  animation-duration: 6s;
+  animation-delay: -5s;
+}
+@keyframes dp-bob {
+  to {
+    transform: translateY(-4px);
+  }
+}
+:root[data-theme="deepend"][data-shell] .msg .name {
+  font: 700 0.92rem/1.2 var(--font-display);
+  color: var(--accent-ink) !important;
+}
+:root[data-theme="deepend"][data-shell] .msg .portrait {
+  padding: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, #fff, rgb(255 255 255 / 19%) 40%, var(--edge));
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="deepend"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% !important;
+}
+:root[data-theme="deepend"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+:root[data-theme="deepend"][data-shell] .ch-title {
+  font: 700 1.6rem/1.1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+:root[data-theme="deepend"][data-shell] .composer {
+  border: 1px solid var(--edge);
+  border-radius: 99px;
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+:root[data-theme="deepend"][data-shell] .send.primary {
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, #fff, var(--glow) 55%, #22b9ab);
+  color: #03303c;
+  box-shadow: 0 0 18px -2px var(--glow);
+}
+:root[data-theme="deepend"][data-shell] .continue,
+:root[data-theme="deepend"][data-shell] .char {
+  border-radius: 26px;
+}
+:root[data-theme="deepend"][data-shell] .hero-pic,
+:root[data-theme="deepend"][data-shell] .hero-pic .avatar {
+  border-radius: 50% !important;
+}
+
+/* ---------- the backdrop ---------- */
+.a-deepend {
+  background: linear-gradient(180deg, #8ae6e2 0, #27aebf 42%, #0b7192 100%);
+}
+.a-deepend.night {
+  background: linear-gradient(180deg, #031327, #01060f 60%, #000);
+}
+.a-deepend canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.a-deepend .caus {
+  inset: -560px;
+  opacity: 0.32;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='.012' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 -12 0 0 0 1.9'/%3E%3C/filter%3E%3Crect width='520' height='520' filter='url(%23c)'/%3E%3C/svg%3E");
+  will-change: transform;
+  animation: dp-c1 36s linear infinite;
+}
+.a-deepend .caus.b {
+  opacity: 0.2;
+  background-size: 760px 760px;
+  animation: dp-c2 54s linear infinite;
+}
+.a-deepend.night .caus,
+.a-deepend.night .shaft,
+.a-deepend.night .sand {
+  display: none;
+}
+@keyframes dp-c1 {
+  to {
+    transform: translate(520px, 260px);
+  }
+}
+@keyframes dp-c2 {
+  to {
+    transform: translate(-760px, 380px);
+  }
+}
+.a-deepend .shaft {
+  top: -40px;
+  width: 11vw;
+  height: 80%;
+  opacity: 0.4;
+  background: linear-gradient(180deg, #fff, transparent);
+  transform: skewX(-14deg);
+  filter: blur(16px);
+  animation: dp-sway 12s ease-in-out infinite alternate;
+}
+.a-deepend .s1 {
+  left: 28%;
+}
+.a-deepend .s2 {
+  left: 54%;
+  width: 16vw;
+  animation-delay: -5s;
+}
+.a-deepend .s3 {
+  left: 80%;
+  width: 8vw;
+  animation-delay: -8s;
+}
+@keyframes dp-sway {
+  to {
+    transform: skewX(-6deg) translateX(40px);
+  }
+}
+.a-deepend .sand {
+  left: -5%;
+  right: -5%;
+  bottom: -60px;
+  height: 150px;
+  border-radius: 50% 50% 0 0;
+  background: linear-gradient(180deg, #e7d7a4, #b9a877);
+}
+.a-deepend .gauge {
+  right: 18px;
+  top: 22vh;
+  height: 40vh;
+  width: 14px;
+  background: repeating-linear-gradient(180deg, rgb(255 255 255 / 44%) 0 1px, transparent 1px 14px);
+  border-right: 2px solid rgb(255 255 255 / 50%);
+}
+.a-deepend .gauge::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 12%;
+  width: 18px;
+  height: 3px;
+  background: var(--glow);
+  box-shadow: 0 0 8px var(--glow);
+  transition: top 1.2s var(--ease);
+}
+.a-deepend.night .gauge::after {
+  top: 90%;
+}
+@media (max-width: 760px) {
+  .a-deepend .gauge {
+    display: none;
+  }
+}
+
+:root[data-theme="deepend"][data-shell] .ch-title {
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+.a-deepend.still *,
+.a-deepend.still *::before,
+.a-deepend.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-deepend *,
+  .a-deepend *::before,
+  .a-deepend *::after {
+    animation: none !important;
+  }
+}

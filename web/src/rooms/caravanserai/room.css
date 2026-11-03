@@ -1,0 +1,287 @@
+/* =====================================================================
+   CARAVANSERAI — tea first, then stories
+   Terracotta, indigo and saffron with star-tile borders. Heat shimmer over the dunes by day, a sky
+   slowly turning at night. Portraits stand in horseshoe arches; woven bands part the messages.
+   ===================================================================== */
+:root[data-theme="caravanserai"][data-shell] {
+  --tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23f6e7c7'/%3E%3Cpath d='M20 3l5 7 7-2-2 7 7 5-7 5 2 7-7-2-5 7-5-7-7 2 2-7-7-5 7-5-2-7 7 2z' fill='%231c3a78'/%3E%3Cpath d='M20 12l2.4 5.6L28 20l-5.6 2.4L20 28l-2.4-5.6L12 20l5.6-2.4z' fill='%23d99a2b'/%3E%3Cpath d='M0 0h6L0 6zM40 0v6l-6-6zM0 40v-6l6 6zM40 40h-6l6-6z' fill='%23a84720'/%3E%3C/svg%3E");
+}
+:root[data-theme="caravanserai"][data-shell] h1 {
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+:root[data-theme="caravanserai"][data-shell] h2,
+:root[data-theme="caravanserai"][data-shell] .panel > h2:first-child {
+  font: 700 1.25rem/1.2 var(--font-display);
+}
+:root[data-theme="caravanserai"][data-shell] .btn.primary {
+  border: 0;
+  border-radius: 24px 24px 4px 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="caravanserai"][data-shell] .card,
+:root[data-theme="caravanserai"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-top: 3px solid var(--saffron);
+  border-radius: 5px;
+}
+:root[data-theme="caravanserai"][data-shell] .chip {
+  border-radius: 24px 24px 3px 3px;
+}
+:root[data-theme="caravanserai"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="caravanserai"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+/* the rail: indigo with a band of tile down its edge */
+:root[data-theme="caravanserai"][data-shell] nav.rail {
+  border: 0;
+  border-radius: 4px;
+  color: #f7ebcf;
+  background:
+    var(--tile) 100% 0 / 12px 12px repeat-y,
+    #1c2d5c;
+  padding-right: 12px;
+  box-shadow: var(--shadow-2);
+}
+:root[data-theme="caravanserai"][data-shell] nav.rail .nav {
+  color: #f7ebcf;
+}
+:root[data-theme="caravanserai"][data-shell] nav.rail .logo {
+  border-radius: 50% 50% 4px 4px / 42% 42% 3% 3%;
+  background: #a84720;
+  box-shadow: 0 0 0 2px #d99a2b;
+  color: #fff8e7 !important;
+  font: 700 1.5rem/1 var(--font-display);
+  animation: none;
+}
+:root[data-theme="caravanserai"][data-shell] nav.rail .logo:hover {
+  transform: scale(1.06);
+}
+:root[data-theme="caravanserai"][data-shell] nav.rail .nav.on {
+  border-radius: 24px 24px 4px 4px;
+  background: rgb(255 255 255 / 13%);
+  color: #f0c04a !important;
+  box-shadow: inset 0 -2px 0 #d99a2b;
+}
+:root[data-theme="caravanserai"][data-shell] .main-col,
+:root[data-theme="caravanserai"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+}
+:root[data-theme="caravanserai"][data-shell] .bar {
+  position: relative;
+}
+:root[data-theme="caravanserai"][data-shell] .bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  height: 10px;
+  background: var(--tile) 0 0 / 10px 10px repeat-x;
+  pointer-events: none;
+}
+:root[data-theme="caravanserai"][data-shell] .bar .cname {
+  font: 700 1.85rem/1.05 var(--font-display);
+  color: var(--text);
+}
+:root[data-theme="caravanserai"][data-shell] .bar .cname .ctitle {
+  font: italic 400 1.05rem var(--font-story-theme);
+  color: var(--text-muted);
+}
+:root[data-theme="caravanserai"][data-shell] .style-cards .msg .bubble {
+  border: 1px solid var(--edge);
+  border-top: 3px solid var(--saffron);
+  border-radius: 5px;
+  background: var(--tint-char);
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="caravanserai"][data-shell] .style-cards .msg.user .bubble {
+  background: var(--tint-user);
+}
+:root[data-theme="caravanserai"][data-shell] .style-cards .msg .bubble::before {
+  display: none;
+}
+/* woven bands between messages */
+:root[data-theme="caravanserai"][data-shell] .msg {
+  position: relative;
+}
+:root[data-theme="caravanserai"][data-shell] .column .msg::before {
+  content: "";
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  top: -3px;
+  height: 4px;
+  opacity: 0.8;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 9px, var(--saffron) 9px 13px, var(--weave) 13px 22px, var(--saffron) 22px 26px);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 22% 78%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 22% 78%, transparent);
+}
+:root[data-theme="caravanserai"][data-shell] .msg .name {
+  font: 700 1.02rem/1.2 var(--font-display);
+  color: var(--accent-ink) !important;
+}
+/* the arch: tile around a horseshoe */
+:root[data-theme="caravanserai"][data-shell] .msg .portrait {
+  padding: 5px;
+  border-radius: 50% 50% 6px 6px / 36% 36% 3% 3%;
+  background: var(--tile) 0 0 / 18px 18px;
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="caravanserai"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% 50% 3px 3px / 36% 36% 2% 2% !important;
+}
+:root[data-theme="caravanserai"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+:root[data-theme="caravanserai"][data-shell] .chapter-h {
+  border: 0;
+  background: var(--tile) 0 0 / 14px 14px repeat-x, var(--tile) 0 100% / 14px 14px repeat-x;
+  padding-block: 1.8rem;
+}
+:root[data-theme="caravanserai"][data-shell] .ch-title {
+  font: 700 1.8rem/1.15 var(--font-display);
+}
+:root[data-theme="caravanserai"][data-shell] .composer {
+  border: 1px solid var(--saffron);
+  border-radius: 5px;
+}
+:root[data-theme="caravanserai"][data-shell] .send.primary {
+  border-radius: 50% 50% 5px 5px / 42% 42% 3% 3%;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+:root[data-theme="caravanserai"][data-shell] .continue,
+:root[data-theme="caravanserai"][data-shell] .char {
+  border-radius: 5px;
+  border-top: 3px solid var(--saffron);
+}
+:root[data-theme="caravanserai"][data-shell] .hero-pic,
+:root[data-theme="caravanserai"][data-shell] .hero-pic .avatar {
+  border-radius: 50% 50% 6px 6px / 36% 36% 3% 3% !important;
+}
+
+/* ---------- the backdrop ---------- */
+.a-caravanserai {
+  background: linear-gradient(180deg, var(--sky-1), var(--sky-2));
+}
+.a-caravanserai .sun {
+  right: 9vw;
+  top: 7vh;
+  width: 18vmin;
+  height: 18vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff5d0, #ffd77c 60%, rgb(255 201 94 / 0%) 72%);
+}
+.a-caravanserai.night .sun {
+  display: none;
+}
+.a-caravanserai .stars {
+  display: none;
+  left: 50%;
+  top: 50%;
+  width: 180vmax;
+  height: 180vmax;
+  margin: -90vmax 0 0 -90vmax;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #fff 1.3px, transparent 1.9px) 0 0 / 97px 89px,
+    radial-gradient(circle, #ffe7ac 1px, transparent 1.6px) 30px 50px / 131px 113px,
+    radial-gradient(circle, #b9cdff 1px, transparent 1.5px) 64px 18px / 71px 67px;
+  will-change: transform;
+  animation: ca-turn 360s linear infinite;
+}
+.a-caravanserai.night .stars {
+  display: block;
+}
+@keyframes ca-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+.a-caravanserai .dune {
+  left: -12px;
+  right: -12px;
+  bottom: -14px;
+  height: 30vh;
+  background: var(--dune-1);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 200' preserveAspectRatio='none'%3E%3Cpath d='M0 200V96C160 40 300 60 470 110S800 170 1000 70V200Z'/%3E%3C/svg%3E") 0 0 / 100% 100%;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 200' preserveAspectRatio='none'%3E%3Cpath d='M0 200V96C160 40 300 60 470 110S800 170 1000 70V200Z'/%3E%3C/svg%3E") 0 0 / 100% 100%;
+}
+.a-caravanserai .dune.b {
+  height: 18vh;
+  background: var(--dune-2);
+  transform: scaleX(-1);
+}
+/* heat: the air over the dunes wavers (a slow transform, not a filter, so it stays cheap) */
+.a-caravanserai .heat {
+  left: 0;
+  right: 0;
+  bottom: 22vh;
+  height: 12vh;
+  opacity: 0.35;
+  background: repeating-linear-gradient(0deg, rgb(255 244 210 / 50%) 0 2px, transparent 2px 9px);
+  filter: blur(2px);
+  animation: ca-heat 5s ease-in-out infinite alternate;
+}
+.a-caravanserai.night .heat {
+  display: none;
+}
+@keyframes ca-heat {
+  to {
+    transform: translateX(14px) scaleY(1.18);
+    opacity: 0.15;
+  }
+}
+.a-caravanserai .tent {
+  display: none;
+  right: 18vw;
+  bottom: 10vh;
+  width: 80px;
+  height: 46px;
+  background: #ffb65a;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.a-caravanserai .glow {
+  display: none;
+  right: calc(18vw - 90px);
+  bottom: calc(10vh - 60px);
+  width: 260px;
+  height: 170px;
+  background: radial-gradient(closest-side, rgb(255 182 90 / 45%), transparent);
+  animation: ca-glow 4s ease-in-out infinite alternate;
+}
+.a-caravanserai.night .tent,
+.a-caravanserai.night .glow {
+  display: block;
+}
+@keyframes ca-glow {
+  to {
+    opacity: 0.6;
+  }
+}
+
+:root[data-theme="caravanserai"][data-shell] .ch-title {
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+.a-caravanserai.still *,
+.a-caravanserai.still *::before,
+.a-caravanserai.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-caravanserai *,
+  .a-caravanserai *::before,
+  .a-caravanserai *::after {
+    animation: none !important;
+  }
+}

@@ -47,19 +47,25 @@
         "@fontsource/abril-fatface": "^5.3.0",
         "@fontsource/alegreya-sans": "^5.3.0",
         "@fontsource/almendra": "^5.3.0",
+        "@fontsource/amiri": "^5.3.0",
         "@fontsource/arvo": "^5.3.0",
         "@fontsource/atkinson-hyperlegible": "^5.3.0",
+        "@fontsource/b612-mono": "^5.3.0",
         "@fontsource/bebas-neue": "^5.3.0",
         "@fontsource/cardo": "^5.3.0",
         "@fontsource/caveat": "^5.3.0",
         "@fontsource/chewy": "^5.3.0",
         "@fontsource/cinzel-decorative": "^5.3.0",
         "@fontsource/comic-neue": "^5.3.0",
+        "@fontsource/cormorant-unicase": "^5.3.0",
         "@fontsource/courier-prime": "^5.3.0",
         "@fontsource/dm-serif-display": "^5.3.0",
         "@fontsource/domine": "^5.3.0",
+        "@fontsource/el-messiri": "^5.3.0",
         "@fontsource/gentium-book-plus": "^5.3.0",
         "@fontsource/ibm-plex-mono": "^5.3.0",
+        "@fontsource/ibm-plex-sans": "^5.3.0",
+        "@fontsource/ibm-plex-sans-condensed": "^5.3.0",
         "@fontsource/im-fell-english": "^5.3.0",
         "@fontsource/kalam": "^5.3.0",
         "@fontsource/lato": "^5.3.0",
@@ -74,6 +80,8 @@
         "@fontsource/poppins": "^5.3.0",
         "@fontsource/press-start-2p": "^5.3.0",
         "@fontsource/pt-serif": "^5.3.0",
+        "@fontsource/saira-condensed": "^5.3.0",
+        "@fontsource/shippori-mincho": "^5.3.0",
         "@fontsource/silkscreen": "^5.3.0",
         "@fontsource/sorts-mill-goudy": "^5.3.0",
         "@fontsource/space-mono": "^5.3.0",
@@ -213,9 +221,13 @@
 
     "@fontsource/almendra": ["@fontsource/almendra@5.3.0", "", {}, "sha512-edtEANMc9SKccDhYmtcxmlrvzzjHTQ/enLiOgWc4ODQDjdMf6zfoUdwpBHPPw+0pekeI7PyBsP4JqjyviiIuGg=="],
 
+    "@fontsource/amiri": ["@fontsource/amiri@5.3.0", "", {}, "sha512-i4SWJnVIphj8556EdVzNrEG/Qu82k6JXjXTtSUIohx3tHmo2GHw1Kv60TWo+xjk7Yf1Etb2Gskh0lUFclTKyUw=="],
+
     "@fontsource/arvo": ["@fontsource/arvo@5.3.0", "", {}, "sha512-BV8Exol50MVqbu3CfLYt7YKP150FnXb5lRpVxQ0es33nUdZ3Ma0wO2F1klXv5ROY9p4vZGH27O4lnD0fYLjdww=="],
 
     "@fontsource/atkinson-hyperlegible": ["@fontsource/atkinson-hyperlegible@5.3.0", "", {}, "sha512-Sp8Ve8+rQmENY2Lv02VH7sLpntzTTvnncnJMTbRE7DX6TLxGraN4ykZfzaUWIoCFmaomwkvNiqmlPkrKBuDoSA=="],
+
+    "@fontsource/b612-mono": ["@fontsource/b612-mono@5.3.0", "", {}, "sha512-G0Ihm+ekqqP5PZJ1zrx6GbeS2q4GDmYnM01zrNrPARRg64GoG0D2pTf+FsbDWvbg/9tVWFRmFIz8xYLjgFrUpg=="],
 
     "@fontsource/bebas-neue": ["@fontsource/bebas-neue@5.3.0", "", {}, "sha512-nCxMEb9Bg9sjNWm9TIOsvHKDMLRUfEZPWpLgYu6m9KavZZVSA/WoHzI5wROwqA+eNwEi/PNBAcB5Co7HA3S0Cw=="],
 
@@ -229,15 +241,23 @@
 
     "@fontsource/comic-neue": ["@fontsource/comic-neue@5.3.0", "", {}, "sha512-uZsyUTExw8tCySNhL65dN6rEUhASMPGintSS5Kw/ZkrQTK1vcAgramzOLT/mZKtZ+EXr03MHj0s5osVVJITCow=="],
 
+    "@fontsource/cormorant-unicase": ["@fontsource/cormorant-unicase@5.3.0", "", {}, "sha512-x9aUMox6cSI3aWckMDlinaBWdRhVteKTLakTAkzdRHlpAIVMspUgRaV1qkCR4ZcWlovyc7KUq7zqUb/F72/8lQ=="],
+
     "@fontsource/courier-prime": ["@fontsource/courier-prime@5.3.0", "", {}, "sha512-KIi1k4VG1Wv+/CGpb1AUpLkUuOAQA6zmvthqxOZGN0AV8BEgQgbK7qAtquv14zsBJAY1bb5BHIEbWVFLgENh0w=="],
 
     "@fontsource/dm-serif-display": ["@fontsource/dm-serif-display@5.3.0", "", {}, "sha512-ecRclUcYeto9fB7ghkB36H4MtUoaUYFjjornWYYeLCMHzaWEDPk2kIWgZOq0mKBNRxclRSieKcFeLonlMYDTKg=="],
 
     "@fontsource/domine": ["@fontsource/domine@5.3.0", "", {}, "sha512-rzEcXp1qmmChcoah9FamFoFshGsxkCEHOQ4FQTzUpIWstRz5k/34Jdc6+z/NTzM5izm5UfD8TOd1Cqfgz4w3BA=="],
 
+    "@fontsource/el-messiri": ["@fontsource/el-messiri@5.3.0", "", {}, "sha512-Fqhf6DEuRInnLso60tk2i8mQlFfDjYNeF6Ybrto7jBnAwNClQqn4g9lMae/M+ub1zWYteM98uPOA1DwU5J8hbw=="],
+
     "@fontsource/gentium-book-plus": ["@fontsource/gentium-book-plus@5.3.0", "", {}, "sha512-FlcH8CWew00pv2w/o18pjpoz5PU7ETukXwnBqb7uhDXvlaEalXfAXP4TlXh+QlNrVkebALgfzhDLGV5sDNOSLg=="],
 
     "@fontsource/ibm-plex-mono": ["@fontsource/ibm-plex-mono@5.3.0", "", {}, "sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q=="],
+
+    "@fontsource/ibm-plex-sans": ["@fontsource/ibm-plex-sans@5.3.0", "", {}, "sha512-CbE4CbbEEZJX860XyUiRpsksXIQR8Rp2XDva2VO53NJox9tVNtusrysd2x5YkUEY3ErQ66W1IiiQL8/wihhw5w=="],
+
+    "@fontsource/ibm-plex-sans-condensed": ["@fontsource/ibm-plex-sans-condensed@5.3.0", "", {}, "sha512-fQyBpwbkguP4azjq7Cw8h/J3C/d8MFAzXOiSoFxyKCUK4x0XKrWEh3tGdTxhDM0HctVRQilQo1zGoyxDHLm5jQ=="],
 
     "@fontsource/im-fell-english": ["@fontsource/im-fell-english@5.3.0", "", {}, "sha512-FcgdWfY9WeUM2gQkfmwhn4Ed9LVtlll8LSSZvHfbsUrnHK5tHHnGg6BgwAfHogp52adU3eE89J/3B52qV3b+Vw=="],
 
@@ -270,6 +290,10 @@
     "@fontsource/press-start-2p": ["@fontsource/press-start-2p@5.3.0", "", {}, "sha512-gxWFxdeDglPhEYSwEeooomcaFK8kSQYLQwVxfnOJeYRj2sPEHXjpVtFgEaYfqzOjuAJGrIcJOipu2KY5YkbyuQ=="],
 
     "@fontsource/pt-serif": ["@fontsource/pt-serif@5.3.0", "", {}, "sha512-ST+j/byBGZw6H+TQMX78o6Qlngfj2Va/Q9fAJxq54Is1ZQk1/FhBIuqyJcLmnpi0trG8V/hWO9Bx6ZY09A0DBQ=="],
+
+    "@fontsource/saira-condensed": ["@fontsource/saira-condensed@5.3.0", "", {}, "sha512-e5ZTpIy/pE8CbB23mpm1b+dCmeapNheSrtQDXtbfDbGpm1r2oIfs5TzTpY2nzETEwei3DEFL9smm0rmFURzJtw=="],
+
+    "@fontsource/shippori-mincho": ["@fontsource/shippori-mincho@5.3.0", "", {}, "sha512-S41kRxQuubAaYss+LeXu0IOc02RQwsPaJbR1cWZx4VV15hXaYZViH3WAve9HpDVFqKYd/BVk86Bg7lp9ytV3KQ=="],
 
     "@fontsource/silkscreen": ["@fontsource/silkscreen@5.3.0", "", {}, "sha512-M1NQ3LQH0LFNvyFPd/piHEGMImPPtpLglNnLC6Vdcq9kL0jNIOtTQmksAWCc4enbDnw1OnIpZtjNEfRqYm/QmA=="],
 

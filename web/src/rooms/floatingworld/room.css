@@ -1,0 +1,295 @@
+/* =====================================================================
+   FLOATING WORLD — carved once, printed forever
+   A woodblock print: an indigo fade down from the top, flat colour, a mountain, slanting rain and
+   patterned waves. Names sit in a cartouche with a red seal; portraits print out of register.
+   ===================================================================== */
+:root[data-theme="floatingworld"][data-shell] h1 {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+:root[data-theme="floatingworld"][data-shell] h2,
+:root[data-theme="floatingworld"][data-shell] .panel > h2:first-child {
+  font: 800 1.2rem/1.2 var(--font-display);
+  letter-spacing: 0.04em;
+}
+:root[data-theme="floatingworld"][data-shell] .btn {
+  border-radius: 2px;
+}
+:root[data-theme="floatingworld"][data-shell] .btn.primary {
+  border: 0;
+  background: var(--seal);
+  color: #fff4e0;
+}
+:root[data-theme="floatingworld"][data-shell] .card,
+:root[data-theme="floatingworld"][data-shell] .panel {
+  border: 1.5px solid var(--border-strong);
+  border-radius: 0;
+}
+:root[data-theme="floatingworld"][data-shell] .chip {
+  border-radius: 2px;
+  border: 1px solid var(--border-strong);
+}
+:root[data-theme="floatingworld"][data-shell] .seg,
+:root[data-theme="floatingworld"][data-shell] .seg button.on {
+  border-radius: 2px;
+}
+:root[data-theme="floatingworld"][data-shell] .seg button.on {
+  background: var(--indigo);
+  color: #f7f0df;
+}
+:root[data-theme="floatingworld"][data-shell] .switch input:checked {
+  background: var(--seal);
+}
+:root[data-theme="floatingworld"][data-shell] nav.rail {
+  border: 0;
+  border-radius: 0;
+  color: #f4ecd9;
+  background: var(--indigo);
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--seal) 70%, transparent);
+}
+:root[data-theme="floatingworld"][data-shell] nav.rail .nav {
+  color: #f4ecd9;
+}
+:root[data-theme="floatingworld"][data-shell] nav.rail .logo {
+  border-radius: 2px;
+  background: var(--seal);
+  box-shadow: none;
+  color: #fff4e0 !important;
+  font: 400 1.5rem/1 "Yu Mincho", "Hiragino Mincho ProN", var(--font-display);
+  animation: none;
+}
+:root[data-theme="floatingworld"][data-shell] nav.rail .logo:hover {
+  transform: none;
+}
+:root[data-theme="floatingworld"][data-shell] nav.rail .nav.on {
+  border-radius: 2px;
+  background: rgb(255 255 255 / 14%);
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 #d34a3b;
+}
+:root[data-theme="floatingworld"][data-shell] .main-col,
+:root[data-theme="floatingworld"][data-shell] .dock {
+  border: 1.5px solid var(--border-strong);
+  border-radius: 0;
+}
+/* the header sits under the indigo fade: paper behind it keeps it readable */
+:root[data-theme="floatingworld"][data-shell] .bar {
+  background: var(--surface);
+  border-bottom: 1.5px solid var(--border-strong);
+}
+:root[data-theme="floatingworld"][data-shell] .bar .cname {
+  font: 800 1.8rem/1.08 var(--font-display);
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+:root[data-theme="floatingworld"][data-shell] .bar .cname .ctitle {
+  font: 400 0.95rem var(--font-story-theme);
+  color: var(--text-muted);
+}
+:root[data-theme="floatingworld"][data-shell] .style-cards .msg .bubble {
+  border: 1.5px solid var(--border-strong);
+  border-radius: 0;
+  background: var(--tint-char);
+  box-shadow: none;
+}
+:root[data-theme="floatingworld"][data-shell] .style-cards .msg.user .bubble {
+  background: var(--tint-user);
+}
+:root[data-theme="floatingworld"][data-shell] .style-cards .msg .bubble::before {
+  display: none;
+}
+/* the cartouche: a framed name and a red seal */
+:root[data-theme="floatingworld"][data-shell] .msg .name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.18em 0.25em 0.18em 0.6em;
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  font: 600 0.88rem/1.25 var(--font-display);
+  letter-spacing: 0.08em;
+  color: var(--text) !important;
+}
+:root[data-theme="floatingworld"][data-shell] .msg .name::after {
+  content: "語";
+  display: grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  background: var(--seal);
+  color: #fff4e0;
+  font: 400 0.82em/1 "Yu Mincho", "Hiragino Mincho ProN", serif;
+  letter-spacing: 0;
+  border-radius: 2px;
+}
+:root[data-theme="floatingworld"][data-shell] .msg.user .name::after {
+  content: "君";
+}
+:root[data-theme="floatingworld"][data-shell] .msg .portrait {
+  border-radius: 0;
+  outline: 2px solid var(--border-strong);
+  box-shadow: 4px 4px 0 var(--seal);
+}
+:root[data-theme="floatingworld"][data-shell] .msg .portrait .avatar {
+  border-radius: 0 !important;
+}
+:root[data-theme="floatingworld"][data-shell] .msg:hover .portrait {
+  transform: none;
+}
+:root[data-theme="floatingworld"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+:root[data-theme="floatingworld"][data-shell] .chapter-h {
+  border-block: 1.5px solid var(--border-strong);
+}
+:root[data-theme="floatingworld"][data-shell] .ch-title {
+  font: 800 1.7rem/1.15 var(--font-display);
+  letter-spacing: 0.03em;
+}
+:root[data-theme="floatingworld"][data-shell] .composer {
+  border: 1.5px solid var(--border-strong);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--seal);
+}
+:root[data-theme="floatingworld"][data-shell] .send.primary {
+  border-radius: 2px;
+  background: var(--seal);
+  color: #fff4e0;
+  box-shadow: none;
+}
+:root[data-theme="floatingworld"][data-shell] .continue,
+:root[data-theme="floatingworld"][data-shell] .char {
+  border-radius: 0;
+  border: 1.5px solid var(--border-strong);
+}
+:root[data-theme="floatingworld"][data-shell] .hero-pic {
+  border-radius: 0;
+  outline: 2px solid var(--border-strong);
+  box-shadow: 4px 4px 0 var(--seal);
+}
+:root[data-theme="floatingworld"][data-shell] .hero-pic .avatar {
+  border-radius: 0 !important;
+}
+
+/* ---------- the backdrop: one print ---------- */
+.a-floatingworld {
+  background: var(--bg);
+}
+.a-floatingworld .boka {
+  inset: 0 0 auto;
+  height: 38vh;
+  background: linear-gradient(180deg, var(--boka-1), var(--boka-2) 34%, transparent);
+}
+.a-floatingworld .moon {
+  display: none;
+  right: 9vw;
+  top: 8vh;
+  width: 18vmin;
+  height: 18vmin;
+  border-radius: 50%;
+  background: #efe6cc;
+  box-shadow: 0 0 50px rgb(239 230 204 / 25%);
+}
+.a-floatingworld.night .moon {
+  display: block;
+}
+.a-floatingworld .moon::after {
+  content: "";
+  position: absolute;
+  left: -40%;
+  right: -50%;
+  top: 46%;
+  height: 11%;
+  border-radius: 9px;
+  background: var(--boka-2);
+  box-shadow: 40px 22px 0 -2px var(--boka-2);
+}
+.a-floatingworld .fuji {
+  right: -3vw;
+  bottom: 88px;
+  width: 62vw;
+  height: 42vh;
+  background: var(--mt);
+  clip-path: polygon(0 100%, 38% 12%, 44% 6%, 56% 6%, 62% 12%, 100% 100%);
+}
+.a-floatingworld .fuji::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--cap);
+  clip-path: polygon(38% 12%, 44% 6%, 56% 6%, 62% 12%, 67% 25%, 60% 21%, 55% 29%, 50% 22%, 44% 30%, 39% 22%, 33% 25%);
+}
+.a-floatingworld .slant {
+  inset: -120px;
+  opacity: 0.2;
+  background: repeating-linear-gradient(78deg, transparent 0 17px, var(--text) 17px 18px, transparent 18px 43px);
+  will-change: transform;
+  animation: uk-rain 2.6s linear infinite;
+}
+.a-floatingworld.night .slant {
+  opacity: 0.1;
+}
+@keyframes uk-rain {
+  to {
+    transform: translate(-20px, 92px);
+  }
+}
+.a-floatingworld .waves {
+  left: 0;
+  right: -88px;
+  bottom: 0;
+  height: 88px;
+  background:
+    radial-gradient(circle at 50% 100%, var(--foam) 0 6%, var(--wave) 6% 18%, var(--foam) 18% 22%, var(--wave) 22% 38%, var(--foam) 38% 42%, var(--wave) 42% 60%, var(--foam) 60% 64%, var(--wave) 64% 72%, transparent 72%) 0 0 / 88px 44px,
+    radial-gradient(circle at 50% 100%, var(--foam) 0 6%, var(--wave) 6% 18%, var(--foam) 18% 22%, var(--wave) 22% 38%, var(--foam) 38% 42%, var(--wave) 42% 60%, var(--foam) 60% 64%, var(--wave) 64% 72%, var(--wave) 72%) 44px 22px / 88px 44px;
+  will-change: transform;
+  animation: uk-wave 18s linear infinite;
+}
+@keyframes uk-wave {
+  to {
+    transform: translateX(-88px);
+  }
+}
+.a-floatingworld .crane {
+  left: -90px;
+  top: 16vh;
+  width: 74px;
+  color: var(--cap);
+  animation: uk-fly 52s linear infinite;
+}
+@keyframes uk-fly {
+  to {
+    transform: translate(calc(100vw + 180px), -70px);
+  }
+}
+.a-floatingworld .crane svg {
+  display: block;
+  width: 100%;
+}
+@media (max-width: 760px) {
+  .a-floatingworld .fuji {
+    width: 110vw;
+    height: 30vh;
+    right: -30vw;
+  }
+}
+
+:root[data-theme="floatingworld"][data-shell] .ch-title {
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+.a-floatingworld.still *,
+.a-floatingworld.still *::before,
+.a-floatingworld.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-floatingworld *,
+  .a-floatingworld *::before,
+  .a-floatingworld *::after {
+    animation: none !important;
+  }
+}

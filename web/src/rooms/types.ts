@@ -23,7 +23,9 @@ export interface Room<Id extends string = string> {
   /** How strongly the paper grain shows over the room, by day and by night; null for none. */
   grain: { day: number; night: number } | null;
   /** The living backdrop behind the room. */
-  Ambience: Component;
+  Ambience?: Component;
+  /** Or a loader for it, for a room whose backdrop arrives the first time it's shown (keeps Mea's first load small). */
+  loadAmbience?: () => Promise<{ default: Component }>;
   /**
    * Loads the room's palette.css and room.css, for a room whose stylesheets arrive the first time
    * it is shown instead of with Mea (they then aren't listed in palettes.css and rooms.css). Its
