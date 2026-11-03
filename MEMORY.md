@@ -179,6 +179,28 @@ One PR per part, in the order 0 → 1 → 2 → 3 → 5 → 4. Merge when green.
 - 5.4 goldens 19 to 25. History can say `closes`; a scenario can say `rewind`, `replans`, `plannerInput`, `after.none`. To be sure a golden bites, switch off what it guards and run it: all seven did, though a first try at the hold only reached two of its three call sites.
 - A script outside `scripts/` that imports `server/src` by absolute path gets a second copy of `db.ts` (forward vs back slashes) and "Database is not open". Put a throwaway in `scripts/`, and delete it.
 
+## Preset survey 2 (design: `docs/23-preset-additions.md`)
+
+One PR per part, in the order of §9. Merge when green.
+
+| Part | What | State |
+|---|---|---|
+| 1 | Preset v16: §3 text, Social module, module lines, Story shape / Change resistance / Close / Adaptive options, planning and turn frame | branch `claude/preset-v16` |
+| 2 | Craft coach: new tells, sensory dedup | — |
+| 3 | `aftermath` mode, social beats | — |
+| 4 | Vessel persona (`writesUser`) | — |
+| 5 | Plants near their people, letters unread until read | — |
+| 6 | Canon from `basedOn`, an accent per speaker | — |
+| 7 | `convenience` checker kind | — |
+| 8 | Episode breaks, Continuity control | — |
+
+### Part 1 (2026-11-03)
+
+- v16 sends about 1k more instructions than v15 (the prompt test's guard is now 7,200; v15 was at 5,976 of 6,000). Most of it is Minds, World, Craft and Dialogue.
+- The tells in [CRAFT] are now "X → what to write instead" lines (FrankenWIRE). The genre option text carries `UNSCRIPTED` ("a genre says what scenes are about, never what must happen"); genre2 doesn't.
+- The fair-die line judges difficulty first (trivial: no die; hard/extreme: one/two bands lower).
+- H3 fix: the overflow retry shrinks 0.75 → 0.55 → 0.4 until the prompt really is smaller. The history window evicts in chunks to its low-water mark, so a first try near its floor came back the same size at 0.75 once the prefix grew.
+
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
 - Symptom: "Couldn't load models: HTTP 503", every time, and slow replies on NanoGPT.
