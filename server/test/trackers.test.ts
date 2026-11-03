@@ -4,7 +4,7 @@ import { driftCharacter } from "../src/trackers/drift";
 import { extractLedger, parseLedger, parseLine } from "../src/trackers/dsl";
 import { type FoldConfig, foldEvents, type TrackerEvent } from "../src/trackers/fold";
 import { applyPatch } from "../src/trackers/patch";
-import { buildNote } from "../src/trackers/note";
+import { buildNote, plantsDue } from "../src/trackers/note";
 import { revealFor, revealsOf } from "../src/trackers/reveals";
 import { activateLore } from "../src/lore/activate";
 import { evalCondition } from "../src/trackers/condition";
@@ -223,6 +223,21 @@ describe("fold rules", () => {
     const f = r.state.facts.thief!;
     expect(f.stances.mira!.status).toBe("knows");
     expect(f.secret!.from).toEqual([]);
+  });
+
+  test("a plant that names someone here, or the place, comes back sooner (docs/23)", () => {
+    const fold = (msgs: string[][]) => foldEvents(events(msgs), cfg()).state;
+    const scenes = (n: number) => Array.from({ length: n }, (_, i) => [`scene: Scene ${i + 2}`]);
+    const base = [["scene: The Quay", "plant Joss's missing key — it opens the boathouse", "plant a crack in the lighthouse lens — the lamp fails in a storm"]];
+    // Two scenes on, with Joss in the room: only Joss's plant is due, and it's marked as here.
+    const withJoss = fold([...base, ...scenes(2), ["cast: Joss@spot(mending a net)"]]);
+    expect(plantsDue(withJoss).map((x) => [x.plant.text, x.near])).toEqual([["Joss's missing key", true]]);
+    // Four scenes on, both are due; the one that's here comes first.
+    const later = fold([...base, ...scenes(4), ["cast: Joss@spot(mending a net)"]]);
+    expect(plantsDue(later).map((x) => x.near)).toEqual([true, false]);
+    expect(buildNote(later, { userName: "Alex", seq: 9 }).text).toContain("planted earlier, and it's here now: Joss's missing key");
+    // Nobody and nothing near: the old four-scene rule.
+    expect(plantsDue(fold([...base, ...scenes(2)]))).toEqual([]);
   });
 
   test("a social scene can name its kind of talk (docs/23)", () => {

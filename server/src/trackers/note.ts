@@ -7,7 +7,7 @@ import { parseStoryTime, shortStoryTime, timeOfDay, formatStoryTime } from "./cl
 import { METER_WORDS, meterWords, SEVERITY, STAMINA } from "./drift";
 import type { Field, Template } from "./schema";
 import type { PersonaMode } from "../services/layers";
-import { AXIS_WORDS, BIPOLAR_AXES, type Bond, type Character, LADDER, type WorldState } from "./types";
+import { AXIS_WORDS, BIPOLAR_AXES, type Bond, type Character, LADDER, type Plant, type WorldState } from "./types";
 
 /**
  * The story-state note (TRK-06, after ALMANAC's <ledger-note>): verified state placed shallow
@@ -45,6 +45,30 @@ export interface NoteOptions {
   focus?: string;
   /** docs/20 2.2: a message number as its moment ("#467, 11:57 at Summers Residence › Front Yard"), for records a reply might retell. */
   moment?: (seq: number) => string;
+}
+
+/**
+ * Unpaid plants ready to surface, nearest first (docs/23, after FF 5.6's Chekhov proximity): a plant
+ * that names someone in the scene or the place itself is "here now", and may come back after two
+ * scenes instead of four.
+ */
+export function plantsDue(st: WorldState): { plant: Plant; near: boolean }[] {
+  const names = Object.values(st.chars)
+    .filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead)
+    .flatMap((c) => [c.name, ...c.aliases])
+    .concat(st.place.slice(-2))
+    .map((n) => n.trim().toLowerCase())
+    .filter((n) => n.length >= 3);
+  const nearText = (t: string) => {
+    const low = t.toLowerCase();
+    return names.some((n) => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(low));
+  };
+  return Object.values(st.plants)
+    .filter((p) => p.paidSeq == null)
+    .map((p) => ({ plant: p, near: nearText(`${p.text} ${p.payoff ?? ""}`), age: st.sceneNo - p.scene }))
+    .filter((x) => x.age >= (x.near ? 2 : 4))
+    .sort((a, b) => Number(b.near) - Number(a.near) || a.plant.seq - b.plant.seq)
+    .map(({ plant, near }) => ({ plant, near }));
 }
 
 /** How the note names the player's character: the same rule as the Persona control (sealed when unset). */
@@ -385,10 +409,7 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
         .sort((a, b) => a.lastSeq - b.lastSeq)
         .slice(0, 2);
       for (const t of quietThreads) lines.push(`${t.title}${t.latest ? ` — ${t.latest}` : ""} (quiet for ${o.seq - t.lastSeq} messages)`);
-      const plants = Object.values(st.plants)
-        .filter((p) => p.paidSeq == null && st.sceneNo - p.scene >= 4)
-        .slice(0, 1);
-      for (const p of plants) lines.push(`planted earlier: ${p.text}${p.payoff ? ` (could pay off as: ${p.payoff})` : ""}`);
+      for (const { plant: p, near } of plantsDue(st).slice(0, 1)) lines.push(`${near ? "planted earlier, and it's here now" : "planted earlier"}: ${p.text}${p.payoff ? ` (could pay off as: ${p.payoff})` : ""}`);
     }
     if (on(o, "motifs")) {
       const bit = Object.values(st.motifs)
