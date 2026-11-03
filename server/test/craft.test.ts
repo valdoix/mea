@@ -77,6 +77,31 @@ describe("the craft coach (D2)", () => {
     expect(p.trace.craft?.replies).toBeGreaterThanOrEqual(6);
   });
 
+  test("the preset's tells and fixed traits are measured too (docs/23)", () => {
+    const s = craftStats(
+      "She didn't flinch. It was not unkind. \"Nobody's ever said that to me.\" He laughed the laugh people laugh when nothing is funny. It wasn't anger — it was grief. Mira's grey eyes found him; the smell of cedar hung on her coat, and her own hands shook.",
+    );
+    expect(s.tells).toHaveLength(5);
+    expect(s.tells.some((t) => t.startsWith("litotes"))).toBe(true);
+    expect(s.features).toEqual(["mira's grey eyes", "the smell of cedar"]);
+    // "her own hands" is a possessive, not a description; a plain sentence has no tells.
+    expect(craftStats("She set the cup down and went to the door.").tells).toEqual([]);
+  });
+
+  test("a trait described in two of the last three replies is named in the lane, and repeated tells become habits", async () => {
+    const c = createChat({ characterId: createCharacter(normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", first_mes: "Welcome." } }).data) }).id;
+    story(c, [
+      "Mira's grey eyes went to the window. She didn't flinch when the shutter banged.",
+      "The kettle sang. Mira's grey eyes narrowed at the clock, and she didn't flinch at the knock.",
+      "Rain on the slates, and the smell of cedar from the stove.",
+    ]);
+    const r = craftReport(c);
+    expect(r.described).toEqual(["mira's grey eyes"]);
+    expect(r.habits.some((h) => h.kind === "tell" && h.avoid.startsWith("saying what didn't happen"))).toBe(true);
+    const lane = (await previewPrompt(c)).trace.blocks.find((x) => x.lane === "craft")!;
+    expect(lane.text).toContain('Already on the page in the last replies: "mira\'s grey eyes".');
+  });
+
   test("techniques rotate: none repeats within ten replies, and swipes agree", () => {
     const run = Array.from({ length: 11 }, (_, i) => techniqueFor(chatId, i));
     expect(new Set(run.slice(0, 10)).size).toBe(10);
