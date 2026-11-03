@@ -37,6 +37,8 @@ export interface DevicePrefs {
   grain: boolean;
   /** J1: a drawn plate at each new scene. */
   plates: boolean;
+  /** The live scene window above the newest reply ("strip"), folded to one line ("slim"), or off. */
+  sceneStrip: "strip" | "slim" | "off";
   /** Stage: the scene folded to one line above the story. */
   bandSlim: boolean;
   /** Stage: the chapter river under the composer put away. */
@@ -52,7 +54,7 @@ export const PORTRAIT_PRESETS = { small: 56, large: 76, grand: 104, towering: 15
 export const PORTRAIT_RANGE = { min: 48, max: 260 } as const;
 
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true, bandSlim: false, riverHidden: false, roomWeather: "scene" };
+const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true, sceneStrip: "strip", bandSlim: false, riverHidden: false, roomWeather: "scene" };
 
 function read(): DevicePrefs {
   try {

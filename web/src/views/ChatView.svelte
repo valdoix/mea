@@ -19,7 +19,7 @@
   import OffpageEditor from "../components/chat/OffpageEditor.svelte";
   import SessionZero from "../components/chat/SessionZero.svelte";
   import { openDesk } from "../lib/desk.svelte";
-  import ScenePlate, { type PlaceKind } from "../components/chat/ScenePlate.svelte";
+  import ScenePlate from "../components/chat/ScenePlate.svelte";
   import { device } from "../lib/device.svelte";
   import NowPlaying from "../components/chat/NowPlaying.svelte";
   import type { Angle } from "../lib/angles";
@@ -31,7 +31,9 @@
   import { delight } from "../lib/delight";
   import { lock } from "../lib/applock.svelte";
   import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
-  import { openTrackers, refreshTrackers, trk } from "../lib/trackers.svelte";
+  import { openTrackers, refreshTrackers, setPlaceKind as saveKind, trk } from "../lib/trackers.svelte";
+  import SceneWindow from "../components/trackers/SceneWindow.svelte";
+  import { living } from "../lib/living";
   import Inspector from "../components/chat/Inspector.svelte";
   import MessageItem from "../components/chat/MessageItem.svelte";
   import Modal from "../components/Modal.svelte";
@@ -211,14 +213,8 @@
     // The state as the scene ran (its last change before the next scene), else what came before it.
     return [...s].reverse().find((x) => x.seq >= seq && x.seq < next) ?? [...s].reverse().find((x) => x.seq <= seq) ?? null;
   }
-  async function setPlaceKind(name: string, kind: PlaceKind) {
-    try {
-      const kinds = { ...plates.kinds, [name]: kind };
-      await patch(`/api/chats/${id}`, { settings: { placeKinds: kinds } });
-      plates = { ...plates, kinds };
-    } catch (e) {
-      errorToast(e);
-    }
+  async function setPlaceKind(name: string, kind: string) {
+    plates = { ...plates, kinds: { ...plates.kinds, ...(await saveKind(id, name, kind)) } };
   }
   $effect(() => {
     void id;
@@ -273,6 +269,13 @@
   const generating = $derived(Object.keys(gens).length > 0 || messages.some((m) => m.status === "streaming"));
   /** The chat's last message, only when the window reaches it. */
   const lastMsg = $derived(hasNewer ? undefined : messages.at(-1));
+  // The live scene window rides above the newest reply, so the scene is in view without the Story tab (Stage has its band).
+  const stripAt = $derived.by(() => {
+    const st = trk.chatId === id ? trk.data?.state : null;
+    if (hasNewer || stageOn || device.sceneStrip === "off" || !st || !trk.data?.config.sections.scene || !living(app.settings).window) return null;
+    if (!st.place.length && !trk.data.when) return null;
+    return messages.findLast((m) => m.role === "assistant")?.id ?? null;
+  });
   const endSeq = $derived(hasNewer ? Math.max(liveEnd?.seq ?? 0, messages.at(-1)?.seq ?? 0) : (messages.at(-1)?.seq ?? 0));
   const endId = $derived(hasNewer ? (liveEnd?.id ?? null) : (lastMsg?.id ?? null));
   $effect(() => {
@@ -1252,7 +1255,6 @@
         {#if L}<L.StageBand
           {detail}
           plate={plates.states.at(-1) ?? null}
-          plateKind={(plates.kinds[plates.states.at(-1)?.place.at(-1) ?? ""] as PlaceKind | undefined) ?? null}
           {chapters}
           selected={closeUp}
           slim={device.bandSlim || riverOpen}
@@ -1362,7 +1364,7 @@
                 {@const Icon = sceneIcon(b)}
                 {#if device.plates && plates.states.length}
                   {@const ps = plateAt(b.startSeq)}
-                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={(plates.kinds[ps.place.at(-1) ?? ""] as PlaceKind | undefined) ?? null} title={b.title} onkind={setPlaceKind} />{/if}
+                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} />{/if}
                 {/if}
                 <a class="scene-h" href="/chat/{id}/memory" title="Open this scene in memory">
                   <span class="sc-line"></span>
@@ -1378,6 +1380,10 @@
               <div class="divider evict tiny" title="Messages above are still yours to read; the model gets them through the Story So Far and recalled memories.">
                 <span>Above: remembered through summaries · Below: read word for word</span>
               </div>
+            {/if}
+            {#if m.id === stripAt && trk.data}
+              {@const sd = trk.data}
+              <div class="scene-strip"><SceneWindow shape="strip" when={sd.when} weather={sd.state.weather?.now ?? null} place={sd.state.place} kind={sd.placeKinds?.[sd.state.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(n, k)} slim={device.sceneStrip === "slim"} onslim={() => setDevice("sceneStrip", device.sceneStrip === "slim" ? "strip" : "slim")} /></div>
             {/if}
             {#if folioOn && !app.isMobile && L}<L.FolioGutter seq={m.seq} time={trk.times[m.id]} chips={trk.chips[m.id]} />{/if}
             <MessageItem
@@ -2181,6 +2187,9 @@
     height: 3px;
     border-radius: 50%;
     background: var(--text-faint);
+  }
+  .scene-strip {
+    margin: 0.6rem 0 1.1rem;
   }
   .scene-h {
     display: flex;

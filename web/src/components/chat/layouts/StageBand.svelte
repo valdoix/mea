@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Avatar from "../../Avatar.svelte";
-  import ScenePlate, { type PlaceKind } from "../ScenePlate.svelte";
+  import SceneWindow from "../../trackers/SceneWindow.svelte";
   import { ArrowLeft, ChevronDown, ChevronUp, Clock, CloudRain, MapPin, Milestone } from "../../../lib/icons";
   import { app } from "../../../lib/state.svelte";
   import { trk } from "../../../lib/trackers.svelte";
@@ -9,12 +9,11 @@
 
   /**
    * Stage: the scene as a band above the story. The place, the hour, the weather and who's in the
-   * room, over the same procedural scenery the scene plates draw. Everyone in it opens up close.
+   * room, over the same live painting as the Story tab's scene window. Everyone in it opens up close.
    */
   let {
     detail,
     plate,
-    plateKind = null,
     chapters,
     selected = null,
     slim = false,
@@ -27,7 +26,6 @@
   }: {
     detail: ChatDetail;
     plate: { place: string[]; weather: string | null; hour: number | null } | null;
-    plateKind?: PlaceKind | null;
     chapters: Boundary[];
     selected?: string | null;
     slim?: boolean;
@@ -66,7 +64,7 @@
 </script>
 
 <header class="s-band" class:slim aria-label="The scene">
-  <div class="scenery" aria-hidden="true"><ScenePlate place={place.length ? place : [detail.chat.title]} {weather} hour={plate?.hour ?? null} kind={plateKind} /></div>
+  <div class="scenery" aria-hidden="true"><SceneWindow shape="band" when={trk.data?.when ?? null} {weather} place={place.length ? place : [detail.chat.title]} kind={trk.data?.placeKinds?.[place.at(-1) ?? ""] ?? null} /></div>
   <div class="s-band-in">
     <div class="s-where">
       {#if app.isMobile}<button class="btn ghost icon s-back" onclick={onback} aria-label="Back"><ArrowLeft size={20} /></button>{/if}

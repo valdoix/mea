@@ -1,46 +1,82 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ScenePainter, readPlace, readWeather } from "../../lib/scenery";
+  import { ScenePainter, isPlace, readPlace, readWeather, type Place } from "../../lib/scenery";
+  import { ChevronDown, ChevronUp, Palette } from "../../lib/icons";
+  import { app } from "../../lib/state.svelte";
   import type { StoryWhen } from "../../lib/types";
+  import PlacePicker from "./PlacePicker.svelte";
 
   /**
    * A window onto the story: the sky at the story's hour, its weather and its place, painted live
-   * from the trackers. "arch" is the framed window of the Almanac; "card" fits the side panel.
+   * from the trackers. "arch" is the framed window of the Almanac; "card" fits the side panel;
+   * "strip" sits above the newest reply; "band" is the backdrop of Stage's band (no caption).
+   * `kind` is your "This place is…" correction; `onkind` offers the picker.
    */
-  let { when, weather, place, shape = "card" }: { when: StoryWhen | null; weather: string | null; place: string[]; shape?: "card" | "arch" } = $props();
+  let {
+    when,
+    weather,
+    place,
+    shape = "card",
+    kind = null,
+    onkind,
+    slim = false,
+    onslim,
+  }: {
+    when: StoryWhen | null;
+    weather: string | null;
+    place: string[];
+    shape?: "card" | "arch" | "strip" | "band";
+    kind?: string | null;
+    onkind?: (name: string, kind: Place) => void;
+    slim?: boolean;
+    onslim?: () => void;
+  } = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let painter: ScenePainter | null = null;
+  let picking = $state(false);
+
+  const name = $derived(place.at(-1) ?? "");
+  const kindNow = $derived<Place>(isPlace(kind) ? kind : readPlace(place));
+  // An unset clock still paints: the evening, which suits most openings.
+  const hour = $derived(when?.hour ?? 20);
 
   onMount(() => {
-    painter = new ScenePainter(canvas!, shape === "card");
+    const focus = shape === "band" ? (app.isMobile ? 0.62 : 0.76) : shape === "strip" ? (app.isMobile ? 0.64 : 0.72) : 0.6;
+    painter = new ScenePainter(canvas!, { mini: shape === "card", focus });
     return () => painter?.destroy();
   });
 
   $effect(() => {
-    // An unset clock still paints: the evening, which suits most openings.
-    painter?.set({ hour: when?.hour ?? 20, weather: readWeather(weather), place: readPlace(place) });
+    painter?.set({ hour, weather: readWeather(weather), place: kindNow, seed: name });
   });
 
   const crumbs = $derived(place.slice(-3));
 </script>
 
-<div class="win {shape}" role="figure" aria-label="The scene: {when?.label ?? 'time unknown'}{weather ? `, ${weather}` : ''}{place.length ? `, ${place.join(' › ')}` : ''}">
+<div class="win {shape}" class:slim role="figure" aria-label="The scene: {when?.label ?? 'time unknown'}{weather ? `, ${weather}` : ''}{place.length ? `, ${place.join(' › ')}` : ''}">
   <div class="pane">
     <canvas bind:this={canvas} aria-hidden="true"></canvas>
     {#if shape === "arch"}<div class="mullion" aria-hidden="true"></div>{/if}
-    <div class="sheen" aria-hidden="true"></div>
-    <div class="cap">
-      {#if when}
-        <div class="clock">{when.time}<small>{when.period}</small></div>
-        <div class="day">{when.form === "date" ? (when.calendar === "westeros" ? `${when.date} · ${when.year} AC` : when.date) : when.date}{when.season && when.calendar === "westeros" ? ` · ${when.season}` : ""}</div>
-      {/if}
-      {#if weather}<div class="wx">{weather}</div>{/if}
-      {#if crumbs.length}<div class="crumbs">{#each crumbs as c, i (i)}{#if i}<i>›</i>{/if}<span>{c}</span>{/each}</div>{/if}
-    </div>
+    {#if shape !== "band"}
+      <div class="sheen" aria-hidden="true"></div>
+      <div class="cap">
+        {#if when}
+          <div class="clock">{when.time}<small>{when.period}</small></div>
+          <div class="day">{when.form === "date" ? (when.calendar === "westeros" ? `${when.date} · ${when.year} AC` : when.date) : when.date}{when.season && when.calendar === "westeros" ? ` · ${when.season}` : ""}</div>
+        {/if}
+        {#if weather}<div class="wx">{weather}</div>{/if}
+        {#if crumbs.length}<div class="crumbs">{#each crumbs as c, i (i)}{#if i}<i>›</i>{/if}<span>{c}</span>{/each}</div>{/if}
+      </div>
+      <div class="tools">
+        {#if onkind && name}<button class="tool" onclick={() => (picking = true)} aria-label="This place is…" title="This place is… (change the scenery)"><Palette size={14} /></button>{/if}
+        {#if onslim}<button class="tool" onclick={onslim} aria-label={slim ? "Show the whole scene" : "Fold the scene"} title={slim ? "Show the whole scene" : "Fold the scene"}>{#if slim}<ChevronDown size={14} />{:else}<ChevronUp size={14} />{/if}</button>{/if}
+      </div>
+    {/if}
   </div>
   {#if shape === "arch"}<div class="sill" aria-hidden="true"></div>{/if}
 </div>
+{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={kindNow} {hour} {weather} onpick={(k) => onkind?.(name, k)} />{/if}
 
 <style>
   .win {
@@ -56,6 +92,23 @@
   .card .pane {
     border-radius: var(--r-md, 14px);
     aspect-ratio: 16 / 10;
+  }
+  .strip .pane {
+    border-radius: var(--r-md, 14px);
+    height: clamp(8rem, 22vw, 11rem);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+      0 14px 34px -22px color-mix(in srgb, var(--accent) 80%, #000);
+    transition: height 0.4s var(--spring, ease);
+  }
+  .strip.slim .pane {
+    height: 3.1rem;
+  }
+  .band,
+  .band .pane {
+    position: absolute;
+    inset: 0;
+    background: none;
   }
   .arch {
     padding: 12px;
@@ -89,6 +142,9 @@
     pointer-events: none;
     background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 6%) 38%, transparent 46%, transparent 60%, rgb(255 255 255 / 3%) 64%, transparent 70%);
   }
+  .strip .sheen {
+    background: linear-gradient(90deg, rgb(8 6 18 / 62%), rgb(8 6 18 / 18%) 45%, transparent 70%);
+  }
   .sill {
     height: 18px;
     margin: 10px -22px -12px;
@@ -108,12 +164,28 @@
     left: 1.8rem;
     bottom: 1.4rem;
   }
+  .strip .cap {
+    left: 1.1rem;
+    right: 4rem;
+    bottom: 0.85rem;
+  }
+  .strip.slim .cap {
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+    bottom: 0.55rem;
+    white-space: nowrap;
+    overflow: hidden;
+  }
   .clock {
     font: 400 2.1rem/0.95 "Instrument Serif", Georgia, serif;
     letter-spacing: -0.01em;
   }
   .arch .clock {
     font-size: clamp(2.6rem, 6vw, 4.6rem);
+  }
+  .strip.slim .clock {
+    font-size: 1.5rem;
   }
   .clock small {
     font-size: 0.42em;
@@ -142,6 +214,12 @@
     align-items: center;
     margin-top: 0.4rem;
   }
+  .strip.slim :is(.day, .wx, .crumbs) {
+    margin: 0;
+  }
+  .strip.slim .crumbs {
+    flex-wrap: nowrap;
+  }
   .crumbs span {
     padding: 0.15rem 0.5rem;
     border-radius: 999px;
@@ -154,6 +232,35 @@
     opacity: 0.5;
     font-style: normal;
     font-size: 0.7rem;
+  }
+  .tools {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    display: flex;
+    gap: 0.3rem;
+  }
+  .strip.slim .tools {
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .tool {
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border: 1px solid #ffffff22;
+    border-radius: 999px;
+    background: rgb(0 0 0 / 35%);
+    color: #fff;
+    cursor: pointer;
+    opacity: 0.7;
+    backdrop-filter: blur(6px);
+    transition: opacity 0.2s;
+  }
+  .win:hover .tool,
+  .tool:focus-visible {
+    opacity: 1;
   }
   @media (max-width: 640px) {
     .arch {
@@ -169,6 +276,13 @@
     .arch .cap {
       left: 0.9rem;
       bottom: 0.8rem;
+    }
+    .strip .clock {
+      font-size: 1.7rem;
+    }
+    .strip.slim .day,
+    .strip.slim .crumbs {
+      display: none;
     }
   }
 </style>

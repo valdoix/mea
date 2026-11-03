@@ -56,6 +56,7 @@
         <input type="range" min="0.85" max="1.3" step="0.05" value={scale} onchange={(e) => saveSetting("appearance.fontScale", Number(e.currentTarget.value))} />
       </label>
       <label class="switch"><input type="checkbox" checked={device.plates} onchange={(e) => setDevice("plates", e.currentTarget.checked)} /> Scene plates <span class="tiny muted">a drawn header at each new scene</span></label>
+      <label class="switch"><input type="checkbox" checked={device.sceneStrip !== "off"} onchange={(e) => setDevice("sceneStrip", e.currentTarget.checked ? "strip" : "off")} /> Scene window <span class="tiny muted">the live scene above the newest reply</span></label>
       <div class="field">
         <span class="label">Portraits</span>
         <Segmented
