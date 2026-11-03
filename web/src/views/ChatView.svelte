@@ -1475,7 +1475,7 @@
     </div>
 
     {#if folioOn && !layout.focus && L}
-      <L.FolioColumns options={dockOptions} body={columnBody} bind:addOpen bind:addAt onjump={(seq) => void jumpTo(seq)} />
+      <L.FolioColumns options={dockOptions} body={columnBody} bind:addOpen {addAt} onjump={(seq) => void jumpTo(seq)} />
     {/if}
 
     {#if panelOpen && !app.isMobile && !folioOn}
