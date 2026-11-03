@@ -51,6 +51,7 @@ export interface NoteOptions {
 function userLabel(o: NoteOptions) {
   if (o.kind && o.kind !== "story" && o.kind !== "continue") return "the player's character";
   if (o.persona === "full_cast") return "the player's character, written by you";
+  if (o.persona === "vessel") return "the player's character, written by you; the player's message is their urge";
   if (o.persona === "director") return "the player's character; write them only inside the player's direction";
   if (o.persona === "continuity") return "the player's character; never write their words, thoughts or choices, only finish an action they began";
   return "the player's character; never write their actions or words";

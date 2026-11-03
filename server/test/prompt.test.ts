@@ -245,6 +245,10 @@ describe("Mea's default preset", () => {
     expect(die(all({ mode: "narrator", controlValues: values, swipe: { rejected: "x" } }))).toBe(first);
   });
 
+  test("vessel writes the player's character: no seal line", () => {
+    expect(all({ controlValues: { persona: "vessel" } })).not.toContain("Stop before you would speak");
+  });
+
   test("scene modules follow the story state", () => {
     expect(all()).not.toContain("[SCENE ·");
     const p = all({ when: (c) => c === "mode = conflict" });

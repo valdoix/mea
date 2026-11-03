@@ -6,7 +6,7 @@ import { getSetting, setSetting } from "../src/lib/settings";
 import { MEA_PRESET_VERSION, meaPreset } from "../src/prompt/mea";
 import { createCharacter, getCard } from "../src/services/characters";
 import { addMessage, createChat, mustChat, updateChat } from "../src/services/chats";
-import { storyDials } from "../src/services/layers";
+import { storyDials, writesUser } from "../src/services/layers";
 import { createPersona } from "../src/services/personas";
 import { createPreset, ensureDefaultPreset, getPreset, listPresets, meaPresetId, restoreMeaPreset, updatePreset } from "../src/services/presets";
 import { trackerConfig } from "../src/trackers/store";
@@ -80,6 +80,17 @@ describe("the Persona and Romance controls drive the rest of Mea", () => {
     expect(buildAnchor({ card: card(), userName: "Alex", characterId: charId, persona: "full_cast" })).not.toContain("never Alex");
     updateChat(chatId, { settings: { controls: {} } });
   });
+
+  test("vessel (docs/23): your words are urges, so the story writes your character and nothing flags it", () => {
+    updateChat(chatId, { settings: { controls: { persona: "vessel" } } });
+    expect(storyDials(mustChat(chatId)).persona).toBe("vessel");
+    expect(guardIssues(chatId, speech, { seq: 99 }).some((i) => i.kind === "puppet")).toBe(false);
+    expect(trackerConfig(chatId).sealed).toBe(false);
+    expect(buildAnchor({ card: card(), userName: "Alex", characterId: charId, persona: "vessel" })).toContain("Alex acts on the player's urges unless one cuts against who Alex is");
+    expect(["director", "full_cast", "vessel"].every((p) => writesUser(p))).toBe(true);
+    expect(["sealed", "continuity", "", null].some((p) => writesUser(p))).toBe(false);
+    updateChat(chatId, { settings: { controls: {} } });
+  });
 });
 
 describe("v16 (docs/23)", () => {
@@ -123,5 +134,5 @@ describe("v16 (docs/23)", () => {
 test("a change to Mea's preset comes with a new version", () => {
   const hash = new Bun.CryptoHasher("sha256").update(JSON.stringify(meaPreset())).digest("hex").slice(0, 16);
   // Changed the preset? Raise MEA_PRESET_VERSION in prompt/mea.ts, then put both new values here.
-  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 17, hash: "c783a96a95619772" });
+  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 18, hash: "8c3b665738b57581" });
 });

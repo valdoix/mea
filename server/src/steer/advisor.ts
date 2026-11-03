@@ -8,7 +8,7 @@ import { cleanText, hashText } from "../memory/text";
 import type { HistoryMessage, PromptExtra } from "../prompt/assemble";
 import { type ChatSettings, historyForPrompt, mustChat } from "../services/chats";
 import { activeGuidance } from "../services/chattools";
-import { type PersonaMode, storyDials } from "../services/layers";
+import { type PersonaMode, storyDials, writesUser } from "../services/layers";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { trackerPrompt } from "../trackers/service";
@@ -115,6 +115,8 @@ const DRAFT_GAP_MS = 15_000;
 const userRule = (user: string, persona: PersonaMode | null) =>
   persona === "full_cast"
     ? `${user} is yours to plan too, true to who they are and to the player's latest direction`
+    : persona === "vessel"
+      ? `${user} is yours to plan too: the player's message is an urge ${user} acts on, unless it cuts against who ${user} is, then plan the pushback (hesitate, do the least, do something else, refuse)`
     : persona === "director"
       ? `plan ${user} only inside what the player directed this turn`
       : `never decide what ${user} does, says, thinks or feels`;
@@ -212,7 +214,7 @@ export function plannerSteps(user: string, sealed: boolean) {
 const PLANNER_SYSTEM = (char: string, user: string, persona: PersonaMode | null) => `You are the director of an ongoing roleplay between ${char} (written by the AI) and ${user} (the player's character). Before ${char}'s next reply, you run the planning pass below; a separate writer then writes only the prose from your plan. The player never sees it.
 
 The planning pass, step by step (fragments, not prose; never draft a line of the reply):
-${plannerSteps(user, persona !== "full_cast" && persona !== "director")}
+${plannerSteps(user, !writesUser(persona))}
 
 You plan; you never write. The writer chooses every word, image and line of dialogue, so the plan says WHAT happens, never HOW it reads:
 - no quoted dialogue, not even part of a line: "she asks why he went alone", never "she asks 'why did you go alone'";

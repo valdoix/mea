@@ -6,7 +6,7 @@ import type { MemoryContext, MemoryTrace } from "../memory/context";
 import { cleanText, compactVisuals, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
 import { PLANNING_BLOCK, TOOLKIT_TAGS } from "./mea";
-import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock } from "./preset";
+import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock, writesUser } from "./preset";
 
 /** Share of the target the verbatim window keeps whatever else is in the prompt: the summaries can't stand in for the last few turns. */
 export const WINDOW_FLOOR = 0.3;
@@ -265,7 +265,7 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     lastOpening: edge(lastReply, 14, "open"),
     lastClosing: edge(lastReply, 14, "close"),
     persona,
-    userSealed: persona === "director" || persona === "full_cast" ? "" : "yes",
+    userSealed: writesUser(persona) ? "" : "yes",
     ledger: input.extras?.some((e) => e.id === "ledger") ? "yes" : "",
     // H3: a separate planner planned this reply (the writer's own pass is left out).
     planned: input.skipBlocks?.includes("mea-planning") ? "yes" : "",

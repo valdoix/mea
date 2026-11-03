@@ -3,7 +3,7 @@ import { defaultGuards, getSetting, type GuardsConfig } from "../lib/settings";
 import { chatNames } from "../memory/build";
 import { cleanText } from "../memory/text";
 import { type ChatSettings, mustChat } from "../services/chats";
-import { layered, type PersonaMode, storyDials } from "../services/layers";
+import { layered, type PersonaMode, storyDials, writesUser } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { Issue } from "./checker";
 import { fixNames, nameSlips } from "./names";
@@ -87,7 +87,7 @@ export function puppetHits(text: string, userNames: string[], opts: { second: bo
  * words when the model may finish the player's started actions, nothing when it may write them.
  */
 export type PuppetScope = "all" | "speech" | "off";
-const scopeOf = (persona: PersonaMode | null): PuppetScope => (persona === "director" || persona === "full_cast" ? "off" : persona === "continuity" ? "speech" : "all");
+const scopeOf = (persona: PersonaMode | null): PuppetScope => (writesUser(persona) ? "off" : persona === "continuity" ? "speech" : "all");
 export function puppetScope(chatId: string): PuppetScope {
   return scopeOf(storyDials(mustChat(chatId)).persona);
 }

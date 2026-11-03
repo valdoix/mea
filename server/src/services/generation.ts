@@ -43,7 +43,7 @@ import { learnContextLimit, recordCalibration, type ResolvedProfile, resolveProf
 import { enqueue, waitForChatJobs } from "./jobs";
 import { getDefaultPersona, getPersona, personaPrompt } from "./personas";
 import { isChatWatched } from "./presence";
-import { layered, presetForRequest } from "./layers";
+import { layered, presetForRequest, writesUser } from "./layers";
 import { applyCardVariant, applyPersonaVariant, getVariant } from "./variants";
 import { sendPush } from "./push";
 import { assertQuota } from "./quota";
@@ -613,7 +613,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   // Speaker marks (while Dialogue colours is on): the cast numbered as voices, {{user}} as 0.
   const marks = (kind === "story" || kind === "continue") && getSetting("appearance.living").voices !== "off";
   const voices = voiceRoster(card.name, userName, Object.values(tp?.state?.chars ?? {}));
-  const userSealed = !["director", "full_cast"].includes(controlValues.persona ?? "");
+  const userSealed = !writesUser(controlValues.persona);
   // TRK-12: lorebook entries with a tracker condition switch on when it holds, and only then.
   const entries = scanEntriesFor({ characterId: chat.character_id, personaId: persona?.id ?? null, chatId }).flatMap((e) => {
     const when = (e.extra as { trackerWhen?: string } | undefined)?.trackerWhen?.trim();

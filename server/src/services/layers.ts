@@ -40,8 +40,9 @@ export function presetForRequest(
   return { preset, controls: controlsText(preset.controls, controls), values: controlValues(preset.controls, controls) };
 }
 
-export type PersonaMode = "sealed" | "continuity" | "director" | "full_cast";
-const PERSONA_MODES: PersonaMode[] = ["sealed", "continuity", "director", "full_cast"];
+export type PersonaMode = "sealed" | "continuity" | "director" | "full_cast" | "vessel";
+const PERSONA_MODES: PersonaMode[] = ["sealed", "continuity", "director", "full_cast", "vessel"];
+export { writesUser } from "../prompt/preset";
 const ROMANCE = ["off", "slow", "measured", "fast", "established"] as const;
 
 /**
