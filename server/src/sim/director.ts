@@ -26,7 +26,7 @@ export function measureTension(st: WorldState, sim: SimState): number {
   const mode = st.mode ?? "";
   if (/crisis|conflict/.test(mode)) t += 3;
   else if (/stealth|investigation/.test(mode)) t += 1.5;
-  else if (/downtime|intimacy/.test(mode)) t -= 0.5;
+  else if (/downtime|intimacy|aftermath/.test(mode)) t -= 0.5;
   const here = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri");
   for (const c of here) {
     if (c.injuries.some((i) => i.severity >= 3)) t += 1.2;

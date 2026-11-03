@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 16;
+export const MEA_PRESET_VERSION = 17;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -215,10 +215,25 @@ const SCENES: { mode: string; name: string; text: string }[] = [
     text: "A quiet stretch. Time may pass quickly — a meal, an evening, a night's sleep — but stop before any choice the player might want to make. Routines resume, bodies recover, relationships drift in small, specific ways, and off-page life catches up only as the note brings it. Small pleasures and small friction make it lived in. Domestic detail shows routine and relationship, not an inventory; finishing an ordinary task is a whole beat, and nothing turns into a crisis just because it's quiet.",
   },
   {
+    mode: "aftermath",
+    name: "Aftermath",
+    text: "Inside the consequences, at their pace. Bodies stay marked, rooms keep the evidence, and people can't yet talk about it, or talk around it. Rest isn't healing, a conversation isn't resolution, and a quiet or even funny moment doesn't cancel grief. Don't skip time because the scene is quiet; let it pass only as the story does. Comfort is an offer: it can be refused or come out wrong.",
+  },
+  {
     mode: "crisis",
     name: "Crisis",
     text: "The stakes are explicit and immediate: what will be lost, and by when. Options shrink with every reply; one pressure dominates, and anything that doesn't serve it falls away. Supplies are what they are: never conjure or remove one to reward or punish. People under pressure show who they are. End on the choice or the cost, never on relief the story hasn't paid for.",
   },
+];
+
+/** One line per kind of talk a social scene names (docs/23 §4, after HopThorne's scene procedures); sent with the Social module. */
+const TALK_LINES: { talk: string; text: string }[] = [
+  { talk: "confrontation", text: "Positions named, no longer avoided; escalation and cooling both need a cause, and nobody wins because they spoke last." },
+  { talk: "apology", text: "It names what it's for; it may be one-sided, resisted or refused, and forgiving isn't trusting again." },
+  { talk: "confession", text: "It may be true, mistaken, self-serving or stopped halfway; a stopped one tells the listener nothing it didn't say." },
+  { talk: "breakup", text: "One person announcing it isn't agreement; it needn't mean screaming or no contact; the terms follow the people." },
+  { talk: "request", text: "Help isn't owed: refusal is an answer, and a yes can carry cost, limits or resentment." },
+  { talk: "interrogation", text: "Pressure doesn't produce truth; silence and refusal are answers, and the one being questioned chooses." },
 ];
 
 // ---------- the turn (after the history; rebuilt every reply) ----------
@@ -662,6 +677,7 @@ export function meaPreset(): Preset {
       block("history", "Chat history", "history"),
       block("memory_recall", "Recalled memories & triggered lore", "memory_recall", { position: "depth", depth: 1 }),
       ...SCENES.map((s) => block(`mea-scene-${s.mode}`, `Scene · ${s.name}`, "text", { content: `${sceneHead(s.name.toUpperCase())}\n${s.text}`, position: "depth", depth: 1, when: `mode = ${s.mode}` })),
+      ...TALK_LINES.map((t) => block(`mea-talk-${t.talk}`, `Talk · ${t.talk[0]!.toUpperCase()}${t.talk.slice(1)}`, "text", { content: `[THIS TALK · ${t.talk.toUpperCase()}] ${t.text}`, position: "depth", depth: 1, when: `talk = ${t.talk}` })),
       block("authors_note", "Author's note", "authors_note", { position: "depth", depth: 4 }),
       block("mea-turn", "This reply", "text", { content: TURN }),
       block("post_history", "Post-history instructions", "post_history", { content: "" }),

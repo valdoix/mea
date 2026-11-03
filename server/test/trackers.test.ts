@@ -7,6 +7,7 @@ import { applyPatch } from "../src/trackers/patch";
 import { buildNote } from "../src/trackers/note";
 import { revealFor, revealsOf } from "../src/trackers/reveals";
 import { activateLore } from "../src/lore/activate";
+import { evalCondition } from "../src/trackers/condition";
 import { defaultEntry } from "../src/lore/types";
 import { STARTER_TEMPLATES, templateSchemaZ } from "../src/trackers/schema";
 import { inlineInstruction, updatePrompt } from "../src/trackers/prompts";
@@ -222,6 +223,20 @@ describe("fold rules", () => {
     const f = r.state.facts.thief!;
     expect(f.stances.mira!.status).toBe("knows");
     expect(f.secret!.from).toEqual([]);
+  });
+
+  test("a social scene can name its kind of talk (docs/23)", () => {
+    const fold = (msgs: string[][]) => foldEvents(events(msgs), cfg()).state;
+    for (const line of ["mode: social (apology)", "mode: Social: apology", "mode: social · apology"]) expect([fold([[line]]).mode, fold([[line]]).talk]).toEqual(["social", "apology"]);
+    // Only social scenes carry a talk, and only the kinds the preset knows.
+    expect(fold([["mode: conflict (confrontation)"]]).talk).toBeUndefined();
+    expect(fold([["mode: social (gossip)"]])).toMatchObject({ mode: "social", talk: undefined });
+    expect(fold([["mode: aftermath"]]).mode).toBe("aftermath");
+    // A new scene drops it with the mode.
+    expect(fold([["scene: The Kitchen", "mode: social (breakup)"], ["scene: The Morning After"]]).talk).toBeUndefined();
+    const st = fold([["mode: social (interrogation)"]]);
+    expect(evalCondition(st, "talk = interrogation")).toBe(true);
+    expect(buildNote(st, { userName: "Alex", seq: 2 }).text).toContain("mode: social (interrogation)");
   });
 
   test("a mode written after a scene's title counts, and a new scene doesn't inherit the last one's", () => {
