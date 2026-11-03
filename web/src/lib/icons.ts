@@ -8,6 +8,8 @@ export { default as Bell } from "@lucide/svelte/icons/bell";
 export { default as BookOpen } from "@lucide/svelte/icons/book-open";
 export { default as Bookmark } from "@lucide/svelte/icons/bookmark";
 export { default as Check } from "@lucide/svelte/icons/check";
+export { default as Clock } from "@lucide/svelte/icons/clock";
+export { default as Maximize2 } from "@lucide/svelte/icons/maximize-2";
 export { default as ChevronDown } from "@lucide/svelte/icons/chevron-down";
 export { default as ChevronLeft } from "@lucide/svelte/icons/chevron-left";
 export { default as ChevronRight } from "@lucide/svelte/icons/chevron-right";

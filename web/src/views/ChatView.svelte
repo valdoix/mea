@@ -13,7 +13,7 @@
   import MeusPanel from "../components/chat/MeusPanel.svelte";
   import { meus, meusFor } from "../lib/meus.svelte";
   import { sugg, watchSuggestions } from "../lib/suggestions.svelte";
-  import { watchFilings } from "../lib/filings.svelte";
+  import { filed, watchFilings } from "../lib/filings.svelte";
   import { watchLessons } from "../lib/lessons.svelte";
   import { watchOffpage } from "../lib/offpage.svelte";
   import OffpageEditor from "../components/chat/OffpageEditor.svelte";
@@ -45,6 +45,9 @@
   import { back, navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
   import { wreath } from "../lib/ornaments";
+  import type { FolioColumn } from "../lib/folio.svelte";
+  import { setDevice } from "../lib/device.svelte";
+  import { Columns2 } from "../lib/icons";
   import type { ArchiveCitation, Atom, Boundary, ChatDetail, Citation, CodexPage, ContinuityFlag, GlossaryTerm, Message, Profile, Summary } from "../lib/types";
 
   // The rooms' chapter flourishes: Wildflower's wreath, Marquee's bulbs, Citadel's maester chain.
@@ -104,7 +107,37 @@
   $effect(() => watchFilings(id));
   $effect(() => watchLessons(id));
   $effect(() => watchOffpage(id));
+  // Folio and Stage: the layout in use, and what's over Stage's floor.
+  let L = $state<typeof import("../components/chat/layouts") | null>(null);
+  $effect(() => {
+    if (app.layout !== "classic" && !L) void import("../components/chat/layouts").then((m) => (L = m));
+  });
+  const folioOn = $derived(app.layout === "folio");
+  const columnsOut = $derived(folioOn && (L?.folio.columns.length ?? 0) > 0);
+  const stageOn = $derived(app.layout === "stage");
+  const marginMode = $derived(app.isMobile ? ("tuck" as const) : columnsOut ? ("spine" as const) : ("margin" as const));
+  let closeUp = $state<string | null>(null);
+  let riverOpen = $state(false);
+  /** Stage's side panel opens on the Director tab. */
+  let deskShown = $state(true);
+  $effect(() => {
+    if (folioOn) L?.enterChat(id);
+  });
+  $effect(() => {
+    if (!stageOn) untrack(() => ((closeUp = null), (riverOpen = false)));
+  });
+  let addOpen = $state(false);
+  let addAt = $state<HTMLElement | null>(null);
+  /** A panel someone asked for: a column in Folio, the side panel or sheet otherwise. */
+  function showPanel(tab: DockTab) {
+    if (folioOn) return void L?.openColumn(tab);
+    pickDock(tab);
+    if (app.isMobile) sheetOpen = true;
+    else if (!layout.dock) toggleDock();
+  }
+  const filedLately = $derived(messages.slice(-30).reduce((n, m) => n + (filed.byMessage[m.id]?.length ?? 0), 0));
   function pickDock(v: DockTab) {
+    deskShown = false;
     dockTab = v;
     localStorage.setItem("mea.dockTab", v);
   }
@@ -139,6 +172,8 @@
   }
   // Phase 3: continuity notes per message (CON-02), glossary terms (LORE-15).
   let flags = $state<Record<string, ContinuityFlag>>({});
+  const openQuestions = $derived(Object.values(flags).reduce((n, f) => n + f.open, 0));
+  const continuityMarks = $derived(messages.filter((m) => flags[m.id]).map((m) => ({ seq: m.seq, title: flags[m.id]?.issues[0]?.claim ?? "A continuity question" })));
   let terms = $state<GlossaryTerm[]>([]);
   let glossPick = $state<{ t: GlossaryTerm; x: number; y: number; who?: CodexPage | null } | null>(null);
   /** LORE-15 lore terms, and UI-11 who's-who cards for people and places. */
@@ -1110,17 +1145,11 @@
   $effect(() => {
     if (!dockRequest.seq || !dockRequest.tab) return;
     const tab = dockRequest.tab;
-    untrack(() => {
-      pickDock(tab);
-      if (app.isMobile) sheetOpen = true;
-      else if (!layout.dock) toggleDock();
-    });
+    untrack(() => showPanel(tab));
   });
 
   function openStory() {
-    pickDock("story");
-    if (app.isMobile) sheetOpen = true;
-    else if (!layout.dock) toggleDock();
+    showPanel("story");
   }
 
   async function flag(m: Message, flags: { hidden?: boolean; bookmarked?: boolean }) {
@@ -1196,7 +1225,8 @@
   });
 
   function togglePanel() {
-    if (app.isMobile) sheetOpen = true;
+    if (folioOn) addOpen = !addOpen;
+    else if (app.isMobile) sheetOpen = true;
     else {
       if (layout.focus) setFocus(false);
       toggleDock();
@@ -1215,8 +1245,25 @@
 {#if error}
   <div class="center"><div class="stack" style="text-align:center"><h2>Couldn't open this chat</h2><p class="muted">{error}</p><a href="/">Back home</a></div></div>
 {:else if detail}
-  <div class="chat" class:with-panel={panelOpen && !app.isMobile} class:focus={layout.focus} class:art={Boolean(amb.imageId)} style:--accent={ambAccent} style:--panel="{Math.round((amb.panel ?? 0.86) * 100)}%" style:--dock-w={layout.dockW ? `${layout.dockW}px` : undefined}>
-    <div class="main-col">
+  <div class="chat" class:l-folio={folioOn} class:has-cols={columnsOut} class:l-stage={stageOn} class:stage-sheet={stageOn && Boolean(closeUp || riverOpen)} class:with-panel={panelOpen && !app.isMobile && !folioOn} class:focus={layout.focus} class:art={Boolean(amb.imageId)} style:--accent={ambAccent} style:--panel="{Math.round((amb.panel ?? 0.86) * 100)}%" style:--dock-w={layout.dockW ? `${layout.dockW}px` : undefined}>
+    {#if columnsOut && app.isMobile && L}<L.FolioPager titles={Object.fromEntries(dockOptions.map((o) => [o.value, o.label]))} />{/if}
+    <div class="main-col" class:off={folioOn && app.isMobile && (L?.folio.page ?? 0) > 0}>
+      {#if stageOn && !layout.focus}
+        {#if L}<L.StageBand
+          {detail}
+          plate={plates.states.at(-1) ?? null}
+          plateKind={(plates.kinds[plates.states.at(-1)?.place.at(-1) ?? ""] as PlaceKind | undefined) ?? null}
+          {chapters}
+          selected={closeUp}
+          slim={device.bandSlim || riverOpen}
+          title={riverOpen ? detail.chat.title : null}
+          onback={() => back("/")}
+          oncast={(c) => ((riverOpen = false), (closeUp = closeUp === c ? null : c))}
+          ontoggle={() => setDevice("bandSlim", !device.bandSlim)}
+        >
+          {#snippet tools()}{@render barTools()}{/snippet}
+        </L.StageBand>{/if}
+      {:else}
       <header class="bar" class:compact={layout.focus}>
         {#if app.isMobile}
           <button class="btn ghost icon" onclick={() => back("/")} aria-label="Back"><ArrowLeft size={20} /></button>
@@ -1227,7 +1274,8 @@
           </a>
           <div class="grow names">
             <a class="cname wraps" href={detail.character ? `/character/${detail.character.id}` : "/"}>{charName}<em class="ctitle hide-sm"> · {detail.chat.title}</em></a>
-            {#if !layout.focus && (hud || detail.chat.mode === "narrator" || trk.running)}
+            {#if folioOn && chapters.length}<span class="f-chap wraps">Chapter {chapters.length}{chapters.at(-1)?.title ? `, ${chapters.at(-1)?.title}` : ""}</span>{/if}
+            {#if !layout.focus && !folioOn && (hud || detail.chat.mode === "narrator" || trk.running)}
               <button class="sub" onclick={openStory} title="Story state: open the Story panel">
                 {#if detail.chat.mode === "narrator"}<span class="chip lavender">Narrator</span>{/if}
                 {#if trk.running}<span class="live" aria-label="Reading the latest reply"></span>{/if}
@@ -1236,6 +1284,12 @@
             {/if}
           </div>
         </div>
+        {#if folioOn && !app.isMobile && !layout.focus && L}<L.FolioBar chatId={id} spine={columnsOut} />{/if}
+        {@render barTools()}
+      </header>
+      {/if}
+
+      {#snippet barTools()}
         <div class="row tools">
           {#if !layout.focus}
             <button class="btn ghost icon" onclick={() => (searchOpen = !searchOpen)} aria-label="Search this chat" title="Search this chat" class:on={searchOpen}><Search size={18} /></button>
@@ -1245,10 +1299,14 @@
             <a class="btn ghost icon" href="/chat/{id}/read" aria-label="Reading mode" title="Read it as a book"><BookOpen size={18} /></a>
             <DisplayMenu />
             <span class="sep hide-sm"></span>
-            {#if !app.isMobile}
+            {#if !app.isMobile && app.layout === "classic"}
               <button class="btn ghost icon" onclick={() => toggleRail(true)} class:on={layout.railChat} aria-label={layout.railChat ? "Hide navigation" : "Show navigation"} title={layout.railChat ? "Hide navigation" : "Show navigation"}><PanelLeft size={18} /></button>
             {/if}
-            <button class="btn ghost icon" onclick={togglePanel} aria-label={app.isMobile ? "Memory, story and world" : panelOpen ? "Hide the side panel" : "Show the side panel"} title={panelOpen && !app.isMobile ? "Hide the side panel" : "Memory, story, world and notes"} class:on={panelOpen && !app.isMobile}><PanelRight size={18} /></button>
+            {#if folioOn}
+              <button class="btn ghost icon" bind:this={addAt} onclick={togglePanel} aria-label="Add a column" title="Open memory, story, world or notes as a column" aria-expanded={addOpen}><Columns2 size={18} /></button>
+            {:else}
+              <button class="btn ghost icon" onclick={togglePanel} aria-label={app.isMobile ? "Memory, story and world" : panelOpen ? "Hide the side panel" : "Show the side panel"} title={panelOpen && !app.isMobile ? "Hide the side panel" : "Memory, story, world and notes"} class:on={panelOpen && !app.isMobile}><PanelRight size={18} /></button>
+            {/if}
           {/if}
           {#if layout.focus}
             <button class="btn small leave" onclick={() => setFocus(false)}><span class="spark">✦</span> Leave focus</button>
@@ -1256,7 +1314,7 @@
             <button class="btn ghost icon" onclick={() => setFocus(true)} aria-label="Focus on the story" title="Focus on the story: hide everything else"><Scan size={18} /></button>
           {/if}
         </div>
-      </header>
+      {/snippet}
 
       {#if searchOpen}
         <ChatSearch chatId={id} onclose={() => ((searchOpen = false), (searchQ = ""))} onjump={(seq, q) => ((searchQ = q), void jumpTo(seq))} />
@@ -1268,8 +1326,9 @@
           {#if amb.vignette !== false}<div class="art-vignette"></div>{/if}
         </div>
       {/if}
-      <div class="scroller" bind:this={scroller} onscroll={onScroll}>
-        <div class="column {styleClass}">
+      <div class="floor">
+      <div class="scroller" class:under={stageOn && (closeUp || riverOpen)} bind:this={scroller} onscroll={onScroll}>
+        <div class="column {styleClass}" class:has-cols={columnsOut}>
           {#if hasMore}
             <div class="older tiny muted">{loadingOlder ? "Loading earlier messages…" : "Scroll up for earlier messages"}</div>
           {:else}
@@ -1319,7 +1378,9 @@
                 <span>Above: remembered through summaries · Below: read word for word</span>
               </div>
             {/if}
+            {#if folioOn && !app.isMobile && L}<L.FolioGutter seq={m.seq} time={trk.times[m.id]} chips={trk.chips[m.id]} />{/if}
             <MessageItem
+              marginNotes={folioOn}
               message={m}
               isLast={m.id === lastMsg?.id}
               canGenerate={!generating && hasModel}
@@ -1358,6 +1419,12 @@
                 compareOpen = true;
               }}
             />
+            {#if folioOn && L}
+              <L.MarginNotes message={m} chatId={id} chips={trk.chips[m.id] ?? []} flag={flags[m.id] ?? null} passages={passages[m.id] ?? []} {terms} mode={marginMode} canRegenerate={m.id === lastMsg?.id && !generating && hasModel} oncite={openCitation} onflagchange={(f) => {
+                if (f && f.open > 0) flags[m.id] = f;
+                else delete flags[m.id];
+              }} />
+            {/if}
           {/each}
           {#if !messages.length}
             <p class="muted center-text">No messages yet. Say hello ✿</p>
@@ -1382,23 +1449,35 @@
           {/if}
         </div>
       </div>
+      {#if stageOn && (closeUp || riverOpen) && L}
+        <L.StageFloor {detail} {closeUp} {boundaries} max={endSeq} current={viewSeq || endSeq} moments={momentMarks} continuity={continuityMarks} onclose={() => ((closeUp = null), (riverOpen = false))} onjump={(seq) => ((closeUp = null), (riverOpen = false), void jumpTo(seq))} />
+      {/if}
+      </div>
 
       {#if !stick}
         <button class="jump btn icon" onclick={() => void showLatest()} aria-label={unread ? `Jump to latest: ${unread} new` : "Jump to latest"}><ArrowDown size={18} />{#if unread}<span class="unread">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       {/if}
-      {#if endSeq > 30}
+      {#if endSeq > 30 && !stageOn}
         <Scrubber max={endSeq} current={viewSeq || endSeq} marks={scrubMarks} onjump={(seq) => void jumpTo(seq)} />
       {/if}
 
+      {#if stageOn && app.isMobile && L}<L.StageChips ondesk={() => ((deskShown = true), (sheetOpen = true))} onriver={() => (riverOpen = true)} onstory={() => showPanel("story")} />{/if}
       <div class="composer-area">
         {#if !hasModel}
           <div class="notice warn tiny setup">No model is set up yet. <a href="/settings/models">Connect NanoGPT</a> to start writing.</div>
         {/if}
         <Composer chatId={id} {detail} {generating} disabled={!hasModel} onsend={send} onstop={stop} oneditlast={editLastUser} onchange={() => load()} {preview} oninspect={() => openInspector(null)} lastMessageId={endId} />
       </div>
+      {#if stageOn && !app.isMobile && endSeq > 1 && !layout.focus && L}
+        <div class="river-wrap"><L.River {chapters} max={endSeq} current={viewSeq || endSeq} marks={scrubMarks} onjump={(seq) => void jumpTo(seq)} onopen={() => ((closeUp = null), (riverOpen = true))} /></div>
+      {/if}
     </div>
 
-    {#if panelOpen && !app.isMobile}
+    {#if folioOn && !layout.focus && L}
+      <L.FolioColumns options={dockOptions} body={columnBody} bind:addOpen bind:addAt onjump={(seq) => void jumpTo(seq)} />
+    {/if}
+
+    {#if panelOpen && !app.isMobile && !folioOn}
       <aside class="dock" class:resizing>
         <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions (a focusable separator is a splitter: arrows resize it) -->
         <div
@@ -1421,7 +1500,7 @@
         <div class="dock-scroll studio">
           {@render dockTabs()}
           {#key dockTab}<div class="dock-pane">
-            {#if dockTab === "memory"}<MemoryPanel chatId={id} onjump={(m) => void openCitation({ messageId: m, seq: null } as Citation)} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+            {#if stageOn && deskShown && L}<L.StageDesk chatId={id} settings={detail.chat.settings} memories={filedLately} questions={openQuestions} onchange={() => load()} />{:else if dockTab === "memory"}<MemoryPanel chatId={id} onjump={(m) => void openCitation({ messageId: m, seq: null } as Citation)} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={openCitation} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
           </div>{/key}
         </div>
       </aside>
@@ -1432,15 +1511,26 @@
     <Modal bind:open={sheetOpen} title="This chat">
       <div class="studio sheet-desk">
       {@render dockTabs()}
-      {#if dockTab === "memory"}<MemoryPanel chatId={id} onjump={(m) => ((sheetOpen = false), void openCitation({ messageId: m, seq: null } as Citation))} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
+      {#if stageOn && deskShown && L}<L.StageDesk chatId={id} settings={detail.chat.settings} memories={filedLately} questions={openQuestions} onchange={() => load()} onjump={() => (sheetOpen = false)} />{:else if dockTab === "memory"}<MemoryPanel chatId={id} onjump={(m) => ((sheetOpen = false), void openCitation({ messageId: m, seq: null } as Citation))} />{:else if dockTab === "story"}<TrackerPanel chatId={id} />{:else if dockTab === "world"}<WorldPanel chatId={id} />{:else if dockTab === "meus"}<MeusPanel chatId={id} onjump={(c) => ((sheetOpen = false), void openCitation(c))} />{:else if dockTab === "notes"}<NotesPanel chatId={id} onjump={(seq) => ((sheetOpen = false), void jumpTo(seq))} />{:else}<ChatPanel {detail} onchange={() => load()} oninspect={() => ((sheetOpen = false), openInspector(null))} />{/if}
       </div>
     </Modal>
   {/if}
 
+  {#snippet columnBody(c: FolioColumn)}
+    {#if c.kind === "memory"}<MemoryPanel chatId={id} onjump={(m) => void openCitation({ messageId: m, seq: null } as Citation)} />
+    {:else if c.kind === "story"}<TrackerPanel chatId={id} />
+    {:else if c.kind === "world"}<WorldPanel chatId={id} />
+    {:else if c.kind === "meus"}<MeusPanel chatId={id} onjump={openCitation} />
+    {:else if c.kind === "notes"}<NotesPanel chatId={id} onjump={jumpTo} />
+    {:else if c.kind === "entity"}{#await import("../components/codex/EntityPage.svelte") then m}<m.default chatId={id} entityId={c.entityId ?? null} />{/await}
+    {:else if detail}<ChatPanel {detail} onchange={() => load()} oninspect={() => openInspector(null)} />{/if}
+  {/snippet}
+
   {#snippet dockTabs()}
     <div class="st-selector" role="tablist" aria-label="Side panel">
+      {#if stageOn}<button type="button" role="tab" aria-selected={deskShown} onclick={() => (deskShown = true)}><Clapperboard size={17} /><span>Desk</span></button>{/if}
       {#each dockOptions as o (o.value)}
-        <button type="button" role="tab" aria-selected={dockTab === o.value} onclick={() => pickDock(o.value)}
+        <button type="button" role="tab" aria-selected={!(stageOn && deskShown) && dockTab === o.value} onclick={() => pickDock(o.value)}
           ><o.icon size={17} /><span>{o.label}</span>{#if o.value === "chat" && sugg.count}<b class="dock-badge" aria-label="{sugg.count} suggestions waiting">{sugg.count > 99 ? "99+" : sugg.count}</b>{/if}</button
         >
       {/each}
@@ -1478,6 +1568,7 @@
         {:else}
           <p class="small muted">{glossPick.t.snippet || "Loading…"}</p>
         {/if}
+        {#if folioOn}<button class="pull always" onclick={() => { const t = glossPick!.t; glossPick = null; L?.openColumn("entity", { entityId: t.entryId.slice(7), chatId: id, title: t.title }); }}>Open as a column</button>{/if}
         <a class="tiny" href="/chat/{id}/codex?entity={glossPick.t.entryId.slice(7)}">Open in the Codex</a>
       {:else}
         <div class="row"><b class="grow">{glossPick.t.title}</b>{#if glossPick.t.type}<span class="chip tiny">{glossPick.t.type}</span>{/if}</div>
@@ -1659,6 +1750,10 @@
   .chat.art :global(.bubble) {
     background: color-mix(in srgb, var(--surface) var(--panel), transparent);
     backdrop-filter: blur(8px);
+  }
+  /* Stage hangs its close-up and map on this; everywhere else it isn't there as far as layout goes. */
+  .floor {
+    display: contents;
   }
   .scroller {
     flex: 1;

@@ -57,6 +57,8 @@
 
   let {
     onangle,
+    /** Folio: what Mea noticed sits in the margin, not in the message. */
+    marginNotes = false,
     message,
     isLast,
     canGenerate,
@@ -88,6 +90,7 @@
     glossary = [],
     onglossary,
   }: {
+    marginNotes?: boolean;
     mark?: string;
     /** QOL-02: highlighted passages to mark in the text. */
     passages?: string[];
@@ -400,11 +403,11 @@
       </div>
     {/if}
 
-    {#if chips.length && !editing && !streaming}<ChangeChips changes={chips} />{/if}
-    {#if !editing && !streaming}<FiledChips messageId={message.id} />{/if}
+    {#if chips.length && !editing && !streaming && !marginNotes}<ChangeChips changes={chips} />{/if}
+    {#if !editing && !streaming && !marginNotes}<FiledChips messageId={message.id} />{/if}
     {#if !editing && !streaming && !isUser}<LessonChip messageId={message.id} />{/if}
     {#if !isUser && !editing && !streaming && page.thoughts !== "never"}<ThoughtsDrawer changes={chips} open={page.thoughts === "always"} />{/if}
-    {#if flag && !editing && !streaming && onflagchange && oncite}<ContinuityNote {flag} canRegenerate={isLast && canGenerate} onchange={onflagchange} {oncite} />{/if}
+    {#if flag && !editing && !streaming && !marginNotes && onflagchange && oncite}<ContinuityNote {flag} canRegenerate={isLast && canGenerate} onchange={onflagchange} {oncite} />{/if}
 
     {#if message.role === "assistant" && (message.swipeCount > 1 || isLast) && !editing}
       <footer class="swipes">

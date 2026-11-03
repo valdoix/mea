@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { LAYOUTS } from "../lib/layouts";
+  import { setLayout } from "../lib/state.svelte";
+  import Columns2 from "@lucide/svelte/icons/columns-2";
   import { THEMES, isRoom, themeInfo } from "../lib/themes";
   import { fade, fly } from "svelte/transition";
   import type { Component } from "svelte";
@@ -89,6 +92,7 @@
       ? [{ id: "act:mode", label: `${app.night ? themeInfo(app.theme)?.day : themeInfo(app.theme)?.night} (${app.night ? "day" : "night"})`, group: "Actions" as const, icon: Moon, keywords: "night day dark light mode", run: () => saveSetting("appearance.themeMode", app.night ? "day" : "night") }]
       : []),
     ...THEMES.filter((t) => t.id !== app.theme).map((t) => ({ id: `act:theme:${t.id}`, label: `${t.name} theme`, hint: t.motto, group: "Actions" as const, icon: Moon, keywords: "theme look colours", run: () => saveSetting("appearance.theme", t.id) })),
+    ...LAYOUTS.filter((l) => l.id !== app.layout).map((l) => ({ id: `act:layout:${l.id}`, label: `${l.name} layout`, hint: l.motto, group: "Actions" as const, icon: Columns2, keywords: "layout arrangement", run: () => setLayout(l.id) })),
     { id: "act:discreet", label: device.discreet ? "Leave discreet mode" : "Discreet mode", group: "Actions", icon: Eye, keywords: "privacy blur", run: () => setDevice("discreet", !device.discreet) },
     ...(route.name === "chat" && route.params.id
       ? [

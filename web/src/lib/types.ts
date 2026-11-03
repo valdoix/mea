@@ -1,4 +1,5 @@
-import type { StoryFontId, UiFontId } from "./fonts";
+import type { DisplayFontId, StoryFontId, UiFontId } from "./fonts";
+import type { LayoutId } from "./layouts";
 
 export type Role = "system" | "user" | "assistant";
 export type ChatMode = "companion" | "narrator";
@@ -611,6 +612,7 @@ export interface Quota {
 /** UI-16 / UI-19 */
 export interface Typography {
   uiFont: UiFontId;
+  displayFont?: DisplayFontId;
   lineHeight: number;
   paragraphSpacing: number;
   width: number;
@@ -637,6 +639,7 @@ export interface Settings {
   /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
   "appearance.themeMode": "system" | "day" | "night";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
+  "appearance.layout"?: LayoutId;
   "appearance.fontScale": number;
   "appearance.storyFont": StoryFontId;
   /** LORE-15: underline lore terms in messages. */
