@@ -44,4 +44,10 @@ describe("layouts", () => {
     const named = [...css.matchAll(/data-theme="([a-z]+)"/g)].map((m) => m[1]);
     expect(new Set(named)).toEqual(new Set(["lantern"]));
   });
+
+  // Choosing Folio or Stage moves you to Book style, which hides portraits in Classic.
+  test("Folio and Stage keep portraits in Book style", () => {
+    const css = read("src/styles/layouts.css");
+    for (const l of ["folio", "stage"]) expect(css).toContain(`:root[data-layout="${l}"] .style-book .msg .portrait-col`);
+  });
 });

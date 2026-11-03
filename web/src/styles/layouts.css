@@ -1603,3 +1603,29 @@
     width: 100%;
   }
 }
+
+/* ---------- Portraits: Book style drops them in Classic; here each turn keeps its person ---------- */
+:root[data-layout="folio"] .style-book .msg,
+:root[data-layout="stage"] .style-book .msg {
+  grid-template-columns: var(--portrait-w, 76px) minmax(0, 1fr);
+  gap: 1rem;
+}
+:root[data-layout="folio"] .style-book .msg .portrait-col,
+:root[data-layout="stage"] .style-book .msg .portrait-col {
+  display: grid;
+}
+@media (max-width: 760px) {
+  :root[data-layout="folio"] .style-book .msg,
+  :root[data-layout="stage"] .style-book .msg {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :root[data-layout="folio"] .style-book .msg .portrait-col,
+  :root[data-layout="stage"] .style-book .msg .portrait-col {
+    display: none;
+  }
+  /* a phone has no room beside the text: the small portrait by the name instead */
+  :root[data-layout="folio"] .style-book .msg .head-av,
+  :root[data-layout="stage"] .style-book .msg .head-av {
+    display: inline-flex;
+  }
+}

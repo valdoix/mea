@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { migrations } from "../src/db/migrations";
+import { resolveWeather } from "../../web/src/rooms/weatherglass/weather";
 
 /** The rooms (web/src/rooms): each one a folder, listed everywhere it has to be. */
 const WEB = join(import.meta.dir, "../../web");
@@ -84,6 +85,17 @@ describe("backdrops move on the compositor", () => {
         .map((k) => `${p.slice(WEB.length + 1)}: @keyframes ${k.name}`),
     );
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("Weatherglass", () => {
+  test("the sky follows the scene unless it's pinned", () => {
+    expect(resolveWeather("scene", "storm")).toBe("storm");
+    expect(resolveWeather("scene", "wind")).toBe("cloudy");
+    expect(resolveWeather("scene", "clear")).toBe("fair");
+    expect(resolveWeather("scene", null)).toBe("fair");
+    expect(resolveWeather("snow", "storm")).toBe("snow");
+    expect(resolveWeather(undefined, "rain")).toBe("rain");
   });
 });
 

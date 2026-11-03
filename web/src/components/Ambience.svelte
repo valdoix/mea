@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Component } from "svelte";
   import { device } from "../lib/device.svelte";
   import { layout } from "../lib/layout.svelte";
   import { app } from "../lib/state.svelte";
@@ -10,7 +11,22 @@
   let { theme }: { theme: RoomId } = $props();
 
   const current = $derived(room(theme));
-  const RoomAmbience = $derived(current?.Ambience);
+  // A room's backdrop is here already, or (the newer rooms) arrives the first time it's shown.
+  const loaded = new Map<string, Component>();
+  let RoomAmbience = $state.raw<Component | undefined>();
+  $effect(() => {
+    const r = current;
+    RoomAmbience = r?.Ambience ?? (r ? loaded.get(r.id) : undefined);
+    if (!r?.loadAmbience || RoomAmbience) return;
+    let stale = false;
+    void r.loadAmbience().then((m) => {
+      loaded.set(r.id, m.default);
+      if (!stale) RoomAmbience = m.default;
+    });
+    return () => {
+      stale = true;
+    };
+  });
   const grain = $derived(device.grain && current?.grain ? (app.night ? current.grain.night : current.grain.day) : 0);
 </script>
 

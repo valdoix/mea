@@ -17,10 +17,10 @@
   // The picker shows each room in its own type, and a room you pick is dressed the moment you pick it.
   onMount(() => THEMES.forEach((t) => isRoom(t.id) && (loadThemeFonts(t.id), void loadThemeStyles(t.id))));
   const drifting = $derived(
-    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light", meringue: app.night ? "Fairy lights twinkling and soft lights floating up" : "Clouds drifting and soft lights floating up", menagerie: app.night ? "Candles flickering and gold dust in the lamplight" : "Gold dust turning in the lamplight" } as Record<string, string>)[app.theme] ?? "Drifting lights",
+    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light", meringue: app.night ? "Fairy lights twinkling and soft lights floating up" : "Clouds drifting and soft lights floating up", menagerie: app.night ? "Candles flickering and gold dust in the lamplight" : "Gold dust turning in the lamplight", nighttrain: "The country sliding past the window", weatherglass: "Rain, snow, fog and storm moving across the sky", deepend: app.night ? "Plankton drifting and scattering from your cursor" : "Sunlight rippling and bubbles rising", floatingworld: "Rain, waves and a crane crossing the print", vesper: "Coloured light breathing across the stone", caravanserai: app.night ? "The stars turning and a tent glowing" : "Heat shimmering over the dunes", aphelion: "A planet drifting and stars twinkling", form: "Shapes changing places" } as Record<string, string>)[app.theme] ?? "Drifting lights",
   );
   const texture = $derived(
-    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks", meringue: "A faint gingham at the edges", menagerie: "Chintz on the walls" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
+    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks", meringue: "A faint gingham at the edges", menagerie: "Chintz on the walls", nighttrain: "A little paper grain on the walls", floatingworld: "Washi paper fibres", vesper: "Grain in the stone", caravanserai: "A little sand in the air" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
   );
   const LAYOUT_NOTES = {
     classic: "A slim rail, a floating chat and a side panel for memory, story and world.",
@@ -214,6 +214,12 @@
       <h2>Atmosphere</h2>
       <label class="switch"><input type="checkbox" checked={device.fireflies} onchange={(e) => setDevice("fireflies", e.currentTarget.checked)} /> {drifting}</label>
       <label class="switch"><input type="checkbox" checked={device.grain} onchange={(e) => setDevice("grain", e.currentTarget.checked)} /> {texture}</label>
+      {#if app.theme === "weatherglass"}
+        <div class="field">
+          <span class="label">The sky</span>
+          <Segmented value={device.roomWeather} options={[{ value: "scene", label: "From the story" }, { value: "fair", label: "Fair" }, { value: "cloudy", label: "Cloud" }, { value: "rain", label: "Rain" }, { value: "fog", label: "Fog" }, { value: "snow", label: "Snow" }, { value: "storm", label: "Storm" }]} onchange={(v) => setDevice("roomWeather", v as typeof device.roomWeather)} />
+        </div>
+      {/if}
       <p class="tiny muted">Both stay on this device. If your system asks for less motion, Mea keeps everything still.</p>
     </section>
 
@@ -610,6 +616,75 @@
     background: #0c0805;
     border-radius: 2px;
     box-shadow: 0 0 0 2px #d9531e, 4px 4px 0 2px #5f8a1f;
+  }
+  .t-nighttrain .tname {
+    font: 700 0.95rem/1.1 "B612 Mono", monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #f7e6bc;
+    text-shadow: none;
+    background: #1c1714;
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px #b98a35;
+  }
+  .t-weatherglass .tname {
+    font: 600 1.25rem/1.1 "Newsreader Variable", serif;
+    color: #ecd08a;
+    text-shadow: none;
+    background: #2c4150;
+    border-radius: 99px;
+    box-shadow: inset 0 0 0 1.5px #c49a4a;
+  }
+  .t-deepend .tname {
+    font: 700 1.25rem/1.1 "Outfit Variable", sans-serif;
+    letter-spacing: -0.02em;
+    color: #03303c;
+    text-shadow: none;
+    background: radial-gradient(circle at 32% 26%, #fff, #7ff5e0 70%);
+    border-radius: 99px;
+  }
+  .t-floatingworld .tname {
+    font: 800 1.2rem/1.1 "Shippori Mincho", serif;
+    color: #fff4e0;
+    text-shadow: none;
+    background: #1e3a68;
+    border-radius: 0;
+    box-shadow: 3px 3px 0 #b83227;
+  }
+  .t-vesper .tname {
+    font: 700 1.3rem/1.1 "Cormorant Unicase", serif;
+    color: #fff8e6;
+    text-shadow: none;
+    background: #a51c30;
+    border-radius: 12px 12px 2px 2px;
+    box-shadow: 0 0 0 2.5px #17120e;
+  }
+  .t-caravanserai .tname {
+    font: 700 1.25rem/1.1 "El Messiri", serif;
+    color: #fff8e7;
+    text-shadow: none;
+    background: #a84720;
+    border-radius: 22px 22px 3px 3px;
+    box-shadow: 0 0 0 2px #d99a2b;
+  }
+  .t-aphelion .tname {
+    font: 700 1.2rem/1.1 "Saira Condensed", sans-serif;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #5fe6ff;
+    text-shadow: none;
+    background: #02050a;
+    border-radius: 0;
+    box-shadow: inset 2px 0 0 #5fe6ff;
+  }
+  .t-form .tname {
+    font: 900 1.5rem/1 "Jost Variable", sans-serif;
+    letter-spacing: -0.04em;
+    text-transform: lowercase;
+    color: #fff;
+    text-shadow: none;
+    background: #d2271c;
+    border-radius: 0;
   }
   .t-noir .tname {
     font: 400 1.3rem/1.1 "Limelight", serif;
