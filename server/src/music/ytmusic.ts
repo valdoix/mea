@@ -153,6 +153,25 @@ async function pearPlay(conn: YtmConn, videoId: string, waitMs = 4_000) {
 }
 
 /**
+ * Takes out every song after the one playing but these (th-ch's app only). An album or playlist
+ * left in the queue from before plays whenever Mea doesn't line the next song up in time, so the
+ * same few songs kept coming back. Last first, so the places of the rest don't shift.
+ */
+export async function trimQueue(conn: YtmConn, keep: string[] = []) {
+  if (conn.app !== "pear") return 0;
+  const rows = await pearQueue(conn);
+  const cur = rows.findIndex((r) => r.selected);
+  if (cur < 0) return 0;
+  let n = 0;
+  for (let i = rows.length - 1; i > cur; i--) {
+    if (rows[i]!.videoId && keep.includes(rows[i]!.videoId!)) continue;
+    await call(conn, `/api/v1/queue/${i}`, { method: "DELETE" });
+    n++;
+  }
+  return n;
+}
+
+/**
  * Moves the song playing to this many seconds in (docs/18, 4.1): th-ch's API Server has
  * `/seek-to`; the Companion Server takes a `seekTo` command with the seconds as a plain number.
  */

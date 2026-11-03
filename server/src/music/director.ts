@@ -12,8 +12,9 @@ import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
 import { findLyrics, forgetLyrics, type LyricLine, lyricsFor, lyricsIndex, lyricsLines, MISS_TTL, pasteLyrics } from "./lyrics";
 import type { Situation } from "./situations";
-import { clashes, embedPassages, landingPoint, passageTimes, forgetPassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
-import { command, detectApp, seekTo, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
+import { blockedVersion, songKey, type Version, VERSIONS } from "./versions";
+import { clashes, embedPassages, songThemes, landingPoint, passageTimes, forgetPassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
+import { command, detectApp, seekTo, trimQueue, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
 
 /**
  * The soundtrack (Almanac plan J3), on YouTube Music: a cue read from the story (mood, intensity,
@@ -43,7 +44,15 @@ export const musicConfigSchema = z.object({
   library: z.array(trackSchema).max(500).default([]),
   /** A song pinned to a person ("Spike") or a bond ("Spike & Buffy"): it comes back when they share a scene. */
   leitmotifs: z.array(z.object({ who: z.string().max(120), videoId: z.string().regex(/^[\w-]{11}$/) })).max(100).default([]),
-  taste: z.object({ preferred: z.array(z.string().max(80)).max(40).default([]), banned: z.array(z.string().max(80)).max(40).default([]), instrumentalInDialogue: z.boolean().default(false) }).default({ preferred: [], banned: [], instrumentalInDialogue: false }),
+  taste: z
+    .object({
+      preferred: z.array(z.string().max(80)).max(40).default([]),
+      banned: z.array(z.string().max(80)).max(40).default([]),
+      instrumentalInDialogue: z.boolean().default(false),
+      /** Versions never played (nor added by a lookup): live recordings, remixes, acoustic takes, sped-up edits, demos. */
+      blockVersions: z.array(z.enum(VERSIONS)).max(VERSIONS.length).default([]),
+    })
+    .default({ preferred: [], banned: [], instrumentalInDialogue: false, blockVersions: [] }),
   /** docs/18, 1.2: look for the library's lyrics on LRCLIB and YouTube Music (title, artist and length only). */
   lyricsOnline: z.boolean().default(false),
   /** docs/18, 3.2: how much a song's words count: not at all, a little, or leaning in (the chorus that fits plays). */
@@ -150,7 +159,7 @@ async function refreshOnce() {
       const songs = (await searchSongs(cfg, artist)).filter((s) => s.artist.toLowerCase().includes(k)).slice(0, TASTE_PER_ARTIST);
       // Not songs already there, nor ones you removed yourself.
       const known = new Set([...removedIds(), ...musicConfig().library.map((t) => t.videoId)]);
-      const fresh = songs.filter((s) => !known.has(s.videoId)).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), instrumental: /instrumental/i.test(s.title) }));
+      const fresh = songs.filter((s) => !known.has(s.videoId) && !blockedVersion(s.title, cfg.taste.blockVersions as Version[])).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), instrumental: /instrumental/i.test(s.title) }));
       addToLibrary(await tagMoods(fresh));
       cache[k] = { at: Date.now() };
     } catch {
@@ -342,22 +351,30 @@ export function wordsScore(ctx: WordsCtx | null, videoId: string): { score: numb
   return { score, words: { passage: fit.passage, situations: shared.length ? shared : sheet.situations.filter((s) => sits.includes(s)), score: fit.score }, line };
 }
 
-export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { dialogue?: boolean; exclude?: string[]; words?: WordsCtx | null; rand?: () => number } = {}): Pick | null {
+export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { dialogue?: boolean; exclude?: string[]; words?: WordsCtx | null; themes?: Map<string, Situation[]> | null; rand?: () => number } = {}): Pick | null {
   const banned = cfg.taste.banned.map((a) => a.toLowerCase());
   const preferred = cfg.taste.preferred.map((a) => a.toLowerCase());
-  const skip = new Set([...(music.notFor?.[cue.key] ?? []), ...(opts.exclude ?? [])]);
+  // Every copy of a song (a live take, the album cut) is the same song: skipping or having played one counts for all.
+  const keyOf = new Map(cfg.library.map((t) => [t.videoId, songKey(t)]));
+  const key = (videoId: string) => keyOf.get(videoId) ?? videoId;
+  const skip = new Set([...(music.notFor?.[cue.key] ?? []), ...(opts.exclude ?? [])].map(key));
   const motif = leitmotifFor(cfg, cue.present);
   // "Hozier & Bear McCreary" is a Hozier song.
   const byAny = (names: string[], artist: string) => names.some((a) => a && artist.toLowerCase().includes(a));
-  const allowed = cfg.library.filter((t) => !skip.has(t.videoId) && !byAny(banned, t.artist) && !(opts.dialogue && cfg.taste.instrumentalInDialogue && !t.instrumental));
+  const blocked = cfg.taste.blockVersions as Version[];
+  const allowed = cfg.library.filter((t) => !skip.has(key(t.videoId)) && !byAny(banned, t.artist) && !blockedVersion(t.title, blocked) && !(opts.dialogue && cfg.taste.instrumentalInDialogue && !t.instrumental));
+  // A song mostly about something the lead mood can't hold (grief under a tender scene) doesn't count as that mood.
+  const moment = opts.words?.moment ?? null;
+  const off = (t: Track) => offTheme(cue, opts.themes?.get(t.videoId) ?? opts.words?.sheets.get(t.videoId)?.situations ?? null, moment);
+  const isLead = (t: Track) => Boolean(cue.moods[0] && t.moods.includes(cue.moods[0]) && !off(t));
   // Songs played lately sit out, the latest first: as many as leaves a few that suit the lead mood
   // (or, with none that do, a few of any), and always the last one if there's another.
-  const leads = allowed.filter((t) => cue.moods[0] && t.moods.includes(cue.moods[0]));
-  const pool = leads.length ? leads : allowed;
-  const recent = music.recent ?? [];
-  const out = new Set(recent.filter((v) => pool.some((t) => t.videoId === v)).slice(0, Math.max(Math.min(1, pool.length - 1), pool.length - FRESH_POOL)));
-  const moodScore = (t: Track) => t.moods.filter((m) => cue.moods.includes(m)).length * 2 + (t.moods[0] && t.moods[0] === cue.moods[0] ? 1 : 0);
-  const fresh = allowed.filter((t) => !out.has(t.videoId));
+  const leads = allowed.filter(isLead);
+  const poolKeys = new Set((leads.length ? leads : allowed).map((t) => key(t.videoId)));
+  const recent = [...new Set((music.recent ?? []).map(key))];
+  const out = new Set(recent.filter((k) => poolKeys.has(k)).slice(0, Math.max(Math.min(1, poolKeys.size - 1), poolKeys.size - FRESH_POOL)));
+  const moodScore = (t: Track) => t.moods.filter((m) => cue.moods.includes(m)).length * 2 + (t.moods[0] && t.moods[0] === cue.moods[0] ? 1 : 0) - (off(t) ? OFF_THEME : 0);
+  const fresh = allowed.filter((t) => !out.has(key(t.videoId)));
   // The words lift a song only if its sound is close: they never drag in one in the wrong mood.
   const bestMood = Math.max(0, ...fresh.map(moodScore));
   const scored = fresh.map((t) => {
@@ -374,7 +391,7 @@ export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { 
       why = `${motif.who}'s theme`;
     }
     score += (music.votes?.[t.videoId] ?? 0) + (byAny(preferred, t.artist) ? 1 : 0);
-    return { track: t, score, why, words: w?.words, lead: Boolean(cue.moods[0] && t.moods.includes(cue.moods[0])) };
+    return { track: t, score, why, words: w?.words, lead: isLead(t) };
   });
   if (!scored.length) return null;
   // The theme of the people here comes back whenever it hasn't played lately.
@@ -385,10 +402,30 @@ export function pickTrack(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: { 
   // in for one that has it.
   const top = Math.max(...scored.map((s) => s.score));
   const lead = scored.some((s) => s.lead && s.score === top);
-  const near = scored.filter((s) => s.score >= top - 2 && (s.lead || !lead)).map((s) => ({ ...s, weight: 3 ** (s.score - top) * (recent.includes(s.track.videoId) ? 0.4 : 1) }));
+  const near = scored.filter((s) => s.score >= top - 2 && (s.lead || !lead)).map((s) => ({ ...s, weight: 3 ** (s.score - top) * (recent.includes(key(s.track.videoId)) ? 0.4 : 1) }));
   let roll = (opts.rand ?? Math.random)() * near.reduce((n, s) => n + s.weight, 0);
   const pick = near.find((s) => (roll -= s.weight) < 0) ?? near.at(-1)!;
   return { track: pick.track, why: pick.why, ...(pick.words ? { words: pick.words } : {}) };
+}
+
+/**
+ * What a song is mostly about (its sheet's first two situations) that a lead mood can't hold: a
+ * grief or heartbreak song doesn't suit a tender scene, a celebration doesn't suit dread. Unless
+ * it's what's happening: a heartbreak song is right when the moment is heartbreak.
+ */
+const AGAINST: Partial<Record<Mood, Situation[]>> = {
+  tender: ["grief", "heartbreak", "betrayal", "revenge", "the fight", "jealousy"],
+  bright: ["grief", "heartbreak", "betrayal", "fear", "guilt"],
+  calm: ["the fight", "revenge", "fear", "betrayal"],
+  tense: ["peace", "celebration"],
+  dread: ["peace", "celebration", "first love"],
+};
+/** How far a song about the wrong thing drops: below every song that suits the mood. */
+const OFF_THEME = 3;
+export function offTheme(cue: { moods: Mood[] }, about: Situation[] | null, moment: { situations: Situation[] } | null) {
+  const against = cue.moods[0] ? AGAINST[cue.moods[0]] : undefined;
+  if (!against || !about?.length) return false;
+  return about.slice(0, 2).some((s) => against.includes(s) && !moment?.situations.includes(s));
 }
 
 /** How many songs a play history leaves to choose from, and how far back it goes. */
@@ -399,9 +436,10 @@ const HISTORY = 60;
  * The song playing still suits the scene: it's the theme of the people here, its words fit what's
  * happening, or it's the lead mood and its words don't go against it (a celebration over grief).
  */
-export function stillFits(cfg: MusicConfig, cue: Cue, videoId: string, words: WordsCtx | null = null) {
+export function stillFits(cfg: MusicConfig, cue: Cue, videoId: string, words: WordsCtx | null = null, themes: Map<string, Situation[]> | null = null) {
   if (leitmotifFor(cfg, cue.present)?.videoId === videoId) return true;
   if (words && clashes(words.sheets.get(videoId) ?? null, words.moment)) return false;
+  if (offTheme(cue, themes?.get(videoId) ?? words?.sheets.get(videoId)?.situations ?? null, words?.moment ?? null)) return false;
   if ((wordsScore(words, videoId)?.words.score ?? 0) >= 1) return true;
   const t = cfg.library.find((x) => x.videoId === videoId);
   return Boolean(t && cue.moods[0] && t.moods.includes(cue.moods[0]));
@@ -418,6 +456,9 @@ const dialogueHeavy = (text: string) => (text.match(/[“"][^”"]+[”"]/g) ?? 
 
 type Pick = { track: Track; why: string; words?: PickWords };
 
+/** What each song is about, for the theme check (none with the words dial off). */
+const themesFor = (cfg: MusicConfig) => (cfg.wordsDial === "off" ? null : songThemes(cfg.library.map((t) => t.videoId)));
+
 /** What's playing for this chat now (the header shows it), and what's played lately. */
 function remember(chatId: string, pick: Pick, key: string, landed?: number) {
   const m = chatMusic(chatId);
@@ -432,6 +473,8 @@ async function play(chatId: string, cfg: MusicConfig, pick: Pick, key: string, o
   await command(cfg, { command: "changeVideo", data: { videoId: pick.track.videoId } });
   // A song already queued in the app still follows this one, so it stays lined up.
   if (!pending?.queued || pending.track.videoId === pick.track.videoId) pending = null;
+  // Nothing else is left to follow it: an old album in the queue would play the moment Mea is late.
+  await trimQueue(cfg, pending?.queued ? [pending.track.videoId] : []).catch(() => 0);
   const landed = opts.land ? await landAt(cfg, pick.track.videoId, opts.land.at) : false;
   remember(chatId, pick, key, landed ? opts.land!.at : undefined);
   if (landed) setChatMusic(chatId, { landedScene: opts.land!.scene });
@@ -481,6 +524,8 @@ let active: string | null = null;
 let pending: (Pick & { key: string; chatId: string; queued: boolean }) | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let ticking = false;
+/** The song Mea chose was near its end at the last look: if the app is on another song now, it moved on by itself. */
+let nearEnd: { chatId: string; videoId: string } | null = null;
 /** Seconds before the end that the next song is lined up. */
 const LINE_UP = 12;
 const WATCH_MS = 4_000;
@@ -497,6 +542,7 @@ function unwatch() {
   timer = null;
   active = null;
   pending = null;
+  nearEnd = null;
 }
 
 /**
@@ -524,16 +570,19 @@ export async function musicTick() {
       pending = null;
       return;
     }
-    if (s.videoId !== m.now.videoId || s.duration == null || s.elapsed == null || !s.duration) return;
-    const left = s.duration - s.elapsed;
-    const ended = !s.playing && left <= 2;
+    // The app went on to a song of its own (autoplay, or a queue from before) as Mea's ended: Mea takes over again.
+    const wandered = s.videoId !== m.now.videoId && nearEnd?.chatId === chatId && nearEnd.videoId === m.now.videoId;
+    if (!wandered && (s.videoId !== m.now.videoId || s.duration == null || s.elapsed == null || !s.duration)) return;
+    const left = wandered ? 0 : s.duration! - s.elapsed!;
+    const ended = wandered || (!s.playing && left <= 2);
+    nearEnd = left <= LINE_UP && !wandered ? { chatId, videoId: m.now.videoId } : null;
     if (left > LINE_UP && !ended) return;
     if (!pending || pending.chatId !== chatId) {
       const st = currentFold(chatId).result.state;
       const cue = cueFrom(st, storyDials(mustChat(chatId)).genre);
       await momentNow(chatId, st, cue);
       const music = chatMusic(chatId);
-      const pick = pickTrack(cfg, cue, music, { exclude: [m.now.videoId], words: await wordsContext(cfg, music, cue) });
+      const pick = pickTrack(cfg, cue, music, { exclude: [m.now.videoId], words: await wordsContext(cfg, music, cue), themes: themesFor(cfg) });
       if (!pick) return;
       pending = { ...pick, key: cue.key, chatId, queued: false };
     }
@@ -573,10 +622,11 @@ export function musicAfterReply(chatId: string, messageId: string) {
     // A beat (or the start): what's happening now, for picking by the words.
     if (start || turn) await momentAt(chatId, messageId, st, cue, text, music.moment ?? null);
     const words = start || turn ? await wordsContext(cfg, chatMusic(chatId), cue) : null;
-    if (!start && !(turn && !stillFits(cfg, cue, music.now!.videoId, words))) return void setChatMusic(chatId, { lastScene: st.sceneNo });
+    const themes = themesFor(cfg);
+    if (!start && !(turn && !stillFits(cfg, cue, music.now!.videoId, words, themes))) return void setChatMusic(chatId, { lastScene: st.sceneNo });
     // The same reply picks the same song on every swipe (3.1).
     const seq = one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", messageId)?.seq ?? 0;
-    const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: [music.now?.videoId, pending?.queued ? pending.track.videoId : undefined].filter((v): v is string => Boolean(v)), words, rand: seeded(chatId, seq, `music:${cue.key}`) });
+    const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: [music.now?.videoId, pending?.queued ? pending.track.videoId : undefined].filter((v): v is string => Boolean(v)), words, themes, rand: seeded(chatId, seq, `music:${cue.key}`) });
     if (pick) {
       const at = landingFor(cfg, chatMusic(chatId), pick, st.sceneNo);
       await play(chatId, cfg, pick, cue.key, { land: at != null ? { at, scene: st.sceneNo } : null });
@@ -628,7 +678,7 @@ export async function musicAction(chatId: string, action: MusicAction) {
   } else {
     if (action === "notForScene" && cur) setChatMusic(chatId, { notFor: { ...(music.notFor ?? {}), [cue.key]: [...(music.notFor?.[cue.key] ?? []), cur] } });
     const now = chatMusic(chatId);
-    const pick = pickTrack(cfg, cue, now, { exclude: cur ? [cur] : [], words: await wordsContext(cfg, now, cue) });
+    const pick = pickTrack(cfg, cue, now, { exclude: cur ? [cur] : [], words: await wordsContext(cfg, now, cue), themes: themesFor(cfg) });
     if (!pick) throw badRequest("Nothing else in your library fits");
     await play(chatId, cfg, pick, cue.key);
   }
