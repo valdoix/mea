@@ -225,6 +225,14 @@ describe("fold rules", () => {
     expect(f.secret!.from).toEqual([]);
   });
 
+  test("a voice trait goes to VOICES, not PRESENT (docs/23)", () => {
+    const st = foldEvents(events([["cast: Joss@spot(mending a net)", "trait Joss: voice: broad Glaswegian, swears easily", "trait Joss: a scar through one eyebrow"]]), cfg()).state;
+    const note = buildNote(st, { userName: "Alex", seq: 2 }).text;
+    expect(note).toContain("- Joss: broad Glaswegian, swears easily");
+    expect(note).toContain("always: a scar through one eyebrow");
+    expect(note).not.toContain("always: voice");
+  });
+
   test("a social scene can name its kind of talk (docs/23)", () => {
     const fold = (msgs: string[][]) => foldEvents(events(msgs), cfg()).state;
     for (const line of ["mode: social (apology)", "mode: Social: apology", "mode: social · apology"]) expect([fold([[line]]).mode, fold([[line]]).talk]).toEqual(["social", "apology"]);

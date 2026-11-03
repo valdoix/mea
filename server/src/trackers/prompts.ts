@@ -16,6 +16,7 @@ body Name: fatigue 3; hunger +1; soaked; injury: left arm, wound, bandaged; heal
    (meters 0-5: health, fatigue, hunger, thirst, pain, intox, composure, stress, arousal; severities: scratch, wound, serious, critical)
 look Name: what they wear and visible marks now   (the whole look, replacing the old one: leave out what they took off or handed back)
 trait Name: green eyes; red hair in a braid   (only lasting features, first time described)
+   (the first time someone other than the player's character speaks, one voice trait: where their speech comes from and how strongly it shows — trait Joss: voice: broad Glaswegian, working-class, swears easily, drops it with strangers. An accent is a place and a class, never "neutral"; take it from the card or the messages when they say)
 drive Name: want: …; fear: …; need: …; tactic: …      mask Name: shown: calm; felt: panic; tell: …
 think Name: "Damn it, not now. If she finds the letter I'm finished."       journal Name: "a turning point, in their own slant"
    (think: every reply, one line for each person @spot, even when little else changed, never for a character marked sealed; first person, in their own head-voice: their words, slang, oaths, grudges and worries, only what they know, about what's in front of them; a raw reaction, not narration, summary or poetry)

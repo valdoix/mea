@@ -62,6 +62,7 @@ import { craftOn, craftReport } from "../steer/craft";
 import { angleNote, type Angle, digestNote, keptPrefix, rejectedDigest, takeShape as rejectedShape } from "../steer/swipes";
 import { finishRequest, getRequest, startRequest } from "./requests";
 import { anchorExtra } from "../accuracy/anchor";
+import { canonOf } from "../accuracy/canoncut";
 import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
@@ -749,6 +750,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     planOnly: opts.planOnly,
     // Speaker marks: Mea's preset words the rule in its own block (mea-speakers); this fills it in.
     speakers: marks ? { roster: rosterLine(voices, userSealed), dropped: droppedMarks(history) } : undefined,
+    canonSource: canonOf(chatId).source,
     tokenRatio: resolved.tokenRatio,
     filterDepth: cfg.filterDepth,
     // H3: a separate planner (or the writer's last try) planned this reply: the writer's own planning pass is left out.
