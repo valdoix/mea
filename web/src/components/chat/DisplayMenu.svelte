@@ -1,7 +1,8 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
   import { device, setDevice } from "../../lib/device.svelte";
-  import { app, saveSetting } from "../../lib/state.svelte";
+  import { LAYOUTS, type LayoutId } from "../../lib/layouts";
+  import { app, saveSetting, setLayout } from "../../lib/state.svelte";
   import type { Settings } from "../../lib/types";
 
   // Lantern: how the chat looks on this device: box width, text size, portraits, room inside boxes.
@@ -30,6 +31,10 @@
   {#if open}
     <div class="pop" role="dialog" aria-label="Display">
       <div class="eyebrow-l">Display</div>
+      <div class="field">
+        <span class="label">Layout</span>
+        <Segmented value={app.layout} options={LAYOUTS.map((l) => ({ value: l.id, label: l.name }))} onchange={(v) => setLayout(v as LayoutId)} />
+      </div>
       <div class="field">
         <span class="label">Chat style</span>
         <Segmented

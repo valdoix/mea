@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get } from "../lib/api";
   import { onEvent } from "../lib/events";
-  import { BookOpen, House, Inbox, Menu, NotebookPen, PanelLeft, Search, Settings, SlidersHorizontal, Users, WandSparkles } from "../lib/icons";
+  import { BookOpen, House, Inbox, Menu, NotebookPen, PanelLeft, Plus, Search, Settings, SlidersHorizontal, Users, WandSparkles } from "../lib/icons";
   import { toggleRail } from "../lib/layout.svelte";
   import { palette } from "../lib/palette.svelte";
   import { route } from "../lib/router.svelte";
@@ -68,32 +68,47 @@
   <a href="/" class="logo" title="Mea">
     {#if app.theme === "wildflower"}{@html BLOOM}{:else if app.theme === "overprint"}<span>M</span>{:else if app.theme === "citadel"}M{:else if app.theme === "marquee"}Mea{:else if app.theme === "sugarrush"}mea{:else if app.theme === "arcade"}<span>MEA</span>{:else if app.theme === "noir"}<span>M</span>{:else if app.theme === "rosewater"}Mea{:else if app.theme === "meringue"}mea{:else if app.theme === "menagerie"}<span>M</span>{:else}✿{/if}
   </a>
-  {#each nav as item (item.href)}
-    <a href={item.href} class="nav" class:on={item.match.includes(route.name)} aria-label={item.label}>
-      <item.icon size={20} />
-      {#if item.href === "/inbox" && inbox > 0}<span class="badge">{inbox > 99 ? "99+" : inbox}</span>{/if}
-      <span class="tip">{item.label}{item.href === "/inbox" && inbox > 0 ? ` · ${inbox} waiting` : ""}</span>
-    </a>
-  {/each}
+  {#snippet links()}
+    {#each nav as item (item.href)}
+      <a href={item.href} class="nav" class:on={item.match.includes(route.name)} aria-label={item.label}>
+        <item.icon size={20} />
+        {#if item.href === "/inbox" && inbox > 0}<span class="badge">{inbox > 99 ? "99+" : inbox}</span>{/if}
+        <span class="tip">{item.label}{item.href === "/inbox" && inbox > 0 ? ` · ${inbox} waiting` : ""}</span>
+      </a>
+    {/each}
+  {/snippet}
+  {#snippet stories()}
+    <div class="stories" bind:clientHeight={storiesH}>
+      {#if fit && app.layout !== "stage"}
+        {#if app.layout === "classic"}<hr />{/if}
+        {#each chats.slice(0, fit) as c (c.id)}
+          <a href="/chat/{c.id}" class="story" class:on={route.name === "chat" && route.params.id === c.id} aria-label={c.characterName ?? c.title}>
+            <Avatar id={c.avatarId} name={c.characterName ?? "?"} size={40} />
+            <span class="tip">{c.characterName ?? "Unknown"} · <span class="faint">{c.title}</span></span>
+          </a>
+        {/each}
+      {/if}
+    </div>
+  {/snippet}
 
-  <div class="stories" bind:clientHeight={storiesH}>
-    {#if fit}
-      <hr />
-      {#each chats.slice(0, fit) as c (c.id)}
-        <a href="/chat/{c.id}" class="story" class:on={route.name === "chat" && route.params.id === c.id} aria-label={c.characterName ?? c.title}>
-          <Avatar id={c.avatarId} name={c.characterName ?? "?"} size={40} />
-          <span class="tip">{c.characterName ?? "Unknown"} · <span class="faint">{c.title}</span></span>
-        </a>
-      {/each}
-    {/if}
-  </div>
+  <!-- Folio's shelf leads with your open stories; everywhere else the places come first. -->
+  {#if app.layout === "folio"}
+    <span class="rail-lbl">Open</span>
+    {@render stories()}
+    <a href="/" class="nav" aria-label="New story"><Plus size={20} /><span class="tip">Start a new story</span></a>
+    <hr />
+    {@render links()}
+  {:else}
+    {@render links()}
+    {@render stories()}
+  {/if}
 
   {#if app.activity.running > 0}<span class="weaving" title="Working in the background"></span>{/if}
   <span class="quota"><QuotaRing /></span>
   <button class="nav" onclick={() => (palette.open = true)} aria-label="Jump to anything"><Search size={19} /><span class="tip">Jump to anything</span></button>
   <button class="nav" onclick={() => (app.drawerOpen = true)} aria-label="Every story and more"><Menu size={19} /><span class="tip">Every story, trash and more</span></button>
   <a href="/settings" class="nav" class:on={route.name === "settings"} aria-label="Settings"><Settings size={19} /><span class="tip">Settings</span></a>
-  <button class="nav hide" onclick={() => toggleRail(route.name === "chat")} aria-label="Hide navigation"><PanelLeft size={18} /><span class="tip">Hide navigation</span></button>
+  {#if app.layout === "classic"}<button class="nav hide" onclick={() => toggleRail(route.name === "chat")} aria-label="Hide navigation"><PanelLeft size={18} /><span class="tip">Hide navigation</span></button>{/if}
 </nav>
 
 <style>

@@ -4,8 +4,10 @@
   import { biometricsAvailable, lock, removeLock, setPin, setupBiometrics } from "../../lib/applock.svelte";
   import { confirm } from "../../lib/dialogs.svelte";
   import { PORTRAIT_RANGE, device, portraitWidth, setDevice } from "../../lib/device.svelte";
-  import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
-  import { STORY_FONTS, UI_FONTS, loadAllFonts } from "../../lib/fonts";
+  import { app, errorToast, saveSetting, setLayout, toast } from "../../lib/state.svelte";
+  import FontPicker from "./FontPicker.svelte";
+  import { DISPLAY_FONTS, STORY_FONTS, UI_FONTS } from "../../lib/fontcatalog";
+  import { LAYOUTS } from "../../lib/layouts";
   import { living } from "../../lib/living";
   import { THEMES, isRoom, loadThemeFonts, loadThemeStyles, themeInfo } from "../../lib/themes";
   import { onMount } from "svelte";
@@ -20,6 +22,11 @@
   const texture = $derived(
     ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks", meringue: "A faint gingham at the edges", menagerie: "Chintz on the walls" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
   );
+  const LAYOUT_NOTES = {
+    classic: "A slim rail, a floating chat and a side panel for memory, story and world.",
+    folio: "Mea's notes sit beside the line they came from. Pull one out and it becomes a column; save an arrangement as a workspace.",
+    stage: "The place, hour, weather, music and cast in a band above the story, a director's desk beside it, and a river of the whole story below.",
+  };
   const page = $derived(living(s));
   const VOICE_HINTS: Record<LivingPage["voices"], string> = {
     blocks: "A paragraph that opens on someone's line becomes their voice card: a medallion, a nameplate and a bubble that shows how it was said. A line mid-narration is a chip.",
@@ -31,8 +38,6 @@
     halo: "Dialogue is underlined in the speaker's light.",
     off: "One dialogue colour for everyone, and replies aren't asked to mark speakers.",
   };
-  // The picker shows each font in its own face.
-  onMount(loadAllFonts);
   function setPage(patch: Partial<LivingPage>) {
     void saveSetting("appearance.living", { ...page, ...patch });
   }
@@ -113,6 +118,22 @@
         <summary class="small"><b>Customise colours</b> <span class="muted">for this room, by day and by night</span></summary>
         <RoomColors />
       </details>
+    </section>
+
+    <section class="panel stack">
+      <h2>Layout</h2>
+      <div class="layouts" role="radiogroup" aria-label="Layout">
+        {#each LAYOUTS as l (l.id)}
+          {@const on = app.layout === l.id}
+          <button class="layout" class:on role="radio" aria-checked={on} onclick={() => setLayout(l.id)}>
+            <span class="lay-pic {l.id}" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <b>{l.name}</b>
+            <span class="note">{l.motto}</span>
+            <span class="note faint">{LAYOUT_NOTES[l.id]}</span>
+          </button>
+        {/each}
+      </div>
+      <p class="tiny muted">Every theme fits every layout. Folio and Stage start you on the Book chat style; you can change it below, and Classic gets its own style back.</p>
     </section>
 
     <section class="panel stack">
@@ -198,17 +219,7 @@
 
     <section class="panel stack">
       <h2>Reading</h2>
-      <div class="field">
-        <span class="label">Story font</span>
-        <div class="fonts" role="radiogroup" aria-label="Story font">
-          {#each STORY_FONTS as f (f.id)}
-            <button class="font" class:on={s["appearance.storyFont"] === f.id} role="radio" aria-checked={s["appearance.storyFont"] === f.id} onclick={() => saveSetting("appearance.storyFont", f.id)}>
-              <span class="face" style:font-family={f.family}>“Stay,” she said. <i>Aa</i></span>
-              <b>{f.label}</b><span class="note">{f.note}</span>
-            </button>
-          {/each}
-        </div>
-      </div>
+      <FontPicker label="Story font" fonts={STORY_FONTS} value={s["appearance.storyFont"]} sample="“Stay,” she said. Aa" onpick={(id) => saveSetting("appearance.storyFont", id)} />
       <label class="field">
         <span class="label">Text size <span class="faint">{Math.round(s["appearance.fontScale"] * 100)}%</span></span>
         <input type="range" min="0.85" max="1.3" step="0.05" value={s["appearance.fontScale"]} onchange={(e) => saveSetting("appearance.fontScale", Number(e.currentTarget.value))} />
@@ -234,17 +245,8 @@
           </div>
         </div>
       </div>
-      <div class="field">
-        <span class="label">Interface font</span>
-        <div class="fonts ui" role="radiogroup" aria-label="Interface font">
-          {#each UI_FONTS as f (f.id)}
-            <button class="font" class:on={typo.uiFont === f.id} role="radio" aria-checked={typo.uiFont === f.id} onclick={() => setTypo({ uiFont: f.id })}>
-              <span class="face" style:font-family={f.family || undefined}>Settings · Aa</span>
-              <b>{f.label}</b><span class="note">{f.note}</span>
-            </button>
-          {/each}
-        </div>
-      </div>
+      <FontPicker label="Heading font" fonts={DISPLAY_FONTS} value={typo.displayFont ?? "theme"} sample="Chapter One" onpick={(id) => setTypo({ displayFont: id })} />
+      <FontPicker label="Interface font" fonts={UI_FONTS} value={typo.uiFont} sample="Settings · Aa" onpick={(id) => setTypo({ uiFont: id })} />
       <label class="switch"><input type="checkbox" checked={typo.dyslexic} onchange={(e) => setTypo({ dyslexic: e.currentTarget.checked })} /> Dyslexia-friendly font (OpenDyslexic) everywhere</label>
       <div class="sample prose">
         <p>The lamp flickers as the wind presses against the old glass. <span class="dl">“You came back,”</span> she says softly. <em>Outside, the sea keeps its patient rhythm.</em></p>
@@ -386,42 +388,98 @@
 {/if}
 
 <style>
-  .fonts {
+  .layouts {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.7rem;
   }
-  .font {
+  .layout {
     display: grid;
-    gap: 0.15rem;
+    gap: 0.2rem;
+    align-content: start;
     text-align: left;
-    padding: 0.65rem 0.75rem;
-    border-radius: var(--r-md, 14px);
+    padding: 0.6rem 0.6rem 0.8rem;
+    border-radius: calc(var(--r) + 2px);
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text);
     cursor: pointer;
     font: inherit;
-    transition: border-color 0.2s, background 0.2s;
   }
-  .font:hover {
-    background: var(--surface-2);
-  }
-  .font.on {
+  .layout.on {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 10px 26px -14px var(--accent);
   }
-  .font .face {
-    font-size: 1.15rem;
-    line-height: 1.3;
-    overflow-wrap: anywhere;
-  }
-  .font b {
+  .layout b {
+    margin-top: 0.4rem;
     font-size: var(--fs-sm);
   }
-  .font .note {
+  .layout .note {
     font-size: var(--fs-xs);
     color: var(--text-muted);
+  }
+  .layout .note.faint {
+    color: var(--text-faint);
+  }
+  /* A small drawing of each arrangement, in the theme's own colours. */
+  .lay-pic {
+    display: grid;
+    gap: 3px;
+    height: 5.2rem;
+    padding: 5px;
+    border-radius: var(--r);
+    background: var(--surface-2);
+  }
+  .lay-pic i {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+  }
+  .lay-pic.classic {
+    grid-template-columns: 8% 1fr 28%;
+    grid-template-rows: 1fr 18%;
+  }
+  .lay-pic.classic i:nth-child(1) {
+    grid-row: 1 / -1;
+  }
+  .lay-pic.classic i:nth-child(2) {
+    grid-column: 2;
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .lay-pic.classic i:nth-child(3) {
+    grid-column: 3;
+    grid-row: 1 / -1;
+  }
+  .lay-pic.classic i:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .lay-pic.folio {
+    grid-template-columns: 8% 1fr 22% 22%;
+    grid-template-rows: 1fr;
+  }
+  .lay-pic.folio i:nth-child(2) {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .lay-pic.stage {
+    grid-template-columns: 8% 1fr 24%;
+    grid-template-rows: 38% 1fr 12%;
+  }
+  .lay-pic.stage i:nth-child(1) {
+    grid-row: 1 / -1;
+    background: color-mix(in srgb, var(--text) 45%, transparent);
+  }
+  .lay-pic.stage i:nth-child(2) {
+    grid-column: 2 / -1;
+    background: color-mix(in srgb, var(--text) 45%, transparent);
+  }
+  .lay-pic.stage i:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .lay-pic.stage i:nth-child(4) {
+    grid-column: 3;
+    grid-row: 2;
   }
   .themes {
     display: grid;

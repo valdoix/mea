@@ -12,7 +12,7 @@ import { config, paths } from "../config";
 import { all, one, parseJson } from "../db/db";
 import { type MeaEvent, subscribe } from "../lib/events";
 import { badRequest, body, HttpError, must } from "../lib/http";
-import { clientKeys, defaults as settingDefaults, getClientSettings, guardsSchema, type MemoryConfig, type Settings, setSetting, steerSchema } from "../lib/settings";
+import { DISPLAY_FONTS, STORY_FONTS, UI_FONTS, clientKeys, defaults as settingDefaults, getClientSettings, guardsSchema, type MemoryConfig, type Settings, setSetting, steerSchema } from "../lib/settings";
 import { normalizeMemoryConfig } from "../memory/profiles";
 import { defaultPreset, importStPreset, presetSchema } from "../prompt/preset";
 import { clientAddress, createPairingCode, DEVICE_COOKIE, deviceForToken, isTrustedLocal, listDevices, pairAttemptAllowed, redeemPairingCode, revokeDevice } from "../services/auth";
@@ -42,14 +42,15 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
   "guards.config": guardsSchema.partial(),
   "steer.config": steerSchema.partial(),
   "appearance.typography": z.object({
-    uiFont: z.enum(["nunito", "system", "inter", "atkinson", "lexend"]),
+    uiFont: z.enum(UI_FONTS),
+    displayFont: z.enum(DISPLAY_FONTS).optional(),
     lineHeight: z.number().min(1.2).max(2.4),
     paragraphSpacing: z.number().min(0).max(2),
     width: z.number().min(26).max(80),
     dialogueColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
     dyslexic: z.boolean(),
   }),
-  "appearance.storyFont": z.enum(["theme", "newsreader", "lora", "literata", "ebgaramond", "cormorant", "crimson", "sourceserif", "merriweather", "alegreya", "spectral", "nunito", "inter", "atkinson", "lexend"]),
+  "appearance.storyFont": z.enum(STORY_FONTS),
   "appearance.theme": z.enum(["lantern", "wildflower", "overprint", "citadel", "marquee", "sugarrush", "arcade", "noir", "rosewater", "meringue", "menagerie"]),
   "appearance.themeMode": z.enum(["system", "day", "night"]),
   "appearance.colors": z.record(z.string().max(20), z.object({ day: z.partialRecord(z.enum(["bg", "text", "text-muted", "border", "accent", "ok", "warn", "danger"]), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional(), night: z.partialRecord(z.enum(["bg", "text", "text-muted", "border", "accent", "ok", "warn", "danger"]), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional() })),
@@ -64,6 +65,7 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
     namedTarget: z.number().int().min(1).max(20).nullable(),
   }),
   "appearance.chatStyle": z.enum(["cards", "book", "bubbles"]),
+  "appearance.layout": z.enum(["classic", "folio", "stage"]),
   "appearance.fontScale": z.number().min(0.6).max(2),
   "appearance.glossary": z.boolean(),
   "chat.enterToSend": z.boolean(),

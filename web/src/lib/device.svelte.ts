@@ -37,6 +37,8 @@ export interface DevicePrefs {
   grain: boolean;
   /** J1: a drawn plate at each new scene. */
   plates: boolean;
+  /** Stage: the scene folded to one line above the story. */
+  bandSlim: boolean;
 }
 
 export type PortraitFrame = "room" | "holo" | "polaroid" | "cameo";
@@ -46,7 +48,7 @@ export const PORTRAIT_PRESETS = { small: 56, large: 76, grand: 104, towering: 15
 export const PORTRAIT_RANGE = { min: 48, max: 260 } as const;
 
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true };
+const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true, bandSlim: false };
 
 function read(): DevicePrefs {
   try {

@@ -4,7 +4,11 @@ import type { PromptSet } from "./prompts";
 import type { RegexScript } from "./regex";
 
 /** Story fonts (web/src/lib/fonts.ts lists them with their faces). */
-export type StoryFont = "theme" | "newsreader" | "lora" | "literata" | "ebgaramond" | "cormorant" | "crimson" | "sourceserif" | "merriweather" | "alegreya" | "spectral" | "nunito" | "inter" | "atkinson" | "lexend";
+/** The fonts each picker offers; web/src/lib/fontcatalog.ts lists the same ids. */
+export const STORY_FONTS = ["theme", "nunito", "newsreader", "lora", "literata", "ebgaramond", "cormorant", "crimson", "sourceserif", "merriweather", "alegreya", "spectral", "vollkorn", "gelasio", "notoserif", "baskerville", "cardo", "ptserif", "gentium", "goudy", "domine", "caslon", "playfair", "fraunces", "instrument", "youngserif", "fell", "almendra", "bitter", "robotoslab", "zilla", "arvo", "inter", "atkinson", "lexend", "manrope", "sourcesans", "opensans", "worksans", "dmsans", "figtree", "outfit", "rubik", "karla", "mulish", "jakarta", "notosans", "roboto", "lato", "poppins", "quicksand", "jost", "alegreyasans", "courierprime", "specialelite", "plexmono", "spacemono", "jetbrains", "caveat", "kalam", "patrickhand", "shantell", "comicneue", "dancing"] as const;
+export const UI_FONTS = ["nunito", "system", "nunitoface", "inter", "atkinson", "lexend", "manrope", "sourcesans", "opensans", "worksans", "dmsans", "figtree", "outfit", "rubik", "karla", "mulish", "jakarta", "notosans", "roboto", "lato", "poppins", "quicksand", "jost", "alegreyasans", "fredoka", "sora", "spacegrotesk", "bricolage", "josefin", "plexmono", "spacemono", "jetbrains", "patrickhand", "shantell", "comicneue"] as const;
+export const DISPLAY_FONTS = ["theme", "fraunces", "instrument", "playfair", "youngserif", "fell", "almendra", "cinzel", "cinzeldeco", "abril", "dmserif", "cormorantd", "limelight", "poiret", "bebas", "uncial", "grenze", "fraktur", "pinyon", "monoton", "neon", "chewy", "pressstart", "silkscreen", "bricolage", "spacegrotesk", "josefin", "caveat", "dancing"] as const;
+export type StoryFont = (typeof STORY_FONTS)[number];
 
 export interface LivingPage {
   /** How dialogue shows who is speaking. */
@@ -37,6 +41,8 @@ export interface Settings {
   /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
   "appearance.themeMode": "system" | "day" | "night";
   "appearance.chatStyle": "cards" | "book" | "bubbles";
+  /** How a chat is laid out: Classic, Folio (notes in the margin, columns) or Stage (the scene above the story). */
+  "appearance.layout": "classic" | "folio" | "stage";
   "appearance.fontScale": number;
   "appearance.storyFont": StoryFont;
   /** LORE-15: underline lore terms in messages. */
@@ -111,7 +117,9 @@ export interface CreatorTuning {
 }
 
 export interface Typography {
-  uiFont: "nunito" | "system" | "inter" | "atkinson" | "lexend";
+  uiFont: (typeof UI_FONTS)[number];
+  /** The headings' font; "theme" (or none) keeps the theme's own. */
+  displayFont?: (typeof DISPLAY_FONTS)[number];
   lineHeight: number;
   paragraphSpacing: number;
   /** The story column's width, in rem. */
@@ -384,6 +392,7 @@ export const defaults: Settings = {
   "music.removed": null,
   "appearance.themeMode": "system",
   "appearance.chatStyle": "cards",
+  "appearance.layout": "classic",
   "appearance.fontScale": 1,
   "appearance.storyFont": "newsreader",
   "appearance.glossary": true,
@@ -457,6 +466,7 @@ export const clientKeys: (keyof Settings)[] = [
   "appearance.colors",
   "appearance.themeMode",
   "appearance.chatStyle",
+  "appearance.layout",
   "appearance.fontScale",
   "appearance.storyFont",
   "appearance.glossary",

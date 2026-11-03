@@ -4,6 +4,8 @@
  * device, with the rail kept separately for chats (where it starts hidden) and everywhere else.
  */
 
+import { app } from "./state.svelte";
+
 const KEY = "mea.layout";
 
 interface Layout {
@@ -37,6 +39,8 @@ function save() {
 }
 
 export function railShown(inChat: boolean) {
+  // Folio's shelf and Stage's rail are part of the layout: only focus mode hides them.
+  if (app.layout !== "classic") return !layout.focus;
   return !layout.focus && (inChat ? layout.railChat : layout.railOther);
 }
 

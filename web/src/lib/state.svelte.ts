@@ -1,6 +1,7 @@
 import { get, put } from "./api";
 import { applyRoomColors } from "./roomcolors";
-import { applyFonts } from "./fonts";
+import { applyFonts, loadFontCatalog } from "./fonts";
+import { isLayout, loadLayoutStyles, type LayoutId } from "./layouts";
 import { isRoom, isShellTheme, loadThemeFonts, loadThemeStyles, themeInfo, type ThemeId } from "./themes";
 import type { Quota, Settings } from "./types";
 
@@ -30,6 +31,8 @@ export const app = $state({
   dark: document.documentElement.dataset.mode !== "day",
   /** The theme that's showing: Lantern (the default) or one of the rooms. */
   theme: (document.documentElement.dataset.theme ?? "lantern") as ThemeId,
+  /** How chats are laid out: Classic, Folio or Stage. */
+  layout: (document.documentElement.dataset.layout ?? "classic") as LayoutId,
   /** Day or night, for the rooms. */
   night: document.documentElement.dataset.mode === "night",
   /** MOB-12: smaller images and fewer prefetches (on a metered connection, or switched on by hand). */
@@ -86,7 +89,9 @@ export function errorToast(e: unknown) {
 
 export async function loadSettings() {
   app.settings = await get<Settings>("/api/settings");
+  await loadFontCatalog();
   applyAppearance();
+  await loadLayoutStyles(app.layout);
 }
 
 const settingWrites = new Map<string, number>();
@@ -105,6 +110,28 @@ export async function saveSetting<K extends keyof Settings>(key: K, value: Setti
       applyAppearance();
     }
     throw e;
+  }
+}
+
+/**
+ * Choosing a layout. Folio and Stage read as a book, so they start you on the Book style; Classic gets
+ * back the style it had. Either way the style stays yours to change afterwards.
+ */
+export function setLayout(next: LayoutId) {
+  const was = app.settings?.["appearance.layout"] ?? "classic";
+  if (was === next) return;
+  void saveSetting("appearance.layout", next);
+  const style = app.settings?.["appearance.chatStyle"];
+  try {
+    if (was === "classic" && style) {
+      localStorage.setItem("mea.classicStyle", style);
+      if (style !== "book") void saveSetting("appearance.chatStyle", "book");
+    } else if (next === "classic") {
+      const back = localStorage.getItem("mea.classicStyle");
+      if (back === "cards" || back === "book" || back === "bubbles") void saveSetting("appearance.chatStyle", back);
+    }
+  } catch {
+    // storage unavailable: the style just stays as it is
   }
 }
 
@@ -128,19 +155,25 @@ export function applyAppearance() {
     loadThemeFonts(shown);
     void loadThemeStyles(shown);
   } else delete root.dataset.mode;
+  const kind = s?.["appearance.layout"] ?? localStorage.getItem("mea.layoutKind");
+  const lay: LayoutId = isLayout(kind) ? kind : "classic";
+  root.dataset.layout = lay;
+  app.layout = lay;
+  void loadLayoutStyles(lay);
   app.dark = dark;
   app.theme = shown;
   app.night = night;
   try {
     localStorage.setItem("mea.theme", theme);
     localStorage.setItem("mea.themeMode", mode);
+    localStorage.setItem("mea.layoutKind", lay);
   } catch {
     // storage may be unavailable
   }
   // J2: your colours for this room, by day or by night.
   applyRoomColors(root, s?.["appearance.colors"], shown, night || dark);
   if (s) {
-    applyFonts(root, s["appearance.storyFont"], s["appearance.typography"]?.uiFont);
+    applyFonts(root, s["appearance.storyFont"], s["appearance.typography"]?.uiFont, s["appearance.typography"]?.displayFont);
     root.style.setProperty("--scale", String(s["appearance.fontScale"] || 1));
     // UI-16 / UI-19: typography
     const t = s["appearance.typography"];

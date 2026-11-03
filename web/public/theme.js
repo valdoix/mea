@@ -10,6 +10,8 @@
     var room = rooms.indexOf(t) >= 0;
     d.dataset.theme = room ? t : "lantern";
     if (room) d.dataset.mode = m === "night" || (m !== "day" && matchMedia("(prefers-color-scheme: dark)").matches) ? "night" : "day";
+    var l = localStorage.getItem("mea.layoutKind");
+    d.dataset.layout = l === "folio" || l === "stage" ? l : "classic";
   } catch (e) {
     d.dataset.theme = "lantern";
   }
