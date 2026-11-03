@@ -82,9 +82,46 @@ describe("the Persona and Romance controls drive the rest of Mea", () => {
   });
 });
 
+describe("v16 (docs/23)", () => {
+  const p = meaPreset();
+  const ctl = (id: string) => p.controls!.find((c) => c.id === id)!;
+
+  test("the tracker's social mode has a scene module of its own", () => {
+    const social = p.blocks.find((b) => b.id === "mea-scene-social");
+    expect(social?.when).toBe("mode = social");
+    expect(social?.content).toContain("Talk is the action");
+  });
+
+  test("new controls, and new options on old ones", () => {
+    expect(ctl("shape").default).toBe("balanced");
+    expect(ctl("shape").advanced).toBe(false);
+    expect(ctl("change").options.map((o) => o.value)).toEqual(["fluid", "adaptive", "entrenched", "circular"]);
+    expect(ctl("violence").options.map((o) => o.value)).toContain("adaptive");
+    expect(ctl("thoughts").options.map((o) => o.value)).toContain("close");
+    expect(ctl("genre").options.at(-1)!.value).toBe("adaptive");
+    // The second genre only colours: it never takes the adaptive lens.
+    expect(ctl("genre2").options.map((o) => o.value)).not.toContain("adaptive");
+  });
+
+  test("every lead genre says it never scripts events; the tells name their replacements", () => {
+    for (const o of ctl("genre").options) expect(o.text).toContain("never what must happen in them");
+    const craft = p.blocks.find((b) => b.id === "mea-craft")!.content!;
+    expect(craft).toContain("Tells, and what to write instead:");
+    expect(craft).toContain('"she didn\'t flinch", "not unkind" → what she did, the plain word');
+  });
+
+  test("it stays inside the preset limits", () => {
+    expect(p.controls!.length).toBeLessThanOrEqual(30);
+    for (const c of p.controls!) {
+      expect(c.options.length).toBeLessThanOrEqual(40);
+      for (const o of c.options) expect(o.text.length).toBeLessThanOrEqual(4000);
+    }
+  });
+});
+
 // The installed copy updates only when the version goes up: text changed without a bump never reaches a running install.
 test("a change to Mea's preset comes with a new version", () => {
   const hash = new Bun.CryptoHasher("sha256").update(JSON.stringify(meaPreset())).digest("hex").slice(0, 16);
   // Changed the preset? Raise MEA_PRESET_VERSION in prompt/mea.ts, then put both new values here.
-  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 15, hash: "63c57dc777cb9a11" });
+  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 16, hash: "c67c333fdcfd28eb" });
 });

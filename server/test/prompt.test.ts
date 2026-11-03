@@ -273,9 +273,10 @@ describe("Mea's default preset", () => {
     expect(p).toContain("The player waits");
   });
 
-  test("it stays lean: about 5.3k tokens of instructions, the visual toolkit included", () => {
+  // v16 (docs/23) added about 1k: the turn-reading, world and voice rules from the second preset survey.
+  test("it stays lean: about 7k tokens of instructions, the visual toolkit included", () => {
     const r = assemblePrompt(base({ history: story }));
-    expect(r.estPromptTokens).toBeLessThan(6000);
+    expect(r.estPromptTokens).toBeLessThan(7200);
   });
 });
 

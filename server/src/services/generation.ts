@@ -1304,13 +1304,19 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           const limit = contextLimitFromError(`${err.message} ${err.body ?? ""}`);
           if (limit) learnContextLimit(p.resolved.connection.id, p.resolved.modelId, limit);
           finishRequest(requestId, { status: "error", error: err.message });
-          // H3: always smaller than the prompt that failed, whether or not a limit was learned.
-          p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", {
-            excludeMessageId: action === "swipe" ? gen.messageId : undefined,
-            feedback,
-            profileId: p.resolved.profile.id,
-            targetScale: 0.75,
-          });
+          // H3: always smaller than the prompt that failed, whether or not a limit was learned. The
+          // history window evicts in chunks and remembers where it cut, so a first try already near
+          // its floor can come back the same size at 0.75: keep shrinking until it really is smaller.
+          const failedSize = p.assembled.estPromptTokens;
+          for (const targetScale of [0.75, 0.55, 0.4]) {
+            p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", {
+              excludeMessageId: action === "swipe" ? gen.messageId : undefined,
+              feedback,
+              profileId: p.resolved.profile.id,
+              targetScale,
+            });
+            if (p.assembled.estPromptTokens < failedSize) break;
+          }
           notes.push("prompt shrunk after a length error");
           requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
           continue;
