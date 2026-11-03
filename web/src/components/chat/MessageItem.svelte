@@ -511,12 +511,14 @@
   .msg {
     display: grid;
     grid-template-columns: var(--portrait-w, 76px) minmax(0, 1fr);
-    gap: 1rem;
+    gap: 1rem var(--portrait-gap);
     align-items: start;
     padding: 0.55rem 8px;
     margin-inline: -8px;
     content-visibility: auto;
     contain-intrinsic-size: auto 180px;
+    /* content-visibility clips to the turn; a room's frame hangs past its portrait. */
+    overflow-clip-margin: 1.5rem;
     animation: fade-up 0.4s var(--ease) backwards;
   }
   .pf-cap {
@@ -526,6 +528,8 @@
     position: sticky;
     top: 0.6rem;
     display: grid;
+    /* the column's own width, so a frame wider than it hangs evenly past both sides */
+    grid-template-columns: minmax(0, 1fr);
     justify-items: center;
   }
   .portrait {
@@ -698,7 +702,7 @@
   /* Bubble style: messenger, your messages on the right, small round portraits */
   :global(.style-bubbles) .msg {
     grid-template-columns: calc(var(--portrait-w, 76px) * 0.6) minmax(0, 1fr);
-    gap: 0.6rem;
+    gap: 0.6rem calc(var(--portrait-gap) * 0.6);
     align-items: end;
   }
   :global(.style-bubbles) .user {

@@ -3,7 +3,7 @@
   import Menu, { type MenuItem } from "../../Menu.svelte";
   import { closeColumn, folio, moveColumn, openColumn, togglePin, type FolioColumn } from "../../../lib/folio.svelte";
   import { swipe } from "../../../lib/gestures";
-  import { ChevronLeft, ChevronRight, GripVertical, Pin, Plus, X } from "../../../lib/icons";
+  import { ChevronLeft, ChevronRight, GripVertical, Pin, X } from "../../../lib/icons";
   import { app } from "../../../lib/state.svelte";
   import type { DockTab } from "../../../lib/dock.svelte";
 
@@ -12,7 +12,7 @@
     options,
     body,
     addOpen = $bindable(false),
-    addAt = $bindable(null),
+    addAt = null,
     onjump,
   }: {
     options: { value: DockTab; label: string; icon: Component<any> }[];
@@ -60,6 +60,5 @@
       <div class="dock-scroll studio">{@render body(c)}</div>
     </aside>
   {/each}
-  <button class="add-col" onclick={(e) => ((addAt = e.currentTarget), (addOpen = true))} aria-label="Add a column"><Plus size={18} /><span>Add column</span></button>
 {/if}
 <Menu bind:open={addOpen} {items} anchor={addAt} title="Open as a column" />

@@ -481,32 +481,6 @@
   outline: 2px dashed var(--accent);
   outline-offset: -2px;
 }
-.add-col {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  width: 58px;
-  height: 100%;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--r-lg);
-  background: none;
-  color: var(--text-muted);
-  font: 800 0.75rem var(--font-ui);
-  cursor: pointer;
-}
-.add-col:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-.add-col span {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  letter-spacing: 0.05em;
-}
-
 /* ---------- Folio on the phone: tucked notes, columns as pages ---------- */
 .f-tucks {
   display: grid;
@@ -855,8 +829,15 @@
 }
 
 /* ---------- Stage: the floor ---------- */
+/* The chat width is the text's; the portrait gets its own room beside it. */
+:root[data-layout="stage"] {
+  --stage-w: calc(var(--chat-w, var(--measure)) + var(--portrait-w, 76px) + var(--portrait-gap));
+}
 :root[data-layout="stage"] .column {
-  max-width: min(var(--chat-w, var(--measure)), 46rem);
+  max-width: var(--stage-w);
+}
+:root[data-layout="stage"] .composer-area {
+  max-width: calc(var(--stage-w) + 2rem);
 }
 .chat.stage-sheet .composer-area,
 .chat.stage-sheet .river-wrap,
@@ -1013,7 +994,7 @@
 }
 .river {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 0.7rem;
   font: 500 0.75rem var(--font-display);
@@ -1608,7 +1589,7 @@
 :root[data-layout="folio"] .style-book .msg,
 :root[data-layout="stage"] .style-book .msg {
   grid-template-columns: var(--portrait-w, 76px) minmax(0, 1fr);
-  gap: 1rem;
+  gap: 1rem var(--portrait-gap);
 }
 :root[data-layout="folio"] .style-book .msg .portrait-col,
 :root[data-layout="stage"] .style-book .msg .portrait-col {
