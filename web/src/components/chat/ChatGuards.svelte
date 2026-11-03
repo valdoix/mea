@@ -50,6 +50,10 @@
     } else if (sl.setting === "names" && !sl.on && view?.config.names === "off") {
       next.names = "flag";
       delete slips[sl.id];
+    } else if (sl.optIn) {
+      // Off unless switched on: true turns it on, and clearing it turns it off again.
+      if (sl.on) delete slips[sl.id];
+      else slips[sl.id] = true;
     } else if (sl.on) slips[sl.id] = false;
     else delete slips[sl.id];
     next.slips = slips;

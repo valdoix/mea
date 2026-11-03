@@ -770,6 +770,8 @@ export interface SlipInfo {
   on: boolean;
   /** It will run on the next reply (switched on, and nothing else stops it). */
   runs: boolean;
+  /** Off until switched on. */
+  optIn?: boolean;
 }
 
 export interface DriftReading {
