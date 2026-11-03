@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Component, Snippet } from "svelte";
   import Menu, { type MenuItem } from "../../Menu.svelte";
-  import { closeColumn, folio, moveColumn, openColumn, togglePin, type FolioColumn } from "../../../lib/folio.svelte";
+  import { closeColumn, COLUMN_MIN, columnMax, folio, moveColumn, openColumn, setColumnWidth, togglePin, type FolioColumn } from "../../../lib/folio.svelte";
   import { swipe } from "../../../lib/gestures";
   import { ChevronLeft, ChevronRight, GripVertical, Pin, X } from "../../../lib/icons";
   import { app } from "../../../lib/state.svelte";
@@ -33,6 +33,36 @@
     dropKey = null;
   }
   const page = $derived(folio.columns[folio.page - 1]);
+
+  // Each column resizes from a grip on its left edge, as the side panel does.
+  let resizing = $state<string | null>(null);
+  let gripX = 0;
+  let gripW = 0;
+  const widthOf = (c: FolioColumn, el: HTMLElement) => c.width ?? el.parentElement!.getBoundingClientRect().width;
+  function gripDown(e: PointerEvent, c: FolioColumn) {
+    if (e.button) return;
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    gripX = e.clientX;
+    gripW = el.parentElement!.getBoundingClientRect().width;
+    resizing = c.key;
+  }
+  function gripMove(e: PointerEvent, c: FolioColumn) {
+    if (resizing !== c.key) return;
+    setColumnWidth(c.key, gripW + (gripX - e.clientX), false);
+  }
+  function gripUp(c: FolioColumn) {
+    if (resizing !== c.key) return;
+    resizing = null;
+    setColumnWidth(c.key, c.width ?? null);
+  }
+  function gripKey(e: KeyboardEvent, c: FolioColumn) {
+    const d = e.key === "ArrowLeft" ? 24 : e.key === "ArrowRight" ? -24 : 0;
+    if (d) {
+      e.preventDefault();
+      setColumnWidth(c.key, widthOf(c, e.currentTarget as HTMLElement) + d);
+    } else if (e.key === "Home" || e.key === "Escape") setColumnWidth(c.key, null);
+  }
 </script>
 
 {#if app.isMobile}
@@ -44,7 +74,25 @@
   {/if}
 {:else if folio.columns.length}
   {#each folio.columns as c, i (c.key)}
-    <aside class="dock fcol" class:drop={dropKey === c.key} aria-label={title(c)} ondragover={(e) => (e.preventDefault(), (dropKey = c.key))} ondragleave={() => (dropKey = null)} ondrop={() => dropOn(i)}>
+    <aside class="dock fcol" class:drop={dropKey === c.key} class:resizing={resizing === c.key} style:width={c.width ? `${c.width}px` : undefined} aria-label={title(c)} ondragover={(e) => (e.preventDefault(), (dropKey = c.key))} ondragleave={() => (dropKey = null)} ondrop={() => dropOn(i)}>
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions (a focusable separator is a splitter: arrows resize it) -->
+      <div
+        class="fcol-grip"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize {title(c)}"
+        aria-valuemin={COLUMN_MIN}
+        aria-valuemax={columnMax()}
+        aria-valuenow={c.width}
+        tabindex="0"
+        title="Drag to resize · double-click to reset"
+        onpointerdown={(e) => gripDown(e, c)}
+        onpointermove={(e) => gripMove(e, c)}
+        onpointerup={() => gripUp(c)}
+        onpointercancel={() => gripUp(c)}
+        ondblclick={() => setColumnWidth(c.key, null)}
+        onkeydown={(e) => gripKey(e, c)}
+      ></div>
       <!-- svelte-ignore a11y_no_static_element_interactions (the arrows below move a column by keyboard) -->
       <div class="fcol-h" draggable="true" ondragstart={() => (dragKey = c.key)} ondragend={() => ((dragKey = null), (dropKey = null))}>
         <span class="grip" aria-hidden="true"><GripVertical size={14} /></span>
