@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 19;
+export const MEA_PRESET_VERSION = 20;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -522,6 +522,17 @@ export function meaControls(): PresetControl[] {
         ["adaptive", "Adaptive — by depth", "People change at their own depth: tactics and opinions move easily; convictions, grudges and self-image need sustained pressure, and slide back when it lifts."],
         ["entrenched", "Entrenched", "People are hard to move: change needs overwhelming, repeated cause, registers as strain before it becomes change, and a position abandoned in one scene is often taken up again in the next."],
         ["circular", "Circular", "People truly change, then drift back: growth holds while the pressure that caused it lasts and fades once it lifts, without their noticing. Each change is sincere; none of them stick."],
+      ],
+      true,
+    ),
+    choice(
+      "continuity",
+      "Continuity",
+      "Serial: everything carries on. Episodic: each episode (/episode) returns to the status quo, like a sitcom.",
+      "serial",
+      [
+        ["serial", "Serial — everything carries on", ""],
+        ["episodic", "Episodic — each episode resets", "Continuity: episodic. Each episode stands alone: at a new episode people are back to who they were, injuries are healed and the world has settled, with no explanation. Callbacks, known places and side characters carry over, and within an episode everything holds. Never build episodes into an arc of change, and never open one by dealing with the last one's fallout."],
       ],
       true,
     ),

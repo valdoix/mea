@@ -185,14 +185,14 @@ One PR per part, in the order of §9. Merge when green.
 
 | Part | What | State |
 |---|---|---|
-| 1 | Preset v16: §3 text, Social module, module lines, Story shape / Change resistance / Close / Adaptive options, planning and turn frame | branch `claude/preset-v16` |
-| 2 | Craft coach: new tells, sensory dedup | — |
-| 3 | `aftermath` mode, social beats | — |
-| 4 | Vessel persona (`writesUser`) | — |
-| 5 | Plants near their people, letters unread until read | — |
-| 6 | Canon from `basedOn`, an accent per speaker | — |
-| 7 | `convenience` checker kind | — |
-| 8 | Episode breaks, Continuity control | — |
+| 1 | Preset v16: §3 text, Social module, module lines, Story shape / Change resistance / Close / Adaptive options, planning and turn frame | merged, PR #214 |
+| 2 | Craft coach: new tells, sensory dedup | merged, PR #215 |
+| 3 | `aftermath` mode, kinds of talk (`mode: social (apology)` → `state.talk`), v17 | merged, PR #216 |
+| 4 | Vessel persona, `writesUser()` in prompt/preset.ts, v18 | merged, PR #217 |
+| 5 | Plants near their people (`plantsDue`), messages unread until read (tracker grammar) | merged, PR #218 |
+| 6 | Canon control + `{{canonSource}}` (the canon cutoff's source), voice traits → VOICES, v19 | merged, PR #219 |
+| 7 | Opt-in `convenience` checker kind (`Slip.optIn`) | merged, PR #220 |
+| 8 | Episode breaks (`/episode`, `newEpisode`), Continuity control, v20 | branch `claude/episodes` |
 
 ### Part 1 (2026-11-03)
 
@@ -200,6 +200,15 @@ One PR per part, in the order of §9. Merge when green.
 - The tells in [CRAFT] are now "X → what to write instead" lines (FrankenWIRE). The genre option text carries `UNSCRIPTED` ("a genre says what scenes are about, never what must happen"); genre2 doesn't.
 - The fair-die line judges difficulty first (trivial: no die; hard/extreme: one/two bands lower).
 - H3 fix: the overflow retry shrinks 0.75 → 0.55 → 0.4 until the prompt really is smaller. The history window evicts in chunks to its low-water mark, so a first try near its floor came back the same size at 0.75 once the prefix grew.
+
+### Parts 2–8 (2026-11-03)
+
+- Kinds of talk: `setMode` splits "social (apology)" / "social: apology"; only `TALKS` and only for social; dropped with the mode at a new scene (the chat's first scene title isn't a new scene).
+- Delivered-isn't-read lives in the tracker grammar's `know` line, not the fold: a toolkit `<letter>` usually appears when someone reads it, so the tag can't tell sent from read.
+- Canon reads `canonOf(chat).source`, not lore's `basedOn` (that lives on drafts). The Canon control's options are empty; a `[CANON]` block renders it, so no empty "- " bullet.
+- `traitKind`: "voice:" or "accent" always wins ("broad" used to make it a build).
+- Opt-in slips: `slipAllowed` is off unless `guards.slips[id] === true`; the Guards switch sets true / clears.
+- Episodes: the baseline is the fold at the first assistant message (the card's opening) unless `settings.episodes.baselineSeq` says otherwise; restore lines are written as user events at the marker, so undo works. Bond values use "trust -3 → 0" (a bare "trust -2" reads as a change).
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

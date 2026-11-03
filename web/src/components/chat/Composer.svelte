@@ -117,6 +117,12 @@
         await post(`/api/chats/${chatId}/timeskip`, { duration: duration.trim(), note: note.trim() || undefined });
         toast("Time skipped", { kind: "ok" });
       }),
+    episode: (title: string) =>
+      act(async () => {
+        const r = await post<{ episode: number; restored: number }>(`/api/chats/${chatId}/episode`, { title: title.trim() || undefined });
+        toast(`Episode ${r.episode}: ${r.restored ? "the status quo is back" : "nothing needed resetting"}`, { kind: "ok" });
+        onchange();
+      }),
     recap: () =>
       act(async () => {
         toast("Writing a recap…");
@@ -173,6 +179,8 @@
         if (!mm) return (errorToast("Say how long, like “3 days”"), "failed");
         return done(await actions.timeskip(mm[1]!, mm[2] ?? ""));
       }
+      case "episode":
+        return done(await actions.episode(arg));
       case "recap":
         return done(await actions.recap());
       case "remember":
@@ -197,7 +205,7 @@
   let trayTab = $state<"write" | "steer" | "story">("write");
   let trayEl = $state<HTMLDivElement | null>(null);
   let optsBtn = $state<HTMLButtonElement | null>(null);
-  let f = $state({ cue: "", ooc: "", truth: "", chapter: "", skip: "", skipNote: "", fact: "", question: "" });
+  let f = $state({ cue: "", ooc: "", truth: "", chapter: "", episode: "", skip: "", skipNote: "", fact: "", question: "" });
   function closeTrayOutside(e: MouseEvent) {
     const t = e.target as Node;
     if (trayOpen && trayEl && !trayEl.contains(t) && !optsBtn?.contains(t)) trayOpen = false;
@@ -680,6 +688,12 @@
           <span class="tlabel"><Flag size={12} /> Start a new chapter</span>
           <div class="inline"><input class="input" bind:value={f.chapter} placeholder="A title, or leave it for Mea to write" /><button class="btn small" disabled={!lastMessageId}>Begin</button></div>
         </form>
+        {#if settings.controls?.continuity === "episodic"}
+          <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.episode(f.episode), ["episode"], true))}>
+            <span class="tlabel"><Clapperboard size={12} /> Start a new episode</span>
+            <div class="inline"><input class="input" bind:value={f.episode} placeholder="A title, if you like" /><button class="btn small" disabled={!lastMessageId} title="Injuries heal and moods, bonds and romance go back to where the story began; people, places and facts stay">Begin</button></div>
+          </form>
+        {/if}
         <form class="tsec" onsubmit={(e) => (e.preventDefault(), trayDo(() => actions.remember(f.fact, false), ["fact"]))}>
           <span class="tlabel"><Brain size={12} /> Something to remember</span>
           <div class="inline">

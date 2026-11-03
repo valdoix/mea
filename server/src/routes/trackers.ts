@@ -12,7 +12,7 @@ import { formatStoryTime, parseStoryTime, shortStoryTime } from "../trackers/clo
 import { checkCondition, evalCondition } from "../trackers/condition";
 import { hudLine } from "../trackers/note";
 import { STARTER_TEMPLATES, templateInput } from "../trackers/schema";
-import { timeskip, trackerPrompt, userEdit } from "../trackers/service";
+import { newEpisode, timeskip, trackerPrompt, userEdit } from "../trackers/service";
 import {
   castFactions,
   castKey,
@@ -170,6 +170,12 @@ trackers.post("/chats/:id/trackers/init", async (c) => {
     if (last) enqueue("tracker.update", { chatId, messageId: last.id, swipeIdx: last.active_swipe }, { dedupeKey: `tracker.update:${last.id}:${last.active_swipe}`, priority: 5, chatId, delayMs: 2000 });
   }
   return c.json({ ok: true });
+});
+
+/** docs/23: "/episode": a new episode, the status quo restored. */
+trackers.post("/chats/:id/episode", async (c) => {
+  const input = await body(c, z.object({ title: z.string().max(120).optional() }));
+  return c.json(newEpisode(c.req.param("id"), input.title));
 });
 
 /** TRK-10: "/timeskip 3 days". */
