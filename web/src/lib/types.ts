@@ -1639,6 +1639,8 @@ export interface TrackersResponse {
   hasBase: boolean;
   running: boolean;
   maxSeq?: number;
+  /** Your "This place is…" corrections, by place name. */
+  placeKinds?: Record<string, string>;
 }
 
 export interface CastPerson {

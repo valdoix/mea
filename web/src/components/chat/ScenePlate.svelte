@@ -24,10 +24,10 @@
    * weather, framed in the room's colours. Procedural (seeded by the place, so a place always looks
    * the same); the current scene's plate follows the clock. ⋯ › This place is… corrects the kind.
    */
-  let { place, weather, hour, kind = null, title = "", onkind }: { place: string[]; weather: string | null; hour: number | null; kind?: PlaceKind | null; title?: string; onkind?: (name: string, kind: PlaceKind) => void } = $props();
+  let { place, weather, hour, kind = null, title = "", onkind }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: PlaceKind) => void } = $props();
 
   const name = $derived(place.at(-1) ?? "");
-  const k = $derived<PlaceKind>(kind ?? kindOf(place));
+  const k = $derived<PlaceKind>(nearest(kind) ?? kindOf(place));
   const h = $derived(hour ?? 20);
   const wx = $derived(readWeather(weather));
   const [top, bottom] = $derived(skyColors(h));
@@ -37,12 +37,14 @@
   const ink2 = $derived(night ? "#151024" : dusk ? "#2c2038" : "#3d3250");
   const interior = $derived(k === "tavern" || k === "bedroom");
 
+  // The scene windows paint many more kinds of place; a plate draws the nearest of its own.
+  const NEAREST: Record<string, PlaceKind> = { meadow: "hills", jungle: "forest", swamp: "forest", mountains: "hills", tundra: "hills", canyon: "desert", volcano: "hills", cave: "hills", beach: "shore", sea: "shore", lake: "shore", river: "hills", village: "street", road: "hills", market: "street", rooftops: "street", city: "street", temple: "castle", ruins: "castle", graveyard: "hills", hall: "tavern", library: "bedroom", study: "bedroom", dungeon: "bedroom", kitchen: "tavern", chapel: "bedroom", greenhouse: "bedroom", cellar: "tavern", cafe: "tavern", shop: "tavern", forge: "tavern", hospital: "bedroom", train: "bedroom", shipcabin: "bedroom", starship: "bedroom", space: "hills" };
+  function nearest(kind: string | null): PlaceKind | null {
+    if (!kind) return null;
+    return PLACE_KINDS.some((p) => p.id === kind) ? (kind as PlaceKind) : (NEAREST[kind] ?? null);
+  }
   function kindOf(path: string[]): PlaceKind {
-    const t = path.join(" ").toLowerCase();
-    if (/tavern|\binn\b|\bbar\b|\bpub\b|saloon|alehouse|club|bronze|caf[eé]|kitchen|hall\b/.test(t)) return "tavern";
-    if (/bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|cell\b|study|attic|lamp room|apartment|flat\b/.test(t)) return "bedroom";
-    const p = readPlace(path);
-    return p === "coast" ? "shore" : p === "city" ? "street" : p === "harbor" ? "harbor" : p;
+    return nearest(readPlace(path)) ?? "hills";
   }
 
   // A seeded random, so the same place always draws the same.

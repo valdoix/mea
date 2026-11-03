@@ -1,4 +1,4 @@
-import { get, post } from "./api";
+import { get, patch, post } from "./api";
 import { confirm } from "./dialogs.svelte";
 import { editLine } from "./dataedit";
 import { errorToast } from "./state.svelte";
@@ -77,3 +77,15 @@ export async function removeLadder(chatId: string, key: string, label: string) {
 }
 
 export const lockLine = (path: string, on: boolean) => `lock ${path}: ${on ? "on" : "off"}`;
+
+/** "This place is…": paint a place as another kind everywhere it's drawn (chat settings `placeKinds`). */
+export async function setPlaceKind(chatId: string, name: string, kind: string) {
+  const kinds = { ...(trk.chatId === chatId ? trk.data?.placeKinds : null), [name]: kind };
+  try {
+    await patch(`/api/chats/${chatId}`, { settings: { placeKinds: kinds } });
+    if (trk.chatId === chatId && trk.data) trk.data.placeKinds = kinds;
+  } catch (e) {
+    errorToast(e);
+  }
+  return kinds;
+}

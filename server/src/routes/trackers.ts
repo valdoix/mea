@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { stash } from "../services/undo";
 import { z } from "zod";
-import { all, one } from "../db/db";
+import { all, one, parseJson } from "../db/db";
 import { badRequest, body, must, notFound } from "../lib/http";
 import { belongingsOf } from "../trackers/belongings";
 import { getCharacterRow } from "../services/characters";
-import { getMessageRow, mustChat, trackerConfigSchema } from "../services/chats";
+import { type ChatSettings, getMessageRow, mustChat, trackerConfigSchema } from "../services/chats";
 import { enqueue } from "../services/jobs";
 import { describeWhen, spanLabel } from "../trackers/calendars";
 import { formatStoryTime, parseStoryTime, shortStoryTime } from "../trackers/clock";
@@ -55,7 +55,7 @@ function seqOf(chatId: string, messageId?: string | null) {
 /** The story world now, or as of a message (TRK-26, the drawer of an older message). */
 trackers.get("/chats/:id/trackers", (c) => {
   const chatId = c.req.param("id");
-  mustChat(chatId);
+  const chat = mustChat(chatId);
   const at = c.req.query("at");
   const seq = c.req.query("seq");
   // ?at=<message> or ?seq=<n>: the world as it stood then (the Almanac's rewind).
@@ -75,6 +75,8 @@ trackers.get("/chats/:id/trackers", (c) => {
     profiles: castProfiles(chatId),
     hasBase: hasBase(chatId),
     running,
+    // The "This place is…" corrections, so every scene window paints the same place.
+    placeKinds: parseJson<ChatSettings>(chat.settings, {}).placeKinds ?? {},
     maxSeq: one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.s ?? 0,
   });
 });
