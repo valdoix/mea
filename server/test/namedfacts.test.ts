@@ -69,6 +69,11 @@ describe("what the memories hold about a name just used", () => {
     } as unknown as WorldState;
     const [fact] = namedFacts(chatId, "And that's Brongel for you.", 20, none, 2, st);
     expect(fact!.notHeard).toEqual(["Spike"]);
+    // Dawn was in the room at #4 and #8 (the memories already say so). Spike wasn't. Being in the room never makes anyone a knower.
+    const talkedAbout = { ...st, presence: [{ seq: 1, who: ["b", "d", "s", "u"] }] } as unknown as WorldState;
+    const [other] = namedFacts(chatId, "And that's Brongel for you.", 20, none, 2, talkedAbout);
+    expect(other!.knownBy).toEqual(["Buffy", "Gabriel", "Dawn"]);
+    expect(other!.notHeard).toEqual([]);
   });
 
   test("a running bit the story kept counts as a record, when no memory says it", () => {

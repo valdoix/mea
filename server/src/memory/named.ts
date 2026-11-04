@@ -101,14 +101,12 @@ export function namedFacts(chatId: string, text: string | undefined, beforeSeq: 
     for (const r of facts) for (const k of parseJson<string[]>(r.known_by, [])) if (!knownBy.has(norm(k))) knownBy.set(norm(k), k);
     const fact: NamedFact = { term, statement: last.content, knownBy: [...knownBy.values()], firstSeq: facts[0]!.max_seq ?? 0, lastSeq: last.max_seq ?? 0 };
     if (st?.presence?.length) {
+      // The room only ever says who wasn't there. "Giles knows" would be a lie: the tracker lists people
+      // who are only being talked about, and he was "there" for Brongel at #88 in just that way.
       const heard = heardBy(chatId, st, term, beforeSeq);
-      for (const id of heard.keys()) {
-        const name = st.chars[id]!.name;
-        if (!knownBy.has(norm(name))) fact.knownBy.push(name);
-      }
       const names = new Set(fact.knownBy.flatMap((n) => [n, ...n.split(/\s+/)]).map(norm));
       fact.notHeard = Object.values(st.chars)
-        .filter((c) => !c.isUser && !c.dead && (c.tier === "spot" || c.tier === "peri") && ![c.name, ...c.name.split(/\s+/), ...c.aliases].some((n) => names.has(norm(n))))
+        .filter((c) => !c.isUser && !c.dead && (c.tier === "spot" || c.tier === "peri") && !heard.has(c.id) && ![c.name, ...c.name.split(/\s+/), ...c.aliases].some((n) => names.has(norm(n))))
         .map((c) => c.name);
     }
     out.push(fact);
