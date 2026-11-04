@@ -1475,13 +1475,14 @@
 .lanes .tk.dn {
   color: var(--danger);
 }
-.axis {
+/* Scoped to the river: the tracker's bond rows are also called .axis. */
+.lanes .axis {
   position: relative;
   height: 18px;
   font: 500 0.72rem var(--font-display);
   color: var(--text-muted);
 }
-.axis span {
+.lanes .axis span {
   position: absolute;
   transform: translateX(-50%);
 }
