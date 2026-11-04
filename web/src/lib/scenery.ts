@@ -81,6 +81,16 @@ export interface PainterOptions {
   still?: boolean;
 }
 
+/** What a single still frame shows. */
+export interface StillScene {
+  hour: number;
+  weather: Weather;
+  place: Place;
+  seed: string;
+  focus?: number;
+  mini?: boolean;
+}
+
 export class ScenePainter {
   private g: CanvasRenderingContext2D;
   private w = 0;
@@ -179,15 +189,27 @@ export class ScenePainter {
 
   private resize() {
     const r = this.canvas.getBoundingClientRect();
-    const d = Math.min(2, devicePixelRatio || 1);
-    if (Math.abs(r.width - this.w) < 0.5 && Math.abs(r.height - this.h) < 0.5) return;
-    this.w = r.width;
-    this.h = r.height;
-    this.canvas.width = Math.round(r.width * d);
-    this.canvas.height = Math.round(r.height * d);
+    this.fit(r.width, r.height, Math.min(2, devicePixelRatio || 1));
+  }
+
+  private fit(w: number, h: number, d: number) {
+    if (Math.abs(w - this.w) < 0.5 && Math.abs(h - this.h) < 0.5) return;
+    this.w = w;
+    this.h = h;
+    this.canvas.width = Math.round(w * d);
+    this.canvas.height = Math.round(h * d);
     this.g.setTransform(d, 0, 0, d, 0, 0);
     this.build();
     if (this.still) this.frame(0);
+  }
+
+  /** One finished frame now, at the canvas's size on screen or at `size`. Holds nothing afterwards. */
+  static paintOnce(canvas: HTMLCanvasElement, scene: StillScene, size?: { w: number; h: number }) {
+    const p = new ScenePainter(canvas, { still: true, mini: scene.mini, focus: scene.focus });
+    p.set(scene);
+    if (size) p.fit(size.w, size.h, 1);
+    else p.resize();
+    p.destroy();
   }
 
   private frame(dt: number) {
