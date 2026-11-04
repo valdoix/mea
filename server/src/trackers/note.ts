@@ -1,3 +1,4 @@
+import { thingPlace } from "./things";
 import type { NamedFact } from "../memory/named";
 import { countTokens } from "../lib/tokens";
 import { contentWords, overlap } from "../memory/text";
@@ -157,8 +158,10 @@ export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: s
       hits.push({ line: `${d.fact.statement}: ${who.join("; ")}${then}`, text: d.text, score, seq: d.fact.lastSeq, item: false });
     } else if (d.item) {
       const i = d.item;
-      const trail = i.custody.slice(-3).map((c) => `${[c.from, c.to].filter((x): x is string => Boolean(x)).map(whom).join(" → ")}${c.how ? ` (${c.how})` : ""}${c.seq ? ` ${moment(c.seq)}` : ""}`);
-      const now = i.gone ? "gone" : i.holder ? `${i.holder.startsWith("place:") ? "in" : "with"} ${whom(i.holder)}${i.where ? ` (${i.where})` : ""}` : i.where ? `at ${i.where}` : "";
+      // Where it started (who chose it, who it was for) and where it's been lately.
+      const trail = (i.custody.length > 3 ? [i.custody[0]!, ...i.custody.slice(-2)] : i.custody).map((c) => `${[c.from, c.to].filter((x): x is string => Boolean(x)).map(whom).join(" → ")}${c.how ? ` (${c.how})` : ""}${c.seq ? ` ${moment(c.seq)}` : ""}`);
+      const placed = thingPlace(i);
+      const now = i.gone ? "gone" : i.holder ? `${placed ? "at" : i.holder.startsWith("place:") ? "in" : "with"} ${whom(i.holder).replace(/^at\s+/i, "")}${i.where ? ` (${i.where})` : ""}${placed ? `, ${placed}` : ""}` : i.where ? `at ${i.where}` : "";
       const bits = [now, i.gift ? `a gift from ${nameOf(i.gift)}` : "", trail.length ? `trail: ${trail.join("; ")}` : ""].filter(Boolean);
       if (bits.length) hits.push({ line: `${i.name}: ${bits.join(" · ")}`, text: d.text, score, seq: i.lastSeq, item: true });
     }

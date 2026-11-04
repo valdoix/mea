@@ -68,6 +68,11 @@ Replayed offline over the last 126 turns (keywords only, no query embeddings): r
 | 5.1 | Golden scenarios | Parts 1–2 |
 | 5.2 | "Names remembered" in Story health | Part 0 |
 | 5.3 | Repair tool for a wrong "first time" | 2.1 |
+| **Part 6 · Things stay where they are** | | |
+| 6.1 | One thing, one record | — |
+| 6.2 | Where it rests, for FACTS IN PLAY and the checker | 6.1 |
+| 6.3 | A plan or reply using a thing left in another home | 6.2 |
+| 6.4 | Several givers, and the trail keeps who chose it | — |
 
 **Order:** 1 → 2 → 5.1 → 4 → 3 → 5.2, 5.3. Part 1 catches the failure even when recall misses, and costs no model calls.
 
@@ -135,7 +140,7 @@ Deliberately left out of Part 0. Tried on the replay, the scene-lift change move
 
 The budget wasn't the problem, so it stays at 6%, and the recent and serendipity slots stay too. The planner, on its 2,500 tokens, goes from 16 to 28 of 39, with summaries down to 4% of its recall; it also reads the chapters and scenes since the Story So Far separately.
 
-**How far to trust this:** the "shared words" cases were found by looking for shared rare words, so their 14 of 14 is partly circular, and of 62 turns that signal found, about a quarter were real callbacks. It fires on about one turn in six and costs a memory or two, so that's cheap, but it isn't free. The set also counts memories, which favours memories over summaries; the second column guards against that, and it rose too. What fewer summaries does to the prose can only be seen in live replies. The three real slips still miss: where an object is now (the album, the mug) and who picked the socks aren't a ranking problem, and need the records.
+**How far to trust this:** the "shared words" cases were found by looking for shared rare words, so their 14 of 14 is partly circular, and of 62 turns that signal found, about a quarter were real callbacks. It fires on about one turn in six and costs a memory or two, so that's cheap, but it isn't free. The set also counts memories, which favours memories over summaries; the second column guards against that, and it rose too. What fewer summaries does to the prose can only be seen in live replies. The slips still miss as recall: they aren't a ranking problem, and Part 6 goes after them in the records.
 
 ---
 
@@ -155,6 +160,28 @@ The budget wasn't the problem, so it stays at 6%, and the recent and serendipity
 **5.3** A way to fix a wrong "first time" after the fact: edit the beat and the stance date, not only the reply's words. Today this takes editing #792 and then its ledger lines by hand.
 
 *Built:* 5.1 as `golden/26-old-news` and `27-truly-new` (a stopped try is `genlayer.test.ts`, the plan's correction is `notnews.test.ts`). 5.2 as `namesStats` in `memory/named.ts`, from `memory_usage` on the kept try. On the real chat's last 20 replies, before these fixes: 0 of 3, the latest "brongel" at #792. It counts memories only, not the FACTS IN PLAY line, so it measures recall. 5.3 isn't built.
+
+---
+
+## Part 6 · Things stay where they are
+
+Three flagged slips still missed after Part 4, so these were read in the records at the time. Each was something else:
+
+| Slip | What it turned out to be |
+|---|---|
+| #742: Joyce's daisy mug "came down from the shelf" at Gabriel's house | Real. The mug had **three records** from three descriptions, and none said which house its counter was in. Nothing on the page moves it. |
+| #736: the BALLET! album on this counter | **Not a slip.** The album was set down in this kitchen at #91, and the checker wrongly put it at Revello Drive. It had no place to read, so it guessed. A wrong flag from the same gap. |
+| #323: who picked the socks | The records already held it, under FACTS IN PLAY, but its trail only showed the latest three moves. |
+
+**6.1 One thing, one record.** `sameThing` (`trackers/things.ts`): a name with more said about it joins the record it adds to. "pint (empty)" and "pint (full)" stay two, a bare "phone" could be anyone's, and if it could be either it's neither. In the real chat, 151 items become 138, and each of the 13 joins was read by eye. The first version joined "phone (Gabriel's)" into Buffy's phone, whose description says "matching Gabriel's", so a one-word thing now needs two words in common. It works at fold time, so nothing stored changes and old chats get it too.
+
+**6.2 Where it rests.** `thingPlace`: the place the story was at when it last moved, only when the record says it rests on something. The tracker writes "still worn by Buffy" and "Gabriel's basket" as places too, so those say nothing. FACTS IN PLAY and the checker now both read it, so the checker no longer has to guess which kitchen.
+
+**6.3 A thing left elsewhere.** A plan using one gets a correction; a reply gets a minor flag. Only a thing with a name of its own, and only one person's home against another's, because places are written many ways ("Gabriel's House", "Winters Residence"). Over every reply and plan in both real chats (417 and 390) it finds the reply at #742 and two plans about that same mug, and nothing else.
+
+**6.4 Who gave it.** A gift can have several givers ("gift from Gabriel, Buffy"), each warming the one who got it. The trail always keeps its first move, so who chose it stays in view. Building this found that the bond move for a gift always threw, so every gift line was marked "couldn't apply" (3 in the real chat). Fixed, so a re-fold adds their affection +1.
+
+**Limits:** the tracker's prompt now says how to write these, but only live replies can show whether it does. A thing carried off with no line reads as still there, which is what the flag says and why it's a flag to read. Things in places that aren't anyone's home aren't checked.
 
 ---
 

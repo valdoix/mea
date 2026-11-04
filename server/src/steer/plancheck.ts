@@ -6,6 +6,7 @@ import { openLoops } from "../trackers/loops";
 import { topicCounts, topicScorer } from "../trackers/topics";
 import type { Character, Fact, WorldState } from "../trackers/types";
 import { mentionText, newsClaims } from "../accuracy/notnews";
+import { thingsElsewhere } from "../trackers/things";
 import { BACK, clear, hhmm, retellSources, type Source, whenConflict } from "../accuracy/retell";
 
 /**
@@ -25,7 +26,7 @@ export interface PlanFinding {
   claim: string;
   who: string;
   /** What the plan says about them: that they don't know, or that they do; or that something done is still to come. */
-  says: "unaware" | "knows" | "pending" | "news";
+  says: "unaware" | "knows" | "pending" | "news" | "elsewhere";
   fact: string;
   /** The stance the records have, with how and when. */
   status: string;
@@ -142,6 +143,12 @@ export function notNews(chatId: string, st: WorldState | null | undefined, plan:
   }));
 }
 
+/** docs/26 6.3: a plan that uses a thing the records have left in someone else's home. */
+export function notHereThings(st: WorldState | null | undefined, plan: string | null | undefined): PlanFinding[] {
+  if (!plan?.trim()) return [];
+  return thingsElsewhere(st, plan, sentencesOf).map((t) => ({ claim: t.sentence, who: "", says: "elsewhere" as const, fact: `${t.item.name} is at ${t.place}`, status: "elsewhere", seq: t.seq, strong: true }));
+}
+
 /** docs/22 3.2: a plan can't carry a thread the ledger doesn't have. An open loop's id reads as the loop, an open thread's title stays, and the rest goes. */
 export function ledgerThreads(st: WorldState, threads: string[]) {
   const loops = new Map(openLoops(st).map((l) => [l.id, l.what]));
@@ -156,6 +163,7 @@ export function ledgerThreads(st: WorldState, threads: string[]) {
 export function planCorrection(findings: PlanFinding[]): string {
   if (!findings.length) return "";
   const lines = findings.slice(0, 4).map((f) => {
+    if (f.says === "elsewhere") return `- The plan says «${f.claim}». The records: ${f.fact} (#${f.seq}), and nothing has moved it here. Have someone bring it on the page, or use something else.`;
     if (f.says === "news") return `- The plan says «${f.claim}». The story: ${f.fact} Whoever was there already knows it: they remember it, they don't find out.`;
     if (f.says === "pending") return `- The plan says «${f.claim}». The records: already done, ${f.fact} (#${f.seq}). That's the past: nobody waits for it, plans it or promises it again.`;
     const how = [f.route, f.seq ? `#${f.seq}` : ""].filter(Boolean).join(", ");

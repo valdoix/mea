@@ -22,6 +22,7 @@ import { citesClosed, flagKey, flagKinds, quietKeys, wavedThrough } from "./quie
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
 import { runSlips, slipAllowed, slipContext } from "./slips";
 import { retellIssues } from "./retell";
+import { thingCore, thingPlace } from "../trackers/things";
 import { tieIssues } from "./ties";
 import { doneLoops } from "../trackers/loops";
 import { alreadyHappened } from "../trackers/stands";
@@ -240,6 +241,12 @@ export function factSheet(chatId: string, reply: string, st: WorldState | null, 
       // Everyone the story has met is listed, even with nothing known about them yet: a name missing here reads as a stranger.
       const bits = [c.traits.map((t) => t.text).join(", "), c.look ?? "", c.dead ? "DEAD" : "", c.tier === "spot" || c.tier === "peri" ? "present" : c.place ? `at ${c.place}` : "", c.firstSeq ? `in the story since #${c.firstSeq}` : ""].filter(Boolean);
       add("T", { type: "tracker", label: c.name, seq: c.lastSeq, messageId: msg.get(c.lastSeq) ?? null }, `${c.name}${c.isUser ? " (the player's character)" : ""}: ${bits.join("; ")}`);
+    }
+    // docs/26 6.2: where the things this reply names were left, so nobody guesses which kitchen.
+    const said = reply.toLowerCase();
+    for (const i of Object.values(st.items)) {
+      const place = said.includes(thingCore(i.name)) ? thingPlace(i) : null;
+      if (place) add("T", { type: "tracker", label: i.name, seq: i.lastSeq, messageId: msg.get(i.lastSeq) ?? null }, `${i.name}: left at ${place}${i.where ? ` (${i.where})` : ""}`);
     }
     // docs/20 1.2: the day in order, so a reply that retells today can be checked against where and when it happened.
     for (const b of todayLines(st, beatNames(chatId, st))) add("B", { type: "tracker", label: `today, #${b.seq}`, seq: b.seq, messageId: msg.get(b.seq) ?? null }, `Today: ${b.text}`);

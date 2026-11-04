@@ -5,6 +5,7 @@ import { lane, registerLane } from "../prompt/lanes";
 import { addLesson } from "../steer/lessons";
 import type { FlagRow, Issue } from "./checker";
 import { alreadyToldRule } from "./notnews";
+import { thingsElsewhere } from "../trackers/things";
 import { flagKey, quietKeys } from "./quiet";
 import { esc, sentences } from "./rules";
 import { type Found, SLIPS } from "./slips";
@@ -210,6 +211,23 @@ SLIPS.push(
     phase: "reply",
     on: (c) => c.role === "assistant" && c.continuity,
     run: () => [],
+  },
+  {
+    id: "elsewhere",
+    label: "A thing left elsewhere",
+    description: "A named thing in this scene when the records have it left in someone else's home, and nothing has moved it.",
+    phase: "reply",
+    on: (c) => c.role === "assistant" && Boolean(c.state),
+    run: (text, st) =>
+      thingsElsewhere(st, cleanText(text), sentences).map((t) => ({
+        kind: "elsewhere",
+        severity: "minor" as const,
+        claim: t.sentence,
+        conflict: `The records have ${t.item.name} at ${t.place} (#${t.seq}), and nothing has moved it here.`,
+        citations: [{ ref: "T", type: "tracker" as const, label: `${t.item.name}: ${t.place}`, seq: t.seq }],
+        fix: `It's at ${t.place}. Bring it here on the page, or use something else.`,
+        by: "rules" as const,
+      })),
   },
   {
     id: "known",
