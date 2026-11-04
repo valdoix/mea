@@ -21,11 +21,18 @@
   // P1: the filter is by source (?source= opens on one).
   // svelte-ignore state_referenced_locally
   let filter = $state<InboxSource | "all">((route.query.source as InboxSource) || "all");
+  // The story filter lives in the URL (?chat=), as the links from a chat already open on it.
   const chat = $derived(route.query.chat || "");
+  /** ?chat= for the suggestions that belong to no story (a version's original changed). */
+  const NO_STORY = "none";
 
   async function load() {
     try {
-      items = (await get<{ items: InboxItem[] }>(`/api/inbox${chat ? `?chat=${encodeURIComponent(chat)}` : ""}`)).items;
+      // The full list names every story for the filter. It leaves out archived chats and all but the
+      // 40 most recent, so a link to one of those fetches that chat as well.
+      const scoped = chat && chat !== NO_STORY ? get<{ items: InboxItem[] }>(`/api/inbox?chat=${encodeURIComponent(chat)}`) : null;
+      const [everything, own] = await Promise.all([get<{ items: InboxItem[] }>("/api/inbox"), scoped]);
+      items = [...new Map([...everything.items, ...(own?.items ?? [])].map((i) => [i.key, i])).values()];
     } catch (e) {
       errorToast(e);
       items = [];
@@ -47,12 +54,33 @@
 
   const KIND: Record<string, string> = { summary: "Summary", journal: "Journal", chronicle: "New lore", merge: "Duplicate", disputed: "Disputed memory", world: "Subplot", lesson: "Lesson", canon: "Canon", pressure: "Pressure", calendar: "Calendar", offpage: "Secret", version: "Original changed", "lore-update": "Lore update", "lore-recheck": "Re-check", worldnews: "News", worldaudit: "World check" };
   const SOURCE: Record<InboxSource, string> = { memory: "Memory", lore: "Lore", world: "World", lesson: "Lessons", canon: "Canon", pressure: "Pressures", calendar: "Calendar", secret: "Secrets", versions: "Versions" };
+  const storyOf = (i: InboxItem) => i.chatId || NO_STORY;
+  /** The filter's choices, A to Z, with the suggestions that belong to no story last. */
+  const stories = $derived.by(() => {
+    const found = new Map<string, { id: string; title: string; n: number }>();
+    for (const i of items ?? []) {
+      const id = storyOf(i);
+      const s = found.get(id);
+      if (s) s.n++;
+      else found.set(id, { id, title: id === NO_STORY ? "Not tied to a story" : i.chatTitle || "Untitled story", n: 1 });
+    }
+    // A story with nothing waiting still needs its choice while it's selected.
+    if (chat && !found.has(chat)) found.set(chat, { id: chat, title: chat === NO_STORY ? "Not tied to a story" : "This story", n: 0 });
+    return [...found.values()].sort((a, b) => Number(a.id === NO_STORY) - Number(b.id === NO_STORY) || a.title.localeCompare(b.title));
+  });
+  const inStory = $derived((items ?? []).filter((i) => !chat || storyOf(i) === chat));
   const counts = $derived.by(() => {
     const c = new Map<InboxSource, number>();
-    for (const i of items ?? []) c.set(i.source, (c.get(i.source) ?? 0) + 1);
+    for (const i of inStory) c.set(i.source, (c.get(i.source) ?? 0) + 1);
     return c;
   });
-  const shown = $derived((items ?? []).filter((i) => filter === "all" || i.source === filter));
+  // A source this story has nothing from falls back to everything rather than an empty list.
+  const source = $derived(filter !== "all" && counts.has(filter) ? filter : "all");
+  const shown = $derived(inStory.filter((i) => source === "all" || i.source === source));
+
+  function pickStory(id: string) {
+    navigate(id ? `/inbox?chat=${encodeURIComponent(id)}` : "/inbox", { replace: true });
+  }
 
   /** The note goes to Meus in its chat, which reads it with the story around it. */
   function talkItThrough(item: InboxItem) {
@@ -88,7 +116,6 @@
       <h1>Review inbox</h1>
       <p class="muted small">Changes to canon Mea would like to make. Approve, edit, or reject each one; nothing changes until you do.</p>
     </div>
-    {#if chat}<a class="btn ghost small" href="/inbox">All stories</a>{/if}
   </header>
 
   {#if items === null}
@@ -97,10 +124,19 @@
     <EmptyState title="All caught up" text="When Mea proposes a change to your story's canon (a rebuilt summary, new lore, a merge), it waits here for you." icon="✉" />
   {:else}
     <div class="row wrap filters">
-      <button class="chip" class:on={filter === "all"} onclick={() => (filter = "all")}>All {items.length}</button>
-      {#each [...counts] as [k, n] (k)}<button class="chip" class:on={filter === k} onclick={() => (filter = k)}>{SOURCE[k] ?? k} {n}</button>{/each}
+      {#if stories.length > 1 || chat}
+        <select class="select story" value={chat} onchange={(e) => pickStory(e.currentTarget.value)} aria-label="Filter by story">
+          <option value="">All stories ({items.length})</option>
+          {#each stories as s (s.id)}<option value={s.id}>{s.title} ({s.n})</option>{/each}
+        </select>
+      {/if}
+      {#if inStory.length}
+        <button class="chip" class:on={source === "all"} onclick={() => (filter = "all")}>All {inStory.length}</button>
+        {#each [...counts] as [k, n] (k)}<button class="chip" class:on={source === k} onclick={() => (filter = k)}>{SOURCE[k] ?? k} {n}</button>{/each}
+      {/if}
       {#if shown.filter((x) => x.kind !== "merge").length > 1}<button class="btn ghost small" onclick={acceptAll}>Approve all shown</button>{/if}
     </div>
+    {#if !shown.length}<p class="muted small">Nothing waiting here.</p>{/if}
     <div class="list">
       {#each shown as item (item.key)}
         <article class="card item">
@@ -152,13 +188,19 @@
   .filters {
     gap: 0.35rem;
   }
+  .filters .story {
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+  }
   .filters .chip {
     cursor: pointer;
     border: 1px solid var(--border);
   }
   .filters .chip.on {
-    background: var(--accent);
-    color: var(--accent-ink);
+    /* Some rooms restyle every .chip; the selected one still has to look selected. */
+    background: var(--accent) !important;
+    color: var(--on-accent) !important;
   }
   .list {
     display: grid;
