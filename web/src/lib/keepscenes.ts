@@ -7,6 +7,7 @@ import { clamp, DARK, mix, rgb, TAU, type Ctx, type Env, type Place, type RGB } 
 import { banner, candle, keepLook, keepRoom, opening, reveal, shaft, shell, tapestry, tint, torch, torchlight, tracery, type Look, type Paint } from "./keepbits";
 import { fill, fire, glowAt, hillView, poly, stroke, type Scene } from "./scenes";
 import { ellipse, rr, shut, steam } from "./scenebits";
+import { CASTLE_STAIR } from "./castlerooms";
 
 type G = CanvasRenderingContext2D;
 const BLACK_IRON: RGB = [44, 40, 42];
@@ -1115,5 +1116,5 @@ function stable(c: Ctx): Scene {
 }
 
 /** Used for a castle in place of the plainer room of the same kind. */
-export const KEEP_SCENES: Partial<Record<Place, (c: Ctx) => Scene>> = { hall, study, dungeon, kitchen, chapel, cellar, bedroom, masterbedroom, hallway, library, forge, stable };
+export const KEEP_SCENES: Partial<Record<Place, (c: Ctx) => Scene>> = { hall, study, dungeon, kitchen, chapel, cellar, bedroom, masterbedroom, hallway, library, forge, stable, staircase: CASTLE_STAIR };
 

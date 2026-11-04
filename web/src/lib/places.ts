@@ -321,6 +321,24 @@ export const PLACE_GROUPS = [
     ],
   },
   {
+    label: "Castle rooms",
+    kinds: [
+      { id: "solar", label: "Solar" },
+      { id: "maester", label: "Maester's chambers" },
+      { id: "rookery", label: "Rookery" },
+      { id: "sept", label: "Castle sept" },
+    ],
+  },
+  {
+    label: "Within the walls",
+    kinds: [
+      { id: "godswood", label: "Godswood" },
+      { id: "bailey", label: "Castle yard" },
+      { id: "trainingyard", label: "Training yard" },
+      { id: "battlements", label: "Battlements" },
+    ],
+  },
+  {
     label: "The Red Keep",
     kinds: [
       { id: "throneroom", label: "Throne room" },
@@ -489,7 +507,7 @@ const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
 
 /** Kinds with no indoors for a hallway or a staircase to take after. */
 const OUTSIDE = new Set<Place>([...PLACE_GROUPS[0].kinds, ...PLACE_GROUPS[1].kinds].map((k) => k.id));
-for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space", "holdfast", "flowstoneyard", "bearpit"] as const) OUTSIDE.add(k);
+for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space", "holdfast", "flowstoneyard", "bearpit", "godswood", "bailey", "trainingyard", "battlements"] as const) OUTSIDE.add(k);
 
 /** Between rooms with their own painting. */
 const BETWEEN: [Place, RegExp][] = [

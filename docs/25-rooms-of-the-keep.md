@@ -1,6 +1,6 @@
 # Design plan: Harrenhal, King's Landing and occasions
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–6 built, Parts 7–9 to come.
+**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–7 built, Parts 8–9 to come.
 
 Follows [docs/24](24-rooms-of-the-house.md), which gave plates one painter and 54 rooms of a house. This plan does two things:
 
@@ -398,7 +398,7 @@ One PR per part, merged once green, as with docs/24. Occasions come right after 
 | **4. Occasions (6)** | anniversary, ball, festival, coronation, contest, execution | Spectacle |
 | **5. Occasions (7)** | midwinter, newborn, honours, cookout, performance, trial, parade | All 19 occasions |
 | **6. Signature (10)** | Red Keep and Harrenhal rooms (§3 A, B), portraits, banners, year dressing | Both places recognisable at a glance |
-| **7. Castle rooms (11)** | solar, lordchamber, maester, rookery, muralpassage, spiralstair, sept, godswood, bailey, trainingyard, battlements | Most scenes in either place |
+| **7. Castle rooms (8, and a stair)** | solar, maester, rookery, sept, godswood, bailey, trainingyard, battlements. A spiral stair replaces `staircase` in a castle. `lordchamber` and `muralpassage` aren't new kinds: Part 2's `masterbedroom` and `hallway` already are those rooms in a castle | Most scenes in either place |
 | **8. The city (5)** | fleabottom, greatsept, septsteps, dragonpit, tiltyard | King's Landing beyond the Keep |
 | **9. Castle rooms (12)** | ladysolar, towerroom, bathchamber, servantsloft, infirmary, councilroom, countingroom, guardroom, armory, gatehouse, washhouse, buttery | A full working castle |
 
