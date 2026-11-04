@@ -1227,6 +1227,9 @@ export interface ContinuityIssue {
   quiet?: boolean;
   /** docs/14, part 6: a one-tap fix, the version's name for the original's. */
   replace?: { from: string; to: string };
+  /** docs/26 5.3: what an "old news" flag is about, and who the records now have knowing it. */
+  about?: string;
+  repaired?: { knew: { name: string; seq: number }[] };
 }
 export interface ContinuityFlag {
   id: string;

@@ -161,7 +161,9 @@ The budget wasn't the problem, so it stays at 6%, and the recent and serendipity
 
 **5.3** A way to fix a wrong "first time" after the fact: edit the beat and the stance date, not only the reply's words. Today this takes editing #792 and then its ledger lines by hand.
 
-*Built:* 5.1 as `golden/26-old-news` and `27-truly-new` (a stopped try is `genlayer.test.ts`, the plan's correction is `notnews.test.ts`). 5.2 as `namesStats` in `memory/named.ts`, from `memory_usage` on the kept try. On the real chat's last 20 replies, before these fixes: 0 of 3, the latest "brongel" at #792. It counts memories only, not the FACTS IN PLAY line, so it measures recall. 5.3 isn't built.
+*Built:* 5.1 as `golden/26-old-news` and `27-truly-new` (a stopped try is `genlayer.test.ts`, the plan's correction is `notnews.test.ts`). 5.2 as `namesStats` in `memory/named.ts`, from `memory_usage` on the kept try. On the real chat's last 20 replies, before these fixes: 0 of 3, the latest "brongel" at #792. It counts memories only, not the FACTS IN PLAY line, so it measures recall.
+
+5.3 as **Fix the records** on an "old news" flag (`repairRecords` in `accuracy/notnews.ts`). Each person the memories have knowing it gets a line of yours at the message they first did, under the story's own name for them, and a name that's nobody in the story gets none. The reply's beat loses "reveals". Undo takes it all back. The reply's words stay: that's the sentence fix or a new take. A flag only exists on a reply checked since this shipped, so an old one needs **Check again** from the message's menu first.
 
 ---
 

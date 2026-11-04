@@ -1,15 +1,17 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { alreadyToldRule, newsClaims, oldNews } from "../src/accuracy/notnews";
+import { alreadyToldRule, newsClaims, oldNews, repairRecords, undoRepair } from "../src/accuracy/notnews";
 import { SLIPS } from "../src/accuracy/slips";
 import "../src/accuracy/moreslips";
 import { normalizeCard } from "../src/cards/card";
 import { all } from "../src/db/db";
 import { insertAtom } from "../src/memory/atoms";
 import { createCharacter } from "../src/services/characters";
+import { createPersona } from "../src/services/personas";
 import { addMessage, createChat } from "../src/services/chats";
 import { notNews, planCorrection } from "../src/steer/plancheck";
 import type { WorldState } from "../src/trackers/types";
 import { planCheckLine } from "../../shared/plan";
+import { currentFold, linesToOps, writeEvents } from "../src/trackers/store";
 import { freshDb } from "./helpers";
 
 /** The cast as far as these rules read it. */
@@ -28,7 +30,7 @@ describe("old news", () => {
   beforeAll(() => {
     freshDb();
     const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Buffy Summers", description: "A Slayer.", first_mes: "Hi." } });
-    chatId = createChat({ characterId: createCharacter(data) }).id;
+    chatId = createChat({ characterId: createCharacter(data), personaId: createPersona({ name: "Gabriel Winters", data: { description: "" } }) }).id;
     addMessage(chatId, "user", `"They called me *The Brongel*. Brother-angel," he says.`); // #2
     addMessage(chatId, "assistant", `"That's a whole name that exists in the world."`); // #3
     addMessage(chatId, "user", `A banner read BRONGEL FOR PRESIDENT. Dawn snorts.`); // #4
@@ -128,6 +130,36 @@ describe("old news", () => {
       expect(slip.phase).toBe("reply");
       expect(slip.on({ role: "assistant" } as never)).toBe(true);
       expect(slip.on({ role: "user" } as never)).toBe(false);
+    });
+  });
+
+  describe("putting the records right (docs/26 5.3)", () => {
+    const stance = (fact: string, id: string) => Object.values(currentFold(chatId).result.state.facts).find((f) => f.statement.includes(fact))?.stances[id];
+    const beat = () => currentFold(chatId).result.state.beats.at(-1)?.text;
+
+    test("who knew and since when, the beat reworded, and all of it taken back", async () => {
+      const reply = addMessage(chatId, "assistant", "“Brongel. You had a nickname and you never mentioned this?”");
+      const seq = all<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", reply)[0]!.seq;
+      writeEvents(chatId, { messageId: reply, swipeIdx: 0 }, linesToOps(["cast: Buffy Summers@spot · Dawn Summers@spot · Spike@spot", 'know everyone: frat nickname "Brongel" — he said it aloud', 'beat: Gabriel reveals frat nickname "Brongel"; Buffy files it']).ops, "model");
+      expect(beat()).toContain("reveals");
+      expect(stance("Brongel", "buffy-summers")?.seq).toBe(seq);
+
+      // A later memory calls the same people by other names, and one by a name that's nobody in the story.
+      insertAtom(chatId, null, { type: "fact", content: "They said Brongel again at the table.", knownBy: ["Buffy", "Dawn", "Spike", "Xander"] }, [{ id: reply, seq: seq - 1 }]);
+      const before = currentFold(chatId).result.state;
+      const repair = repairRecords(chatId, "brongel", seq, reply, 0);
+      expect(repair.knew).toEqual([{ name: "Buffy Summers", seq: 2 }, { name: "Dawn Summers", seq: 4 }, { name: "Spike", seq: seq - 1 }]);
+      expect(Object.values(currentFold(chatId).result.state.chars).map((c) => c.name)).not.toContain("Xander");
+      expect(beat()).toBe('Gabriel brings up frat nickname "Brongel"; Buffy files it');
+      expect(stance("Brongel", "buffy-summers")?.seq).toBe(2);
+      expect(stance("Brongel", "dawn-summers")?.seq).toBe(4);
+      expect(stance("Brongel", "spike")?.seq).toBe(seq - 1);
+      expect(Object.values(currentFold(chatId).result.state.facts).filter((f) => f.statement.includes("Brongel"))).toHaveLength(1);
+
+      undoRepair(chatId, repair);
+      expect(beat()).toContain("reveals");
+      expect(stance("Brongel", "buffy-summers")?.seq).toBe(seq);
+      expect(Object.keys(currentFold(chatId).result.state.facts)).toEqual(Object.keys(before.facts));
     });
   });
 });
