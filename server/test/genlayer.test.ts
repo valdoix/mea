@@ -74,6 +74,35 @@ beforeAll(() => {
         const content = n % 2 ? story : `${plan}${story}`;
         return sse([...content.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
       }
+      if (body.model === "slowskip") {
+        // Skips its plan, but slowly enough for the save timer to write its first words to the take.
+        const story = "The rain had not stopped all night, and the lantern on the sill burned low while the harbour bell rang twice.";
+        const plan = "<think>NOW — night, the lighthouse, Mira and Ash. SEAL — Ash stepped in. MINDS — Mira wary, hopeful. MOVE — she offers tea. VOICE — short, quiet.</think>\n\n";
+        if (n % 2 === 0) return sse([...`${plan}Mira sets the kettle down.`.match(/[\s\S]{1,24}/g)!.map((c) => ({ choices: [{ delta: { content: c } }] })), { choices: [{ delta: {}, finish_reason: "stop" }] }, "[DONE]"]);
+        const line = (content: string) => new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
+        // Pulled in stages: a stream that sleeps inside start() isn't sent until start() ends.
+        let stage = 0;
+        return new Response(
+          new ReadableStream({
+            async pull(c) {
+              if (stage++ === 0) return c.enqueue(line(`<story>${story.slice(0, 30)}`));
+              await Bun.sleep(1200);
+              try {
+                c.enqueue(line(story.slice(30)));
+                c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}
+
+data: [DONE]
+
+`));
+                c.close();
+              } catch {
+                // The plan watch stopped this try.
+              }
+            },
+          }),
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      }
       if (body.model === "neverplans") {
         // A model that never plans on its own: only a "plan only" request gets a plan (and then a story it shouldn't write).
         const planAsked = JSON.stringify(body.messages.at(-1)).includes("[PLAN ONLY");
@@ -489,6 +518,23 @@ describe("sending (H8, C2, H3)", () => {
     expect(bodies[1]!.request).toContain("[PLAN ONLY");
     expect(bodies[2]!.request).toContain("<director-plan>");
   });
+
+  test("the words of a stopped try never reach the next request as the story's newest message", async () => {
+    const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    setSetting("routing.story", createProfile({ name: "Slow skip", connectionId: conn, modelId: "slowskip", params: {} }));
+    const chatId = newChat();
+    counts.delete("slowskip");
+    const end = waitFor((e) => e.type === "gen.end" && (e as any).chatId === chatId, 15000);
+    expect((await api("POST", `/api/chats/${chatId}/send`, { content: "I step inside." })).status).toBe(200);
+    expect(((await end) as any).status).toBe("done");
+    const bodies = all<{ request: string; kind: string }>("SELECT request, kind FROM generations WHERE chat_id = ? AND task = 'story' ORDER BY started_at", chatId);
+    expect(bodies.map((b) => b.kind)).toEqual(["new", "plan", "new"]);
+    expect(bodies[1]!.request).not.toContain("The rain had not stopped");
+    expect(bodies[2]!.request).not.toContain("The rain had not stopped");
+    const reply = all<{ content: string }>("SELECT s.content FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
+    expect(reply.content.startsWith("The rain had not stopped")).toBe(true);
+  }, 20000);
 
   test("a model that keeps skipping its plan plans first, and the plan step stops at </think>", async () => {
     const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });

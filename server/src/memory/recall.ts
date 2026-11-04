@@ -2,21 +2,21 @@ import { all, parseJson } from "../db/db";
 import type { MemoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 import { type AtomRow, sourcesLive } from "./atoms";
-import { deepSearch, RECALL_CUE } from "./deep";
+import { deepSearch, excerpt, RECALL_CUE } from "./deep";
 import { chatVectors, cosine } from "./embed";
 import { core, entityCard, entityFacts, genericPlace, norm, resolver, type EntityRow } from "./entities";
 import type { RecallItem, TimeIndex } from "./format";
 import type { SummaryRow } from "./store";
 import { type Lens, memoryText, PLAIN, summaryText } from "./openlist";
-import { contentWords, ftsQuery, overlap } from "./text";
+import { contentWords, ftsQuery, namedTerms, overlap } from "./text";
 
 /**
  * Recall (Phase 3). Candidates are filtered by point of view before anything is ranked (MEM-16),
  * then scored from several queries at once (MEM-14): keywords, meaning, the entities in play,
  * importance, emotion and the current mood (MEM-18), and how often replies actually used a
  * memory (MEM-19). The librarian's verdict, when it's ready, sharpens the list (MEM-23).
- * Slots: pinned → entity cards (MEM-17) → recent → relevant with diversity (MEM-15) →
- * serendipity → quotes found by deep search (MEM-22).
+ * Slots: pinned → names just used → entity cards (MEM-17) → recent → relevant with diversity
+ * (MEM-15) → serendipity → quotes found by deep search (MEM-22).
  */
 
 export interface QuerySpec {
@@ -137,6 +137,54 @@ function seededRandom(seed: string) {
     h = Math.imul(h ^ (h >>> 13), 3266489909);
     return ((h ^= h >>> 16) >>> 0) / 4294967296;
   };
+}
+
+/** How much of the recall budget a name just used can take. */
+const NAMED_SHARE = 0.15;
+/** A name in more memories than this is a regular, already well served by the other signals. */
+const NAMED_MEMORIES = 8;
+/** A word in more old messages than this, with no memory of its own, isn't one worth quoting. */
+const NAMED_MESSAGES = 12;
+const NAMED_TERMS = 24;
+
+/**
+ * The records behind the names in the newest lines. Each name gets two memories at most, the first and
+ * the latest (who first heard it, and who knows now), facts ahead of events: a thread named after the
+ * word ("Resolved: Brongel…") holds the word without saying anything about it. A name no memory holds
+ * gets the message it first appears in, since a detail that was never filed is still on the page.
+ */
+function namedRecords(chatId: string, text: string, evicted: number, atomById: Map<string, AtomRow>) {
+  const memories: { term: string; keys: string[]; held: number }[] = [];
+  const quotes: { term: string; messageId: string; seq: number; speaker: string; excerpt: string }[] = [];
+  for (const { term, proper } of namedTerms(text).slice(0, NAMED_TERMS)) {
+    const fts = `"${term.replaceAll('"', "")}"`;
+    const hits = all<{ id: string }>("SELECT id FROM memories_fts WHERE memories_fts MATCH ? AND chat_id = ? LIMIT ?", fts, chatId, NAMED_MEMORIES + 1);
+    if (hits.length > NAMED_MEMORIES) continue;
+    const held = hits.map((h) => atomById.get(h.id)).filter((a): a is AtomRow => Boolean(a));
+    if (held.length) {
+      const facts = held.filter((a) => a.type === "fact");
+      const pick = (facts.length ? facts : held).sort((a, b) => (a.max_seq ?? 0) - (b.max_seq ?? 0));
+      memories.push({ term, held: held.length, keys: [...new Set([pick[0]!, pick.at(-1)!])].map((a) => `memory:${a.id}`) });
+      continue;
+    }
+    // Held by memories this point of view can't see, or still in the window: not for quoting. Nor is a
+    // word only set apart in quotes: "Comfortable." isn't a name, and most of the page would qualify.
+    if (hits.length || !proper) continue;
+    const said = all<{ id: string; seq: number; name: string | null; role: string; content: string }>(
+      `SELECT m.id, m.seq, m.name, m.role, s.content FROM swipes_fts f JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
+       WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq <= ? AND m.deleted_at IS NULL AND m.hidden = 0 ORDER BY m.seq LIMIT ?`,
+      fts,
+      chatId,
+      evicted,
+      NAMED_MESSAGES + 1,
+    );
+    const first = said[0];
+    if (!first || said.length > NAMED_MESSAGES) continue;
+    quotes.push({ term, messageId: first.id, seq: first.seq, speaker: first.name ?? (first.role === "user" ? "You" : first.role), excerpt: excerpt(first.content, new Set([term]), 240) });
+  }
+  // The rarest names first, in case they don't all fit.
+  memories.sort((a, b) => a.held - b.held);
+  return { memories, quotes: quotes.slice(0, 2) };
 }
 
 export function recall(input: RecallInput) {
@@ -341,8 +389,36 @@ export function recall(input: RecallInput) {
     return used;
   };
 
-  const rest = Math.max(0, budget - pinnedTokens);
+  let rest = Math.max(0, budget - pinnedTokens);
   let carry = 0;
+
+  // A name just used comes first. What the few memories holding it say is the likeliest thing here to
+  // be contradicted, and no other signal finds them reliably (#792: "Brongel", in two memories).
+  const names = rest > 60 ? namedRecords(chatId, strongText, evicted, atomById) : { memories: [], quotes: [] };
+  const namedCap = rest * NAMED_SHARE;
+  let namedUsed = 0;
+  for (const n of names.memories) namedUsed += take(n.keys, "relevant", namedCap - namedUsed, `names "${n.term}"`);
+  for (const q of names.quotes) {
+    const content = `${q.speaker} (#${q.seq}): "${q.excerpt}"`;
+    const tokens = countTokens(content) + 8;
+    if (namedUsed + tokens > namedCap) continue;
+    out.push({
+      ownerType: "quote",
+      id: q.messageId,
+      type: "quote",
+      content,
+      slot: "deep",
+      score: 1,
+      reasons: [`the first mention of "${q.term}"`],
+      tokens,
+      seq: q.seq,
+      when: input.times.when(q.seq, null),
+      where: input.times.where(null, q.seq),
+    });
+    namedUsed += tokens;
+    stats.deep++;
+  }
+  rest = Math.max(0, rest - namedUsed);
 
   // Entity slot (MEM-17): who and what is in play, with their top facts.
   if (cfg.entityRecall && rest > 60) {
