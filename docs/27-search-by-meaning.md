@@ -1,6 +1,6 @@
 # Design plan: search by meaning (what vectors can still do for recall)
 
-**Written:** November 5, 2026 · **Base:** `origin/main` at d752319, which includes the recall rebalance (#255) · **Status:** being built. Parts 1 to 3 done (see their results)
+**Written:** November 5, 2026 · **Base:** `origin/main` at d752319, which includes the recall rebalance (#255) · **Status:** Parts 1 to 4 done (see their results); Part 5 waits on a point-of-view answer
 
 Mea already searches by meaning. Memories, summaries and song passages have vectors, recall fuses them with keywords, and the eval from docs/26 Part 4 can score any change. This plan covers what's left. The biggest gain looks like a small fix: recall often finds the right memory and then fails to use it.
 
@@ -160,6 +160,19 @@ The standout over these turns: 10th percentile 2.14 sd, median 2.54. In the seco
 The risk is that names pull every memory about a regular together. Test on a copy, and ship only if it beats Part 2's result.
 
 **4.2 Split long queries.** Expect little: the newest message has a median of 392 characters, and only the longest reach the 1,600 cap. Try splitting past about 800 characters, and keep it only if the score moves, because it costs more tokens every turn.
+
+### Part 4 results (November 5): neither ships
+
+**4.1, names and scene in the vector.** Tested on a second copy: each memory embedded as "names · scene title", then its text, which re-embedded 2,058 memories in both chats for about 110,000 tokens. Against Part 2 and 3 as built:
+
+| | Writer: earlier / independent | Planner: earlier / independent |
+|---|---|---|
+| Bare text (shipped) | 34 / 20 | 33 / 18 |
+| With names and scene | 34 / 21 | 33 / 19 |
+
+That's one case each, made of churn: the writer gains #401, #431 and #740 and loses #161 and #613, and the planner gains and loses much the same. The vectors also bunch up as feared (the median standout falls from 2.54 to 2.34 sd), which would shift Part 3's threshold too. It doesn't clearly beat Part 2, so it stays out. The change is one function in `embed.ts` (`memoryEmbedText`) if a later model or a bigger test set calls for another look.
+
+**4.2, splitting long queries.** Only 5 of the 61 case turns have a newest message over 800 characters (median 385). Split there with each part keeping the message's full weight, nothing moves; with the weight shared among the parts, the writer loses 4 cases and the planner 4. It stays out.
 
 ---
 
