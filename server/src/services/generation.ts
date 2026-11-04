@@ -82,6 +82,8 @@ const CONTINUE_HOLD = 160;
 export const TRACKER_WAIT_MS = 6000;
 /** M18: the longest Retry-After Mea waits before its one quick retry. */
 const RETRY_AFTER_CAP_MS = 30_000;
+/** H3: the retry after a length error is at most this share of the prompt that failed, or it shrinks again. */
+const OVERFLOW_RETRY_SHARE = 0.9;
 
 /** M17: a leading <think>…</think> block (inline reasoning from OpenAI-style routes) moves out of the story. */
 export function splitThink(text: string): { text: string; reasoning: string } {
@@ -1325,16 +1327,21 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           // H3: always smaller than the prompt that failed, whether or not a limit was learned. The
           // history window evicts in chunks and remembers where it cut, so a first try already near
           // its floor can come back the same size at 0.75: keep shrinking until it really is smaller.
+          // Really: two builds of the same prompt differ by a few tokens anyway (the craft lane's
+          // technique changes once the reply's row exists), which isn't room the provider will accept.
           const failedSize = p.assembled.estPromptTokens;
+          let smallest: Prepared | null = null;
           for (const targetScale of [0.75, 0.55, 0.4]) {
-            p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", {
+            const next: Prepared = await prepare(gen.chatId, action === "continue" ? "continue" : "story", {
               excludeMessageId: action === "swipe" ? gen.messageId : undefined,
               feedback,
               profileId: p.resolved.profile.id,
               targetScale,
             });
-            if (p.assembled.estPromptTokens < failedSize) break;
+            if (!smallest || next.assembled.estPromptTokens < smallest.assembled.estPromptTokens) smallest = next;
+            if (next.assembled.estPromptTokens <= failedSize * OVERFLOW_RETRY_SHARE) break;
           }
+          p = smallest!;
           notes.push("prompt shrunk after a length error");
           requestId = requestFor(p, { chatId: gen.chatId, messageId: gen.messageId, kind: action });
           continue;
