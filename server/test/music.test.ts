@@ -102,10 +102,17 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     musicAfterReply(chatId, again);
     await flush();
     expect(sent.filter((s) => s.path === "/command").length).toBe(cmds.length);
-    // A new scene: it changes.
+    // A new scene with a new mood, and a romance step: the song still plays to its end.
     const next = addMessage(chatId, "assistant", "Morning on the harbour.", { name: "Mira" });
-    writeEvents(chatId, { messageId: next, swipeIdx: 0 }, linesToOps(["scene: The harbour", "clock: Day 2 09:00", "cast: Spike@off", "mood Mira: furious"]).ops, "model");
+    writeEvents(chatId, { messageId: next, swipeIdx: 0 }, linesToOps(["scene: The harbour", "clock: Day 2 09:00", "cast: Spike@off", "mood Mira: furious", "ladder Mira>Spike: 3 — she stays"]).ops, "model");
     musicAfterReply(chatId, next);
+    await flush();
+    expect(sent.filter((s) => s.path === "/command").length).toBe(cmds.length);
+    expect(chatMusicView(chatId).now?.title).toBe("Now Playing Song");
+    // A death, under a song that doesn't suit it: it changes.
+    const death = addMessage(chatId, "assistant", "Spike falls.", { name: "Mira" });
+    writeEvents(chatId, { messageId: death, swipeIdx: 0 }, linesToOps(["dead Spike — fell"]).ops, "model");
+    musicAfterReply(chatId, death);
     await flush();
     expect(sent.filter((s) => s.path === "/command").length).toBe(cmds.length + 1);
     expect(chatMusicView(chatId).now?.title).toBe("Fight Song");
@@ -147,8 +154,17 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     sent.length = 0;
     await musicTick();
     expect(sent.filter((x) => x.path === "/command")).toEqual([]);
-    // Ended and stopped (the Companion Server has no queue to line it up in): the next song plays.
-    player = { trackState: 0, videoProgress: 200 };
+    // Near the end, but more than one look away: still nothing.
+    player = { trackState: 1, videoProgress: 190 };
+    await musicTick();
+    expect(sent.filter((x) => x.path === "/command")).toEqual([]);
+    // Paused in its last seconds: it waits for you.
+    player = { trackState: 0, videoProgress: 197 };
+    await musicTick();
+    expect(sent.filter((x) => x.path === "/command")).toEqual([]);
+    // In its last moment, still playing (the Companion Server has no queue to line it up in):
+    // the next song starts now, before the app can go on to one of its own.
+    player = { trackState: 1, videoProgress: 199.6 };
     await musicTick();
     const cmds = sent.filter((x) => x.path === "/command");
     expect(cmds.length).toBe(1);
@@ -159,6 +175,12 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     // The next song is picked for where the story is now, not where the scene began.
     const last = one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? AND role = 'assistant' ORDER BY seq DESC LIMIT 1", chatId)!;
     expect(chatMusicView(chatId).moment?.key.startsWith(`${last.id}|`)).toBe(true);
+    // Ended and stopped, if the last look came too late: the next song plays too.
+    playing = { id: next.videoId, title: next.title, author: next.artist, durationSeconds: 200 };
+    player = { trackState: 0, videoProgress: 200 };
+    sent.length = 0;
+    await musicTick();
+    expect(sent.filter((x) => x.path === "/command").length).toBe(1);
     // Something you put on yourself is left alone.
     playing = { id: "zzzzzzzzzzz", title: "Mine", author: "Me", durationSeconds: 100 };
     player = { trackState: 0, videoProgress: 100 };
