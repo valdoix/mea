@@ -6,7 +6,7 @@ describe("places", () => {
   test("every kind of place is listed once", () => {
     const ids = PLACES.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(109);
+    expect(ids.length).toBe(129);
   });
 
   test.each([
@@ -65,10 +65,21 @@ describe("places", () => {
     [["The townhouse"], "living"],
     [["The bungalow"], "living"],
     [["The old house"], "living"],
-    [["The beach house"], "living"],
-    [["The trailer"], "cabin"],
-    [["The houseboat"], "shipcabin"],
-    [["The dorm"], "bedroom"],
+    [["The beach house"], "beachhouse"],
+    [["The trailer"], "trailer"],
+    [["The houseboat"], "houseboat"],
+    [["The dorm"], "dorm"],
+    [["The cottage"], "cottage"],
+    [["the wine cellar"], "winecellar"],
+    [["the crawlspace"], "crawlspace"],
+    [["the playroom"], "playroom"],
+    [["the sewing room"], "craftroom"],
+    [["the sauna"], "sauna"],
+    [["the dressing room"], "dressing"],
+    [["the long gallery"], "longgallery"],
+    [["the atrium"], "atrium"],
+    [["the screened porch"], "screenporch"],
+    [["the secret room"], "hiddenroom"],
     // Nor is a room in one.
     [["the foyer"], "foyer"],
     [["the hallway"], "hallway"],
@@ -89,8 +100,8 @@ describe("places", () => {
     [["The hotel", "the bathroom"], "bathroom"],
     [["the upstairs corridor"], "hallway"],
     [["the garage"], "garage"],
-    [["the patio"], "meadow"],
-    [["Jackie's house", "the backyard"], "meadow"],
+    [["the patio"], "patio"],
+    [["Jackie's house", "the backyard"], "patio"],
     // Rooms the broad "room" rule made into bedrooms.
     [["the media room"], "hometheater"],
     [["the screening room"], "hometheater"],
@@ -98,9 +109,9 @@ describe("places", () => {
     [["the rec room"], "recroom"],
     [["the music room"], "musicroom"],
     [["the great room"], "greatroom"],
-    [["the trophy room"], "living"],
+    [["the trophy room"], "trophyroom"],
     [["the boiler room"], "basement"],
-    [["the panic room"], "cellar"],
+    [["the panic room"], "panicroom"],
     // Named for what they are, wherever they are.
     [["the home theater"], "hometheater"],
     [["the home bar"], "homebar"],
@@ -123,7 +134,7 @@ describe("places", () => {
     [["Jackie's house", "the billiard room"], "gameroom"],
     [["Jackie's house", "the bar"], "homebar"],
     [["Jackie's house", "the laundry"], "laundryroom"],
-    [["Jackie's house", "the sickroom"], "bedroom"],
+    [["Jackie's house", "the sickroom"], "sickroom"],
     [["Jackie's house", "the hall"], "hallway"],
     [["Jackie's house", "the deck"], "porch"],
     [["The mansion", "the ballroom"], "hall"],
@@ -135,6 +146,9 @@ describe("places", () => {
     [["Castle hallway"], "hallway"],
     [["The abbey", "the stairs"], "staircase"],
     [["Winterfell", "the closet"], "closet"],
+    [["The woods", "the cottage"], "cottage"],
+    [["Greenwich Village"], "village"],
+    [["The farm"], "village"],
     [["Winterfell", "the rec room"], "cellar"],
     [["Winterfell", "the home gym"], "homegym"],
     [["Jackie's house", "the dining room"], "dining"],
@@ -181,6 +195,7 @@ describe("homes", () => {
     [["Winterfell", "the solar"], "winterfell", "old"],
     [["The Lannister manor", "kitchen"], "the lannister manor", "old"],
     [["The trailer", "bedroom"], "the trailer", "humble"],
+    [["The cottage", "the den"], "the cottage", "modern"],
     [["The woods", "the cabin", "bed"], "the cabin", "modern"],
   ] as const)("%p is %s, %s", (path, house, style) => {
     expect(readHome([...path])).toEqual({ house, style });

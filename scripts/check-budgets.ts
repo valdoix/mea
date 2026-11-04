@@ -14,7 +14,8 @@ const refs = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g)]
 // then from 260 KB for eight more rooms (their names, swatches and loaders; the rest loads when shown),
 // then from 265 KB for the scene window's 45 painted places, which now ride above the newest reply,
 // then from 300 KB for thirty more places (homes, pools, vehicles and Almanac's rooms) and headroom.
-const BUDGET_JS = 400 * 1024;
+// then from 400 KB for the 54 rooms of the house (docs/24) and headroom.
+const BUDGET_JS = 450 * 1024;
 // Raised from 60 KB for the visual toolkit (styles/vtk.css), which has to be there on first paint,
 // then from 72 KB for the plan drawer above every reply.
 const BUDGET_CSS = 76 * 1024;

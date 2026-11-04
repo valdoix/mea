@@ -50,6 +50,7 @@ import {
   type Shim,
 } from "./scenes";
 import { HOME_SCENES } from "./homescenes";
+import { LAST_HOMES } from "./lasthomes";
 import { MORE_HOMES } from "./morehomes";
 import { clock, drapes, ellipse, grid, lampsOn, none, pick, rr, shut, steam, time } from "./scenebits";
 
@@ -3061,7 +3062,7 @@ const MORE = {
   alchemy,
 } satisfies Partial<Record<Place, (c: Ctx) => Scene>>;
 
-const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES };
+const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES };
 
 export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean, home: Home | null = null): Scene {
   const dress = home ? dressHome(home) : null;

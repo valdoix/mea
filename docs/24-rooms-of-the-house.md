@@ -1,6 +1,6 @@
 # Design plan: the rooms of the house (richer scene plates)
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** Parts 1–5 built (painted plates, the reader knowing a house, house identity, and the first 34 rooms). Part 6 proposed.
+**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** built (2026-11-04), PRs #232–#236 and the Wave 3 PR. All 54 rooms are painted, for 129 kinds in all.
 
 Stories spend most of their time inside houses, and that is where the scene art is thinnest. This plan makes every plate draw the room the story is really in, adds 54 kinds of home location, and makes the rooms of one house look like they belong together.
 
@@ -275,17 +275,6 @@ One PR per part.
 
 The hour and weather details in §2.3 ship with each room rather than as a part of their own. Part 2's mappings get pointed at the real kinds as each wave lands.
 
-**What still reads as a stand-in, until its room is painted (the first 34 rooms now read as themselves):**
-
-| Written in the story | Reads as |
-|---|---|
-| A named home: mansion, villa, penthouse, townhouse, bungalow, beach house | `living` |
-| Trailer or RV / houseboat / dorm | `cabin` / `shipcabin` / `bedroom` |
-| Craft, sewing, trophy or play room | `living` |
-| Panic room, secret room | `cellar` |
-| Patio, backyard | `meadow` |
-| A sickroom inside a home | `bedroom` |
-
 ---
 
 ## 6. Not in this plan
@@ -296,8 +285,8 @@ The hour and weather details in §2.3 ship with each room rather than as a part 
 - **New story data:** everything comes from `at:`, the clock and weather. The model doesn't need to learn the kind names, and the prompt doesn't change.
 - **More outdoor or public places:** later, if you want them. They'd use the same system.
 
-## 7. Decisions for you
+## 7. Decisions
 
 1. **Plate style (§2.1). Decided November 4, 2026: option A, painted plates.** This gives up the flat silhouette look.
-2. **Wave 1 (§5).** Are those the right first 14?
-3. **Part 2 before new art?** I put reader fixes first because they're cheap and visible straight away. If you'd rather see new rooms sooner, Parts 2 and 3 can follow Wave 1, but those rooms would then be painted without `HomeDress` and need a second pass.
+2. **Wave 1 (§5).** Built as listed.
+3. **Part 2 before new art?** Yes: built in the order above.
