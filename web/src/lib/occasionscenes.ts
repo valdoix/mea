@@ -1448,7 +1448,7 @@ const STAGE_PLACE: Record<Occasion, { old: Place; modern: Place }> = {
   festival: { old: "market", modern: "city" },
   coronation: { old: "hall", modern: "temple" },
   contest: { old: "camp", modern: "city" },
-  execution: { old: "street", modern: "street" },
+  execution: { old: "bailey", modern: "street" },
   midwinter: { old: "hall", modern: "living" },
   newborn: { old: "masterbedroom", modern: "nursery" },
   honours: { old: "hall", modern: "meadow" },

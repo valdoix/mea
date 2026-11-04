@@ -7,7 +7,7 @@ describe("places", () => {
   test("every kind of place is listed once", () => {
     const ids = PLACES.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(140);
+    expect(ids.length).toBe(148);
   });
 
   test.each([
@@ -51,7 +51,7 @@ describe("places", () => {
     [["Backyard", "treehouse"], "treehouse"],
     [["The USS Dallas", "submarine"], "submarine"],
     [["Mission control", "the lab"], "lab"],
-    [["Winterfell", "the godswood"], "forest"],
+    [["Winterfell", "the godswood"], "godswood"],
     [["Somewhere"], "hills"],
   ] as const)("%p reads as %s", (path, kind) => {
     expect(readPlace([...path])).toBe(kind);
@@ -203,12 +203,12 @@ describe("Westeros", () => {
     [["Harrenhal", "the Great Hall"], "hall"],
     [["Harrenhal", "the armory"], "forge"],
     [["Harrenhal", "the barracks"], "tavern"],
-    [["Harrenhal", "the rookery"], "attic"],
-    [["Harrenhal", "the walls"], "rooftops"],
+    [["Harrenhal", "the rookery"], "rookery"],
+    [["Harrenhal", "the walls"], "battlements"],
     [["Harrenhal", "the gates"], "castle"],
     [["Harrenhal", "the dungeons"], "dungeon"],
     [["Harrenhal", "the kitchens"], "kitchen"],
-    [["Harrenhal", "Lord Bolton's solar"], "study"],
+    [["Harrenhal", "Lord Bolton's solar"], "solar"],
     [["Harrenhal", "the tourney field"], "camp"],
     [["Harrenhal", "the Gods Eye"], "lake"],
     [["the Gods Eye"], "lake"],
@@ -247,8 +247,8 @@ describe("Westeros", () => {
     [["King's Landing", "the Red Keep", "the Iron Throne"], "throneroom"],
     [["King's Landing", "the Red Keep", "the Queen's Ballroom"], "ballroom"],
     [["King's Landing", "the Red Keep", "the small council chamber"], "dining"],
-    [["King's Landing", "the Red Keep", "the Tower of the Hand"], "study"],
-    [["King's Landing", "the Red Keep", "the Hand's solar"], "study"],
+    [["King's Landing", "the Red Keep", "the Tower of the Hand"], "solar"],
+    [["King's Landing", "the Red Keep", "the Hand's solar"], "solar"],
     [["King's Landing", "the Red Keep", "the White Sword Tower"], "roundroom"],
     [["King's Landing", "the Red Keep", "the Round Room"], "roundroom"],
     [["King's Landing", "the Red Keep", "Maegor's Holdfast"], "holdfast"],
@@ -259,22 +259,22 @@ describe("Westeros", () => {
     [["King's Landing", "the Red Keep", "the river stairs"], "staircase"],
     [["King's Landing", "the Red Keep", "the dragon skulls"], "skullcellar"],
     [["King's Landing", "the Red Keep", "the Black Cells"], "dungeon"],
-    [["King's Landing", "the Red Keep", "the outer ward"], "street"],
+    [["King's Landing", "the Red Keep", "the outer ward"], "bailey"],
     [["King's Landing", "the Red Keep", "the Queen's apartments"], "masterbedroom"],
-    [["King's Landing", "the Red Keep", "the royal sept"], "chapel"],
-    [["King's Landing", "the Red Keep", "the godswood"], "forest"],
-    [["King's Landing", "the Red Keep", "the Grand Maester's chambers"], "alchemy"],
+    [["King's Landing", "the Red Keep", "the royal sept"], "sept"],
+    [["King's Landing", "the Red Keep", "the godswood"], "godswood"],
+    [["King's Landing", "the Red Keep", "the Grand Maester's chambers"], "maester"],
   ] as const)("King's Landing: %p reads as %s", (path, kind) => {
     expect(readPlace([...path])).toBe(kind);
   });
 
   test.each([
-    ["the rookery", "attic"],
+    ["the rookery", "rookery"],
     ["the mews", "stable"],
     ["the armoury", "forge"],
     ["the armorer's forge", "forge"],
-    ["the maester's turret", "alchemy"],
-    ["the maester's chambers", "alchemy"],
+    ["the maester's turret", "maester"],
+    ["the maester's chambers", "maester"],
     ["the guardroom", "tavern"],
     ["the guard hall", "tavern"],
     ["the buttery", "cellar"],
@@ -291,14 +291,14 @@ describe("Westeros", () => {
     ["the broken tower", "attic"],
     ["the library tower", "library"],
     ["the bell tower", "rooftops"],
-    ["the training yard", "camp"],
+    ["the training yard", "trainingyard"],
     ["the tiltyard", "camp"],
     ["the lists", "camp"],
-    ["the yard", "street"],
-    ["the courtyard", "street"],
-    ["the well", "street"],
-    ["the battlements", "rooftops"],
-    ["the ramparts", "rooftops"],
+    ["the yard", "bailey"],
+    ["the courtyard", "bailey"],
+    ["the well", "bailey"],
+    ["the battlements", "battlements"],
+    ["the ramparts", "battlements"],
     ["the gatehouse", "castle"],
     ["the portcullis", "castle"],
     ["the postern", "castle"],
@@ -316,7 +316,7 @@ describe("Westeros", () => {
     ["the minstrels' gallery", "hall"],
     ["the guest house", "bedroom"],
     ["the lady's chambers", "masterbedroom"],
-    ["the sept", "chapel"],
+    ["the sept", "sept"],
     ["the wardrobe", "closet"],
   ] as const)("a castle's rooms: %s reads as %s", (room, kind) => {
     expect(readPlace(["Winterfell", room])).toBe(kind);
@@ -346,14 +346,14 @@ describe("Westeros", () => {
     [["the Rock"], "hills", "castle"],
     [["the tower"], "hills", "attic"],
     [["the armory"], "hills", "forge"],
-    [["the yard"], "hills", "street"],
-    [["the rookery"], "hills", "attic"],
-    [["the outer ward"], "hospital", "street"],
+    [["the yard"], "hills", "bailey"],
+    [["the rookery"], "hills", "rookery"],
+    [["the outer ward"], "hospital", "bailey"],
     [["the kitchen"], "homekitchen", "kitchen"],
     [["the office"], "office", "study"],
     [["the hospital"], "hospital", "sickroom"],
     [["the sept"], "temple", "temple"],
-    [["Harrenhal", "the wall"], "rooftops", "rooftops"],
+    [["Harrenhal", "the wall"], "battlements", "battlements"],
     [["Somewhere"], "hills", "hills"],
   ] as const)("%p is %s in another story and %s in Westeros", (path, plain, westeros) => {
     expect(readPlace([...path])).toBe(plain);

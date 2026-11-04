@@ -50,6 +50,7 @@ import {
   type Shim,
 } from "./scenes";
 import { HOME_SCENES } from "./homescenes";
+import { CASTLE_ROOMS } from "./castlerooms";
 import { KEEP_SCENES } from "./keepscenes";
 import type { SceneOccasion } from "./occasions";
 import { dressScene, stagePainted, stagePlace } from "./occasionscenes";
@@ -3066,7 +3067,7 @@ const MORE = {
   alchemy,
 } satisfies Partial<Record<Place, (c: Ctx) => Scene>>;
 
-const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES, ...SEAT_SCENES };
+const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES, ...SEAT_SCENES, ...CASTLE_ROOMS };
 
 export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean, home: Home | null = null, occasion: SceneOccasion | null = null): Scene {
   const dress = home ? dressHome(home) : null;
