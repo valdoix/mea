@@ -151,6 +151,8 @@ interface Variant {
   cfg?: Partial<MemoryConfig>;
   scale?: number;
   vectors?: boolean;
+  /** How many closest-in-meaning memories get a slot of their own (recall's default when unset). */
+  closest?: number;
 }
 
 function run(t: Turn, v: Variant, budget?: number) {
@@ -171,6 +173,7 @@ function run(t: Turn, v: Variant, budget?: number) {
     times,
     skipCards,
     povName,
+    closest: v.closest,
   }).items;
 }
 
@@ -214,7 +217,7 @@ console.log(`${set.chatId.slice(0, 8)} as ${povName}: ${turns.length} cases${dro
 const kindNames = [...new Set(turns.map((t) => t.c.kind))];
 const groupNames = ["earlier", "independent"].filter((g) => turns.some((t) => groupOf(t.c) === g));
 const pct = (a: number, b: number) => `${Math.round((100 * a) / (b || 1))}%`;
-const short = (i: RecallItem) => `${i.ownerType === "memory" ? i.id.slice(0, 8) : i.ownerType}: ${i.content.replace(/\s+/g, " ").slice(0, 110)}`;
+const short = (i: RecallItem) => `[${i.slot}] ${i.ownerType === "memory" ? i.id.slice(0, 8) : i.ownerType}: ${i.content.replace(/\s+/g, " ").slice(0, 110)}`;
 
 for (const [label, budget] of [["writer", undefined], ["planner (2,500 tokens)", 2500]] as const) {
   console.log(`\n== ${label}`);
@@ -237,7 +240,7 @@ for (const [label, budget] of [["writer", undefined], ["planner (2,500 tokens)",
         const added = [...after.values()].filter((i) => !before.has(i.id));
         const out = [...before.values()].filter((i) => !after.has(i.id));
         if (!added.length && !out.length) return;
-        console.log(`    #${t.c.seq} ${t.c.why}`);
+        console.log(`    #${t.c.seq} ${t.c.why} (${baseBlocks![n]!.length} items, now ${s.blocks[n]!.length})`);
         for (const i of added) console.log(`      + ${short(i)}`);
         for (const i of out) console.log(`      - ${short(i)}`);
       });

@@ -58,6 +58,8 @@ export interface RecallInput {
   povName: string | null;
   /** How old records read now: dated, and without what's been done since. */
   lens?: Lens;
+  /** How many memories closest in meaning to the strongest query get in on their own (docs/27 2). */
+  closest?: number;
 }
 
 export interface RecallStats {
@@ -152,6 +154,16 @@ const NAMED_MEMORIES = 8;
 /** A word in more old messages than this, with no memory of its own, isn't one worth quoting. */
 const NAMED_MESSAGES = 12;
 const NAMED_TERMS = 24;
+/**
+ * docs/27 Part 2: the memories closest in meaning to your draft or the newest message. Fusing four
+ * queries let a memory fairly close to all of them outrank one very close to the newest alone, so the
+ * closest few get a share of their own. Memories only: a summary costs as much as several.
+ */
+const CLOSEST = 5;
+const CLOSEST_SHARE = 0.15;
+/** Fewer content words than this ("OK.") and the message has no real nearest neighbour. */
+const CLOSEST_MIN_WORDS = 3;
+const NEVER_USED = "recalled often, never used";
 
 /**
  * The records behind the names in the newest lines. Each name gets two memories at most, the first and
@@ -444,6 +456,25 @@ export function recall(input: RecallInput) {
   }
   rest = Math.max(0, rest - namedUsed);
 
+  // The closest in meaning to the strongest query, before anything else can crowd them out.
+  const closest = input.closest ?? CLOSEST;
+  const strongest = input.queries[0];
+  const sv = input.qvecs[0];
+  if (closest > 0 && sv && strongest && rest > 60 && contentWords(strongest.text).size >= CLOSEST_MIN_WORDS) {
+    const near: { key: string; sim: number }[] = [];
+    for (const a of atoms) {
+      const v = vectors.get(`memory:${a.id}`);
+      // One the replies keep passing over would come back every turn, past the fade that drops it.
+      if (!v || (cfg.reinforcement && reinforcement(a, evicted).note === NEVER_USED)) continue;
+      near.push({ key: `memory:${a.id}`, sim: cosine(sv, v) });
+    }
+    near.sort((a, b) => b.sim - a.sim);
+    const cap = rest * CLOSEST_SHARE;
+    let used = 0;
+    for (const n of near.slice(0, closest)) used += take([n.key], "relevant", cap - used, `closest in meaning ${n.sim.toFixed(2)} (${strongest.label})`);
+    rest = Math.max(0, rest - used);
+  }
+
   // Entity slot (MEM-17): who and what is in play, with their top facts.
   if (cfg.entityRecall && rest > 60) {
     const cap = rest * 0.2;
@@ -536,9 +567,11 @@ export function recall(input: RecallInput) {
   }
   carry = relevantCap - usedRel;
 
-  const rand = seededRandom(input.seed);
+  // Each memory draws its own number for the turn, so the draw doesn't reshuffle whenever another slot
+  // takes something different (and a change elsewhere can be compared without this noise).
+  const draw = (id: string) => seededRandom(`${input.seed}:${id}`)();
   const old = atoms.filter((a) => a.importance >= 6 && (a.max_seq ?? 0) < evicted - 40 && !chosen.has(`memory:${a.id}`));
-  const serPool = old.map((a) => ({ k: `memory:${a.id}`, r: rand() * (cfg.reinforcement ? reinforcement(a, evicted).weight : 1) })).sort((a, b) => b.r - a.r).map((x) => x.k);
+  const serPool = old.map((a) => ({ k: `memory:${a.id}`, r: draw(a.id) * (cfg.reinforcement ? reinforcement(a, evicted).weight : 1) })).sort((a, b) => b.r - a.r).map((x) => x.k);
   const serCap = (after * share.serendipity) / totalShare + carry;
   carry = serCap - take(serPool, "serendipity", serCap, "a callback from long ago");
 
