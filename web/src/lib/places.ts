@@ -329,6 +329,17 @@ export const PLACE_GROUPS = [
       { id: "maester", label: "Maester's chambers" },
       { id: "rookery", label: "Rookery" },
       { id: "sept", label: "Castle sept" },
+      { id: "ladysolar", label: "Ladies' solar" },
+      { id: "towerroom", label: "Tower room" },
+      { id: "bathchamber", label: "Bath chamber" },
+      { id: "servantsloft", label: "Servants' quarters" },
+      { id: "infirmary", label: "Infirmary" },
+      { id: "councilroom", label: "Council chamber" },
+      { id: "countingroom", label: "Counting room" },
+      { id: "guardroom", label: "Guardroom" },
+      { id: "armory", label: "Armory" },
+      { id: "washhouse", label: "Wash house" },
+      { id: "buttery", label: "Buttery" },
     ],
   },
   {
@@ -338,6 +349,7 @@ export const PLACE_GROUPS = [
       { id: "bailey", label: "Castle yard" },
       { id: "trainingyard", label: "Training yard" },
       { id: "battlements", label: "Battlements" },
+      { id: "gatehouse", label: "Gatehouse" },
     ],
   },
   {
@@ -510,7 +522,7 @@ const RULES: [Place, RegExp][] = [
 
 /** Somewhere old-world: its kitchen has a hearth and its office is a study. */
 const OLD_WORLD = new RegExp(String.raw`${KEEP.source}|${KINGS_LANDING.source}|abbey|monastery|priory|\binn\b|tavern|\bsept\b|(?<!greenwich |east |west )village|hamlet|\bcroft`);
-export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", laundromat: "kitchen", hometheater: "hall", basement: "cellar", recroom: "cellar", homegym: "hall", penthouse: "hall", studioapt: "bedroom", loft: "attic", teenroom: "bedroom", sunroom: "greenhouse", dorm: "bedroom", panicroom: "cellar", hospital: "sickroom", craftroom: "parlor", gallery: "longgallery" };
+export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "washhouse", laundromat: "washhouse", hometheater: "hall", basement: "cellar", recroom: "cellar", homegym: "hall", penthouse: "hall", studioapt: "bedroom", loft: "attic", teenroom: "bedroom", sunroom: "greenhouse", dorm: "bedroom", panicroom: "cellar", hospital: "infirmary", craftroom: "ladysolar", gallery: "longgallery" };
 
 /** A public kind of place, when the word for it comes inside someone's home: the home bar, not a pub. */
 const HOMELY: Partial<Record<Place, Place>> = { theater: "hometheater", library: "homelibrary", office: "homeoffice", arcade: "gameroom", tavern: "homebar", rooftops: "balcony", laundromat: "laundryroom", hospital: "sickroom", hall: "hallway", deck: "porch" };
@@ -573,7 +585,7 @@ function read(parts: string[], world: World): Place | null {
       if (homely && !STAYS_GRAND.test(part) && !(k === "rooftops" && !/balcon|terrace/.test(part)) && parts.slice(0, i).some((p) => HOME.test(p))) return k === "tavern" && /pool|billiard/.test(part) ? "gameroom" : homely;
       return k;
     }
-    if (inKeep && KEEP_TOWER.test(part)) return "attic";
+    if (inKeep && KEEP_TOWER.test(part)) return "towerroom";
   }
   return null;
 }

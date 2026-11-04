@@ -1,6 +1,6 @@
 # Design plan: Harrenhal, King's Landing and occasions
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–8 built, Part 9 to come.
+**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). All nine parts built.
 
 Follows [docs/24](24-rooms-of-the-house.md), which gave plates one painter and 54 rooms of a house. This plan does two things:
 
@@ -164,7 +164,7 @@ Same rule as docs/24 §2.4: a new kind needs a different silhouette at about 140
 
 ## 3. Every place
 
-**38 new kinds** bring the total from 129 to 167. "Part" is the build order in §7.
+**As built: 35 new kinds and `restored`** take the total from 129 to 165. `pleasurehouse` was dropped, and `lordchamber`, `muralpassage` and `spiralstair` are painted as the castle's `masterbedroom`, `hallway` and `staircase`. The numbering below is the plan's. "Part" is the build order in §7.
 
 ### A. The Red Keep
 
@@ -402,20 +402,7 @@ One PR per part, merged once green, as with docs/24. Occasions come right after 
 | **8. The city (5)** | fleabottom, greatsept, septsteps, dragonpit, tiltyard | King's Landing beyond the Keep |
 | **9. Castle rooms (12)** | ladysolar, towerroom, bathchamber, servantsloft, infirmary, councilroom, countingroom, guardroom, armory, gatehouse, washhouse, buttery | A full working castle |
 
-Part 1's mappings get pointed at the real kinds as each part lands. Until then, each place uses the nearest painting there is, chosen by eye on the contact sheet:
-
-| Place | Painted for now as | Why |
-|---|---|---|
-| Solars, map room, counting room, Tower of the Hand, Round Room | `study` | Repainted in Part 2: a writing table, a lancet and a hearth, not blinds and a skyscraper |
-| Council chamber | `dining` | Long table and a row of chairs |
-| Rookery, tower rooms, servants' quarters | `attic` | Rafters and a round window |
-| Maester's chambers | `alchemy` | Jars, bench, stone wall |
-| Harrenhal's towers, bear pit, Flowstone Yard, Dragonpit | `ruins` | Broken stone against the sky |
-| Yards and wards | `street` | Cobbles between buildings |
-| Training yard, lists, tourney grounds | `camp` | Tents and a fire |
-| Battlements, walls, King's Landing as a whole | `rooftops` | A parapet over a town |
-| Armory | `forge` | Iron and firelight |
-| Guardroom, barracks, brothel | `tavern` | Table, hearth, low light |
+Part 1's mappings moved to the real kinds as each part landed, so nothing in §3 still stands in for another.
 
 **Added in Part 2, at your request: `restored`, the ruins made whole.** It has the same layout as `ruins`, with the colonnade roofed and pedimented and the broken arch closed, so the two read as a before and after. It's a 130th kind in the picker as **Ruins, restored**, and a place reads as it when a ruin's name says *restored*, *rebuilt*, *repaired* or *intact*. The Dragonpit doesn't use it: `dragonpit` has its own whole dome before 130 AC.
 
