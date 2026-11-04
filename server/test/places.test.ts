@@ -7,7 +7,7 @@ describe("places", () => {
   test("every kind of place is listed once", () => {
     const ids = PLACES.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(130);
+    expect(ids.length).toBe(140);
   });
 
   test.each([
@@ -190,16 +190,16 @@ describe("Westeros", () => {
 
   test.each([
     [["Harrenhal"], "castle"],
-    [["Harrenhal", "Kingspyre Tower"], "ruins"],
-    [["Harrenhal", "the Wailing Tower"], "ruins"],
-    [["Harrenhal", "the Tower of Dread"], "ruins"],
-    [["Harrenhal", "the Tower of Ghosts"], "ruins"],
-    [["Harrenhal", "Widow's Tower"], "ruins"],
-    [["Harrenhal", "the Widow's Tower"], "ruins"],
-    [["Harrenhal", "the Flowstone Yard"], "ruins"],
-    [["Harrenhal", "the bear pit"], "ruins"],
-    [["Harrenhal", "the sept"], "ruins"],
-    [["Harrenhal", "the Hall of a Hundred Hearths"], "hall"],
+    [["Harrenhal", "Kingspyre Tower"], "meltedtower"],
+    [["Harrenhal", "the Wailing Tower"], "meltedtower"],
+    [["Harrenhal", "the Tower of Dread"], "meltedtower"],
+    [["Harrenhal", "the Tower of Ghosts"], "meltedtower"],
+    [["Harrenhal", "Widow's Tower"], "meltedtower"],
+    [["Harrenhal", "the Widow's Tower"], "meltedtower"],
+    [["Harrenhal", "the Flowstone Yard"], "flowstoneyard"],
+    [["Harrenhal", "the bear pit"], "bearpit"],
+    [["Harrenhal", "the sept"], "ruinsept"],
+    [["Harrenhal", "the Hall of a Hundred Hearths"], "hundredhearths"],
     [["Harrenhal", "the Great Hall"], "hall"],
     [["Harrenhal", "the armory"], "forge"],
     [["Harrenhal", "the barracks"], "tavern"],
@@ -243,21 +243,21 @@ describe("Westeros", () => {
     [["the Red Keep"], "castle"],
     [["King's Landing", "the Red Keep"], "castle"],
     [["King's Landing", "the Red Keep", "the gate"], "castle"],
-    [["King's Landing", "the Red Keep", "the Throne Room"], "hall"],
-    [["King's Landing", "the Red Keep", "the Iron Throne"], "hall"],
-    [["King's Landing", "the Red Keep", "the Queen's Ballroom"], "hall"],
+    [["King's Landing", "the Red Keep", "the Throne Room"], "throneroom"],
+    [["King's Landing", "the Red Keep", "the Iron Throne"], "throneroom"],
+    [["King's Landing", "the Red Keep", "the Queen's Ballroom"], "ballroom"],
     [["King's Landing", "the Red Keep", "the small council chamber"], "dining"],
     [["King's Landing", "the Red Keep", "the Tower of the Hand"], "study"],
     [["King's Landing", "the Red Keep", "the Hand's solar"], "study"],
-    [["King's Landing", "the Red Keep", "the White Sword Tower"], "study"],
-    [["King's Landing", "the Red Keep", "the Round Room"], "study"],
-    [["King's Landing", "the Red Keep", "Maegor's Holdfast"], "castle"],
-    [["Maegor's Holdfast"], "castle"],
+    [["King's Landing", "the Red Keep", "the White Sword Tower"], "roundroom"],
+    [["King's Landing", "the Red Keep", "the Round Room"], "roundroom"],
+    [["King's Landing", "the Red Keep", "Maegor's Holdfast"], "holdfast"],
+    [["Maegor's Holdfast"], "holdfast"],
     [["King's Landing", "the Red Keep", "the Maidenvault"], "parlor"],
     [["King's Landing", "the Red Keep", "the Traitor's Walk"], "hallway"],
     [["King's Landing", "the Red Keep", "the serpentine steps"], "staircase"],
     [["King's Landing", "the Red Keep", "the river stairs"], "staircase"],
-    [["King's Landing", "the Red Keep", "the dragon skulls"], "cellar"],
+    [["King's Landing", "the Red Keep", "the dragon skulls"], "skullcellar"],
     [["King's Landing", "the Red Keep", "the Black Cells"], "dungeon"],
     [["King's Landing", "the Red Keep", "the outer ward"], "street"],
     [["King's Landing", "the Red Keep", "the Queen's apartments"], "masterbedroom"],
@@ -397,6 +397,29 @@ describe("Westeros", () => {
     expect(readHome([...path])).toMatchObject({ house, style: "old" });
   });
 
+  // docs/25 §2.4: what a castle flew in a given year.
+  test.each([
+    [["the Red Keep"], 250, true, false],
+    [["the Red Keep"], 282, true, false],
+    [["the Red Keep"], 283, false, false],
+    [["the Red Keep"], 297, false, false],
+    [["the Red Keep"], 298, false, true],
+    [["the Red Keep"], null, false, true],
+    [["Winterfell"], 250, false, false],
+  ] as const)("%p in %p: dragon %p, a second house %p", (path, year, dragon, second) => {
+    const keep = readHome([...path], null, { year })?.keep;
+    expect(Boolean(keep?.dragon)).toBe(dragon);
+    expect(Boolean(keep?.second)).toBe(second);
+  });
+
+  test("Harrenhal's holder changes, and your word beats the year", () => {
+    const whent = readHome(["Harrenhal"], null, { year: 281 })?.keep?.banners;
+    const lannister = readHome(["Harrenhal"], null, { year: 299 })?.keep?.banners;
+    expect(whent).toBeDefined();
+    expect(lannister).not.toEqual(whent);
+    expect(readHome(["Harrenhal"], null, { year: 299, keeps: { harrenhal: { masonry: "fused", banners: ["#000000", "#ffffff"] } } })?.keep?.banners).toEqual([[0, 0, 0], [255, 255, 255]]);
+  });
+
   test("a manse is grand", () => {
     expect(readHome(["Pentos", "Illyrio's manse"])).toEqual({ house: "illyrio's manse", style: "grand" });
   });
@@ -448,8 +471,8 @@ describe("Westeros", () => {
   test("your word on a keep beats its name, and a nonsense one doesn't", () => {
     const keeps = { harrenhal: { masonry: "ashlar", banners: ["#112233", "#ffeedd"] } };
     expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps })?.keep).toEqual({ masonry: "ashlar", banners: [[17, 34, 51], [255, 238, 221]] });
-    expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps: { harrenhal: { masonry: "marble" } } })?.keep).toEqual({ masonry: "fused" });
-    expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps: { harrenhal: { masonry: "marble", banners: ["red", "blue"] } } })?.keep).toEqual({ masonry: "fused" });
+    expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps: { harrenhal: { masonry: "marble" } } })?.keep?.masonry).toBe("fused");
+    expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps: { harrenhal: { masonry: "marble", banners: ["red", "blue"] } } })?.keep?.masonry).toBe("fused");
     expect(readHome(["Mira's house"], { "mira's house": "old" }, { keeps: { "mira's house": { masonry: "redstone" } } })?.keep).toEqual({ masonry: "redstone" });
     expect(readHome(["Harrenhal"], { harrenhal: "modern" })?.keep).toBeUndefined();
   });

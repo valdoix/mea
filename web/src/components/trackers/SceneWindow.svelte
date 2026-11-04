@@ -68,7 +68,7 @@
     const o = sceneOccasion({ place, fix, tracked: occasion, dated, minutes, world, keeps });
     return o && isPlace(kind) ? { ...o, stage: false } : o;
   });
-  const home = $derived(readHome(place, styles, { world, keeps }));
+  const home = $derived(readHome(place, styles, { world, keeps, year: when?.year }));
   // An unset clock still paints: the evening, which suits most openings.
   const hour = $derived(when?.hour ?? 20);
 
