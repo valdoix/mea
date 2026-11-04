@@ -50,12 +50,30 @@ describe("reading an occasion", () => {
     ["Ned's execution", "execution"],
     ["the beheading", "execution"],
     ["a public hanging", "execution"],
+    ["Christmas morning", "midwinter"],
+    ["the Yule feast", "midwinter"],
+    ["the baby shower", "newborn"],
+    ["the christening", "newborn"],
+    ["the graduation", "honours"],
+    ["Brienne's knighting", "honours"],
+    ["the barbecue", "cookout"],
+    ["a picnic", "cookout"],
+    ["the hunt feast", "cookout"],
+    ["the concert", "performance"],
+    ["a mummers' play", "performance"],
+    ["the recital", "performance"],
+    ["Tyrion's trial", "trial"],
+    ["a trial by combat", "trial"],
+    ["the court hearing", "trial"],
+    ["the parade", "parade"],
+    ["the royal procession", "parade"],
+    ["the Christmas party", "party"],
   ] as const)("%s is %s", (text, id) => {
     expect(readOccasion(text, "place")).toBe(id);
     expect(readOccasion(text.toUpperCase(), "tracker")).toBe(id);
   });
 
-  test.each(["the reception", "the shower", "in the wake of it", "the hanging", "the bedding", "a clinical trial", "the ball game", "the Queen's Ballroom", "the ball pit", "a fair fight", "the kitchen", "", null])("%p is no occasion", (text) => {
+  test.each(["the reception", "the shower", "in the wake of it", "the hanging", "the bedding", "a clinical trial", "the ball game", "the Queen's Ballroom", "the ball pit", "a fair fight", "the concert hall", "the parade ground", "a free trial", "a trial run", "the kitchen", "", null])("%p is no occasion", (text) => {
     expect(readOccasion(text, "place")).toBeNull();
   });
 

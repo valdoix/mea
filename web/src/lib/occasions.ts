@@ -6,7 +6,7 @@
  */
 import { readPlace, placeNamed, type ReadOptions } from "./places";
 
-export type Occasion = "birthday" | "wedding" | "reception" | "party" | "dinnerparty" | "funeral" | "anniversary" | "ball" | "festival" | "coronation" | "contest" | "execution";
+export type Occasion = "birthday" | "wedding" | "reception" | "party" | "dinnerparty" | "funeral" | "anniversary" | "ball" | "festival" | "coronation" | "contest" | "execution" | "midwinter" | "newborn" | "honours" | "cookout" | "performance" | "trial" | "parade";
 
 export const OCCASIONS: { id: Occasion; label: string }[] = [
   { id: "birthday", label: "Birthday or name day" },
@@ -21,6 +21,13 @@ export const OCCASIONS: { id: Occasion; label: string }[] = [
   { id: "coronation", label: "Coronation" },
   { id: "contest", label: "Tourney or big game" },
   { id: "execution", label: "Execution" },
+  { id: "midwinter", label: "Midwinter or Christmas" },
+  { id: "newborn", label: "Newborn or christening" },
+  { id: "honours", label: "Graduation or knighting" },
+  { id: "cookout", label: "Cookout or picnic" },
+  { id: "performance", label: "Concert or mummers' play" },
+  { id: "trial", label: "Trial" },
+  { id: "parade", label: "Parade or procession" },
 ];
 export const isOccasion = (s: string | null | undefined): s is Occasion => OCCASIONS.some((o) => o.id === s);
 
@@ -43,6 +50,13 @@ const WORDS: [Occasion, RegExp][] = [
   ["contest", /tourney|tournament|\bjoust|\bmelee\b|big game|championship|football game|homecoming game/],
   ["ball", /\bball\b(?! ?(?:game|park|field|room|pit))|masquerade|\bgala\b|\bprom\b|debutante/],
   ["festival", /festival|carnival|fairground|county fair|^(?:the |a )?fair$|maiden'?s day/],
+  ["midwinter", /christmas(?! party)|\byule|midwinter|winter solstice/],
+  ["newborn", /baby shower|christening|baptism|naming (?:day|ceremony)/],
+  ["honours", /graduation|commencement|knighting|award ceremony/],
+  ["cookout", /barbecue|barbeque|\bbbq\b|cookout|\bpicnic\b|hunt feast/],
+  ["performance", /concert(?! hall)|recital|\bgig\b|mummers?(?:'|\b)|puppet show/],
+  ["trial", /(?<!clinical |drug |free )\btrial\b(?! run| period| and error)|court case|court hearing|tribunal/],
+  ["parade", /\bparade\b(?! ground)|\bprocession\b/],
   ["dinnerparty", /dinner party|\bbanquet\b|\bfeast\b|thanksgiving|state dinner/],
 ];
 const BARE_PARTY = /\bparty\b/;

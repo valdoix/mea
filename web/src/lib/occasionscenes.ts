@@ -6,8 +6,8 @@
  * a crowd is a dark edge at the foot of the picture.
  */
 import { clamp, DARK, mix, rgb, TAU, WARM, type Ctx, type Env, type Place, type RGB } from "./places";
-import { candle, tint, torchlight } from "./keepbits";
-import { fill, glowAt, hillView, lamp, leafy, poly, ridge, room, GRASS, type Scene, tone, lit, stroke } from "./scenes";
+import { candle, shaft, tint, torchlight } from "./keepbits";
+import { fill, fire, glowAt, hillView, lamp, leafy, poly, ridge, room, GRASS, type Scene, tone, lit, stroke } from "./scenes";
 import type { Occasion } from "./occasions";
 
 type G = CanvasRenderingContext2D;
@@ -439,6 +439,78 @@ function stall(g: G, E: Env, x: number, y: number, u: number, hue: RGB) {
   }
 }
 
+/** A dressed tree with its lights, standing on y. */
+function firTree(c: Ctx, x: number, y: number, h: number): Paint {
+  const { u, r } = c;
+  const w = h * 0.42;
+  const tiers = new Path2D();
+  for (let k = 0; k < 4; k++) {
+    const top = y - h + (k * h) / 5.2;
+    const low = top + h * 0.44;
+    const half = w * (0.34 + k * 0.22);
+    tiers.moveTo(x, top);
+    tiers.quadraticCurveTo(x + half * 0.5, low - h * 0.12, x + half, low);
+    tiers.quadraticCurveTo(x, low + h * 0.05, x - half, low);
+    tiers.quadraticCurveTo(x - half * 0.5, low - h * 0.12, x, top);
+  }
+  const hung = Array.from({ length: Math.round(h / (4 * u)) }, () => {
+    const t = 0.1 + r() * 0.86;
+    return { x: x + (r() - 0.5) * 2 * w * t * 0.92, y: y - h + t * h * 0.94, c: BRIGHT[(r() * BRIGHT.length) | 0]!, bulb: r() < 0.6, p: r() * TAU };
+  });
+  return (g, E) => {
+    const on = clamp(E.glow * 1.2 + 0.25);
+    const T = E.still ? 0 : E.T;
+    g.fillStyle = rgb(tint(E, [84, 58, 40], 0.34));
+    g.fillRect(x - 5 * u, y - 8 * u, 10 * u, 12 * u);
+    fill(g, tiers, tint(E, [40, 96, 66], 0.38));
+    glowAt(g, x, y - h * 0.5, h * 0.8, WARM, 0.2 * on);
+    for (const b of hung) {
+      if (b.bulb) {
+        const tw = 0.6 + 0.4 * Math.sin(T * 2 + b.p);
+        glowAt(g, b.x, b.y, 7 * u, WARM, 0.5 * on * tw);
+        g.fillStyle = rgb([255, 232, 170], 0.5 + on * 0.5 * tw);
+        g.fillRect(b.x - 1 * u, b.y - 1 * u, 2 * u, 2 * u);
+      } else {
+        g.fillStyle = rgb(tint(E, b.c, 0.52));
+        g.beginPath();
+        g.arc(b.x, b.y, 3 * u, 0, TAU);
+        g.fill();
+      }
+    }
+    // The star.
+    g.fillStyle = rgb(mix(tint(E, [236, 196, 96], 0.6), [255, 240, 180], on));
+    const s = 9 * u;
+    poly2(g, x, y - h - s, x + s * 0.3, y - h - s * 0.3, x + s, y - h - s * 0.2, x + s * 0.42, y - h + s * 0.2, x + s * 0.6, y - h + s, x, y - h + s * 0.5, x - s * 0.6, y - h + s, x - s * 0.42, y - h + s * 0.2, x - s, y - h - s * 0.2, x - s * 0.3, y - h - s * 0.3);
+    glowAt(g, x, y - h, 26 * u, [255, 226, 150], 0.5 * on);
+  };
+}
+
+/** Cones of stage light from above; they sweep in the live window. */
+function beams(c: Ctx, cx: number, spread: number): Paint {
+  const { H, u, r } = c;
+  const set = Array.from({ length: 7 }, (_, i) => ({ x: cx + (i - 3) * spread * u, a: (r() - 0.5) * 0.5, p: r() * TAU, c: BRIGHT[i % BRIGHT.length]! }));
+  return (g, E) => {
+    const T = E.still ? 0 : E.T;
+    g.save();
+    g.globalCompositeOperation = "screen";
+    for (const b of set) {
+      const a = b.a + Math.sin(T * 0.6 + b.p) * 0.2;
+      const end = b.x + Math.tan(a) * H;
+      const gr = g.createLinearGradient(0, 0, 0, H);
+      gr.addColorStop(0, rgb(b.c, 0.5));
+      gr.addColorStop(1, rgb(b.c, 0.03));
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(b.x - 3 * u, 0);
+      g.lineTo(b.x + 3 * u, 0);
+      g.lineTo(end + 42 * u, H);
+      g.lineTo(end - 42 * u, H);
+      g.fill();
+    }
+    g.restore();
+  };
+}
+
 /** What an occasion lays over a place. At a stage it stands at the centre, larger. */
 function dressing(c: Ctx, id: Occasion, old: boolean, stage: boolean, indoors: boolean): Paint {
   const { H, u, F } = c;
@@ -808,6 +880,369 @@ function dressing(c: Ctx, id: Occasion, old: boolean, stage: boolean, indoors: b
       add(crowd(c, false));
       break;
     }
+    case "midwinter": {
+      if (old) {
+        add(garland(c, [[176, 34, 44], [230, 220, 200]]));
+        add(wash(c, [255, 160, 80], 0.04));
+        const lx = tx;
+        const log = new Path2D();
+        log.moveTo(lx - 78 * u, H * 0.9);
+        log.quadraticCurveTo(lx, H * 0.84, lx + 78 * u, H * 0.9);
+        log.quadraticCurveTo(lx + 90 * u, H * 0.98, lx + 78 * u, H + 2);
+        log.lineTo(lx - 78 * u, H + 2);
+        log.quadraticCurveTo(lx - 90 * u, H * 0.98, lx - 78 * u, H * 0.9);
+        add((g, E) => {
+          fill(g, log, tint(E, [86, 60, 42], 0.36));
+          for (const d of [-54, -26, 2, 30, 56]) candle(g, E, lx + d * u, H * 0.875, u, 16 + (Math.abs(d) % 3) * 4, 0.7);
+          for (let k = 0; k < 9; k++) {
+            g.fillStyle = rgb(tint(E, k % 3 ? LEAF : [176, 34, 44], 0.4));
+            g.beginPath();
+            g.ellipse(lx - 72 * u + k * 18 * u, H * 0.875, 8 * u, 4 * u, k, 0, TAU);
+            g.fill();
+          }
+        });
+      } else {
+        add(lights(c));
+        const th = (stage ? 196 : 148) * u;
+        const y = H + 4 * u;
+        add(firTree(c, tx, y, th));
+        add((g, E) => {
+          gift(g, E, tx - 54 * u, H, 19 * u, [176, 40, 52], [236, 214, 130]);
+          gift(g, E, tx + 50 * u, H, 16 * u, [40, 100, 70], [240, 232, 216]);
+          gift(g, E, tx + 16 * u, H + 4 * u, 13 * u, [50, 84, 160], [240, 214, 110]);
+        });
+      }
+      break;
+    }
+    case "newborn": {
+      const pastel: RGB[] = [[240, 200, 208], [190, 216, 236], [240, 226, 170], [196, 226, 196]];
+      if (old) {
+        add(garland(c, [[244, 232, 220], [230, 206, 220]]));
+        const base = new Path2D();
+        base.moveTo(tx - 70 * u, H * 0.72);
+        base.quadraticCurveTo(tx - 74 * u, H * 0.92, tx - 42 * u, H * 0.94);
+        base.lineTo(tx + 42 * u, H * 0.94);
+        base.quadraticCurveTo(tx + 74 * u, H * 0.92, tx + 70 * u, H * 0.72);
+        base.closePath();
+        const rocker = new Path2D();
+        rocker.moveTo(tx - 72 * u, H * 0.92);
+        rocker.quadraticCurveTo(tx, H + 10 * u, tx + 72 * u, H * 0.92);
+        const swaddle = new Path2D();
+        swaddle.moveTo(tx - 72 * u, H * 0.72);
+        swaddle.quadraticCurveTo(tx, H * 0.64, tx + 72 * u, H * 0.72);
+        swaddle.closePath();
+        add((g, E) => {
+          fill(g, swaddle, tint(E, [234, 224, 206], 0.5));
+          fill(g, base, tint(E, [112, 78, 54], 0.4));
+          stroke(g, rocker, tint(E, [86, 60, 42], 0.36), 6 * u);
+          for (const s of [-1, 1]) for (let k = 0; k < 3; k++) candle(g, E, tx + s * (96 + k * 17) * u, H - k * 5 * u, u, 18 + k * 7, 0.7);
+        });
+      } else {
+        add(bunting(c, pastel));
+        add(balloons(c, tx - half - 30 * u, top + 6 * u, 4));
+        add(balloons(c, tx + half + 30 * u, top + 6 * u, 3));
+        add(table(c, tx, half, top, [242, 236, 226]));
+        add((g, E) => {
+          cake(g, E, tx, top, u, 2, [224, 232, 244], [240, 190, 200], 0);
+          gift(g, E, tx - half * 0.66, top, 15 * u, [190, 216, 236], [244, 240, 232]);
+          gift(g, E, tx + half * 0.66, top, 15 * u, [240, 200, 208], [244, 240, 232]);
+        });
+      }
+      break;
+    }
+    case "honours": {
+      if (old) {
+        add(drapery(c, c.home?.keep?.banners?.[0] ?? [60, 70, 120]));
+        add((g, E) => {
+          // A kneeling step, and a sword laid across a cushion on a stand.
+          g.fillStyle = rgb(tint(E, [140, 128, 112], 0.42));
+          g.fillRect(tx - 62 * u, H * 0.88, 124 * u, H * 0.14);
+          g.fillStyle = rgb(tint(E, [176, 164, 146], 0.46));
+          g.fillRect(tx - 70 * u, H * 0.87, 140 * u, 5 * u);
+          g.fillStyle = rgb(tint(E, [70, 54, 44], 0.34));
+          g.fillRect(tx + 96 * u, H * 0.68, 10 * u, H * 0.34);
+          g.fillStyle = rgb(tint(E, [140, 30, 46], 0.46));
+          g.beginPath();
+          g.ellipse(tx + 101 * u, H * 0.67, 54 * u, 10 * u, 0, 0, TAU);
+          g.fill();
+          g.fillStyle = rgb(tint(E, [206, 208, 216], 0.56));
+          poly2(g, tx + 56 * u, H * 0.65 - 1 * u, tx + 138 * u, H * 0.65 - 1 * u, tx + 150 * u, H * 0.65 + 1.5 * u, tx + 138 * u, H * 0.65 + 3 * u, tx + 56 * u, H * 0.65 + 3 * u);
+          g.fillStyle = rgb(tint(E, [214, 176, 90], 0.56));
+          g.fillRect(tx + 52 * u, H * 0.65 - 8 * u, 4 * u, 18 * u);
+          g.fillRect(tx + 38 * u, H * 0.65 - 1 * u, 14 * u, 4 * u);
+          for (const s of [-1, 1]) candle(g, E, tx + s * 44 * u, H * 0.87, u, 20, 0.7);
+        });
+      } else {
+        add(bunting(c, [[30, 56, 110], [226, 190, 96]]));
+        const chairs = new Path2D();
+        for (let x = F - 60 * u; x > -40 * u; x -= 34 * u) chairRow(chairs, x, H * 0.84, u);
+        if (stage) add((g, E) => fill(g, chairs, tint(E, [226, 222, 214], 0.42)));
+        const px = stage ? F + 90 * u : tx;
+        add((g, E) => {
+          if (stage) {
+            g.fillStyle = rgb(tint(E, [100, 76, 54], 0.38));
+            g.fillRect(px - 110 * u, H * 0.72, 220 * u, H * 0.3);
+            g.fillStyle = rgb(tint(E, [150, 120, 88], 0.44));
+            g.fillRect(px - 116 * u, H * 0.7, 232 * u, 7 * u);
+          }
+          g.fillStyle = rgb(tint(E, [60, 44, 34], 0.36));
+          poly2(g, px - 18 * u, H * 0.72, px + 18 * u, H * 0.72, px + 13 * u, H * 0.46, px - 13 * u, H * 0.46);
+          g.fillStyle = rgb(tint(E, [226, 190, 96], 0.54));
+          g.beginPath();
+          g.arc(px, H * 0.56, 7 * u, 0, TAU);
+          g.fill();
+          g.fillStyle = rgb(tint(E, [236, 230, 212], 0.56));
+          g.fillRect(px + 34 * u, H * 0.68, 26 * u, 5 * u);
+          g.fillStyle = rgb(tint(E, [150, 28, 40], 0.5));
+          g.fillRect(px + 45 * u, H * 0.68, 3.4 * u, 5 * u);
+        });
+        // Caps thrown high; they hang there on a plate and tumble in the live window.
+        const caps = Array.from({ length: stage ? 11 : 6 }, () => ({ x: c.r(), y: 0.16 + c.r() * 0.26, a: c.r() * TAU }));
+        add((g, E) => {
+          const T = E.still ? 0 : E.T;
+          for (const k of caps) {
+            const x = (stage ? 0 : tx - 260 * u) + k.x * (stage ? c.W : 520 * u);
+            const y = H * k.y + Math.sin(T + k.a) * 6 * u;
+            g.save();
+            g.translate(x, y);
+            g.rotate(k.a + T * 0.4);
+            g.fillStyle = rgb(tint(E, [24, 26, 40], 0.34));
+            poly2(g, -19 * u, 0, 0, -7 * u, 19 * u, 0, 0, 7 * u);
+            g.fillRect(-9 * u, 2 * u, 18 * u, 7 * u);
+            g.strokeStyle = rgb(tint(E, [236, 196, 90], 0.6));
+            g.lineWidth = 1.4 * u;
+            g.beginPath();
+            g.moveTo(0, 0);
+            g.lineTo(14 * u, 2 * u);
+            g.lineTo(15 * u, 15 * u);
+            g.stroke();
+            g.fillStyle = rgb(tint(E, [236, 196, 90], 0.6));
+            g.fillRect(13 * u, 14 * u, 4 * u, 7 * u);
+            g.restore();
+          }
+        });
+      }
+      break;
+    }
+    case "cookout": {
+      if (!old) add(lights(c));
+      add(table(c, tx - (stage ? 170 : 0) * u, half * 0.9, top, old ? [136, 104, 76] : [220, 76, 72]));
+      const gx = stage ? F + 80 * u : tx + half + 66 * u;
+      add((g, E) => {
+        const fx = tx - (stage ? 170 : 0) * u;
+        for (const d of [-0.56, 0, 0.56]) setting(g, E, fx + d * half, top, u, old);
+        // Smoke drifts up from the fire.
+        const T = E.still ? 3 : E.T;
+        for (let i = 0; i < 6; i++) {
+          const k = (T * 0.07 + i / 6) % 1;
+          g.fillStyle = rgb([226, 226, 232], 0.14 * Math.sin(k * Math.PI));
+          g.beginPath();
+          g.arc(gx + Math.sin(T * 0.6 + i * 2.1) * 12 * u + k * 34 * u, H * 0.68 - k * 120 * u, (9 + k * 24) * u, 0, TAU);
+          g.fill();
+        }
+        if (old) {
+          for (const s of [-1, 1]) {
+            g.strokeStyle = rgb(tint(E, [64, 48, 38], 0.32));
+            g.lineWidth = 4 * u;
+            g.beginPath();
+            g.moveTo(gx + s * 70 * u, H);
+            g.lineTo(gx + s * 54 * u, H * 0.66);
+            g.stroke();
+          }
+          g.fillStyle = rgb(tint(E, [150, 92, 46], 0.62));
+          g.beginPath();
+          g.ellipse(gx, H * 0.7, 40 * u, 16 * u, 0, 0, TAU);
+          g.fill();
+          g.fillStyle = "rgb(30,26,26)";
+          g.fillRect(gx - 74 * u, H * 0.695, 148 * u, 2.6 * u);
+          glowAt(g, gx, H * 0.92, 130 * u, [255, 140, 62], 0.5);
+          fire(g, E, gx - 16 * u, H * 0.98, 1.3 * u);
+          fire(g, E, gx + 14 * u, H * 0.98, 1.5 * u);
+        } else {
+          g.fillStyle = rgb(tint(E, [36, 34, 38], 0.36));
+          g.beginPath();
+          g.moveTo(gx - 46 * u, H * 0.68);
+          g.quadraticCurveTo(gx, H * 0.88, gx + 46 * u, H * 0.68);
+          g.fill();
+          for (const s of [-1, 1]) {
+            g.fillRect(gx + s * 30 * u - 2 * u, H * 0.76, 4 * u, H * 0.26);
+          }
+          g.fillStyle = rgb(tint(E, [70, 70, 76], 0.4));
+          g.fillRect(gx - 50 * u, H * 0.67, 100 * u, 3 * u);
+          for (const d of [-30, -8, 14, 32]) {
+            g.fillStyle = rgb(tint(E, [136, 76, 44], 0.56));
+            g.beginPath();
+            g.ellipse(gx + d * u, H * 0.66, 9 * u, 3.4 * u, 0, 0, TAU);
+            g.fill();
+          }
+          glowAt(g, gx, H * 0.7, 56 * u, [255, 130, 60], 0.3);
+        }
+      });
+      break;
+    }
+    case "performance": {
+      const sx = stage ? F : F - 250 * u;
+      if (old) {
+        // A trestle stage, a painted cloth, torches and benches.
+        const cloth = new Path2D();
+        cloth.rect(sx - 130 * u, H * 0.14, 260 * u, H * 0.48);
+        const hills = new Path2D();
+        hills.moveTo(sx - 130 * u, H * 0.48);
+        hills.quadraticCurveTo(sx - 60 * u, H * 0.3, sx, H * 0.46);
+        hills.quadraticCurveTo(sx + 70 * u, H * 0.26, sx + 130 * u, H * 0.44);
+        hills.lineTo(sx + 130 * u, H * 0.62);
+        hills.lineTo(sx - 130 * u, H * 0.62);
+        hills.closePath();
+        add((g, E) => {
+          fill(g, cloth, tint(E, [96, 120, 156], 0.44));
+          g.save();
+          g.clip(cloth);
+          fill(g, hills, tint(E, [106, 136, 84], 0.44));
+          g.fillStyle = rgb(tint(E, [236, 206, 120], 0.56));
+          g.beginPath();
+          g.arc(sx + 62 * u, H * 0.25, 16 * u, 0, TAU);
+          g.fill();
+          g.restore();
+          g.fillStyle = "rgb(36,26,20)";
+          g.fillRect(sx - 136 * u, H * 0.13, 272 * u, 4 * u);
+          g.fillRect(sx - 136 * u, H * 0.13, 4 * u, H * 0.5);
+          g.fillRect(sx + 132 * u, H * 0.13, 4 * u, H * 0.5);
+          g.fillStyle = rgb(tint(E, [106, 80, 56], 0.4));
+          g.fillRect(sx - 150 * u, H * 0.62, 300 * u, 8 * u);
+          for (const d of [-140, -46, 46, 140]) {
+            g.fillStyle = rgb(tint(E, [76, 58, 42], 0.34));
+            g.fillRect(sx + d * u - 3 * u, H * 0.62, 6 * u, H);
+          }
+          for (const s of [-1, 1]) {
+            g.fillStyle = "rgb(30,26,26)";
+            g.fillRect(sx + s * 170 * u - 2 * u, H * 0.34, 4 * u, H * 0.3);
+            glowAt(g, sx + s * 170 * u, H * 0.32, 120 * u, WARM, 0.36 * torchlight(E));
+            fire(g, E, sx + s * 170 * u, H * 0.34, 0.8 * u);
+          }
+        });
+      } else {
+        add(wash(c, [14, 10, 34], indoors ? 0.32 : 0.14));
+        add(beams(c, sx, stage ? 90 : 62));
+        if (stage) add(beams(c, sx - 620 * u, 90));
+        const towers = stage ? [sx - 260 * u, sx + 260 * u] : [sx - 150 * u, sx + 150 * u];
+        add((g, E) => {
+          for (const x of towers)
+            for (let k = 0; k < 3; k++) {
+              const y = H - (k + 1) * 42 * u;
+              g.fillStyle = "rgb(20,18,24)";
+              g.fillRect(x - 24 * u, y, 48 * u, 40 * u);
+              g.fillStyle = rgb(tint(E, [70, 70, 84], 0.36));
+              g.beginPath();
+              g.arc(x, y + 20 * u, 13 * u, 0, TAU);
+              g.fill();
+              g.fillStyle = "rgb(16,14,20)";
+              g.beginPath();
+              g.arc(x, y + 20 * u, 6 * u, 0, TAU);
+              g.fill();
+            }
+        });
+      }
+      add(crowd(c, !old));
+      break;
+    }
+    case "trial": {
+      add(wash(c, [20, 22, 34], 0.16));
+      const jx = stage ? F : F - 250 * u;
+      const y = H * 0.7;
+      const bench = new Path2D();
+      bench.rect(jx - (stage ? 170 : 124) * u, y, (stage ? 340 : 248) * u, H - y + 2);
+      bench.rect(jx - (stage ? 178 : 132) * u, y - 7 * u, (stage ? 356 : 264) * u, 8 * u);
+      const seats = new Path2D();
+      for (const d of stage ? [-110, 0, 110] : [-70, 0, 70]) {
+        seats.moveTo(jx + (d - 20) * u, y);
+        seats.lineTo(jx + (d - 20) * u, y - 72 * u);
+        seats.quadraticCurveTo(jx + d * u, y - 96 * u, jx + (d + 20) * u, y - 72 * u);
+        seats.lineTo(jx + (d + 20) * u, y);
+        seats.closePath();
+      }
+      add((g, E) => {
+        // A hard light falls on the table from high up.
+        glowAt(g, jx, y - 30 * u, 240 * u, [240, 240, 255], 0.14);
+        fill(g, seats, tint(E, old ? [70, 44, 38] : [56, 38, 30], 0.34));
+        fill(g, bench, tint(E, old ? [96, 70, 50] : [84, 56, 38], 0.4));
+        g.fillStyle = rgb(tint(E, c.home?.keep?.banners?.[0] ?? [40, 50, 86], 0.4));
+        g.fillRect(jx - 44 * u, y + 2 * u, 88 * u, H - y);
+        g.fillStyle = rgb(tint(E, [226, 190, 96], 0.5));
+        g.fillRect(jx - 44 * u, y + 10 * u, 88 * u, 3 * u);
+        // Papers, and a gavel or a pair of scales.
+        g.fillStyle = rgb(tint(E, [228, 218, 192], 0.56));
+        poly2(g, jx - 62 * u, y - 7 * u, jx - 26 * u, y - 7 * u, jx - 22 * u, y - 11 * u, jx - 58 * u, y - 11 * u);
+        if (old) {
+          g.strokeStyle = rgb(tint(E, [196, 160, 90], 0.54));
+          g.lineWidth = 1.8 * u;
+          g.beginPath();
+          g.moveTo(jx + 40 * u, y - 7 * u);
+          g.lineTo(jx + 40 * u, y - 46 * u);
+          g.moveTo(jx + 18 * u, y - 44 * u);
+          g.lineTo(jx + 62 * u, y - 44 * u);
+          g.stroke();
+          for (const s of [-1, 1]) {
+            g.fillStyle = rgb(tint(E, [196, 160, 90], 0.54));
+            g.beginPath();
+            g.ellipse(jx + (40 + s * 22) * u, y - 30 * u, 11 * u, 4 * u, 0, 0, Math.PI);
+            g.fill();
+          }
+          candle(g, E, jx - 86 * u, y - 7 * u, u, 18, 0.8);
+        } else {
+          g.fillStyle = rgb(tint(E, [66, 42, 28], 0.44));
+          g.save();
+          g.translate(jx + 40 * u, y - 15 * u);
+          g.rotate(-0.3);
+          g.fillRect(-16 * u, -6 * u, 32 * u, 12 * u);
+          g.fillRect(-2 * u, 4 * u, 4 * u, 26 * u);
+          g.restore();
+        }
+      });
+      break;
+    }
+    case "parade": {
+      const hues: RGB[] = old ? [[230, 206, 214], [236, 226, 196]] : BRIGHT;
+      add(bunting(c, old ? [c.home?.keep?.banners?.[0] ?? [150, 40, 50], [226, 196, 110]] : BRIGHT));
+      add(scatter(c, hues, stage ? 110 : 60, H * 0.02, old ? 2.8 : 2));
+      const fx = stage ? F : F - 250 * u;
+      if (old) {
+        // A canopy of cloth carried on four poles.
+        const canopy = new Path2D();
+        canopy.moveTo(fx - 110 * u, H * 0.34);
+        canopy.quadraticCurveTo(fx, H * 0.22, fx + 110 * u, H * 0.34);
+        canopy.lineTo(fx + 110 * u, H * 0.44);
+        for (let d = 110; d > -110; d -= 44) canopy.quadraticCurveTo(fx + (d - 22) * u, H * 0.5, fx + (d - 44) * u, H * 0.44);
+        canopy.closePath();
+        add((g, E) => {
+          g.fillStyle = rgb(tint(E, [226, 196, 110], 0.46));
+          for (const d of [-104, -36, 36, 104]) g.fillRect(fx + d * u - 2 * u, H * 0.34, 4 * u, H);
+          fill(g, canopy, tint(E, c.home?.keep?.banners?.[0] ?? [150, 30, 44], 0.46));
+          stroke(g, canopy, tint(E, [226, 196, 110], 0.5), 1.8 * u);
+        });
+      } else {
+        // A float heaped with flowers, balloons above it.
+        const body = new Path2D();
+        body.moveTo(fx - 150 * u, H);
+        body.lineTo(fx - 132 * u, H * 0.72);
+        body.quadraticCurveTo(fx, H * 0.6, fx + 132 * u, H * 0.72);
+        body.lineTo(fx + 150 * u, H);
+        body.closePath();
+        const blooms = Array.from({ length: 46 }, (_, i) => ({ x: fx + (i / 45 - 0.5) * 280 * u, y: H * 0.72 + Math.abs(i / 45 - 0.5) * 32 * u - ((i * 7) % 5) * 7 * u, c: BRIGHT[i % BRIGHT.length]! }));
+        add(balloons(c, fx - 92 * u, H * 0.68, 4));
+        add(balloons(c, fx + 92 * u, H * 0.68, 4));
+        add((g, E) => {
+          fill(g, body, tint(E, [240, 236, 226], 0.42));
+          for (const b of blooms) {
+            g.fillStyle = rgb(tint(E, b.c, 0.52));
+            g.beginPath();
+            g.arc(b.x, b.y, 7 * u, 0, TAU);
+            g.fill();
+          }
+        });
+      }
+      add(crowd(c, false));
+      break;
+    }
     case "funeral": {
       add(wash(c, [22, 26, 38], 0.2));
       const drape = new Path2D();
@@ -1014,6 +1449,13 @@ const STAGE_PLACE: Record<Occasion, { old: Place; modern: Place }> = {
   coronation: { old: "hall", modern: "temple" },
   contest: { old: "camp", modern: "city" },
   execution: { old: "street", modern: "street" },
+  midwinter: { old: "hall", modern: "living" },
+  newborn: { old: "masterbedroom", modern: "nursery" },
+  honours: { old: "hall", modern: "meadow" },
+  cookout: { old: "meadow", modern: "patio" },
+  performance: { old: "street", modern: "theater" },
+  trial: { old: "hall", modern: "hall" },
+  parade: { old: "street", modern: "city" },
 };
 /** A stadium under its floodlights: tiers of crowd, a green pitch, a scoreboard. */
 function stadium(c: Ctx): Scene {
@@ -1081,7 +1523,75 @@ function stadium(c: Ctx): Scene {
   };
 }
 
-const STAGES_PAINTED: Partial<Record<Occasion, (c: Ctx) => Scene>> = { wedding: weddingGarden, reception: receptionTent, contest: stadium };
+/** A courtroom: panelled walls, tall windows, the seal over the bench, flags, the witness stand and the jury rail. */
+function courtroom(c: Ctx): Scene {
+  const { W, H, u, F } = c;
+  const floor = H * 0.84;
+  const win = new Path2D();
+  const xs: number[] = [];
+  for (let x = F - 300 * u; x > -60 * u; x -= 220 * u) xs.push(x);
+  if (W > F + 240 * u) xs.push(F + 270 * u);
+  for (const x of xs) win.rect(x - 34 * u, H * 0.08, 68 * u, H * 0.4);
+  const mull = new Path2D();
+  for (const x of xs) {
+    mull.rect(x - 1.2 * u, H * 0.08, 2.4 * u, H * 0.4);
+    mull.rect(x - 34 * u, H * 0.27, 68 * u, 2.4 * u);
+  }
+  const panels = new Path2D();
+  for (let x = -20 * u; x < W; x += 72 * u) panels.rect(x + 6 * u, H * 0.54, 60 * u, floor - H * 0.54 - 8 * u);
+  const dado = new Path2D();
+  dado.rect(0, H * 0.51, W, H - H * 0.51);
+  const rail = new Path2D();
+  const jury: number[] = [];
+  for (let x = F - 280 * u; x > -40 * u; x -= 44 * u) jury.push(x);
+  rail.rect(-4, H * 0.76, F - 240 * u, 5 * u);
+  rail.rect(-4, H * 0.88, F - 240 * u, 40 * u);
+  const stand = new Path2D();
+  stand.rect(F + 170 * u, H * 0.72, 66 * u, H * 0.3);
+  stand.rect(F + 164 * u, H * 0.7, 78 * u, 6 * u);
+  const view = hillView(c);
+  const dress = dressing(c, "trial", false, true, true);
+  return room(
+    c,
+    win,
+    [226, 216, 196],
+    view,
+    (g, E) => {
+      fill(g, mull, tint(E, [84, 60, 44], 0.3));
+      for (const x of xs) shaft(g, E, x - 34 * u, x + 34 * u, H * 0.48, floor, 60 * u);
+      fill(g, dado, tint(E, [106, 72, 48], 0.36));
+      stroke(g, panels, tint(E, [66, 42, 28], 0.3), 1.6 * u, 0.8);
+      // The seal over the bench, between two flags.
+      g.fillStyle = rgb(tint(E, [196, 160, 90], 0.46));
+      g.beginPath();
+      g.arc(F, H * 0.2, 25 * u, 0, TAU);
+      g.fill();
+      g.strokeStyle = rgb(tint(E, [112, 84, 44], 0.4));
+      g.lineWidth = 2 * u;
+      g.beginPath();
+      g.arc(F, H * 0.2, 17 * u, 0, TAU);
+      g.stroke();
+      for (const s of [-1, 1]) {
+        const fx = F + s * 150 * u;
+        g.fillStyle = rgb(tint(E, [200, 196, 190], 0.44));
+        g.fillRect(fx - 1.4 * u, H * 0.1, 2.8 * u, H * 0.6);
+        g.fillStyle = rgb(tint(E, s < 0 ? [176, 40, 56] : [40, 70, 140], 0.44));
+        poly2(g, fx, H * 0.12, fx + s * 42 * u, H * 0.16, fx + s * 36 * u, H * 0.34, fx, H * 0.36);
+      }
+      for (const x of jury) {
+        g.fillStyle = rgb(tint(E, [70, 46, 32], 0.34));
+        g.fillRect(x - 14 * u, H * 0.66, 28 * u, H * 0.14);
+      }
+      fill(g, rail, tint(E, [106, 72, 48], 0.4));
+      fill(g, stand, tint(E, [96, 64, 42], 0.4));
+      dress(g, E);
+    },
+    floor,
+    { floorHue: [120, 96, 74], vignette: 0.22 },
+  );
+}
+
+const STAGES_PAINTED: Partial<Record<Occasion, (c: Ctx) => Scene>> = { wedding: weddingGarden, reception: receptionTent, contest: stadium, trial: courtroom };
 
 export const stagePlace = (id: Occasion, old: boolean): Place => STAGE_PLACE[id][old ? "old" : "modern"];
 /** An occasion painted whole, if it has one in this era. */
