@@ -69,7 +69,8 @@ describe("what the memories hold about a name just used", () => {
     } as unknown as WorldState;
     const [fact] = namedFacts(chatId, "And that's Brongel for you.", 20, none, 2, st);
     expect(fact!.notHeard).toEqual(["Spike"]);
-    // Dawn was in the room at #4 and #8 (the memories already say so). Spike wasn't. Being in the room never makes anyone a knower.
+    // With Spike in the room when it came up, he's no longer named as not having heard it, and he still isn't a knower.
+    run("UPDATE swipes SET content = 'Brongel, they said.' WHERE message_id = (SELECT id FROM messages WHERE chat_id = ? AND seq = 10)", chatId);
     const talkedAbout = { ...st, presence: [{ seq: 1, who: ["b", "d", "s", "u"] }] } as unknown as WorldState;
     const [other] = namedFacts(chatId, "And that's Brongel for you.", 20, none, 2, talkedAbout);
     expect(other!.knownBy).toEqual(["Buffy", "Gabriel", "Dawn"]);
