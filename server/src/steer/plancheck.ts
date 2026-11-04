@@ -5,6 +5,7 @@ import { contentWords } from "../memory/text";
 import { openLoops } from "../trackers/loops";
 import { topicCounts, topicScorer } from "../trackers/topics";
 import type { Character, Fact, WorldState } from "../trackers/types";
+import { mentionText, newsClaims } from "../accuracy/notnews";
 import { BACK, clear, hhmm, retellSources, type Source, whenConflict } from "../accuracy/retell";
 
 /**
@@ -24,7 +25,7 @@ export interface PlanFinding {
   claim: string;
   who: string;
   /** What the plan says about them: that they don't know, or that they do; or that something done is still to come. */
-  says: "unaware" | "knows" | "pending";
+  says: "unaware" | "knows" | "pending" | "news";
   fact: string;
   /** The stance the records have, with how and when. */
   status: string;
@@ -127,6 +128,20 @@ export function pendingDone(chatId: string, st: WorldState | null | undefined, p
   return out.slice(0, 2);
 }
 
+/** docs/26 1.2: a plan that calls something new, when the page has already said it. */
+export function notNews(chatId: string, st: WorldState | null | undefined, plan: string | null | undefined, beforeSeq: number): PlanFinding[] {
+  if (!plan?.trim()) return [];
+  return newsClaims(chatId, st, plan, beforeSeq).map((c) => ({
+    claim: c.claim,
+    who: c.who,
+    says: "news" as const,
+    fact: `"${c.news.term}" isn't new. ${mentionText(c.news)}${c.news.knownBy.length ? ` Known to ${c.news.knownBy.join(", ")}.` : ""}`,
+    status: "said",
+    seq: c.news.mentions[0]!.seq,
+    strong: true,
+  }));
+}
+
 /** docs/22 3.2: a plan can't carry a thread the ledger doesn't have. An open loop's id reads as the loop, an open thread's title stays, and the rest goes. */
 export function ledgerThreads(st: WorldState, threads: string[]) {
   const loops = new Map(openLoops(st).map((l) => [l.id, l.what]));
@@ -141,6 +156,7 @@ export function ledgerThreads(st: WorldState, threads: string[]) {
 export function planCorrection(findings: PlanFinding[]): string {
   if (!findings.length) return "";
   const lines = findings.slice(0, 4).map((f) => {
+    if (f.says === "news") return `- The plan says «${f.claim}». The story: ${f.fact} Whoever was there already knows it: they remember it, they don't find out.`;
     if (f.says === "pending") return `- The plan says «${f.claim}». The records: already done, ${f.fact} (#${f.seq}). That's the past: nobody waits for it, plans it or promises it again.`;
     const how = [f.route, f.seq ? `#${f.seq}` : ""].filter(Boolean).join(", ");
     const records = `${f.who} ${STATUS[f.status] ?? f.status}: ${f.fact}${how ? ` (${how})` : ""}`;
