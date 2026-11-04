@@ -30,6 +30,8 @@
     trend: { week: number; score: number }[];
     /** docs/20 6.2: retellings in these replies, and how many were told wrong. */
     retold?: { found: number; matched: number; flagged: number; dismissed: number; last?: { messageId: string; seq: number } };
+    /** docs/26 5.2: rare names you used, and how many reached the prompt as a memory. */
+    names?: { used: number; reached: number; missed?: { messageId: string; seq: number; term: string } };
     /** docs/22 4.2: each kind of flag, how often you waved it off, and whether it's gone quiet. */
     flags: FlagKind[];
   }
@@ -139,6 +141,13 @@
         <button type="button" class="part" onclick={() => r.last && navigate(`/chat/${chatId}?m=${r.last.messageId}`)} disabled={!r.last} title={r.last ? `Show #${r.last.seq}` : undefined}>
           <span class="lbl">Retold past</span>
           <small>{r.found} retelling{r.found === 1 ? "" : "s"}, {r.matched} checked against the page · {r.flagged} told wrong{r.dismissed ? ` · ${r.dismissed} dismissed` : ""}</small>
+        </button>
+      {/if}
+      {#if h.names}
+        {@const n = h.names}
+        <button type="button" class="part" onclick={() => n.missed && navigate(`/chat/${chatId}?m=${n.missed.messageId}`)} disabled={!n.missed} title={n.missed ? `Show #${n.missed.seq}` : undefined}>
+          <span class="lbl">Names remembered</span>
+          <small>{n.reached} of {n.used} rare name{n.used === 1 ? "" : "s"} you used reached the prompt{n.missed ? ` · last missed: "${n.missed.term}"` : ""}</small>
         </button>
       {/if}
       {#each quietKinds as k (k.key)}

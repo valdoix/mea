@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
-import { all } from "../src/db/db";
+import { all, run } from "../src/db/db";
 import { insertAtom } from "../src/memory/atoms";
-import { namedFacts } from "../src/memory/named";
+import { namedFacts, namesStats } from "../src/memory/named";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
 import { trackerPrompt } from "../src/trackers/service";
@@ -53,5 +53,26 @@ describe("what the memories hold about a name just used", () => {
     const parts = trackerPrompt(chatId, { kind: "story", focus: "And that's Brongel for you." });
     expect(parts.note?.text).toContain("FACTS IN PLAY");
     expect(parts.note?.text).toContain("The banner read Brongel for President; Dawn saw it.: Buffy, Gabriel, Dawn know it (");
+  });
+
+  test("Story health: names used against what reached the prompt, from the stored request", () => {
+    const rows = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? ORDER BY seq", chatId);
+    const row = (seq: number) => rows.find((r) => r.seq === seq)!;
+    const brongel = all<{ id: string }>("SELECT id FROM memories WHERE chat_id = ? AND content LIKE '%frat called%'", chatId)[0]!.id;
+    // A reply at an odd seq answers the player's message just before it (the greeting is #1, then the player at #2).
+    const turn = (seq: number, words: string, generation: string, evicted: number, used?: string) => {
+      run("UPDATE swipes SET content = ? WHERE message_id = ?", words, row(seq - 1).id);
+      run("UPDATE swipes SET meta = ? WHERE message_id = ?", JSON.stringify({ generationId: generation }), row(seq).id);
+      run("INSERT INTO generations (id, chat_id, kind, started_at, trace) VALUES (?, ?, 'new', 1, ?)", generation, chatId, JSON.stringify({ memory: { evictedThrough: evicted } }));
+      if (used) run("INSERT INTO memory_usage (generation_id, chat_id, owner_type, owner_id, slot, created_at) VALUES (?, ?, 'memory', ?, 'relevant', 1)", generation, chatId, used);
+      return { id: row(seq).id, seq, idx: 0 };
+    };
+    const stats = namesStats(chatId, [
+      turn(23, "And that's Brongel for you.", "g1", 20, brongel),
+      turn(25, "And that's Brongel again.", "g2", 20),
+      turn(27, "Then that's Brongel, in the window.", "g3", 2),
+      turn(29, "Then that's Harmony once more.", "g4", 20),
+    ]);
+    expect(stats).toEqual({ used: 2, reached: 1, missed: { messageId: row(25).id, seq: 25, term: "brongel" } });
   });
 });

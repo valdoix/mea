@@ -8,6 +8,7 @@ import type { Issue } from "./checker";
 import { currentFold } from "../trackers/store";
 import { loopsPart } from "./loophealth";
 import { type FlagKind, flagKey, flagKinds, quietKeys } from "./quiet";
+import { type NamesStats, namesStats } from "../memory/named";
 import { type RetellStats, retellStats } from "./retell";
 
 /**
@@ -41,6 +42,8 @@ export interface Health {
   trend: { week: number; score: number }[];
   /** docs/20 6.2: the replies' retellings, and how many were told wrong. */
   retold?: RetellStats;
+  /** docs/26 5.2: rare names the player used, and how many reached the prompt as a memory. */
+  names?: NamesStats;
   /** docs/22 4.2: each kind of flag: how often you waved it off, and whether it's gone quiet. */
   flags: FlagKind[];
 }
@@ -171,6 +174,12 @@ export function storyHealth(chatId: string): Health {
   } catch {
     retold = undefined;
   }
+  let names: NamesStats | undefined;
+  try {
+    names = namesStats(chatId, replies);
+  } catch {
+    names = undefined;
+  }
   const trend: Health["trend"] = [];
   const first = one<{ t: number | null }>("SELECT MIN(created_at) AS t FROM messages WHERE chat_id = ? AND role = 'assistant' AND deleted_at IS NULL", chatId)?.t;
   if (first != null) {
@@ -183,7 +192,7 @@ export function storyHealth(chatId: string): Health {
       if (rs.length) trend.push({ week: from, score: compute(chatId, rs, false, quiet).score });
     }
   }
-  return { ...now, trend, flags, ...(retold?.found ? { retold } : {}) };
+  return { ...now, trend, flags, ...(retold?.found ? { retold } : {}), ...(names?.used ? { names } : {}) };
 }
 
 /** The dot on Home's chat cards, cached a few minutes (it's read for many chats at once). */
