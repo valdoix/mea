@@ -2,7 +2,7 @@
  * The kinds of place a scene window can paint, how a place's name is read into one, and the
  * colour helpers the painter shares (the painting itself is in scenes.ts).
  */
-import { KEEP, KEEP_ROOMS, KEEP_TOWER, KINGS_LANDING, NAMED, type World } from "./westeros";
+import { KEEP, KEEP_ROOMS, KEEP_TOWER, KINGS_LANDING, masonryOf, NAMED, type World } from "./westeros";
 
 export type RGB = [number, number, number];
 export const TAU = Math.PI * 2;
@@ -42,6 +42,19 @@ export interface Env {
   still: boolean;
 }
 export type HomeStyle = "modern" | "humble" | "grand" | "old";
+/** What a castle is built of: dressed pale stone, the Red Keep's red, or Harrenhal's melted black. */
+export type Masonry = "ashlar" | "redstone" | "fused";
+export const MASONRIES: { id: Masonry; label: string }[] = [
+  { id: "ashlar", label: "Pale stone" },
+  { id: "redstone", label: "Red stone" },
+  { id: "fused", label: "Melted black" },
+];
+/** A castle's own look. */
+export interface Keep {
+  masonry: Masonry;
+  /** The field and charge of its cloth. */
+  banners?: [RGB, RGB];
+}
 export const HOME_STYLES: { id: HomeStyle; label: string }[] = [
   { id: "modern", label: "Modern" },
   { id: "humble", label: "Humble" },
@@ -52,6 +65,7 @@ export const HOME_STYLES: { id: HomeStyle; label: string }[] = [
 export interface Home {
   house: string;
   style: HomeStyle;
+  keep?: Keep;
 }
 /** A home's colours: the same in every one of its rooms. */
 export interface HomeDress extends Home {
@@ -138,6 +152,7 @@ export const PLACE_GROUPS = [
       { id: "castle", label: "Castle" },
       { id: "temple", label: "Temple or church" },
       { id: "ruins", label: "Ruins" },
+      { id: "restored", label: "Ruins, restored" },
       { id: "graveyard", label: "Graveyard" },
     ],
   },
@@ -468,6 +483,8 @@ const STAYS_ITSELF = new Set<Place>(["living", "bedroom", "masterbedroom", "cast
 /** What the reader knows about the story around a place. */
 export interface ReadOptions {
   world?: World;
+  /** Your "This keep is…" corrections, by house. */
+  keeps?: Record<string, { masonry: string; banners?: string[] }> | null;
 }
 
 /** Lowercase, with a typed or curly apostrophe alike: models write King’s Landing as often as King's. */
@@ -503,8 +520,13 @@ function read(parts: string[], world: World): Place | null {
   return null;
 }
 
+/** Words that mean a ruin stands whole again. */
+const RESTORED = /\b(?:restored|rebuilt|repaired|intact|unruined)\b/;
+
 export function readPlace(path: string[] | null | undefined, opts: ReadOptions = {}): Place {
-  return read((path ?? []).map(clean), opts.world ?? null) ?? "hills";
+  const parts = (path ?? []).map(clean);
+  const kind = read(parts, opts.world ?? null) ?? "hills";
+  return kind === "ruins" && RESTORED.test(parts.at(-1) ?? "") ? "restored" : kind;
 }
 
 /** Homes that aren't in HOME: the reader treats their rooms as its own, but a house is a house. */
@@ -534,10 +556,27 @@ export function readHome(path: string[] | null | undefined, styles?: Record<stri
     (westeros ? parts[0] : undefined);
   if (!house) return null;
   const own = styles?.[house];
-  if (own && HOME_STYLES.some((s) => s.id === own)) return { house, style: own as HomeStyle };
-  if (westeros) return { house, style: "old" };
+  const withKeep = (style: HomeStyle): Home => {
+    const keep = style === "old" ? keepOf(house, westeros, opts.keeps?.[house]) : null;
+    return keep ? { house, style, keep } : { house, style };
+  };
+  if (own && HOME_STYLES.some((s) => s.id === own)) return withKeep(own as HomeStyle);
+  if (westeros) return withKeep("old");
   const style: HomeStyle = GRAND.test(house) ? "grand" : HUMBLE.test(house) ? "humble" : parts.some((p) => OLD_WORLD.test(p)) ? "old" : parts.some((p) => GRAND.test(p)) ? "grand" : parts.some((p) => HUMBLE.test(p)) ? "humble" : "modern";
-  return { house, style };
+  return withKeep(style);
+}
+
+/** Old-world, but plaster and timber: a castle's stone would be wrong here. */
+const NOT_STONE = /\binn\b|tavern|village|hamlet|\bcroft|cottage|farm|\btown\b|\bstreet\b|\bmanor|\bhut\b|\bshack|\bcabin/;
+
+/** Whether a place is built like a castle, and of what. Your own word beats the place's name. */
+function keepOf(house: string, westeros: boolean, own?: { masonry: string; banners?: string[] }): Keep | null {
+  const banners = own?.banners?.length === 2 && own.banners.every((b) => /^#[0-9a-f]{6}$/i.test(b)) ? ([hex(own.banners[0]!), hex(own.banners[1]!)] as [RGB, RGB]) : undefined;
+  if (own && MASONRIES.some((m) => m.id === own.masonry)) return banners ? { masonry: own.masonry as Masonry, banners } : { masonry: own.masonry as Masonry };
+  const stone = !NOT_STONE.test(house) && (westeros || KEEP.test(house) || /abbey|monastery|priory|\bsept\b/.test(house));
+  if (!stone) return null;
+  const masonry = masonryOf(house);
+  return banners ? { masonry, banners } : { masonry };
 }
 
 const pickOf = <T>(r: () => number, a: readonly T[]): T => a[(r() * a.length) | 0]!;
@@ -569,6 +608,14 @@ const PALETTES: Record<HomeStyle, { wall: RGB[]; trim: RGB[]; floor: RGB[] }> = 
 export function dressHome(home: Home): HomeDress {
   const r = rand(seedOf(home.house));
   const p = PALETTES[home.style];
-  const fabric = pickOf(r, FABRIC);
-  return { ...home, wall: pickOf(r, p.wall), trim: pickOf(r, p.trim), floor: pickOf(r, p.floor), fabric, soft: mix(fabric, [120, 120, 130], 0.45) };
+  const stone = home.keep ? KEEP_STONE[home.keep.masonry] : null;
+  const fabric = home.keep?.banners?.[0] ?? pickOf(r, FABRIC);
+  return { ...home, wall: stone?.wall ?? pickOf(r, p.wall), trim: stone?.trim ?? pickOf(r, p.trim), floor: stone?.floor ?? pickOf(r, p.floor), fabric, soft: mix(fabric, [120, 120, 130], 0.45) };
 }
+
+/** A castle's colours, for the rooms not yet painted in its own stone. */
+const KEEP_STONE: Record<Masonry, { wall: RGB; trim: RGB; floor: RGB }> = {
+  ashlar: { wall: [176, 162, 140], trim: [84, 58, 42], floor: [112, 100, 88] },
+  redstone: { wall: [176, 98, 82], trim: [176, 140, 76], floor: [116, 72, 64] },
+  fused: { wall: [76, 70, 78], trim: [52, 42, 38], floor: [62, 56, 60] },
+};

@@ -26,6 +26,7 @@
       <label>Weather <select name="weather"><option value="clear">Clear</option><option value="rain">Rain</option><option value="snow">Snow</option><option value="storm">Storm</option><option value="fog">Fog</option></select></label>
       <label>House <select name="style"><option value="">None</option><option>modern</option><option>humble</option><option>grand</option><option>old</option></select></label>
       <label>Name <input name="house" value="jackie's house" size="14" /></label>
+      <label>Masonry <select name="masonry"><option value="">None</option><option value="ashlar">Pale stone</option><option value="redstone">Red stone</option><option value="fused">Melted black</option></select></label>
       <label>Group <select name="group"><option value="">All</option></select></label>
       <output id="timing"></output>
     </form>
@@ -60,11 +61,22 @@
             c.style.height = `${h}px`;
             const cap = document.createElement("figcaption");
             cap.textContent = `${k.label} (${k.id})`;
+            const masonry = form.masonry.value;
+            const home = masonry ? { house: "the keep", style: "old", keep: { masonry } } : form.style.value ? { house: form.house.value, style: form.style.value } : null;
             fig.append(c, cap);
             grid.append(fig);
             const t0 = performance.now();
-            ScenePainter.paintOnce(c, { hour: Number(form.hour.value), weather: form.weather.value, place: k.id, seed: "the kitchen", home: form.style.value ? { house: form.house.value, style: form.style.value } : null, focus, mini });
+            ScenePainter.paintOnce(c, { hour: Number(form.hour.value), weather: form.weather.value, place: k.id, seed: "the kitchen", home, focus, mini });
             times.push(performance.now() - t0);
+            // docs/25 §6: a castle's room stays readable at midnight. Flag a left half close to black.
+            if (masonry) {
+              const px = c.getContext("2d").getImageData(0, 0, c.width >> 1, c.height).data;
+              let sum = 0;
+              for (let i = 0; i < px.length; i += 64) sum += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+              const mean = sum / (px.length / 64);
+              cap.textContent += ` · left ${mean.toFixed(0)}`;
+              if (mean < 22) cap.style.color = "#ff8a7a";
+            }
           }
         }
         times.sort((a, b) => a - b);

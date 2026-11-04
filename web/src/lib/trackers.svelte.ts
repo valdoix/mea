@@ -2,7 +2,7 @@ import { get, patch, post } from "./api";
 import { confirm } from "./dialogs.svelte";
 import { editLine } from "./dataedit";
 import { errorToast } from "./state.svelte";
-import type { TrackerChange, TrackersResponse } from "./types";
+import type { KeepStyle, TrackerChange, TrackersResponse } from "./types";
 
 /** Tracker data for the open chat: chips per message, story time per message, and the state. */
 export const trk = $state({
@@ -88,6 +88,18 @@ export async function setHouseStyle(chatId: string, house: string, style: string
     errorToast(e);
   }
   return styles;
+}
+
+/** "This keep is…": a castle's stone and colours, in every room of it (chat settings `keepStyles`). */
+export async function setKeepStyle(chatId: string, house: string, style: KeepStyle) {
+  const keeps = { ...(trk.chatId === chatId ? trk.data?.keepStyles : null), [house]: style };
+  try {
+    await patch(`/api/chats/${chatId}`, { settings: { keepStyles: keeps } });
+    if (trk.chatId === chatId && trk.data) trk.data.keepStyles = keeps;
+  } catch (e) {
+    errorToast(e);
+  }
+  return keeps;
 }
 
 /** "This place is…": paint a place as another kind everywhere it's drawn (chat settings `placeKinds`). */

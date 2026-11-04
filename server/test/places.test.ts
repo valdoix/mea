@@ -7,7 +7,7 @@ describe("places", () => {
   test("every kind of place is listed once", () => {
     const ids = PLACES.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(129);
+    expect(ids.length).toBe(130);
   });
 
   test.each([
@@ -208,7 +208,7 @@ describe("Westeros", () => {
     [["Harrenhal", "the gates"], "castle"],
     [["Harrenhal", "the dungeons"], "dungeon"],
     [["Harrenhal", "the kitchens"], "kitchen"],
-    [["Harrenhal", "Lord Bolton's solar"], "library"],
+    [["Harrenhal", "Lord Bolton's solar"], "study"],
     [["Harrenhal", "the tourney field"], "camp"],
     [["Harrenhal", "the Gods Eye"], "lake"],
     [["the Gods Eye"], "lake"],
@@ -247,10 +247,10 @@ describe("Westeros", () => {
     [["King's Landing", "the Red Keep", "the Iron Throne"], "hall"],
     [["King's Landing", "the Red Keep", "the Queen's Ballroom"], "hall"],
     [["King's Landing", "the Red Keep", "the small council chamber"], "dining"],
-    [["King's Landing", "the Red Keep", "the Tower of the Hand"], "library"],
-    [["King's Landing", "the Red Keep", "the Hand's solar"], "library"],
-    [["King's Landing", "the Red Keep", "the White Sword Tower"], "library"],
-    [["King's Landing", "the Red Keep", "the Round Room"], "library"],
+    [["King's Landing", "the Red Keep", "the Tower of the Hand"], "study"],
+    [["King's Landing", "the Red Keep", "the Hand's solar"], "study"],
+    [["King's Landing", "the Red Keep", "the White Sword Tower"], "study"],
+    [["King's Landing", "the Red Keep", "the Round Room"], "study"],
     [["King's Landing", "the Red Keep", "Maegor's Holdfast"], "castle"],
     [["Maegor's Holdfast"], "castle"],
     [["King's Landing", "the Red Keep", "the Maidenvault"], "parlor"],
@@ -283,9 +283,9 @@ describe("Westeros", () => {
     ["the granary", "cellar"],
     ["the cistern", "cellar"],
     ["the garderobe", "cellar"],
-    ["the treasury", "library"],
-    ["the map room", "library"],
-    ["the counting room", "library"],
+    ["the treasury", "study"],
+    ["the map room", "study"],
+    ["the counting room", "study"],
     ["the council chamber", "dining"],
     ["the tower", "attic"],
     ["the broken tower", "attic"],
@@ -363,7 +363,7 @@ describe("Westeros", () => {
 
   test("the Twins' rooms are in a castle, in Westeros", () => {
     expect(readPlace(["The Twins", "the armory"], { world })).toBe("forge");
-    expect(readHome(["The Twins", "the Great Hall"], null, { world })).toEqual({ house: "the twins", style: "old" });
+    expect(readHome(["The Twins", "the Great Hall"], null, { world })).toMatchObject({ house: "the twins", style: "old" });
   });
 
   // Nothing here is a castle, so none of these change.
@@ -394,7 +394,7 @@ describe("Westeros", () => {
     [["the Great Sept of Baelor"], "the great sept of baelor"],
     [["Winterfell", "the guest house"], "winterfell"],
   ] as const)("%p is old-world, in %s", (path, house) => {
-    expect(readHome([...path])).toEqual({ house, style: "old" });
+    expect(readHome([...path])).toMatchObject({ house, style: "old" });
   });
 
   test("a manse is grand", () => {
@@ -402,10 +402,10 @@ describe("Westeros", () => {
   });
 
   test("everywhere in Westeros is old-world, unless you've said otherwise", () => {
-    expect(readHome(["the kitchen"], null, { world })).toEqual({ house: "the kitchen", style: "old" });
-    expect(readHome(["Lannisport", "the fishmonger"], null, { world })).toEqual({ house: "lannisport", style: "old" });
-    expect(readHome(["Jackie's house", "the den"], null, { world })).toEqual({ house: "jackie's house", style: "old" });
-    expect(readHome(["The mansion"], null, { world })).toEqual({ house: "the mansion", style: "old" });
+    expect(readHome(["the kitchen"], null, { world })).toMatchObject({ house: "the kitchen", style: "old" });
+    expect(readHome(["Lannisport", "the fishmonger"], null, { world })).toMatchObject({ house: "lannisport", style: "old" });
+    expect(readHome(["Jackie's house", "the den"], null, { world })).toMatchObject({ house: "jackie's house", style: "old" });
+    expect(readHome(["The mansion"], null, { world })).toMatchObject({ house: "the mansion", style: "old" });
     expect(readHome(["Jackie's house", "the den"], { "jackie's house": "grand" }, { world })?.style).toBe("grand");
     expect(readHome([], null, { world })).toBeNull();
   });
@@ -413,6 +413,45 @@ describe("Westeros", () => {
   test("an apartment outside a castle is still a flat", () => {
     expect(readHome(["New York", "Jackie's apartment"])).toEqual({ house: "jackie's apartment", style: "humble" });
     expect(readPlace(["New York", "Jackie's apartment"])).toBe("living");
+  });
+
+  test("a ruin stands whole again when the story says so", () => {
+    expect(readPlace(["the ruins"])).toBe("ruins");
+    expect(readPlace(["the restored ruins"])).toBe("restored");
+    expect(readPlace(["The abbey ruins, rebuilt"])).toBe("restored");
+    expect(readPlace(["King's Landing", "the Dragonpit"])).toBe("ruins");
+    expect(readPlace(["King's Landing", "the rebuilt Dragonpit"])).toBe("restored");
+    expect(readPlace(["the restored theatre"])).toBe("theater");
+  });
+
+  // docs/25 §2.3: what each castle is built of.
+  test.each([
+    [["King's Landing", "the Red Keep", "the Throne Room"], "redstone"],
+    [["Maegor's Holdfast"], "redstone"],
+    [["Harrenhal", "the Great Hall"], "fused"],
+    [["Winterfell", "the solar"], "ashlar"],
+    [["The castle", "the kitchens"], "ashlar"],
+    [["The abbey", "the chapel"], "ashlar"],
+  ] as const)("%p is built of %s", (path, masonry) => {
+    expect(readHome([...path])?.keep?.masonry).toBe(masonry);
+  });
+
+  test("somewhere old-world but not stone has no keep", () => {
+    expect(readHome(["The Lannister manor", "kitchen"])?.keep).toBeUndefined();
+    expect(readHome(["The Prancing Pony inn"])?.keep).toBeUndefined();
+    expect(readHome(["Mira's house", "the den"], { "mira's house": "old" })?.keep).toBeUndefined();
+    expect(readHome(["Lannisport", "the inn"], null, { world })?.keep).toBeUndefined();
+    expect(readHome(["The Twins", "the Great Hall"], null, { world })?.keep?.masonry).toBe("ashlar");
+    expect(readHome(["New York", "Jackie's apartment"])?.keep).toBeUndefined();
+  });
+
+  test("your word on a keep beats its name, and a nonsense one doesn't", () => {
+    const keeps = { harrenhal: { masonry: "ashlar", banners: ["#112233", "#ffeedd"] } };
+    expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps })?.keep).toEqual({ masonry: "ashlar", banners: [[17, 34, 51], [255, 238, 221]] });
+    expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps: { harrenhal: { masonry: "marble" } } })?.keep).toEqual({ masonry: "fused" });
+    expect(readHome(["Harrenhal", "the Great Hall"], null, { keeps: { harrenhal: { masonry: "marble", banners: ["red", "blue"] } } })?.keep).toEqual({ masonry: "fused" });
+    expect(readHome(["Mira's house"], { "mira's house": "old" }, { keeps: { "mira's house": { masonry: "redstone" } } })?.keep).toEqual({ masonry: "redstone" });
+    expect(readHome(["Harrenhal"], { harrenhal: "modern" })?.keep).toBeUndefined();
   });
 
   test("the chat's calendar names its world", () => {
@@ -438,7 +477,7 @@ describe("homes", () => {
     [["The cottage", "the den"], "the cottage", "modern"],
     [["The woods", "the cabin", "bed"], "the cabin", "modern"],
   ] as const)("%p is %s, %s", (path, house, style) => {
-    expect(readHome([...path])).toEqual({ house, style });
+    expect(readHome([...path])).toMatchObject({ house, style });
   });
 
   test.each([[["the kitchen"]], [["Downtown", "the bar"]], [["Mercy General Hospital", "bedroom"]], [["The opera house", "the stage"]], [["The trailer park"]], [[]]])("%p is nobody's home", (path) => {

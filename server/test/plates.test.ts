@@ -46,4 +46,9 @@ describe("scene plates (J1)", () => {
     updateChat(chatId, { settings: { trackers: { calendar: "westeros" } } });
     expect(scenePlates(chatId).calendar).toBe("westeros");
   });
+
+  test("“This keep is…” corrections ride along", () => {
+    updateChat(chatId, { settings: { keepStyles: { harrenhal: { masonry: "fused", banners: ["#112233", "#ffeedd"] } } } });
+    expect(scenePlates(chatId).keeps).toEqual({ harrenhal: { masonry: "fused", banners: ["#112233", "#ffeedd"] } });
+  });
 });

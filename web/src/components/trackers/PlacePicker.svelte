@@ -1,9 +1,19 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
-  import { HOME_STYLES, PLACE_GROUPS, ScenePainter, readWeather, type Home, type HomeStyle, type Place } from "../../lib/scenery";
+  import { HOME_STYLES, MASONRIES, PLACE_GROUPS, ScenePainter, readWeather, type Home, type HomeStyle, type Masonry, type Place } from "../../lib/scenery";
+  import type { KeepStyle } from "../../lib/types";
 
-  /** "This place is…": every kind of place, each painted at the scene's own hour and weather. "This house is…" sets how its home is kept. */
-  let { open = $bindable(false), name, current, hour, weather, home = null, onpick, onstyle }: { open?: boolean; name: string; current: Place; hour: number; weather: string | null; home?: Home | null; onpick: (kind: Place) => void; onstyle?: (house: string, style: HomeStyle) => void } = $props();
+  /** "This place is…": every kind of place, each painted at the scene's own hour and weather. "This house is…" sets how its home is kept, and "This keep is…" what a castle is built of and flies. */
+  let { open = $bindable(false), name, current, hour, weather, home = null, onpick, onstyle, onkeep }: { open?: boolean; name: string; current: Place; hour: number; weather: string | null; home?: Home | null; onpick: (kind: Place) => void; onstyle?: (house: string, style: HomeStyle) => void; onkeep?: (house: string, style: KeepStyle) => void } = $props();
+
+  const toHex = (c: [number, number, number]) => `#${c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+  const cloth = $derived<[string, string]>(home?.keep?.banners ? [toHex(home.keep.banners[0]), toHex(home.keep.banners[1])] : ["#2e5478", "#d6c496"]);
+  function setKeep(masonry: Masonry | undefined, banners: [string, string] | undefined) {
+    if (!home) return;
+    const m = masonry ?? home.keep?.masonry ?? "ashlar";
+    const b = banners ?? (home.keep?.banners ? cloth : undefined);
+    onkeep?.(home.house, b ? { masonry: m, banners: b } : { masonry: m });
+  }
 
   let q = $state("");
   const groups = $derived.by(() => {
@@ -27,6 +37,16 @@
       {#each HOME_STYLES as s (s.id)}
         <button class="chip" class:on={home.style === s.id} aria-pressed={home.style === s.id} onclick={() => onstyle?.(home.house, s.id)}>{s.label}</button>
       {/each}
+    </div>
+  {/if}
+  {#if home && onkeep && home.style === "old"}
+    <div class="house" role="group" aria-label="This keep is…">
+      <span class="tiny muted">This keep is</span>
+      {#each MASONRIES as m (m.id)}
+        <button class="chip" class:on={home.keep?.masonry === m.id} aria-pressed={home.keep?.masonry === m.id} onclick={() => setKeep(m.id, undefined)}>{m.label}</button>
+      {/each}
+      <label class="swatch">Field <input type="color" value={cloth[0]} onchange={(e) => setKeep(undefined, [e.currentTarget.value, cloth[1]])} /></label>
+      <label class="swatch">Charge <input type="color" value={cloth[1]} onchange={(e) => setKeep(undefined, [cloth[0], e.currentTarget.value])} /></label>
     </div>
   {/if}
   <input class="search" type="search" placeholder="Find a place…" aria-label="Find a place" bind:value={q} />
@@ -76,6 +96,22 @@
   .chip.on {
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
+  }
+  .swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-muted);
+    font-size: 0.74rem;
+  }
+  .swatch input {
+    width: 1.6rem;
+    height: 1.4rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
   }
   .search {
     width: 100%;

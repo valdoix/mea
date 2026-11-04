@@ -10,7 +10,7 @@ import { clamp, DARK, hex, lerp, mix, type Env, type Home, type Place, type RGB,
 import { buildScene } from "./morescenes";
 import type { Scene } from "./scenes";
 
-export { HOME_STYLES, PLACE_GROUPS, PLACES, isPlace, readHome, readPlace, type Home, type HomeStyle, type Place } from "./places";
+export { HOME_STYLES, MASONRIES, PLACE_GROUPS, PLACES, isPlace, readHome, readPlace, type Home, type HomeStyle, type Masonry, type Place } from "./places";
 export { worldOf } from "./westeros";
 
 export type Weather = "clear" | "cloudy" | "rain" | "storm" | "fog" | "snow" | "wind";
@@ -167,7 +167,7 @@ export class ScenePainter {
     if (o.weather) this.wx = o.weather;
     const seed = o.seed ?? this.seed;
     const home = o.home === undefined ? this.home : o.home;
-    if ((o.place && o.place !== this.place) || seed !== this.seed || home?.house !== this.home?.house || home?.style !== this.home?.style) {
+    if ((o.place && o.place !== this.place) || seed !== this.seed || home?.house !== this.home?.house || home?.style !== this.home?.style || JSON.stringify(home?.keep) !== JSON.stringify(this.home?.keep)) {
       this.home = home;
       // Crossfade from what's on screen now to the new place.
       if (this.w && !this.still) {

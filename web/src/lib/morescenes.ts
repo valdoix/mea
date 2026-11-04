@@ -50,6 +50,7 @@ import {
   type Shim,
 } from "./scenes";
 import { HOME_SCENES } from "./homescenes";
+import { KEEP_SCENES } from "./keepscenes";
 import { LAST_HOMES } from "./lasthomes";
 import { MORE_HOMES } from "./morehomes";
 import { clock, drapes, ellipse, grid, lampsOn, none, pick, rr, shut, steam, time } from "./scenebits";
@@ -3070,5 +3071,7 @@ export function buildScene(place: Place, seed: string, W: number, H: number, foc
   const kind = (dress?.style === "old" && OLDER[place]) || place;
   // Two houses' "kitchen" differ, and a place outside any home keeps the look it always had.
   const r = rand(seedOf(dress ? `${kind}:${dress.house}:${seed}` : `${kind}:${seed}`));
-  return (BUILD[kind] ?? SCENES.hills)({ W, H, u: H / 300, F: W * focus, r, mini, home: dress });
+  // A castle has its own stone rooms; and no old-world study looks out on a skyscraper.
+  const castle = dress?.keep || (dress?.style === "old" && kind === "study") ? KEEP_SCENES[kind] : undefined;
+  return (castle ?? BUILD[kind] ?? SCENES.hills)({ W, H, u: H / 300, F: W * focus, r, mini, home: dress });
 }

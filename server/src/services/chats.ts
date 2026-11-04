@@ -134,6 +134,8 @@ export const chatSettingsSchema = z.object({
   placeKinds: z.record(z.string().max(120), z.string().max(30)).optional(),
   /** "This house is…": your correction of how a home is kept (by house, lower case). */
   houseStyles: z.record(z.string().max(120), z.enum(["modern", "humble", "grand", "old"])).optional(),
+  /** "This keep is…": what a castle is built of and the colours it flies (by house, lower case). */
+  keepStyles: z.record(z.string().max(120), z.object({ masonry: z.enum(["ashlar", "redstone", "fused"]), banners: z.tuple([z.string().regex(/^#[0-9a-f]{6}$/i), z.string().regex(/^#[0-9a-f]{6}$/i)]).optional() })).optional(),
   /** H3: who plans each reply: the writer itself ("reply"), or a separate planner model. */
   planning: z.enum(["reply", "planner"]).optional(),
   plannerProfileId: z.string().nullable().optional(),

@@ -50,5 +50,5 @@ export function scenePlates(chatId: string) {
     if (moved) out.push({ seq: m.seq, place: [...place], weather, hour });
   }
   const settings = parseJson<ChatSettings>(chat.settings, {});
-  return { states: out, kinds: settings.placeKinds ?? {}, styles: settings.houseStyles ?? {}, calendar: trackerConfig(chatId).calendar };
+  return { states: out, kinds: settings.placeKinds ?? {}, styles: settings.houseStyles ?? {}, keeps: settings.keepStyles ?? {}, calendar: trackerConfig(chatId).calendar };
 }

@@ -78,6 +78,7 @@ trackers.get("/chats/:id/trackers", (c) => {
     // The "This place is…" corrections, so every scene window paints the same place.
     placeKinds: parseJson<ChatSettings>(chat.settings, {}).placeKinds ?? {},
     houseStyles: parseJson<ChatSettings>(chat.settings, {}).houseStyles ?? {},
+    keepStyles: parseJson<ChatSettings>(chat.settings, {}).keepStyles ?? {},
     maxSeq: one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.s ?? 0,
   });
 });

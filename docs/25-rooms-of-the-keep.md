@@ -1,6 +1,6 @@
 # Design plan: Harrenhal, King's Landing and occasions
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Part 1 built, Parts 2–9 to come.
+**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–2 built, Parts 3–9 to come.
 
 Follows [docs/24](24-rooms-of-the-house.md), which gave plates one painter and 54 rooms of a house. This plan does two things:
 
@@ -406,7 +406,7 @@ Part 1's mappings get pointed at the real kinds as each part lands. Until then, 
 
 | Place | Painted for now as | Why |
 |---|---|---|
-| Solars, map room, counting room, Tower of the Hand, Round Room | `library` | `study` still has venetian blinds and a skyscraper view, so it stays out of castles until Part 2 repaints it |
+| Solars, map room, counting room, Tower of the Hand, Round Room | `study` | Repainted in Part 2: a writing table, a lancet and a hearth, not blinds and a skyscraper |
 | Council chamber | `dining` | Long table and a row of chairs |
 | Rookery, tower rooms, servants' quarters | `attic` | Rafters and a round window |
 | Maester's chambers | `alchemy` | Jars, bench, stone wall |
@@ -416,6 +416,8 @@ Part 1's mappings get pointed at the real kinds as each part lands. Until then, 
 | Battlements, walls, King's Landing as a whole | `rooftops` | A parapet over a town |
 | Armory | `forge` | Iron and firelight |
 | Guardroom, barracks, brothel | `tavern` | Table, hearth, low light |
+
+**Added in Part 2, at your request: `restored`, the ruins made whole.** It has the same layout as `ruins`, with the colonnade roofed and pedimented and the broken arch closed, so the two read as a before and after. It's a 130th kind in the picker as **Ruins, restored**, and a place reads as it when a ruin's name says *restored*, *rebuilt*, *repaired* or *intact*. Part 8's year dressing can use it for the Dragonpit before 130 AC until `dragonpit` has its own whole dome. The new-kind totals in §3 are one higher as a result: 168, not 167.
 
 ---
 

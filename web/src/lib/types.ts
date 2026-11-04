@@ -1652,6 +1652,14 @@ export interface TrackersResponse {
   placeKinds?: Record<string, string>;
   /** Your "This house is…" corrections, by house. */
   houseStyles?: Record<string, string>;
+  /** Your "This keep is…" corrections, by castle. */
+  keepStyles?: Record<string, KeepStyle>;
+}
+
+/** What a castle is built of, and the colours of its cloth (hex). */
+export interface KeepStyle {
+  masonry: string;
+  banners?: [string, string];
 }
 
 export interface CastPerson {
