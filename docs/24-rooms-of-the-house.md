@@ -1,6 +1,6 @@
 # Design plan: the rooms of the house (richer scene plates)
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** Parts 1–3 built (painted plates, the reader knowing a house, and house identity). Parts 4–6 proposed.
+**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** Parts 1–4 built (painted plates, the reader knowing a house, house identity, and the first 14 rooms). Parts 5–6 proposed.
 
 Stories spend most of their time inside houses, and that is where the scene art is thinnest. This plan makes every plate draw the room the story is really in, adds 54 kinds of home location, and makes the rooms of one house look like they belong together.
 
@@ -275,19 +275,17 @@ One PR per part.
 
 The hour and weather details in §2.3 ship with each room rather than as a part of their own. Part 2's mappings get pointed at the real kinds as each wave lands.
 
-**What Part 2 reads each as, until its room is painted:**
+**What still reads as a stand-in, until its room is painted (the first 14 rooms now read as themselves):**
 
 | Written in the story | Reads as |
 |---|---|
 | A named home: mansion, villa, penthouse, townhouse, bungalow, beach house | `living` |
 | Trailer or RV / houseboat / dorm | `cabin` / `shipcabin` / `bedroom` |
-| Media, TV, rec, music, craft, trophy or great room, home theater, home bar | `living` |
-| Laundry room | `homekitchen`, the nearest room with white goods |
-| Garage | `forge`, the nearest room with tools and a workbench |
-| Boiler room, panic room, secret room | `cellar` |
+| Rec, music, craft, trophy or great room, home bar | `living` |
+| Panic room, secret room | `cellar` |
 | Patio, backyard | `meadow` |
-| Dining room, foyer, hallway, stairs, closet, porch, gym | Takes after what it's in: `hall` in a castle or abbey, `hospital` in a hospital, `living` in a house, on its own or outdoors |
-| A public word inside a home: theater, bar, game room, laundry, sickroom, the hall, the deck | `living`, `homekitchen`, `bedroom` or `meadow`, unless it's somewhere grand like a ballroom |
+| Closet, mudroom, gym, breakfast nook | Takes after what it's in: `hall` in a castle or abbey, `hospital` in a hospital, `living` in a house, on its own or outdoors |
+| A public word inside a home: bar, game room, sickroom | `living` or `bedroom`, unless it's somewhere grand like a ballroom |
 
 ---
 
