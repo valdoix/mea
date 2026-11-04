@@ -57,6 +57,7 @@ import type { SceneOccasion } from "./occasions";
 import { dressScene, stagePainted, stagePlace } from "./occasionscenes";
 import { LAST_HOMES } from "./lasthomes";
 import { SEAT_SCENES, seatView } from "./seatscenes";
+import { WORKING_ROOMS } from "./workingrooms";
 import { MORE_HOMES } from "./morehomes";
 import { clock, drapes, ellipse, grid, lampsOn, none, pick, rr, shut, steam, time } from "./scenebits";
 
@@ -3068,7 +3069,7 @@ const MORE = {
   alchemy,
 } satisfies Partial<Record<Place, (c: Ctx) => Scene>>;
 
-const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES, ...SEAT_SCENES, ...CASTLE_ROOMS, ...CITY_SCENES };
+const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES, ...SEAT_SCENES, ...CASTLE_ROOMS, ...CITY_SCENES, ...WORKING_ROOMS };
 
 export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean, home: Home | null = null, occasion: SceneOccasion | null = null): Scene {
   const dress = home ? dressHome(home) : null;
