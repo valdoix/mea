@@ -1,6 +1,6 @@
 # Design plan: Harrenhal, King's Landing and occasions
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–3 built, Parts 4–9 to come.
+**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–4 built, Parts 5–9 to come.
 
 Follows [docs/24](24-rooms-of-the-house.md), which gave plates one painter and 54 rooms of a house. This plan does two things:
 

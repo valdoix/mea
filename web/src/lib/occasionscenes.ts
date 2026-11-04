@@ -6,7 +6,7 @@
  * a crowd is a dark edge at the foot of the picture.
  */
 import { clamp, DARK, mix, rgb, TAU, WARM, type Ctx, type Env, type Place, type RGB } from "./places";
-import { candle, tint } from "./keepbits";
+import { candle, tint, torchlight } from "./keepbits";
 import { fill, glowAt, hillView, lamp, leafy, poly, ridge, room, GRASS, type Scene, tone, lit, stroke } from "./scenes";
 import type { Occasion } from "./occasions";
 
@@ -325,6 +325,120 @@ function discoLights(c: Ctx): Paint {
   };
 }
 
+/** A many-candled ring on its chain. */
+function chandelier(g: G, E: Env, x: number, y: number, u: number, n = 5) {
+  const on = torchlight(E);
+  g.strokeStyle = "rgb(30,26,26)";
+  g.lineWidth = 1.2 * u;
+  g.beginPath();
+  g.moveTo(x, 0);
+  g.lineTo(x, y);
+  g.stroke();
+  g.fillStyle = rgb(tint(E, [176, 146, 90], 0.42));
+  g.beginPath();
+  g.ellipse(x, y, (n * 8 + 6) * u, 5 * u, 0, 0, TAU);
+  g.fill();
+  glowAt(g, x, y, 170 * u, WARM, 0.36 * on);
+  for (let i = 0; i < n; i++) {
+    const cx = x + (i - (n - 1) / 2) * 15 * u;
+    g.fillStyle = rgb([255, 226, 150], 0.5 + on * 0.5);
+    g.beginPath();
+    g.ellipse(cx, y - 8 * u, 1.6 * u, 3.8 * u, 0, 0, TAU);
+    g.fill();
+  }
+}
+
+/** A mirror ball, and the flecks of light it throws round the room. */
+function mirrorBall(c: Ctx, x: number, y: number): Paint {
+  const { W, H, u, r } = c;
+  const flecks = Array.from({ length: Math.round(W / (9 * u)) }, () => ({ a: r() * W, b: r() * H * 0.82, p: r() * TAU, s: (1 + r() * 1.6) * u }));
+  const rad = 18 * u;
+  return (g, E) => {
+    const T = E.still ? 0 : E.T;
+    for (const f of flecks) {
+      g.fillStyle = rgb([255, 250, 236], (0.28 + E.glow * 0.42) * (0.5 + 0.5 * Math.sin(T * 1.4 + f.p)));
+      g.fillRect((f.a + T * 14 * u) % W, f.b, f.s, f.s);
+    }
+    g.strokeStyle = "rgb(40,36,40)";
+    g.lineWidth = 1 * u;
+    g.beginPath();
+    g.moveTo(x, 0);
+    g.lineTo(x, y - rad);
+    g.stroke();
+    const lg = g.createRadialGradient(x - 5 * u, y - 6 * u, 1, x, y, rad);
+    lg.addColorStop(0, "rgb(246,246,252)");
+    lg.addColorStop(1, "rgb(96,100,124)");
+    g.fillStyle = lg;
+    g.beginPath();
+    g.arc(x, y, rad, 0, TAU);
+    g.fill();
+    g.strokeStyle = "rgba(20,20,40,.32)";
+    g.lineWidth = 0.7 * u;
+    g.beginPath();
+    for (let k = -3; k <= 3; k++) {
+      const half = Math.sqrt(Math.max(0, rad * rad - (k * 5 * u) ** 2));
+      g.moveTo(x - half, y + k * 5 * u);
+      g.lineTo(x + half, y + k * 5 * u);
+    }
+    g.stroke();
+  };
+}
+
+/** Long swagged drapes of cloth from the top of the picture. */
+function drapery(c: Ctx, hue: RGB): Paint {
+  const { W, H, u, F } = c;
+  const shape = new Path2D();
+  const span = 240 * u;
+  for (let x = F - span * Math.ceil(F / span + 1); x < W + span; x += span) {
+    shape.moveTo(x, -2);
+    shape.lineTo(x, H * 0.14);
+    shape.quadraticCurveTo(x + span / 2, H * 0.34, x + span, H * 0.14);
+    shape.lineTo(x + span, -2);
+    shape.closePath();
+  }
+  return (g, E) => {
+    fill(g, shape, tint(E, hue, 0.36));
+    stroke(g, shape, tint(E, [214, 176, 96], 0.4), 1.6 * u, 0.8);
+  };
+}
+
+/** A paper lantern on a line. */
+function lanterns(c: Ctx, y = c.H * 0.12): Paint {
+  const { u } = c;
+  const at = swags(c, y, 22, 240, 42);
+  return (g, E) => {
+    const on = clamp(E.glow * 1.3);
+    at.forEach((p, i) => {
+      const hue = BRIGHT[i % BRIGHT.length]!;
+      glowAt(g, p.x, p.y + 12 * u, 34 * u, hue, 0.36 * on);
+      g.fillStyle = rgb(mix(tint(E, hue, 0.42), mix(hue, [255, 236, 190], 0.5), on));
+      g.beginPath();
+      g.ellipse(p.x, p.y + 12 * u, 9 * u, 11 * u, 0, 0, TAU);
+      g.fill();
+    });
+  };
+}
+
+/** A striped stall with goods on its counter. */
+function stall(g: G, E: Env, x: number, y: number, u: number, hue: RGB) {
+  g.fillStyle = rgb(tint(E, [106, 78, 54], 0.34));
+  g.fillRect(x - 52 * u, y - 64 * u, 4 * u, 70 * u);
+  g.fillRect(x + 48 * u, y - 64 * u, 4 * u, 70 * u);
+  for (let k = 0; k < 6; k++) {
+    g.fillStyle = rgb(tint(E, k % 2 ? [236, 230, 216] : hue, 0.44));
+    const a = x - 60 * u + k * 20 * u;
+    poly2(g, a, y - 62 * u, a + 20 * u, y - 62 * u, a + 16 * u, y - 86 * u, a + 4 * u, y - 86 * u);
+  }
+  g.fillStyle = rgb(tint(E, [132, 96, 66], 0.38));
+  g.fillRect(x - 56 * u, y - 18 * u, 112 * u, 24 * u);
+  for (let k = 0; k < 5; k++) {
+    g.fillStyle = rgb(tint(E, BRIGHT[(k * 3) % BRIGHT.length]!, 0.46));
+    g.beginPath();
+    g.arc(x - 38 * u + k * 19 * u, y - 23 * u, 6 * u, 0, TAU);
+    g.fill();
+  }
+}
+
 /** What an occasion lays over a place. At a stage it stands at the centre, larger. */
 function dressing(c: Ctx, id: Occasion, old: boolean, stage: boolean, indoors: boolean): Paint {
   const { H, u, F } = c;
@@ -465,6 +579,233 @@ function dressing(c: Ctx, id: Occasion, old: boolean, stage: boolean, indoors: b
           g.fill();
         }
       });
+      break;
+    }
+    case "anniversary": {
+      add(table(c, tx, (stage ? 96 : 76) * u, top, old ? [150, 90, 74] : [236, 226, 218]));
+      if (!old) add(lights(c));
+      add(scatter(c, [[190, 40, 60], [214, 70, 84]], 16, H * 0.84, 2.8));
+      add((g, E) => {
+        for (const d of [-1, 1]) setting(g, E, tx + d * 40 * u, top, u, old);
+        candle(g, E, tx - 9 * u, top, u, 22);
+        // Roses in a little jar.
+        g.fillStyle = rgb(tint(E, [150, 170, 190], 0.42));
+        poly2(g, tx + 6 * u, top, tx + 18 * u, top, tx + 20 * u, top - 16 * u, tx + 4 * u, top - 16 * u);
+        for (let k = 0; k < 6; k++) {
+          g.fillStyle = rgb(tint(E, [186, 34, 56], 0.5));
+          g.beginPath();
+          g.arc(tx + 12 * u + Math.cos(k * 2.4) * 8 * u, top - 24 * u + Math.sin(k * 2.4) * 6 * u, 4.6 * u, 0, TAU);
+          g.fill();
+        }
+      });
+      break;
+    }
+    case "ball": {
+      add(drapery(c, c.home?.keep?.banners?.[0] ?? (old ? [120, 40, 56] : [90, 60, 130])));
+      if (old) {
+        add(wash(c, [255, 170, 90], 0.05));
+        const at: number[] = [];
+        for (let x = F - 360 * u * Math.ceil(F / (360 * u)); x < c.W; x += 360 * u) at.push(x);
+        add((g, E) => {
+          for (const x of at) chandelier(g, E, x, H * 0.2, u);
+        });
+        add(table(c, F - 300 * u, 78 * u, H * 0.8, [86, 60, 90]));
+        add((g, E) => {
+          for (const d of [-44, 0, 44]) {
+            const mx = F - 300 * u + d * u;
+            g.fillStyle = rgb(tint(E, BLOOM[Math.abs(d) % 3]!, 0.5));
+            g.beginPath();
+            g.ellipse(mx, H * 0.8 - 7 * u, 15 * u, 8 * u, 0, 0, TAU);
+            g.fill();
+            g.fillStyle = "rgb(20,16,22)";
+            for (const s of [-1, 1]) {
+              g.beginPath();
+              g.ellipse(mx + s * 6.5 * u, H * 0.8 - 8 * u, 3.8 * u, 2.4 * u, 0, 0, TAU);
+              g.fill();
+            }
+          }
+        });
+      } else {
+        add(wash(c, [28, 18, 60], indoors ? 0.26 : 0.1));
+        add(discoLights(c));
+        add(mirrorBall(c, F, H * 0.24));
+        add(balloons(c, F - 300 * u, H * 0.92, 5));
+        add(balloons(c, F + 170 * u, H * 0.92, 4));
+      }
+      if (stage) add(crowd(c, false));
+      break;
+    }
+    case "festival": {
+      add(bunting(c, BRIGHT));
+      add(lanterns(c));
+      if (stage && !old) {
+        // A wheel turning over the town, lit from dusk.
+        const wx = F - 420 * u;
+        const wy = H * 0.42;
+        const R = 92 * u;
+        add((g, E) => {
+          const T = E.still ? 0 : E.T * 0.08;
+          g.strokeStyle = rgb(mix(tint(E, [150, 150, 176], 0.4), [255, 214, 150], clamp(E.glow) * 0.7));
+          g.lineWidth = 2.4 * u;
+          g.beginPath();
+          g.arc(wx, wy, R, 0, TAU);
+          g.moveTo(wx - 50 * u, H * 0.84);
+          g.lineTo(wx, wy);
+          g.lineTo(wx + 50 * u, H * 0.84);
+          for (let k = 0; k < 12; k++) {
+            const a = T + (k / 12) * TAU;
+            g.moveTo(wx, wy);
+            g.lineTo(wx + Math.cos(a) * R, wy + Math.sin(a) * R);
+          }
+          g.stroke();
+          for (let k = 0; k < 12; k++) {
+            const a = T + (k / 12) * TAU;
+            const x = wx + Math.cos(a) * R;
+            const y = wy + Math.sin(a) * R;
+            g.fillStyle = rgb(mix(tint(E, BRIGHT[k % BRIGHT.length]!, 0.42), [255, 226, 150], clamp(E.glow) * 0.55));
+            g.fillRect(x - 6 * u, y, 12 * u, 11 * u);
+            if (E.glow > 0.2) glowAt(g, x, y, 15 * u, WARM, 0.4 * E.glow);
+          }
+        });
+      }
+      if (old && stage) {
+        const mx = F - 330 * u;
+        add((g, E) => {
+          g.fillStyle = rgb(tint(E, [150, 118, 80], 0.36));
+          g.fillRect(mx - 3 * u, H * 0.1, 6 * u, H * 0.9);
+          g.lineWidth = 1.8 * u;
+          BRIGHT.forEach((hue, i) => {
+            g.strokeStyle = rgb(tint(E, hue, 0.46));
+            g.beginPath();
+            g.moveTo(mx, H * 0.1);
+            g.quadraticCurveTo(mx + (i - 2) * 22 * u, H * 0.24, mx + (i - 2) * 62 * u, H * 0.6);
+            g.stroke();
+          });
+          g.fillStyle = rgb(tint(E, LEAF, 0.38));
+          g.beginPath();
+          g.ellipse(mx, H * 0.1, 16 * u, 8 * u, 0, 0, TAU);
+          g.fill();
+        });
+      }
+      add((g, E) => {
+        const y = H * 0.96;
+        stall(g, E, F - (stage ? 170 : 250) * u, y, u, [196, 60, 66]);
+        stall(g, E, F - (stage ? 640 : 520) * u, y, u, [60, 120, 170]);
+        if (stage) stall(g, E, F + 150 * u, y, u, [214, 150, 50]);
+      });
+      break;
+    }
+    case "coronation": {
+      add(drapery(c, c.home?.keep?.banners?.[0] ?? (old ? [120, 26, 44] : [34, 58, 110])));
+      add(scatter(c, [[230, 190, 90], [236, 226, 200]], stage ? 40 : 22, H * 0.84, 2.2));
+      const cx = stage ? F : F - 250 * u;
+      add((g, E) => {
+        // A plinth, a cushion, a crown; for an inauguration a lectern with a seal.
+        g.fillStyle = rgb(tint(E, old ? [120, 106, 92] : [76, 56, 44], 0.38));
+        g.fillRect(cx - 34 * u, H * 0.76, 68 * u, H * 0.26);
+        g.fillStyle = rgb(tint(E, old ? [150, 134, 116] : [108, 80, 60], 0.42));
+        g.fillRect(cx - 42 * u, H * 0.74, 84 * u, 6 * u);
+        if (old) {
+          g.fillStyle = rgb(tint(E, [150, 28, 44], 0.46));
+          g.beginPath();
+          g.ellipse(cx, H * 0.72, 40 * u, 11 * u, 0, 0, TAU);
+          g.fill();
+          g.fillStyle = rgb(tint(E, [226, 180, 80], 0.6));
+          poly2(g, cx - 22 * u, H * 0.7, cx + 22 * u, H * 0.7, cx + 26 * u, H * 0.7 - 30 * u, cx + 13 * u, H * 0.7 - 13 * u, cx + 7 * u, H * 0.7 - 34 * u, cx, H * 0.7 - 15 * u, cx - 7 * u, H * 0.7 - 34 * u, cx - 13 * u, H * 0.7 - 13 * u, cx - 26 * u, H * 0.7 - 30 * u);
+          for (const d of [-14, 0, 14]) {
+            g.fillStyle = rgb(tint(E, BRIGHT[Math.abs(d) % 3]!, 0.6));
+            g.beginPath();
+            g.arc(cx + d * u, H * 0.7 - 5 * u, 2.4 * u, 0, TAU);
+            g.fill();
+          }
+          glowAt(g, cx, H * 0.66, 80 * u, [255, 214, 130], 0.22);
+        } else {
+          g.fillStyle = rgb(tint(E, [226, 190, 110], 0.56));
+          g.beginPath();
+          g.arc(cx, H * 0.86, 16 * u, 0, TAU);
+          g.fill();
+          for (const s of [-1, 1]) {
+            const fx = cx + s * 96 * u;
+            g.fillStyle = rgb(tint(E, [200, 196, 190], 0.44));
+            g.fillRect(fx - 1.4 * u, H * 0.22, 2.8 * u, H * 0.8);
+            g.fillStyle = rgb(tint(E, s < 0 ? [176, 40, 56] : [40, 70, 140], 0.46));
+            poly2(g, fx, H * 0.24, fx + s * 56 * u, H * 0.3, fx + s * 50 * u, H * 0.5, fx, H * 0.52);
+          }
+        }
+        for (const s of [-1, 1]) for (let k = 0; k < 4; k++) candle(g, E, cx + s * (66 + k * 13) * u, H - (k % 2) * 9 * u, u, 16 + k * 6, 0.5);
+      });
+      if (stage) add(crowd(c, false));
+      break;
+    }
+    case "contest": {
+      const hues: RGB[] = old ? [[176, 40, 52], [226, 196, 110], [40, 84, 140]] : [[30, 90, 176], [240, 236, 226]];
+      add(bunting(c, hues));
+      if (old) {
+        // The tilt: a long striped rail across the ground, with pennants on its posts.
+        const y = H * 0.74;
+        const rail = new Path2D();
+        rail.rect(-10 * u, y, c.W + 20 * u, 6 * u);
+        rail.rect(-10 * u, y + 22 * u, c.W + 20 * u, 4 * u);
+        const stripes = new Path2D();
+        for (let x = -10 * u; x < c.W; x += 44 * u) stripes.rect(x, y, 22 * u, 6 * u);
+        const posts: number[] = [];
+        for (let x = F - 880 * u; x < c.W; x += 176 * u) if (x > -10 * u) posts.push(x);
+        add((g, E) => {
+          fill(g, rail, tint(E, [226, 214, 186], 0.42));
+          fill(g, stripes, tint(E, hues[0]!, 0.44));
+          for (const x of posts) {
+            g.fillStyle = rgb(tint(E, [106, 78, 54], 0.36));
+            g.fillRect(x - 2 * u, y - 72 * u, 4 * u, 112 * u);
+            const T = E.still ? 0 : E.T;
+            const flap = Math.sin(T * 3 + x) * 4 * u * (0.4 + E.c.wind);
+            g.fillStyle = rgb(tint(E, hues[Math.round(x / u) % 3 === 0 ? 2 : 1]!, 0.46));
+            poly2(g, x + 2 * u, y - 72 * u, x + 36 * u, y - 62 * u + flap, x + 2 * u, y - 52 * u);
+          }
+        });
+      }
+      if (stage && old) add(crowd(c, false));
+      break;
+    }
+    case "execution": {
+      add(wash(c, [34, 34, 44], 0.2));
+      if (indoors) {
+        add(drapery(c, [24, 20, 26]));
+        break;
+      }
+      const sx = stage ? F : F - 260 * u;
+      const y = H * 0.68;
+      const deck = new Path2D();
+      deck.rect(sx - 130 * u, y, 260 * u, 9 * u);
+      for (const d of [-122, -44, 36, 114]) deck.rect(sx + d * u, y + 9 * u, 8 * u, H);
+      const brace = new Path2D();
+      brace.moveTo(sx - 118 * u, H);
+      brace.lineTo(sx - 40 * u, y + 9 * u);
+      brace.moveTo(sx + 118 * u, H);
+      brace.lineTo(sx + 40 * u, y + 9 * u);
+      const crows = new Path2D();
+      for (const [dx, dy] of [[-150, -130], [-126, -148], [140, -112]] as const) {
+        crows.moveTo(sx + (dx + 7) * u, y + dy * u);
+        crows.ellipse(sx + dx * u, y + dy * u, 7 * u, 2.6 * u, 0, 0, TAU);
+      }
+      add((g, E) => {
+        fill(g, crows, [14, 12, 16]);
+        for (const s of [-1, 1]) {
+          const bx = sx + s * 106 * u;
+          g.fillStyle = rgb(tint(E, [70, 56, 44], 0.3));
+          g.fillRect(bx - 2 * u, y - 112 * u, 4 * u, 114 * u);
+          const shape = new Path2D();
+          poly(shape, bx - 19 * u, y - 112 * u, bx + 19 * u, y - 112 * u, bx + 19 * u, y - 44 * u, bx, y - 56 * u, bx - 19 * u, y - 44 * u);
+          fill(g, shape, tint(E, c.home?.keep?.banners?.[0] ?? [60, 26, 34], 0.34));
+        }
+        stroke(g, brace, tint(E, [60, 46, 36], 0.28), 5 * u);
+        fill(g, deck, tint(E, [78, 60, 46], 0.32));
+        // The block, standing empty.
+        g.fillStyle = rgb(tint(E, [62, 46, 38], 0.32));
+        poly2(g, sx - 21 * u, y, sx + 21 * u, y, sx + 18 * u, y - 25 * u, sx - 18 * u, y - 25 * u);
+        g.fillStyle = rgb(DARK, 0.24);
+        g.fillRect(sx - 18 * u, y - 25 * u, 36 * u, 3 * u);
+      });
+      add(crowd(c, false));
       break;
     }
     case "funeral": {
@@ -667,8 +1008,80 @@ const STAGE_PLACE: Record<Occasion, { old: Place; modern: Place }> = {
   party: { old: "hall", modern: "living" },
   dinnerparty: { old: "hall", modern: "dining" },
   funeral: { old: "chapel", modern: "graveyard" },
+  anniversary: { old: "study", modern: "dining" },
+  ball: { old: "hall", modern: "greatroom" },
+  festival: { old: "market", modern: "city" },
+  coronation: { old: "hall", modern: "temple" },
+  contest: { old: "camp", modern: "city" },
+  execution: { old: "street", modern: "street" },
 };
-const STAGES_PAINTED: Partial<Record<Occasion, (c: Ctx) => Scene>> = { wedding: weddingGarden, reception: receptionTent };
+/** A stadium under its floodlights: tiers of crowd, a green pitch, a scoreboard. */
+function stadium(c: Ctx): Scene {
+  const { W, H, u, F, r } = c;
+  const top = H * 0.26;
+  const pitchY = H * 0.68;
+  const tiers = new Path2D();
+  for (let k = 0; k < 3; k++) {
+    const y = top + (k * (pitchY - top)) / 3;
+    tiers.rect(-4, y, W + 8, (pitchY - top) / 3 - 3 * u);
+  }
+  const fans: { x: number; y: number; c: RGB }[] = [];
+  const shirts: RGB[] = [[30, 90, 176], [240, 236, 226], [176, 40, 52], [226, 196, 110], [70, 70, 84]];
+  for (let y = top + 5 * u; y < pitchY - 3 * u; y += 6.5 * u) for (let x = (y % 2) * u; x < W; x += (5 + r() * 2) * u) if (r() > 0.1) fans.push({ x, y, c: shirts[(r() * shirts.length) | 0]! });
+  const roof = new Path2D();
+  poly(roof, -4, H * 0.24, W + 4, H * 0.24, W + 4, H * 0.19, -4, H * 0.19);
+  const pitch = new Path2D();
+  pitch.rect(-4, pitchY, W + 8, H - pitchY);
+  const lines = new Path2D();
+  lines.rect(-4, pitchY + 7 * u, W + 8, 2 * u);
+  lines.rect(F - 1 * u, pitchY + 7 * u, 2 * u, H);
+  lines.moveTo(F + 40 * u, H * 0.88);
+  lines.ellipse(F, H * 0.88, 40 * u, 11 * u, 0, 0, TAU);
+  const towers: number[] = [];
+  for (let x = F - 620 * u; x < W + 40 * u; x += 310 * u) if (x > -20 * u) towers.push(x);
+  const dress = dressing(c, "contest", false, true, false);
+  return {
+    draw(g, E) {
+      const flood = clamp(E.glow * 1.5 + 0.2);
+      fill(g, roof, tone(E, 0.72, [120, 122, 134], 0.7));
+      fill(g, tiers, tone(E, 0.78, [96, 98, 110], 0.6));
+      for (const f of fans) {
+        g.fillStyle = rgb(mix(tone(E, 0.6), f.c, 0.28 + 0.6 * Math.max(E.day, flood * 0.8)));
+        g.fillRect(f.x, f.y, 3 * u, 3.6 * u);
+      }
+      for (const x of towers) {
+        g.fillStyle = rgb(tone(E, 0.88));
+        g.fillRect(x - 3 * u, H * 0.02, 6 * u, H * 0.22);
+        g.fillRect(x - 24 * u, H * 0.015, 48 * u, 11 * u);
+        for (let k = -2; k <= 2; k++) {
+          g.fillStyle = rgb([255, 252, 232], 0.45 + flood * 0.55);
+          g.fillRect(x + k * 9 * u - 3 * u, H * 0.015 + 3 * u, 6 * u, 5 * u);
+        }
+        glowAt(g, x, H * 0.04, 180 * u, [240, 244, 255], 0.3 * flood);
+      }
+      const gr = g.createLinearGradient(0, pitchY, 0, H);
+      const lawn = mix(tone(E, 0.6, [60, 130, 66], 0.8), [62, 138, 72], flood * 0.75);
+      gr.addColorStop(0, rgb(lawn));
+      gr.addColorStop(1, rgb(mix(lawn, DARK, 0.3)));
+      g.fillStyle = gr;
+      g.fill(pitch);
+      for (let x = (F % (120 * u)) - 120 * u; x < W; x += 120 * u) {
+        g.fillStyle = rgb([255, 255, 255], 0.03);
+        g.fillRect(x, pitchY, 60 * u, H - pitchY);
+      }
+      stroke(g, lines, [240, 244, 240], 1.4 * u, 0.62);
+      // The board, up over the near end.
+      const bx = F - 150 * u;
+      g.fillStyle = rgb(tone(E, 0.92));
+      g.fillRect(bx - 56 * u, H * 0.03, 112 * u, 40 * u);
+      g.fillStyle = rgb([255, 190, 80], 0.5 + flood * 0.5);
+      for (const d of [-36, -18, 18, 36]) g.fillRect(bx + d * u - 6 * u, H * 0.03 + 9 * u, 12 * u, 22 * u);
+      dress(g, E);
+    },
+  };
+}
+
+const STAGES_PAINTED: Partial<Record<Occasion, (c: Ctx) => Scene>> = { wedding: weddingGarden, reception: receptionTent, contest: stadium };
 
 export const stagePlace = (id: Occasion, old: boolean): Place => STAGE_PLACE[id][old ? "old" : "modern"];
 /** An occasion painted whole, if it has one in this era. */

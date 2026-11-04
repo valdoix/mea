@@ -6,7 +6,7 @@
  */
 import { readPlace, placeNamed, type ReadOptions } from "./places";
 
-export type Occasion = "birthday" | "wedding" | "reception" | "party" | "dinnerparty" | "funeral";
+export type Occasion = "birthday" | "wedding" | "reception" | "party" | "dinnerparty" | "funeral" | "anniversary" | "ball" | "festival" | "coronation" | "contest" | "execution";
 
 export const OCCASIONS: { id: Occasion; label: string }[] = [
   { id: "birthday", label: "Birthday or name day" },
@@ -15,6 +15,12 @@ export const OCCASIONS: { id: Occasion; label: string }[] = [
   { id: "party", label: "Party or revel" },
   { id: "dinnerparty", label: "Dinner or banquet" },
   { id: "funeral", label: "Funeral" },
+  { id: "anniversary", label: "Anniversary or date" },
+  { id: "ball", label: "Ball or gala" },
+  { id: "festival", label: "Festival or fair" },
+  { id: "coronation", label: "Coronation" },
+  { id: "contest", label: "Tourney or big game" },
+  { id: "execution", label: "Execution" },
 ];
 export const isOccasion = (s: string | null | undefined): s is Occasion => OCCASIONS.some((o) => o.id === s);
 
@@ -26,11 +32,17 @@ export interface SceneOccasion {
 
 /** Most specific first. "the party" alone is a group of adventurers as often as an event, so it needs a place name to count. */
 const WORDS: [Occasion, RegExp][] = [
+  ["anniversary", /anniversary|date night|romantic dinner/],
   ["reception", /wedding (?:feast|reception|breakfast|party|banquet)|marriage feast/],
   ["birthday", /birthday(?: party)?|name ?day(?: party| feast)?|sweet sixteen|quincea/],
   ["wedding", /\bwedding\b|nuptials|handfasting|\bvows\b|marriage ceremony/],
   ["funeral", /\bfuneral|memorial service|\bburial\b|\bvigil\b|\bwake for\b|^(?:the )?wake$/],
   ["party", /(?:house|frat|office|costume|garden|new year'?s?|bachelor(?:ette)?|hen|stag|dance|pool|christmas|engagement|surprise|victory) party|bachelorette|\brevels?\b|\bkegger\b/],
+  ["coronation", /coronation|\bcrowning\b|inauguration|swearing[- ]in/],
+  ["execution", /execution|beheading|public hanging/],
+  ["contest", /tourney|tournament|\bjoust|\bmelee\b|big game|championship|football game|homecoming game/],
+  ["ball", /\bball\b(?! ?(?:game|park|field|room|pit))|masquerade|\bgala\b|\bprom\b|debutante/],
+  ["festival", /festival|carnival|fairground|county fair|^(?:the |a )?fair$|maiden'?s day/],
   ["dinnerparty", /dinner party|\bbanquet\b|\bfeast\b|thanksgiving|state dinner/],
 ];
 const BARE_PARTY = /\bparty\b/;

@@ -31,12 +31,31 @@ describe("reading an occasion", () => {
     ["the feast", "dinnerparty"],
     ["a dinner party", "dinnerparty"],
     ["the banquet", "dinnerparty"],
+    ["their wedding anniversary", "anniversary"],
+    ["date night", "anniversary"],
+    ["the ball", "ball"],
+    ["the masquerade", "ball"],
+    ["prom", "ball"],
+    ["the gala", "ball"],
+    ["the harvest festival", "festival"],
+    ["the fair", "festival"],
+    ["Maiden's Day", "festival"],
+    ["the coronation", "coronation"],
+    ["the crowning", "coronation"],
+    ["the inauguration", "coronation"],
+    ["the Tourney of the Hand", "contest"],
+    ["the joust", "contest"],
+    ["the big game", "contest"],
+    ["the championship", "contest"],
+    ["Ned's execution", "execution"],
+    ["the beheading", "execution"],
+    ["a public hanging", "execution"],
   ] as const)("%s is %s", (text, id) => {
     expect(readOccasion(text, "place")).toBe(id);
     expect(readOccasion(text.toUpperCase(), "tracker")).toBe(id);
   });
 
-  test.each(["the reception", "the shower", "in the wake of it", "the hanging", "the bedding", "a clinical trial", "the ball game", "the kitchen", "", null])("%p is no occasion", (text) => {
+  test.each(["the reception", "the shower", "in the wake of it", "the hanging", "the bedding", "a clinical trial", "the ball game", "the Queen's Ballroom", "the ball pit", "a fair fight", "the kitchen", "", null])("%p is no occasion", (text) => {
     expect(readOccasion(text, "place")).toBeNull();
   });
 
