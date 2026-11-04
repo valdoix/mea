@@ -134,5 +134,5 @@ describe("v16 (docs/23)", () => {
 test("a change to Mea's preset comes with a new version", () => {
   const hash = new Bun.CryptoHasher("sha256").update(JSON.stringify(meaPreset())).digest("hex").slice(0, 16);
   // Changed the preset? Raise MEA_PRESET_VERSION in prompt/mea.ts, then put both new values here.
-  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 20, hash: "163f6ed9562eb324" });
+  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 21, hash: "cf6d81e12471d4b9" });
 });

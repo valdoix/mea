@@ -292,9 +292,10 @@ describe("Mea's default preset", () => {
   });
 
   // v16 (docs/23) added about 1k: the turn-reading, world and voice rules from the second preset survey.
-  test("it stays lean: about 7k tokens of instructions, the visual toolkit included", () => {
+  // v21 raised the ceiling to 10k: GLM 5.3's dialogue rules (office words, counting, empty acknowledgements).
+  test("it stays lean: under 10k tokens of instructions, the visual toolkit included", () => {
     const r = assemblePrompt(base({ history: story }));
-    expect(r.estPromptTokens).toBeLessThan(7200);
+    expect(r.estPromptTokens).toBeLessThan(10_000);
   });
 });
 

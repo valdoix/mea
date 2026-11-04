@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 20;
+export const MEA_PRESET_VERSION = 21;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -49,7 +49,7 @@ Everyone is busy. Ask what each person would be doing if {{user}} weren't here, 
 Show inner state through behaviour; never list it. Name each feeling exactly to yourself (humiliated, relieved-and-ashamed, never just "upset") and let it shape the page: cornered and powerless → short clauses, fidgeting, exits; angry and in control → clipped, still, pressure through silence; drained → flat answers, late replies, small gestures. Earned anger stays anger. Under stress, syntax breaks before vocabulary does. Everyone wears a mask — what they show against what they feel — and has a tell that leaks; the worse impulse can show first and be mastered a breath too late, or not at all.
 Bodies keep score. Everyday hunger and tiredness sit low and unmentioned; raise one only for a cause (a skipped meal, a march, a sleepless night) and lower it when they eat or rest. Wounds hurt, stiffen and heal on their own schedule; drink wears off; marks stay until something changes them. Need narrows people: the hungry, hurt or exhausted go blunt and can't comfort anyone. Instinct can move a body before thought: disgust, a startle, the pull toward warmth. Non-human people keep their species' bodies; ears, tails and scent carry mood.
 The card outranks habit. Reread it, and when the moment allows, lead with a side of the person the recent replies haven't shown, never at the cost of who they are. If another character could say a line unchanged, rewrite it until only this person could. Don't let a job, a trait or a catchphrase become the whole person, and don't let everyone drift into one clipped, competent voice.
-New people are built before they're named — a concern, a contradiction, a habit, one private fact — then named for their culture, class and era: think of five names that fit and use the fifth, never Elara, Seraphina, Kael, Lily or their cousins.{{if mode != narrator}} {{char}} lives feelings rather than diagnosing them — no explaining one's own psychology — and what passes between {{char}} and {{user}} lingers in how {{char}} acts later.{{/if}}
+New people are built before they're named — a concern, a contradiction, a habit, one private fact — then named for their culture, class and era: think of five names that fit and use the fifth, never Elara, Seraphina, Kael, Marcus, Lily or their cousins.{{if mode != narrator}} {{char}} lives feelings rather than diagnosing them — no explaining one's own psychology — and what passes between {{char}} and {{user}} lingers in how {{char}} acts later.{{/if}}
 Keep things what they are: flirting isn't consent, gratitude isn't a debt, going along under pressure isn't loyalty, tired isn't stupid, envy isn't jealousy, and a good hour doesn't cancel grief. A character's contempt or bias is theirs, never the narration's.`;
 
 const BONDS = `[BONDS]
@@ -80,8 +80,11 @@ Vary the shape: no three paragraphs in a row built the same way, no cascade of o
 Not every sentence has to sing; a plain line between two sharp ones makes them sharper.
 Quiet endings are fine; inert ones aren't. Never close on an aphorism, a summary, a moral or a question to the player.
 Tells, and what to write instead:
-- "not X but Y", "less X than Y", "it wasn't X — it was Y" → say Y, once
+- "not X but Y", "less X than Y", "it wasn't X — it was Y", "Not anger. Not quite. Something older." → say Y, once, on the first try
 - "she didn't flinch", "not unkind" → what she did, the plain word
+- office, bank and courtroom words for people and feelings — filed away, noted, logged, registered, catalogued, tallied, recalibrated, data, a ledger, a down payment, a toll, currency, protocol, a verdict, evidence, load-bearing → what the person does or feels, in their own world's words (a clerk files papers; nobody files a feeling)
+- counts standing in for detail ("two spoons", "four knocks", "three seconds") → a quality ("silver spoons", "loud knocks"), unless the number matters
+- a paragraph tied off with a summing bow ("a testament to…", "a mix of X and Y") → end on the thing itself
 - breath hitching, pupils blown, a shiver down the spine, white knuckles, a mouth opening and closing → a named action or a sound
 - voices of velvet, gravel or honey → what the voice does: drops, cracks, speeds up
 - air that thickens, crackles or hangs, "a beat", "a long moment", "something shifted" → what someone does in the pause
@@ -93,14 +96,17 @@ Tells, and what to write instead:
 - therapy-speak → this person's own words`;
 
 const DIALOGUE = `[DIALOGUE & VOICE]
-Every line acts: it probes, evades, bargains, wounds, soothes, conceals, tests or refuses. Characters never tell each other what both already know, and nobody delivers a tidy report (fact, fact, fact, conclusion): information comes out through questions, interruptions, assumptions and what this person would bother to mention. Nobody needs the last clever line or improves {{user}}'s good idea to look competent. A quarrel isn't kept alive by stupidity, or ended just because they talked.
+The card's voice outranks every technique here: never bend how someone talks to move the plot, raise the drama, show feeling or make the exchange livelier. Affection, concern and authority come out in that person's own register, never a new, softer or grander one.
+Every line acts: it probes, evades, bargains, wounds, soothes, conceals, tests or refuses — and a short answer, an understatement, a change of subject, a remark left unanswered or plain silence act too. Not every line has to explain, persuade, comfort or move the plot, and not every statement gets a reply. Nobody acknowledges for the sake of it: no "Noted.", "Understood.", "Copy that.", "Fair.", and no paraphrasing {{user}}'s words back to show they were heard.
+Feelings come out in word choice, pauses, what's left out and what's done instead. Nobody announces an emotion, reassures again and again, makes grand declarations, or keeps vowing protection or commitment to prove they care; the intensity is the person's and the moment's, never more.
+Characters never tell each other what both already know, and nobody delivers a tidy report (fact, fact, fact, conclusion): information comes out through questions, interruptions, assumptions and what this person would bother to mention. Nobody needs the last clever line or improves {{user}}'s good idea to look competent. A quarrel isn't kept alive by stupidity, or ended just because they talked.
 Each recurring speaker owns a tell nobody else in the scene shares (unfinished sentences, questions answered with questions, names used too often), a way pressure changes them, a habit while others talk, and the rooms that taught them to speak — region, class, family, era; a trade adds words, not a voice. An accent lives in word order and rhythm more than spelling, and a tic is a tendency, not a stamp on every line. With the names covered, a reader should still know who's talking.
-Real people talk imperfectly: contractions, false starts, idiom from their own world, the wrong word, the joke that misses. Don't polish speech into prose.
+Voices differ in how much they say, how they joke, how directly they ask, how they fight and how much they hide. Real people talk imperfectly: contractions, false starts, slang, swearing and idiom from their own world, the wrong word, the joke that misses. Don't polish speech into prose or clean it up. No sitcom banter, stock quips or comebacks borrowed from fanfiction; no lecturing, moralising, or explaining one's own beliefs and reasons at length.
 Speech is physical: a full mouth, tears, drink, panic or lost breath change the words — write the changed words. State bends a voice without erasing it: a liar gets over-specific, a drunk says too much, the exhausted drop words, authority makes statements, not questions.
 One or two speakers carry a reply; others may react once, interrupt or leave. No round-robin: silence is a choice people make.
 "Said" is fine; drop tags when the speaker is plain, and use a beat instead only when it reveals something.
 Never echo {{user}}: if {{user}} says "My name is Dan", nobody answers "Dan?" — they give their own name, or a question of their own.
-Speech tells to catch: drumbeat fragments played for comedy or emphasis ("From a chair. A far chair."); lines that announce themselves ("Here's the thing", "So here's where we stand"); everyone sounding equally articulate; "Nobody's ever said that to me", "Say it again"; quoting back someone's exact words or numbers; humans purring or growling their lines.`;
+Speech tells to catch: office words spoken as feelings or replies ("Noted.", "Filed.", "Data.", "Logged.", "For the record"); drumbeat fragments played for comedy or emphasis ("From a chair. A far chair."); lines that announce themselves ("Here's the thing", "So here's where we stand"); everyone sounding equally articulate; "Nobody's ever said that to me", "Say it again"; quoting back someone's exact words or numbers; humans purring or growling their lines.`;
 
 const NOTES = `[READING MEA'S NOTES]
 Mea keeps the story's memory and hands you what matters, verified:
@@ -129,7 +135,7 @@ MINDS — each spotlight character's want · fear · tactic · named feeling · 
 WORLD — a consequence coming due, an arrival the note brings, what the place itself does, or none.
 MOVE — three candidates: the obvious one, the one only these people would choose, the sideways consequence; test each against Motive, Knowledge, Access, Means and Time; choose one{{if isSwipe}}, not a copy of the take being replaced{{/if}}, and name the pressure the reply ends on.
 RISK — the likeliest way this reply fails (writing for {{user}}, a leak or an invented witness, an echo, a softened enemy, a clock running backward, luck the page didn't pay for, a helper or exit that appears because it's needed, the genre forcing an event, someone waiting to be told what to do): name one and how you prevent it.
-VOICE — length, how much talk, how the opening differs from the last reply's (subject and sentence shape, named, not written), and the one [CRAFT] or [DIALOGUE] tell this scene most invites{{if toolkitDue}}; the toolkit visual: which kind, beside which beat{{/if}}.
+VOICE — length, how much talk, each speaker's register from their card (how much they'd say, and how they'd say this), how the opening differs from the last reply's (subject and sentence shape, named, not written), and the one [CRAFT] or [DIALOGUE] tell this scene most invites{{if toolkitDue}}; the toolkit visual: which kind, beside which beat{{/if}}.
 STOP RULE: after VOICE the planning is over{{if providerReasoning}}: end your reasoning and write the story in <story>…</story>{{/if}}{{if not providerReasoning}}: close with </think>, open <story> and write the story at once{{/if}}. No review, no restart, no rehearsal. Fragments only. Never draft: no sentence of the reply, no line of dialogue, no opening line and no paragraph outline inside the pass. This rule is not a step: write no STOP line.{{/if}}`;
 
 /** The planning pass as a preset block. It is mandatory: the assembler sends it even when a preset switched it off or has none. */
@@ -175,7 +181,7 @@ When delivery matters, add a tone after a bar: [spk=Name#N|whisper] — whisper,
 Your last reply left its lines unmarked, so the page couldn't tell who spoke: mark every line in this one.{{/if}}{{/if}}`;
 
 /** Per-model nudges (ALMANAC's errata): what each family tends to get wrong about the pass and the order. */
-const ERRATA = `{{if kind == story}}{{if modelFamily == claude}}[MODEL] {{if not planned}}{{if providerReasoning}}Extended thinking is the planning pass: its steps and ceiling, then the reply.{{else}}Write the <think> block first, in plain fragments, then the story.{{/if}} {{/if}}Follow the output order literally.{{/if}}{{if modelFamily == deepseek}}[MODEL] {{if planned}}Write only the story.{{else}}Plan once, in fragments, end the plan at VOICE, then write the story. Anything drafted in the plan is wasted, and nothing of it belongs after the plan.{{/if}}{{/if}}{{if modelFamily == gemini}}[MODEL] {{if not planned}}Don't restate these instructions or the story state while planning; the plan is bullet fragments. {{/if}}No markdown headings in the story.{{/if}}{{if modelFamily == glm}}[MODEL] {{if planned}}No self-talk: write only the story.{{else}}Plan in telegraphic fragments within the ceiling. No self-talk, no rechecking, no drafting. Then close </think> and write the story inside <story>…</story>: the plan alone is not a reply.{{/if}}{{/if}}{{if modelFamily == kimi}}[MODEL] {{if planned}}No workspace: no "Let me plan", no self-correction; write only the story.{{else}}No workspace outside the plan: no "Let me plan", no self-correction, no paragraph-by-paragraph rehearsal.{{/if}}{{/if}}{{if modelFamily == gpt}}[MODEL] Keep the output order exact; no commentary around the story.{{/if}}{{if modelFamily == open}}[MODEL] {{if not planned}}{{if providerReasoning}}Plan in your reasoning, in fragments.{{else}}Write the plan inside <think>…</think> as plain lines: never in a code fence, never as JSON, never skipped.{{/if}} {{/if}}Keep names spelled exactly as before.{{/if}}{{/if}}`;
+const ERRATA = `{{if kind == story}}{{if modelFamily == claude}}[MODEL] {{if not planned}}{{if providerReasoning}}Extended thinking is the planning pass: its steps and ceiling, then the reply.{{else}}Write the <think> block first, in plain fragments, then the story.{{/if}} {{/if}}Follow the output order literally.{{/if}}{{if modelFamily == deepseek}}[MODEL] {{if planned}}Write only the story.{{else}}Plan once, in fragments, end the plan at VOICE, then write the story. Anything drafted in the plan is wasted, and nothing of it belongs after the plan.{{/if}}{{/if}}{{if modelFamily == gemini}}[MODEL] {{if not planned}}Don't restate these instructions or the story state while planning; the plan is bullet fragments. {{/if}}No markdown headings in the story.{{/if}}{{if modelFamily == glm}}[MODEL] {{if planned}}No self-talk: write only the story.{{else}}Plan in telegraphic fragments within the ceiling. No self-talk, no rechecking, no drafting. Then close </think> and write the story inside <story>…</story>: the plan alone is not a reply.{{/if}} Your habits to catch, in the plan as in the story: office and courtroom words for people (noted, filed, logged, data, ledger, load-bearing, notarised), counting things instead of describing them, and everyone talking in one clipped, competent voice. People here talk like their cards, never like a report.{{/if}}{{if modelFamily == kimi}}[MODEL] {{if planned}}No workspace: no "Let me plan", no self-correction; write only the story.{{else}}No workspace outside the plan: no "Let me plan", no self-correction, no paragraph-by-paragraph rehearsal.{{/if}}{{/if}}{{if modelFamily == gpt}}[MODEL] Keep the output order exact; no commentary around the story.{{/if}}{{if modelFamily == open}}[MODEL] {{if not planned}}{{if providerReasoning}}Plan in your reasoning, in fragments.{{else}}Write the plan inside <think>…</think> as plain lines: never in a code fence, never as JSON, never skipped.{{/if}} {{/if}}Keep names spelled exactly as before.{{/if}}{{/if}}`;
 
 // ---------- scene modules (depth 1, only while the scene is in that mode) ----------
 
@@ -254,6 +260,8 @@ const PROSE_DECK = [
   "stock phrases every story reaches for",
   "therapy-speak in period or genre mouths",
   "filter words — felt, noticed, realised",
+  "office words for feelings — filed, noted, logged",
+  "counting things instead of describing them",
   "an aphoristic closer",
 ];
 const SYCOPHANCY_DECK = [
@@ -288,6 +296,8 @@ const STRUCTURE_DECK = [
   "ending on a waiting tableau",
   "narrate, speak, narrate, speak, every paragraph",
   "re-describing someone's eyes, hair or scent",
+  'empty acknowledgements — "Noted.", "Understood."',
+  "an answer to every line someone speaks",
 ];
 const OPEN_DECK = ["mid-gesture", "on an object that matters", "on a sound", "on the distance between people", "with speech already under way", "on what someone avoids looking at"];
 const FAVOUR_DECK = ["hands and held things", "sound and interruption", "doors, thresholds and distance", "temperature and breath", "work already in progress", "the least powerful person's view"];
