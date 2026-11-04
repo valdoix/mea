@@ -1,3 +1,4 @@
+import type { NamedFact } from "../memory/named";
 import { countTokens } from "../lib/tokens";
 import { contentWords, overlap } from "../memory/text";
 import { topicCounts, topicScorer } from "./topics";
@@ -43,6 +44,8 @@ export interface NoteOptions {
   kind?: string;
   /** The player's newest message (and note for this reply): what people here already know about it goes in KNOWLEDGE. */
   focus?: string;
+  /** docs/26 2.1: what the memories hold about a name in the focus. */
+  named?: NamedFact[];
   /** docs/20 2.2: a message number as its moment ("#467, 11:57 at Summers Residence › Front Yard"), for records a reply might retell. */
   moment?: (seq: number) => string;
 }
@@ -326,6 +329,12 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   if (on(o, "knowledge")) {
     const nameOf = (id: string) => (st.chars[id]?.isUser ? o.userName : (st.chars[id]?.name ?? id));
     const lines = inPlay(st, o.focus, nameOf, 4, moment, o.seq);
+    // What the memories hold about a name just used, unless the records above already cover it.
+    for (const n of o.named ?? []) {
+      if (lines.some((l) => l.toLowerCase().includes(n.term))) continue;
+      const when = [n.firstSeq, n.lastSeq].filter((s, i, all) => s && all.indexOf(s) === i).map(moment).join("; ");
+      lines.push(`${n.statement}${n.knownBy.length ? `: ${n.knownBy.join(", ")} know${n.knownBy.length === 1 ? "s" : ""} it` : ""}${when ? ` (${when})` : ""}`);
+    }
     if (lines.length) lanes.push({ name: "inplay", lines: ["FACTS IN PLAY (what this message touches, from the records; true over any guess, but an old one says how things stood then):", ...lines.map((l) => `- ${l}`)], priority: 1 });
   }
 
