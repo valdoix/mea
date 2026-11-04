@@ -4,6 +4,7 @@ import { cleanText } from "../memory/text";
 import { lane, registerLane } from "../prompt/lanes";
 import { addLesson } from "../steer/lessons";
 import type { FlagRow, Issue } from "./checker";
+import { alreadyToldRule } from "./notnews";
 import { flagKey, quietKeys } from "./quiet";
 import { esc, sentences } from "./rules";
 import { type Found, SLIPS } from "./slips";
@@ -209,6 +210,14 @@ SLIPS.push(
     phase: "reply",
     on: (c) => c.role === "assistant" && c.continuity,
     run: () => [],
+  },
+  {
+    id: "known",
+    label: "Old news",
+    description: "A character saying they were never told something the story has already said, with the message that said it.",
+    phase: "reply",
+    on: (c) => c.role === "assistant",
+    run: (text, st, c) => alreadyToldRule(c.chatId, text, c.seq, st),
   },
   {
     // docs/20 Part 3: rules find the retelling and its source, the helper compares them (retell.ts, run by checker.ts).

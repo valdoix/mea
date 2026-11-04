@@ -40,7 +40,6 @@ The damage is now on record: #792's beat says Gabriel "reveals" the nickname, an
 Replayed offline over the last 126 turns (keywords only, no query embeddings): rare names recalled went from **9 of 27 to 22 of 27**, and both Brongel turns now hit.
 
 **Known gaps:**
-- The new retry test in `genlayer.test.ts` also passes with the fix switched off, so it doesn't prove the fix yet. It needs rewriting so the save timer fires before the retry.
 - No reply has been regenerated with a live model.
 - First-mention quotes can repeat: "Dawn-o" quotes #360 every turn it's used.
 
@@ -85,6 +84,8 @@ Replayed offline over the last 126 turns (keywords only, no query embeddings): r
 **1.3** A rules-first checker kind, `known`. It looks for "you never mentioned / told me", "first I've heard", "since when do you", or "what's a X" from someone who has heard X. It searches the page for the term and whether the speaker was present. A flag quotes the source. This doesn't rely on the helper model, which missed #792 with both facts in hand.
 
 *Done when:* #792 is flagged citing #88 and #638, and Spike's "The fuck is a 'Brongel'?" is not (he hadn't heard it).
+
+*Built differently:* `accuracy/notnews.ts`. 1.1 is one sentence in KNOW (preset 23), which the separate planner shares. 1.2 is narrower than written: "nobody knows" looks ahead as often as back, and hearing a word isn't knowing every sentence with it in, so a plan is corrected only when it says outright that the thing is new or that someone has never heard this very word, and for a named person only when the memories have them knowing it. 1.3 reads "you never mentioned / told", not "since when" or "what's a X", which would need to know who's speaking. Over every plan and reply in both real chats (390 plans, 417 replies): one plan and one reply found, both #792. Spike's question at #792 isn't flagged.
 
 ---
 

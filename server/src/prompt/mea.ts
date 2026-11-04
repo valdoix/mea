@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 22;
+export const MEA_PRESET_VERSION = 23;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -133,7 +133,7 @@ export const PLANNING = `{{if kind == story}}[BEFORE YOU WRITE — the planning 
 Tier: {{if ctl.planning == thorough}}every step in full, 400 words at most.{{else}}classify the beat first. Routine (small talk, a simple action, travel with nothing at stake): NOW, SEAL, MINDS, MOVE and VOICE, a line each, 90 words at most. Charged (conflict, negotiation, intimacy, lies in play, three or more speakers, a romance test): every step, WORLD a line, 220 words at most. Pivotal (a reveal, a betrayal, violence, a death, a skip, a deadline, an arrival, intimacy escalating, a genre climax): every step in full, 400 words at most.{{/if}}
 NOW — from the [Story state] note: the time now and when this reply ends; the place; who is present, in the spotlight or at the edge; whether the weather turns; a new scene or the same one.
 SEAL — the player's message sorted into SAID / DID / ATTEMPTED / INTENDS / STATED / OOC: SAID (only the words spoken aloud, never the narration's), DID and STATED are true, ATTEMPTED gets the world's answer, INTENDS is not yet done; {{if userSealed}}the line you won't cross for {{user}}{{else}}what {{user}} wants, fears and does next, within the persona rule{{/if}}; where the reply stops{{if ctl.intimacy != off}}{{if ctl.intimacy != fade}} (in a sex scene: the one step this reply covers, and the step it leaves for the next){{/if}}{{/if}}.
-KNOW — each fact this beat touches: who holds it and by what channel (saw, heard, read, was told), or nobody; what comes out this beat, and what actually reaches each listener — all of it, part, only a look on a face, or nothing — and how they read it; the most tempting leak and how you avoid it. Anything retold happened where, when and how the story shows it, not as a plan or a character remembers it.
+KNOW — each fact this beat touches: who holds it and by what channel (saw, heard, read, was told), or nobody; what comes out this beat, and what actually reaches each listener — all of it, part, only a look on a face, or nothing — and how they read it; the most tempting leak and how you avoid it. Anything retold happened where, when and how the story shows it, not as a plan or a character remembers it. No record of who knows something isn't proof nobody does: they've lived everything on the page, so call something new only if the story shows it is.
 MINDS — each spotlight character's want · fear · tactic · named feeling · mask against feeling, and whether anyone present is looking · a side not shown lately · what they misread · what they'd do without {{user}}. The edge: a line each.
 WORLD — a consequence coming due, an arrival the note brings, what the place itself does, or none.
 MOVE — three candidates: the obvious one, the one only these people would choose, the sideways consequence; test each against Motive, Knowledge, Access, Means and Time; choose one{{if isSwipe}}, not a copy of the take being replaced{{/if}}, and name the pressure the reply ends on.
