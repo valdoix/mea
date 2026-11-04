@@ -5,9 +5,10 @@
  * themselves live in scenes.ts. It pauses when off screen and holds still for people who prefer
  * less motion.
  */
-import { clamp, DARK, hex, lerp, mix, type Env, type Place, type RGB, type Scene, type Wx, rand, rgb } from "./places";
+import { clamp, DARK, hex, lerp, mix, type Env, type Place, type RGB, type Wx, rand, rgb } from "./places";
 
-import { buildScene } from "./scenes";
+import { buildScene } from "./morescenes";
+import type { Scene } from "./scenes";
 
 export { PLACE_GROUPS, PLACES, isPlace, readPlace, type Place } from "./places";
 
