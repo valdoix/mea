@@ -1,6 +1,7 @@
 import { get, patch, post } from "./api";
 import { confirm } from "./dialogs.svelte";
 import { editLine } from "./dataedit";
+import { OCCASIONS } from "./occasions";
 import { errorToast } from "./state.svelte";
 import type { KeepStyle, TrackerChange, TrackersResponse } from "./types";
 
@@ -100,6 +101,21 @@ export async function setKeepStyle(chatId: string, house: string, style: KeepSty
     errorToast(e);
   }
   return keeps;
+}
+
+/**
+ * "This occasion is…", for the scene starting at `seq` (chat settings `occasionFixes`). In the current
+ * scene it also goes on the tracker, so every window of the story follows.
+ */
+export async function setOccasionFix(chatId: string, seq: number, id: string, fixes: Record<string, string>, current: boolean) {
+  const next = { ...fixes, [String(seq)]: id };
+  try {
+    await patch(`/api/chats/${chatId}`, { settings: { occasionFixes: next } });
+    if (current) await trackerEdit(chatId, [`occasion: ${id === "none" ? "off" : (OCCASIONS.find((o) => o.id === id)?.label ?? id)}`]);
+  } catch (e) {
+    errorToast(e);
+  }
+  return next;
 }
 
 /** "This place is…": paint a place as another kind everywhere it's drawn (chat settings `placeKinds`). */

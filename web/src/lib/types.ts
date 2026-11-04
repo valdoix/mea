@@ -1502,6 +1502,8 @@ export interface TrackerBond {
 export interface TrackerState {
   time: { minutes: number; form: "date" | "day" } | null;
   weather: { now: string; prev?: string; seq: number } | null;
+  /** An event under way, in the model's words (docs/25 §4.2). */
+  occasion?: { now: string; seq: number } | null;
   place: string[];
   sceneNo: number;
   sceneTitle?: string;
@@ -1706,6 +1708,8 @@ export interface ArcBeat {
   forced?: ArcForce;
   /** What set it off elsewhere: "Joss's revenge", 'the thread "Lost locket"'. */
   answers?: string;
+  /** The story showed this on the page; no dice were rolled. */
+  page?: boolean;
   seq: number;
 }
 

@@ -8,10 +8,12 @@
 import { clamp, DARK, hex, lerp, mix, type Env, type Home, type Place, type RGB, type Wx, rand, rgb } from "./places";
 
 import { buildScene } from "./morescenes";
+import type { SceneOccasion } from "./occasions";
 import type { Scene } from "./scenes";
 
 export { HOME_STYLES, MASONRIES, PLACE_GROUPS, PLACES, isPlace, readHome, readPlace, type Home, type HomeStyle, type Masonry, type Place } from "./places";
 export { worldOf } from "./westeros";
+export { OCCASIONS, placeUnder, readOccasion, sceneOccasion, type Occasion, type SceneOccasion } from "./occasions";
 
 export type Weather = "clear" | "cloudy" | "rain" | "storm" | "fog" | "snow" | "wind";
 
@@ -91,6 +93,7 @@ export interface StillScene {
   home?: Home | null;
   focus?: number;
   mini?: boolean;
+  occasion?: SceneOccasion | null;
 }
 
 export class ScenePainter {
@@ -102,6 +105,7 @@ export class ScenePainter {
   private place: Place = "hills";
   private seed = "";
   private home: Home | null = null;
+  private occasion: SceneOccasion | null = null;
   private scene: Scene | null = null;
   private snap: HTMLCanvasElement | null = null;
   private pm = 1;
@@ -162,13 +166,15 @@ export class ScenePainter {
     this.io.disconnect();
   }
 
-  set(o: { hour?: number; weather?: Weather; place?: Place; seed?: string; home?: Home | null }) {
+  set(o: { hour?: number; weather?: Weather; place?: Place; seed?: string; home?: Home | null; occasion?: SceneOccasion | null }) {
     if (o.hour != null) this.t = ((o.hour % 24) + 24) % 24;
     if (o.weather) this.wx = o.weather;
     const seed = o.seed ?? this.seed;
     const home = o.home === undefined ? this.home : o.home;
-    if ((o.place && o.place !== this.place) || seed !== this.seed || home?.house !== this.home?.house || home?.style !== this.home?.style || JSON.stringify(home?.keep) !== JSON.stringify(this.home?.keep)) {
+    const occasion = o.occasion === undefined ? this.occasion : o.occasion;
+    if ((o.place && o.place !== this.place) || seed !== this.seed || home?.house !== this.home?.house || home?.style !== this.home?.style || JSON.stringify(home?.keep) !== JSON.stringify(this.home?.keep) || occasion?.id !== this.occasion?.id || occasion?.stage !== this.occasion?.stage) {
       this.home = home;
+      this.occasion = occasion;
       // Crossfade from what's on screen now to the new place.
       if (this.w && !this.still) {
         this.snap ??= document.createElement("canvas");
@@ -189,7 +195,7 @@ export class ScenePainter {
   }
 
   private build() {
-    this.scene = this.w ? buildScene(this.place, this.seed, this.w, this.h, this.focus, this.mini, this.home) : null;
+    this.scene = this.w ? buildScene(this.place, this.seed, this.w, this.h, this.focus, this.mini, this.home, this.occasion) : null;
   }
 
   private resize() {

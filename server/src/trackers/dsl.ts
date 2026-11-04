@@ -12,7 +12,7 @@ import { leadingDuration } from "./clock";
  */
 
 const OPS: OpName[] = [
-  "clock", "wx", "at", "scene", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
+  "clock", "wx", "at", "scene", "occasion", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
   "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "loop", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps",
 ];
@@ -282,6 +282,7 @@ export function parseLine(raw: string): Op | null {
       }
       break;
     }
+    case "occasion":
     case "wx":
     case "at":
     case "look":

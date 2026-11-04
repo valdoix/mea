@@ -1,6 +1,6 @@
 # Design plan: Harrenhal, King's Landing and occasions
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–2 built, Parts 3–9 to come.
+**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–3 built, Parts 4–9 to come.
 
 Follows [docs/24](24-rooms-of-the-house.md), which gave plates one painter and 54 rooms of a house. This plan does two things:
 
@@ -266,7 +266,7 @@ This is the hard part. Place names rarely say it: the model will write `the Red 
 
 | # | Source | Example | Note |
 |---|---|---|---|
-| 1 | **Your correction** | ⋯ › **This occasion is…** | Saved per scene, in a new `occasionFixes` chat setting |
+| 1 | **Your correction** | ⋯ › **This occasion is…** | Saved per scene, in a new `occasionFixes` chat setting. In the current scene it also goes on the tracker, so the Almanac, the panel and the band follow. Those three don't read older scenes' corrections, because they only show the present |
 | 2 | **A new tracker line** | `occasion a royal wedding feast` / `occasion off` | The main signal. See below |
 | 3 | **Words in the place** | `the wedding feast` | Stage mode if nothing else names a place |
 | 4 | **Calendar with a clock time** | `plan Wedding: Day 5 19:00`, within a window around it | Title has to contain an occasion word |

@@ -1,6 +1,7 @@
 import { all, parseJson } from "../db/db";
 import { type ChatSettings, mustChat } from "../services/chats";
 import { parseStoryTime } from "./clock";
+import { calendarToday } from "./note";
 import { currentFold, foldAt, trackerConfig } from "./store";
 
 /**
@@ -8,7 +9,7 @@ import { currentFold, foldAt, trackerConfig } from "./store";
  * message, so the chat can draw a plate at each new scene (and the current scene's plate can follow
  * the clock). Only the moments something changed are listed. Your "This place is…" corrections
  * (chat settings `placeKinds`) ride along, and the chat's calendar, because a Westeros chat reads its
- * places as Westeros.
+ * places as Westeros. docs/25 §4.2: so does what might make a scene an occasion.
  */
 
 export interface PlateState {
@@ -16,6 +17,10 @@ export interface PlateState {
   place: string[];
   weather: string | null;
   hour: number | null;
+  /** Story minutes, for calendar entries with a time. */
+  minutes: number | null;
+  /** An event under way, in the model's words. */
+  occasion: string | null;
 }
 
 export function scenePlates(chatId: string) {
@@ -28,7 +33,9 @@ export function scenePlates(chatId: string) {
   let place: string[] = [...start.place];
   let weather: string | null = start.weather?.now ?? null;
   let hour: number | null = start.time ? (((start.time.minutes % 1440) + 1440) % 1440) / 60 : null;
-  if (place.length || weather || hour != null) out.push({ seq: 0, place: [...place], weather, hour });
+  let minutes: number | null = start.time?.minutes ?? null;
+  let occasion: string | null = start.occasion?.now ?? null;
+  if (place.length || weather || hour != null) out.push({ seq: 0, place: [...place], weather, hour, minutes, occasion });
   for (const m of msgs) {
     const changes = fold.changes[m.id] ?? [];
     let moved = false;
@@ -39,16 +46,23 @@ export function scenePlates(chatId: string) {
       } else if (c.kind === "weather" && c.to) {
         weather = String(c.to);
         moved = true;
+      } else if (c.kind === "occasion") {
+        occasion = c.to ? String(c.to) : null;
+        moved = true;
       } else if (c.kind === "clock" && c.to) {
         const t = parseStoryTime(String(c.to));
         if (t) {
           hour = (((t.minutes % 1440) + 1440) % 1440) / 60;
+          minutes = t.minutes;
           moved = true;
         }
       }
     }
-    if (moved) out.push({ seq: m.seq, place: [...place], weather, hour });
+    if (moved) out.push({ seq: m.seq, place: [...place], weather, hour, minutes, occasion });
   }
   const settings = parseJson<ChatSettings>(chat.settings, {});
-  return { states: out, kinds: settings.placeKinds ?? {}, styles: settings.houseStyles ?? {}, keeps: settings.keepStyles ?? {}, calendar: trackerConfig(chatId).calendar };
+  const dated = Object.values(fold.state.calendar)
+    .filter((e) => e.at != null && !e.done)
+    .map((e) => ({ title: e.title, at: e.at! }));
+  return { states: out, kinds: settings.placeKinds ?? {}, styles: settings.houseStyles ?? {}, keeps: settings.keepStyles ?? {}, occasions: settings.occasionFixes ?? {}, dated, today: calendarToday(fold.state), calendar: trackerConfig(chatId).calendar };
 }
