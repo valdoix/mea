@@ -109,6 +109,14 @@ export function resolveSpeaker(name: string, slot: number | undefined, roster: R
 
 const OPEN = /\[spk=([^\]\n]{0,80})\]/gi;
 
+/**
+ * Closers a model misspells ([/sp], [/spak], [/spc], or a bare [spk] after a quote) read as [/spk],
+ * so they close their line instead of showing on the page.
+ */
+export function mendMarks(text: string): string {
+  return /\[\/?s/i.test(text) ? text.replace(/\[\/s(?:p[a-z]{0,2})?\]|\[spk\]/gi, "[/spk]") : text;
+}
+
 function readMark(raw: string, roster: RosterVoice[]): { name: string | null; tone?: Tone } {
   const [who = "", how = ""] = raw.split("|");
   const num = /#\s*(\d{1,2})\s*$/.exec(who);
@@ -123,7 +131,8 @@ function readMark(raw: string, roster: RosterVoice[]): { name: string | null; to
  * close it) to the end of the quote it opens on. Stray closers and marks with no line are dropped.
  * With the cast's roster, each name is the cast's own (lib resolveSpeaker), so a person keeps one colour.
  */
-export function extractSpeakers(input: string, roster: RosterVoice[] = []): { text: string; lines: SpokenLine[] } {
+export function extractSpeakers(raw: string, roster: RosterVoice[] = []): { text: string; lines: SpokenLine[] } {
+  const input = mendMarks(raw);
   if (!/\[\/?spk\b/i.test(input)) return { text: input, lines: [] };
   const lines: SpokenLine[] = [];
   let out = "";
@@ -189,5 +198,6 @@ export function speakerFromLabel(label: string, roster: RosterVoice[]): string |
 
 /** The text with marks taken out (memory and old prompt messages: a save cut short can leave them). */
 export function withoutSpeakerMarks(text: string): string {
-  return /\[\/?spk\b/i.test(text) ? text.replace(/\[spk=[^\]\n]{0,80}\]|\[\/spk\]/gi, "") : text;
+  const t = mendMarks(text);
+  return /\[\/?spk\b/i.test(t) ? t.replace(/\[spk=[^\]\n]{0,80}\]|\[\/spk\]/gi, "") : t;
 }

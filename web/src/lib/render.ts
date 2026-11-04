@@ -123,6 +123,8 @@ function markSpeakers(text: string, lines?: SpokenLine[] | null): string {
   if (!/\[\/?s|\[$/i.test(out)) return out;
   return (
     out
+      // misspelt closers ([/sp], [/spak], a bare [spk]) close their line like [/spk]
+      .replace(/\[\/s(?:p[a-z]{0,2})?\]|\[spk\]/gi, "[/spk]")
       // [spk=Mara|whisper]"…"[/spk]
       .replace(/\[spk=([^\]\n]{0,80})\]((?:(?!\[spk=)[^\n])*?)\[\/spk\]/gi, (_m, raw: string, inner: string) => {
         // A mark that also wraps the narration after its quote colours only the quote.
