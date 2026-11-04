@@ -911,7 +911,7 @@ function guestroom(c: Ctx): Scene {
       fill(g, stand, shade(E, WOOD, 0.45));
       fill(g, case_, shade(E, mix(d.fab, [70, 60, 56], 0.6), 0.45));
       fill(g, handle, shade(E, [60, 54, 50], 0.45));
-      ceilingLight(g, E, { ...d, grand: false, old: false }, F + 70 * u, H * 0.05, u);
+      ceilingLight(g, E, { ...d, grand: false }, F + 70 * u, H * 0.05, u);
     },
     floor,
     { floorHue: d.floorHue },
@@ -975,8 +975,11 @@ function closet(c: Ctx): Scene {
       stroke(g, mirror, shade(E, d.grand ? [176, 146, 90] : d.trim, 0.6), 4 * u);
       fill(g, pouf, shade(E, d.soft, 0.55));
       // Its own light, and no window at all.
-      g.fillStyle = rgb([255, 248, 226]);
-      g.fillRect(F - 140 * u, H * 0.02, 280 * u, 4 * u);
+      if (d.old) candle(g, E, F + 215 * u, H * 0.76, u);
+      else {
+        g.fillStyle = rgb([255, 248, 226]);
+        g.fillRect(F - 140 * u, H * 0.02, 280 * u, 4 * u);
+      }
       glowAt(g, F, H * 0.1, 420 * u, WARM, 0.32 * on);
     },
     floor,
