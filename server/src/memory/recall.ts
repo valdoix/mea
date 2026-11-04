@@ -139,6 +139,12 @@ function seededRandom(seed: string) {
   };
 }
 
+/** A word in more memories than this doesn't pick one out. */
+const RARE_WORD = 6;
+/** What each rare word past the first adds to a memory's score: enough to reach the relevant slot, not to lead it. */
+const RARE_BONUS = 0.2;
+/** How much of the relevant slot scene summaries can take: one runs to hundreds of tokens, a memory to a few dozen. */
+const SUMMARY_SHARE = 0.5;
 /** How much of the recall budget a name just used can take. */
 const NAMED_SHARE = 0.15;
 /** A name in more memories than this is a regular, already well served by the other signals. */
@@ -296,6 +302,21 @@ export function recall(input: RecallInput) {
   [...atoms].sort((a, b) => (b.max_seq ?? 0) - (a.max_seq ?? 0)).forEach((a, i) => scores.has(`memory:${a.id}`) && bump(`memory:${a.id}`, rrf(i) * 0.3));
   [...atoms].sort((a, b) => b.importance - a.importance).forEach((a, i) => scores.has(`memory:${a.id}`) && bump(`memory:${a.id}`, rrf(i) * 0.3));
 
+  // Two words few memories hold, said together ("confused golden retriever"), say more than any word
+  // alone. Keyword rank can't tell: "brongel" and "minutes" count the same in it. docs/26 4.
+  const asked = contentWords(strongText);
+  const held = new Map<string, number>();
+  const wordsIn = new Map<string, Set<string>>();
+  for (const a of allAtoms) {
+    const w = contentWords(a.content);
+    wordsIn.set(a.id, w);
+    for (const x of w) if (asked.has(x)) held.set(x, (held.get(x) ?? 0) + 1);
+  }
+  for (const a of atoms) {
+    const shared = [...wordsIn.get(a.id)!].filter((w) => (held.get(w) ?? RARE_WORD + 1) <= RARE_WORD).length;
+    if (shared >= 2) bump(`memory:${a.id}`, RARE_BONUS * (shared - 1), `${shared} rare words`, true);
+  }
+
   // ---- weights: salience, mood, reinforcement, canon, librarian ----
   if (input.librarian) stats.librarian = "used";
   // QOL-02: memories from moments you bookmarked or highlighted count for more.
@@ -337,11 +358,14 @@ export function recall(input: RecallInput) {
       s.reasons.push("the librarian passed on it");
     }
   }
-  // Child to parent: a matching atom lifts its scene's summary.
+  // Child to parent: the best matching atom lifts its scene's summary. Only the best: added up, a scene
+  // with many loose matches outscored every memory five times over (docs/26 4.2).
+  const lift = new Map<string, number>();
   for (const a of atoms) {
     const s = scores.get(`memory:${a.id}`);
-    if (s?.signal && a.scene_id && sumById.has(a.scene_id)) bump(`summary:${a.scene_id}`, s.score * 0.5, "its details match");
+    if (s?.signal && a.scene_id && sumById.has(a.scene_id)) lift.set(a.scene_id, Math.max(lift.get(a.scene_id) ?? 0, s.score));
   }
+  for (const [id, best] of lift) bump(`summary:${id}`, best * 0.5, "its details match");
   stats.signaled = [...scores.values()].filter((s) => s.signal).length;
 
   // ---- items ----
@@ -487,6 +511,7 @@ export function recall(input: RecallInput) {
   const picked: string[] = [];
   const already = [...chosen].filter((k) => k.startsWith("memory:") || k.startsWith("summary:"));
   let usedRel = 0;
+  let usedSummaries = 0;
   while (pool.length && relevantCap - usedRel >= 20) {
     let best = -1;
     let bestVal = -Infinity;
@@ -502,6 +527,8 @@ export function recall(input: RecallInput) {
     const key = pool.splice(best, 1)[0]!;
     const it = itemFor(key, "relevant");
     if (!it || usedRel + it.tokens > relevantCap) continue;
+    if (it.ownerType === "summary" && usedSummaries + it.tokens > relevantCap * SUMMARY_SHARE) continue;
+    if (it.ownerType === "summary") usedSummaries += it.tokens;
     chosen.add(key);
     out.push(it);
     picked.push(key);
