@@ -22,6 +22,8 @@
     artist: string;
     moods: Mood[];
     instrumental: boolean;
+    /** True: this is the explicit version. */
+    explicit?: boolean;
   }
   interface Config {
     enabled: boolean;
@@ -34,6 +36,10 @@
     canSearch: boolean;
     /** Each preferred artist's songs in the library; null until they've been looked up. */
     tasteFound: Record<string, number | null>;
+    /** Songs with an explicit version play that one, not the censored copy. */
+    preferExplicit: boolean;
+    /** Library songs not looked into for an explicit version yet. */
+    explicitPending: number;
     /** docs/18: look for the library's lyrics on LRCLIB and YouTube Music. */
     lyricsOnline: boolean;
     /** docs/18, 3.2: how much a song's words count when picking. */
@@ -97,7 +103,7 @@
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     return (cfg?.library ?? []).filter((t) => {
       if (artistPick && !byArtist(t, artistPick)) return false;
-      const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""} ${WORDS_LABEL[cfg?.words[t.videoId] ?? "pending"]}`.toLowerCase();
+      const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""}${t.explicit ? " explicit" : ""} ${WORDS_LABEL[cfg?.words[t.videoId] ?? "pending"]}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
   });
@@ -167,6 +173,12 @@
   $effect(() => {
     if (!cfg?.canSearch || !Object.values(cfg.tasteFound).some((n) => n == null)) return;
     const t = setTimeout(() => void load(), 4000);
+    return () => clearTimeout(t);
+  });
+  // Songs still being looked into for an explicit version: the count moves as they're done.
+  $effect(() => {
+    if (!cfg?.explicitPending) return;
+    const t = setTimeout(() => void load(), 5000);
     return () => clearTimeout(t);
   });
   // Lyrics still being looked up: the badges fill in as they're found.
@@ -313,6 +325,10 @@
       <div class="row wrap">
         <label class="switch small"><input type="checkbox" checked={cfg.lyricsOnline} onchange={(e) => save({ lyricsOnline: e.currentTarget.checked })} /> Find lyrics online</label>
         <span class="tiny muted">Asks LRCLIB (lrclib.net) and YouTube Music for your songs' words, by title, artist and length only. They're kept on this PC, so the soundtrack can tell what a song is about.</span>
+      </div>
+      <div class="row wrap">
+        <label class="switch small"><input type="checkbox" checked={cfg.preferExplicit} onchange={(e) => save({ preferExplicit: e.currentTarget.checked })} /> Play explicit versions</label>
+        <span class="tiny muted">Asks YouTube Music whether each song has an explicit version, by title and artist only, and plays that instead of the censored one. Songs already swapped stay swapped if you turn this off.{#if cfg.preferExplicit && cfg.explicitPending} Checking {cfg.explicitPending} more…{/if}</span>
       </div>
       <label class="field words-dial"><span class="label">Words</span>
         <select class="select" value={cfg.wordsDial} onchange={(e) => save({ wordsDial: e.currentTarget.value as Config["wordsDial"] })}>

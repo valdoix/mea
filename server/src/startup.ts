@@ -20,7 +20,7 @@ import { pressuresAfterReply } from "./trackers/pressures";
 import { backfillBeats, beatsAfterUpdate } from "./trackers/today";
 import { promisesAfterReply } from "./trackers/promises";
 import { asidesAfterReply } from "./accuracy/asides";
-import { lyricsStep, musicAfterReply, sheetsStep } from "./music/director";
+import { explicitSoon, explicitStep, lyricsStep, musicAfterReply, sheetsStep } from "./music/director";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runEditorJob } from "./steer/editor";
@@ -125,6 +125,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   });
   registerJob("music.lyrics", async () => lyricsStep());
   registerJob("music.sheets", async () => sheetsStep());
+  registerJob("music.explicit", async () => explicitStep());
   registerJob("lore.embed", async () => {
     await embedLore();
   });
@@ -195,5 +196,7 @@ function afterOpen(opts: { jobs?: boolean }) {
     schedule("maintenance", 6 * 3600_000, { runNow: true });
     schedule("db.check", 24 * 3600_000);
     schedule("cache.probe", 24 * 3600_000);
+    // Songs from before the soundtrack looked for explicit versions, and any left when Mea last stopped.
+    explicitSoon();
   }
 }

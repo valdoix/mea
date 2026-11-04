@@ -234,6 +234,11 @@ export function forgetPassageVectors(videoIds: string[]) {
   for (const id of videoIds) run("DELETE FROM embeddings WHERE owner_type = 'song' AND owner_id LIKE ?", `${id}#%`);
 }
 
+/** A song's vectors follow its words to another copy of the song. */
+export function movePassageVectors(from: string, to: string) {
+  run("UPDATE OR REPLACE embeddings SET owner_id = ? || substr(owner_id, ?) WHERE owner_type = 'song' AND substr(owner_id, 1, ?) = ?", to, from.length + 1, from.length + 1, `${from}#`);
+}
+
 // ---------- the moment ----------
 
 export interface Moment {
