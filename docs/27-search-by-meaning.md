@@ -1,6 +1,6 @@
 # Design plan: search by meaning (what vectors can still do for recall)
 
-**Written:** November 5, 2026 · **Base:** `origin/main` at d752319, which includes the recall rebalance (#255) · **Status:** being built. Part 1 done (see its results)
+**Written:** November 5, 2026 · **Base:** `origin/main` at d752319, which includes the recall rebalance (#255) · **Status:** being built. Parts 1 and 2 done (see their results)
 
 Mea already searches by meaning. Memories, summaries and song passages have vectors, recall fuses them with keywords, and the eval from docs/26 Part 4 can score any change. This plan covers what's left. The biggest gain looks like a small fix: recall often finds the right memory and then fails to use it.
 
@@ -104,6 +104,28 @@ Summaries stay out of the slot: one costs as much as several memories, and #255 
 *Done when:* the independent cases rise, the named and shared-word cases don't fall, and the displaced list reads as a fair trade. Then a few live replies are compared, since the prose can only be judged there.
 
 *If the independent cases don't rise,* the gain was circular. Drop the slot and record that here.
+
+### Part 2 results (November 5)
+
+**Built:** in `recall()`, straight after the named records, the 5 memories closest to the strongest query take up to 15% of what's left, with the reason "closest in meaning 0.62 (newest message)". Both guards are in: no slot when the strongest query has fewer than 3 content words, and no slot for a memory "recalled often, never used". Neither chat has a message that short; 104 of 1,746 memories in *Filed Under Forever* are never-used ones.
+
+Serendipity now draws one number per memory (from the turn's seed and the memory's id) instead of taking numbers in turn. Before, any change in what other slots chose reshuffled every serendipity pick, which buried real displacement in noise: the displaced list for this slot shrank from about 2,700 lines to a readable few per turn. The baseline below is after that change (it cost the writer one earlier and two independent hits, by chance).
+
+| Variant | Writer: earlier / independent | Planner: earlier / independent | Named, writer / planner |
+|---|---|---|---|
+| No slot | 32 / 19 | 28 / 15 | 5 / 3 |
+| Closest 3 | 34 / 20 | 32 / 16 | 5 / 3 |
+| **Closest 5 (shipped)** | **34 / 20** | **33 / 18** | **4 / 4** |
+| Closest 8 | 35 / 21 | 33 / 19 | 4 / 4 |
+| Vectors off | 28 / 15 | 22 / 13 | 4 / 3 |
+
+*The Word in Her Throat* stays at 5 of 6 in every variant.
+
+**Reading it:** the independent cases rise, by 1 for the writer and 3 for the planner, so the gain isn't only circular, but the earlier set gains more (2 and 5), which suggests some of it was. The planner, with the smaller budget, gains most, as expected: its fused list has the least room. The writer's one lost named case is #221 ("Gabe-o"): the slot took the kitchen and food memories closest to a mac-and-cheese scene and the 15% it used squeezed the memory naming the nickname out of the relevant slot. The planner gained a named case, so named cases don't fall overall.
+
+**What it displaces** (`--displaced`, read by hand for about twenty turns): what goes in is on topic (Joyce dying in February when Gabriel asks about her family; the back pay when he says "millionaire"; the cheese waffles when he makes them again). What goes out is mostly recent-slot trivia (a breakfast plate on the counter, Ruth's water bowl), serendipity, and relevant-slot items that matched loosely. One trade at #717 pushed out a wrong memory ("Gabriel pulled Buffy out of her grave"). It reads as a fair trade.
+
+**Not done:** comparing a few live replies. That needs the production server restarted onto this code and real generations, so it's left for the user.
 
 ---
 
