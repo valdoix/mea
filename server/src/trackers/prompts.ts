@@ -33,7 +33,7 @@ know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|
    (someone telling their own past or a detail about themselves — a nickname, an old job, a family story — is a know line for each person listening, and a trait if it lasts: know Mira: Tam's crew called him Skipper | he told her · knows · true. It's worth filing however small it seems.)
    (a letter, note, text or email — a <letter>, <note>, <texts> or <email> in the messages too — is known to whoever wrote it; to anyone else only once the messages show them reading it. Sent, handed over or left on the table isn't read: know Mira: what Tam's letter says | it's in her bag, unopened · unaware)
 secret #key: fact | kept by A · from B        reveal #key: to B — how
-item Thing: A → B — how (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
+item Thing: A → B — how (the same name each time; put down: item Thing: at counter; taken to another house: item Thing: → Town › Place › shelf — packed. Worn or carried stays with whoever has it: item Thing: A) (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
 room A: Town › Place | room|home|shop (whose place it is)     keeps A: item @ place (theirs, kept there)
 thread Title: new|advance|complicate|stall(blocker)|resolve — detail
    (a thread is a question the story is still asking, titled for that question. A nickname or a detail is a know line or a trait, never a thread, and a new question gets its own title rather than an old one's.)

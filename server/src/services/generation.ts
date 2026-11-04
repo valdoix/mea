@@ -67,7 +67,7 @@ import { checksOn } from "../accuracy/checker";
 import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
 import { fileNoteFacts, lessonsToFacts } from "../steer/notefacts";
-import { checkPlan, notNews, pendingDone, planCorrection, type PlanFinding, planRecords, planRecordText } from "../steer/plancheck";
+import { checkPlan, notHereThings, notNews, pendingDone, planCorrection, type PlanFinding, planRecords, planRecordText } from "../steer/plancheck";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
@@ -718,6 +718,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   // docs/26 1.2: a plan that calls something new when the page has already said it. The player's newest message doesn't count: that's where the plan read it.
   if (planned) planCheck.push(...notNews(chatId, tp?.state, "pass" in planned && planned.pass ? `${planned.pass}
 ${planned.content}` : planned.content, history.at(-1)?.seq ?? 0));
+  // docs/26 6.3: a plan that uses something left in another house.
+  if (planned) planCheck.push(...notHereThings(tp?.state, "pass" in planned && planned.pass ? `${planned.pass}\n${planned.content}` : planned.content));
   // docs/20 4.1: a plan that has someone retell what already happened gets the record of it under it.
   const records = planned && tp?.state ? planRecords(chatId, tp.state, "pass" in planned && planned.pass ? `${planned.pass}\n${planned.content}` : planned.content, (history.at(-1)?.seq ?? 0) + 1) : [];
   const under = [planCheck.length ? planCorrection(planCheck) : "", planRecordText(records, { char: card?.name ?? "Character", user: userName })].filter(Boolean);

@@ -1,0 +1,61 @@
+{
+  "name": "things-stay",
+  "about": "A thing left in one house isn't on a shelf in another: the writer reads where it is, a reply using it is caught, and using another mug is fine.",
+  "card": {
+    "name": "Buffy Summers",
+    "description": "Buffy Summers, twenty, lives with her sister Dawn.",
+    "first_mes": "The lamp hums."
+  },
+  "user": "Gabriel Winters",
+  "ledger": [
+    "clock: Day 2 09:00",
+    "at: Sunnydale > Summers Residence > Kitchen",
+    "cast: Buffy Summers@spot · Gabriel Winters@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "He rinses Joyce's daisy mug and sets it down."
+    },
+    {
+      "role": "assistant",
+      "content": "It stayed on the counter when they left.",
+      "ledger": [
+        "item daisy mug (Joyce's, faded daisy): → at counter — rinsed",
+        "item plain white mug: → at sink — washed"
+      ]
+    },
+    {
+      "role": "user",
+      "content": "That night, at his place, he sets the table."
+    },
+    {
+      "role": "assistant",
+      "content": "The kitchen on the hill was warm.",
+      "ledger": [
+        "at: Sunnydale > Winters Residence > Kitchen"
+      ]
+    },
+    {
+      "role": "user",
+      "content": "\"Which mug does the guest get? The daisy mug?\" he asks."
+    }
+  ],
+  "prompt": {
+    "contains": [
+      "daisy mug (Joyce's, faded daisy): at counter, Sunnydale › Summers Residence › Kitchen"
+    ]
+  },
+  "bad": [
+    {
+      "reply": "The daisy mug came down from the shelf and went at the fourth place.",
+      "expect": [
+        "elsewhere"
+      ]
+    }
+  ],
+  "reply": "\"That's back at Revello. Back at the house, the daisy mug waited.\" She took a green one down from the shelf instead.",
+  "forbid": [
+    "elsewhere"
+  ]
+}

@@ -1,3 +1,4 @@
+import { sameThing } from "./things";
 import { applySim } from "../sim/fold";
 import { itemsAt } from "./belongings";
 import type { SimOp } from "../sim/types";
@@ -1285,18 +1286,22 @@ export class Folder {
       }
       case "item": {
         // Owner first ("item Jackie: silver bracelet", "item Jackie: Lucky Strike → gone") means the thing she has.
-        const owner = op.subject && !st.items[slug(clip(op.subject))] ? this.findChar(op.subject) : undefined;
+        const owner = op.subject && !st.items[slug(clip(op.subject))] && !sameThing(st.items, clip(op.subject)) ? this.findChar(op.subject) : undefined;
         if (owner) {
           const thing = String(a.from ?? a.to ?? "").replace(/^at\s+/i, "").trim();
           if (!thing || this.findChar(thing)) return this.reject(ctx, "write item Thing: from → to (the thing first, not its owner)");
           const args = a.from ? { ...a, from: owner.name } : { ...a, to: owner.name };
           return this.applyOp({ ...op, subject: thing, args }, ctx);
         }
-        const name = clip(op.subject);
-        if (!name) return this.reject(ctx, "which item?");
+        const said = clip(op.subject);
+        if (!said) return this.reject(ctx, "which item?");
         if (!this.needCause(ctx, op)) return;
-        const id = slug(name);
-        const it = (st.items[id] ??= { id, name, custody: [], lastSeq: seq });
+        // docs/26 6.1: one thing, one record, however it's described this time.
+        const known = st.items[slug(said)] ?? sameThing(st.items, said);
+        const id = known?.id ?? slug(said);
+        const it = known ?? (st.items[id] = { id, name: said, custody: [], lastSeq: seq });
+        if (said.length > it.name.length) it.name = said;
+        const name = it.name;
         if (this.isLocked(`items.${id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
         it.lastSeq = seq;
         if (a.owner) {
@@ -1327,13 +1332,15 @@ export class Folder {
         it.gone = false;
         it.holder = holder;
         if (a.where) it.where = clip(a.where);
-        let gave: Character | undefined;
+        let gave: Character[] = [];
         if (a.gift) {
-          gave = this.findChar(a.gift);
+          // docs/26 6.4: a gift can have several givers ("gift from Gabriel, Buffy").
+          const named = String(a.gift).split(/\s*(?:,|&|\band\b)\s*/).filter(Boolean);
+          gave = named.map((n) => this.findChar(n)).filter((c): c is Character => Boolean(c));
           const fresh = !it.gift;
-          it.gift = gave?.name ?? clip(a.gift);
+          it.gift = named.map((n) => this.findChar(n)?.name ?? clip(n)).join(", ");
           if (toChar) it.owner = toChar.id;
-          if (!fresh) gave = undefined;
+          if (!fresh) gave = [];
         }
         if (!it.owner && toChar) it.owner = toChar.id;
         it.lostGift = undefined;
@@ -1346,8 +1353,9 @@ export class Folder {
         }
         const nm = (h?: string) => (h ? (h.startsWith("place:") ? h.slice(6) : this.nameOf(h)) : "");
         this.push(ctx, { kind: "item", text: was && was !== holder ? `${name}: ${nm(was)} → ${nm(holder)}` : `${name} → ${nm(holder)}`, path: `items.${id}`, reason: op.cause, from: nm(was), to: nm(holder), memory: Boolean(a.gift) });
-        // E2: a gift moves a bond: the one who got it warms to the one who gave it.
-        if (gave && toChar && gave.id !== toChar.id) this.applyOp({ op: "bond", subject: toChar.name, object: gave.name, args: { moves: [{ axis: "affection", delta: 1 }] }, cause: `a gift: ${name}`, raw: "" }, ctx);
+        // E2: a gift moves a bond: the one who got it warms to the one who gave it. It reads as a written bond line,
+        // tags and all: without them this line threw, and every gift went down as "couldn't apply".
+        for (const g of gave) if (toChar && g.id !== toChar.id) this.applyOp({ op: "bond", subject: toChar.name, object: g.name, args: { moves: [{ axis: "affection", delta: 1 }], tagsAdd: [], tagsRemove: [] }, cause: gave.length > 1 ? `a gift: ${name}, from ${g.name}` : `a gift: ${name}`, raw: "" }, ctx);
         return;
       }
       case "room": {
