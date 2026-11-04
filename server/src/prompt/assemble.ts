@@ -7,6 +7,7 @@ import { cleanText, compactVisuals, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
 import { PLANNING_BLOCK, TOOLKIT_TAGS } from "./mea";
 import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock, writesUser } from "./preset";
+import { wornLine } from "./worn";
 
 /** Share of the target the verbatim window keeps whatever else is in the prompt: the summaries can't stand in for the last few turns. */
 export const WINDOW_FLOOR = 0.3;
@@ -247,8 +248,20 @@ export function toolkitRhythm(pace: string | undefined, history: { role: string;
  * {{rejectedOpening}}, {{lastOpening}} / {{lastClosing}} (the echo guard), {{persona}} and
  * {{userSealed}} (the Persona control), {{canonSource}} (the work the story comes from), {{ledger}} (inline tracker mode), {{planned}} (a separate planner planned it), {{providerReasoning}} (the route reasons natively), {{modelFamily}},
  * {{speakerMarks}} / {{speakerRoster}} / {{marksDropped}} (speaker marks: on, the numbered cast, the last reply left them out),
- * {{toolkitDue}} / {{toolkitRest}} (the visual toolkit's rhythm: this reply carries a visual, or rests), and {{ctl.id}} for every preset control.
+ * {{toolkitDue}} / {{toolkitRest}} (the visual toolkit's rhythm: this reply carries a visual, or rests),
+ * {{wornPhrases}} (phrases the newest replies keep reusing), {{storyTense}} / {{storyPov}} (the story settings), and {{ctl.id}} for every preset control.
  */
+function worn(input: AssembleInput): string {
+  const replies = input.history.filter((m) => m.role === "assistant").map((m) => m.content);
+  const player = input.history.filter((m) => m.role === "user").slice(-6).map((m) => m.content);
+  return wornLine(replies, { player, names: [input.card.name, input.userName] });
+}
+
+function storySetting(input: AssembleInput, label: string): string {
+  const story = input.extras?.find((e) => e.id === "story")?.content ?? "";
+  return new RegExp(`^${label}: (.+)$`, "m").exec(story)?.[1]?.trim().toLowerCase() ?? "";
+}
+
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
   const ctl = input.controlValues ?? controlValues(input.preset.controls);
@@ -279,6 +292,11 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     marksDropped: input.speakers?.dropped ? "yes" : "",
     toolkitDue: toolkit.due ? "yes" : "",
     toolkitRest: toolkit.rest ? "yes" : "",
+    // The phrases the newest replies keep reusing (prompt/worn.ts), named so this one finds new words.
+    wornPhrases: input.kind === "story" && !input.planOnly ? worn(input) : "",
+    // The story settings' tense and point of view, said again at the end where the history can't outvote them.
+    storyTense: storySetting(input, "Tense"),
+    storyPov: storySetting(input, "Point of view"),
     ...Object.fromEntries(Object.entries(ctl).map(([k, v]) => [`ctl.${k}`, v])),
   };
 }
