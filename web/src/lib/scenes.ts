@@ -4,21 +4,29 @@
  * a place always looks the same and still follows the clock. Sizes are in units of the window's
  * height (u), and the subject sits at the focus (F), so one place fits a card, an arch or a band.
  */
-import { clamp, DARK, lerp, mix, rand, rgb, seedOf, TAU, WARM, type Ctx, type Env, type Place, type RGB, type Scene } from "./places";
+import { clamp, DARK, lerp, mix, rand, rgb, seedOf, TAU, WARM, type Ctx, type Env, type Place, type RGB } from "./places";
+
+export interface Scene {
+  draw(g: CanvasRenderingContext2D, E: Env): void;
+  /** Indoors: the sky and weather show only through `win`; `draw` furnishes the room over them. */
+  room?: { win: Path2D; draw(g: CanvasRenderingContext2D, E: Env): void };
+  /** Paints its own sky and has no weather (space, or a room looking out on it). */
+  space?: boolean;
+}
 
 // ---------- Colour ----------
 
-const GRASS: RGB = [88, 128, 72];
-const MEADOW: RGB = [128, 156, 82];
-const PINE: RGB = [40, 80, 64];
+export const GRASS: RGB = [88, 128, 72];
+export const MEADOW: RGB = [128, 156, 82];
+export const PINE: RGB = [40, 80, 64];
 const JUNGLE: RGB = [38, 112, 70];
-const SAND: RGB = [228, 170, 108];
-const ROCK: RGB = [124, 114, 128];
+export const SAND: RGB = [228, 170, 108];
+export const ROCK: RGB = [124, 114, 128];
 const REDROCK: RGB = [200, 102, 66];
 const EARTH: RGB = [134, 100, 72];
-const STONE: RGB = [156, 146, 140];
-const WOOD: RGB = [110, 72, 50];
-const PLASTER: RGB[] = [
+export const STONE: RGB = [156, 146, 140];
+export const WOOD: RGB = [110, 72, 50];
+export const PLASTER: RGB[] = [
   [222, 196, 150],
   [204, 150, 138],
   [166, 178, 150],
@@ -26,7 +34,7 @@ const PLASTER: RGB[] = [
   [218, 206, 186],
   [190, 160, 196],
 ];
-const FABRIC: RGB[] = [
+export const FABRIC: RGB[] = [
   [170, 44, 56],
   [40, 92, 150],
   [46, 120, 84],
@@ -36,7 +44,7 @@ const FABRIC: RGB[] = [
 ];
 
 /** A colour for something at depth t (0 far, 1 near): the horizon's air, darkening, with its own hue by day. */
-function tone(E: Env, t: number, hue?: RGB, amt = 0.55): RGB {
+export function tone(E: Env, t: number, hue?: RGB, amt = 0.55): RGB {
   const c = mix(E.sky.bot, DARK, 0.2 + 0.72 * t);
   return hue ? mix(c, mix(hue, DARK, t * 0.45), amt * (0.12 + 0.88 * E.day) * (1 - E.c.fog * 0.4)) : c;
 }
@@ -44,14 +52,14 @@ function snowTone(E: Env, t: number): RGB {
   return mix(tone(E, t), mix(mix([120, 132, 180], [236, 240, 250], E.day), [255, 210, 190], E.golden * 0.4), 0.78 - t * 0.35);
 }
 /** A painted surface (a wall, a sail) catches the daylight; at night it is only a silhouette. */
-function lit(E: Env, t: number, hue: RGB, amt = 0.75): RGB {
+export function lit(E: Env, t: number, hue: RGB, amt = 0.75): RGB {
   return mix(tone(E, t), mix(hue, [255, 190, 150], E.golden * 0.25), amt * E.day * (1 - E.c.cloud * 0.25));
 }
-function fill(g: CanvasRenderingContext2D, p: Path2D, c: RGB, a = 1) {
+export function fill(g: CanvasRenderingContext2D, p: Path2D, c: RGB, a = 1) {
   g.fillStyle = rgb(c, a);
   g.fill(p);
 }
-function stroke(g: CanvasRenderingContext2D, p: Path2D, c: RGB, w: number, a = 1) {
+export function stroke(g: CanvasRenderingContext2D, p: Path2D, c: RGB, w: number, a = 1) {
   g.strokeStyle = rgb(c, a);
   g.lineWidth = w;
   g.lineCap = "round";
@@ -67,7 +75,7 @@ export function glowAt(g: CanvasRenderingContext2D, x: number, y: number, r: num
   g.fillRect(x - r, y - r, r * 2, r * 2);
 }
 /** A band of the horizon's air, for depth between layers. */
-function haze(g: CanvasRenderingContext2D, E: Env, W: number, y0: number, y1: number, a = 0.4) {
+export function haze(g: CanvasRenderingContext2D, E: Env, W: number, y0: number, y1: number, a = 0.4) {
   const hg = g.createLinearGradient(0, y0, 0, y1);
   const c = mix(E.sky.bot, [220, 224, 236], E.c.fog * 0.4);
   hg.addColorStop(0, rgb(c, 0));
@@ -75,9 +83,9 @@ function haze(g: CanvasRenderingContext2D, E: Env, W: number, y0: number, y1: nu
   g.fillStyle = hg;
   g.fillRect(0, y0, W, y1 - y0);
 }
-const flick = (E: Env, k: number) => (E.still ? 1 : 0.82 + 0.1 * Math.sin(E.T * 9 + k) + 0.08 * Math.sin(E.T * 23 + k * 3));
+export const flick = (E: Env, k: number) => (E.still ? 1 : 0.82 + 0.1 * Math.sin(E.T * 9 + k) + 0.08 * Math.sin(E.T * 23 + k * 3));
 /** A lamp or lantern: its glow, scaled by how dark it is. */
-function lamp(g: CanvasRenderingContext2D, E: Env, x: number, y: number, r: number, k = 0, c: RGB = WARM, min = 0.15) {
+export function lamp(g: CanvasRenderingContext2D, E: Env, x: number, y: number, r: number, k = 0, c: RGB = WARM, min = 0.15) {
   const a = clamp(Math.max(E.glow, min)) * flick(E, k);
   glowAt(g, x, y, r, c, 0.55 * a);
   g.fillStyle = rgb(mix(c, [255, 250, 230], 0.5), 0.95 * a + 0.05);
@@ -85,7 +93,7 @@ function lamp(g: CanvasRenderingContext2D, E: Env, x: number, y: number, r: numb
   g.arc(x, y, r * 0.08, 0, TAU);
   g.fill();
 }
-function fire(g: CanvasRenderingContext2D, E: Env, x: number, y: number, s: number) {
+export function fire(g: CanvasRenderingContext2D, E: Env, x: number, y: number, s: number) {
   const T = E.still ? 0 : E.T;
   const f = flick(E, x);
   glowAt(g, x, y - s * 6, s * 60 * f, [255, 150, 70], 0.55);
@@ -106,11 +114,11 @@ function fire(g: CanvasRenderingContext2D, E: Env, x: number, y: number, s: numb
 
 // ---------- Shapes ----------
 
-function circle(p: Path2D, x: number, y: number, r: number) {
+export function circle(p: Path2D, x: number, y: number, r: number) {
   p.moveTo(x + r, y);
   p.arc(x, y, r, 0, TAU);
 }
-function poly(p: Path2D, ...pts: number[]) {
+export function poly(p: Path2D, ...pts: number[]) {
   p.moveTo(pts[0]!, pts[1]!);
   for (let i = 2; i < pts.length; i += 2) p.lineTo(pts[i]!, pts[i + 1]!);
   p.closePath();
@@ -120,7 +128,7 @@ interface Line {
   y: (x: number) => number;
 }
 /** Rolling ground across the whole width. */
-function ridge(c: Ctx, base: number, amp: number, freq = 1): Line {
+export function ridge(c: Ctx, base: number, amp: number, freq = 1): Line {
   const { W, H, u, r } = c;
   const a = r() * TAU;
   const b = r() * TAU;
@@ -134,7 +142,7 @@ function ridge(c: Ctx, base: number, amp: number, freq = 1): Line {
   return { p, y };
 }
 /** A jagged range with its highest peak near the focus. */
-function peaks(c: Ctx, base: number, height: number, rough = 0.5, at = c.F): Line & { top: number } {
+export function peaks(c: Ctx, base: number, height: number, rough = 0.5, at = c.F): Line & { top: number } {
   const { W, H, u, r } = c;
   let pts: [number, number][] = [];
   let up = r() < 0.5;
@@ -178,7 +186,7 @@ function snowcap(g: CanvasRenderingContext2D, E: Env, p: Path2D, top: number, li
   g.fillStyle = gr;
   g.fill(p);
 }
-function pine(p: Path2D, x: number, by: number, h: number) {
+export function pine(p: Path2D, x: number, by: number, h: number) {
   const w = h * 0.3;
   const n = 4;
   p.moveTo(x, by - h);
@@ -200,7 +208,7 @@ function pine(p: Path2D, x: number, by: number, h: number) {
   }
   p.closePath();
 }
-function leafy(p: Path2D, x: number, by: number, h: number) {
+export function leafy(p: Path2D, x: number, by: number, h: number) {
   const r0 = h * 0.3;
   p.rect(x - h * 0.03, by - h * 0.5, h * 0.06, h * 0.5);
   for (const [dx, dy, k] of [
@@ -212,7 +220,7 @@ function leafy(p: Path2D, x: number, by: number, h: number) {
   ] as const)
     circle(p, x + dx * r0, by + dy * h, r0 * k);
 }
-function palm(p: Path2D, x: number, by: number, h: number, lean: number) {
+export function palm(p: Path2D, x: number, by: number, h: number, lean: number) {
   const tx = x + lean;
   const ty = by - h;
   const w = h * 0.025;
@@ -279,7 +287,7 @@ function lights(g: CanvasRenderingContext2D, E: Env, wins: Win[], warm: RGB = WA
     }
   }
 }
-function smoke(g: CanvasRenderingContext2D, E: Env, x: number, y: number, u: number) {
+export function smoke(g: CanvasRenderingContext2D, E: Env, x: number, y: number, u: number) {
   const T = E.still ? 4 : E.T;
   for (let i = 0; i < 6; i++) {
     const k = (T * 0.12 + i / 6 + x * 0.01) % 1;
@@ -290,7 +298,7 @@ function smoke(g: CanvasRenderingContext2D, E: Env, x: number, y: number, u: num
   }
 }
 /** Fills a path drawn around (0,0) at (x,y), leaning in the wind. */
-function sway(g: CanvasRenderingContext2D, E: Env, p: Path2D, x: number, y: number, col: RGB, k = 1) {
+export function sway(g: CanvasRenderingContext2D, E: Env, p: Path2D, x: number, y: number, col: RGB, k = 1) {
   const s = E.still ? 0 : Math.sin(E.T * 1.4 + x * 0.01) * (0.012 + E.c.wind * 0.07) * k;
   g.save();
   g.translate(x, y);
@@ -298,16 +306,16 @@ function sway(g: CanvasRenderingContext2D, E: Env, p: Path2D, x: number, y: numb
   fill(g, p, col);
   g.restore();
 }
-interface Mote {
+export interface Mote {
   x: number;
   y: number;
   p: number;
   s: number;
 }
-function motes(c: Ctx, n: number, x0: number, x1: number, y0: number, y1: number): Mote[] {
+export function motes(c: Ctx, n: number, x0: number, x1: number, y0: number, y1: number): Mote[] {
   return Array.from({ length: c.mini ? Math.ceil(n / 2) : n }, () => ({ x: lerp(x0, x1, c.r()), y: lerp(y0, y1, c.r()), p: c.r() * TAU, s: 0.5 + c.r() }));
 }
-function fireflies(g: CanvasRenderingContext2D, E: Env, list: Mote[], u: number, col: RGB = [230, 255, 150], min = 0) {
+export function fireflies(g: CanvasRenderingContext2D, E: Env, list: Mote[], u: number, col: RGB = [230, 255, 150], min = 0) {
   const a = Math.max(min, E.night * (1 - E.c.rain) * (1 - E.c.snow) * (1 - E.c.wind * 0.8));
   if (a < 0.05) return;
   for (const f of list) {
@@ -316,7 +324,7 @@ function fireflies(g: CanvasRenderingContext2D, E: Env, list: Mote[], u: number,
     glowAt(g, x, y, 6 * u, col, a * (0.5 + 0.5 * Math.sin(E.T * 3 * f.s + f.p)));
   }
 }
-function birds(g: CanvasRenderingContext2D, E: Env, c: Ctx, list: Mote[]) {
+export function birds(g: CanvasRenderingContext2D, E: Env, c: Ctx, list: Mote[]) {
   if (E.day < 0.4 || E.c.rain > 0.3 || E.c.snow > 0.3) return;
   g.strokeStyle = rgb(mix(E.sky.bot, DARK, 0.7), 0.75 * E.day);
   g.lineWidth = Math.max(1, 1.1 * c.u);
@@ -332,15 +340,15 @@ function birds(g: CanvasRenderingContext2D, E: Env, c: Ctx, list: Mote[]) {
   }
   g.stroke();
 }
-interface Shim {
+export interface Shim {
   x: number;
   y: number;
   w: number;
   p: number;
 }
-const shims = (c: Ctx, n = 90): Shim[] => Array.from({ length: n }, () => ({ x: c.r(), y: c.r(), w: 0.01 + c.r() * 0.04, p: c.r() * TAU }));
+export const shims = (c: Ctx, n = 90): Shim[] => Array.from({ length: n }, () => ({ x: c.r(), y: c.r(), w: 0.01 + c.r() * 0.04, p: c.r() * TAU }));
 /** Water from y0 down, catching the sun or moon. */
-function water(g: CanvasRenderingContext2D, E: Env, c: Ctx, y0: number, sh: Shim[], tint?: RGB, y1 = c.H) {
+export function water(g: CanvasRenderingContext2D, E: Env, c: Ctx, y0: number, sh: Shim[], tint?: RGB, y1 = c.H) {
   const { W } = c;
   const T = E.T;
   let a = mix(E.sky.bot, DARK, 0.2);
@@ -364,7 +372,7 @@ function water(g: CanvasRenderingContext2D, E: Env, c: Ctx, y0: number, sh: Shim
   }
 }
 /** Drifting mist low over the ground or water. */
-function mist(g: CanvasRenderingContext2D, E: Env, c: Ctx, y: number, a: number) {
+export function mist(g: CanvasRenderingContext2D, E: Env, c: Ctx, y: number, a: number) {
   const { W, u } = c;
   const fc = mix(E.sky.bot, [214, 218, 230], 0.35 + E.day * 0.3);
   for (let i = 0; i < 4; i++) {
@@ -406,7 +414,7 @@ function aurora(g: CanvasRenderingContext2D, E: Env, c: Ctx, k: number, ph: numb
   }
   g.restore();
 }
-function figure(p: Path2D, x: number, gy: number, h: number, k = 0) {
+export function figure(p: Path2D, x: number, gy: number, h: number, k = 0) {
   circle(p, x, gy - h * 0.88, h * 0.1);
   p.moveTo(x - h * 0.13, gy - h * 0.76);
   p.quadraticCurveTo(x, gy - h * 0.82, x + h * 0.13, gy - h * 0.76);
@@ -2311,7 +2319,7 @@ function graveyard(c: Ctx): Scene {
 // ---------- Indoors ----------
 
 /** A room: the sky shows through `win`, the wall goes round it, then the furniture. */
-function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRenderingContext2D, E: Env) => void, furnish: (g: CanvasRenderingContext2D, E: Env) => void, floorY: number, opts: { lift?: number; space?: boolean } = {}): Scene {
+export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRenderingContext2D, E: Env) => void, furnish: (g: CanvasRenderingContext2D, E: Env) => void, floorY: number, opts: { lift?: number; space?: boolean } = {}): Scene {
   const { W, H } = c;
   const wall = new Path2D();
   wall.rect(0, 0, W, H);
@@ -2345,7 +2353,7 @@ function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRenderingCon
     },
   };
 }
-function townView(c: Ctx) {
+export function townView(c: Ctx) {
   const far = ridge(c, c.H * 0.62, 10 * c.u, 0.7);
   const f = facades(c, c.H * 0.78, 40, 90, 0.7);
   return (g: CanvasRenderingContext2D, E: Env) => {
@@ -2353,7 +2361,7 @@ function townView(c: Ctx) {
     drawFacade(g, E, f, 0.45, 0.5);
   };
 }
-function hillView(c: Ctx) {
+export function hillView(c: Ctx) {
   const far = peaks(c, c.H * 0.62, 50 * c.u, 0.4);
   const near = ridge(c, c.H * 0.74, 10 * c.u);
   return (g: CanvasRenderingContext2D, E: Env) => {
@@ -2362,7 +2370,7 @@ function hillView(c: Ctx) {
     fill(g, near.p, tone(E, 0.45, GRASS, 0.5));
   };
 }
-function panes(p: Path2D, x: number, y: number, w: number, h: number, nx: number, ny: number, t: number) {
+export function panes(p: Path2D, x: number, y: number, w: number, h: number, nx: number, ny: number, t: number) {
   p.rect(x - t, y - t, w + t * 2, t * 2);
   p.rect(x - t, y + h - t, w + t * 2, t * 2);
   p.rect(x - t, y - t, t * 2, h + t * 2);
@@ -2371,7 +2379,7 @@ function panes(p: Path2D, x: number, y: number, w: number, h: number, nx: number
   for (let i = 1; i < ny; i++) p.rect(x, y + (h * i) / ny - t * 0.4, w, t * 0.8);
 }
 /** Daylight through a window, spilling across the floor. */
-function spill(g: CanvasRenderingContext2D, E: Env, x0: number, x1: number, y: number, floor: number, dx: number) {
+export function spill(g: CanvasRenderingContext2D, E: Env, x0: number, x1: number, y: number, floor: number, dx: number) {
   const a = (E.day * 0.16 + (E.light && E.light.a > 0 && E.day < 0.3 ? 0.06 : 0)) * (1 - E.c.cloud * 0.5);
   if (a < 0.01) return;
   const c = E.day > 0.3 ? mix([255, 240, 210], [255, 190, 140], E.golden) : ([200, 210, 255] as RGB);
@@ -2990,7 +2998,7 @@ function space(c: Ctx): Scene {
 }
 
 /** A surface indoors: dim at night, its own colour by day, a little warmer by lamplight. */
-function shade(E: Env, hue: RGB, k = 0.5): RGB {
+export function shade(E: Env, hue: RGB, k = 0.5): RGB {
   return mix(mix(hue, DARK, 0.8), hue, clamp(0.2 + E.day * k + E.glow * 0.12));
 }
 
@@ -3910,7 +3918,8 @@ function hospital(c: Ctx): Scene {
   );
 }
 
-const BUILD: Record<Place, (c: Ctx) => Scene> = {
+/** The first 45 places; morescenes.ts adds the rest and builds them. */
+export const SCENES = {
   hills,
   meadow,
   forest,
@@ -3956,9 +3965,4 @@ const BUILD: Record<Place, (c: Ctx) => Scene> = {
   shipcabin,
   starship,
   space,
-};
-
-export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean): Scene {
-  const r = rand(seedOf(`${place}:${seed}`));
-  return (BUILD[place] ?? hills)({ W, H, u: H / 300, F: W * focus, r, mini });
-}
+} satisfies Partial<Record<Place, (c: Ctx) => Scene>>;

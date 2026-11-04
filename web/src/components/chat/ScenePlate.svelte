@@ -15,7 +15,7 @@
 </script>
 
 <script lang="ts">
-  import { readPlace, readWeather, skyColors } from "../../lib/scenery";
+  import { readPlace, readWeather, skyColors, type Place } from "../../lib/scenery";
   import { Ellipsis } from "../../lib/icons";
   import Menu, { type MenuItem } from "../Menu.svelte";
 
@@ -38,10 +38,10 @@
   const interior = $derived(k === "tavern" || k === "bedroom");
 
   // The scene windows paint many more kinds of place; a plate draws the nearest of its own.
-  const NEAREST: Record<string, PlaceKind> = { meadow: "hills", jungle: "forest", swamp: "forest", mountains: "hills", tundra: "hills", canyon: "desert", volcano: "hills", cave: "hills", beach: "shore", sea: "shore", lake: "shore", river: "hills", village: "street", road: "hills", market: "street", rooftops: "street", city: "street", temple: "castle", ruins: "castle", graveyard: "hills", hall: "tavern", library: "bedroom", study: "bedroom", dungeon: "bedroom", kitchen: "tavern", chapel: "bedroom", greenhouse: "bedroom", cellar: "tavern", cafe: "tavern", shop: "tavern", forge: "tavern", hospital: "bedroom", train: "bedroom", shipcabin: "bedroom", starship: "bedroom", space: "hills" };
+  const NEAREST: Record<Exclude<Place, PlaceKind>, PlaceKind> = { meadow: "hills", jungle: "forest", swamp: "forest", mountains: "hills", tundra: "hills", canyon: "desert", volcano: "hills", cave: "hills", beach: "shore", sea: "shore", lake: "shore", river: "hills", village: "street", road: "hills", market: "street", rooftops: "street", city: "street", temple: "castle", ruins: "castle", graveyard: "hills", hall: "tavern", library: "bedroom", study: "bedroom", dungeon: "bedroom", kitchen: "tavern", chapel: "bedroom", greenhouse: "bedroom", cellar: "tavern", cafe: "tavern", shop: "tavern", forge: "tavern", hospital: "bedroom", train: "bedroom", shipcabin: "bedroom", starship: "bedroom", space: "hills", camp: "forest", pool: "hills", indoorpool: "bedroom", hotspring: "forest", bathroom: "bedroom", living: "bedroom", homekitchen: "bedroom", attic: "bedroom", cabin: "tavern", treehouse: "bedroom", tent: "bedroom", alchemy: "tavern", stable: "tavern", office: "bedroom", classroom: "bedroom", lab: "bedroom", laundromat: "bedroom", gallery: "bedroom", theater: "tavern", club: "tavern", casino: "tavern", arcade: "tavern", studio: "bedroom", shrine: "bedroom", aquarium: "bedroom", observatory: "bedroom", car: "bedroom", plane: "bedroom", deck: "shore", submarine: "bedroom" };
   function nearest(kind: string | null): PlaceKind | null {
     if (!kind) return null;
-    return PLACE_KINDS.some((p) => p.id === kind) ? (kind as PlaceKind) : (NEAREST[kind] ?? null);
+    return PLACE_KINDS.some((p) => p.id === kind) ? (kind as PlaceKind) : ((NEAREST as Record<string, PlaceKind>)[kind] ?? null);
   }
   function kindOf(path: string[]): PlaceKind {
     return nearest(readPlace(path)) ?? "hills";

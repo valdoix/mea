@@ -12,8 +12,9 @@ const refs = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g)]
 
 // Raised from 250 KB for living lore (docs/15): the facts on replies, the selection bar and the Inspector,
 // then from 260 KB for eight more rooms (their names, swatches and loaders; the rest loads when shown),
-// then from 265 KB for the scene window's 45 painted places, which now ride above the newest reply.
-const BUDGET_JS = 300 * 1024;
+// then from 265 KB for the scene window's 45 painted places, which now ride above the newest reply,
+// then from 300 KB for thirty more places (homes, pools, vehicles and Almanac's rooms) and headroom.
+const BUDGET_JS = 400 * 1024;
 // Raised from 60 KB for the visual toolkit (styles/vtk.css), which has to be there on first paint,
 // then from 72 KB for the plan drawer above every reply.
 const BUDGET_CSS = 76 * 1024;

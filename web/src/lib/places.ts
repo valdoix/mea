@@ -48,13 +48,6 @@ export interface Ctx {
   r: () => number;
   mini: boolean;
 }
-export interface Scene {
-  draw(g: CanvasRenderingContext2D, E: Env): void;
-  /** Indoors: the sky and weather show only through `win`; `draw` furnishes the room over them. */
-  room?: { win: Path2D; draw(g: CanvasRenderingContext2D, E: Env): void };
-  /** Paints its own sky and has no weather (space, or a room looking out on it). */
-  space?: boolean;
-}
 
 export const PLACE_GROUPS = [
   {
@@ -63,6 +56,7 @@ export const PLACE_GROUPS = [
       { id: "hills", label: "Open country" },
       { id: "meadow", label: "Meadow or garden" },
       { id: "forest", label: "Forest" },
+      { id: "camp", label: "Camp" },
       { id: "jungle", label: "Jungle" },
       { id: "swamp", label: "Swamp or marsh" },
       { id: "mountains", label: "Mountains" },
@@ -85,6 +79,15 @@ export const PLACE_GROUPS = [
     ],
   },
   {
+    label: "Pools and baths",
+    kinds: [
+      { id: "pool", label: "Pool, outside" },
+      { id: "indoorpool", label: "Indoor pool" },
+      { id: "hotspring", label: "Hot spring" },
+      { id: "bathroom", label: "Bathroom" },
+    ],
+  },
+  {
     label: "Where people live",
     kinds: [
       { id: "village", label: "Village" },
@@ -100,17 +103,30 @@ export const PLACE_GROUPS = [
     ],
   },
   {
-    label: "Indoors",
+    label: "At home",
     kinds: [
+      { id: "living", label: "Living room" },
+      { id: "homekitchen", label: "Kitchen" },
       { id: "bedroom", label: "Bedroom" },
-      { id: "kitchen", label: "Kitchen" },
-      { id: "study", label: "Study or office" },
+      { id: "attic", label: "Attic" },
+      { id: "cabin", label: "Log cabin" },
+      { id: "treehouse", label: "Treehouse" },
+      { id: "tent", label: "Inside a tent" },
+    ],
+  },
+  {
+    label: "Old halls and keeps",
+    kinds: [
+      { id: "kitchen", label: "Hearth kitchen" },
+      { id: "study", label: "Study" },
       { id: "library", label: "Library" },
       { id: "hall", label: "Great hall" },
       { id: "chapel", label: "Chapel or nave" },
       { id: "greenhouse", label: "Greenhouse" },
       { id: "cellar", label: "Cellar" },
       { id: "dungeon", label: "Dungeon or cell" },
+      { id: "alchemy", label: "Wizard's tower" },
+      { id: "stable", label: "Stable or barn" },
     ],
   },
   {
@@ -120,9 +136,31 @@ export const PLACE_GROUPS = [
       { id: "cafe", label: "Café or diner" },
       { id: "shop", label: "Shop or apothecary" },
       { id: "forge", label: "Forge or workshop" },
+      { id: "office", label: "Office" },
+      { id: "classroom", label: "Classroom" },
+      { id: "lab", label: "Laboratory" },
       { id: "hospital", label: "Hospital room" },
+      { id: "laundromat", label: "Laundromat" },
+      { id: "gallery", label: "Gallery or museum" },
+      { id: "theater", label: "Theatre or cinema" },
+      { id: "club", label: "Nightclub" },
+      { id: "casino", label: "Casino" },
+      { id: "arcade", label: "Arcade" },
+      { id: "studio", label: "Recording studio" },
+      { id: "shrine", label: "Dojo or teahouse" },
+      { id: "aquarium", label: "Aquarium" },
+      { id: "observatory", label: "Observatory" },
+    ],
+  },
+  {
+    label: "On the move",
+    kinds: [
+      { id: "car", label: "In a car" },
       { id: "train", label: "Train carriage" },
+      { id: "plane", label: "Aeroplane" },
+      { id: "deck", label: "On deck" },
       { id: "shipcabin", label: "Ship's cabin" },
+      { id: "submarine", label: "Submarine" },
     ],
   },
   {
@@ -139,25 +177,56 @@ export const isPlace = (s: string | null | undefined): s is Place => PLACES.some
 
 // Most specific first; the last part of the place is read before the rest ("Winterfell › the godswood" is a forest).
 const RULES: [Place, RegExp][] = [
+  ["submarine", /submarine|u-boat|submersible|bathysphere/],
   ["starship", /starship|spaceship|space station|airlock|hangar bay|cockpit|bridge of the|med ?bay|engine room|\bshuttle\b/],
   ["space", /\bspace\b|\borbit|nebula|asteroid/],
+  ["observatory", /observator|planetarium|telescope/],
   ["shore", /lighthouse|lamp room|lantern room/],
-  ["hospital", /hospital|infirmary|\bclinic|\bward\b|sickroom|operating (?:room|theatre)/],
-  ["train", /\btrain\b|railway|\bcarriage\b|compartment|\btram\b|dining car|sleeper car/],
-  ["shipcabin", /captain's (?:quarters|cabin)|ship's cabin|below ?decks?|\bgalley\b|\bthe hold\b|stateroom/],
+  ["hospital", /hospital|infirmary|\bclinic|\bward\b|sickroom|operating (?:room|theatre)|\bicu\b|emergency room/],
+  ["plane", /\b(?:aero|air)?planes?\b|airliner|\bjet\b|in-flight|mid-flight|(?:first|business|economy) class|aircraft|\bflight\b/],
+  ["train", /\btrain\b|railway|\bcarriage\b|compartment|\btram\b|dining car|sleeper car|subway car/],
+  ["shipcabin", /captain's (?:quarters|cabin)|ship's cabin|below ?decks?|\bgalley\b|\bthe hold\b|stateroom|\bberth\b/],
+  ["car", /\b(?:car|truck|van|taxi|cab|limo|limousine|jeep|sedan|pickup|suv|bus|minivan)\b(?! park| stop| station| depot)|back ?seat|(?:driver|passenger)'?s? seat|behind the wheel/],
+  ["aquarium", /aquarium|oceanarium|fish tank|sea life/],
+  ["deck", /\bdeck\b|aboard|crow's nest|\bmast\b|\b(?:ship|boat|galleon|vessel|frigate|schooner|ferry|yacht|raft|sloop)s?\b/],
+  ["hotspring", /hot ?springs?|\bonsen|thermal (?:pool|spring|bath)|geothermal/],
+  ["tavern", /pool (?:hall|table|room)|billiard/],
+  ["indoorpool", /indoor pool|natatorium|swimming baths|(?:leisure|aquatic) cent|covered pool/],
+  ["pool", /swimming|\bpool ?(?:side|deck|house)\b|\bpools?\b|\blido\b/],
+  ["bathroom", /bathroom|\bbaths?\b|bathtub|\btub\b|shower|washroom|restroom|lavatory|toilet|\bloo\b|en ?suite|powder room|bathhouse|sauna|\bspa\b/],
+  ["treehouse", /tree ?house|tree fort/],
+  ["tent", /\btents?\b|pavilion|\byurt|marquee/],
+  ["camp", /\bcamp|encampment|bivouac|campfire|battlefield|war ?camp|\bsiege\b|front line/],
   ["chapel", /chapel|\bnave\b|\bpews?\b|\baltar\b|sanctum|inside the (?:church|temple|cathedral|sept)/],
-  ["greenhouse", /greenhouse|conservatory|orangery|glasshouse|hothouse/],
-  ["cellar", /cellar|basement|wine vault|storeroom|undercroft/],
-  ["kitchen", /kitchen|scullery|pantry/],
+  ["greenhouse", /greenhouse|conservatory|orangery|glasshouse|hothouse|sunroom|solarium/],
+  ["cellar", /cellar|basement|wine vault|storeroom|undercroft|larder/],
+  ["kitchen", /scullery|castle kitchen|\bkitchens\b/],
+  ["homekitchen", /kitchen|pantry/],
+  ["alchemy", /alchem|wizard|\bmage'?s?\b|sorcer|witch'?s? (?:hut|cottage|house)|potion|enchanter|arcane|spell ?room/],
   ["forge", /\bforge|smithy|blacksmith|foundry|workshop/],
-  ["cafe", /caf[eé]|coffee|\bdiner\b|restaurant|bistro|tea ?(?:house|room|shop)|food court|bakery/],
+  ["shrine", /\bdojo|teahouse|tea house|tatami|ryokan|shoji|zen garden|tea ceremony/],
+  ["laundromat", /laundr|launderette|wash house/],
+  ["club", /nightclub|night club|\bclub\b|disco|\braves?\b|karaoke|dance floor/],
+  ["casino", /casino|gambling|card room|poker room|betting|\bslots\b/],
+  ["arcade", /arcade|game room|games room|pinball|bowling/],
+  ["studio", /(?:recording|music|sound|radio|tv|film) studio|radio station|sound booth|broadcast|\bon air\b|rehearsal room|podcast/],
+  ["theater", /theatre|theater|\bstage\b|backstage|opera|auditorium|cinema|movie|concert hall|playhouse|green room/],
+  ["gallery", /galler|museum|exhibit/],
+  ["cafe", /caf[eé]|coffee|\bdiner\b|restaurant|bistro|tea ?(?:room|shop)|food court|bakery/],
   ["shop", /\bshop\b|\bstore\b|apothecary|emporium|boutique|pharmacy|chandler|\bpawn/],
   ["dungeon", /dungeon|\bcells?\b|prison|gaol|\bjail|oubliette|crypt|torture|\bbrig\b/],
+  ["lab", /laborator|\blabs?\b|clean room|server room|control room|research station|\bmorgue/],
+  ["classroom", /classroom|lecture hall|schoolroom|homeroom|seminar room|\bschool\b|\bclass\b/],
+  ["office", /office|cubicle|boardroom|meeting room|conference room|headquarters|precinct|newsroom|reception|bullpen|police station/],
   ["library", /librar|archive|scriptorium|bookshop|bookstore|reading room/],
-  ["study", /\bstudy\b|office|laborator|\blab\b|classroom|precinct|headquarters/],
+  ["study", /\bstudy\b|\bsolar\b/],
   ["hall", /throne|great hall|\bhall\b|ballroom|council|audience chamber|banquet|feast/],
-  ["tavern", /tavern|\binn\b|\bbar\b|\bpub\b|saloon|alehouse|\bclub\b|canteen|brewery/],
-  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|attic|apartment|\bflat\b|\bsuite\b|dormitor|nursery/],
+  ["tavern", /tavern|\binn\b|\bbar\b|\bpub\b|saloon|alehouse|canteen|brewery|speakeasy/],
+  ["stable", /stables?\b|hayloft|\bbarn\b|horse stall|kennel|tack room|\bcoop\b/],
+  ["attic", /\battic|garret|\bloft\b/],
+  ["cabin", /\bcabin|log house|\blodge\b|chalet|\bhut\b|\bshack\b/],
+  ["living", /living ?room|lounge room|sitting room|family room|front room|drawing room|dining room|\bden\b|parlou?r|\bsofa|\bcouch|apartment|\bflat\b|\bcondo|(?:'s|\bthe|\bmy|\bour|\bhis|\bher|\btheir) (?:house|home|place)\b|\bat home\b/],
+  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|nursery|\bsuite\b/],
   ["cave", /\bcaves?\b|cavern|grotto|\bmines?\b|tunnel|underground|burrow|catacomb/],
   ["volcano", /volcan|\blava\b|magma|caldera|ashland/],
   ["graveyard", /grave|cemetery|\btomb|barrow|mausoleum|churchyard|necropolis/],
@@ -165,7 +234,7 @@ const RULES: [Place, RegExp][] = [
   ["temple", /temple|shrine|cathedral|church|\bsept\b|abbey|monastery|sanctuary|priory/],
   ["castle", /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b/],
   ["harbor", /harbou?r|\bport\b|\bdocks?\b|\bpier\b|wharf|\bquay|marina|shipyard/],
-  ["sea", /\bdeck\b|aboard|\bship\b|galleon|vessel|at sea|open sea|ocean|voyage|\bmast\b|crow's nest/],
+  ["sea", /at sea|open sea|ocean|voyage|high seas|the waves/],
   ["beach", /beach|tropic|lagoon|\bpalms?\b|\breef\b|island|sandbar/],
   ["shore", /\bcliffs?\b|shore|coast|\bcove\b|seaside|headland|shingle|\bbay\b|\bsea\b/],
   ["lake", /\blakes?\b|\bloch\b|\bpond\b|\bmere\b|\btarn\b|reservoir/],
@@ -178,17 +247,25 @@ const RULES: [Place, RegExp][] = [
   ["desert", /desert|\bdunes?\b|\bsands?\b|wasteland|oasis|dorne|steppe/],
   ["market", /market|bazaar|\bfair\b|\bsquare\b|plaza|\bstalls?\b|souk|festival/],
   ["rooftops", /rooftop|\broofs?\b|belfry|balcony|terrace|parapet|clock ?tower|bell tower/],
-  ["city", /downtown|skyscraper|\bmetro\b|subway|neon|highway|tower block|skyline|avenue|hotel|campus|\bmall\b|parking|station|corridor|lobby|elevator/],
+  ["city", /downtown|skyscraper|\bmetro\b|subway|neon|highway|tower block|skyline|avenue|hotel|campus|\bmall\b|parking|car park|station|corridor|lobby|elevator/],
   ["street", /street|alley|\blane\b|\btown\b|\bcity\b|quarter|district|borough|\bslums?\b/],
-  ["village", /village|hamlet|\bfarm|homestead|cottage|\bcroft|\bmill\b|\bbarn\b/],
+  ["village", /village|hamlet|\bfarm|homestead|cottage|\bcroft|\bmill\b/],
   ["road", /\broads?\b|\bpath\b|\btrail\b|\btrack\b|caravan|wagon|crossroad|kingsroad|on the way|journey/],
   ["meadow", /garden|meadow|\bfields?\b|courtyard|\bpark\b|glade|orchard|\blawn/],
-  ["forest", /forest|\bwoods?\b|\bpines?\b|\bgrove|\bcabin|\bcamp\b|wolfswood|thicket|\bcopse|godswood|weirwood/],
+  ["forest", /forest|\bwoods?\b|\bpines?\b|\bgrove|thicket|\bcopse|godswood|weirwood|wolfswood/],
 ];
+
+/** Somewhere old-world: its kitchen has a hearth and its office is a study. */
+const OLD_WORLD = /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b|abbey|monastery|priory|\binn\b|tavern|\bsept\b|village|hamlet|\bcroft/;
+const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study" };
 
 export function readPlace(path: string[] | null | undefined): Place {
   const parts = (path ?? []).map((p) => p.toLowerCase());
-  for (let i = parts.length - 1; i >= 0; i--) for (const [k, re] of RULES) if (re.test(parts[i]!)) return k;
+  for (let i = parts.length - 1; i >= 0; i--)
+    for (const [k, re] of RULES)
+      if (re.test(parts[i]!)) {
+        const old = OLDER[k];
+        return old && parts.some((p) => OLD_WORLD.test(p)) ? old : k;
+      }
   return "hills";
 }
-
