@@ -1,0 +1,26 @@
+{
+  "name": "truly-new",
+  "about": "A name the story hasn't said before: \"you never mentioned\" is fair, and nothing is invented about it.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy Summers, twenty, lives with her sister Dawn.",
+    "first_mes": "The lamp hums."
+  },
+  "user": "Gabriel",
+  "ledger": [
+    "clock: Day 3 08:00",
+    "at: Sunnydale > The living room",
+    "cast: Buffy@spot · Gabriel@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "\"That was my cousin. You'd like Marisol.\" He shrugs."
+    }
+  ],
+  "prompt": {
+    "lacks": ["Marisol: "]
+  },
+  "reply": "\"Marisol. You never mentioned a Marisol.\" Buffy tilted her head. \"Okay. New file.\"",
+  "forbid": ["known"]
+}

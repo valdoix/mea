@@ -1,0 +1,66 @@
+{
+  "name": "old-news",
+  "about": "A nickname told days ago: planner and writer read who knows it, and a reply calling it new is caught, while the one person who hasn't heard it can still ask.",
+  "card": {
+    "name": "Buffy",
+    "description": "Buffy Summers, twenty, lives with her sister Dawn.",
+    "first_mes": "The lamp hums."
+  },
+  "user": "Gabriel",
+  "settings": {
+    "planning": "planner"
+  },
+  "ledger": [
+    "clock: Day 3 08:00",
+    "at: Sunnydale > The living room",
+    "cast: Buffy@spot · Dawn@spot · Spike@spot · Gabriel@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "\"They called me *The Brongel*. Brother-angel, because I was the designated driver.\" He grins, sheepish.",
+      "remembers": [
+        {
+          "content": "Gabriel's frat called him 'The Brongel', brother-angel, because he was the designated driver.",
+          "knownBy": ["Buffy", "Gabriel"]
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "\"That's a whole name that exists in the world.\" Buffy turns the mug on the counter."
+    },
+    {
+      "role": "user",
+      "content": "He flips the album to a banner that reads BRONGEL FOR PRESIDENT. \"They called you BRONGEL?\" Dawn snorts.",
+      "remembers": [
+        {
+          "content": "Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.",
+          "knownBy": ["Buffy", "Gabriel", "Dawn"]
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "Dawn traced the banner with one finger. \"I'm filing that,\" she said."
+    },
+    {
+      "role": "user",
+      "content": "Gabriel wins again and pumps his fist. \"Yes! That's Brongel for you!\""
+    }
+  ],
+  "prompt": {
+    "contains": ["Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.: Buffy, Gabriel, Dawn know it"]
+  },
+  "plannerInput": {
+    "contains": ["Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.: Buffy, Gabriel, Dawn know it"]
+  },
+  "bad": [
+    {
+      "reply": "\"Brongel. *Brongel*. You had a frat nickname and you never mentioned this? New file.\" Buffy pulled the blanket tighter.",
+      "expect": ["known"]
+    }
+  ],
+  "reply": "\"The fuck is a Brongel?\" Spike said, turning the controller over in his hands.\n\n\"Told you. Filed under B,\" Buffy said. \"Banner and all.\"",
+  "forbid": ["known"]
+}
