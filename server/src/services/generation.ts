@@ -988,6 +988,15 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   const planAsked = action !== "continue" && (Boolean(p.plannedPass) || p.assembled.trace.blocks.some((b) => b.id === "mea-planning" && b.included));
 
   /**
+   * A try that was stopped leaves its words on the take (the save timer wrote them), and the next
+   * request would read them as the story's newest message: #792's retry opened with the first try's
+   * half-line, which became the recall query and missed the librarian's cached verdict.
+   */
+  const discardTry = () => {
+    gen.text = baseText;
+    updateSwipe(gen.messageId, gen.swipeIdx, { content: baseText });
+  };
+  /**
    * The plan step: the planning pass on a request of its own (the same prompt, ending in "plan
    * only"), so the reply is always written from a plan, even by a model that skips its <think>
    * block. The plan streams in as the reply's reasoning and the request stops at </think>.
@@ -1197,6 +1206,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (leftover) {
           planOnlyRetried = true;
           finishRequest(requestId, { status: "retried", error: "retried: the reply was only its plan", usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+          discardTry();
           p = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, writtenPlan: leftover });
           notes.push("the first try wrote only its plan: the story was written from it");
           planHow = "own";
@@ -1231,6 +1241,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (why && !smartRetried && !gen.abort.signal.aborted) {
           smartRetried = true;
           finishRequest(requestId, { status: "retried", error: `retried: ${why}`, usage, firstTokenAt, sentBody, pricing: p.resolved.pricing, billing: p.resolved.billing });
+          discardTry();
           const next = chain.shift();
           if (next) p = await prepare(gen.chatId, action === "continue" ? "continue" : "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: next.profile.id });
           notes.push(`retried after ${why}${next ? ` with ${next.profile.name}` : ""}`);
@@ -1253,6 +1264,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (planSkipped && planSkips === 1) {
           planSkips++;
           finishRequest(requestId, { status: "retried", error: "retried: the reply skipped its plan again", firstTokenAt });
+          discardTry();
           // The last resort: the planner model (or the helper it borrows) writes the pass, and the writer writes from it.
           const plan = await rescuePlan(gen.chatId, historyForPrompt(gen.chatId, { excludeMessageId: action === "swipe" ? gen.messageId : undefined }), gen.abort.signal, action === "swipe" ? gen.messageId : undefined);
           if (gen.abort.signal.aborted) throw e;
@@ -1277,6 +1289,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         if (planSkipped && planSkips === 0) {
           planSkips++;
           finishRequest(requestId, { status: "retried", error: "retried: the reply skipped its plan", firstTokenAt });
+          discardTry();
           // The plan in its own step, then the story from it; if no plan comes back, one more try told plainly to plan.
           const plan = await planStep();
           if (plan) {

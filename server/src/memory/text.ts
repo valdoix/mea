@@ -70,6 +70,35 @@ export function ftsQuery(text: string, max = 24): string | null {
   return words.length ? words.join(" OR ") : null;
 }
 
+/**
+ * The words a passage writes as names: capitalised partway through a sentence ("That's Brongel for
+ * you", which is `proper`), or set apart on their own in quotes ("facefriend"). Nicknames, in-jokes and
+ * side characters look like this, and a keyword search weighs them no higher than "minutes". Most often
+ * first. Common words that slip through are dropped by how many records hold them.
+ */
+export function namedTerms(text: string): { term: string; proper: boolean }[] {
+  const found = new Map<string, { count: number; proper: boolean }>();
+  const add = (raw: string, proper: boolean) => {
+    const term = raw
+      .toLowerCase()
+      .replace(/['’]s$/, "")
+      .replace(/['’-]+$/, "");
+    if (term.length < 3 || STOP.has(term) || /^i['’]/.test(term)) return;
+    const cur = found.get(term) ?? { count: 0, proper: false };
+    found.set(term, { count: cur.count + 1, proper: cur.proper || proper });
+  };
+  for (const m of text.matchAll(/(?:^|[\s(—–-])["“‘'](\p{L}[\p{L}\p{N}'’-]{2,})[.,!?…—–-]*["”’'](?=$|[\s.,!?…;:)—–-])/gu)) add(m[1]!, false);
+  for (const sentence of text.split(/(?<=[.!?…]["'”’*)\]]*)\s+|\n+/)) {
+    for (const w of sentence.split(/\s+/).filter(Boolean).slice(1)) {
+      // Dialogue opens a sentence of its own: 'he said, "Stay."' doesn't make Stay a name.
+      if (/^["“‘(]/.test(w)) continue;
+      const bare = w.replace(/^[*_'’]+/, "").replace(/[^\p{L}\p{N}]+$/u, "");
+      if (/^\p{Lu}[\p{L}\p{N}'’-]{2,}$/u.test(bare)) add(bare, true);
+    }
+  }
+  return [...found.entries()].sort((a, b) => b[1].count - a[1].count).map(([term, f]) => ({ term, proper: f.proper }));
+}
+
 /** Stable short hash for change detection (PERF-07). */
 export function hashText(text: string): string {
   return new Bun.CryptoHasher("sha1").update(text).digest("hex");
