@@ -1,6 +1,6 @@
 {
   "name": "old-news",
-  "about": "A nickname told days ago: planner and writer read who knows it, and a reply calling it new is caught, while the one person who hasn't heard it can still ask.",
+  "about": "A nickname told days ago: planner and writer read who knows it and who wasn't there, a reply calling it new is caught, and Spike, who hasn't heard it, can still ask.",
   "card": {
     "name": "Buffy",
     "description": "Buffy Summers, twenty, lives with her sister Dawn.",
@@ -13,7 +13,7 @@
   "ledger": [
     "clock: Day 3 08:00",
     "at: Sunnydale > The living room",
-    "cast: Buffy@spot · Dawn@spot · Spike@spot · Gabriel@spot"
+    "cast: Buffy@spot · Dawn@spot · Gabriel@spot"
   ],
   "history": [
     {
@@ -22,7 +22,10 @@
       "remembers": [
         {
           "content": "Gabriel's frat called him 'The Brongel', brother-angel, because he was the designated driver.",
-          "knownBy": ["Buffy", "Gabriel"]
+          "knownBy": [
+            "Buffy",
+            "Gabriel"
+          ]
         }
       ]
     },
@@ -36,13 +39,20 @@
       "remembers": [
         {
           "content": "Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.",
-          "knownBy": ["Buffy", "Gabriel", "Dawn"]
+          "knownBy": [
+            "Buffy",
+            "Gabriel",
+            "Dawn"
+          ]
         }
       ]
     },
     {
       "role": "assistant",
-      "content": "Dawn traced the banner with one finger. \"I'm filing that,\" she said."
+      "content": "Dawn traced the banner with one finger. \"I'm filing that,\" she said.",
+      "ledger": [
+        "cast: Buffy@spot · Dawn@spot · Spike@spot · Gabriel@spot"
+      ]
     },
     {
       "role": "user",
@@ -50,17 +60,27 @@
     }
   ],
   "prompt": {
-    "contains": ["Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.: Buffy, Gabriel, Dawn know it"]
+    "contains": [
+      "Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.: Buffy, Gabriel, Dawn know it",
+      "Spike hasn't heard it"
+    ]
   },
   "plannerInput": {
-    "contains": ["Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.: Buffy, Gabriel, Dawn know it"]
+    "contains": [
+      "Dawn saw the banner in the album: BRONGEL FOR PRESIDENT.: Buffy, Gabriel, Dawn know it",
+      "Spike hasn't heard it"
+    ]
   },
   "bad": [
     {
       "reply": "\"Brongel. *Brongel*. You had a frat nickname and you never mentioned this? New file.\" Buffy pulled the blanket tighter.",
-      "expect": ["known"]
+      "expect": [
+        "known"
+      ]
     }
   ],
   "reply": "\"The fuck is a Brongel?\" Spike said, turning the controller over in his hands.\n\n\"Told you. Filed under B,\" Buffy said. \"Banner and all.\"",
-  "forbid": ["known"]
+  "forbid": [
+    "known"
+  ]
 }

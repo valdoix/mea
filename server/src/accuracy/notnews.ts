@@ -1,6 +1,7 @@
 import { all, parseJson } from "../db/db";
 import { excerpt } from "../memory/deep";
 import { norm } from "../memory/entities";
+import { heardBy } from "../memory/named";
 import { cleanText, namedTerms } from "../memory/text";
 import type { WorldState } from "../trackers/types";
 import { sentences } from "./rules";
@@ -115,7 +116,8 @@ export function newsClaims(chatId: string, st: WorldState | null | undefined, pl
     if (!named || !person) continue;
     const term = named[2]!.toLowerCase().replace(/['’]s$/, "");
     const news = oldNews(chatId, term, beforeSeq);
-    if (news && holds(news.knownBy, namesOf(person))) add(s, person.name, term, news);
+    // The memories have them knowing it, or they were in the room when it came up.
+    if (news && (holds(news.knownBy, namesOf(person)) || (st && heardBy(chatId, st, term, beforeSeq).has(person.id)))) add(s, person.name, term, news);
   }
   return out.slice(0, 2);
 }
@@ -145,6 +147,11 @@ export function alreadyToldRule(chatId: string, text: string, seq: number, st: W
       if (cast.has(norm(term))) continue;
       const news = oldNews(chatId, term, seq - 1);
       if (!news) continue;
+      // Someone here now was there for it, or the memories say so. Otherwise it may truly be new to everyone in the room.
+      const heard = st ? heardBy(chatId, st, term, seq - 1) : new Map<string, number>();
+      const here = st ? Object.values(st.chars).filter((c) => !c.isUser && !c.dead && (c.tier === "spot" || c.tier === "peri")) : [];
+      const there = here.filter((c) => heard.has(c.id) || holds(news.knownBy, [c.name, ...c.name.split(/\s+/), ...c.aliases]));
+      if (st?.presence?.length && !there.length) continue;
       out.push({
         kind: "known",
         severity: "minor",

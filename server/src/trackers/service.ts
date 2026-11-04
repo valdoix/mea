@@ -396,7 +396,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
   const note = buildNote(state, {
     userName: fc.userName,
     budget: cfg.budget,
-    named: namedFacts(chatId, opts.focus, replacing ?? seq, cast),
+    named: namedFacts(chatId, opts.focus, replacing ?? seq, cast, 2, state),
     seq,
     quietAfter: cfg.quietAfter,
     templates: fc.templates,

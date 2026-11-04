@@ -103,6 +103,13 @@ describe("old news", () => {
       expect(flag!.citations.map((c) => c.seq)).toEqual([2, 4]);
     });
 
+    test("nobody here was there for it: it can truly be new to this room", () => {
+      const others = { chars: { x: { id: "x", name: "Willow", aliases: [], tier: "spot" } }, presence: [{ seq: 1, who: ["z"] }, { seq: 21, who: ["x"] }] } as unknown as WorldState;
+      expect(alreadyToldRule(chatId, line, 21, others)).toEqual([]);
+      const there = { chars: { x: { id: "x", name: "Willow", aliases: [], tier: "spot" } }, presence: [{ seq: 1, who: ["x"] }] } as unknown as WorldState;
+      expect(alreadyToldRule(chatId, line, 21, there)).toHaveLength(1);
+    });
+
     test("no flag without the words, or when the page hasn't said it", () => {
       expect(alreadyToldRule(chatId, `“Brongel. *Brongel*. That’s a whole name.”`, 21, state)).toEqual([]);
       expect(alreadyToldRule(chatId, `“Marisol? You never mentioned Marisol.”`, 21, state)).toEqual([]);

@@ -354,6 +354,7 @@ export class Folder {
     } catch (e) {
       ctx.verdict = { raw: ev.op.raw, ok: false, reason: `couldn't apply: ${(e as Error).message}` };
     }
+    this.logPresence(ev.seq);
     this.verdicts[ev.id] = ctx.verdict;
     if (ev.messageId && ctx.changes.length) (this.changes[ev.messageId] ??= []).push(...ctx.changes);
     this.state.lastSeq = Math.max(this.state.lastSeq, ev.seq);
@@ -437,6 +438,20 @@ export class Folder {
     b.form = st.time?.form;
     b.place = [...st.place];
     b.who = Object.values(st.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead).map((c) => c.id);
+  }
+
+  /** docs/26 3.1: the scene's people, when they change. One entry a message at most, so it stays small. */
+  private logPresence(seq: number) {
+    const st = this.state;
+    const who = Object.values(st.chars)
+      .filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead)
+      .map((c) => c.id)
+      .sort();
+    const log = (st.presence ??= []);
+    const last = log.at(-1);
+    if (last && last.who.length === who.length && last.who.every((id, i) => id === who[i])) return;
+    if (last?.seq === seq) last.who = who;
+    else log.push({ seq, who });
   }
 
   /** E2: where and when the story is, for an object's history. */
