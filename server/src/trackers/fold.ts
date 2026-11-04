@@ -394,10 +394,21 @@ export class Folder {
   }
 
   /** Moves the clock and lets every body drift with it. */
+  /** docs/25 §4.2: an occasion is over. Nothing forgets to end one: 12 story hours or a move away will. */
+  private endOccasion(ctx: Ctx) {
+    const was = this.state.occasion?.now;
+    if (!was) return;
+    this.state.occasion = null;
+    this.push(ctx, { kind: "occasion", text: `${was}: over`, path: "occasion", from: was });
+  }
+
   private moveClock(to: number, form: "date" | "day", ctx: Ctx, flag?: string) {
     const prev = this.state.time;
     const from = prev && prev.form === form ? prev.minutes : null;
     this.state.time = { minutes: to, form };
+    const occ = this.state.occasion;
+    if (occ && occ.at == null) occ.at = to;
+    else if (occ && occ.at != null && to - occ.at >= 720) this.endOccasion(ctx);
     if (!prev) this.state.start = { minutes: to, form };
     // A switch from "Day 1" to a calendar keeps how long ago the start was.
     else if (prev.form !== form && this.state.start) this.state.start = { minutes: to - (prev.minutes - this.state.start.minutes), form };
@@ -779,6 +790,18 @@ export class Folder {
         this.push(ctx, { kind: "weather", text: prev ? `${prev} → ${a.to}` : a.to, path: "weather", from: prev, to: a.to });
         return;
       }
+      case "occasion": {
+        if (!a.to) return this.reject(ctx, "no occasion given");
+        if (/^(?:off|none|over|ended?|finished)$/i.test(String(a.to).trim())) {
+          this.endOccasion(ctx);
+          return;
+        }
+        const prev = st.occasion?.now;
+        if (prev && norm(prev) === norm(a.to)) return;
+        st.occasion = { now: clip(a.to), seq, at: st.time?.minutes ?? null, root: norm(st.place[0] ?? "") };
+        this.push(ctx, { kind: "occasion", text: prev ? `${prev} → ${a.to}` : a.to, path: "occasion", from: prev, to: a.to });
+        return;
+      }
       case "at": {
         const path = (a.path as string[]).map((s) => clip(s)).filter(Boolean);
         if (!path.length) return this.reject(ctx, "no place given");
@@ -810,6 +833,8 @@ export class Folder {
           this.leftBehind(ctx);
         }
         this.push(ctx, { kind: "place", text: before.length ? `${before.at(-1)} → ${path.at(-1)}` : path.join(" › "), path: "place", from: before.join(" › "), to: path.join(" › "), ...(moved ? { newScene: true } : {}) });
+        // An occasion stays where it was: leaving the castle or the town leaves it behind.
+        if (st.occasion?.root && norm(path[0] ?? "") !== st.occasion.root) this.endOccasion(ctx);
         return;
       }
       case "scene": {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ScenePainter, isPlace, readHome, readPlace, readWeather, worldOf, type HomeStyle, type Place } from "../../lib/scenery";
+  import { ScenePainter, isPlace, placeUnder, readHome, readPlace, readWeather, sceneOccasion, worldOf, type HomeStyle, type Place } from "../../lib/scenery";
   import { ChevronDown, ChevronUp, Palette } from "../../lib/icons";
   import { app } from "../../lib/state.svelte";
   import type { KeepStyle, StoryWhen } from "../../lib/types";
@@ -26,6 +26,12 @@
     calendar = null,
     keeps = null,
     onkeep,
+    occasion = null,
+    fix = null,
+    dated = null,
+    today = null,
+    onoccasion,
+    minutes = null,
   }: {
     when: StoryWhen | null;
     weather: string | null;
@@ -42,6 +48,13 @@
     /** Your "This keep is…" corrections. */
     keeps?: Record<string, KeepStyle> | null;
     onkeep?: (house: string, style: KeepStyle) => void;
+    /** docs/25 §4.2: what the tracker says is under way, your correction, and entries on the calendar. */
+    occasion?: string | null;
+    fix?: string | null;
+    dated?: { title: string; at: number }[] | null;
+    today?: string[] | null;
+    onoccasion?: (id: string) => void;
+    minutes?: number | null;
   } = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -50,7 +63,11 @@
 
   const name = $derived(place.at(-1) ?? "");
   const world = $derived(worldOf(calendar));
-  const kindNow = $derived<Place>(isPlace(kind) ? kind : readPlace(place, { world }));
+  const kindNow = $derived<Place>(isPlace(kind) ? kind : readPlace(placeUnder(place), { world }));
+  const occ = $derived.by(() => {
+    const o = sceneOccasion({ place, fix, tracked: occasion, dated, minutes, world, keeps });
+    return o && isPlace(kind) ? { ...o, stage: false } : o;
+  });
   const home = $derived(readHome(place, styles, { world, keeps }));
   // An unset clock still paints: the evening, which suits most openings.
   const hour = $derived(when?.hour ?? 20);
@@ -62,7 +79,7 @@
   });
 
   $effect(() => {
-    painter?.set({ hour, weather: readWeather(weather), place: kindNow, seed: name, home });
+    painter?.set({ hour, weather: readWeather(weather), place: kindNow, seed: name, home, occasion: occ });
   });
 
   const crumbs = $derived(place.slice(-3));
@@ -90,7 +107,7 @@
   </div>
   {#if shape === "arch"}<div class="sill" aria-hidden="true"></div>{/if}
 </div>
-{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={kindNow} {hour} {weather} {home} onpick={(k) => onkind?.(name, k)} {onstyle} {onkeep} />{/if}
+{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={kindNow} {hour} {weather} {home} onpick={(k) => onkind?.(name, k)} {onstyle} {onkeep} occasion={occ?.id ?? null} {today} {onoccasion} />{/if}
 
 <style>
   .win {

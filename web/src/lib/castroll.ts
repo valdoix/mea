@@ -36,7 +36,7 @@ const rank = (k: string) => (RANK.indexOf(k) + 100) % 100;
 export const byRank = (a: TrackerChange, b: TrackerChange) => rank(a.kind) - rank(b.kind);
 
 /** Kinds that are always about the world, even when a name leads the text. */
-const WORLD = new Set(["clock", "weather", "place", "scene", "thread", "deadline", "plant", "clue", "gauge", "faction", "calendar", "motif", "milestone", "item", "secret", "reputation"]);
+const WORLD = new Set(["clock", "weather", "place", "occasion", "scene", "thread", "deadline", "plant", "clue", "gauge", "faction", "calendar", "motif", "milestone", "item", "secret", "reputation"]);
 /** Short labels for the little tag in front of a line. */
 const TAG: Record<string, string> = { body: "body", look: "look", trait: "trait", mood: "mood", drive: "wants", cast: "cast", death: "died", journal: "journal", pressure: "pressure", custom: "note", edit: "edited" };
 

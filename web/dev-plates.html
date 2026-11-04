@@ -27,12 +27,14 @@
       <label>House <select name="style"><option value="">None</option><option>modern</option><option>humble</option><option>grand</option><option>old</option></select></label>
       <label>Name <input name="house" value="jackie's house" size="14" /></label>
       <label>Masonry <select name="masonry"><option value="">None</option><option value="ashlar">Pale stone</option><option value="redstone">Red stone</option><option value="fused">Melted black</option></select></label>
+      <label>Occasion <select name="occasion"><option value="">None</option></select></label>
+      <label>As <select name="stage"><option value="dress">Dressing</option><option value="stage">Stage</option></select></label>
       <label>Group <select name="group"><option value="">All</option></select></label>
       <output id="timing"></output>
     </form>
     <main id="sheet"></main>
     <script type="module">
-      import { PLACE_GROUPS, ScenePainter } from "/src/lib/scenery.ts";
+      import { OCCASIONS, PLACE_GROUPS, ScenePainter } from "/src/lib/scenery.ts";
 
       const SHAPES = {
         plate: { w: 576, h: 144, focus: 0.72, mini: true },
@@ -41,6 +43,7 @@
       };
       const form = document.querySelector("#controls");
       for (const g of PLACE_GROUPS) form.group.add(new Option(g.label, g.label));
+      for (const o of OCCASIONS) form.occasion.add(new Option(o.label, o.id));
 
       function render() {
         const { w, h, focus, mini } = SHAPES[form.shape.value];
@@ -66,7 +69,7 @@
             fig.append(c, cap);
             grid.append(fig);
             const t0 = performance.now();
-            ScenePainter.paintOnce(c, { hour: Number(form.hour.value), weather: form.weather.value, place: k.id, seed: "the kitchen", home, focus, mini });
+            ScenePainter.paintOnce(c, { hour: Number(form.hour.value), weather: form.weather.value, place: k.id, seed: "the kitchen", home, focus, mini, occasion: form.occasion.value ? { id: form.occasion.value, stage: form.stage.value === "stage" } : null });
             times.push(performance.now() - t0);
             // docs/25 §6: a castle's room stays readable at midnight. Flag a left half close to black.
             if (masonry) {

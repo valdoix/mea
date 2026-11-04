@@ -31,7 +31,7 @@
   import { delight } from "../lib/delight";
   import { lock } from "../lib/applock.svelte";
   import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
-  import { openTrackers, refreshTrackers, setHouseStyle as saveStyle, setKeepStyle as saveKeep, setPlaceKind as saveKind, trk } from "../lib/trackers.svelte";
+  import { openTrackers, refreshTrackers, setHouseStyle as saveStyle, setKeepStyle as saveKeep, setOccasionFix, setPlaceKind as saveKind, trk } from "../lib/trackers.svelte";
   import SceneWindow from "../components/trackers/SceneWindow.svelte";
   import { living } from "../lib/living";
   import Inspector from "../components/chat/Inspector.svelte";
@@ -195,7 +195,7 @@
   let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
   // J1: the place, weather and hour over the story, for the scene plates.
-  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null }[]; kinds: Record<string, string>; styles?: Record<string, string>; keeps?: Record<string, KeepStyle>; calendar?: string }>({ states: [], kinds: {} });
+  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null; minutes?: number | null; occasion?: string | null }[]; kinds: Record<string, string>; styles?: Record<string, string>; keeps?: Record<string, KeepStyle>; calendar?: string; occasions?: Record<string, string>; dated?: { title: string; at: number }[]; today?: string[] }>({ states: [], kinds: {} });
   async function loadPlates() {
     if (!device.plates) return;
     try {
@@ -218,6 +218,11 @@
   }
   async function setKeepStyle(house: string, style: KeepStyle) {
     plates = { ...plates, keeps: await saveKeep(id, house, style) };
+  }
+  const lastSceneStart = $derived(Math.max(0, ...boundaries.map((b) => b.startSeq)));
+  async function setOccasion(seq: number, occasion: string) {
+    plates = { ...plates, occasions: await setOccasionFix(id, seq, occasion, plates.occasions ?? {}, seq >= lastSceneStart) };
+    void loadPlates();
   }
   async function setPlaceKind(name: string, kind: string) {
     plates = { ...plates, kinds: { ...plates.kinds, ...(await saveKind(id, name, kind)) } };
@@ -1370,7 +1375,7 @@
                 {@const Icon = sceneIcon(b)}
                 {#if device.plates && plates.states.length}
                   {@const ps = plateAt(b.startSeq)}
-                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} styles={plates.styles} onstyle={setHouseStyle} calendar={plates.calendar} keeps={plates.keeps} onkeep={setKeepStyle} />{/if}
+                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} styles={plates.styles} onstyle={setHouseStyle} calendar={plates.calendar} keeps={plates.keeps} onkeep={setKeepStyle} occasion={ps.occasion} fix={plates.occasions?.[String(b.startSeq)]} dated={plates.dated} minutes={ps.minutes} today={b.startSeq >= lastSceneStart ? plates.today : null} onoccasion={(o) => void setOccasion(b.startSeq, o)} />{/if}
                 {/if}
                 <a class="scene-h" href="/chat/{id}/memory" title="Open this scene in memory">
                   <span class="sc-line"></span>
@@ -1389,7 +1394,7 @@
             {/if}
             {#if m.id === stripAt && trk.data}
               {@const sd = trk.data}
-              <div class="scene-strip"><SceneWindow shape="strip" when={sd.when} weather={sd.state.weather?.now ?? null} place={sd.state.place} kind={sd.placeKinds?.[sd.state.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(n, k)} styles={sd.houseStyles} onstyle={(h, s) => void setHouseStyle(h, s)} slim={device.sceneStrip === "slim"} onslim={() => setDevice("sceneStrip", device.sceneStrip === "slim" ? "strip" : "slim")} calendar={sd.config?.calendar} keeps={sd.keepStyles} onkeep={(h, s) => void setKeepStyle(h, s)} /></div>
+              <div class="scene-strip"><SceneWindow shape="strip" when={sd.when} weather={sd.state.weather?.now ?? null} place={sd.state.place} kind={sd.placeKinds?.[sd.state.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(n, k)} styles={sd.houseStyles} onstyle={(h, s) => void setHouseStyle(h, s)} slim={device.sceneStrip === "slim"} onslim={() => setDevice("sceneStrip", device.sceneStrip === "slim" ? "strip" : "slim")} calendar={sd.config?.calendar} keeps={sd.keepStyles} onkeep={(h, s) => void setKeepStyle(h, s)} occasion={sd.state.occasion?.now} fix={plates.occasions?.[String(lastSceneStart)]} dated={plates.dated} minutes={plates.states.at(-1)?.minutes} today={plates.today} onoccasion={(o) => void setOccasion(lastSceneStart, o)} /></div>
             {/if}
             {#if folioOn && !app.isMobile && L}<L.FolioGutter seq={m.seq} time={trk.times[m.id]} chips={trk.chips[m.id]} />{/if}
             <MessageItem

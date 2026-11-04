@@ -51,6 +51,8 @@ import {
 } from "./scenes";
 import { HOME_SCENES } from "./homescenes";
 import { KEEP_SCENES } from "./keepscenes";
+import type { SceneOccasion } from "./occasions";
+import { dressScene, stagePainted, stagePlace } from "./occasionscenes";
 import { LAST_HOMES } from "./lasthomes";
 import { MORE_HOMES } from "./morehomes";
 import { clock, drapes, ellipse, grid, lampsOn, none, pick, rr, shut, steam, time } from "./scenebits";
@@ -3065,13 +3067,20 @@ const MORE = {
 
 const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES };
 
-export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean, home: Home | null = null): Scene {
+export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean, home: Home | null = null, occasion: SceneOccasion | null = null): Scene {
   const dress = home ? dressHome(home) : null;
+  const old = dress?.style === "old";
+  // An occasion with no real place to stand in brings its own.
+  const staged = occasion?.stage ? stagePlace(occasion.id, old) : null;
   // An old-world house has no fitted kitchen, whatever its room is called.
-  const kind = (dress?.style === "old" && OLDER[place]) || place;
+  const kind = staged ?? ((old && OLDER[place]) || place);
   // Two houses' "kitchen" differ, and a place outside any home keeps the look it always had.
   const r = rand(seedOf(dress ? `${kind}:${dress.house}:${seed}` : `${kind}:${seed}`));
-  // A castle has its own stone rooms; and no old-world study looks out on a skyscraper.
-  const castle = dress?.keep || (dress?.style === "old" && kind === "study") ? KEEP_SCENES[kind] : undefined;
-  return (castle ?? BUILD[kind] ?? SCENES.hills)({ W, H, u: H / 300, F: W * focus, r, mini, home: dress });
+  const c: Ctx = { W, H, u: H / 300, F: W * focus, r, mini, home: dress };
+  const painted = occasion?.stage ? stagePainted(occasion.id, old) : undefined;
+  if (painted) return painted(c);
+  // A castle has its own stone rooms; and no old-world study looks out on a skyscraper. An old-world stage is always stone.
+  const castle = dress?.keep || (old && (kind === "study" || staged)) ? KEEP_SCENES[kind] : undefined;
+  const scene = (castle ?? BUILD[kind] ?? SCENES.hills)(c);
+  return occasion ? dressScene(scene, c, occasion.id, old, occasion.stage) : scene;
 }

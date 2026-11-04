@@ -520,6 +520,9 @@ function read(parts: string[], world: World): Place | null {
   return null;
 }
 
+/** Whether a path says where it is at all: if not, an occasion brings its own scene. */
+export const placeNamed = (path: string[] | null | undefined, opts: ReadOptions = {}) => read((path ?? []).map(clean), opts.world ?? null) !== null;
+
 /** Words that mean a ruin stands whole again. */
 const RESTORED = /\b(?:restored|rebuilt|repaired|intact|unruined)\b/;
 

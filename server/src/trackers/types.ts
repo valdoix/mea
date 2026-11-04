@@ -7,7 +7,7 @@ import { emptySim, type SimState } from "../sim/types";
  */
 
 export type OpName =
-  | "clock" | "wx" | "at" | "scene" | "mode" | "cast" | "mood" | "body" | "look" | "trait" | "drive" | "mask" | "think" | "journal" | "dead"
+  | "clock" | "wx" | "at" | "scene" | "occasion" | "mode" | "cast" | "mood" | "body" | "look" | "trait" | "drive" | "mask" | "think" | "journal" | "dead"
   | "bond" | "ladder" | "know" | "secret" | "reveal" | "item" | "thread" | "owe" | "promise" | "deadline" | "plant" | "payoff" | "clue"
   | "gauge" | "clockf" | "rep" | "event" | "plan" | "motif" | "milestone" | "beat" | "loop" | "set" | "lock" | "unset" | "rename" | "merge" | "edit"
   // B2: a secret's exposure clock (written by the engine and by you, never by the model)
@@ -366,6 +366,8 @@ export interface WorldState {
   /** When the clock was first set: the story's opening, the "tonight" a card's scenario speaks of. */
   start?: Moment;
   weather: { now: string; prev?: string; seq: number } | null;
+  /** docs/25 §4.2: an event under way, in the model's words ("a royal wedding feast"), and where and when it began, so it ends by itself. */
+  occasion?: { now: string; seq: number; at: number | null; root: string } | null;
   place: string[];
   sceneNo: number;
   sceneTitle?: string;
@@ -441,6 +443,7 @@ export function emptyWorld(): WorldState {
   return {
     time: null,
     weather: null,
+    occasion: null,
     place: [],
     sceneNo: 1,
     sceneStartSeq: 0,

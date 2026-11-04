@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ScenePainter, isPlace, readHome, readPlace, readWeather, worldOf, type HomeStyle, type Place, type StillScene } from "../../lib/scenery";
+  import { ScenePainter, isPlace, placeUnder, readHome, readPlace, readWeather, sceneOccasion, worldOf, type HomeStyle, type Place, type StillScene } from "../../lib/scenery";
   import { Ellipsis } from "../../lib/icons";
   import { app } from "../../lib/state.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
@@ -12,15 +12,20 @@
    * plates, so each paints only near the screen and keeps no painter afterwards. The current
    * scene's plate repaints as the clock moves. ⋯ › This place is… corrects the kind.
    */
-  let { place, weather, hour, kind = null, title = "", onkind, styles = null, onstyle, calendar = null, keeps = null, onkeep }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void; styles?: Record<string, string> | null; onstyle?: (house: string, style: HomeStyle) => void; calendar?: string | null; keeps?: Record<string, KeepStyle> | null; onkeep?: (house: string, style: KeepStyle) => void } = $props();
+  let { place, weather, hour, kind = null, title = "", onkind, styles = null, onstyle, calendar = null, keeps = null, onkeep, occasion = null, fix = null, dated = null, minutes = null, today = null, onoccasion }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void; styles?: Record<string, string> | null; onstyle?: (house: string, style: HomeStyle) => void; calendar?: string | null; keeps?: Record<string, KeepStyle> | null; onkeep?: (house: string, style: KeepStyle) => void; occasion?: string | null; fix?: string | null; dated?: { title: string; at: number }[] | null; minutes?: number | null; today?: string[] | null; onoccasion?: (id: string) => void } = $props();
 
   const name = $derived(place.at(-1) ?? "");
   const world = $derived(worldOf(calendar));
-  const k = $derived<Place>(isPlace(kind) ? kind : readPlace(place, { world }));
+  const k = $derived<Place>(isPlace(kind) ? kind : readPlace(placeUnder(place), { world }));
+  // Your "This place is…" keeps the place: an occasion dresses it then, rather than bringing its own.
+  const occ = $derived.by(() => {
+    const o = sceneOccasion({ place, fix, tracked: occasion, title, dated, minutes, world, keeps });
+    return o && isPlace(kind) ? { ...o, stage: false } : o;
+  });
   // An unset clock paints the evening, as the scene window does.
   const h = $derived(hour ?? 20);
   const home = $derived(readHome(place, styles, { world, keeps }));
-  const scene = $derived<StillScene>({ hour: h, weather: readWeather(weather), place: k, seed: name, home, focus: app.isMobile ? 0.64 : 0.72, mini: true });
+  const scene = $derived<StillScene>({ hour: h, weather: readWeather(weather), place: k, seed: name, home, focus: app.isMobile ? 0.64 : 0.72, mini: true, occasion: occ });
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let near = $state(false);
@@ -79,7 +84,7 @@
     <Menu bind:open={menuOpen} {items} anchor={menuAt} title="Scene plate" />
   {/if}
 </figure>
-{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={k} hour={h} {weather} {home} onpick={(p) => onkind?.(name, p)} {onstyle} {onkeep} />{/if}
+{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={k} hour={h} {weather} {home} onpick={(p) => onkind?.(name, p)} {onstyle} {onkeep} occasion={occ?.id ?? null} {today} {onoccasion} />{/if}
 
 <style>
   .plate {

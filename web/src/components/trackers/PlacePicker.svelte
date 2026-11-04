@@ -1,10 +1,16 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
-  import { HOME_STYLES, MASONRIES, PLACE_GROUPS, ScenePainter, readWeather, type Home, type HomeStyle, type Masonry, type Place } from "../../lib/scenery";
+  import { HOME_STYLES, MASONRIES, OCCASIONS, PLACE_GROUPS, ScenePainter, readOccasion, readWeather, type Home, type HomeStyle, type Masonry, type Occasion, type Place } from "../../lib/scenery";
   import type { KeepStyle } from "../../lib/types";
 
   /** "This place is…": every kind of place, each painted at the scene's own hour and weather. "This house is…" sets how its home is kept, and "This keep is…" what a castle is built of and flies. */
-  let { open = $bindable(false), name, current, hour, weather, home = null, onpick, onstyle, onkeep }: { open?: boolean; name: string; current: Place; hour: number; weather: string | null; home?: Home | null; onpick: (kind: Place) => void; onstyle?: (house: string, style: HomeStyle) => void; onkeep?: (house: string, style: KeepStyle) => void } = $props();
+  let { open = $bindable(false), name, current, hour, weather, home = null, onpick, onstyle, onkeep, occasion = null, today = null, onoccasion }: { open?: boolean; name: string; current: Place; hour: number; weather: string | null; home?: Home | null; onpick: (kind: Place) => void; onstyle?: (house: string, style: HomeStyle) => void; onkeep?: (house: string, style: KeepStyle) => void; occasion?: Occasion | null; today?: string[] | null; onoccasion?: (id: string) => void } = $props();
+
+  // docs/25 §4.2: a date on the calendar doesn't paint itself (they may be alone at work), but it's one click away.
+  const suggested = $derived((today ?? []).flatMap((line) => {
+    const id = readOccasion(line, "title");
+    return id ? [{ id, line }] : [];
+  }));
 
   const toHex = (c: [number, number, number]) => `#${c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
   const cloth = $derived<[string, string]>(home?.keep?.banners ? [toHex(home.keep.banners[0]), toHex(home.keep.banners[1])] : ["#2e5478", "#d6c496"]);
@@ -47,6 +53,18 @@
       {/each}
       <label class="swatch">Field <input type="color" value={cloth[0]} onchange={(e) => setKeep(undefined, [e.currentTarget.value, cloth[1]])} /></label>
       <label class="swatch">Charge <input type="color" value={cloth[1]} onchange={(e) => setKeep(undefined, [cloth[0], e.currentTarget.value])} /></label>
+    </div>
+  {/if}
+  {#if onoccasion}
+    <div class="house" role="group" aria-label="This occasion is…">
+      <span class="tiny muted">This occasion is</span>
+      {#each suggested as s (s.line)}
+        <button class="chip" class:on={occasion === s.id} onclick={() => onoccasion?.(s.id)}>Today: {s.line}</button>
+      {/each}
+      <button class="chip" class:on={!occasion} aria-pressed={!occasion} onclick={() => onoccasion?.("none")}>None</button>
+      {#each OCCASIONS as o (o.id)}
+        <button class="chip" class:on={occasion === o.id} aria-pressed={occasion === o.id} onclick={() => onoccasion?.(o.id)}>{o.label}</button>
+      {/each}
     </div>
   {/if}
   <input class="search" type="search" placeholder="Find a place…" aria-label="Find a place" bind:value={q} />

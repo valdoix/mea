@@ -9,6 +9,7 @@ export const GRAMMAR = `Write one change per line, only what changed in the NEW 
 clock: +45m | +2h | Day 3 21:40 | 2026-03-14 21:40   (time passed; never backwards unless "flashback")
 wx: rain → heavy rain                        at: City › District › Building › Room
 scene: <title of a new scene>
+occasion: a royal wedding feast | off   (only when the messages show an event under way: a birthday party, a wedding, a funeral, a feast, in your own words; off when it ends; never for a plan or a memory of one)
 mode: social|intimacy|conflict|investigation|travel|stealth|downtime|aftermath|crisis   (its own line; with every new scene, or when the scene turns into another; aftermath: just after a death, an injury, violence or a loss, inside the consequences; a social scene may name its talk: social (confrontation|apology|confession|breakup|request|interrogation))
 cast: Name@spot(activity) · Name@peri(at the bar) · Name@left(→ where) · Name@arrive   (after @ only spot|peri|left|arrive; places go in at:; with a new at: that moves the scene, name everyone who came along: whoever was present and isn't named stayed behind; @spot or @peri only for people the messages put in the scene, never someone only thought of, talked about or waiting elsewhere)
 mood Name: old → new | V-1 A2 D0              (named emotion; VAD optional: valence -3..3, arousal 0..5, dominance -3..3)
@@ -58,6 +59,7 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   if (st.weather) L.push(`wx: ${st.weather.now}`);
   if (st.place.length) L.push(`at: ${st.place.join(" › ")}`);
   if (st.sceneTitle) L.push(`scene: ${st.sceneTitle}`);
+  if (st.occasion) L.push(`occasion: ${st.occasion.now}`);
   const here = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri");
   const away = Object.values(st.chars).filter((c) => !here.includes(c) && !c.isUser && !c.dead).slice(-8);
   if (here.length) L.push(`cast: ${here.map((c) => `${nm(c.id)}@${c.tier}${c.activity ? `(${clip(c.activity, 40)})` : ""}`).join(" · ")}`);
