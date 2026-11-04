@@ -78,6 +78,18 @@ export async function removeLadder(chatId: string, key: string, label: string) {
 
 export const lockLine = (path: string, on: boolean) => `lock ${path}: ${on ? "on" : "off"}`;
 
+/** "This house is…": how a home is kept, in every room of it (chat settings `houseStyles`). */
+export async function setHouseStyle(chatId: string, house: string, style: string) {
+  const styles = { ...(trk.chatId === chatId ? trk.data?.houseStyles : null), [house]: style };
+  try {
+    await patch(`/api/chats/${chatId}`, { settings: { houseStyles: styles } });
+    if (trk.chatId === chatId && trk.data) trk.data.houseStyles = styles;
+  } catch (e) {
+    errorToast(e);
+  }
+  return styles;
+}
+
 /** "This place is…": paint a place as another kind everywhere it's drawn (chat settings `placeKinds`). */
 export async function setPlaceKind(chatId: string, name: string, kind: string) {
   const kinds = { ...(trk.chatId === chatId ? trk.data?.placeKinds : null), [name]: kind };

@@ -40,6 +40,27 @@ export interface Env {
   T: number;
   still: boolean;
 }
+export type HomeStyle = "modern" | "humble" | "grand" | "old";
+export const HOME_STYLES: { id: HomeStyle; label: string }[] = [
+  { id: "modern", label: "Modern" },
+  { id: "humble", label: "Humble" },
+  { id: "grand", label: "Grand" },
+  { id: "old", label: "Old-world" },
+];
+/** Whose home a place is in, and how it's kept. */
+export interface Home {
+  house: string;
+  style: HomeStyle;
+}
+/** A home's colours: the same in every one of its rooms. */
+export interface HomeDress extends Home {
+  wall: RGB;
+  trim: RGB;
+  floor: RGB;
+  fabric: RGB;
+  /** Upholstery. */
+  soft: RGB;
+}
 export interface Ctx {
   W: number;
   H: number;
@@ -47,7 +68,25 @@ export interface Ctx {
   F: number;
   r: () => number;
   mini: boolean;
+  home: HomeDress | null;
 }
+
+export const PLASTER: RGB[] = [
+  [222, 196, 150],
+  [204, 150, 138],
+  [166, 178, 150],
+  [150, 164, 188],
+  [218, 206, 186],
+  [190, 160, 196],
+];
+export const FABRIC: RGB[] = [
+  [170, 44, 56],
+  [40, 92, 150],
+  [46, 120, 84],
+  [196, 150, 52],
+  [120, 60, 140],
+  [210, 110, 60],
+];
 
 export const PLACE_GROUPS = [
   {
@@ -269,7 +308,7 @@ const RULES: [Place, RegExp][] = [
 
 /** Somewhere old-world: its kitchen has a hearth and its office is a study. */
 const OLD_WORLD = /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b|abbey|monastery|priory|\binn\b|tavern|\bsept\b|village|hamlet|\bcroft/;
-const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study" };
+export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study" };
 
 /** A public kind of place, when the word for it comes inside someone's home: the home bar, not a pub. */
 const HOMELY: Partial<Record<Place, Place>> = { theater: "living", arcade: "living", tavern: "living", laundromat: "homekitchen", hospital: "bedroom", hall: "living", deck: "meadow" };
@@ -302,4 +341,58 @@ function read(parts: string[]): Place | null {
 
 export function readPlace(path: string[] | null | undefined): Place {
   return read((path ?? []).map((p) => p.toLowerCase())) ?? "hills";
+}
+
+/** Homes that aren't in HOME: the reader treats their rooms as its own, but a house is a house. */
+const ALSO_A_HOUSE = /\bcottage|farmhouse|\bcabin|\bshack|\btrailers?\b(?! park)|\bdorm\b|houseboat/;
+const HUMBLE = /apartment|\bflat\b|\bcondo|\btrailers?\b(?! park)|\bdorm\b|\bshack|\bbedsit/;
+const GRAND = /\bmansion|\bvillas?\b|penthouse|\bestate\b/;
+
+/**
+ * The home a place is in (the nearest part of its path that names one), or null. `styles` is your
+ * "This house is…" correction. A home's own word beats its surroundings: an apartment in Greenwich
+ * Village isn't old-world, though a village is.
+ */
+export function readHome(path: string[] | null | undefined, styles?: Record<string, string> | null): Home | null {
+  const parts = (path ?? []).map((p) => p.toLowerCase().trim());
+  const inward = [...parts].reverse();
+  const house = inward.find((p) => HOME.test(p) || ALSO_A_HOUSE.test(p)) ?? inward.find((p) => OLD_WORLD.test(p));
+  if (!house) return null;
+  const own = styles?.[house];
+  if (own && HOME_STYLES.some((s) => s.id === own)) return { house, style: own as HomeStyle };
+  const style: HomeStyle = GRAND.test(house) ? "grand" : HUMBLE.test(house) ? "humble" : parts.some((p) => OLD_WORLD.test(p)) ? "old" : parts.some((p) => GRAND.test(p)) ? "grand" : parts.some((p) => HUMBLE.test(p)) ? "humble" : "modern";
+  return { house, style };
+}
+
+const pickOf = <T>(r: () => number, a: readonly T[]): T => a[(r() * a.length) | 0]!;
+
+const PALETTES: Record<HomeStyle, { wall: RGB[]; trim: RGB[]; floor: RGB[] }> = {
+  modern: {
+    wall: PLASTER,
+    trim: [[236, 232, 224], [210, 204, 196], [70, 60, 54]],
+    floor: [[150, 110, 76], [120, 90, 66], [180, 150, 110], [120, 120, 124]],
+  },
+  humble: {
+    wall: [[196, 186, 166], [170, 176, 160], [184, 170, 160], [160, 168, 176]],
+    trim: [[206, 200, 188], [150, 124, 100]],
+    floor: [[130, 118, 100], [110, 100, 92]],
+  },
+  grand: {
+    wall: [[120, 60, 66], [60, 84, 92], [196, 176, 130], [90, 110, 90]],
+    trim: [[232, 222, 196], [176, 146, 90]],
+    floor: [[104, 62, 42], [190, 180, 165]],
+  },
+  old: {
+    wall: [[176, 164, 142], [150, 138, 122], [168, 150, 124]],
+    trim: [[84, 58, 42], [60, 44, 34]],
+    floor: [[110, 100, 92], [84, 62, 46]],
+  },
+};
+
+/** A home's colours, the same from any of its rooms. */
+export function dressHome(home: Home): HomeDress {
+  const r = rand(seedOf(home.house));
+  const p = PALETTES[home.style];
+  const fabric = pickOf(r, FABRIC);
+  return { ...home, wall: pickOf(r, p.wall), trim: pickOf(r, p.trim), floor: pickOf(r, p.floor), fabric, soft: mix(fabric, [120, 120, 130], 0.45) };
 }

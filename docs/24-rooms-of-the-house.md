@@ -1,6 +1,6 @@
 # Design plan: the rooms of the house (richer scene plates)
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** Parts 1 and 2 built (painted plates, and the reader knowing a house). Parts 3–6 proposed.
+**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** Parts 1–3 built (painted plates, the reader knowing a house, and house identity). Parts 4–6 proposed.
 
 Stories spend most of their time inside houses, and that is where the scene art is thinnest. This plan makes every plate draw the room the story is really in, adds 54 kinds of home location, and makes the rooms of one house look like they belong together.
 
@@ -248,7 +248,7 @@ Not fully indoors, but part of the house. I limited this to five because you ask
 
 - **What counts as a home:** must stay strict. A loose `house` match would catch opera house, coffee house, warehouse, courthouse, bathhouse, lighthouse and clubhouse.
 - **Corridors:** `corridor` moves out of `city`, which also fixes corridors in other settings.
-- **Picker:** at 129 kinds the single "At home" group is too long. It splits into this plan's headings (A–H), and a search box goes at the top.
+- **Picker:** a search box goes at the top (built in Part 3). At 129 kinds the single "At home" group is too long, so it splits into this plan's headings (A–H) in Part 4, when those headings first have rooms in them.
 - **Saved corrections:** existing `placeKinds` values remain valid, because no kind is removed. `placeKinds` allows 30 characters and every new id fits.
 - **A one-time visual change:** house-seeded palettes will change how existing home rooms in current stories look, once. Non-home places keep their seed.
 
@@ -268,7 +268,7 @@ One PR per part.
 |---|---|---|
 | **1. Plates use the painter** | §2.1, contact sheet, picker on the plate | All 75 existing rooms on plates, overwrite bug gone |
 | **2. Reader knows a house** | Whole-home words and the rooms in §1.2 mapped to the nearest existing kinds, plus strict home detection | No more hillside mansions, before any new art |
-| **3. House identity** | §2.2, shared helpers moved, `living`, `homekitchen`, `bedroom`, `bathroom` and `attic` dressed, picker split with search | Rooms of a house match, Winterfell isn't modern |
+| **3. House identity** | §2.2, shared helpers moved, `living`, `homekitchen`, `bedroom`, `bathroom` and `attic` dressed, picker search | Rooms of a house match, Winterfell isn't modern |
 | **4. Wave 1 (14)** | dining, den, hometheater, homelibrary, masterbedroom, nursery, foyer, hallway, staircase, homeoffice, laundryroom, basement, garage, porch | The rooms you named, and the most common settings |
 | **5. Wave 2 (20)** | parlor, nook, sunroom, greatroom, gameroom, homebar, recroom, musicroom, homegym, kidsroom, teenroom, guestroom, closet, spabath, mudroom, pantry, studioapt, penthouse, loft, balcony | A full home in any style |
 | **6. Wave 3 (20)** | playroom, craftroom, atelier, trophyroom, winecellar, sauna, dressing, sickroom, longgallery, crawlspace, panicroom, hiddenroom, dorm, trailer, houseboat, beachhouse, cottage, screenporch, patio, atrium | The specific and the dramatic |

@@ -4,7 +4,7 @@
  * a place always looks the same and still follows the clock. Sizes are in units of the window's
  * height (u), and the subject sits at the focus (F), so one place fits a card, an arch or a band.
  */
-import { clamp, DARK, lerp, mix, rand, rgb, seedOf, TAU, WARM, type Ctx, type Env, type Place, type RGB } from "./places";
+import { clamp, DARK, FABRIC, lerp, mix, PLASTER, rand, rgb, seedOf, TAU, WARM, type Ctx, type Env, type Place, type RGB } from "./places";
 
 export interface Scene {
   draw(g: CanvasRenderingContext2D, E: Env): void;
@@ -26,22 +26,7 @@ const REDROCK: RGB = [200, 102, 66];
 const EARTH: RGB = [134, 100, 72];
 export const STONE: RGB = [156, 146, 140];
 export const WOOD: RGB = [110, 72, 50];
-export const PLASTER: RGB[] = [
-  [222, 196, 150],
-  [204, 150, 138],
-  [166, 178, 150],
-  [150, 164, 188],
-  [218, 206, 186],
-  [190, 160, 196],
-];
-export const FABRIC: RGB[] = [
-  [170, 44, 56],
-  [40, 92, 150],
-  [46, 120, 84],
-  [196, 150, 52],
-  [120, 60, 140],
-  [210, 110, 60],
-];
+export { FABRIC, PLASTER };
 
 /** A colour for something at depth t (0 far, 1 near): the horizon's air, darkening, with its own hue by day. */
 export function tone(E: Env, t: number, hue?: RGB, amt = 0.55): RGB {
@@ -2319,7 +2304,7 @@ function graveyard(c: Ctx): Scene {
 // ---------- Indoors ----------
 
 /** A room: the sky shows through `win`, the wall goes round it, then the furniture. */
-export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRenderingContext2D, E: Env) => void, furnish: (g: CanvasRenderingContext2D, E: Env) => void, floorY: number, opts: { lift?: number; space?: boolean } = {}): Scene {
+export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRenderingContext2D, E: Env) => void, furnish: (g: CanvasRenderingContext2D, E: Env) => void, floorY: number, opts: { lift?: number; space?: boolean; floorHue?: RGB } = {}): Scene {
   const { W, H } = c;
   const wall = new Path2D();
   wall.rect(0, 0, W, H);
@@ -2338,9 +2323,10 @@ export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRende
         wg.addColorStop(1, rgb(mix(base, DARK, 0.2)));
         g.fillStyle = wg;
         g.fill(wall, "evenodd");
+        const fbase = opts.floorHue ? mix(mix(opts.floorHue, DARK, 0.82), opts.floorHue, lift) : base;
         const fg = g.createLinearGradient(0, floorY, 0, H);
-        fg.addColorStop(0, rgb(mix(base, DARK, 0.5)));
-        fg.addColorStop(1, rgb(mix(base, DARK, 0.75)));
+        fg.addColorStop(0, rgb(mix(fbase, DARK, opts.floorHue ? 0.15 : 0.5)));
+        fg.addColorStop(1, rgb(mix(fbase, DARK, opts.floorHue ? 0.45 : 0.75)));
         g.fillStyle = fg;
         g.fillRect(0, floorY, W, H - floorY);
         furnish(g, E);
@@ -2352,6 +2338,32 @@ export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRende
       },
     },
   };
+}
+/** Pictures along a stretch of bare wall, so a room still looks lived in at a wide plate's edges. */
+export function wallDressing(c: Ctx, x0: number, x1: number) {
+  const { H, u, r } = c;
+  const hung: { x: number; y: number; w: number; h: number; art: RGB }[] = [];
+  for (let x = x0 + 30 * u; x + 60 * u < x1; ) {
+    const w = (50 + r() * 50) * u;
+    const h = (36 + r() * 34) * u;
+    if (x + w < x1) hung.push({ x, y: H * 0.34 - h / 2 + r() * 16 * u, w, h, art: FABRIC[(r() * FABRIC.length) | 0]! });
+    x += w + (70 + r() * 110) * u;
+  }
+  const edge = c.home?.trim ?? [60, 40, 30];
+  return (g: CanvasRenderingContext2D, E: Env) => {
+    for (const p of hung) {
+      g.fillStyle = rgb(shade(E, edge, 0.5));
+      g.fillRect(p.x, p.y, p.w, p.h);
+      g.fillStyle = rgb(shade(E, mix(p.art, [220, 210, 190], 0.45), 0.5));
+      g.fillRect(p.x + 4 * u, p.y + 4 * u, p.w - 8 * u, p.h - 8 * u);
+    }
+  };
+}
+/** The floor strip that ties a home's rooms together. */
+export function skirting(g: CanvasRenderingContext2D, E: Env, c: Ctx, floor: number) {
+  if (!c.home) return;
+  g.fillStyle = rgb(shade(E, c.home.trim, 0.5));
+  g.fillRect(0, floor - 8 * c.u, c.W, 8 * c.u);
 }
 export function townView(c: Ctx) {
   const far = ridge(c, c.H * 0.62, 10 * c.u, 0.7);
@@ -2463,6 +2475,9 @@ function tavern(c: Ctx): Scene {
   );
 }
 
+// bedroom() has a lampshade called shade.
+const shadeOf = (E: Env, hue: RGB, k?: number) => shade(E, hue, k);
+
 function bedroom(c: Ctx): Scene {
   const { W, H, u, F, r } = c;
   const floor = H * 0.82;
@@ -2491,7 +2506,8 @@ function bedroom(c: Ctx): Scene {
     curt.closePath();
   }
   curt.rect(wx - 60 * u, wt - 20 * u, ww + 120 * u, 4 * u);
-  const fab = FABRIC[(r() * FABRIC.length) | 0]!;
+  const home = c.home;
+  const fab = home?.fabric ?? FABRIC[(r() * FABRIC.length) | 0]!;
   const bed = new Path2D();
   const bx = F;
   bed.rect(bx, H * 0.36, 12 * u, floor - H * 0.36);
@@ -2522,14 +2538,33 @@ function bedroom(c: Ctx): Scene {
   const pic = new Path2D();
   pic.rect(F + 70 * u, H * 0.18, 70 * u, 50 * u);
   const view = hillView(c);
+  const wall = home?.wall ?? PLASTER[(r() * PLASTER.length) | 0]!;
+  const dressing = wallDressing(c, 0, wx - 70 * u);
+  const old = home?.style === "old";
+  const grand = home?.style === "grand";
+  const plain = home?.style === "humble";
+  // Grand and old-world beds have posts, and the grand one a canopy over them.
+  const posts = new Path2D();
+  for (const x of [bx + 2 * u, bx + 192 * u]) posts.rect(x, H * 0.14, 6 * u, floor - H * 0.14);
+  const canopy = new Path2D();
+  canopy.moveTo(bx - 10 * u, H * 0.12);
+  canopy.lineTo(bx + 210 * u, H * 0.12);
+  canopy.lineTo(bx + 210 * u, H * 0.2);
+  canopy.quadraticCurveTo(bx + 100 * u, H * 0.27, bx - 10 * u, H * 0.2);
+  canopy.closePath();
+  const radiator = new Path2D();
+  for (let k = 0; k < 7; k++) radiator.rect(wx + 8 * u + k * 13 * u, floor - 40 * u, 9 * u, 38 * u);
   return room(
     c,
     win,
-    PLASTER[(r() * PLASTER.length) | 0]!,
+    wall,
     view,
     (g, E) => {
+      dressing(g, E);
+      skirting(g, E, c, floor);
       spill(g, E, wx, wx + ww, wb, floor, 70 * u);
-      fill(g, frame, mix([40, 30, 34], [214, 204, 196], E.day * 0.6));
+      fill(g, frame, home ? shadeOf(E, home.trim, 0.6) : mix([40, 30, 34], [214, 204, 196], E.day * 0.6));
+      if (plain) fill(g, radiator, shadeOf(E, [226, 222, 214], 0.5));
       fill(g, curt, mix(mix(fab, DARK, 0.8), fab, 0.25 + E.day * 0.5));
       fill(g, pic, mix([40, 28, 26], [120, 90, 60], E.day * 0.5));
       g.fillStyle = rgb(mix(E.sky.bot, DARK, 0.5));
@@ -2544,10 +2579,18 @@ function bedroom(c: Ctx): Scene {
       g.fill();
       fill(g, stand, mix([30, 20, 22], [104, 70, 54], E.day * 0.5));
       const on = clamp(E.glow * 1.3);
-      fill(g, shade, mix([60, 50, 50], [255, 220, 170], 0.3 + on * 0.7));
-      glowAt(g, F - 40 * u, H * 0.48, 130 * u, WARM, 0.45 * on);
+      if (old) {
+        if (on > 0.1) fire(g, E, F - 40 * u, H * 0.5, u * 0.5);
+        glowAt(g, F - 40 * u, H * 0.48, 110 * u, WARM, 0.35 * on);
+      } else {
+        fill(g, shade, mix([60, 50, 50], [255, 220, 170], 0.3 + on * 0.7));
+        glowAt(g, F - 40 * u, H * 0.48, 130 * u, WARM, 0.45 * on);
+      }
+      if (old || grand) fill(g, posts, mix([30, 20, 22], [104, 70, 54], E.day * 0.5));
+      if (grand) fill(g, canopy, mix(mix(fab, DARK, 0.75), fab, 0.3 + E.day * 0.45));
     },
     floor,
+    { floorHue: home?.floor },
   );
 }
 

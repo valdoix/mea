@@ -31,7 +31,7 @@
   import { delight } from "../lib/delight";
   import { lock } from "../lib/applock.svelte";
   import { cancelQueued, enqueueSend, outbox } from "../lib/outbox.svelte";
-  import { openTrackers, refreshTrackers, setPlaceKind as saveKind, trk } from "../lib/trackers.svelte";
+  import { openTrackers, refreshTrackers, setHouseStyle as saveStyle, setPlaceKind as saveKind, trk } from "../lib/trackers.svelte";
   import SceneWindow from "../components/trackers/SceneWindow.svelte";
   import { living } from "../lib/living";
   import Inspector from "../components/chat/Inspector.svelte";
@@ -195,7 +195,7 @@
   let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
   // J1: the place, weather and hour over the story, for the scene plates.
-  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null }[]; kinds: Record<string, string> }>({ states: [], kinds: {} });
+  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null }[]; kinds: Record<string, string>; styles?: Record<string, string> }>({ states: [], kinds: {} });
   async function loadPlates() {
     if (!device.plates) return;
     try {
@@ -212,6 +212,9 @@
     const next = boundaries.map((b) => b.startSeq).filter((x) => x > seq).sort((a, b) => a - b)[0] ?? Infinity;
     // The state as the scene ran (its last change before the next scene), else what came before it.
     return [...s].reverse().find((x) => x.seq >= seq && x.seq < next) ?? [...s].reverse().find((x) => x.seq <= seq) ?? null;
+  }
+  async function setHouseStyle(house: string, style: string) {
+    plates = { ...plates, styles: await saveStyle(id, house, style) };
   }
   async function setPlaceKind(name: string, kind: string) {
     plates = { ...plates, kinds: { ...plates.kinds, ...(await saveKind(id, name, kind)) } };
@@ -1364,7 +1367,7 @@
                 {@const Icon = sceneIcon(b)}
                 {#if device.plates && plates.states.length}
                   {@const ps = plateAt(b.startSeq)}
-                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} />{/if}
+                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} styles={plates.styles} onstyle={setHouseStyle} />{/if}
                 {/if}
                 <a class="scene-h" href="/chat/{id}/memory" title="Open this scene in memory">
                   <span class="sc-line"></span>
@@ -1383,7 +1386,7 @@
             {/if}
             {#if m.id === stripAt && trk.data}
               {@const sd = trk.data}
-              <div class="scene-strip"><SceneWindow shape="strip" when={sd.when} weather={sd.state.weather?.now ?? null} place={sd.state.place} kind={sd.placeKinds?.[sd.state.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(n, k)} slim={device.sceneStrip === "slim"} onslim={() => setDevice("sceneStrip", device.sceneStrip === "slim" ? "strip" : "slim")} /></div>
+              <div class="scene-strip"><SceneWindow shape="strip" when={sd.when} weather={sd.state.weather?.now ?? null} place={sd.state.place} kind={sd.placeKinds?.[sd.state.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(n, k)} styles={sd.houseStyles} onstyle={(h, s) => void setHouseStyle(h, s)} slim={device.sceneStrip === "slim"} onslim={() => setDevice("sceneStrip", device.sceneStrip === "slim" ? "strip" : "slim")} /></div>
             {/if}
             {#if folioOn && !app.isMobile && L}<L.FolioGutter seq={m.seq} time={trk.times[m.id]} chips={trk.chips[m.id]} />{/if}
             <MessageItem
