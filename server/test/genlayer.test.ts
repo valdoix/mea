@@ -675,6 +675,7 @@ describe("sending (H8, C2, H3)", () => {
     expect((await end as any).status).toBe("done");
     const calls = seen.filter((s) => s.model === "overflow");
     expect(calls.length).toBe(2);
-    expect(calls[1]!.size).toBeLessThan(calls[0]!.size);
+    // Really smaller, not smaller by a word: two builds of one prompt differ by a few characters anyway, and a prompt about the same size overflows again.
+    expect(calls[1]!.size).toBeLessThan(calls[0]!.size * 0.95);
   });
 });
