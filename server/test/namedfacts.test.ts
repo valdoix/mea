@@ -2,10 +2,11 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { all, run } from "../src/db/db";
 import { insertAtom } from "../src/memory/atoms";
-import { namedFacts, namesStats } from "../src/memory/named";
+import { heardBy, namedFacts, namesStats, whoWasThere } from "../src/memory/named";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
 import { trackerPrompt } from "../src/trackers/service";
+import type { WorldState } from "../src/trackers/types";
 import { freshDb } from "./helpers";
 
 /** docs/26 2.1: at #791 the tracker had no line on "Brongel", and the memories had who knew it all along. */
@@ -47,6 +48,33 @@ describe("what the memories hold about a name just used", () => {
 
   test("it says who holds it, so a fact one person holds reads that way", () => {
     expect(namedFacts(chatId, "She found the Cordelia photo.", 20, none)[0]!.knownBy).toEqual(["Spike"]);
+  });
+
+  test("who was there, from the scene's log: a person can have been in the room, or not", () => {
+    const st = { chars: { b: { id: "b", name: "Buffy" }, d: { id: "d", name: "Dawn" }, s: { id: "s", name: "Spike" }, u: { id: "u", name: "Gabriel", isUser: true } }, presence: [{ seq: 1, who: ["b", "u"] }, { seq: 6, who: ["b", "d", "u"] }, { seq: 15, who: ["b", "d", "s", "u"] }] } as unknown as WorldState;
+    expect(whoWasThere(st, 3)).toEqual(["b", "u"]);
+    expect(whoWasThere(st, 15)).toEqual(["b", "d", "s", "u"]);
+    expect(whoWasThere(st, 0)).toEqual([]);
+    run("UPDATE swipes SET content = 'They called him Sprocket once.' WHERE message_id = (SELECT id FROM messages WHERE chat_id = ? AND seq = 4)", chatId);
+    run("UPDATE swipes SET content = 'The banner said Sprocket.' WHERE message_id = (SELECT id FROM messages WHERE chat_id = ? AND seq = 8)", chatId);
+    expect([...heardBy(chatId, st, "sprocket", 20).entries()]).toEqual([["b", 4], ["d", 8]]);
+    expect([...heardBy(chatId, st, "sprocket", 8).entries()]).toEqual([["b", 4]]);
+  });
+
+  test("whoever here wasn't there is named, so nobody writes them as knowing", () => {
+    const st = {
+      motifs: {},
+      chars: { b: { id: "b", name: "Buffy", aliases: [], tier: "spot" }, d: { id: "d", name: "Dawn", aliases: [], tier: "spot" }, s: { id: "s", name: "Spike", aliases: [], tier: "spot" }, u: { id: "u", name: "Gabriel", aliases: [], tier: "spot", isUser: true } },
+      presence: [{ seq: 1, who: ["b", "d", "u"] }],
+    } as unknown as WorldState;
+    const [fact] = namedFacts(chatId, "And that's Brongel for you.", 20, none, 2, st);
+    expect(fact!.notHeard).toEqual(["Spike"]);
+  });
+
+  test("a running bit the story kept counts as a record, when no memory says it", () => {
+    const st = { motifs: { x: { id: "x", text: "Bumblebee, his name for her", firstSeq: 3, lastSeq: 9, uses: 2 } }, chars: {}, presence: [] } as unknown as WorldState;
+    expect(namedFacts(chatId, "He calls her Bumblebee again.", 20, none, 2, st)).toEqual([{ term: "bumblebee", statement: "Bumblebee, his name for her", knownBy: [], firstSeq: 9, lastSeq: 9 }]);
+    expect(namedFacts(chatId, "He calls her Bumblebee again.", 3, none, 2, st)).toEqual([]);
   });
 
   test("it reaches the story state under FACTS IN PLAY", () => {

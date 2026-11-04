@@ -397,6 +397,8 @@ export interface WorldState {
   milestones: Milestone[];
   /** docs/20 1.1: what happened, one line per reply, stamped with the story time, place and who was there. */
   beats: Beat[];
+  /** docs/26 3.1: who was in the scene, each time that changed: who was there for something said long ago. */
+  presence?: { seq: number; who: string[] }[];
   places: Record<string, Place>;
   /** Custom template values (TRK-01): { templateKey: { field: value } }. */
   custom: Record<string, Record<string, unknown>>;

@@ -114,6 +114,8 @@ This story runs on them: Brongel, Dawn-o, facefriend, the filing alphabet. Each 
 
 **3.2** A lane shows only names used in the newest messages, with origin and who knows. Decide after Part 2 whether this still adds enough: 2.1 may cover most of it.
 
+*Built differently:* no new ledger line. The tracker already had `motif` for running bits, 63 of them in the real chat, so a nickname is one of those, and the prompt now says so. What was really missing was who'd heard it, and that needs no model: the fold keeps a short log of who was in the scene (`presence`), and `heardBy` reads it against the messages holding the word. So it works on old chats with no backfill and no spend. FACTS IN PLAY says who was there and who wasn't. At #791: "…Buffy Summers, Gabriel Winters, Dawn Summers know it… Spike hasn't heard it: no record of it being said in front of them." The old-news checks read it too: nobody here was there for it, no flag. Being in the room isn't proof someone took it in, and a player's line that brings someone in reads as said before they arrived.
+
 ---
 
 ## Part 4 · Recall balance

@@ -336,7 +336,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     for (const n of o.named ?? []) {
       if (lines.some((l) => l.toLowerCase().includes(n.term))) continue;
       const when = [n.firstSeq, n.lastSeq].filter((s, i, all) => s && all.indexOf(s) === i).map(moment).join("; ");
-      lines.push(`${n.statement}${n.knownBy.length ? `: ${n.knownBy.join(", ")} know${n.knownBy.length === 1 ? "s" : ""} it` : ""}${when ? ` (${when})` : ""}`);
+      const hasnt = n.notHeard?.length ? ` ${n.notHeard.join(", ")} ${n.notHeard.length === 1 ? "hasn't" : "haven't"} heard it: no record of it being said in front of them.` : "";
+      lines.push(`${n.statement}${n.knownBy.length ? `: ${n.knownBy.join(", ")} know${n.knownBy.length === 1 ? "s" : ""} it` : ""}${when ? ` (${when})` : ""}${hasnt}`);
     }
     if (lines.length) lanes.push({ name: "inplay", lines: ["FACTS IN PLAY (what this message touches, from the records; true over any guess, but an old one says how things stood then):", ...lines.map((l) => `- ${l}`)], priority: 1 });
   }
