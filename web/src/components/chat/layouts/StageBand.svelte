@@ -64,7 +64,7 @@
 </script>
 
 <header class="s-band" class:slim aria-label="The scene">
-  <div class="scenery" aria-hidden="true"><SceneWindow shape="band" when={trk.data?.when ?? null} {weather} place={place.length ? place : [detail.chat.title]} kind={trk.data?.placeKinds?.[place.at(-1) ?? ""] ?? null} styles={trk.data?.houseStyles} /></div>
+  <div class="scenery" aria-hidden="true"><SceneWindow shape="band" when={trk.data?.when ?? null} {weather} place={place.length ? place : [detail.chat.title]} kind={trk.data?.placeKinds?.[place.at(-1) ?? ""] ?? null} styles={trk.data?.houseStyles} calendar={trk.data?.config?.calendar} /></div>
   <div class="s-band-in">
     <div class="s-where">
       {#if app.isMobile}<button class="btn ghost icon s-back" onclick={onback} aria-label="Back"><ArrowLeft size={20} /></button>{/if}

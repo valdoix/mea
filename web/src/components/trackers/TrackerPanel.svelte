@@ -179,7 +179,7 @@
 
     {#if sec?.scene}
       <Module title="Scene" fold led={st.sceneNo ? "on" : null} peek={st.sceneNo ? `scene ${st.sceneNo}` : ""}>
-        {#if living(app.settings).window}<div class="window"><SceneWindow when={d.when} weather={st.weather?.now ?? null} place={st.place} kind={d.placeKinds?.[st.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(chatId, n, k)} styles={d.houseStyles} onstyle={(h, s) => void setHouseStyle(chatId, h, s)} /></div>{/if}
+        {#if living(app.settings).window}<div class="window"><SceneWindow when={d.when} weather={st.weather?.now ?? null} place={st.place} kind={d.placeKinds?.[st.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(chatId, n, k)} styles={d.houseStyles} onstyle={(h, s) => void setHouseStyle(chatId, h, s)} calendar={d.config?.calendar} /></div>{/if}
         <div class="kvs">
           <div class="kv">
             <span>Time</span>

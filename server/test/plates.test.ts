@@ -40,4 +40,10 @@ describe("scene plates (J1)", () => {
     updateChat(chatId, { settings: { placeKinds: { "The Anchor": "tavern" } } });
     expect(scenePlates(chatId).kinds).toEqual({ "The Anchor": "tavern" });
   });
+
+  test("the chat's calendar rides along, so a Westeros chat reads its places as Westeros", () => {
+    expect(scenePlates(chatId).calendar).toBe("gregorian");
+    updateChat(chatId, { settings: { trackers: { calendar: "westeros" } } });
+    expect(scenePlates(chatId).calendar).toBe("westeros");
+  });
 });

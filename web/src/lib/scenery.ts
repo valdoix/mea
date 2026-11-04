@@ -11,6 +11,7 @@ import { buildScene } from "./morescenes";
 import type { Scene } from "./scenes";
 
 export { HOME_STYLES, PLACE_GROUPS, PLACES, isPlace, readHome, readPlace, type Home, type HomeStyle, type Place } from "./places";
+export { worldOf } from "./westeros";
 
 export type Weather = "clear" | "cloudy" | "rain" | "storm" | "fog" | "snow" | "wind";
 

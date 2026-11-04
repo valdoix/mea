@@ -203,7 +203,7 @@
       {#if sec?.scene}
         <section class="tile card scene">
           <h3><span class="g">☾</span>Scene<span class="k">time · place · weather</span></h3>
-          {#if living(app.settings).window}<SceneWindow shape="arch" {when} weather={st.weather?.now ?? null} place={st.place} kind={trk.data?.placeKinds?.[st.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(chatId, n, k)} styles={trk.data?.houseStyles} onstyle={(h, s) => void setHouseStyle(chatId, h, s)} />{/if}
+          {#if living(app.settings).window}<SceneWindow shape="arch" {when} weather={st.weather?.now ?? null} place={st.place} kind={trk.data?.placeKinds?.[st.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(chatId, n, k)} styles={trk.data?.houseStyles} onstyle={(h, s) => void setHouseStyle(chatId, h, s)} calendar={trk.data?.config?.calendar} />{/if}
           <div class="tags">
             {#if when}<span class="tag">{when.label}</span>{/if}
             {#if when?.season}<span class="tag">{when.season}</span>{/if}

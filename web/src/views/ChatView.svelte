@@ -195,7 +195,7 @@
   let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
   // J1: the place, weather and hour over the story, for the scene plates.
-  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null }[]; kinds: Record<string, string>; styles?: Record<string, string> }>({ states: [], kinds: {} });
+  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null }[]; kinds: Record<string, string>; styles?: Record<string, string>; calendar?: string }>({ states: [], kinds: {} });
   async function loadPlates() {
     if (!device.plates) return;
     try {
@@ -1367,7 +1367,7 @@
                 {@const Icon = sceneIcon(b)}
                 {#if device.plates && plates.states.length}
                   {@const ps = plateAt(b.startSeq)}
-                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} styles={plates.styles} onstyle={setHouseStyle} />{/if}
+                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} styles={plates.styles} onstyle={setHouseStyle} calendar={plates.calendar} />{/if}
                 {/if}
                 <a class="scene-h" href="/chat/{id}/memory" title="Open this scene in memory">
                   <span class="sc-line"></span>
@@ -1386,7 +1386,7 @@
             {/if}
             {#if m.id === stripAt && trk.data}
               {@const sd = trk.data}
-              <div class="scene-strip"><SceneWindow shape="strip" when={sd.when} weather={sd.state.weather?.now ?? null} place={sd.state.place} kind={sd.placeKinds?.[sd.state.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(n, k)} styles={sd.houseStyles} onstyle={(h, s) => void setHouseStyle(h, s)} slim={device.sceneStrip === "slim"} onslim={() => setDevice("sceneStrip", device.sceneStrip === "slim" ? "strip" : "slim")} /></div>
+              <div class="scene-strip"><SceneWindow shape="strip" when={sd.when} weather={sd.state.weather?.now ?? null} place={sd.state.place} kind={sd.placeKinds?.[sd.state.place.at(-1) ?? ""] ?? null} onkind={(n, k) => void setPlaceKind(n, k)} styles={sd.houseStyles} onstyle={(h, s) => void setHouseStyle(h, s)} slim={device.sceneStrip === "slim"} onslim={() => setDevice("sceneStrip", device.sceneStrip === "slim" ? "strip" : "slim")} calendar={sd.config?.calendar} /></div>
             {/if}
             {#if folioOn && !app.isMobile && L}<L.FolioGutter seq={m.seq} time={trk.times[m.id]} chips={trk.chips[m.id]} />{/if}
             <MessageItem
