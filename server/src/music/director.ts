@@ -19,9 +19,8 @@ import { command, detectApp, seekTo, trimQueue, playerState, playlistIdOf, queue
 /**
  * The soundtrack (Almanac plan J3), on YouTube Music: a cue read from the story (mood, intensity,
  * hour, weather, place, genre), a picker over your library (tracks you've tagged, leitmotifs
- * pinned to people and bonds, your taste and thumbs), and a director that changes the music on
- * story beats only: a new scene, a change of mood or time of day, or a big moment. Otherwise it
- * holds. Your preferred artists' songs join the library by themselves: th-ch's app finds them, and
+ * pinned to people and bonds, your taste and thumbs), and a director that lets each song play to
+ * its end, cutting only for a rare big moment. Your preferred artists' songs join the library by themselves: th-ch's app finds them, and
  * the helper model tags their moods. Off by default; it talks to the YouTube Music app on this PC
  * (and to YouTube Music's website only to read a playlist link you paste).
  */
@@ -263,8 +262,6 @@ interface ChatMusic {
   notFor?: Record<string, string[]>;
   recent?: string[];
   lastKey?: string;
-  /** The scene the director last looked at: a new one is a beat. */
-  lastScene?: number;
   now?: { videoId: string; title: string; artist: string; key: string; why: string; at: number; words?: PickWords; /** Seconds in the song was started at (4.2). */ landed?: number } | null;
   /** The scene a song was last started at its passage: the next song in it plays from the top. */
   landedScene?: number;
@@ -446,10 +443,14 @@ export function stillFits(cfg: MusicConfig, cue: Cue, videoId: string, words: Wo
   return Boolean(t && cue.moods[0] && t.moods.includes(cue.moods[0]));
 }
 
-/** A big moment in this reply's records: someone died, a secret came out, a promise kept or broken, romance moved. */
+/**
+ * A moment big enough to stop a song partway: someone died, or a secret came out. Only these: new
+ * scenes and romance steps come in about every other reply, so cutting on them changed the song
+ * long before it could end.
+ */
 export function bigMoment(messageId: string, chatId: string) {
   const changes = currentFold(chatId).result.changes[messageId] ?? [];
-  return changes.some((c) => (c.kind === "secret" && /revealed/i.test(c.text)) || c.kind === "death" || c.kind === "romance" || ((c.kind === "promise" || c.kind === "owe") && /kept|broken|stood up/i.test(c.text)) || (c.kind === "scene" && c.newScene));
+  return changes.some((c) => c.kind === "death" || (c.kind === "secret" && /revealed/i.test(c.text)));
 }
 
 /** Mostly dialogue: instrumental-only taste applies. */
@@ -530,6 +531,28 @@ let nearEnd: { chatId: string; videoId: string } | null = null;
 /** Seconds before the end that the next song is lined up. */
 const LINE_UP = 12;
 const WATCH_MS = 4_000;
+/** With no queue to line a song up in: how near the end to stay and wait, and how early to start the next one. */
+const LAST_SECONDS = WATCH_MS / 1000 + 1;
+const START_EARLY = 0.5;
+/** How far from the end the app can say a song is after that wait (its clock runs about a second behind). */
+const AT_THE_END = 2;
+
+/**
+ * Waits out a song's last seconds, for an app with no queue. If Mea looked after the song ended, the
+ * app would already be a few seconds into a song of its own when Mea changed it. False if it isn't
+ * in its last seconds, or you paused it, moved it or changed it meanwhile.
+ */
+async function reachedEnd(cfg: MusicConfig, videoId: string) {
+  const secondsLeft = async () => {
+    const s = await playerState(cfg);
+    return s.videoId === videoId && s.playing && s.duration && s.elapsed != null ? s.duration - s.elapsed : null;
+  };
+  const left = await secondsLeft();
+  if (left == null || left > LAST_SECONDS) return false;
+  await Bun.sleep(Math.max(0, left - START_EARLY) * 1000);
+  const after = await secondsLeft();
+  return after != null && after <= AT_THE_END;
+}
 
 /** Keeps the music going for this chat: a song that ends is followed by the next one that fits. */
 function watch(chatId: string) {
@@ -591,7 +614,7 @@ export async function musicTick() {
       pending.queued = await queueNext(cfg, pending.track.videoId);
       if (pending.queued) return;
     }
-    if (ended) await play(chatId, cfg, pending, pending.key);
+    if (ended || (!pending.queued && (await reachedEnd(cfg, m.now.videoId)))) await play(chatId, cfg, pending, pending.key);
   } catch (e) {
     if (!(e instanceof YtmError)) console.error("[mea] soundtrack:", (e as Error).message);
   } finally {
@@ -600,10 +623,10 @@ export async function musicTick() {
 }
 
 /**
- * The director (an onTrackerUpdate hook). A song plays to its end unless the story turns: a new
- * scene or a big moment cuts to a new song, and only if the one playing doesn't suit it. A mood or
- * the time of day shifting within a scene doesn't cut; the next song, picked as this one ends, follows
- * it. Never throws; YouTube Music not answering just means the music holds.
+ * The director (an onTrackerUpdate hook). A song plays to its end: a new scene or a shift of mood
+ * or time doesn't cut, and the next song, picked as this one ends, follows the story. Only a big
+ * moment cuts to a new song, and only if the one playing doesn't suit it. Never throws; YouTube
+ * Music not answering just means the music holds.
  */
 export function musicAfterReply(chatId: string, messageId: string) {
   void (async () => {
@@ -618,13 +641,13 @@ export function musicAfterReply(chatId: string, messageId: string) {
     const st = currentFold(chatId).result.state;
     const cue = cueFrom(st, storyDials(mustChat(chatId)).genre);
     const start = !music.now || !music.lastKey;
-    const turn = (music.lastScene !== undefined && st.sceneNo !== music.lastScene) || bigMoment(messageId, chatId);
+    const turn = bigMoment(messageId, chatId);
     const text = one<{ content: string }>("SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.id = ?", messageId)?.content ?? "";
     // A beat (or the start): what's happening now, for picking by the words.
     if (start || turn) await momentAt(chatId, messageId, st, cue, text, music.moment ?? null);
     const words = start || turn ? await wordsContext(cfg, chatMusic(chatId), cue) : null;
     const themes = themesFor(cfg);
-    if (!start && !(turn && !stillFits(cfg, cue, music.now!.videoId, words, themes))) return void setChatMusic(chatId, { lastScene: st.sceneNo });
+    if (!start && !(turn && !stillFits(cfg, cue, music.now!.videoId, words, themes))) return;
     // The same reply picks the same song on every swipe (3.1).
     const seq = one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", messageId)?.seq ?? 0;
     const pick = pickTrack(cfg, cue, music, { dialogue: dialogueHeavy(text), exclude: [music.now?.videoId, pending?.queued ? pending.track.videoId : undefined].filter((v): v is string => Boolean(v)), words, themes, rand: seeded(chatId, seq, `music:${cue.key}`) });
@@ -632,7 +655,6 @@ export function musicAfterReply(chatId: string, messageId: string) {
       const at = landingFor(cfg, chatMusic(chatId), pick, st.sceneNo);
       await play(chatId, cfg, pick, cue.key, { land: at != null ? { at, scene: st.sceneNo } : null });
     }
-    setChatMusic(chatId, { lastScene: st.sceneNo });
   })().catch((e) => {
     if (!(e instanceof YtmError)) console.error("[mea] soundtrack:", (e as Error).message);
   });

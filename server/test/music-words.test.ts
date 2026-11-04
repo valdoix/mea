@@ -135,13 +135,13 @@ describe("the moment (2.3)", () => {
     expect(again).toBe(m);
   });
 
-  test("a death or a romance step is a big moment for the music", () => {
+  test("a death is a big moment for the music; a romance step isn't", () => {
     const id = addMessage(chatId, "assistant", "Spike falls.", { name: "Mira" });
     writeEvents(chatId, { messageId: id, swipeIdx: 0 }, linesToOps(["dead Spike — fell"]).ops, "model");
     expect(bigMoment(id, chatId)).toBe(true);
     const id2 = addMessage(chatId, "assistant", "She smiles at Tam.", { name: "Mira" });
     writeEvents(chatId, { messageId: id2, swipeIdx: 0 }, linesToOps(["cast: Mira@spot · Tam@spot", "ladder Mira>Tam: 3 — she keeps finding reasons to stay"]).ops, "user");
-    expect(bigMoment(id2, chatId)).toBe(true);
+    expect(bigMoment(id2, chatId)).toBe(false);
     const quiet = addMessage(chatId, "assistant", "The lamp hums.", { name: "Mira" });
     expect(bigMoment(quiet, chatId)).toBe(false);
   });
