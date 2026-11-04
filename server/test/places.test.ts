@@ -6,7 +6,7 @@ describe("places", () => {
   test("every kind of place is listed once", () => {
     const ids = PLACES.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(89);
+    expect(ids.length).toBe(109);
   });
 
   test.each([
@@ -59,7 +59,7 @@ describe("places", () => {
   // docs/24 Part 2: the nearest painting there is for each, until the home rooms are painted.
   test.each([
     // A home is never a hillside.
-    [["The penthouse"], "living"],
+    [["The penthouse"], "penthouse"],
     [["The mansion"], "living"],
     [["The villa"], "living"],
     [["The townhouse"], "living"],
@@ -72,9 +72,21 @@ describe("places", () => {
     // Nor is a room in one.
     [["the foyer"], "foyer"],
     [["the hallway"], "hallway"],
-    [["the closet"], "living"],
+    [["the closet"], "closet"],
     [["the staircase"], "staircase"],
-    [["the breakfast nook"], "living"],
+    [["the breakfast nook"], "nook"],
+    [["the mudroom"], "mudroom"],
+    [["the pantry"], "pantry"],
+    [["the sunroom"], "sunroom"],
+    [["the parlor"], "parlor"],
+    [["the guest room"], "guestroom"],
+    [["the kid's room"], "kidsroom"],
+    [["the teenager's room"], "teenroom"],
+    [["Studio apartment"], "studioapt"],
+    [["The warehouse loft"], "loft"],
+    [["The old house", "the loft"], "attic"],
+    [["The old house", "the master bathroom"], "spabath"],
+    [["The hotel", "the bathroom"], "bathroom"],
     [["the upstairs corridor"], "hallway"],
     [["the garage"], "garage"],
     [["the patio"], "meadow"],
@@ -83,16 +95,15 @@ describe("places", () => {
     [["the media room"], "hometheater"],
     [["the screening room"], "hometheater"],
     [["the TV room"], "den"],
-    [["the rec room"], "living"],
-    [["the music room"], "living"],
-    [["the great room"], "living"],
+    [["the rec room"], "recroom"],
+    [["the music room"], "musicroom"],
+    [["the great room"], "greatroom"],
     [["the trophy room"], "living"],
     [["the boiler room"], "basement"],
     [["the panic room"], "cellar"],
-    [["the guest room"], "bedroom"],
     // Named for what they are, wherever they are.
     [["the home theater"], "hometheater"],
-    [["the home bar"], "living"],
+    [["the home bar"], "homebar"],
     [["the laundry room"], "laundryroom"],
     // A public word inside a home.
     [["Jackie's house", "the theater"], "hometheater"],
@@ -105,9 +116,12 @@ describe("places", () => {
     [["Jackie's house", "the garage"], "garage"],
     [["Jackie's house", "the front porch"], "porch"],
     [["Jackie's house", "the staircase"], "staircase"],
-    [["Jackie's house", "the game room"], "living"],
-    [["Jackie's house", "the billiard room"], "living"],
-    [["Jackie's house", "the bar"], "living"],
+    [["Jackie's house", "the game room"], "gameroom"],
+    [["Jackie's house", "the home gym"], "homegym"],
+    [["Jackie's house", "the balcony"], "balcony"],
+    [["Jackie's house", "the roof"], "rooftops"],
+    [["Jackie's house", "the billiard room"], "gameroom"],
+    [["Jackie's house", "the bar"], "homebar"],
     [["Jackie's house", "the laundry"], "laundryroom"],
     [["Jackie's house", "the sickroom"], "bedroom"],
     [["Jackie's house", "the hall"], "hallway"],
@@ -120,9 +134,11 @@ describe("places", () => {
     [["Winterfell", "the hallway"], "hallway"],
     [["Castle hallway"], "hallway"],
     [["The abbey", "the stairs"], "staircase"],
-    [["Winterfell", "the closet"], "hall"],
+    [["Winterfell", "the closet"], "closet"],
+    [["Winterfell", "the rec room"], "cellar"],
+    [["Winterfell", "the home gym"], "homegym"],
     [["Jackie's house", "the dining room"], "dining"],
-    [["The master bedroom", "the closet"], "masterbedroom"],
+    [["The master bedroom", "the closet"], "closet"],
     [["Mercy General Hospital", "the corridor"], "hospital"],
     [["Hospital corridor"], "hospital"],
     [["The starship", "corridor"], "starship"],
