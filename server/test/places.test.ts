@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PLACES, readPlace } from "../../web/src/lib/places";
+import { dressHome, PLACES, readHome, readPlace } from "../../web/src/lib/places";
 
 /** The scene window reads a place's name into a kind of place to paint (web/src/lib/places.ts). */
 describe("places", () => {
@@ -137,5 +137,40 @@ describe("places", () => {
     [["Downtown", "trailer park"], "meadow"],
   ] as const)("not a home: %p reads as %s", (path, kind) => {
     expect(readPlace([...path])).toBe(kind);
+  });
+});
+
+/** docs/24 §2.2: which home a place is in, and how it's kept. */
+describe("homes", () => {
+  test.each([
+    [["Sunnydale", "Buffy's house", "the kitchen"], "buffy's house", "modern"],
+    [["Buffy's house"], "buffy's house", "modern"],
+    [["New York", "Jackie's apartment", "bedroom"], "jackie's apartment", "humble"],
+    [["Greenwich Village", "Jackie's apartment", "the kitchen"], "jackie's apartment", "humble"],
+    [["The mansion", "the ballroom"], "the mansion", "grand"],
+    [["The penthouse"], "the penthouse", "grand"],
+    [["Winterfell", "the solar"], "winterfell", "old"],
+    [["The Lannister manor", "kitchen"], "the lannister manor", "old"],
+    [["The trailer", "bedroom"], "the trailer", "humble"],
+    [["The woods", "the cabin", "bed"], "the cabin", "modern"],
+  ] as const)("%p is %s, %s", (path, house, style) => {
+    expect(readHome([...path])).toEqual({ house, style });
+  });
+
+  test.each([[["the kitchen"]], [["Downtown", "the bar"]], [["Mercy General Hospital", "bedroom"]], [["The opera house", "the stage"]], [["The trailer park"]], [[]]])("%p is nobody's home", (path) => {
+    expect(readHome([...path])).toBeNull();
+  });
+
+  test("your correction wins, and a nonsense one doesn't", () => {
+    expect(readHome(["Jackie's house", "the den"], { "jackie's house": "old" })?.style).toBe("old");
+    expect(readHome(["Jackie's house", "the den"], { "jackie's house": "nonsense" })?.style).toBe("modern");
+  });
+
+  test("every room of a house is dressed alike, and another house differently", () => {
+    const a = dressHome({ house: "jackie's house", style: "modern" });
+    expect(dressHome(readHome(["Jackie's house", "the kitchen"])!)).toEqual(a);
+    expect(dressHome(readHome(["Jackie's house", "the attic"])!)).toEqual(a);
+    const others = ["buffy's house", "giles's flat", "the mansion", "angel's place"].map((house) => dressHome({ house, style: "modern" }));
+    expect(others.some((o) => JSON.stringify([o.wall, o.trim, o.floor, o.fabric]) !== JSON.stringify([a.wall, a.trim, a.floor, a.fabric]))).toBe(true);
   });
 });

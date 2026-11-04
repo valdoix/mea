@@ -48,5 +48,6 @@ export function scenePlates(chatId: string) {
     }
     if (moved) out.push({ seq: m.seq, place: [...place], weather, hour });
   }
-  return { states: out, kinds: parseJson<ChatSettings>(chat.settings, {}).placeKinds ?? {} };
+  const settings = parseJson<ChatSettings>(chat.settings, {});
+  return { states: out, kinds: settings.placeKinds ?? {}, styles: settings.houseStyles ?? {} };
 }

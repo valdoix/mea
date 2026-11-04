@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ScenePainter, isPlace, readPlace, readWeather, type Place } from "../../lib/scenery";
+  import { ScenePainter, isPlace, readHome, readPlace, readWeather, type HomeStyle, type Place } from "../../lib/scenery";
   import { ChevronDown, ChevronUp, Palette } from "../../lib/icons";
   import { app } from "../../lib/state.svelte";
   import type { StoryWhen } from "../../lib/types";
@@ -19,6 +19,8 @@
     shape = "card",
     kind = null,
     onkind,
+    styles = null,
+    onstyle,
     slim = false,
     onslim,
   }: {
@@ -28,6 +30,8 @@
     shape?: "card" | "arch" | "strip" | "band";
     kind?: string | null;
     onkind?: (name: string, kind: Place) => void;
+    styles?: Record<string, string> | null;
+    onstyle?: (house: string, style: HomeStyle) => void;
     slim?: boolean;
     onslim?: () => void;
   } = $props();
@@ -38,6 +42,7 @@
 
   const name = $derived(place.at(-1) ?? "");
   const kindNow = $derived<Place>(isPlace(kind) ? kind : readPlace(place));
+  const home = $derived(readHome(place, styles));
   // An unset clock still paints: the evening, which suits most openings.
   const hour = $derived(when?.hour ?? 20);
 
@@ -48,7 +53,7 @@
   });
 
   $effect(() => {
-    painter?.set({ hour, weather: readWeather(weather), place: kindNow, seed: name });
+    painter?.set({ hour, weather: readWeather(weather), place: kindNow, seed: name, home });
   });
 
   const crumbs = $derived(place.slice(-3));
@@ -76,7 +81,7 @@
   </div>
   {#if shape === "arch"}<div class="sill" aria-hidden="true"></div>{/if}
 </div>
-{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={kindNow} {hour} {weather} onpick={(k) => onkind?.(name, k)} />{/if}
+{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={kindNow} {hour} {weather} {home} onpick={(k) => onkind?.(name, k)} {onstyle} />{/if}
 
 <style>
   .win {

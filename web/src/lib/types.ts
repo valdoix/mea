@@ -1641,6 +1641,8 @@ export interface TrackersResponse {
   maxSeq?: number;
   /** Your "This place is…" corrections, by place name. */
   placeKinds?: Record<string, string>;
+  /** Your "This house is…" corrections, by house. */
+  houseStyles?: Record<string, string>;
 }
 
 export interface CastPerson {

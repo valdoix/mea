@@ -4,7 +4,7 @@
  * the same way as scenes.ts (built once per size and seed as paths, filled every frame in the
  * colours of the hour), and with it they make the whole table `buildScene` reads.
  */
-import { clamp, DARK, lerp, mix, rand, rgb, seedOf, TAU, WARM, type Ctx, type Env, type Place, type RGB } from "./places";
+import { clamp, DARK, dressHome, lerp, mix, OLDER, rand, rgb, seedOf, TAU, WARM, type Ctx, type Env, type Home, type Place, type RGB } from "./places";
 import {
   FABRIC,
   GRASS,
@@ -31,6 +31,8 @@ import {
   palm,
   panes,
   peaks,
+  skirting,
+  wallDressing,
   pine,
   poly,
   ridge,
@@ -47,89 +49,13 @@ import {
   type Scene,
   type Shim,
 } from "./scenes";
+import { clock, drapes, ellipse, grid, lampsOn, none, pick, rr, shut, steam, time } from "./scenebits";
 
 type G = CanvasRenderingContext2D;
 type Paint = (g: G, E: Env) => void;
 
 // ---------- Shared bits ----------
 
-const pick = <T>(r: () => number, a: readonly T[]): T => a[(r() * a.length) | 0]!;
-const time = (E: Env) => (E.still ? 0 : E.T);
-const none: Paint = () => {};
-/** A room with no window: lit by its own lamps, no sky and no weather. */
-const shut = () => new Path2D();
-
-function rr(p: Path2D, x: number, y: number, w: number, h: number, k: number) {
-  k = Math.max(0, Math.min(k, w / 2, h / 2));
-  p.moveTo(x + k, y);
-  p.arcTo(x + w, y, x + w, y + h, k);
-  p.arcTo(x + w, y + h, x, y + h, k);
-  p.arcTo(x, y + h, x, y, k);
-  p.arcTo(x, y, x + w, y, k);
-  p.closePath();
-}
-function ellipse(p: Path2D, x: number, y: number, rx: number, ry: number) {
-  p.moveTo(x + rx, y);
-  p.ellipse(x, y, rx, ry, 0, 0, TAU);
-}
-/** Curtains either side of a window, on a rail. */
-function drapes(p: Path2D, x0: number, x1: number, top: number, floor: number, u: number) {
-  for (const s of [-1, 1]) {
-    const x = s < 0 ? x0 - 14 * u : x1 + 14 * u;
-    p.moveTo(x, top - 16 * u);
-    p.lineTo(x + s * 34 * u, top - 16 * u);
-    p.quadraticCurveTo(x + s * 30 * u, floor * 0.7, x + s * 40 * u, floor);
-    p.lineTo(x - s * 4 * u, floor);
-    p.quadraticCurveTo(x + s * 18 * u, (top + floor) / 2, x - s * 8 * u, top + 20 * u);
-    p.closePath();
-  }
-  p.rect(x0 - 60 * u, top - 20 * u, x1 - x0 + 120 * u, 4 * u);
-}
-/** Lines across and down a box (tiles, planks, panels). */
-function grid(p: Path2D, x0: number, y0: number, x1: number, y1: number, sx: number, sy: number, stagger = false) {
-  for (let y = y0, row = 0; y <= y1 + 0.1; y += sy, row++) {
-    p.moveTo(x0, y);
-    p.lineTo(x1, y);
-    if (sx > 0 && y < y1)
-      for (let x = x0 + (stagger && row % 2 ? sx / 2 : 0); x < x1; x += sx) {
-        p.moveTo(x, y);
-        p.lineTo(x, Math.min(y + sy, y1));
-      }
-  }
-}
-/** A wall clock showing the story's own hour. */
-function clock(g: G, E: Env, x: number, y: number, rad: number, face: RGB = [240, 236, 226]) {
-  g.fillStyle = rgb(shade(E, face, 0.6));
-  g.beginPath();
-  g.arc(x, y, rad, 0, TAU);
-  g.fill();
-  g.strokeStyle = rgb([34, 28, 30]);
-  g.lineWidth = rad * 0.14;
-  g.stroke();
-  g.lineCap = "round";
-  const hand = (a: number, l: number, w: number) => {
-    g.lineWidth = w;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-    g.stroke();
-  };
-  hand(((E.t % 12) / 12) * TAU - Math.PI / 2, rad * 0.5, rad * 0.13);
-  hand((E.t % 1) * TAU - Math.PI / 2, rad * 0.78, rad * 0.08);
-}
-/** Steam or vapour rising from (x, y). */
-function steam(g: G, E: Env, x: number, y: number, u: number, n = 6, w = 20, a = 0.1) {
-  const T = E.still ? 3 : E.T;
-  for (let i = 0; i < n; i++) {
-    const k = (T * 0.09 + i / n + x * 0.003) % 1;
-    g.fillStyle = rgb([236, 238, 244], a * Math.sin(k * Math.PI));
-    g.beginPath();
-    g.arc(x + Math.sin(T * 0.7 + i * 2.1) * w * u + (i - n / 2) * w * 0.3 * u, y - k * 70 * u, (8 + k * 22) * u, 0, TAU);
-    g.fill();
-  }
-}
-/** Lamps that are always on (indoor lights): stronger in the dark. */
-const lampsOn = (E: Env, min = 0.35) => clamp(Math.max(E.glow, min));
 /** Swimming-pool water inside `p`: clear blue by day, lit from below at night, with light rippling on it. */
 function poolWater(g: G, E: Env, p: Path2D, x0: number, x1: number, y0: number, y1: number, u: number, sh: Shim[], lights = 1) {
   const T = time(E);
@@ -246,21 +172,24 @@ const SOFAS: RGB[] = [
 // ---------- At home ----------
 
 function living(c: Ctx): Scene {
-  const { H, u, F, r } = c;
+  const { H, u, F, r, home } = c;
+  const style = home?.style ?? "modern";
+  const grand = style === "grand";
+  const old = style === "old";
   const floor = H * 0.8;
   const wx = F - 280 * u;
-  const wy = H * 0.14;
+  const wy = H * (grand ? 0.08 : 0.14);
   const ww = 150 * u;
-  const wh = H * 0.42;
+  const wh = H * (grand ? 0.56 : 0.42);
   const win = new Path2D();
   win.rect(wx, wy, ww, wh);
   const frame = new Path2D();
-  panes(frame, wx, wy, ww, wh, 3, 2, 2.2 * u);
+  panes(frame, wx, wy, ww, wh, old ? 5 : 3, old ? 4 : 2, 2.2 * u);
   frame.rect(wx - 8 * u, wy + wh, ww + 16 * u, 5 * u);
   const curt = new Path2D();
   drapes(curt, wx, wx + ww, wy, floor, u);
-  const fab = pick(r, FABRIC);
-  const hue = pick(r, SOFAS);
+  const fab = home?.fabric ?? pick(r, FABRIC);
+  const hue = home?.soft ?? pick(r, SOFAS);
   const sx = F - 70 * u;
   const sw = 230 * u;
   const sy = H * 0.5;
@@ -307,22 +236,73 @@ function living(c: Ctx): Scene {
   leafy(plant, wx - 40 * u, floor - 16 * u, 74 * u);
   const pot = new Path2D();
   poly(pot, wx - 54 * u, floor - 18 * u, wx - 26 * u, floor - 18 * u, wx - 30 * u, floor + 4 * u, wx - 50 * u, floor + 4 * u);
+  const wall = home?.wall ?? pick(r, PLASTER);
+  const view = r() < 0.5 ? townView(c) : hillView(c);
+  // The far wall: a hearth or a screen. Drawn from `r` only after the rest, so the room's layout keeps its seed.
+  const hx = F - 410 * u;
+  const hearth = old || grand || (style === "modern" && r() < 0.5);
+  const dressing = wallDressing(c, 0, hx - 90 * u);
+  const surround = new Path2D();
+  surround.rect(hx - 62 * u, H * 0.42, 124 * u, floor - H * 0.42);
+  const mantel = new Path2D();
+  mantel.rect(hx - 74 * u, H * 0.4, 148 * u, 8 * u);
+  const mouth = new Path2D();
+  mouth.moveTo(hx - 36 * u, floor);
+  mouth.lineTo(hx - 36 * u, H * 0.6);
+  mouth.quadraticCurveTo(hx, H * 0.5, hx + 36 * u, H * 0.6);
+  mouth.lineTo(hx + 36 * u, floor);
+  mouth.closePath();
+  const stand = new Path2D();
+  stand.rect(hx - 64 * u, floor - 34 * u, 128 * u, 34 * u);
+  const screen = new Path2D();
+  const sw2 = style === "humble" ? 70 : 118;
+  rr(screen, hx - sw2 * 0.5 * u, floor - 34 * u - sw2 * 0.6 * u, sw2 * u, sw2 * 0.56 * u, 2 * u);
+  // Old-world lamplight is a candle; a grand room has a chandelier over the sofa.
+  const chx = sx + sw / 2;
+  const wainscot = new Path2D();
+  wainscot.rect(0, H * 0.62, c.W, floor - H * 0.62);
+  wainscot.rect(0, H * 0.615, c.W, 3 * u);
+  const radiator = new Path2D();
+  for (let k = 0; k < 9; k++) rr(radiator, wx + 16 * u + k * 13 * u, floor - 46 * u, 9 * u, 42 * u, 3 * u);
   return room(
     c,
     win,
-    pick(r, PLASTER),
-    r() < 0.5 ? townView(c) : hillView(c),
+    wall,
+    view,
     (g, E) => {
+      dressing(g, E);
+      if (grand || old) fill(g, wainscot, shade(E, home?.trim ?? [90, 66, 50], 0.45), old ? 0.8 : 0.45);
+      skirting(g, E, c, floor);
       spill(g, E, wx, wx + ww, wy + wh, floor, 80 * u);
-      fill(g, frame, shade(E, [232, 226, 216], 0.6));
+      fill(g, frame, shade(E, home?.trim ?? [232, 226, 216], 0.6));
+      if (style === "humble") fill(g, radiator, shade(E, [226, 222, 214], 0.5));
       fill(g, curt, shade(E, fab, 0.45));
-      fill(g, pic, shade(E, [60, 40, 30]));
-      g.fillStyle = rgb(shade(E, art[1]!, 0.55));
-      g.fillRect(F, H * 0.18 + 6 * u, 84 * u, 50 * u);
-      g.fillStyle = rgb(shade(E, art[0]!, 0.55));
-      g.beginPath();
-      g.arc(F + 52 * u, H * 0.18 + 30 * u, 13 * u, 0, TAU);
-      g.fill();
+      if (hearth) {
+        // Lit once the day's dark or there's snow to come in from.
+        const burning = E.glow > 0.45 || E.c.snow > 0.2;
+        fill(g, surround, shade(E, old ? [120, 112, 104] : mix(home?.trim ?? [216, 208, 196], [120, 110, 104], 0.3), 0.5));
+        fill(g, mantel, shade(E, home?.trim ?? WOOD, 0.55));
+        fill(g, mouth, [20, 12, 12]);
+        if (burning) {
+          glowAt(g, hx, floor - 14 * u, 180 * u, [255, 140, 60], 0.42);
+          fire(g, E, hx, floor - 3 * u, u * 1.4);
+        }
+      } else {
+        const on = clamp(E.glow * 1.4);
+        fill(g, stand, shade(E, WOOD, 0.45));
+        fill(g, screen, mix([18, 18, 22], [150, 180, 220], on * (E.still ? 0.8 : 0.72 + 0.1 * Math.sin(E.T * 3.1))));
+        if (on > 0.05) glowAt(g, hx, floor - 34 * u - sw2 * 0.3 * u, 170 * u, [130, 170, 230], 0.28 * on);
+      }
+      // A grand room's chandelier hangs where the picture would be.
+      if (!grand) {
+        fill(g, pic, shade(E, [60, 40, 30]));
+        g.fillStyle = rgb(shade(E, art[1]!, 0.55));
+        g.fillRect(F, H * 0.18 + 6 * u, 84 * u, 50 * u);
+        g.fillStyle = rgb(shade(E, art[0]!, 0.55));
+        g.beginPath();
+        g.arc(F + 52 * u, H * 0.18 + 30 * u, 13 * u, 0, TAU);
+        g.fill();
+      }
       fill(g, shelf, shade(E, WOOD));
       for (const b of books) {
         g.fillStyle = rgb(shade(E, b.c, 0.45));
@@ -341,12 +321,25 @@ function living(c: Ctx): Scene {
       fill(g, book, shade(E, pick(rand(7), FABRIC), 0.5));
       const on = clamp(E.glow * 1.3);
       fill(g, pole, [34, 30, 30]);
-      fill(g, lshade, mix(shade(E, [236, 222, 196]), [255, 226, 176], on));
-      glowAt(g, lx, H * 0.29, 170 * u, WARM, 0.5 * on);
+      if (old) {
+        if (on > 0.1) fire(g, E, lx, H * 0.28, u * 0.5);
+        glowAt(g, lx, H * 0.27, 120 * u, WARM, 0.35 * on);
+      } else {
+        fill(g, lshade, mix(shade(E, [236, 222, 196]), [255, 226, 176], on));
+        glowAt(g, lx, H * 0.29, 170 * u, WARM, 0.5 * on);
+      }
+      if (grand) {
+        g.fillStyle = rgb(shade(E, [176, 146, 90], 0.5));
+        g.fillRect(chx - 0.8 * u, 0, 1.6 * u, H * 0.13);
+        g.fillRect(chx - 42 * u, H * 0.13, 84 * u, 4 * u);
+        for (const dx of [-38, -19, 0, 19, 38]) lamp(g, E, chx + dx * u, H * 0.125, 34 * u, dx, WARM, 0.2);
+        glowAt(g, chx, H * 0.14, 180 * u, WARM, 0.32 * on);
+      }
       fill(g, plant, shade(E, [70, 124, 74], 0.5));
       fill(g, pot, shade(E, [180, 110, 80], 0.5));
     },
     floor,
+    { floorHue: home?.floor },
   );
 }
 
@@ -431,14 +424,21 @@ function homekitchen(c: Ctx): Scene {
   ];
   const sillPot = new Path2D();
   leafy(sillPot, wx + 22 * u, wy + wh - 6 * u, 26 * u);
-  const cabHue = pick(r, [[236, 232, 224], [120, 150, 140], [62, 72, 94], [204, 172, 132], [168, 190, 210]] as RGB[]);
-  const topHue = pick(r, [[64, 64, 70], [222, 216, 206], [150, 110, 76]] as RGB[]);
-  const tileHue = pick(r, [[214, 228, 232], [240, 238, 232], [226, 206, 176], [180, 210, 196]] as RGB[]);
+  const home = c.home;
+  const cabHue = home ? mix(home.trim, home.wall, 0.25) : pick(r, [[236, 232, 224], [120, 150, 140], [62, 72, 94], [204, 172, 132], [168, 190, 210]] as RGB[]);
+  const topHue = home?.style === "grand" ? ([232, 228, 222] as RGB) : pick(r, [[64, 64, 70], [222, 216, 206], [150, 110, 76]] as RGB[]);
+  const tileHue = home ? mix(home.wall, [250, 248, 244], 0.6) : pick(r, [[214, 228, 232], [240, 238, 232], [226, 206, 176], [180, 210, 196]] as RGB[]);
+  const wall = home?.wall ?? pick(r, PLASTER);
+  const view = r() < 0.5 ? townView(c) : hillView(c);
+  const mug = new Path2D();
+  rr(mug, F + 60 * u, top - 13 * u, 11 * u, 13 * u, 2 * u);
+  const pendants = home?.style === "grand" ? [F - 120 * u, F + 40 * u, F + 150 * u] : [];
+  const plain = home?.style === "humble";
   return room(
     c,
     win,
-    pick(r, PLASTER),
-    r() < 0.5 ? townView(c) : hillView(c),
+    wall,
+    view,
     (g, E) => {
       fill(g, tiles, shade(E, tileHue, 0.55));
       g.save();
@@ -466,18 +466,31 @@ function homekitchen(c: Ctx): Scene {
       fill(g, hob, [20, 20, 22]);
       fill(g, pan, [40, 38, 40]);
       steam(g, E, hx - 4 * u, top - 26 * u, u, 5, 8, 0.08);
-      fill(g, bowl, shade(E, [220, 214, 200], 0.6));
-      for (const [x, y, col] of fruit) {
-        g.fillStyle = rgb(shade(E, col, 0.6));
-        g.beginPath();
-        g.arc(x, y, 8 * u, 0, TAU);
-        g.fill();
+      if (!plain) {
+        fill(g, bowl, shade(E, [220, 214, 200], 0.6));
+        for (const [x, y, col] of fruit) {
+          g.fillStyle = rgb(shade(E, col, 0.6));
+          g.beginPath();
+          g.arc(x, y, 8 * u, 0, TAU);
+          g.fill();
+        }
+      }
+      // Someone's had their coffee.
+      if (E.t >= 6 && E.t < 10.5) {
+        fill(g, mug, shade(E, [232, 228, 222], 0.6));
+        steam(g, E, F + 65 * u, top - 14 * u, u, 3, 3, 0.08);
       }
       fill(g, fridge, shade(E, [226, 228, 230], 0.55));
       fill(g, fseam, shade(E, [150, 152, 156]));
+      for (const x of pendants) {
+        g.fillStyle = rgb([34, 30, 30]);
+        g.fillRect(x - 0.6 * u, 0, 1.2 * u, H * 0.36);
+        lamp(g, E, x, H * 0.37, 70 * u, x, WARM, 0.2);
+      }
       clock(g, E, F, H * 0.075, 11 * u);
     },
     floor,
+    { floorHue: home?.floor },
   );
 }
 
@@ -493,7 +506,11 @@ function bathroom(c: Ctx): Scene {
   const frame = new Path2D();
   panes(frame, wx, wy, ww, wh, 1, 2, 2.2 * u);
   frame.rect(wx - 6 * u, wy + wh, ww + 12 * u, 4 * u);
-  const tileHue = pick(r, [[228, 236, 236], [190, 222, 216], [238, 212, 208], [202, 210, 228], [236, 230, 210]] as RGB[]);
+  const home = c.home;
+  const old = home?.style === "old";
+  const grand = home?.style === "grand";
+  const plain = home?.style === "humble";
+  const tileHue = home ? mix(home.wall, [250, 250, 248], 0.55) : pick(r, [[228, 236, 236], [190, 222, 216], [238, 212, 208], [202, 210, 228], [236, 230, 210]] as RGB[]);
   const tileArea = new Path2D();
   tileArea.rect(0, 0, W, floor);
   tileArea.addPath(win);
@@ -544,27 +561,32 @@ function bathroom(c: Ctx): Scene {
   const towel = new Path2D();
   towel.rect(F - 300 * u, H * 0.34, 64 * u, 3 * u);
   rr(towel, F - 296 * u, H * 0.345, 56 * u, 70 * u, 3 * u);
-  const fab = pick(r, FABRIC);
+  const fab = home?.fabric ?? pick(r, FABRIC);
   const mat = new Path2D();
   rr(mat, tx + 50 * u, H * 0.9, 120 * u, 18 * u, 6 * u);
+  const fittings: RGB = grand ? [214, 176, 96] : [200, 200, 206];
+  const bath: RGB = old ? [176, 118, 78] : [246, 246, 242];
   return room(
     c,
     win,
     tileHue,
     hillView(c),
     (g, E) => {
-      g.save();
-      g.clip(tileArea, "evenodd");
-      stroke(g, tileLines, shade(E, mix(tileHue, DARK, 0.3)), 0.8 * u, 0.55);
-      g.restore();
+      // Plaster in an old-world house; everywhere else, tile.
+      if (!old) {
+        g.save();
+        g.clip(tileArea, "evenodd");
+        stroke(g, tileLines, shade(E, mix(tileHue, DARK, 0.3)), 0.8 * u, 0.55);
+        g.restore();
+      }
       // frosted glass
       g.fillStyle = rgb(mix([150, 160, 180], [246, 248, 250], E.day), 0.5);
       g.fill(win);
-      fill(g, frame, shade(E, [240, 240, 236], 0.6));
+      fill(g, frame, shade(E, home?.trim ?? [240, 240, 236], 0.6));
       fill(g, trim, shade(E, mix(tileHue, DARK, 0.2)));
       spill(g, E, wx, wx + ww, wy + wh, floor, -40 * u);
       fill(g, towel, shade(E, fab, 0.5));
-      fill(g, mframe, shade(E, [200, 180, 140], 0.55));
+      fill(g, mframe, shade(E, grand ? [214, 176, 96] : [200, 180, 140], 0.55));
       const mg = g.createLinearGradient(sx - 34 * u, H * 0.17, sx + 34 * u, H * 0.17 + 84 * u);
       mg.addColorStop(0, rgb(shade(E, [200, 214, 222], 0.6)));
       mg.addColorStop(0.5, rgb(shade(E, [236, 244, 248], 0.6)));
@@ -572,24 +594,28 @@ function bathroom(c: Ctx): Scene {
       g.fillStyle = mg;
       g.fill(mirror);
       const on = lampsOn(E, 0.1);
-      for (const dx of [-24, 0, 24]) lamp(g, E, sx + dx * u, H * 0.13, 50 * u, dx, WARM, 0.1);
+      if (!old) for (const dx of [-24, 0, 24]) lamp(g, E, sx + dx * u, H * 0.13, 50 * u, dx, WARM, 0.1);
       fill(g, sink, shade(E, [244, 244, 240], 0.6));
-      fill(g, rail, shade(E, [190, 190, 196]));
-      fill(g, curtain, shade(E, mix(fab, [255, 255, 255], 0.5), 0.5));
-      fill(g, feet, shade(E, [200, 170, 90]));
-      fill(g, tub, shade(E, [246, 246, 242], 0.6));
-      fill(g, rim, shade(E, [252, 252, 250], 0.6));
-      fill(g, foam, shade(E, [255, 255, 255], 0.7), 0.9);
-      stroke(g, tap, shade(E, [200, 200, 206]), 2.6 * u);
-      steam(g, E, tx + tw / 2, ty - 6 * u, u, 7, 30, 0.07 + E.night * 0.04);
-      for (const x of [tx + 14 * u, tx + 26 * u]) {
-        g.fillStyle = rgb(shade(E, [240, 230, 210]));
-        g.fillRect(x - 2.5 * u, ty - 16 * u, 5 * u, 12 * u);
-        lamp(g, E, x, ty - 19 * u, 40 * u * on, x, WARM, 0.3);
+      if (!old) {
+        fill(g, rail, shade(E, [190, 190, 196]));
+        fill(g, curtain, shade(E, mix(fab, [255, 255, 255], 0.5), 0.5));
       }
+      if (!plain) fill(g, feet, shade(E, grand ? [214, 176, 96] : [200, 170, 90]));
+      fill(g, tub, shade(E, bath, 0.6));
+      fill(g, rim, shade(E, mix(bath, [255, 255, 255], 0.3), 0.6));
+      fill(g, foam, shade(E, [255, 255, 255], 0.7), 0.9);
+      if (!old) stroke(g, tap, shade(E, fittings), 2.6 * u);
+      steam(g, E, tx + tw / 2, ty - 6 * u, u, 7, 30, 0.07 + E.night * 0.04);
+      if (!plain)
+        for (const x of [tx + 14 * u, tx + 26 * u]) {
+          g.fillStyle = rgb(shade(E, [240, 230, 210]));
+          g.fillRect(x - 2.5 * u, ty - 16 * u, 5 * u, 12 * u);
+          lamp(g, E, x, ty - 19 * u, 40 * u * on, x, WARM, 0.3);
+        }
       fill(g, mat, shade(E, fab, 0.45));
     },
     floor,
+    { floorHue: home?.floor },
   );
 }
 
@@ -688,10 +714,18 @@ function attic(c: Ctx): Scene {
       fill(g, trunk, shade(E, [110, 60, 44], 0.45));
       fill(g, bands, shade(E, [60, 50, 46]));
       fill(g, ghost, shade(E, [222, 216, 204], 0.5));
-      fill(g, cord, [30, 24, 20]);
-      lamp(g, E, bulbX, H * 0.31, 120 * u, 3, WARM, 0);
+      if (c.home?.style === "old") {
+        // A lantern on a hook rather than a bulb on a cord.
+        g.fillStyle = rgb([30, 24, 20]);
+        g.fillRect(bulbX - 5 * u, H * 0.27, 10 * u, 14 * u);
+        lamp(g, E, bulbX, H * 0.28, 100 * u, 3, WARM, 0.1);
+      } else {
+        fill(g, cord, [30, 24, 20]);
+        lamp(g, E, bulbX, H * 0.31, 120 * u, 3, WARM, 0);
+      }
     },
     floor,
+    { floorHue: c.home?.floor },
   );
 }
 
@@ -3027,7 +3061,11 @@ const MORE = {
 
 const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE };
 
-export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean): Scene {
-  const r = rand(seedOf(`${place}:${seed}`));
-  return (BUILD[place] ?? SCENES.hills)({ W, H, u: H / 300, F: W * focus, r, mini });
+export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean, home: Home | null = null): Scene {
+  const dress = home ? dressHome(home) : null;
+  // An old-world house has no fitted kitchen, whatever its room is called.
+  const kind = (dress?.style === "old" && OLDER[place]) || place;
+  // Two houses' "kitchen" differ, and a place outside any home keeps the look it always had.
+  const r = rand(seedOf(dress ? `${kind}:${dress.house}:${seed}` : `${kind}:${seed}`));
+  return (BUILD[kind] ?? SCENES.hills)({ W, H, u: H / 300, F: W * focus, r, mini, home: dress });
 }

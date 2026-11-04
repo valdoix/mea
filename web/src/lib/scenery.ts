@@ -5,12 +5,12 @@
  * themselves live in scenes.ts. It pauses when off screen and holds still for people who prefer
  * less motion.
  */
-import { clamp, DARK, hex, lerp, mix, type Env, type Place, type RGB, type Wx, rand, rgb } from "./places";
+import { clamp, DARK, hex, lerp, mix, type Env, type Home, type Place, type RGB, type Wx, rand, rgb } from "./places";
 
 import { buildScene } from "./morescenes";
 import type { Scene } from "./scenes";
 
-export { PLACE_GROUPS, PLACES, isPlace, readPlace, type Place } from "./places";
+export { HOME_STYLES, PLACE_GROUPS, PLACES, isPlace, readHome, readPlace, type Home, type HomeStyle, type Place } from "./places";
 
 export type Weather = "clear" | "cloudy" | "rain" | "storm" | "fog" | "snow" | "wind";
 
@@ -87,6 +87,7 @@ export interface StillScene {
   weather: Weather;
   place: Place;
   seed: string;
+  home?: Home | null;
   focus?: number;
   mini?: boolean;
 }
@@ -99,6 +100,7 @@ export class ScenePainter {
   private wx: Weather = "clear";
   private place: Place = "hills";
   private seed = "";
+  private home: Home | null = null;
   private scene: Scene | null = null;
   private snap: HTMLCanvasElement | null = null;
   private pm = 1;
@@ -159,11 +161,13 @@ export class ScenePainter {
     this.io.disconnect();
   }
 
-  set(o: { hour?: number; weather?: Weather; place?: Place; seed?: string }) {
+  set(o: { hour?: number; weather?: Weather; place?: Place; seed?: string; home?: Home | null }) {
     if (o.hour != null) this.t = ((o.hour % 24) + 24) % 24;
     if (o.weather) this.wx = o.weather;
     const seed = o.seed ?? this.seed;
-    if ((o.place && o.place !== this.place) || seed !== this.seed) {
+    const home = o.home === undefined ? this.home : o.home;
+    if ((o.place && o.place !== this.place) || seed !== this.seed || home?.house !== this.home?.house || home?.style !== this.home?.style) {
+      this.home = home;
       // Crossfade from what's on screen now to the new place.
       if (this.w && !this.still) {
         this.snap ??= document.createElement("canvas");
@@ -184,7 +188,7 @@ export class ScenePainter {
   }
 
   private build() {
-    this.scene = this.w ? buildScene(this.place, this.seed, this.w, this.h, this.focus, this.mini) : null;
+    this.scene = this.w ? buildScene(this.place, this.seed, this.w, this.h, this.focus, this.mini, this.home) : null;
   }
 
   private resize() {

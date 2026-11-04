@@ -24,6 +24,8 @@
       <label>Shape <select name="shape"><option value="plate">Plate</option><option value="strip">Strip</option><option value="tile">Picker tile</option></select></label>
       <label>Hour <select name="hour"><option value="12">Noon</option><option value="18.5">Dusk</option><option value="0">Midnight</option></select></label>
       <label>Weather <select name="weather"><option value="clear">Clear</option><option value="rain">Rain</option><option value="snow">Snow</option><option value="storm">Storm</option><option value="fog">Fog</option></select></label>
+      <label>House <select name="style"><option value="">None</option><option>modern</option><option>humble</option><option>grand</option><option>old</option></select></label>
+      <label>Name <input name="house" value="jackie's house" size="14" /></label>
       <label>Group <select name="group"><option value="">All</option></select></label>
       <output id="timing"></output>
     </form>
@@ -61,7 +63,7 @@
             fig.append(c, cap);
             grid.append(fig);
             const t0 = performance.now();
-            ScenePainter.paintOnce(c, { hour: Number(form.hour.value), weather: form.weather.value, place: k.id, seed: "the kitchen", focus, mini });
+            ScenePainter.paintOnce(c, { hour: Number(form.hour.value), weather: form.weather.value, place: k.id, seed: "the kitchen", home: form.style.value ? { house: form.house.value, style: form.style.value } : null, focus, mini });
             times.push(performance.now() - t0);
           }
         }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ScenePainter, isPlace, readPlace, readWeather, type Place, type StillScene } from "../../lib/scenery";
+  import { ScenePainter, isPlace, readHome, readPlace, readWeather, type HomeStyle, type Place, type StillScene } from "../../lib/scenery";
   import { Ellipsis } from "../../lib/icons";
   import { app } from "../../lib/state.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
@@ -11,13 +11,14 @@
    * plates, so each paints only near the screen and keeps no painter afterwards. The current
    * scene's plate repaints as the clock moves. ⋯ › This place is… corrects the kind.
    */
-  let { place, weather, hour, kind = null, title = "", onkind }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void } = $props();
+  let { place, weather, hour, kind = null, title = "", onkind, styles = null, onstyle }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void; styles?: Record<string, string> | null; onstyle?: (house: string, style: HomeStyle) => void } = $props();
 
   const name = $derived(place.at(-1) ?? "");
   const k = $derived<Place>(isPlace(kind) ? kind : readPlace(place));
   // An unset clock paints the evening, as the scene window does.
   const h = $derived(hour ?? 20);
-  const scene = $derived<StillScene>({ hour: h, weather: readWeather(weather), place: k, seed: name, focus: app.isMobile ? 0.64 : 0.72, mini: true });
+  const home = $derived(readHome(place, styles));
+  const scene = $derived<StillScene>({ hour: h, weather: readWeather(weather), place: k, seed: name, home, focus: app.isMobile ? 0.64 : 0.72, mini: true });
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let near = $state(false);
@@ -76,7 +77,7 @@
     <Menu bind:open={menuOpen} {items} anchor={menuAt} title="Scene plate" />
   {/if}
 </figure>
-{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={k} hour={h} {weather} onpick={(p) => onkind?.(name, p)} />{/if}
+{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={k} hour={h} {weather} {home} onpick={(p) => onkind?.(name, p)} {onstyle} />{/if}
 
 <style>
   .plate {
