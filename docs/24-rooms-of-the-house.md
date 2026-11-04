@@ -1,6 +1,6 @@
 # Design plan: the rooms of the house (richer scene plates)
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** Part 1 built (painted plates, §2.1). Parts 2–6 proposed.
+**Written:** November 4, 2026 · **Base:** Mea `main` at a6f1cb8 · **Status:** Parts 1 and 2 built (painted plates, and the reader knowing a house). Parts 3–6 proposed.
 
 Stories spend most of their time inside houses, and that is where the scene art is thinnest. This plan makes every plate draw the room the story is really in, adds 54 kinds of home location, and makes the rooms of one house look like they belong together.
 
@@ -274,6 +274,20 @@ One PR per part.
 | **6. Wave 3 (20)** | playroom, craftroom, atelier, trophyroom, winecellar, sauna, dressing, sickroom, longgallery, crawlspace, panicroom, hiddenroom, dorm, trailer, houseboat, beachhouse, cottage, screenporch, patio, atrium | The specific and the dramatic |
 
 The hour and weather details in §2.3 ship with each room rather than as a part of their own. Part 2's mappings get pointed at the real kinds as each wave lands.
+
+**What Part 2 reads each as, until its room is painted:**
+
+| Written in the story | Reads as |
+|---|---|
+| A named home: mansion, villa, penthouse, townhouse, bungalow, beach house | `living` |
+| Trailer or RV / houseboat / dorm | `cabin` / `shipcabin` / `bedroom` |
+| Media, TV, rec, music, craft, trophy or great room, home theater, home bar | `living` |
+| Laundry room | `homekitchen`, the nearest room with white goods |
+| Garage | `forge`, the nearest room with tools and a workbench |
+| Boiler room, panic room, secret room | `cellar` |
+| Patio, backyard | `meadow` |
+| Dining room, foyer, hallway, stairs, closet, porch, gym | Takes after what it's in: `hall` in a castle or abbey, `hospital` in a hospital, `living` in a house, on its own or outdoors |
+| A public word inside a home: theater, bar, game room, laundry, sickroom, the hall, the deck | `living`, `homekitchen`, `bedroom` or `meadow`, unless it's somewhere grand like a ballroom |
 
 ---
 
