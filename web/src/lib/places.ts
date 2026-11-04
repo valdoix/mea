@@ -146,6 +146,10 @@ export const PLACE_GROUPS = [
       { id: "living", label: "Living room" },
       { id: "dining", label: "Dining room" },
       { id: "den", label: "Den or family room" },
+      { id: "parlor", label: "Parlour or sitting room" },
+      { id: "nook", label: "Breakfast nook" },
+      { id: "sunroom", label: "Sunroom" },
+      { id: "greatroom", label: "Great room" },
     ],
   },
   {
@@ -153,6 +157,11 @@ export const PLACE_GROUPS = [
     kinds: [
       { id: "hometheater", label: "Home theater" },
       { id: "homelibrary", label: "Home library" },
+      { id: "gameroom", label: "Game room" },
+      { id: "homebar", label: "Home bar" },
+      { id: "recroom", label: "Rec room" },
+      { id: "musicroom", label: "Music room" },
+      { id: "homegym", label: "Home gym" },
     ],
   },
   {
@@ -161,7 +170,12 @@ export const PLACE_GROUPS = [
       { id: "bedroom", label: "Bedroom" },
       { id: "masterbedroom", label: "Master bedroom" },
       { id: "nursery", label: "Nursery" },
+      { id: "kidsroom", label: "Child's room" },
+      { id: "teenroom", label: "Teen's room" },
+      { id: "guestroom", label: "Guest room" },
+      { id: "closet", label: "Walk-in closet" },
       { id: "bathroom", label: "Bathroom" },
+      { id: "spabath", label: "Master bath" },
     ],
   },
   {
@@ -170,12 +184,14 @@ export const PLACE_GROUPS = [
       { id: "foyer", label: "Foyer or entry" },
       { id: "hallway", label: "Hallway" },
       { id: "staircase", label: "Staircase" },
+      { id: "mudroom", label: "Mudroom" },
     ],
   },
   {
     label: "Working rooms",
     kinds: [
       { id: "homekitchen", label: "Kitchen" },
+      { id: "pantry", label: "Pantry" },
       { id: "homeoffice", label: "Home office" },
       { id: "laundryroom", label: "Laundry room" },
       { id: "basement", label: "Basement" },
@@ -189,11 +205,17 @@ export const PLACE_GROUPS = [
       { id: "cabin", label: "Log cabin" },
       { id: "treehouse", label: "Treehouse" },
       { id: "tent", label: "Inside a tent" },
+      { id: "studioapt", label: "Studio apartment" },
+      { id: "penthouse", label: "Penthouse" },
+      { id: "loft", label: "Converted loft" },
     ],
   },
   {
     label: "At the door",
-    kinds: [{ id: "porch", label: "Front porch" }],
+    kinds: [
+      { id: "porch", label: "Front porch" },
+      { id: "balcony", label: "Balcony" },
+    ],
   },
   {
     label: "Old halls and keeps",
@@ -284,21 +306,34 @@ const RULES: [Place, RegExp][] = [
   ["tavern", /pool (?:hall|table|room)|billiard/],
   ["indoorpool", /indoor pool|natatorium|swimming baths|(?:leisure|aquatic) cent|covered pool/],
   ["pool", /swimming|\bpool ?(?:side|deck|house)\b|\bpools?\b|\blido\b/],
+  ["spabath", /master bath|soaking tub/],
   ["bathroom", /bathroom|\bbaths?\b|bathtub|\btub\b|shower|washroom|restroom|lavatory|toilet|\bloo\b|en ?suite|powder room|bathhouse|sauna|\bspa\b/],
   ["treehouse", /tree ?house|tree fort/],
   ["tent", /\btents?\b|pavilion|\byurt|marquee/],
   ["camp", /\bcamp|encampment|bivouac|campfire|battlefield|war ?camp|\bsiege\b|front line/],
   ["chapel", /chapel|\bnave\b|\bpews?\b|\baltar\b|sanctum|inside the (?:church|temple|cathedral|sept)/],
-  ["greenhouse", /greenhouse|conservatory|orangery|glasshouse|hothouse|sunroom|sun ?porch|solarium/],
+  ["sunroom", /sun ?room|sun ?porch|solarium/],
+  ["greenhouse", /greenhouse|conservatory|orangery|glasshouse|hothouse/],
+  ["recroom", /rec room|rumpus room|finished basement/],
   ["basement", /basement|boiler room|root cellar/],
-  ["cellar", /cellar|wine vault|storeroom|undercroft|larder|panic room|safe room|secret room|hidden room/],
+  ["pantry", /pantry|larder/],
+  ["cellar", /cellar|wine vault|storeroom|undercroft|panic room|safe room|secret room|hidden room/],
   ["kitchen", /scullery|castle kitchen|\bkitchens\b/],
-  ["homekitchen", /kitchen|pantry/],
+  ["homekitchen", /kitchen/],
   ["laundryroom", /laundry room|utility room/],
   ["hometheater", /home (?:theat(?:er|re)|cinema)|media room|screening room/],
   ["homelibrary", /home library/],
   ["homeoffice", /home office/],
-  ["living", /home bar|wet bar/],
+  ["homebar", /home bar|wet bar|basement bar/],
+  ["musicroom", /music room|piano room/],
+  ["kidsroom", /kid'?s'? room|child'?s room|children'?s room|boy'?s room|girl'?s room/],
+  ["teenroom", /teen(?:ager)?'?s'? room/],
+  ["guestroom", /guest ?room|spare (?:bed)?room/],
+  ["greatroom", /great room|vaulted room/],
+  ["parlor", /parlou?r|sitting room|drawing room|front room|\bsalon\b/],
+  ["studioapt", /studio (?:apartment|flat)|\bbedsit/],
+  ["penthouse", /penthouse/],
+  ["loft", /loft apartment|warehouse loft|converted loft/],
   ["alchemy", /alchem|wizard|\bmage'?s?\b|sorcer|witch'?s? (?:hut|cottage|house)|potion|enchanter|arcane|spell ?room/],
   ["garage", /(?<!parking )\bgarage|carport/],
   ["forge", /\bforge|smithy|blacksmith|foundry|workshop/],
@@ -325,7 +360,7 @@ const RULES: [Place, RegExp][] = [
   ["attic", /\battic|garret|\bloft\b/],
   ["den", /family room|\bden\b|\btv room|\bsnug\b/],
   ["cabin", /\bcabin|log house|\blodge\b|chalet|\bhut\b|\bshack\b|\btrailers?\b(?! park)|mobile home|\brv\b|\bcamper\b/],
-  ["living", new RegExp(String.raw`living ?room|lounge room|sitting room|front room|drawing room|great room|rec room|rumpus room|(?:music|piano|craft|sewing|hobby|trophy|gun) room|play ?room|parlou?r|\bsofa|\bcouch|${HOME_WORDS}`)],
+  ["living", new RegExp(String.raw`living ?room|lounge room|(?:craft|sewing|hobby|trophy|gun) room|play ?room|\bsofa|\bcouch|${HOME_WORDS}`)],
   ["masterbedroom", /(?:master|primary) (?:bedroom|suite|room)/],
   ["nursery", /nursery|baby'?s room/],
   ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|\bdorm\b|\bsuite\b/],
@@ -359,10 +394,10 @@ const RULES: [Place, RegExp][] = [
 
 /** Somewhere old-world: its kitchen has a hearth and its office is a study. */
 const OLD_WORLD = /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b|abbey|monastery|priory|\binn\b|tavern|\bsept\b|village|hamlet|\bcroft/;
-export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", hometheater: "hall", basement: "cellar" };
+export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", hometheater: "hall", basement: "cellar", recroom: "cellar", homegym: "hall", penthouse: "hall", studioapt: "bedroom", loft: "attic", teenroom: "bedroom", sunroom: "greenhouse" };
 
 /** A public kind of place, when the word for it comes inside someone's home: the home bar, not a pub. */
-const HOMELY: Partial<Record<Place, Place>> = { theater: "hometheater", library: "homelibrary", office: "homeoffice", arcade: "living", tavern: "living", laundromat: "laundryroom", hospital: "bedroom", hall: "hallway", deck: "porch" };
+const HOMELY: Partial<Record<Place, Place>> = { theater: "hometheater", library: "homelibrary", office: "homeoffice", arcade: "gameroom", tavern: "homebar", rooftops: "balcony", laundromat: "laundryroom", hospital: "bedroom", hall: "hallway", deck: "porch" };
 /** A home can have these for real. */
 const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
 
@@ -374,6 +409,10 @@ for (const k of ["village", "road", "street", "market", "rooftops", "city", "rui
 const BETWEEN: [Place, RegExp][] = [
   ["dining", /dining room|supper room/],
   ["foyer", /foyer|entry ?way|entrance hall|vestibule/],
+  ["nook", /breakfast (?:nook|room)|\bnook\b|banquette/],
+  ["closet", /walk-in|\bclosets?\b|wardrobe/],
+  ["mudroom", /mud ?room|boot room/],
+  ["homegym", /\bgym(?:nasium)?\b|workout room|exercise room/],
   ["hallway", /hallway|corridor|\bpassage(?:way)?\b|\bupstairs\b|\bdownstairs\b/],
   ["staircase", /\bstair(?:s|case|well|way)?\b|\bthe landing\b/],
   ["porch", /\bporch\b|verandah?|\bstoop\b/],
@@ -397,7 +436,7 @@ function read(parts: string[]): Place | null {
       const old = OLDER[k];
       if (old && parts.some((p) => OLD_WORLD.test(p))) return old;
       const homely = HOMELY[k];
-      if (homely && !STAYS_GRAND.test(part) && parts.slice(0, i).some((p) => HOME.test(p))) return homely;
+      if (homely && !STAYS_GRAND.test(part) && !(k === "rooftops" && !/balcon|terrace/.test(part)) && parts.slice(0, i).some((p) => HOME.test(p))) return k === "tavern" && /pool|billiard/.test(part) ? "gameroom" : homely;
       return k;
     }
   }

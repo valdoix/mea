@@ -19,7 +19,7 @@ const SOFT: RGB[] = [
 ];
 
 /** A room's colours and style, from its home if it has one. */
-function dress(c: Ctx) {
+export function dress(c: Ctx) {
   const { home, r } = c;
   const style: HomeStyle = home?.style ?? "modern";
   return {
@@ -36,16 +36,16 @@ function dress(c: Ctx) {
 }
 type Dress = ReturnType<typeof dress>;
 
-const after = (E: Env) => clamp(E.glow * 1.3);
+export const after = (E: Env) => clamp(E.glow * 1.3);
 
 /** A candle on (x, y), lit after dark. */
-function candle(g: G, E: Env, x: number, y: number, u: number) {
+export function candle(g: G, E: Env, x: number, y: number, u: number) {
   g.fillStyle = rgb(shade(E, [236, 226, 204], 0.6));
   g.fillRect(x - 2 * u, y - 13 * u, 4 * u, 13 * u);
   if (after(E) > 0.15) lamp(g, E, x, y - 17 * u, 34 * u, x, WARM, 0.2);
 }
 /** What hangs from the ceiling at x: a chandelier, a ring of candles, or a plain pendant. */
-function ceilingLight(g: G, E: Env, d: Dress, x: number, drop: number, u: number) {
+export function ceilingLight(g: G, E: Env, d: Dress, x: number, drop: number, u: number) {
   const on = lampsOn(E, 0.12);
   g.fillStyle = "rgb(30,26,26)";
   g.fillRect(x - 0.7 * u, 0, 1.4 * u, drop);
@@ -67,7 +67,7 @@ function ceilingLight(g: G, E: Env, d: Dress, x: number, drop: number, u: number
   lamp(g, E, x, drop + 18 * u, 150 * u, x, WARM, 0.1);
 }
 /** A window with its frame, for a room that needs an ordinary one. */
-function windowAt(x: number, y: number, w: number, h: number, u: number, old: boolean) {
+export function windowAt(x: number, y: number, w: number, h: number, u: number, old: boolean) {
   const win = new Path2D();
   win.rect(x, y, w, h);
   const frame = new Path2D();
