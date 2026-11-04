@@ -98,3 +98,68 @@ describe("the closest in meaning get in", () => {
     sql("UPDATE memories SET recall_count = 0 WHERE id = ?", target);
   });
 });
+
+/** docs/27 Part 3: deep search reaches back when recall is weak, judged against the chat's own scores. */
+describe("weak recall", () => {
+  const DIMS = 8;
+  let chatId: string;
+
+  const unit = (v: number[]) => {
+    const n = Math.hypot(...v);
+    return Float32Array.from(v.map((x) => x / n));
+  };
+  const run = (newest: string, q: Float32Array) =>
+    recall({
+      chatId,
+      evicted: 500,
+      budget: 300,
+      queries: buildQueries([{ role: "user", content: newest }]),
+      qvecs: [q],
+      excludeSummaryIds: new Set(),
+      seed: "test",
+      cfg: { ...defaultMemoryConfig, entityRecall: false, librarian: false },
+      pov: null,
+      present: [],
+      mood: null,
+      librarian: null,
+      times: new TimeIndex(chatId),
+      skipCards: new Set(),
+      povName: "Buffy",
+      closest: 0,
+    }).stats;
+
+  beforeAll(() => {
+    freshDb();
+    setSetting("routing.embeddings", { connectionId: null, model: "test-embed", dims: DIMS });
+    const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Buffy", description: "A Slayer.", first_mes: "Hi." } });
+    chatId = createChat({ characterId: createCharacter(data) }).id;
+    for (let i = 0; i < 520; i++) addMessage(chatId, i % 2 ? "assistant" : "user", `Line ${i}.`);
+    const seqs = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? ORDER BY seq", chatId);
+    // Memories spread evenly around the first axis, and one that sits right on it.
+    for (let i = 0; i < 30; i++) {
+      const id = insertAtom(chatId, null, { type: "event", content: `Patrol number ${i} went quietly.`, knownBy: [], importance: 5 }, [seqs[10 + i]!]);
+      const v = unit([1, Math.cos(i), Math.sin(i), 0, 0, 0, 0, 0]);
+      sql("INSERT INTO embeddings (owner_type, owner_id, chat_id, model, dims, hash, vector, created_at) VALUES ('memory', ?, ?, 'test-embed', ?, ?, ?, 0)", id, chatId, DIMS, id, new Uint8Array(v.buffer));
+    }
+    const id = insertAtom(chatId, null, { type: "fact", content: "The lighthouse key hangs by the door.", knownBy: [], importance: 5 }, [seqs[50]!]);
+    const v = unit([0, 0, 0, 1, 0, 0, 0, 0]);
+    sql("INSERT INTO embeddings (owner_type, owner_id, chat_id, model, dims, hash, vector, created_at) VALUES ('memory', ?, ?, 'test-embed', ?, ?, ?, 0)", id, chatId, DIMS, id, new Uint8Array(v.buffer));
+    invalidateVectors(chatId);
+  });
+
+  test("a match that stands out isn't weak", () => {
+    const s = run("She looks for something to open the old door with.", unit([0, 0, 0, 1, 0, 0, 0, 0]));
+    expect(s.standout!).toBeGreaterThan(3);
+    expect(s.reachedBack).toBeNull();
+  });
+
+  test("when nothing stands out, recall reaches back", () => {
+    const s = run("She looks for something to open the old door with.", unit([1, 0, 0, 0, 0, 0, 0, 0]));
+    expect(s.standout!).toBeLessThan(2.6);
+    expect(s.reachedBack).toBe("weak recall");
+  });
+
+  test("cue words reach back whatever the scores say", () => {
+    expect(run("Do you remember the night at the docks?", unit([0, 0, 0, 1, 0, 0, 0, 0])).reachedBack).toBe("cue words");
+  });
+});
