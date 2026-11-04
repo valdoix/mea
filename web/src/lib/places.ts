@@ -175,6 +175,16 @@ export type Place = (typeof PLACE_GROUPS)[number]["kinds"][number]["id"];
 export const PLACES = PLACE_GROUPS.flatMap((g) => g.kinds as readonly { id: Place; label: string }[]);
 export const isPlace = (s: string | null | undefined): s is Place => PLACES.some((p) => p.id === s);
 
+/** Words that name someone's home. Strict, or it would catch opera house, warehouse and coffee house. */
+const HOME_WORDS = String.raw`apartment|\bflat\b|\bcondo|(?:'s|\bthe|\bmy|\bour|\bhis|\bher|\btheir) (?:house|home|place)\b|\bat home\b|\b(?:old|new|big|little|small|empty|family|safe|country|summer|winter|beach|lake|haunted|guest|town|row|frat) house\b|\bmansion|\bvillas?\b|townhouse|rowhouse|bungalow|\bduplex|penthouse|\bbedsit`;
+const HOME = new RegExp(String.raw`${HOME_WORDS}|\bmanor|^home$|^house$`);
+
+/**
+ * The parts of a building that say little by themselves: a hallway takes after whatever it's in, so
+ * a hospital corridor is the hospital and a castle's is its hall. Alone, they're somewhere indoors.
+ */
+const IN_BETWEEN = /dining room|supper room|breakfast (?:nook|room)|\bnook\b|banquette|foyer|entry ?way|entrance hall|vestibule|hallway|corridor|\bpassage(?:way)?\b|\bstair(?:s|case|well|way)?\b|\bupstairs\b|\bdownstairs\b|\bthe landing\b|mud ?room|boot room|walk-in|\bclosets?\b|wardrobe|crawl ?space|\bporch\b|verandah?|\bstoop\b|\bgym(?:nasium)?\b|workout room|exercise room/;
+
 // Most specific first; the last part of the place is read before the rest ("Winterfell › the godswood" is a forest).
 const RULES: [Place, RegExp][] = [
   ["submarine", /submarine|u-boat|submersible|bathysphere/],
@@ -185,8 +195,8 @@ const RULES: [Place, RegExp][] = [
   ["hospital", /hospital|infirmary|\bclinic|\bward\b|sickroom|operating (?:room|theatre)|\bicu\b|emergency room/],
   ["plane", /\b(?:aero|air)?planes?\b|airliner|\bjet\b|in-flight|mid-flight|(?:first|business|economy) class|aircraft|\bflight\b/],
   ["train", /\btrain\b|railway|\bcarriage\b|compartment|\btram\b|dining car|sleeper car|subway car/],
-  ["shipcabin", /captain's (?:quarters|cabin)|ship's cabin|below ?decks?|\bgalley\b|\bthe hold\b|stateroom|\bberth\b/],
-  ["car", /\b(?:car|truck|van|taxi|cab|limo|limousine|jeep|sedan|pickup|suv|bus|minivan)\b(?! park| stop| station| depot)|back ?seat|(?:driver|passenger)'?s? seat|behind the wheel/],
+  ["shipcabin", /captain's (?:quarters|cabin)|ship's cabin|below ?decks?|\bgalley\b|\bthe hold\b|stateroom|\bberth\b|houseboat|narrowboat/],
+  ["car", /\b(?:car|truck|van|taxi|cab|limo|limousine|jeep|sedan|pickup|suv|bus|minivan)\b(?! park| stop| station| depot| garage)|back ?seat|(?:driver|passenger)'?s? seat|behind the wheel/],
   ["aquarium", /aquarium|oceanarium|fish tank|sea life/],
   ["deck", /\bdeck\b|aboard|crow's nest|\bmast\b|\b(?:ship|boat|galleon|vessel|frigate|schooner|ferry|yacht|raft|sloop)s?\b/],
   ["hotspring", /hot ?springs?|\bonsen|thermal (?:pool|spring|bath)|geothermal/],
@@ -198,12 +208,13 @@ const RULES: [Place, RegExp][] = [
   ["tent", /\btents?\b|pavilion|\byurt|marquee/],
   ["camp", /\bcamp|encampment|bivouac|campfire|battlefield|war ?camp|\bsiege\b|front line/],
   ["chapel", /chapel|\bnave\b|\bpews?\b|\baltar\b|sanctum|inside the (?:church|temple|cathedral|sept)/],
-  ["greenhouse", /greenhouse|conservatory|orangery|glasshouse|hothouse|sunroom|solarium/],
-  ["cellar", /cellar|basement|wine vault|storeroom|undercroft|larder/],
+  ["greenhouse", /greenhouse|conservatory|orangery|glasshouse|hothouse|sunroom|sun ?porch|solarium/],
+  ["cellar", /cellar|basement|wine vault|storeroom|undercroft|larder|boiler room|panic room|safe room|secret room|hidden room/],
   ["kitchen", /scullery|castle kitchen|\bkitchens\b/],
-  ["homekitchen", /kitchen|pantry/],
+  ["homekitchen", /kitchen|pantry|laundry room|utility room/],
+  ["living", /home (?:theat(?:er|re)|cinema)|media room|screening room|\btv room|home bar|wet bar/],
   ["alchemy", /alchem|wizard|\bmage'?s?\b|sorcer|witch'?s? (?:hut|cottage|house)|potion|enchanter|arcane|spell ?room/],
-  ["forge", /\bforge|smithy|blacksmith|foundry|workshop/],
+  ["forge", /\bforge|smithy|blacksmith|foundry|workshop|(?<!parking )\bgarage/],
   ["shrine", /\bdojo|teahouse|tea house|tatami|ryokan|shoji|zen garden|tea ceremony/],
   ["laundromat", /laundr|launderette|wash house/],
   ["club", /nightclub|night club|\bclub\b|disco|\braves?\b|karaoke|dance floor/],
@@ -218,15 +229,16 @@ const RULES: [Place, RegExp][] = [
   ["lab", /laborator|\blabs?\b|clean room|server room|control room|research station|\bmorgue/],
   ["classroom", /classroom|lecture hall|schoolroom|homeroom|seminar room|\bschool\b|\bclass\b/],
   ["office", /office|cubicle|boardroom|meeting room|conference room|headquarters|precinct|newsroom|reception|bullpen|police station/],
+  ["living", IN_BETWEEN],
   ["library", /librar|archive|scriptorium|bookshop|bookstore|reading room/],
   ["study", /\bstudy\b|\bsolar\b/],
   ["hall", /throne|great hall|\bhall\b|ballroom|council|audience chamber|banquet|feast/],
   ["tavern", /tavern|\binn\b|\bbar\b|\bpub\b|saloon|alehouse|canteen|brewery|speakeasy/],
   ["stable", /stables?\b|hayloft|\bbarn\b|horse stall|kennel|tack room|\bcoop\b/],
   ["attic", /\battic|garret|\bloft\b/],
-  ["cabin", /\bcabin|log house|\blodge\b|chalet|\bhut\b|\bshack\b/],
-  ["living", /living ?room|lounge room|sitting room|family room|front room|drawing room|dining room|\bden\b|parlou?r|\bsofa|\bcouch|apartment|\bflat\b|\bcondo|(?:'s|\bthe|\bmy|\bour|\bhis|\bher|\btheir) (?:house|home|place)\b|\bat home\b/],
-  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|nursery|\bsuite\b/],
+  ["cabin", /\bcabin|log house|\blodge\b|chalet|\bhut\b|\bshack\b|\btrailers?\b(?! park)|mobile home|\brv\b|\bcamper\b/],
+  ["living", new RegExp(String.raw`living ?room|lounge room|sitting room|family room|front room|drawing room|great room|rec room|rumpus room|(?:music|piano|craft|sewing|hobby|trophy|gun) room|play ?room|\bden\b|parlou?r|\bsofa|\bcouch|${HOME_WORDS}`)],
+  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|\bdorm\b|nursery|\bsuite\b/],
   ["cave", /\bcaves?\b|cavern|grotto|\bmines?\b|tunnel|underground|burrow|catacomb/],
   ["volcano", /volcan|\blava\b|magma|caldera|ashland/],
   ["graveyard", /grave|cemetery|\btomb|barrow|mausoleum|churchyard|necropolis/],
@@ -247,11 +259,11 @@ const RULES: [Place, RegExp][] = [
   ["desert", /desert|\bdunes?\b|\bsands?\b|wasteland|oasis|dorne|steppe/],
   ["market", /market|bazaar|\bfair\b|\bsquare\b|plaza|\bstalls?\b|souk|festival/],
   ["rooftops", /rooftop|\broofs?\b|belfry|balcony|terrace|parapet|clock ?tower|bell tower/],
-  ["city", /downtown|skyscraper|\bmetro\b|subway|neon|highway|tower block|skyline|avenue|hotel|campus|\bmall\b|parking|car park|station|corridor|lobby|elevator/],
+  ["city", /downtown|skyscraper|\bmetro\b|subway|neon|highway|tower block|skyline|avenue|hotel|campus|\bmall\b|parking|car park|station|lobby|elevator/],
   ["street", /street|alley|\blane\b|\btown\b|\bcity\b|quarter|district|borough|\bslums?\b/],
   ["village", /village|hamlet|\bfarm|homestead|cottage|\bcroft|\bmill\b/],
   ["road", /\broads?\b|\bpath\b|\btrail\b|\btrack\b|caravan|wagon|crossroad|kingsroad|on the way|journey/],
-  ["meadow", /garden|meadow|\bfields?\b|courtyard|\bpark\b|glade|orchard|\blawn/],
+  ["meadow", /garden|meadow|\bfields?\b|courtyard|\bpark\b|glade|orchard|\blawn|\bpatio\b|back ?yard|front ?yard/],
   ["forest", /forest|\bwoods?\b|\bpines?\b|\bgrove|thicket|\bcopse|godswood|weirwood|wolfswood/],
 ];
 
@@ -259,13 +271,35 @@ const RULES: [Place, RegExp][] = [
 const OLD_WORLD = /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b|abbey|monastery|priory|\binn\b|tavern|\bsept\b|village|hamlet|\bcroft/;
 const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study" };
 
-export function readPlace(path: string[] | null | undefined): Place {
-  const parts = (path ?? []).map((p) => p.toLowerCase());
-  for (let i = parts.length - 1; i >= 0; i--)
-    for (const [k, re] of RULES)
-      if (re.test(parts[i]!)) {
-        const old = OLDER[k];
-        return old && parts.some((p) => OLD_WORLD.test(p)) ? old : k;
+/** A public kind of place, when the word for it comes inside someone's home: the home bar, not a pub. */
+const HOMELY: Partial<Record<Place, Place>> = { theater: "living", arcade: "living", tavern: "living", laundromat: "homekitchen", hospital: "bedroom", hall: "living", deck: "meadow" };
+/** A home can have these for real. */
+const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
+
+/** Kinds with no indoors for a hallway or a staircase to take after. */
+const OUTSIDE = new Set<Place>([...PLACE_GROUPS[0].kinds, ...PLACE_GROUPS[1].kinds].map((k) => k.id));
+for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space"] as const) OUTSIDE.add(k);
+
+function read(parts: string[]): Place | null {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]!;
+    for (const [k, re] of RULES) {
+      if (!re.test(part)) continue;
+      if (re === IN_BETWEEN) {
+        const around = read([...parts.slice(0, i), part.replace(IN_BETWEEN, "")]);
+        if (around === "castle" || around === "temple") return "hall";
+        return !around || OUTSIDE.has(around) ? "living" : around;
       }
-  return "hills";
+      const old = OLDER[k];
+      if (old && parts.some((p) => OLD_WORLD.test(p))) return old;
+      const homely = HOMELY[k];
+      if (homely && !STAYS_GRAND.test(part) && parts.slice(0, i).some((p) => HOME.test(p))) return homely;
+      return k;
+    }
+  }
+  return null;
+}
+
+export function readPlace(path: string[] | null | undefined): Place {
+  return read((path ?? []).map((p) => p.toLowerCase())) ?? "hills";
 }
