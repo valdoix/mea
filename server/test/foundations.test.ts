@@ -125,8 +125,9 @@ describe("the suggestions queue (P1)", () => {
 describe("filed chips (P1)", () => {
   test("a filing shows on its message until undone, and undo goes to its feature", () => {
     const undone: string[] = [];
-    registerFilingKind("truth", { undo: (f) => undone.push(String(f.data.text)), notMeant: (f) => undone.push(`not:${f.data.text}`) });
-    const f = fileItem(chatId, { messageId: reply, kind: "truth", label: "Truth: the lamp never goes out", data: { text: "the lamp never goes out", guess: true } });
+    // Its own kind: test files share a process, and a real kind replaced here stays replaced for the rest.
+    registerFilingKind("test-truth", { undo: (f) => undone.push(String(f.data.text)), notMeant: (f) => undone.push(`not:${f.data.text}`) });
+    const f = fileItem(chatId, { messageId: reply, kind: "test-truth", label: "Truth: the lamp never goes out", data: { text: "the lamp never goes out", guess: true } });
     expect(filingsFor(chatId).map((x) => x.id)).toContain(f.id);
     undoFiling(f.id, "notMeant");
     expect(undone).toEqual(["not:the lamp never goes out"]);
