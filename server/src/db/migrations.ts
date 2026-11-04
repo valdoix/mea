@@ -1475,6 +1475,23 @@ CREATE INDEX IF NOT EXISTS generations_job ON generations(job_id) WHERE job_id I
       });
     },
   },
+  {
+    id: 37,
+    name: "inbox never show again",
+    // Cards you said never to show again. Unlike inbox_dismissed (one card's "not now"), these also match
+    // the same suggestion when it comes back under a new id, and keep a title so they can be restored.
+    sql: /* sql */ `
+CREATE TABLE IF NOT EXISTS inbox_never (
+  key         TEXT PRIMARY KEY,
+  fingerprint TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  chat_id     TEXT REFERENCES chats(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS inbox_never_fingerprint ON inbox_never(fingerprint);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

@@ -4,17 +4,18 @@
   import { wordDiff } from "../lib/diff";
   import { onEvent } from "../lib/events";
   import { autosize } from "../lib/gestures";
-  import { Check, ExternalLink, MessagesSquare, Pencil, X } from "../lib/icons";
+  import { Ban, Check, ExternalLink, MessagesSquare, Pencil, Undo, X } from "../lib/icons";
   import { openMeusIn } from "../lib/meus.svelte";
   import { navigate, route } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
-  import type { InboxItem, InboxSource } from "../lib/types";
+  import type { InboxItem, InboxSource, NeverShownItem } from "../lib/types";
 
   /**
    * The review inbox (CON-09): every change to canon Mea proposes, as a diff you approve, edit
    * or reject. Nothing here touches the story until you decide.
    */
   let items = $state<InboxItem[] | null>(null);
+  let neverShown = $state<NeverShownItem[]>([]);
   let editing = $state<string | null>(null);
   let draft = $state("");
   let busy = $state<string | null>(null);
@@ -31,8 +32,9 @@
       // The full list names every story for the filter. It leaves out archived chats and all but the
       // 40 most recent, so a link to one of those fetches that chat as well.
       const scoped = chat && chat !== NO_STORY ? get<{ items: InboxItem[] }>(`/api/inbox?chat=${encodeURIComponent(chat)}`) : null;
-      const [everything, own] = await Promise.all([get<{ items: InboxItem[] }>("/api/inbox"), scoped]);
+      const [everything, own, never] = await Promise.all([get<{ items: InboxItem[] }>("/api/inbox"), scoped, get<{ items: NeverShownItem[] }>("/api/inbox/never")]);
       items = [...new Map([...everything.items, ...(own?.items ?? [])].map((i) => [i.key, i])).values()];
+      neverShown = never.items;
     } catch (e) {
       errorToast(e);
       items = [];
@@ -101,6 +103,32 @@
       busy = null;
     }
   }
+  /** Rejects it, and it doesn't come back, even as a new suggestion saying the same thing. */
+  async function neverAgain(item: InboxItem) {
+    busy = item.key;
+    try {
+      await post("/api/inbox/never", { key: item.key, chatId: item.chatId || undefined });
+      items = (items ?? []).filter((i) => i.key !== item.key);
+      if (editing === item.key) editing = null;
+      toast("Rejected. It won't show again.", { kind: "info" });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      busy = null;
+    }
+  }
+  async function showAgain(n: NeverShownItem) {
+    busy = n.key;
+    try {
+      await post("/api/inbox/never/restore", { key: n.key });
+      await load();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      busy = null;
+    }
+  }
   function startEdit(item: InboxItem) {
     editing = item.key;
     draft = item.after;
@@ -163,11 +191,26 @@
             {#if item.editable && editing !== item.key}<button class="btn ghost small" onclick={() => startEdit(item)}><Pencil size={14} /> Edit</button>{/if}
             {#if editing === item.key}<button class="btn ghost small" onclick={() => (editing = null)}>Cancel edit</button>{/if}
             <button class="btn ghost small" onclick={() => act(item, "reject")} disabled={busy === item.key}><X size={14} /> {item.labels?.reject ?? (item.kind === "merge" ? "Not the same" : item.kind === "version" ? "Not for this version" : "Reject")}</button>
+            <button class="btn ghost small" onclick={() => neverAgain(item)} disabled={busy === item.key} title="Reject this, and don't suggest it again"><Ban size={14} /> Never show again</button>
             {#if item.chatId}<button class="btn ghost small" onclick={() => talkItThrough(item)}><MessagesSquare size={14} /> Talk it through with Meus</button>{/if}
           </div>
         </article>
       {/each}
     </div>
+  {/if}
+
+  {#if neverShown.length}
+    <details class="never">
+      <summary class="small muted">Never shown again ({neverShown.length})</summary>
+      <ul>
+        {#each neverShown as n (n.key)}
+          <li class="row between">
+            <span class="small">{n.title}{#if n.chatTitle}<span class="tiny muted"> · {n.chatTitle}</span>{/if}</span>
+            <button class="btn ghost small" onclick={() => showAgain(n)} disabled={busy === n.key}><Undo size={14} /> Show again</button>
+          </li>
+        {/each}
+      </ul>
+    </details>
   {/if}
 </div>
 
@@ -244,6 +287,27 @@
   }
   .merge p {
     margin: 0.1rem 0 0;
+  }
+  .never summary {
+    cursor: pointer;
+  }
+  .never ul {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .never li {
+    gap: 0.6rem;
+    flex-wrap: nowrap;
+  }
+  .never li span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .never li button {
+    flex: none;
   }
   @media (max-width: 760px) {
     .merge {

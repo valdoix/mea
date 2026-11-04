@@ -818,6 +818,15 @@ export interface InboxItem {
   labels?: { accept?: string; reject?: string };
 }
 
+/** An inbox card you said never to show again, listed so it can be brought back. */
+export interface NeverShownItem {
+  key: string;
+  kind: string;
+  title: string;
+  chatTitle: string | null;
+  createdAt: number;
+}
+
 export interface NameEntry {
   name: string;
   kind: string;
