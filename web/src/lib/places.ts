@@ -72,6 +72,8 @@ export interface Home {
   house: string;
   style: HomeStyle;
   keep?: Keep;
+  /** The story's year, where it changes what stands here. */
+  year?: number;
 }
 /** A home's colours: the same in every one of its rooms. */
 export interface HomeDress extends Home {
@@ -339,6 +341,16 @@ export const PLACE_GROUPS = [
     ],
   },
   {
+    label: "King's Landing",
+    kinds: [
+      { id: "fleabottom", label: "Flea Bottom" },
+      { id: "greatsept", label: "Inside the Great Sept" },
+      { id: "septsteps", label: "Steps of the Great Sept" },
+      { id: "dragonpit", label: "Dragonpit" },
+      { id: "tiltyard", label: "Tourney ground" },
+    ],
+  },
+  {
     label: "The Red Keep",
     kinds: [
       { id: "throneroom", label: "Throne room" },
@@ -507,7 +519,7 @@ const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
 
 /** Kinds with no indoors for a hallway or a staircase to take after. */
 const OUTSIDE = new Set<Place>([...PLACE_GROUPS[0].kinds, ...PLACE_GROUPS[1].kinds].map((k) => k.id));
-for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space", "holdfast", "flowstoneyard", "bearpit", "godswood", "bailey", "trainingyard", "battlements"] as const) OUTSIDE.add(k);
+for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space", "holdfast", "flowstoneyard", "bearpit", "godswood", "bailey", "trainingyard", "battlements", "fleabottom", "septsteps", "dragonpit", "tiltyard"] as const) OUTSIDE.add(k);
 
 /** Between rooms with their own painting. */
 const BETWEEN: [Place, RegExp][] = [
@@ -607,7 +619,8 @@ export function readHome(path: string[] | null | undefined, styles?: Record<stri
   const own = styles?.[house];
   const withKeep = (style: HomeStyle): Home => {
     const keep = style === "old" ? keepOf(house, westeros, opts.keeps?.[house], opts.year) : null;
-    return keep ? { house, style, keep } : { house, style };
+    const when = opts.year != null ? { year: opts.year } : {};
+    return keep ? { house, style, keep, ...when } : { house, style, ...when };
   };
   if (own && HOME_STYLES.some((s) => s.id === own)) return withKeep(own as HomeStyle);
   if (westeros) return withKeep("old");

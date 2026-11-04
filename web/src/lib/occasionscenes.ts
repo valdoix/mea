@@ -520,7 +520,7 @@ function dressing(c: Ctx, id: Occasion, old: boolean, stage: boolean, indoors: b
   const parts: Paint[] = [];
   const add = (p: Paint) => parts.push(p);
   // Outdoors, something has to hold up what hangs.
-  if (!indoors && !stage && id !== "funeral") {
+  if (!indoors && !stage && id !== "funeral" && id !== "execution" && id !== "contest") {
     const poles = new Path2D();
     for (let x = F - 840 * u; x < c.W + 280 * u; x += 280 * u) poles.rect(x, H * 0.05, 3 * u, H);
     add((g, E) => fill(g, poles, tint(E, [86, 66, 50], 0.3)));
@@ -812,9 +812,9 @@ function dressing(c: Ctx, id: Occasion, old: boolean, stage: boolean, indoors: b
     case "contest": {
       const hues: RGB[] = old ? [[176, 40, 52], [226, 196, 110], [40, 84, 140]] : [[30, 90, 176], [240, 236, 226]];
       add(bunting(c, hues));
-      if (old) {
+      if (old && !stage) {
         // The tilt: a long striped rail across the ground, with pennants on its posts.
-        const y = H * 0.74;
+        const y = H * 0.76;
         const rail = new Path2D();
         rail.rect(-10 * u, y, c.W + 20 * u, 6 * u);
         rail.rect(-10 * u, y + 22 * u, c.W + 20 * u, 4 * u);
@@ -1447,7 +1447,7 @@ const STAGE_PLACE: Record<Occasion, { old: Place; modern: Place }> = {
   ball: { old: "hall", modern: "greatroom" },
   festival: { old: "market", modern: "city" },
   coronation: { old: "hall", modern: "temple" },
-  contest: { old: "camp", modern: "city" },
+  contest: { old: "tiltyard", modern: "city" },
   execution: { old: "bailey", modern: "street" },
   midwinter: { old: "hall", modern: "living" },
   newborn: { old: "masterbedroom", modern: "nursery" },
