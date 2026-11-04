@@ -123,7 +123,6 @@ export const PLACE_GROUPS = [
       { id: "pool", label: "Pool, outside" },
       { id: "indoorpool", label: "Indoor pool" },
       { id: "hotspring", label: "Hot spring" },
-      { id: "bathroom", label: "Bathroom" },
     ],
   },
   {
@@ -142,16 +141,59 @@ export const PLACE_GROUPS = [
     ],
   },
   {
-    label: "At home",
+    label: "Gathering rooms",
     kinds: [
       { id: "living", label: "Living room" },
-      { id: "homekitchen", label: "Kitchen" },
+      { id: "dining", label: "Dining room" },
+      { id: "den", label: "Den or family room" },
+    ],
+  },
+  {
+    label: "Leisure rooms",
+    kinds: [
+      { id: "hometheater", label: "Home theater" },
+      { id: "homelibrary", label: "Home library" },
+    ],
+  },
+  {
+    label: "Private rooms",
+    kinds: [
       { id: "bedroom", label: "Bedroom" },
+      { id: "masterbedroom", label: "Master bedroom" },
+      { id: "nursery", label: "Nursery" },
+      { id: "bathroom", label: "Bathroom" },
+    ],
+  },
+  {
+    label: "Between rooms",
+    kinds: [
+      { id: "foyer", label: "Foyer or entry" },
+      { id: "hallway", label: "Hallway" },
+      { id: "staircase", label: "Staircase" },
+    ],
+  },
+  {
+    label: "Working rooms",
+    kinds: [
+      { id: "homekitchen", label: "Kitchen" },
+      { id: "homeoffice", label: "Home office" },
+      { id: "laundryroom", label: "Laundry room" },
+      { id: "basement", label: "Basement" },
+      { id: "garage", label: "Garage" },
       { id: "attic", label: "Attic" },
+    ],
+  },
+  {
+    label: "Whole homes",
+    kinds: [
       { id: "cabin", label: "Log cabin" },
       { id: "treehouse", label: "Treehouse" },
       { id: "tent", label: "Inside a tent" },
     ],
+  },
+  {
+    label: "At the door",
+    kinds: [{ id: "porch", label: "Front porch" }],
   },
   {
     label: "Old halls and keeps",
@@ -248,12 +290,18 @@ const RULES: [Place, RegExp][] = [
   ["camp", /\bcamp|encampment|bivouac|campfire|battlefield|war ?camp|\bsiege\b|front line/],
   ["chapel", /chapel|\bnave\b|\bpews?\b|\baltar\b|sanctum|inside the (?:church|temple|cathedral|sept)/],
   ["greenhouse", /greenhouse|conservatory|orangery|glasshouse|hothouse|sunroom|sun ?porch|solarium/],
-  ["cellar", /cellar|basement|wine vault|storeroom|undercroft|larder|boiler room|panic room|safe room|secret room|hidden room/],
+  ["basement", /basement|boiler room|root cellar/],
+  ["cellar", /cellar|wine vault|storeroom|undercroft|larder|panic room|safe room|secret room|hidden room/],
   ["kitchen", /scullery|castle kitchen|\bkitchens\b/],
-  ["homekitchen", /kitchen|pantry|laundry room|utility room/],
-  ["living", /home (?:theat(?:er|re)|cinema)|media room|screening room|\btv room|home bar|wet bar/],
+  ["homekitchen", /kitchen|pantry/],
+  ["laundryroom", /laundry room|utility room/],
+  ["hometheater", /home (?:theat(?:er|re)|cinema)|media room|screening room/],
+  ["homelibrary", /home library/],
+  ["homeoffice", /home office/],
+  ["living", /home bar|wet bar/],
   ["alchemy", /alchem|wizard|\bmage'?s?\b|sorcer|witch'?s? (?:hut|cottage|house)|potion|enchanter|arcane|spell ?room/],
-  ["forge", /\bforge|smithy|blacksmith|foundry|workshop|(?<!parking )\bgarage/],
+  ["garage", /(?<!parking )\bgarage|carport/],
+  ["forge", /\bforge|smithy|blacksmith|foundry|workshop/],
   ["shrine", /\bdojo|teahouse|tea house|tatami|ryokan|shoji|zen garden|tea ceremony/],
   ["laundromat", /laundr|launderette|wash house/],
   ["club", /nightclub|night club|\bclub\b|disco|\braves?\b|karaoke|dance floor/],
@@ -275,9 +323,12 @@ const RULES: [Place, RegExp][] = [
   ["tavern", /tavern|\binn\b|\bbar\b|\bpub\b|saloon|alehouse|canteen|brewery|speakeasy/],
   ["stable", /stables?\b|hayloft|\bbarn\b|horse stall|kennel|tack room|\bcoop\b/],
   ["attic", /\battic|garret|\bloft\b/],
+  ["den", /family room|\bden\b|\btv room|\bsnug\b/],
   ["cabin", /\bcabin|log house|\blodge\b|chalet|\bhut\b|\bshack\b|\btrailers?\b(?! park)|mobile home|\brv\b|\bcamper\b/],
-  ["living", new RegExp(String.raw`living ?room|lounge room|sitting room|family room|front room|drawing room|great room|rec room|rumpus room|(?:music|piano|craft|sewing|hobby|trophy|gun) room|play ?room|\bden\b|parlou?r|\bsofa|\bcouch|${HOME_WORDS}`)],
-  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|\bdorm\b|nursery|\bsuite\b/],
+  ["living", new RegExp(String.raw`living ?room|lounge room|sitting room|front room|drawing room|great room|rec room|rumpus room|(?:music|piano|craft|sewing|hobby|trophy|gun) room|play ?room|parlou?r|\bsofa|\bcouch|${HOME_WORDS}`)],
+  ["masterbedroom", /(?:master|primary) (?:bedroom|suite|room)/],
+  ["nursery", /nursery|baby'?s room/],
+  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|\bdorm\b|\bsuite\b/],
   ["cave", /\bcaves?\b|cavern|grotto|\bmines?\b|tunnel|underground|burrow|catacomb/],
   ["volcano", /volcan|\blava\b|magma|caldera|ashland/],
   ["graveyard", /grave|cemetery|\btomb|barrow|mausoleum|churchyard|necropolis/],
@@ -308,10 +359,10 @@ const RULES: [Place, RegExp][] = [
 
 /** Somewhere old-world: its kitchen has a hearth and its office is a study. */
 const OLD_WORLD = /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b|abbey|monastery|priory|\binn\b|tavern|\bsept\b|village|hamlet|\bcroft/;
-export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study" };
+export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", hometheater: "hall", basement: "cellar" };
 
 /** A public kind of place, when the word for it comes inside someone's home: the home bar, not a pub. */
-const HOMELY: Partial<Record<Place, Place>> = { theater: "living", arcade: "living", tavern: "living", laundromat: "homekitchen", hospital: "bedroom", hall: "living", deck: "meadow" };
+const HOMELY: Partial<Record<Place, Place>> = { theater: "hometheater", library: "homelibrary", office: "homeoffice", arcade: "living", tavern: "living", laundromat: "laundryroom", hospital: "bedroom", hall: "hallway", deck: "porch" };
 /** A home can have these for real. */
 const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
 
@@ -319,13 +370,27 @@ const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
 const OUTSIDE = new Set<Place>([...PLACE_GROUPS[0].kinds, ...PLACE_GROUPS[1].kinds].map((k) => k.id));
 for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space"] as const) OUTSIDE.add(k);
 
+/** Between rooms with their own painting. */
+const BETWEEN: [Place, RegExp][] = [
+  ["dining", /dining room|supper room/],
+  ["foyer", /foyer|entry ?way|entrance hall|vestibule/],
+  ["hallway", /hallway|corridor|\bpassage(?:way)?\b|\bupstairs\b|\bdownstairs\b/],
+  ["staircase", /\bstair(?:s|case|well|way)?\b|\bthe landing\b/],
+  ["porch", /\bporch\b|verandah?|\bstoop\b/],
+];
+/** What surrounds a between room without giving it a look of its own. */
+const STAYS_ITSELF = new Set<Place>(["living", "bedroom", "masterbedroom", "castle", "temple", "den", "homekitchen"]);
+
 function read(parts: string[]): Place | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const part = parts[i]!;
     for (const [k, re] of RULES) {
       if (!re.test(part)) continue;
       if (re === IN_BETWEEN) {
+        const own = BETWEEN.find(([, w]) => w.test(part))?.[0];
         const around = read([...parts.slice(0, i), part.replace(IN_BETWEEN, "")]);
+        // Painted in its own right, it stays itself in a house or a castle, dressed to suit.
+        if (own) return around && !OUTSIDE.has(around) && !STAYS_ITSELF.has(around) ? around : own;
         if (around === "castle" || around === "temple") return "hall";
         return !around || OUTSIDE.has(around) ? "living" : around;
       }
