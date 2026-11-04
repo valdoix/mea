@@ -162,6 +162,12 @@ export const PLACE_GROUPS = [
       { id: "recroom", label: "Rec room" },
       { id: "musicroom", label: "Music room" },
       { id: "homegym", label: "Home gym" },
+      { id: "playroom", label: "Playroom" },
+      { id: "craftroom", label: "Craft or sewing room" },
+      { id: "atelier", label: "Home art studio" },
+      { id: "trophyroom", label: "Trophy room" },
+      { id: "winecellar", label: "Wine cellar" },
+      { id: "sauna", label: "Home sauna" },
     ],
   },
   {
@@ -176,6 +182,8 @@ export const PLACE_GROUPS = [
       { id: "closet", label: "Walk-in closet" },
       { id: "bathroom", label: "Bathroom" },
       { id: "spabath", label: "Master bath" },
+      { id: "dressing", label: "Dressing room" },
+      { id: "sickroom", label: "Sickroom at home" },
     ],
   },
   {
@@ -185,6 +193,8 @@ export const PLACE_GROUPS = [
       { id: "hallway", label: "Hallway" },
       { id: "staircase", label: "Staircase" },
       { id: "mudroom", label: "Mudroom" },
+      { id: "longgallery", label: "Portrait gallery" },
+      { id: "crawlspace", label: "Crawlspace or under-stairs" },
     ],
   },
   {
@@ -200,6 +210,13 @@ export const PLACE_GROUPS = [
     ],
   },
   {
+    label: "Hidden rooms",
+    kinds: [
+      { id: "panicroom", label: "Panic room" },
+      { id: "hiddenroom", label: "Hidden room" },
+    ],
+  },
+  {
     label: "Whole homes",
     kinds: [
       { id: "cabin", label: "Log cabin" },
@@ -208,6 +225,11 @@ export const PLACE_GROUPS = [
       { id: "studioapt", label: "Studio apartment" },
       { id: "penthouse", label: "Penthouse" },
       { id: "loft", label: "Converted loft" },
+      { id: "dorm", label: "Dorm room" },
+      { id: "trailer", label: "Trailer or RV" },
+      { id: "houseboat", label: "Houseboat" },
+      { id: "beachhouse", label: "Beach house" },
+      { id: "cottage", label: "Cottage interior" },
     ],
   },
   {
@@ -215,6 +237,9 @@ export const PLACE_GROUPS = [
     kinds: [
       { id: "porch", label: "Front porch" },
       { id: "balcony", label: "Balcony" },
+      { id: "screenporch", label: "Screened porch" },
+      { id: "patio", label: "Patio" },
+      { id: "atrium", label: "Atrium" },
     ],
   },
   {
@@ -298,7 +323,8 @@ const RULES: [Place, RegExp][] = [
   ["hospital", /hospital|infirmary|\bclinic|\bward\b|sickroom|operating (?:room|theatre)|\bicu\b|emergency room/],
   ["plane", /\b(?:aero|air)?planes?\b|airliner|\bjet\b|in-flight|mid-flight|(?:first|business|economy) class|aircraft|\bflight\b/],
   ["train", /\btrain\b|railway|\bcarriage\b|compartment|\btram\b|dining car|sleeper car|subway car/],
-  ["shipcabin", /captain's (?:quarters|cabin)|ship's cabin|below ?decks?|\bgalley\b|\bthe hold\b|stateroom|\bberth\b|houseboat|narrowboat/],
+  ["shipcabin", /captain's (?:quarters|cabin)|ship's cabin|below ?decks?|\bgalley\b|\bthe hold\b|stateroom|\bberth\b/],
+  ["houseboat", /houseboat|narrowboat|\bbarge\b/],
   ["car", /\b(?:car|truck|van|taxi|cab|limo|limousine|jeep|sedan|pickup|suv|bus|minivan)\b(?! park| stop| station| depot| garage)|back ?seat|(?:driver|passenger)'?s? seat|behind the wheel/],
   ["aquarium", /aquarium|oceanarium|fish tank|sea life/],
   ["deck", /\bdeck\b|aboard|crow's nest|\bmast\b|\b(?:ship|boat|galleon|vessel|frigate|schooner|ferry|yacht|raft|sloop)s?\b/],
@@ -307,7 +333,8 @@ const RULES: [Place, RegExp][] = [
   ["indoorpool", /indoor pool|natatorium|swimming baths|(?:leisure|aquatic) cent|covered pool/],
   ["pool", /swimming|\bpool ?(?:side|deck|house)\b|\bpools?\b|\blido\b/],
   ["spabath", /master bath|soaking tub/],
-  ["bathroom", /bathroom|\bbaths?\b|bathtub|\btub\b|shower|washroom|restroom|lavatory|toilet|\bloo\b|en ?suite|powder room|bathhouse|sauna|\bspa\b/],
+  ["sauna", /sauna|steam room/],
+  ["bathroom", /bathroom|\bbaths?\b|bathtub|\btub\b|shower|washroom|restroom|lavatory|toilet|\bloo\b|en ?suite|powder room|bathhouse|\bspa\b/],
   ["treehouse", /tree ?house|tree fort/],
   ["tent", /\btents?\b|pavilion|\byurt|marquee/],
   ["camp", /\bcamp|encampment|bivouac|campfire|battlefield|war ?camp|\bsiege\b|front line/],
@@ -317,7 +344,11 @@ const RULES: [Place, RegExp][] = [
   ["recroom", /rec room|rumpus room|finished basement/],
   ["basement", /basement|boiler room|root cellar/],
   ["pantry", /pantry|larder/],
-  ["cellar", /cellar|wine vault|storeroom|undercroft|panic room|safe room|secret room|hidden room/],
+  ["winecellar", /wine cellar|wine vault|tasting room/],
+  ["panicroom", /panic room|safe room/],
+  ["hiddenroom", /secret room|hidden room|secret passage|priest hole/],
+  ["crawlspace", /crawl ?space|under ?stairs|cupboard under/],
+  ["cellar", /cellar|storeroom|undercroft/],
   ["kitchen", /scullery|castle kitchen|\bkitchens\b/],
   ["homekitchen", /kitchen/],
   ["laundryroom", /laundry room|utility room/],
@@ -325,6 +356,17 @@ const RULES: [Place, RegExp][] = [
   ["homelibrary", /home library/],
   ["homeoffice", /home office/],
   ["homebar", /home bar|wet bar|basement bar/],
+  ["playroom", /play ?room|toy room/],
+  ["craftroom", /craft room|sewing room|hobby room/],
+  ["atelier", /painting room|artist'?s room|art studio|atelier/],
+  ["trophyroom", /trophy room|gun room|hunting room/],
+  ["dressing", /dressing room|boudoir|vanity room/],
+  ["longgallery", /long gallery|portrait (?:gallery|hall)/],
+  ["atrium", /atrium|light well|inner courtyard/],
+  ["screenporch", /screen(?:ed)? porch|sleeping porch|\blanai\b/],
+  ["patio", /\bpatio\b|back ?yard/],
+  ["beachhouse", /beach ?house|shore house|seaside cottage/],
+  ["dorm", /\bdorm\b|dormitory room|student room/],
   ["musicroom", /music room|piano room/],
   ["kidsroom", /kid'?s'? room|child'?s room|children'?s room|boy'?s room|girl'?s room/],
   ["teenroom", /teen(?:ager)?'?s'? room/],
@@ -359,11 +401,12 @@ const RULES: [Place, RegExp][] = [
   ["stable", /stables?\b|hayloft|\bbarn\b|horse stall|kennel|tack room|\bcoop\b/],
   ["attic", /\battic|garret|\bloft\b/],
   ["den", /family room|\bden\b|\btv room|\bsnug\b/],
-  ["cabin", /\bcabin|log house|\blodge\b|chalet|\bhut\b|\bshack\b|\btrailers?\b(?! park)|mobile home|\brv\b|\bcamper\b/],
-  ["living", new RegExp(String.raw`living ?room|lounge room|(?:craft|sewing|hobby|trophy|gun) room|play ?room|\bsofa|\bcouch|${HOME_WORDS}`)],
+  ["cabin", /\bcabin|log house|\blodge\b|chalet|\bhut\b|\bshack\b/],
+  ["trailer", /\btrailers?\b(?! park)|mobile home|\brv\b|\bcamper\b/],
+  ["living", new RegExp(String.raw`living ?room|lounge room|\bsofa|\bcouch|${HOME_WORDS}`)],
   ["masterbedroom", /(?:master|primary) (?:bedroom|suite|room)/],
   ["nursery", /nursery|baby'?s room/],
-  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|\bdorm\b|\bsuite\b/],
+  ["bedroom", /bedroom|\bbed\b|chamber|quarters|\broom\b|bunk|dormitor|\bsuite\b/],
   ["cave", /\bcaves?\b|cavern|grotto|\bmines?\b|tunnel|underground|burrow|catacomb/],
   ["volcano", /volcan|\blava\b|magma|caldera|ashland/],
   ["graveyard", /grave|cemetery|\btomb|barrow|mausoleum|churchyard|necropolis/],
@@ -386,18 +429,19 @@ const RULES: [Place, RegExp][] = [
   ["rooftops", /rooftop|\broofs?\b|belfry|balcony|terrace|parapet|clock ?tower|bell tower/],
   ["city", /downtown|skyscraper|\bmetro\b|subway|neon|highway|tower block|skyline|avenue|hotel|campus|\bmall\b|parking|car park|station|lobby|elevator/],
   ["street", /street|alley|\blane\b|\btown\b|\bcity\b|quarter|district|borough|\bslums?\b/],
-  ["village", /village|hamlet|\bfarm|homestead|cottage|\bcroft|\bmill\b/],
+  ["cottage", /\bcottage|\bcroft\b/],
+  ["village", /village|hamlet|\bfarm|homestead|\bmill\b/],
   ["road", /\broads?\b|\bpath\b|\btrail\b|\btrack\b|caravan|wagon|crossroad|kingsroad|on the way|journey/],
-  ["meadow", /garden|meadow|\bfields?\b|courtyard|\bpark\b|glade|orchard|\blawn|\bpatio\b|back ?yard|front ?yard/],
+  ["meadow", /garden|meadow|\bfields?\b|courtyard|\bpark\b|glade|orchard|\blawn|front ?yard/],
   ["forest", /forest|\bwoods?\b|\bpines?\b|\bgrove|thicket|\bcopse|godswood|weirwood|wolfswood/],
 ];
 
 /** Somewhere old-world: its kitchen has a hearth and its office is a study. */
 const OLD_WORLD = /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b|abbey|monastery|priory|\binn\b|tavern|\bsept\b|village|hamlet|\bcroft/;
-export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", hometheater: "hall", basement: "cellar", recroom: "cellar", homegym: "hall", penthouse: "hall", studioapt: "bedroom", loft: "attic", teenroom: "bedroom", sunroom: "greenhouse" };
+export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", hometheater: "hall", basement: "cellar", recroom: "cellar", homegym: "hall", penthouse: "hall", studioapt: "bedroom", loft: "attic", teenroom: "bedroom", sunroom: "greenhouse", dorm: "bedroom", panicroom: "cellar" };
 
 /** A public kind of place, when the word for it comes inside someone's home: the home bar, not a pub. */
-const HOMELY: Partial<Record<Place, Place>> = { theater: "hometheater", library: "homelibrary", office: "homeoffice", arcade: "gameroom", tavern: "homebar", rooftops: "balcony", laundromat: "laundryroom", hospital: "bedroom", hall: "hallway", deck: "porch" };
+const HOMELY: Partial<Record<Place, Place>> = { theater: "hometheater", library: "homelibrary", office: "homeoffice", arcade: "gameroom", tavern: "homebar", rooftops: "balcony", laundromat: "laundryroom", hospital: "sickroom", hall: "hallway", deck: "porch" };
 /** A home can have these for real. */
 const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
 
