@@ -7,7 +7,7 @@ describe("places", () => {
   test("every kind of place is listed once", () => {
     const ids = PLACES.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(148);
+    expect(ids.length).toBe(153);
   });
 
   test.each([
@@ -209,7 +209,7 @@ describe("Westeros", () => {
     [["Harrenhal", "the dungeons"], "dungeon"],
     [["Harrenhal", "the kitchens"], "kitchen"],
     [["Harrenhal", "Lord Bolton's solar"], "solar"],
-    [["Harrenhal", "the tourney field"], "camp"],
+    [["Harrenhal", "the tourney field"], "tiltyard"],
     [["Harrenhal", "the Gods Eye"], "lake"],
     [["the Gods Eye"], "lake"],
   ] as const)("Harrenhal: %p reads as %s", (path, kind) => {
@@ -221,7 +221,7 @@ describe("Westeros", () => {
     [["King’s Landing"], "rooftops"],
     [["Kings Landing"], "rooftops"],
     [["King's Landing", "somewhere nobody named"], "rooftops"],
-    [["King's Landing", "Flea Bottom"], "street"],
+    [["King's Landing", "Flea Bottom"], "fleabottom"],
     [["King's Landing", "the Street of Steel"], "street"],
     [["King's Landing", "the Street of Silk"], "street"],
     [["King's Landing", "a brothel"], "tavern"],
@@ -231,13 +231,16 @@ describe("Westeros", () => {
     [["King's Landing", "the Lion Gate"], "street"],
     [["King's Landing", "the Blackwater Rush"], "river"],
     [["King's Landing", "Blackwater Bay"], "shore"],
-    [["King's Landing", "the Dragonpit"], "ruins"],
-    [["King's Landing", "Rhaenys's Hill"], "ruins"],
-    [["King's Landing", "Visenya's Hill"], "temple"],
+    [["King's Landing", "the Dragonpit"], "dragonpit"],
+    [["King's Landing", "Rhaenys's Hill"], "dragonpit"],
+    [["King's Landing", "Visenya's Hill"], "septsteps"],
     [["King's Landing", "Aegon's High Hill"], "castle"],
-    [["King's Landing", "the Great Sept of Baelor"], "temple"],
-    [["King's Landing", "inside the Great Sept"], "chapel"],
-    [["King's Landing", "the tourney grounds"], "camp"],
+    [["King's Landing", "the Great Sept of Baelor"], "septsteps"],
+    [["King's Landing", "inside the Great Sept"], "greatsept"],
+    [["King's Landing", "the Great Sept of Baelor", "the nave"], "greatsept"],
+    [["King's Landing", "the Great Sept of Baelor", "the steps"], "septsteps"],
+    [["King's Landing", "the statue of Baelor"], "septsteps"],
+    [["King's Landing", "the tourney grounds"], "tiltyard"],
     [["King's Landing", "the Fishmonger's Square"], "market"],
     [["King's Landing", "the Alchemists' Guildhall"], "alchemy"],
     [["the Red Keep"], "castle"],
@@ -292,8 +295,8 @@ describe("Westeros", () => {
     ["the library tower", "library"],
     ["the bell tower", "rooftops"],
     ["the training yard", "trainingyard"],
-    ["the tiltyard", "camp"],
-    ["the lists", "camp"],
+    ["the tiltyard", "tiltyard"],
+    ["the lists", "tiltyard"],
     ["the yard", "bailey"],
     ["the courtyard", "bailey"],
     ["the well", "bailey"],
@@ -420,6 +423,11 @@ describe("Westeros", () => {
     expect(readHome(["Harrenhal"], null, { year: 299, keeps: { harrenhal: { masonry: "fused", banners: ["#000000", "#ffffff"] } } })?.keep?.banners).toEqual([[0, 0, 0], [255, 255, 255]]);
   });
 
+  test("the story's year reaches places that aren't keeps", () => {
+    expect(readHome(["King's Landing", "the Dragonpit"], null, { year: 120 })?.year).toBe(120);
+    expect(readHome(["King's Landing", "the Dragonpit"])).toEqual({ house: "king's landing", style: "old" });
+  });
+
   test("a manse is grand", () => {
     expect(readHome(["Pentos", "Illyrio's manse"])).toEqual({ house: "illyrio's manse", style: "grand" });
   });
@@ -442,8 +450,8 @@ describe("Westeros", () => {
     expect(readPlace(["the ruins"])).toBe("ruins");
     expect(readPlace(["the restored ruins"])).toBe("restored");
     expect(readPlace(["The abbey ruins, rebuilt"])).toBe("restored");
-    expect(readPlace(["King's Landing", "the Dragonpit"])).toBe("ruins");
-    expect(readPlace(["King's Landing", "the rebuilt Dragonpit"])).toBe("restored");
+    expect(readPlace(["the ruins of the abbey"])).toBe("ruins");
+    expect(readPlace(["the rebuilt ruins"])).toBe("restored");
     expect(readPlace(["the restored theatre"])).toBe("theater");
   });
 
