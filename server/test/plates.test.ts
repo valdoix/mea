@@ -47,6 +47,13 @@ describe("scene plates (J1)", () => {
     expect(scenePlates(chatId).calendar).toBe("westeros");
   });
 
+  test("the story's year rides along, on a calendar with years", () => {
+    expect(scenePlates(chatId).states.at(-1)?.year).toBeNull();
+    const m = addMessage(chatId, "assistant", "…", { name: "Mira" });
+    writeEvents(chatId, { messageId: m, swipeIdx: 0 }, linesToOps(["clock: 0299-10-14 09:30"]).ops, "user");
+    expect(scenePlates(chatId).states.at(-1)?.year).toBe(299);
+  });
+
   test("“This keep is…” corrections ride along", () => {
     updateChat(chatId, { settings: { keepStyles: { harrenhal: { masonry: "fused", banners: ["#112233", "#ffeedd"] } } } });
     expect(scenePlates(chatId).keeps).toEqual({ harrenhal: { masonry: "fused", banners: ["#112233", "#ffeedd"] } });

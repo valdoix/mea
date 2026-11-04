@@ -54,6 +54,7 @@ import { KEEP_SCENES } from "./keepscenes";
 import type { SceneOccasion } from "./occasions";
 import { dressScene, stagePainted, stagePlace } from "./occasionscenes";
 import { LAST_HOMES } from "./lasthomes";
+import { SEAT_SCENES, seatView } from "./seatscenes";
 import { MORE_HOMES } from "./morehomes";
 import { clock, drapes, ellipse, grid, lampsOn, none, pick, rr, shut, steam, time } from "./scenebits";
 
@@ -3065,7 +3066,7 @@ const MORE = {
   alchemy,
 } satisfies Partial<Record<Place, (c: Ctx) => Scene>>;
 
-const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES };
+const BUILD: Record<Place, (c: Ctx) => Scene> = { ...SCENES, ...MORE, ...HOME_SCENES, ...MORE_HOMES, ...LAST_HOMES, ...SEAT_SCENES };
 
 export function buildScene(place: Place, seed: string, W: number, H: number, focus: number, mini: boolean, home: Home | null = null, occasion: SceneOccasion | null = null): Scene {
   const dress = home ? dressHome(home) : null;
@@ -3081,6 +3082,6 @@ export function buildScene(place: Place, seed: string, W: number, H: number, foc
   if (painted) return painted(c);
   // A castle has its own stone rooms; and no old-world study looks out on a skyscraper. An old-world stage is always stone.
   const castle = dress?.keep || (old && (kind === "study" || staged)) ? KEEP_SCENES[kind] : undefined;
-  const scene = (castle ?? BUILD[kind] ?? SCENES.hills)(c);
+  const scene = (castle ?? (staged ? undefined : seatView(kind, dress?.house, seed)) ?? BUILD[kind] ?? SCENES.hills)(c);
   return occasion ? dressScene(scene, c, occasion.id, old, occasion.stage) : scene;
 }

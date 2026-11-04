@@ -21,11 +21,14 @@ export interface Look {
   /** The room's cloth: field and charge. */
   cloth: RGB;
   cloth2: RGB;
+  /** A second house's cloth, flown beside the first. */
+  second: [RGB, RGB] | null;
+  dragon: boolean;
   /** How lit the stone stays when the sun has gone. */
   night: number;
 }
 
-const LOOKS: Record<Masonry, Omit<Look, "masonry" | "cloth" | "cloth2">> = {
+const LOOKS: Record<Masonry, Omit<Look, "masonry" | "cloth" | "cloth2" | "second" | "dragon">> = {
   ashlar: { wall: [176, 162, 140], joint: [84, 74, 64], floor: [132, 118, 100], wood: [84, 56, 38], night: 0.36 },
   redstone: { wall: [176, 98, 82], joint: [86, 40, 36], floor: [128, 78, 68], wood: [72, 36, 28], night: 0.38 },
   fused: { wall: [72, 66, 74], joint: [24, 20, 26], floor: [66, 60, 62], wood: [58, 42, 34], night: 0.5 },
@@ -38,7 +41,7 @@ export function keepLook(c: Ctx): Look {
   const base = LOOKS[masonry];
   const fallback: [RGB, RGB] = masonry === "redstone" ? [[150, 28, 40], [214, 170, 80]] : masonry === "fused" ? [[44, 62, 84], [176, 160, 120]] : [c.home?.fabric ?? [46, 84, 120], [214, 196, 150]];
   const [cloth, cloth2] = keep?.banners ?? fallback;
-  return { ...base, masonry, cloth, cloth2 };
+  return { ...base, masonry, cloth, cloth2, second: keep?.second ?? null, dragon: Boolean(keep?.dragon) };
 }
 
 /** A surface in the room's light: day through the windows, or the torches at night. */
@@ -276,6 +279,19 @@ export function shell(c: Ctx, L: Look, o: ShellOpts) {
   }
 
   const under: Paint = (g, E) => {
+    g.save();
+    if (openings) g.clip(outsideOf(c, openings), "evenodd");
+    wallFace(g, E);
+    g.restore();
+    // The stone meets the floor in shadow.
+    const fg = g.createLinearGradient(0, floor - 26 * u, 0, floor);
+    fg.addColorStop(0, rgb(DARK, 0));
+    fg.addColorStop(1, rgb(DARK, 0.32));
+    g.fillStyle = fg;
+    g.fillRect(0, floor - 26 * u, W, 26 * u);
+    stroke(g, flags, tint(E, mix(L.floor, DARK, 0.6), 0.28), 1 * u, 0.5);
+  };
+  const wallFace: Paint = (g, E) => {
     const stone = tint(E, L.wall, L.night);
     for (const b of blocks) {
       g.fillStyle = b.d < 0 ? rgb(DARK, 0.09) : rgb([255, 240, 214], 0.04 + E.day * 0.035);
@@ -301,16 +317,9 @@ export function shell(c: Ctx, L: Look, o: ShellOpts) {
     }
     for (const h of hung) {
       if (h.kind === "tapestry") tapestry(g, E, L, h.x, spring + 10 * u, h.w * 0.56, floor - spring - 60 * u, u);
-      else if (h.kind === "banner") banner(g, E, L, h.x, spring + 6 * u, 46 * u, floor - spring - 100 * u, u);
+      else if (h.kind === "banner") banner(g, E, L, h.x, spring + 6 * u, 46 * u, floor - spring - 100 * u, u, hung.indexOf(h) % 2 === 1);
       else if (h.kind === "shields") shields(g, E, L, h.x, (spring + floor) * 0.47, u);
     }
-    // The stone meets the floor in shadow.
-    const fg = g.createLinearGradient(0, floor - 26 * u, 0, floor);
-    fg.addColorStop(0, rgb(DARK, 0));
-    fg.addColorStop(1, rgb(DARK, 0.32));
-    g.fillStyle = fg;
-    g.fillRect(0, floor - 26 * u, W, 26 * u);
-    stroke(g, flags, tint(E, mix(L.floor, DARK, 0.6), 0.28), 1 * u, 0.5);
   };
   const over: Paint = (g, E) => {
     if (L.masonry !== "fused") stroke(g, rushes, tint(E, [176, 150, 88], 0.34), 1.1 * u, 0.42);
@@ -323,8 +332,25 @@ export function shell(c: Ctx, L: Look, o: ShellOpts) {
   return { under, over, spring };
 }
 
+/** Everything but a window: clip to this, evenodd, and nothing paints over the sky. */
+export function outsideOf(c: Ctx, win: Path2D) {
+  const p = new Path2D();
+  p.rect(0, 0, c.W, c.H);
+  p.addPath(win);
+  return p;
+}
+
+/** The room being painted's windows, so the shell's stone stops at them. */
+let openings: Path2D | null = null;
+
 /** A castle room: the shell's light and materials round what `furnish` paints. */
 export function keepRoom(c: Ctx, L: Look, win: Path2D, outside: Paint, furnish: Paint, floor: number): Scene {
+  const inner = furnish;
+  furnish = (g, E) => {
+    openings = win;
+    inner(g, E);
+    openings = null;
+  };
   return room(c, win, L.wall, outside, furnish, floor, { floorHue: L.floor, lift: (E) => Math.max(L.night, 0.2 + E.day * 0.55 * (1 - E.c.cloud * 0.4)), vignette: 0.2 });
 }
 
@@ -362,9 +388,10 @@ export function tapestry(g: G, E: Env, L: Look, x: number, y: number, w: number,
   for (let fx = x0 + 2 * u; fx < x0 + w; fx += 5 * u) g.fillRect(fx, y + h, 1.8 * u, 5 * u);
 }
 /** A long swallow-tailed banner of the castle's colours. */
-export function banner(g: G, E: Env, L: Look, x: number, y: number, w: number, h: number, u: number) {
-  const a = tint(E, L.cloth, 0.32);
-  const b = tint(E, L.cloth2, 0.34);
+export function banner(g: G, E: Env, L: Look, x: number, y: number, w: number, h: number, u: number, other = false) {
+  const pair = other && L.second ? L.second : ([L.cloth, L.cloth2] as [RGB, RGB]);
+  const a = tint(E, pair[0], 0.32);
+  const b = tint(E, pair[1], 0.34);
   const shape = new Path2D();
   poly(shape, x - w / 2, y, x + w / 2, y, x + w / 2, y + h, x, y + h - w * 0.42, x - w / 2, y + h);
   g.fillStyle = rgb(DARK, 0.26);
@@ -377,7 +404,8 @@ export function banner(g: G, E: Env, L: Look, x: number, y: number, w: number, h
   g.clip(shape);
   g.fillStyle = rgb(b);
   g.fillRect(x - w / 2, y + h * 0.1, w, 3.4 * u);
-  g.fillRect(x - w * 0.11, y, w * 0.22, h);
+  if (L.dragon) dragonSigil(g, x, y + h * 0.42, w * 0.46);
+  else g.fillRect(x - w * 0.11, y, w * 0.22, h);
   // One long fold.
   const fold = g.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
   fold.addColorStop(0, rgb(DARK, 0.22));
@@ -389,6 +417,37 @@ export function banner(g: G, E: Env, L: Look, x: number, y: number, w: number, h
   g.fillStyle = "rgb(30,22,18)";
   g.fillRect(x - w / 2 - 4 * u, y - 3 * u, w + 8 * u, 3.4 * u);
 }
+/** The three-headed dragon, as one small silhouette in the current fill. */
+function dragonSigil(g: G, x: number, y: number, s: number) {
+  const p = new Path2D();
+  // The body, coiled low, and wings up behind it.
+  p.moveTo(x - s * 0.5, y + s * 0.74);
+  p.quadraticCurveTo(x - s * 0.74, y + s * 0.18, x - s * 0.34, y + s * 0.1);
+  p.lineTo(x - s * 0.62, y - s * 0.32);
+  p.lineTo(x - s * 0.18, y - s * 0.02);
+  p.lineTo(x, y - s * 0.42);
+  p.lineTo(x + s * 0.18, y - s * 0.02);
+  p.lineTo(x + s * 0.62, y - s * 0.32);
+  p.lineTo(x + s * 0.34, y + s * 0.1);
+  p.quadraticCurveTo(x + s * 0.74, y + s * 0.18, x + s * 0.5, y + s * 0.74);
+  p.quadraticCurveTo(x + s * 0.2, y + s * 0.42, x, y + s * 0.84);
+  p.quadraticCurveTo(x - s * 0.2, y + s * 0.42, x - s * 0.5, y + s * 0.74);
+  p.closePath();
+  // Three necks and heads.
+  for (const [dx, up, lean] of [[-0.42, 0.74, -0.34], [0, 0.98, 0.02], [0.42, 0.74, 0.34]] as const) {
+    const nx = x + dx * s;
+    const hx = nx + lean * s * 0.5;
+    const hy = y - up * s;
+    p.moveTo(nx - s * 0.08, y + s * 0.02);
+    p.quadraticCurveTo(hx - s * 0.1, y - up * s * 0.52, hx - s * 0.05, hy);
+    p.lineTo(hx + (dx <= 0 ? -s * 0.24 : s * 0.24), hy + s * 0.06);
+    p.lineTo(hx + s * 0.06, hy + s * 0.14);
+    p.quadraticCurveTo(hx + s * 0.1, y - up * s * 0.5, nx + s * 0.08, y + s * 0.02);
+    p.closePath();
+  }
+  g.fill(p);
+}
+
 /** Two shields over crossed spears. */
 export function shields(g: G, E: Env, L: Look, x: number, y: number, u: number) {
   const steel = tint(E, [160, 160, 168], 0.36);

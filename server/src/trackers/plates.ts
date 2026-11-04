@@ -1,5 +1,6 @@
 import { all, parseJson } from "../db/db";
 import { type ChatSettings, mustChat } from "../services/chats";
+import { asCalendar, describeWhen } from "./calendars";
 import { parseStoryTime } from "./clock";
 import { calendarToday } from "./note";
 import { currentFold, foldAt, trackerConfig } from "./store";
@@ -21,6 +22,8 @@ export interface PlateState {
   minutes: number | null;
   /** An event under way, in the model's words. */
   occasion: string | null;
+  /** The story's year, on a calendar with years. */
+  year: number | null;
 }
 
 export function scenePlates(chatId: string) {
@@ -28,6 +31,7 @@ export function scenePlates(chatId: string) {
   const fold = currentFold(chatId).result;
   const msgs = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL ORDER BY seq", chatId);
   const out: PlateState[] = [];
+  const cal = asCalendar(trackerConfig(chatId).calendar);
   // Where the story starts (the opening's records aren't tied to a message).
   const start = foldAt(chatId, { uptoSeq: 0 }).state;
   let place: string[] = [...start.place];
@@ -35,7 +39,8 @@ export function scenePlates(chatId: string) {
   let hour: number | null = start.time ? (((start.time.minutes % 1440) + 1440) % 1440) / 60 : null;
   let minutes: number | null = start.time?.minutes ?? null;
   let occasion: string | null = start.occasion?.now ?? null;
-  if (place.length || weather || hour != null) out.push({ seq: 0, place: [...place], weather, hour, minutes, occasion });
+  let year: number | null = start.time ? describeWhen(start.time, cal).year : null;
+  if (place.length || weather || hour != null) out.push({ seq: 0, place: [...place], weather, hour, minutes, occasion, year });
   for (const m of msgs) {
     const changes = fold.changes[m.id] ?? [];
     let moved = false;
@@ -54,11 +59,12 @@ export function scenePlates(chatId: string) {
         if (t) {
           hour = (((t.minutes % 1440) + 1440) % 1440) / 60;
           minutes = t.minutes;
+          year = describeWhen(t, cal).year;
           moved = true;
         }
       }
     }
-    if (moved) out.push({ seq: m.seq, place: [...place], weather, hour, minutes, occasion });
+    if (moved) out.push({ seq: m.seq, place: [...place], weather, hour, minutes, occasion, year });
   }
   const settings = parseJson<ChatSettings>(chat.settings, {});
   const dated = Object.values(fold.state.calendar)

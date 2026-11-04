@@ -12,7 +12,7 @@
    * plates, so each paints only near the screen and keeps no painter afterwards. The current
    * scene's plate repaints as the clock moves. ⋯ › This place is… corrects the kind.
    */
-  let { place, weather, hour, kind = null, title = "", onkind, styles = null, onstyle, calendar = null, keeps = null, onkeep, occasion = null, fix = null, dated = null, minutes = null, today = null, onoccasion }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void; styles?: Record<string, string> | null; onstyle?: (house: string, style: HomeStyle) => void; calendar?: string | null; keeps?: Record<string, KeepStyle> | null; onkeep?: (house: string, style: KeepStyle) => void; occasion?: string | null; fix?: string | null; dated?: { title: string; at: number }[] | null; minutes?: number | null; today?: string[] | null; onoccasion?: (id: string) => void } = $props();
+  let { place, weather, hour, kind = null, title = "", onkind, styles = null, onstyle, calendar = null, keeps = null, onkeep, occasion = null, fix = null, dated = null, minutes = null, today = null, onoccasion, year = null }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void; styles?: Record<string, string> | null; onstyle?: (house: string, style: HomeStyle) => void; calendar?: string | null; keeps?: Record<string, KeepStyle> | null; onkeep?: (house: string, style: KeepStyle) => void; occasion?: string | null; fix?: string | null; dated?: { title: string; at: number }[] | null; minutes?: number | null; today?: string[] | null; onoccasion?: (id: string) => void; year?: number | null } = $props();
 
   const name = $derived(place.at(-1) ?? "");
   const world = $derived(worldOf(calendar));
@@ -24,7 +24,7 @@
   });
   // An unset clock paints the evening, as the scene window does.
   const h = $derived(hour ?? 20);
-  const home = $derived(readHome(place, styles, { world, keeps }));
+  const home = $derived(readHome(place, styles, { world, keeps, year }));
   const scene = $derived<StillScene>({ hour: h, weather: readWeather(weather), place: k, seed: name, home, focus: app.isMobile ? 0.64 : 0.72, mini: true, occasion: occ });
 
   let canvas = $state<HTMLCanvasElement | null>(null);

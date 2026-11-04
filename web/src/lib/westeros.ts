@@ -4,7 +4,7 @@
  * is, and moves to its own as those are painted. Names that could be anything ("the Wall", "the
  * Twins") only count in a chat on the Westeros calendar, so a modern story keeps its own.
  */
-import type { Masonry, Place } from "./places";
+import type { Masonry, Place, RGB } from "./places";
 
 /** The world a chat is set in, from its calendar. */
 export type World = "westeros" | null;
@@ -17,6 +17,22 @@ const SEATS = String.raw`harrenhal|winterfell|red keep|maegor|riverrun|eyrie|sto
 export const KEEP = new RegExp(String.raw`castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|\bmanor|\bfort\b|${SEATS}`);
 /** What a castle is built of, where the books say. Anywhere else is dressed pale stone. */
 export const masonryOf = (house: string): Masonry => (/red keep|maegor/.test(house) ? "redstone" : /harrenhal/.test(house) ? "fused" : "ashlar");
+type Cloth = [RGB, RGB];
+const TARGARYEN: Cloth = [[24, 20, 24], [176, 30, 36]];
+const BARATHEON: Cloth = [[210, 164, 52], [26, 22, 22]];
+const LANNISTER: Cloth = [[150, 26, 34], [218, 174, 76]];
+const WHENT: Cloth = [[206, 164, 60], [28, 24, 28]];
+
+/** docs/25 §2.4: whose colours a castle flies in a given year. With no clock it's about 298 AC. */
+export function flownAt(house: string, year?: number | null): { banners?: Cloth; second?: Cloth; dragon?: boolean } {
+  const y = year ?? 298;
+  if (/red keep|maegor/.test(house)) {
+    if (y < 283) return { banners: TARGARYEN, dragon: true };
+    return y < 298 ? { banners: BARATHEON } : { banners: BARATHEON, second: LANNISTER };
+  }
+  if (/harrenhal/.test(house)) return { banners: y < 299 ? WHENT : LANNISTER };
+  return {};
+}
 /** A city, not a castle: it has a castle in it. */
 export const KINGS_LANDING = /king'?s landing/;
 
@@ -37,17 +53,23 @@ const named = (kind: Place, part: RegExp, more: Omit<Named, "kind" | "part"> = {
 /** Most specific first. */
 export const NAMED: Named[] = [
   // Harrenhal
-  named("ruins", /kingspyre|wailing tower|tower of (?:dread|ghosts)|widow'?s tower|flowstone/),
-  named("ruins", /bear ?pit|\bsept\b/, { within: /harrenhal/ }),
+  named("hundredhearths", /hundred hearths/),
+  named("meltedtower", /kingspyre|wailing tower|tower of (?:dread|ghosts)|widow'?s tower/),
+  named("meltedtower", /\btowers?\b/, { within: /harrenhal/ }),
+  named("flowstoneyard", /flowstone/),
+  named("bearpit", /bear ?pit/, { within: /harrenhal/ }),
+  named("ruinsept", /\bsept\b/, { within: /harrenhal/ }),
   named("lake", /gods?'? eye/),
   named("forest", /isle of faces/),
   // The Red Keep
-  named("castle", /maegor'?s/),
+  named("holdfast", /maegor'?s/),
+  named("ballroom", /queen'?s ballroom/),
   named("hallway", /traitor'?s walk/),
   named("staircase", /serpentine/),
   named("parlor", /maidenvault/),
-  named("cellar", /dragon skulls?|skull cellar/),
-  named("study", /tower of the hand|hand'?s (?:solar|tower|chambers?)|white sword|round room/),
+  named("skullcellar", /dragon skulls?|skull cellar/),
+  named("roundroom", /white sword|round room/),
+  named("study", /tower of the hand|hand'?s (?:solar|tower|chambers?)/),
   // King's Landing
   named("chapel", /inside the great sept/),
   named("temple", /great sept|sept of (?:baelor|remembrance)|visenya'?s hill/),
@@ -70,6 +92,8 @@ export const NAMED: Named[] = [
 
 /** Rooms of a castle, by their castle names. Only read in or near one, or in a Westeros chat. */
 export const KEEP_ROOMS: [Place, RegExp][] = [
+  ["throneroom", /\bthrone\b/],
+  ["ballroom", /ballroom/],
   ["alchemy", /maester(?!'?s? office)/],
   ["attic", /rookery|ravenry|servants'? (?:quarters|cells|loft)|maids'? (?:quarters|rooms?)/],
   ["stable", /\bmews\b|falconry/],

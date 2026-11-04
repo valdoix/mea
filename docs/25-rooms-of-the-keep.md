@@ -1,6 +1,6 @@
 # Design plan: Harrenhal, King's Landing and occasions
 
-**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–5 built, Parts 6–9 to come.
+**Written:** November 4, 2026 · **Base:** Mea `main` at 81f0ac8 · **Status:** decisions made (§9). Parts 1–6 built, Parts 7–9 to come.
 
 Follows [docs/24](24-rooms-of-the-house.md), which gave plates one painter and 54 rooms of a house. This plan does two things:
 
@@ -125,7 +125,7 @@ Canon changes these places over time, and the clock already knows the year. With
 | Dragonpit | Whole dome until 130 AC | Ruined dome from 130 AC |
 | Harrenhal's holder | Whent until 299 AC | Lannister from 299 AC. **This keep is…** covers others, like Bolton or Strong |
 
-Banner colours get checked against the books before they're painted. **Only the Targaryen banner carries a sigil:** a three-headed dragon as one small path. Every other house uses its plain two-colour field. Banners appear in state rooms, yards and walls, not in cellars.
+Banner colours were set from memory of the books: Whent's gold and black is the one to check, and **This keep is…** overrides any of them. **Only the Targaryen banner carries a sigil:** a three-headed dragon as one small path. Every other house uses its plain two-colour field. Banners appear in state rooms, yards and walls, not in cellars.
 
 ### 2.5 Portraits
 

@@ -195,7 +195,7 @@
   let searchQ = $state("");
   let boundaries = $state<Boundary[]>([]);
   // J1: the place, weather and hour over the story, for the scene plates.
-  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null; minutes?: number | null; occasion?: string | null }[]; kinds: Record<string, string>; styles?: Record<string, string>; keeps?: Record<string, KeepStyle>; calendar?: string; occasions?: Record<string, string>; dated?: { title: string; at: number }[]; today?: string[] }>({ states: [], kinds: {} });
+  let plates = $state<{ states: { seq: number; place: string[]; weather: string | null; hour: number | null; minutes?: number | null; occasion?: string | null; year?: number | null }[]; kinds: Record<string, string>; styles?: Record<string, string>; keeps?: Record<string, KeepStyle>; calendar?: string; occasions?: Record<string, string>; dated?: { title: string; at: number }[]; today?: string[] }>({ states: [], kinds: {} });
   async function loadPlates() {
     if (!device.plates) return;
     try {
@@ -1375,7 +1375,7 @@
                 {@const Icon = sceneIcon(b)}
                 {#if device.plates && plates.states.length}
                   {@const ps = plateAt(b.startSeq)}
-                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} styles={plates.styles} onstyle={setHouseStyle} calendar={plates.calendar} keeps={plates.keeps} onkeep={setKeepStyle} occasion={ps.occasion} fix={plates.occasions?.[String(b.startSeq)]} dated={plates.dated} minutes={ps.minutes} today={b.startSeq >= lastSceneStart ? plates.today : null} onoccasion={(o) => void setOccasion(b.startSeq, o)} />{/if}
+                  {#if ps && ps.place.length}<ScenePlate place={ps.place} weather={ps.weather} hour={ps.hour} kind={plates.kinds[ps.place.at(-1) ?? ""] ?? null} title={b.title} onkind={setPlaceKind} styles={plates.styles} onstyle={setHouseStyle} calendar={plates.calendar} keeps={plates.keeps} onkeep={setKeepStyle} occasion={ps.occasion} fix={plates.occasions?.[String(b.startSeq)]} dated={plates.dated} minutes={ps.minutes} year={ps.year} today={b.startSeq >= lastSceneStart ? plates.today : null} onoccasion={(o) => void setOccasion(b.startSeq, o)} />{/if}
                 {/if}
                 <a class="scene-h" href="/chat/{id}/memory" title="Open this scene in memory">
                   <span class="sc-line"></span>

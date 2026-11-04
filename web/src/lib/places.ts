@@ -2,7 +2,7 @@
  * The kinds of place a scene window can paint, how a place's name is read into one, and the
  * colour helpers the painter shares (the painting itself is in scenes.ts).
  */
-import { KEEP, KEEP_ROOMS, KEEP_TOWER, KINGS_LANDING, masonryOf, NAMED, type World } from "./westeros";
+import { flownAt, KEEP, KEEP_ROOMS, KEEP_TOWER, KINGS_LANDING, masonryOf, NAMED, type World } from "./westeros";
 
 export type RGB = [number, number, number];
 export const TAU = Math.PI * 2;
@@ -54,6 +54,12 @@ export interface Keep {
   masonry: Masonry;
   /** The field and charge of its cloth. */
   banners?: [RGB, RGB];
+  /** A second house's cloth flown beside it. */
+  second?: [RGB, RGB];
+  /** Its banners carry the Targaryen dragon. */
+  dragon?: boolean;
+  /** The story's year, for what the castle held then. */
+  year?: number;
 }
 export const HOME_STYLES: { id: HomeStyle; label: string }[] = [
   { id: "modern", label: "Modern" },
@@ -314,6 +320,26 @@ export const PLACE_GROUPS = [
       { id: "space", label: "Space" },
     ],
   },
+  {
+    label: "The Red Keep",
+    kinds: [
+      { id: "throneroom", label: "Throne room" },
+      { id: "ballroom", label: "Queen's Ballroom" },
+      { id: "roundroom", label: "Round Room" },
+      { id: "holdfast", label: "Maegor's Holdfast" },
+      { id: "skullcellar", label: "Dragon skulls" },
+    ],
+  },
+  {
+    label: "Harrenhal",
+    kinds: [
+      { id: "hundredhearths", label: "Hall of a Hundred Hearths" },
+      { id: "meltedtower", label: "Inside a melted tower" },
+      { id: "flowstoneyard", label: "Flowstone Yard" },
+      { id: "bearpit", label: "Bear pit" },
+      { id: "ruinsept", label: "Ruined sept" },
+    ],
+  },
 ] as const;
 export type Place = (typeof PLACE_GROUPS)[number]["kinds"][number]["id"];
 export const PLACES = PLACE_GROUPS.flatMap((g) => g.kinds as readonly { id: Place; label: string }[]);
@@ -463,7 +489,7 @@ const STAYS_GRAND = /ballroom|throne|banquet|great hall/;
 
 /** Kinds with no indoors for a hallway or a staircase to take after. */
 const OUTSIDE = new Set<Place>([...PLACE_GROUPS[0].kinds, ...PLACE_GROUPS[1].kinds].map((k) => k.id));
-for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space"] as const) OUTSIDE.add(k);
+for (const k of ["village", "road", "street", "market", "rooftops", "city", "ruins", "graveyard", "pool", "hotspring", "deck", "space", "holdfast", "flowstoneyard", "bearpit"] as const) OUTSIDE.add(k);
 
 /** Between rooms with their own painting. */
 const BETWEEN: [Place, RegExp][] = [
@@ -485,6 +511,8 @@ export interface ReadOptions {
   world?: World;
   /** Your "This keep is…" corrections, by house. */
   keeps?: Record<string, { masonry: string; banners?: string[] }> | null;
+  /** The story's year, for what a castle flew and held then. */
+  year?: number | null;
 }
 
 /** Lowercase, with a typed or curly apostrophe alike: models write King’s Landing as often as King's. */
@@ -560,7 +588,7 @@ export function readHome(path: string[] | null | undefined, styles?: Record<stri
   if (!house) return null;
   const own = styles?.[house];
   const withKeep = (style: HomeStyle): Home => {
-    const keep = style === "old" ? keepOf(house, westeros, opts.keeps?.[house]) : null;
+    const keep = style === "old" ? keepOf(house, westeros, opts.keeps?.[house], opts.year) : null;
     return keep ? { house, style, keep } : { house, style };
   };
   if (own && HOME_STYLES.some((s) => s.id === own)) return withKeep(own as HomeStyle);
@@ -573,13 +601,14 @@ export function readHome(path: string[] | null | undefined, styles?: Record<stri
 const NOT_STONE = /\binn\b|tavern|village|hamlet|\bcroft|cottage|farm|\btown\b|\bstreet\b|\bmanor|\bhut\b|\bshack|\bcabin/;
 
 /** Whether a place is built like a castle, and of what. Your own word beats the place's name. */
-function keepOf(house: string, westeros: boolean, own?: { masonry: string; banners?: string[] }): Keep | null {
+function keepOf(house: string, westeros: boolean, own?: { masonry: string; banners?: string[] }, year?: number | null): Keep | null {
   const banners = own?.banners?.length === 2 && own.banners.every((b) => /^#[0-9a-f]{6}$/i.test(b)) ? ([hex(own.banners[0]!), hex(own.banners[1]!)] as [RGB, RGB]) : undefined;
-  if (own && MASONRIES.some((m) => m.id === own.masonry)) return banners ? { masonry: own.masonry as Masonry, banners } : { masonry: own.masonry as Masonry };
+  const when = year != null ? { year } : {};
+  if (own && MASONRIES.some((m) => m.id === own.masonry)) return banners ? { masonry: own.masonry as Masonry, banners, ...when } : { masonry: own.masonry as Masonry, ...when };
   const stone = !NOT_STONE.test(house) && (westeros || KEEP.test(house) || /abbey|monastery|priory|\bsept\b/.test(house));
   if (!stone) return null;
   const masonry = masonryOf(house);
-  return banners ? { masonry, banners } : { masonry };
+  return banners ? { masonry, banners, ...when } : { masonry, ...flownAt(house, year), ...when };
 }
 
 const pickOf = <T>(r: () => number, a: readonly T[]): T => a[(r() * a.length) | 0]!;

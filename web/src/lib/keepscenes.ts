@@ -118,7 +118,7 @@ function hall(c: Ctx): Scene {
     (g, E) => {
       S.under(g, E);
       glass.paint(g, E);
-      for (const s of [-72, 72]) banner(g, E, L, dx + s * u, H * 0.13, 56 * u, H * 0.42, u);
+      for (const s of [-72, 72]) banner(g, E, L, dx + s * u, H * 0.13, 56 * u, H * 0.42, u, s > 0);
       fireplace(g, E);
       glass.light(g, E, floor);
       fill(g, dais, tint(E, mix(L.floor, L.wall, 0.5), 0.32));
