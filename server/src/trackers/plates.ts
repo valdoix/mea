@@ -1,13 +1,14 @@
 import { all, parseJson } from "../db/db";
 import { type ChatSettings, mustChat } from "../services/chats";
 import { parseStoryTime } from "./clock";
-import { currentFold, foldAt } from "./store";
+import { currentFold, foldAt, trackerConfig } from "./store";
 
 /**
  * Scene plates (Almanac plan J1): the place, weather and hour the story stood at, message by
  * message, so the chat can draw a plate at each new scene (and the current scene's plate can follow
  * the clock). Only the moments something changed are listed. Your "This place is…" corrections
- * (chat settings `placeKinds`) ride along.
+ * (chat settings `placeKinds`) ride along, and the chat's calendar, because a Westeros chat reads its
+ * places as Westeros.
  */
 
 export interface PlateState {
@@ -49,5 +50,5 @@ export function scenePlates(chatId: string) {
     if (moved) out.push({ seq: m.seq, place: [...place], weather, hour });
   }
   const settings = parseJson<ChatSettings>(chat.settings, {});
-  return { states: out, kinds: settings.placeKinds ?? {}, styles: settings.houseStyles ?? {} };
+  return { states: out, kinds: settings.placeKinds ?? {}, styles: settings.houseStyles ?? {}, calendar: trackerConfig(chatId).calendar };
 }

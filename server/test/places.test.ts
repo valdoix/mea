@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { dressHome, PLACES, readHome, readPlace } from "../../web/src/lib/places";
+import { worldOf } from "../../web/src/lib/westeros";
 
 /** The scene window reads a place's name into a kind of place to paint (web/src/lib/places.ts). */
 describe("places", () => {
@@ -180,6 +181,245 @@ describe("places", () => {
     [["Downtown", "trailer park"], "meadow"],
   ] as const)("not a home: %p reads as %s", (path, kind) => {
     expect(readPlace([...path])).toBe(kind);
+  });
+});
+
+/** docs/25 Part 1: each place reads as the nearest painting there is, until its own is painted. */
+describe("Westeros", () => {
+  const world = "westeros" as const;
+
+  test.each([
+    [["Harrenhal"], "castle"],
+    [["Harrenhal", "Kingspyre Tower"], "ruins"],
+    [["Harrenhal", "the Wailing Tower"], "ruins"],
+    [["Harrenhal", "the Tower of Dread"], "ruins"],
+    [["Harrenhal", "the Tower of Ghosts"], "ruins"],
+    [["Harrenhal", "Widow's Tower"], "ruins"],
+    [["Harrenhal", "the Widow's Tower"], "ruins"],
+    [["Harrenhal", "the Flowstone Yard"], "ruins"],
+    [["Harrenhal", "the bear pit"], "ruins"],
+    [["Harrenhal", "the sept"], "ruins"],
+    [["Harrenhal", "the Hall of a Hundred Hearths"], "hall"],
+    [["Harrenhal", "the Great Hall"], "hall"],
+    [["Harrenhal", "the armory"], "forge"],
+    [["Harrenhal", "the barracks"], "tavern"],
+    [["Harrenhal", "the rookery"], "attic"],
+    [["Harrenhal", "the walls"], "rooftops"],
+    [["Harrenhal", "the gates"], "castle"],
+    [["Harrenhal", "the dungeons"], "dungeon"],
+    [["Harrenhal", "the kitchens"], "kitchen"],
+    [["Harrenhal", "Lord Bolton's solar"], "library"],
+    [["Harrenhal", "the tourney field"], "camp"],
+    [["Harrenhal", "the Gods Eye"], "lake"],
+    [["the Gods Eye"], "lake"],
+  ] as const)("Harrenhal: %p reads as %s", (path, kind) => {
+    expect(readPlace([...path])).toBe(kind);
+  });
+
+  test.each([
+    [["King's Landing"], "rooftops"],
+    [["King’s Landing"], "rooftops"],
+    [["Kings Landing"], "rooftops"],
+    [["King's Landing", "somewhere nobody named"], "rooftops"],
+    [["King's Landing", "Flea Bottom"], "street"],
+    [["King's Landing", "the Street of Steel"], "street"],
+    [["King's Landing", "the Street of Silk"], "street"],
+    [["King's Landing", "a brothel"], "tavern"],
+    [["King's Landing", "Littlefinger's brothel"], "tavern"],
+    [["King's Landing", "the Mud Gate"], "street"],
+    [["King's Landing", "the King's Gate"], "street"],
+    [["King's Landing", "the Lion Gate"], "street"],
+    [["King's Landing", "the Blackwater Rush"], "river"],
+    [["King's Landing", "Blackwater Bay"], "shore"],
+    [["King's Landing", "the Dragonpit"], "ruins"],
+    [["King's Landing", "Rhaenys's Hill"], "ruins"],
+    [["King's Landing", "Visenya's Hill"], "temple"],
+    [["King's Landing", "Aegon's High Hill"], "castle"],
+    [["King's Landing", "the Great Sept of Baelor"], "temple"],
+    [["King's Landing", "inside the Great Sept"], "chapel"],
+    [["King's Landing", "the tourney grounds"], "camp"],
+    [["King's Landing", "the Fishmonger's Square"], "market"],
+    [["King's Landing", "the Alchemists' Guildhall"], "alchemy"],
+    [["the Red Keep"], "castle"],
+    [["King's Landing", "the Red Keep"], "castle"],
+    [["King's Landing", "the Red Keep", "the gate"], "castle"],
+    [["King's Landing", "the Red Keep", "the Throne Room"], "hall"],
+    [["King's Landing", "the Red Keep", "the Iron Throne"], "hall"],
+    [["King's Landing", "the Red Keep", "the Queen's Ballroom"], "hall"],
+    [["King's Landing", "the Red Keep", "the small council chamber"], "dining"],
+    [["King's Landing", "the Red Keep", "the Tower of the Hand"], "library"],
+    [["King's Landing", "the Red Keep", "the Hand's solar"], "library"],
+    [["King's Landing", "the Red Keep", "the White Sword Tower"], "library"],
+    [["King's Landing", "the Red Keep", "the Round Room"], "library"],
+    [["King's Landing", "the Red Keep", "Maegor's Holdfast"], "castle"],
+    [["Maegor's Holdfast"], "castle"],
+    [["King's Landing", "the Red Keep", "the Maidenvault"], "parlor"],
+    [["King's Landing", "the Red Keep", "the Traitor's Walk"], "hallway"],
+    [["King's Landing", "the Red Keep", "the serpentine steps"], "staircase"],
+    [["King's Landing", "the Red Keep", "the river stairs"], "staircase"],
+    [["King's Landing", "the Red Keep", "the dragon skulls"], "cellar"],
+    [["King's Landing", "the Red Keep", "the Black Cells"], "dungeon"],
+    [["King's Landing", "the Red Keep", "the outer ward"], "street"],
+    [["King's Landing", "the Red Keep", "the Queen's apartments"], "masterbedroom"],
+    [["King's Landing", "the Red Keep", "the royal sept"], "chapel"],
+    [["King's Landing", "the Red Keep", "the godswood"], "forest"],
+    [["King's Landing", "the Red Keep", "the Grand Maester's chambers"], "alchemy"],
+  ] as const)("King's Landing: %p reads as %s", (path, kind) => {
+    expect(readPlace([...path])).toBe(kind);
+  });
+
+  test.each([
+    ["the rookery", "attic"],
+    ["the mews", "stable"],
+    ["the armoury", "forge"],
+    ["the armorer's forge", "forge"],
+    ["the maester's turret", "alchemy"],
+    ["the maester's chambers", "alchemy"],
+    ["the guardroom", "tavern"],
+    ["the guard hall", "tavern"],
+    ["the buttery", "cellar"],
+    ["the brewhouse", "cellar"],
+    ["the bakehouse", "kitchen"],
+    ["the granary", "cellar"],
+    ["the cistern", "cellar"],
+    ["the garderobe", "cellar"],
+    ["the treasury", "library"],
+    ["the map room", "library"],
+    ["the counting room", "library"],
+    ["the council chamber", "dining"],
+    ["the tower", "attic"],
+    ["the broken tower", "attic"],
+    ["the library tower", "library"],
+    ["the bell tower", "rooftops"],
+    ["the training yard", "camp"],
+    ["the tiltyard", "camp"],
+    ["the lists", "camp"],
+    ["the yard", "street"],
+    ["the courtyard", "street"],
+    ["the well", "street"],
+    ["the battlements", "rooftops"],
+    ["the ramparts", "rooftops"],
+    ["the gatehouse", "castle"],
+    ["the portcullis", "castle"],
+    ["the postern", "castle"],
+    ["the sally port", "castle"],
+    ["the drawbridge", "castle"],
+    ["the covered bridge", "hallway"],
+    ["the antechamber", "hallway"],
+    ["the glass gardens", "greenhouse"],
+    ["the hot pools", "hotspring"],
+    ["the infirmary", "sickroom"],
+    ["the laundry", "kitchen"],
+    ["the wash house", "kitchen"],
+    ["the sewing room", "parlor"],
+    ["the ladies' gallery", "parlor"],
+    ["the minstrels' gallery", "hall"],
+    ["the guest house", "bedroom"],
+    ["the lady's chambers", "masterbedroom"],
+    ["the sept", "chapel"],
+    ["the wardrobe", "closet"],
+  ] as const)("a castle's rooms: %s reads as %s", (room, kind) => {
+    expect(readPlace(["Winterfell", room])).toBe(kind);
+  });
+
+  test.each([
+    [["Sunspear"], "castle"],
+    [["Moat Cailin"], "castle"],
+    [["Deepwood Motte"], "castle"],
+    [["Oldtown"], "street"],
+    [["Oldtown", "the Hightower"], "castle"],
+    [["Oldtown", "the Citadel"], "castle"],
+    [["Lannisport"], "street"],
+    [["Barrowton"], "village"],
+    [["Castle Black", "the Wall"], "tundra"],
+    [["Braavos", "the House of Black and White"], "temple"],
+    [["Pentos", "Illyrio's manse"], "living"],
+  ] as const)("elsewhere: %p reads as %s", (path, kind) => {
+    expect(readPlace([...path])).toBe(kind);
+  });
+
+  // Words that could be anything only count in a chat on the Westeros calendar.
+  test.each([
+    [["the Wall"], "hills", "tundra"],
+    [["the Twins"], "hills", "castle"],
+    [["Pyke"], "hills", "castle"],
+    [["the Rock"], "hills", "castle"],
+    [["the tower"], "hills", "attic"],
+    [["the armory"], "hills", "forge"],
+    [["the yard"], "hills", "street"],
+    [["the rookery"], "hills", "attic"],
+    [["the outer ward"], "hospital", "street"],
+    [["the kitchen"], "homekitchen", "kitchen"],
+    [["the office"], "office", "study"],
+    [["the hospital"], "hospital", "sickroom"],
+    [["the sept"], "temple", "temple"],
+    [["Harrenhal", "the wall"], "rooftops", "rooftops"],
+    [["Somewhere"], "hills", "hills"],
+  ] as const)("%p is %s in another story and %s in Westeros", (path, plain, westeros) => {
+    expect(readPlace([...path])).toBe(plain);
+    expect(readPlace([...path], { world: null })).toBe(plain);
+    expect(readPlace([...path], { world })).toBe(westeros);
+  });
+
+  test("the Twins' rooms are in a castle, in Westeros", () => {
+    expect(readPlace(["The Twins", "the armory"], { world })).toBe("forge");
+    expect(readHome(["The Twins", "the Great Hall"], null, { world })).toEqual({ house: "the twins", style: "old" });
+  });
+
+  // Nothing here is a castle, so none of these change.
+  test.each([
+    [["Downtown", "the tower"], "city"],
+    [["Mercy General Hospital", "the ward"], "hospital"],
+    [["Mercy General Hospital", "the outer ward"], "hospital"],
+    [["The armory bar"], "tavern"],
+    [["Greenwich Village", "art gallery"], "gallery"],
+    [["Greenwich Village", "the laundromat"], "laundromat"],
+    [["Greenwich Village", "the hospital"], "hospital"],
+    [["The hotel", "reception"], "office"],
+  ] as const)("not a castle: %p reads as %s", (path, kind) => {
+    expect(readPlace([...path])).toBe(kind);
+  });
+
+  test.each([
+    [["Harrenhal"], "harrenhal"],
+    [["Harrenhal", "the rookery"], "harrenhal"],
+    [["Harrenhal", "the Hall of a Hundred Hearths"], "harrenhal"],
+    [["Harrenhal", "the sept"], "harrenhal"],
+    [["King's Landing", "the Red Keep", "the Queen's apartments"], "the red keep"],
+    [["King's Landing", "the Red Keep", "the royal sept"], "the red keep"],
+    [["King's Landing", "the Red Keep", "the Throne Room"], "the red keep"],
+    [["King's Landing", "Flea Bottom"], "king's landing"],
+    [["King’s Landing", "Flea Bottom"], "king's landing"],
+    [["King's Landing", "the Great Sept of Baelor"], "king's landing"],
+    [["the Great Sept of Baelor"], "the great sept of baelor"],
+    [["Winterfell", "the guest house"], "winterfell"],
+  ] as const)("%p is old-world, in %s", (path, house) => {
+    expect(readHome([...path])).toEqual({ house, style: "old" });
+  });
+
+  test("a manse is grand", () => {
+    expect(readHome(["Pentos", "Illyrio's manse"])).toEqual({ house: "illyrio's manse", style: "grand" });
+  });
+
+  test("everywhere in Westeros is old-world, unless you've said otherwise", () => {
+    expect(readHome(["the kitchen"], null, { world })).toEqual({ house: "the kitchen", style: "old" });
+    expect(readHome(["Lannisport", "the fishmonger"], null, { world })).toEqual({ house: "lannisport", style: "old" });
+    expect(readHome(["Jackie's house", "the den"], null, { world })).toEqual({ house: "jackie's house", style: "old" });
+    expect(readHome(["The mansion"], null, { world })).toEqual({ house: "the mansion", style: "old" });
+    expect(readHome(["Jackie's house", "the den"], { "jackie's house": "grand" }, { world })?.style).toBe("grand");
+    expect(readHome([], null, { world })).toBeNull();
+  });
+
+  test("an apartment outside a castle is still a flat", () => {
+    expect(readHome(["New York", "Jackie's apartment"])).toEqual({ house: "jackie's apartment", style: "humble" });
+    expect(readPlace(["New York", "Jackie's apartment"])).toBe("living");
+  });
+
+  test("the chat's calendar names its world", () => {
+    expect(worldOf("westeros")).toBe("westeros");
+    expect(worldOf("gregorian")).toBeNull();
+    expect(worldOf("custom:westeros-ish")).toBeNull();
+    expect(worldOf(null)).toBeNull();
   });
 });
 

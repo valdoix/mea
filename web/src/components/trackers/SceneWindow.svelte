@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ScenePainter, isPlace, readHome, readPlace, readWeather, type HomeStyle, type Place } from "../../lib/scenery";
+  import { ScenePainter, isPlace, readHome, readPlace, readWeather, worldOf, type HomeStyle, type Place } from "../../lib/scenery";
   import { ChevronDown, ChevronUp, Palette } from "../../lib/icons";
   import { app } from "../../lib/state.svelte";
   import type { StoryWhen } from "../../lib/types";
@@ -23,6 +23,7 @@
     onstyle,
     slim = false,
     onslim,
+    calendar = null,
   }: {
     when: StoryWhen | null;
     weather: string | null;
@@ -34,6 +35,8 @@
     onstyle?: (house: string, style: HomeStyle) => void;
     slim?: boolean;
     onslim?: () => void;
+    /** The chat's calendar: a Westeros chat reads its places as Westeros. */
+    calendar?: string | null;
   } = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -41,8 +44,9 @@
   let picking = $state(false);
 
   const name = $derived(place.at(-1) ?? "");
-  const kindNow = $derived<Place>(isPlace(kind) ? kind : readPlace(place));
-  const home = $derived(readHome(place, styles));
+  const world = $derived(worldOf(calendar));
+  const kindNow = $derived<Place>(isPlace(kind) ? kind : readPlace(place, { world }));
+  const home = $derived(readHome(place, styles, { world }));
   // An unset clock still paints: the evening, which suits most openings.
   const hour = $derived(when?.hour ?? 20);
 

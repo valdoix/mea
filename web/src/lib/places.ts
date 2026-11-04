@@ -2,6 +2,7 @@
  * The kinds of place a scene window can paint, how a place's name is read into one, and the
  * colour helpers the painter shares (the painting itself is in scenes.ts).
  */
+import { KEEP, KEEP_ROOMS, KEEP_TOWER, KINGS_LANDING, NAMED, type World } from "./westeros";
 
 export type RGB = [number, number, number];
 export const TAU = Math.PI * 2;
@@ -304,7 +305,7 @@ export const PLACES = PLACE_GROUPS.flatMap((g) => g.kinds as readonly { id: Plac
 export const isPlace = (s: string | null | undefined): s is Place => PLACES.some((p) => p.id === s);
 
 /** Words that name someone's home. Strict, or it would catch opera house, warehouse and coffee house. */
-const HOME_WORDS = String.raw`apartment|\bflat\b|\bcondo|(?:'s|\bthe|\bmy|\bour|\bhis|\bher|\btheir) (?:house|home|place)\b|\bat home\b|\b(?:old|new|big|little|small|empty|family|safe|country|summer|winter|beach|lake|haunted|guest|town|row|frat) house\b|\bmansion|\bvillas?\b|townhouse|rowhouse|bungalow|\bduplex|penthouse|\bbedsit`;
+const HOME_WORDS = String.raw`apartment|\bflat\b|\bcondo|(?:'s|\bthe|\bmy|\bour|\bhis|\bher|\btheir) (?:house|home|place)\b|\bat home\b|\b(?:old|new|big|little|small|empty|family|safe|country|summer|winter|beach|lake|haunted|guest|town|row|frat) house\b|\bmansion|\bvillas?\b|townhouse|rowhouse|bungalow|\bduplex|penthouse|\bbedsit|\bmanse\b`;
 const HOME = new RegExp(String.raw`${HOME_WORDS}|\bmanor|^home$|^house$`);
 
 /**
@@ -397,7 +398,7 @@ const RULES: [Place, RegExp][] = [
   ["library", /librar|archive|scriptorium|bookshop|bookstore|reading room/],
   ["study", /\bstudy\b|\bsolar\b/],
   ["hall", /throne|great hall|\bhall\b|ballroom|council|audience chamber|banquet|feast/],
-  ["tavern", /tavern|\binn\b|\bbar\b|\bpub\b|saloon|alehouse|canteen|brewery|speakeasy/],
+  ["tavern", /tavern|\binn\b|\bbar\b|\bpub\b|saloon|alehouse|canteen|brewery|speakeasy|brothel|whorehouse|pleasure house/],
   ["stable", /stables?\b|hayloft|\bbarn\b|horse stall|kennel|tack room|\bcoop\b/],
   ["attic", /\battic|garret|\bloft\b/],
   ["den", /family room|\bden\b|\btv room|\bsnug\b/],
@@ -412,7 +413,7 @@ const RULES: [Place, RegExp][] = [
   ["graveyard", /grave|cemetery|\btomb|barrow|mausoleum|churchyard|necropolis/],
   ["ruins", /\bruin|rubble|crumbl|abandoned|forgotten/],
   ["temple", /temple|shrine|cathedral|church|\bsept\b|abbey|monastery|sanctuary|priory/],
-  ["castle", /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b/],
+  ["castle", KEEP],
   ["harbor", /harbou?r|\bport\b|\bdocks?\b|\bpier\b|wharf|\bquay|marina|shipyard/],
   ["sea", /at sea|open sea|ocean|voyage|high seas|the waves/],
   ["beach", /beach|tropic|lagoon|\bpalms?\b|\breef\b|island|sandbar/],
@@ -437,8 +438,8 @@ const RULES: [Place, RegExp][] = [
 ];
 
 /** Somewhere old-world: its kitchen has a hearth and its office is a study. */
-const OLD_WORLD = /castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|winterfell|king's landing|red keep|riverrun|eyrie|storm's end|dragonstone|highgarden|casterly|castle black|\bmanor|\bfort\b|abbey|monastery|priory|\binn\b|tavern|\bsept\b|village|hamlet|\bcroft/;
-export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", hometheater: "hall", basement: "cellar", recroom: "cellar", homegym: "hall", penthouse: "hall", studioapt: "bedroom", loft: "attic", teenroom: "bedroom", sunroom: "greenhouse", dorm: "bedroom", panicroom: "cellar" };
+const OLD_WORLD = new RegExp(String.raw`${KEEP.source}|${KINGS_LANDING.source}|abbey|monastery|priory|\binn\b|tavern|\bsept\b|(?<!greenwich |east |west )village|hamlet|\bcroft`);
+export const OLDER: Partial<Record<Place, Place>> = { homekitchen: "kitchen", office: "study", homeoffice: "study", garage: "stable", laundryroom: "kitchen", laundromat: "kitchen", hometheater: "hall", basement: "cellar", recroom: "cellar", homegym: "hall", penthouse: "hall", studioapt: "bedroom", loft: "attic", teenroom: "bedroom", sunroom: "greenhouse", dorm: "bedroom", panicroom: "cellar", hospital: "sickroom", craftroom: "parlor", gallery: "longgallery" };
 
 /** A public kind of place, when the word for it comes inside someone's home: the home bar, not a pub. */
 const HOMELY: Partial<Record<Place, Place>> = { theater: "hometheater", library: "homelibrary", office: "homeoffice", arcade: "gameroom", tavern: "homebar", rooftops: "balcony", laundromat: "laundryroom", hospital: "sickroom", hall: "hallway", deck: "porch" };
@@ -464,50 +465,77 @@ const BETWEEN: [Place, RegExp][] = [
 /** What surrounds a between room without giving it a look of its own. */
 const STAYS_ITSELF = new Set<Place>(["living", "bedroom", "masterbedroom", "castle", "temple", "den", "homekitchen"]);
 
-function read(parts: string[]): Place | null {
+/** What the reader knows about the story around a place. */
+export interface ReadOptions {
+  world?: World;
+}
+
+/** Lowercase, with a typed or curly apostrophe alike: models write King’s Landing as often as King's. */
+const clean = (p: string) => p.toLowerCase().trim().replace(/[’ʼ]/g, "'");
+
+function read(parts: string[], world: World): Place | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const part = parts[i]!;
+    const before = parts.slice(0, i).join(" › ");
+    const name = NAMED.find((n) => n.part.test(part) && (!n.within || n.within.test(before)) && (!n.westeros || world === "westeros"));
+    if (name) return name.kind;
+    const inKeep = world === "westeros" || parts.slice(0, i + 1).some((p) => KEEP.test(p) || KINGS_LANDING.test(p));
+    const room = inKeep ? KEEP_ROOMS.find(([, re]) => re.test(part)) : undefined;
+    if (room) return room[0];
     for (const [k, re] of RULES) {
       if (!re.test(part)) continue;
       if (re === IN_BETWEEN) {
         const own = BETWEEN.find(([, w]) => w.test(part))?.[0];
-        const around = read([...parts.slice(0, i), part.replace(IN_BETWEEN, "")]);
+        const around = read([...parts.slice(0, i), part.replace(IN_BETWEEN, "")], world);
         // Painted in its own right, it stays itself in a house or a castle, dressed to suit.
         if (own) return around && !OUTSIDE.has(around) && !STAYS_ITSELF.has(around) ? around : own;
         if (around === "castle" || around === "temple") return "hall";
         return !around || OUTSIDE.has(around) ? "living" : around;
       }
       const old = OLDER[k];
-      if (old && parts.some((p) => OLD_WORLD.test(p))) return old;
+      if (old && (world === "westeros" || parts.some((p) => OLD_WORLD.test(p)))) return old;
       const homely = HOMELY[k];
       if (homely && !STAYS_GRAND.test(part) && !(k === "rooftops" && !/balcon|terrace/.test(part)) && parts.slice(0, i).some((p) => HOME.test(p))) return k === "tavern" && /pool|billiard/.test(part) ? "gameroom" : homely;
       return k;
     }
+    if (inKeep && KEEP_TOWER.test(part)) return "attic";
   }
   return null;
 }
 
-export function readPlace(path: string[] | null | undefined): Place {
-  return read((path ?? []).map((p) => p.toLowerCase())) ?? "hills";
+export function readPlace(path: string[] | null | undefined, opts: ReadOptions = {}): Place {
+  return read((path ?? []).map(clean), opts.world ?? null) ?? "hills";
 }
 
 /** Homes that aren't in HOME: the reader treats their rooms as its own, but a house is a house. */
 const ALSO_A_HOUSE = /\bcottage|farmhouse|\bcabin|\bshack|\btrailers?\b(?! park)|\bdorm\b|houseboat/;
 const HUMBLE = /apartment|\bflat\b|\bcondo|\btrailers?\b(?! park)|\bdorm\b|\bshack|\bbedsit/;
-const GRAND = /\bmansion|\bvillas?\b|penthouse|\bestate\b/;
+const GRAND = /\bmansion|\bvillas?\b|penthouse|\bestate\b|\bmanse\b/;
+/** A castle's rooms belong to the castle, whatever they're called. */
+const CASTLE_ROOM_NAMES = /apartment|guest house/;
 
 /**
  * The home a place is in (the nearest part of its path that names one), or null. `styles` is your
  * "This house is…" correction. A home's own word beats its surroundings: an apartment in Greenwich
- * Village isn't old-world, though a village is.
+ * Village isn't old-world, though a village is. In a Westeros chat everywhere is someone's and
+ * everything is old-world, unless you've said otherwise.
  */
-export function readHome(path: string[] | null | undefined, styles?: Record<string, string> | null): Home | null {
-  const parts = (path ?? []).map((p) => p.toLowerCase().trim());
+export function readHome(path: string[] | null | undefined, styles?: Record<string, string> | null, opts: ReadOptions = {}): Home | null {
+  const parts = (path ?? []).map(clean);
   const inward = [...parts].reverse();
-  const house = inward.find((p) => HOME.test(p) || ALSO_A_HOUSE.test(p)) ?? inward.find((p) => OLD_WORLD.test(p));
+  const westeros = opts.world === "westeros";
+  const castled = parts.some((p) => KEEP.test(p));
+  const house =
+    inward.find((p) => (HOME.test(p) || ALSO_A_HOUSE.test(p)) && !(castled && CASTLE_ROOM_NAMES.test(p))) ??
+    inward.find((p) => KEEP.test(p)) ??
+    // A sept stands in its town rather than being one, unless there's nothing else to go by.
+    inward.find((p) => OLD_WORLD.test(p) && !/\bsept\b/.test(p)) ??
+    inward.find((p) => OLD_WORLD.test(p)) ??
+    (westeros ? parts[0] : undefined);
   if (!house) return null;
   const own = styles?.[house];
   if (own && HOME_STYLES.some((s) => s.id === own)) return { house, style: own as HomeStyle };
+  if (westeros) return { house, style: "old" };
   const style: HomeStyle = GRAND.test(house) ? "grand" : HUMBLE.test(house) ? "humble" : parts.some((p) => OLD_WORLD.test(p)) ? "old" : parts.some((p) => GRAND.test(p)) ? "grand" : parts.some((p) => HUMBLE.test(p)) ? "humble" : "modern";
   return { house, style };
 }
