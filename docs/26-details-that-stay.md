@@ -97,6 +97,8 @@ Replayed offline over the last 126 turns (keywords only, no query embeddings): r
 
 **2.3** `thread` lines are rejected when a nickname or item names a thread whose details are about something else, or at least flagged in the ledger. "Resolved: Brongel (girlfriend)" is a wrong record in its own right.
 
+*Built differently:* 2.1 is `memory/named.ts`. Only a word written as a name, and only that very word, since this lane is read as true over any guess: over the last 150 turns it adds 23 lines, and #791's reads "Gabriel's Sigma Chi frat brothers called him 'Brongel'…: Buffy Summers, Gabriel Winters, Dawn Summers know it". 2.2 and 2.3 are rules in the tracker prompt, not checks, so nothing yet proves the model follows them, and the witness rule from docs/19 3.1 is still open. Old chats keep the records they have.
+
 ---
 
 ## Part 3 · Names as records

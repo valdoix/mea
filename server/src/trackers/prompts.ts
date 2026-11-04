@@ -30,11 +30,13 @@ bond A>B: trust +1; affection -1; label "grudging warmth" — cause   (axes: ${A
 ladder A>B: 3 — evidence   (romance rungs: ${LADDER.map((n, i) => `${i} ${n}`).join(", ")})
    (ladder is ONLY romantic or sexual interest. Shock, tension, loyalty or closeness between friends or family is a bond, never a ladder. A rung drops only for betrayal, neglect, cruelty or a lie.)
 know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|unaware · true|false|partial   (know everyone: … = everyone in the scene)
+   (someone telling their own past or a detail about themselves — a nickname, an old job, a family story — is a know line for each person listening, and a trait if it lasts: know Mira: Tam's crew called him Skipper | he told her · knows · true. It's worth filing however small it seems.)
    (a letter, note, text or email — a <letter>, <note>, <texts> or <email> in the messages too — is known to whoever wrote it; to anyone else only once the messages show them reading it. Sent, handed over or left on the table isn't read: know Mira: what Tam's letter says | it's in her bag, unopened · unaware)
 secret #key: fact | kept by A · from B        reveal #key: to B — how
 item Thing: A → B — how (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
 room A: Town › Place | room|home|shop (whose place it is)     keeps A: item @ place (theirs, kept there)
 thread Title: new|advance|complicate|stall(blocker)|resolve — detail
+   (a thread is a question the story is still asking, titled for that question. A nickname or a detail is a know line or a trait, never a thread, and a new question gets its own title rather than an old one's.)
 loop L1a2b3: done — the words that show it   (an open loop the NEW MESSAGES finished; the words copied exactly from them; loop L1a2b3: dropped — why, if it's called off)
 owe A → B: what | open|paid [due Day 4]       promise A>B: what | open|kept|broken [due tomorrow 9:00]
 promise A>B: be at the Bronze | meet @ the Bronze · minor|major|vital [due 21:00] [window 30m]   (a meeting: Mea checks who turns up)

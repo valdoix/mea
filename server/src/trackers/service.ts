@@ -2,6 +2,8 @@ import { all, one, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest } from "../lib/http";
 import { dropAtoms, insertAtom, isDuplicate } from "../memory/atoms";
+import { norm } from "../memory/entities";
+import { namedFacts } from "../memory/named";
 import { touchMemory } from "../memory/store";
 import { detectBoundary } from "../memory/segment";
 import { cleanText } from "../memory/text";
@@ -389,9 +391,12 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     if (p.pinned && p.description) pinned.push({ name: p.name, text: p.description });
   }
   const seq = one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.s ?? 0;
+  const cast = new Set(Object.values(state.chars).flatMap((c) => [c.name, ...c.name.split(/\s+/), ...c.aliases]).map(norm));
+  const replacing = opts.excludeMessageId ? one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", opts.excludeMessageId)?.seq : undefined;
   const note = buildNote(state, {
     userName: fc.userName,
     budget: cfg.budget,
+    named: namedFacts(chatId, opts.focus, replacing ?? seq, cast),
     seq,
     quietAfter: cfg.quietAfter,
     templates: fc.templates,
