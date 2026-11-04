@@ -1706,6 +1706,8 @@ export interface ArcBeat {
   forced?: ArcForce;
   /** What set it off elsewhere: "Joss's revenge", 'the thread "Lost locket"'. */
   answers?: string;
+  /** The story showed this on the page; no dice were rolled. */
+  page?: boolean;
   seq: number;
 }
 

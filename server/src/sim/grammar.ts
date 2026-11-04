@@ -201,6 +201,16 @@ export const SPECS: Record<ArcKind, KindSpec> = {
 const ORDER: ArcKind[] = ["revenge", "return", "decline", "recovery", "threat", "scheme", "investigation", "debt", "reconcile", "rift", "rivalry", "courtship", "loss", "secret", "protect", "duty", "ambition", "life", "faction", "pursuit"];
 
 /** The kind a piece of text suggests (a thread, a want, a premise), or null. */
+const STOCK = Object.values(SPECS)
+  .flatMap((s) => [s.want, s.fear])
+  .map((l) => new RegExp(`^${l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\{cast\\\}/g, "[^,;]{1,40}")}$`, "i"));
+
+/** One of the lines every subplot of a kind starts with ("to gain the upper hand"), with or without its "to". */
+export function isStockLine(text: string): boolean {
+  const t = text.trim().replace(/[.]+$/, "").replace(/’/g, "'");
+  return STOCK.some((re) => re.test(t) || re.test(`to ${t}`));
+}
+
 export function kindFromText(text: string, exclude: ArcKind[] = ["faction"]): ArcKind | null {
   for (const k of ORDER) if (!exclude.includes(k) && k !== "pursuit" && SPECS[k].words.test(text)) return k;
   return SPECS.pursuit.words.test(text) ? "pursuit" : null;
