@@ -138,6 +138,8 @@ Deliberately left out of Part 0. Tried on the replay, the scene-lift change move
 
 **5.3** A way to fix a wrong "first time" after the fact: edit the beat and the stance date, not only the reply's words. Today this takes editing #792 and then its ledger lines by hand.
 
+*Built:* 5.1 as `golden/26-old-news` and `27-truly-new` (a stopped try is `genlayer.test.ts`, the plan's correction is `notnews.test.ts`). 5.2 as `namesStats` in `memory/named.ts`, from `memory_usage` on the kept try. On the real chat's last 20 replies, before these fixes: 0 of 3, the latest "brongel" at #792. It counts memories only, not the FACTS IN PLAY line, so it measures recall. 5.3 isn't built.
+
 ---
 
 ## Not in this plan

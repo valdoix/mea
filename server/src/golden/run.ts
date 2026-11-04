@@ -7,6 +7,7 @@ import { checkReply, dismissIssue } from "../accuracy/checker";
 import "../accuracy/moreslips";
 import "../accuracy/undone";
 import { createOffpage } from "../accuracy/offpage";
+import { insertAtom } from "../memory/atoms";
 import { setCanon } from "../accuracy/canoncut";
 import { normalizeCard } from "../cards/card";
 import { createLorebook, softDeleteLorebook } from "../lore/service";
@@ -54,6 +55,8 @@ const scenarioSchema = z.object({
         ledger: z.array(z.string()).default([]),
         closes: z.array(z.object({ what: z.string(), from: z.array(z.string()).default([]) })).default([]),
         check: z.enum(["keep", "dismiss"]).optional(),
+        /** Memories this message left, with who knows them (docs/26). */
+        remembers: z.array(z.object({ content: z.string(), knownBy: z.array(z.string()).default([]) })).default([]),
       }),
     )
     .default([]),
@@ -148,6 +151,7 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
     for (const m of s.history) {
       const id = addMessage(chatId, m.role, m.content, m.role === "assistant" ? { name: s.card.name } : {});
       if (m.ledger.length) writeEvents(chatId, { messageId: id, swipeIdx: 0 }, linesToOps(m.ledger).ops, "model");
+      for (const r of m.remembers) insertAtom(chatId, null, { type: "fact", content: r.content, knownBy: r.knownBy }, [{ id, seq: getMessageRow(id)!.seq }]);
       if (m.closes.length) writeEvents(chatId, { messageId: id, swipeIdx: 0 }, m.closes.map((c): Op => ({ op: "loop", args: { action: "new", what: c.what, kind: "errand", from: c.from, done: true, how: c.what }, raw: `loop: ${c.what}` })), "memory");
       if (m.check) {
         const issues = (await checkReply(chatId, id, 0, { model: false })) ?? [];
