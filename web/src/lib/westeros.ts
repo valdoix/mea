@@ -4,17 +4,19 @@
  * is, and moves to its own as those are painted. Names that could be anything ("the Wall", "the
  * Twins") only count in a chat on the Westeros calendar, so a modern story keeps its own.
  */
-import type { Place } from "./places";
+import type { Masonry, Place } from "./places";
 
 /** The world a chat is set in, from its calendar. */
 export type World = "westeros" | null;
 export const worldOf = (calendar: string | null | undefined): World => (calendar === "westeros" ? "westeros" : null);
 
 /** Castles that can't be mistaken for anything else. */
-const SEATS = String.raw`harrenhal|winterfell|red keep|riverrun|eyrie|storm'?s end|dragonstone|highgarden|casterly|castle black|sunspear|hightower|deepwood motte|moat cailin|dreadfort|last hearth|eastwatch|shadow tower|summerhall|bitterbridge|greywater watch|seagard|starfall|hellholt|yronwood|runestone`;
+const SEATS = String.raw`harrenhal|winterfell|red keep|maegor|riverrun|eyrie|storm'?s end|dragonstone|highgarden|casterly|castle black|sunspear|hightower|deepwood motte|moat cailin|dreadfort|last hearth|eastwatch|shadow tower|summerhall|bitterbridge|greywater watch|seagard|starfall|hellholt|yronwood|runestone`;
 
 /** Somewhere that is a castle, in its own words or by name. */
 export const KEEP = new RegExp(String.raw`castle|\bkeep\b|\bhold\b|fortress|citadel|palace|stronghold|\bmanor|\bfort\b|${SEATS}`);
+/** What a castle is built of, where the books say. Anywhere else is dressed pale stone. */
+export const masonryOf = (house: string): Masonry => (/red keep|maegor/.test(house) ? "redstone" : /harrenhal/.test(house) ? "fused" : "ashlar");
 /** A city, not a castle: it has a castle in it. */
 export const KINGS_LANDING = /king'?s landing/;
 
@@ -45,7 +47,7 @@ export const NAMED: Named[] = [
   named("staircase", /serpentine/),
   named("parlor", /maidenvault/),
   named("cellar", /dragon skulls?|skull cellar/),
-  named("library", /tower of the hand|hand'?s (?:solar|tower|chambers?)|white sword|round room/),
+  named("study", /tower of the hand|hand'?s (?:solar|tower|chambers?)|white sword|round room/),
   // King's Landing
   named("chapel", /inside the great sept/),
   named("temple", /great sept|sept of (?:baelor|remembrance)|visenya'?s hill/),
@@ -72,7 +74,7 @@ export const KEEP_ROOMS: [Place, RegExp][] = [
   ["attic", /rookery|ravenry|servants'? (?:quarters|cells|loft)|maids'? (?:quarters|rooms?)/],
   ["stable", /\bmews\b|falconry/],
   ["parlor", /ladies'? (?:solar|gallery)|lady'?s solar/],
-  ["library", /\bsolar\b|map room|war room|counting ?(?:room|house)|treasury/],
+  ["study", /\bsolar\b|map room|war room|counting ?(?:room|house)|treasury/],
   ["dining", /council/],
   ["hall", /minstrels?'? gallery/],
   ["masterbedroom", /apartments?\b|(?:lord|lady|king|queen|prince|princess)'?s? (?:chambers?|bed ?chamber|rooms?)|royal chambers?|great chamber/],

@@ -2214,6 +2214,131 @@ function ruins(c: Ctx): Scene {
   };
 }
 
+/** The same ruins made whole: their colonnade roofed and pedimented, their broken arch closed, the grass kept. */
+function restored(c: Ctx): Scene {
+  const { W, H, u, F, r } = c;
+  const far = ridge(c, H * 0.64, 14 * u, 0.7);
+  const gy = H * 0.84;
+  const xs = [-210, -150, -90, -30, 30, 90];
+  const x0 = F + (xs[0]! - 24) * u;
+  const x1 = F + (xs[5]! + 24) * u;
+  const cx = (x0 + x1) / 2;
+  const top = gy - 150 * u;
+  // Behind the columns: the temple's own dark walls, with a door and small lights.
+  const cella = new Path2D();
+  cella.rect(x0 + 18 * u, top, x1 - x0 - 36 * u, 150 * u);
+  const door = new Path2D();
+  door.moveTo(cx - 17 * u, gy);
+  door.lineTo(cx - 17 * u, gy - 62 * u);
+  door.arc(cx, gy - 62 * u, 17 * u, Math.PI, 0);
+  door.lineTo(cx + 17 * u, gy);
+  door.closePath();
+  const columns = new Path2D();
+  const flutes = new Path2D();
+  const shadow = new Path2D();
+  for (const dx of xs) {
+    const x = F + dx * u;
+    poly(columns, x - 9.5 * u, gy - 12 * u, x + 9.5 * u, gy - 12 * u, x + 7.5 * u, top, x - 7.5 * u, top);
+    columns.rect(x - 13 * u, gy - 18 * u, 26 * u, 6 * u);
+    poly(columns, x - 8 * u, top + 8 * u, x + 8 * u, top + 8 * u, x + 14 * u, top, x - 14 * u, top);
+    for (const f of [-4, 0, 4]) {
+      flutes.moveTo(x + f * u, gy - 20 * u);
+      flutes.lineTo(x + f * 0.8 * u, top + 10 * u);
+    }
+    poly(shadow, x + 3 * u, gy - 12 * u, x + 9.5 * u, gy - 12 * u, x + 7.5 * u, top + 8 * u, x + 3 * u, top + 8 * u);
+  }
+  // Three broad steps, an entablature, a pediment with a carved disc.
+  const steps = new Path2D();
+  for (let k = 0; k < 3; k++) steps.rect(x0 - (k + 1) * 9 * u, gy - 12 * u + k * 6 * u, x1 - x0 + (k + 1) * 18 * u, 6 * u);
+  const beam = new Path2D();
+  beam.rect(x0 - 4 * u, top - 18 * u, x1 - x0 + 8 * u, 18 * u);
+  const cornice = new Path2D();
+  cornice.rect(x0 - 10 * u, top - 22 * u, x1 - x0 + 20 * u, 5 * u);
+  const pediment = new Path2D();
+  poly(pediment, x0 - 14 * u, top - 22 * u, cx, top - 76 * u, x1 + 14 * u, top - 22 * u);
+  const inner = new Path2D();
+  poly(inner, x0 + 16 * u, top - 27 * u, cx, top - 67 * u, x1 - 16 * u, top - 27 * u);
+  const frieze = new Path2D();
+  for (let x = x0 + 8 * u; x < x1 - 4 * u; x += 18 * u) frieze.rect(x, top - 14 * u, 3 * u, 10 * u);
+  // The arch that stood broken, whole, with its keystone and the pier beside it.
+  const ax = F + 160 * u;
+  const arch = new Path2D();
+  arch.moveTo(ax - 50 * u, gy);
+  arch.lineTo(ax - 50 * u, gy - 110 * u);
+  arch.arc(ax, gy - 110 * u, 50 * u, Math.PI, 0);
+  arch.lineTo(ax + 50 * u, gy);
+  arch.lineTo(ax + 30 * u, gy);
+  arch.lineTo(ax + 30 * u, gy - 110 * u);
+  arch.arc(ax, gy - 110 * u, 30 * u, 0, Math.PI, true);
+  arch.lineTo(ax - 30 * u, gy);
+  arch.closePath();
+  const key = new Path2D();
+  poly(key, ax - 8 * u, gy - 164 * u, ax + 8 * u, gy - 164 * u, ax + 5 * u, gy - 138 * u, ax - 5 * u, gy - 138 * u);
+  const voussoirs = new Path2D();
+  for (let a = Math.PI + 0.25; a < TAU - 0.1; a += 0.34) {
+    voussoirs.moveTo(ax + Math.cos(a) * 30 * u, gy - 110 * u + Math.sin(a) * 30 * u);
+    voussoirs.lineTo(ax + Math.cos(a) * 50 * u, gy - 110 * u + Math.sin(a) * 50 * u);
+  }
+  const ground = ridge(c, gy + 4 * u, 3 * u);
+  // A kept lawn with a pale path, cypresses at the ends, and a low wall out to the plate's edge.
+  const path = new Path2D();
+  poly(path, cx - 34 * u, gy + 6 * u, cx + 34 * u, gy + 6 * u, cx + 90 * u, H, cx - 90 * u, H);
+  const trees = new Path2D();
+  for (const x of [x0 - 58 * u, x0 - 96 * u, ax + 92 * u]) {
+    trees.moveTo(x - 12 * u, gy + 4 * u);
+    trees.quadraticCurveTo(x - 15 * u, gy - 70 * u, x, gy - (110 + r() * 26) * u);
+    trees.quadraticCurveTo(x + 15 * u, gy - 70 * u, x + 12 * u, gy + 4 * u);
+    trees.closePath();
+  }
+  const wall = new Path2D();
+  const caps = new Path2D();
+  for (let x = x0 - 130 * u; x > -80 * u; x -= 86 * u) {
+    wall.rect(x - 86 * u, gy - 18 * u, 86 * u, 22 * u);
+    wall.rect(x - 7 * u, gy - 30 * u, 14 * u, 34 * u);
+    caps.rect(x - 10 * u, gy - 34 * u, 20 * u, 5 * u);
+  }
+  const STONE_PALE: RGB = [232, 222, 202];
+  return {
+    draw(g, E) {
+      fill(g, far.p, tone(E, 0.2, GRASS, 0.4));
+      haze(g, E, W, H * 0.5, H * 0.8, 0.35);
+      fill(g, ground.p, tone(E, 0.62, [96, 146, 78], 0.62));
+      fill(g, path, lit(E, 0.62, [214, 202, 176], 0.5));
+      fill(g, trees, tone(E, 0.82, [44, 84, 58], 0.75));
+      fill(g, wall, lit(E, 0.62, STONE_PALE, 0.55));
+      fill(g, caps, lit(E, 0.54, STONE_PALE, 0.65));
+      fill(g, arch, lit(E, 0.56, STONE_PALE, 0.65));
+      stroke(g, voussoirs, tone(E, 0.82), 1 * u, 0.5);
+      fill(g, key, lit(E, 0.44, STONE_PALE, 0.8));
+      fill(g, cella, lit(E, 0.8, [150, 136, 118], 0.55));
+      // A warm door: lit by lamps within as the day goes.
+      const on = clamp(E.glow * 1.3);
+      fill(g, door, mix(lit(E, 0.9, [70, 46, 34], 0.7), [255, 190, 110], on * 0.85));
+      if (on > 0.05) glowAt(g, cx, gy - 40 * u, 130 * u, WARM, 0.42 * on);
+      fill(g, steps, lit(E, 0.5, STONE_PALE, 0.72));
+      fill(g, columns, lit(E, 0.44, STONE_PALE, 0.82));
+      fill(g, shadow, tone(E, 0.75), 0.28);
+      stroke(g, flutes, tone(E, 0.75), 0.9 * u, 0.28);
+      fill(g, beam, lit(E, 0.46, STONE_PALE, 0.78));
+      fill(g, frieze, tone(E, 0.78), 0.4);
+      fill(g, cornice, lit(E, 0.38, STONE_PALE, 0.86));
+      fill(g, pediment, lit(E, 0.42, STONE_PALE, 0.82));
+      fill(g, inner, lit(E, 0.62, [190, 174, 150], 0.66));
+      g.fillStyle = rgb(lit(E, 0.36, [226, 190, 110], 0.85));
+      g.beginPath();
+      g.arc(cx, top - 40 * u, 7 * u, 0, TAU);
+      g.fill();
+      // Braziers either side of the steps, burning from dusk.
+      for (const x of [x0 - 22 * u, x1 + 22 * u]) {
+        g.fillStyle = rgb(tone(E, 0.92));
+        g.fillRect(x - 2 * u, gy - 34 * u, 4 * u, 34 * u);
+        g.fillRect(x - 9 * u, gy - 37 * u, 18 * u, 5 * u);
+        if (E.glow > 0.2) fire(g, E, x, gy - 37 * u, 0.85 * u);
+      }
+    },
+  };
+}
+
 function graveyard(c: Ctx): Scene {
   const { W, H, u, F, r } = c;
   const far = ridge(c, H * 0.62, 10 * u, 0.7);
@@ -2304,7 +2429,7 @@ function graveyard(c: Ctx): Scene {
 // ---------- Indoors ----------
 
 /** A room: the sky shows through `win`, the wall goes round it, then the furniture. */
-export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRenderingContext2D, E: Env) => void, furnish: (g: CanvasRenderingContext2D, E: Env) => void, floorY: number, opts: { lift?: number; space?: boolean; floorHue?: RGB } = {}): Scene {
+export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRenderingContext2D, E: Env) => void, furnish: (g: CanvasRenderingContext2D, E: Env) => void, floorY: number, opts: { lift?: number | ((E: Env) => number); space?: boolean; floorHue?: RGB; vignette?: number } = {}): Scene {
   const { W, H } = c;
   const wall = new Path2D();
   wall.rect(0, 0, W, H);
@@ -2315,7 +2440,7 @@ export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRende
     room: {
       win,
       draw(g, E) {
-        const lift = opts.lift ?? 0.15 + E.day * 0.55 * (1 - E.c.cloud * 0.4);
+        const lift = typeof opts.lift === "function" ? opts.lift(E) : (opts.lift ?? 0.15 + E.day * 0.55 * (1 - E.c.cloud * 0.4));
         const base = mix(mix(wallHue, DARK, 0.82), wallHue, lift);
         const wg = g.createLinearGradient(0, 0, 0, floorY);
         wg.addColorStop(0, rgb(mix(base, DARK, 0.45)));
@@ -2332,16 +2457,17 @@ export function room(c: Ctx, win: Path2D, wallHue: RGB, outside: (g: CanvasRende
         furnish(g, E);
         const vg = g.createRadialGradient(c.F, H * 0.5, H * 0.2, c.F, H * 0.5, W * 0.8);
         vg.addColorStop(0, "rgba(0,0,0,0)");
-        vg.addColorStop(1, rgb(DARK, 0.45));
+        vg.addColorStop(1, rgb(DARK, opts.vignette ?? 0.45));
         g.fillStyle = vg;
         g.fillRect(0, 0, W, H);
       },
     },
   };
 }
-/** Pictures along a stretch of bare wall, so a room still looks lived in at a wide plate's edges. */
+/** Pictures along a stretch of bare wall, so a room still looks lived in at a wide plate's edges. In a castle, hangings instead. */
 export function wallDressing(c: Ctx, x0: number, x1: number) {
   const { H, u, r } = c;
+  const keep = c.home?.keep;
   const hung: { x: number; y: number; w: number; h: number; art: RGB }[] = [];
   for (let x = x0 + 30 * u; x + 60 * u < x1; ) {
     const w = (50 + r() * 50) * u;
@@ -2351,6 +2477,21 @@ export function wallDressing(c: Ctx, x0: number, x1: number) {
   }
   const edge = c.home?.trim ?? [60, 40, 30];
   return (g: CanvasRenderingContext2D, E: Env) => {
+    if (keep) {
+      // A cloth from a rod, longer than it is wide.
+      for (const p of hung) {
+        const w = p.w * 0.72;
+        const top = H * 0.14;
+        const h = Math.max(p.h * 1.7, H * 0.34);
+        g.fillStyle = rgb(shade(E, keep.banners?.[1] ?? [196, 170, 110], 0.5));
+        g.fillRect(p.x, top, w, h);
+        g.fillStyle = rgb(shade(E, keep.banners?.[0] ?? p.art, 0.5));
+        g.fillRect(p.x + 4 * u, top + 4 * u, w - 8 * u, h - 8 * u);
+        g.fillStyle = "rgb(30,22,18)";
+        g.fillRect(p.x - 4 * u, top - 3 * u, w + 8 * u, 3 * u);
+      }
+      return;
+    }
     for (const p of hung) {
       g.fillStyle = rgb(shade(E, edge, 0.5));
       g.fillRect(p.x, p.y, p.w, p.h);
@@ -3989,6 +4130,7 @@ export const SCENES = {
   castle,
   temple,
   ruins,
+  restored,
   graveyard,
   tavern,
   bedroom,

@@ -3,7 +3,7 @@
   import { ScenePainter, isPlace, readHome, readPlace, readWeather, worldOf, type HomeStyle, type Place } from "../../lib/scenery";
   import { ChevronDown, ChevronUp, Palette } from "../../lib/icons";
   import { app } from "../../lib/state.svelte";
-  import type { StoryWhen } from "../../lib/types";
+  import type { KeepStyle, StoryWhen } from "../../lib/types";
   import PlacePicker from "./PlacePicker.svelte";
 
   /**
@@ -24,6 +24,8 @@
     slim = false,
     onslim,
     calendar = null,
+    keeps = null,
+    onkeep,
   }: {
     when: StoryWhen | null;
     weather: string | null;
@@ -37,6 +39,9 @@
     onslim?: () => void;
     /** The chat's calendar: a Westeros chat reads its places as Westeros. */
     calendar?: string | null;
+    /** Your "This keep is…" corrections. */
+    keeps?: Record<string, KeepStyle> | null;
+    onkeep?: (house: string, style: KeepStyle) => void;
   } = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -46,7 +51,7 @@
   const name = $derived(place.at(-1) ?? "");
   const world = $derived(worldOf(calendar));
   const kindNow = $derived<Place>(isPlace(kind) ? kind : readPlace(place, { world }));
-  const home = $derived(readHome(place, styles, { world }));
+  const home = $derived(readHome(place, styles, { world, keeps }));
   // An unset clock still paints: the evening, which suits most openings.
   const hour = $derived(when?.hour ?? 20);
 
@@ -85,7 +90,7 @@
   </div>
   {#if shape === "arch"}<div class="sill" aria-hidden="true"></div>{/if}
 </div>
-{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={kindNow} {hour} {weather} {home} onpick={(k) => onkind?.(name, k)} {onstyle} />{/if}
+{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={kindNow} {hour} {weather} {home} onpick={(k) => onkind?.(name, k)} {onstyle} {onkeep} />{/if}
 
 <style>
   .win {

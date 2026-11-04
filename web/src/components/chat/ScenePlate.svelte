@@ -4,6 +4,7 @@
   import { app } from "../../lib/state.svelte";
   import Menu, { type MenuItem } from "../Menu.svelte";
   import PlacePicker from "../trackers/PlacePicker.svelte";
+  import type { KeepStyle } from "../../lib/types";
 
   /**
    * J1: a painted header for a scene: a still from the scene window's own painter, at the scene's
@@ -11,14 +12,14 @@
    * plates, so each paints only near the screen and keeps no painter afterwards. The current
    * scene's plate repaints as the clock moves. ⋯ › This place is… corrects the kind.
    */
-  let { place, weather, hour, kind = null, title = "", onkind, styles = null, onstyle, calendar = null }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void; styles?: Record<string, string> | null; onstyle?: (house: string, style: HomeStyle) => void; calendar?: string | null } = $props();
+  let { place, weather, hour, kind = null, title = "", onkind, styles = null, onstyle, calendar = null, keeps = null, onkeep }: { place: string[]; weather: string | null; hour: number | null; kind?: string | null; title?: string; onkind?: (name: string, kind: Place) => void; styles?: Record<string, string> | null; onstyle?: (house: string, style: HomeStyle) => void; calendar?: string | null; keeps?: Record<string, KeepStyle> | null; onkeep?: (house: string, style: KeepStyle) => void } = $props();
 
   const name = $derived(place.at(-1) ?? "");
   const world = $derived(worldOf(calendar));
   const k = $derived<Place>(isPlace(kind) ? kind : readPlace(place, { world }));
   // An unset clock paints the evening, as the scene window does.
   const h = $derived(hour ?? 20);
-  const home = $derived(readHome(place, styles, { world }));
+  const home = $derived(readHome(place, styles, { world, keeps }));
   const scene = $derived<StillScene>({ hour: h, weather: readWeather(weather), place: k, seed: name, home, focus: app.isMobile ? 0.64 : 0.72, mini: true });
 
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -78,7 +79,7 @@
     <Menu bind:open={menuOpen} {items} anchor={menuAt} title="Scene plate" />
   {/if}
 </figure>
-{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={k} hour={h} {weather} {home} onpick={(p) => onkind?.(name, p)} {onstyle} />{/if}
+{#if onkind && picking}<PlacePicker bind:open={picking} {name} current={k} hour={h} {weather} {home} onpick={(p) => onkind?.(name, p)} {onstyle} {onkeep} />{/if}
 
 <style>
   .plate {
