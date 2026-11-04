@@ -3,7 +3,8 @@ import { HttpError } from "../lib/http";
 /**
  * Soundtrack (Almanac plan J3), YouTube Music only, through one of the two desktop apps on this PC
  * (Mea runs on the same machine). Nothing else is contacted, except YouTube Music's public page
- * data for a playlist link you paste (neither app can list a playlist).
+ * data: for a playlist link you paste (neither app can list a playlist), and to find a library
+ * song's explicit version by its title and artist (the Companion Server can't search).
  * - "ytmd": the YouTube Music Desktop App's Companion Server (http://127.0.0.1:9863/api/v1). It
  *   shows a code you approve once, and Mea keeps the token it gets.
  * - "pear": th-ch's YouTube Music app with its API Server plugin (26538 by default). One request
@@ -192,6 +193,8 @@ export interface YtmSong {
   title: string;
   /** Everyone credited, as YouTube Music lists them ("Hozier & Bear McCreary"). */
   artist: string;
+  /** YouTube Music marks it Explicit. Unmarked says nothing: most songs have no such version at all. */
+  explicit?: boolean;
 }
 
 type Runs = { runs?: { text?: string; navigationEndpoint?: { watchEndpoint?: { videoId?: string; watchEndpointMusicSupportedConfigs?: { watchEndpointMusicConfig?: { musicVideoType?: string } } } } }[] };
@@ -209,17 +212,18 @@ export function songRows(data: unknown, videos = false): YtmSong[] {
     const o = node as Record<string, unknown>;
     // A search's top-result card names the artist once, above its songs.
     if (o.musicCardShelfRenderer) card = runsText((o.musicCardShelfRenderer as { title?: unknown }).title);
-    const row = o.musicResponsiveListItemRenderer as { flexColumns?: { musicResponsiveListItemFlexColumnRenderer?: { text?: Runs } }[] } | undefined;
+    const row = o.musicResponsiveListItemRenderer as { flexColumns?: { musicResponsiveListItemFlexColumnRenderer?: { text?: Runs } }[]; badges?: { musicInlineBadgeRenderer?: { icon?: { iconType?: string } } }[] } | undefined;
     if (row) {
       const cols = (row.flexColumns ?? []).map((c) => c.musicResponsiveListItemFlexColumnRenderer?.text);
       const watch = cols[0]?.runs?.[0]?.navigationEndpoint?.watchEndpoint;
       const type = watch?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType;
       if (watch?.videoId && (videos || type === "MUSIC_VIDEO_TYPE_ATV")) {
-        // Search: "Song • Artist • Album • 3:21", or "Song • 3:21" on the card. Playlist: just "Artist".
-        const second = runsText(cols[1]);
-        const parts = second.split(" • ");
-        const artist = parts.length === 1 ? second || card : parts.length > 2 || !/^[\d:]+$/.test(parts[1]!) ? parts[1]! : card;
-        if (!out.has(watch.videoId)) out.set(watch.videoId, { videoId: watch.videoId, title: runsText(cols[0]), artist });
+        // Search: "Song • Artist • Album • 3:21", or "Song • 3:21" on the card. Songs-only search: "Artist • Album • 3:21". Playlist: just "Artist".
+        const parts = runsText(cols[1]).split(" • ");
+        const first = /^(?:Song|Video)$/.test(parts[0]!) ? parts[1] : parts[0];
+        const artist = first && !/^[\d:]+$/.test(first) ? first : card;
+        const explicit = (row.badges ?? []).some((b) => b.musicInlineBadgeRenderer?.icon?.iconType === "MUSIC_EXPLICIT_BADGE");
+        if (!out.has(watch.videoId)) out.set(watch.videoId, { videoId: watch.videoId, title: runsText(cols[0]), artist, ...(explicit ? { explicit } : {}) });
       }
       return;
     }
@@ -273,6 +277,31 @@ export async function playlistSongs(listId: string, max = 300): Promise<YtmSong[
     body = { continuation: next };
   }
   return [...songs.values()].slice(0, max);
+}
+
+/** YouTube Music's "Songs" search filter: without it a search shows only the few top songs. */
+const SONGS_ONLY = "EgWKAQIIAWoKEAkQBRAKEAMQBA==";
+
+/**
+ * Songs for a search on YouTube Music's public page data, which works with either app. A page with
+ * no results still has `contents`; one without it is YouTube turning the request away, not "no songs".
+ */
+export async function publicSongs(query: string): Promise<YtmSong[]> {
+  let res: Response;
+  try {
+    res = await fetch("https://music.youtube.com/youtubei/v1/search?prettyPrint=false", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://music.youtube.com" },
+      body: JSON.stringify({ query, params: SONGS_ONLY, context: { client: WEB_REMIX } }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new YtmError("YouTube Music's website isn't answering");
+  }
+  if (!res.ok) throw new YtmError(`YouTube Music said ${res.status} to a search`, res.status);
+  const data = (await res.json().catch(() => null)) as { contents?: unknown } | null;
+  if (!data?.contents) throw new YtmError("YouTube Music gave back no search page");
+  return songRows(data);
 }
 
 /** A video id from what you paste: an id, or a music.youtube.com / youtube.com / youtu.be link. */

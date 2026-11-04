@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { one, parseJson } from "../db/db";
+import { all, one, parseJson, run } from "../db/db";
 import { badRequest } from "../lib/http";
 import { getSetting, setSetting } from "../lib/settings";
 import { callJson } from "../services/llm";
@@ -10,11 +10,11 @@ import { embedQuery } from "../memory/embed";
 import { seeded } from "../sim/dice";
 import { currentFold } from "../trackers/store";
 import type { WorldState } from "../trackers/types";
-import { findLyrics, forgetLyrics, type LyricLine, lyricsFor, lyricsIndex, lyricsLines, MISS_TTL, pasteLyrics } from "./lyrics";
+import { findLyrics, forgetLyrics, type LyricLine, lyricsFor, lyricsIndex, lyricsLines, MISS_TTL, moveLyrics, pasteLyrics } from "./lyrics";
 import type { Situation } from "./situations";
-import { blockedVersion, songKey, type Version, VERSIONS } from "./versions";
-import { clashes, embedPassages, songThemes, landingPoint, passageTimes, forgetPassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
-import { command, detectApp, seekTo, trimQueue, playerState, playlistIdOf, queueNext, playlistSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp } from "./ytmusic";
+import { bareTitle, blockedVersion, firstArtist, sameCut, songKey, type Version, VERSIONS } from "./versions";
+import { clashes, embedPassages, songThemes, landingPoint, passageTimes, forgetPassageVectors, movePassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
+import { command, detectApp, seekTo, trimQueue, playerState, playlistIdOf, queueNext, playlistSongs, publicSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp, type YtmSong } from "./ytmusic";
 
 /**
  * The soundtrack (Almanac plan J3), on YouTube Music: a cue read from the story (mood, intensity,
@@ -22,7 +22,8 @@ import { command, detectApp, seekTo, trimQueue, playerState, playlistIdOf, queue
  * pinned to people and bonds, your taste and thumbs), and a director that lets each song play to
  * its end, cutting only for a rare big moment. Your preferred artists' songs join the library by themselves: th-ch's app finds them, and
  * the helper model tags their moods. Off by default; it talks to the YouTube Music app on this PC
- * (and to YouTube Music's website only to read a playlist link you paste).
+ * (and to YouTube Music's website only to read a playlist link you paste, and to find a song's
+ * explicit version by its title and artist).
  */
 
 export const MOODS = ["calm", "tender", "melancholy", "tense", "dread", "bright", "epic", "mystery", "night"] as const;
@@ -34,6 +35,8 @@ export const trackSchema = z.object({
   artist: z.string().max(120).default(""),
   moods: z.array(z.enum(MOODS)).max(9).default([]),
   instrumental: z.boolean().default(false),
+  /** True: this is the explicit version. False: Mea looked, and there's none to play instead. Unset: not looked yet. */
+  explicit: z.boolean().optional(),
 });
 export type Track = z.infer<typeof trackSchema>;
 
@@ -58,6 +61,8 @@ export const musicConfigSchema = z.object({
   wordsDial: z.enum(["off", "little", "lean"]).default("little"),
   /** docs/18, 4.2: start a song at the passage that fits ("auto": only when the dial is Lean in). */
   landLine: z.enum(["auto", "on", "off"]).default("auto"),
+  /** Library songs with an explicit version play that one, not the censored copy. */
+  preferExplicit: z.boolean().default(true),
 });
 export type MusicConfig = z.infer<typeof musicConfigSchema> & { token?: string | null; app?: YtmApp | null };
 
@@ -71,7 +76,7 @@ export function musicView() {
   const found = tasteCache();
   // Per preferred artist: their songs in the library, or null until they've been looked up.
   const tasteFound = Object.fromEntries(rest.taste.preferred.map((a) => [a, found[a.toLowerCase()] ? rest.library.filter((t) => byArtist(t, a)).length : null]));
-  return { ...rest, connected: Boolean(token), canSearch: app === "pear", tasteFound, ...wordsView(rest.library) };
+  return { ...rest, connected: Boolean(token), canSearch: app === "pear", tasteFound, explicitPending: explicitDue({ ...rest, token, app }).length, ...wordsView(rest.library) };
 }
 /**
  * Changes only the fields sent. Pass the request as it came: the schema fills in its defaults even
@@ -87,6 +92,7 @@ export function saveMusicConfig(patch: Partial<z.infer<typeof musicConfigSchema>
   setSetting("music.config", next as never);
   if (sent.includes("taste")) void refreshTaste().catch(() => {});
   if (sent.includes("lyricsOnline")) lyricsSoon();
+  explicitSoon();
   return musicView();
 }
 
@@ -143,6 +149,7 @@ function addToLibrary(tracks: Track[]) {
   const add = tracks.filter((t) => !have.has(t.videoId)).slice(0, Math.max(0, 500 - cfg.library.length));
   if (add.length) setSetting("music.config", { ...cfg, library: [...cfg.library, ...add] } as never);
   if (add.length) lyricsSoon();
+  if (add.length) explicitSoon();
   return add.length;
 }
 
@@ -158,7 +165,7 @@ async function refreshOnce() {
       const songs = (await searchSongs(cfg, artist)).filter((s) => s.artist.toLowerCase().includes(k)).slice(0, TASTE_PER_ARTIST);
       // Not songs already there, nor ones you removed yourself.
       const known = new Set([...removedIds(), ...musicConfig().library.map((t) => t.videoId)]);
-      const fresh = songs.filter((s) => !known.has(s.videoId) && !blockedVersion(s.title, cfg.taste.blockVersions as Version[])).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), instrumental: /instrumental/i.test(s.title) }));
+      const fresh = songs.filter((s) => !known.has(s.videoId) && !blockedVersion(s.title, cfg.taste.blockVersions as Version[])).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), instrumental: /instrumental/i.test(s.title), explicit: s.explicit }));
       addToLibrary(await tagMoods(fresh));
       cache[k] = { at: Date.now() };
     } catch {
@@ -637,6 +644,7 @@ export function musicAfterReply(chatId: string, messageId: string) {
     if (music.now) watch(chatId);
     // Preferred artists due a look are found in the background; their songs are there next time.
     if (cfg.taste.preferred.length) void refreshTaste().catch(() => {});
+    explicitSoon();
     if (!cfg.library.length) return;
     const st = currentFold(chatId).result.state;
     const cue = cueFrom(st, storyDials(mustChat(chatId)).genre);
@@ -753,7 +761,7 @@ async function addPlaylist(listId: string, input: { moods?: Mood[]; instrumental
   if (!songs.length) throw badRequest("That playlist is empty, private, or not one YouTube Music can show without signing in");
   const cfg = musicConfig();
   const have = new Set(cfg.library.map((t) => t.videoId));
-  let fresh = songs.filter((s) => !have.has(s.videoId)).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), moods: input.moods ?? [], instrumental: input.instrumental || /instrumental/i.test(s.title) }));
+  let fresh = songs.filter((s) => !have.has(s.videoId)).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), moods: input.moods ?? [], instrumental: input.instrumental || /instrumental/i.test(s.title), explicit: s.explicit }));
   const room = 500 - cfg.library.length;
   if (room <= 0) throw badRequest("The library is full (500 songs)");
   fresh = fresh.slice(0, room);
@@ -766,6 +774,7 @@ async function addPlaylist(listId: string, input: { moods?: Mood[]; instrumental
   const removed = removedIds();
   if (fresh.some((t) => removed.has(t.videoId))) setSetting("music.removed", [...removed].filter((id) => !fresh.some((t) => t.videoId === id)) as never);
   if (fresh.length) lyricsSoon();
+  if (fresh.length) explicitSoon();
   return { ...musicView(), added: fresh.length };
 }
 
@@ -792,6 +801,7 @@ export async function addTrack(input: { link?: string; moods?: Mood[]; instrumen
   setSetting("music.config", { ...now, library: [...now.library.filter((t) => t.videoId !== videoId), track] } as never);
   markRemoved(videoId, false);
   lyricsSoon();
+  explicitSoon();
   return musicView();
 }
 
@@ -817,6 +827,83 @@ export function removeTracks(videoIds: string[]) {
   return musicView();
 }
 export const removeTrack = (videoId: string) => removeTracks([videoId]);
+
+// ---------- explicit versions ----------
+
+/** Between songs, so YouTube Music isn't asked about a whole library at once. */
+const EXPLICIT_GAP_MS = 2_000;
+const EXPLICIT_DOWN_MS = 2 * 60_000;
+
+/** Songs not looked into yet. Not instrumentals (no words to censor), nor versions you've blocked (they never play). */
+function explicitDue(cfg: MusicConfig): Track[] {
+  if (!cfg.enabled || !cfg.preferExplicit) return [];
+  return cfg.library.filter((t) => t.explicit === undefined && !t.instrumental && !blockedVersion(t.title, cfg.taste.blockVersions as Version[]));
+}
+
+/** Looks through the library in the background (one job, one song at a time), when the switch is on. */
+export function explicitSoon() {
+  if (explicitDue(musicConfig()).length) enqueue("music.explicit", {}, { dedupeKey: "music.explicit", priority: -1, maxAttempts: 5 });
+}
+
+/** The explicit copy of this song in a search's results: same title, same first artist, same recording. */
+export function explicitCopy(t: { videoId: string; title: string; artist: string }, rows: YtmSong[], skip: Set<string> = new Set()) {
+  const key = songKey(t);
+  return rows.find((r) => r.explicit && r.videoId !== t.videoId && !skip.has(r.videoId) && songKey(r) === key && sameCut(r.title, t.title)) ?? null;
+}
+
+/** Thumbs and "played lately" go with the song to its new id, in every chat. Not the chat's order: this isn't news. */
+function moveChatVotes(from: string, to: string) {
+  for (const c of all<{ id: string; settings: string }>("SELECT id, settings FROM chats WHERE settings LIKE ?", `%${from}%`)) {
+    const s = parseJson<ChatSettings>(c.settings, {});
+    const m = s.music as ChatMusic | undefined;
+    if (!m) continue;
+    const votes = m.votes && from in m.votes ? Object.fromEntries(Object.entries(m.votes).map(([k, v]) => [k === from ? to : k, v])) : m.votes;
+    const recent = m.recent?.map((v) => (v === from ? to : v));
+    run("UPDATE chats SET settings = ? WHERE id = ?", JSON.stringify({ ...s, music: { ...m, ...(votes ? { votes } : {}), ...(recent ? { recent } : {}) } }), c.id);
+  }
+}
+
+/** Plays the explicit copy from now on: its tags, words and pins stay. The censored copy counts as removed, so a lookup won't add it back. */
+function swapToExplicit(t: Track, copy: YtmSong) {
+  const cfg = musicConfig();
+  const had = cfg.library.some((x) => x.videoId === copy.videoId);
+  const library = had
+    ? cfg.library.filter((x) => x.videoId !== t.videoId).map((x) => (x.videoId === copy.videoId ? { ...x, explicit: true } : x))
+    : cfg.library.map((x) => (x.videoId === t.videoId ? { ...x, videoId: copy.videoId, title: copy.title.slice(0, 200) || x.title, explicit: true } : x));
+  const leitmotifs = cfg.leitmotifs.map((l) => (l.videoId === t.videoId ? { ...l, videoId: copy.videoId } : l));
+  setSetting("music.config", { ...cfg, library, leitmotifs } as never);
+  if (moveLyrics(t.videoId, copy.videoId)) movePassageVectors(t.videoId, copy.videoId);
+  else forgetPassageVectors([t.videoId]);
+  moveChatVotes(t.videoId, copy.videoId);
+  markRemoved(t.videoId, true);
+  lyricsSoon();
+}
+
+/**
+ * The `music.explicit` job: one song looked up, then the job comes round again for the next one. A
+ * censored copy is the song you'd added, so the explicit one takes its place in the library, and
+ * the song itself never comes up twice. YouTube Music not answering waits two minutes.
+ */
+export async function explicitStep() {
+  const t = explicitDue(musicConfig())[0];
+  if (!t) return;
+  let rows: YtmSong[];
+  try {
+    rows = await publicSongs(`${bareTitle(t.title) || t.title} ${firstArtist(t.artist)}`.trim());
+  } catch (e) {
+    if (e instanceof YtmError) throw new Deferred(`Explicit versions: ${e.message}`, EXPLICIT_DOWN_MS);
+    throw e;
+  }
+  // Read fresh: the library may have changed while YouTube Music answered.
+  const cfg = musicConfig();
+  if (cfg.library.some((x) => x.videoId === t.videoId)) {
+    const self = rows.find((r) => r.videoId === t.videoId);
+    const copy = self?.explicit ? null : explicitCopy(t, rows, removedIds());
+    if (copy) swapToExplicit(t, copy);
+    else setSetting("music.config", { ...cfg, library: cfg.library.map((x) => (x.videoId === t.videoId ? { ...x, explicit: Boolean(self?.explicit) } : x)) } as never);
+  }
+  if (explicitDue(musicConfig()).length) throw new Deferred("Looking for the next song's explicit version", EXPLICIT_GAP_MS);
+}
 
 // ---------- the songs' words (docs/18, Part 1) ----------
 

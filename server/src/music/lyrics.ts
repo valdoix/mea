@@ -154,6 +154,21 @@ export function forgetLyrics(videoIds: string[]) {
   for (const id of videoIds) run("DELETE FROM song_lyrics WHERE video_id = ?", id);
 }
 
+/**
+ * A song's words go with it to another copy of the song, with what's been read from them. Not a
+ * miss or YouTube Music's own words, which were that copy's (the clean one's, maybe bleeped): those
+ * are looked up again. True if the words moved.
+ */
+export function moveLyrics(from: string, to: string) {
+  const r = one<Row>("SELECT * FROM song_lyrics WHERE video_id = ?", from);
+  if (!r || r.source === "none" || r.source === "ytmusic" || one("SELECT 1 FROM song_lyrics WHERE video_id = ?", to)) {
+    forgetLyrics([from]);
+    return false;
+  }
+  run("UPDATE song_lyrics SET video_id = ? WHERE video_id = ?", to, from);
+  return true;
+}
+
 // ---------- finding words ----------
 
 /** A 5xx or a dropped connection is tried once more after a moment: LRCLIB sometimes blips. */

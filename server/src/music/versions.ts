@@ -35,9 +35,27 @@ export const blockedVersion = (title: string, blocked: readonly Version[]) => bl
 
 const plain = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, "");
 
+/** A title without the version part or a feat. */
+export const bareTitle = (title: string) => title.replace(/[([][^)\]]*[)\]]/g, " ").replace(/\s[-–—]\s.*$/, " ").replace(/\b(feat|ft|featuring)\.?\s.*$/i, " ").replace(/\s+/g, " ").trim();
+
+/** The song's first credited artist. */
+export const firstArtist = (artist: string) => artist.split(/\s*(?:&|,|\bx\b|\bfeat\.?|\bft\.?|\bwith\b)\s*/i)[0] ?? "";
+
 /** One key for every copy of a song: its title without the version part or a feat., and its first artist. */
 export function songKey(t: { title: string; artist: string }) {
-  const base = t.title.replace(/[([][^)\]]*[)\]]/g, " ").replace(/\s[-–—]\s.*$/, " ").replace(/\b(feat|ft|featuring)\.?\s.*$/i, " ");
-  const artist = t.artist.split(/\s*(?:&|,|\bx\b|\bfeat\.?|\bft\.?|\bwith\b)\s*/i)[0] ?? "";
-  return `${plain(base) || plain(t.title)}|${plain(artist)}`;
+  return `${plain(bareTitle(t.title)) || plain(t.title)}|${plain(firstArtist(t.artist))}`;
 }
+
+/** Marks that say only how clean a copy is, or who else is on it: the recording is the same. */
+const ONLY_THE_WORDS = /^\s*(?:(?:feat|ft|featuring)\b.*|(?:super\s+)?clean(?:\s+(?:version|edit))?|explicit(?:\s+version)?|dirty(?:\s+version)?|censored(?:\s+version)?|edited(?:\s+version)?|radio\s+(?:edit|version))\s*$/i;
+
+const cutOf = (title: string) =>
+  versionPart(title)
+    .split(" | ")
+    .filter((bit) => bit.trim() && !ONLY_THE_WORDS.test(bit))
+    .map(plain)
+    .sort()
+    .join("|");
+
+/** The same recording, whichever way its words are cut: "Song (Clean)" and "Song" are, "Song (Live)" and "Song" aren't. */
+export const sameCut = (a: string, b: string) => cutOf(a) === cutOf(b);
