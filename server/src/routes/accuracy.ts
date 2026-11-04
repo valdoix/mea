@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { askArchivist, deleteArchive, listArchive, pushArchive } from "../accuracy/archivist";
-import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor, leakGuardOn, replaceIssue } from "../accuracy/checker";
+import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor, leakGuardOn, replaceIssue, repairIssue, unrepairIssue } from "../accuracy/checker";
 import { slipCatalog } from "../accuracy/slips";
 import { memoryConfig } from "../lib/settings";
 import { codex, codexEntry } from "../accuracy/codex";
@@ -43,6 +43,16 @@ accuracy.post("/messages/:id/check", async (c) => {
 accuracy.post("/continuity/:id/dismiss", async (c) => {
   const input = await body(c, z.object({ issueId: z.string().nullable().default(null) }));
   return c.json(dismissIssue(c.req.param("id"), input.issueId));
+});
+
+/** docs/26 5.3: a reply treated old news as new: put the records right, or take that back. */
+accuracy.post("/continuity/:id/repair", async (c) => {
+  const input = await body(c, z.object({ issueId: z.string() }));
+  return c.json(repairIssue(c.req.param("id"), input.issueId));
+});
+accuracy.post("/continuity/:id/unrepair", async (c) => {
+  const input = await body(c, z.object({ issueId: z.string() }));
+  return c.json(unrepairIssue(c.req.param("id"), input.issueId));
 });
 
 accuracy.post("/continuity/:id/accept", async (c) => {

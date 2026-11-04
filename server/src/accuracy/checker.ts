@@ -21,6 +21,7 @@ import { flagAllowed, guardsFor, puppetScope, type PuppetScope } from "./guards"
 import { citesClosed, flagKey, flagKinds, quietKeys, wavedThrough } from "./quiet";
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
 import { runSlips, slipAllowed, slipContext } from "./slips";
+import { type OldNewsRepair, repairRecords, undoRepair } from "./notnews";
 import { retellIssues } from "./retell";
 import { thingCore, thingPlace } from "../trackers/things";
 import { tieIssues } from "./ties";
@@ -69,6 +70,9 @@ export interface Issue {
   quiet?: boolean;
   /** docs/14, part 6: a one-tap fix that swaps a word in the reply (a name from the original's world). */
   replace?: { from: string; to: string };
+  /** docs/26 5.3: what a "known" flag is about, and what putting the records right wrote. */
+  about?: string;
+  repaired?: OldNewsRepair;
 }
 
 export interface FlagRow {
@@ -469,6 +473,27 @@ export function dismissIssue(flagId: string, issueId: string | null, settled?: I
   const quiet = quietKeys(r.chat_id);
   const issues = parseJson<Issue[]>(r.issues, []).map((i) => ((issueId == null ? !quiet.has(flagKey(i)) : i.id === issueId) ? { ...i, dismissed: true, ...(settled ? { settled } : {}) } : i));
   return save(r, issues);
+}
+
+/** docs/26 5.3: the records put right behind a reply that treated old news as new. The reply's words stay. */
+export function repairIssue(flagId: string, issueId: string) {
+  const r = mustFlag(flagId);
+  const issues = parseJson<Issue[]>(r.issues, []);
+  const issue = issues.find((i) => i.id === issueId);
+  if (!issue?.about) throw notFound("Issue not found");
+  if (issue.repaired) return flagOut(r);
+  const seq = getMessageRow(r.message_id)?.seq ?? 0;
+  const repaired = repairRecords(r.chat_id, issue.about, seq, r.message_id, r.swipe_idx);
+  return save(r, issues.map((i) => (i.id === issueId ? { ...i, repaired } : i)));
+}
+
+export function unrepairIssue(flagId: string, issueId: string) {
+  const r = mustFlag(flagId);
+  const issues = parseJson<Issue[]>(r.issues, []);
+  const issue = issues.find((i) => i.id === issueId);
+  if (!issue?.repaired) throw notFound("Nothing to take back");
+  undoRepair(r.chat_id, issue.repaired);
+  return save(r, issues.map((i) => (i.id === issueId ? { ...i, repaired: undefined } : i)));
 }
 
 /** docs/22 4.2, the one tap back: the kind's flags show again, its waiting ones too, and its count starts over. */

@@ -1,7 +1,8 @@
-import { all, parseJson } from "../db/db";
+import { all, one, parseJson, run } from "../db/db";
 import { excerpt } from "../memory/deep";
 import { norm } from "../memory/entities";
 import { heardBy } from "../memory/named";
+import { currentFold, deleteEvents, invalidate, linesToOps, writeEvents } from "../trackers/store";
 import { cleanText, namedTerms } from "../memory/text";
 import type { WorldState } from "../trackers/types";
 import { sentences } from "./rules";
@@ -154,6 +155,7 @@ export function alreadyToldRule(chatId: string, text: string, seq: number, st: W
       if (st?.presence?.length && !there.length) continue;
       out.push({
         kind: "known",
+        about: term,
         severity: "minor",
         claim,
         conflict: `"${term}" isn't new. ${mentionText(news)}${news.knownBy.length ? ` Known to ${news.knownBy.join(", ")}.` : ""}`,
@@ -165,4 +167,80 @@ export function alreadyToldRule(chatId: string, text: string, seq: number, st: W
     }
   }
   return out;
+}
+
+// ---------- putting the records right (docs/26 5.3) ----------
+
+export interface OldNewsRepair {
+  /** The lines written, so they can be taken back. */
+  events: string[];
+  /** The reply's beat as it was, when its wording changed. */
+  beat?: { id: string; op: string };
+  /** Who the records now have knowing it, and since when. */
+  knew: { name: string; seq: number }[];
+}
+
+/** Words that make an old thing sound new, in the record of a reply. */
+const REVEALS = /\b(reveals?|revealing|revealed|discloses?|confesses?|admits?)\b/gi;
+
+/**
+ * A reply treated something as news, and the tracker believed it: at #792 the beat said Gabriel "reveals"
+ * the nickname, and "know everyone" dated it to then. This gives each person the memories have knowing
+ * it their own line at the message they first did, and takes "reveals" out of the beat. It doesn't touch
+ * the reply's words: that's the sentence fix, or a new take. Rules only.
+ */
+export function repairRecords(chatId: string, term: string, seq: number, messageId: string, swipeIdx: number): OldNewsRepair {
+  const fts = `"${term.replaceAll('"', "")}"`;
+  const facts = all<{ content: string; known_by: string; max_seq: number | null }>(
+    "SELECT m.content, m.known_by, m.max_seq FROM memories_fts f JOIN memories m ON m.id = f.id WHERE memories_fts MATCH ? AND f.chat_id = ? AND m.deleted_at IS NULL AND m.status = 'active' AND m.type = 'fact' AND COALESCE(m.max_seq, 0) < ? ORDER BY m.max_seq",
+    fts,
+    chatId,
+    seq,
+  );
+  const events = all<{ id: string; op: string }>("SELECT id, op FROM tracker_events WHERE chat_id = ? AND message_id = ? AND swipe_idx = ? ORDER BY ord", chatId, messageId, swipeIdx);
+  const parsed = events.map((e) => ({ ...e, parsed: parseJson<{ op: string; raw?: string; args?: { text?: string; fact?: string } }>(e.op, { op: "" }) }));
+  const has = (t?: string) => Boolean(t?.toLowerCase().includes(term));
+  // The reply's own know line, if it wrote one: filed under the same words, it joins instead of sitting beside this.
+  const statement = parsed.find((e) => e.parsed.op === "know" && has(e.parsed.args?.fact))?.parsed.args?.fact ?? facts.at(-1)?.content;
+  const out: OldNewsRepair = { events: [], knew: [] };
+  if (statement) {
+    // Memories call people what they were called then ("Buffy", "Buffy Summers"). Each is one person, the
+    // story's own name for them, and a name that's nobody in the story gets no line: it would make someone up.
+    const cast = Object.values(currentFold(chatId).result.state.chars).filter((c) => !c.isUser);
+    const person = (name: string) => {
+      const k = norm(name);
+      return cast.find((c) => [c.name, ...c.aliases].some((n) => norm(n) === k)) ?? cast.find((c) => c.name.split(/\s+/).some((w) => norm(w) === k) || name.split(/\s+/).some((w) => norm(w) === norm(c.name)));
+    };
+    const firsts = new Map<string, { name: string; seq: number }>();
+    for (const f of facts) {
+      for (const name of parseJson<string[]>(f.known_by, [])) {
+        const c = person(name);
+        if (c && !firsts.has(c.id)) firsts.set(c.id, { name: c.name, seq: f.max_seq ?? 0 });
+      }
+    }
+    const fact = statement.replace(/\s*[|·]\s*/g, ", ");
+    for (const { name, seq: at } of firsts.values()) {
+      const m = one<{ id: string; active_swipe: number }>("SELECT id, active_swipe FROM messages WHERE chat_id = ? AND seq = ? AND deleted_at IS NULL", chatId, at);
+      if (!m) continue;
+      out.events.push(...writeEvents(chatId, { messageId: m.id, swipeIdx: m.active_swipe }, linesToOps([`know ${name}: ${fact} | it came up at #${at} · knows · true`]).ops, "user"));
+      out.knew.push({ name, seq: at });
+    }
+  }
+  const beat = parsed.find((e) => e.parsed.op === "beat" && has(e.parsed.args?.text));
+  if (beat && REVEALS.test(beat.parsed.args!.text!)) {
+    const text = beat.parsed.args!.text!.replace(REVEALS, "brings up");
+    run("UPDATE tracker_events SET op = ? WHERE id = ?", JSON.stringify({ ...beat.parsed, args: { ...beat.parsed.args, text }, raw: `beat: ${text}` }), beat.id);
+    out.beat = { id: beat.id, op: beat.op };
+    invalidate(chatId);
+  }
+  return out;
+}
+
+/** Takes a repair back: the lines it wrote go, and the beat reads as it did. */
+export function undoRepair(chatId: string, repair: OldNewsRepair) {
+  deleteEvents(chatId, repair.events);
+  if (repair.beat) {
+    run("UPDATE tracker_events SET op = ? WHERE id = ?", repair.beat.op, repair.beat.id);
+    invalidate(chatId);
+  }
 }
