@@ -1,6 +1,6 @@
 # Design plan: search by meaning (what vectors can still do for recall)
 
-**Written:** November 5, 2026 · **Base:** `origin/main` at d752319, which includes the recall rebalance (#255) · **Status:** being built. Parts 1 and 2 done (see their results)
+**Written:** November 5, 2026 · **Base:** `origin/main` at d752319, which includes the recall rebalance (#255) · **Status:** being built. Parts 1 to 3 done (see their results)
 
 Mea already searches by meaning. Memories, summaries and song passages have vectors, recall fuses them with keywords, and the eval from docs/26 Part 4 can score any change. This plan covers what's left. The biggest gain looks like a small fix: recall often finds the right memory and then fails to use it.
 
@@ -136,6 +136,20 @@ Serendipity now draws one number per memory (from the turn's seed and the memory
 Quotes use only budget the other slots leave, so a trigger firing more often costs little, but it does add database searches to the turn.
 
 *Done when:* it fires on a chosen share of turns (start at most 1 in 5), and the quote cases improve.
+
+### Part 3 results (November 5)
+
+**Built:** recall measures how far the best memory stands above the rest for the strongest query, in standard deviations of that query's scores over this chat's memories ("standout"). Recall is weak when no name brought back a record, no memory shares 4 or more rare words with the newest lines, and the standout is under 2.6. Weak recall reaches back once the story is 200 messages past the window, as before; cue words reach back whatever the scores say, and are all that's left with no query vector. Both the standout and what made recall reach back are in the recall stats.
+
+**Two things the plan didn't expect:**
+- *"No name or rare-word hit" never happens.* Every one of the 69 turns had either a name that brought back a record (30) or a memory sharing at least 2 rare words (all of them): in a 400-character message, two or three rare words in common happen by chance. So the test counts strength (4+ rare words), not presence.
+- *Deep search's quotes never land.* Quotes use only what the other slots leave, and on these turns they leave nothing. With the new test, deep search reaches back on 11 of 69 turns (3 by cue words, 8 by weak recall, about 1 in 8), and adds a quote on none of them. The 5 turns that do carry a quote get it from the named records ("the first mention of ..."). Since a search with no room can't add anything, recall now skips it, which changes no output.
+
+The standout over these turns: 10th percentile 2.14 sd, median 2.54. In the second chat, 2.00 and 2.11, but its window has only just moved, so it never passes the 200-message gate.
+
+**The quote case:** #147 still misses, and would even with deep search forced to run. Deep search picks scenes by their summaries and then the message by keywords, and "Ruth's colour" never says "orange". That is the gap Part 5 is about.
+
+**Done?** Half. The test can now fail, and it fires on about 1 turn in 8. The quote cases don't improve, because quotes have no budget, and with one quote case there's nothing to tune on. Giving quotes a share of their own would be the next step, but the forced search above shows what they'd hold today: keyword matches from the right period that don't answer the question. That share belongs with Part 5, if it's built.
 
 ---
 

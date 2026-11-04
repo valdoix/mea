@@ -16,6 +16,8 @@
  *
  * Variants come from RECALL_VARIANTS (JSON). "as it stands" and "vectors off" always run first.
  * --displaced lists, per turn, what each variant added to the writer's block and what it pushed out.
+ * The first variant also says how often deep search reached back; RECALL_SIGNALS=1 prints, per turn,
+ * the signals that decide it (names found, rare words shared, how far the best match stands out).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -153,6 +155,9 @@ interface Variant {
   vectors?: boolean;
   /** How many closest-in-meaning memories get a slot of their own (recall's default when unset). */
   closest?: number;
+  /** Below this standout recall counts as weak and deep search reaches back (recall's default when unset). */
+  weakStandout?: number;
+  reachBackFrom?: number;
 }
 
 function run(t: Turn, v: Variant, budget?: number) {
@@ -174,7 +179,9 @@ function run(t: Turn, v: Variant, budget?: number) {
     skipCards,
     povName,
     closest: v.closest,
-  }).items;
+    weakStandout: v.weakStandout,
+    reachBackFrom: v.reachBackFrom,
+  });
 }
 
 const groupOf = (c: Case) => (c.found ? "independent" : "earlier");
@@ -185,9 +192,15 @@ function score(turns: Turn[], v: Variant, budget?: number) {
   const missed: string[] = [];
   const tokens = { memory: 0, summary: 0, other: 0 };
   const blocks: RecallItem[][] = [];
+  const standouts: number[] = [];
+  const reached = { "cue words": 0, "weak recall": 0, quoted: 0 };
   for (const t of turns) {
-    const items = run(t, v, budget);
+    const { items, stats } = run(t, v, budget);
     blocks.push(items);
+    if (stats.standout !== null) standouts.push(stats.standout);
+    if (stats.reachedBack) reached[stats.reachedBack]++;
+    if (items.some((i) => i.slot === "deep")) reached.quoted++;
+    if (process.env.RECALL_SIGNALS && budget === undefined) console.log(`    signals #${t.c.seq}: named ${stats.named}, rare ${stats.rareWords}, standout ${stats.standout?.toFixed(2)}, evicted ${t.evicted}`);
     const ids = new Set(items.map((i) => i.id));
     const hit = t.want.some((w) => ids.has(w.id));
     // Its scene's summary or the telescope may carry the same thing, in less detail.
@@ -204,7 +217,7 @@ function score(turns: Turn[], v: Variant, budget?: number) {
     if (!hit) missed.push(`#${t.c.seq} ${t.c.why}${t.c.found ? ` [${t.c.found}]` : ""}`);
     for (const i of items) tokens[i.ownerType === "memory" ? "memory" : i.ownerType === "summary" ? "summary" : "other"] += i.tokens;
   }
-  return { kinds, groups, missed, tokens, blocks };
+  return { kinds, groups, missed, tokens, blocks, standouts, reached };
 }
 
 const BASE: Variant[] = [{ name: "as it stands" }, { name: "vectors off", vectors: false }];
@@ -232,6 +245,11 @@ for (const [label, budget] of [["writer", undefined], ["planner (2,500 tokens)",
       `${v.name.padEnd(26)}${`${total}/${turns.length}`.padEnd(9)}${groupNames.map((g) => `${s.groups.get(g)?.hit ?? 0}/${s.groups.get(g)?.n ?? 0}`.padEnd(13)).join("")}${kindNames.map((k) => `${s.kinds.get(k)?.hit ?? 0}/${s.kinds.get(k)?.n ?? 0}`.padEnd(10)).join("")}${`${pct(s.tokens.memory, count)} / ${pct(s.tokens.summary, count)}`.padEnd(24)}`,
     );
     if (detail) for (const m of s.missed) console.log(`    missed ${m}`);
+    if (detail || v === VARIANTS[0]) {
+      const z = [...s.standouts].sort((a, b) => a - b);
+      const at = (p: number) => z[Math.min(z.length - 1, Math.floor(p * z.length))]?.toFixed(2) ?? "-";
+      console.log(`    reached back on ${s.reached["cue words"] + s.reached["weak recall"]} of ${turns.length} turns (cue words ${s.reached["cue words"]}, weak recall ${s.reached["weak recall"]}), quoted on ${s.reached.quoted}; best match stands out by ${at(0.1)} / ${at(0.2)} / ${at(0.5)} sd (10th / 20th / 50th percentile)`);
+    }
     // What a change costs is what it pushes out, and the hit count can't see that: read it by hand.
     if (displaced && budget === undefined && s.blocks !== baseBlocks) {
       turns.forEach((t, n) => {

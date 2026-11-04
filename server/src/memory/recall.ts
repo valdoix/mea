@@ -60,6 +60,10 @@ export interface RecallInput {
   lens?: Lens;
   /** How many memories closest in meaning to the strongest query get in on their own (docs/27 2). */
   closest?: number;
+  /** Below this standout, with nothing found by name or rare words, recall counts as weak (docs/27 3). */
+  weakStandout?: number;
+  /** How far past the window the story must be before weak recall reaches back (docs/27 3). */
+  reachBackFrom?: number;
 }
 
 export interface RecallStats {
@@ -71,6 +75,14 @@ export interface RecallStats {
   deep: number;
   entities: string[];
   diversity: number;
+  /** How far the best memory stands above the rest for the strongest query, in standard deviations. */
+  standout: number | null;
+  /** The most rare words (held by few memories) any one memory shares with the newest lines. */
+  rareWords: number;
+  /** Names just used that brought back their records. */
+  named: number;
+  /** What sent deep search back to the old messages, if anything did. */
+  reachedBack: "cue words" | "weak recall" | null;
 }
 
 /** Rank fusion within one list: a small k keeps the best matches clearly ahead of the tenth. */
@@ -164,6 +176,18 @@ const CLOSEST_SHARE = 0.15;
 /** Fewer content words than this ("OK.") and the message has no real nearest neighbour. */
 const CLOSEST_MIN_WORDS = 3;
 const NEVER_USED = "recalled often, never used";
+/**
+ * docs/27 Part 3: recall is weak when no name brought back a record, no memory shares many rare words
+ * with the newest lines, and the best memory barely stands out from the rest for the strongest query.
+ * A story's memories all sound alike, so a fixed similarity can't tell (the best scored 0.415 at
+ * worst); how far the best stands above the others, in standard deviations of this chat's own scores,
+ * can. Two or three rare words in common happen by chance in a long message, so they don't count.
+ * Tuned to call about one turn in eight weak.
+ */
+const WEAK_STANDOUT = 2.6;
+const STRONG_RARE = 4;
+/** Deep search reaches back on weak recall only once the story is this far past the window. */
+const REACH_BACK_FROM = 200;
 
 /**
  * The records behind the names in the newest lines. Each name gets two memories at most, the first and
@@ -207,7 +231,7 @@ function namedRecords(chatId: string, text: string, evicted: number, atomById: M
 
 export function recall(input: RecallInput) {
   const { chatId, evicted, budget, cfg } = input;
-  const stats: RecallStats = { candidates: 0, filteredPov: 0, signaled: 0, queries: input.queries.map((q) => q.label), librarian: "none", deep: 0, entities: [], diversity: cfg.diversity };
+  const stats: RecallStats = { candidates: 0, filteredPov: 0, signaled: 0, queries: input.queries.map((q) => q.label), librarian: "none", deep: 0, entities: [], diversity: cfg.diversity, standout: null, rareWords: 0, named: 0, reachedBack: null };
   const res = resolver(chatId);
   const lens = input.lens ?? PLAIN;
 
@@ -326,6 +350,7 @@ export function recall(input: RecallInput) {
   }
   for (const a of atoms) {
     const shared = [...wordsIn.get(a.id)!].filter((w) => (held.get(w) ?? RARE_WORD + 1) <= RARE_WORD).length;
+    stats.rareWords = Math.max(stats.rareWords, shared);
     if (shared >= 2) bump(`memory:${a.id}`, RARE_BONUS * (shared - 1), `${shared} rare words`, true);
   }
 
@@ -431,6 +456,7 @@ export function recall(input: RecallInput) {
   // A name just used comes first. What the few memories holding it say is the likeliest thing here to
   // be contradicted, and no other signal finds them reliably (#792: "Brongel", in two memories).
   const names = rest > 60 ? namedRecords(chatId, strongText, evicted, atomById) : { memories: [], quotes: [] };
+  stats.named = names.memories.length + names.quotes.length;
   const namedCap = rest * NAMED_SHARE;
   let namedUsed = 0;
   for (const n of names.memories) namedUsed += take(n.keys, "relevant", namedCap - namedUsed, `names "${n.term}"`);
@@ -456,22 +482,31 @@ export function recall(input: RecallInput) {
   }
   rest = Math.max(0, rest - namedUsed);
 
-  // The closest in meaning to the strongest query, before anything else can crowd them out.
-  const closest = input.closest ?? CLOSEST;
+  // How close every memory is to the strongest query: the closest get a slot, and how far the best
+  // stands out says whether recall found anything at all.
   const strongest = input.queries[0];
   const sv = input.qvecs[0];
-  if (closest > 0 && sv && strongest && rest > 60 && contentWords(strongest.text).size >= CLOSEST_MIN_WORDS) {
-    const near: { key: string; sim: number }[] = [];
+  const near: { key: string; sim: number; neverUsed: boolean }[] = [];
+  if (sv)
     for (const a of atoms) {
       const v = vectors.get(`memory:${a.id}`);
-      // One the replies keep passing over would come back every turn, past the fade that drops it.
-      if (!v || (cfg.reinforcement && reinforcement(a, evicted).note === NEVER_USED)) continue;
-      near.push({ key: `memory:${a.id}`, sim: cosine(sv, v) });
+      if (v) near.push({ key: `memory:${a.id}`, sim: cosine(sv, v), neverUsed: cfg.reinforcement && reinforcement(a, evicted).note === NEVER_USED });
     }
-    near.sort((a, b) => b.sim - a.sim);
+  near.sort((a, b) => b.sim - a.sim);
+  if (near.length >= 10) {
+    const mean = near.reduce((n, x) => n + x.sim, 0) / near.length;
+    const sd = Math.sqrt(near.reduce((n, x) => n + (x.sim - mean) ** 2, 0) / near.length);
+    if (sd > 0) stats.standout = (near[0]!.sim - mean) / sd;
+  }
+
+  // The closest in meaning to the strongest query, before anything else can crowd them out.
+  const closest = input.closest ?? CLOSEST;
+  if (closest > 0 && strongest && near.length && rest > 60 && contentWords(strongest.text).size >= CLOSEST_MIN_WORDS) {
+    // One the replies keep passing over would come back every turn, past the fade that drops it.
+    const fresh = near.filter((n) => !n.neverUsed);
     const cap = rest * CLOSEST_SHARE;
     let used = 0;
-    for (const n of near.slice(0, closest)) used += take([n.key], "relevant", cap - used, `closest in meaning ${n.sim.toFixed(2)} (${strongest.label})`);
+    for (const n of fresh.slice(0, closest)) used += take([n.key], "relevant", cap - used, `closest in meaning ${n.sim.toFixed(2)} (${strongest.label})`);
     rest = Math.max(0, rest - used);
   }
 
@@ -576,9 +611,12 @@ export function recall(input: RecallInput) {
   carry = serCap - take(serPool, "serendipity", serCap, "a callback from long ago");
 
   // Deep search (MEM-22): when the story reaches far back, quote the old messages themselves.
+  // docs/27 3.1: with no query vector, only cue words ("remember when") reach back.
   const primary = input.queries[0]?.text ?? "";
-  const weak = (relevant[0]?.[1].score ?? 0) < 0.03;
-  if (cfg.deepSearch && evicted > 0 && (RECALL_CUE.test(primary) || (weak && evicted > 200))) {
+  const weak = !stats.named && stats.rareWords < STRONG_RARE && stats.standout !== null && stats.standout < (input.weakStandout ?? WEAK_STANDOUT);
+  stats.reachedBack = RECALL_CUE.test(primary) ? "cue words" : weak && evicted > (input.reachBackFrom ?? REACH_BACK_FROM) ? "weak recall" : null;
+  // Quotes only use what the other slots left: with no room for even a shortened one, don't search.
+  if (cfg.deepSearch && evicted > 0 && stats.reachedBack && carry > 30) {
     const hits = deepSearch(chatId, { query: input.queries.map((q) => q.text).join("\n"), qvec: input.qvecs[0] ?? null, beforeSeq: evicted, quotes: 3, excerptSize: 240 });
     // L13: quotes use what the other slots left, never more than the budget.
     const cap = Math.max(0, carry);
