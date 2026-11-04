@@ -43,7 +43,7 @@ import { runJournalJob } from "./memory/journals";
 import { onLedgerChange, runBuildJob, segmentChat } from "./memory/scheduler";
 import { probeCache, runDueProbes } from "./services/probe";
 import { onTrackerUpdate, runTrackerInit, runTrackerUpdate, trackerLedgerHook } from "./trackers/service";
-import { readSheets, runTelling, runWording, worldAfterReply, worldLane } from "./sim/service";
+import { readSheets, runHeed, runTelling, runWording, worldAfterReply, worldLane } from "./sim/service";
 import { activeGenerations, setElsewhereLane } from "./services/generation";
 import { runSpeakerMarksJob } from "./services/speakermarks";
 
@@ -177,6 +177,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   setElsewhereLane((chatId) => worldLane(chatId));
   registerJob("world.tell", async (p, job) => runTelling(p as Parameters<typeof runTelling>[0], job));
   registerJob("world.word", async (p, job) => runWording(p as Parameters<typeof runWording>[0], job));
+  registerJob("world.heed", async (p, job) => runHeed(p as Parameters<typeof runHeed>[0], job));
   registerJob("world.sheet", async (p, job) => {
     await readSheets(p as Parameters<typeof readSheets>[0], job);
   });

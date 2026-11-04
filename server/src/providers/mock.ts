@@ -96,6 +96,14 @@ function helperJson(name: string, user: string, system = ""): unknown {
       return {
         items: [...user.matchAll(/^ITEM (\S+)\n[\s\S]*?^ENGINE'S PREMISE (.+)$/gm)].map((m) => ({ id: m[1], premise: `Worded: ${m[2]}`, want: "keep going", fear: "it all comes apart" })),
       };
+    case "world_heed": {
+      // Changes every item when the scene carries a marker; otherwise, as usual, nothing.
+      const scene = user.split("\nTHE SCENE\n")[1] ?? "";
+      const quote = scene.includes("MOCK_HEED_END") ? "MOCK_HEED_END" : scene.includes("MOCK_HEED") ? "MOCK_HEED" : null;
+      if (!quote) return { changes: [] };
+      const ids = [...user.matchAll(/^ITEM (\S+)$/gm)].map((m) => m[1]);
+      return { changes: ids.map((id) => (quote === "MOCK_HEED_END" ? { id, effect: "end", quote, happened: "The scene settled it.", result: "met" } : { id, effect: "shift", quote, happened: "The scene changed it.", result: "win", premise: "Heeded: the page changed things.", want: "to deal with what the scene showed", fear: "nobody believes what they saw" })) };
+    }
     case "world_sheet":
       // Reads "dead", "last seen in X" and "cat" the way a model would; everyone else is alive and here.
       return {
@@ -788,6 +796,7 @@ function guessSchema(system: string) {
   if (system.includes('"beats"')) return "world_telling";
   if (system.includes('"inStory"')) return "world_sheet";
   if (system.includes('"items"') && system.includes("subplots")) return "world_wording";
+  if (system.includes('"changes"') && system.includes("subplots")) return "world_heed";
   if (system.includes('"verdict"')) return "summary_check";
   if (system.includes('"newScene"')) return "scene_boundary";
   if (system.includes('"openThreads"')) return "summary_rollup";

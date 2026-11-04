@@ -37,6 +37,8 @@ export interface Beat {
   forced?: Force;
   /** What set it off elsewhere: "Joss's revenge", 'the thread "Lost locket"'. */
   answers?: string;
+  /** The story showed this on the page (heed.ts); no dice were rolled. */
+  page?: boolean;
   seq: number;
 }
 
@@ -65,7 +67,7 @@ export interface Arc {
   nextAt: number;
   status: "running" | "held" | "crossed" | "resolved" | "dropped" | "fate";
   by: "engine" | "player";
-  /** The player's words; the engine never rewrites them. */
+  /** The player's words; the engine never rewrites them. Only what the story shows on the page can (heed.ts). */
   locked?: boolean;
   /** Next beat comes at once, even out of hours. */
   push?: boolean;

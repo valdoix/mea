@@ -48,7 +48,7 @@ export function retellPrompt(cards: BeatCard[], misses: Map<string, { text: stri
   return { system, user: `${user}\n\nLAST TRY:\n${notes}` };
 }
 
-const COMMON = new Set(
+export const COMMON = new Set(
   "The A An It In On At By For With From After Before When While Then But And Or Off Somewhere Nobody Someone Everyone Later Meanwhile That This Their His Her They She He Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April May June July August September October November December Day Night Morning Evening".split(" "),
 );
 

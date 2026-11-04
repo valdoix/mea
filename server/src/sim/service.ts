@@ -23,7 +23,8 @@ import { checkRead, saveSheet, sheetKey, sheetPrompt, sheetSchema, sheetsFor } f
 import { climateFrom, forecast, latitudeFrom, placeClimate, skyLine, type SkyInput } from "./sky";
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, pastCard, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
 import { retellPrompt, softProblem, tellingPrompt, tellingSchema, validateTelling } from "./telling";
-import { tidyWording, validateWording, type WordingCard, wordingPrompt, wordingSchema } from "./wording";
+import { softWording, tidyWording, validateWording, wordingAbout, type WordingCard, wordingPrompt, wordingSchema } from "./wording";
+import { heedItems, heedOps, heedPrompt, heedSchema, touchedBy } from "./heed";
 import type { Arc, EndResult, Force, SimOp, Standing } from "./types";
 import { bearingsOn, conditionsFor, eventsOf, peopleOf, pullWords, webMod } from "./web";
 
@@ -255,6 +256,8 @@ export function worldAfterReply(chatId: string, messageId: string, swipeIdx?: nu
   const castNames = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri").map((c) => c.name);
   const confirmed = confirmArrivals({ arrivals: Object.values(st.sim.arrivals), offered: lane.offered, prose, now: st.time.minutes, castNames });
   if (confirmed.length) writeEvents(chatId, anchor, simOps(confirmed), "engine", { replace: [] });
+  // Whatever the clock says, the subplots this scene names get read against it.
+  if (cfg.telling === "model" && swipeIdx != null && touchedBy(heedItems(st), sceneOf(chatId, messageId)).length) enqueue("world.heed", { chatId, messageId, swipeIdx }, { dedupeKey: `world.heed:${messageId}:${swipeIdx}`, priority: 2, maxAttempts: 2, chatId });
   const from = st.sim.lastTickAt;
   if (from != null && st.time.minutes - from < cfg.step) return;
   runTick(chatId, messageId, false, swipeIdx);
@@ -377,6 +380,43 @@ async function tellCards(chatId: string, cards: BeatCard[], opts: { job?: JobCon
   return told;
 }
 
+// ---------- what the page did to the subplots ----------
+
+/** The newest messages up to this one, oldest first (the active version of each). */
+function messagesUpTo(chatId: string, messageId: string | null, n: number): string[] {
+  const rows = all<{ content: string }>(
+    `SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+     WHERE m.chat_id = ? AND m.deleted_at IS NULL AND m.seq <= COALESCE((SELECT seq FROM messages WHERE id = ?), m.seq)
+     ORDER BY m.seq DESC LIMIT ?`,
+    chatId,
+    messageId,
+    n,
+  );
+  return rows.map((r) => r.content.trim()).filter(Boolean).reverse();
+}
+
+/** A reply and the message it answered: what just happened on the page. */
+function sceneOf(chatId: string, messageId: string): string {
+  return messagesUpTo(chatId, messageId, 2).map((t) => t.slice(-6000)).join("\n\n");
+}
+
+/** Read a reply against the subplots it names; what it changed rides that reply, so it branches with swipes. */
+export async function runHeed(p: { chatId: string; messageId: string; swipeIdx: number }, job?: JobContext) {
+  // Swiped away while it waited: the version it was queued for is no longer the story.
+  if (!one("SELECT 1 FROM messages WHERE id = ? AND active_swipe = ? AND deleted_at IS NULL", p.messageId, p.swipeIdx)) return;
+  const st = currentFold(p.chatId).result.state;
+  if (!st.time) return;
+  const scene = sceneOf(p.chatId, p.messageId);
+  const items = touchedBy(heedItems(st), scene);
+  if (!items.length) return;
+  const fc = foldConfigFor(p.chatId);
+  const { system, user } = heedPrompt(items, scene, { userName: fc.userName });
+  const res = await callJson({ task: "world", kind: "world:heed", chatId: p.chatId, jobId: job?.id, name: "world_heed", schema: heedSchema, system, user, maxTokens: 1200 });
+  job?.note({ inputTokens: res.inputTokens });
+  const ops = heedOps(st, res.data.changes, scene, { now: st.time.minutes });
+  if (ops.length) writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, simOps(ops), "engine");
+}
+
 // ---------- wording new subplots ----------
 
 /** Word the proposals and engine-started subplots a tick made (by id), in the story's words. */
@@ -396,18 +436,21 @@ async function wordSubplots(chatId: string, ids: string[], job?: JobContext, aga
   const st = currentFold(chatId).result.state;
   const fc = foldConfigFor(chatId);
   const s = parseJson<ChatSettings>(mustChat(chatId).settings, {});
-  const o = { userName: fc.userName, truths: s.truths ?? [], genres: worldConfig(chatId).genres };
+  const lately = messagesUpTo(chatId, null, 3).map((t) => (t.length > 700 ? `…${t.slice(-700)}` : t)).join("\n\n");
+  const o = { userName: fc.userName, truths: s.truths ?? [], genres: worldConfig(chatId).genres, scene: lately };
   const name = (who: string) => st.sim.actors[who]?.name ?? who;
+  const roster = rosterFor(chatId, st);
+  const situations = loreSituations(chatId);
   const cards: WordingCard[] = ids.flatMap((id) => {
     const p = st.sim.proposals[id];
-    if (p) return [{ id, kind: p.kind, lead: p.leadName, cast: p.cast.map(name), premise: p.premise, want: p.want, fear: p.fear, why: p.why }];
+    if (p) return [{ id, kind: p.kind, lead: p.leadName, cast: p.cast.map(name), premise: p.premise, want: p.want, fear: p.fear, why: p.why, about: wordingAbout({ ...p, id }, st, roster, situations) }];
     const a = st.sim.arcs[id];
     // Words you wrote (or edited) are yours: they're never reworded.
-    if (a && a.by === "engine" && (!a.locked || again)) return [{ id, kind: a.kind, lead: a.leadName, cast: a.cast.map(name), premise: a.premise, want: a.want, fear: a.fear, why: a.grounds.join(", ") || "the story so far" }];
+    if (a && a.by === "engine" && (!a.locked || again)) return [{ id, kind: a.kind, lead: a.leadName, cast: a.cast.map(name), premise: a.premise, want: a.want, fear: a.fear, why: a.grounds.join(", ") || "the story so far", about: wordingAbout(a, st, roster, situations) }];
     return [];
   });
   if (!cards.length) return [];
-  const freshly = again ? "\nWORD IT AGAIN: the story already reads the engine's words above. Give it new words of your own." : "";
+  const freshly = again ? "\nWRITE IT AGAIN: the story already reads the words above. Find a different angle on what's at stake for them, in new words." : "";
   const worded = new Map<string, { premise: string; want: string; fear: string }>();
   const misses = new Map<string, { w: { premise: string; want: string; fear: string }; problem: string }>();
   const take = (items: { id: string; premise: string; want: string; fear: string }[]) => {
@@ -436,7 +479,7 @@ async function wordSubplots(chatId: string, ids: string[], job?: JobContext, aga
       // The first try's words still stand in where they can.
     }
     // Too long is still the story's words; deciding for the user's character is not.
-    for (const [id, m] of misses) if (m.problem === "too long" && !worded.has(id)) worded.set(id, tidyWording(m.w));
+    for (const [id, m] of misses) if (softWording(m.problem) && !worded.has(id)) worded.set(id, tidyWording(m.w));
   }
   return cards.flatMap((c): SimOp[] => {
     const w = worded.get(c.id);

@@ -387,7 +387,7 @@
               {#each a.beats.slice(-6) as b, i (`${b.at}:${i}`)}
                 {@const n = a.beats.length - Math.min(6, a.beats.length) + i}
                 <li>
-                  <span class="tiny faint">{b.stage}{b.forced ? ` · your call${director ? ` → ${resultWord[b.result]}` : ""}` : director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && !b.forced && b.why.length ? ` (${b.why.join(", ")})` : ""}{b.answers && b.twist !== "collide" ? ` · answering ${b.answers}` : ""}</span>
+                  <span class="tiny faint">{b.stage}{b.page ? ` · in the story${director && b.why.length ? ` (${b.why.join(", ")})` : ""}` : b.forced ? ` · your call${director ? ` → ${resultWord[b.result]}` : ""}` : director ? ` · ${b.roll[0]}+${b.roll[1]}${b.mod ? (b.mod > 0 ? `+${b.mod}` : b.mod) : ""} → ${resultWord[b.result]}` : ""}{b.twist ? ` · twist: ${b.twist}` : ""}{director && !b.forced && !b.page && b.why.length ? ` (${b.why.join(", ")})` : ""}{b.answers && b.twist !== "collide" ? ` · answering ${b.answers}` : ""}</span>
                   <div class="small">{b.text} <button class="linkish tiny" disabled={redoing !== null} title="Tell this step again in the model's words" onclick={() => redo(`${a.id}#${n}`, `/api/chats/${id}/world/arcs/${encodeURIComponent(a.id)}/retell`, { step: n })}>{redoing === `${a.id}#${n}` ? "retelling…" : "retell"}</button></div>
                 </li>
               {/each}
