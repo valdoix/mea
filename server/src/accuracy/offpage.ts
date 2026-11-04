@@ -11,7 +11,7 @@ import { shouldShed } from "../services/quota";
 import { registerStatusTile } from "../services/status";
 import { registerFilingKind } from "../services/filings";
 import { currentFold } from "../trackers/store";
-import { registerInboxProvider } from "./inbox";
+import { isNeverShown, registerInboxProvider } from "./inbox";
 import { SLIPS } from "./slips";
 import type { Found } from "./slips";
 
@@ -404,7 +404,7 @@ registerInboxProvider({
 registerStatusTile((chatId) => {
   const list = keptOffpage(chatId);
   if (!list.length) return null;
-  const due = list.filter((o) => o.due).length;
+  const due = list.filter((o) => o.due && !isNeverShown(`offpage:${o.id}`)).length;
   return due
     ? { id: "offpage", n: due, label: `secret${due === 1 ? "" : "s"} ready to come out`, tone: "amber", open: { inbox: "secret" }, order: 30, title: "Reveal now, or hold" }
     : { id: "offpage", n: 0, value: String(list.length), label: `kept off the page`, tone: "blue", open: { dock: "story", section: "offpage" }, order: 30 };

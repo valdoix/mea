@@ -13,7 +13,7 @@ import { startStory } from "../services/generation";
 import { anchorExtra, buildAnchor } from "../accuracy/anchor";
 import { checkDrift, driftHistory, voiceSamples } from "../accuracy/drift";
 import { guardsFor } from "../accuracy/guards";
-import { actOnInbox, inboxCount, inboxCounts, inboxItems } from "../accuracy/inbox";
+import { actOnInbox, inboxCount, inboxCounts, inboxItems, neverShowAgain, neverShownList, showAgain } from "../accuracy/inbox";
 import { nameRegistry } from "../accuracy/names";
 import { parseJson } from "../db/db";
 import { getCard } from "../services/characters";
@@ -109,6 +109,15 @@ accuracy.get("/inbox/count", (c) => {
 accuracy.post("/inbox/act", async (c) => {
   const input = await body(c, z.object({ key: z.string().min(3).max(300), action: z.enum(["accept", "reject"]), edited: z.string().max(40_000).optional() }));
   return c.json(actOnInbox(input.key, input.action, input.edited));
+});
+accuracy.get("/inbox/never", (c) => c.json({ items: neverShownList() }));
+accuracy.post("/inbox/never", async (c) => {
+  const input = await body(c, z.object({ key: z.string().min(3).max(300), chatId: z.string().max(100).optional() }));
+  return c.json(neverShowAgain(input.key, input.chatId));
+});
+accuracy.post("/inbox/never/restore", async (c) => {
+  const input = await body(c, z.object({ key: z.string().min(3).max(300) }));
+  return c.json(showAgain(input.key));
 });
 
 // ---------- Ask the Archivist (CON-07) ----------

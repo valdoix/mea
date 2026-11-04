@@ -33,6 +33,8 @@ registerInboxProvider({
           createdAt: p.createdAt,
           link: `/chat/${c.id}/codex`,
           labels: p.kind === "core" ? { accept: "Keep", reject: "Not now" } : p.diff.contradiction ? { accept: "Update it", reject: "Keep mine" } : { accept: "Apply", reject: "Not this" },
+          // A rewrite of an entry's text is worded afresh each time; it's the same suggestion for the same entry.
+          ...(p.kind === "core" ? { sameAs: `core:${p.entryId}` } : {}),
         };
       }),
     ),

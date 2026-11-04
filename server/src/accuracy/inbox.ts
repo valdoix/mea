@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { all, now, one, parseJson, run } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
@@ -45,6 +46,8 @@ export interface InboxItem {
   link: string;
   /** The buttons' words when they aren't Approve / Reject ("Apply" / "Not this"). */
   labels?: { accept?: string; reject?: string };
+  /** What makes it "the same suggestion" when its text is reworded each time. Default: kind, story and text. */
+  sameAs?: string;
 }
 
 type ChatLite = { id: string; title: string };
@@ -78,7 +81,68 @@ const dismissed = (key: string) => Boolean(one("SELECT 1 FROM inbox_dismissed WH
 
 const LEVEL: Record<string, string> = { scene: "Scene", chapter: "Chapter", arc: "Arc", story: "The Story So Far" };
 
+/**
+ * "Never show again": the card is rejected, and comes back under neither its key nor a new id with the
+ * same content. Hidden cards otherwise just wait, so "Show again" can return them.
+ */
+const fingerprint = (i: Pick<InboxItem, "kind" | "chatId" | "after" | "sameAs">) =>
+  createHash("sha1")
+    .update(`${i.kind}|${i.chatId}|${i.sameAs ?? i.after.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()}`)
+    .digest("hex");
+
+/**
+ * These can't just wait unseen: a summary under review drops out of what the story remembers, and
+ * drafted details keep being sent as "likely". When one comes back it is rejected again instead.
+ */
+const REJECT_ON_RETURN = new Set(["summary", "lore-details"]);
+
+export const isNeverShown = (key: string) => Boolean(one("SELECT 1 FROM inbox_never WHERE key = ?", key));
+
 export function inboxItems(opts: { chatId?: string } = {}): InboxItem[] {
+  const items = waitingItems(opts);
+  const never = all<{ key: string; fingerprint: string }>("SELECT key, fingerprint FROM inbox_never");
+  if (!never.length) return items;
+  const keys = new Set(never.map((n) => n.key));
+  const prints = new Set(never.map((n) => n.fingerprint));
+  const out: InboxItem[] = [];
+  for (const i of items) {
+    if (!keys.has(i.key) && !prints.has(fingerprint(i))) {
+      out.push(i);
+      continue;
+    }
+    if (!REJECT_ON_RETURN.has(i.kind)) continue;
+    try {
+      actOnInbox(i.key, "reject");
+    } catch (e) {
+      console.error(`[mea] rejecting ${i.key} again failed:`, e);
+    }
+  }
+  return out;
+}
+
+/** Rejects the card and keeps it from coming back. */
+export function neverShowAgain(key: string, chatId?: string) {
+  const item = waitingItems({ chatId }).find((i) => i.key === key);
+  if (!item) throw notFound("That note is gone");
+  actOnInbox(key, "reject");
+  run("INSERT OR REPLACE INTO inbox_never (key, fingerprint, kind, chat_id, title, created_at) VALUES (?, ?, ?, ?, ?, ?)", key, fingerprint(item), item.kind, item.chatId || null, item.title, now());
+  publish({ type: "inbox.changed" });
+  return { ok: true };
+}
+
+export function neverShownList() {
+  return all<{ key: string; kind: string; title: string; chatTitle: string | null; createdAt: number }>(
+    "SELECT n.key, n.kind, n.title, c.title AS chatTitle, n.created_at AS createdAt FROM inbox_never n LEFT JOIN chats c ON c.id = n.chat_id ORDER BY n.created_at DESC",
+  );
+}
+
+export function showAgain(key: string) {
+  run("DELETE FROM inbox_never WHERE key = ?", key);
+  publish({ type: "inbox.changed" });
+  return { ok: true };
+}
+
+function waitingItems(opts: { chatId?: string } = {}): InboxItem[] {
   const chats = liveChats(opts.chatId);
   const title = new Map(chats.map((c) => [c.id, c.title || "Untitled story"]));
   const ids = chats.map((c) => c.id);

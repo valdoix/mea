@@ -8,7 +8,7 @@ import { type ChatSettings, mustChat, updateChat } from "../services/chats";
 import { enqueue, type JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { registerStatusTile } from "../services/status";
-import { registerInboxProvider } from "./inbox";
+import { isNeverShown, registerInboxProvider } from "./inbox";
 import { SLIPS, type Found } from "./slips";
 
 /**
@@ -260,7 +260,7 @@ registerInboxProvider({
 registerStatusTile((chatId) => {
   const c = canonOf(chatId);
   if (!c.source?.trim() && !c.later?.length) return null;
-  const moved = passedEvents(chatId).length;
+  const moved = passedEvents(chatId).filter((p) => !isNeverShown(`canon:${chatId}:move:${p.item.id}`)).length;
   return moved
     ? { id: "canon", n: moved, label: "canon cutoff may have moved", tone: "blue", open: { inbox: "canon" }, order: 40 }
     : { id: "canon", n: 0, value: String(c.later?.length ?? 0), label: "later canon watched", tone: "blue", open: { dock: "chat", section: "canon" }, order: 40 };
