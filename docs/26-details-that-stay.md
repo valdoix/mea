@@ -121,6 +121,22 @@ Deliberately left out of Part 0. Tried on the replay, the scene-lift change move
 
 **4.3** Check whether the recent slot (about 70 memories at #792, such as the pool's loungers) earns its 35%, and whether 6% for recall is still right for a chat this long. Compare both with the test set.
 
+*Built:* `scripts/recall-eval.ts` scores 39 turns of *Filed Under Forever*, each with the memories it should have had: names, shared words, meaning, and real slips. Each was judged by reading it. The cases stay in `data/evals/`, since the repo is public. The query embeddings came to about 12,000 tokens, a fraction of a cent at OpenAI's list price.
+
+| Writer, a memory reaching the recall block | Hit | Hit, or its scene's summary | Memory / summary tokens |
+|---|---|---|---|
+| As it stood | 17 of 39 | 22 of 39 | 52% / 44% |
+| Budget up by a third | 18 | | 53% / 44% |
+| Recent slot down to 20% | 20 | | 40% / 56% |
+| No serendipity | 19 | | 41% / 55% |
+| Scene lift by best match | 22 | | 70% / 26% |
+| Lift, and summaries capped at half the relevant slot | 25 | 29 | 77% / 19% |
+| **Those, and rare words shared (shipped)** | **32** | **34** | 76% / 20% |
+
+The budget wasn't the problem, so it stays at 6%, and the recent and serendipity slots stay too. The planner, on its 2,500 tokens, goes from 16 to 28 of 39, with summaries down to 4% of its recall; it also reads the chapters and scenes since the Story So Far separately.
+
+**How far to trust this:** the "shared words" cases were found by looking for shared rare words, so their 14 of 14 is partly circular, and of 62 turns that signal found, about a quarter were real callbacks. It fires on about one turn in six and costs a memory or two, so that's cheap, but it isn't free. The set also counts memories, which favours memories over summaries; the second column guards against that, and it rose too. What fewer summaries does to the prose can only be seen in live replies. The three real slips still miss: where an object is now (the album, the mug) and who picked the socks aren't a ranking problem, and need the records.
+
 ---
 
 ## Part 5 · Measure and repair

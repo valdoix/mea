@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
-import { all } from "../src/db/db";
+import { all, run as sql } from "../src/db/db";
 import { defaultMemoryConfig } from "../src/lib/settings";
 import { insertAtom } from "../src/memory/atoms";
 import { TimeIndex } from "../src/memory/format";
@@ -128,6 +128,30 @@ describe("recall of a name just used", () => {
     expect(quote.reasons).toEqual(['the first mention of "marisol"']);
     expect(quote.seq).toBe(42);
     expect(quote.content).toContain("Ask for Marisol");
+  });
+
+  test("docs/26 4: two rare words said together find their memory", () => {
+    atom("fact", "He looked like a confused golden retriever about the toothbrush.", 120);
+    const r = run("Spike and Dawn raced Gabriel at Mario Kart in the kitchen, and he tilts his head like a confused golden retriever.");
+    const mine = r.items.find((i) => i.content.includes("golden retriever"))!;
+    expect(mine.reasons).toContain("3 rare words");
+  });
+
+  test("docs/26 4: summaries take at most half the relevant slot, however well their scenes match", () => {
+    const long = "Spike and Dawn raced Gabriel at Mario Kart in the kitchen and the whole race went round again. ".repeat(12);
+    for (let i = 0; i < 8; i++) {
+      const id = `scene-${i}`;
+      sql("INSERT INTO summaries (id, chat_id, level, start_seq, end_seq, closed, title, content, state, created_at, updated_at) VALUES (?, ?, 'scene', ?, ?, 1, ?, ?, 'ready', 1, 1)", id, chatId, 400 + i * 2, 401 + i * 2, `Race ${i}`, long);
+      sql("UPDATE memories SET scene_id = ? WHERE chat_id = ? AND content LIKE ?", id, chatId, `%round ${i},%`);
+    }
+    const r = run("Spike and Dawn raced Gabriel at Mario Kart in the kitchen.", { budget: 3000 });
+    const relevant = r.items.filter((i) => i.slot === "relevant");
+    const summaries = relevant.filter((i) => i.ownerType === "summary");
+    expect(summaries.length).toBeGreaterThan(0);
+    expect(relevant.some((i) => i.ownerType === "memory")).toBe(true);
+    // The slot is half of what's left after the cards and carries what the others leave, so measure it by what it spent.
+    expect(summaries.reduce((n, i) => n + i.tokens, 0)).toBeLessThanOrEqual(3000 * 0.5);
+    expect(summaries.length).toBeLessThan(8);
   });
 
   test("a word only set apart in quotes isn't quoted from the page", () => {
