@@ -27,8 +27,10 @@ function prompt(extra: Partial<AssembleInput> = {}) {
     seed: "s",
     ...extra,
   });
-  const notes = r.messages.map((m) => m.content).find((c) => c.startsWith("[MODEL]")) ?? "";
-  return { notes, trace: r.trace };
+  // docs/29 §4.4: the plan notes ride in <pass>, the prose habits on the prose card.
+  const pass = r.messages.map((m) => m.content).find((c) => c.startsWith("<pass>")) ?? "";
+  const prose = r.messages.map((m) => m.content).find((c) => c.startsWith("<prose>")) ?? "";
+  return { notes: `${pass}\n${prose}`, pass, prose, trace: r.trace };
 }
 
 const ROUTES = [
@@ -60,24 +62,26 @@ describe("model adapters", () => {
   });
 
   test("the preset sends the family's notes with the drafting line", () => {
-    const { notes, trace } = prompt();
-    expect(notes).toContain("No self-talk, no rechecking.");
-    expect(notes).toContain("Draft nothing in the <think> block");
-    expect(notes).toContain("office and courtroom words");
+    const { pass, prose, trace } = prompt();
+    expect(pass).toContain("No self-talk, no rechecking.");
+    expect(pass).toContain("Draft nothing in the <think> block");
+    expect(pass.indexOf("Draft nothing")).toBeLessThan(pass.indexOf("STOP RULE"));
+    expect(prose).toContain("For this model: Your habits to catch, in the plan as in the story: office and courtroom words");
     expect(trace.model).toEqual({ family: "glm", label: "GLM", chosen: false });
   });
 
   test("an unknown model still gets the drafting line", () => {
-    const { notes, trace } = prompt({ modelId: "xiaomi/mimo-v2-flash" });
-    expect(notes).toBe("[MODEL] Draft nothing in the <think> block: no sentence, line of dialogue, opening or outline of the reply. Write the story once, inside <story>.");
+    const { pass, prose, trace } = prompt({ modelId: "xiaomi/mimo-v2-flash" });
+    expect(pass).toContain("\nDraft nothing in the <think> block: no sentence, line of dialogue, opening or outline of the reply. Write the story once, inside <story>.\nSTOP RULE");
+    expect(prose).not.toContain("For this model:");
     expect(trace.model?.label).toBe("Other");
   });
 
   test("the profile's choice and extra notes win over the id", () => {
-    const { notes, trace } = prompt({ modelId: "some-router/finetune-x", modelFamily: "claude", modelNotes: "Catch \"a beat\".", providerReasoning: true });
-    expect(notes).toContain("Extended thinking is the planning pass");
-    expect(notes).toContain("Draft nothing in your reasoning");
-    expect(notes.endsWith("Catch \"a beat\".")).toBe(true);
+    const { pass, prose, trace } = prompt({ modelId: "some-router/finetune-x", modelFamily: "claude", modelNotes: "Catch \"a beat\".", providerReasoning: true });
+    expect(pass).toContain("Extended thinking is the planning pass");
+    expect(pass).toContain("Draft nothing in your reasoning");
+    expect(prose).toContain("Catch \"a beat\".\n</prose>");
     expect(trace.model).toEqual({ family: "claude", label: "Claude", chosen: true });
   });
 

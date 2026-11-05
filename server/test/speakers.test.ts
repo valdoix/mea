@@ -83,11 +83,11 @@ describe("speaker marks", () => {
     expect(preset.blocks.some((b) => b.id === "mea-speakers")).toBe(true);
     const base = { card: emptyCard("Mara"), preset, userName: "Ava", personaText: "", mode: "companion" as const, lore: null, contextTarget: 16000, modelId: "test", vars: {}, seed: "s", history: [{ id: "u1", role: "user" as const, content: "Hi." }] };
     const on = assemblePrompt({ ...base, kind: "story", speakers: { roster: "Mara#1, Pell#2", dropped: true } }).messages.map((m) => m.content).join("\n");
-    expect(on).toContain("[SPEAKER MARKS");
+    expect(on).toContain("<marks>");
     expect(on).toContain("Mara#1, Pell#2");
     expect(on).toContain("left its lines unmarked");
     const off = assemblePrompt({ ...base, kind: "story" }).messages.map((m) => m.content).join("\n");
-    expect(off).not.toContain("[SPEAKER MARKS");
+    expect(off).not.toContain("<marks>");
   });
 
   test("earlier replies are marked again for the prompt, with the cast's numbers", () => {

@@ -116,9 +116,11 @@ describe("v16 (docs/23)", () => {
 
   test("every lead genre says it never scripts events; the tells name their replacements", () => {
     for (const o of ctl("genre").options) expect(o.text).toContain("never what must happen in them");
+    // docs/29: the tells live on the prose card at the end of the prompt, numbered; <craft> keeps the principles.
     const craft = p.blocks.find((b) => b.id === "mea-craft")!.content!;
-    expect(craft).toContain("Tells, and what to write instead:");
-    expect(craft).toContain('"she didn\'t flinch", "not unkind" → what she did, the plain word');
+    const prose = p.blocks.find((b) => b.id === "mea-prose")!.content!;
+    expect(craft).not.toContain("→");
+    expect(prose).toContain('5. "she didn\'t flinch", "not unkind" → what she did, the plain word');
   });
 
   test("it stays inside the preset limits", () => {
@@ -134,5 +136,5 @@ describe("v16 (docs/23)", () => {
 test("a change to Mea's preset comes with a new version", () => {
   const hash = new Bun.CryptoHasher("sha256").update(JSON.stringify(meaPreset())).digest("hex").slice(0, 16);
   // Changed the preset? Raise MEA_PRESET_VERSION in prompt/mea.ts, then put both new values here.
-  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 24, hash: "6b56234e9ea48aad" });
+  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 25, hash: "58d6e021c97bc5b9" });
 });

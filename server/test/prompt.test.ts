@@ -63,7 +63,7 @@ describe("prompt assembly", () => {
     expect(r.messages[0]!.content).toContain("About Ash:");
     expect(r.messages.filter((m) => m.role === "user").at(-1)).toEqual({ role: "user", content: "Hello Mira." });
     // Mea's preset ends with this reply's frame and the output contract, after the history.
-    expect(r.messages.at(-1)!.content).toStartWith("[OUTPUT]");
+    expect(r.messages.at(-1)!.content).toStartWith("<output>");
     expect(r.trace.history.included).toBe(2);
   });
 
@@ -87,7 +87,7 @@ describe("prompt assembly", () => {
     expect(r.trace.history.dropped).toBeGreaterThan(0);
     // The newest message is the last one from the history; the mandatory planning pass follows it.
     expect(r.messages.at(-2)!.content).toContain("message 49");
-    expect(r.messages.at(-1)!.content).toContain("[BEFORE YOU WRITE");
+    expect(r.messages.at(-1)!.content).toContain("<pass>");
     expect(r.estPromptTokens).toBeLessThanOrEqual(3000);
   });
 
@@ -112,7 +112,7 @@ describe("prompt assembly", () => {
   test("a card's system prompt follows Mea's Charter instead of replacing it (M12)", () => {
     const r = assemblePrompt(base({ card: { ...emptyCard("Mira"), system_prompt: "Custom. {{original}}" } }));
     const main = r.messages[0]!.content;
-    expect(main.startsWith("You are Mira")).toBe(true);
+    expect(main.startsWith("<charter>\nYou are Mira")).toBe(true);
     expect(main).toContain("What decides, highest first");
     expect(main).toContain("[The character card's own instructions]\nCustom.");
   });
@@ -165,7 +165,7 @@ describe("Mea's default preset", () => {
     expect(p).toContain("Lead genre — DRAMA");
     expect(p).toContain("are judged fairly");
     expect(p).toContain("World texture: insistent");
-    expect(p).toContain("[BEFORE YOU WRITE");
+    expect(p).toContain("<pass>");
     // Planning is always on: in a <think> block by default, in the model's own reasoning when the route reasons.
     expect(p).toContain("the very first thing you write is <think>, then the pass");
     expect(p).toContain("the <think> planning block before it");
@@ -181,9 +181,11 @@ describe("Mea's default preset", () => {
 
   test("the planning pass comes after the history, right before the output rules (like ALMANAC's Director's Pass)", () => {
     const p = all();
-    expect(p.indexOf("[BEFORE YOU WRITE")).toBeGreaterThan(p.indexOf("I step inside."));
-    expect(p.indexOf("[BEFORE YOU WRITE")).toBeGreaterThan(p.indexOf("[THIS REPLY]"));
-    expect(p.indexOf("[OUTPUT]")).toBeGreaterThan(p.indexOf("STOP RULE: after VOICE"));
+    expect(p.indexOf("<pass>\nBefore you write")).toBeGreaterThan(p.indexOf("I step inside."));
+    expect(p.indexOf("<pass>\nBefore you write")).toBeGreaterThan(p.indexOf("<turn>"));
+    // docs/29: the prose card comes after the pass, and the output rules last.
+    expect(p.indexOf("<prose>\nThe habits")).toBeGreaterThan(p.indexOf("STOP RULE: after VOICE"));
+    expect(p.indexOf("<output>")).toBeGreaterThan(p.indexOf("</prose>"));
     expect(all({ swipe: { rejected: "The rain had not stopped all night when Ash came up the stairs." } })).toContain("not a copy of the take being replaced");
   });
 
@@ -193,9 +195,10 @@ describe("Mea's default preset", () => {
     expect(all({ modelId: "deepseek-r1" })).toContain("end the plan at VOICE, then write the story");
     expect(all({ modelId: "qwen3-235b" })).toContain("never in a code fence");
     // docs/29: a model no family matches still gets the line every model gets.
-    expect(all({ modelId: "test" })).toContain("[MODEL] Draft nothing in the <think> block");
+    expect(all({ modelId: "test" })).toContain("\nDraft nothing in the <think> block");
+    expect(all({ modelId: "test" })).not.toContain("For this model:");
     expect(all({ modelId: "test" })).not.toContain("Follow the output order literally");
-    expect(all({ kind: "impersonate", modelId: "claude-sonnet-5" })).not.toContain("[MODEL]");
+    expect(all({ kind: "impersonate", modelId: "claude-sonnet-5" })).not.toContain("Follow the output order literally");
   });
 
   test("the plan watch's second try ends on a plain order to plan first", () => {
@@ -209,7 +212,7 @@ describe("Mea's default preset", () => {
     expect(p).toContain("keep its facts, not its habits");
     expect(p).toContain("Your last reply opened «Mira set the lantern");
     expect(p).toContain("Avoid above all:");
-    expect(all({ kind: "impersonate" })).not.toContain("[THIS REPLY]");
+    expect(all({ kind: "impersonate" })).not.toContain("<turn>");
   });
 
   test("the rules agree with each other: OOC answers, the inline ledger, planning only for story replies", () => {
@@ -248,9 +251,9 @@ describe("Mea's default preset", () => {
   });
 
   test("canon (docs/23): silent without a source, the chosen fidelity with one", () => {
-    expect(all()).not.toContain("[CANON]");
+    expect(all()).not.toContain("<canon>");
     const p = all({ canonSource: "Buffy the Vampire Slayer", controlValues: { canon: "au" } });
-    expect(p).toContain("[CANON] This story comes from Buffy the Vampire Slayer. An alternate universe");
+    expect(p).toContain("<canon>\nThis story comes from Buffy the Vampire Slayer. An alternate universe");
     expect(p).toContain("A pairing being popular in the fandom is no evidence of anything.");
     expect(p).not.toContain("Canon holds");
   });
@@ -260,16 +263,16 @@ describe("Mea's default preset", () => {
   });
 
   test("scene modules follow the story state", () => {
-    expect(all()).not.toContain("[SCENE ·");
+    expect(all()).not.toContain(", while it lasts; if the player");
     const p = all({ when: (c) => c === "mode = conflict" });
-    expect(p).toContain("[SCENE · CONFLICT");
-    expect(p).not.toContain("[SCENE · INTIMACY");
+    expect(p).toContain("<scene>\nConflict, while it lasts");
+    expect(p).not.toContain("Intimacy, while it lasts");
     // docs/23: a social scene's kind of talk rides with the Social module; aftermath has a module of its own.
     const talk = all({ when: (c) => c === "mode = social" || c === "talk = apology" });
-    expect(talk).toContain("[SCENE · SOCIAL");
-    expect(talk).toContain("[THIS TALK · APOLOGY]");
-    expect(talk).not.toContain("[THIS TALK · BREAKUP]");
-    expect(all({ when: (c) => c === "mode = aftermath" })).toContain("[SCENE · AFTERMATH");
+    expect(talk).toContain("<scene>\nSocial, while it lasts");
+    expect(talk).toContain("<talk>\nApology:");
+    expect(talk).not.toContain("Breakup:");
+    expect(all({ when: (c) => c === "mode = aftermath" })).toContain("<scene>\nAftermath, while it lasts");
   });
 
   test("sex scene pacing is sent before the tracker has called it an intimacy scene", () => {
@@ -277,7 +280,7 @@ describe("Mea's default preset", () => {
     const plan = "the one step this reply covers";
     for (const intimacy of ["explicit", "sensual"]) {
       const p = all({ controlValues: { intimacy } });
-      expect(p).not.toContain("[SCENE ·");
+      expect(p).not.toContain(", while it lasts; if the player");
       expect(p).toContain(pace);
       expect(p).toContain(plan);
     }
