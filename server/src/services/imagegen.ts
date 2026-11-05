@@ -118,6 +118,8 @@ export interface BatchView {
   ownerType: string | null;
   ownerId: string | null;
   negative: string | null;
+  /** The reference pictures sent with the prompt (image ids). */
+  references: string[];
   recipe: Record<string, unknown>;
   estimate: number | null;
   cost: number | null;
@@ -214,6 +216,7 @@ export function batchView(id: string): BatchView | null {
     ownerType: b.owner_type,
     ownerId: b.owner_id,
     negative: b.negative,
+    references: parseJson<string[]>(b.refs, []),
     recipe: parseJson(b.recipe, {}),
     estimate: b.estimate,
     cost: b.cost,

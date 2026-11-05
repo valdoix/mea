@@ -1,10 +1,11 @@
 <script lang="ts">
   import Modal from "../Modal.svelte";
   import ImageCropper from "../ImageCropper.svelte";
+  import ReferencePicker from "./ReferencePicker.svelte";
   import { ApiError, get, imageUrl, post, put } from "../../lib/api";
   import { onEvent } from "../../lib/events";
   import { timeAgo } from "../../lib/format";
-  import { Check, Dices, RefreshCw, Sparkles, WandSparkles } from "../../lib/icons";
+  import { Check, Dices, ImagePlus, RefreshCw, Sparkles, WandSparkles } from "../../lib/icons";
   import { backfillThumb, uploadImage } from "../../lib/images";
   import { app, errorToast, toast } from "../../lib/state.svelte";
   import type { CompiledPrompt, ImageBatch, ImageModel, ImagesConfig, Look, LookField, LookSource, PortraitDirection, PortraitQuestion, PortraitReadBack, PortraitStyle } from "../../lib/types";
@@ -72,6 +73,8 @@
   let compiled = $state<CompiledPrompt | null>(null);
   let promptText = $state("");
   let negativeText = $state("");
+  /** Reference pictures (image ids) sent with the prompt. */
+  let refs = $state<string[]>([]);
   let ruleError = $state("");
   let compiling = $state(false);
 
@@ -89,6 +92,7 @@
   const shapes = $derived(model?.aspectRatios ?? []);
   const sizes = $derived(model ? (shapes.length ? (model.sizes.length ? model.sizes : Object.keys(model.prices).filter((k) => !k.includes(":"))) : Object.keys(model.prices).length ? Object.keys(model.prices) : model.sizes) : []);
   const each = $derived(model ? (model.prices[size] ?? model.prices[shape] ?? model.prices.auto ?? (Object.values(model.prices).length ? Math.min(...Object.values(model.prices)) : null)) : null);
+  const refsFit = $derived(!model || refs.length <= model.maxInputImages);
   const busy = $derived(batch != null && (batch.status === "queued" || batch.status === "running"));
   const usd = (v: number | null | undefined) => (v == null ? "price unknown" : v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(v < 1 ? 3 : 2)}`);
 
@@ -206,7 +210,7 @@
 
   function pickModel(id: string) {
     modelId = id;
-    const m = models.find((x) => x.id === id);
+    const m = usable.find((x) => x.id === id) ?? models.find((x) => x.id === id);
     if (!m) return;
     if (m.aspectRatios.length) {
       const res = m.sizes.length ? m.sizes : Object.keys(m.prices).filter((k) => !k.includes(":"));
@@ -256,7 +260,7 @@
   // ---------- 5. pictures ----------
 
   async function draw(seed?: number, count = n) {
-    if (!model || !promptText.trim()) return;
+    if (!model || !promptText.trim() || !refsFit) return;
     sending = true;
     try {
       batch = await post<ImageBatch>("/api/imagegen/generate", {
@@ -267,6 +271,7 @@
         size: size || null,
         aspectRatio: shape || null,
         seed: seed ?? null,
+        references: refs,
         kind: "portrait",
         ownerType,
         ownerId,
@@ -346,6 +351,7 @@
     if (b.params.aspectRatio) shape = b.params.aspectRatio;
     promptText = b.prompt;
     negativeText = b.negative ?? "";
+    refs = [...(b.references ?? [])];
     compiled = { prompt: b.prompt, negative: b.negative, family: models.find((m) => m.id === b.model)?.family ?? "prose", style: r.style ?? "storybook", notes: [], model: b.model };
   }
 </script>
@@ -434,7 +440,7 @@
             <label class="field wide">
               <span class="label">Model</span>
               <select class="select" value={modelId} onchange={(e) => pickModel(e.currentTarget.value)}>
-                {#each usable as m (m.id)}<option value={m.id}>{m.name}{m.id === cfg?.defaults.portrait ? " (default)" : ""}</option>{/each}
+                {#each usable as m (m.id)}<option value={m.id}>{m.name}{m.id === cfg?.defaults.portrait ? " (default)" : ""}{m.maxInputImages ? ` · ${m.maxInputImages} refs` : ""}</option>{/each}
               </select>
             </label>
             <label class="field">
@@ -458,6 +464,7 @@
               <select class="select" bind:value={n}>{#each Array.from({ length: Math.min(4, model?.maxImages ?? 1) }, (_, i) => i + 1) as k (k)}<option value={k}>{k}</option>{/each}</select>
             </label>
           </div>
+          <ReferencePicker bind:refs {model} models={usable} suggestId={cfg?.defaults.edit} onswitch={pickModel} />
           <div class="row wrap">
             <button class="btn" onclick={writePrompt} disabled={compiling || !model}><RefreshCw size={14} /> {compiled ? "Write it again" : "Write the prompt"}</button>
             {#if ruleError}<span class="tiny notice warn">{ruleError}</span>{/if}
@@ -468,7 +475,7 @@
             {#each compiled.notes as note (note)}<p class="tiny muted">{note}</p>{/each}
             <div class="row between wrap">
               <span class="tiny muted">{each == null ? "Price unknown" : `About ${usd(each * n)}${n > 1 ? ` for ${n}` : ""}`} · pay-as-you-go</span>
-              <button class="btn primary" onclick={() => draw()} disabled={sending || busy || !promptText.trim()}><Sparkles size={15} /> {busy ? "Drawing…" : `Draw · ${usd(each == null ? null : each * n)}`}</button>
+              <button class="btn primary" onclick={() => draw()} disabled={sending || busy || !promptText.trim() || !refsFit}><Sparkles size={15} /> {busy ? "Drawing…" : `Draw · ${usd(each == null ? null : each * n)}`}</button>
             </div>
           {/if}
         </section>
@@ -487,7 +494,8 @@
                 <div class="row wrap">
                   <button class="btn small primary" onclick={() => startCrop(im.id)}>Use as portrait</button>
                   <button class="btn small" class:on={im.kept} onclick={() => keep(im.id, !im.kept)}>{#if im.kept}<Check size={13} /> Kept{:else}Keep{/if}</button>
-                  <button class="btn small ghost" title="The same prompt, another seed" onclick={() => draw(Math.floor(Math.random() * 2 ** 31), 1)} disabled={sending || busy}><Dices size={13} /> More like this</button>
+                  <button class="btn small ghost" title="The same prompt, another seed" onclick={() => draw(Math.floor(Math.random() * 2 ** 31), 1)} disabled={sending || busy || !refsFit}><Dices size={13} /> More like this</button>
+                  <button class="btn small ghost" title="Send this picture with the next prompt" onclick={() => (refs = [...refs, im.id])} disabled={refs.includes(im.id)}><ImagePlus size={13} /> {refs.includes(im.id) ? "A reference" : "Use as reference"}</button>
                 </div>
               </figure>
             {/each}
