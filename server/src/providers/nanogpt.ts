@@ -1,5 +1,9 @@
+import { decodeBase64Image, type ImageModelInfo, type ImageProvider, type ImageRequest, type ImageResult, imageBody, loggedBody, toImageModel } from "./images";
 import { describeError, OpenAIProvider, type OpenAIOptions } from "./openai";
-import { type ModelInfo, ProviderError } from "./types";
+import { httpError, type ModelInfo, ProviderError } from "./types";
+
+/** A picture can take a minute or more on the slower models. */
+const IMAGE_TIMEOUT_MS = 240_000;
 
 export const NANOGPT_BASE = "https://api.nano-gpt.com/api/v1";
 /** The detailed catalog is large; past this a request is treated as failed. */
@@ -47,7 +51,7 @@ function toModel(m: Record<string, any>, subscription: boolean | undefined): Mod
 }
 
 /** NanoGPT (CONN-11, CONN-13): detailed catalog, subscription catalog, quota. */
-export class NanoGPTProvider extends OpenAIProvider {
+export class NanoGPTProvider extends OpenAIProvider implements ImageProvider {
   /** Set by listModels when the models loaded but which ones the subscription includes couldn't be read. */
   subscriptionProblem: string | null = null;
   /** The other host to try when this one is down; null for a custom base URL. */
@@ -66,7 +70,16 @@ export class NanoGPTProvider extends OpenAIProvider {
    * A dropped connection or a gateway error is asked again once on the mirror host. Only before any
    * reply has arrived: a stream cut off midway isn't repeated (it may already have been billed).
    */
-  protected override async send(url: string, init: RequestInit): Promise<Response> {
+  protected override send(url: string, init: RequestInit): Promise<Response> {
+    return this.sendVia(url, init, hostDown, true);
+  }
+
+  /**
+   * `down`: the statuses that send the request to the mirror. `onDrop`: whether a dropped connection
+   * does too. A paid picture only moves on a 502 or 503 (nothing was made); a 504 or a dropped
+   * connection may still be drawing, and would be billed twice.
+   */
+  private async sendVia(url: string, init: RequestInit, down: (status: number) => boolean, onDrop: boolean): Promise<Response> {
     if (!this.mirror || !url.startsWith(this.origin)) return super.send(url, init);
     const pref = preferred.get(this.origin);
     const first = pref && pref.until > Date.now() ? pref.origin : this.origin;
@@ -75,10 +88,10 @@ export class NanoGPTProvider extends OpenAIProvider {
     let failed: unknown;
     try {
       const res = await super.send(at(first), init);
-      if (!hostDown(res.status)) return res;
+      if (!down(res.status)) return res;
       failed = res;
     } catch (e) {
-      if (init.signal?.aborted) throw e;
+      if (init.signal?.aborted || !onDrop) throw e;
       failed = e;
     }
     let res: Response;
@@ -91,7 +104,7 @@ export class NanoGPTProvider extends OpenAIProvider {
       throw failed;
     }
     if (failed instanceof Response) await failed.body?.cancel().catch(() => {});
-    if (!hostDown(res.status)) {
+    if (!down(res.status)) {
       if (second === this.origin) preferred.delete(this.origin);
       else preferred.set(this.origin, { origin: second, until: Date.now() + MIRROR_STICKY_MS });
     }
@@ -168,6 +181,50 @@ export class NanoGPTProvider extends OpenAIProvider {
     const all = rows.map((m) => toModel(m, included(m)));
     const seen = new Set(all.map((m) => m.id));
     return [...all, ...(sub ?? []).filter((m) => !seen.has(m.id))];
+  }
+
+  /** docs/28: the image catalog, from GET /api/v1/images/models. */
+  async listImageModels(): Promise<ImageModelInfo[]> {
+    const json = await this.getJson(`${this.origin}/api/v1/images/models`);
+    return ((json.data ?? []) as Record<string, any>[]).map(toImageModel);
+  }
+
+  /**
+   * docs/28: one request for pictures (POST /api/v1/images/generations). Never retried: a picture
+   * is billed per request, so a failure is reported, not repeated. A picture sent as a link is
+   * fetched at once (NanoGPT's links expire within the hour).
+   */
+  async generateImage(req: ImageRequest): Promise<ImageResult> {
+    const body = imageBody(req);
+    const signal = req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(IMAGE_TIMEOUT_MS)]) : AbortSignal.timeout(IMAGE_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await this.sendVia(this.url("/images/generations"), { method: "POST", headers: this.headers(), body: JSON.stringify(body), signal }, (st) => st === 502 || st === 503, false);
+    } catch (e) {
+      if (req.signal?.aborted) throw e;
+      throw new ProviderError(`Couldn't reach the provider: ${(e as Error).message}`);
+    }
+    const text = await res.text().catch(() => "");
+    if (!res.ok) throw httpError(res, describeError(res.status, text), text);
+    let json: Record<string, any>;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new ProviderError("The image reply wasn't JSON", res.status, text.slice(0, 2000));
+    }
+    if (json.error) throw new ProviderError(typeof json.error === "string" ? json.error : (json.error.message ?? "Provider error"), res.status, text.slice(0, 2000));
+    const images: Uint8Array[] = [];
+    for (const d of (json.data ?? []) as Record<string, unknown>[]) {
+      if (typeof d.b64_json === "string" && d.b64_json) images.push(decodeBase64Image(d.b64_json));
+      else if (typeof d.url === "string" && (/^https:\/\//.test(d.url) || d.url.startsWith(`${this.origin}/`))) {
+        const got = await fetch(d.url, { signal: AbortSignal.timeout(60_000) });
+        if (!got.ok) throw new ProviderError(`Couldn't download the picture (HTTP ${got.status})`, got.status);
+        images.push(new Uint8Array(await got.arrayBuffer()));
+      }
+    }
+    if (!images.length) throw new ProviderError("The provider sent no picture", res.status, text.slice(0, 2000));
+    const cost = typeof json.cost === "number" && Number.isFinite(json.cost) ? json.cost : null;
+    return { images, cost, sentBody: loggedBody(body) };
   }
 
   async getQuota(): Promise<Quota> {

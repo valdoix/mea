@@ -1,4 +1,6 @@
-import type { EmbedResult, ModelInfo, Provider, StreamDelta, StreamRequest, StreamResult } from "./types";
+import { encodePng } from "../lib/png-encode";
+import { type ImageModelInfo, type ImageProvider, type ImageRequest, type ImageResult, imageBody, loggedBody, pricePerImage } from "./images";
+import { type EmbedResult, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
 
 const LINES = [
   "The lamp flickers as the wind presses against the old glass, and for a moment the whole room seems to hold its breath.",
@@ -714,7 +716,7 @@ export function mockVector(text: string, dims = 64) {
 }
 
 /** Development-only provider (MEA_DEV=1): streams a canned reply so the app can be exercised without API keys. */
-export class MockProvider implements Provider {
+export class MockProvider implements Provider, ImageProvider {
   constructor(private delayMs = 18) {}
 
   async stream(req: StreamRequest, onDelta: (d: StreamDelta) => void): Promise<StreamResult> {
@@ -781,6 +783,22 @@ export class MockProvider implements Provider {
     return { vectors: texts.map((t) => mockVector(t, Math.min(dims, 256))), promptTokens: texts.reduce((n, t) => n + Math.ceil(t.length / 4), 0) };
   }
 
+  async listImageModels(): Promise<ImageModelInfo[]> {
+    return MOCK_IMAGE_MODELS;
+  }
+
+  /** docs/28: a small picture whose colours come from the prompt, so tests and the dev app never pay. */
+  async generateImage(req: ImageRequest): Promise<ImageResult> {
+    if (/MOCK_IMAGE_FAIL/.test(req.prompt)) throw new ProviderError("HTTP 400 · The mock painter refused that prompt", 400);
+    const m = MOCK_IMAGE_MODELS.find((x) => x.id === req.model);
+    const n = Math.max(1, Math.min(req.n ?? 1, m?.maxImages ?? 4));
+    const [w, h] = mockSize(req.size ?? req.aspectRatio);
+    const images = Array.from({ length: n }, (_, i) => mockPicture(`${req.prompt}#${req.seed ?? 0}#${i}`, w, h));
+    if (this.delayMs) await Bun.sleep(this.delayMs * 4);
+    const each = m ? pricePerImage(m, req.size) : null;
+    return { images, cost: each == null ? null : Math.round(each * n * 10_000) / 10_000, sentBody: loggedBody(imageBody(req)) };
+  }
+
   async listModels(): Promise<ModelInfo[]> {
     return [
       { id: "mock/storyteller", name: "Mock Storyteller", contextLength: 128000, capabilities: { structured_output: true, reasoning: true }, subscription: true },
@@ -788,6 +806,90 @@ export class MockProvider implements Provider {
       { id: "mock/embed", name: "Mock Embeddings", contextLength: 8000, capabilities: { embeddings: true }, subscription: false },
     ];
   }
+}
+
+const MOCK_IMAGE_MODELS: ImageModelInfo[] = [
+  {
+    id: "mock/painter",
+    name: "Mock Painter",
+    description: "Paints a soft gradient from the prompt.",
+    category: "Featured",
+    tags: ["text-to-image"],
+    prices: { "1024x1024": 0.01, "1024x1536": 0.015 },
+    capabilities: { generate: true, edit: false, inpainting: false, nsfw: false },
+    sizes: ["1024x1024", "1024x1536"],
+    aspectRatios: [],
+    maxImages: 4,
+    maxInputImages: 0,
+    maxPromptChars: 2000,
+  },
+  {
+    id: "mock/editor",
+    name: "Mock Editor",
+    description: "Takes reference pictures.",
+    category: "image",
+    tags: ["image-edit"],
+    prices: { "1k": 0.03, auto: 0.03 },
+    capabilities: { generate: true, edit: true, inpainting: false, nsfw: false },
+    sizes: ["1k"],
+    aspectRatios: ["1:1", "2:3", "21:9"],
+    maxImages: 2,
+    maxInputImages: 4,
+    maxPromptChars: null,
+  },
+  {
+    id: "mock/after-dark",
+    name: "Mock After Dark",
+    description: "A model the catalog marks as allowing adult content.",
+    category: "More",
+    tags: [],
+    prices: { "1024x1024": 0.005 },
+    capabilities: { generate: true, edit: false, inpainting: false, nsfw: true },
+    sizes: ["1024x1024"],
+    aspectRatios: [],
+    maxImages: 4,
+    maxInputImages: 0,
+    maxPromptChars: 3000,
+  },
+  {
+    id: "mock/upscaler",
+    name: "Mock Upscaler",
+    category: "Tools",
+    tags: ["upscale"],
+    prices: { auto: 0.01 },
+    capabilities: { generate: true, edit: true, inpainting: false, nsfw: false },
+    sizes: [],
+    aspectRatios: [],
+    maxImages: 1,
+    maxInputImages: 1,
+    maxPromptChars: null,
+  },
+];
+
+/** A mock picture's size in pixels: small, with the requested shape. */
+function mockSize(size: string | undefined): [number, number] {
+  const px = size?.match(/^(\d+)[x*](\d+)$/);
+  const ratio = size?.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+  const [rw, rh] = px ? [Number(px[1]), Number(px[2])] : ratio ? [Number(ratio[1]), Number(ratio[2])] : [1, 1];
+  const scale = 96 / Math.max(rw, rh);
+  return [Math.max(8, Math.round(rw * scale)), Math.max(8, Math.round(rh * scale))];
+}
+
+function mockPicture(seed: string, w: number, h: number): Uint8Array {
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) hash = Math.imul(hash ^ seed.charCodeAt(i), 16777619);
+  const a = [(hash >>> 0) & 255, (hash >>> 8) & 255, (hash >>> 16) & 255].map((c) => 140 + (c % 100));
+  const b = [(hash >>> 24) & 255, (hash >>> 4) & 255, (hash >>> 12) & 255].map((c) => 120 + (c % 120));
+  const px = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const t = (x / w + y / h) / 2;
+      const i = (y * w + x) * 4;
+      for (let k = 0; k < 3; k++) px[i + k] = Math.round(a[k]! + (b[k]! - a[k]!) * t);
+      px[i + 3] = 255;
+    }
+  }
+  return encodePng(w, h, px);
 }
 
 function guessSchema(system: string) {

@@ -105,6 +105,16 @@ export interface Settings {
   "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
   /** How much the creators do in one go and how warm the model runs (null: Mea's default). */
   "creator.tuning": CreatorTuning;
+  /** docs/28: pictures, on a pay-as-you-go connection; default models per job; adult-content models shown or not. */
+  "images.config": ImagesConfig;
+}
+
+export type ImageJob = "portrait" | "edit" | "anime" | "plate";
+export interface ImagesConfig {
+  connectionId: string | null;
+  defaults: Record<ImageJob, string | null>;
+  /** Show models the catalog marks as allowing adult content (docs/28 §5: adults only, either way). */
+  nsfw: boolean;
 }
 
 /** The creators' knobs: writing vs judging temperature, and the caps on extra questions and proposals. */
@@ -454,6 +464,7 @@ export const defaults: Settings = {
   "setup.usual": null,
   "privacy.requestLog": { bodiesDays: 30, rowsDays: 0, fileLog: true, fileDays: 14 },
   "creator.tuning": { writeTemp: null, judgeTemp: null, deepenCap: null, peopleCount: null, namedTarget: null },
+  "images.config": { connectionId: null, defaults: { portrait: null, edit: null, anime: null, plate: null }, nsfw: false },
 };
 
 /** Keys the web client may read and write directly. */
@@ -495,6 +506,7 @@ export const clientKeys: (keyof Settings)[] = [
   "steer.config",
   "privacy.requestLog",
   "creator.tuning",
+  "images.config",
 ];
 
 export function getSetting<K extends keyof Settings>(key: K): Settings[K] {

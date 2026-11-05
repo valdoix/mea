@@ -11,6 +11,7 @@ import { lore } from "./routes/lore";
 import { lorecraft } from "./routes/lorecraft";
 import { memory } from "./routes/memory";
 import { models } from "./routes/models";
+import { imagegen } from "./routes/imagegen";
 import { system } from "./routes/system";
 import { trackers } from "./routes/trackers";
 import { world } from "./routes/world";
@@ -95,6 +96,7 @@ export function createApp() {
   app.route("/api", chats);
   app.route("/api", memory);
   app.route("/api", models);
+  app.route("/api", imagegen);
   app.route("/api", system);
   app.route("/api", trackers);
   app.route("/api", world);

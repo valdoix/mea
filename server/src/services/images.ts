@@ -146,15 +146,20 @@ export function imagePalette(id: string | null | undefined): string[] {
 /**
  * H12: the one place that knows where image ids are stored. An SQL condition, true when image `i`
  * is used by nothing: characters (portrait, gallery, settings), personas, chats (cover, settings such
- * as the ambience background), variants, and cast portraits (cast_profiles.data.avatarId).
+ * as the ambience background), variants, cast portraits (cast_profiles.data.avatarId), generated pictures
+ * for UNKEPT_DAYS (or for good once kept), and the references a request for pictures used.
  * Used by both the purge and the storage report.
  */
+/** docs/28: a generated picture nobody kept stays this long, so you can come back to it. */
+export const UNKEPT_DAYS = 30;
 export const IMAGE_UNREFERENCED = `
       NOT EXISTS (SELECT 1 FROM characters c WHERE c.avatar_id = i.id OR c.gallery LIKE '%' || i.id || '%' OR c.settings LIKE '%' || i.id || '%')
       AND NOT EXISTS (SELECT 1 FROM personas p WHERE p.avatar_id = i.id OR p.data LIKE '%' || i.id || '%')
       AND NOT EXISTS (SELECT 1 FROM chats ch WHERE ch.cover_image_id = i.id OR ch.settings LIKE '%' || i.id || '%')
       AND NOT EXISTS (SELECT 1 FROM variants v WHERE v.avatar_id = i.id)
-      AND NOT EXISTS (SELECT 1 FROM cast_profiles cp WHERE cp.data LIKE '%' || i.id || '%')`;
+      AND NOT EXISTS (SELECT 1 FROM cast_profiles cp WHERE cp.data LIKE '%' || i.id || '%')
+      AND NOT EXISTS (SELECT 1 FROM image_recipes r WHERE r.image_id = i.id AND (r.kept = 1 OR r.created_at > CAST(strftime('%s', 'now') AS INTEGER) * 1000 - ${UNKEPT_DAYS} * 86400000))
+      AND NOT EXISTS (SELECT 1 FROM image_batches b WHERE b.refs LIKE '%' || i.id || '%')`;
 
 const filesOf = (r: Pick<ImageRow, "file" | "thumb_file" | "variants">) =>
   [r.file, r.thumb_file, ...Object.values(parseJson<Record<string, string>>(r.variants, {}))].filter(Boolean) as string[];

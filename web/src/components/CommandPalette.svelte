@@ -78,6 +78,7 @@
     ["prompts", "Helper prompts"],
     ["regex", "Regex"],
     ["appearance", "Appearance", "font typography theme lock spell"],
+    ["images", "Pictures", "image portrait generate picture nanogpt"],
     ["devices", "Devices", "pair phone"],
     ["notifications", "Notifications", "push"],
     ["data", "Backups & data", "export import"],

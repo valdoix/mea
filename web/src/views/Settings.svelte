@@ -14,7 +14,8 @@
   import Guards from "../components/settings/Guards.svelte";
   import Privacy from "../components/settings/Privacy.svelte";
   import MusicSettings from "../components/settings/Music.svelte";
-  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, HardDrive, ListChecks, Music, Palette, ScrollText, ShieldCheck, Slash, Smartphone } from "../lib/icons";
+  import Images from "../components/settings/Images.svelte";
+  import { Activity, Bell, Brain, Cpu, Database, Feather, Gauge, HardDrive, ImageIcon, ListChecks, Music, Palette, ScrollText, ShieldCheck, Slash, Smartphone } from "../lib/icons";
   import { navigate } from "../lib/router.svelte";
 
   let { tab = "models" }: { tab?: string } = $props();
@@ -29,6 +30,7 @@
     { id: "regex", label: "Regex", icon: Slash },
     { id: "appearance", label: "Appearance", icon: Palette },
     { id: "music", label: "Music", icon: Music },
+    { id: "images", label: "Pictures", icon: ImageIcon },
     { id: "devices", label: "Devices", icon: Smartphone },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "data", label: "Backups & data", icon: Database },
@@ -54,6 +56,7 @@
     {:else if tab === "regex"}<Regex />
     {:else if tab === "appearance"}<Appearance />
     {:else if tab === "music"}<MusicSettings />
+    {:else if tab === "images"}<Images />
     {:else if tab === "devices"}<Devices />
     {:else if tab === "notifications"}<Notifications />
     {:else if tab === "data"}<Data />
