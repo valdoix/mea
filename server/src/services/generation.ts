@@ -749,6 +749,8 @@ ${planned.content}` : planned.content, history.at(-1)?.seq ?? 0));
     reserve,
     modelId: resolved.modelId,
     providerReasoning: resolved.reasoning,
+    modelFamily: resolved.modelFamily,
+    modelNotes: resolved.modelNotes,
     vars: parseJson<Record<string, string>>(chat.vars, {}),
     seed: chatId,
     draft: opts.draft,

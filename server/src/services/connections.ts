@@ -12,6 +12,7 @@ import { AnthropicProvider } from "../providers/anthropic";
 import { isLinkApi, LinkApiBilling, type LinkApiBalance } from "../providers/linkapi";
 import { OpenAIProvider } from "../providers/openai";
 import type { CacheHint, GenerationParams, ModelInfo, Provider } from "../providers/types";
+import { resolveFamily } from "../prompt/models";
 import { recordQuotaSample } from "./quota";
 
 export type ConnectionKind = "nanogpt" | "openai" | "mock";
@@ -358,6 +359,10 @@ export const profileParams = z.object({
   cache: z.enum(["auto", "off"]).optional(),
   /** PROMPT-10: this model's prefill (the start of its reply); set, even empty, it replaces the preset's. */
   prefill: z.string().max(4000).optional(),
+  /** docs/29: the model family whose notes this model gets (unset: read from the id; "none": no family notes). */
+  model_family: z.string().max(20).optional(),
+  /** docs/29: extra notes for this model, added to its family's prose notes. */
+  model_notes: z.string().max(2000).optional(),
 });
 export type ProfileParams = z.infer<typeof profileParams>;
 
@@ -485,11 +490,19 @@ export function resolveProfile(profileId?: string | null, override?: { connectio
   delete (params as Record<string, unknown>).context_target;
   delete (params as Record<string, unknown>).cache;
   delete (params as Record<string, unknown>).prefill;
+  delete (params as Record<string, unknown>).model_family;
+  delete (params as Record<string, unknown>).model_notes;
+  // docs/29: the profile's family and notes are for its own model; a quick switch to another reads the new id.
+  const ownModel = profile.modelId === base.modelId;
   const reasoning = applyReasoning(params, conn, model?.capabilities);
   return {
     profile,
     /** PROMPT-10: this model's prefill; undefined means "use the preset's". */
     prefill: profile.params.prefill,
+    /** docs/29: the model family for the preset's model notes; undefined means "read it from the model id". */
+    modelFamily: ownModel && profile.params.model_family ? resolveFamily(profile.params.model_family, profile.modelId) : undefined,
+    /** docs/29: the profile's extra notes for its model. */
+    modelNotes: ownModel ? profile.params.model_notes?.trim() || undefined : undefined,
     connection: conn,
     provider: providerFor(conn.id),
     modelId: profile.modelId,

@@ -10,6 +10,9 @@
   import { compact, timeAgo } from "../../lib/format";
   import { KeyRound, Plus, RefreshCw, Trash } from "../../lib/icons";
   import { app, errorToast, toast } from "../../lib/state.svelte";
+
+  /** docs/29: the model families Mea's preset has notes for (server/src/prompt/models.ts keeps the same list). */
+  const MODEL_FAMILIES: [string, string][] = [["claude", "Claude"], ["deepseek", "DeepSeek"], ["gemini", "Gemini"], ["glm", "GLM"], ["kimi", "Kimi"], ["gpt", "GPT"], ["open", "Open model"]];
   import type { CacheProbe, Connection, ModelInfo, Profile, ProfileParams } from "../../lib/types";
 
   let connections = $state<Connection[]>([]);
@@ -297,6 +300,21 @@
             <select class="select" value={p.params.reasoning_effort ?? ""} onchange={(e) => ((p.params.reasoning_effort = e.currentTarget.value || undefined), saveProfile(p))}>
               <option value="">Off (Mea plans in the reply)</option><option value="model">Model default</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="max">Max</option>
             </select>
+          </label>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span class="label">Model notes</span>
+            <select class="select" value={p.params.model_family ?? ""} onchange={(e) => ((p.params.model_family = e.currentTarget.value || undefined), saveProfile(p))}>
+              <option value="">Auto (from the model's name)</option>
+              {#each MODEL_FAMILIES as [id, label] (id)}<option value={id}>{label}</option>{/each}
+              <option value="none">None</option>
+            </select>
+            <span class="hint">The preset's notes for this family: how it should plan and the habits it leans on. Every model is told not to draft.</span>
+          </label>
+          <label class="field">
+            <span class="label">Extra notes for this model</span>
+            <textarea class="textarea" rows="2" maxlength="2000" value={p.params.model_notes ?? ""} placeholder="Habits to catch, added to the family's notes" onchange={(e) => ((p.params.model_notes = e.currentTarget.value.trim() || undefined), saveProfile(p))}></textarea>
           </label>
         </div>
         <label class="switch"><input type="checkbox" checked={Boolean(p.params.hide_reasoning)} onchange={(e) => ((p.params.hide_reasoning = e.currentTarget.checked || undefined), saveProfile(p))} /> Ask the provider not to return reasoning</label>

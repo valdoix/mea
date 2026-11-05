@@ -583,6 +583,10 @@ export interface ProfileParams {
   context_target?: number;
   cache?: "auto" | "off";
   prefill?: string;
+  /** docs/29: the model family whose notes this model gets (unset: read from the id; "none": no family notes). */
+  model_family?: string;
+  /** docs/29: extra notes for this model. */
+  model_notes?: string;
 }
 
 export interface Profile {
@@ -905,6 +909,8 @@ export interface PromptTrace {
   outdated?: { kind: "knowledge" | "death" | "time" | "done"; where: string; sentence: string; now: string; seq: number; ref: string }[];
   /** H1: the ceiling on what Mea adds, and what was cut to fit it this turn. */
   ceiling?: { tokens: number; auto: boolean; before: number; after: number; cuts: { key: string; name: string; tokens: number }[] };
+  /** docs/29: the model adapter this prompt was written for, and whether the profile chose it. */
+  model?: { family: string; label: string; chosen: boolean };
   /** D2: the craft coach's numbers for this turn. */
   craft?: { replies: number; filter: number; emdash: number; ellipsis: number; triads: number; dialogue: number; baselineDialogue: number | null; topOpening: { word: string; share: number } | null };
 }

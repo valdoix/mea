@@ -192,7 +192,9 @@ describe("Mea's default preset", () => {
     expect(all({ modelId: "anthropic/claude-opus-4-7", providerReasoning: true })).toContain("Extended thinking is the planning pass");
     expect(all({ modelId: "deepseek-r1" })).toContain("end the plan at VOICE, then write the story");
     expect(all({ modelId: "qwen3-235b" })).toContain("never in a code fence");
-    expect(all({ modelId: "test" })).not.toContain("[MODEL]");
+    // docs/29: a model no family matches still gets the line every model gets.
+    expect(all({ modelId: "test" })).toContain("[MODEL] Draft nothing in the <think> block");
+    expect(all({ modelId: "test" })).not.toContain("Follow the output order literally");
     expect(all({ kind: "impersonate", modelId: "claude-sonnet-5" })).not.toContain("[MODEL]");
   });
 
