@@ -19,7 +19,14 @@ export interface ModelAdapter {
   plan: (r: PlanRoute) => string;
   /** The prose habits this family leans on, to catch in the story. */
   prose: string;
+  /**
+   * docs/29 §8 (L5): whether the preset quotes one example of each bad phrase ("quote"), or only
+   * describes the category ("describe"), for a family the quoted phrase may prime.
+   */
+  bans: Bans;
 }
+
+export type Bans = "quote" | "describe";
 
 /**
  * Said to every model: the plan is fragments, and the story is written once. A draft in the plan
@@ -40,7 +47,8 @@ export const ADAPTERS: ModelAdapter[] = [
     match: /claude|anthropic/,
     plan: (r) =>
       `${r.planned ? "" : r.providerReasoning ? "Extended thinking is the planning pass: its steps and ceiling, then the reply. " : "Write the <think> block first, in plain fragments, then the story. "}Follow the output order literally.`,
-    prose: "Your habits to catch: the teaser ending (\"Soon.\", \"But it's getting there.\", what tonight will bring), a closing paragraph that sums up the mood, and the narration explaining what a look or a line meant.",
+    prose: "Your habits to catch: the teaser ending (\"Soon.\", what tonight will bring), a closing paragraph that sums up the mood, and the narration explaining what a look or a line meant.",
+    bans: "quote",
   },
   {
     family: "deepseek",
@@ -48,13 +56,15 @@ export const ADAPTERS: ModelAdapter[] = [
     match: /deepseek|\br1\b/,
     plan: (r) => (r.planned ? "Write only the story." : "Plan once, in fragments, end the plan at VOICE, then write the story; nothing of the plan belongs after it."),
     prose: "",
+    bans: "quote",
   },
   {
     family: "gemini",
     label: "Gemini",
     match: /gemini|gemma/,
     plan: (r) => (r.planned ? "" : "Don't restate these instructions or the story state while planning; the plan is bullet fragments."),
-    prose: "No markdown headings in the story.",
+    prose: "Plain prose in the story, without markdown headings.",
+    bans: "quote",
   },
   {
     family: "glm",
@@ -64,8 +74,10 @@ export const ADAPTERS: ModelAdapter[] = [
       r.planned
         ? "No self-talk: write only the story."
         : "Plan in telegraphic fragments within the ceiling. No self-talk, no rechecking. Then close </think> and write the story inside <story>…</story>: the plan alone is not a reply.",
+    // Described, not quoted: GLM's office words may be primed by the lists that ban them (docs/29 §4.3).
     prose:
-      "Your habits to catch, in the plan as in the story: office and courtroom words for people (noted, filed, logged, data, ledger, load-bearing, notarised, ruling, for the record), counting things instead of describing them, the restart on a line's own first word (\"that's — that's\"), chains that hand a word on (\"the X and the X is\"), \"the specific…\", a line broken off before the sad word in every reply, the same closing image reply after reply, and everyone talking in one clipped, competent voice. People here talk like their cards, never like a report.",
+      "Your habits to catch, in the plan as in the story: office, bank and courtroom words for people and feelings, counting things instead of describing them, a line restarted on its own first word, chains that hand a word on from clause to clause, a line broken off before the sad word in every reply, the same closing image reply after reply, and everyone talking in one clipped, competent voice. People here talk like their cards, never like a report.",
+    bans: "describe",
   },
   {
     family: "kimi",
@@ -74,6 +86,7 @@ export const ADAPTERS: ModelAdapter[] = [
     plan: (r) =>
       r.planned ? "No workspace: no \"Let me plan\", no self-correction; write only the story." : "No workspace outside the plan: no \"Let me plan\", no self-correction.",
     prose: "",
+    bans: "quote",
   },
   {
     family: "gpt",
@@ -81,6 +94,7 @@ export const ADAPTERS: ModelAdapter[] = [
     match: /gpt|\bo[1345]\b|openai/,
     plan: () => "Keep the output order exact; no commentary around the story.",
     prose: "",
+    bans: "quote",
   },
   {
     family: "open",
@@ -89,11 +103,12 @@ export const ADAPTERS: ModelAdapter[] = [
     plan: (r) =>
       r.planned ? "" : r.providerReasoning ? "Plan in your reasoning, in fragments." : "Write the plan inside <think>…</think> as plain lines: never in a code fence, never as JSON, never skipped.",
     prose: "Keep names spelled exactly as before.",
+    bans: "quote",
   },
 ];
 
 /** Any model no adapter matches: it still gets the line every model gets. */
-export const OTHER_ADAPTER: ModelAdapter = { family: "", label: "Other", match: null, plan: none, prose: "" };
+export const OTHER_ADAPTER: ModelAdapter = { family: "", label: "Other", match: null, plan: none, prose: "", bans: "quote" };
 
 /** The family a model id belongs to ("" when none matches). */
 export function detectFamily(modelId: string | undefined): string {
@@ -117,9 +132,9 @@ export function adapterFor(family: string): ModelAdapter {
 }
 
 /** What the preset's {{model.*}} values hold for one reply. */
-export function modelNotes(family: string, route: PlanRoute, extra = ""): { plan: string; prose: string; label: string } {
+export function modelNotes(family: string, route: PlanRoute, extra = ""): { plan: string; prose: string; label: string; bans: Bans } {
   const a = family === "none" ? null : adapterFor(family);
   const plan = [a?.plan(route) ?? "", noDraft(route)].filter(Boolean).join(" ");
   const prose = [a?.prose ?? "", extra.trim()].filter(Boolean).join(" ");
-  return { plan, prose, label: family === "none" ? "None" : (a?.label ?? "Other") };
+  return { plan, prose, label: family === "none" ? "None" : (a?.label ?? "Other"), bans: a?.bans ?? "quote" };
 }

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { assemblePrompt } from "../src/prompt/assemble";
 import { GENRES, meaPreset, TOOLKIT_TAGS } from "../src/prompt/mea";
+import { ADAPTERS } from "../src/prompt/models";
 import { controlValues } from "../src/prompt/preset";
 
 const { data: card } = normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", description: "Mira keeps the lighthouse.", personality: "", first_mes: "" } });
@@ -52,7 +53,7 @@ describe("the v25 layout (docs/29 §5)", () => {
     expect(pass).toContain("VOICE <voice> <prose> —");
     expect(pass).toContain("the two <prose> lines this scene most invites, by number");
     const prose = p.blocks.find((b) => b.id === "mea-prose")!.content!;
-    expect(prose).toMatch(/\n1\. "not X but Y"/);
+    expect(prose).toMatch(/\n1\. correction framing/);
     expect(prose).toMatch(/\n19\. a close on an aphorism/);
   });
 
@@ -110,5 +111,74 @@ describe("the v25 layout (docs/29 §5)", () => {
     const tokens = own.reduce((n, b) => n + b.tokens, 0);
     expect(own.length).toBeGreaterThan(20);
     expect(tokens).toBeLessThan(15_000);
+  });
+});
+
+/** The whole prompt for one model, in an intimacy scene with the explicit setting (the defaults). */
+function render(modelId: string) {
+  const r = assemblePrompt({
+    kind: "story",
+    preset: meaPreset(),
+    card,
+    userName: "Ash",
+    personaText: "",
+    mode: "companion",
+    history: [
+      { id: "1", role: "assistant", content: "Mira lit the lamp." },
+      { id: "2", role: "user", content: "I wait." },
+    ],
+    lore: null,
+    contextTarget: 64000,
+    modelId,
+    vars: {},
+    seed: "s",
+    when: (c) => c === "mode = intimacy",
+  });
+  return r.messages.map((m) => m.content).join("\n\n");
+}
+
+const proseCard = (text: string) => text.slice(text.indexOf("<prose>\nThe habits"), text.indexOf("</prose>"));
+
+describe("negatives and priming (docs/29 §8)", () => {
+  test("every family says whether its bans quote an example or only describe", () => {
+    for (const a of ADAPTERS) expect(["quote", "describe"]).toContain(a.bans);
+    expect(ADAPTERS.find((a) => a.family === "glm")!.bans).toBe("describe");
+    expect(ADAPTERS.find((a) => a.family === "claude")!.bans).toBe("quote");
+  });
+
+  test("quote: each prose-card line quotes one example at most", () => {
+    const card = proseCard(render("claude-opus-5-5"));
+    expect(card).toContain('1. correction framing: what a thing isn\'t, before what it is, or denials stacked before the answer ("not X but Y") → say what it is');
+    for (const line of card.split("\n").filter((l) => /^\d+\. /.test(l))) {
+      const quotes = line.split("→")[0]!.match(/"[^"]+"/g) ?? [];
+      expect(quotes.length, line).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("describe: the bad phrases are named by kind, never quoted", () => {
+    const quoted = render("claude-opus-5-5");
+    const described = render("z-ai/glm-5.3");
+    for (const example of ['"not X but Y"', '"Noted."', '"Soon."', '"ministrations"', '"something darker"', '"Dan?"', "'made love'", "(seemed, felt, noticed)"]) {
+      expect(quoted, example).toContain(example);
+      expect(described, example).not.toContain(example);
+    }
+    expect(proseCard(described)).toContain("1. correction framing: what a thing isn't, before what it is, or denials stacked before the answer → say what it is");
+    // GLM's own notes are described too.
+    expect(described).toContain("For this model: Your habits to catch");
+    expect(proseCard(described).split("For this model:")[1]).not.toMatch(/"[^"]+"/);
+  });
+
+  test("no stock names are planted, and nothing reads as pseudocode", () => {
+    const text = JSON.stringify(meaPreset());
+    for (const name of ["Elara", "Seraphina", "Kael", "Lily"]) expect(text).not.toContain(name);
+    expect(text).toContain("think of five names that fit and use the fifth");
+    for (const b of meaPreset().blocks) expect(b.content ?? "", b.id).not.toMatch(/ \/ |checkbox\/radio/);
+  });
+
+  test("every hazard the turn rotates in names what to do instead", () => {
+    const avoid = render("z-ai/glm-5.3").match(/^Avoid above all: (.+)\.$/m)![1]!;
+    const items = avoid.split(" · ");
+    expect(items.length).toBe(4);
+    for (const item of items) expect(item, item).toContain(" — ");
   });
 });
