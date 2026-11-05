@@ -1492,6 +1492,52 @@ CREATE TABLE IF NOT EXISTS inbox_never (
 CREATE INDEX IF NOT EXISTS inbox_never_fingerprint ON inbox_never(fingerprint);
 `,
   },
+  {
+    id: 38,
+    name: "image generation",
+    sql: /* sql */ `
+-- docs/28: NanoGPT's image catalog per connection (prices, sizes, what each model can do).
+CREATE TABLE IF NOT EXISTS image_models (
+  connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+  model_id      TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  data          TEXT NOT NULL DEFAULT '{}',
+  updated_at    INTEGER NOT NULL,
+  PRIMARY KEY (connection_id, model_id)
+);
+-- One tap: a request for pictures. Its status is the truth, so a restart never draws (and bills) it twice.
+CREATE TABLE IF NOT EXISTS image_batches (
+  id            TEXT PRIMARY KEY,
+  status        TEXT NOT NULL DEFAULT 'queued',
+  error         TEXT,
+  connection_id TEXT,
+  model         TEXT NOT NULL,
+  prompt        TEXT NOT NULL,
+  params        TEXT NOT NULL DEFAULT '{}',
+  refs          TEXT NOT NULL DEFAULT '[]',
+  kind          TEXT NOT NULL DEFAULT 'try',
+  owner_type    TEXT,
+  owner_id      TEXT,
+  chat_id       TEXT,
+  estimate      REAL,
+  cost          REAL,
+  job_id        TEXT,
+  created_at    INTEGER NOT NULL,
+  finished_at   INTEGER
+);
+CREATE INDEX IF NOT EXISTS image_batches_created ON image_batches(created_at);
+-- Each picture made, with what made it. Unkept pictures are kept 30 days, then purged.
+CREATE TABLE IF NOT EXISTS image_recipes (
+  image_id   TEXT PRIMARY KEY REFERENCES images(id) ON DELETE CASCADE,
+  batch_id   TEXT NOT NULL REFERENCES image_batches(id) ON DELETE CASCADE,
+  idx        INTEGER NOT NULL DEFAULT 0,
+  cost       REAL,
+  kept       INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS image_recipes_batch ON image_recipes(batch_id);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

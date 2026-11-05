@@ -210,6 +210,31 @@ One PR per part, in the order of §9. Merge when green.
 - Opt-in slips: `slipAllowed` is off unless `guards.slips[id] === true`; the Guards switch sets true / clears.
 - Episodes: the baseline is the fold at the first assistant message (the card's opening) unless `settings.episodes.baselineSeq` says otherwise; restore lines are written as user events at the marker, so undo works. Bond values use "trust -3 → 0" (a bare "trust -2" reads as a change).
 
+## Portraits (design: `docs/28-portraits.md`)
+
+One PR per part, merged when green. Built in a worktree, not the shared folder.
+
+| Part | What | State |
+|---|---|---|
+| 1 | Image client, catalog, the job, Settings → Pictures, bake-off script | branch `claude/image-client` |
+| 2 | The Look and the prompt writer | — |
+| 3 | Portrait Studio | — |
+| 4 | Same person, every look | — |
+| 5 | Cast, as they are now, pairs | — |
+| 6 | Moments and covers | — |
+| 7 | Paint this scene | — |
+| 8 | Place art library (only if 7 says so) | — |
+
+### Part 1 (2026-11-05)
+
+- `providers/images.ts`: `ImageModelInfo` from `GET /api/v1/images/models` (`toImageModel`: per-image prices by size key, sizes, aspect ratios, max pictures, max reference pictures, nsfw), `imageBody` for `POST /api/v1/images/generations` (an aspect-ratio size also goes as `aspect_ratio`; references as `imageDataUrl(s)`), `isToolModel` (upscalers etc. are hidden).
+- `NanoGPTProvider.generateImage`: never retried. It only moves to the mirror host on a 502/503: a 504 or a dropped connection may still be drawing, and a second try would bill twice (`sendVia`). A `url` answer is downloaded at once (links expire in about an hour).
+- `services/imagegen.ts`: one `image_batches` row per tap is the truth. The job (`image.generate`, `maxAttempts: 1`) only sends a `queued` batch; one found `running` (Mea restarted mid-way) is failed, never sent again. Pictures go to `image_recipes`; unkept ones are purged after `UNKEPT_DAYS` (30) by the H12 condition, kept ones stay, and a batch's reference pictures are kept while the batch exists.
+- Only a pay-as-you-go NanoGPT (or mock) connection can make pictures; a subscription key is refused before anything is sent. Costs go in `generations` (`kind: "image"`, `task: "images"`, `finishRequest({ cost })`).
+- Settings `images.config`: connection, default model per job (portrait, edit, anime, plate), `nsfw` (hidden by default; adult-content models are refused server-side too when it's off).
+- `scripts/image-bakeoff.ts`: dry run by default (prints the total); `--go` draws against a running Mea's Settings → Pictures connection.
+- Tests: `server/test/imagegen.test.ts`.
+
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
 - Symptom: "Couldn't load models: HTTP 503", every time, and slow replies on NanoGPT.

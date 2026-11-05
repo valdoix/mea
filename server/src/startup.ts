@@ -4,6 +4,8 @@ import { lockUntilUnlocked, vaultEnabled, vaultMigrationBackup } from "./lib/vau
 import { loadMasterKey } from "./lib/crypto";
 import { scheduledBackup } from "./services/backup";
 import { listConnections, refreshQuota, syncModels } from "./services/connections";
+import { runImageJob, syncImageModels } from "./services/imagegen";
+import { getSetting } from "./lib/settings";
 import { enqueue, pruneJobs, registerJob, schedule, startJobs } from "./services/jobs";
 import { ensureDefaultPreset } from "./services/presets";
 import { vapidKeys } from "./services/push";
@@ -84,7 +86,10 @@ function afterOpen(opts: { jobs?: boolean }) {
   });
   registerJob("catalog.sync", async () => {
     for (const c of listConnections()) if (c.hasKey || c.kind === "mock") await syncModels(c.id).catch(() => {});
+    // docs/28: the image catalog of the connection pictures use.
+    if (getSetting("images.config").connectionId) await syncImageModels().catch(() => {});
   });
+  registerJob("image.generate", (payload, job) => runImageJob(payload, job));
   registerJob("trash.purge", async () => {
     purgeTrash();
   });

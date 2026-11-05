@@ -29,7 +29,9 @@ export type MeaEvent =
   | { type: "lore.facts"; entryId: string; chatId: string | null }
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   /** A reply you sent is still being prepared: waiting for the trackers or the plan (null: done). */
-  | { type: "gen.prep"; chatId: string; stage: "trackers" | "planning" | null };
+  | { type: "gen.prep"; chatId: string; stage: "trackers" | "planning" | null }
+  /** docs/28: a request for pictures moved on (running, done or failed). */
+  | { type: "images.changed"; batchId: string };
 
 type Listener = (event: MeaEvent) => void;
 

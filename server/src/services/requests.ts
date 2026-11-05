@@ -48,9 +48,9 @@ export function startRequest(input: {
 
 export function finishRequest(
   id: string,
-  r: { status: string; error?: string; usage?: Usage; firstTokenAt?: number | null; sentBody?: unknown; response?: string | null; pricing?: Record<string, unknown>; billing?: string },
+  r: { status: string; error?: string; usage?: Usage; firstTokenAt?: number | null; sentBody?: unknown; response?: string | null; pricing?: Record<string, unknown>; billing?: string; /** What the provider charged (pictures). */ cost?: number | null },
 ) {
-  const cost = r.billing && r.billing !== "subscription" && r.pricing ? costOf(r.pricing, r.usage) : null;
+  const cost = r.cost !== undefined ? r.cost : r.billing && r.billing !== "subscription" && r.pricing ? costOf(r.pricing, r.usage) : null;
   run(
     `UPDATE generations SET status = ?, error = ?, prompt_tokens = ?, completion_tokens = ?, cached_tokens = ?, cache_write_tokens = ?, first_token_at = ?, finished_at = ?,
        request = COALESCE(?, request), response = COALESCE(?, response), cost = ? WHERE id = ?`,

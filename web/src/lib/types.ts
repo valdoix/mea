@@ -672,6 +672,49 @@ export interface Settings {
   "privacy.requestLog": { bodiesDays: number; rowsDays: number; fileLog: boolean; fileDays: number };
   /** How much the creators do in one go and how warm the model runs (null: Mea default). */
   "creator.tuning"?: CreatorTuning;
+  /** docs/28: pictures. */
+  "images.config"?: ImagesConfig;
+}
+
+// ---------- docs/28: pictures ----------
+
+export type ImageJob = "portrait" | "edit" | "anime" | "plate";
+export interface ImagesConfig {
+  connectionId: string | null;
+  defaults: Record<ImageJob, string | null>;
+  nsfw: boolean;
+}
+
+export interface ImageModel {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  tags: string[];
+  prices: Record<string, number>;
+  estimated?: boolean;
+  capabilities: { generate: boolean; edit: boolean; inpainting: boolean; nsfw: boolean };
+  sizes: string[];
+  aspectRatios: string[];
+  maxImages: number;
+  maxInputImages: number;
+  maxPromptChars: number | null;
+  tool: boolean;
+}
+
+export interface ImageBatch {
+  id: string;
+  status: "queued" | "running" | "done" | "error";
+  error: string | null;
+  model: string;
+  prompt: string;
+  params: { n: number; size: string | null; aspectRatio: string | null; seed: number | null };
+  kind: string;
+  estimate: number | null;
+  cost: number | null;
+  images: { id: string; width: number | null; height: number | null; cost: number | null; kept: boolean }[];
+  createdAt: number;
+  finishedAt: number | null;
 }
 
 // ---------- Phase 5: steering ----------
@@ -891,6 +934,7 @@ export type MeaEvent =
   | { type: "import.progress"; chatId: string; done: number; total: number; label: string }
   /** A reply you sent is still being prepared: waiting for the trackers or the plan (null: done). */
   | { type: "gen.prep"; chatId: string; stage: "trackers" | "planning" | null }
+  | { type: "images.changed"; batchId: string }
   | { type: "reconnected" };
 
 // ---------- Phase 1: memory ----------
