@@ -66,7 +66,7 @@ describe("model adapters", () => {
     expect(pass).toContain("No self-talk, no rechecking.");
     expect(pass).toContain("Draft nothing in the <think> block");
     expect(pass.indexOf("Draft nothing")).toBeLessThan(pass.indexOf("STOP RULE"));
-    expect(prose).toContain("For this model: Your habits to catch, in the plan as in the story: office and courtroom words");
+    expect(prose).toContain("For this model: Your habits to catch, in the plan as in the story: office, bank and courtroom words");
     expect(trace.model).toEqual({ family: "glm", label: "GLM", chosen: false });
   });
 
@@ -87,7 +87,7 @@ describe("model adapters", () => {
 
   test("None drops the family's notes but keeps the drafting line", () => {
     const { notes } = prompt({ modelFamily: "none" });
-    expect(notes).not.toContain("office and courtroom words");
+    expect(notes).not.toContain("For this model:");
     expect(notes).toContain("Draft nothing");
   });
 

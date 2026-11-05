@@ -120,7 +120,7 @@ describe("v16 (docs/23)", () => {
     const craft = p.blocks.find((b) => b.id === "mea-craft")!.content!;
     const prose = p.blocks.find((b) => b.id === "mea-prose")!.content!;
     expect(craft).not.toContain("→");
-    expect(prose).toContain('5. "she didn\'t flinch", "not unkind" → what she did, the plain word');
+    expect(prose).toContain('5. what someone didn\'t do standing in for what they did, and double negatives{{if model.bans == quote}} ("not unkind"){{/if}} → what they did, the plain word');
   });
 
   test("it stays inside the preset limits", () => {
@@ -136,5 +136,5 @@ describe("v16 (docs/23)", () => {
 test("a change to Mea's preset comes with a new version", () => {
   const hash = new Bun.CryptoHasher("sha256").update(JSON.stringify(meaPreset())).digest("hex").slice(0, 16);
   // Changed the preset? Raise MEA_PRESET_VERSION in prompt/mea.ts, then put both new values here.
-  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 25, hash: "58d6e021c97bc5b9" });
+  expect({ version: MEA_PRESET_VERSION, hash }).toEqual({ version: 26, hash: "e11b6a666d836b9b" });
 });

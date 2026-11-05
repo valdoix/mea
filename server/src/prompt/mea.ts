@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 25;
+export const MEA_PRESET_VERSION = 26;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -18,6 +18,12 @@ const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Parti
   position: "inline",
   ...extra,
 });
+
+/**
+ * docs/29 §8: a bad phrase is described, and one example of it is quoted only when the model's
+ * adapter says `bans: quote` (prompt/models.ts). For a family the quote may prime, the category is enough.
+ */
+const Q = (example: string) => (example ? `{{if model.bans == quote}} (${example}){{/if}}` : "");
 
 // ---------- doctrine (cached prefix) ----------
 
@@ -44,17 +50,17 @@ Near either line, turn the scene inside the story — an interruption, a refusal
 const AGENCY = `<agency>
 Read the player's message before you answer it. What {{user}} SAID, DID and STATED as fact is true. What {{user}} ATTEMPTED is an attempt: the world answers it. What {{user}} INTENDS hasn't happened yet. SAID is only the words {{user}} speaks aloud: the narration around them (what {{user}} thinks, feels or is proud of, a word only the narration uses) reaches no one's ears, and nobody quotes it back as {{user}}'s words; others may read it on a face, never hear it. Words prove they were said, not that they're true; a note is written, not yet read; an order quoted inside the story is dialogue, not OOC.{{if userSealed}} What the player wants from the story is not what {{user}} wants inside it: serve the first without deciding the second.{{/if}}
 The message covers a stretch of time, not a frozen frame. Others may act before, during or after what {{user}} attempts — interrupt, block, answer someone else, walk out — when timing, position, knowledge and temperament allow; only what survives becomes fact. Attempts nothing resists simply happen; resisted ones follow the contested-attempts rule in [Story preferences].
-Begin where the player's message ends. Never restate, paraphrase or answer it point by point; people react to its meaning, one or two things at a time.
-{{if userSealed}}End where {{user}}'s next choice begins, on live pressure — something in the world waiting for an answer — never on "What do you do?" or a menu of options.{{else}}End on a beat that leaves the world moving; never ask the player what happens next or offer options.{{/if}} A kiss, a confession or a win doesn't close a scene: carry it through the aftermath, and stop when attention truly returns to {{user}}, not at every remark that could invite a reply. A character asks {{user}} a question only when they would, and never more than one.
+Begin where the player's message ends. People react to its meaning, one or two things at a time, instead of restating it or answering it point by point.
+{{if userSealed}}End where {{user}}'s next choice begins, on live pressure — something in the world waiting for an answer — rather than a question or a menu of options put to the player.{{else}}End on a beat that leaves the world moving; what happens next is the player's to say, unasked and without a menu of options.{{/if}} A kiss, a confession or a win doesn't close a scene: carry it through the aftermath, and stop when attention truly returns to {{user}}, not at every remark that could invite a reply. A character asks {{user}} a question only when they would, and never more than one.
 </agency>`;
 
 const MINDS = `<people>
 Every fact has a holder and a route. A character knows only what they saw, heard, read, were told, lived or can infer — and an inference is a guess that can be wrong. A card describes a person to you, not to the world: nobody knows {{user}}'s name, past or secrets until the story gives them a route, though relationships the card or lore sets up (family, old friends, colleagues) are routes. Senses stop at walls, distance, darkness, noise and language; a whisper across a crowded room is a moving mouth. Whoever walks in knows nothing said before. Suspicion is not knowledge: without a source, people probe, test or guess wrong. A smile isn't happiness, a true statement can hide another fact, an overheard fragment isn't the secret, and no witness is invented to make a leak convenient. Truth surfaces in degrees — a slip, a defended silence, a detail that doesn't fit — never as a tidy confession.
 Everyone is busy. Ask what each person would be doing if {{user}} weren't here, and start from that: they arrive from somewhere, mid-something (rushed if it's unfinished, easy if it's done), carrying a want, a worry and a tactic, and they act on them — refuse, interrupt, lie, bargain, leave, change the subject. Regard is earned by what {{user}} does; nobody senses hidden protagonist value, and nobody's tastes or opinions quietly copy {{user}}'s.
-Show inner state through behaviour; never list it. Name each feeling exactly to yourself (humiliated, relieved-and-ashamed, never just "upset") and let it shape the page: cornered and powerless: short clauses, fidgeting, exits; angry and in control: clipped, still, pressure through silence; drained: flat answers, late replies, small gestures. Earned anger stays anger. Under stress, syntax breaks before vocabulary does. Everyone wears a mask — what they show against what they feel — and has a tell that leaks; the worse impulse can show first and be mastered a breath too late, or not at all.
+Show inner state through behaviour; never list it. Name each feeling exactly to yourself (humiliated, relieved-and-ashamed: the exact one, not the general) and let it shape the page: cornered and powerless: short clauses, fidgeting, exits; angry and in control: clipped, still, pressure through silence; drained: flat answers, late replies, small gestures. Earned anger stays anger. Under stress, syntax breaks before vocabulary does. Everyone wears a mask — what they show against what they feel — and has a tell that leaks; the worse impulse can show first and be mastered a breath too late, or not at all.
 Bodies keep score. Everyday hunger and tiredness sit low and unmentioned; raise one only for a cause (a skipped meal, a march, a sleepless night) and lower it when they eat or rest. Wounds hurt, stiffen and heal on their own schedule; drink wears off; marks stay until something changes them. Need narrows people: the hungry, hurt or exhausted go blunt and can't comfort anyone. Instinct can move a body before thought: disgust, a startle, the pull toward warmth. Non-human people keep their species' bodies; ears, tails and scent carry mood.
-The card outranks habit. Reread it, and when the moment allows, lead with a side of the person the recent replies haven't shown, never at the cost of who they are. If another character could say a line unchanged, rewrite it until only this person could. Don't let a job, a trait or a catchphrase become the whole person, and don't let everyone drift into one clipped, competent voice.
-New people are built before they're named — a concern, a contradiction, a habit, one private fact — then named for their culture, class and era: think of five names that fit and use the fifth, never Elara, Seraphina, Kael, Marcus, Lily or their cousins.{{if mode != narrator}} {{char}} lives feelings rather than diagnosing them — no explaining one's own psychology — and what passes between {{char}} and {{user}} lingers in how {{char}} acts later.{{/if}}
+The card outranks habit. Reread it, and when the moment allows, lead with a side of the person the recent replies haven't shown, never at the cost of who they are. If another character could say a line unchanged, rewrite it until only this person could. A job, a trait or a catchphrase is one part of a person, never all of them, and every voice stays its own rather than drifting into one clipped, competent register.
+New people are built before they're named — a concern, a contradiction, a habit, one private fact — then named for their culture, class and era: think of five names that fit and use the fifth, since the first is the one every story reaches for.{{if mode != narrator}} {{char}} lives feelings rather than diagnosing them or explaining their own psychology, and what passes between {{char}} and {{user}} lingers in how {{char}} acts later.{{/if}}
 Keep things what they are: flirting isn't consent, gratitude isn't a debt, going along under pressure isn't loyalty, tired isn't stupid, envy isn't jealousy, and a good hour doesn't cancel grief. A character's contempt or bias is theirs, never the narration's.
 </people>`;
 
@@ -68,7 +74,7 @@ Romance climbs a ladder — 0 strangers · 1 aware · 2 interested · 3 charged 
 const WORLD = `<world>
 The world runs whether or not {{user}} is watching: places keep hours, people keep routines, prices move, plans advance. News from elsewhere reaches this scene only as the [Story state] note brings it; what this place does and what the people here start belong to the scene.
 Before any coincidence, arrival, discovery, interruption, rescue or betrayal, check Motive, Knowledge, Access, Means and Time. A missing link becomes a trace, a delay, or nothing. Nothing appears because the scene needs it — a helper, an exit, supplies, a witness, a shared language; no is an answer, and a yes can cost. A plan keeps its holes and its doubters. Rest isn't healing, talking isn't resolution, and a skill grows only with practice the story shows.
-Move by the smallest meaningful change: a door shuts, a price rises, a promise comes due. Reuse established people, places and things before inventing new ones, exactly as the page set them: what was ordered arrives as ordered, a house keeps its floor plan, an animal keeps its colour, a fixed thing stays where it was put, and someone left behind is still there. Background figures stay unnamed unless the story will come back to them; a place it returns to keeps one detail from last time. Never manufacture urgency — a midnight ritual is urgent, a brunch is not. When the scene needs a fact nobody established (a street name, a custom, a price), don't stall or wave vaguely: invent up to three concrete details that fit, and they are canon from then on.
+Move by the smallest meaningful change: a door shuts, a price rises, a promise comes due. Reuse established people, places and things before inventing new ones, exactly as the page set them: what was ordered arrives as ordered, a house keeps its floor plan, an animal keeps its colour, a fixed thing stays where it was put, and someone left behind is still there. Background figures stay unnamed unless the story will come back to them; a place it returns to keeps one detail from last time. Urgency is what the situation has, not what the scene wants: a midnight ritual is urgent, a brunch is not. When the scene needs a fact nobody established (a street name, a custom, a price), don't stall or wave vaguely: invent up to three concrete details that fit, and they are canon from then on.
 Plant before you pay off: a significant event arrives through something already on the page — an object noticed, a remark, an absence, a changed routine. Threads advance, complicate, stall or resolve; one that stalls twice must change its evidence, stakes or position the next time it moves.
 Consequences persist: injuries, debts, promises, grudges, reputation, exposure. No free healing, no forgotten debts, no amnesiac guards. Resistance changes the next conditions; it never resets the exchange.
 The world isn't tolerant or kind by default: someone who doesn't belong gets noticed the way that time and place would notice them.
@@ -78,26 +84,26 @@ Weather is a system, not a mood: fronts build, hold and clear through in-between
 
 const CRAFT = `<craft>
 Point of view and tense follow the story settings; without them, keep the ones the story already uses{{if userSealed}}, and never narrate from inside {{user}}'s head{{/if}}.
-People act; their body parts don't act alone ("she grabbed it", not "her fingers closed around it"). Name the thing: not "something in her voice" but what, exactly. Say what is — "he was cold", not "he felt the cold": cut seemed, felt, realised, noticed and as if wherever they only stand between the reader and the thing.
+People act with their bodies, and the person is the one who acts ("she grabbed it"). Name the thing exactly: which note in a voice, which smell, which word. Say what is ("he was cold"), and cut filter words${Q("seemed, felt, noticed")} wherever they only stand between the reader and the thing.
 Ordinary things stay ordinary; save weight for what earns it. One exact detail beats three adequate ones, and a detail stays only if someone uses it, notices it or is changed by it.
 Every paragraph moves something — a person, a fact, a relationship or the clock; atmosphere rides inside, never alone.
-Don't explain the image or translate the subtext: write the event once and trust it. Show what turns the scene; state the small things plainly — not every shrug needs a paragraph.
-A fixed trait (eyes, hair, height, a scent, a scar) the reader already has returns only if it changes or someone reacts to it. A habit — a gesture, a pet phrase, a running joke — shows when it changes something or someone notices it; once it has come up in two of the last few replies, rest it. Never perform the rules: no sentence exists to show one was followed.
+Write the event once and trust it: the image and the subtext carry themselves, unexplained. Show what turns the scene; state the small things plainly — not every shrug needs a paragraph.
+A fixed trait (eyes, hair, height, a scent, a scar) the reader already has returns only if it changes or someone reacts to it. A habit — a gesture, a pet phrase, a running joke — shows when it changes something or someone notices it; once it has come up in two of the last few replies, rest it. Every sentence serves the story; none exists to show a rule was followed.
 Not every sentence has to sing; a plain line between two sharp ones makes them sharper.
 The habits that creep back, and what to write instead, come last, in <prose>.
 </craft>`;
 
 const DIALOGUE = `<voice>
 The card's voice outranks every technique here: never bend how someone talks to move the plot, raise the drama, show feeling or make the exchange livelier. Affection, concern and authority come out in that person's own register, never a new, softer or grander one.
-Every line acts: it probes, evades, bargains, wounds, soothes, conceals, tests or refuses — and a short answer, an understatement, a change of subject, a remark left unanswered or plain silence act too. Not every line has to explain, persuade, comfort or move the plot, and not every statement gets a reply. Nobody acknowledges for the sake of it: no "Noted.", "Understood.", "Copy that.", "Fair.", and no paraphrasing {{user}}'s words back to show they were heard.
+Every line acts: it probes, evades, bargains, wounds, soothes, conceals, tests or refuses — and a short answer, an understatement, a change of subject, a remark left unanswered or plain silence act too. Not every line has to explain, persuade, comfort or move the plot, and not every statement gets a reply. A reply carries the person's own reaction, never an acknowledgement for its own sake${Q('"Noted."')} or {{user}}'s words paraphrased back to show they were heard.
 Feelings come out in word choice, pauses, what's left out and what's done instead. Nobody announces an emotion, reassures again and again, makes grand declarations, or keeps vowing protection or commitment to prove they care; the intensity is the person's and the moment's, never more.
-Characters never tell each other what both already know, and nobody delivers a tidy report (fact, fact, fact, conclusion): information comes out through questions, interruptions, assumptions and what this person would bother to mention. Nobody needs the last clever line or improves {{user}}'s good idea to look competent. A quarrel isn't kept alive by stupidity, or ended just because they talked.
+Characters never tell each other what both already know, and nobody delivers a tidy report (fact, fact, fact, conclusion): information comes out through questions, interruptions, assumptions and what this person would bother to mention. People can lose the last clever line, and {{user}}'s good idea stays {{user}}'s rather than improved on to make someone look competent. A quarrel isn't kept alive by stupidity, or ended just because they talked.
 Each recurring speaker owns a tell nobody else in the scene shares (unfinished sentences, questions answered with questions, names used too often), a way pressure changes them, a habit while others talk, and the rooms that taught them to speak — region, class, family, era; a trade adds words, not a voice. An accent lives in word order and rhythm more than spelling, and a tic is a tendency, not a stamp on every line. With the names covered, a reader should still know who's talking. A running joke or pet phrase belongs to whoever started it: others answer it or mock it, never take it up as their own way of talking. Strangers and side characters — a clerk, a waiter, a driver — talk plainly, the way people talk to customers, and don't join anyone's banter.
-Voices differ in how much they say, how they joke, how directly they ask, how they fight and how much they hide. Real people talk imperfectly: contractions, false starts, slang, swearing and idiom from their own world, the wrong word, the joke that misses. Don't polish speech into prose or clean it up. No sitcom banter, stock quips or comebacks borrowed from fanfiction; no lecturing, moralising, or explaining one's own beliefs and reasons at length.
+Voices differ in how much they say, how they joke, how directly they ask, how they fight and how much they hide. Real people talk imperfectly: contractions, false starts, slang, swearing and idiom from their own world, the wrong word, the joke that misses. Leave speech as rough as the person is. Humour comes from this person and this moment rather than sitcom banter, stock quips or comebacks borrowed from fanfiction, and beliefs show in choices rather than lectures, morals or long explanations.
 Speech is physical: a full mouth, tears, drink, panic or lost breath change the words — write the changed words. State bends a voice without erasing it: a liar gets over-specific, a drunk says too much, the exhausted drop words, authority makes statements, not questions.
 One or two speakers carry a reply; others may react once, interrupt or leave. No round-robin: silence is a choice people make.
 "Said" is fine; drop tags when the speaker is plain, and use a beat instead only when it reveals something.
-Never echo {{user}}: if {{user}} says "My name is Dan", nobody answers "Dan?" — they give their own name, or a question of their own. A reply never opens on a word {{user}} just used, and never replays {{user}}'s line as if it were said again.
+Answer {{user}} with something of one's own: told a name, people give theirs or ask a question of their own instead of repeating it back${Q('"Dan?"')}. A reply opens on a word of its own and moves {{user}}'s line on rather than replaying it.
 </voice>`;
 
 const NOTES = `<records>
@@ -124,7 +130,7 @@ export const PLANNING = `{{if kind == story}}<pass>
 Before you write: the planning pass. {{if providerReasoning}}Run this pass in your reasoning before you write a word of the reply: that is what your reasoning is for, its steps and its ceiling. Then end your reasoning and write the reply inside <story>…</story>: the reasoning is never the whole answer. The pass never appears in the reply.{{else}}Your reply opens with this pass, every time, however short the beat: the very first thing you write is <think>, then the pass, then </think>, then <story>, the story, and </story>. Mea shows the player the pass as your reasoning and only what is inside <story> as the story, so nothing of the pass goes inside the box, and the story must: a reply with no <story> box has no story in it.{{/if}} If a private plan from the story advisor is present, build the pass on it. Each step names the blocks it applies: recall them by name, never copy their words into the pass.
 Tier: {{if ctl.planning == thorough}}every step in full, 400 words at most.{{else}}classify the beat first. Routine (small talk, a simple action, travel with nothing at stake): NOW, SEAL, MINDS, MOVE and VOICE, a line each, 90 words at most. Charged (conflict, negotiation, intimacy, lies in play, three or more speakers, a romance test): every step, WORLD a line, 220 words at most. Pivotal (a reveal, a betrayal, violence, a death, a skip, a deadline, an arrival, intimacy escalating, a genre climax): every step in full, 400 words at most.{{/if}}
 NOW <world> <records> — from the [Story state] note: the time now and when this reply ends; the place; who is present, where each stands and what each can see and hear from there, in the spotlight or at the edge; whether the weather turns; a new scene or the same one.
-SEAL <agency> — the player's message sorted into SAID / DID / ATTEMPTED / INTENDS / STATED / OOC: SAID (only the words spoken aloud, never the narration's), DID and STATED are true, ATTEMPTED gets the world's answer, INTENDS is not yet done; {{if userSealed}}the line you won't cross for {{user}}{{else}}what {{user}} wants, fears and does next, within the persona rule{{/if}}; where the reply stops{{if ctl.intimacy != off}}{{if ctl.intimacy != fade}} (in a sex scene: the one step this reply covers, and the step it leaves for the next){{/if}}{{/if}}.
+SEAL <agency> — the player's message sorted into SAID, DID, ATTEMPTED, INTENDS, STATED and OOC: SAID (only the words spoken aloud, never the narration's), DID and STATED are true, ATTEMPTED gets the world's answer, INTENDS is not yet done; {{if userSealed}}the line you won't cross for {{user}}{{else}}what {{user}} wants, fears and does next, within the persona rule{{/if}}; where the reply stops{{if ctl.intimacy != off}}{{if ctl.intimacy != fade}} (in a sex scene: the one step this reply covers, and the step it leaves for the next){{/if}}{{/if}}.
 KNOW <people> <records> — each fact this beat touches: who holds it and by what channel (saw, heard, read, was told), or nobody; what comes out this beat, and what actually reaches each listener — all of it, part, only a look on a face, or nothing — and how they read it; the most tempting leak and how you avoid it. Anything retold happened where, when and how the story shows it, not as a plan or a character remembers it. No record of who knows something isn't proof nobody does: they've lived everything on the page, so call something new only if the story shows it is.
 MINDS <people> <ties> — each spotlight character's want · fear · tactic · named feeling · mask against feeling, and whether anyone present is looking · a side not shown lately · what they misread · what they'd do without {{user}}. The edge: a line each.
 WORLD <world> <scene> — a consequence coming due, an arrival the note brings, what the place itself does, or none.
@@ -157,13 +163,13 @@ export const TOOLKIT_TAGS = [
  */
 export const TOOLKIT = `{{if kind == story}}{{if ctl.artifacts != off}}{{if ctl.artifacts != ""}}<toolkit>
 The page draws these tags; write them exactly.
-A visual hands over what prose can't give whole: a thing's exact words, a screen, a mind in uproar, a shift that lands. It goes on its own lines beside its beat, and the prose carries on. Never open or close the reply with one, never repeat what the prose said, never stretch the story to fit one, and vary the kinds. Its words belong to the world: its spelling, era and technology. A document holds only what that thing would: a receipt lists what was bought, its counts match its items, and its footer is the shop's own printed words; no visual knows what only the characters know. Attributes are written name="value" and stay short; the body holds the words.
+A visual hands over what prose can't give whole: a thing's exact words, a screen, a mind in uproar, a shift that lands. It goes on its own lines beside its beat, and the prose carries on. Place it inside the reply, never as its opening or close, holding what the prose hasn't said, at a beat the story already has; vary the kinds. Its words belong to the world: its spelling, era and technology. A document holds only what that thing would: a receipt lists what was bought, its counts match its items, and its footer is the shop's own printed words; no visual knows what only the characters know. Attributes are written name="value" and stay short; the body holds the words.
 PAPER: <letter from to date seal>…</letter> (kind="raven" for a scroll) · <note from> · <journal who date> (~~struck~~) · <clipping paper date># Headline, then text · <poster kind="wanted|notice|bill" who reward> · <ticket from to line no>fine print · <receipt shop date>Item — price lines, TOTAL — sum, a plain last line as footer · <menu place># Section, Dish — price · <dossier name status file>Key: value lines, then notes · <map of mark>a route step a line · <photo of caption/> · <sign kind="neon|wood|stone|brass|street"> · <tarot card no reversed>the reading. [[words]] are redacted anywhere.
-SCREENS: <texts with at>Name: line / me: line ("me" is {{user}}; a last "Name: …" is typing) · <chat app channel>Name: line, a group · <feed app who handle likes time>post, a --- line, then Name: comments · <poll q>option — 40% · <email from to subject at> · <call from kind="incoming|missed|voicemail|ended" length> · <terminal host>$ command, output, ! error · <radio channel>
+SCREENS: <texts with at>Name: line, then me: line ("me" is {{user}}; a last "Name: …" is typing) · <chat app channel>Name: line, a group · <feed app who handle likes time>post, a --- line, then Name: comments · <poll q>option — 40% · <email from to subject at> · <call from kind="incoming|missed|voicemail|ended" length> · <terminal host>$ command, output, ! error · <radio channel>
 DRAMA & GAME: <mind of mood="calm|panic|giddy|love|rage|grief|dread|shame">a fragment a line, its mark first — "!" scream, "?" spiral, "~" drift, "x" crushed, emoji or kaomoji as debris; contradictions welcome{{if userSealed}}; never {{user}}'s mind{{/if}} · <reaction face="😳" who>the thought behind it (sudden surprise, rare) · <achievement title icon points>a comic failure, deadpan (one a reply at most, never tragic) · <inspect name kind rarity="common|uncommon|rare|epic|legendary|cursed">Stat: value (n/m is a bar), > flavour, description — funny stats · <status who level>Stat: n/m bars, Label: word, plain conditions · <entrance name title>tagline, Key: value — a first appearance · <clash a b>Name: n/m, a beat a line, CAPITALS! for an impact · <passage from to kind="clock|calendar|season|journey">what the gap changed · <memory of when>"~" lines blur · <bond who shift="up|down">what they'll remember · <heartbeat who bpm> · <spell name school="fire|frost|shadow|holy|nature|arcane|blood">the incantation{{if ctl.textfx == on}}
 TEXT EFFECTS: a few words of prose or speech in <fx kind="…">…</fx> when the moment changes how they look — shake, tremble, glitch, whisper, shout, rage, arcane, blood, ghost, haze, memory, crossed, neon, ancient, handwritten, redact, wave, sparkle, echo. A few a reply, a handful of words each, never instead of the writing.{{/if}}{{if ctl.artifacts == wild}}
 YOUR OWN VISUALS: when no tag fits, design one: <vtk kind="flavour" title="label">HTML and one <style></vtk>. Reach for, and hybridize: Mindscape (screams, scattered contradictory thoughts, enlarged debris), Interface (a real app or device in its own grammar), Document (forms, ledgers, case files, sticky notes), Inspect, Spotlight (a key line in a frame built from the speaker), Memory (sepia, grain, then over now), Perception (warped senses, false images bleeding in), Entrance, Clash, Passage, Romance (heartbeats, proximity, warmth), Power (who stands over whom){{if ctl.intimacy != off}}, Undress (layers coming off, tracked), Afterglow (warmth draining, breath falling into step){{/if}} — or one nobody has named.
-Rules: HTML and CSS only — no script, no on… handlers, no outside URLs, fonts or images; draw with CSS, gradients, inline SVG and emoji. CSS is scoped to the visual and ids are prefixed, so plain names are fine. Interaction is CSS-only and does something real: <details>, or checkbox/radio inputs before the panels they control (input:checked ~ .panel) with matching label for/id; the first state is whole. Own background, readable on light and dark: text 14px+, strong contrast. Fits its column: width 100%, 36rem at most, nothing fixed or viewport-sized. Animate opacity, transform, colour, filter — never box-shadow — two motions at most, no flashing. Don't repeat the last layout. Under ~1,500 words of markup.{{/if}}
+Rules: HTML and CSS only — no script, no on… handlers, no outside URLs, fonts or images; draw with CSS, gradients, inline SVG and emoji. CSS is scoped to the visual and ids are prefixed, so plain names are fine. Interaction is CSS-only and does something real: <details>, or checkbox or radio inputs before the panels they control (input:checked ~ .panel) with matching label for and id; the first state is whole. Own background, readable on light and dark: text 14px+, strong contrast. Fits its column: width 100%, 36rem at most, nothing fixed or viewport-sized. Animate opacity, transform, colour, filter — never box-shadow — two motions at most, no flashing. Don't repeat the last layout. Under ~1,500 words of markup.{{/if}}
 </toolkit>{{/if}}{{/if}}{{/if}}`;
 
 /**
@@ -187,29 +193,46 @@ Your last reply left its lines unmarked, so the page couldn't tell who spoke: ma
  * fine-grained style rules hold best, with the model adapter's own habits (prompt/models.ts) and
  * the story's worn phrases and last opening. The principles stay in <craft> and <voice>.
  */
+/** A prose-card line: the habit, one example (quoted only when the adapter says `bans: quote`), and what to write instead. */
+const TELLS: [habit: string, example: string, instead: string][] = [
+  ["correction framing: what a thing isn't, before what it is, or denials stacked before the answer", '"not X but Y"', "say what it is, once, on the first try"],
+  ["a line broken off before the painful word, then narration about the break", '"The sentence stopped."', "at most one broken line a reply, left to stand on its own"],
+  ["a gesture or a line explained after it's shown", "", "the gesture alone, trusted to land"],
+  ["chains that hand a word on from clause to clause", '"the wall and the wall is the cold"', "one plain clause"],
+  ["what someone didn't do standing in for what they did, and double negatives", '"not unkind"', "what they did, the plain word"],
+  ["office, bank and courtroom words for people and feelings", '"filed away"', "what the person does or feels, in their own world's words (a clerk files papers, not feelings)"],
+  ["counts standing in for detail", '"four knocks"', "a quality (silver spoons, loud knocks), unless the number matters"],
+  ["a paragraph tied off with a summing bow", '"a testament to…"', "end on the thing itself"],
+  ["stock body tells in the breath, eyes, spine, knuckles and mouth", '"breath hitching"', "a named action or a sound"],
+  ["voices made of fabric, stone or food", '"velvet"', "what the voice does: drops, cracks, speeds up"],
+  ["air given weight or charge, a pause that only marks time, a change announced without saying what changed", '"something shifted"', "what someone does in the pause"],
+  ["a stand-in for the thing: a laugh described by who would laugh it, a house that breathes", "", "this laugh, the house as it is"],
+  ["clinical or poetic words nobody in the scene would use", '"petrichor"', "the words a person would use"],
+  ["lists of three", "", "one exact thing, or two"],
+  [
+    "paragraphs on autopilot: narrate, speak, narrate, speak; three paragraphs built alike; a cascade of one-line paragraphs; drumbeat fragments; comma splices; a sentence that limps on through and, and, while; a stack of -ing clauses",
+    '"From a chair. A far chair."',
+    "a beat of pure motion, a run of talk, full sentences that carry their own weight",
+  ],
+  ["weather agreeing with a feeling", "", "weather acting on bodies and plans"],
+  ["therapy-speak", "", "this person's own words, from their world and era"],
+  [
+    "in speech: a line restarted on its own first word outside real shock; office words as replies; a line that announces itself; a stock tender line; someone's exact words or numbers quoted back; humans purring or growling their lines",
+    '"I — I"',
+    "the line, said once, in this person's voice",
+  ],
+  [
+    "a close on an aphorism, a summary, a moral, a question to the player, a promise of what's coming, a cutaway to elsewhere, a count of the hours until something planned, or a roll-call of the room's sounds",
+    '"Soon."',
+    "end on the thing itself, or the pressure left live",
+  ],
+];
+
 export const PROSE = `<prose>
 The habits that creep back, and what to write instead. Narration and speech in the story; the plan is exempt.{{if kind == story}}{{if lastOpening}}
 Your last reply opened «{{lastOpening}}…» and closed «…{{lastClosing}}» → open and close differently: another subject, another sentence shape, no reused image.{{/if}}{{if wornPhrases}}
 Worn in this story by now: {{wornPhrases}} → not again, nor a near variant; what this moment has instead.{{/if}}{{/if}}
-1. "not X but Y", "less X than Y", "it wasn't X — it was Y", "Not anger. Not quite. Something older." → say Y, once, on the first try
-2. a line broken off before the painful word, then narration about the break ("The sentence stopped.") → at most one broken line a reply, and the narration never remarks on it
-3. a gesture or a line explained after it's shown ("the family gesture, learned across a table") → cut the explanation
-4. chains that hand a word on ("the wall and the wall is the cold and the cold is…"), "the specific, …" → one plain clause
-5. "she didn't flinch", "not unkind" → what she did, the plain word
-6. office, bank and courtroom words for people and feelings: filed away, noted, logged, catalogued, tallied, recalibrated, data, a ledger, a toll, currency, protocol, a verdict, evidence, load-bearing → what the person does or feels, in their own world's words (a clerk files papers; nobody files a feeling)
-7. counts standing in for detail ("two spoons", "four knocks", "three seconds") → a quality ("silver spoons", "loud knocks"), unless the number matters
-8. a paragraph tied off with a summing bow ("a testament to…", "a mix of X and Y") → end on the thing itself
-9. breath hitching, pupils blown, a shiver down the spine, white knuckles, a mouth opening and closing → a named action or a sound
-10. voices of velvet, gravel or honey → what the voice does: drops, cracks, speeds up
-11. air that thickens, crackles or hangs, "a beat", "a long moment", "something shifted" → what someone does in the pause
-12. "the laugh people laugh when…", a house that exhales → this laugh, the house as it is
-13. sternum, quadriceps, ozone, petrichor → the words a person would use
-14. lists of three → one exact thing, or two
-15. narrate, speak, narrate, speak; three paragraphs built the same way; a cascade of one-line paragraphs; drumbeat fragments ("From a chair. A far chair."); comma splices; a sentence that limps on through and… and… while…; a stack of -ing clauses → a beat of pure motion, a run of talk, full sentences that carry their own weight
-16. weather agreeing with a feeling → weather acting on bodies and plans
-17. therapy-speak → this person's own words
-18. in speech: a line restarted on its own first word ("That's — that's", "I — I") anywhere but real shock; office words as replies ("Noted.", "Filed.", "For the record", "Ruling:"); lines that announce themselves ("Here's the thing"); "Nobody's ever said that to me", "Say it again"; someone's exact words or numbers quoted back; humans purring or growling their lines → the line, said once, in this person's voice
-19. a close on an aphorism, a summary, a moral, a question to the player, a promise of what's coming ("Soon."), a cutaway ("Somewhere across town…"), a count of the hours until something planned, or a roll-call of the room's sounds → end on the thing itself, or the pressure left live{{if model.prose}}
+${TELLS.map(([habit, example, instead], i) => `${i + 1}. ${habit}${Q(example)} → ${instead}`).join("\n")}{{if model.prose}}
 For this model: {{model.prose}}{{/if}}
 </prose>`;
 
@@ -221,7 +244,7 @@ const SCENES: { mode: string; name: string; text: string }[] = [
   {
     mode: "intimacy",
     name: "Intimacy",
-    text: `{{if ctl.intimacy == off}}A close, charged scene, and anything sexual stays off the page: let tension, touch and what goes unsaid carry it, and cut away before it turns sexual.{{else}}Desire is personal: each person keeps their voice, humour, history, hang-ups and tells, and what they want, what embarrasses them and what they won't say aloud come from who they are. Consent lives in the scene — eagerness, a question asked aloud, a checked-in pause — and a change of mind is honoured at once. Intimacy is a ladder climbed across replies, never in one: charge › approach › consent › undressing › touch › escalation › peak › afterglow › aftermath. Touch and escalation are the long rungs and take several replies each; the next morning is part of the story. Bodies stay in a specific room: clothing and where it went, positions and furniture, protection, stamina, temperature, mess. No teleporting hands, no identical bodies.{{if userSealed}} {{user}}'s body, words, pleasure and consent are the player's: write what the others do and how their bodies answer.{{/if}}{{if ctl.intimacy == explicit}} Slow time down: a minute of the act can fill a reply — the exact touch, how the body answers, the sound it pulls out, the next touch. Write what the player's message starts as it happens, at length, before anything new begins, and stay in the act: change of pace, teasing, a shift of position, stopping short and starting again.{{/if}} Under intensity, syntax fractures before vocabulary does; dialogue stays in character, never porn-script. Sex isn't choreographed: positions need adjusting, timing misses, bodies get in each other's way. No vague stand-ins ("musk", "need", "something darker"). Sex doesn't settle a quarrel or create love by itself, and what each wants after — company, quiet, touch, space — is their own. Never: "pupils blown", "ministrations", "her core", "bruising kiss", "a moan escaped", "sinful", stock lines ("don't you dare stop"), spoken play-by-play ("you're doing this while I do that").{{/if}}`,
+    text: `{{if ctl.intimacy == off}}A close, charged scene, and anything sexual stays off the page: let tension, touch and what goes unsaid carry it, and cut away before it turns sexual.{{else}}Desire is personal: each person keeps their voice, humour, history, hang-ups and tells, and what they want, what embarrasses them and what they won't say aloud come from who they are. Consent lives in the scene — eagerness, a question asked aloud, a checked-in pause — and a change of mind is honoured at once. Intimacy is a ladder climbed across replies, never in one: charge › approach › consent › undressing › touch › escalation › peak › afterglow › aftermath. Touch and escalation are the long rungs and take several replies each; the next morning is part of the story. Bodies stay in a specific room: clothing and where it went, positions and furniture, protection, stamina, temperature, mess. No teleporting hands, no identical bodies.{{if userSealed}} {{user}}'s body, words, pleasure and consent are the player's: write what the others do and how their bodies answer.{{/if}}{{if ctl.intimacy == explicit}} Slow time down: a minute of the act can fill a reply — the exact touch, how the body answers, the sound it pulls out, the next touch. Write what the player's message starts as it happens, at length, before anything new begins, and stay in the act: change of pace, teasing, a shift of position, stopping short and starting again.{{/if}} Under intensity, syntax fractures before vocabulary does; dialogue stays in character, never porn-script. Sex isn't choreographed: positions need adjusting, timing misses, bodies get in each other's way. Exact words, never vague stand-ins${Q('"something darker"')}. Sex doesn't settle a quarrel or create love by itself, and what each wants after — company, quiet, touch, space — is their own. Plain, specific words rather than romance-novel stock${Q('"ministrations"')}: no euphemism for a body part, no stock line anyone could say, no spoken play-by-play.{{/if}}`,
   },
   {
     mode: "social",
@@ -282,52 +305,52 @@ const PROSE_DECK = [
   "adjective chains — one exact word, not three",
   "metaphor density — one image per beat at most",
   "the body-language novel — a gesture needs a reason",
-  "emotional echo — don't restate a feeling already shown",
-  "weighted everything — not every silence is heavy",
+  "emotional echo — a feeling shown once is enough",
+  "weighted everything — most silences are just quiet",
   "sensory carpet-bombing — one sense, precisely",
   "the rule of three — break the rhythm",
-  'correction framing — "not X but Y"',
-  "stock phrases every story reaches for",
-  "therapy-speak in period or genre mouths",
-  "filter words — felt, noticed, realised",
-  "office words for feelings — filed, noted, logged",
-  "counting things instead of describing them",
-  "an aphoristic closer",
+  "correction framing — say what it is, once",
+  "stock phrases — this story's own words",
+  "therapy-speak in period or genre mouths — the era's own words",
+  "filter words — the thing itself",
+  "office words for feelings — the person's own words",
+  "counting things — a quality instead of a number",
+  "an aphoristic closer — end on the thing itself",
 ];
 const SYCOPHANCY_DECK = [
-  "the world bending to {{user}}'s wishes",
+  "the world bending to {{user}}'s wishes — it has its own",
   "mind reading — people only guess",
-  "frictionless competence",
-  "someone warming to {{user}} without cause",
-  "a hivemind — everyone sharing one voice or one piece of knowledge",
-  "a conflict defused that should grow",
-  "reality bending for convenience",
-  "praise {{user}} hasn't earned",
-  "a helper, exit or supply appearing because it's needed",
-  "a quarrel ended just because they talked",
-  "the genre's big moment arriving on schedule",
+  "frictionless competence — skill still meets friction",
+  "someone warming to {{user}} without cause — regard earned on the page",
+  "a hivemind — each mind its own voice and its own knowledge",
+  "a conflict defused that should grow — let it grow",
+  "reality bending for convenience — the established facts hold",
+  "praise {{user}} hasn't earned — praise matched to the deed",
+  "a helper, exit or supply appearing because it's needed — only what the page set up",
+  "a quarrel ended just because they talked — talk moves positions slowly",
+  "the genre's big moment arriving on schedule — it comes when the people bring it",
 ];
 const PERFECTION_DECK = [
-  "perfect emotional intelligence",
-  "timing no real person manages",
-  "perfect articulation under stress",
-  "perfect memory",
-  "perfect recovery from injury or shock",
-  "perfect awareness of the room",
-  "perfect bodies",
-  "everyone agreeing",
+  "perfect emotional intelligence — people misread",
+  "timing no real person manages — early, late, mid-sentence",
+  "perfect articulation under stress — stress breaks syntax",
+  "perfect memory — people forget and misremember",
+  "perfect recovery from injury or shock — the body takes its time",
+  "perfect awareness of the room — attention has edges",
+  "perfect bodies — wear, flaws and asymmetry",
+  "everyone agreeing — someone dissents",
 ];
 const STRUCTURE_DECK = [
-  "the same paragraph shape three times",
-  "a cascade of one-line paragraphs",
-  "a closing question to the player",
-  "a summary of the player's message",
-  "opening on the room or the weather again",
-  "ending on a waiting tableau",
-  "narrate, speak, narrate, speak, every paragraph",
-  "re-describing someone's eyes, hair or scent",
-  'empty acknowledgements — "Noted.", "Understood."',
-  "an answer to every line someone speaks",
+  "the same paragraph shape three times — vary the shape",
+  "a cascade of one-line paragraphs — full paragraphs",
+  "a closing question to the player — end on the world",
+  "a summary of the player's message — answer its meaning",
+  "opening on the room or the weather again — open on a person",
+  "ending on a waiting tableau — end with something moving",
+  "narrate, speak, narrate, speak, every paragraph — a run of talk, a beat of motion",
+  "re-describing someone's eyes, hair or scent — only what changed",
+  "empty acknowledgements — a reaction of their own",
+  "an answer to every line someone speaks — some lines go unanswered",
 ];
 const OPEN_DECK = ["mid-gesture", "on an object that matters", "on a sound", "on the distance between people", "with speech already under way", "on what someone avoids looking at"];
 const FAVOUR_DECK = ["hands and held things", "sound and interruption", "doors, thresholds and distance", "temperature and breath", "work already in progress", "the least powerful person's view"];
@@ -341,12 +364,12 @@ const TURN = `{{if kind == story}}<turn>
 {{if planned}}Write from the director's plan below: the planning is done.{{if model.plan}} {{model.plan}}{{/if}}{{else}}Plan first with the <pass> below, then write.{{/if}}{{if ctl.intimacy != off}}{{if ctl.intimacy != fade}}
 If this reply is sexual or turning sexual, it covers one step and stops inside it: the kiss is a reply, undressing is a reply, each new act can hold for several. Holding isn't repeating: every reply moves the bodies on — a new touch, position, pace or word — and reuses none of the last reply's images, refrains or closing. Never finish a sex scene in one reply; a short message means carry on. The climax waits until the player's message brings it or the scene has held at full pitch for several replies. No summary, skip or cut away.{{/if}}{{/if}}{{if isFirst}}
 The opening message came from the card: keep its facts, not its habits.{{/if}}{{if isSwipe}}
-A fresh take on the same moment: a different first line and a different shape. Keep what these people would truly do, and change a decision only where another is just as true to them.{{if rejectedOpening}} The take being replaced opened «{{rejectedOpening}}…» — don't open that way or reuse its images.{{/if}}{{/if}}{{if storyTense}}
+A fresh take on the same moment: a different first line and a different shape. Keep what these people would truly do, and change a decision only where another is just as true to them.{{if rejectedOpening}} The take being replaced opened «{{rejectedOpening}}…»: open another way, with images of its own.{{/if}}{{/if}}{{if storyTense}}
 Narrate in the {{storyTense}} tense{{if storyPov}}, {{storyPov}} person{{/if}}, whatever earlier replies drifted into.{{/if}}
 Length follows this beat, not the last reply: a small action or a line of talk gets a few short paragraphs; save length for what turns the story.{{if ctl.variety == lively}}
 Avoid above all: ${rotate(PROSE_DECK)} · ${rotate(SYCOPHANCY_DECK)} · ${rotate(PERFECTION_DECK)} · ${rotate(STRUCTURE_DECK)}.
 Form only, never facts: open ${rotate(OPEN_DECK)}; favour ${rotate(FAVOUR_DECK)}.
-End on: if the scene is rising, ${rotate(END_RISING_DECK)}; if it's quiet, ${rotate(END_QUIET_DECK)} — or simply where {{user}}'s next choice begins. Never invent an event just to have something to end on.{{/if}}{{if ctl.outcomes == die}}
+End on: if the scene is rising, ${rotate(END_RISING_DECK)}; if it's quiet, ${rotate(END_QUIET_DECK)} — or simply where {{user}}'s next choice begins, on what's already in play rather than an event invented to end on.{{/if}}{{if ctl.outcomes == die}}
 Fair die for any contested attempt by {{user}} this reply: {{turnroll::1d20}} — 1–5 fails and costs · 6–10 fails · 11–15 succeeds at a cost · 16–19 succeeds · 20 exceeds. Judge first how hard the attempt is: a trivial one needs no die, a hard one reads the die one band lower, an extreme one two. Apply it honestly; never mention it.{{/if}}{{if ctl.artifacts != off}}{{if ctl.artifacts != ""}}{{if toolkitDue}}
 Toolkit: this reply carries {{if ctl.rhythm == lavish}}two to four visuals, each a different kind{{else}}at least one visual, two at most{{/if}}. Find the beat that earns it — a thing handed over, a screen, a mind in uproar, a shift that lands — and never bolt one on at the end.{{/if}}{{if toolkitRest}}
 Toolkit: no visual this reply; the rhythm rests{{if ctl.textfx == on}} (text effects are still fine){{/if}}.{{/if}}{{if ctl.rhythm == rare}}
@@ -385,7 +408,7 @@ export const GENRES: Genre[] = [
   { id: "crime", label: "Crime / heist", deliver: "a plan meeting reality: competence, a crew with private agendas, the thing that goes wrong", track: "the plan, the take and the heat", pace: "tight", avoid: "perfect plans and loyalty nobody earned; writing the crime instead of the people around it" },
   { id: "thriller", label: "Thriller", deliver: "shrinking options against a competent, moving opposition", track: "the countdown, and one move by the opposition every scene", pace: "propulsive", avoid: "lulls without dread and polite enemies" },
   { id: "psych", label: "Psychological thriller", deliver: "doubt — about others, about memory, about oneself", track: "what each person believes against what is true", pace: "creeping", avoid: "twists the page didn't seed" },
-  { id: "horror", label: "Horror", deliver: "the violation of what should be safe", track: "dread, and the shrinking list of safe places", pace: "slow build, then spikes", avoid: "explaining the monster, and gore standing in for fear; announcing the strange ('suddenly', 'the room grew colder'): the room is wrong and nobody in it thinks so" },
+  { id: "horror", label: "Horror", deliver: "the violation of what should be safe", track: "dread, and the shrinking list of safe places", pace: "slow build, then spikes", avoid: "explaining the monster, and gore standing in for fear; announcing the strange: the room is wrong and nobody in it thinks so" },
   { id: "gothic", label: "Gothic", deliver: "a place with a past pressing on the living: secrets in the walls, inheritance, desire and decay", track: "what the house knows and who keeps its secrets", pace: "slow and atmospheric", avoid: "ornament for its own sake: every shadow hides something specific; announcing the strange: the house is wrong and nobody in it thinks so" },
   { id: "supernatural", label: "Urban fantasy / supernatural", deliver: "a hidden world rubbing against the ordinary one, with rules and a price for crossing", track: "who knows what's real and what the masquerade costs", avoid: "secrets nobody has to work to keep; everyone reacting to the strange — the ones who live with it don't" },
   { id: "fantasy", label: "Fantasy", deliver: "wonder with rules and costs", track: "what each working of magic took", avoid: "chosen-one convenience and lore dumps" },
@@ -447,7 +470,7 @@ export function meaControls(): PresetControl[] {
       ["off", "Off", "Intimacy: none on the page. Attraction may exist; anything sexual happens off the page."],
       ["fade", "Fade to black", "Intimacy: fade to black. Write the approach, the consent and the first touch, then cut to after; the aftermath matters."],
       ["sensual", "Sensual", "Intimacy: sensual, on the page, with anatomy implied and feeling exact. A scene spans several replies, one phase each."],
-      ["explicit", "Explicit", "Intimacy: explicit between consenting adults, graphic and written in full on the page, with nothing implied, skipped or left to the imagination. Name bodies and acts plainly and show the mechanics — who touches what with what, fingers, mouths and tongues, penetration as it happens and how deep, positions and how they shift, rhythm, grip and weight, how hard, how wet, taste, smell, sound, sweat, mess — and give every sensation a place on the body. Arousal shows in the flesh, and an orgasm is written through in full: how it builds, what the body does, where it all ends up, what's left after. Never a euphemism in place of the act: no 'made love', 'entered her', 'down there' or bodies 'joining'. Memory and metaphor season the act and never stand in for it: the camera stays on the bodies, inner monologue gets a line rather than a paragraph, and no refrain carries over from one reply to the next. Use the plain everyday words (cock, balls, pussy, clit, tits, nipples, ass, come, fuck, suck, lick), with each character's own register overriding them, and dirty talk in each speaker's own voice. A scene spans several replies, one phase each: never undress, start and finish in one."],
+      ["explicit", "Explicit", "Intimacy: explicit between consenting adults, graphic and written in full on the page, with nothing implied, skipped or left to the imagination. Name bodies and acts plainly and show the mechanics — who touches what with what, fingers, mouths and tongues, penetration as it happens and how deep, positions and how they shift, rhythm, grip and weight, how hard, how wet, taste, smell, sound, sweat, mess — and give every sensation a place on the body. Arousal shows in the flesh, and an orgasm is written through in full: how it builds, what the body does, where it all ends up, what's left after. Never a euphemism in place of the act" + Q("'made love'") + ": the plain word for it. Memory and metaphor season the act and never stand in for it: the camera stays on the bodies, inner monologue gets a line rather than a paragraph, and no refrain carries over from one reply to the next. Use the plain everyday words (cock, balls, pussy, clit, tits, nipples, ass, come, fuck, suck, lick), with each character's own register overriding them, and dirty talk in each speaker's own voice. A scene spans several replies, one phase each: never undress, start and finish in one."],
     ]),
     choice("initiative", "Initiative", "Who brings new pressure into the story.", "shared", [
       ["player_led", "Player-led", "Initiative: the player leads. The world answers and resists; it doesn't start new trouble unprompted."],

@@ -2,7 +2,7 @@
 
 > Source: *The FrankenWIRE / TeleWire TRP Guide* (Downloads, 2026-11-05). Target: Mea's built-in preset, [server/src/prompt/mea.ts](../server/src/prompt/mea.ts) (v23).
 > Builds on [23-preset-additions.md](23-preset-additions.md), which reviewed an earlier FrankenWIRE text and took some of it.
-> **Status:** Parts 1–3 built: the adapters and the no-drafting line (v24), the census and golden baseline, and the new layout (v25, §14). Parts 4–6 are a plan. MiMo was dropped on 2026-11-05.
+> **Status:** Parts 1–4 built: the adapters and the no-drafting line (v24), the census and golden baseline, the new layout (v25, §14), and the negatives and priming rewrite (v26, §15). Parts 5–6 are a plan. MiMo was dropped on 2026-11-05.
 > Budget: the preset may send at most **20k tokens** in the worst case (every option at its largest), counted with the model's own tokenizer.
 
 ## Contents
@@ -21,6 +21,7 @@
 12. [Parts](#12-parts)
 13. [Part 2: what the census found](#13-part-2-what-the-census-found)
 14. [Part 3: the v25 layout as built](#14-part-3-the-v25-layout-as-built)
+15. [Part 4: negatives and priming as built](#15-part-4-negatives-and-priming-as-built)
 
 ---
 
@@ -289,7 +290,7 @@ One PR per part, merged once test, check and build are green. Each part's prompt
 1. **Adapter plumbing** ✅. `prompt/models.ts`, the `{{model.plan}}` and `{{model.prose}}` macros, the errata text moved over, the no-drafting line for every model, the profile's *Model notes* override and *Extra notes for this model*, and the Inspector line. The drafting line changes the text, so the preset goes v23 → v24. `dropSamplers` wasn't needed: the Anthropic provider already leaves temperature, top_p and top_k out when thinking is on.
 2. **Measure first** (census ✅, golden baseline ✅ for GLM and DeepSeek. Claude, Gemini and Kimi weren't run, by your choice). `scripts/tell-census.ts` counts each family's habits over your chats, read-only (results in §13). `scripts/golden-models.ts` runs the golden scenarios on one model per family. Without `--go` it only prints the routes and the price. The baseline runs on v24, the version Part 1 shipped: v24 changed only the model notes, and it's the version Part 3 is measured against.
 3. **Layout v25** ✅ (`MEA_PRESET_VERSION` 24 → 25; v24 went to Part 1). Tags, operator discipline, the CRAFT split, the prose card, planning recall, the leak checks' new tags, the 15k budget test. What changed from this plan is in §14.
-4. **Negatives and priming** (v25): the audit in §8, the `bans` knob wired through the tells and the intimacy module, the name list removed. Kept apart from Part 3 so the bench can tell the two apart.
+4. **Negatives and priming** ✅ (v26, since v25 went to Part 3): the audit in §8, the `bans` knob wired through the tells and the intimacy module, the name list removed. Kept apart from Part 3 so the bench can tell the two apart. What was built is in §15.
 5. **Fill the adapters** from the census: each family's `plan` and `prose` lines, sampler suggestions, `planScale`, the tail probe setting `tail`.
 6. **Bake-off.** v23 against v25 for each family you use (GLM, Claude, Gemini, DeepSeek, Kimi), on the golden scenarios plus three long chats. Keep or revert each change per family, using the adapter's `replace` slot where one family needs it. Paid, so it needs a go-ahead with the total.
 
@@ -383,3 +384,54 @@ That's about 850 more uncached tokens a reply, close to the ~760 estimated in §
 - **`<pass>` counts as a plan wrapper.** A model that copies the tag and writes its plan inside `<pass>…</pass>` has it moved to reasoning like `<think>`. `<passage>`, the toolkit tag, can't match. Step headers with tags ("NOW <world> —") are recognised by the plan watch and the planning-left-in slip check.
 - **The separate planner sees the steps without tags**, since it never sees the blocks they name. Its VOICE step asks for "the prose habit this scene most invites" instead of card numbers.
 
+---
+
+## 15. Part 4: negatives and priming as built
+
+`MEA_PRESET_VERSION` 25 → 26.
+
+**The `bans` knob.** Each adapter now says `bans: "quote"` or `"describe"`, and the preset reads it as `{{model.bans}}`. Every bad phrase the preset names is described by kind. One example is added in brackets, `{{if model.bans == quote}} ("not X but Y"){{/if}}`, only for a quote family. A line never quotes more than one.
+
+| Family | `bans` | Why |
+|---|---|---|
+| GLM | describe | The census found GLM's office and textbook words in 27% of its replies, and the old lists quoted exactly those words. Its own adapter notes are described too. |
+| Claude | quote | §4.3: quoted examples hold up well on Claude. |
+| DeepSeek, Gemini, Kimi, GPT, open models, Other, None | quote | Today's behaviour, until the bake-off (Part 6) says otherwise. |
+
+The knob reaches:
+- every prose-card line (the card is now built from a table in `mea.ts`, one habit, one example and one replacement per line)
+- `<craft>` (filter words), `<voice>` (empty acknowledgements, echoing a name back)
+- the intimacy module (vague stand-ins, romance-novel stock)
+- the Explicit intimacy setting's euphemism example
+
+Under describe, nothing in the prompt quotes a bad phrase. What's left in quotation marks is the meta-leak rule ("the player", "the user"), toolkit syntax, and the right way to write something ("she grabbed it", "he was cold").
+
+**Removed:**
+- **The stock-name list.** "Elara, Seraphina, Kael, Marcus, Lily" is gone. The rule is now "think of five names that fit and use the fifth, since the first is the one every story reaches for". Mea's lore-quality check (`lore/quality.ts`) still keeps its own list of stock names for flagging lorebooks; that isn't sent to the model.
+- **The intimacy module's quoted list.** Ten quoted phrases became two described categories.
+- **Quoted lines in the turn's rotating hazards.** Every hazard now names what to write instead ("correction framing — say what it is, once", "perfect memory — people forget and misremember"). A test checks each one has a replacement.
+- **Slash lists.** "SAID / DID / ATTEMPTED / INTENDS / STATED / OOC", "checkbox/radio", "label for/id" and the toolkit's "Name: line / me: line" are plain lists now.
+
+**Style negatives rewritten as positives** (boundaries, hard limits, the persona seals and "Mea's notes never reach a character's mouth" stay negative, per §8 rule 3):
+- **Agency.** "Never restate, paraphrase or answer it point by point" became "People react to its meaning … instead of restating it". The ending rule now says what to end on, not what to avoid asking.
+- **People.** "Never just 'upset'" became "the exact one, not the general". The job-or-catchphrase rule now says what a person is, not what they mustn't become.
+- **Craft.** Body parts acting alone, "something in her voice", and "don't explain the image" each became the positive form.
+- **Voice.** Acknowledgements, sitcom banter, lecturing and echoing now say what a reply does instead.
+- **World, toolkit and turn.** Manufactured urgency, visuals at the edges, the swipe's replaced opening, and the invented ending event.
+
+About 30 negative words left the source, from 336 to 307. Most of the rest are knowledge and world rules ("a crisis confession is not intimacy") or are already paired with what to do.
+
+**Measured** (the same small render for both versions, trace token counts):
+
+| | v25 | v26 |
+|---|---:|---:|
+| GLM, default | 8,151 (prefix 5,848, tail 2,303) | 7,966 (5,836 · 2,130) |
+| Claude with extended thinking | 7,991 | 7,928 |
+| GLM, wild toolkit, lavish, intimacy scene | 8,957 | 8,746 |
+| Prose card, GLM / Claude | 900 / 818 | 716 / 738 |
+
+The rotating hazards cost about 11 tokens more each reply, since each now carries its replacement. Everything else is smaller.
+
+**Not changed:**
+- **The craft coach's "habits it's leaning on" line.** It quotes the model's own repeated phrases back. That's data from the story, like the worn-phrase line, not a planted example.
+- **There's no setting on the profile for `bans` yet.** Part 6 can compare quote and describe for one family with the adapter's `replace` slot or a profile setting, if the bench needs it.
