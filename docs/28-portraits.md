@@ -1,6 +1,6 @@
 # Design plan: portraits (and what pictures can do for plates)
 
-**Written:** November 5, 2026 · **Base:** Mea `main` at 8093df3 · **Status:** decisions taken as recommended (§10). Part 1 merged (PR #264); the bake-off is done (§2.3)
+**Written:** November 5, 2026 · **Base:** Mea `main` at 8093df3 · **Status:** decisions taken as recommended (§10). Part 1 merged (PR #264); the bake-off is done (§2.3); Part 2 built
 
 You write an idea in your own words, such as *"buffy summers, 20 years old"*. Mea works out who that is and what they look like, shows you what it understood, and writes a proper prompt for the image model you picked. Then it shows the pictures and lets you keep one as the portrait. This plan covers:
 
@@ -201,7 +201,7 @@ interface Look {
 }
 ```
 
-Where it's saved: `characters.settings.look`, `personas.data.look`, a variant's `overlay.look` (**only the fields that differ**, just as variants overlay a card), and `cast_profiles.data.look`.
+Where it's saved: one `looks` table keyed by owner (character, persona, variant, cast member), so cards, personas and overlays stay untouched. A variant's Look will hold only the lines that differ (Part 4). Sources rank: you, lore slots, card or persona text, canon, guess.
 
 ### 4.2 Who writes what
 
@@ -391,7 +391,7 @@ One PR per part, merged when green, as before. Builds happen in a worktree, not 
 | Part | What | Done when |
 |---|---|---|
 | **1** | **Image client and bake-off.** `listImageModels`, `generateImage`, `editImage`, the job, the mock, Settings → Images (connection, default models). Run three ideas (a canon character, an original, an anime persona) on about 8 models; record cost, time and face quality in this doc; set the default models. Confirm the dedicated API's response shape. | **Done** (PR #264). Bake-off in §2.3 |
-| **2** | **The Look and the prompt writer.** `Look`, helpers `portrait_idea` / `portrait_canon` / `portrait_directions`, canon lookup, `compilePrompt` with families and styles, the §5 rules. | Tests: "buffy summers, 20 years old" gives the §3.6 read-back shape; ages under 18 are refused; no names in prompts; tag and prose output |
+| **2** | **The Look and the prompt writer.** `Look`, helpers `portrait_idea` / `portrait_canon` / `portrait_directions`, canon lookup, `compilePrompt` with families and styles, the §5 rules. | **Done** (branch `claude/portrait-writer`). The helpers are `portrait:idea`, `portrait:look` and `portrait:directions` |
 | **3** | **Portrait Studio.** The panel, the contact sheet, keep and crop, recipes, More like this, the 30-day sheet, entry points for characters and personas, `image_recipes`, the H12 condition. | Draw and keep a portrait for a card and a persona |
 | **4** | **Same person, every look.** Key image, references, Change this…, Draw this look, Look → lore slots through the Inbox, out-of-date lines. | Two looks of one person are clearly the same face |
 | **5** | **The story's pictures.** Cast portraits, As they are now (tracker), pair portraits, the Meus card. | A portrait that shows the tracked outfit and injury |

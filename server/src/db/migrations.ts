@@ -1538,6 +1538,20 @@ CREATE TABLE IF NOT EXISTS image_recipes (
 CREATE INDEX IF NOT EXISTS image_recipes_batch ON image_recipes(batch_id);
 `,
   },
+  {
+    id: 39,
+    name: "looks",
+    sql: /* sql */ `
+-- docs/28 §4.1: how someone looks, per character, persona, look (variant) or cast member.
+CREATE TABLE IF NOT EXISTS looks (
+  owner_type TEXT NOT NULL,
+  owner_id   TEXT NOT NULL,
+  data       TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_type, owner_id)
+);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
