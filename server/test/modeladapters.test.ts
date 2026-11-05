@@ -136,9 +136,10 @@ describe("adapters filled from the census (docs/29 Part 5)", () => {
     expect(prompt({ modelId: "deepseek-ai/DeepSeek-V3.2" }).pass).toContain("a line each, 70 words at most");
   });
 
-  test("DeepSeek plans in its own step from the start; no other family does", () => {
+  test("DeepSeek and Gemini plan in their own step from the start; no other family does", () => {
     expect(plansFirst("deepseek")).toBe(true);
-    for (const f of ["claude", "glm", "gemini", "kimi", "gpt", "open", "", "none"]) expect(plansFirst(f), f).toBe(false);
+    expect(plansFirst("gemini")).toBe(true);
+    for (const f of ["claude", "glm", "kimi", "gpt", "open", "", "none"]) expect(plansFirst(f), f).toBe(false);
   });
 
   test("sampler suggestions come from each maker's guidance, and only where there is some", () => {
