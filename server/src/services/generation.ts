@@ -1,3 +1,4 @@
+import { plansFirst, resolveFamily } from "../prompt/models";
 import type { CardData } from "../cards/card";
 import { applyRegex } from "../lib/regex";
 import { all, now, one, parseJson, run } from "../db/db";
@@ -168,6 +169,8 @@ const PLAN_MIN_WORDS = 15;
 
 /** A step header, with the block tags the pass names after it ("NOW <world> <records> —") or a note in brackets. */
 const PLAN_HEADER = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:<[a-z]+>\s*)*(?:\([^)\n]*\)\s*)?[—–:-]/;
+/** The planning pass's own vocabulary: the SEAL sorting, a block tag, the MINDS separator. */
+const PASS_WORDS = /\b(?:SAID|DID|ATTEMPTED|INTENDS|STATED|OOC)\b|<[a-z]+>|·/;
 const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning|pass)>/gi;
 /** The pass's stop rule echoed as a step of its own ("STOP — After VOICE, close and write."). Capitals only: "Stop — " is speech. */
 const PLAN_STOP = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?STOP(?: RULE)?(?:\*\*)?\s*[—–:.-]/;
@@ -221,7 +224,10 @@ export function splitStoryBox(text: string): { text: string; reasoning: string }
 export function splitLeakedPlan(text: string): { text: string; reasoning: string } {
   const lines = text.split("\n");
   const heads = lines.flatMap((l, i) => (PLAN_HEADER.test(l) ? [i] : []));
-  if (heads.length < 2) return { text, reasoning: "" };
+  if (!heads.length) return { text, reasoning: "" };
+  // One step label counts only when it opens the reply in the pass's own words ("SEAL — SAID: …",
+  // the DeepSeek leak of docs/29 §13); "NOW — the bell rings." is story.
+  if (heads.length === 1 && (lines.slice(0, heads[0]).some((l) => l.trim()) || !PASS_WORDS.test(lines[heads[0]!]!))) return { text, reasoning: "" };
   // The pass opens the reply: whatever is above its first header is plan too (a header the route ate).
   if (!lines.slice(0, heads[0]).every((l) => !l.trim() || planLine(l))) return { text, reasoning: "" };
   const last = heads.at(-1)!;
@@ -1092,13 +1098,16 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   try {
     // A model that keeps skipping its plan in this chat plans in its own step first, rather than
     // spending a try that would be stopped anyway.
-    if (planAsked && !p.plannedPass && skipsPlans(p.resolved.modelId, gen.messageId)) {
+    // docs/29 §13: a family whose adapter says so (DeepSeek) plans that way from the first reply,
+    // unless its route reasons natively (then the reasoning is the plan).
+    const adapterFirst = !p.resolved.reasoning && plansFirst(resolveFamily(p.resolved.modelFamily, p.resolved.modelId));
+    if (planAsked && !p.plannedPass && (adapterFirst || skipsPlans(p.resolved.modelId, gen.messageId))) {
       const plan = await planStep();
       if (plan) {
         finishRequest(requestId, { status: "replaced", error: "replaced: planned first, in its own step" });
         await writeFrom(plan);
         planHow = "first";
-        notes.push("planned first, in its own step: this model has been skipping its plan");
+        notes.push(adapterFirst ? "planned first, in its own step: this model's adapter plans that way" : "planned first, in its own step: this model has been skipping its plan");
       }
     }
     for (;;) {

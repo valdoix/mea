@@ -563,6 +563,23 @@ describe("sending (H8, C2, H3)", () => {
     expect(third.content.startsWith("The rain had not stopped")).toBe(true);
   });
 
+  test("a family whose adapter plans first does so from its first reply (docs/29 §13)", async () => {
+    const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    setSetting("routing.story", createProfile({ name: "DeepSeek-ish", connectionId: conn, modelId: "neverplans", params: { model_family: "deepseek" } }));
+    const chatId = newChat();
+    counts.delete("neverplans");
+    const end = waitFor((e) => e.type === "gen.end" && (e as any).chatId === chatId);
+    expect((await api("POST", `/api/chats/${chatId}/send`, { content: "I step inside." })).status).toBe(200);
+    expect(((await end) as any).status).toBe("done");
+    const reply = all<{ content: string; meta: string }>("SELECT s.content, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
+    // No try spent and stopped: the plan step, then the story from it.
+    expect(counts.get("neverplans")).toBe(2);
+    expect(JSON.parse(reply.meta).plan).toBe("first");
+    expect(JSON.parse(reply.meta).notes).toContain("planned first, in its own step: this model's adapter plans that way");
+    expect(reply.content.startsWith("The rain had not stopped")).toBe(true);
+  });
+
   test("planning is mandatory: a writer that skips every plan is planned by the planner model", async () => {
     const conn = createConnection({ name: "Local", kind: "openai", baseUrl: base, billing: "paygo" });
     await syncModels(conn);
