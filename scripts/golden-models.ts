@@ -155,7 +155,10 @@ function copy(table: string, row: Row) {
 
 const out: string[] = ["# Golden baseline by model", "", `Preset v${(await import("../server/src/prompt/mea")).MEA_PRESET_VERSION}, ${new Date().toISOString().slice(0, 10)}.`, ""];
 const board: string[] = ["| Model | Scenarios passed | Requests | Tokens in / out | Cost reported |", "|---|---:|---:|---|---:|"];
+/** Scenarios that steer the mock's own planner (MOCK_PLANNER_FAIL, a scripted plan): a real model can't pass them. */
+const MOCK_ONLY = new Set(["planner-fallback", "already-said"]);
 const failures: string[] = [];
+const requests: string[] = [];
 const replies: { chatId: string; modelId: string; content: string; reasoning: string }[] = [];
 
 for (const r of routes) {
@@ -172,9 +175,10 @@ for (const r of routes) {
     "SELECT COUNT(*) n, COALESCE(SUM(prompt_tokens), 0) pin, COALESCE(SUM(completion_tokens), 0) pout, SUM(cost) cost FROM generations WHERE started_at >= ?",
     started,
   )[0]!;
-  const passed = g.results.filter((x) => x.pass).length;
-  board.push(`| ${r.model} | ${passed} / ${g.results.length} | ${used.n} | ${Math.round(used.pin / 1000)}k / ${Math.round(used.pout / 1000)}k | ${used.cost != null ? `$${used.cost.toFixed(2)}` : "—"} |`);
-  for (const s of g.results.filter((x) => !x.pass)) failures.push(`- **${r.model}** · ${s.name}: ${s.checks.filter((c) => !c.pass).map((c) => `${c.name}${c.detail ? ` (${c.detail})` : ""}`).join("; ")}`);
+  const real = g.results.filter((x) => !MOCK_ONLY.has(x.name));
+  const passed = real.filter((x) => x.pass).length;
+  board.push(`| ${r.model} | ${passed} / ${real.length} | ${used.n} | ${Math.round(used.pin / 1000)}k / ${Math.round(used.pout / 1000)}k | ${used.cost != null ? `$${used.cost.toFixed(2)}` : "—"} |`);
+  for (const s of real.filter((x) => !x.pass)) failures.push(`- **${r.model}** · ${s.name}: ${s.checks.filter((c) => !c.pass).map((c) => `${c.name}${c.detail ? ` (${c.detail})` : ""}`).join("; ")}`);
   for (const w of all<{ chat_id: string; content: string; reasoning: string | null }>(
     `SELECT m.chat_id, s.content, s.reasoning FROM swipes s JOIN messages m ON m.id = s.message_id
       WHERE m.role = 'assistant' AND s.status = 'done' AND s.content != '' AND s.created_at >= ? AND json_extract(s.meta, '$.model') = ?`,
@@ -182,10 +186,20 @@ for (const r of routes) {
     r.model,
   ))
     replies.push({ chatId: w.chat_id, modelId: r.model, content: w.content, reasoning: w.reasoning ?? "" });
-  console.log(`${r.model}: ${passed} / ${g.results.length} scenarios, ${used.n} requests`);
+  // Where the requests went (a retry shows up as "retried" or "replaced"), and what the pipeline noted on each reply.
+  const kinds = all<{ task: string; kind: string; status: string; n: number }>(
+    "SELECT task, kind, status, COUNT(*) n FROM generations WHERE started_at >= ? GROUP BY task, kind, status ORDER BY n DESC",
+    started,
+  );
+  requests.push(`- **${r.model}**: ${kinds.map((k) => `${k.task}/${k.kind} ${k.status} ×${k.n}`).join(", ")}`);
+  const noted = new Map<string, number>();
+  for (const m of all<{ meta: string }>("SELECT meta FROM swipes WHERE created_at >= ?", started))
+    for (const n of (JSON.parse(m.meta || "{}") as { notes?: string[] }).notes ?? []) noted.set(n, (noted.get(n) ?? 0) + 1);
+  if (noted.size) requests.push(...[...noted].sort((a, b) => b[1] - a[1]).map(([n, c]) => `  - ${n} ×${c}`));
+  console.log(`${r.model}: ${passed} / ${real.length} scenarios, ${used.n} requests`);
 }
 
-out.push(...board, "");
+out.push(...board, "", `Left out: ${[...MOCK_ONLY].join(", ")} (they steer the mock's planner, so only the mock can pass them).`, "", "## Where the requests went", "", ...requests, "");
 if (failures.length) out.push("## Failed checks", "", ...failures, "");
 out.push(censusReport(census(replies), { minReplies: 10, title: "Tell census of these replies" }).replace(/^# /, "## "));
 const report = out.join("\n");

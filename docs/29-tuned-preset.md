@@ -286,7 +286,7 @@ The preset's own blocks only: card, lore, memory, the story-state note, lanes an
 One PR per part, merged once test, check and build are green. Each part's prompt-test numbers go in its PR.
 
 1. **Adapter plumbing** ✅. `prompt/models.ts`, the `{{model.plan}}` and `{{model.prose}}` macros, the errata text moved over, the no-drafting line for every model, the profile's *Model notes* override and *Extra notes for this model*, and the Inspector line. The drafting line changes the text, so the preset goes v23 → v24. `dropSamplers` wasn't needed: the Anthropic provider already leaves temperature, top_p and top_k out when thinking is on.
-2. **Measure first** (census ✅, golden baseline waiting for a yes). `scripts/tell-census.ts` counts each family's habits over your chats, read-only (results in §13). `scripts/golden-models.ts` runs the golden scenarios on one model per family. Without `--go` it only prints the routes and the price. The baseline runs on v24, the version Part 1 shipped: v24 changed only the model notes, and it's the version Part 3 is measured against.
+2. **Measure first** (census ✅, golden baseline ✅ for GLM and DeepSeek. Claude, Gemini and Kimi weren't run, by your choice). `scripts/tell-census.ts` counts each family's habits over your chats, read-only (results in §13). `scripts/golden-models.ts` runs the golden scenarios on one model per family. Without `--go` it only prints the routes and the price. The baseline runs on v24, the version Part 1 shipped: v24 changed only the model notes, and it's the version Part 3 is measured against.
 3. **Layout v24** (`MEA_PRESET_VERSION` 23 → 24): tags, operator discipline, the CRAFT split, the prose card, planning recall, the leak stripper's new tags, the 15k budget test.
 4. **Negatives and priming** (v25): the audit in §8, the `bans` knob wired through the tells and the intimacy module, the name list removed. Kept apart from Part 3 so the bench can tell the two apart.
 5. **Fill the adapters** from the census: each family's `plan` and `prose` lines, sampler suggestions, `planScale`, the tail probe setting `tail`.
@@ -324,7 +324,31 @@ Claude's 126 replies all come from one chat, and GLM wrote 276 replies in that s
 - **Restarts and correction framing** go into the shared `<prose>` card (Part 3), since both families do them at the same rate.
 - Every rate here is one story's worth for Claude. The golden baseline gives a second, controlled read, with the same 28 scenarios for every model.
 
-**The golden baseline** (`bun scripts/golden-models.ts`, dry run on 2026-11-05). Each run sends about 186k tokens in and 27–54k out (16 story replies and 5 planner calls, ×1.3 for retries):
+### Golden baseline, subscription models (2026-11-05, v24)
+
+You chose to run only the free models: GLM 5.3 and DeepSeek, both on your NanoGPT subscription. Claude, Gemini and Kimi weren't run. DeepSeek ran twice, the second time with the request breakdown.
+
+| | GLM 5.3 | DeepSeek (latest), run 1 · run 2 |
+|---|---:|---:|
+| Scenarios passed | 24 / 28 | 23 · 25 / 28 |
+| Requests for 16 replies | 20 | 73 · 72 |
+| Tokens in | 142k | 345k · 345k |
+| Replies that came with a plan | 100% | 88% · 81% |
+| Plan words | 174 | 451 · 397 |
+| Plans that drafted the story (8+ words reused) | **0%** | 7% · **23%** |
+| Story words already in the plan | 0% | 6.1% · 12.5% |
+
+- **Four failures belong to the scenarios, not the models.** `planner-fallback` and `already-said` need the mock's scripted planner (`MOCK_PLANNER_FAIL`), so a real model can't pass them. `held-plan` and `things-stay` fail in the mock's model mode as well. The runner now leaves the first two out for real models, so the next run reads out of 26.
+- **GLM** failed one scenario of its own: `retold-past` (it retold a past scene wrongly). With the no-drafting line it planned every reply and drafted none, against 11% drafting in your chats before. The scenes are short, so this doesn't prove the line worked, but it's the right direction.
+- **DeepSeek skips its plan, and drafts when it does plan.** The breakdown for run 2:
+  - 17 of its first tries came back without a plan and were retried ("asked again" 9 times).
+  - 6 replies fell back to the separate planner after the writer skipped twice, and 5 more were planned in their own step.
+  - 23% of the plans it did write drafted the story, despite the new line.
+  - In `things-stay` the planning pass leaked into the story itself: a "SEAL — SAID: …" line reached the page.
+  - Run 1 failed `canon-cutoff`, but run 2 passed it. One run per model is noisy, so a failure needs to repeat before it counts.
+- **What this means for DeepSeek's adapter (Part 5):** a stronger note won't be enough. DeepSeek should start in the mode Mea already falls back to: plan in its own step, or with the separate planner, from the first reply. Its route should reason natively where the host allows, and the leak stripper (§5) should catch planning step labels ("SEAL —", "KNOW —") at the start of a line.
+
+**The rest of the golden baseline** (`bun scripts/golden-models.ts`, dry run on 2026-11-05). Each run sends about 186k tokens in and 27–54k out (16 story replies and 5 planner calls, ×1.3 for retries):
 
 | Model | Route | Estimate |
 |---|---|---:|
