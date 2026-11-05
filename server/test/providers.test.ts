@@ -134,6 +134,40 @@ describe("NanoGPT", () => {
     }
   });
 
+  test("a pay-as-you-go key sees paid models that a subscriber's main list hides", async () => {
+    const included = { id: "z-ai/glm-5.3", subscription: { included: true } };
+    const hidden = { id: "google/gemini-4-argon", name: "Gemini 4 Argon", subscription: { included: false } };
+    let paidUp = true;
+    const paths: string[] = [];
+    const server = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        paths.push(url.pathname);
+        if (url.pathname === "/api/paid/v1/models") return paidUp ? Response.json({ data: [hidden] }) : new Response("nope", { status: 404 });
+        return Response.json({ data: [included] });
+      },
+    });
+    try {
+      const p = new NanoGPTProvider({ baseUrl: `http://localhost:${server.port}/api/v1`, apiKey: "k" });
+      expect((await p.listModels()).map((m) => [m.id, m.subscription])).toEqual([
+        ["z-ai/glm-5.3", true],
+        ["google/gemini-4-argon", false],
+      ]);
+      expect(p.subscriptionProblem).toBeNull();
+      // A subscription key never asks for them.
+      paths.length = 0;
+      expect((await p.listModels({ subscriptionOnly: true })).map((m) => m.id)).toEqual(["z-ai/glm-5.3"]);
+      expect(paths).not.toContain("/api/paid/v1/models");
+      // The paid list failing keeps what did load, and says so.
+      paidUp = false;
+      expect((await p.listModels()).map((m) => m.id)).toEqual(["z-ai/glm-5.3"]);
+      expect(p.subscriptionProblem).toContain("paid model list didn't load");
+    } finally {
+      server.stop(true);
+    }
+  });
+
   test("a subscription key with no subscription list and no flags in the catalog fails rather than list paid models", async () => {
     const down = Bun.serve({
       port: 0,
