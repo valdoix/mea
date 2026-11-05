@@ -150,7 +150,7 @@ export function clockBackRule(text: string, minutes: number | null): Found[] {
 
 // ---------- planning left in ----------
 
-const PLAN_LINE = /^\s*(?:<\/?(?:think|thinking|plan|reasoning)>|(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE|STOP RULE|TIER)(?:\*\*)?\s*[—–:-]|\[BEFORE YOU WRITE|\[OUTPUT\]|[-*]\s*\[[ x]\]\s|(?:step|beat)\s*\d+\s*[:.)-]|(?:plan|outline|checklist|notes? to self)\s*:)/i;
+const PLAN_LINE = /^\s*(?:<\/?(?:think|thinking|plan|reasoning|pass)>|(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE|STOP RULE|TIER)(?:\*\*)?\s*(?:<[a-z]+>\s*)*[—–:-]|\[BEFORE YOU WRITE|Before you write:|\[OUTPUT\]|<\/?(?:output|prose|turn|marks)>|[-*]\s*\[[ x]\]\s|(?:step|beat)\s*\d+\s*[:.)-]|(?:plan|outline|checklist|notes? to self)\s*:)/i;
 
 /** A reasoning tag, a planning-pass heading or a checklist line left in the story. */
 export function planningRule(text: string): Found[] {

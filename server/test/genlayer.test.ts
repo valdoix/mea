@@ -611,7 +611,7 @@ describe("sending (H8, C2, H3)", () => {
     expect(imported.blocks.some((b) => b.id === "mea-planning")).toBe(false);
     const out = assemblePrompt(input({ preset: imported }));
     expect(out.trace.blocks.find((b) => b.id === "mea-planning")?.included).toBe(true);
-    expect(JSON.stringify(out.messages)).toContain("[BEFORE YOU WRITE");
+    expect(JSON.stringify(out.messages)).toContain("<pass>");
 
     // Only story replies plan: an impersonation or a continue gets no pass.
     for (const kind of ["impersonate", "continue"] as const) expect(assemblePrompt(input({ preset: imported, kind })).trace.blocks.find((b) => b.id === "mea-planning")?.included).toBe(false);
@@ -631,7 +631,7 @@ describe("sending (H8, C2, H3)", () => {
     const bodies = all<{ request: string }>("SELECT request FROM generations WHERE chat_id = ? AND task = 'story' ORDER BY started_at", chatId).map((g) => g.request);
     expect(bodies[1]).toContain("<director-plan>");
     expect(bodies[1]).toContain("MOVE — she offers tea");
-    expect(bodies[1]).not.toContain("[BEFORE YOU WRITE");
+    expect(bodies[1]).not.toContain("<pass>");
     const reply = all<{ content: string; reasoning: string | null; meta: string }>("SELECT s.content, s.reasoning, s.meta FROM swipes s JOIN messages m ON m.id = s.message_id WHERE m.chat_id = ? AND m.role = 'assistant' ORDER BY m.seq DESC LIMIT 1", chatId)[0]!;
     expect(reply.content).toBe("Mira sets the kettle on the stove without asking, and the lamp above them ticks as it turns.");
     expect(reply.reasoning).toContain("MOVE — she offers tea");

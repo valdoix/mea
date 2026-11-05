@@ -24,7 +24,7 @@
   "runPlanner": true,
   "prompt": {
     "contains": [
-      "[BEFORE YOU WRITE"
+      "<pass>"
     ],
     "lacks": [
       "<director-plan>"

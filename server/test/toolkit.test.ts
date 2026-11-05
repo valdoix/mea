@@ -57,7 +57,7 @@ describe("the toolkit's rhythm", () => {
 describe("the toolkit in Mea's preset", () => {
   test("on, the catalogue and the rhythm reach the prompt", () => {
     const t = text(assemblePrompt(base({ artifacts: "on", rhythm: "every" }, hist(["assistant", "The lamp."], ["user", "I wait."]))));
-    expect(t).toContain("[VISUAL TOOLKIT");
+    expect(t).toContain("<toolkit>");
     expect(t).toContain("<achievement title icon points>");
     expect(t).toContain("<fx kind=");
     expect(t).toContain("this reply carries at least one visual");
@@ -72,7 +72,7 @@ describe("the toolkit in Mea's preset", () => {
 
   test("off, nothing about the toolkit is sent", () => {
     const t = text(assemblePrompt(base({ artifacts: "off", rhythm: "every" }, hist(["assistant", "The lamp."], ["user", "I wait."]))));
-    expect(t).not.toContain("VISUAL TOOLKIT");
+    expect(t).not.toContain("<toolkit>");
     expect(t).not.toContain("Toolkit:");
   });
 

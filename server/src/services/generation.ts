@@ -87,7 +87,7 @@ const OVERFLOW_RETRY_SHARE = 0.9;
 
 /** M17: a leading <think>…</think> block (inline reasoning from OpenAI-style routes) moves out of the story. */
 export function splitThink(text: string): { text: string; reasoning: string } {
-  const m = text.match(/^\s*<(think|thinking|plan|reasoning)>([\s\S]*?)(?:<\/\1>|$)\s*/i);
+  const m = text.match(/^\s*<(think|thinking|plan|reasoning|pass)>([\s\S]*?)(?:<\/\1>|$)\s*/i);
   if (!m) return { text, reasoning: "" };
   return { text: text.slice(m[0].length), reasoning: m[2]!.trim() };
 }
@@ -97,12 +97,12 @@ export function splitThink(text: string): { text: string; reasoning: string } {
  * and the closing tag open the text ("now.\n</think>\n\n“Babe.”"). Those go back with the reasoning.
  */
 export function splitStrayClose(text: string): { text: string; reasoning: string } {
-  const m = text.match(/^([^<]{0,400})<\/(?:think|thinking|plan|reasoning)>\s*/i);
+  const m = text.match(/^([^<]{0,400})<\/(?:think|thinking|plan|reasoning|pass)>\s*/i);
   if (!m) return { text, reasoning: "" };
   return { text: text.slice(m[0].length), reasoning: m[1]!.trim() };
 }
 
-const THINK_OPEN = ["<think>", "<thinking>", "<plan>", "<reasoning>"];
+const THINK_OPEN = ["<think>", "<thinking>", "<plan>", "<reasoning>", "<pass>"];
 
 /**
  * Mea's preset has models without provider reasoning plan inside a leading <think> block. This
@@ -166,8 +166,9 @@ export function thinkRouter() {
 /** The plan watch: a "plan" shorter than this is a one-line outline, not the pass. */
 const PLAN_MIN_WORDS = 15;
 
-const PLAN_HEADER = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:\([^)\n]*\)\s*)?[—–:-]/;
-const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning)>/gi;
+/** A step header, with the block tags the pass names after it ("NOW <world> <records> —") or a note in brackets. */
+const PLAN_HEADER = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:<[a-z]+>\s*)*(?:\([^)\n]*\)\s*)?[—–:-]/;
+const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning|pass)>/gi;
 /** The pass's stop rule echoed as a step of its own ("STOP — After VOICE, close and write."). Capitals only: "Stop — " is speech. */
 const PLAN_STOP = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?STOP(?: RULE)?(?:\*\*)?\s*[—–:.-]/;
 
@@ -179,7 +180,7 @@ function planLine(line: string): boolean {
   return (
     PLAN_HEADER.test(line) ||
     PLAN_STOP.test(line) ||
-    /^\s*(?:\[BEFORE YOU WRITE|STOP RULE\b|<\/?(?:think|thinking|plan|reasoning)>)/i.test(line) ||
+    /^\s*(?:\[BEFORE YOU WRITE|Before you write:|STOP RULE\b|<\/?(?:think|thinking|plan|reasoning|pass)>)/i.test(line) ||
     /^\s*[*#([]*\s*(?:tier|beat)?\s*[:—–-]?\s*(?:routine|charged|pivotal)\b[^\n]{0,40}$/i.test(line) ||
     /^\s+\S|^\s*[-*•]\s/.test(line) ||
     /^\s*(?:candidate|option)\s*\w{0,2}\s*[:.)—–-]|^\s*choose\b/i.test(line) ||
@@ -294,7 +295,7 @@ export function storyRouter() {
       if (box >= 0 && state !== "think") {
         const pre = buf
           .slice(0, box)
-          .replace(/<\/(?:think|thinking|plan|reasoning)>/gi, "\n\n")
+          .replace(/<\/(?:think|thinking|plan|reasoning|pass)>/gi, "\n\n")
           .replace(PLAN_TAGS, "")
           .replace(/\n{3,}/g, "\n\n");
         if (pre.trim()) reasoning += state === "start" && (said || reasoning) ? `\n\n${pre.replace(/^\s+/, "")}` : pre;
@@ -324,7 +325,7 @@ export function storyRouter() {
       }
       if (state === "held") {
         // A plan written out and then closed with </think>: what follows is the story (or the box).
-        const m = buf.match(/<\/(?:think|thinking|plan|reasoning)>/i);
+        const m = buf.match(/<\/(?:think|thinking|plan|reasoning|pass)>/i);
         if (!m) return { text: "", reasoning };
         reasoning += buf.slice(0, m.index).replace(PLAN_TAGS, "");
         buf = buf.slice(m.index! + m[0].length);
@@ -343,7 +344,7 @@ export function storyRouter() {
       }
       if (!lead || [...THINK_OPEN, "<story>"].some((t) => t.startsWith(lower))) return { text: "", reasoning };
       // A closing tag left over from a pass the route kept to itself.
-      const stray = lead.match(/^<\/(?:think|thinking|plan|reasoning)>/i);
+      const stray = lead.match(/^<\/(?:think|thinking|plan|reasoning|pass)>/i);
       if (stray) {
         buf = lead.slice(stray[0].length);
         continue;
@@ -389,7 +390,7 @@ export function planOnly(text: string, reasoning: string): string | null {
       plan = [plan, out.reasoning].filter(Boolean).join("\n\n");
     }
   }
-  if (story.replace(/^\s*<\/(?:think|thinking|plan|reasoning)>/i, "").trim()) return null;
+  if (story.replace(/^\s*<\/(?:think|thinking|plan|reasoning|pass)>/i, "").trim()) return null;
   plan = plan.trim();
   return plan.split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS ? plan : null;
 }
@@ -1045,7 +1046,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           gen.reasoning += shown;
           pendingReasoning += shown;
           // The pass is over: whatever follows </think> (or opens the story box) would be the story, which isn't this request's.
-          if (/<\/(?:think|thinking|plan|reasoning)>|<story\s*>/i.test(text)) {
+          if (/<\/(?:think|thinking|plan|reasoning|pass)>|<story\s*>/i.test(text)) {
             done = true;
             ctl.abort();
           }
@@ -1136,7 +1137,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
         watching = false;
         // A plan written out without its tags is moved to reasoning when the reply ends (M17).
         // A plan written as a list ("• NOW: …") is still the plan.
-        if (/^(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:\[BEFORE YOU WRITE|NOW|SEAL|KNOW)\b/i.test(story)) return;
+        if (/^(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:\[BEFORE YOU WRITE|<pass>|Before you write:|NOW\b|SEAL\b|KNOW\b)/i.test(story)) return;
         if (gen.reasoning.trim().split(/\s+/).filter(Boolean).length >= PLAN_MIN_WORDS) return;
         planSkipped = true;
         attempt.abort();

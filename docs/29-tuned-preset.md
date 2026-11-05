@@ -2,7 +2,7 @@
 
 > Source: *The FrankenWIRE / TeleWire TRP Guide* (Downloads, 2026-11-05). Target: Mea's built-in preset, [server/src/prompt/mea.ts](../server/src/prompt/mea.ts) (v23).
 > Builds on [23-preset-additions.md](23-preset-additions.md), which reviewed an earlier FrankenWIRE text and took some of it.
-> **Status:** Part 1 built (the adapter plumbing, and a line telling every model not to draft). The rest is a plan. MiMo was dropped on 2026-11-05.
+> **Status:** Parts 1–3 built: the adapters and the no-drafting line (v24), the census and golden baseline, and the new layout (v25, §14). Parts 4–6 are a plan. MiMo was dropped on 2026-11-05.
 > Budget: the preset may send at most **20k tokens** in the worst case (every option at its largest), counted with the model's own tokenizer.
 
 ## Contents
@@ -11,7 +11,7 @@
 2. [What the guide teaches](#2-what-the-guide-teaches)
 3. [One preset or six?](#3-one-preset-or-six)
 4. [The model adapter](#4-the-model-adapter)
-5. [The new layout (v24)](#5-the-new-layout-v24)
+5. [The new layout (v25)](#5-the-new-layout-v25)
 6. [Planning pass with tag recall](#6-planning-pass-with-tag-recall)
 7. [The prose card](#7-the-prose-card)
 8. [Negatives, operators and priming](#8-negatives-operators-and-priming)
@@ -20,6 +20,7 @@
 11. [What not to take](#11-what-not-to-take)
 12. [Parts](#12-parts)
 13. [Part 2: what the census found](#13-part-2-what-the-census-found)
+14. [Part 3: the v25 layout as built](#14-part-3-the-v25-layout-as-built)
 
 ---
 
@@ -139,7 +140,7 @@ These are hypotheses. They come from the current errata plus behaviour widely re
 
 ---
 
-## 5. The new layout (v24)
+## 5. The new layout (v25)
 
 The order follows the half-life idea: stable laws first, drivers in the middle, volatile rules last, right before the reply. Each block gets one short lowercase tag, closed at its end. Tag names must not collide with the toolkit tags or Mea's own (`think`, `plan`, `reasoning`, `story`, `ledger`), so it's `<pass>`, not `<plan>`, and `<records>`, not `<notes>` (`note` is a toolkit tag). A test enforces this.
 
@@ -287,7 +288,7 @@ One PR per part, merged once test, check and build are green. Each part's prompt
 
 1. **Adapter plumbing** ✅. `prompt/models.ts`, the `{{model.plan}}` and `{{model.prose}}` macros, the errata text moved over, the no-drafting line for every model, the profile's *Model notes* override and *Extra notes for this model*, and the Inspector line. The drafting line changes the text, so the preset goes v23 → v24. `dropSamplers` wasn't needed: the Anthropic provider already leaves temperature, top_p and top_k out when thinking is on.
 2. **Measure first** (census ✅, golden baseline ✅ for GLM and DeepSeek. Claude, Gemini and Kimi weren't run, by your choice). `scripts/tell-census.ts` counts each family's habits over your chats, read-only (results in §13). `scripts/golden-models.ts` runs the golden scenarios on one model per family. Without `--go` it only prints the routes and the price. The baseline runs on v24, the version Part 1 shipped: v24 changed only the model notes, and it's the version Part 3 is measured against.
-3. **Layout v24** (`MEA_PRESET_VERSION` 23 → 24): tags, operator discipline, the CRAFT split, the prose card, planning recall, the leak stripper's new tags, the 15k budget test.
+3. **Layout v25** ✅ (`MEA_PRESET_VERSION` 24 → 25; v24 went to Part 1). Tags, operator discipline, the CRAFT split, the prose card, planning recall, the leak checks' new tags, the 15k budget test. What changed from this plan is in §14.
 4. **Negatives and priming** (v25): the audit in §8, the `bans` knob wired through the tells and the intimacy module, the name list removed. Kept apart from Part 3 so the bench can tell the two apart.
 5. **Fill the adapters** from the census: each family's `plan` and `prose` lines, sampler suggestions, `planScale`, the tail probe setting `tail`.
 6. **Bake-off.** v23 against v25 for each family you use (GLM, Claude, Gemini, DeepSeek, Kimi), on the golden scenarios plus three long chats. Keep or revert each change per family, using the adapter's `replace` slot where one family needs it. Paid, so it needs a go-ahead with the total.
@@ -357,4 +358,28 @@ You chose to run only the free models: GLM 5.3 and DeepSeek, both on your NanoGP
 | Gemini 4 Argon | Nano PAYG ($2 / $10 per M) | ≈ $0.83 |
 | Kimi K3.1 Pro | Nano PAYG ($2 / $10 per M) | ≈ $0.83 |
 | Claude Opus 5.5 | LinkAPI (`[SP]claude-opus-5-5`), price not listed. On Nano PAYG (`anthropic/claude-opus-5.5`, $4 / $20 per M) it would be ≈ $1.82. | unknown / ≈ $1.82 |
+
+---
+
+## 14. Part 3: the v25 layout as built
+
+**Measured** (o200k, the same render as §1):
+
+| | v23 | v25 |
+|---|---:|---:|
+| Prefix (cached) | 6,589 | 5,738 (craft 961 → 340, voice 884 → 747) |
+| Tail (uncached, every reply) | 1,738 | 2,587 (pass 978, prose card 900) |
+| Default total, GLM without reasoning | 8,335 | 8,435 |
+| Claude with extended thinking | 8,176 | 8,275 |
+| Wild toolkit, lavish rhythm, intimacy scene | 9,139 | 9,241 |
+
+That's about 850 more uncached tokens a reply, close to the ~760 estimated in §9, and about 100 more in total. The worst-case test (every option at its largest, 2,000 characters of extra model notes and 1,000-character limits) stays under 15,000 o200k tokens.
+
+**Changed from the plan:**
+- **`<people>` and `<ties>`, not `<minds>` and `<bonds>`.** The toolkit has `<mind>` and `<bond>`, and a renderer matching by prefix could take one for the other. A test now fails if any block tag equals or starts with a toolkit tag, or equals a reply tag (`think`, `plan`, `story`, `ledger`, `fx`). The MINDS step keeps its name.
+- **The controls block keeps its `[Story preferences]` header.** It's built in `preset.ts` for every preset, imported ones included, so retagging it is a separate change. Agency and the romance ladder still point at it by that name.
+- **The model notes moved into the blocks they correct, and the Model notes block is gone.** `{{model.plan}}` sits in `<pass>` just before STOP RULE, and in `<turn>` when a separate planner planned the reply. `{{model.prose}}` closes the prose card as "For this model: …". STOP RULE no longer repeats "Never draft", since the adapter's no-drafting line now sits right above it for every model.
+- **The prose card gained the closing tells** (line 19: aphorisms, teasers, cutaways, roll-calls), moved from `<craft>`, because the census found Claude closing on a teaser in 44% of its replies. Line 15 gathers the shape tells (drumbeat fragments, one-line cascades) and line 18 the speech tells (restarts, office words as replies), the two habits GLM and Claude share.
+- **`<pass>` counts as a plan wrapper.** A model that copies the tag and writes its plan inside `<pass>…</pass>` has it moved to reasoning like `<think>`. `<passage>`, the toolkit tag, can't match. Step headers with tags ("NOW <world> —") are recognised by the plan watch and the planning-left-in slip check.
+- **The separate planner sees the steps without tags**, since it never sees the blocks they name. Its VOICE step asks for "the prose habit this scene most invites" instead of card numbers.
 

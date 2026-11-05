@@ -201,9 +201,14 @@ Reply with JSON only: {"direction":"…","beats":["…"],"threads":["…"],"remi
  * the same steps the writer would run in its <think>, so the writer only writes the prose.
  */
 export function plannerSteps(user: string, sealed: boolean) {
-  const lines = PLANNING.split("\n").filter((l) => /^(NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE|STOP RULE)\b/.test(l));
+  const lines = PLANNING.split("\n")
+    .map((l) => l.replace(/^(?:\{\{[^}]*\}\})+/, ""))
+    .filter((l) => /^(NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE|STOP RULE)\b/.test(l));
   return lines
     .join("\n")
+    // The planner never sees the preset's blocks, so the tags each step recalls (docs/29 §6) mean nothing to it.
+    .replace(/the two <prose> lines this scene most invites, by number/g, "the prose habit this scene most invites")
+    .replace(/ <[a-z]+>(?= )/g, "")
     .replace(/\{\{if userSealed\}\}(.*?)\{\{else\}\}(.*?)\{\{\/if\}\}/g, (_, a: string, b: string) => (sealed ? a : b))
     .replace(/\{\{if [^}]*\}\}.*?\{\{\/if\}\}/g, "")
     .replace(/\{\{user\}\}/g, user)
