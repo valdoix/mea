@@ -6,6 +6,7 @@ import type { MemoryContext, MemoryTrace } from "../memory/context";
 import { cleanText, compactVisuals, needsCleaning } from "../memory/text";
 import { expandMacros, type MacroContext } from "./macros";
 import { PLANNING_BLOCK, TOOLKIT_TAGS } from "./mea";
+import { adapterFor, detectFamily, modelNotes } from "./models";
 import { controlsText, controlValues, lengthHint, type Preset, type PromptBlock, writesUser } from "./preset";
 import { wornLine } from "./worn";
 
@@ -78,6 +79,10 @@ export interface AssembleInput {
   ceiling?: { tokens: number | null; order: string[]; keep?: string[] };
   /** The route reasons natively, so planning goes in its reasoning rather than a <think> block. */
   providerReasoning?: boolean;
+  /** docs/29: the model family the profile chose ("none" for no family notes); unset, it's read from the model id. */
+  modelFamily?: string;
+  /** docs/29: the profile's own extra notes for its model, added to {{model.prose}}. */
+  modelNotes?: string;
   /** The plan watch's second try: a last line insists the reply open with its <think> plan. */
   forcePlan?: boolean;
   /** The plan step: this request writes only the planning pass; the story is written from it next. */
@@ -144,6 +149,8 @@ export interface PromptTrace {
   reworded?: { where: string; before: string; after: string; by: "rules" | "model" }[];
   /** Reliable state 3.2: text in the prompt the story has moved past, and what's true now. */
   outdated?: { kind: "knowledge" | "death" | "time" | "done"; where: string; sentence: string; now: string; seq: number; ref: string }[];
+  /** docs/29: the model adapter this prompt was written for, and whether the profile chose it. */
+  model?: { family: string; label: string; chosen: boolean };
   /** H1: the ceiling on what Mea adds, and what was cut to fit it this turn. */
   ceiling?: { tokens: number; auto: boolean; before: number; after: number; cuts: { key: string; name: string; tokens: number }[] };
 }
@@ -209,18 +216,11 @@ interface DepthItem {
   recall?: BlockTrace;
 }
 
-/** The model's family, for per-model notes in a preset ({{modelFamily}}): claude, deepseek, gemini, glm, kimi, gpt, open, or "". */
-export function modelFamily(model: string | undefined): string {
-  const id = (model ?? "").toLowerCase();
-  if (/claude|anthropic/.test(id)) return "claude";
-  if (/deepseek|\br1\b/.test(id)) return "deepseek";
-  if (/gemini|gemma/.test(id)) return "gemini";
-  if (/glm|zhipu|z-ai/.test(id)) return "glm";
-  if (/kimi|moonshot/.test(id)) return "kimi";
-  if (/gpt|\bo[1345]\b|openai/.test(id)) return "gpt";
-  if (/mistral|mixtral|llama|qwen|hermes|command-r|nemo|magnum|euryale|wizard/.test(id)) return "open";
-  return "";
-}
+/** The model's family, for per-model notes in a preset ({{modelFamily}}): claude, deepseek, gemini, glm, kimi, gpt, open, or "" (prompt/models.ts). */
+export const modelFamily = detectFamily;
+
+/** The family this reply is written for: the profile's choice when it made one, else what the model id says. */
+const familyOf = (input: AssembleInput) => input.modelFamily ?? detectFamily(input.modelId);
 
 const HAS_VISUAL = new RegExp(`<(?:${TOOLKIT_TAGS.join("|")})\\b`, "i");
 
@@ -262,6 +262,12 @@ function storySetting(input: AssembleInput, label: string): string {
   return new RegExp(`^${label}: (.+)$`, "m").exec(story)?.[1]?.trim().toLowerCase() ?? "";
 }
 
+function modelExtras(input: AssembleInput): Record<string, string> {
+  const planned = Boolean(input.skipBlocks?.includes("mea-planning"));
+  const notes = modelNotes(familyOf(input), { planned, providerReasoning: Boolean(input.providerReasoning) }, input.modelNotes);
+  return { "model.plan": notes.plan, "model.prose": notes.prose, "model.label": notes.label };
+}
+
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {
   // Without values from the chat (tests, previews), the preset's own defaults apply.
   const ctl = input.controlValues ?? controlValues(input.preset.controls);
@@ -286,7 +292,9 @@ function turnExtras(input: AssembleInput, lastReply: string): Record<string, str
     // H3: a separate planner planned this reply (the writer's own pass is left out).
     planned: input.skipBlocks?.includes("mea-planning") ? "yes" : "",
     providerReasoning: input.providerReasoning ? "yes" : "",
-    modelFamily: modelFamily(input.modelId),
+    modelFamily: familyOf(input) === "none" ? "" : familyOf(input),
+    // docs/29: the model adapter's notes, and the line every model gets about drafting.
+    ...modelExtras(input),
     speakerMarks: input.speakers && !input.planOnly && (input.kind === "story" || input.kind === "continue") ? "yes" : "",
     speakerRoster: input.speakers?.roster ?? "",
     marksDropped: input.speakers?.dropped ? "yes" : "",
@@ -692,9 +700,15 @@ export function assemblePrompt(input: AssembleInput): AssembleResult {
         effectiveTarget,
       },
       memory: mem?.trace,
+      model: modelTrace(input),
       ...(ceilingTrace ? { ceiling: ceilingTrace } : {}),
     },
   };
+}
+
+function modelTrace(input: AssembleInput): { family: string; label: string; chosen: boolean } {
+  const family = familyOf(input);
+  return { family, label: family === "none" ? "None" : adapterFor(family).label, chosen: input.modelFamily !== undefined };
 }
 
 /** H1: never cut, whatever the order says: the canon rule, inline ledger instructions, and the lanes that keep secrets and later canon off the page. */

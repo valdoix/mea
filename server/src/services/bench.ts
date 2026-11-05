@@ -65,6 +65,8 @@ export function benchPrompt(input: BenchInput) {
     lore,
     contextTarget: resolved.contextTarget,
     modelId: resolved.modelId,
+    modelFamily: resolved.modelFamily,
+    modelNotes: resolved.modelNotes,
     vars: {},
     seed: "bench",
     tokenRatio: resolved.tokenRatio,

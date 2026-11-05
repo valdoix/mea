@@ -181,6 +181,10 @@
           </table>
         </details>
 
+        {#if data.trace.model}
+          <p class="tiny muted" aria-label="Model notes">Model notes: <b>{data.trace.model.label}</b>{data.trace.model.chosen ? " (set on the profile)" : " (from the model's name)"}</p>
+        {/if}
+
         {@const lanes = data.trace.blocks.filter((x) => x.lane && x.included)}
         {#if lanes.length}
           <details open>

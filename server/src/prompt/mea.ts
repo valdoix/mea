@@ -7,7 +7,7 @@ import type { Preset, PresetControl, PromptBlock } from "./preset";
  * scene module and the turn frame change from one reply to the next.
  */
 
-export const MEA_PRESET_VERSION = 23;
+export const MEA_PRESET_VERSION = 24;
 
 const block = (id: string, name: string, kind: PromptBlock["kind"], extra: Partial<PromptBlock> = {}): PromptBlock => ({
   id,
@@ -183,8 +183,11 @@ Check each mark against the prose around it: the speaker is the person whose tag
 When delivery matters, add a tone after a bar: [spk=Name#N|whisper] — whisper, murmur, shout, sing, sob, cold, tender, sly, breathless, flat. Thoughts, signs, letters and words only remembered get no mark. The mark is the only speaker label: never "Name:" in front of a line.{{if marksDropped}}
 Your last reply left its lines unmarked, so the page couldn't tell who spoke: mark every line in this one.{{/if}}{{/if}}`;
 
-/** Per-model nudges (ALMANAC's errata): what each family tends to get wrong about the pass and the order. */
-const ERRATA = `{{if kind == story}}{{if modelFamily == claude}}[MODEL] {{if not planned}}{{if providerReasoning}}Extended thinking is the planning pass: its steps and ceiling, then the reply.{{else}}Write the <think> block first, in plain fragments, then the story.{{/if}} {{/if}}Follow the output order literally. Your habits to catch: the teaser ending ("Soon.", "But it's getting there.", what tonight will bring), a closing paragraph that sums up the mood, and the narration explaining what a look or a line meant.{{/if}}{{if modelFamily == deepseek}}[MODEL] {{if planned}}Write only the story.{{else}}Plan once, in fragments, end the plan at VOICE, then write the story. Anything drafted in the plan is wasted, and nothing of it belongs after the plan.{{/if}}{{/if}}{{if modelFamily == gemini}}[MODEL] {{if not planned}}Don't restate these instructions or the story state while planning; the plan is bullet fragments. {{/if}}No markdown headings in the story.{{/if}}{{if modelFamily == glm}}[MODEL] {{if planned}}No self-talk: write only the story.{{else}}Plan in telegraphic fragments within the ceiling. No self-talk, no rechecking, no drafting. Then close </think> and write the story inside <story>…</story>: the plan alone is not a reply.{{/if}} Your habits to catch, in the plan as in the story: office and courtroom words for people (noted, filed, logged, data, ledger, load-bearing, notarised, ruling, for the record), counting things instead of describing them, the restart on a line's own first word ("that's — that's"), chains that hand a word on ("the X and the X is"), "the specific…", a line broken off before the sad word in every reply, the same closing image reply after reply, and everyone talking in one clipped, competent voice. People here talk like their cards, never like a report.{{/if}}{{if modelFamily == kimi}}[MODEL] {{if planned}}No workspace: no "Let me plan", no self-correction; write only the story.{{else}}No workspace outside the plan: no "Let me plan", no self-correction, no paragraph-by-paragraph rehearsal.{{/if}}{{/if}}{{if modelFamily == gpt}}[MODEL] Keep the output order exact; no commentary around the story.{{/if}}{{if modelFamily == open}}[MODEL] {{if not planned}}{{if providerReasoning}}Plan in your reasoning, in fragments.{{else}}Write the plan inside <think>…</think> as plain lines: never in a code fence, never as JSON, never skipped.{{/if}} {{/if}}Keep names spelled exactly as before.{{/if}}{{/if}}`;
+/**
+ * Per-model notes (ALMANAC's errata), now from the model adapters (prompt/models.ts, docs/29): how
+ * this family should plan, the line every model gets about drafting, and the habits it leans on.
+ */
+const ERRATA = `{{if kind == story}}{{if model.plan}}[MODEL] {{model.plan}}{{if model.prose}} {{model.prose}}{{/if}}{{/if}}{{/if}}`;
 
 // ---------- scene modules (depth 1, only while the scene is in that mode) ----------
 
