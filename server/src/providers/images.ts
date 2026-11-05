@@ -42,6 +42,8 @@ export interface ImageRequest {
   /** For models that take the aspect ratio separately from the resolution. */
   aspectRatio?: string;
   seed?: number;
+  /** For the models that take one (tag-trained ones); others ignore it. */
+  negative?: string;
   references?: ImageReference[];
   signal?: AbortSignal;
 }
@@ -141,6 +143,7 @@ export function imageBody(req: ImageRequest): Record<string, unknown> {
   }
   if (req.aspectRatio) body.aspect_ratio = req.aspectRatio;
   if (req.seed != null) body.seed = req.seed;
+  if (req.negative?.trim()) body.negative_prompt = req.negative.trim();
   const refs = (req.references ?? []).map((r) => `data:${r.mime};base64,${Buffer.from(r.bytes).toString("base64")}`);
   if (refs.length === 1) body.imageDataUrl = refs[0];
   else if (refs.length > 1) body.imageDataUrls = refs;

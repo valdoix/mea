@@ -1,6 +1,7 @@
 <script lang="ts">
   import Avatar from "../components/Avatar.svelte";
   import ImageCropper from "../components/ImageCropper.svelte";
+  import PortraitStudio from "../components/portraits/PortraitStudio.svelte";
   import Menu, { type MenuItem } from "../components/Menu.svelte";
   import Modal from "../components/Modal.svelte";
   import Segmented from "../components/Segmented.svelte";
@@ -20,7 +21,7 @@
   import { confirm } from "../lib/dialogs.svelte";
   import { clock, timeAgo } from "../lib/format";
   import { autosize } from "../lib/gestures";
-  import { ArrowLeft, BookOpen, GitBranch, Download, Ellipsis, History, ImageIcon, Link, MessageHeart, Plus, Trash, Unlink, WandSparkles } from "../lib/icons";
+  import { ArrowLeft, BookOpen, GitBranch, Download, Ellipsis, History, ImageIcon, Link, MessageHeart, Plus, Sparkles, Trash, Unlink, WandSparkles } from "../lib/icons";
   import { uploadImage } from "../lib/images";
   import { navigate, route } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
@@ -50,6 +51,7 @@
   let guess = $state<{ mode: ChatMode; reasons: string[] } | null>(null);
   let cropFile = $state<Blob | null>(null);
   let cropOpen = $state(false);
+  let studioOpen = $state(false);
   let exportOpen = $state(false);
   let exportBtn = $state<HTMLButtonElement | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
@@ -500,7 +502,8 @@
         <div class="stack">
           <div class="row wrap">
             <button class="btn primary" onclick={() => fileInput?.click()}><ImageIcon size={16} /> Upload a portrait</button>
-            <span class="tiny muted">You'll crop it to a 2:3 portrait. Mea doesn't generate images.</span>
+            <button class="btn" onclick={() => (studioOpen = true)}><Sparkles size={16} /> Draw a portrait</button>
+            <span class="tiny muted">Either way you crop it to 2:3. Drawing uses your pay-as-you-go key, and shows the price first.</span>
             <input
               bind:this={fileInput}
               type="file"
@@ -586,6 +589,8 @@
 <NotesSorter bind:open={notesOpen} kind="character" card={cardNow} labels={LABELS} onapply={(f) => Object.entries(f).forEach(([k, v]) => setField(k, v))} />
 {#if rules}<DiffModal bind:open={rulesOpen} title="Rules for this card" note="Read after the chat history every turn. {'{{original}}'} keeps the preset's own instructions first." before={rules.before} after={rules.after} onaccept={(t) => draft && (draft.post_history_instructions = t)} />{/if}
 <Menu bind:open={exportOpen} items={exportItems} anchor={exportBtn} title="Export" />
+
+{#if character}<PortraitStudio bind:open={studioOpen} ownerType="character" ownerId={id} name={draft?.name ?? character.name} aspect={2 / 3} onkept={() => void load()} />{/if}
 
 <Modal bind:open={cropOpen} title="Crop portrait" size="md">
   {#if cropFile}
