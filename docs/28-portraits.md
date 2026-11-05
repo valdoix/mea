@@ -1,6 +1,6 @@
 # Design plan: portraits (and what pictures can do for plates)
 
-**Written:** November 5, 2026 · **Base:** Mea `main` at 8093df3 · **Status:** decisions taken as recommended (§10). Part 1 built; the bake-off waits on a go-ahead to spend
+**Written:** November 5, 2026 · **Base:** Mea `main` at 8093df3 · **Status:** decisions taken as recommended (§10). Part 1 merged (PR #264); the bake-off is done (§2.3)
 
 You write an idea in your own words, such as *"buffy summers, 20 years old"*. Mea works out who that is and what they look like, shows you what it understood, and writes a proper prompt for the image model you picked. Then it shows the pictures and lets you keep one as the portrait. This plan covers:
 
@@ -83,6 +83,25 @@ The catalog marks some models `nsfw: true` (several Seedream, HiDream, Recraft a
 **What a session costs:** four drafts on Flux 3 Klein ≈ $0.04. Four on Seedream Flash ≈ $0.11. One keeper on Nano Banana Pro ≈ $0.14. A cast of eight on cheap models, two tries each, is under $0.50.
 
 These are starting points, not verdicts. Part 1 tries them on the same ideas side by side (§9).
+
+### 2.3 Bake-off results (November 5, 2026)
+
+`scripts/image-bakeoff.ts --go` against Mea on the pay-as-you-go key: the §3.6 Buffy prompt and an original character (a lighthouse keeper in her thirties, "soft storybook painting") on seven prose models, and an anime persona in tags on Anima. One picture each at 1024². 15 of 15 came back, **$0.68 charged** (listed $0.716; every model charged about 5% under its catalog price).
+
+| Model | Charged | Time | Canon prompt (Buffy at 20) | Original prompt (lighthouse keeper) |
+|---|---|---|---|---|
+| FLUX.3 Klein | $0.0085 | 12–15 s | Every detail there, but she looks 35–40 | Looks 55, not mid-thirties. Good lamp room |
+| Qwen Image 3 | $0.028 | **75–83 s** | Right age, soft painted look, stake held well | The best storybook pastel of the set |
+| **Seedream 5.0 Flash** | $0.026 | 19–20 s | Right age, painterly, the most "cinematic painted realism", sharp stake | Freckles, grey streaks, lamp and glass dome: every detail, painted |
+| Z Image Base | $0.016 | 15–16 s | Photographic, not painted; low neckline nobody asked for | Photographic; the scar became marks on her cheek |
+| Nano Banana 2 | $0.076 | 25–30 s | **The real actress's face** (see below) | Painted, accurate, scar missing |
+| Nano Banana Pro | $0.133 | 46–49 s | **The real actress's face**, almost a portrait of her | The most polished, scar missing |
+| FLUX.3 | $0.048 | 22–26 s | Right age, painterly, stake held like a knife | Good painting, the hair exactly as written |
+| Anima (tags) | $0.0095 | 18 s | — | The anime persona: everything in the tags, clean |
+
+**Defaults set** (Settings → Pictures): portraits **Seedream 5.0 Flash**; same person **Seedream 5.0 Flash Edit** (10 references; not yet tried with references, Part 4 checks it); anime **Anima**; wide scenes left unset until Part 7. Qwen Image 3 is the pick when time doesn't matter. Klein ages people up, so it isn't a good draft model for portraits after all.
+
+**What it changes for §5.** The Buffy prompt names nobody. Nano Banana 2 and Pro still drew the actress who played her, recognisably: a description plus a cemetery and a stake is enough for a model that knows the show. None of the other five did. Describing instead of naming is not enough on its own, so §5 gains rule 3.
 
 ---
 
@@ -254,8 +273,9 @@ The H12 "used by nothing" condition counts an unkept picture as used until 30 da
 
 1. **Adults only.** A Look's age is 18 or more. The compiler always writes the age and "adult" into the prompt, and tag prompts always carry "child, teenager" as negatives. If an idea gives an age under 18, Mea says it only draws adults and asks for an adult age. A character who is under 18 in canon is drawn only at the adult age you give.
 2. **Describe, don't name.** No real person's name ever goes in a prompt. A canon character played by an actor becomes a description (§3.6). This avoids pulling in a real person's face, and many models refuse those prompts anyway. **Use the name** is an option only for drawn and animated characters, where the name helps the model and no real face comes with it.
-3. **No sexual images of real people,** whatever the model.
-4. Models with `nsfw: true` are hidden from the picker unless you turn them on in Settings (§10, decision 3). Rules 1–3 apply either way.
+3. **Models that know faces aren't used for live-action canon.** Some models recognise a character from a description alone and draw the actor (§2.3: Nano Banana 2 and Pro). Mea keeps a short list of them (`knowsFaces`, filled from bake-offs). When the Look comes from a live-action canon character, the studio doesn't offer them and says why. On any model, if a picture still looks like the actor, it isn't kept as the key image.
+4. **No sexual images of real people,** whatever the model.
+5. Models with `nsfw: true` are hidden from the picker unless you turn them on in Settings (§10, decision 3). Rules 1–4 apply either way.
 
 ---
 
@@ -370,7 +390,7 @@ One PR per part, merged when green, as before. Builds happen in a worktree, not 
 
 | Part | What | Done when |
 |---|---|---|
-| **1** | **Image client and bake-off.** `listImageModels`, `generateImage`, `editImage`, the job, the mock, Settings → Images (connection, default models). Run three ideas (a canon character, an original, an anime persona) on about 8 models; record cost, time and face quality in this doc; set the default models. Confirm the dedicated API's response shape. | One real picture saved from a tap; the bake-off table is here |
+| **1** | **Image client and bake-off.** `listImageModels`, `generateImage`, `editImage`, the job, the mock, Settings → Images (connection, default models). Run three ideas (a canon character, an original, an anime persona) on about 8 models; record cost, time and face quality in this doc; set the default models. Confirm the dedicated API's response shape. | **Done** (PR #264). Bake-off in §2.3 |
 | **2** | **The Look and the prompt writer.** `Look`, helpers `portrait_idea` / `portrait_canon` / `portrait_directions`, canon lookup, `compilePrompt` with families and styles, the §5 rules. | Tests: "buffy summers, 20 years old" gives the §3.6 read-back shape; ages under 18 are refused; no names in prompts; tag and prose output |
 | **3** | **Portrait Studio.** The panel, the contact sheet, keep and crop, recipes, More like this, the 30-day sheet, entry points for characters and personas, `image_recipes`, the H12 condition. | Draw and keep a portrait for a card and a persona |
 | **4** | **Same person, every look.** Key image, references, Change this…, Draw this look, Look → lore slots through the Inbox, out-of-date lines. | Two looks of one person are clearly the same face |
@@ -388,7 +408,7 @@ Parts 1–3 are the core you asked for. 4 is what makes it feel good. 5–8 are 
 | # | Question | My recommendation |
 |---|---|---|
 | 1 | Images are pay-as-you-go on Key B. OK to spend there, per tap? | Yes, with the price shown before each tap |
-| 2 | Default model for portraits? | Decide after the Part 1 bake-off. Until then: Flux 3 Klein for drafts, Seedream 5.0 Flash edit for references |
+| 2 | Default model for portraits? | **Decided by the bake-off (§2.3):** Seedream 5.0 Flash, its Edit model for references, Anima for anime |
 | 3 | Show NSFW-capable models in the picker? | Hidden by default, with a switch in Settings. §5 applies either way |
 | 4 | Should a kept Look write into the lore slots? | Yes, through the Inbox (you approve each one) |
 | 5 | A canon character's name in prompts? | Never for live-action characters. Optional for drawn and animated ones |
