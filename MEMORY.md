@@ -216,7 +216,7 @@ One PR per part, merged when green. Built in a worktree, not the shared folder.
 
 | Part | What | State |
 |---|---|---|
-| 1 | Image client, catalog, the job, Settings → Pictures, bake-off script | branch `claude/image-client` |
+| 1 | Image client, catalog, the job, Settings → Pictures, bake-off script | merged, PR #264; bake-off in docs/28 §2.3 |
 | 2 | The Look and the prompt writer | — |
 | 3 | Portrait Studio | — |
 | 4 | Same person, every look | — |
@@ -234,6 +234,7 @@ One PR per part, merged when green. Built in a worktree, not the shared folder.
 - Settings `images.config`: connection, default model per job (portrait, edit, anime, plate), `nsfw` (hidden by default; adult-content models are refused server-side too when it's off).
 - `scripts/image-bakeoff.ts`: dry run by default (prints the total); `--go` draws against a running Mea's Settings → Pictures connection.
 - Tests: `server/test/imagegen.test.ts`.
+- Bake-off (2026-11-05, $0.68): defaults Seedream 5.0 Flash / its Edit / Anima. Nano Banana 2 and Pro drew the actress for a Buffy description that named nobody, so Part 2 needs §5 rule 3 (`knowsFaces`: not offered for live-action canon). Every model charged ~5% under its listed price. Qwen Image 3 takes ~80 s.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 
