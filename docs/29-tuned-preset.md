@@ -2,7 +2,7 @@
 
 > Source: *The FrankenWIRE / TeleWire TRP Guide* (Downloads, 2026-11-05). Target: Mea's built-in preset, [server/src/prompt/mea.ts](../server/src/prompt/mea.ts) (v23).
 > Builds on [23-preset-additions.md](23-preset-additions.md), which reviewed an earlier FrankenWIRE text and took some of it.
-> **Status:** Parts 1–5 built: the adapters and the no-drafting line (v24), the census and golden baseline, the new layout (v25, §14), the negatives and priming rewrite (v26, §15), and the adapters filled from the measurements (v27, §16). Part 6, the paid bake-off, is a plan. MiMo was dropped on 2026-11-05.
+> **Status:** Parts 1–5 built: the adapters and the no-drafting line (v24), the census and golden baseline, the new layout (v25, §14), the negatives and priming rewrite (v26, §15), and the adapters filled from the measurements (v27, §16). Part 6, the bake-off, has run once on the golden scenarios (§17): v27 on all five families, v23 on GLM and DeepSeek. v23 on the paid models and a second Claude run wait on a go-ahead. MiMo was dropped on 2026-11-05.
 > Budget: the preset may send at most **20k tokens** in the worst case (every option at its largest), counted with the model's own tokenizer.
 
 ## Contents
@@ -23,6 +23,7 @@
 14. [Part 3: the v25 layout as built](#14-part-3-the-v25-layout-as-built)
 15. [Part 4: negatives and priming as built](#15-part-4-negatives-and-priming-as-built)
 16. [Part 5: the adapters filled](#16-part-5-the-adapters-filled)
+17. [Part 6: the bake-off, golden scenarios](#17-part-6-the-bake-off-golden-scenarios)
 
 ---
 
@@ -293,7 +294,7 @@ One PR per part, merged once test, check and build are green. Each part's prompt
 3. **Layout v25** ✅ (`MEA_PRESET_VERSION` 24 → 25; v24 went to Part 1). Tags, operator discipline, the CRAFT split, the prose card, planning recall, the leak checks' new tags, the 15k budget test. What changed from this plan is in §14.
 4. **Negatives and priming** ✅ (v26, since v25 went to Part 3): the audit in §8, the `bans` knob wired through the tells and the intimacy module, the name list removed. Kept apart from Part 3 so the bench can tell the two apart. What was built is in §15.
 5. **Fill the adapters** ✅ (v27) from the census: each family's `plan` and `prose` lines, sampler suggestions, `planScale`. DeepSeek plans first, in its own step. The tail probe and its `tail` setting moved to after Part 6 (§16).
-6. **Bake-off.** v23 against v25 for each family you use (GLM, Claude, Gemini, DeepSeek, Kimi), on the golden scenarios plus three long chats. Keep or revert each change per family, using the adapter's `replace` slot where one family needs it. Paid, so it needs a go-ahead with the total.
+6. **Bake-off.** ◐ Golden scenarios run (§17); the long chats weren't approved. v23 against v25 for each family you use (GLM, Claude, Gemini, DeepSeek, Kimi), on the golden scenarios plus three long chats. Keep or revert each change per family, using the adapter's `replace` slot where one family needs it. Paid, so it needs a go-ahead with the total.
 
 **Experiments for after Part 6** (not scheduled): style exemplars from the reserved headroom; the guide's question-form planning ("How will I…?") against fragments; `tail: note` for every family.
 
@@ -468,3 +469,39 @@ The rotating hazards cost about 11 tokens more each reply, since each now carrie
 **Sizes** (the same render as §15): Claude's prose card is 738 → 793 tokens, for its longer notes. The other families are unchanged to within a token. The tier line costs the same number of tokens whatever the ceilings.
 
 **Moved to after Part 6: the tail probe.** It would send a small canary request on each new route to see whether the host moves mid-history system messages to the top, and set the adapter's `tail` from the answer. Claude's route already sends the tail as `<mea_note>` turns, so the probe matters only for OpenAI-compatible hosts. It also costs a request per route. The bake-off will show whether any family's tail is being ignored, and that's the time to build it.
+
+---
+
+## 17. Part 6: the bake-off, golden scenarios
+
+You approved "golden only, ≈ $7" on 2026-11-06: the 28 golden scenarios (26 for a real model) on v23 (before this plan) and v27, one run per model. GLM and DeepSeek ran on your NanoGPT subscription; Gemini 4 Argon, Kimi K3.1 Pro and Claude Opus 5.5 ran on Nano PAYG. The long-chat replays weren't run.
+
+**What ran.** v27 ran on all five. The first v23 run stopped before its first request: its copy of the census needs `prompt/models.ts`, which v23 doesn't have. The copy now carries that file (the census uses it only to name families; v23's prompt never loads it), and v23 ran again on GLM and DeepSeek only, since the paid models on v23 would take the total past the ≈ $7 approved (below).
+
+| | GLM 5.3 v23 · v27 | DeepSeek v23 · v27 | Gemini 4 Argon v27 | Kimi K3.1 Pro v27 | Claude Opus 5.5 v27 |
+|---|---:|---:|---:|---:|---:|
+| Scenarios passed (of 26) | 25 · 24 | 25 · 23 | 24 | 25 | 25 |
+| Requests for 16 replies | 21 · 21 | 54 · 56 | 51 | 47 | 55 |
+| Replies with a plan | 100% · 100% | 94% · 94% | 100% | 100% | — |
+| Plan words | 347 · 280 | 369 · 331 | 147 | 2,410 | — |
+| Plans that drafted the story | 0% · 0% | 7% · **0%** | 0% | **100%** | — |
+| Words per reply | 216 · 223 | 117 · 101 | 198 | 85 | — |
+
+**Failures.** `held-plan` fails for every model on both versions, and `things-stay` for three of them: both fail in the mock's model mode too, so they're the scenarios' fault (§13). Apart from those, GLM failed nothing on v27, and DeepSeek failed `retold-past` on v27 only. v23 passed one more scenario than v27 on both free models, but one run per model is noisy (DeepSeek's two v24 runs differed by two, §13): a gap of one or two needs a second run before it means anything.
+
+**What v27 did, by family:**
+- **GLM**: no change in requests or failures. Plans are 20% shorter (347 → 280 words), and no plan drafted on either version. Its office words (13% → 19%) and broken-off lines (13% → 25%) are each two or three replies out of 16, too few to read.
+- **DeepSeek**: drafting is gone (7% → 0%) and plans are 10% shorter. Requests didn't drop (54 → 56). Mea already plans first for a model that skipped its plan in one of its last three replies, in any chat, and v23 did that 9 times. So `planFirst` only saves its very first skip and the test every six replies, when Mea gives the model's own pass another try. Both versions had 6 tries retried for skipping. The 72 requests of the v24 baseline (§13) came from a different run, not from v23's prompt.
+- **Gemini**: no v23 run to compare. It skipped its plan until Mea's fallback caught it, and 12 of its 16 replies were planned in their own step, so **Gemini now plans first too** (`planFirst: true`). Its census is clean apart from office words (38%, 6 replies). Its token counts (16k in for 51 requests) are far too low to be real: Nano PAYG didn't report usage for it.
+- **Kimi K3.1 Pro** writes the story inside its plan. 15 of its 16 first tries were a plan with no story after it, and Mea wrote the story from it. Those plans run 2,410 words, every one drafted the story, and 55% of the story's words were already in the plan. The no-drafting line doesn't hold for it. Planning first wouldn't help, since the plan step would draft the same way. What would: running its route with native reasoning, so its thinking stays thinking and isn't the plan Mea asks for. That's a route setting to try, not an adapter line.
+- **Claude Opus 5.5**: not readable. Every first try came back empty and was retried (16 of 16), it reported 3k tokens out for 55 requests, and its replies don't show in the census. That's a route problem, not a prompt result: Claude ran on Nano PAYG here, not your LinkAPI route. The run's database was thrown away, so the cause can't be read back. The script now has `--keep run.db`, which saves the run's database (requests, replies, errors), for the next run.
+
+**Cost.** Nano PAYG reported no prices, so this is tokens × list price: Kimi ≈ $1.69 (its long plans doubled the output estimate), Claude at least $2.44 (its output count is too low to trust), Gemini unknown (its counts are wrong; the estimate was $0.83). About **$4.2–5** in all, against the $3.47 estimated for v27. v23 on the three paid models would be about as much again, which is past the ≈ $7 approved.
+
+**Not done, and needs a go-ahead:**
+- v23 on Gemini, Kimi and Claude (≈ $4–5).
+- Claude again, on LinkAPI or on Nano PAYG with `--keep`, to see why its first tries were empty.
+- Kimi with native reasoning on its route.
+- The long-chat replays (≈ $13–24, §12).
+
+**Kept, reverted.** Nothing is reverted: no family did clearly worse on v27, and the gains are real but small (no drafting, shorter plans). The open question is the free models' one-scenario gap, which a second free run of each version would settle.

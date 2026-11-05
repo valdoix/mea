@@ -95,6 +95,9 @@ export const ADAPTERS: ModelAdapter[] = [
     prose: "Plain prose in the story, without markdown headings.",
     bans: "quote",
     samplers: () => ({ temperature: 1, why: "Google's guidance for Gemini 3 and later: a lower temperature can make it loop" }),
+    // docs/29 §17, the bake-off: Gemini 4 Argon skipped its plan until Mea's fallback caught it, and
+    // 12 of its 16 replies were planned in their own step. It now starts there, as DeepSeek does.
+    planFirst: true,
   },
   {
     family: "glm",

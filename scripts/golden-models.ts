@@ -2,12 +2,14 @@
  * docs/29 Part 2: the golden scenarios on several real models, one run per family, so each
  * adapter starts from a measured baseline. Every reply also goes through the tell census.
  *
- *   bun scripts/golden-models.ts [--db path/to/mea.db] [--models "z-ai/glm-5.3@NanoGPT · Subscription,…"] [--out report.md] [--go]
+ *   bun scripts/golden-models.ts [--db path/to/mea.db] [--models "z-ai/glm-5.3@NanoGPT · Subscription,…"] [--out report.md] [--keep run.db] [--go]
  *
  * Without --go it only reads: it prints each model, the connection it would use, whether that's your
  * subscription or pay-as-you-go, and the estimated price. Nothing is sent. With --go each model
  * writes the scenarios' replies for real. Your connections and keys are read from your database
  * and used in a throwaway in-memory one: your chats, profiles and settings are never touched.
+ * --keep saves that throwaway database when the run ends (its requests, replies and errors), so a
+ * run that went wrong can be looked into without paying for it again. It holds your keys, encrypted.
  */
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -203,6 +205,11 @@ out.push(...board, "", `Left out: ${[...MOCK_ONLY].join(", ")} (they steer the m
 if (failures.length) out.push("## Failed checks", "", ...failures, "");
 out.push(censusReport(census(replies), { minReplies: 10, title: "Tell census of these replies" }).replace(/^# /, "## "));
 const report = out.join("\n");
+const keep = opt("--keep");
+if (keep) {
+  run("VACUUM INTO ?", keep);
+  console.log(`Kept the run's database in ${keep}`);
+}
 const file = opt("--out");
 if (file) {
   writeFileSync(file, `${report}\n`);
