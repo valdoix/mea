@@ -30,6 +30,7 @@ import { cacheStats, usageSummary } from "../services/usage";
 import { config } from "../config";
 import { cancelJob, enqueue, listJobs, retryJob } from "../services/jobs";
 import { probeCache } from "../services/probe";
+import { adapterSuggestion } from "../prompt/models";
 import { quotaPlannerJson } from "../services/quota";
 import { getRequest, listRequests } from "../services/requests";
 import { SPEED_TASKS, speedReport, speedTest } from "../services/speed";
@@ -87,6 +88,9 @@ models.post("/connections/:id/balance/refresh", async (c) => {
 });
 
 models.get("/models", (c) => c.json({ models: listModels(c.req.query("connectionId") || undefined) }));
+
+/** docs/29 §4.2: the family a profile's model is treated as, and the samplers its maker suggests. */
+models.get("/model-adapter", (c) => c.json(adapterSuggestion(c.req.query("modelId") ?? "", c.req.query("family") || undefined)));
 
 models.post("/models/star", async (c) => {
   const input = await body(c, z.object({ connectionId: z.string(), modelId: z.string(), starred: z.boolean() }));

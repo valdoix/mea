@@ -2,7 +2,7 @@
 
 > Source: *The FrankenWIRE / TeleWire TRP Guide* (Downloads, 2026-11-05). Target: Mea's built-in preset, [server/src/prompt/mea.ts](../server/src/prompt/mea.ts) (v23).
 > Builds on [23-preset-additions.md](23-preset-additions.md), which reviewed an earlier FrankenWIRE text and took some of it.
-> **Status:** Parts 1–4 built: the adapters and the no-drafting line (v24), the census and golden baseline, the new layout (v25, §14), and the negatives and priming rewrite (v26, §15). Parts 5–6 are a plan. MiMo was dropped on 2026-11-05.
+> **Status:** Parts 1–5 built: the adapters and the no-drafting line (v24), the census and golden baseline, the new layout (v25, §14), the negatives and priming rewrite (v26, §15), and the adapters filled from the measurements (v27, §16). Part 6, the paid bake-off, is a plan. MiMo was dropped on 2026-11-05.
 > Budget: the preset may send at most **20k tokens** in the worst case (every option at its largest), counted with the model's own tokenizer.
 
 ## Contents
@@ -22,6 +22,7 @@
 13. [Part 2: what the census found](#13-part-2-what-the-census-found)
 14. [Part 3: the v25 layout as built](#14-part-3-the-v25-layout-as-built)
 15. [Part 4: negatives and priming as built](#15-part-4-negatives-and-priming-as-built)
+16. [Part 5: the adapters filled](#16-part-5-the-adapters-filled)
 
 ---
 
@@ -291,7 +292,7 @@ One PR per part, merged once test, check and build are green. Each part's prompt
 2. **Measure first** (census ✅, golden baseline ✅ for GLM and DeepSeek. Claude, Gemini and Kimi weren't run, by your choice). `scripts/tell-census.ts` counts each family's habits over your chats, read-only (results in §13). `scripts/golden-models.ts` runs the golden scenarios on one model per family. Without `--go` it only prints the routes and the price. The baseline runs on v24, the version Part 1 shipped: v24 changed only the model notes, and it's the version Part 3 is measured against.
 3. **Layout v25** ✅ (`MEA_PRESET_VERSION` 24 → 25; v24 went to Part 1). Tags, operator discipline, the CRAFT split, the prose card, planning recall, the leak checks' new tags, the 15k budget test. What changed from this plan is in §14.
 4. **Negatives and priming** ✅ (v26, since v25 went to Part 3): the audit in §8, the `bans` knob wired through the tells and the intimacy module, the name list removed. Kept apart from Part 3 so the bench can tell the two apart. What was built is in §15.
-5. **Fill the adapters** from the census: each family's `plan` and `prose` lines, sampler suggestions, `planScale`, the tail probe setting `tail`.
+5. **Fill the adapters** ✅ (v27) from the census: each family's `plan` and `prose` lines, sampler suggestions, `planScale`. DeepSeek plans first, in its own step. The tail probe and its `tail` setting moved to after Part 6 (§16).
 6. **Bake-off.** v23 against v25 for each family you use (GLM, Claude, Gemini, DeepSeek, Kimi), on the golden scenarios plus three long chats. Keep or revert each change per family, using the adapter's `replace` slot where one family needs it. Paid, so it needs a go-ahead with the total.
 
 **Experiments for after Part 6** (not scheduled): style exemplars from the reserved headroom; the guide's question-form planning ("How will I…?") against fragments; `tail: note` for every family.
@@ -435,3 +436,35 @@ The rotating hazards cost about 11 tokens more each reply, since each now carrie
 **Not changed:**
 - **The craft coach's "habits it's leaning on" line.** It quotes the model's own repeated phrases back. That's data from the story, like the worn-phrase line, not a planted example.
 - **There's no setting on the profile for `bans` yet.** Part 6 can compare quote and describe for one family with the adapter's `replace` slot or a profile setting, if the bench needs it.
+
+---
+
+## 16. Part 5: the adapters filled
+
+`MEA_PRESET_VERSION` 26 → 27, since the planning pass's word ceilings became values (`{{plan.routine}}`, `{{plan.charged}}`, `{{plan.pivotal}}`).
+
+**From the census and the golden baseline (§13):**
+
+| Family | What changed | Evidence |
+|---|---|---|
+| **Claude** | Its notes now name drumbeat fragments, one-line cascades, a line broken off with a dash, and office and engineering words ("load-bearing"), on top of the teaser ending and the summing-up close. They end with what to do: whole sentences, full paragraphs, end on the thing itself. With extended thinking the plan ceilings are scaled by 0.8 (70, 180 and 320 words). | Drumbeats 57%, cascades 52%, broken lines 71%, teasers 44%, "load-bearing" 27% |
+| **GLM** | Its notes gain clinical and textbook words for bodies, air and weather. "A line broken off before the sad word in every reply" is gone. The notes stay described, not quoted (Part 4). | Textbook words 27%. Broken lines 15%, not every reply. |
+| **DeepSeek** | It **plans first, in its own step**, from its first reply, the way Mea already handles a model after it skips its plan. It doesn't when its route reasons natively, since then its reasoning is the plan. Plan ceilings ×0.8. A single step line that opens the reply in the pass's own words ("SEAL — SAID: …") is now moved out of the story. | Golden: 17 first tries with no plan, 23% of plans drafted, one leaked SEAL line, plans of 400+ words |
+| **Gemini, Kimi** | Notes unchanged. There's no census or golden data yet, and §4.3's guesses stay guesses until Part 6. | — |
+| **Restarts and correction framing** | Already on the shared prose card (Part 3), since both families do them at the same rate | 79–85%, 46% |
+
+**Sampler suggestions.** Settings → Models shows a line under a profile's Temperature, such as "Mea suggests temperature 1, top_p 0.95: Z.ai's guidance for GLM", with an **Apply** button.
+- The line only shows while the profile's own values differ.
+- Mea never changes a sampler on its own.
+- The suggestion follows the profile's *Model notes* family, and *None* suggests nothing.
+
+| Family | Suggestion | Source |
+|---|---|---|
+| GLM | temperature 1, top_p 0.95 | Z.ai |
+| Gemini | temperature 1 | Google, for Gemini 3 and later: lower can loop |
+| Kimi K2 | 0.6; 1 for K2 Thinking | Moonshot. Newer Kimi models (your K3.1 Pro) get no suggestion until one is benched. |
+| Claude, DeepSeek | none | Claude is fine at its default, and DeepSeek's scale differs by host |
+
+**Sizes** (the same render as §15): Claude's prose card is 738 → 793 tokens, for its longer notes. The other families are unchanged to within a token. The tier line costs the same number of tokens whatever the ceilings.
+
+**Moved to after Part 6: the tail probe.** It would send a small canary request on each new route to see whether the host moves mid-history system messages to the top, and set the adapter's `tail` from the answer. Claude's route already sends the tail as `<mea_note>` turns, so the probe matters only for OpenAI-compatible hosts. It also costs a request per route. The bake-off will show whether any family's tail is being ignored, and that's the time to build it.

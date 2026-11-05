@@ -13,7 +13,7 @@
 
   /** docs/29: the model families Mea's preset has notes for (server/src/prompt/models.ts keeps the same list). */
   const MODEL_FAMILIES: [string, string][] = [["claude", "Claude"], ["deepseek", "DeepSeek"], ["gemini", "Gemini"], ["glm", "GLM"], ["kimi", "Kimi"], ["gpt", "GPT"], ["open", "Open model"]];
-  import type { CacheProbe, Connection, ModelInfo, Profile, ProfileParams } from "../../lib/types";
+  import type { CacheProbe, Connection, ModelAdapterHint, ModelInfo, Profile, ProfileParams } from "../../lib/types";
 
   let connections = $state<Connection[]>([]);
   let models = $state<ModelInfo[]>([]);
@@ -23,6 +23,33 @@
   let addKind = $state<"nano-sub" | "nano-paygo" | "openai" | "mock">("nano-sub");
   let form = $state({ name: "", baseUrl: "", apiKey: "", billing: "paygo" as Connection["billing"], format: "openai" as NonNullable<Connection["format"]> });
   let probing = $state<Record<string, boolean>>({});
+  /** docs/29 §4.2: what Mea suggests for each profile's model, keyed by model id and family setting. */
+  let adapters = $state<Record<string, ModelAdapterHint>>({});
+  const adapterKey = (p: Profile) => `${p.modelId}|${p.params.model_family ?? ""}`;
+  $effect(() => {
+    for (const p of profiles) {
+      const key = adapterKey(p);
+      if (!p.modelId || key in adapters) continue;
+      adapters[key] = { family: "", label: "", samplers: null };
+      get<ModelAdapterHint>(`/api/model-adapter?modelId=${encodeURIComponent(p.modelId)}&family=${encodeURIComponent(p.params.model_family ?? "")}`)
+        .then((a) => (adapters[key] = a))
+        .catch(() => {});
+    }
+  });
+  /** The suggestion, while the profile's own values differ from it. */
+  function suggestion(p: Profile) {
+    const s = adapters[adapterKey(p)]?.samplers;
+    if (!s) return null;
+    const differs = (s.temperature !== undefined && p.params.temperature !== s.temperature) || (s.top_p !== undefined && p.params.top_p !== s.top_p);
+    return differs ? s : null;
+  }
+  function applySuggestion(p: Profile) {
+    const s = adapters[adapterKey(p)]?.samplers;
+    if (!s) return;
+    if (s.temperature !== undefined) p.params.temperature = s.temperature;
+    if (s.top_p !== undefined) p.params.top_p = s.top_p;
+    saveProfile(p);
+  }
   let busy = $state(false);
   let syncing = $state<Record<string, boolean>>({});
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -294,7 +321,16 @@
             {#if est}<span class="hint">≈ {est.now} replies/day now · ≈ {est.full} with all memory helpers (later phases)</span>{/if}
           </label>
           <label class="field"><span class="label">Max reply tokens</span><input class="input" type="number" min="64" step="50" value={p.params.max_tokens ?? ""} placeholder="preset" onchange={(e) => setParam(p, "max_tokens", e.currentTarget.value, true)} /></label>
-          <label class="field"><span class="label">Temperature</span><input class="input" type="number" min="0" max="2" step="0.05" value={p.params.temperature ?? ""} placeholder="preset" oninput={(e) => setParam(p, "temperature", e.currentTarget.value)} /></label>
+          <label class="field">
+            <span class="label">Temperature</span><input class="input" type="number" min="0" max="2" step="0.05" value={p.params.temperature ?? ""} placeholder="preset" oninput={(e) => setParam(p, "temperature", e.currentTarget.value)} />
+            {#if suggestion(p)}
+              {@const s = suggestion(p)!}
+              <span class="hint">
+                Mea suggests {[s.temperature !== undefined ? `temperature ${s.temperature}` : "", s.top_p !== undefined ? `top_p ${s.top_p}` : ""].filter(Boolean).join(", ")}: {s.why}.
+                <button type="button" class="btn small ghost" onclick={(e) => (e.preventDefault(), applySuggestion(p))}>Apply</button>
+              </span>
+            {/if}
+          </label>
           <label class="field">
             <span class="label">Reasoning effort</span>
             <select class="select" value={p.params.reasoning_effort ?? ""} onchange={(e) => ((p.params.reasoning_effort = e.currentTarget.value || undefined), saveProfile(p))}>

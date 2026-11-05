@@ -265,7 +265,16 @@ function storySetting(input: AssembleInput, label: string): string {
 function modelExtras(input: AssembleInput): Record<string, string> {
   const planned = Boolean(input.skipBlocks?.includes("mea-planning"));
   const notes = modelNotes(familyOf(input), { planned, providerReasoning: Boolean(input.providerReasoning) }, input.modelNotes);
-  return { "model.plan": notes.plan, "model.prose": notes.prose, "model.label": notes.label, "model.bans": notes.bans };
+  return {
+    "model.plan": notes.plan,
+    "model.prose": notes.prose,
+    "model.label": notes.label,
+    "model.bans": notes.bans,
+    // docs/29 §4.2: the pass's word ceilings, scaled for a family that over-plans on this route.
+    "plan.routine": String(notes.ceilings.routine),
+    "plan.charged": String(notes.ceilings.charged),
+    "plan.pivotal": String(notes.ceilings.pivotal),
+  };
 }
 
 function turnExtras(input: AssembleInput, lastReply: string): Record<string, string> {

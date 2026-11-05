@@ -4,7 +4,7 @@ import { freshDb } from "./helpers";
 import { normalizeCard } from "../src/cards/card";
 import { assemblePrompt, type AssembleInput } from "../src/prompt/assemble";
 import { meaPreset } from "../src/prompt/mea";
-import { ADAPTERS, detectFamily, modelNotes, resolveFamily } from "../src/prompt/models";
+import { ADAPTERS, adapterSuggestion, detectFamily, modelNotes, plansFirst, resolveFamily } from "../src/prompt/models";
 
 const { data: card } = normalizeCard({ spec: "chara_card_v2", data: { name: "Mira", description: "Mira keeps the lighthouse.", personality: "", first_mes: "" } });
 
@@ -111,5 +111,46 @@ describe("the profile's model notes", () => {
     const switched = resolveProfile(id, { connectionId: conn, modelId: "claude-sonnet" });
     expect(switched.modelFamily).toBeUndefined();
     expect(switched.modelNotes).toBeUndefined();
+  });
+});
+
+describe("adapters filled from the census (docs/29 Part 5)", () => {
+  test("Claude's notes carry its measured habits, GLM's its own", () => {
+    const claude = modelNotes("claude", ROUTES[0]!).prose;
+    for (const habit of ["drumbeat fragments", "one-line paragraphs", "broken off with a dash", "load-bearing", "teaser ending"]) expect(claude).toContain(habit);
+    const glm = modelNotes("glm", ROUTES[0]!).prose;
+    expect(glm).toContain("clinical and textbook words");
+    // GLM 5.x breaks off a line in 15% of replies, not every one: the clause went.
+    expect(glm).not.toContain("broken off");
+  });
+
+  test("the planning ceilings shrink where a family over-plans", () => {
+    expect(prompt().pass).toContain("a line each, 90 words at most");
+    expect(prompt().pass).toContain("WORLD a line, 220 words at most");
+    const thinking = prompt({ modelId: "claude-opus-5-5", providerReasoning: true }).pass;
+    expect(thinking).toContain("a line each, 70 words at most");
+    expect(thinking).toContain("WORLD a line, 180 words at most");
+    expect(thinking).toContain("every step in full, 320 words at most");
+    // Claude without extended thinking follows the order literally and keeps the full ceilings.
+    expect(prompt({ modelId: "claude-opus-5-5" }).pass).toContain("a line each, 90 words at most");
+    expect(prompt({ modelId: "deepseek-ai/DeepSeek-V3.2" }).pass).toContain("a line each, 70 words at most");
+  });
+
+  test("DeepSeek plans in its own step from the start; no other family does", () => {
+    expect(plansFirst("deepseek")).toBe(true);
+    for (const f of ["claude", "glm", "gemini", "kimi", "gpt", "open", "", "none"]) expect(plansFirst(f), f).toBe(false);
+  });
+
+  test("sampler suggestions come from each maker's guidance, and only where there is some", () => {
+    expect(adapterSuggestion("z-ai/glm-5.3").samplers).toMatchObject({ temperature: 1, top_p: 0.95 });
+    expect(adapterSuggestion("google/gemini-4-argon").samplers).toMatchObject({ temperature: 1 });
+    expect(adapterSuggestion("moonshotai/Kimi-K2-Instruct").samplers?.temperature).toBe(0.6);
+    expect(adapterSuggestion("moonshotai/kimi-k2-thinking").samplers?.temperature).toBe(1);
+    expect(adapterSuggestion("moonshotai/kimi-k3.1-pro").samplers).toBeNull();
+    expect(adapterSuggestion("claude-opus-5-5").samplers).toBeNull();
+    expect(adapterSuggestion("deepseek/deepseek-latest").samplers).toBeNull();
+    // The profile's family wins, and None suggests nothing.
+    expect(adapterSuggestion("router/finetune-x", "glm")).toMatchObject({ family: "glm", label: "GLM" });
+    expect(adapterSuggestion("z-ai/glm-5.3", "none")).toEqual({ family: "none", label: "None", samplers: null });
   });
 });

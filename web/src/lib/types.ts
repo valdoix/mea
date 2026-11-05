@@ -569,6 +569,13 @@ export interface ModelInfo {
   cacheProbe?: CacheProbe | null;
 }
 
+/** docs/29 §4.2: the family a profile's model is treated as, and the samplers its maker suggests. */
+export interface ModelAdapterHint {
+  family: string;
+  label: string;
+  samplers: { temperature?: number; top_p?: number; why: string } | null;
+}
+
 export interface ProfileParams {
   temperature?: number;
   top_p?: number;

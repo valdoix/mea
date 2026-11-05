@@ -69,6 +69,13 @@ describe("M17: a written-out plan leaves the story", () => {
     expect(out.text).toBe("Mira looks up from the logbook.");
     expect(out.reasoning).toContain("SEAL — SAID: hello");
   });
+  test("one step label opening the reply in the pass's own words is plan too (docs/29 §13, DeepSeek)", () => {
+    const out = splitLeakedPlan("SEAL — SAID: Gabriel asks which mug the guest gets.\n\nGabriel sets the daisy mug down.");
+    expect(out.text).toBe("Gabriel sets the daisy mug down.");
+    expect(out.reasoning).toBe("SEAL — SAID: Gabriel asks which mug the guest gets.");
+    // Mid-story, or without the pass's words, a lone label is left alone.
+    expect(splitLeakedPlan("Gabriel waits.\nSEAL — SAID: hello\n\nHe sits.").reasoning).toBe("");
+  });
   test("ordinary prose is left alone", () => {
     for (const t of ["Now — she said — we wait.", "NOW — the bell rings.\nMira runs.", "Mira waits.\nMOVE — later", "Mira waits by the door.\n\nNOW — the bell.\nMOVE — she runs."]) expect(splitLeakedPlan(t).reasoning).toBe("");
   });
