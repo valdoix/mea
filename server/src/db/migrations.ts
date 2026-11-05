@@ -1552,6 +1552,16 @@ CREATE TABLE IF NOT EXISTS looks (
 );
 `,
   },
+  {
+    id: 40,
+    name: "image recipes",
+    sql: /* sql */ `
+-- docs/28 §3.5: what a request for pictures was made from (the idea, the Look, the direction, the style).
+ALTER TABLE image_batches ADD COLUMN recipe TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE image_batches ADD COLUMN negative TEXT;
+CREATE INDEX IF NOT EXISTS image_batches_owner ON image_batches(owner_type, owner_id, created_at);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

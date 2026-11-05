@@ -112,7 +112,10 @@ describe("the compiler", () => {
   test("a direction's outfit replaces their usual clothes; never-lines; the model's limit", () => {
     const l = buffy();
     l.never = ["glasses"];
-    const c = compilePrompt({ look: l, direction: { ...NIGHT, outfit: "a grey hoodie" }, model: FLUX });
+    l.hair = "copper curls";
+    l.skin = "freckled";
+    const c = compilePrompt({ look: l, direction: { ...NIGHT, outfit: "A grey hoodie" }, model: FLUX });
+    expect(c.prompt).toContain("with copper curls, hazel-green eyes and freckled skin.");
     expect(c.prompt).toContain("Wearing a grey hoodie.");
     expect(c.prompt).not.toContain("leather jacket");
     expect(c.prompt).toContain("Never shown with glasses.");

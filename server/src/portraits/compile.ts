@@ -77,7 +77,15 @@ const sentence = (s: string) => {
   const t = clean(s).replace(/[.;,\s]+$/, "");
   return t ? `${t.charAt(0).toUpperCase()}${t.slice(1)}.` : "";
 };
-const withNoun = (v: string, noun: string) => (!v ? "" : new RegExp(`\\b${noun}`, "i").test(v) ? v : `${v} ${noun}`);
+/** Words that already name the thing, so "copper curls" doesn't become "copper curls hair". */
+const NAMES_IT: Record<string, RegExp> = {
+  hair: /\b(?:hair|curls?|locks|braids?|plaits?|ponytails?|buns?|bob|mane|waves|dreadlocks|dreads|crop|cut|mohawk|undercut|tresses|bald|shaved|buzz(?:ed|cut)?|fringe|bangs|afro|cornrows)\b/i,
+  eyes: /\beyes?\b/i,
+  skin: /\b(?:skin|complexion|freckles)\b/i,
+};
+const withNoun = (v: string, noun: string) => (!v ? "" : (NAMES_IT[noun] ?? new RegExp(`\\b${noun}`, "i")).test(v) ? v : `${v} ${noun}`);
+/** "A grey hoodie" → "a grey hoodie" mid-sentence; a name ("Ravenclaw robes") keeps its capital. */
+const midSentence = (s: string) => s.replace(/^(A|An|The|Her|His|Their|Some)\b/, (w) => w.toLowerCase());
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -129,7 +137,7 @@ export function compilePrompt(input: CompileInput): Compiled {
     const parts = [
       sentence(`Portrait of ${who}a ${look.age}-year-old ${presentation}${body ? `, ${body}` : ""}${features.length ? `, with ${features.join(", ").replace(/, ([^,]*)$/, " and $1")}` : ""}${look.face ? `, ${look.face}` : ""}`),
       look.marks.length ? sentence(`Marks: ${look.marks.join("; ")}`) : "",
-      wearing ? sentence(`Wearing ${wearing.replace(/^(?:wearing|wears)\s+/i, "")}`) : "",
+      wearing ? sentence(`Wearing ${midSentence(wearing.replace(/^(?:wearing|wears)\s+/i, ""))}`) : "",
       look.signature.length ? sentence(`With ${look.signature.join(", ")}`) : "",
       d.action ? sentence(scrub(d.action)) : "",
       d.setting ? sentence(scrub(d.setting)) : "",

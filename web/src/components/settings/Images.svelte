@@ -105,6 +105,13 @@
     }),
   );
 
+  // The "done" event can arrive before the request that started it has answered: look again while drawing.
+  $effect(() => {
+    if (!busy) return;
+    const t = setInterval(() => void refreshBatch(), 3000);
+    return () => clearInterval(t);
+  });
+
   async function save(patch: Partial<ImagesConfig>) {
     try {
       await saveSetting("images.config", { ...cfg, ...patch });

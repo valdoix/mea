@@ -5,6 +5,7 @@ import { badRequest } from "../lib/http";
 import { getSetting } from "../lib/settings";
 import { type ImageModelInfo, type ImageReference, isImageProvider, isToolModel, pricePerImage, sizesOf } from "../providers/images";
 import { ProviderError } from "../providers/types";
+import { type Family, familyOf, knowsFaces } from "../portraits/compile";
 import { getConnectionRow, providerFor } from "./connections";
 import { enqueue } from "./jobs";
 import { getImage, readImage, saveImage } from "./images";
@@ -63,6 +64,10 @@ export async function syncImageModels(connectionId?: string | null): Promise<num
 export interface ImageModelRow extends ImageModelInfo {
   /** Makes no new picture from a prompt (an upscaler, a background remover). */
   tool: boolean;
+  /** How its prompts are written (docs/28 §4.4). */
+  family: Family;
+  /** Draws real actors from a description: not used for live-action characters (§5). */
+  knowsFaces: boolean;
 }
 
 /** The saved image catalog. Adult-content models only when Settings → Images says so. */
@@ -72,7 +77,7 @@ export function imageModels(connectionId: string, opts: { nsfw?: boolean; tools?
   const models = rows
     .map((r) => parseJson<ImageModelInfo | null>(r.data, null))
     .filter((m): m is ImageModelInfo => Boolean(m?.id))
-    .map((m) => ({ ...m, tool: isToolModel(m) }))
+    .map((m) => ({ ...m, tool: isToolModel(m), family: familyOf(m), knowsFaces: knowsFaces(m.id) }))
     .filter((m) => (nsfw || !m.capabilities.nsfw) && (opts.tools || !m.tool));
   return { models, syncedAt: rows.length ? Math.max(...rows.map((r) => r.updated_at)) : null };
 }
@@ -90,6 +95,9 @@ export const generateInput = z.object({
   size: z.string().max(40).nullish(),
   aspectRatio: z.string().max(20).nullish(),
   seed: z.number().int().min(0).max(2 ** 32 - 1).nullish(),
+  negative: z.string().max(2000).nullish(),
+  /** What the picture was made from (the idea, the Look, the direction), kept with it. */
+  recipe: z.record(z.string(), z.unknown()).default({}),
   /** Image ids, sent as reference pictures. */
   references: z.array(z.string()).max(16).default([]),
   kind: z.enum(["try", "bakeoff", "portrait", "look", "cast", "pair", "now", "moment", "cover", "plate", "place"]).default("try"),
@@ -107,6 +115,10 @@ export interface BatchView {
   prompt: string;
   params: { n: number; size: string | null; aspectRatio: string | null; seed: number | null };
   kind: string;
+  ownerType: string | null;
+  ownerId: string | null;
+  negative: string | null;
+  recipe: Record<string, unknown>;
   estimate: number | null;
   cost: number | null;
   images: { id: string; width: number | null; height: number | null; cost: number | null; kept: boolean }[];
@@ -129,6 +141,8 @@ interface BatchRow {
   chat_id: string | null;
   estimate: number | null;
   cost: number | null;
+  recipe: string;
+  negative: string | null;
   job_id: string | null;
   created_at: number;
   finished_at: number | null;
@@ -146,19 +160,21 @@ export function startImageBatch(raw: GenerateInput): BatchView {
   if (m) {
     if (input.n > m.maxImages) throw badRequest(`${m.name} makes at most ${m.maxImages} ${m.maxImages === 1 ? "picture" : "pictures"} at a time`);
     const sizes = sizesOf(m);
-    if (input.size && sizes.length && !sizes.includes(input.size)) throw badRequest(`${m.name} doesn't draw at ${input.size} (it takes ${sizes.slice(0, 8).join(", ")})`);
+    if (input.size && sizes.length && !sizes.includes(input.size) && !m.sizes.includes(input.size)) throw badRequest(`${m.name} doesn't draw at ${input.size} (it takes ${sizes.slice(0, 8).join(", ")})`);
+    if (input.aspectRatio && m.aspectRatios.length && !m.aspectRatios.includes(input.aspectRatio)) throw badRequest(`${m.name} doesn't take the shape ${input.aspectRatio}`);
     if (input.references.length > m.maxInputImages) throw badRequest(m.maxInputImages ? `${m.name} takes at most ${m.maxInputImages} reference pictures` : `${m.name} doesn't take reference pictures`);
     if (m.maxPromptChars && input.prompt.length > m.maxPromptChars) throw badRequest(`The prompt is too long for ${m.name} (${input.prompt.length} of ${m.maxPromptChars} characters)`);
     if (m.capabilities.nsfw && !getSetting("images.config").nsfw) throw badRequest(`${m.name} is hidden: models that allow adult content are off in Settings → Images`);
   }
   for (const id of input.references) if (!getImage(id)) throw badRequest("A reference picture no longer exists");
-  const each = m ? pricePerImage(m, input.size) : null;
+  if (JSON.stringify(input.recipe).length > 40_000) throw badRequest("The recipe is too large");
+  const each = m ? pricePerImage(m, input.size && m.prices[input.size] != null ? input.size : input.aspectRatio) : null;
   const estimate = each == null ? null : Math.round(each * input.n * 1_000_000) / 1_000_000;
   const id = newId();
   const params = { n: input.n, size: input.size ?? null, aspectRatio: input.aspectRatio ?? null, seed: input.seed ?? null };
   run(
-    `INSERT INTO image_batches (id, status, connection_id, model, prompt, params, refs, kind, owner_type, owner_id, chat_id, estimate, created_at)
-     VALUES (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO image_batches (id, status, connection_id, model, prompt, params, refs, kind, owner_type, owner_id, chat_id, estimate, created_at, recipe, negative)
+     VALUES (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     row.id,
     input.model,
@@ -171,6 +187,8 @@ export function startImageBatch(raw: GenerateInput): BatchView {
     input.chatId ?? null,
     estimate,
     now(),
+    JSON.stringify(input.recipe),
+    input.negative?.trim() || null,
   );
   // One attempt only: a retried request would be billed again.
   const jobId = enqueue("image.generate", { batchId: id }, { maxAttempts: 1, priority: 3, chatId: input.chatId ?? null });
@@ -193,6 +211,10 @@ export function batchView(id: string): BatchView | null {
     prompt: b.prompt,
     params: parseJson(b.params, { n: 1, size: null, aspectRatio: null, seed: null }),
     kind: b.kind,
+    ownerType: b.owner_type,
+    ownerId: b.owner_id,
+    negative: b.negative,
+    recipe: parseJson(b.recipe, {}),
     estimate: b.estimate,
     cost: b.cost,
     images: images.map((r) => ({ id: r.image_id, width: r.width, height: r.height, cost: r.cost, kept: Boolean(r.kept) })),
@@ -202,12 +224,18 @@ export function batchView(id: string): BatchView | null {
 }
 
 /** Recent requests for pictures, newest first. */
-export function recentBatches(opts: { kind?: string; limit?: number } = {}): BatchView[] {
-  const ids = all<{ id: string }>(
-    `SELECT id FROM image_batches ${opts.kind ? "WHERE kind = ?" : ""} ORDER BY created_at DESC LIMIT ?`,
-    ...(opts.kind ? [opts.kind] : []),
-    Math.min(100, opts.limit ?? 12),
-  );
+export function recentBatches(opts: { kind?: string; ownerType?: string; ownerId?: string; limit?: number } = {}): BatchView[] {
+  const where: string[] = [];
+  const args: (string | number)[] = [];
+  if (opts.kind) {
+    where.push("kind = ?");
+    args.push(opts.kind);
+  }
+  if (opts.ownerType && opts.ownerId) {
+    where.push("owner_type = ? AND owner_id = ?");
+    args.push(opts.ownerType, opts.ownerId);
+  }
+  const ids = all<{ id: string }>(`SELECT id FROM image_batches ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC LIMIT ?`, ...args, Math.min(100, opts.limit ?? 12));
   return ids.map((r) => batchView(r.id)!).filter(Boolean);
 }
 
@@ -258,11 +286,11 @@ export async function runImageJob(payload: Record<string, unknown>, job: { id: s
     kind: "image",
     task: "images",
     resolved: { connection: { id: target.row.id }, modelId: b.model, billing: target.row.billing, profile: { id: "images" } },
-    request: { model: b.model, prompt: b.prompt, ...params, references: references.length },
+    request: { model: b.model, prompt: b.prompt, ...(b.negative ? { negative: b.negative } : {}), ...params, references: references.length },
     jobId: job.id,
   });
   try {
-    const res = await target.provider.generateImage({ model: b.model, prompt: b.prompt, n: params.n, size: params.size ?? undefined, aspectRatio: params.aspectRatio ?? undefined, seed: params.seed ?? undefined, references });
+    const res = await target.provider.generateImage({ model: b.model, prompt: b.prompt, n: params.n, size: params.size ?? undefined, aspectRatio: params.aspectRatio ?? undefined, seed: params.seed ?? undefined, negative: b.negative ?? undefined, references });
     const each = res.cost == null ? null : res.cost / res.images.length;
     const t = now();
     let idx = 0;

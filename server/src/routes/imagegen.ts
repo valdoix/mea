@@ -26,7 +26,9 @@ imagegen.post("/imagegen/generate", async (c) => {
   return c.json(startImageBatch(input));
 });
 
-imagegen.get("/imagegen/batches", (c) => c.json({ batches: recentBatches({ kind: c.req.query("kind") || undefined, limit: Number(c.req.query("limit")) || undefined }) }));
+imagegen.get("/imagegen/batches", (c) =>
+  c.json({ batches: recentBatches({ kind: c.req.query("kind") || undefined, ownerType: c.req.query("ownerType") || undefined, ownerId: c.req.query("ownerId") || undefined, limit: Number(c.req.query("limit")) || undefined }) }),
+);
 
 imagegen.get("/imagegen/batches/:id", (c) => c.json(must(batchView(c.req.param("id")), "No such request for pictures")));
 

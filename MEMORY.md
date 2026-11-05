@@ -217,8 +217,8 @@ One PR per part, merged when green. Built in a worktree, not the shared folder.
 | Part | What | State |
 |---|---|---|
 | 1 | Image client, catalog, the job, Settings → Pictures, bake-off script | merged, PR #264; bake-off in docs/28 §2.3 |
-| 2 | The Look and the prompt writer | branch `claude/portrait-writer` |
-| 3 | Portrait Studio | — |
+| 2 | The Look and the prompt writer | merged, PR #267 |
+| 3 | Portrait Studio | branch `claude/portrait-studio` |
 | 4 | Same person, every look | — |
 | 5 | Cast, as they are now, pairs | — |
 | 6 | Moments and covers | — |
@@ -244,6 +244,15 @@ One PR per part, merged when green. Built in a worktree, not the shared folder.
 - Routes: `/api/portraits/readback`, `/directions`, `/compile` (a broken rule is a 400 with `rule`), `/models/:id` (family, knowsFaces), `/looks/:type/:id` (GET/PUT/DELETE), `/styles`.
 - Mock: `portrait_idea` knows Buffy (canon age 16); `portrait_look` reads `Hair:`/`Eyes:`/`Build:`/`Clothes:`/`Gender:` lines and "portrayed by X".
 - Tests: `server/test/portraits.test.ts`.
+
+### Part 3 (2026-11-05)
+
+- `web/src/components/portraits/PortraitStudio.svelte`: one modal with five steps (idea, how they look, the picture, the prompt, pictures) plus "Earlier pictures of X", which reopens a batch with its recipe. Opened from the character editor's Images tab ("Draw a portrait", 2:3) and under a persona's avatar ("Draw", 1:1).
+- Models: live-action characters don't get `knowsFaces` models in the picker. A model with `aspectRatios` gets Resolution plus Shape, sent as `size` and `aspectRatio`. Otherwise the price keys are the sizes, and the one nearest the portrait's shape is picked.
+- Use as portrait: fetch the original → `ImageCropper` → upload → PUT the owner's `avatarId`. The original is marked kept and becomes the Look's `keyImage`, and the Look is saved.
+- Server: migration 40 adds `image_batches.recipe` (idea, Look, direction, style, realPeople) and `negative` (sent as `negative_prompt`; only tag models get one). The `/imagegen/models` rows carry `family` and `knowsFaces`, and `/imagegen/batches` takes `ownerType` and `ownerId`.
+- The "done" event can beat the POST's answer (the mock draws in milliseconds), so while drawing, the studio and Settings → Pictures also re-check every 3 s.
+- Compiler wording: `withNoun` doesn't add "hair" to "copper curls" (`NAMES_IT`), and `midSentence` gives "Wearing a grey hoodie".
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

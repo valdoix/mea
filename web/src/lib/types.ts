@@ -678,6 +678,64 @@ export interface Settings {
 
 // ---------- docs/28: pictures ----------
 
+export type LookField = "age" | "presentation" | "build" | "height" | "face" | "skin" | "hair" | "eyes" | "marks" | "wears" | "signature" | "palette" | "expression" | "never";
+export type LookSource = "you" | "lore" | "card" | "canon" | "guess";
+export type PortraitStyle = "storybook" | "painted" | "photo" | "anime" | "oil" | "ink";
+export type LookMedium = "live-action" | "animated" | "drawn" | "written" | "game" | "original";
+export interface Look {
+  name: string;
+  canon: { work: string; medium: LookMedium } | null;
+  age: number | null;
+  presentation: string;
+  build: string;
+  height: string;
+  face: string;
+  skin: string;
+  hair: string;
+  eyes: string;
+  marks: string[];
+  wears: string;
+  signature: string[];
+  palette: string[];
+  expression: string;
+  never: string[];
+  source: Partial<Record<LookField, LookSource>>;
+  style: PortraitStyle | null;
+  keyImage: string | null;
+  useName: boolean;
+}
+export interface PortraitDirection {
+  title: string;
+  setting: string;
+  light: string;
+  framing: string;
+  mood: string;
+  outfit: string;
+  action: string;
+}
+export interface PortraitQuestion {
+  id: string;
+  text: string;
+  why: string;
+  suggestions: string[];
+}
+export interface PortraitReadBack {
+  look: Look;
+  reading: { subject: string; work: string; medium: LookMedium; canonAge: number | null; era: string; change: string };
+  sources: { title: string; url: string }[];
+  realPeople: string[];
+  questions: PortraitQuestion[];
+  refused: string | null;
+}
+export interface CompiledPrompt {
+  prompt: string;
+  negative: string | null;
+  family: "prose" | "tags" | "pony";
+  style: PortraitStyle;
+  notes: string[];
+  model: string;
+}
+
 export type ImageJob = "portrait" | "edit" | "anime" | "plate";
 export interface ImagesConfig {
   connectionId: string | null;
@@ -700,6 +758,8 @@ export interface ImageModel {
   maxInputImages: number;
   maxPromptChars: number | null;
   tool: boolean;
+  family: "prose" | "tags" | "pony";
+  knowsFaces: boolean;
 }
 
 export interface ImageBatch {
@@ -710,6 +770,10 @@ export interface ImageBatch {
   prompt: string;
   params: { n: number; size: string | null; aspectRatio: string | null; seed: number | null };
   kind: string;
+  ownerType: string | null;
+  ownerId: string | null;
+  negative: string | null;
+  recipe: Record<string, unknown>;
   estimate: number | null;
   cost: number | null;
   images: { id: string; width: number | null; height: number | null; cost: number | null; kept: boolean }[];

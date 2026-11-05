@@ -2,6 +2,7 @@
   import Avatar from "../components/Avatar.svelte";
   import EmptyState from "../components/EmptyState.svelte";
   import ImageCropper from "../components/ImageCropper.svelte";
+  import PortraitStudio from "../components/portraits/PortraitStudio.svelte";
   import Modal from "../components/Modal.svelte";
   import CardCheck from "../components/cardtools/CardCheck.svelte";
   import FieldTools from "../components/cardtools/FieldTools.svelte";
@@ -11,7 +12,7 @@
   import { del, get, post, put } from "../lib/api";
   import { confirm } from "../lib/dialogs.svelte";
   import { autosize } from "../lib/gestures";
-  import { ArrowLeft, BookOpen, GitBranch, ImageIcon, Plus, Star, Trash, Unlink, WandSparkles } from "../lib/icons";
+  import { ArrowLeft, BookOpen, GitBranch, ImageIcon, Plus, Sparkles, Star, Trash, Unlink, WandSparkles } from "../lib/icons";
   import { uploadImage } from "../lib/images";
   import { navigate } from "../lib/router.svelte";
   import { app, errorToast, toast } from "../lib/state.svelte";
@@ -25,6 +26,7 @@
   let books = $state<LorebookSummary[]>([]);
   let cropFile = $state<Blob | null>(null);
   let cropOpen = $state(false);
+  let studioOpen = $state(false);
   let fileInput = $state<HTMLInputElement | null>(null);
   let loaded = $state(false);
 
@@ -136,6 +138,12 @@
     }
   }
 
+  /** docs/28: a drawn portrait was kept; your unsaved edits stay. */
+  async function portraitKept(avatarId: string) {
+    if (current) current.avatarId = avatarId;
+    personas = (await get<{ personas: Persona[] }>("/api/personas")).personas;
+  }
+
   async function linkBook(id: string) {
     if (!current) return;
     await post(`/api/lorebooks/${id}/links`, { type: "persona", id: current.id });
@@ -177,10 +185,13 @@
     {#if current}
       {#if app.isMobile}<button class="btn ghost small" onclick={() => ((current = null), navigate("/personas"))}><ArrowLeft size={15} /> All personas</button>{/if}
       <div class="top">
-        <button class="avatar-btn" onclick={() => fileInput?.click()} aria-label="Change avatar">
-          <Avatar id={current.avatarId} name={current.name} size={96} />
-          <span class="tiny muted"><ImageIcon size={12} /> Change</span>
-        </button>
+        <div class="stack tight avatar-col">
+          <button class="avatar-btn" onclick={() => fileInput?.click()} aria-label="Change avatar">
+            <Avatar id={current.avatarId} name={current.name} size={96} />
+            <span class="tiny muted"><ImageIcon size={12} /> Change</span>
+          </button>
+          <button class="btn ghost small" onclick={() => (studioOpen = true)} title="Draw a portrait from your idea (pay-as-you-go)"><Sparkles size={13} /> Draw</button>
+        </div>
         <input
           bind:this={fileInput}
           type="file"
@@ -249,6 +260,8 @@
     {/if}
   </section>
 </div>
+
+{#if current}<PortraitStudio bind:open={studioOpen} ownerType="persona" ownerId={current.id} name={current.name} aspect={1} onkept={portraitKept} />{/if}
 
 <Modal bind:open={cropOpen} title="Crop avatar" size="md">
   {#if cropFile}<ImageCropper file={cropFile} aspect={1} outWidth={512} onconfirm={onCropped} oncancel={() => (cropOpen = false)} />{/if}
