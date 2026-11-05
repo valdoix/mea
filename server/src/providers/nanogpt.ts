@@ -131,12 +131,22 @@ export class NanoGPTProvider extends OpenAIProvider {
    * The full catalog, and the subscription list for its flags. Either one failing (NanoGPT's
    * subscription list often answers 503) no longer loses the catalog: without it Mea can't tell a
    * model reasons, so it can't ask it to stop, and every reply waits on a full thinking pass.
+   *
+   * For a subscriber who hasn't turned on "Also show paid models", /api/v1/models leaves out every
+   * paid model, whatever the key's billing mode. So a key that may pay also reads the paid list.
    */
   override async listModels(opts: { subscriptionOnly?: boolean } = {}): Promise<ModelInfo[]> {
     this.subscriptionProblem = null;
-    const [subRes, allRes] = await Promise.allSettled([this.listSubscriptionModels(), this.getJson(`${this.origin}/api/v1/models?detailed=true`)]);
+    const [subRes, allRes, paidRes] = await Promise.allSettled([
+      this.listSubscriptionModels(),
+      this.getJson(`${this.origin}/api/v1/models?detailed=true`),
+      opts.subscriptionOnly ? Promise.resolve({ data: [] }) : this.getJson(`${this.origin}/api/paid/v1/models?detailed=true`),
+    ]);
     const sub = subRes.status === "fulfilled" ? subRes.value : null;
-    const rows = allRes.status === "fulfilled" ? ((allRes.value.data ?? []) as Record<string, any>[]) : null;
+    const paid = paidRes.status === "fulfilled" ? ((paidRes.value.data ?? []) as Record<string, any>[]) : [];
+    const listed = allRes.status === "fulfilled" ? ((allRes.value.data ?? []) as Record<string, any>[]) : null;
+    const listedIds = new Set(listed?.map((m) => String(m.id)));
+    const rows = listed && [...listed, ...paid.filter((m) => !listedIds.has(String(m.id)))];
     if (!rows) {
       // The subscription list alone is a whole catalog only for a subscription-only key.
       if (sub && opts.subscriptionOnly) return sub;
@@ -147,6 +157,8 @@ export class NanoGPTProvider extends OpenAIProvider {
     const included = (m: Record<string, any>) => (sub ? sub.some((s) => s.id === String(m.id)) : flagged ? m.subscription?.included === true : undefined);
     this.subscriptionProblem =
       sub || flagged ? null : `NanoGPT's subscription list didn't load (${(subRes as PromiseRejectedResult).reason?.message ?? "no answer"}), so which models your subscription includes is unknown. Sync again later.`;
+    if (paidRes.status === "rejected")
+      this.subscriptionProblem ??= `NanoGPT's paid model list didn't load (${paidRes.reason?.message ?? "no answer"}), so some pay-as-you-go models may be missing. Sync again later.`;
     if (opts.subscriptionOnly) {
       if (sub) return sub;
       // Without either list, a subscription key would be shown paid models it would be billed for.
