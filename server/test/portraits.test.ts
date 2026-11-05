@@ -6,7 +6,7 @@ import { createEntry, createLorebook } from "../src/lore/service";
 import { defaultEntry } from "../src/lore/types";
 import { compilePrompt, type Direction, familyOf, knowsFaces, minorIn, PortraitRuleError, scrubNames, statedAge } from "../src/portraits/compile";
 import { emptyLook, getLook, type Look, saveLook, setLine } from "../src/portraits/look";
-import { appearanceExcerpt, directions, readBack } from "../src/portraits/writer";
+import { appearanceExcerpt, directions, pickCanonTitle, readBack } from "../src/portraits/writer";
 import { createCharacter } from "../src/services/characters";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
 import { createPersona } from "../src/services/personas";
@@ -214,5 +214,29 @@ describe("the read-back", () => {
 
   test("the appearance part of a wiki page", () => {
     expect(appearanceExcerpt(page.text)).toContain("[Appearance]\nHair: long straight blonde");
+  });
+
+  test("a long article's ## Appearance, far down; never the episode list", () => {
+    const filler = "Plot. ".repeat(20_000);
+    const article = `Buffy Anne Summers was a Slayer.\n\n## Biography\n\n${filler}\n\n## Appearance\n\nHer most obvious feature was her small size; her hair was naturally blonde.\n\n## Powers and abilities\n\nStrong.\n\n## Appearances\n\n- Welcome to the Hellmouth`;
+    const ex = appearanceExcerpt(article);
+    expect(ex).toContain("[Appearance]\nHer most obvious feature was her small size; her hair was naturally blonde.");
+    expect(ex).not.toContain("Strong.");
+    expect(ex).not.toContain("Welcome to the Hellmouth");
+    expect(appearanceExcerpt(`Intro.\n\n## Appearance and Character\n\nA young woman with silver-gold hair and violet eyes, slender.\n\n## History\n\nx`)).toContain("[Appearance]\nA young woman with silver-gold hair");
+  });
+
+  test("no such section: only paragraphs that describe looks", () => {
+    const article = `${"Opening. ".repeat(300)}\n\nShe looks into his eyes and leaves.\n\nHer long silver-gold hair was braided in the Dothraki fashion.\n\nThe moon cracked like an egg.`;
+    const ex = appearanceExcerpt(article);
+    expect(ex).toContain("[How they look, from the page]\nHer long silver-gold hair was braided");
+    expect(ex).not.toContain("into his eyes");
+  });
+
+  test("the character's own page among search hits", () => {
+    expect(pickCanonTitle("Buffy Summers", ["Buffy Summers (The Last Vampire Slayer)", "Buffy Summers (2019)", "Buffy Summers"])).toBe("Buffy Summers");
+    expect(pickCanonTitle("Buffy Summers", ["Buffy Summers (Wishverse)", "Buffy Summers/Gallery"])).toBe("Buffy Summers/Gallery");
+    expect(pickCanonTitle("Willow", ["Willow Rosenberg (Wishverse)", "Willow Rosenberg"])).toBe("Willow Rosenberg");
+    expect(pickCanonTitle("Nobody", ["Somebody"])).toBeNull();
   });
 });

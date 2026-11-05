@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lookup, wikisFor } from "../creator/research";
+import { pageText, searchWiki, type Wiki, wikisFor } from "../creator/research";
 import { callJson } from "../services/llm";
 import { type Direction, directionSchema, minorIn, statedAge } from "./compile";
 import { emptyLook, getLook, type Look, LOOK_FIELDS, type LookField, type LookOwner, type LookSource, MEDIA, ownerText, setLine } from "./look";
@@ -101,9 +101,35 @@ async function lookFromSources(input: { subject: string; work: string; era: stri
 
 /** The part of a wiki page about looks, when it has one, plus the opening. */
 export function appearanceExcerpt(text: string, max = 6000): string {
-  const m = text.match(/(?:^|\n)\s*(?:Physical )?(?:Appearance|Description|Looks)[^\n]{0,40}\n([\s\S]{80,4000}?)(?=\n\s*(?:Personality|Biography|History|Powers|Abilities|Relationships|Background|Skills)\b|$)/i);
+  // A heading on its own line ("## Appearance", "Physical appearance", "Appearance and Character"),
+  // wherever it sits in a long article, up to the next heading. "Appearances" (the episode list) doesn't count.
+  const m = text.match(/(?:^|\n)[ \t]*(?:#{1,4}[ \t]*)?(?:Physical[ \t]+)?(?:Appearance|Description|Looks)(?:[ \t]+and[ \t]+[^\n]{1,30})?[ \t]*\n([\s\S]{40,5000}?)(?=\n[ \t]*#{1,4}[ \t]|\n[ \t]*(?:Personality|Biography|History|Powers(?: and abilities)?|Abilities|Relationships|Background|Skills)[ \t]*\n|$)/i);
   const head = text.slice(0, 2000);
-  return (m ? `${head}\n\n[Appearance]\n${m[1]!.trim()}` : text).slice(0, max);
+  if (m) return `${head}\n\n[Appearance]\n${m[1]!.trim()}`.slice(0, max);
+  // No such section: the paragraphs that describe how they look, from anywhere in the page.
+  // Hair, eyes or skin with a word describing them ("her violet eyes", "silver-gold hair"), not "in his eyes".
+  const LOOKS =
+    /\b(?:(?:her|his|their)\s+(?:[\w-]+,?\s+){1,3}(?:hair|eyes|complexion|skin|beard)|(?:silver|golden|gold|blonde?|red|auburn|copper|black|brown|grey|gray|white|dark|fair|pale|olive|violet|blue|green|hazel)[\w-]*\s+(?:[\w-]+\s+)?(?:hair|eyes|skin|complexion))\b/i;
+  const described: string[] = [];
+  let room = 3500;
+  for (const para of text.slice(2000).split(/\n{2,}/)) {
+    const p = para.trim();
+    if (p.length < 60 || p.length > 1200 || p.startsWith("#") || !LOOKS.test(p) || p.length > room) continue;
+    described.push(p);
+    room -= p.length;
+    if (room < 200) break;
+  }
+  return (described.length ? `${head}\n\n[How they look, from the page]\n${described.join("\n\n")}` : text).slice(0, max);
+}
+
+/**
+ * Which search hit is the character's own page: their exact title, else one without a qualifier
+ * ("Buffy Summers", not "Buffy Summers (Wishverse)"), else the first that names them.
+ */
+export function pickCanonTitle(subject: string, hits: string[]): string | null {
+  const q = subject.trim().toLowerCase();
+  const bare = (h: string) => h.replace(/\s*\([^)]*\)\s*$/, "").trim().toLowerCase();
+  return hits.find((h) => h.toLowerCase() === q) ?? hits.find((h) => h.toLowerCase().startsWith(q) && !/\(/.test(h)) ?? hits.find((h) => bare(h) === q) ?? hits.find((h) => h.toLowerCase().includes(q)) ?? null;
 }
 
 export interface Question {
@@ -130,9 +156,31 @@ export interface ReadBackDeps {
   canonPage?: (subject: string, work: string) => Promise<{ title: string; url: string; text: string } | null>;
 }
 
+/** A long article's description can sit far down (Buffy's is 94,000 characters in). */
+const CANON_PAGE_MAX = 250_000;
+/** A list of pages sharing a name. A hatnote ("For other uses, see X (disambiguation)") isn't one. */
+const isDisambiguation = (text: string) => /\b(?:may|can) (?:also )?refer to\b/i.test(text.slice(0, 800));
+const pageUrlOf = (wiki: Wiki, title: string) => `${wiki.base}${encodeURIComponent(title.replace(/ /g, "_"))}`;
+
+/**
+ * The character's page: their exact title first (a wiki's search can leave the main page out: on
+ * the Buffyverse Wiki, "Buffy Summers" only finds her alternate versions), then the best search hit.
+ */
+export async function canonPageOn(wikis: Wiki[], subject: string): Promise<{ title: string; url: string; text: string } | null> {
+  for (const wiki of wikis) {
+    const text = await pageText(wiki, subject, CANON_PAGE_MAX).catch(() => "");
+    if (text.length > 400 && !isDisambiguation(text)) return { title: `${subject} (${wiki.name})`, url: pageUrlOf(wiki, subject), text };
+    const hit = pickCanonTitle(subject, await searchWiki(wiki, subject, 8).catch(() => []));
+    if (!hit) continue;
+    const found = await pageText(wiki, hit, CANON_PAGE_MAX).catch(() => "");
+    if (found.length > 400 && !isDisambiguation(found)) return { title: `${hit} (${wiki.name})`, url: pageUrlOf(wiki, hit), text: found };
+  }
+  return null;
+}
+
 const defaultCanonPage: NonNullable<ReadBackDeps["canonPage"]> = async (subject, work) => {
   const wikis = await wikisFor(null, work).catch(() => []);
-  return wikis.length ? lookup(wikis, subject, 9000, true).catch(() => null) : null;
+  return wikis.length ? canonPageOn(wikis, subject) : null;
 };
 
 /**
