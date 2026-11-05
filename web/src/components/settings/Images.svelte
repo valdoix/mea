@@ -3,6 +3,7 @@
   import { onEvent } from "../../lib/events";
   import { timeAgo } from "../../lib/format";
   import { Check, RefreshCw, Sparkles } from "../../lib/icons";
+  import ReferencePicker from "../portraits/ReferencePicker.svelte";
   import { backfillThumb } from "../../lib/images";
   import { app, errorToast, saveSetting, toast } from "../../lib/state.svelte";
   import type { Connection, ImageBatch, ImageJob, ImageModel, ImagesConfig } from "../../lib/types";
@@ -26,6 +27,7 @@
   let recent = $state<ImageBatch[]>([]);
 
   let prompt = $state("");
+  let refs = $state<string[]>([]);
   let modelId = $state("");
   let size = $state("");
   let n = $state(1);
@@ -144,10 +146,10 @@
   }
 
   async function generate() {
-    if (!model || !prompt.trim()) return;
+    if (!model || !prompt.trim() || refs.length > model.maxInputImages) return;
     sending = true;
     try {
-      batch = await post<ImageBatch>("/api/imagegen/generate", { connectionId: cfg.connectionId, model: model.id, prompt: prompt.trim(), n, size: size || null, kind: "try" });
+      batch = await post<ImageBatch>("/api/imagegen/generate", { connectionId: cfg.connectionId, model: model.id, prompt: prompt.trim(), n, size: size || null, references: refs, kind: "try" });
     } catch (e) {
       errorToast(e);
     } finally {
@@ -231,7 +233,7 @@
           <label class="field">
             <span class="label">Model</span>
             <select class="select" value={modelId} onchange={(e) => pickModel(e.currentTarget.value)}>
-              {#each models as m (m.id)}<option value={m.id}>{m.name}</option>{/each}
+              {#each models as m (m.id)}<option value={m.id}>{m.name}{m.maxInputImages ? ` · ${m.maxInputImages} refs` : ""}</option>{/each}
             </select>
           </label>
           <label class="field">
@@ -248,9 +250,10 @@
           </label>
         </div>
         {#if model?.description}<p class="tiny muted">{model.description}</p>{/if}
+        <ReferencePicker bind:refs {model} {models} suggestId={cfg.defaults.edit} onswitch={pickModel} />
         <div class="row between wrap">
           <span class="tiny muted">{each == null ? "Price unknown" : `About ${usd(each * n)}${n > 1 ? ` for ${n}` : ""}`}{model?.estimated ? " (billed by use)" : ""} · pay-as-you-go</span>
-          <button class="btn primary" onclick={generate} disabled={!prompt.trim() || !model || sending || busy}><Sparkles size={15} /> {busy ? "Drawing…" : each == null ? "Draw" : `Draw · ${usd(each * n)}`}</button>
+          <button class="btn primary" onclick={generate} disabled={!prompt.trim() || !model || sending || busy || refs.length > model.maxInputImages}><Sparkles size={15} /> {busy ? "Drawing…" : each == null ? "Draw" : `Draw · ${usd(each * n)}`}</button>
         </div>
 
         {#if batch}

@@ -215,7 +215,7 @@ describe("requests for pictures", () => {
     const b = startImageBatch({ model: "mock/editor", prompt: "the same woman, in winter", references: [ref] });
     run("DELETE FROM jobs");
     await runImageJob({ batchId: b.id }, { id: "job" });
-    expect(batchView(b.id)!.status).toBe("done");
+    expect(batchView(b.id)).toMatchObject({ status: "done", references: [ref] });
     run("UPDATE images SET created_at = ? WHERE id = ?", now() - 40 * 86400_000, ref);
     purgeUnreferencedImages();
     expect(one("SELECT 1 FROM images WHERE id = ?", ref)).toBeTruthy();

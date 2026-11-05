@@ -45,6 +45,7 @@ export { default as ThumbsDown } from "@lucide/svelte/icons/thumbs-down";
 export { default as History } from "@lucide/svelte/icons/history";
 export { default as House } from "@lucide/svelte/icons/house";
 export { default as ImageIcon } from "@lucide/svelte/icons/image";
+export { default as ImagePlus } from "@lucide/svelte/icons/image-plus";
 export { default as Import } from "@lucide/svelte/icons/import";
 export { default as Inbox } from "@lucide/svelte/icons/inbox";
 export { default as Info } from "@lucide/svelte/icons/info";

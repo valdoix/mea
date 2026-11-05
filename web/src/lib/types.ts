@@ -784,6 +784,7 @@ export interface ImageBatch {
   ownerType: string | null;
   ownerId: string | null;
   negative: string | null;
+  references?: string[];
   recipe: Record<string, unknown>;
   estimate: number | null;
   cost: number | null;
