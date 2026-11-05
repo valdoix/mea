@@ -217,7 +217,7 @@ One PR per part, merged when green. Built in a worktree, not the shared folder.
 | Part | What | State |
 |---|---|---|
 | 1 | Image client, catalog, the job, Settings → Pictures, bake-off script | merged, PR #264; bake-off in docs/28 §2.3 |
-| 2 | The Look and the prompt writer | — |
+| 2 | The Look and the prompt writer | branch `claude/portrait-writer` |
 | 3 | Portrait Studio | — |
 | 4 | Same person, every look | — |
 | 5 | Cast, as they are now, pairs | — |
@@ -235,6 +235,15 @@ One PR per part, merged when green. Built in a worktree, not the shared folder.
 - `scripts/image-bakeoff.ts`: dry run by default (prints the total); `--go` draws against a running Mea's Settings → Pictures connection.
 - Tests: `server/test/imagegen.test.ts`.
 - Bake-off (2026-11-05, $0.68): defaults Seedream 5.0 Flash / its Edit / Anima. Nano Banana 2 and Pro drew the actress for a Buffy description that named nobody, so Part 2 needs §5 rule 3 (`knowsFaces`: not offered for live-action canon). Every model charged ~5% under its listed price. Qwen Image 3 takes ~80 s.
+
+### Part 2 (2026-11-05)
+
+- `portraits/look.ts`: `Look` (zod), saved in the `looks` table (migration 39) by `(owner_type, owner_id)`. `setLine` keeps the strongest source: you > lore > card > canon > guess. `loreLines(name)` reads canon appearance slots (eyes, hair, height, build, skin, scar → marks, age, clothing → wears) from entries whose comment or `extra.entity` is the name. A persona's `appearance` counts as its card.
+- `portraits/writer.ts`: `readBack` = `minorIn` check first (no helper runs) → `portrait:idea` (subject, work, medium, canonAge, era, stated) → canon page via `wikisFor`/`lookup` (strict) for a known character with no card (injectable `deps.canonPage`) → `portrait:look` (stated / guessed lines, `realPeople`) → questions (an adult age when canon's is under 18 or unknown; the era when no age was given). `directions` = `portrait:directions`, three.
+- `portraits/compile.ts`: `compilePrompt` is code. Prose / tags / pony families (`familyOf`), six styles, the Look word for word, `scrubNames` (the name word by word and `realPeople`, possessives too), `knowsFaces` (Nano Banana, Gemini image) refused for live-action canon, `PortraitRuleError` (`adult` / `faces`), tag negatives always carry "child, teenager". `useName` only for animated, drawn or game canon.
+- Routes: `/api/portraits/readback`, `/directions`, `/compile` (a broken rule is a 400 with `rule`), `/models/:id` (family, knowsFaces), `/looks/:type/:id` (GET/PUT/DELETE), `/styles`.
+- Mock: `portrait_idea` knows Buffy (canon age 16); `portrait_look` reads `Hair:`/`Eyes:`/`Build:`/`Clothes:`/`Gender:` lines and "portrayed by X".
+- Tests: `server/test/portraits.test.ts`.
 
 ## NanoGPT slow only in Mea (2026-10-21, merged, PR #135)
 

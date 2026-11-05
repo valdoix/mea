@@ -56,6 +56,7 @@ export const SERVICE_PROMPTS: ServicePrompt[] = [
   { id: "creator.interview", group: "Creators", label: "Creator: questions", help: "What Mea understood, and the interview.", match: is("creator:readback") },
   { id: "creator.bible", group: "Creators", label: "Creator: bible", help: "Writes, rewrites and checks the bible.", match: is("creator:bible", "creator:bible-section", "creator:bible-check") },
   { id: "creator.fields", group: "Creators", label: "Creator: card fields", help: "Writes the description, greetings, examples and the rest.", match: starts("creator:") },
+  { id: "portraits.writer", group: "Pictures", label: "Portrait prompts", help: "Reads your idea, works out how someone looks, and offers three directions for the picture.", match: starts("portrait:") },
   { id: "creator.tools", group: "Creators", label: "Card tools", help: "Field actions, sorting notes, card review, greetings, rules, voice lab, variants.", match: (k) => k.startsWith("assist:") || k === "variant" },
 ];
 

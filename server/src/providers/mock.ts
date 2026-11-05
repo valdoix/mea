@@ -621,6 +621,45 @@ function helperJson(name: string, user: string, system = ""): unknown {
       const found = mockSituations(user);
       return { gist: found.length ? `Someone is ${found[0]}` : "A quiet moment", situations: found };
     }
+    // docs/28 Part 2: the portrait writer. Buffy is the known character (her canon age is 16).
+    case "portrait_idea": {
+      const idea = (user.split("THE IDEA: ")[1] ?? "").trim();
+      const head = idea.split(",")[0]!.trim();
+      const buffy = /buffy/i.test(head);
+      const stated: Record<string, string> = {};
+      const hair = idea.match(/\b([\w -]+?) hair\b/i)?.[1];
+      if (hair) stated.hair = `${hair.trim().split(",").pop()!.trim()} hair`;
+      const eyes = idea.match(/\b(\w+) eyes\b/i)?.[1];
+      if (eyes) stated.eyes = eyes;
+      return {
+        subject: buffy ? "Buffy Summers" : head.replace(/\b\w/g, (c) => c.toUpperCase()),
+        work: buffy ? "Buffy the Vampire Slayer" : "",
+        medium: buffy ? "live-action" : "original",
+        canonAge: buffy ? 16 : null,
+        era: buffy && /\b(?:19|2\d)\b/.test(idea) ? "the college years, seasons 4–5" : "",
+        stated,
+        change: "",
+      };
+    }
+    case "portrait_look": {
+      const page = user.split("THE CANON PAGE:\n")[1] ?? "";
+      const own = (user.split("WHAT THE AUTHOR'S CARD SAYS:\n")[1] ?? "").split("\n\n")[0] ?? "";
+      const src = `${page}\n${own}`;
+      const grab = (k: string) => src.match(new RegExp(`${k}:[ \\t]*([^\\n.]+)`, "i"))?.[1]?.trim() ?? "";
+      return {
+        stated: { presentation: grab("Gender"), hair: grab("Hair"), eyes: grab("Eyes"), build: grab("Build"), wears: grab("Clothes") },
+        guessed: { presentation: "woman", build: "average build", skin: "fair", hair: "brown, shoulder-length", eyes: "brown", expression: "calm and direct", wears: "simple everyday clothes" },
+        realPeople: [...page.matchAll(/portrayed by ([A-Z][a-z]+(?: [A-Z][a-z]+)+)/g)].map((m) => m[1]!),
+      };
+    }
+    case "portrait_directions":
+      return {
+        directions: [
+          { title: "Night watch", setting: "An old cemetery at night, mist between the headstones.", light: "Cool moonlight from the left, a warm streetlamp behind", framing: "Waist-up, three-quarter view", mood: "Confident half-smile", outfit: "", action: "Holding a wooden stake at her side" },
+          { title: "Off duty", setting: "A college dorm room, posters and fairy lights.", light: "Soft afternoon light through the window", framing: "Head and shoulders", mood: "Relaxed, a little tired", outfit: "A grey hoodie", action: "" },
+          { title: "Mid-fight", setting: "A rain-wet alley.", light: "Streetlamps and their reflections", framing: "Full figure, low angle", mood: "Fierce focus", outfit: "", action: "Mid-kick" },
+        ],
+      };
     default:
       return {};
   }
