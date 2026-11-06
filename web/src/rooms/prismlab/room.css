@@ -1,0 +1,319 @@
+/* =====================================================================
+   PRISM LAB — split the light, see what's inside
+   A glowing beam through a tilting prism, a spectrum fanned across the room, rainbow caustics
+   on the walls. Frosted-glass panels; character cards have a holographic edge and a sliding sheen.
+   ===================================================================== */
+:root[data-theme="prismlab"][data-shell] h1 {
+  font: 800 2.4rem/1 var(--font-display);
+  letter-spacing: -0.04em;
+  background: var(--rainbow);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+:root[data-theme="prismlab"][data-shell] h2,
+:root[data-theme="prismlab"][data-shell] .panel > h2:first-child {
+  font: 800 0.95rem/1.2 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+:root[data-theme="prismlab"][data-shell] .btn {
+  border-radius: 12px;
+}
+:root[data-theme="prismlab"][data-shell] .btn.primary {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--text), var(--text)) padding-box,
+    var(--rainbow) border-box;
+  color: var(--bg);
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+:root[data-theme="prismlab"][data-shell] .card,
+:root[data-theme="prismlab"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+:root[data-theme="prismlab"][data-shell] .chip {
+  border-radius: 99px;
+  font-family: var(--font-deco);
+  font-size: 0.72rem;
+}
+:root[data-theme="prismlab"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="prismlab"][data-shell] .switch input:checked {
+  background: var(--grad);
+}
+
+/* the rail: frosted glass with a band of spectrum along the top */
+:root[data-theme="prismlab"][data-shell] nav.rail {
+  border: 1px solid var(--edge);
+  color: var(--text-muted);
+  background:
+    var(--rainbow) top / 100% 4px no-repeat,
+    var(--glass);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .nav {
+  color: var(--text-muted);
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .logo {
+  border-radius: 14px;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    var(--holo) border-box;
+  border: 2px solid transparent;
+  color: var(--text) !important;
+  font: 800 1.35rem/1 var(--font-display);
+  letter-spacing: -0.05em;
+  box-shadow: 0 0 20px -6px rgb(155 48 255 / 55%);
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .nav.on {
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    var(--rainbow) border-box;
+  color: var(--text) !important;
+}
+
+:root[data-theme="prismlab"][data-shell] .main-col,
+:root[data-theme="prismlab"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+}
+:root[data-theme="prismlab"][data-shell] .bar .cname {
+  font: 800 1.8rem/1 var(--font-display);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+  transition: text-shadow 0.2s;
+}
+:root[data-theme="prismlab"][data-shell] .bar .cname:hover {
+  text-shadow:
+    -2px 0 rgb(255 0 80 / 55%),
+    2px 0 rgb(0 200 255 / 55%);
+}
+:root[data-theme="prismlab"][data-shell] .bar .cname .ctitle {
+  font: 400 0.8rem var(--font-deco);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+/* frosted cards; the character's have a holographic edge and a sheen that slides across */
+:root[data-theme="prismlab"][data-shell] .style-cards .msg .bubble {
+  border: 0;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--tint-char) 78%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 18px 36px -22px rgb(80 40 160 / 55%);
+  --hairline: var(--holo);
+}
+:root[data-theme="prismlab"][data-shell] .style-cards .msg .bubble::before {
+  padding: 1.5px;
+}
+:root[data-theme="prismlab"][data-shell] .style-cards .msg .bubble::after {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 120 200 / 13%) 40%, rgb(120 220 255 / 15%) 50%, rgb(255 240 120 / 12%) 60%, transparent 70%);
+  transform: translateX(-100%);
+  animation: pl-sheen 9s ease-in-out infinite;
+}
+@keyframes pl-sheen {
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+:root[data-theme="prismlab"][data-shell] .style-cards .msg.user .bubble {
+  background: color-mix(in srgb, var(--tint-user) 86%, transparent);
+  --hairline: linear-gradient(var(--edge), var(--edge));
+}
+:root[data-theme="prismlab"][data-shell] .style-cards .msg.user .bubble::after {
+  display: none;
+}
+:root[data-theme="prismlab"][data-shell] .msg .name {
+  font: 800 0.82rem/1.2 var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #ff2a6d, #9b30ff 50%, #1f8bff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+}
+:root[data-theme="prismlab"][data-shell] .msg.user .name {
+  background: none;
+  color: var(--text-muted) !important;
+  -webkit-text-fill-color: currentcolor;
+}
+:root[data-theme="prismlab"][data-shell] .msg .time {
+  font: 400 0.7rem var(--font-deco);
+}
+:root[data-theme="prismlab"][data-shell] .msg .prose {
+  transition: text-shadow 0.2s;
+}
+@media (hover: hover) {
+  :root[data-theme="prismlab"][data-shell] .msg .bubble:hover .prose {
+    text-shadow:
+      -1.5px 0 rgb(255 0 80 / 35%),
+      1.5px 0 rgb(0 200 255 / 35%);
+  }
+}
+:root[data-theme="prismlab"][data-shell] .msg .portrait {
+  padding: 2px;
+  border-radius: 18px;
+  background: var(--holo);
+  box-shadow: 0 0 22px -8px rgb(155 48 255 / 55%);
+}
+:root[data-theme="prismlab"][data-shell] .msg.user .portrait {
+  background: var(--border-strong);
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="prismlab"][data-shell] .msg .portrait .avatar {
+  border-radius: 16px !important;
+}
+:root[data-theme="prismlab"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+:root[data-theme="prismlab"][data-shell] .ch-title {
+  font: 800 1.6rem/1.1 var(--font-display);
+  letter-spacing: -0.02em;
+  background: var(--rainbow);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+:root[data-theme="prismlab"][data-shell] .composer {
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+:root[data-theme="prismlab"][data-shell] .send.primary {
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--text), var(--text)) padding-box,
+    var(--rainbow) border-box;
+  color: var(--bg);
+}
+:root[data-theme="prismlab"][data-shell] .continue,
+:root[data-theme="prismlab"][data-shell] .char {
+  border-radius: var(--r-lg);
+}
+:root[data-theme="prismlab"][data-shell] .hero-pic,
+:root[data-theme="prismlab"][data-shell] .hero-pic .avatar {
+  border-radius: 22px !important;
+}
+
+/* ---------- the backdrop ---------- */
+.a-prismlab {
+  background:
+    radial-gradient(60% 50% at 85% 30%, rgb(255 180 220 / 22%), transparent 70%),
+    radial-gradient(50% 45% at 70% 90%, rgb(140 210 255 / 22%), transparent 70%),
+    linear-gradient(rgb(60 40 90 / 4.5%) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, rgb(60 40 90 / 4.5%) 1px, transparent 1px) 0 0 / 28px 28px,
+    #f8f7fa;
+}
+.a-prismlab.night {
+  background:
+    radial-gradient(60% 50% at 85% 30%, rgb(155 48 255 / 20%), transparent 70%),
+    radial-gradient(50% 45% at 70% 90%, rgb(31 139 255 / 16%), transparent 70%),
+    linear-gradient(rgb(255 255 255 / 3.5%) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, rgb(255 255 255 / 3.5%) 1px, transparent 1px) 0 0 / 28px 28px,
+    #07060c;
+}
+.a-prismlab .cau {
+  margin: -150px 0 0 -150px;
+  border-radius: 50%;
+  background: conic-gradient(from 30deg, #ff2a6d, #ffb400, #00d27a, #1f8bff, #9b30ff, #ff2a6d);
+  filter: blur(48px);
+  opacity: var(--cau);
+  will-change: transform;
+  animation: pl-drift 20s ease-in-out infinite alternate;
+}
+@keyframes pl-drift {
+  to {
+    transform: translate(48px, -36px) rotate(160deg) scale(1.15);
+  }
+}
+.a-prismlab svg.lab {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.a-prismlab .beam,
+.a-prismlab .edge {
+  stroke: var(--beam);
+}
+.a-prismlab .edge {
+  stroke-opacity: 0.7;
+}
+.a-prismlab .spec {
+  opacity: var(--spec);
+  mix-blend-mode: multiply;
+}
+.a-prismlab.night .spec {
+  mix-blend-mode: screen;
+}
+.a-prismlab .pr {
+  transform-origin: 390px 200px;
+  animation: pl-tilt 12s ease-in-out infinite alternate;
+}
+@keyframes pl-tilt {
+  from {
+    transform: rotate(-4deg);
+  }
+  to {
+    transform: rotate(4deg);
+  }
+}
+.a-prismlab .gl {
+  background: linear-gradient(135deg, #ff2a6d, #ffb400, #00d27a, #1f8bff, #9b30ff);
+  clip-path: polygon(50% 0, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0 50%, 42% 42%);
+  animation: pl-twinkle 3.4s ease-in-out infinite;
+}
+@keyframes pl-twinkle {
+  0%,
+  100% {
+    transform: scale(0.2) rotate(0);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1) rotate(45deg);
+    opacity: 1;
+  }
+}
+
+.a-prismlab.still *,
+.a-prismlab.still *::before,
+.a-prismlab.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-prismlab *,
+  .a-prismlab *::before,
+  .a-prismlab *::after {
+    animation: none !important;
+  }
+  :root[data-theme="prismlab"][data-shell] .style-cards .msg .bubble::after {
+    animation: none;
+    display: none;
+  }
+}
