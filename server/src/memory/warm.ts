@@ -6,7 +6,7 @@ import { chatNames } from "./build";
 import { memoryInputs } from "./context";
 import { chatVectors, embeddingsEnabled } from "./embed";
 import { syncEntities } from "./entities";
-import { TimeIndex } from "./format";
+import { type RecallItem, TimeIndex } from "./format";
 import { contextText, rewriteQuery, runLibrarian } from "./librarian";
 import { recall } from "./recall";
 import { memState } from "./store";
@@ -53,13 +53,17 @@ export async function warmMemory(chatId: string, draft = "") {
       skipCards: inputs.skipCards,
       povName: inputs.povName,
     });
-    const candidates = r.items
-      .filter((i) => (i.ownerType === "memory" || i.ownerType === "summary") && i.slot !== "pinned")
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 24)
-      .map((i) => ({ key: `${i.ownerType}:${i.id}`, text: i.content }));
-    const v = await runLibrarian(chatId, ctx, draft.trim(), candidates);
+    const v = await runLibrarian(chatId, ctx, draft.trim(), librarianCandidates(r.items));
     librarian = v?.keep.size ?? 0;
   }
   return { warmed: true, librarian, rewritten };
+}
+
+/** What the librarian is shown: the best of what a warm recall chose (the eval shows it the same). */
+export function librarianCandidates(items: RecallItem[]) {
+  return items
+    .filter((i) => (i.ownerType === "memory" || i.ownerType === "summary") && i.slot !== "pinned")
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 24)
+    .map((i) => ({ key: `${i.ownerType}:${i.id}`, text: i.content }));
 }
