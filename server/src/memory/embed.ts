@@ -5,7 +5,8 @@ import { getConnectionRow, providerFor } from "../services/connections";
 import type { JobContext } from "../services/jobs";
 import { finishRequest, startRequest } from "../services/requests";
 import { registerStatusTile } from "../services/status";
-import { hashText } from "./text";
+import { memState } from "./store";
+import { cleanText, hashText } from "./text";
 
 /**
  * Embeddings (MEM-11) through the pay-as-you-go key (decision 10). Each vector records the
@@ -85,7 +86,7 @@ export function cosine(a: Float32Array, b: Float32Array) {
 }
 
 interface Pending {
-  ownerType: "memory" | "summary";
+  ownerType: "memory" | "summary" | "passage";
   ownerId: string;
   text: string;
   hash: string;
@@ -116,7 +117,94 @@ function pendingFor(chatId: string, model: string, dims: number): Pending[] {
     const hash = hashText(text);
     if (s.hash !== hash || s.model !== model || s.dims !== dims) out.push({ ownerType: "summary", ownerId: s.id, text, hash });
   }
+  return [...out, ...pendingPassages(chatId, model, dims)];
+}
+
+/** About how long a passage is: a few paragraphs, short enough that one detail still moves its vector. */
+const PASSAGE_CHARS = 1200;
+
+/**
+ * docs/27 Part 5: a message cut into passages of about PASSAGE_CHARS, on sentence boundaries. The same
+ * text always cuts the same way, so `<swipe id>:<n>` names one passage for as long as the text stands.
+ */
+export function passageChunks(text: string, size = PASSAGE_CHARS): string[] {
+  const clean = cleanText(text).replace(/[ \t]+/g, " ").trim();
+  if (!clean) return [];
+  const sentences = clean.split(/(?<=[.!?…]["”')\]*]*)\s+/);
+  const out: string[] = [];
+  let cur = "";
+  for (let s of sentences) {
+    while (s.length > size) {
+      if (cur) out.push(cur), (cur = "");
+      out.push(s.slice(0, size));
+      s = s.slice(size);
+    }
+    if (cur && cur.length + 1 + s.length > size) out.push(cur), (cur = "");
+    cur = cur ? `${cur} ${s}` : s;
+  }
+  if (cur) out.push(cur);
   return out;
+}
+
+/**
+ * The passages of old messages that still need a vector. Only what has left the window: recall can't
+ * search anything before that, so takes that never get used are never paid for. Passages that no longer
+ * stand (a rewind, another swipe chosen, an edit, a message hidden or deleted) lose theirs here.
+ */
+function pendingPassages(chatId: string, model: string, dims: number): Pending[] {
+  const evicted = memState(chatId).evictedThrough;
+  const have = new Map(
+    all<{ owner_id: string; hash: string; model: string; dims: number }>("SELECT owner_id, hash, model, dims FROM embeddings WHERE chat_id = ? AND owner_type = 'passage'", chatId).map((r) => [r.owner_id, r]),
+  );
+  const live = new Set<string>();
+  const out: Pending[] = [];
+  if (evicted > 0) {
+    const msgs = all<{ swipe: string; content: string }>(
+      `SELECT s.id AS swipe, s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+       WHERE m.chat_id = ? AND m.seq <= ? AND m.deleted_at IS NULL AND m.hidden = 0`,
+      chatId,
+      evicted,
+    );
+    for (const m of msgs) {
+      passageChunks(m.content).forEach((text, n) => {
+        const id = `${m.swipe}:${n}`;
+        live.add(id);
+        const hash = hashText(text);
+        const h = have.get(id);
+        if (!h || h.hash !== hash || h.model !== model || h.dims !== dims) out.push({ ownerType: "passage", ownerId: id, text, hash });
+      });
+    }
+  }
+  const stale = [...have.keys()].filter((id) => !live.has(id));
+  for (let i = 0; i < stale.length; i += 500) {
+    const part = stale.slice(i, i + 500);
+    run(`DELETE FROM embeddings WHERE chat_id = ? AND owner_type = 'passage' AND owner_id IN (${part.map(() => "?").join(",")})`, chatId, ...part);
+  }
+  if (stale.length) invalidateVectors(chatId);
+  return out;
+}
+
+export interface PassageHit {
+  swipeId: string;
+  n: number;
+  sim: number;
+}
+
+/**
+ * docs/27 Part 5: the passages closest in meaning to a query, best passage per message first. Only the
+ * vectors are read here; the caller checks the message is still live and how far back it is.
+ */
+export function closestPassages(chatId: string, qvec: Float32Array, limit = 60): PassageHit[] {
+  const best = new Map<string, PassageHit>();
+  for (const v of chatVectors(chatId)) {
+    if (v.ownerType !== "passage") continue;
+    const cut = v.ownerId.lastIndexOf(":");
+    const swipeId = v.ownerId.slice(0, cut);
+    const sim = cosine(qvec, v.vector);
+    const cur = best.get(swipeId);
+    if (!cur || sim > cur.sim) best.set(swipeId, { swipeId, n: Number(v.ownerId.slice(cut + 1)), sim });
+  }
+  return [...best.values()].sort((a, b) => b.sim - a.sim).slice(0, limit);
 }
 
 function store(chatId: string, p: Pending, model: string, dims: number, vector: Float32Array) {
@@ -306,10 +394,12 @@ export function embeddingStatus() {
   const byModel = all<{ model: string; dims: number; n: number }>("SELECT model, dims, COUNT(*) AS n FROM embeddings GROUP BY model, dims ORDER BY n DESC");
   const total = byModel.reduce((n, r) => n + r.n, 0);
   const current = byModel.find((r) => r.model === t.model && r.dims === t.dims)?.n ?? 0;
+  // Passages (docs/27 Part 5) have vectors of their own; what's missing counts memories and summaries only.
+  const currentItems = one<{ n: number }>("SELECT COUNT(*) AS n FROM embeddings WHERE model = ? AND dims = ? AND owner_type != 'passage'", t.model, t.dims)?.n ?? 0;
   const items =
     (one<{ n: number }>("SELECT COUNT(*) AS n FROM memories WHERE deleted_at IS NULL AND status != 'superseded'")?.n ?? 0) +
     (one<{ n: number }>("SELECT COUNT(*) AS n FROM summaries WHERE level IN ('scene', 'chapter') AND state = 'ready' AND content != ''")?.n ?? 0);
-  return { enabled: embeddingsEnabled(), blocked: embeddingBlock(), model: t.model, dims: t.dims, byModel, total, current, mismatched: total - current, missing: Math.max(0, items - current) };
+  return { enabled: embeddingsEnabled(), blocked: embeddingBlock(), model: t.model, dims: t.dims, byModel, total, current, mismatched: total - current, missing: Math.max(0, items - currentItems) };
 }
 
 /** Drops vectors from other models and queues a re-embed for every chat (ARCH-12). */

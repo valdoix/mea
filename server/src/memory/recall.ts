@@ -2,7 +2,7 @@ import { all, parseJson } from "../db/db";
 import type { MemoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 import { type AtomRow, sourcesLive } from "./atoms";
-import { deepSearch, excerpt, RECALL_CUE } from "./deep";
+import { deepSearch, excerpt, type HeardFilter, RECALL_CUE } from "./deep";
 import { chatVectors, cosine } from "./embed";
 import { core, entityCard, entityFacts, genericPlace, norm, resolver, type EntityRow } from "./entities";
 import type { RecallItem, TimeIndex } from "./format";
@@ -64,6 +64,10 @@ export interface RecallInput {
   weakStandout?: number;
   /** How far past the window the story must be before weak recall reaches back (docs/27 3). */
   reachBackFrom?: number;
+  /** Whether the point-of-view character heard an old message: quotes only come from those (docs/27 5). */
+  heard?: HeardFilter | null;
+  /** How much of what's left quotes get when recall reaches back (docs/27 5). */
+  quoteShare?: number;
 }
 
 export interface RecallStats {
@@ -188,6 +192,11 @@ const WEAK_STANDOUT = 2.6;
 const STRONG_RARE = 4;
 /** Deep search reaches back on weak recall only once the story is this far past the window. */
 const REACH_BACK_FROM = 200;
+/**
+ * docs/27 Part 5: when recall reaches back, quotes get a share of their own. They used to take only what
+ * the other slots left, and on every measured turn that was nothing (Part 3).
+ */
+const QUOTE_SHARE = 0.1;
 
 /**
  * The records behind the names in the newest lines. Each name gets two memories at most, the first and
@@ -195,7 +204,7 @@ const REACH_BACK_FROM = 200;
  * word ("Resolved: Brongel…") holds the word without saying anything about it. A name no memory holds
  * gets the message it first appears in, since a detail that was never filed is still on the page.
  */
-function namedRecords(chatId: string, text: string, evicted: number, atomById: Map<string, AtomRow>) {
+function namedRecords(chatId: string, text: string, evicted: number, atomById: Map<string, AtomRow>, heard: HeardFilter | null) {
   const memories: { term: string; keys: string[]; held: number }[] = [];
   const quotes: { term: string; messageId: string; seq: number; speaker: string; excerpt: string }[] = [];
   for (const { term, proper } of namedTerms(text).slice(0, NAMED_TERMS)) {
@@ -220,7 +229,8 @@ function namedRecords(chatId: string, text: string, evicted: number, atomById: M
       evicted,
       NAMED_MESSAGES + 1,
     );
-    const first = said[0];
+    // The first time the point-of-view character heard it, not the first time anyone said it.
+    const first = said.find((m) => !heard || heard(m));
     if (!first || said.length > NAMED_MESSAGES) continue;
     quotes.push({ term, messageId: first.id, seq: first.seq, speaker: first.name ?? (first.role === "user" ? "You" : first.role), excerpt: excerpt(first.content, new Set([term]), 240) });
   }
@@ -455,7 +465,7 @@ export function recall(input: RecallInput) {
 
   // A name just used comes first. What the few memories holding it say is the likeliest thing here to
   // be contradicted, and no other signal finds them reliably (#792: "Brongel", in two memories).
-  const names = rest > 60 ? namedRecords(chatId, strongText, evicted, atomById) : { memories: [], quotes: [] };
+  const names = rest > 60 ? namedRecords(chatId, strongText, evicted, atomById, input.heard ?? null) : { memories: [], quotes: [] };
   stats.named = names.memories.length + names.quotes.length;
   const namedCap = rest * NAMED_SHARE;
   let namedUsed = 0;
@@ -543,8 +553,51 @@ export function recall(input: RecallInput) {
 
   const share = cfg.slots;
   const totalShare = share.recent + share.relevant + share.serendipity || 1;
-  const after = Math.max(0, rest - (rest * (cfg.entityRecall ? 0.2 : 0)) + carry);
+  let after = Math.max(0, rest - (rest * (cfg.entityRecall ? 0.2 : 0)) + carry);
   carry = 0;
+
+  // Deep search (MEM-22): when the story reaches far back, quote the old messages themselves.
+  // docs/27 3.1: with no query vector, only cue words ("remember when") reach back.
+  const primary = input.queries[0]?.text ?? "";
+  const weak = !stats.named && stats.rareWords < STRONG_RARE && stats.standout !== null && stats.standout < (input.weakStandout ?? WEAK_STANDOUT);
+  stats.reachedBack = RECALL_CUE.test(primary) ? "cue words" : weak && evicted > (input.reachBackFrom ?? REACH_BACK_FROM) ? "weak recall" : null;
+  // docs/27 5: quotes have a share of their own, taken before the other slots divide what's left. With
+  // a budget too small for that share to hold one, they take what the other slots leave, as before.
+  let quoted = false;
+  const quote = (cap: number) => {
+    quoted = true;
+    const hits = deepSearch(chatId, { query: input.queries.map((q) => q.text).join("\n"), qvec: input.qvecs[0] ?? null, beforeSeq: evicted, quotes: 3, excerptSize: 240, heard: input.heard ?? null });
+    let used = 0;
+    for (const [i, h] of hits.entries()) {
+      let content = `${h.speaker} (#${h.seq}): "${h.excerpt}"`;
+      let tokens = countTokens(content) + 8;
+      // The best quote always gets in, shortened to fit if it must.
+      if (i === 0 && tokens > cap) {
+        content = `${h.speaker} (#${h.seq}): "${h.excerpt.slice(0, Math.floor((cap - 14) * 3.2))}…"`;
+        tokens = countTokens(content) + 8;
+      }
+      if (used + tokens > cap) continue;
+      out.push({
+        ownerType: "quote",
+        id: h.messageId,
+        type: "quote",
+        content,
+        slot: "deep",
+        score: h.score,
+        reasons: ["deep search", ...h.reasons],
+        tokens,
+        seq: h.seq,
+        when: input.times.when(h.seq, h.sceneId),
+        where: input.times.where(h.sceneId, h.seq),
+      });
+      used += tokens;
+      stats.deep++;
+    }
+    return used;
+  };
+  const canQuote = cfg.deepSearch && evicted > 0 && stats.reachedBack !== null;
+  const quoteCap = after * (input.quoteShare ?? QUOTE_SHARE);
+  if (canQuote && quoteCap > 30) after = Math.max(0, after - quote(quoteCap));
   const recentKeys = atoms
     .filter((a) => a.importance >= 3)
     .sort((a, b) => (b.max_seq ?? 0) - (a.max_seq ?? 0) || b.importance - a.importance)
@@ -610,44 +663,7 @@ export function recall(input: RecallInput) {
   const serCap = (after * share.serendipity) / totalShare + carry;
   carry = serCap - take(serPool, "serendipity", serCap, "a callback from long ago");
 
-  // Deep search (MEM-22): when the story reaches far back, quote the old messages themselves.
-  // docs/27 3.1: with no query vector, only cue words ("remember when") reach back.
-  const primary = input.queries[0]?.text ?? "";
-  const weak = !stats.named && stats.rareWords < STRONG_RARE && stats.standout !== null && stats.standout < (input.weakStandout ?? WEAK_STANDOUT);
-  stats.reachedBack = RECALL_CUE.test(primary) ? "cue words" : weak && evicted > (input.reachBackFrom ?? REACH_BACK_FROM) ? "weak recall" : null;
-  // Quotes only use what the other slots left: with no room for even a shortened one, don't search.
-  if (cfg.deepSearch && evicted > 0 && stats.reachedBack && carry > 30) {
-    const hits = deepSearch(chatId, { query: input.queries.map((q) => q.text).join("\n"), qvec: input.qvecs[0] ?? null, beforeSeq: evicted, quotes: 3, excerptSize: 240 });
-    // L13: quotes use what the other slots left, never more than the budget.
-    const cap = Math.max(0, carry);
-    let used = 0;
-    for (const [i, h] of hits.entries()) {
-      let content = `${h.speaker} (#${h.seq}): "${h.excerpt}"`;
-      let tokens = countTokens(content) + 8;
-      // The best quote always gets in, shortened to fit if it must.
-      if (i === 0 && tokens > cap && cap > 30) {
-        content = `${h.speaker} (#${h.seq}): "${h.excerpt.slice(0, Math.floor((cap - 14) * 3.2))}…"`;
-        tokens = countTokens(content) + 8;
-      }
-      if (used + tokens > cap) continue;
-      out.push({
-        ownerType: "quote",
-        id: h.messageId,
-        type: "quote",
-        content,
-        slot: "deep",
-        score: h.score,
-        reasons: ["deep search", ...h.reasons],
-        tokens,
-        seq: h.seq,
-        when: input.times.when(h.seq, h.sceneId),
-        where: input.times.where(h.sceneId, h.seq),
-      });
-      used += tokens;
-      stats.deep++;
-    }
-    carry -= used;
-  }
+  if (canQuote && !quoted && carry > 30) carry -= quote(carry);
   if (carry > 30) take(relevant.map(([k]) => k), "relevant", carry);
 
   return { items: out, pinnedTokens, tokens: out.reduce((n, i) => n + i.tokens, 0), stats };

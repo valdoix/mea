@@ -1,5 +1,5 @@
 import { all } from "../db/db";
-import { chatVectors, cosine } from "./embed";
+import { chatVectors, closestPassages, cosine, passageChunks } from "./embed";
 import type { SummaryRow } from "./store";
 import { cleanText, contentWords, ftsQuery } from "./text";
 
@@ -78,7 +78,53 @@ export function excerpt(text: string, words: Set<string>, size = 320) {
   return `${lo >= 0 ? "… " : ""}${out.slice(0, size + 80)}${hi < sentences.length ? " …" : ""}`;
 }
 
-export function deepSearch(chatId: string, opts: { query: string; qvec: Float32Array | null; beforeSeq: number; quotes?: number; scenesPerChapter?: number; excerptSize?: number }) {
+/** Whether the point-of-view character heard a message; false keeps it out of the quotes (docs/27 Part 5). */
+export type HeardFilter = (m: { seq: number; name: string | null; role: string }) => boolean;
+
+interface Msg {
+  id: string;
+  seq: number;
+  name: string | null;
+  role: string;
+  content: string;
+}
+
+interface Found {
+  m: Msg;
+  score: number;
+  /** The passage that matched in meaning, quoted instead of the best-worded sentences. */
+  passage?: string;
+  reasons: string[];
+}
+
+/**
+ * docs/27 Part 5: the old messages closest in meaning to the query, best first, each with the passage
+ * that matched. Only live messages count: the active swipe, not deleted or hidden, before `beforeSeq`.
+ */
+function closestMessages(chatId: string, qvec: Float32Array, beforeSeq: number, heard: (m: Msg) => boolean) {
+  const near = closestPassages(chatId, qvec, 80);
+  if (!near.length) return [];
+  const rows = all<Msg & { swipe: string }>(
+    `SELECT s.id AS swipe, m.id, m.seq, m.name, m.role, s.content FROM swipes s JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
+     WHERE s.id IN (${near.map(() => "?").join(",")}) AND m.chat_id = ? AND m.seq <= ? AND m.deleted_at IS NULL AND m.hidden = 0`,
+    ...near.map((p) => p.swipeId),
+    chatId,
+    beforeSeq,
+  );
+  const bySwipe = new Map(rows.map((r) => [r.swipe, r]));
+  const out: { m: Msg; passage: string; sim: number }[] = [];
+  for (const p of near) {
+    const m = bySwipe.get(p.swipeId);
+    if (!m || !heard(m)) continue;
+    out.push({ m, passage: passageChunks(m.content)[p.n] ?? m.content, sim: p.sim });
+  }
+  return out;
+}
+
+export function deepSearch(
+  chatId: string,
+  opts: { query: string; qvec: Float32Array | null; beforeSeq: number; quotes?: number; scenesPerChapter?: number; excerptSize?: number; heard?: HeardFilter | null },
+) {
   const q = ftsQuery(opts.query, 20);
   if (!q && !opts.qvec) return [] as DeepHit[];
   const chapters = all<SummaryRow>(
@@ -92,6 +138,7 @@ export function deepSearch(chatId: string, opts: { query: string; qvec: Float32A
     opts.beforeSeq,
   );
   if (!scenes.length) return [];
+  const heard = (m: Msg) => !opts.heard || opts.heard(m);
 
   // Phase 1: chapters. A short story without chapters goes straight to its scenes.
   const topChapters = chapters.length ? rank(chatId, chapters, q, opts.qvec).slice(0, 2) : [];
@@ -110,67 +157,69 @@ export function deepSearch(chatId: string, opts: { query: string; qvec: Float32A
         .slice(0, 3)
         .map((s) => ({ ...s, chapter: null }));
 
-  // Phase 2: the messages themselves, quoted.
+  // Phase 2: the messages themselves, quoted, found by their words and (docs/27 Part 5) their meaning.
   const words = contentWords(opts.query);
+  const near = opts.qvec ? closestMessages(chatId, opts.qvec, opts.beforeSeq, heard) : [];
+  const byWords = (lo: number, hi: number, limit: number) =>
+    q
+      ? all<Msg>(
+          `SELECT m.id, m.seq, m.name, m.role, s.content FROM swipes_fts f
+           JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
+           WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq BETWEEN ? AND ? AND m.deleted_at IS NULL AND m.hidden = 0
+           ORDER BY bm25(swipes_fts) LIMIT ?`,
+          q,
+          chatId,
+          lo,
+          hi,
+          limit,
+        ).filter(heard)
+      : [];
+  const fuse = (wordHits: Msg[], meaningHits: typeof near, weight: number) => {
+    const found = new Map<string, Found>();
+    const add = (m: Msg, n: number, why: string, passage?: string) => {
+      const f = found.get(m.id) ?? { m, score: 0, reasons: [] };
+      f.score += n;
+      f.reasons.push(why);
+      if (passage) f.passage = passage;
+      found.set(m.id, f);
+    };
+    wordHits.forEach((m, i) => add(m, rrf(i) * weight, "keywords"));
+    meaningHits.forEach((p, i) => add(p.m, rrf(i) * 1.2 * weight, `close in meaning ${p.sim.toFixed(2)}`, p.passage));
+    return [...found.values()].sort((a, b) => b.score - a.score);
+  };
+  const hit = (f: Found, scene: SummaryRow, chapter: SummaryRow | null, score: number, reasons: string[]): DeepHit => ({
+    chapterId: chapter?.id ?? null,
+    chapterTitle: chapter?.title ?? null,
+    sceneId: scene.id,
+    sceneTitle: scene.title,
+    messageId: f.m.id,
+    seq: f.m.seq,
+    speaker: f.m.name ?? (f.m.role === "user" ? "You" : f.m.role),
+    excerpt: excerpt(f.passage ?? f.m.content, words, opts.excerptSize),
+    score,
+    reasons,
+  });
+
   const hits: DeepHit[] = [];
   for (const s of pool) {
-    if (!q) break;
-    const msgs = all<{ id: string; seq: number; name: string | null; role: string; content: string; b: number }>(
-      `SELECT m.id, m.seq, m.name, m.role, s.content, bm25(swipes_fts) AS b FROM swipes_fts f
-       JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
-       WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq BETWEEN ? AND ? AND m.deleted_at IS NULL AND m.hidden = 0
-       ORDER BY b LIMIT 2`,
-      q,
-      chatId,
-      s.row.start_seq,
-      s.row.end_seq ?? s.row.start_seq,
-    );
-    for (const [i, m] of msgs.entries()) {
-      hits.push({
-        chapterId: s.chapter?.row.id ?? null,
-        chapterTitle: s.chapter?.row.title ?? null,
-        sceneId: s.row.id,
-        sceneTitle: s.row.title,
-        messageId: m.id,
-        seq: m.seq,
-        speaker: m.name ?? (m.role === "user" ? "You" : m.role),
-        excerpt: excerpt(m.content, words, opts.excerptSize),
-        // L13: the best match in the scene (bm25 is lowest) gets the biggest bonus.
-        score: s.score + (s.chapter?.score ?? 0) + rrf(i),
-        reasons: [s.chapter ? `chapter "${s.chapter.row.title}"` : "", `scene "${s.row.title}"`, ...s.reasons.slice(0, 2)].filter(Boolean),
-      });
+    const lo = s.row.start_seq;
+    const hi = s.row.end_seq ?? s.row.start_seq;
+    const inScene = near.filter((p) => p.m.seq >= lo && p.m.seq <= hi).slice(0, 4);
+    for (const f of fuse(byWords(lo, hi, 4), inScene, 1).slice(0, 2)) {
+      // L13: the best match in the scene gets the biggest bonus.
+      hits.push(hit(f, s.row, s.chapter?.row ?? null, s.score + (s.chapter?.score ?? 0) + f.score, [s.chapter ? `chapter "${s.chapter.row.title}"` : "", `scene "${s.row.title}"`, ...f.reasons, ...s.reasons.slice(0, 2)].filter(Boolean)));
     }
   }
-  // The records may not mention a small detail at all: search the old messages themselves,
-  // and say which scene and chapter each one belongs to.
-  if (q && hits.length < (opts.quotes ?? 3)) {
-    const msgs = all<{ id: string; seq: number; name: string | null; role: string; content: string; b: number }>(
-      `SELECT m.id, m.seq, m.name, m.role, s.content, bm25(swipes_fts) AS b FROM swipes_fts f
-       JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
-       WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq <= ? AND m.deleted_at IS NULL AND m.hidden = 0
-       ORDER BY b LIMIT 6`,
-      q,
-      chatId,
-      opts.beforeSeq,
-    );
-    msgs.forEach((m, i) => {
-      if (hits.some((h) => h.messageId === m.id)) return;
-      const scene = [...scenes].reverse().find((s) => s.start_seq <= m.seq);
-      if (!scene || (scene.end_seq ?? 0) < m.seq) return;
-      const chapter = [...chapters].reverse().find((c) => c.start_seq <= m.seq && (c.end_seq ?? Infinity) >= m.seq) ?? null;
-      hits.push({
-        chapterId: chapter?.id ?? null,
-        chapterTitle: chapter?.title ?? null,
-        sceneId: scene.id,
-        sceneTitle: scene.title,
-        messageId: m.id,
-        seq: m.seq,
-        speaker: m.name ?? (m.role === "user" ? "You" : m.role),
-        excerpt: excerpt(m.content, words, opts.excerptSize),
-        score: rrf(i) * 0.8,
-        reasons: ["the words themselves", chapter ? `chapter "${chapter.title}"` : "", `scene "${scene.title}"`].filter(Boolean),
-      });
-    });
+  // The records may not mention a small detail at all: search the old messages themselves, by their
+  // words and their meaning, and say which scene and chapter each one belongs to.
+  if (hits.length < (opts.quotes ?? 3)) {
+    for (const f of fuse(byWords(0, opts.beforeSeq, 6), near.slice(0, 6), 0.8)) {
+      if (hits.some((h) => h.messageId === f.m.id)) continue;
+      const scene = [...scenes].reverse().find((s) => s.start_seq <= f.m.seq);
+      if (!scene || (scene.end_seq ?? 0) < f.m.seq) continue;
+      const chapter = [...chapters].reverse().find((c) => c.start_seq <= f.m.seq && (c.end_seq ?? Infinity) >= f.m.seq) ?? null;
+      hits.push(hit(f, scene, chapter, f.score, [f.reasons.includes("keywords") ? "the words themselves" : "", ...f.reasons.filter((r) => r !== "keywords"), chapter ? `chapter "${chapter.title}"` : "", `scene "${scene.title}"`].filter(Boolean)));
+    }
   }
   hits.sort((a, b) => b.score - a.score);
   const seen = new Set<string>();

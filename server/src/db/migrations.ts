@@ -1562,6 +1562,17 @@ ALTER TABLE image_batches ADD COLUMN negative TEXT;
 CREATE INDEX IF NOT EXISTS image_batches_owner ON image_batches(owner_type, owner_id, created_at);
 `,
   },
+  {
+    id: 41,
+    name: "passage vectors go with their swipe",
+    sql: /* sql */ `
+-- docs/27 Part 5: old messages have vectors, one per passage, named "<swipe id>:<n>". They go when
+-- their swipe is purged, as a memory's go with it (M31). The range keeps it on the primary key.
+CREATE TRIGGER IF NOT EXISTS embeddings_swipe_gone AFTER DELETE ON swipes BEGIN
+  DELETE FROM embeddings WHERE owner_type = 'passage' AND owner_id >= old.id || ':' AND owner_id < old.id || ';';
+END;
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
