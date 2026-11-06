@@ -17,7 +17,7 @@
   // The picker shows each room in its own type, and a room you pick is dressed the moment you pick it.
   onMount(() => THEMES.forEach((t) => isRoom(t.id) && (loadThemeFonts(t.id), void loadThemeStyles(t.id))));
   const drifting = $derived(
-    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light", meringue: app.night ? "Fairy lights twinkling and soft lights floating up" : "Clouds drifting and soft lights floating up", menagerie: app.night ? "Candles flickering and gold dust in the lamplight" : "Gold dust turning in the lamplight", nighttrain: "The country sliding past the window", weatherglass: "Rain, snow, fog and storm moving across the sky", deepend: app.night ? "Plankton drifting and scattering from your cursor" : "Sunlight rippling and bubbles rising", floatingworld: "Rain, waves and a crane crossing the print", vesper: "Coloured light breathing across the stone", caravanserai: app.night ? "The stars turning and a tent glowing" : "Heat shimmering over the dunes", aphelion: "A planet drifting and stars twinkling", form: "Shapes changing places" } as Record<string, string>)[app.theme] ?? "Drifting lights",
+    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light", meringue: app.night ? "Fairy lights twinkling and soft lights floating up" : "Clouds drifting and soft lights floating up", menagerie: app.night ? "Candles flickering and gold dust in the lamplight" : "Gold dust turning in the lamplight", nighttrain: "The country sliding past the window", weatherglass: "Rain, snow, fog and storm moving across the sky", deepend: app.night ? "Plankton drifting and scattering from your cursor" : "Sunlight rippling and bubbles rising", floatingworld: "Rain, waves and a crane crossing the print", vesper: "Coloured light breathing across the stone", caravanserai: app.night ? "The stars turning and a tent glowing" : "Heat shimmering over the dunes", aphelion: "A planet drifting and stars twinkling", form: "Shapes changing places", hearthwool: app.night ? "Firelight flickering and yarn unravelling" : "Yarn unravelling and hearts drifting", prismlab: "Light splitting through a prism and rainbows drifting", disco: app.night ? "Spotlights sweeping, the floor lighting up and a mirror ball turning" : "A mirror ball turning and the rink floor lighting up" } as Record<string, string>)[app.theme] ?? "Drifting lights",
   );
   const texture = $derived(
     ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks", meringue: "A faint gingham at the edges", menagerie: "Chintz on the walls", nighttrain: "A little paper grain on the walls", floatingworld: "Washi paper fibres", vesper: "Grain in the stone", caravanserai: "A little sand in the air" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
@@ -685,6 +685,34 @@
     text-shadow: none;
     background: #d2271c;
     border-radius: 0;
+  }
+  .t-hearthwool .tname {
+    font: 700 1.5rem/1 "Caveat", cursive;
+    color: #a23d66;
+    text-shadow: none;
+    background: #fffafb;
+    border-radius: 99px;
+    outline: 2px dashed #e27d9f;
+    outline-offset: -4px;
+  }
+  .t-prismlab .tname {
+    font: 800 1.15rem/1.1 "Syne Variable", sans-serif;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: #16141c;
+    text-shadow: none;
+    border: 2px solid transparent;
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      linear-gradient(90deg, #ff2a6d, #ffb400, #00d27a, #1f8bff, #9b30ff) border-box;
+    border-radius: 12px;
+  }
+  .t-disco .tname {
+    font: 400 1.2rem/1.1 "Monoton", sans-serif;
+    color: #fff;
+    text-shadow: none;
+    background: linear-gradient(90deg, #e8611a, #d92e7f);
+    border-radius: 99px;
   }
   .t-noir .tname {
     font: 400 1.3rem/1.1 "Limelight", serif;

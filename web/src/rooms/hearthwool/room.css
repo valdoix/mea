@@ -1,0 +1,371 @@
+/* =====================================================================
+   HEARTHWOOL — knit one, purl one, tell one
+   Everything is knitted in rose, blush and sage: a stocking-stitch wall, a ribbed rail, cards
+   stitched on with a dashed seam and a crocheted flower in the corner. Berry and firelight at night.
+   ===================================================================== */
+:root[data-theme="hearthwool"][data-shell] h1 {
+  font: 700 2.6rem/1 var(--font-display);
+  color: var(--accent-ink);
+}
+:root[data-theme="hearthwool"][data-shell] h2,
+:root[data-theme="hearthwool"][data-shell] .panel > h2:first-child {
+  font: 700 1.5rem/1.1 var(--font-display);
+  color: var(--accent-ink);
+}
+:root[data-theme="hearthwool"][data-shell] .btn {
+  border-radius: 99px;
+}
+:root[data-theme="hearthwool"][data-shell] .btn.primary {
+  border: 0;
+  background: var(--grad);
+  color: var(--on-accent);
+  box-shadow: 0 6px 14px -8px var(--accent);
+}
+:root[data-theme="hearthwool"][data-shell] .card,
+:root[data-theme="hearthwool"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  outline: 2px dashed var(--stitch);
+  outline-offset: -7px;
+}
+:root[data-theme="hearthwool"][data-shell] .chip {
+  border-radius: 99px;
+}
+:root[data-theme="hearthwool"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="hearthwool"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+
+/* the rail: ribbed knit with a stitched seam */
+:root[data-theme="hearthwool"][data-shell] nav.rail {
+  border: 0;
+  color: var(--rail-ink);
+  background:
+    repeating-linear-gradient(90deg, rgb(120 30 70 / 7%) 0 3px, transparent 3px 8px),
+    linear-gradient(180deg, var(--rail-a), var(--rail-b));
+  outline: 2px dashed var(--stitch);
+  outline-offset: -6px;
+}
+:root[data-theme="hearthwool"][data-shell] nav.rail .nav {
+  color: var(--rail-ink);
+}
+:root[data-theme="hearthwool"][data-shell] nav.rail .logo {
+  border-radius: 50%;
+  background:
+    repeating-linear-gradient(35deg, transparent 0 5px, rgb(120 30 70 / 16%) 5px 7px),
+    repeating-linear-gradient(-55deg, transparent 0 6px, rgb(255 255 255 / 26%) 6px 8px),
+    radial-gradient(circle at 35% 30%, #f5b3cb, #e27d9f 60%);
+  color: #fff !important;
+  font: 700 1.25rem/1 var(--font-display);
+  text-shadow: 0 1px 2px rgb(120 30 70 / 45%);
+  box-shadow: 0 6px 12px -6px rgb(120 30 70 / 55%);
+}
+:root[data-theme="hearthwool"][data-shell] nav.rail .nav.on {
+  border-radius: 14px;
+  background: rgb(255 255 255 / 45%);
+  color: var(--accent-ink) !important;
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+:root[data-theme="hearthwool"][data-shell][data-mode="night"] nav.rail .nav.on {
+  background: rgb(255 255 255 / 10%);
+}
+
+:root[data-theme="hearthwool"][data-shell] .main-col,
+:root[data-theme="hearthwool"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+}
+:root[data-theme="hearthwool"][data-shell] .bar {
+  position: relative;
+}
+/* a fine cable under the header */
+:root[data-theme="hearthwool"][data-shell] .bar::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: -2px;
+  height: 8px;
+  background:
+    radial-gradient(ellipse 5px 3px at 50% 30%, var(--pink) 88%, transparent 92%) 0 0 / 10px 8px,
+    radial-gradient(ellipse 5px 3px at 50% 80%, var(--heather) 88%, transparent 92%) 5px 0 / 10px 8px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+:root[data-theme="hearthwool"][data-shell] .bar .cname {
+  font: 700 2.2rem/1 var(--font-display);
+  color: var(--accent-ink);
+}
+:root[data-theme="hearthwool"][data-shell] .bar .cname .ctitle {
+  font: 400 0.92rem var(--font-ui);
+  color: var(--text-muted);
+}
+
+/* cards stitched on, with a crocheted flower */
+:root[data-theme="hearthwool"][data-shell] .style-cards .msg .bubble {
+  border: 0;
+  border-radius: 22px;
+  background: var(--tint-char);
+  outline: 2px dashed var(--stitch);
+  outline-offset: -8px;
+  box-shadow: 0 12px 24px -16px rgb(120 40 80 / 45%);
+}
+:root[data-theme="hearthwool"][data-shell][data-mode="night"] .style-cards .msg .bubble {
+  box-shadow: 0 14px 28px -16px rgb(0 0 0 / 80%);
+}
+:root[data-theme="hearthwool"][data-shell] .style-cards .msg.user .bubble {
+  background: var(--tint-user);
+  outline-color: var(--stitch-me);
+}
+:root[data-theme="hearthwool"][data-shell] .style-cards .msg .bubble::before {
+  display: none;
+}
+:root[data-theme="hearthwool"][data-shell] .style-cards .msg .bubble::after {
+  --petal: var(--pink);
+  left: auto;
+  top: auto;
+  right: 14px;
+  bottom: 12px;
+  width: 26px;
+  height: 26px;
+  background:
+    radial-gradient(circle at 50% 50%, var(--yellow) 0 3.5px, transparent 4px),
+    radial-gradient(circle at 50% 18%, var(--petal) 0 5.5px, transparent 6px),
+    radial-gradient(circle at 82% 42%, var(--petal) 0 5.5px, transparent 6px),
+    radial-gradient(circle at 70% 80%, var(--petal) 0 5.5px, transparent 6px),
+    radial-gradient(circle at 30% 80%, var(--petal) 0 5.5px, transparent 6px),
+    radial-gradient(circle at 18% 42%, var(--petal) 0 5.5px, transparent 6px);
+  opacity: 0.9;
+}
+:root[data-theme="hearthwool"][data-shell] .style-cards .msg.user .bubble::after {
+  --petal: var(--sage);
+}
+:root[data-theme="hearthwool"][data-shell] .style-cards .msg.streaming .bubble {
+  outline-color: var(--accent);
+}
+:root[data-theme="hearthwool"][data-shell] .msg .name {
+  font: 700 1.55rem/1 var(--font-display);
+  color: var(--accent-ink) !important;
+}
+:root[data-theme="hearthwool"][data-shell] .msg.user .name {
+  color: var(--sea) !important;
+}
+:root[data-theme="hearthwool"][data-shell] .msg .portrait {
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--surface);
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="hearthwool"][data-shell] .msg.user .portrait {
+  outline-color: var(--sage);
+}
+:root[data-theme="hearthwool"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% !important;
+}
+:root[data-theme="hearthwool"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+:root[data-theme="hearthwool"][data-shell] .ch-title {
+  font: 700 2rem/1.1 var(--font-display);
+  background: none;
+  color: var(--accent-ink);
+  -webkit-text-fill-color: currentcolor;
+}
+:root[data-theme="hearthwool"][data-shell] .composer {
+  border: 1px solid var(--edge);
+  border-radius: 99px;
+  outline: 2px dashed var(--stitch);
+  outline-offset: -6px;
+}
+:root[data-theme="hearthwool"][data-shell] .send.primary {
+  border-radius: 50%;
+  background: var(--grad);
+  color: var(--on-accent);
+  box-shadow: 0 6px 12px -6px var(--accent);
+}
+:root[data-theme="hearthwool"][data-shell] .continue,
+:root[data-theme="hearthwool"][data-shell] .char {
+  border-radius: var(--r-lg);
+}
+:root[data-theme="hearthwool"][data-shell] .hero-pic,
+:root[data-theme="hearthwool"][data-shell] .hero-pic .avatar {
+  border-radius: 50% !important;
+}
+
+/* ---------- the backdrop ---------- */
+.a-hearthwool {
+  background:
+    linear-gradient(135deg, var(--knit) 25%, transparent 25%) -8px 0 / 16px 16px,
+    linear-gradient(225deg, var(--knit) 25%, transparent 25%) -8px 0 / 16px 16px,
+    linear-gradient(315deg, var(--knit) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(45deg, var(--knit) 25%, transparent 25%) 0 0 / 16px 16px,
+    radial-gradient(90% 70% at 85% 0, #fffafc, transparent 60%),
+    linear-gradient(180deg, #fcf0f2, #f8dfe7);
+}
+.a-hearthwool.night {
+  background:
+    linear-gradient(135deg, var(--knit) 25%, transparent 25%) -8px 0 / 16px 16px,
+    linear-gradient(225deg, var(--knit) 25%, transparent 25%) -8px 0 / 16px 16px,
+    linear-gradient(315deg, var(--knit) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(45deg, var(--knit) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(180deg, #2d1628, #1f0f1c);
+}
+.a-hearthwool .fire {
+  inset: auto 0 0 0;
+  height: 80%;
+  opacity: 0;
+  background: radial-gradient(60% 70% at 12% 100%, rgb(255 179 106 / 55%), rgb(255 122 160 / 20%) 45%, transparent 75%);
+}
+.a-hearthwool.night .fire {
+  opacity: 0.85;
+  animation: hw-flick 2.6s ease-in-out infinite;
+}
+@keyframes hw-flick {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  30% {
+    opacity: 0.62;
+  }
+  55% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.7;
+  }
+}
+.a-hearthwool .heart {
+  font-style: normal;
+  line-height: 1;
+  color: var(--pink);
+  opacity: 0.3;
+  animation: hw-float 7s ease-in-out infinite alternate;
+}
+@keyframes hw-float {
+  to {
+    transform: translateY(-14px) rotate(8deg);
+  }
+}
+.a-hearthwool svg.strand {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.a-hearthwool .strand path {
+  fill: none;
+  stroke: var(--pink);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 0;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.5;
+  animation: hw-unravel 20s ease-in-out infinite alternate;
+}
+.a-hearthwool .strand path.b {
+  stroke: var(--sage);
+  stroke-width: 3;
+  opacity: 0.45;
+  animation-duration: 26s;
+  animation-delay: -7s;
+}
+/* A still room shows the strands whole; a moving one winds them in and out. */
+@keyframes hw-unravel {
+  from {
+    stroke-dashoffset: 1600;
+  }
+}
+.a-hearthwool .basket {
+  right: 3vw;
+  bottom: 4vh;
+  width: 230px;
+  height: 190px;
+}
+.a-hearthwool .basket > i {
+  position: absolute;
+}
+.a-hearthwool .yarn {
+  border-radius: 50%;
+  background:
+    repeating-linear-gradient(35deg, transparent 0 5px, rgb(120 30 70 / 16%) 5px 7px),
+    repeating-linear-gradient(-55deg, transparent 0 6px, rgb(255 255 255 / 28%) 6px 8px),
+    radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 70%, #fff), var(--c) 60%);
+  box-shadow:
+    inset -10px -10px 0 rgb(90 20 50 / 12%),
+    0 12px 20px -12px rgb(90 20 50 / 50%);
+}
+.a-hearthwool .y1 {
+  --c: var(--pink);
+  right: 10px;
+  bottom: 0;
+  width: 116px;
+  height: 116px;
+}
+.a-hearthwool .y2 {
+  --c: var(--sage);
+  right: 120px;
+  bottom: 0;
+  width: 70px;
+  height: 70px;
+}
+.a-hearthwool .y3 {
+  --c: var(--yellow);
+  right: 0;
+  bottom: 104px;
+  width: 50px;
+  height: 50px;
+}
+.a-hearthwool .needle {
+  right: 30px;
+  bottom: 70px;
+  width: 140px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #d8c3a5, #b99a70);
+  box-shadow: 0 2px 3px rgb(0 0 0 / 20%);
+  transform-origin: right center;
+}
+.a-hearthwool .needle::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: -5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #bf4f78;
+}
+.a-hearthwool .n1 {
+  transform: rotate(32deg);
+}
+.a-hearthwool .n2 {
+  transform: rotate(52deg);
+}
+@media (max-width: 760px) {
+  .a-hearthwool .basket {
+    transform: scale(0.6);
+    transform-origin: bottom right;
+    opacity: 0.6;
+  }
+}
+
+.a-hearthwool.still *,
+.a-hearthwool.still *::before,
+.a-hearthwool.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-hearthwool *,
+  .a-hearthwool *::before,
+  .a-hearthwool *::after {
+    animation: none !important;
+  }
+}
