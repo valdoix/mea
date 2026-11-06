@@ -21,6 +21,16 @@ describe("the plan drawer reads the planning pass step by step", () => {
     ]);
   });
 
+  test("bare labels count when a capital follows; a lower-case shout doesn't", () => {
+    const p = parsePlan("NOW Sun ~16:30, the pool.\nSEAL SAID: “just let me.” DID: photos.\nMOVE Obvious: she giggles. Choose the flip.");
+    expect(p.steps).toEqual([
+      { key: "NOW", text: "Sun ~16:30, the pool." },
+      { key: "SEAL", text: "SAID: “just let me.” DID: photos." },
+      { key: "MOVE", text: "Obvious: she giggles. Choose the flip." },
+    ]);
+    expect(parsePlan("NOW you listen.\nMOVE it.").steps).toEqual([]);
+  });
+
   test("thinking before the pass and after its last step stays apart, as other reasoning", () => {
     const p = parsePlan("Okay, let me think about where the scene is before I start the pass.\n[BEFORE YOU WRITE — the planning pass]\nNOW — night.\nMOVE — she offers tea.\nVOICE — short.\n\nRight, now I'll write it, keeping the opening different from last time.");
     expect(p.steps.map((s) => s.key)).toEqual(["NOW", "MOVE", "VOICE"]);

@@ -31,7 +31,8 @@ export interface ParsedPlan {
 }
 
 // A label opens a line, or follows a sentence end when the pass is written inline ("NOW — dusk. MOVE — tea.").
-const STEP_HEAD = /(?:^|(?<=[.;!?)\]][ \t]+))[ \t]*(?:[-*•][ \t]*)?(?:\*\*|#{1,6}[ \t]*)?(NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)\b(?:\*\*)?[ \t]*(?:\([^)\n]*\))?[ \t]*[—–:-]+[ \t]*(?:\*\*[ \t]*)?/gm;
+// Its dash or colon can be left out before a capital ("NOW Sun ~16:30", "SEAL SAID: …").
+const STEP_HEAD = /(?:^|(?<=[.;!?)\]][ \t]+))[ \t]*(?:[-*•][ \t]*)?(?:\*\*|#{1,6}[ \t]*)?(NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)\b(?:\*\*)?[ \t]*(?:\([^)\n]*\))?(?:[ \t]*[—–:-]+|[ \t]+(?=[A-Z\d~]))[ \t]*(?:\*\*[ \t]*)?/gm;
 const TIER = /\b(Routine|Charged|Pivotal)\b/i;
 const NOISE = /<\/?(?:think|thinking|plan|reasoning)>|^\s*\[BEFORE YOU WRITE[^\]\n]*\]\s*$|^\s*STOP RULE\b.*$/gim;
 

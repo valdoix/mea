@@ -112,6 +112,21 @@ describe("M17: a written-out plan leaves the story", () => {
     expect(out.text).toBe("Buffy is off the stair before she decides to move.");
     expect(out.reasoning).toContain("• SEAL: DID");
   });
+  test("bare labels, with no dash or colon, are the pass too (GLM, 2026-11-07)", () => {
+    const reply = [
+      "NOW Sun ~16:30, basement pool, same scene. Buffy in the water, Gabriel at the edge with phone.",
+      "SEAL SAID: “just let me — you look so beautiful.” DID: many photos of Buffy.",
+      "MINDS Buffy: wants to be seen; tactic — surrender the fight, then seize the camera.",
+      "VOICE Mostly talk, fast. Open on the splash hitting the phone hand.",
+      "",
+      "The splash got his elbow and the phone survived it.",
+    ].join("\n");
+    const out = splitLeakedPlan(reply);
+    expect(out.text).toBe("The splash got his elbow and the phone survived it.");
+    expect(out.reasoning).toContain("SEAL SAID:");
+    // A shout in the story runs on in lower case, and stays story.
+    expect(splitLeakedPlan("NOW you listen to me.\nMOVE it, Spike.\n\nShe pointed.").reasoning).toBe("");
+  });
   test("a bulleted list in the prose is not a plan", () => {
     expect(splitLeakedPlan("Mira lists what's left:\n• Now: the bread.\n• Move: later.").reasoning).toBe("");
   });
