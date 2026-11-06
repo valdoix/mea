@@ -391,7 +391,8 @@ export function recall(input: RecallInput) {
       s.score *= 1.6;
       s.reasons.push("the librarian picked it");
     } else if (input.librarian?.drop.has(key)) {
-      s.score *= 0.4;
+      // docs/27 6.1: no penalty. Passing on a note at ×0.4 cost more cases (keyword matches it judged
+      // "merely on the same topic") than its picks won; its picks alone gain.
       s.reasons.push("the librarian passed on it");
     }
   }
