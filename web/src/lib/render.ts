@@ -128,11 +128,11 @@ function markSpeakers(text: string, lines?: SpokenLine[] | null): string {
       // [spk=Mara|whisper]"…"[/spk]
       .replace(/\[spk=([^\]\n]{0,80})\]((?:(?!\[spk=)[^\n])*?)\[\/spk\]/gi, (_m, raw: string, inner: string) => {
         // A mark that also wraps the narration after its quote colours only the quote.
-        const q = /^\s*["“][^"“”\n]*["”]/.exec(inner)?.[0] ?? inner;
+        const q = /^\s*["“”][^"“”\n]*["”“]/.exec(inner)?.[0] ?? inner;
         return `${spanFor(readMark(raw))}${q}</span>${inner.slice(q.length)}`;
       })
       // a mark the model left open: up to the end of the quote it opens on
-      .replace(/\[spk=([^\]\n]{0,80})\](\s*["“][^"“”\n]*["”])/gi, (_m, raw: string, inner: string) => `${spanFor(readMark(raw))}${inner}</span>`)
+      .replace(/\[spk=([^\]\n]{0,80})\](\s*["“”][^"“”\n]*["”“])/gi, (_m, raw: string, inner: string) => `${spanFor(readMark(raw))}${inner}</span>`)
       // strays, and a mark still streaming in
       .replace(/\[spk=[^\]\n]{0,80}\]|\[\/spk\]|\[spk=[^\]\n]*$|\[\/?(?:s(?:p(?:k)?)?)?$/gi, "")
   );

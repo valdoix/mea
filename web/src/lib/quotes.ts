@@ -13,11 +13,14 @@ export function quoteIds(text: string): Uint16Array {
     const ch = text[i]!;
     const prev = text[i - 1] ?? "";
     const next = text[i + 1] ?? "";
-    if (!inQuote && (ch === '"' || ch in OPEN_CLOSE)) {
+    // Models also write the marks the wrong way round (”…and yeah.“): a ” at the start of the text
+    // or after a space, with a word or "…" right behind it, opens a line.
+    const backwards = ch === "”" && (!prev || /[\s(\[{—–]/.test(prev)) && !!next && !/\s/.test(next);
+    if (!inQuote && (ch === '"' || ch in OPEN_CLOSE || backwards)) {
       // A straight quote hugging the word before it, then a space, is a stray closer, not an opener.
       if (ch === '"' && /[\p{L}\p{N}.,!?…—–-]/u.test(prev) && (!next || /\s/.test(next))) continue;
       inQuote = true;
-      closer = ch === '"' ? '"' : OPEN_CLOSE[ch]!;
+      closer = ch === '"' ? '"' : backwards ? "”" : OPEN_CLOSE[ch]!;
       ids[i] = ++n;
     } else if (inQuote && (ch === closer || (closer === '"' && ch === "”") || (closer === "”" && ch === '"'))) {
       ids[i] = n;
