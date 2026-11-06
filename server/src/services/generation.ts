@@ -167,8 +167,12 @@ export function thinkRouter() {
 /** The plan watch: a "plan" shorter than this is a one-line outline, not the pass. */
 const PLAN_MIN_WORDS = 15;
 
-/** A step header, with the block tags the pass names after it ("NOW <world> <records> —") or a note in brackets. */
-const PLAN_HEADER = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:<[a-z]+>\s*)*(?:\([^)\n]*\)\s*)?[—–:-]/;
+/**
+ * A step header, with the block tags the pass names after it ("NOW <world> <records> —") or a note in
+ * brackets. The label can stand bare before a capital ("NOW Sun ~16:30", "SEAL SAID: …"); a shout in
+ * the story ("NOW you listen") runs on in lower case.
+ */
+const PLAN_HEADER = /^\s*(?:[-*•]\s+)?(?:\*\*|#+\s*)?(?:NOW|SEAL|KNOW|MINDS|WORLD|MOVE|RISK|VOICE)(?:\*\*)?\s*(?:<[a-z]+>\s*)*(?:\([^)\n]*\)\s*)?(?:[—–:-]|[ \t]+(?=[A-Z\d~]))/;
 /** The planning pass's own vocabulary: the SEAL sorting, a block tag, the MINDS separator. */
 const PASS_WORDS = /\b(?:SAID|DID|ATTEMPTED|INTENDS|STATED|OOC)\b|<[a-z]+>|·/;
 const PLAN_TAGS = /<\/?(?:think|thinking|plan|reasoning|pass)>/gi;
