@@ -167,6 +167,29 @@ describe("recall ranking", () => {
     expect(r.stats.librarian).toBe("used");
     expect(r.items.some((i) => i.reasons.includes("the librarian picked it"))).toBe(true);
   });
+
+  test("the librarian is asked again only about notes it hasn't judged (docs/27 6.3)", async () => {
+    resetLibrarian();
+    const calls = () => one<{ n: number }>("SELECT COUNT(*) AS n FROM generations WHERE kind = 'librarian'")!.n;
+    const ctx = contextText([{ content: "The harbor at dusk" }, { content: "Joss counts the crates" }]);
+    const note = (i: number) => ({ key: `memory:test-${i}`, text: `Note ${i} about the harbor crates and Joss.` });
+    const first = [1, 2, 3, 4, 5].map(note);
+    const before = calls();
+    const v1 = await runLibrarian(chatId, ctx, "Joss", first);
+    expect(calls()).toBe(before + 1);
+    // Typing on, with the same notes or only a few new ones: no new call, the same verdict.
+    expect(await runLibrarian(chatId, ctx, "Joss, the crates", first)).toBe(v1);
+    expect(await runLibrarian(chatId, ctx, "Joss, the crates were", [...first, note(6), note(7)])).toBe(v1);
+    expect(calls()).toBe(before + 1);
+    // Enough new notes: asked about those alone, and the verdicts add up.
+    const v2 = await runLibrarian(chatId, ctx, "Joss, the crates were empty", [...first, ...[6, 7, 8, 9].map(note)]);
+    expect(calls()).toBe(before + 2);
+    const asked = one<{ request: string }>("SELECT request FROM generations WHERE kind = 'librarian' ORDER BY started_at DESC, rowid DESC LIMIT 1")!.request;
+    expect(asked).toContain("Note 9");
+    expect(asked).not.toContain("Note 1 ");
+    for (const k of [...first, ...[6, 7, 8, 9].map(note)].map((n) => n.key)) expect(v2!.keep.has(k) || v2!.drop.has(k)).toBe(true);
+    expect(cachedVerdict(chatId, [ctx])).toBe(v2);
+  });
 });
 
 describe("story time (MEM-36)", () => {
