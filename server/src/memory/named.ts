@@ -1,5 +1,6 @@
 import { all, one, parseJson } from "../db/db";
 import { sourcesLive } from "./atoms";
+import type { HeardFilter } from "./deep";
 import { norm } from "./entities";
 import { namedTerms } from "./text";
 import type { WorldState } from "../trackers/types";
@@ -26,6 +27,19 @@ export function whoWasThere(st: WorldState, seq: number): string[] {
     found = e.who;
   }
   return found;
+}
+
+/**
+ * docs/27 Part 5: whether the point-of-view character heard an old message, for quotes. They did if they
+ * said it, or if the presence log has them in the scene then. A message older than the log can't be told,
+ * so it passes, as every quote did before. The log lists some people who were only talked about, so it
+ * errs towards letting a quote through, never towards hiding one they heard.
+ */
+export function heardFilter(st: WorldState | null, povId: string | undefined, povNames: Set<string>): HeardFilter | null {
+  const log = st?.presence;
+  if (!st || !povId || !log?.length) return null;
+  const from = log[0]!.seq;
+  return (m) => Boolean(m.name && povNames.has(norm(m.name))) || m.seq < from || whoWasThere(st, m.seq).includes(povId);
 }
 
 /**

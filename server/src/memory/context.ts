@@ -7,7 +7,9 @@ import { AUTHORITY } from "./canon";
 import { embeddingsEnabled, embedQueries, indexCoverage } from "./embed";
 import { norm, placeName, resolver } from "./entities";
 import { formatRecallBlock, type RecallItem, TimeIndex } from "./format";
+import type { HeardFilter } from "./deep";
 import { journalText } from "./journals";
+import { heardFilter } from "./named";
 import { cachedRewrite, cachedVerdict, contextText } from "./librarian";
 import { buildQueries, type LibrarianVerdict, type PovFilter, type QuerySpec, recall, type RecallStats } from "./recall";
 import { type Lens, lensOf, PLAIN, summaryText } from "./openlist";
@@ -257,6 +259,8 @@ export interface MemoryInputs {
   present: string[];
   mood: string | null;
   librarian: LibrarianVerdict | null;
+  /** docs/27 5: whether the point-of-view character heard an old message (quotes only come from those). */
+  heard: HeardFilter | null;
   skipCards: Set<string>;
   /** MEM-21: how much of the vector index is ready, and whether this turn waited for it. */
   index: { coverage: number; vectors: number; of: number };
@@ -265,7 +269,7 @@ export interface MemoryInputs {
 
 /** Inputs when memory is off: the window still moves in whole scenes, nothing is recalled. */
 export function emptyInputs(): MemoryInputs {
-  return { queries: [], qvecs: [], pov: null, povName: null, present: [], mood: null, librarian: null, skipCards: new Set(), index: { coverage: 0, vectors: 0, of: 0 }, journal: "" };
+  return { queries: [], qvecs: [], pov: null, povName: null, present: [], mood: null, librarian: null, heard: null, skipCards: new Set(), index: { coverage: 0, vectors: 0, of: 0 }, journal: "" };
 }
 
 /** MEM-16: whose point of view recall keeps. Companion chats remember as the character; Narrator sees everything. */
@@ -313,6 +317,7 @@ export async function memoryInputs(
     present,
     mood: main?.mood?.name ?? null,
     librarian: cfg.librarian ? cachedVerdict(chatId, contexts) : null,
+    heard: pov ? heardFilter(st, main?.id, pov.names) : null,
     skipCards: new Set([o.names.char, o.names.user].map(norm)),
     index: { coverage, vectors: qvecs.filter(Boolean).length, of: queries.length },
     journal: cfg.journals ? journalText(chatId, o.names.char) : "",
@@ -413,6 +418,7 @@ export function buildMemoryContext(input: BuildContextInput): MemoryContext {
         present: inp.present,
         mood: inp.mood,
         librarian: inp.librarian,
+        heard: inp.heard,
         times,
         skipCards: inp.skipCards,
         povName: inp.povName,
