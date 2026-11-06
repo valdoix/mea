@@ -18,6 +18,11 @@
  * --displaced lists, per turn, what each variant added to the writer's block and what it pushed out.
  * The first variant also says how often deep search reached back; RECALL_SIGNALS=1 prints, per turn,
  * the signals that decide it (names found, rare words shared, how far the best match stands out).
+ *
+ * --librarian (docs/27 6.1) also runs what production runs on most replies: the rewritten query, the
+ * librarian, and both. The copy then needs the helper's connection as well, and each answer is paid for
+ * once (cached in the copy's folder). The librarian is shown what warm.ts shows it, for the conversation
+ * up to the player's message, with no draft.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,10 +32,12 @@ import { type MemoryConfig, memoryConfig } from "../server/src/lib/settings";
 import { embedQueries } from "../server/src/memory/embed";
 import { norm, placeName, resolver } from "../server/src/memory/entities";
 import { type RecallItem, TimeIndex } from "../server/src/memory/format";
-import { buildQueries, recall } from "../server/src/memory/recall";
+import { askLibrarian, askRewrite, contextText } from "../server/src/memory/librarian";
+import { buildQueries, type LibrarianVerdict, recall } from "../server/src/memory/recall";
 import { hashText } from "../server/src/memory/text";
 import { historyForPrompt } from "../server/src/services/chats";
 import { foldAt } from "../server/src/trackers/store";
+import { librarianCandidates } from "../server/src/memory/warm";
 
 interface Case {
   kind: string;
@@ -66,6 +73,20 @@ async function vectors(texts: string[]) {
     console.log(`embedded ${missing.length} texts, about ${Math.round(missing.reduce((n, t) => n + t.length, 0) / 4)} tokens`);
   }
   return texts.map((t) => (cache[hashText(t)] ? Float32Array.from(cache[hashText(t)]!) : null));
+}
+
+// The helper's answers (rewritten queries, the librarian's picks), paid for once like the query vectors.
+const helperPath = join(dir, "recall-eval-helper.json");
+const helper: Record<string, string | string[] | null> = existsSync(helperPath) ? JSON.parse(readFileSync(helperPath, "utf8")) : {};
+let asked = 0;
+async function ask<T extends string | string[] | null>(key: string, call: () => Promise<T>): Promise<T> {
+  const k = hashText(key);
+  if (k in helper) return helper[k] as T;
+  const v = await call();
+  helper[k] = v;
+  asked++;
+  writeFileSync(helperPath, JSON.stringify(helper));
+  return v;
 }
 
 // Whose story it is, as the prompt builder sees it (memoryInputs): the character's names and aliases
@@ -106,6 +127,9 @@ interface Turn {
   evicted: number;
   budget: number;
   telescope: Set<string>;
+  /** The history before the reply, and the conversation the librarian's cache is keyed by. */
+  hist: { role: string; content: string }[];
+  ctx: string;
   queries: ReturnType<typeof buildQueries>;
   qvecs: (Float32Array | null)[];
   present: string[];
@@ -141,8 +165,9 @@ async function prepareTurns(): Promise<{ turns: Turn[]; dropped: string[] }> {
       ...(st.place.length ? [placeName(st.place).name] : []),
     ];
     const main = Object.values(st.chars).find((x) => x.isMain || povNames.has(norm(x.name)));
-    const queries = buildQueries(history.filter((x) => x.seq! < c.seq), { present });
-    turns.push({ c, evicted: m.evictedThrough, budget: m.recallBudget, telescope: new Set(m.telescope.map((t) => t.id)), queries, qvecs: await vectors(queries.map((q) => q.text)), present, mood: main?.mood?.name ?? null, want });
+    const hist = history.filter((x) => x.seq! < c.seq);
+    const queries = buildQueries(hist, { present });
+    turns.push({ c, evicted: m.evictedThrough, budget: m.recallBudget, telescope: new Set(m.telescope.map((t) => t.id)), hist, ctx: contextText(hist), queries, qvecs: await vectors(queries.map((q) => q.text)), present, mood: main?.mood?.name ?? null, want });
   }
   return { turns, dropped };
 }
@@ -158,23 +183,64 @@ interface Variant {
   /** Below this standout recall counts as weak and deep search reaches back (recall's default when unset). */
   weakStandout?: number;
   reachBackFrom?: number;
+  /** Run the librarian, as warm.ts does (paid, cached). */
+  librarian?: boolean;
+  /** Add the helper's rewritten query (paid, cached). */
+  rewrite?: boolean;
 }
 
-function run(t: Turn, v: Variant, budget?: number) {
+interface Inputs {
+  queries: Turn["queries"];
+  qvecs: (Float32Array | null)[];
+  librarian: LibrarianVerdict | null;
+}
+
+/** The queries and the librarian's verdict a variant runs with, worked out once per turn. */
+const prepared = new Map<string, Inputs>();
+async function inputsFor(t: Turn, v: Variant): Promise<Inputs> {
+  const key = `${v.name}:${t.c.seq}`;
+  const done = prepared.get(key);
+  if (done) return done;
+  let queries = t.queries;
+  let qvecs = t.qvecs;
+  if (v.rewrite) {
+    const rewritten = await ask(`rw\n${t.ctx}`, () => askRewrite(C, t.ctx));
+    queries = buildQueries(t.hist, { present: t.present, rewritten: rewritten as string | null });
+    qvecs = await vectors(queries.map((q) => q.text));
+  }
+  if (v.vectors === false) qvecs = qvecs.map(() => null);
+  let librarian: LibrarianVerdict | null = null;
+  if (v.librarian) {
+    // What warm.ts shows it: a 2,400-token recall without entities or deep search, its best 24.
+    const warm = run(t, { ...v, name: "warm", cfg: { ...v.cfg, entityRecall: false, deepSearch: false } }, 2400, { queries, qvecs, librarian: null }, `${C}:warm`);
+    const candidates = librarianCandidates(warm.items);
+    if (candidates.length >= 4) {
+      const keep = await ask(`lib\n${t.ctx}\n${candidates.map((c) => c.key).join(",")}`, async () => [...(await askLibrarian(C, t.ctx, "", candidates)).keep]);
+      const kept = new Set(keep as string[]);
+      librarian = { keep: kept, drop: new Set(candidates.map((c) => c.key).filter((k) => !kept.has(k))) };
+    }
+  }
+  const out = { queries, qvecs, librarian };
+  prepared.set(key, out);
+  return out;
+}
+
+function run(t: Turn, v: Variant, budget: number | undefined, inp: Inputs, seed = `${C}:${t.c.seq}`) {
   const cfg = { ...memoryConfig(), ...v.cfg } as MemoryConfig;
   return recall({
     chatId: C,
     evicted: t.evicted,
-    budget: Math.round((budget ?? t.budget) * (v.scale ?? 1)),
-    queries: t.queries,
-    qvecs: v.vectors === false ? t.qvecs.map(() => null) : t.qvecs,
+    // The librarian's warm recall always runs at its own budget, unscaled.
+    budget: Math.round((budget ?? t.budget) * (v.name === "warm" ? 1 : (v.scale ?? 1))),
+    queries: inp.queries,
+    qvecs: inp.qvecs,
     excludeSummaryIds: t.telescope,
-    seed: `${C}:${t.c.seq}`,
+    seed,
     cfg: { ...cfg, librarian: false },
     pov: { names: povNames, label: povName },
     present: t.present,
     mood: t.mood,
-    librarian: null,
+    librarian: inp.librarian,
     times,
     skipCards,
     povName,
@@ -186,7 +252,7 @@ function run(t: Turn, v: Variant, budget?: number) {
 
 const groupOf = (c: Case) => (c.found ? "independent" : "earlier");
 
-function score(turns: Turn[], v: Variant, budget?: number) {
+async function score(turns: Turn[], v: Variant, budget?: number) {
   const kinds = new Map<string, { n: number; hit: number }>();
   const groups = new Map<string, { n: number; hit: number; covered: number }>();
   const missed: string[] = [];
@@ -195,7 +261,7 @@ function score(turns: Turn[], v: Variant, budget?: number) {
   const standouts: number[] = [];
   const reached = { "cue words": 0, "weak recall": 0, quoted: 0 };
   for (const t of turns) {
-    const { items, stats } = run(t, v, budget);
+    const { items, stats } = run(t, v, budget, await inputsFor(t, v));
     blocks.push(items);
     if (stats.standout !== null) standouts.push(stats.standout);
     if (stats.reachedBack) reached[stats.reachedBack]++;
@@ -221,7 +287,12 @@ function score(turns: Turn[], v: Variant, budget?: number) {
 }
 
 const BASE: Variant[] = [{ name: "as it stands" }, { name: "vectors off", vectors: false }];
-const extra: Variant[] = JSON.parse(process.env.RECALL_VARIANTS ?? "[]");
+const HELPER: Variant[] = [
+  { name: "rewritten query", rewrite: true },
+  { name: "librarian", librarian: true },
+  { name: "librarian + rewrite", librarian: true, rewrite: true },
+];
+const extra: Variant[] = [...(process.argv.includes("--librarian") ? HELPER : []), ...JSON.parse(process.env.RECALL_VARIANTS ?? "[]")];
 const VARIANTS = [...BASE, ...extra.filter((v) => !BASE.some((b) => b.name === v.name))];
 const detail = process.argv.includes("--detail");
 const displaced = process.argv.includes("--displaced");
@@ -237,7 +308,7 @@ for (const [label, budget] of [["writer", undefined], ["planner (2,500 tokens)",
   console.log(`${"variant".padEnd(26)}${"hit".padEnd(9)}${groupNames.map((g) => g.padEnd(13)).join("")}${kindNames.map((k) => k.padEnd(10)).join("")}${"memory/summary tokens".padEnd(24)}`);
   let baseBlocks: RecallItem[][] | null = null;
   for (const v of VARIANTS) {
-    const s = score(turns, v, budget);
+    const s = await score(turns, v, budget);
     baseBlocks ??= s.blocks;
     const total = [...s.groups.values()].reduce((n, g) => n + g.hit, 0);
     const count = s.tokens.memory + s.tokens.summary + s.tokens.other;
@@ -265,3 +336,4 @@ for (const [label, budget] of [["writer", undefined], ["planner (2,500 tokens)",
     }
   }
 }
+if (asked) console.log(`\nasked the helper ${asked} times (cached in ${helperPath})`);

@@ -75,19 +75,7 @@ export async function rewriteQuery(chatId: string, ctx: string, draft = "", sign
   if (running) return running;
   const p = (async () => {
     try {
-      const r = await callJson({
-        task: "helper",
-        kind: "librarian:query",
-        chatId,
-        name: "recall_query",
-        schema: rewriteSchema,
-        system:
-          'You help a story\'s memory search. Read the latest lines of a roleplay and write one search query (8–20 words) for what from EARLIER in the story matters to them now: the people, places, objects, promises, secrets or events they point back to. Use names. No explanations. Reply with JSON only: {"query": "…"}',
-        user: `LATEST LINES:\n${ctx}${draft ? `\n\nTHE PLAYER IS WRITING:\n${draft.slice(-1200)}` : ""}`,
-        maxTokens: 120,
-        signal,
-      });
-      const q = r.data.query.trim().slice(0, 300) || null;
+      const q = await askRewrite(chatId, ctx, draft, signal);
       remember(rewrites, key, q, draft);
       return q;
     } catch {
@@ -98,6 +86,23 @@ export async function rewriteQuery(chatId: string, ctx: string, draft = "", sign
   })();
   inflight.set(`rw:${key}`, p);
   return p;
+}
+
+/** The rewrite itself, uncached (the eval calls it too). */
+export async function askRewrite(chatId: string, ctx: string, draft = "", signal?: AbortSignal) {
+  const r = await callJson({
+    task: "helper",
+    kind: "librarian:query",
+    chatId,
+    name: "recall_query",
+    schema: rewriteSchema,
+    system:
+      'You help a story\'s memory search. Read the latest lines of a roleplay and write one search query (8–20 words) for what from EARLIER in the story matters to them now: the people, places, objects, promises, secrets or events they point back to. Use names. No explanations. Reply with JSON only: {"query": "…"}',
+    user: `LATEST LINES:\n${ctx}${draft ? `\n\nTHE PLAYER IS WRITING:\n${draft.slice(-1200)}` : ""}`,
+    maxTokens: 120,
+    signal,
+  });
+  return r.data.query.trim().slice(0, 300) || null;
 }
 
 const verdictSchema = z.object({ keep: z.array(z.coerce.number()).default([]) });
@@ -112,20 +117,7 @@ export async function runLibrarian(chatId: string, ctx: string, draft: string, c
   if (running) return running;
   const p = (async () => {
     try {
-      const r = await callJson({
-        task: "helper",
-        kind: "librarian",
-        chatId,
-        name: "librarian",
-        schema: verdictSchema,
-        system:
-          'You are the librarian of a long roleplay story. Given its latest lines and numbered notes from earlier in the story, pick the notes that would help write the very next reply well: things referred to, people present, promises or secrets in play, facts that must stay consistent. Leave out notes that are merely on the same topic. Reply with JSON only: {"keep": [numbers]}',
-        user: `LATEST LINES:\n${ctx}${draft ? `\n\nTHE PLAYER IS WRITING:\n${draft.slice(-1200)}` : ""}\n\nNOTES:\n${candidates.map((c, i) => `${i + 1}. ${c.text.slice(0, 300)}`).join("\n")}`,
-        maxTokens: 200,
-        signal,
-      });
-      const keep = new Set(r.data.keep.map((n) => candidates[Math.round(n) - 1]?.key).filter((k): k is string => Boolean(k)));
-      const verdict: LibrarianVerdict = { keep, drop: new Set(candidates.map((c) => c.key).filter((k) => !keep.has(k))) };
+      const verdict = await askLibrarian(chatId, ctx, draft, candidates, signal);
       remember(verdicts, key, verdict, draft);
       return verdict;
     } catch {
@@ -136,6 +128,24 @@ export async function runLibrarian(chatId: string, ctx: string, draft: string, c
   })();
   inflight.set(`lib:${key}`, p);
   return p;
+}
+
+/** The librarian's call itself, uncached (the eval calls it too). */
+export async function askLibrarian(chatId: string, ctx: string, draft: string, candidates: { key: string; text: string }[], signal?: AbortSignal): Promise<LibrarianVerdict> {
+  const r = await callJson({
+    task: "helper",
+    kind: "librarian",
+    chatId,
+    name: "librarian",
+    schema: verdictSchema,
+    system:
+      'You are the librarian of a long roleplay story. Given its latest lines and numbered notes from earlier in the story, pick the notes that would help write the very next reply well: things referred to, people present, promises or secrets in play, facts that must stay consistent. Leave out notes that are merely on the same topic. Reply with JSON only: {"keep": [numbers]}',
+    user: `LATEST LINES:\n${ctx}${draft ? `\n\nTHE PLAYER IS WRITING:\n${draft.slice(-1200)}` : ""}\n\nNOTES:\n${candidates.map((c, i) => `${i + 1}. ${c.text.slice(0, 300)}`).join("\n")}`,
+    maxTokens: 200,
+    signal,
+  });
+  const keep = new Set(r.data.keep.map((n) => candidates[Math.round(n) - 1]?.key).filter((k): k is string => Boolean(k)));
+  return { keep, drop: new Set(candidates.map((c) => c.key).filter((k) => !keep.has(k))) };
 }
 
 /** For tests: forget everything cached. */
