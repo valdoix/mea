@@ -3,15 +3,18 @@ import { now } from "../db/db";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import type { LibrarianVerdict } from "./recall";
-import { memState } from "./store";
-import { hashText } from "./text";
+import { contentWords, hashText } from "./text";
 
 /**
  * The librarian (MEM-23) and the rewritten query (MEM-14). Both run while you type (prefetch) or
  * when a chat opens (MEM-21), and their results are cached; a reply never waits for them.
  *
- * They are keyed by the conversation so far (the last two messages), not by the draft: typing
- * refreshes them at most every few seconds, and the send finds the latest one.
+ * They are keyed by the conversation so far (the last two messages), not by the draft, and the send
+ * finds the latest one. docs/27 6.3: typing asks again only when it would learn something. The
+ * librarian judges each note once per conversation, and is asked again only about notes it hasn't
+ * seen; the query is rewritten again only when the draft has new words. Before, both refreshed every
+ * 6 seconds of typing and whenever a memory was filed: about six librarian calls a reply, and in
+ * nearly half of them every note had been judged already.
  */
 
 interface Entry<T> {
@@ -23,7 +26,10 @@ interface Entry<T> {
 const rewrites = new Map<string, Entry<string | null>>();
 const verdicts = new Map<string, Entry<LibrarianVerdict>>();
 const inflight = new Map<string, Promise<unknown>>();
-const REFRESH_MS = 6000;
+/** Fewer unjudged notes than this, and the librarian isn't asked again: the rest stay unweighted. */
+const NEW_NOTES = 4;
+/** The draft must gain this many new words before the query is rewritten again. */
+const NEW_WORDS = 3;
 
 const remember = <T>(m: Map<string, Entry<T>>, k: string, v: T, draft: string) => {
   m.set(k, { value: v, draft, at: now() });
@@ -40,7 +46,8 @@ export function contextText(msgs: { content: string }[]) {
 }
 
 const rwKey = (chatId: string, ctx: string) => `${chatId}:${hashText(ctx)}`;
-const libKey = (chatId: string, ctx: string) => `${chatId}:${memState(chatId).version}:${hashText(ctx)}`;
+// Not keyed by the memory version: a verdict is per note, and a new memory is simply a note not yet judged.
+const libKey = (chatId: string, ctx: string) => `${chatId}:${hashText(ctx)}`;
 
 /** The cached rewrite for any of the given contexts (before or after the message was sent). */
 export function cachedRewrite(chatId: string, contexts: string[]) {
@@ -59,8 +66,14 @@ export function cachedVerdict(chatId: string, contexts: string[]) {
   return null;
 }
 
-function fresh<T>(e: Entry<T> | undefined, draft: string) {
-  return e && (e.draft === draft || now() - e.at < REFRESH_MS);
+/** A rewrite still serves while the draft hasn't gained enough new words. */
+function fresh(e: Entry<string | null> | undefined, draft: string) {
+  if (!e) return false;
+  if (e.draft === draft) return true;
+  const before = contentWords(e.draft);
+  let added = 0;
+  for (const w of contentWords(draft)) if (!before.has(w) && ++added >= NEW_WORDS) return false;
+  return true;
 }
 
 const rewriteSchema = z.object({ query: z.string().default("") });
@@ -111,13 +124,14 @@ const verdictSchema = z.object({ keep: z.array(z.coerce.number()).default([]) })
 export async function runLibrarian(chatId: string, ctx: string, draft: string, candidates: { key: string; text: string }[], signal?: AbortSignal) {
   const key = libKey(chatId, ctx);
   const cur = verdicts.get(key);
-  if (fresh(cur, draft)) return cur!.value;
-  if (candidates.length < 4 || shouldShed("librarian", chatId)) return cur?.value ?? null;
+  const unjudged = candidates.filter((c) => !cur?.value.keep.has(c.key) && !cur?.value.drop.has(c.key));
+  if (unjudged.length < NEW_NOTES || shouldShed("librarian", chatId)) return cur?.value ?? null;
   const running = inflight.get(`lib:${key}`) as Promise<LibrarianVerdict | null> | undefined;
   if (running) return running;
   const p = (async () => {
     try {
-      const verdict = await askLibrarian(chatId, ctx, draft, candidates, signal);
+      const got = await askLibrarian(chatId, ctx, draft, unjudged, signal);
+      const verdict: LibrarianVerdict = { keep: new Set([...(cur?.value.keep ?? []), ...got.keep]), drop: new Set([...(cur?.value.drop ?? []), ...got.drop]) };
       remember(verdicts, key, verdict, draft);
       return verdict;
     } catch {
