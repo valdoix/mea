@@ -53,15 +53,22 @@ export async function warmMemory(chatId: string, draft = "") {
       skipCards: inputs.skipCards,
       povName: inputs.povName,
     });
-    const v = await runLibrarian(chatId, ctx, draft.trim(), librarianCandidates(r.items));
+    const v = await runLibrarian(chatId, ctx, draft.trim(), librarianCandidates(r, LIBRARIAN_WIDE), undefined, { ranked: LIBRARIAN_WIDE });
     librarian = v?.keep.size ?? 0;
   }
   return { warmed: true, librarian, rewritten };
 }
 
-/** What the librarian is shown: the best of what a warm recall chose (the eval shows it the same). */
-export function librarianCandidates(items: RecallItem[]) {
-  return items
+/**
+ * docs/27 6.2: the librarian is shown recall's best-scored memories, chosen or not, and ranks its picks.
+ * Shown only what recall already chose, it could reorder those but never rescue a near miss.
+ */
+export const LIBRARIAN_WIDE = true;
+
+/** What the librarian is shown (the eval shows it the same): recall's best-scored memories, or the best of what it chose. */
+export function librarianCandidates(r: { items: RecallItem[]; pool: { key: string; text: string }[] }, wide: boolean) {
+  if (wide) return r.pool;
+  return r.items
     .filter((i) => (i.ownerType === "memory" || i.ownerType === "summary") && i.slot !== "pinned")
     .sort((a, b) => b.score - a.score)
     .slice(0, 24)

@@ -121,7 +121,7 @@ export async function askRewrite(chatId: string, ctx: string, draft = "", signal
 const verdictSchema = z.object({ keep: z.array(z.coerce.number()).default([]) });
 
 /** Filters recall candidates down to what matters for this turn. */
-export async function runLibrarian(chatId: string, ctx: string, draft: string, candidates: { key: string; text: string }[], signal?: AbortSignal) {
+export async function runLibrarian(chatId: string, ctx: string, draft: string, candidates: { key: string; text: string }[], signal?: AbortSignal, opts: { ranked?: boolean } = {}) {
   const key = libKey(chatId, ctx);
   const cur = verdicts.get(key);
   const unjudged = candidates.filter((c) => !cur?.value.keep.has(c.key) && !cur?.value.drop.has(c.key));
@@ -130,8 +130,10 @@ export async function runLibrarian(chatId: string, ctx: string, draft: string, c
   if (running) return running;
   const p = (async () => {
     try {
-      const got = await askLibrarian(chatId, ctx, draft, unjudged, signal);
+      const got = await askLibrarian(chatId, ctx, draft, unjudged, signal, opts);
       const verdict: LibrarianVerdict = { keep: new Set([...(cur?.value.keep ?? []), ...got.keep]), drop: new Set([...(cur?.value.drop ?? []), ...got.drop]) };
+      // Earlier picks keep their place ahead of later ones: each call ranks only what it was shown.
+      if (got.order) verdict.order = [...(cur?.value.order ?? []), ...got.order];
       remember(verdicts, key, verdict, draft);
       return verdict;
     } catch {
@@ -145,7 +147,8 @@ export async function runLibrarian(chatId: string, ctx: string, draft: string, c
 }
 
 /** The librarian's call itself, uncached (the eval calls it too). */
-export async function askLibrarian(chatId: string, ctx: string, draft: string, candidates: { key: string; text: string }[], signal?: AbortSignal): Promise<LibrarianVerdict> {
+export async function askLibrarian(chatId: string, ctx: string, draft: string, candidates: { key: string; text: string }[], signal?: AbortSignal, opts: { ranked?: boolean } = {}): Promise<LibrarianVerdict> {
+  const cut = opts.ranked ? 200 : 300;
   const r = await callJson({
     task: "helper",
     kind: "librarian",
@@ -153,13 +156,13 @@ export async function askLibrarian(chatId: string, ctx: string, draft: string, c
     name: "librarian",
     schema: verdictSchema,
     system:
-      'You are the librarian of a long roleplay story. Given its latest lines and numbered notes from earlier in the story, pick the notes that would help write the very next reply well: things referred to, people present, promises or secrets in play, facts that must stay consistent. Leave out notes that are merely on the same topic. Reply with JSON only: {"keep": [numbers]}',
-    user: `LATEST LINES:\n${ctx}${draft ? `\n\nTHE PLAYER IS WRITING:\n${draft.slice(-1200)}` : ""}\n\nNOTES:\n${candidates.map((c, i) => `${i + 1}. ${c.text.slice(0, 300)}`).join("\n")}`,
+      `You are the librarian of a long roleplay story. Given its latest lines and numbered notes from earlier in the story, pick the notes that would help write the very next reply well: things referred to, people present, promises or secrets in play, facts that must stay consistent. Leave out notes that are merely on the same topic. ${opts.ranked ? 'List the ones you pick most useful first. Reply with JSON only: {"keep": [numbers, most useful first]}' : 'Reply with JSON only: {"keep": [numbers]}'}`,
+    user: `LATEST LINES:\n${ctx}${draft ? `\n\nTHE PLAYER IS WRITING:\n${draft.slice(-1200)}` : ""}\n\nNOTES:\n${candidates.map((c, i) => `${i + 1}. ${c.text.slice(0, cut)}`).join("\n")}`,
     maxTokens: 200,
     signal,
   });
   const keep = new Set(r.data.keep.map((n) => candidates[Math.round(n) - 1]?.key).filter((k): k is string => Boolean(k)));
-  return { keep, drop: new Set(candidates.map((c) => c.key).filter((k) => !keep.has(k))) };
+  return { keep, drop: new Set(candidates.map((c) => c.key).filter((k) => !keep.has(k))), ...(opts.ranked ? { order: [...keep] } : {}) };
 }
 
 /** For tests: forget everything cached. */

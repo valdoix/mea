@@ -34,7 +34,19 @@ export interface PovFilter {
 export interface LibrarianVerdict {
   keep: Set<string>;
   drop: Set<string>;
+  /** docs/27 6.2: its picks, most useful first, when it was asked to rank them. */
+  order?: string[];
 }
+
+/** How much a librarian's pick counts: ×1.6, or from ×2 for its first pick down to ×1.3 for its last. */
+export function librarianBoost(v: LibrarianVerdict, key: string) {
+  const i = v.order?.indexOf(key) ?? -1;
+  if (!v.order || i < 0) return 1.6;
+  return 2 - (0.7 * i) / Math.max(1, v.order.length - 1);
+}
+
+/** docs/27 6.2: how many of recall's best-scored memories the librarian is shown. */
+export const LIBRARIAN_POOL = 60;
 
 export interface RecallInput {
   chatId: string;
@@ -388,7 +400,7 @@ export function recall(input: RecallInput) {
       s.score *= w;
     }
     if (input.librarian?.keep.has(key)) {
-      s.score *= 1.6;
+      s.score *= librarianBoost(input.librarian, key);
       s.reasons.push("the librarian picked it");
     } else if (input.librarian?.drop.has(key)) {
       // docs/27 6.1: no penalty. Passing on a note at ×0.4 cost more cases (keyword matches it judged
@@ -651,7 +663,12 @@ export function recall(input: RecallInput) {
   }
   if (carry > 30) take(relevant.map(([k]) => k), "relevant", carry);
 
-  return { items: out, pinnedTokens, tokens: out.reduce((n, i) => n + i.tokens, 0), stats };
+  // docs/27 6.2: the best-scored memories, chosen or not, for the librarian to rank.
+  const librarianPool = relevant
+    .filter(([k]) => k.startsWith("memory:"))
+    .slice(0, LIBRARIAN_POOL)
+    .map(([k]) => ({ key: k, text: memoryText(atomById.get(k.slice(7))!, lens) }));
+  return { items: out, pool: librarianPool, pinnedTokens, tokens: out.reduce((n, i) => n + i.tokens, 0), stats };
 }
 
 /**

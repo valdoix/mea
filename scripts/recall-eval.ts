@@ -187,6 +187,8 @@ interface Variant {
   librarian?: boolean;
   /** Add the helper's rewritten query (paid, cached). */
   rewrite?: boolean;
+  /** Show the librarian what it was shown before docs/27 6.2: the best of what recall chose, unranked. */
+  narrowLibrarian?: boolean;
 }
 
 interface Inputs {
@@ -213,11 +215,13 @@ async function inputsFor(t: Turn, v: Variant): Promise<Inputs> {
   if (v.librarian) {
     // What warm.ts shows it: a 2,400-token recall without entities or deep search, its best 24.
     const warm = run(t, { ...v, name: "warm", cfg: { ...v.cfg, entityRecall: false, deepSearch: false } }, 2400, { queries, qvecs, librarian: null }, `${C}:warm`);
-    const candidates = librarianCandidates(warm.items);
+    const wide = !v.narrowLibrarian;
+    const candidates = librarianCandidates(warm, wide);
     if (candidates.length >= 4) {
-      const keep = await ask(`lib\n${t.ctx}\n${candidates.map((c) => c.key).join(",")}`, async () => [...(await askLibrarian(C, t.ctx, "", candidates)).keep]);
-      const kept = new Set(keep as string[]);
-      librarian = { keep: kept, drop: new Set(candidates.map((c) => c.key).filter((k) => !kept.has(k))) };
+      // Picks come back in the model's order, so a ranked answer keeps its ranking in the cache.
+      const keep = (await ask(`${wide ? "libw" : "lib"}\n${t.ctx}\n${candidates.map((c) => c.key).join(",")}`, async () => [...(await askLibrarian(C, t.ctx, "", candidates, undefined, { ranked: wide })).keep])) as string[];
+      const kept = new Set(keep);
+      librarian = { keep: kept, drop: new Set(candidates.map((c) => c.key).filter((k) => !kept.has(k))), ...(wide ? { order: keep } : {}) };
     }
   }
   const out = { queries, qvecs, librarian };
@@ -291,6 +295,7 @@ const HELPER: Variant[] = [
   { name: "rewritten query", rewrite: true },
   { name: "librarian", librarian: true },
   { name: "librarian + rewrite", librarian: true, rewrite: true },
+  { name: "narrow librarian + rewrite", librarian: true, rewrite: true, narrowLibrarian: true },
 ];
 const extra: Variant[] = [...(process.argv.includes("--librarian") ? HELPER : []), ...JSON.parse(process.env.RECALL_VARIANTS ?? "[]")];
 const VARIANTS = [...BASE, ...extra.filter((v) => !BASE.some((b) => b.name === v.name))];
