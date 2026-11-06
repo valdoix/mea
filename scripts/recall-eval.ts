@@ -33,6 +33,8 @@ import { embedQueries } from "../server/src/memory/embed";
 import { norm, placeName, resolver } from "../server/src/memory/entities";
 import { type RecallItem, TimeIndex } from "../server/src/memory/format";
 import { askLibrarian, askRewrite, contextText } from "../server/src/memory/librarian";
+import { heardFilter } from "../server/src/memory/named";
+import type { HeardFilter } from "../server/src/memory/deep";
 import { buildQueries, type LibrarianVerdict, recall } from "../server/src/memory/recall";
 import { hashText } from "../server/src/memory/text";
 import { historyForPrompt } from "../server/src/services/chats";
@@ -134,6 +136,8 @@ interface Turn {
   qvecs: (Float32Array | null)[];
   present: string[];
   mood: string | null;
+  /** docs/27 5: whether the point-of-view character heard an old message, from the presence log. */
+  heard: HeardFilter | null;
   want: Want[];
 }
 
@@ -167,7 +171,7 @@ async function prepareTurns(): Promise<{ turns: Turn[]; dropped: string[] }> {
     const main = Object.values(st.chars).find((x) => x.isMain || povNames.has(norm(x.name)));
     const hist = history.filter((x) => x.seq! < c.seq);
     const queries = buildQueries(hist, { present });
-    turns.push({ c, evicted: m.evictedThrough, budget: m.recallBudget, telescope: new Set(m.telescope.map((t) => t.id)), hist, ctx: contextText(hist), queries, qvecs: await vectors(queries.map((q) => q.text)), present, mood: main?.mood?.name ?? null, want });
+    turns.push({ c, evicted: m.evictedThrough, budget: m.recallBudget, telescope: new Set(m.telescope.map((t) => t.id)), hist, ctx: contextText(hist), queries, qvecs: await vectors(queries.map((q) => q.text)), present, mood: main?.mood?.name ?? null, heard: heardFilter(st, main?.id, povNames), want });
   }
   return { turns, dropped };
 }
@@ -183,6 +187,8 @@ interface Variant {
   /** Below this standout recall counts as weak and deep search reaches back (recall's default when unset). */
   weakStandout?: number;
   reachBackFrom?: number;
+  /** Quote from any old message, as before docs/27 5. */
+  anyQuote?: boolean;
   /** Run the librarian, as warm.ts does (paid, cached). */
   librarian?: boolean;
   /** Add the helper's rewritten query (paid, cached). */
@@ -247,6 +253,7 @@ function run(t: Turn, v: Variant, budget: number | undefined, inp: Inputs, seed 
     closest: v.closest,
     weakStandout: v.weakStandout,
     reachBackFrom: v.reachBackFrom,
+    heard: v.anyQuote ? null : t.heard,
   });
 }
 

@@ -2,7 +2,7 @@ import { all, parseJson } from "../db/db";
 import type { MemoryConfig } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 import { type AtomRow, sourcesLive } from "./atoms";
-import { deepSearch, excerpt, RECALL_CUE } from "./deep";
+import { deepSearch, excerpt, type HeardFilter, RECALL_CUE } from "./deep";
 import { chatVectors, cosine } from "./embed";
 import { core, entityCard, entityFacts, genericPlace, norm, resolver, type EntityRow } from "./entities";
 import type { RecallItem, TimeIndex } from "./format";
@@ -64,6 +64,8 @@ export interface RecallInput {
   weakStandout?: number;
   /** How far past the window the story must be before weak recall reaches back (docs/27 3). */
   reachBackFrom?: number;
+  /** Whether the point-of-view character heard an old message: quotes only come from those (docs/27 5). */
+  heard?: HeardFilter | null;
 }
 
 export interface RecallStats {
@@ -195,7 +197,7 @@ const REACH_BACK_FROM = 200;
  * word ("Resolved: Brongel…") holds the word without saying anything about it. A name no memory holds
  * gets the message it first appears in, since a detail that was never filed is still on the page.
  */
-function namedRecords(chatId: string, text: string, evicted: number, atomById: Map<string, AtomRow>) {
+function namedRecords(chatId: string, text: string, evicted: number, atomById: Map<string, AtomRow>, heard: HeardFilter | null) {
   const memories: { term: string; keys: string[]; held: number }[] = [];
   const quotes: { term: string; messageId: string; seq: number; speaker: string; excerpt: string }[] = [];
   for (const { term, proper } of namedTerms(text).slice(0, NAMED_TERMS)) {
@@ -220,7 +222,8 @@ function namedRecords(chatId: string, text: string, evicted: number, atomById: M
       evicted,
       NAMED_MESSAGES + 1,
     );
-    const first = said[0];
+    // The first time the point-of-view character heard it, not the first time anyone said it.
+    const first = said.find((m) => !heard || heard(m));
     if (!first || said.length > NAMED_MESSAGES) continue;
     quotes.push({ term, messageId: first.id, seq: first.seq, speaker: first.name ?? (first.role === "user" ? "You" : first.role), excerpt: excerpt(first.content, new Set([term]), 240) });
   }
@@ -456,7 +459,7 @@ export function recall(input: RecallInput) {
 
   // A name just used comes first. What the few memories holding it say is the likeliest thing here to
   // be contradicted, and no other signal finds them reliably (#792: "Brongel", in two memories).
-  const names = rest > 60 ? namedRecords(chatId, strongText, evicted, atomById) : { memories: [], quotes: [] };
+  const names = rest > 60 ? namedRecords(chatId, strongText, evicted, atomById, input.heard ?? null) : { memories: [], quotes: [] };
   stats.named = names.memories.length + names.quotes.length;
   const namedCap = rest * NAMED_SHARE;
   let namedUsed = 0;
@@ -618,7 +621,7 @@ export function recall(input: RecallInput) {
   stats.reachedBack = RECALL_CUE.test(primary) ? "cue words" : weak && evicted > (input.reachBackFrom ?? REACH_BACK_FROM) ? "weak recall" : null;
   // Quotes only use what the other slots left: with no room for even a shortened one, don't search.
   if (cfg.deepSearch && evicted > 0 && stats.reachedBack && carry > 30) {
-    const hits = deepSearch(chatId, { query: input.queries.map((q) => q.text).join("\n"), qvec: input.qvecs[0] ?? null, beforeSeq: evicted, quotes: 3, excerptSize: 240 });
+    const hits = deepSearch(chatId, { query: input.queries.map((q) => q.text).join("\n"), qvec: input.qvecs[0] ?? null, beforeSeq: evicted, quotes: 3, excerptSize: 240, heard: input.heard ?? null });
     // L13: quotes use what the other slots left, never more than the budget.
     const cap = Math.max(0, carry);
     let used = 0;

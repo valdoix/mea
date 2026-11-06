@@ -24,6 +24,9 @@ export interface DeepHit {
 
 const rrf = (rank: number) => 1 / (60 + rank);
 
+/** Whether the point-of-view character heard a message; false keeps it out of the quotes (docs/27 Part 5). */
+export type HeardFilter = (m: { seq: number; name: string | null; role: string }) => boolean;
+
 function rank(chatId: string, rows: SummaryRow[], q: string | null, qvec: Float32Array | null) {
   const scores = new Map<string, { score: number; reasons: string[] }>();
   const bump = (id: string, n: number, why: string) => {
@@ -78,7 +81,11 @@ export function excerpt(text: string, words: Set<string>, size = 320) {
   return `${lo >= 0 ? "… " : ""}${out.slice(0, size + 80)}${hi < sentences.length ? " …" : ""}`;
 }
 
-export function deepSearch(chatId: string, opts: { query: string; qvec: Float32Array | null; beforeSeq: number; quotes?: number; scenesPerChapter?: number; excerptSize?: number }) {
+export function deepSearch(
+  chatId: string,
+  opts: { query: string; qvec: Float32Array | null; beforeSeq: number; quotes?: number; scenesPerChapter?: number; excerptSize?: number; heard?: HeardFilter | null },
+) {
+  const heard = (m: { seq: number; name: string | null; role: string }) => !opts.heard || opts.heard(m);
   const q = ftsQuery(opts.query, 20);
   if (!q && !opts.qvec) return [] as DeepHit[];
   const chapters = all<SummaryRow>(
@@ -119,12 +126,14 @@ export function deepSearch(chatId: string, opts: { query: string; qvec: Float32A
       `SELECT m.id, m.seq, m.name, m.role, s.content, bm25(swipes_fts) AS b FROM swipes_fts f
        JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
        WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq BETWEEN ? AND ? AND m.deleted_at IS NULL AND m.hidden = 0
-       ORDER BY b LIMIT 2`,
+       ORDER BY b LIMIT 6`,
       q,
       chatId,
       s.row.start_seq,
       s.row.end_seq ?? s.row.start_seq,
-    );
+    )
+      .filter(heard)
+      .slice(0, 2);
     for (const [i, m] of msgs.entries()) {
       hits.push({
         chapterId: s.chapter?.row.id ?? null,
@@ -148,11 +157,13 @@ export function deepSearch(chatId: string, opts: { query: string; qvec: Float32A
       `SELECT m.id, m.seq, m.name, m.role, s.content, bm25(swipes_fts) AS b FROM swipes_fts f
        JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
        WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq <= ? AND m.deleted_at IS NULL AND m.hidden = 0
-       ORDER BY b LIMIT 6`,
+       ORDER BY b LIMIT 12`,
       q,
       chatId,
       opts.beforeSeq,
-    );
+    )
+      .filter(heard)
+      .slice(0, 6);
     msgs.forEach((m, i) => {
       if (hits.some((h) => h.messageId === m.id)) return;
       const scene = [...scenes].reverse().find((s) => s.start_seq <= m.seq);
