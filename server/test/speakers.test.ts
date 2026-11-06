@@ -109,6 +109,9 @@ describe("speaker marks", () => {
     expect(quotedLines(`“Shipman. Hey. You —“
 
 “Shauna.” She kneels. "Okay," Nat says.`)).toEqual([`“Shipman. Hey. You —“`, `“Shauna.”`, `"Okay,"`]);
+    // Written backwards, start to end; a stray ” after a word still closes rather than opens.
+    expect(quotedLines(`”...and yeah. I like it.“ She smiles. “Good,” he says.`)).toEqual([`”...and yeah. I like it.“`, `“Good,”`]);
+    expect(extractSpeakers(`[spk=Mara]”...and yeah. I like it.“ She smiles.`, []).lines.map((l) => l.text)).toEqual([`”...and yeah. I like it.“`]);
     const roster = voiceRoster("Jackie Taylor", "James", [{ name: "Jackie Taylor", isMain: true, aliases: ["Jackie"] }]);
     expect(speakerFromLabel("Jackie#1", roster)).toBe("Jackie Taylor");
     expect(speakerFromLabel("?", roster)).toBeNull();

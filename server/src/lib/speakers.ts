@@ -149,13 +149,13 @@ export function extractSpeakers(raw: string, roster: RosterVoice[] = []): { text
       inner = rest.slice(0, close.index);
       at = start + close.index + close[0].length;
     } else {
-      const q = /^\s*["“][^"“”\n]*["”]/.exec(rest);
+      const q = /^\s*["“”][^"“”\n]*["”“]/.exec(rest);
       inner = q ? q[0] : "";
       at = start + inner.length;
     }
     out += inner;
     // A mark that also wraps the narration after its quote keeps only the quote as the line.
-    const text = (/^\s*["“][^"“”\n]*["”]/.exec(inner)?.[0] ?? inner).trim();
+    const text = (/^\s*["“”][^"“”\n]*["”“]/.exec(inner)?.[0] ?? inner).trim();
     if (text) lines.push({ text, ...readMark(m[1]!, roster) });
   }
   out += input.slice(at);
@@ -185,10 +185,10 @@ export function withSpeakerMarks(text: string, lines: SpokenLine[] | undefined, 
 
 /**
  * The quoted lines of a reply, in order, exactly as they stand. A quote closed with the wrong curly
- * mark (“Hey. You —“) still counts as one line.
+ * mark (“Hey. You —“) still counts as one line, and so does one written backwards (”…yeah.“).
  */
 export function quotedLines(text: string): string[] {
-  return [...text.matchAll(/["“][^"“”\n]{1,600}["”“]/g)].map((m) => m[0]);
+  return [...text.matchAll(/(?:["“]|(?<=^|[\s(\[—–])”(?=\S))[^"“”\n]{1,600}["”“]/g)].map((m) => m[0]);
 }
 
 /** A name the helper gave for a line ("Name#N", "Name", "?"), as the cast knows it. */
