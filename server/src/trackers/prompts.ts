@@ -37,6 +37,7 @@ know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|
 secret #key: fact | kept by A · from B        reveal #key: to B — how
 item Thing: A → B — how (the same name each time; put down: item Thing: at counter; taken to another house: item Thing: → Town › Place › shelf — packed. Worn or carried stays with whoever has it: item Thing: A) (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
 room A: Town › Place | room|home|shop (whose place it is; A is a person)     keeps A: item @ place (theirs, kept there)
+lives A: Town › Home   (where someone lives now: moving in, moving out with lives A: - Home; "household" in a line then means whoever lives there)
 place Where: what's there now   (what a place looks like, never room: place Kitchen › Fridge door: league standings in marker, two photos)
 member Group: + Name | role · why   member Group: - Name — why   (someone joins or leaves a group: member Scoobies: + Dawn | junior · she found the handbook)
    (a line's Holder, A or B is one person, or several: know Willow, Xander: … A group's name stands for its members only when it's a faction (the Groups line below); otherwise name each of them, or name them once in brackets: know Dawn's friends (Melissa, Kara): … Write @Group to mean the group itself: know @Scoobies: … A place is never a person.)
@@ -110,6 +111,9 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   const loose = Object.values(st.items).filter((i) => !i.gone && i.holder?.startsWith("place:")).slice(-6);
   for (const i of loose) L.push(`item ${i.name}: at ${i.holder!.slice(6)}${i.owner ? ` (${nm(i.owner)}'s)` : ""}`);
   for (const p of Object.values(st.places).filter((x) => x.owner).slice(-6)) L.push(`room ${nm(p.owner!)}: ${p.path.join(" › ")} | ${p.kind ?? "room"}`);
+  // docs/30 2.4: who lives where (said with a lives line, not guessed), so "household" and moves read against it.
+  const said = (p: { residents?: string[]; guessed?: string[] }) => (p.residents ?? []).filter((id) => st.chars[id] && !st.chars[id]!.dead && !p.guessed?.includes(id));
+  for (const p of Object.values(st.places).filter((x) => said(x).length).slice(-4)) L.push(`lives ${said(p).map(nm).join(", ")}: ${p.path.join(" › ")}`);
   for (const h of placeNotesHere(st, 2)) for (const n of h.notes) L.push(`place ${h.place.path.join(" › ")}: ${clip(n, 100)}`);
   for (const t of o.templates) {
     const vals = st.custom[t.key] ?? {};

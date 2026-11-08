@@ -1,7 +1,7 @@
 /**
  * docs/30 Part 1: the group census. Folds each chat (on a copy of the database: nothing is written to
  * yours, nothing is sent anywhere) and prints its factions as the Story page would show them: yours,
- * the lore's, the story's (adopted by themselves) and the engine's, then the groups Mea would ask about.
+ * the lore's, the story's (adopted by themselves) and the engine's, who lives where, then the groups Mea would ask about.
  *
  *   bun scripts/group-census.ts [--db path/to/mea.db] [--chat <id or part of its title>] [--mode auto|ask|off] [--out groups.md]
  */
@@ -62,6 +62,12 @@ for (const c of chats) {
     for (const x of f.facts.slice(0, 3)) L.push(`  - told #${x.seq}: ${x.text}`);
     const s = f.standing;
     if (s.clocks.length || s.rep.length || s.relations.length) L.push(`  - standing: ${[...s.clocks.map((k) => `${k.name} ${k.cur}/${k.max}`), ...s.rep.map((r) => `${r.who} ${r.score}`), ...s.relations.map((r) => `with ${r.with} ${r.score}`)].join(" · ")}`);
+  }
+  // docs/30 2.4: who lives where.
+  const homes = Object.values(st.places).filter((p) => p.residents?.length);
+  if (homes.length) {
+    L.push("", "Who lives where:");
+    for (const p of homes) L.push(`- ${p.path.join(" › ")}: ${p.residents!.map((id) => `${st.chars[id]?.name ?? id}${st.chars[id]?.dead ? " †" : ""}`).join(", ")}`);
   }
   if (book.suggested.length) {
     L.push("", "Mea thinks these are groups:");

@@ -447,7 +447,7 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
   for (const f of loreFactions({ characterId: chat.character_id, personaId: chat.persona_id, chatId }))
     if (!factions.some((x) => [x.name, ...(x.aliases ?? [])].some((a) => groupKey(a) === groupKey(f.name)))) {
       const kind = kindOfGroup(f.name, { lore: f.category === "family" ? "family" : undefined });
-      factions.push({ name: f.name, members: f.members, kind: kind === "circle" && !/\b(?:friends|crew|gang|team|squad|club)\b/i.test(f.name) ? "organisation" : kind, source: "lore" });
+      factions.push({ name: f.name, members: f.members, kind: kind === "circle" && !/\b(?:friends|crew|gang|team|squad|club)\b/i.test(f.name) ? "organisation" : kind, source: "lore", ...(f.home ? { home: f.home } : {}) });
     }
   const settings = parseJson<ChatSettings>(chat.settings, {});
   const tidy = settings.castTidy;

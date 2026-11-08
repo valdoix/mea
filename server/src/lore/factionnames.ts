@@ -12,8 +12,8 @@ export function loreFactionNames(scope: { characterId?: string | null; personaId
 }
 
 /** docs/30 1.4: the same, with the entry's kind (a family entry is a family) and its "Members" field. */
-export function loreFactions(scope: { characterId?: string | null; personaId?: string | null; chatId?: string | null }): { name: string; category: "faction" | "family"; members: string[] }[] {
-  const out: { name: string; category: "faction" | "family"; members: string[] }[] = [];
+export function loreFactions(scope: { characterId?: string | null; personaId?: string | null; chatId?: string | null }): { name: string; category: "faction" | "family"; members: string[]; home?: string }[] {
+  const out: { name: string; category: "faction" | "family"; members: string[]; home?: string }[] = [];
   for (const e of scanEntriesFor(scope)) {
     if (!e.enabled) continue;
     const title = loreTitle(e);
@@ -21,7 +21,9 @@ export function loreFactions(scope: { characterId?: string | null; personaId?: s
     const cat = /^famil/i.test(title) ? "family" : categoryOf(e);
     const name = tagged?.trim() || ((cat === "faction" || cat === "family") && title ? title : "");
     if (!name) continue;
-    out.push({ name, category: cat === "family" ? "family" : "faction", members: loreMembers(e.content) });
+    // docs/30 2.4: a family's "Home" field is where its members live.
+    const home = e.content.match(/^\s*(?:home|lives? (?:at|in)|residence)\s*[:=]\s*(.+)$/im)?.[1]?.replace(/\([^)]*\)/g, "").split(/[.;]/)[0]?.trim();
+    out.push({ name, category: cat === "family" ? "family" : "faction", members: loreMembers(e.content), ...(home ? { home } : {}) });
   }
   return out;
 }

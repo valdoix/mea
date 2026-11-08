@@ -14,14 +14,14 @@ import { leadingDuration } from "./clock";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "occasion", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "loop", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps", "member",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "loop", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps", "member", "lives",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
   thought: "think", thoughts: "think", inner: "think", relationship: "bond", romance: "ladder", knowledge: "know", inventory: "item",
   debt: "owe", favour: "owe", favor: "owe", vow: "promise", due: "deadline", chekhov: "plant", faction: "clockf", reputation: "rep",
   calendar: "event", appointment: "plan", callback: "motif", bit: "motif", died: "dead", death: "dead", drives: "drive", wants: "drive",
-  members: "member", join: "member", joined: "member",
+  members: "member", join: "member", joined: "member", live: "lives", resides: "lives", resident: "lives",
   injury: "body", condition: "body", traits: "trait", title: "scene", happened: "beat", events: "beat",
 };
 
@@ -396,6 +396,15 @@ export function parseLine(raw: string): Op | null {
       // E2: "room Mira: Port Ellis › Lighthouse › Lamp room | shop" (whose place it is, and what kind)
       const [where, kind] = body.split("|").map((x) => x.trim());
       a.path = (where ?? "").split(/\s*(?:›|>|»|\/)\s*/).map((s) => s.trim()).filter(Boolean);
+      a.kind = kind?.toLowerCase() || undefined;
+      break;
+    }
+    case "lives": {
+      // docs/30 2.4: "lives Dawn: Sunnydale › Summers Residence" (her home now); "lives Anya: - Xander's apartment" (moved out)
+      const m = body.match(/^([+-])?\s*([\s\S]*)$/)!;
+      a.leave = m[1] === "-";
+      const [where, kind] = m[2]!.split("|").map((x) => x.trim());
+      a.path = (where ?? "").replace(/^(?:at|in)\s+/i, "").split(/\s*(?:›|>|»|\/)\s*/).map((s) => s.trim()).filter(Boolean);
       a.kind = kind?.toLowerCase() || undefined;
       break;
     }

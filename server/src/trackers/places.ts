@@ -374,6 +374,8 @@ export class PlaceBook {
     into.visits += from.visits;
     into.lastSeq = Math.max(into.lastSeq, from.lastSeq);
     into.owner ??= from.owner;
+    if (from.residents?.length) into.residents = [...new Set([...(into.residents ?? []), ...from.residents])];
+    if (from.guessed?.length) into.guessed = [...new Set([...(into.guessed ?? []), ...from.guessed])].filter((id) => !(into.residents ?? []).includes(id) || from.guessed!.includes(id));
     into.address ??= from.address;
     if (from.notes?.length) into.notes = [...(into.notes ?? []), ...from.notes].sort((a, b) => a.seq - b.seq);
     for (const [n, k] of Object.entries(from.written ?? {})) (into.written ??= {})[n] = (into.written[n] ?? 0) + k;

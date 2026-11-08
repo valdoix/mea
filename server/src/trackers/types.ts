@@ -20,6 +20,8 @@ export type OpName =
   | "place"
   // docs/30 1.5: who's in a group ("member Scoobies: + Dawn | junior")
   | "member"
+  // docs/30 2.4: where someone lives ("lives Dawn: Sunnydale › Summers Residence", "lives Anya: - Xander's apartment")
+  | "lives"
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 
@@ -362,6 +364,10 @@ export interface Place {
   lastSeq: number;
   /** E2: whose it is (a character id) and what kind of place (room, home, shop…). */
   owner?: string;
+  /** docs/30 2.4: who lives here now (character ids). A home's household is these people. */
+  residents?: string[];
+  /** Residents who are a guess from the story (a home named for them, a bedroom of theirs), not a "lives" line. */
+  guessed?: string[];
   kind?: string;
   /** E2: the item ids that were here when you last left, for "what's changed since". */
   seen?: string[];
@@ -433,6 +439,8 @@ export interface Group {
   adopted?: boolean;
   /** In how many messages a line named it. */
   mentions: number;
+  /** docs/30 2.4: a household's home (a place id): its members are whoever lives there now. */
+  home?: string;
 }
 
 export interface WorldState {
