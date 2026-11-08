@@ -4,12 +4,13 @@ import type { Field, Template } from "./schema";
 import { groupsLine } from "./groups";
 import { openLoops } from "./loops";
 import { placeNotesHere } from "./belongings";
+import { knownPlacesLine } from "./places";
 import { AXES, LADDER, type WorldState } from "./types";
 
 /** The ledger grammar, compact enough to send with every tracker call. */
 export const GRAMMAR = `Write one change per line, only what changed in the NEW MESSAGES. Omission never means removal.
 clock: +45m | +2h | Day 3 21:40 | 2026-03-14 21:40   (time passed; never backwards unless "flashback")
-wx: rain → heavy rain                        at: City › District › Building › Room
+wx: rain → heavy rain                        at: City › District › Building › Room   (a known place by its known name and path)
 scene: <title of a new scene>
 occasion: a royal wedding feast | off   (only when the messages show an event under way: a birthday party, a wedding, a funeral, a feast, in your own words; off when it ends; never for a plan or a memory of one)
 mode: social|intimacy|conflict|investigation|travel|stealth|downtime|aftermath|crisis   (its own line; with every new scene, or when the scene turns into another; aftermath: just after a death, an injury, violence or a loss, inside the consequences; a social scene may name its talk: social (confrontation|apology|confession|breakup|request|interrogation))
@@ -66,6 +67,9 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   else L.push("clock: (not set yet: set it with an absolute time if the story gives one, else Day 1 and a likely hour)");
   if (st.weather) L.push(`wx: ${st.weather.now}`);
   if (st.place.length) L.push(`at: ${st.place.join(" › ")}`);
+  // docs/30 2.5: the places around the scene by their tree names, so a new line doesn't start a second kitchen.
+  const known = knownPlacesLine(st);
+  if (known) L.push(known);
   if (st.sceneTitle) L.push(`scene: ${st.sceneTitle}`);
   if (st.occasion) L.push(`occasion: ${st.occasion.now}`);
   const here = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri");
