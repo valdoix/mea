@@ -18,7 +18,7 @@ import type { Op, WorldState } from "../trackers/types";
 import { confirmArrivals, elsewhereLane } from "./crossings";
 import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
-import { buildRoster, lorePersonName, type Roster, samePerson, TIE_STRENGTH } from "./roster";
+import { buildRoster, lorePersonName, type Roster, type RosterInput, samePerson, TIE_STRENGTH } from "./roster";
 import { checkRead, saveSheet, sheetKey, sheetPrompt, sheetSchema, sheetsFor } from "./sheet";
 import { climateFrom, forecast, latitudeFrom, placeClimate, skyLine, type SkyInput } from "./sky";
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, pastCard, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
@@ -152,7 +152,7 @@ function lorePeople(chatId: string): { people: { name: string; text: string }[];
 export function rosterFor(chatId: string, state: WorldState): Roster {
   const fc = foldConfigFor(chatId);
   const { people, notes } = lorePeople(chatId);
-  return buildRoster({ state, profiles: castProfiles(chatId), lore: people, notes, userName: fc.userName, schedules: loreSchedules(chatId), sheets: sheetsFor(chatId) });
+  return buildRoster({ state, profiles: castProfiles(chatId), lore: people, notes, userName: fc.userName, schedules: loreSchedules(chatId), sheets: sheetsFor(chatId), groups: rosterGroups(state) });
 }
 
 // ---------- the person sheet (docs/21 Part 2) ----------
@@ -165,7 +165,7 @@ const SHEET_VERSION = 2;
 export function sheetsToRead(chatId: string, st: WorldState = currentFold(chatId).result.state): { name: string; text: string; basis: string }[] {
   const fc = foldConfigFor(chatId);
   const { people } = lorePeople(chatId);
-  const roster = buildRoster({ state: st, profiles: castProfiles(chatId), lore: people, userName: fc.userName });
+  const roster = buildRoster({ state: st, profiles: castProfiles(chatId), lore: people, userName: fc.userName, groups: rosterGroups(st) });
   const have = sheetsFor(chatId);
   return [...roster.actors.values()]
     .filter((a) => !a.isUser && !a.isMain && a.text.trim().length >= 20)
@@ -611,6 +611,14 @@ export async function previewOutcome(chatId: string, id: string, outcome: Force,
   return { landsNow: true, outcome, salt, result: beat?.result ?? null, stage: beat?.stage ?? null, text, told, arrivals, why: beat?.why ?? [], ripples: res.summary.slice(1) };
 }
 
+/** docs/30 1.4: families and circles, for the roster's ties. */
+function rosterGroups(st: WorldState): NonNullable<RosterInput["groups"]> {
+  return Object.values(st.groups ?? {})
+    .filter((g) => g.adopted && (g.kind === "family" || g.kind === "circle"))
+    .map((g) => ({ name: g.name, kind: g.kind as "family" | "circle", yours: g.source === "you", members: g.members.filter((m) => m.left == null).map((m) => m.name) }))
+    .filter((g) => g.members.length > 1);
+}
+
 /** The groups the story knows: its faction clocks and stances, groups leading subplots, reputations, and the lore's faction entries. */
 export function knownFactions(chatId: string, st: WorldState = currentFold(chatId).result.state): string[] {
   const names = [
@@ -618,6 +626,10 @@ export function knownFactions(chatId: string, st: WorldState = currentFold(chatI
     ...Object.keys(st.sim.factionRel).flatMap((k) => k.split("|")),
     ...Object.values(st.sim.arcs).filter((a) => a.lead.startsWith("faction:")).map((a) => a.leadName),
     ...Object.values(st.rep).map((r) => r.group),
+    // docs/30 1.4: organisations among the story's groups and yours (a family or a circle doesn't start faction subplots).
+    ...Object.values(st.groups ?? {})
+      .filter((g) => g.adopted && g.kind === "organisation")
+      .map((g) => g.name),
   ];
   const chat = mustChat(chatId);
   for (const e of scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId })) {

@@ -241,6 +241,8 @@ export interface RosterInput {
   notes?: string[];
   /** docs/21 Part 2: the person sheets the model read from the lore, by name. */
   sheets?: Record<string, Sheet>;
+  /** docs/30 1.4: families (close) and circles of friends (friends), with their people. */
+  groups?: { name: string; kind: "family" | "circle"; yours: boolean; members: string[] }[];
 }
 
 /** "Willow" and "Willow Rosenberg" are the same person: one name is the other's first words. */
@@ -458,6 +460,13 @@ export function buildRoster(inp: RosterInput): Roster {
         if (b) setTie(a.id, b.id, { type: t.type, inTouch: t.inTouch, by: "lore", why: `${a.name}'s lore${t.quote ? `: "${t.quote}"` : ""}` });
       }
     }
+  }
+  // docs/30 1.4: one family is close; one circle of friends is friends. Yours are your word; the story's are the page's.
+  for (const g of inp.groups ?? []) {
+    const ids = [...new Set(g.members.map((n) => all.find((x) => samePerson(x.name, n))?.id).filter((x): x is string => Boolean(x)))];
+    for (const a of ids)
+      for (const b of ids)
+        if (a < b) setTie(a, b, { type: g.kind === "family" ? "close" : "friend", inTouch: true, by: g.yours ? "you" : "story", why: `both in ${g.name}` });
   }
   // The old reading of descriptions: close and friendly words are taken to mean in touch, and marked as a guess.
   for (const a of all) for (const b of all) if (a !== b && a.text) {

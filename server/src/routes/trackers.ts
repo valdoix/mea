@@ -43,6 +43,8 @@ import {
   trackerConfig,
 } from "../trackers/store";
 import { personName } from "../trackers/fold";
+import { factionBook, groupsSettings } from "../trackers/factions";
+import { groupKey } from "../trackers/groups";
 import type { Change, Moment } from "../trackers/types";
 
 export const trackers = new Hono();
@@ -409,8 +411,10 @@ trackers.get("/chats/:id/cast", (c) => {
   for (const [key, p] of Object.entries(profiles)) if (!seen.has(key) && !routed.has(key) && !Object.values(st.chars).some((ch) => ch.isUser && castKey(ch.name) === key)) people.push({ key, id: key, name: p.name, aliases: [], isMain: false, present: false, dead: p.standing === "dead", mood: null, place: p.where ?? null, activity: null, look: null, traits: [], wants: null, items: [], regard: null, lastSeq: 0, firstSeq: 0, profile: p, char: null as never });
   // The tidy notice: what's new since you last looked. Field names ("traits", "?") are noise, not news.
   const tidySeen = new Set((parseJson<ChatSettings>(mustChat(chatId).settings, {}).castTidy?.seen ?? []).map(castKey));
+  // docs/30 1.2: a group that became a faction shows with the factions instead.
+  const adopted = new Set(Object.values(st.groups ?? {}).filter((g) => g.adopted).flatMap((g) => [g.name, ...(g.aliases ?? [])].map(groupKey)));
   const tidied = notPeople
-    .filter((n) => n.as !== "field" && !tidySeen.has(castKey(n.name)))
+    .filter((n) => n.as !== "field" && !tidySeen.has(castKey(n.name)) && !adopted.has(groupKey(n.name)))
     .map((n) => ({ name: n.name, as: n.as, members: n.members ?? [], lines: n.lines, lastSeq: n.lastSeq, profile: Boolean(profiles[castKey(n.name)]) }));
   return c.json({ people, tidied, userName: foldConfigFor(chatId).userName });
 });
@@ -487,12 +491,78 @@ const factionInput = z.object({
   description: z.string().max(2000).optional(),
   color: z.string().max(20).optional(),
   members: z.array(z.object({ name: z.string().trim().min(1).max(80), role: z.string().max(120).optional() })).max(200).optional(),
+  aliases: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  kind: z.enum(["family", "household", "circle", "organisation", "side"]).optional(),
+  source: z.enum(["you", "story", "lore", "engine"]).optional(),
 });
 
+/** docs/30 1.1: every faction (yours, the lore's, the story's, the engine's) and the groups Mea thinks it spotted. */
 trackers.get("/chats/:id/factions", (c) => {
   const chatId = c.req.param("id");
   mustChat(chatId);
-  return c.json({ factions: castFactions(chatId) });
+  const book = factionBook(chatId, { prose: true });
+  return c.json({ factions: castFactions(chatId), book });
+});
+
+/**
+ * docs/30 1.6: an answer about a group. "make": make it a faction (with the people Mea found); "seen":
+ * looks right; "not": it isn't a group (never adopted again); "undo": takes back "not" or "seen";
+ * "add": it's another name for the faction `into`.
+ */
+trackers.post("/chats/:id/groups", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const input = await body(c, z.object({ name: z.string().trim().min(1).max(120), action: z.enum(["make", "seen", "not", "undo", "add"]), into: z.string().trim().min(1).max(120).optional() }));
+  const cur = groupsSettings(chatId);
+  const key = groupKey(input.name);
+  const without = (xs: string[]) => xs.filter((x) => groupKey(x) !== key);
+  let seen = without(cur.seen);
+  let not = without(cur.not);
+  if (input.action === "make") {
+    const book = factionBook(chatId, { prose: true });
+    const g = book.suggested.find((x) => x.key === key) ?? book.factions.find((x) => x.key === key);
+    // With when each of them joined, as the story told it.
+    const story = currentFold(chatId).result.state.groups?.[key];
+    const since = (name: string) => story?.members.find((m) => castKey(m.name) === castKey(name) && m.left == null)?.since;
+    if (!castFactions(chatId).some((f) => groupKey(f.name) === key))
+      saveCastFaction(chatId, null, {
+        name: g?.name ?? input.name,
+        kind: g?.kind,
+        members: (g?.members ?? []).map((m) => (typeof m === "string" ? { name: m, since: since(m) } : { name: m.name, ...(m.role ? { role: m.role } : {}), since: m.since || since(m.name) })),
+        source: "story",
+      });
+    seen.push(input.name);
+  } else if (input.action === "seen") seen.push(input.name);
+  else if (input.action === "not") {
+    not.push(input.name);
+    seen.push(input.name);
+  } else if (input.action === "add") {
+    if (!input.into) throw badRequest("Add it to which faction?");
+    const row = castFactions(chatId).find((f) => groupKey(f.name) === groupKey(input.into!));
+    const found = factionBook(chatId).factions.find((f) => f.key === groupKey(input.into!));
+    if (row) saveCastFaction(chatId, row.id, { aliases: [...new Set([...(row.aliases ?? []), input.name])] });
+    else if (found) saveCastFaction(chatId, null, { name: found.name, kind: found.kind, aliases: [...found.aliases, input.name], members: found.members.filter((m) => m.left == null).map((m) => ({ name: m.name, ...(m.role ? { role: m.role } : {}) })), source: found.source });
+    else throw notFound(`No faction called ${input.into}`);
+    seen.push(input.name);
+  }
+  if (input.action === "undo") {
+    seen = without(seen);
+    not = without(not);
+  }
+  updateChat(chatId, { settings: { groups: { mode: cur.mode, seen: seen.slice(-500), not: not.slice(-500) } } });
+  invalidate(chatId);
+  return c.json({ ok: true });
+});
+
+/** docs/30 1.2: Groups: Automatic / Ask me / Off. */
+trackers.put("/chats/:id/groups/mode", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const input = await body(c, z.object({ mode: z.enum(["auto", "ask", "off"]) }));
+  const cur = groupsSettings(chatId);
+  updateChat(chatId, { settings: { groups: { ...cur, mode: input.mode } } });
+  invalidate(chatId);
+  return c.json({ ok: true });
 });
 
 trackers.post("/chats/:id/factions", async (c) => {

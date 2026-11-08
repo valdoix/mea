@@ -7,6 +7,7 @@ import { loopId, repeats } from "./loops";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { castLabel, parseLine } from "./dsl";
 import { PlaceBook, type PlaceProfile } from "./places";
+import { currentMembers, groupKey, kindOfGroup, possessiveAnchor } from "./groups";
 import { bracketGroup, FIELD_WORD, familySurname, isGroupShape, looksLikePlace, sentenceNotPath } from "./whois";
 import { mentions } from "./mentions";
 import { applyPatch, type Change as PatchChange } from "./patch";
@@ -21,6 +22,8 @@ import {
   type Character,
   emptyWorld,
   type EventSource,
+  type Group,
+  type GroupKind,
   type KnowStatus,
   LADDER,
   TALKS,
@@ -75,7 +78,14 @@ export interface FoldConfig {
    * docs/30 0.1: the story's factions (yours on the Story page, and the lore's). A faction's name in a
    * person line stands for its members, and is never a person itself.
    */
-  factions?: { name: string; aliases?: string[]; members: string[] }[];
+  factions?: { name: string; aliases?: string[]; members: string[]; kind?: GroupKind; source?: "you" | "lore" }[];
+  /**
+   * docs/30 1.2: whether a group the story wrote becomes a faction by itself ("auto", the default: named in
+   * two messages, or with its people named), only once you say so ("ask"), or never ("off").
+   */
+  groupsMode?: "auto" | "ask" | "off";
+  /** docs/30 1.6: names you said aren't a group ("Not a group"): never adopted. */
+  notGroups?: string[];
   /** docs/30 0.6: names you said are people after all ("It's a person" on the tidy notice). */
   people?: string[];
   /** docs/30 2.1: your edits to places (place_profiles), by place id. */
@@ -243,6 +253,120 @@ export class Folder {
     if (!state) {
       this.ensureChar(cfg.userName || "You", 0, { isUser: true });
       if (cfg.mainName) this.ensureChar(cfg.mainName, 0, { isMain: true });
+      // docs/30 1.1: yours and the lore's groups, with their people from the start.
+      for (const f of cfg.factions ?? []) {
+        const had = this.findGroup(f.name);
+        const g = this.groupOf(f.name, 0, f.source ?? "you");
+        if (had && had.source === "you" && f.source === "lore") {
+          if (groupKey(f.name) !== groupKey(g.name)) g.aliases = uniq([...(g.aliases ?? []), f.name]);
+        } else {
+          g.name = f.name;
+          g.source = f.source ?? "you";
+          if (f.kind) g.kind = f.kind;
+        }
+        if (f.aliases?.length) g.aliases = uniq([...(g.aliases ?? []), ...f.aliases]);
+        for (const m of f.members) this.join(g, m, 0);
+        g.adopted = true;
+      }
+    }
+  }
+
+  // ---------- groups (docs/30 Part 1) ----------
+
+  /** The group by this name or one of its other names. */
+  findGroup(name: string): Group | undefined {
+    const key = groupKey(personName(name.replace(/^\s*@/, "")) || name);
+    if (!key) return undefined;
+    const groups = this.state.groups ?? {};
+    return groups[key] ?? Object.values(groups).find((g) => groupKey(g.name) === key || (g.aliases ?? []).some((a) => groupKey(a) === key));
+  }
+
+  /** The cast whose surname a family is named by. */
+  private bySurname(name: string): string[] {
+    const surnames = familySurname(name.replace(/^family:\s*/i, ""));
+    if (!surnames.length) return [];
+    return Object.values(this.state.chars)
+      .filter((c) => c.name.includes(" ") && surnames.includes(norm(c.name).split(" ").at(-1)!))
+      .map((c) => c.name);
+  }
+
+  private notGroup(name: string) {
+    const key = groupKey(name);
+    return (this.cfg.notGroups ?? []).some((n) => groupKey(n) === key);
+  }
+
+  /** The group by this name, made (as the story's) when it's new. */
+  private groupOf(name: string, seq: number, source: Group["source"] = "story"): Group {
+    const found = this.findGroup(name);
+    if (found) return found;
+    const clean = name.replace(/^\s*@/, "").replace(/\s+/g, " ").trim();
+    const surnames = Object.values(this.state.chars)
+      .filter((c) => c.name.includes(" "))
+      .map((c) => norm(c.name).split(" ").at(-1)!)
+      .filter(Boolean);
+    const anchor = possessiveAnchor(clean);
+    const g: Group = { name: clean, kind: kindOfGroup(clean, { surnames }), source, members: [], facts: [], firstSeq: seq, lastSeq: seq, mentions: 0, ...(anchor ? { anchor } : {}) };
+    (this.state.groups ??= {})[groupKey(clean)] = g;
+    return g;
+  }
+
+  /**
+   * docs/30 1.2: whether a group stands for its people. Yours and the lore's always; the story's when
+   * groups are automatic and it has people named or was written in two messages, unless you said it isn't a group.
+   */
+  private adopts(g: Group): boolean {
+    if (g.source !== "story") return true;
+    if (this.notGroup(g.name) || (this.cfg.groupsMode ?? "auto") !== "auto") return false;
+    // A household is whoever lives at a home (docs/30 2.4), not a list the story wrote once.
+    if (g.kind === "household" && !currentMembers(g).length) return false;
+    return currentMembers(g).length > 0 || g.mentions >= 2;
+  }
+
+  private mention(g: Group, seq: number) {
+    if (!g.mentions || seq > g.lastSeq) g.mentions++;
+    g.lastSeq = Math.max(g.lastSeq, seq);
+    g.adopted = this.adopts(g);
+  }
+
+  /** Someone joins (true when they weren't in it already). */
+  private join(g: Group, name: string, seq: number, o: { role?: string; why?: string } = {}): boolean {
+    const c = this.findChar(name);
+    const same = (m: { name: string }) => norm(m.name) === norm(personName(name)) || (c ? this.findChar(m.name)?.id === c.id : false);
+    const cur = g.members.find((m) => m.left == null && same(m));
+    if (cur) {
+      if (o.role) cur.role = o.role;
+      return false;
+    }
+    g.members.push({ name: c?.name ?? personName(name), since: seq, ...(o.role ? { role: o.role } : {}), ...(o.why ? { why: o.why } : {}) });
+    if (c) this.keepFromGroups(c.id);
+    g.adopted = this.adopts(g);
+    return true;
+  }
+
+  private leave(g: Group, name: string, seq: number, why?: string): boolean {
+    const c = this.findChar(name);
+    const m = g.members.find((x) => x.left == null && (norm(x.name) === norm(personName(name)) || (c ? this.findChar(x.name)?.id === c.id : false)));
+    if (!m) return false;
+    m.left = seq;
+    if (why) m.why = why;
+    g.adopted = this.adopts(g);
+    return true;
+  }
+
+  /** docs/30 1.3: a secret kept from a group is kept from whoever is in it now, including those who joined later. */
+  private keepFromGroups(id: string) {
+    const c = this.state.chars[id];
+    if (!c || c.isUser) return;
+    const mine = Object.entries(this.state.groups ?? {})
+      .filter(([, g]) => currentMembers(g).some((m) => norm(m.name) === norm(c.name) || this.findChar(m.name)?.id === id))
+      .map(([k]) => k);
+    if (!mine.length) return;
+    for (const f of Object.values(this.state.facts)) {
+      const s = f.secret;
+      if (!s?.groups?.some((k) => mine.includes(k)) || s.keepers.includes(id) || s.from.includes(id)) continue;
+      if (/knows|believes|suspects/.test(f.stances[id]?.status ?? "")) continue;
+      s.from.push(id);
+      f.stances[id] ??= { status: "unaware", route: "kept from their group", seq: this.state.lastSeq };
     }
   }
 
@@ -313,6 +437,8 @@ export class Folder {
     for (const t of this.cfg.seedTraits?.[opts.isUser ? "user" : key] ?? []) c.traits.push({ kind: traitKind(t), text: t, by: "card", seq: 0 });
     // A secret kept from everyone is kept from whoever turns up later too.
     if (!opts.isUser) for (const f of Object.values(this.state.facts)) if (f.secret?.everyone && !f.secret.keepers.includes(id)) f.secret.from.push(id);
+    // docs/30 1.3: and one kept from a group they're in.
+    this.keepFromGroups(id);
     // docs/21 4.3: facts said before they turned up may be about them.
     for (const f of Object.values(this.state.facts)) if (!f.about?.includes(id) && mentions(f.statement, clean)) f.about = [...(f.about ?? []), id];
     return c;
@@ -334,6 +460,14 @@ export class Folder {
     const n = norm(name).replace(/^the /, "");
     if (!n) return undefined;
     const same = (x: string) => norm(x).replace(/^the /, "") === n;
+    if (this.notGroup(name)) return undefined;
+    // docs/30 1.1: yours, the lore's, and the story's own when it's adopted, with who's in it now.
+    const g = this.findGroup(name);
+    if (g && (g.adopted ?? this.adopts(g))) {
+      const members = currentMembers(g).map((m) => m.name);
+      // docs/30 1.4: a family nobody listed is the cast by its surname ("the Taylor family": Jackie Taylor).
+      return { name: g.name, members: members.length || g.kind !== "family" ? members : this.bySurname(g.name) };
+    }
     const own = (this.cfg.factions ?? []).find((f) => same(f.name) || (f.aliases ?? []).some(same));
     if (own) return { name: own.name, members: own.members };
     const st = this.state;
@@ -360,13 +494,24 @@ export class Folder {
    * or a field name ("traits") stands for nobody.
    */
   whoIs(raw: string): Who {
+    // docs/30 1.5: "@Scoobies" is the group, spelled out: never a person.
+    if (/^\s*@\S/.test(raw)) {
+      const nm = personName(raw.trim().slice(1));
+      const f = this.faction(nm);
+      const g = f ? undefined : this.findGroup(nm);
+      const names = f?.members ?? (g ? currentMembers(g).map((m) => m.name) : []);
+      const group = f?.name ?? g?.name ?? nm;
+      return names.length ? { kind: "many", names, as: "faction", group } : { kind: "not", as: "group", name: group, reason: `${group} has no members known yet: name its people` };
+    }
     const name = personName(raw);
     const n = norm(name);
     if (!n) return { kind: "person" };
     if ((this.cfg.people ?? []).some((p) => norm(p) === n)) return { kind: "person" };
     if (Object.values(this.state.chars).some((c) => norm(c.name) === n || c.aliases.some((a) => norm(a) === n))) return { kind: "person" };
     if (isCrowd(raw)) return { kind: "crowd" };
-    const br = bracketGroup(raw, (head) => isGroupShape(head) || Boolean(this.faction(head)));
+    // docs/30 1.2: or a name nobody has, with two people or more in brackets ("the Potentials (Kennedy, Rona)").
+    const several = /\([^)]*(?:,|&|;|·|\band\b)[^)]*\)\s*$/.test(raw);
+    const br = bracketGroup(raw, (head) => isGroupShape(head) || Boolean(this.faction(head)) || (several && !this.findChar(head) && !looksLikePlace(head)));
     if (br) return { kind: "many", names: br.names, as: this.faction(br.group) ? "faction" : "group", group: br.group };
     if (FIELD_WORD.test(n)) return { kind: "not", as: "field", name, reason: `"${name}" is a field name, not a person` };
     const f = this.faction(name);
@@ -397,6 +542,12 @@ export class Folder {
       cur.lines++;
       if (w.kind === "many") cur.members = uniq([...(cur.members ?? []), ...w.names]);
     } else map[key] = { name, as, firstSeq: seq, lastSeq: seq, lines: 1, ...(w.kind === "many" ? { members: [...w.names] } : {}) };
+    // docs/30 1.2: a group the story names is kept, with the people it named.
+    if (as === "group" || as === "faction") {
+      const g = this.groupOf(name, seq);
+      if (w.kind === "many") for (const n of w.names) if (this.whoIs(n).kind === "person") this.join(g, n, seq);
+      this.mention(g, seq);
+    }
   }
 
   /** A person named in an op: resolves or creates (never for names that look like groups or places). */
@@ -453,6 +604,11 @@ export class Folder {
         continue;
       }
       const via = w.as === "faction" && op.op === "know" ? `via the ${w.group}` : undefined;
+      // docs/30 1.3: what the group as a whole was told, and who was in it then.
+      if (op.op === "know" && op.args.fact) {
+        const g = this.findGroup(w.group);
+        if (g && !g.facts.some((x) => overlap(x.text, String(op.args.fact)) >= 0.8)) g.facts.push({ text: String(op.args.fact), seq, members: [...w.names] });
+      }
       for (const name of w.names) out.push({ ...op, subject: name, ...(via ? { args: { ...op.args, route: op.args.route ? `${op.args.route}, ${via}` : via } } : {}) });
     }
     if (!out.length && why.length) this.reject(ctx, why.join("; "));
@@ -1429,6 +1585,11 @@ export class Folder {
         const named = ((a.from ?? []) as string[]).filter((n) => n.trim());
         const all = named.some((n) => EVERYONE_WORD(norm(personName(n))));
         const fromIds = ids(named.filter((n) => !EVERYONE_WORD(norm(personName(n)))));
+        // docs/30 1.3: kept from a group: from whoever joins it later too.
+        const fromGroups = named.flatMap((n) => {
+          const w = this.whoIs(n);
+          return w.kind === "many" && w.as === "faction" ? [groupKey(w.group)] : [];
+        });
         if (named.length && !all && !fromIds.length) return this.reject(ctx, `from whom? "${named.join(", ")}" isn't anyone in the story; name the people`);
         const f = this.fact(a.key, a.fact ?? a.key, seq, "true");
         const keepers = uniq([...(f.secret?.keepers ?? []), ...ids(a.keepers)]);
@@ -1443,7 +1604,8 @@ export class Folder {
         const told = (id: string) => /knows|believes|suspects/.test(f.stances[id]?.status ?? "");
         const back = ctx.ev.source === "user" ? [] : wanted.filter(told);
         const from = uniq([...(f.secret?.from ?? []), ...wanted.filter((id) => !back.includes(id))]).filter((id) => !keepers.includes(id));
-        f.secret = { keepers, from, ...(everyone ? { everyone: true } : {}) };
+        const groups = uniq([...(f.secret?.groups ?? []), ...fromGroups]);
+        f.secret = { keepers, from, ...(everyone ? { everyone: true } : {}), ...(groups.length ? { groups } : {}) };
         if (back.length) ctx.verdict.reason = `${back.map((x) => this.nameOf(x)).join(", ")} already found out, and still knows`;
         for (const k of keepers) f.stances[k] ??= { status: "knows", route: "keeps it", seq };
         for (const k of from) if (!f.stances[k] || f.stances[k]!.status === "unaware") f.stances[k] = { status: "unaware", route: "kept from them", seq };
@@ -1802,6 +1964,28 @@ export class Folder {
         if (c.cur === prev) return;
         c.history.push({ v: c.cur, seq });
         this.push(ctx, { kind: "faction", text: `${faction}: ${c.name} ${c.cur}/${c.max}`, path: `clocks.${id}`, reason: op.cause, tone: c.cur >= c.max ? "warn" : undefined, memory: c.cur >= c.max });
+        return;
+      }
+      case "member": {
+        // docs/30 1.5: "member Scoobies: + Dawn | junior · since she found the handbook", "member Scoobies: - Anya — left after the wedding".
+        const name = clip(op.subject).replace(/^@/, "").trim();
+        const names = ((a.names ?? []) as string[]).filter((n) => n.trim());
+        if (!name || !names.length) return this.reject(ctx, "write member Group: + Name | role · why (or - Name — why)");
+        if (this.notGroup(name)) return this.reject(ctx, `you said ${name} isn't a group`);
+        if (!this.findGroup(name) && this.findChar(name) && !isGroupShape(name)) return this.reject(ctx, `${name} is a person, not a group`);
+        const g = this.groupOf(name, seq);
+        this.mention(g, seq);
+        const why = [a.why, op.cause].filter(Boolean).join("; ") || undefined;
+        for (const n of names) {
+          if (a.leave) {
+            if (this.leave(g, n, seq, why)) this.push(ctx, { kind: "faction", text: `${this.findChar(n)?.name ?? n} left ${g.name}`, subject: n, path: `groups.${groupKey(g.name)}`, reason: why });
+            continue;
+          }
+          const c = this.person(n, seq);
+          if (!c) continue;
+          if (this.join(g, c.name, seq, { role: a.role, why })) this.push(ctx, { kind: "faction", text: `${c.name} joined ${g.name}${a.role ? ` (${a.role})` : ""}`, subject: c.name, path: `groups.${groupKey(g.name)}`, reason: why });
+        }
+        g.adopted = this.adopts(g);
         return;
       }
       case "rep": {

@@ -5,6 +5,7 @@ import { dropAtoms, insertAtom, isDuplicate } from "../memory/atoms";
 import { norm } from "../memory/entities";
 import { namedFacts } from "../memory/named";
 import { touchMemory } from "../memory/store";
+import { noteFactions } from "./factions";
 import { detectBoundary } from "../memory/segment";
 import { cleanText } from "../memory/text";
 import { getCard } from "../services/characters";
@@ -20,7 +21,6 @@ import { buildNote, type NoteResult } from "./note";
 import { initPrompt, inlineInstruction, stateForModel, updatePrompt } from "./prompts";
 import {
   branchEvents,
-  castFactions,
   castProfiles,
   currentFold,
   eventsOf,
@@ -403,7 +403,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     sections: cfg.sections,
     voices,
     pinned,
-    factions: castFactions(chatId),
+    factions: noteFactions(chatId, state),
     nudges: cfg.nudges,
     elsewhere: opts.elsewhere,
     calendar: cfg.calendar,

@@ -9,14 +9,15 @@ import { getCard, getCharacterRow } from "../services/characters";
 import { type ChatSettings, mustChat, type TrackerConfig } from "../services/chats";
 import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona } from "../services/personas";
-import { loreFactionNames } from "../lore/factionnames";
+import { loreFactions } from "../lore/factionnames";
 import { detectStamina } from "./drift";
 import { parseLine } from "./dsl";
 import type { PlaceProfile } from "./places";
+import { groupKey, kindOfGroup } from "./groups";
 import { type FoldConfig, type FoldResult, Folder, type TrackerEvent } from "./fold";
 import type { Section } from "./note";
 import { STARTER_TEMPLATES, type Template, templateInput, type TemplateSchema } from "./schema";
-import type { EventSource, Op } from "./types";
+import type { EventSource, GroupKind, Op } from "./types";
 
 // ---------- configuration ----------
 
@@ -228,6 +229,8 @@ export interface FactionMember {
   name: string;
   /** Their place in it: "captain", "new recruit". */
   role?: string;
+  /** docs/30 1.2: the message they joined at, when Mea saw it happen. */
+  since?: number;
 }
 
 export interface CastFaction {
@@ -236,6 +239,12 @@ export interface CastFaction {
   description?: string;
   color?: string;
   members: FactionMember[];
+  /** docs/30 1.1: its other names ("the gang" for the Scoobies). */
+  aliases?: string[];
+  /** docs/30 1.4: family, household, circle, organisation or side. */
+  kind?: GroupKind;
+  /** Where it came from: yours, or one Mea found in the story or the lore that you've since edited. */
+  source?: "you" | "story" | "lore" | "engine";
 }
 
 export function castFactions(chatId: string): CastFaction[] {
@@ -254,7 +263,7 @@ function tidyMembers(members: FactionMember[]): FactionMember[] {
     const name = m.name.trim();
     if (!name || seen.has(castKey(name))) continue;
     seen.add(castKey(name));
-    out.push(m.role?.trim() ? { name, role: m.role.trim() } : { name });
+    out.push({ name, ...(m.role?.trim() ? { role: m.role.trim() } : {}), ...(m.since ? { since: m.since } : {}) });
   }
   return out;
 }
@@ -433,10 +442,16 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
   for (const [k, p] of Object.entries(profiles)) if (p.stamina) stamina[k] = p.stamina;
   // docs/30 0.1: the factions, so a group's name in a person line stands for its members and never becomes a person.
   const own = castFactions(chatId);
-  const factions: NonNullable<FoldConfig["factions"]> = own.map((f) => ({ name: f.name, members: f.members.map((m) => m.name) }));
-  for (const name of loreFactionNames({ characterId: chat.character_id, personaId: chat.persona_id, chatId }))
-    if (!factions.some((f) => castKey(f.name) === castKey(name))) factions.push({ name, members: [] });
-  const tidy = parseJson<ChatSettings>(chat.settings, {}).castTidy;
+  const factions: NonNullable<FoldConfig["factions"]> = own.map((f) => ({ name: f.name, members: f.members.map((m) => m.name), ...(f.aliases?.length ? { aliases: f.aliases } : {}), ...(f.kind ? { kind: f.kind } : {}), source: "you" as const }));
+  // docs/30 1.4: a lore entry's kind (family or faction) and the people its "Members" field lists.
+  for (const f of loreFactions({ characterId: chat.character_id, personaId: chat.persona_id, chatId }))
+    if (!factions.some((x) => [x.name, ...(x.aliases ?? [])].some((a) => groupKey(a) === groupKey(f.name)))) {
+      const kind = kindOfGroup(f.name, { lore: f.category === "family" ? "family" : undefined });
+      factions.push({ name: f.name, members: f.members, kind: kind === "circle" && !/\b(?:friends|crew|gang|team|squad|club)\b/i.test(f.name) ? "organisation" : kind, source: "lore" });
+    }
+  const settings = parseJson<ChatSettings>(chat.settings, {});
+  const tidy = settings.castTidy;
+  const groups = settings.groups;
   const places = placeProfiles(chatId);
   return {
     userName: persona?.name ?? "You",
@@ -452,6 +467,8 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
     heldDone: heldDone(chatId),
     ...(factions.length ? { factions } : {}),
     ...(tidy?.people?.length ? { people: tidy.people } : {}),
+    ...(groups?.mode && groups.mode !== "auto" ? { groupsMode: groups.mode } : {}),
+    ...(groups?.not?.length ? { notGroups: groups.not } : {}),
     ...(Object.keys(places).length ? { placeProfiles: places } : {}),
   };
 }
