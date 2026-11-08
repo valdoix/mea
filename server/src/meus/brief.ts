@@ -1,3 +1,4 @@
+import { groupsAndPlacesBrief } from "./sortout";
 import { lessonsFor } from "../steer/lessons";
 import { listOffpage } from "../accuracy/offpage";
 import { canonOf } from "../accuracy/canoncut";
@@ -94,6 +95,9 @@ export function buildBrief(chatId: string): { text: string; header: BriefHeader 
     const fc = foldConfigFor(chatId);
     const cfg = trackerConfig(chatId);
     blocks.push(`THE STORY STATE NOW (the trackers' records, as ledger lines):\n${stateForModel(st, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar })}`);
+    // docs/30 4.3: the factions and the place tree, so Meus can sort them out.
+    const gp = groupsAndPlacesBrief(chatId, st);
+    if (gp) blocks.push(gp);
     const { stands, happened } = standing(chatId, st);
     if (stands) blocks.push(`WHERE THINGS STAND:\n${stands}`);
     if (happened) blocks.push(`ALREADY HAPPENED:\n${happened}`);

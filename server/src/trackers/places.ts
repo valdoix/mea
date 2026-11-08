@@ -280,7 +280,7 @@ export class PlaceBook {
     // docs/30 4.1: a "library" or a "chapel" inside a home (a castle, a manor) is one of its rooms.
     const k = kindOf(seg, path.length - 1);
     const kind = under && k === "building" && this.chainOf(under).some((x) => x.kind === "home") ? "room" : k;
-    const p: Place = { id, name: prof?.name ?? seg, path: [...(under ? this.path(under) : []), prof?.name ?? seg], visits: 0, lastSeq: seq, kind: prof?.kind ?? kind, ...(under ? { parent: under.id } : {}), source: "story", ...(prof?.pinned ? { pinned: true } : {}) };
+    const p: Place = { id, name: prof?.name ?? seg, path: [...(under ? this.path(under) : []), prof?.name ?? seg], visits: 0, lastSeq: seq, kind: prof?.kind ?? kind, ...(under ? { parent: under.id } : {}), source: "story", ...(prof?.pinned ? { pinned: true } : {}), ...(prof?.aliases?.length ? { aliases: [...prof.aliases] } : {}) };
     this.st.places[id] = p;
     return p;
   }

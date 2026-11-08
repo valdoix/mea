@@ -1,7 +1,8 @@
 <script lang="ts">
   import { get, post, put } from "../../lib/api";
   import { navigate } from "../../lib/router.svelte";
-  import { Pin } from "../../lib/icons";
+  import { MessagesSquare, Pin } from "../../lib/icons";
+  import { openMeusIn } from "../../lib/meus.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
 
   /**
@@ -118,6 +119,11 @@
       errorToast(e);
     }
   }
+  /** docs/30 4.3: Meus reads the story and proposes the fixes (factions and places), each undoable. */
+  function askMeus() {
+    openMeusIn(chatId, "Sort out the cast and places in this story: groups that should be factions (or merged), people in the wrong group, and places written two ways or put in the wrong spot. Check the story, then propose the fixes as one change card.", true);
+    navigate(`/chat/${chatId}`);
+  }
   function start(a: typeof action, p: PlaceRow) {
     action = action === a ? "" : a;
     draft = a === "rename" ? p.name : "";
@@ -125,9 +131,12 @@
   const KIND: Record<string, string> = { home: "home", building: "building", room: "room", spot: "spot", town: "town", district: "area", street: "street", floor: "floor", vehicle: "vehicle", outdoors: "outdoors" };
 </script>
 
-<div class="row between">
+<div class="row wrap between">
   <h2 class="section">Places</h2>
-  <span class="tiny muted">{places.length} {places.length === 1 ? "place" : "places"}</span>
+  <span class="row wrap">
+    <span class="tiny muted">{places.length} {places.length === 1 ? "place" : "places"}</span>
+    <button class="btn ghost small" onclick={askMeus} title="Meus sorts out the cast and places: it proposes the fixes, and each one can be undone"><MessagesSquare size={14} /> Sort out with Meus</button>
+  </span>
 </div>
 {#if !places.length}
   <p class="tiny muted">Places appear as the story goes somewhere. One place stays one place however it's written.</p>
