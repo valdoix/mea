@@ -249,9 +249,17 @@ export function parseLine(raw: string): Op | null {
   const head = line.match(/^([a-z]+)\b\s*(.*)$/i);
   if (!head) return null;
   const word = head[1]!.toLowerCase();
-  const op = (OPS as string[]).includes(word) ? (word as OpName) : ALIASES[word];
+  // docs/30 0.4: "place Kitchen › Fridge door: …" describes a place; "place: Kitchen" (nothing before the colon) is still a move.
+  const placeNote = word === "place" && /^\s*[^:\s][^:]*:\s*\S/.test(head[2]!);
+  const op = placeNote ? "place" : (OPS as string[]).includes(word) ? (word as OpName) : ALIASES[word];
   if (!op) return null;
   let rest = head[2]!;
+  if (op === "place") {
+    const colon = rest.indexOf(":");
+    const [text, cause] = splitCause(rest.slice(colon + 1).trim());
+    const path = rest.slice(0, colon).split(/\s*(?:›|>|»|\/)\s*/).map((s) => s.trim()).filter(Boolean);
+    return { op, subject: path.join(" › "), args: { path, text }, cause, raw: line };
+  }
   let subject: string | undefined;
   let object: string | undefined;
   const colon = rest.indexOf(":");
@@ -298,6 +306,14 @@ export function parseLine(raw: string): Op | null {
       break;
     }
     case "cast":
+      // docs/30 0.2: "cast Dawn Summers: traits — walks fast when eager" is a trait line, not a person called "traits".
+      if (out.subject && /^traits?\b\s*[:—–-]?\s*/i.test(body)) {
+        const text = body.replace(/^traits?\b\s*[:—–-]?\s*/i, "").trim() || out.cause || "";
+        out.op = "trait";
+        out.cause = undefined;
+        a.list = text.split(/\s*;\s*/).map((s) => s.trim()).filter(Boolean);
+        break;
+      }
       a.list = castArgs(body);
       break;
     case "mood": {

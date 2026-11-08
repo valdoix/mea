@@ -81,14 +81,44 @@
   let fileInput = $state<HTMLInputElement | null>(null);
   async function loadCast() {
     try {
-      const r = await get<{ people: CastPerson[]; userName: string }>(`/api/chats/${id}/cast`);
+      const r = await get<{ people: CastPerson[]; tidied?: Tidied[]; userName: string }>(`/api/chats/${id}/cast`);
       people = r.people;
+      tidied = r.tidied ?? [];
       userName = r.userName;
       void loadPressures();
       void loadFactions();
     } catch (e) {
       errorToast(e);
     }
+  }
+  // docs/30 0.6: names the story wrote where a person goes that Mea kept off the cast.
+  interface Tidied {
+    name: string;
+    as: "place" | "group" | "faction";
+    members: string[];
+    lines: number;
+    lastSeq: number;
+    profile: boolean;
+  }
+  let tidied = $state<Tidied[]>([]);
+  const tidyLabel = (t: Tidied) =>
+    t.as === "place" ? "is a place" : t.members.length ? `is a ${t.as === "faction" ? "faction" : "group"}: ${t.members.join(", ")}` : t.as === "faction" ? "is a faction (no members yet)" : "is a group (no one named)";
+  async function answerTidy(t: Tidied, action: "person" | "seen") {
+    try {
+      await post(`/api/chats/${id}/cast/tidy`, { name: t.name, action });
+      tidied = tidied.filter((x) => x !== t);
+      if (action === "person") {
+        toast(`${t.name} is back in the cast`, {
+          action: { label: "Undo", run: () => void post(`/api/chats/${id}/cast/tidy`, { name: t.name, action: "undo" }).then(loadCast) },
+        });
+        await loadCast();
+      }
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function tidyAllSeen() {
+    for (const t of [...tidied]) await answerTidy(t, "seen");
   }
   // E1: hidden pressures, by character id (shown folded on each card).
   let pressures = $state<Record<string, PressurePerson>>({});
@@ -371,6 +401,24 @@
   {:else if tab === "web"}
     <RelGraph chatId={id} bind:focus={webFocus} />
   {:else}
+    {#if tidied.length}
+      <div class="notice tidy">
+        <div class="row between">
+          <b>Mea tidied the cast</b>
+          <button class="btn ghost small" onclick={tidyAllSeen}>Looks right</button>
+        </div>
+        <p class="tiny muted">The story wrote these where a person goes. Their lines now go to the people they stand for{tidied.some((t) => t.as === "place") ? ", and a place's go to the place" : ""}.</p>
+        {#each tidied as t (t.name)}
+          <div class="row between tidy-row">
+            <span class="small"><b>{t.name}</b> {tidyLabel(t)}<span class="tiny faint">{" · "}{t.lines} {t.lines === 1 ? "line" : "lines"}, last at #{t.lastSeq}{t.profile ? " · its profile is kept" : ""}</span></span>
+            <span class="row">
+              <button class="btn ghost small" onclick={() => answerTidy(t, "person")} title="Keep it in the cast as a person">It's a person</button>
+              <button class="btn ghost small" onclick={() => answerTidy(t, "seen")}>OK</button>
+            </span>
+          </div>
+        {/each}
+      </div>
+    {/if}
     <div class="row between">
       <h2 class="section">Factions</h2>
       <button class="btn small" onclick={() => openFaction(null)}><Plus size={14} /> Add a faction</button>
@@ -650,6 +698,15 @@
   .section {
     margin: 0.4rem 0 0;
     font-size: 1.05rem;
+  }
+  .tidy {
+    display: grid;
+    gap: 0.35rem;
+    margin-bottom: 0.6rem;
+  }
+  .tidy-row {
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
   .factions {
     display: grid;

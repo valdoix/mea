@@ -16,6 +16,8 @@ export type OpName =
   | "pressure"
   // E2: whose room a place is, and what they keep where
   | "room" | "keeps"
+  // docs/30 0.4: what a place looks like now ("place Kitchen › Fridge door: league standings in marker")
+  | "place"
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 
@@ -359,6 +361,23 @@ export interface Place {
   kind?: string;
   /** E2: the item ids that were here when you last left, for "what's changed since". */
   seen?: string[];
+  /** docs/30 0.4: what it looks like now, newest last (a `place` line, or a `room` line written about the place). */
+  notes?: { text: string; seq: number }[];
+}
+
+/**
+ * docs/30 0.2: a name the tracker wrote where a person goes that isn't one: a place, a group, a
+ * faction or a field name. Its lines went to the people it stands for, or nowhere.
+ */
+export interface NotPerson {
+  name: string;
+  as: "place" | "group" | "faction" | "field";
+  /** Who it stood for, when anyone ("Melissa", "Kara", "Jamie"). */
+  members?: string[];
+  firstSeq: number;
+  lastSeq: number;
+  /** How many lines named it. */
+  lines: number;
 }
 
 export interface WorldState {
@@ -400,6 +419,8 @@ export interface WorldState {
   /** docs/26 3.1: who was in the scene, each time that changed: who was there for something said long ago. */
   presence?: { seq: number; who: string[] }[];
   places: Record<string, Place>;
+  /** docs/30 0.2: names kept off the cast, by lower-case name. */
+  notPeople?: Record<string, NotPerson>;
   /** Custom template values (TRK-01): { templateKey: { field: value } }. */
   custom: Record<string, Record<string, unknown>>;
   /** Paths the user locked (TRK-05). */

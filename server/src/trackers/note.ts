@@ -3,7 +3,7 @@ import type { NamedFact } from "../memory/named";
 import { countTokens } from "../lib/tokens";
 import { contentWords, overlap } from "../memory/text";
 import { topicCounts, topicScorer } from "./topics";
-import { lostGiftLines, roomLine } from "./belongings";
+import { lostGiftLines, placeLine, roomLine } from "./belongings";
 import { type CalendarId, describeWhen, noteTime } from "./calendars";
 import { parseStoryTime, shortStoryTime, timeOfDay, formatStoryTime } from "./clock";
 import { METER_WORDS, meterWords, SEVERITY, STAMINA } from "./drift";
@@ -322,6 +322,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
       const nameOf = (id: string) => (st.chars[id]?.isUser ? o.userName : (st.chars[id]?.name ?? id));
       const room = roomLine(st, nameOf);
       if (room) lines.push(room);
+      const here = placeLine(st);
+      if (here) lines.push(here);
       for (const l of lostGiftLines(st, o.seq, nameOf).slice(0, 2)) lines.push(`NOTICED: ${l}`);
     }
     if (lines.length) lanes.push({ name: "now", lines, priority: 0 });
