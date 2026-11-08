@@ -95,6 +95,14 @@ export const chatSettingsSchema = z.object({
    * `seen`: the ones you've looked at, so the notice doesn't show them again.
    */
   castTidy: z.object({ people: z.array(short(120)).max(200), seen: z.array(short(120)).max(500) }).partial().optional(),
+  /**
+   * docs/30 1.2: groups. `mode`: the story's groups become factions by themselves (auto, the default), wait
+   * for you (ask), or never (off). `seen`: ones you've looked at; `not`: names you said aren't a group.
+   */
+  groups: z
+    .object({ mode: z.enum(["auto", "ask", "off"]), seen: z.array(short(120)).max(500), not: z.array(short(120)).max(500) })
+    .partial()
+    .optional(),
   /** Story truths: your rules for this story, sent every turn. */
   truths: z.array(short(300)).max(30).optional(),
   /** docs/15, 4.3: what {{char}} knows about {{user}} rides on the Bond (null: on in companion mode). */

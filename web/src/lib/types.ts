@@ -1734,12 +1734,56 @@ export interface CastProfile {
 }
 
 /** A group of the cast (a house, a crew, a guild), with its people by name. */
+export type GroupKind = "family" | "household" | "circle" | "organisation" | "side";
+
 export interface CastFaction {
   id: string;
   name: string;
   description?: string;
   color?: string;
   members: { name: string; role?: string }[];
+  aliases?: string[];
+  kind?: GroupKind;
+  source?: "you" | "story" | "lore" | "engine";
+}
+
+/** docs/30 Part 1: a faction as the Story page shows it (yours, or one Mea found). */
+export interface FactionView {
+  key: string;
+  id: string | null;
+  name: string;
+  aliases: string[];
+  kind: GroupKind;
+  description?: string;
+  color?: string;
+  source: "you" | "lore" | "story" | "engine";
+  found: boolean;
+  seen: boolean;
+  members: { name: string; role?: string; since: number; left?: number; dead: boolean; why?: string }[];
+  facts: { text: string; seq: number; members: string[] }[];
+  anchor?: string;
+  standing: { clocks: { name: string; cur: number; max: number }[]; rep: { who: string; score: number }[]; relations: { with: string; score: number }[] };
+  mentions: number;
+  prose: number;
+  firstSeq: number;
+  lastSeq: number;
+}
+
+export interface GroupCandidate {
+  key: string;
+  name: string;
+  kind: GroupKind;
+  members: string[];
+  mentions: number;
+  prose: number;
+  firstSeq: number;
+  lastSeq: number;
+}
+
+export interface FactionBook {
+  mode: "auto" | "ask" | "off";
+  factions: FactionView[];
+  suggested: GroupCandidate[];
 }
 
 export interface StoryWhen {

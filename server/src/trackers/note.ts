@@ -32,7 +32,7 @@ export interface NoteOptions {
   /** Pinned cast members, always described. */
   pinned?: { name: string; text: string }[];
   /** The cast's factions; one with someone in the scene is named, with its people. */
-  factions?: { name: string; description?: string; members: { name: string; role?: string }[] }[];
+  factions?: { name: string; description?: string; members: { name: string; role?: string }[]; facts?: string[] }[];
   /** What reaches the scene from off the page (sim/crossings). */
   elsewhere?: string;
   nudges?: boolean;
@@ -354,7 +354,9 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
       if (!f.members.some((m) => hereNames.has(m.name.trim().toLowerCase()))) continue;
       const who = f.members.slice(0, 10).map((m) => (m.role ? `${m.name} (${m.role})` : m.name)).join(", ");
       const about = f.description?.trim() ? `; ${f.description.trim().replace(/\s+/g, " ").slice(0, 240)}` : "";
-      lines.push(`- Faction ${f.name}: ${who}${f.members.length > 10 ? ", …" : ""}${about}`);
+      // docs/30 1.3: what the group as a whole was told (its members know it; one who joined later may not).
+      const told = f.facts?.length ? `; the group was told: ${f.facts.map((x) => x.replace(/\s+/g, " ").slice(0, 140)).join("; ")}` : "";
+      lines.push(`- Faction ${f.name}: ${who}${f.members.length > 10 ? ", …" : ""}${about}${told}`);
     }
     if (lines.length) lanes.push({ name: "present", lines: ["PRESENT:", ...lines], priority: 1 });
   }

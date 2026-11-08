@@ -234,6 +234,20 @@ The section is already there (`web/src/views/StoryView.svelte`, around line 380)
 - On each faction card: kind, members with "since #n", home (a household's home), what they know (faction facts, newest first), and the engine's standing (clocks, reputation, relations), which today only appears in the World view.
 - The person sheet's faction toggles stay. Add "since #n" on hover.
 
+### Part 1 as built (November 8, 2026)
+
+- **One record per group in the fold** (`WorldState.groups`, `trackers/groups.ts`). Yours and the lore's are seeded at the start (yours win over a lore entry of the same name, which becomes another name). The story's are made when a group is routed (0.2) or written in a `member` line. Each keeps its members with `since` and `left`, what the group was told, and the person a possessive name hangs on.
+- **Adoption (1.2):** a story group stands for its people when Groups is Automatic and it has people named, or was written in two messages. Ask me and Off keep it waiting. A group of two names or more in brackets counts even when the name isn't group-shaped ("the Potentials (Kennedy, Rona)").
+- **The text of the story** is read for capitalised groups, but a name only counts when the words around it make it a group ("the Scoobies were", "one of the Hellions"), or when it ends in an organisation's word ("Council", "Order"). Brands and shows ("Lucky Strikes", "Passions") were the noise without this. A name found only in the text is never adopted by itself. It goes in "Mea thinks these are groups" once it's in two messages.
+- **Fading:** a candidate with nobody named in it fades after 200 messages. One with its people named waits for you however old it is.
+- **Household waits for 2.4.** "household" is neither adopted nor suggested until a home has residents.
+- **Families nobody listed** are the cast by their surname ("the Taylor family": Jackie Taylor), in the fold and on the Story page. Lore family entries here are prose, with no Members field. `loreFactions` reads a Members line when there is one.
+- **What a group knows (1.3):** `know Faction: …` records a group fact with the members at that moment. A secret kept from a faction is kept from whoever joins it later (`secret.groups`). The note's faction line adds "the group was told: …".
+- **Kinds (1.4):** guessed from the name, the lore and the cast's surnames. Families tie their members as close and circles as friends in the roster. Only organisations reach the engine's faction list.
+- **Grammar (1.5):** `member Group: + Name | role · why` and `- Name — why` (also `join`), and `@Group` for the group itself. The tracker's state gets a `Groups:` line with each adopted group's current members.
+- **Story page (1.6):** a Groups selector (Automatic / Ask me / Off) beside Factions. It's on the Factions header rather than the story's dials, which are preset controls. Below it are "Mea thinks these are groups" (Make a faction · Add to… · Not a group, with Undo) and faction cards with kind, source, members ("#n" since, struck when they left, † when dead), what the group was told, and standing (clocks, reputation, relations). Found groups get Looks right / Not a group. Editing one Mea found makes it a row and keeps when each member joined.
+- **Measured** on a copy of the production database (`scripts/group-census.ts`). *Filed Under Forever*: Dawn's friends (Melissa, Kara, Jamie, since #501) was adopted by itself and knows "Buffy Summers is alive and with the tall blond". The lore's "Family: The Winters Family" became another name for your Winters Family. The Scoobies' lore entry no longer turns them into an organisation. No suggestions, with household waiting for 2.4. *The Word in Her Throat*: three lore families with their people by surname, and no noise from the text. Both casts are unchanged (26 and 20 people).
+
 ---
 
 ## Part 2 · A places tracker

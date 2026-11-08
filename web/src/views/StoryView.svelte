@@ -18,7 +18,7 @@
   import { navigate } from "../lib/router.svelte";
   import { errorToast, toast } from "../lib/state.svelte";
   import { voiceColor } from "../lib/voices";
-  import type { CastFaction, CastPerson, CastProfile, TrackerChange } from "../lib/types";
+  import type { CastFaction, CastPerson, CastProfile, FactionBook, FactionView, GroupCandidate, GroupKind, TrackerChange } from "../lib/types";
 
   let { id }: { id: string } = $props();
 
@@ -258,13 +258,50 @@
 
   // ---------- factions: groups of the cast ----------
   let factions = $state<CastFaction[]>([]);
+  // docs/30 Part 1: every faction (yours and the ones Mea found) and the groups it thinks it spotted.
+  let book = $state<FactionBook>({ mode: "auto", factions: [], suggested: [] });
   async function loadFactions() {
     try {
-      factions = (await get<{ factions: CastFaction[] }>(`/api/chats/${id}/factions`)).factions;
+      const r = await get<{ factions: CastFaction[]; book: FactionBook }>(`/api/chats/${id}/factions`);
+      factions = r.factions;
+      book = r.book;
     } catch (e) {
       errorToast(e);
     }
   }
+  const KIND_LABEL: Record<GroupKind, string> = { family: "family", household: "household", circle: "circle of friends", organisation: "organisation", side: "side" };
+  const SOURCE_LABEL: Record<FactionView["source"], string> = { you: "", story: "found in the story", lore: "from the lore", engine: "from the world off the page" };
+  /** "tracked in 3 messages · named in 5": the tracker's lines, and the story's own text. */
+  const evidence = (g: { mentions: number; prose: number }) =>
+    [g.mentions ? `tracked in ${g.mentions} ${g.mentions === 1 ? "message" : "messages"}` : "", g.prose ? `named in ${g.prose} ${g.prose === 1 ? "message" : "messages"}` : ""].filter(Boolean).join(" · ");
+  async function answerGroup(name: string, action: "make" | "seen" | "not" | "undo" | "add", into?: string) {
+    try {
+      await post(`/api/chats/${id}/groups`, { name, action, ...(into ? { into } : {}) });
+      if (action === "not") toast(`${name} isn't a group`, { action: { label: "Undo", run: () => void answerGroup(name, "undo") } });
+      else if (action === "make") toast(`${name} is a faction`, { kind: "ok" });
+      else if (action === "add" && into) toast(`${name} is another name for ${into}`, { kind: "ok" });
+      await loadFactions();
+      if (action === "not" || action === "undo") await loadCast();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  async function setGroupsMode(mode: FactionBook["mode"]) {
+    try {
+      await put(`/api/chats/${id}/groups/mode`, { mode });
+      await loadFactions();
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  const memberTitle = (m: FactionView["members"][number]) =>
+    [m.since ? `since #${m.since}` : "from the start", m.left != null ? `left at #${m.left}` : "", m.why ?? ""].filter(Boolean).join(" · ");
+  /** "since #n" for someone in a faction, for the person sheet. */
+  const sinceIn = (fid: string, names: string[]) => {
+    const f = book.factions.find((x) => x.id === fid);
+    const m = f?.members.find((x) => names.some((n) => nameKey(n) === nameKey(x.name)));
+    return m ? memberTitle(m) : "";
+  };
   const nameKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, " ");
   const isMember = (f: CastFaction, name: string) => f.members.some((m) => nameKey(m.name) === nameKey(name));
   const factionsOf = (p: CastPerson) => factions.filter((f) => [p.name, ...p.aliases].some((n) => isMember(f, n)));
@@ -284,12 +321,24 @@
 
   let factionOpen = $state(false);
   let factionEditing = $state<CastFaction | null>(null);
-  let factionForm = $state<{ name: string; description: string; color: string; members: { name: string; role?: string }[] }>({ name: "", description: "", color: "", members: [] });
+  let factionForm = $state<{ name: string; description: string; color: string; members: { name: string; role?: string }[]; kind: GroupKind | ""; aliases: string; source?: FactionView["source"] }>({ name: "", description: "", color: "", members: [], kind: "", aliases: "" });
   let addPick = $state("");
   let addName = $state("");
-  function openFaction(f: CastFaction | null) {
-    factionEditing = f;
-    factionForm = { name: f?.name ?? "", description: f?.description ?? "", color: f?.color ?? "", members: (f?.members ?? []).map((m) => ({ ...m })) };
+  function openFaction(f: CastFaction | FactionView | null) {
+    // One Mea found has no row yet: saving it makes one, as you see it now.
+    const row = f && f.id ? factions.find((x) => x.id === f.id) : undefined;
+    const view = f && "key" in f ? f : book.factions.find((x) => x.id === f?.id);
+    factionEditing = row ?? null;
+    const members = (row?.members ?? view?.members.filter((m) => m.left == null).map((m) => ({ name: m.name, ...(m.role ? { role: m.role } : {}) })) ?? []).map((m) => ({ ...m }));
+    factionForm = {
+      name: f?.name ?? "",
+      description: f?.description ?? "",
+      color: f?.color ?? "",
+      members,
+      kind: (row?.kind ?? view?.kind ?? "") as GroupKind | "",
+      aliases: (row?.aliases ?? view?.aliases ?? []).join(", "),
+      ...(view && !row ? { source: view.source } : {}),
+    };
     addPick = "";
     addName = "";
     factionOpen = true;
@@ -307,7 +356,19 @@
     addMember(addName);
     addName = "";
     try {
-      const body = $state.snapshot(factionForm);
+      const snap = $state.snapshot(factionForm);
+      const body = {
+        name: snap.name,
+        description: snap.description,
+        color: snap.color,
+        members: snap.members,
+        aliases: snap.aliases
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+        ...(snap.kind ? { kind: snap.kind } : {}),
+        ...(snap.source ? { source: snap.source } : {}),
+      };
       if (factionEditing) await put(`/api/chats/${id}/factions/${factionEditing.id}`, body);
       else await post(`/api/chats/${id}/factions`, body);
       factionOpen = false;
@@ -421,17 +482,65 @@
     {/if}
     <div class="row between">
       <h2 class="section">Factions</h2>
-      <button class="btn small" onclick={() => openFaction(null)}><Plus size={14} /> Add a faction</button>
+      <span class="row">
+        <label class="row tiny muted" title="Whether groups the story names become factions by themselves">
+          Groups
+          <select class="select narrow" value={book.mode} onchange={(e) => setGroupsMode(e.currentTarget.value as FactionBook["mode"])} aria-label="Groups">
+            <option value="auto">Automatic</option>
+            <option value="ask">Ask me</option>
+            <option value="off">Off</option>
+          </select>
+        </label>
+        <button class="btn small" onclick={() => openFaction(null)}><Plus size={14} /> Add a faction</button>
+      </span>
     </div>
-    {#if factions.length}
+    {#if book.suggested.length}
+      <div class="notice tidy">
+        <b>Mea thinks these are groups</b>
+        <p class="tiny muted">{book.mode === "auto" ? "Named too seldom to become factions by themselves." : "Groups wait for you while Groups is set to Ask me."} A faction's name in the story stands for its people.</p>
+        {#each book.suggested as g (g.key)}
+          {@render suggestion(g)}
+        {/each}
+      </div>
+    {/if}
+    {#if book.factions.length}
       <div class="factions">
-        {#each factions as f (f.id)}
+        {#each book.factions as f (f.key)}
           <div class="faction card">
-            <div class="row between"><b class="row"><span class="dot" style:background={f.color || voiceColor(f.name)}></span>{f.name}</b><button class="btn ghost small" onclick={() => openFaction(f)}>Edit</button></div>
+            <div class="row between">
+              <b class="row"><span class="dot" style:background={f.color || voiceColor(f.name)}></span>{f.name}</b>
+              <button class="btn ghost small" onclick={() => openFaction(f)}>Edit</button>
+            </div>
+            <div class="row wrap members">
+              <span class="chip tiny">{KIND_LABEL[f.kind]}{#if f.anchor}<span class="faint"> · {f.anchor}'s</span>{/if}</span>
+              {#if SOURCE_LABEL[f.source]}<span class="chip tiny faint">{SOURCE_LABEL[f.source]}</span>{/if}
+              {#if f.aliases.length}<span class="tiny faint">also {f.aliases.join(", ")}</span>{/if}
+            </div>
             {#if f.description}<div class="tiny muted wraps">{f.description}</div>{/if}
             <div class="row wrap members">
-              {#each f.members as m (m.name)}<span class="chip tiny">{m.name}{#if m.role}<span class="faint"> · {m.role}</span>{/if}</span>{:else}<span class="tiny faint">No members yet</span>{/each}
+              {#each f.members as m (m.name)}<span class="chip tiny" class:gone={m.left != null} title={memberTitle(m)}>{m.name}{#if m.dead}{" †"}{/if}{#if m.role}<span class="faint"> · {m.role}</span>{/if}{#if m.since}<span class="faint"> · #{m.since}</span>{/if}</span>{:else}<span class="tiny faint">No members known yet</span>{/each}
             </div>
+            {#if f.facts.length}
+              <div class="tiny">
+                <span class="muted">The group was told</span>
+                {#each f.facts.slice(0, 3) as x (x.seq + x.text)}<div class="wraps" title="Told to {x.members.join(', ')}">· {x.text} <span class="faint">#{x.seq}</span></div>{/each}
+              </div>
+            {/if}
+            {#if f.standing.clocks.length || f.standing.rep.length || f.standing.relations.length}
+              <div class="tiny wraps">
+                <span class="muted">Standing</span>
+                {#each f.standing.clocks as k (k.name)}<span> · {k.name} {k.cur}/{k.max}</span>{/each}
+                {#each f.standing.rep as r (r.who)}<span> · {r.who} {r.score > 0 ? "+" : ""}{r.score}</span>{/each}
+                {#each f.standing.relations as r (r.with)}<span> · with {r.with} {r.score > 0 ? "+" : ""}{r.score}</span>{/each}
+              </div>
+            {/if}
+            {#if f.found && !f.seen && f.source === "story"}
+              <div class="row">
+                <span class="tiny faint grow">{evidence(f)}</span>
+                <button class="btn ghost small" onclick={() => answerGroup(f.name, "seen")}>Looks right</button>
+                <button class="btn ghost small" onclick={() => answerGroup(f.name, "not")}>Not a group</button>
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
@@ -537,7 +646,7 @@
       <div class="field">
         <span class="label">Factions</span>
         <div class="row wrap members">
-          {#each factions as f (f.id)}<label class="switch"><input type="checkbox" value={f.id} bind:group={joined} /> {f.name}</label>{/each}
+          {#each factions as f (f.id)}<label class="switch" title={editing ? sinceIn(f.id, [editing.name, ...editing.aliases]) : ""}><input type="checkbox" value={f.id} bind:group={joined} /> {f.name}</label>{/each}
         </div>
       </div>
     {/if}
@@ -563,10 +672,38 @@
   {/snippet}
 </Modal>
 
-<Modal bind:open={factionOpen} title={factionEditing ? factionEditing.name : "Add a faction"} size="md">
+{#snippet suggestion(g: GroupCandidate)}
+  <div class="row between tidy-row">
+    <span class="small"
+      ><b>{g.name}</b> <span class="tiny muted">{KIND_LABEL[g.kind]}{g.members.length ? `: ${g.members.join(", ")}` : ""}</span><span class="tiny faint">{" · "}{evidence(g)}</span></span
+    >
+    <span class="row">
+      <button class="btn ghost small" onclick={() => answerGroup(g.name, "make")}>Make a faction</button>
+      {#if book.factions.length}
+        <select class="select narrow" aria-label="Add {g.name} to a faction" onchange={(e) => e.currentTarget.value && answerGroup(g.name, "add", e.currentTarget.value)}>
+          <option value="">Add to…</option>
+          {#each book.factions.filter((f) => f.source !== "engine") as f (f.key)}<option value={f.name}>{f.name}</option>{/each}
+        </select>
+      {/if}
+      <button class="btn ghost small" onclick={() => answerGroup(g.name, "not")}>Not a group</button>
+    </span>
+  </div>
+{/snippet}
+
+<Modal bind:open={factionOpen} title={factionEditing ? factionEditing.name : factionForm.source ? factionForm.name : "Add a faction"} size="md">
   <div class="stack">
     <label class="field"><span class="label">Name</span><input class="input" bind:value={factionForm.name} placeholder="The Harbour Guild" /></label>
     <label class="field"><span class="label">What they are</span><textarea class="textarea" rows="3" bind:value={factionForm.description} placeholder="Who they are, what they want, who they're against"></textarea></label>
+    <div class="row wrap merge">
+      <label class="field grow">
+        <span class="label">Kind</span>
+        <select class="select" bind:value={factionForm.kind}>
+          <option value="">Mea guesses</option>
+          {#each Object.entries(KIND_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}
+        </select>
+      </label>
+      <label class="field grow"><span class="label">Other names</span><input class="input" bind:value={factionForm.aliases} placeholder="the gang, Scooby Gang" /></label>
+    </div>
     <label class="field">
       <span class="label">Colour</span>
       <span class="row"><input type="color" class="swatch" value={factionForm.color || voiceColor(factionForm.name || "?")} oninput={(e) => (factionForm.color = e.currentTarget.value)} />{#if factionForm.color}<button class="btn ghost small" onclick={() => (factionForm.color = "")}>Automatic</button>{/if}</span>
@@ -686,6 +823,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
     gap: 0.6rem;
+    align-items: start;
   }
   .person {
     padding: 0.7rem;
@@ -712,11 +850,17 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
     gap: 0.6rem;
+    align-items: start;
   }
   .faction {
     padding: 0.7rem;
     display: grid;
     gap: 0.35rem;
+    align-content: start;
+  }
+  .chip.gone {
+    text-decoration: line-through;
+    opacity: 0.6;
   }
   .members {
     gap: 0.3rem;

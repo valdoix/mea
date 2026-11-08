@@ -14,13 +14,14 @@ import { leadingDuration } from "./clock";
 const OPS: OpName[] = [
   "clock", "wx", "at", "scene", "occasion", "mode", "cast", "mood", "body", "look", "trait", "drive", "mask", "think", "journal", "dead",
   "bond", "ladder", "know", "secret", "reveal", "item", "thread", "owe", "promise", "deadline", "plant", "payoff", "clue",
-  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "loop", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps",
+  "gauge", "clockf", "rep", "event", "plan", "motif", "milestone", "beat", "loop", "set", "lock", "unset", "rename", "merge", "edit", "expose", "pressure", "room", "keeps", "member",
 ];
 const ALIASES: Record<string, OpName> = {
   time: "clock", weather: "wx", place: "at", location: "at", where: "at", present: "cast", emotion: "mood", outfit: "look", appearance: "look",
   thought: "think", thoughts: "think", inner: "think", relationship: "bond", romance: "ladder", knowledge: "know", inventory: "item",
   debt: "owe", favour: "owe", favor: "owe", vow: "promise", due: "deadline", chekhov: "plant", faction: "clockf", reputation: "rep",
   calendar: "event", appointment: "plan", callback: "motif", bit: "motif", died: "dead", death: "dead", drives: "drive", wants: "drive",
+  members: "member", join: "member", joined: "member",
   injury: "body", condition: "body", traits: "trait", title: "scene", happened: "beat", events: "beat",
 };
 
@@ -396,6 +397,21 @@ export function parseLine(raw: string): Op | null {
       const [where, kind] = body.split("|").map((x) => x.trim());
       a.path = (where ?? "").split(/\s*(?:›|>|»|\/)\s*/).map((s) => s.trim()).filter(Boolean);
       a.kind = kind?.toLowerCase() || undefined;
+      break;
+    }
+    case "member": {
+      // docs/30 1.5: "member Scoobies: + Dawn | junior · since she found the handbook" / "member Scoobies: - Anya — left after the wedding"
+      if (subject) subject = out.subject = subject.replace(/^@/, "").trim();
+      const m = body.match(/^([+-])?\s*([\s\S]*)$/)!;
+      a.leave = m[1] === "-";
+      const [main, ...why] = m[2]!.split(/\s*[·•]\s*/);
+      const [names, role] = (main ?? "").split("|").map((x) => x.trim());
+      a.names = (names ?? "")
+        .split(/\s*(?:,|&|;|\band\b)\s*/i)
+        .map((x) => x.replace(/^[+-]\s*/, "").trim())
+        .filter(Boolean);
+      a.role = role || undefined;
+      a.why = why.join("; ").trim() || undefined;
       break;
     }
     case "keeps": {

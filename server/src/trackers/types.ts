@@ -18,6 +18,8 @@ export type OpName =
   | "room" | "keeps"
   // docs/30 0.4: what a place looks like now ("place Kitchen › Fridge door: league standings in marker")
   | "place"
+  // docs/30 1.5: who's in a group ("member Scoobies: + Dawn | junior")
+  | "member"
   // engine-only: the world off the page (sim/types.ts)
   | "sim";
 
@@ -167,8 +169,8 @@ export interface Fact {
   key: string;
   statement: string;
   truth: Truth;
-  /** `everyone`: kept from all but the keepers, so whoever turns up later goes into `from` too. */
-  secret?: { keepers: string[]; from: string[]; everyone?: boolean };
+  /** `everyone`: kept from all but the keepers, so whoever turns up later goes into `from` too. `groups` (docs/30 1.3): kept from a group, so whoever joins it later is kept from it too. */
+  secret?: { keepers: string[]; from: string[]; everyone?: boolean; groups?: string[] };
   stances: Record<string, { status: KnowStatus; route?: string; seq: number; set?: boolean }>;
   revealed: { to: string[]; seq: number; how?: string }[];
   /** docs/21 4.3: who it's about (character ids), read once with the cast in hand. */
@@ -396,6 +398,43 @@ export interface NotPerson {
   lines: number;
 }
 
+/** docs/30 1.4: what sort of group it is. */
+export type GroupKind = "family" | "household" | "circle" | "organisation" | "side";
+
+/** docs/30 1.2: one person in a group, from when (and until when, if they left). */
+export interface GroupMember {
+  name: string;
+  role?: string;
+  /** The seq they joined at (0: from the start, or yours on the Story page). */
+  since: number;
+  /** The seq they left at, when they did. */
+  left?: number;
+  why?: string;
+}
+
+/**
+ * docs/30 Part 1: a group the story knows: yours on the Story page, the lore's, or one the story
+ * wrote ("Dawn's friends (Melissa, Kara, Jamie)", "member Scoobies: + Dawn"). Who's in it, and what it was told.
+ */
+export interface Group {
+  name: string;
+  aliases?: string[];
+  kind?: GroupKind;
+  /** you: on the Story page; lore: a lore entry; story: the tracker wrote it. */
+  source: "you" | "lore" | "story";
+  members: GroupMember[];
+  /** docs/30 1.3: what was said to the group as a whole, and who was in it then. */
+  facts: { text: string; seq: number; members: string[] }[];
+  /** The person a possessive name is anchored to ("Dawn's friends": Dawn). */
+  anchor?: string;
+  firstSeq: number;
+  lastSeq: number;
+  /** Whether it stands for its people: yours and the lore's always, the story's once adopted (docs/30 1.2). */
+  adopted?: boolean;
+  /** In how many messages a line named it. */
+  mentions: number;
+}
+
 export interface WorldState {
   time: Moment | null;
   /** When the clock was first set: the story's opening, the "tonight" a card's scenario speaks of. */
@@ -439,6 +478,8 @@ export interface WorldState {
   places: Record<string, Place>;
   /** docs/30 0.2: names kept off the cast, by lower-case name. */
   notPeople?: Record<string, NotPerson>;
+  /** docs/30 Part 1: the story's groups, by key (lower case, without "the"). */
+  groups?: Record<string, Group>;
   /** Custom template values (TRK-01): { templateKey: { field: value } }. */
   custom: Record<string, Record<string, unknown>>;
   /** Paths the user locked (TRK-05). */
