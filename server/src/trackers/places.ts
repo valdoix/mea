@@ -20,6 +20,10 @@ export interface PlaceProfile {
   notPlace?: boolean;
   /** Names that are NOT this place, though they look like it ("Not the same place"). */
   notSame?: string[];
+  /** docs/30 2.6: moved under another place (its id): "Move under…". */
+  parent?: string;
+  /** Always kept in mind, like a pinned person. */
+  pinned?: boolean;
 }
 
 export type PlaceKind = "town" | "district" | "street" | "building" | "home" | "floor" | "room" | "spot" | "vehicle" | "outdoors";
@@ -257,11 +261,17 @@ export class PlaceBook {
   /** A new place under `parent`, named as written. */
   private make(seg: string, parent: Place | undefined, seq: number): Place {
     const path = [...(parent ? this.path(parent) : []), seg];
-    let id = slugOf(path.join(" "));
-    for (let i = 2; this.st.places[id]; i++) id = `${slugOf(path.join(" "))}-${i}`;
-    const merged = this.o.profiles?.[id]?.into;
+    const base = slugOf(path.join(" "));
+    // docs/30 2.6: a place you moved under another is still the place this path was written for.
+    if (this.o.profiles?.[base]?.parent && this.st.places[base]) return this.st.places[base]!;
+    let id = base;
+    for (let i = 2; this.st.places[id]; i++) id = `${base}-${i}`;
+    const prof = this.o.profiles?.[id];
+    const merged = prof?.into;
     if (merged && this.st.places[merged]) return this.st.places[merged]!;
-    const p: Place = { id, name: this.o.profiles?.[id]?.name ?? seg, path, visits: 0, lastSeq: seq, kind: this.o.profiles?.[id]?.kind ?? kindOf(seg, path.length - 1), ...(parent ? { parent: parent.id } : {}), source: "story" };
+    const moved = prof?.parent && prof.parent !== id ? this.st.places[prof.parent] : undefined;
+    const under = moved && !this.chainOf(moved).some((x) => x.id === id) ? moved : parent;
+    const p: Place = { id, name: prof?.name ?? seg, path: [...(under ? this.path(under) : []), prof?.name ?? seg], visits: 0, lastSeq: seq, kind: prof?.kind ?? kindOf(seg, path.length - 1), ...(under ? { parent: under.id } : {}), source: "story", ...(prof?.pinned ? { pinned: true } : {}) };
     this.st.places[id] = p;
     return p;
   }
@@ -327,6 +337,8 @@ export class PlaceBook {
       if (!p) {
         if (!opts.create) return undefined;
         const parent = under ?? this.context(seg, parts.length - i + (address ? 1 : 0));
+        // docs/30 2.6: a phrase you said isn't a place ("Not a place") is skipped, and the path goes on without it.
+        if (this.o.profiles?.[slugOf([...(parent ? this.path(parent) : []), seg].join(" "))]?.notPlace) continue;
         if (!parent && opts.noNewTop) return undefined;
         p = this.make(seg, parent, seq);
         created.push(p);
@@ -552,6 +564,11 @@ export function knownPlaces(st: WorldState, o: { rooms?: number; usual?: number;
         .slice(0, o.usual ?? 8)
         .map((p) => book.path(p).slice(1).join(" › "))
     : [];
+  // docs/30 2.6: pinned places are always kept in mind.
+  for (const p of book.all().filter((x) => x.pinned)) {
+    const at = book.path(p).join(" › ");
+    if (!usual.includes(at) && !rooms.includes(p.name)) usual.unshift(at);
+  }
   const shown = new Set([...(building ? [building.id, ...book.under(building, 1).map((p) => p.id)] : [])]);
   const recent = book
     .all()

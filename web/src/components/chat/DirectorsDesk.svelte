@@ -19,7 +19,7 @@
     suggestions: Suggestion[];
     here: string[];
     away: { name: string; where: string | null }[];
-    places: { name: string; path: string }[];
+    places: { name: string; path: string; group?: string }[];
     since: number;
   }
   type Report =
@@ -46,6 +46,12 @@
   } = $props();
 
   let desk = $state<Desk | null>(null);
+  /** The places for Cut to, each building's rooms together, in the order the server gives them. */
+  const placeGroups = $derived.by(() => {
+    const m = new Map<string, Desk["places"]>();
+    for (const p of desk?.places ?? []) m.set(p.group ?? "", [...(m.get(p.group ?? "") ?? []), p]);
+    return [...m.entries()];
+  });
   let report = $state<Report | null>(null);
   let reportOpen = $state(false);
   let custom = $state("");
@@ -179,7 +185,8 @@
         <select class="select" value="" disabled={busy} onchange={(e) => e.currentTarget.value && cue({ kind: "cut", to: e.currentTarget.value }, `The next reply cuts to ${e.currentTarget.value.split(" › ").at(-1)}`)}>
           <option value="">Someone or somewhere</option>
           {#if desk.away.length}<optgroup label="People">{#each desk.away as p, i (`${p.name}:${i}`)}<option value={p.name}>{p.name}{p.where ? ` (${p.where.split(" › ").at(-1)})` : ""}</option>{/each}</optgroup>{/if}
-          {#if desk.places.length}<optgroup label="Places">{#each desk.places as p (p.path)}<option value={p.path}>{p.name}</option>{/each}</optgroup>{/if}
+          <!-- docs/30 2.6: by the tree, so a kitchen is one kitchen per house. -->
+          {#each placeGroups as [group, ps] (group)}<optgroup label={group || "Places"}>{#each ps as p (p.path)}<option value={p.path}>{p.name}</option>{/each}</optgroup>{/each}
         </select>
       </label>
       <label class="tsec">

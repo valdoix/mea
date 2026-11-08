@@ -385,6 +385,8 @@ export interface Place {
   source?: "story" | "lore" | "card" | "you";
   /** When the scene last left it, for "changed since you were last here". */
   leftSeq?: number;
+  /** docs/30 2.6: pinned on the Story page: always kept in mind. */
+  pinned?: boolean;
   /** How often each of its names was written: the most written is its name. */
   written?: Record<string, number>;
 }
