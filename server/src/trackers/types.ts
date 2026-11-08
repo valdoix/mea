@@ -190,6 +190,8 @@ export interface Item {
   id: string;
   name: string;
   holder?: string;
+  /** docs/30 2.2: the place it's at, in the tree (a key of `places`), when the holder is a place: "at counter" in the Summers kitchen. */
+  placeId?: string;
   owner?: string;
   where?: string;
   condition?: string;
@@ -361,8 +363,22 @@ export interface Place {
   kind?: string;
   /** E2: the item ids that were here when you last left, for "what's changed since". */
   seen?: string[];
-  /** docs/30 0.4: what it looks like now, newest last (a `place` line, or a `room` line written about the place). */
-  notes?: { text: string; seq: number }[];
+  /**
+   * docs/30 0.4 / 2.3: what it looks like, newest last (a `place` line, or a `room` line written about
+   * the place). `feature` is what a note is about ("fridge"); a newer note about it makes the older one `past`.
+   */
+  notes?: { text: string; seq: number; feature?: string; past?: boolean }[];
+  /** docs/30 2.1: the place it's in (a place id): Sunnydale › Winters Residence › Kitchen. */
+  parent?: string;
+  /** Other names it's been written as ("Gabriel's House", "downstairs kitchen"). */
+  aliases?: string[];
+  /** A home's street ("Revello Drive"), when a path put the street before it. */
+  address?: string;
+  source?: "story" | "lore" | "card" | "you";
+  /** When the scene last left it, for "changed since you were last here". */
+  leftSeq?: number;
+  /** How often each of its names was written: the most written is its name. */
+  written?: Record<string, number>;
 }
 
 /**
@@ -388,6 +404,8 @@ export interface WorldState {
   /** docs/25 §4.2: an event under way, in the model's words ("a royal wedding feast"), and where and when it began, so it ends by itself. */
   occasion?: { now: string; seq: number; at: number | null; root: string } | null;
   place: string[];
+  /** docs/30 2.1: the place the scene is in (a key of `places`); `place` is its path. */
+  placeId?: string;
   sceneNo: number;
   sceneTitle?: string;
   sceneStartSeq: number;

@@ -3,7 +3,8 @@ import { stash } from "../services/undo";
 import { z } from "zod";
 import { all, one, parseJson } from "../db/db";
 import { badRequest, body, must, notFound } from "../lib/http";
-import { belongingsOf } from "../trackers/belongings";
+import { belongingsOf, itemsAt } from "../trackers/belongings";
+import { currentNotes } from "../trackers/places";
 import { getCharacterRow } from "../services/characters";
 import { type ChatSettings, getMessageRow, mustChat, trackerConfigSchema, updateChat } from "../services/chats";
 import { enqueue } from "../services/jobs";
@@ -33,8 +34,10 @@ import {
   linesToOps,
   listTemplates,
   moveCastProfile,
+  placeProfiles,
   saveCastFaction,
   saveCastProfile,
+  savePlaceProfile,
   saveTemplate,
   setCharacterTrackerDefaults,
   trackerConfig,
@@ -307,6 +310,50 @@ trackers.get("/chats/:id/belongings/:char", (c) => {
   if (!who) throw notFound("Who?");
   const places = Object.values(st.places).map((p) => ({ id: p.id, name: p.name, path: p.path.join(" › "), owner: p.owner ? (st.chars[p.owner]?.name ?? null) : null }));
   return c.json({ ...belongingsOf(st, who), places });
+});
+
+/** docs/30 2.1: the story's places as a tree (town › building › room › spot), with your edits to them. */
+trackers.get("/chats/:id/places", (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const st = currentFold(chatId).result.state;
+  const profiles = placeProfiles(chatId);
+  const places = Object.values(st.places).map((p) => ({
+    id: p.id,
+    name: p.name,
+    path: p.path.join(" › "),
+    parent: p.parent ?? null,
+    kind: p.kind ?? null,
+    aliases: p.aliases ?? [],
+    address: p.address ?? null,
+    owner: p.owner ? (st.chars[p.owner]?.name ?? null) : null,
+    visits: p.visits,
+    lastSeq: p.lastSeq,
+    notes: currentNotes(p).map((n) => ({ text: n.text, seq: n.seq })),
+    items: itemsAt(st, p).map((i) => i.name),
+    here: st.placeId === p.id,
+    profile: profiles[p.id] ?? null,
+  }));
+  return c.json({ places });
+});
+
+const placeEdit = z.object({
+  name: z.string().trim().max(120).optional(),
+  aliases: z.array(z.string().trim().min(1).max(120)).max(40).optional(),
+  kind: z.string().trim().max(30).optional(),
+  into: z.string().max(80).nullable().optional(),
+  notPlace: z.boolean().optional(),
+  notSame: z.array(z.string().trim().min(1).max(120)).max(40).optional(),
+});
+
+/** docs/30 2.1: your edit to a place: kept through every refold (empty fields remove it). */
+trackers.put("/chats/:id/places/:placeId", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const input = await body(c, placeEdit);
+  const placeId = c.req.param("placeId");
+  if (input.into === placeId) throw badRequest("A place can't be merged into itself");
+  return c.json(savePlaceProfile(chatId, placeId, { ...input, into: input.into ?? undefined }));
 });
 
 trackers.get("/chats/:id/cast", (c) => {

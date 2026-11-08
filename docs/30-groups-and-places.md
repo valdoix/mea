@@ -283,6 +283,28 @@ place Living room: permanent dart nick in the paint by the dartboard — Buffy k
 - Old `room <place>: <sentence>` lines become notes when refolded (0.4). The three Downstairs Kitchen "rooms" become two notes about the fridge door and one about the living-room wall. The last of those one names the dartboard wall, so it goes under Living room.
 - The note shows the current place's newest notes and its items. "Since you were last here" (`changedSince`) compares notes as well as items.
 
+### 2.1–2.3 as built (November 8, 2026)
+
+- **The tree** lives in `trackers/places.ts` (`PlaceBook`). `Place` gains `parent`, `aliases`, `address`, `written` (how often each name was written) and `leftSeq`. The scene keeps `placeId`. A thing put down keeps its holder text as written ("at counter") and gets a `placeId` too, so docs/26's trail of where things rest is unchanged.
+- **Your edits:** a `place_profiles` table (migration 41) holds a name, other names, a kind, `into` (merge), `notPlace` and `notSame`. The fold reads it. `GET /api/chats/:id/places` returns the tree, and `PUT /api/chats/:id/places/:placeId` saves an edit. The page for these comes in 2.6.
+- **Matching** follows the rules in 2.2. Additions:
+  - a place takes **the name it's written as most** (so the town is Sunnydale, even though the first line said Sunnyvale)
+  - **homes made apart fold together** once it's clear they're one: "Gabriel's House" was written before the Winters Residence had a name
+  - a **street that turns out to be a home's address** gives that home the rooms written under the street
+  - a **building written from its own name** ("Grocery Store › Produce Aisle") goes in the town the story came from, but only if that town already has buildings. The Crossroads Inn stays on the road, not inside Harrenhal.
+  - **items and `keeps`** never start a new top-level place, so "at Buffy's arm" makes nothing
+- **Notes:** each note is filed by its feature (its first word: "fridge"). A newer note on the same feature makes the older one history. A note that starts with another room of the house moves to that room. The `HERE:` line marks notes that are new since the scene was last there.
+- **Not done:** going one step deeper (kitchen → kitchen › table) still counts as a new scene, as it did before.
+
+**Measured on a copy of the production database** (`scripts/place-census.ts`):
+
+| Story | Paths written | Places now | At the top |
+|---|---|---|---|
+| Filed Under Forever | 119 | 125 | 1 (Sunnydale) |
+| The Word in Her Throat | 15 | 20 | 3 |
+
+The Winters house's 42 paths are now one home, **Winters Residence**. Its other names are Winters House, Gabriel's House, Gabriel's warded house, Gabriel Winters' House and warded house. It has one kitchen ("downstairs kitchen" is that same kitchen) and about 30 rooms and spots under it. The Summers Residence is on Revello Drive and holds the rooms that were written under the street. Before, every path was a place of its own (119 of them).
+
 ### 2.4 Owners and residents
 
 - `room A: place | kind` keeps its meaning: A owns it.

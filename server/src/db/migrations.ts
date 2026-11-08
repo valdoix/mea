@@ -1562,6 +1562,21 @@ ALTER TABLE image_batches ADD COLUMN negative TEXT;
 CREATE INDEX IF NOT EXISTS image_batches_owner ON image_batches(owner_type, owner_id, created_at);
 `,
   },
+  {
+    id: 41,
+    name: "place profiles",
+    sql: /* sql */ `
+-- docs/30 2.1: your edits to a story's places (a name, more names, a kind, a merge, "not a place"),
+-- by the place's id in the fold. The fold reads them, so they last through every refold.
+CREATE TABLE IF NOT EXISTS place_profiles (
+  chat_id    TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  place_id   TEXT NOT NULL,
+  data       TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (chat_id, place_id)
+);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
