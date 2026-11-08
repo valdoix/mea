@@ -586,7 +586,7 @@
       <!-- docs/30 3.1: extras the story only described. A name, a third scene or a pin makes them cast. -->
       <div class="tiny passing">
         <span class="muted" title="People the story only described. They draw no pressure and start no subplots. Give one a name, pin them, or let them turn up in three scenes, and they join the cast.">Passing faces</span>
-        {#each people.filter((x) => x.passing) as p, i (p.id || p.key)}{i ? " · " : " "}<button class="link" onclick={() => openEdit(p)}>{p.name}</button>{#if p.lastSeq}<a class="faint" href="/chat/{id}?at={p.lastSeq}"> #{p.lastSeq}</a>{/if}{/each}
+        {#each people.filter((x) => x.passing) as p, i (p.id || p.key)}{i ? " · " : " "}<button class="link" onclick={() => openEdit(p)}>{p.name}</button>{#if p.lastSeq}{" "}<a class="faint" href="/chat/{id}?at={p.lastSeq}">#{p.lastSeq}</a>{/if}{/each}
       </div>
     {/if}
   {/if}
