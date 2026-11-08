@@ -6,7 +6,7 @@ import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortS
 import { loopId, repeats } from "./loops";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { castLabel, parseLine } from "./dsl";
-import { PlaceBook, type PlaceProfile } from "./places";
+import { PlaceBook, placeKey, type PlaceProfile } from "./places";
 import { currentMembers, groupKey, kindOfGroup, possessiveAnchor } from "./groups";
 import { bracketGroup, FIELD_WORD, familySurname, isGroupShape, looksLikePlace, sentenceNotPath } from "./whois";
 import { mentions } from "./mentions";
@@ -78,7 +78,7 @@ export interface FoldConfig {
    * docs/30 0.1: the story's factions (yours on the Story page, and the lore's). A faction's name in a
    * person line stands for its members, and is never a person itself.
    */
-  factions?: { name: string; aliases?: string[]; members: string[]; kind?: GroupKind; source?: "you" | "lore" }[];
+  factions?: { name: string; aliases?: string[]; members: string[]; kind?: GroupKind; source?: "you" | "lore"; /** docs/30 2.4: the lore's "Home" field: its members live there. */ home?: string }[];
   /**
    * docs/30 1.2: whether a group the story wrote becomes a faction by itself ("auto", the default: named in
    * two messages, or with its people named), only once you say so ("ask"), or never ("off").
@@ -221,15 +221,15 @@ const isCrowd = (name: string) => {
   return GROUP_WORD.test(n) || PUBLIC_WORD.test(n);
 };
 /** Ops said of a person, which a list of names in the subject spreads over each of them. */
-const PERSON_OPS = new Set<string>(["mood", "body", "look", "trait", "drive", "mask", "dead", "bond", "ladder", "know", "pressure", "room", "keeps", "owe", "promise", "rep"]);
+const PERSON_OPS = new Set<string>(["mood", "body", "look", "trait", "drive", "mask", "dead", "bond", "ladder", "know", "pressure", "room", "keeps", "owe", "promise", "rep", "lives"]);
 /** docs/30 0.2: ops a group's name spreads over its people. A trait, a look or a room of the Scoobies isn't each member's. */
-const SPREAD_OPS = new Set<string>(["know", "mood", "bond", "owe", "promise"]);
+const SPREAD_OPS = new Set<string>(["know", "mood", "bond", "owe", "promise", "lives"]);
 
 /** What a name in a person's place stands for (docs/30 0.2). */
 type Who =
   | { kind: "person" }
   | { kind: "crowd" }
-  | { kind: "many"; names: string[]; as: "faction" | "group"; group: string }
+  | { kind: "many"; names: string[]; as: "faction" | "group"; group: string; /** docs/30 2.4: a household: the home (a place id) whose residents these are. */ home?: string }
   | { kind: "not"; as: "place" | "group" | "faction" | "field"; name: string; reason: string };
 
 interface Ctx {
@@ -318,7 +318,7 @@ export class Folder {
     if (g.source !== "story") return true;
     if (this.notGroup(g.name) || (this.cfg.groupsMode ?? "auto") !== "auto") return false;
     // A household is whoever lives at a home (docs/30 2.4), not a list the story wrote once.
-    if (g.kind === "household" && !currentMembers(g).length) return false;
+    if (g.kind === "household") return Boolean(g.home && this.residentsOf(g.home).length) || currentMembers(g).length > 0;
     return currentMembers(g).length > 0 || g.mentions >= 2;
   }
 
@@ -464,6 +464,8 @@ export class Folder {
     // docs/30 1.1: yours, the lore's, and the story's own when it's adopted, with who's in it now.
     const g = this.findGroup(name);
     if (g && (g.adopted ?? this.adopts(g))) {
+      // docs/30 2.4: a household is whoever lives at its home now.
+      if (g.kind === "household" && g.home) return { name: g.name, members: this.residentsOf(g.home).map((id) => this.nameOf(id)) };
       const members = currentMembers(g).map((m) => m.name);
       // docs/30 1.4: a family nobody listed is the cast by its surname ("the Taylor family": Jackie Taylor).
       return { name: g.name, members: members.length || g.kind !== "family" ? members : this.bySurname(g.name) };
@@ -488,6 +490,91 @@ export class Folder {
     return Object.values(this.state.places).some((p) => p.path.some((x) => norm(x) === n) || (p.aliases ?? []).some((x) => norm(x) === n));
   }
 
+  // ---------- homes (docs/30 2.4) ----------
+
+  /** Who lives at a place now (character ids), the dead left out. */
+  residentsOf(placeId: string): string[] {
+    return (this.state.places[placeId]?.residents ?? []).filter((id) => this.state.chars[id] && !this.state.chars[id]!.dead);
+  }
+
+  /** The home someone lives in now. */
+  homeOf(charId: string): Place | undefined {
+    const all = Object.values(this.state.places).filter((p) => p.residents?.includes(charId));
+    return all.find((p) => p.kind === "home") ?? all[0];
+  }
+
+  /**
+   * docs/30 2.4: "household", "the household", "the Winters household", "Dawn's household": the home
+   * it means (the named one, the one the scene is in, or the player's), and who lives there now.
+   */
+  private household(name: string): { group: string; home: Place; names: string[] } | undefined {
+    const n = norm(name);
+    const m = n.match(/^(?:the\s+)?(?:whole\s+)?(?:(.+?)\s+)?(?:household|housemates|roommates)$/) ?? n.match(/^everyone (?:at home|in the house)$/);
+    if (!m) return undefined;
+    const st = this.state;
+    const book = this.placeBook;
+    const homes = Object.values(st.places).filter((p) => p.kind === "home");
+    let home: Place | undefined;
+    const pre = m[1]?.replace(/^the\s+/, "");
+    if (pre) {
+      const who = pre.match(/^(.+?)(?:'s|s')$/)?.[1];
+      const c = who ? this.findChar(who) : undefined;
+      if (c) home = this.homeOf(c.id);
+      else {
+        const fam = pre.replace(/(?:es|s)$/, "");
+        const sur = (x: string) => x.split(" ").at(-1)!.replace(/(?:es|s)$/, "");
+        const hits = homes.filter((h) => book.names(h).some((x) => placeKey(x).split(" ")[0]!.replace(/(?:es|s)$/, "") === fam) || this.residentsOf(h.id).some((id) => sur(norm(st.chars[id]!.name)) === fam));
+        if (hits.length === 1) home = hits[0];
+      }
+      if (!home) return undefined;
+    } else {
+      const here = book.buildingOf(book.here());
+      const user = Object.values(st.chars).find((c) => c.isUser);
+      home = here?.kind === "home" ? here : user ? this.homeOf(user.id) : undefined;
+      if (!home) return undefined;
+    }
+    return { group: `${home.name} household`, home, names: this.residentsOf(home.id).map((id) => this.nameOf(id)) };
+  }
+
+  /**
+   * docs/30 2.4: who lives at a home, from what the story already says: a home named for someone
+   * ("Gabriel's House"), the lore's family with this "Home", a `room` line making the home theirs, and
+   * a bedroom of their own in it. These are guesses (`guessed`): a "lives" line always wins. A guess
+   * only fills in someone who lives nowhere yet, except a new room line (`fresh`, its person), which
+   * moves a guess: Dawn's new bedroom at the Winters house says she lives there now.
+   */
+  private homeEvidence(p: Place, fresh?: string) {
+    const st = this.state;
+    const book = this.placeBook;
+    const home = book.buildingOf(p);
+    if (!home || home.kind !== "home") return;
+    const where = new Map<string, Place>();
+    for (const x of Object.values(st.places)) for (const id of x.residents ?? []) where.set(id, x);
+    const add = (c: Character | undefined) => {
+      if (!c || c.dead) return;
+      const at = where.get(c.id);
+      if (at?.id === home.id) return;
+      if (at) {
+        // Said with a lives line, or a guess that only a new room line moves.
+        if (fresh !== c.id || !at.guessed?.includes(c.id)) return;
+        at.residents = at.residents!.filter((id) => id !== c.id);
+        at.guessed = at.guessed.filter((id) => id !== c.id);
+      }
+      (home.residents ??= []).push(c.id);
+      (home.guessed ??= []).push(c.id);
+      where.set(c.id, home);
+    };
+    const names = book.names(home);
+    for (const n of names) {
+      const m = n.match(/^(.+?)(?:'s|s')\s+(?:.*\s)?(?:house|home|place|apartment|flat|residence|mansion|manor)$/i);
+      if (m) add(this.findChar(m[1]!));
+    }
+    for (const f of this.cfg.factions ?? []) if (f.home && names.some((x) => placeKey(x) === placeKey(f.home!))) for (const name of f.members) add(this.findChar(name));
+    if (home.owner) add(st.chars[home.owner]);
+    // A bedroom of their own, not any room a line called theirs (a kitchen, a porch).
+    for (const r of book.under(home, 2)) if (r.owner && /\bbed ?room\b|\bquarters\b/i.test(`${r.name} ${r.kind ?? ""}`)) add(st.chars[r.owner]);
+  }
+
   /**
    * docs/30 0.2: what a name in a person's place stands for. Someone already in the cast (or that you
    * said is a person) is a person. Otherwise a faction or a group stands for its people, and a place
@@ -509,6 +596,12 @@ export class Folder {
     if ((this.cfg.people ?? []).some((p) => norm(p) === n)) return { kind: "person" };
     if (Object.values(this.state.chars).some((c) => norm(c.name) === n || c.aliases.some((a) => norm(a) === n))) return { kind: "person" };
     if (isCrowd(raw)) return { kind: "crowd" };
+    // docs/30 2.4: "the household" is whoever lives at the home in the scene (or the player's home).
+    const hh = this.household(name);
+    if (hh)
+      return hh.names.length
+        ? { kind: "many", names: hh.names, as: "group", group: hh.group, home: hh.home.id }
+        : { kind: "not", as: "group", name: hh.group, reason: `nobody is known to live at ${hh.home.name} yet: write lives Name: ${hh.home.name}` };
     // docs/30 1.2: or a name nobody has, with two people or more in brackets ("the Potentials (Kennedy, Rona)").
     const several = /\([^)]*(?:,|&|;|·|\band\b)[^)]*\)\s*$/.test(raw);
     const br = bracketGroup(raw, (head) => isGroupShape(head) || Boolean(this.faction(head)) || (several && !this.findChar(head) && !looksLikePlace(head)));
@@ -545,6 +638,13 @@ export class Folder {
     // docs/30 1.2: a group the story names is kept, with the people it named.
     if (as === "group" || as === "faction") {
       const g = this.groupOf(name, seq);
+      // docs/30 2.4: a household's people are its home's residents, read fresh each time: nobody is joined to it.
+      if (w.kind === "many" && w.home) {
+        g.kind = "household";
+        g.home = w.home;
+        this.mention(g, seq);
+        return;
+      }
       if (w.kind === "many") for (const n of w.names) if (this.whoIs(n).kind === "person") this.join(g, n, seq);
       this.mention(g, seq);
     }
@@ -803,6 +903,7 @@ export class Folder {
     const r = this.placeBook.resolve(raw, { create: true, seq, noNewTop });
     if (!r) return undefined;
     for (const g of r.guessed) this.push(ctx, { kind: "place", text: `${g.written} is ${g.place.name}`, path: `places.${g.place.id}.aliases`, reason: g.why });
+    this.homeEvidence(r.place);
     return r.place;
   }
 
@@ -1262,6 +1363,9 @@ export class Folder {
           c.lastSeq = seq;
         }
         this.leftBehind(ctx);
+        // docs/30 2.4: someone new at a home may be one who lives there (the lore's family, a home named for them).
+        const here = st.placeId ? st.places[st.placeId] : undefined;
+        if (here && named.length) this.homeEvidence(here);
         return;
       }
       case "mood": {
@@ -1760,6 +1864,40 @@ export class Folder {
         p.owner = who.id;
         p.kind = kind;
         this.push(ctx, { kind: "place", text: `${p.name}: ${who.isUser ? this.cfg.userName || "your" : who.name}'s ${kind}`, path: `places.${p.id}`, reason: op.cause });
+        this.homeEvidence(p, who.id);
+        return;
+      }
+      case "lives": {
+        // docs/30 2.4: where someone lives now ("lives Dawn: Sunnydale › Summers Residence"), or moved out ("lives Anya: - Xander's apartment").
+        const who = this.person(op.subject, seq);
+        const path = ((a.path ?? []) as string[]).map((x) => clip(x)).filter(Boolean);
+        if (!who || !path.length) return this.reject(ctx, "write lives A: Town › Home (or lives A: - Home, moved out)");
+        const at = a.leave ? this.placeAt(path) : this.placeFor(path, ctx, seq);
+        if (!at) return this.reject(ctx, a.leave ? `no place called ${path.join(" › ")}` : "write lives A: Town › Home");
+        // A room in a home is theirs, and they live in the home: "lives Dawn: Summers Residence › Dawn's bedroom".
+        const home = this.placeBook.buildingOf(at) ?? at;
+        if (this.isLocked(`places.${home.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
+        const nm = who.isUser ? this.cfg.userName || "you" : who.name;
+        if (a.leave) {
+          if (!home.residents?.includes(who.id)) return;
+          home.residents = home.residents.filter((id) => id !== who.id);
+          if (home.guessed) home.guessed = home.guessed.filter((id) => id !== who.id);
+          this.push(ctx, { kind: "place", text: `${nm} moved out of ${home.name}`, path: `places.${home.id}.residents`, reason: op.cause });
+          return;
+        }
+        if (at.id !== home.id && (at.kind === "room" || at.kind === "bedroom") && !at.owner) at.owner = who.id;
+        // Said now, not guessed.
+        if (home.guessed?.includes(who.id)) home.guessed = home.guessed.filter((id) => id !== who.id);
+        if (home.residents?.includes(who.id)) return;
+        // One home at a time: moving into a house or a building moves them out of the last one.
+        if (home.kind === "home" || home.kind === "building")
+          for (const x of Object.values(st.places))
+            if (x.id !== home.id && x.residents?.includes(who.id)) {
+              x.residents = x.residents.filter((id) => id !== who.id);
+              if (x.guessed) x.guessed = x.guessed.filter((id) => id !== who.id);
+            }
+        (home.residents ??= []).push(who.id);
+        this.push(ctx, { kind: "place", text: `${nm} lives at ${home.name}`, path: `places.${home.id}.residents`, reason: op.cause });
         return;
       }
       case "place": {

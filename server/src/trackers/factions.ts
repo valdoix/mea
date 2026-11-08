@@ -31,6 +31,8 @@ export interface FactionView {
   /** What the group as a whole was told, newest first. */
   facts: { text: string; seq: number; members: string[] }[];
   anchor?: string;
+  /** docs/30 2.4: a household's home (its name), whose residents are its members. */
+  home?: string;
   standing: { clocks: { name: string; cur: number; max: number }[]; rep: { who: string; score: number }[]; relations: { with: string; score: number }[] };
   mentions: number;
   /** In how many messages the story's text names it. */
@@ -155,7 +157,10 @@ export function factionBook(chatId: string, o: { prose?: boolean; st?: WorldStat
     const all = [...new Set([base.name, ...(base.aliases ?? []), ...(g ? names(g) : [])])];
     for (const n of all) taken.add(groupKey(n));
     const rowMembers = base.members ?? [];
-    const story = (g?.members ?? []).filter((m) => !rowMembers.some((r) => castKey(r.name) === castKey(m.name)));
+    // docs/30 2.4: a household is whoever lives at its home now.
+    const home = g?.kind === "household" && g.home ? st.places[g.home] : undefined;
+    const residents = home ? (home.residents ?? []).map((id) => st.chars[id]).filter((c) => c && !c.dead).map((c) => ({ name: c!.name, since: 0 })) : [];
+    const story = (home ? residents : (g?.members ?? [])).filter((m) => !rowMembers.some((r) => castKey(r.name) === castKey(m.name)));
     const members = [...rowMembers, ...story.map((m) => ({ ...m, dead: dead(m.name) }))];
     // docs/30 1.4: a family nobody listed is the cast by its surname.
     const kind = base.kind ?? g?.kind ?? kindOfGroup(base.name, { surnames });
@@ -177,6 +182,7 @@ export function factionBook(chatId: string, o: { prose?: boolean; st?: WorldStat
       members,
       facts: [...(g?.facts ?? [])].sort((a, b) => b.seq - a.seq),
       ...(g?.anchor ? { anchor: g.anchor } : {}),
+      ...(home ? { home: home.name } : {}),
       standing: standingOf(st, all),
       mentions: g?.mentions ?? 0,
       prose: proseFor(all),

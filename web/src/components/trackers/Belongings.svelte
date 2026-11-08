@@ -21,7 +21,7 @@
     history: { from: string; to: string; how: string | null; seq: number; at: string | null }[];
   }
   interface Data {
-    rooms: { id: string; name: string; path: string; kind: string; items: string[] }[];
+    rooms: { id: string; name: string; path: string; kind: string; mine?: boolean; lives?: boolean; items: string[] }[];
     items: Belonging[];
     places: { id: string; name: string; path: string; owner: string | null }[];
   }
@@ -61,6 +61,13 @@
     addingRoom = false;
     roomPath = "";
   }
+  /** docs/30 2.4: where they live now (their household is whoever lives there). */
+  function livesAt() {
+    if (!roomPath.trim()) return;
+    void write([`lives ${name}: ${roomPath.trim()} — you set it`], `${name} lives at ${roomPath.split("›").at(-1)!.trim()}`);
+    addingRoom = false;
+    roomPath = "";
+  }
   function addItem() {
     if (!itemName.trim()) return;
     const line = itemPlace.trim() ? `keeps ${name}: ${itemName.trim()} @ ${itemPlace.trim()} — you added it` : `item ${itemName.trim()}: +${name} — you added it`;
@@ -97,15 +104,16 @@
       <button class="btn ghost small" onclick={() => (addingRoom = !addingRoom)}><Plus size={13} /> Add</button>
     </div>
     {#each data.rooms as r (r.id)}
-      <div class="small">{r.name} <span class="tiny faint">{r.kind} · {r.path}</span>{#if r.items.length}<div class="tiny muted">Keeps here: {r.items.join(", ")}</div>{/if}</div>
+      <div class="small">{r.name} <span class="tiny faint">{r.lives ? (r.mine ? "lives here, theirs" : "lives here") : r.kind} · {r.path}</span>{#if r.items.length}<div class="tiny muted">Keeps here: {r.items.join(", ")}</div>{/if}</div>
     {:else}
-      <p class="tiny muted">No room of their own yet.</p>
+      <p class="tiny muted">No room or home of their own yet.</p>
     {/each}
     {#if addingRoom}
       <div class="row wrap">
         <input class="input grow" bind:value={roomPath} list="belong-places" placeholder="Town › Place" aria-label="Which place" />
         <input class="input narrow" bind:value={roomKind} placeholder="room, home, shop…" aria-label="What kind of place" />
         <button class="btn small" disabled={!roomPath.trim()} onclick={addRoom}>Set as theirs</button>
+        <button class="btn small" disabled={!roomPath.trim()} onclick={livesAt}>Lives here</button>
       </div>
     {/if}
 

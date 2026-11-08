@@ -97,9 +97,10 @@ export function lostGiftLines(st: WorldState, seq: number, nameOf: (id: string) 
 /** One person's rooms and belongings, with each item's history (the Story page). */
 export function belongingsOf(st: WorldState, c: Character) {
   const nameOf = (id?: string) => (!id ? "" : id.startsWith("place:") ? id.slice(6) : (st.chars[id]?.name ?? id));
+  // docs/30 2.4: the places they own or live in, by the names the place tree gives them.
   const rooms = Object.values(st.places)
-    .filter((p) => p.owner === c.id)
-    .map((p) => ({ id: p.id, name: p.name, path: p.path.join(" › "), kind: p.kind ?? "room", items: itemsAt(st, p).map((i) => i.name) }));
+    .filter((p) => p.owner === c.id || p.residents?.includes(c.id))
+    .map((p) => ({ id: p.id, name: p.name, path: p.path.join(" › "), kind: p.kind ?? "room", mine: p.owner === c.id, lives: Boolean(p.residents?.includes(c.id)), items: itemsAt(st, p).map((i) => i.name) }));
   const items = Object.values(st.items)
     .filter((i) => i.owner === c.id || i.holder === c.id)
     .map((i) => ({
