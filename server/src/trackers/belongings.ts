@@ -1,3 +1,4 @@
+import { currentNotes } from "./places";
 import type { Character, Item, Place, WorldState } from "./types";
 
 /**
@@ -13,7 +14,8 @@ const last = (s: string) => low(s.split(/\s*(?:›|>|»|\/)\s*/).at(-1) ?? s);
 export function itemsAt(st: WorldState, p: Place): Item[] {
   const name = low(p.name);
   const full = low(p.path.join(" › "));
-  return Object.values(st.items).filter((i) => !i.gone && i.holder?.startsWith("place:") && (last(i.holder.slice(6)) === name || low(i.holder.slice(6)) === full));
+  // docs/30 2.2: by its place in the tree first; older records by the path as written.
+  return Object.values(st.items).filter((i) => !i.gone && i.holder?.startsWith("place:") && (i.placeId ? i.placeId === p.id : last(i.holder.slice(6)) === name || low(i.holder.slice(6)) === full));
 }
 
 /** The known place the story is in now (the same place written in full or by its last part). */
@@ -52,21 +54,36 @@ export function roomLine(st: WorldState, nameOf: (id: string) => string): string
  * docs/30 0.4: what the scene's place looks like now. The notes of every known place whose name is
  * a part of where the scene is ("downstairs kitchen" for "… › downstairs kitchen › table"), newest first.
  */
-export function placeNotesHere(st: WorldState, max = 3): { place: Place; notes: string[] }[] {
+export function placeNotesHere(st: WorldState, max = 3): { place: Place; notes: string[]; fresh: string[] }[] {
   if (!st.place.length) return [];
-  const parts = new Set(st.place.map(low));
-  const full = low(st.place.join(" › "));
-  return Object.values(st.places)
-    .filter((p) => p.notes?.length && (low(p.path.join(" › ")) === full || parts.has(low(p.name))))
+  // docs/30 2.3: the scene's place and the rooms above it, up to its building, by the tree.
+  let chain: Place[] = [];
+  for (let p = st.placeId ? st.places[st.placeId] : undefined, i = 0; p && i < 8; p = p.parent ? st.places[p.parent] : undefined, i++) {
+    chain.push(p);
+    if (p.kind === "home" || p.kind === "building") break;
+  }
+  if (!chain.length) {
+    const parts = new Set(st.place.map(low));
+    const full = low(st.place.join(" › "));
+    chain = Object.values(st.places).filter((p) => low(p.path.join(" › ")) === full || parts.has(low(p.name)));
+  }
+  return chain
+    .filter((p) => currentNotes(p).length)
     .sort((a, b) => (b.notes!.at(-1)!.seq ?? 0) - (a.notes!.at(-1)!.seq ?? 0))
     .slice(0, 2)
-    .map((p) => ({ place: p, notes: p.notes!.slice(-max).reverse().map((n) => n.text) }));
+    .map((p) => {
+      const now = currentNotes(p).slice(0, max);
+      // What a note added while the scene was away says: changed since you were last here.
+      const fresh = p.leftSeq != null ? now.filter((n) => n.seq > p.leftSeq!).map((n) => n.text) : [];
+      return { place: p, notes: now.map((n) => n.text), fresh };
+    });
 }
 
-/** The note's line for it: "HERE: downstairs kitchen: fridge bears the league standings; …". */
+/** The note's line for it: "HERE: downstairs kitchen: fridge bears the league standings; …", with what changed while you were away. */
 export function placeLine(st: WorldState): string | null {
   const here = placeNotesHere(st);
-  return here.length ? `HERE: ${here.map((h) => `${h.place.name}: ${h.notes.join("; ")}`).join(" · ")}` : null;
+  if (!here.length) return null;
+  return `HERE: ${here.map((h) => `${h.place.name}: ${h.notes.map((n) => (h.fresh.includes(n) ? `${n} (new since you were last here)` : n)).join("; ")}`).join(" · ")}`;
 }
 
 /** Gifts lost recently, when the giver is in the scene: they'd notice. */

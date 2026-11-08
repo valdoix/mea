@@ -12,6 +12,7 @@ import { getDefaultPersona, getPersona } from "../services/personas";
 import { loreFactionNames } from "../lore/factionnames";
 import { detectStamina } from "./drift";
 import { parseLine } from "./dsl";
+import type { PlaceProfile } from "./places";
 import { type FoldConfig, type FoldResult, Folder, type TrackerEvent } from "./fold";
 import type { Section } from "./note";
 import { STARTER_TEMPLATES, type Template, templateInput, type TemplateSchema } from "./schema";
@@ -195,6 +196,30 @@ export function moveCastProfile(chatId: string, from: string, to: string) {
 export function deleteCastProfile(chatId: string, name: string) {
   run("DELETE FROM cast_profiles WHERE chat_id = ? AND name_key = ?", chatId, castKey(name));
   invalidate(chatId);
+}
+
+// ---------- place profiles (docs/30 2.1) ----------
+
+export function placeProfiles(chatId: string): Record<string, PlaceProfile> {
+  const rows = all<{ place_id: string; data: string }>("SELECT place_id, data FROM place_profiles WHERE chat_id = ?", chatId);
+  return Object.fromEntries(rows.map((r) => [r.place_id, parseJson<PlaceProfile>(r.data, {})]));
+}
+
+/** Changes your edit to a place (fields left out stay as they were; an empty edit removes it). */
+export function savePlaceProfile(chatId: string, placeId: string, patch: PlaceProfile): PlaceProfile {
+  const next: PlaceProfile = { ...placeProfiles(chatId)[placeId], ...patch };
+  for (const k of Object.keys(next) as (keyof PlaceProfile)[]) if (next[k] == null || (Array.isArray(next[k]) && !(next[k] as unknown[]).length)) delete next[k];
+  if (!Object.keys(next).length) run("DELETE FROM place_profiles WHERE chat_id = ? AND place_id = ?", chatId, placeId);
+  else
+    run(
+      "INSERT INTO place_profiles (chat_id, place_id, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(chat_id, place_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
+      chatId,
+      placeId,
+      JSON.stringify(next),
+      now(),
+    );
+  invalidate(chatId);
+  return next;
 }
 
 // ---------- factions: groups of the cast ----------
@@ -412,6 +437,7 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
   for (const name of loreFactionNames({ characterId: chat.character_id, personaId: chat.persona_id, chatId }))
     if (!factions.some((f) => castKey(f.name) === castKey(name))) factions.push({ name, members: [] });
   const tidy = parseJson<ChatSettings>(chat.settings, {}).castTidy;
+  const places = placeProfiles(chatId);
   return {
     userName: persona?.name ?? "You",
     mainName: card?.name ?? "",
@@ -426,6 +452,7 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
     heldDone: heldDone(chatId),
     ...(factions.length ? { factions } : {}),
     ...(tidy?.people?.length ? { people: tidy.people } : {}),
+    ...(Object.keys(places).length ? { placeProfiles: places } : {}),
   };
 }
 

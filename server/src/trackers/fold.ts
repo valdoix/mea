@@ -6,6 +6,7 @@ import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortS
 import { loopId, repeats } from "./loops";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { castLabel, parseLine } from "./dsl";
+import { PlaceBook, type PlaceProfile } from "./places";
 import { bracketGroup, FIELD_WORD, familySurname, isGroupShape, looksLikePlace, sentenceNotPath } from "./whois";
 import { mentions } from "./mentions";
 import { applyPatch, type Change as PatchChange } from "./patch";
@@ -77,6 +78,8 @@ export interface FoldConfig {
   factions?: { name: string; aliases?: string[]; members: string[] }[];
   /** docs/30 0.6: names you said are people after all ("It's a person" on the tidy notice). */
   people?: string[];
+  /** docs/30 2.1: your edits to places (place_profiles), by place id. */
+  placeProfiles?: Record<string, PlaceProfile>;
 }
 
 export interface FoldResult {
@@ -348,7 +351,7 @@ export class Folder {
     const n = norm(personName(name));
     if (!n) return false;
     if (this.state.place.some((x) => norm(x) === n)) return true;
-    return Object.values(this.state.places).some((p) => p.path.some((x) => norm(x) === n));
+    return Object.values(this.state.places).some((p) => p.path.some((x) => norm(x) === n) || (p.aliases ?? []).some((x) => norm(x) === n));
   }
 
   /**
@@ -617,16 +620,34 @@ export class Folder {
     return { ...(this.state.place.length ? { at: this.state.place.join(" › ") } : {}), ...(this.state.time ? { time: this.state.time.minutes } : {}) };
   }
 
-  /** E2: the known place a path names (the same place written in full or by its last part). */
+  /** docs/30 2.1: the place tree over this state, with your edits to it. */
+  get placeBook() {
+    return new PlaceBook(this.state, { profiles: this.cfg.placeProfiles, findChar: (n) => this.findChar(n) });
+  }
+
+  /** E2: the known place a path names (the same place written in full, by its last part, or by another name). */
   placeAt(path: string[]): Place | undefined {
     if (!path.length) return undefined;
     const exact = this.state.places[slug(path.join(" "))];
     if (exact) return exact;
+    const found = this.placeBook.resolve(path, { create: false })?.place;
+    if (found) return found;
     const tail = path.map(norm);
     return Object.values(this.state.places).find((p) => {
       const pp = p.path.map(norm);
       return tail.length <= pp.length ? tail.every((x, i) => x === pp[pp.length - tail.length + i]) : pp.every((x, i) => x === tail[tail.length - pp.length + i]);
     });
+  }
+
+  /**
+   * docs/30 2.2: the place a path names, made if new, with a chip for each name taken by a guess
+   * ("Gabriel's House is the Winters Residence"). Undefined for a path with nothing in it.
+   */
+  private placeFor(raw: string | string[], ctx: Ctx, seq: number, noNewTop = false): Place | undefined {
+    const r = this.placeBook.resolve(raw, { create: true, seq, noNewTop });
+    if (!r) return undefined;
+    for (const g of r.guessed) this.push(ctx, { kind: "place", text: `${g.written} is ${g.place.name}`, path: `places.${g.place.id}.aliases`, reason: g.why });
+    return r.place;
   }
 
   /**
@@ -977,22 +998,41 @@ export class Folder {
         return;
       }
       case "at": {
-        const path = (a.path as string[]).map((s) => clip(s)).filter(Boolean);
-        if (!path.length) return this.reject(ctx, "no place given");
+        const written = (a.path as string[]).map((s) => clip(s)).filter(Boolean);
+        if (!written.length) return this.reject(ctx, "no place given");
         if (this.isLocked("place") && this.ai(ctx)) return this.reject(ctx, "the place is locked");
         const before = st.place;
-        if (before.join(" › ").toLowerCase() === path.join(" › ").toLowerCase()) return;
         // E2: what was in the place you're leaving, for "what's changed since you were last here".
-        const left = this.placeAt(before);
-        if (left) left.seen = itemsAt(st, left).map((i) => i.id);
+        const left = st.placeId ? st.places[st.placeId] : this.placeAt(before);
+        // docs/30 2.2: the path as the tree knows it ("downstairs kitchen" is Sunnydale › Winters Residence › kitchen).
+        const found = this.placeFor(written, ctx, seq);
+        if (!found) return this.reject(ctx, "no place given");
+        // docs/30 2.2: homes made apart that are one home, a street that is a home's address, fold together now.
+        const book0 = this.placeBook;
+        book0.settle(book0.buildingOf(found) ?? found, left);
+        const p = st.places[found.id] ?? (st.placeId ? st.places[st.placeId] : undefined) ?? found;
+        const path = p.path;
+        // The same place (perhaps under a name the story now uses more): no move.
+        if ((left && left.id === p.id) || before.join(" › ").toLowerCase() === path.join(" › ").toLowerCase()) {
+          st.placeId = p.id;
+          st.place = path;
+          return;
+        }
+        if (left && left.id !== p.id) {
+          left.seen = itemsAt(st, left).map((i) => i.id);
+          left.leftSeq = seq;
+        }
         st.place = path;
-        const id = slug(path.join(" "));
-        const p = (st.places[id] ??= { id, name: path.at(-1)!, path, visits: 0, lastSeq: seq });
+        st.placeId = p.id;
         p.visits++;
         p.lastSeq = seq;
-        // A move to a different building or further starts a new scene.
-        const common = before.findIndex((x, i) => norm(x) !== norm(path[i] ?? ""));
-        const moved = before.length > 0 && (common < 0 ? before.length !== path.length : common < Math.max(1, path.length - 1));
+        // A move to a different building or further starts a new scene. docs/30 2.2: by the places themselves,
+        // so a place that took another name isn't a move.
+        const book = this.placeBook;
+        const was = left ? book.chainOf(left).map((x) => x.id) : before.map(norm);
+        const now = left ? book.chainOf(p).map((x) => x.id) : path.map(norm);
+        const common = was.findIndex((x, i) => x !== now[i]);
+        const moved = before.length > 0 && (common < 0 ? was.length !== now.length : common < Math.max(1, now.length - 1));
         if (moved) this.newScene(seq);
         const along = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri");
         for (const c of along) c.place = path.join(" › ");
@@ -1507,7 +1547,11 @@ export class Folder {
           return;
         }
         const toChar = a.to ? this.findChar(a.to) ?? (looksLikePerson(a.to) ? this.person(a.to, seq) : undefined) : undefined;
+        // docs/30 2.2: a thing put down is at a place the tree knows, however the path was written.
         const holder = toChar?.id ?? (a.to ? `place:${clip(a.to)}` : it.holder);
+        // docs/30 2.2: the place in the tree, for what's at a place however its path was written. Only what's
+        // written as a place ("at the counter", "→ Town › House › shelf"): "Mira's bag" doesn't grow the tree.
+        if (holder !== it.holder || toChar) it.placeId = !toChar && a.to && (/^(?:at|in|on|inside)\s/i.test(clip(a.to)) || /›|»/.test(a.to)) ? this.placeFor(clip(a.to), ctx, seq, true)?.id : undefined;
         // G2: a first hand-off says who it came from ("item key: Mira → Joss"), for the object's trail.
         const was = it.holder ?? (a.from ? this.findChar(a.from)?.id : undefined);
         it.gone = false;
@@ -1544,8 +1588,11 @@ export class Folder {
         const who = this.person(op.subject, seq);
         const path = ((a.path ?? []) as string[]).map((x) => clip(x)).filter(Boolean);
         if (!who || !path.length) return this.reject(ctx, "write room A: Town › Place | room");
-        const p = this.placeAt(path) ?? (st.places[slug(path.join(" "))] ??= { id: slug(path.join(" ")), name: path.at(-1)!, path, visits: 0, lastSeq: seq });
-        const kind = a.kind ? clip(a.kind) : (p.kind ?? "room");
+        const p = this.placeFor(path, ctx, seq);
+        if (!p) return this.reject(ctx, "write room A: Town › Place | room");
+        // A kind is a word ("home", "shop"); "asleep-bound, door knob turned…" isn't one.
+        const said = clip(a.kind).toLowerCase();
+        const kind = /^(?:room|bedroom|home|house|flat|apartment|shop|store|office|studio|workshop|study|den|suite|quarters|cabin|crypt|lair|camp|tent|bunk|cell|stall)$/.test(said) && !(said === "room" && (p.kind === "home" || p.kind === "building")) ? said : (p.kind ?? "room");
         if (p.owner === who.id && p.kind === kind) return;
         if (this.isLocked(`places.${p.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
         p.owner = who.id;
@@ -1558,14 +1605,15 @@ export class Folder {
         const path = ((a.path ?? []) as string[]).map((x) => clip(x)).filter(Boolean);
         const text = clip(a.text);
         if (!path.length || !text) return this.reject(ctx, "write place Where: what's there now");
-        const id = slug(path.join(" "));
-        const p = this.placeAt(path) ?? this.placeAt(path.slice(-1)) ?? (st.places[id] ??= { id, name: path.at(-1)!, path, visits: 0, lastSeq: seq });
-        if (this.isLocked(`places.${p.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
-        const notes = (p.notes ??= []);
-        if (notes.some((n) => norm(n.text) === norm(text))) return;
-        notes.push({ text, seq });
-        if (notes.length > 12) notes.splice(0, notes.length - 12);
-        this.push(ctx, { kind: "place", text: `${p.name}: ${cut(text, 80)}`, path: `places.${p.id}.notes`, reason: op.cause });
+        // docs/30 2.2: the place by the tree, or (a bare name the tree doesn't place) by its last part, or made.
+        const found = this.placeAt(path) ?? (path.length > 1 ? undefined : this.placeAt(path.slice(-1)));
+        const at = found ?? this.placeFor(path, ctx, seq);
+        if (!at) return this.reject(ctx, "write place Where: what's there now");
+        if (this.isLocked(`places.${at.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
+        // docs/30 2.3: by what it's about, and in the room it names ("living room dartboard wall…").
+        const { place: p, added } = this.placeBook.addNote(at, text, seq);
+        if (!added) return;
+        this.push(ctx, { kind: "place", text: `${p.name}: ${cut(p.notes!.at(-1)!.text, 80)}`, path: `places.${p.id}.notes`, reason: op.cause });
         return;
       }
       case "keeps": {
@@ -1577,6 +1625,7 @@ export class Folder {
         const it = (st.items[id] ??= { id, name, custody: [], lastSeq: seq });
         if (this.isLocked(`items.${id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
         const holder = a.place ? `place:${clip(a.place)}` : it.holder;
+        if (a.place) it.placeId = this.placeFor(clip(a.place), ctx, seq, true)?.id;
         if (it.owner === who.id && it.holder === holder && !it.gone) return;
         const was = it.holder;
         it.owner = who.id;
