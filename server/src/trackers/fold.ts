@@ -6,6 +6,7 @@ import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortS
 import { loopId, repeats } from "./loops";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { castLabel, parseLine } from "./dsl";
+import { bracketGroup, FIELD_WORD, familySurname, isGroupShape, looksLikePlace, sentenceNotPath } from "./whois";
 import { mentions } from "./mentions";
 import { applyPatch, type Change as PatchChange } from "./patch";
 import type { Template } from "./schema";
@@ -69,6 +70,13 @@ export interface FoldConfig {
   held?: { messageId: string; who: string; text: string }[];
   /** docs/22 3.3: done loops a reply was flagged for having still to come. What it filed about them waits for the flag. */
   heldDone?: { messageId: string; loop: string }[];
+  /**
+   * docs/30 0.1: the story's factions (yours on the Story page, and the lore's). A faction's name in a
+   * person line stands for its members, and is never a person itself.
+   */
+  factions?: { name: string; aliases?: string[]; members: string[] }[];
+  /** docs/30 0.6: names you said are people after all ("It's a person" on the tidy notice). */
+  people?: string[];
 }
 
 export interface FoldResult {
@@ -190,7 +198,7 @@ const BIG_CAUSE = /\b(betray\w*|rescue\w*|saved?\b|saving|unforgiv\w*|life|died|
 const DOWN_CAUSE = /\b(betray\w*|lie|lies|lied|lying|neglect\w*|abandon\w*|broke|broken|break\w*|cheat\w*|hurt\w*|reject\w*|refus\w*|cruel\w*|deceiv\w*|deceit\w*|revealed|left (?:her|him|them)|walked away|turned away|pushed (?:her|him|them) away|cold|withdr[ae]w\w*|distan\w*|end(?:ed|s)? it|split|dumped|argu\w*|resent\w*)\b/i;
 const ROMANCE_CAUSE = /\b(kiss\w*|attract\w*|desir\w*|crush\w*|flirt\w*|blush\w*|in love|lov(?:e|es|ed|ing)|romanc\w*|romantic\w*|date|dating|lips|mouth|jealous\w*|long(?:s|ed|ing) for|butterfl\w*|chemistry|sparks?|aroused|arousal|wants? (?:her|him|them)|sexual\w*|seduc\w*|caress\w*)\b/i;
 /** Words that name a crowd, not a person: "know Group: …" means everyone in the scene. */
-const GROUP_WORD = /^(?:the |all the |whole )*(?:group|whole group|everyone|everybody|all|all present|all of them|all of us|circle|others|rest|crowd|camp|team|squad|party|survivors|room|table|fire|us|them|they|we|both|both of them|girls|boys|kids|everyone present|everyone here|whole camp)$/;
+const GROUP_WORD = /^(?:the |all the |whole )*(?:group|whole group|everyone|everybody|all|all present|all of them|all of us|all of you|circle|others|others here|rest|crowd|camp|team|squad|party|survivors|room|table|fire|us|them|they|we|both|both of them|girls|boys|kids|everyone present|everyone here|everyone in (?:the )?(?:scene|room)|everybody in (?:the )?(?:scene|room)|whole house|whole camp)$/;
 /** Words for people at large ("the general public", "nobody"): no one in particular, so never a person. */
 const PUBLIC_WORD = /^(?:the )?(?:general )?public$|^(?:the )?(?:whole )?(?:world|town|school|city|village)$|^(?:other )?people$|^everyone else$|^anyone(?: else)?$|^outsiders$|^(?:nobody|no one|noone|none)(?: else)?$/;
 /** "from everyone": the crowd words, and people at large (but not "nobody"). */
@@ -201,6 +209,15 @@ const isCrowd = (name: string) => {
 };
 /** Ops said of a person, which a list of names in the subject spreads over each of them. */
 const PERSON_OPS = new Set<string>(["mood", "body", "look", "trait", "drive", "mask", "dead", "bond", "ladder", "know", "pressure", "room", "keeps", "owe", "promise", "rep"]);
+/** docs/30 0.2: ops a group's name spreads over its people. A trait, a look or a room of the Scoobies isn't each member's. */
+const SPREAD_OPS = new Set<string>(["know", "mood", "bond", "owe", "promise"]);
+
+/** What a name in a person's place stands for (docs/30 0.2). */
+type Who =
+  | { kind: "person" }
+  | { kind: "crowd" }
+  | { kind: "many"; names: string[]; as: "faction" | "group"; group: string }
+  | { kind: "not"; as: "place" | "group" | "faction" | "field"; name: string; reason: string };
 
 interface Ctx {
   cfg: FoldConfig;
@@ -300,26 +317,164 @@ export class Folder {
 
   /** "Mari, Gen and Robin" → each of them (unless someone really goes by the whole thing). */
   each(name: string): string[] {
-    const parts = personName(name).split(/\s*(?:,|&|\+|\/|\band\b)\s*/i).map((s) => s.trim()).filter(Boolean);
+    // A bracketed list belongs to the group before it ("Dawn's friends (Melissa, Kara, Jamie)"): whoIs reads it whole.
+    if (/\([^)]*[,&]/.test(name) && !/^[^(]*[,&·•;]/.test(name)) return [name];
+    // docs/30 0.3: "Xander Harris · Willow Rosenberg" and "Tara; Anya" are lists too.
+    const parts = personName(name).split(/\s*(?:,|&|\+|\/|·|•|;|\band\b)\s*/i).map((s) => s.trim()).filter(Boolean);
     if (parts.length < 2) return [name];
     const n = norm(personName(name));
     return Object.values(this.state.chars).some((c) => norm(c.name) === n || c.aliases.some((x) => norm(x) === n)) ? [name] : parts;
   }
 
+  /** docs/30 0.1: a faction the story knows by this name: yours, the lore's, or the engine's (clocks, standing, subplots). */
+  private faction(name: string): { name: string; members: string[] } | undefined {
+    const n = norm(name).replace(/^the /, "");
+    if (!n) return undefined;
+    const same = (x: string) => norm(x).replace(/^the /, "") === n;
+    const own = (this.cfg.factions ?? []).find((f) => same(f.name) || (f.aliases ?? []).some(same));
+    if (own) return { name: own.name, members: own.members };
+    const st = this.state;
+    const engine = [
+      ...Object.values(st.clocks).map((k) => k.faction),
+      ...Object.values(st.rep).map((r) => r.group),
+      ...Object.values(st.sim?.arcs ?? {}).filter((a) => a.lead.startsWith("faction:")).map((a) => a.leadName),
+      ...Object.keys(st.sim?.factionRel ?? {}).flatMap((k) => k.split("|")),
+    ].find((x) => x && same(x));
+    return engine ? { name: engine, members: [] } : undefined;
+  }
+
+  /** docs/30 0.2: a place the story has been, by any part of its path ("downstairs kitchen"). */
+  private isPlace(name: string): boolean {
+    const n = norm(personName(name));
+    if (!n) return false;
+    if (this.state.place.some((x) => norm(x) === n)) return true;
+    return Object.values(this.state.places).some((p) => p.path.some((x) => norm(x) === n));
+  }
+
+  /**
+   * docs/30 0.2: what a name in a person's place stands for. Someone already in the cast (or that you
+   * said is a person) is a person. Otherwise a faction or a group stands for its people, and a place
+   * or a field name ("traits") stands for nobody.
+   */
+  whoIs(raw: string): Who {
+    const name = personName(raw);
+    const n = norm(name);
+    if (!n) return { kind: "person" };
+    if ((this.cfg.people ?? []).some((p) => norm(p) === n)) return { kind: "person" };
+    if (Object.values(this.state.chars).some((c) => norm(c.name) === n || c.aliases.some((a) => norm(a) === n))) return { kind: "person" };
+    if (isCrowd(raw)) return { kind: "crowd" };
+    const br = bracketGroup(raw, (head) => isGroupShape(head) || Boolean(this.faction(head)));
+    if (br) return { kind: "many", names: br.names, as: this.faction(br.group) ? "faction" : "group", group: br.group };
+    if (FIELD_WORD.test(n)) return { kind: "not", as: "field", name, reason: `"${name}" is a field name, not a person` };
+    const f = this.faction(name);
+    if (f) return f.members.length ? { kind: "many", names: f.members, as: "faction", group: f.name } : { kind: "not", as: "faction", name: f.name, reason: `${f.name} is a faction with no members known yet` };
+    const surnames = familySurname(name);
+    if (surnames.length) {
+      const fam = Object.values(this.state.chars).filter((c) => {
+        const last = norm(c.name).split(" ").at(-1);
+        return c.name.includes(" ") && last && surnames.includes(last);
+      });
+      if (fam.length) return { kind: "many", names: fam.map((c) => c.name), as: "group", group: name };
+    }
+    if (isGroupShape(name)) return { kind: "not", as: "group", name, reason: `${name} is a group: name its people` };
+    if (this.isPlace(name) || looksLikePlace(name)) return { kind: "not", as: "place", name, reason: `${name} is a place, not a person` };
+    return { kind: "person" };
+  }
+
+  /** docs/30 0.6: keeps a name that went elsewhere, for the tidy notice and the refold report. */
+  private routed(w: Who, seq: number) {
+    if (w.kind !== "many" && w.kind !== "not") return;
+    const name = w.kind === "many" ? w.group : w.name;
+    const as = w.kind === "many" ? w.as : w.as;
+    const key = name.toLowerCase().replace(/\s+/g, " ").trim();
+    const map = (this.state.notPeople ??= {});
+    const cur = map[key];
+    if (cur) {
+      cur.lastSeq = Math.max(cur.lastSeq, seq);
+      cur.lines++;
+      if (w.kind === "many") cur.members = uniq([...(cur.members ?? []), ...w.names]);
+    } else map[key] = { name, as, firstSeq: seq, lastSeq: seq, lines: 1, ...(w.kind === "many" ? { members: [...w.names] } : {}) };
+  }
+
   /** A person named in an op: resolves or creates (never for names that look like groups or places). */
   person(name: string | undefined, seq: number): Character | undefined {
     if (!name?.trim()) return undefined;
-    // A crowd or "the public" is never a person, even one made by mistake before.
-    if (isCrowd(name)) return undefined;
+    const yours = (this.cfg.people ?? []).some((p) => norm(p) === norm(personName(name)));
+    // A crowd or "the public" is never a person, even one made by mistake before (unless you said it is).
+    if (isCrowd(name) && !yours) return undefined;
+    // docs/30 0.2: nor a place, a group, a faction or a field name.
+    const w = this.whoIs(name);
+    if (w.kind !== "person") {
+      this.routed(w, seq);
+      return undefined;
+    }
     return this.findChar(name) ?? this.ensureChar(name, seq);
   }
 
-  /** The people a name stands for: "the group", "everyone", "the circle" mean whoever is in the scene. */
+  /** The people a name stands for: "the group", "everyone", "the circle" mean whoever is in the scene; a faction, its members. */
   people(name: string | undefined, seq: number): Character[] {
     if (name?.trim() && GROUP_WORD.test(norm(personName(name))))
       return Object.values(this.state.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead);
+    if (name?.trim()) {
+      const w = this.whoIs(name);
+      if (w.kind === "many") {
+        this.routed(w, seq);
+        return uniq(w.names.flatMap((n) => this.person(n, seq) ?? []));
+      }
+    }
     const c = this.person(name, seq);
     return c ? [c] : [];
+  }
+
+  /**
+   * docs/30 0.2: one person line as the lines it stands for. "know Scoobies: …" is a line for each
+   * member (heard "via the Scoobies"); "mood Downstairs Kitchen: …" is a line for nobody, and says why.
+   */
+  private spread(op: Op, ctx: Ctx): Op[] {
+    const seq = ctx.ev.seq;
+    const out: Op[] = [];
+    const why: string[] = [];
+    for (const part of this.each(op.subject!)) {
+      const w = this.whoIs(part);
+      if (w.kind === "person" || w.kind === "crowd") {
+        out.push({ ...op, subject: part });
+        continue;
+      }
+      this.routed(w, seq);
+      if (w.kind === "not") {
+        why.push(w.reason);
+        continue;
+      }
+      if (!SPREAD_OPS.has(op.op)) {
+        why.push(`${w.group} is a group: write it for each of them`);
+        continue;
+      }
+      const via = w.as === "faction" && op.op === "know" ? `via the ${w.group}` : undefined;
+      for (const name of w.names) out.push({ ...op, subject: name, ...(via ? { args: { ...op.args, route: op.args.route ? `${op.args.route}, ${via}` : via } } : {}) });
+    }
+    if (!out.length && why.length) this.reject(ctx, why.join("; "));
+    else if (why.length) this.warn(ctx, why.join("; "));
+    return out;
+  }
+
+  /** docs/30 0.4: "room Downstairs Kitchen: fridge bears the league standings" describes the kitchen; nobody owns it. */
+  private roomAsPlace(op: Op, seq: number): Op | null {
+    if (op.op !== "room" || !op.subject) return null;
+    const parts = ((op.args.path ?? []) as string[]).filter(Boolean);
+    const w = this.whoIs(op.subject);
+    const aPlace = w.kind === "not" && w.as === "place";
+    const unknown = w.kind === "person" && !this.findChar(op.subject);
+    if (!aPlace && !(unknown && sentenceNotPath(parts))) return null;
+    if (!parts.length) return null;
+    this.routed(aPlace ? w : { kind: "not", as: "place", name: personName(op.subject), reason: "" }, seq);
+    // A sentence about the place: "room Downstairs Kitchen: fridge bears the league standings".
+    if (sentenceNotPath(parts)) return { op: "place", subject: op.subject, args: { path: [personName(op.subject)], text: parts[0]! }, cause: op.cause, raw: op.raw };
+    // A path with what it's like: "room Cabin: wilderness › clearing › cabin (abandoned, log walls) — woodstove lit".
+    const last = parts.at(-1)!;
+    const m = last.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+    const path = [...parts.slice(0, -1), (m ? m[1]! : last).trim()].filter(Boolean);
+    const text = [m?.[2]?.trim(), op.cause?.trim()].filter(Boolean).join(" — ");
+    return { op: "place", subject: op.subject, args: { path, text }, raw: op.raw };
   }
 
   nameOf(id: string) {
@@ -335,15 +490,18 @@ export class Folder {
   apply(ev: TrackerEvent) {
     // Knowledge and scene lines the model wrote are read again from their text, so older ones get what the
     // parser has learned since (fields in the cause, "kept by A, B", a mode after the scene's title). The engine's own carry args the text doesn't.
-    if ((ev.op.op === "know" || ev.op.op === "secret" || ev.op.op === "scene") && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
+    // docs/30 0.2: and a cast line that was really a trait ("cast Dawn: traits — …"); other cast lines keep what they stored.
+    if (["know", "secret", "scene", "cast"].includes(ev.op.op) && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
       const op = parseLine(ev.op.raw);
-      if (op?.op === ev.op.op) ev = { ...ev, op };
+      if (op && (ev.op.op === "cast" ? op.op === "trait" : op.op === ev.op.op)) ev = { ...ev, op };
     }
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
     try {
-      // "mood Mari, Gen & Robin: tense" is said of each of them, not of one person by that name.
-      const each = PERSON_OPS.has(ev.op.op) && ev.op.subject ? this.each(ev.op.subject) : [];
-      if (each.length > 1) for (const subject of each) this.applyOp({ ...ev.op, subject }, ctx);
+      const asPlace = this.roomAsPlace(ev.op, ev.seq);
+      if (asPlace) this.applyOp(asPlace, ctx);
+      // "mood Mari, Gen & Robin: tense" is said of each of them, not of one person by that name;
+      // docs/30 0.2: "know Scoobies: …" of each member, and "mood Downstairs Kitchen: …" of nobody.
+      else if (PERSON_OPS.has(ev.op.op) && ev.op.op !== "rep" && ev.op.subject) for (const op of this.spread(ev.op, ctx)) this.applyOp(op, ctx);
       else this.applyOp(ev.op, ctx);
       if (ev.op.op === "cast" || ev.op.op === "at" || ev.op.op === "clock") this.promiseChecks(ctx);
       // A beat is stamped with where and when its reply ends, whichever order the lines came in.
@@ -872,7 +1030,15 @@ export class Folder {
         turn.cast = true;
         // Events stored before castArgs dropped "traits: …" bits still carry them.
         const list = (a.list as { name: string; tier: string; note?: string }[]).filter((x) => !castLabel(x.name));
-        for (const it of list.flatMap((x) => this.each(x.name).map((name) => ({ ...x, name })))) {
+        // docs/30 0.2: "Scoobies@spot" brings in its members; "traits@spot" and "Downstairs Kitchen@spot" bring in nobody.
+        const named = list.flatMap((x) =>
+          this.each(x.name).flatMap((name) => {
+            const w = this.whoIs(name);
+            if (w.kind === "many") this.routed(w, seq);
+            return (w.kind === "many" ? w.names : [name]).map((n) => ({ ...x, name: n }));
+          }),
+        );
+        for (const it of named) {
           const c = this.person(it.name, seq);
           if (!c) continue;
           turn.named.add(c.id);
@@ -1385,6 +1551,21 @@ export class Folder {
         p.owner = who.id;
         p.kind = kind;
         this.push(ctx, { kind: "place", text: `${p.name}: ${who.isUser ? this.cfg.userName || "your" : who.name}'s ${kind}`, path: `places.${p.id}`, reason: op.cause });
+        return;
+      }
+      case "place": {
+        // docs/30 0.4: what a place looks like now. The place is found by its path or its last part, or made.
+        const path = ((a.path ?? []) as string[]).map((x) => clip(x)).filter(Boolean);
+        const text = clip(a.text);
+        if (!path.length || !text) return this.reject(ctx, "write place Where: what's there now");
+        const id = slug(path.join(" "));
+        const p = this.placeAt(path) ?? this.placeAt(path.slice(-1)) ?? (st.places[id] ??= { id, name: path.at(-1)!, path, visits: 0, lastSeq: seq });
+        if (this.isLocked(`places.${p.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
+        const notes = (p.notes ??= []);
+        if (notes.some((n) => norm(n.text) === norm(text))) return;
+        notes.push({ text, seq });
+        if (notes.length > 12) notes.splice(0, notes.length - 12);
+        this.push(ctx, { kind: "place", text: `${p.name}: ${cut(text, 80)}`, path: `places.${p.id}.notes`, reason: op.cause });
         return;
       }
       case "keeps": {

@@ -48,6 +48,27 @@ export function roomLine(st: WorldState, nameOf: (id: string) => string): string
   return `ROOM: ${bits.join(" · ")}`;
 }
 
+/**
+ * docs/30 0.4: what the scene's place looks like now. The notes of every known place whose name is
+ * a part of where the scene is ("downstairs kitchen" for "… › downstairs kitchen › table"), newest first.
+ */
+export function placeNotesHere(st: WorldState, max = 3): { place: Place; notes: string[] }[] {
+  if (!st.place.length) return [];
+  const parts = new Set(st.place.map(low));
+  const full = low(st.place.join(" › "));
+  return Object.values(st.places)
+    .filter((p) => p.notes?.length && (low(p.path.join(" › ")) === full || parts.has(low(p.name))))
+    .sort((a, b) => (b.notes!.at(-1)!.seq ?? 0) - (a.notes!.at(-1)!.seq ?? 0))
+    .slice(0, 2)
+    .map((p) => ({ place: p, notes: p.notes!.slice(-max).reverse().map((n) => n.text) }));
+}
+
+/** The note's line for it: "HERE: downstairs kitchen: fridge bears the league standings; …". */
+export function placeLine(st: WorldState): string | null {
+  const here = placeNotesHere(st);
+  return here.length ? `HERE: ${here.map((h) => `${h.place.name}: ${h.notes.join("; ")}`).join(" · ")}` : null;
+}
+
 /** Gifts lost recently, when the giver is in the scene: they'd notice. */
 export function lostGiftLines(st: WorldState, seq: number, nameOf: (id: string) => string): string[] {
   const here = new Set(Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri").map((c) => c.name.toLowerCase()));

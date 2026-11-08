@@ -90,6 +90,11 @@ export const chatSettingsSchema = z.object({
   modelOverride: z.object({ connectionId: z.string(), modelId: z.string() }).nullable().optional(),
   /** Meus (docs/13-meus.md): apply record and time fixes without the card (still with Undo). */
   meus: z.object({ autoApply: z.boolean() }).partial().optional(),
+  /**
+   * docs/30 0.6: the cast tidy. `people`: names the fold kept off the cast that you said are people;
+   * `seen`: the ones you've looked at, so the notice doesn't show them again.
+   */
+  castTidy: z.object({ people: z.array(short(120)).max(200), seen: z.array(short(120)).max(500) }).partial().optional(),
   /** Story truths: your rules for this story, sent every turn. */
   truths: z.array(short(300)).max(30).optional(),
   /** docs/15, 4.3: what {{char}} knows about {{user}} rides on the Bond (null: on in companion mode). */

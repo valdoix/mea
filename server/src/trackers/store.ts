@@ -9,6 +9,7 @@ import { getCard, getCharacterRow } from "../services/characters";
 import { type ChatSettings, mustChat, type TrackerConfig } from "../services/chats";
 import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona } from "../services/personas";
+import { loreFactionNames } from "../lore/factionnames";
 import { detectStamina } from "./drift";
 import { parseLine } from "./dsl";
 import { type FoldConfig, type FoldResult, Folder, type TrackerEvent } from "./fold";
@@ -405,6 +406,12 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
     seedTraits.user = cardTraits(text);
   }
   for (const [k, p] of Object.entries(profiles)) if (p.stamina) stamina[k] = p.stamina;
+  // docs/30 0.1: the factions, so a group's name in a person line stands for its members and never becomes a person.
+  const own = castFactions(chatId);
+  const factions: NonNullable<FoldConfig["factions"]> = own.map((f) => ({ name: f.name, members: f.members.map((m) => m.name) }));
+  for (const name of loreFactionNames({ characterId: chat.character_id, personaId: chat.persona_id, chatId }))
+    if (!factions.some((f) => castKey(f.name) === castKey(name))) factions.push({ name, members: [] });
+  const tidy = parseJson<ChatSettings>(chat.settings, {}).castTidy;
   return {
     userName: persona?.name ?? "You",
     mainName: card?.name ?? "",
@@ -417,6 +424,8 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
     seedTraits,
     held: heldLeaks(chatId),
     heldDone: heldDone(chatId),
+    ...(factions.length ? { factions } : {}),
+    ...(tidy?.people?.length ? { people: tidy.people } : {}),
   };
 }
 

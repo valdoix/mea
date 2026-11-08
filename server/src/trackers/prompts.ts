@@ -2,6 +2,7 @@ import { type CalendarId, calendarHint } from "./calendars";
 import { formatStoryTime } from "./clock";
 import type { Field, Template } from "./schema";
 import { openLoops } from "./loops";
+import { placeNotesHere } from "./belongings";
 import { AXES, LADDER, type WorldState } from "./types";
 
 /** The ledger grammar, compact enough to send with every tracker call. */
@@ -34,7 +35,9 @@ know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|
    (a letter, note, text or email — a <letter>, <note>, <texts> or <email> in the messages too — is known to whoever wrote it; to anyone else only once the messages show them reading it. Sent, handed over or left on the table isn't read: know Mira: what Tam's letter says | it's in her bag, unopened · unaware)
 secret #key: fact | kept by A · from B        reveal #key: to B — how
 item Thing: A → B — how (the same name each time; put down: item Thing: at counter; taken to another house: item Thing: → Town › Place › shelf — packed. Worn or carried stays with whoever has it: item Thing: A) (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
-room A: Town › Place | room|home|shop (whose place it is)     keeps A: item @ place (theirs, kept there)
+room A: Town › Place | room|home|shop (whose place it is; A is a person)     keeps A: item @ place (theirs, kept there)
+place Where: what's there now   (what a place looks like, never room: place Kitchen › Fridge door: league standings in marker, two photos)
+   (a line's Holder, A or B is one person, or several: know Willow, Xander: … A group's name stands for its members only when it's a faction; otherwise name each of them. A place is never a person.)
 thread Title: new|advance|complicate|stall(blocker)|resolve — detail
    (a thread is a question the story is still asking, titled for that question. A nickname or a detail is a know line or a trait, never a thread, and a new question gets its own title rather than an old one's.)
 loop L1a2b3: done — the words that show it   (an open loop the NEW MESSAGES finished; the words copied exactly from them; loop L1a2b3: dropped — why, if it's called off)
@@ -102,6 +105,7 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   const loose = Object.values(st.items).filter((i) => !i.gone && i.holder?.startsWith("place:")).slice(-6);
   for (const i of loose) L.push(`item ${i.name}: at ${i.holder!.slice(6)}${i.owner ? ` (${nm(i.owner)}'s)` : ""}`);
   for (const p of Object.values(st.places).filter((x) => x.owner).slice(-6)) L.push(`room ${nm(p.owner!)}: ${p.path.join(" › ")} | ${p.kind ?? "room"}`);
+  for (const h of placeNotesHere(st, 2)) for (const n of h.notes) L.push(`place ${h.place.path.join(" › ")}: ${clip(n, 100)}`);
   for (const t of o.templates) {
     const vals = st.custom[t.key] ?? {};
     L.push(`[${t.key}] ${t.name}: ${t.schema.fields.map((f) => `${f.key}=${fieldValue(f, vals[f.key])}`).join("; ")}`);

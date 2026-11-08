@@ -5,7 +5,7 @@ import { all, one, parseJson } from "../db/db";
 import { badRequest, body, must, notFound } from "../lib/http";
 import { belongingsOf } from "../trackers/belongings";
 import { getCharacterRow } from "../services/characters";
-import { type ChatSettings, getMessageRow, mustChat, trackerConfigSchema } from "../services/chats";
+import { type ChatSettings, getMessageRow, mustChat, trackerConfigSchema, updateChat } from "../services/chats";
 import { enqueue } from "../services/jobs";
 import { describeWhen, spanLabel } from "../trackers/calendars";
 import { formatStoryTime, parseStoryTime, shortStoryTime } from "../trackers/clock";
@@ -29,6 +29,7 @@ import {
   foldConfigFor,
   getTemplate,
   hasBase,
+  invalidate,
   linesToOps,
   listTemplates,
   moveCastProfile,
@@ -354,9 +355,35 @@ trackers.get("/chats/:id/cast", (c) => {
         char: ch,
       };
     });
+  // docs/30 0.6: names kept off the cast (a place, a group, a faction). A profile filed under one is kept, but isn't a person.
+  const notPeople = Object.values(st.notPeople ?? {});
+  const routed = new Set(notPeople.map((n) => castKey(n.name)));
   // People you added who haven't been on the page yet.
-  for (const [key, p] of Object.entries(profiles)) if (!seen.has(key) && !Object.values(st.chars).some((ch) => ch.isUser && castKey(ch.name) === key)) people.push({ key, id: key, name: p.name, aliases: [], isMain: false, present: false, dead: p.standing === "dead", mood: null, place: p.where ?? null, activity: null, look: null, traits: [], wants: null, items: [], regard: null, lastSeq: 0, firstSeq: 0, profile: p, char: null as never });
-  return c.json({ people, userName: foldConfigFor(chatId).userName });
+  for (const [key, p] of Object.entries(profiles)) if (!seen.has(key) && !routed.has(key) && !Object.values(st.chars).some((ch) => ch.isUser && castKey(ch.name) === key)) people.push({ key, id: key, name: p.name, aliases: [], isMain: false, present: false, dead: p.standing === "dead", mood: null, place: p.where ?? null, activity: null, look: null, traits: [], wants: null, items: [], regard: null, lastSeq: 0, firstSeq: 0, profile: p, char: null as never });
+  // The tidy notice: what's new since you last looked. Field names ("traits", "?") are noise, not news.
+  const tidySeen = new Set((parseJson<ChatSettings>(mustChat(chatId).settings, {}).castTidy?.seen ?? []).map(castKey));
+  const tidied = notPeople
+    .filter((n) => n.as !== "field" && !tidySeen.has(castKey(n.name)))
+    .map((n) => ({ name: n.name, as: n.as, members: n.members ?? [], lines: n.lines, lastSeq: n.lastSeq, profile: Boolean(profiles[castKey(n.name)]) }));
+  return c.json({ people, tidied, userName: foldConfigFor(chatId).userName });
+});
+
+/**
+ * docs/30 0.6: an answer to the tidy notice. "person": it's a person after all, so the fold keeps it
+ * in the cast from now on; "seen": right as it is. Either way the notice stops showing it.
+ */
+trackers.post("/chats/:id/cast/tidy", async (c) => {
+  const chatId = c.req.param("id");
+  const chat = mustChat(chatId);
+  const input = await body(c, z.object({ name: z.string().trim().min(1).max(120), action: z.enum(["person", "seen", "undo"]) }));
+  const cur = parseJson<ChatSettings>(chat.settings, {}).castTidy ?? {};
+  const key = castKey(input.name);
+  const without = (xs: string[] | undefined) => (xs ?? []).filter((x) => castKey(x) !== key);
+  const people = input.action === "person" ? [...without(cur.people), input.name] : without(cur.people);
+  const seen = input.action === "undo" ? without(cur.seen) : [...without(cur.seen), input.name];
+  updateChat(chatId, { settings: { castTidy: { people: people.slice(-200), seen: seen.slice(-500) } } });
+  invalidate(chatId);
+  return c.json({ ok: true });
 });
 
 trackers.put("/chats/:id/cast/:name", async (c) => {
