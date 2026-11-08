@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { get, put } from "../../lib/api";
+  import { get, post, put } from "../../lib/api";
+  import { navigate } from "../../lib/router.svelte";
   import { Pin } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
 
@@ -25,7 +26,8 @@
     notes: { text: string; seq: number }[];
     items: string[];
     here: boolean;
-    lore?: { id: string; title: string } | null;
+    lore?: { bookId: string; bookName: string; entryId: string; title: string } | null;
+    offerLore?: boolean;
     profile: { name?: string; aliases?: string[]; into?: string; parent?: string; notPlace?: boolean; pinned?: boolean } | null;
   }
   let { chatId }: { chatId: string } = $props();
@@ -107,6 +109,15 @@
       errorToast(e);
     }
   }
+  /** docs/30 2.7: a location entry for this place, planned in the Lore Studio (written only when you write it there). */
+  async function writeLore(p: PlaceRow) {
+    try {
+      const r = await post<{ draftId: string }>(`/api/chats/${chatId}/places/${encodeURIComponent(p.id)}/lore`, {});
+      navigate(`/lore-studio/${r.draftId}`);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   function start(a: typeof action, p: PlaceRow) {
     action = action === a ? "" : a;
     draft = a === "rename" ? p.name : "";
@@ -158,7 +169,8 @@
           </div>
         {/if}
         {#if card.items.length}<div class="tiny wraps"><span class="muted">Kept here</span> {card.items.join(" · ")}</div>{/if}
-        {#if card.lore}<div class="tiny"><span class="muted">Lore</span> <a href="/lore?entry={card.lore.id}">{card.lore.title}</a></div>{/if}
+        {#if card.lore}<div class="tiny"><span class="muted">Lore</span> <a href="/lorebooks/{card.lore.bookId}" title="In {card.lore.bookName}">{card.lore.title}</a></div>
+        {:else if card.offerLore}<div class="row tiny"><span class="muted grow">Visited often, with no location entry.</span><button class="btn ghost small" onclick={() => writeLore(card!)}>Write a location entry</button></div>{/if}
         {#if childrenOf(card.id).length}<div class="tiny wraps"><span class="muted">In it</span> {childrenOf(card.id).map((x) => x.name).join(", ")}</div>{/if}
         <div class="row wrap actions">
           <button class="btn small" class:on={action === "rename"} onclick={() => start("rename", card!)}>Rename</button>
