@@ -3,7 +3,8 @@ import { mustChat } from "../services/chats";
 import { registerStatusTile } from "../services/status";
 import { craftReport } from "../steer/craft";
 import { lessonsFor } from "../steer/lessons";
-import { trackerConfig } from "../trackers/store";
+import { foldConfigFor, trackerConfig } from "../trackers/store";
+import { notPeopleNow, placesWithSeveralNames } from "./casthealth";
 import type { Issue } from "./checker";
 import { currentFold } from "../trackers/store";
 import { loopsPart } from "./loophealth";
@@ -18,7 +19,7 @@ import { type RetellStats, retellStats } from "./retell";
  * Nothing new is stored; the weekly trend is worked out from the same records.
  */
 
-export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost" | "loops";
+export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost" | "loops" | "notpeople" | "placenames";
 export interface HealthItem {
   part: HealthPart;
   label: string;
@@ -51,7 +52,7 @@ export interface Health {
 const WINDOW = 20;
 const LEAKS = new Set(["leak", "offpage", "canon", "puppet"]);
 const SLIPS = new Set(["trait", "dead", "time", "name", "place", "fact", "pov", "tense", "timeline", "nothere", "clockback", "past", "planning", "who", "ties", "retell", "undone", "known", "elsewhere"]);
-const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1, loops: 2 };
+const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1, loops: 2, notpeople: 1, placenames: 1 };
 
 const level = (s: number): Health["level"] => (s >= 80 ? "good" : s >= 60 ? "fair" : "poor");
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
@@ -153,10 +154,45 @@ function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<str
 
   const loops = live ? loopsPart(chatId, replies) : null;
   if (loops) parts.push(loops);
+  // docs/30 4.2: the cast and the places, as they stand now (not week by week).
+  if (live) parts.push(...castParts(chatId));
 
   const weight = parts.reduce((a, p) => a + WEIGHTS[p.part], 0);
   const score = clamp(parts.reduce((a, p) => a + p.score * WEIGHTS[p.part], 0) / Math.max(1, weight));
   return { score, level: level(score), replies: n, parts };
+}
+
+/** docs/30 4.2: "Not people" (should stay at 0) and "Places with several names". */
+function castParts(chatId: string): HealthItem[] {
+  let st;
+  try {
+    st = currentFold(chatId).result.state;
+  } catch {
+    return [];
+  }
+  const fc = foldConfigFor(chatId);
+  const notPeople = notPeopleNow(st, { factions: (fc.factions ?? []).flatMap((f) => [f.name, ...(f.aliases ?? [])]), people: fc.people });
+  const AS = { group: "a group", faction: "a faction", place: "a place", field: "a field name" } as const;
+  const drift = placesWithSeveralNames(st);
+  const twice = drift.reduce((n, d) => n + d.names.length, 0);
+  return [
+    {
+      part: "notpeople",
+      label: "Not people",
+      score: clamp(100 - notPeople.length * 25),
+      detail: notPeople.length ? `${notPeople.length} in the cast that ${notPeople.length === 1 ? "isn't a person" : "aren't people"}: ${notPeople.slice(0, 3).map((x) => x.name).join(", ")}` : "everyone in the cast is a person",
+      open: { href: `/chat/${chatId}/story?tab=cast` },
+      ...(notPeople.length ? { ask: `the cast has entries that aren't people (${notPeople.slice(0, 4).map((x) => `${x.name}: ${AS[x.as]}`).join("; ")}); sort out the cast`, notes: notPeople.map((x) => `${x.name}: ${AS[x.as]}`) } : {}),
+    },
+    {
+      part: "placenames",
+      label: "Places with several names",
+      score: clamp(100 - twice * 8),
+      detail: twice ? `${twice} room${twice === 1 ? "" : "s"} made twice in ${drift.length} building${drift.length === 1 ? "" : "s"}${drift[0] ? `: ${drift[0].building} has ${drift[0].names.slice(0, 2).map((x) => `${x.name} ×${x.count}`).join(", ")}` : ""}` : "one place, one name",
+      open: { href: `/chat/${chatId}/story?tab=cast` },
+      ...(twice ? { ask: `rooms were made twice inside one building (${drift.slice(0, 2).map((d) => `${d.building}: ${d.names.slice(0, 3).map((x) => x.paths.join(" / ")).join("; ")}`).join(" · ")}); sort out the places`, notes: drift.flatMap((d) => d.names.map((x) => `${d.building}: ${x.paths.join(" / ")}`)) } : {}),
+    },
+  ];
 }
 
 const WEEK = 7 * 24 * 3600_000;
