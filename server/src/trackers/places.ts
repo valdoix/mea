@@ -41,9 +41,9 @@ const FLOOR_LEAD = /^(?:(?:down|up)stairs|(?:ground|first|second|third|top|upper
 const FLOOR = /^(?:(?:down|up)stairs|(?:ground|first|second|third|top|upper|lower|main)[- ]floor)$/i;
 const unfloored = (s: string) => placeKey(s.replace(FLOOR_LEAD, ""));
 
-const HOME = /\b(?:house|home|place|residence|apartment|flat|mansion|manor|cottage|cabin|condo|estate|townhouse|bungalow|dorm)$/i;
+const HOME = /\b(?:house|home|place|residence|apartment|flat|mansion|manor|cottage|cabin|condo|estate|townhouse|bungalow|dorm|castle|palace|villa|chateau|château|hut|homestead|farmhouse)$/i;
 const BUILDING =
-  /\b(?:school|high|college|university|mall|store|shop|boutique|diner|restaurant|cafe|café|bar|pub|club|hotel|motel|inn|hospital|clinic|church|chapel|library|station|warehouse|parlou?r|gym|office|offices|museum|theatre|theater|cinema|bank|market|supermarket|bakery|salon|studio|precinct|factory|barn|shed|the bronze)$/i;
+  /\b(?:school|high|college|university|mall|store|shop|boutique|diner|restaurant|cafe|café|bar|pub|club|hotel|motel|inn|hospital|clinic|church|chapel|library|station|warehouse|parlou?r|gym|office|offices|museum|theatre|theater|cinema|bank|market|supermarket|bakery|salon|studio|precinct|factory|barn|shed|the bronze|keep|fortress|citadel|tower|lighthouse|abbey|monastery|priory|temple|shrine|barracks|tavern|guildhall|mill|forge|smithy|embassy)$/i;
 const STREET = /\b(?:drive|street|st|road|rd|avenue|ave|lane|boulevard|blvd|way|court|crescent|alley)$/i;
 const ROOM =
   /\b(?:kitchen|kitchenette|pantry|bedroom|bathroom|room|hallway|hall|corridor|foyer|landing|stairs|stairwell|staircase|porch|patio|balcony|terrace|deck|garage|driveway|basement|cellar|attic|loft|closet|office|study|den|nursery|shower|en-suite|ensuite|pool|lobby|food court|atrium|aisle|section|fitting room|counter area|back room|yard|backyard|garden|crypt)$/i;
@@ -65,6 +65,10 @@ export function kindOf(name: string, depth = 1): PlaceKind {
   if (BUILDING.test(n)) return "building";
   if (STREET.test(n)) return "street";
   if (OUTDOORS.test(n)) return "outdoors";
+  // docs/30 4.1: named the other way round ("Castle Varn", "Hotel Paradiso", "the East Wing").
+  if (/^(?:the\s+)?(?:castle|palace|villa|chateau|château|manor)\s/.test(n)) return "home";
+  if (/^(?:the\s+)?(?:fort|fortress|tower|keep|temple|abbey|hotel|hospital|church|chapel|museum|inn|tavern)\s/.test(n)) return "building";
+  if (/\bwing$/.test(n) && depth > 0) return "room";
   return depth === 0 ? "town" : "district";
 }
 const isBuilding = (k?: string) => k === "home" || k === "building";
@@ -98,7 +102,9 @@ function lev1(a: string, b: string) {
   let i = 0;
   while (i < a.length && a[i] === b[i]) i++;
   const r = (x: string, y: string) => x === y;
-  return r(a.slice(i + 1), b.slice(i + 1)) || r(a.slice(i + 1), b.slice(i)) || r(a.slice(i), b.slice(i + 1)) ? 1 : 2;
+  // One letter changed, dropped or added, or two side by side swapped ("Castel" for "Castle").
+  const swapped = a[i] === b[i + 1] && a[i + 1] === b[i] && r(a.slice(i + 2), b.slice(i + 2));
+  return swapped || r(a.slice(i + 1), b.slice(i + 1)) || r(a.slice(i + 1), b.slice(i)) || r(a.slice(i), b.slice(i + 1)) ? 1 : 2;
 }
 
 const slugOf = (s: string) =>
@@ -271,7 +277,10 @@ export class PlaceBook {
     if (merged && this.st.places[merged]) return this.st.places[merged]!;
     const moved = prof?.parent && prof.parent !== id ? this.st.places[prof.parent] : undefined;
     const under = moved && !this.chainOf(moved).some((x) => x.id === id) ? moved : parent;
-    const p: Place = { id, name: prof?.name ?? seg, path: [...(under ? this.path(under) : []), prof?.name ?? seg], visits: 0, lastSeq: seq, kind: prof?.kind ?? kindOf(seg, path.length - 1), ...(under ? { parent: under.id } : {}), source: "story", ...(prof?.pinned ? { pinned: true } : {}) };
+    // docs/30 4.1: a "library" or a "chapel" inside a home (a castle, a manor) is one of its rooms.
+    const k = kindOf(seg, path.length - 1);
+    const kind = under && k === "building" && this.chainOf(under).some((x) => x.kind === "home") ? "room" : k;
+    const p: Place = { id, name: prof?.name ?? seg, path: [...(under ? this.path(under) : []), prof?.name ?? seg], visits: 0, lastSeq: seq, kind: prof?.kind ?? kind, ...(under ? { parent: under.id } : {}), source: "story", ...(prof?.pinned ? { pinned: true } : {}) };
     this.st.places[id] = p;
     return p;
   }
