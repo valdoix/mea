@@ -31,6 +31,9 @@ import { pressureAction, type PressureAction } from "../trackers/pressures";
 import { canonOf, type CanonSettings, laterItem, setCanon } from "../accuracy/canoncut";
 import { createOffpage, deleteOffpage, getOffpage, type HintBudget, listOffpage, updateOffpage } from "../accuracy/offpage";
 import { restoreStash } from "../services/undo";
+import { applyFactionPlan, applyPlacePlan, type FactionPlan, memberLines, type PlacePlan, planMake, planMerge, planPlace, restoreFaction, restorePlace, SORT_OUT_KINDS } from "./sortout";
+import type { CastFaction } from "../trackers/store";
+import type { PlaceProfile } from "../trackers/places";
 import { originChanges, skipChanges, takeChanges } from "../services/versionsync";
 import { retellOptions, startRetold } from "../services/versionchat";
 
@@ -64,6 +67,7 @@ export const CHANGE_KINDS = [
   '{"kind": "canon", "source": "the work", "point": "where the story stands in it", "later": [{"kind": "event|character|reveal|term", "text": "…", "terms": ["words that give it away"]}], "wont": ["canon events that won’t happen in this story"], "remove": ["text of a later or wont item"]} changes the canon cutoff (only what changes);',
   '{"kind": "pressure", "name": "<cast name>", "action": "redraw|write|lock|unlock|head|resolve", "text": "for write: what they carry and haven’t said"} a person’s hidden pressure (head: the next scene tests it; resolve: it eases, and moves a bond);',
   '{"kind": "report", "report": "bonds|threads|secrets|knows", "name": "<for knows: whose>"} shows the player a report from the story’s records (changes nothing); {"kind": "cut_to", "to": "<person or place>"} the next reply cuts there; {"kind": "promise", "id": "<promise id>", "verdict": "kept|broken|excused|forgiven"} settles a promise, or {"kind": "promise", "who": "<name>", "whom": "<name>", "what": "…", "due": "Day 3 21:00", "meet": "<place, for a meeting>"} records one; {"kind": "calendar_add", "title": "…", "when": "19 January", "event_kind": "birthday|anniversary|holiday|appointment"}; {"kind": "room", "name": "<cast name>", "place": "Town › Place", "room_kind": "room|home|shop", "keeps": ["item @ place"]} whose place it is, and what they keep where.',
+, SORT_OUT_KINDS,
 ].join(" ");
 
 /** Kinds the story can't redo by itself, or that Undo can't take back: never pre-ticked. */
@@ -95,6 +99,9 @@ export type UndoStep =
   | { t: "lessonStatus"; id: string; status: "kept" | "off" | "suggested" | "rejected" }
   | { t: "offpageDrop"; id: string }
   | { t: "stash"; token: string }
+  // docs/30 4.3: a faction row, or a place's edits, as they were.
+  | { t: "faction"; id: string; row: CastFaction | null }
+  | { t: "placeProfile"; id: string; prev: PlaceProfile | null }
   | { t: "chatDrop"; id: string }
   | { t: "offpageRestore"; id: string; patch: { label: string; neverSay: string[]; hintAs: string; hints: HintBudget; status: "kept" | "revealed" } };
 
@@ -831,6 +838,34 @@ may hint as: ${str(c.hint_as)}` : ""}`, data: { label, neverSay: never ?? [], hi
       for (const k of strs(c.keeps) ?? []) if (k.includes("@")) lines.push(`keeps ${who.name}: ${clean(k)}`);
       if (!lines.length) continue;
       out.push({ kind, target: who.id, label: `Rooms and belongings · ${who.name}`, before: "", after: lines.join("\n"), data: { lines, why } });
+    } else if (kind === "faction") {
+      // docs/30 4.3: make a faction, merge two, or add and take out members.
+      const st = currentFold(chatId).result.state;
+      const action = str(c.action).toLowerCase() || "make";
+      if (action === "member") {
+        const lines = memberLines(chatId, st, { name: str(c.name), add: strs(c.add) ?? [], remove: strs(c.remove) ?? [], role: str(c.role) || undefined, why: why || undefined });
+        if (typeof lines === "string") {
+          dropped.push(lines);
+          continue;
+        }
+        out.push({ kind, target: str(c.name), label: `Faction · ${str(c.name)}: members`, before: "", after: lines.join("\n"), data: { action, lines, why } });
+        continue;
+      }
+      const plan = action === "merge" ? planMerge(chatId, st, str(c.from), str(c.into)) : planMake(chatId, st, { name: str(c.name), kind: str(c.group_kind).toLowerCase() || undefined, members: strs(c.members) ?? [], aliases: strs(c.aliases) ?? [] });
+      if (typeof plan === "string") {
+        dropped.push(plan);
+        continue;
+      }
+      const shown = (f: { name: string; kind?: string; members: { name: string }[]; aliases?: string[] }) => [`${f.name}${f.kind ? ` · ${f.kind}` : ""}`, f.aliases?.length ? `also: ${f.aliases.join(", ")}` : "", f.members.length ? `members: ${f.members.map((m) => m.name).join(", ")}` : ""].filter(Boolean).join("\n");
+      const label = action === "merge" ? `Faction · ${str(c.from)} is ${plan.next.name}` : plan.id ? `Faction · ${plan.next.name}` : `Faction · new: ${plan.next.name}`;
+      out.push({ kind, target: plan.id ?? "", label, before: action === "merge" ? str(c.from) : "", after: shown(plan.next), data: { action, plan, why } });
+    } else if (kind === "place") {
+      const plan = planPlace(chatId, currentFold(chatId).result.state, { action: str(c.action).toLowerCase(), id: str(c.id), into: str(c.into) || undefined, name: str(c.name) || undefined });
+      if (typeof plan === "string") {
+        dropped.push(plan);
+        continue;
+      }
+      out.push({ kind, target: plan.placeId, label: plan.label, before: plan.before, after: plan.after, data: { plan, why } });
     } else if (kind) dropped.push(`Meus can't make "${kind}" changes yet`);
   }
   return { changes: out, dropped };
@@ -1080,6 +1115,13 @@ export function applyChange(chatId: string, c: ProposedChange): UndoStep[] {
       return [{ t: "events", ids: userEditAt(chatId, linesToOps([String(d.line)]).ops) }];
     case "room":
       return [{ t: "events", ids: userEditAt(chatId, linesToOps(d.lines as string[]).ops) }];
+    case "faction":
+      if (d.action === "member") return [{ t: "events", ids: userEditAt(chatId, linesToOps(d.lines as string[]).ops) }];
+      return applyFactionPlan(chatId, d.plan as FactionPlan).map((u) => ({ t: "faction" as const, id: u.id, row: u.row }));
+    case "place": {
+      const plan = d.plan as PlacePlan;
+      return [{ t: "placeProfile", id: plan.placeId, prev: applyPlacePlan(chatId, plan) }];
+    }
     case "pressure":
       return [{ t: "events", ids: pressureAction(chatId, c.target, String(d.action) as PressureAction, String(d.text ?? "")).ids }];
     case "canon": {
@@ -1134,6 +1176,12 @@ export function undoStep(chatId: string, s: UndoStep) {
       return;
     case "events":
       for (const id of s.ids) deleteEvent(chatId, id);
+      return;
+    case "faction":
+      restoreFaction(chatId, s.id, s.row);
+      return;
+    case "placeProfile":
+      restorePlace(chatId, s.id, s.prev);
       return;
     case "profiles":
       for (const p of s.rows) {
