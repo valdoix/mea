@@ -1,7 +1,8 @@
 <script lang="ts">
   import Segmented from "../../Segmented.svelte";
   import { get, post } from "../../../lib/api";
-  import { BookOpen, ClipboardCheck, ClockAlert, Globe, PenLine, RefreshCw, Square, X } from "../../../lib/icons";
+  import { BookOpen, ClipboardCheck, ClockAlert, Globe, PenLine, RefreshCw, Repeat, Square, X } from "../../../lib/icons";
+  import { confirm } from "../../../lib/dialogs.svelte";
   import { navigate } from "../../../lib/router.svelte";
   import { app, errorToast, toast } from "../../../lib/state.svelte";
   import type { StudioSession } from "../../../lib/studio.svelte";
@@ -80,7 +81,21 @@
   }
 
   // Once saved, more entries go into the same book (never a second copy).
-  const savedId = $derived(draft.committedBookId ?? (draft.source.kind === "book" ? draft.targetBookId : null));
+  const savedId = $derived(draft.committedBookId ?? (draft.source.kind === "book" || draft.source.kind === "convert" ? draft.targetBookId : null));
+  // A conversion changes a book in Mea in place.
+  const inPlace = $derived(draft.source.kind === "convert" && Boolean(draft.targetBookId) && !draft.committedBookId);
+
+  // ---------- converting ----------
+  const shaped = $derived(kept.filter((i) => i.previous).length);
+  function setPlacement(v: "mea" | "original") {
+    draft.options.placement = v;
+    session.save({ options: { ...$state.snapshot(draft.options) } }, "options", 0);
+  }
+  async function shapeAll() {
+    const n = kept.length;
+    if (!(await confirm({ title: `Shape ${n} entr${n === 1 ? "y" : "ies"} for Mea?`, message: `The model rewrites each one into its kind's shape (a voice's sample lines, a place's looks and dangers…), keeping every fact and key and moving hidden truths into secrets. That's ${n} model call${n === 1 ? "" : "s"}; each old text can be brought back.`, confirmLabel: "Shape them" }))) return;
+    await session.act("write", "/write", { all: true });
+  }
   const savedBook = $derived(savedId ? (books.find((b) => b.id === savedId) ?? { id: savedId, name: draft.title }) : null);
   const overviewNew = $derived(draft.options.overview && Boolean(draft.overview.trim()) && !draft.committedBookId);
   async function save() {
@@ -124,6 +139,21 @@
       <span class="tiny muted">{review.cost.entries} entries · {review.cost.totalTokens} tokens in all · always on {review.cost.alwaysOnTokens} · a fired entry averages {review.cost.averageTokens}</span>
     {/if}
   </div>
+
+  {#if draft.source.kind === "convert"}
+    <div class="panel stack tight convert">
+      <b><Repeat size={15} /> Converted from {draft.convert?.label ?? "a lorebook"}</b>
+      <span class="small">Every entry has a kind now, guessed from its title and text: check them below (open an entry to change its kind). Saving gives each one Mea's fields: its kind, how it fires, and its aliases, essentials and secrets.</span>
+      <div class="row wrap">
+        <span class="tiny muted lbl">Place in the prompt</span>
+        <Segmented value={draft.options.placement ?? "mea"} options={[{ value: "mea", label: "Mea's, by kind" }, { value: "original", label: "Where it was" }]} onchange={(v) => setPlacement(v as "mea" | "original")} small />
+      </div>
+      <div class="row between wrap">
+        <span class="tiny muted">{shaped ? `${shaped} of ${kept.length} shaped by the model.` : "The text is as it was. Shaping is optional."}</span>
+        <button class="btn small" onclick={shapeAll} disabled={Boolean(session.busy) || Boolean(working.length) || !kept.length}><PenLine size={14} /> Shape for Mea</button>
+      </div>
+    </div>
+  {/if}
 
   <div class="row between wrap">
     <Segmented value={filter} options={[{ value: "all", label: `All ${kept.length}` }, { value: "look", label: `Needs a look ${lookCount}` }, { value: "unwritten", label: `Not written ${kept.length - written.length}` }]} onchange={(v) => (filter = v)} small />
@@ -196,6 +226,8 @@
       {#if draft.version.companionBookId || draft.version.worldBookId}
         <span class="tiny muted">Saved so far:{#if draft.version.companionBookId}{" "}<a href="/lorebooks/{draft.version.companionBookId}">its own</a>{/if}{#if draft.version.worldBookId}{" "}<a href="/lorebooks/{draft.version.worldBookId}">its world</a>{/if}. Only new entries are added.</span>
       {/if}
+    {:else if inPlace && savedBook}
+      <span class="small">Saves each entry back into <a href="/lorebooks/{savedBook.id}">{savedBook.name}</a> in Mea's format. Entries you leave out stay as they are.</span>
     {:else if savedBook}
       <span class="small">Saving into <a href="/lorebooks/{savedBook.id}">{savedBook.name}</a>. Entries saved before stay as they are; only new ones are added.</span>
     {:else if draft.source.kind !== "book"}
@@ -235,7 +267,7 @@
     {/if}
     <div class="row between wrap">
       <span class="tiny muted">{unsaved.length} new entr{unsaved.length === 1 ? "y" : "ies"}{overviewNew ? " + the overview" : ""}{working.length ? ". Entries still being written can be saved later." : ""}{lookCount ? ` · ${lookCount} need a look` : ""}</span>
-      <button class="btn primary" onclick={save} disabled={saving || (!unsaved.length && !overviewNew) || (!draft.version && !savedId && dest === "existing" && !bookId)}>{saving ? "Saving…" : draft.committedBookId ? "Save the new entries" : "Save the lorebook"}</button>
+      <button class="btn primary" onclick={save} disabled={saving || (!unsaved.length && !overviewNew) || (!draft.version && !savedId && dest === "existing" && !bookId)}>{saving ? "Saving…" : inPlace ? "Save the converted book" : draft.committedBookId ? "Save the new entries" : "Save the lorebook"}</button>
     </div>
   </div>
 </section>

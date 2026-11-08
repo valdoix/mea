@@ -2,10 +2,12 @@
   import { del, get, post } from "../../../lib/api";
   import { confirm } from "../../../lib/dialogs.svelte";
   import { timeAgo } from "../../../lib/format";
-  import { ArrowLeft, BookOpen, FileText, Lightbulb, Trash, Upload, UserPen, Users } from "../../../lib/icons";
+  import { ArrowLeft, BookOpen, FileText, Lightbulb, Repeat, Trash, Upload, UserPen, Users } from "../../../lib/icons";
+  import { LORE_CATEGORIES } from "../../../lib/lorecats";
+  import Segmented from "../../Segmented.svelte";
   import { navigate, route } from "../../../lib/router.svelte";
   import { app, errorToast } from "../../../lib/state.svelte";
-  import type { CharacterSummary, LorebookSummary, Persona, StudioDraft, StudioDraftSummary, StudioSourceKind } from "../../../lib/types";
+  import type { CharacterSummary, ConvertPreview, LorebookSummary, Persona, StudioDraft, StudioDraftSummary, StudioSourceKind } from "../../../lib/types";
 
   const SOURCES: { kind: StudioSourceKind; title: string; text: string; icon: typeof Lightbulb }[] = [
     { kind: "idea", title: "From an idea", text: "Describe a world in your own words. Mea asks what it needs, plans the entries with you, then writes them.", icon: Lightbulb },
@@ -13,6 +15,7 @@
     { kind: "persona", title: "From a persona", text: "Lore for your own character: family, home, history, the things they carry.", icon: UserPen },
     { kind: "document", title: "From a document", text: "A setting bible, wiki page or notes (Markdown or text). Headings become entries and folders, with no model call.", icon: FileText },
     { kind: "book", title: "Grow a lorebook", text: "Find what an existing book is missing (names it mentions with no entry) and fill the gaps.", icon: BookOpen },
+    { kind: "convert", title: "Convert a lorebook", text: "A lorebook from SillyTavern, NovelAI, Agnai, RisuAI or a character card, or an older one here, in Mea's format: each entry gets its kind, its place in the prompt and Mea's fields.", icon: Repeat },
   ];
 
   let kind = $state<StudioSourceKind | null>(null);
@@ -26,6 +29,17 @@
   let books = $state<LorebookSummary[]>([]);
   let preview = $state<{ title: string; shape: string; overview: string; sections: { title: string; type: string | null; folder: string; words: number }[] } | null>(null);
   let fileInput = $state<HTMLInputElement | null>(null);
+  // Converting: a file from another app, or a book already in Mea (converted in place).
+  let convertFrom = $state<"file" | "book">("file");
+  let convertPreview = $state<ConvertPreview | null>(null);
+  let convertError = $state("");
+  let loreInput = $state<HTMLInputElement | null>(null);
+  const KIND_LABEL = new Map<string, string>(LORE_CATEGORIES.map((c) => [c.id, c.label]));
+  const kindCounts = $derived.by(() => {
+    const n = new Map<string, number>();
+    for (const e of convertPreview?.entries ?? []) n.set(e.kind ?? "", (n.get(e.kind ?? "") ?? 0) + 1);
+    return [...n].sort((a, b) => b[1] - a[1]).map(([k, c]) => ({ label: KIND_LABEL.get(k) ?? "No kind", n: c }));
+  });
 
   async function load() {
     try {
@@ -56,14 +70,35 @@
         kind = k;
         refId = q[k]!;
       }
-    if (q.kind === "idea" || q.kind === "document") kind = q.kind;
+    if (q.convert) {
+      kind = "convert";
+      convertFrom = "book";
+      refId = q.convert;
+    }
+    if (q.kind === "idea" || q.kind === "document" || q.kind === "convert") kind = q.kind;
   });
 
   function pick(k: StudioSourceKind) {
     kind = k;
     refId = "";
     preview = null;
+    convertPreview = null;
+    convertError = "";
     if (k !== "idea") text = k === "document" ? text : "";
+  }
+
+  async function readLoreFile(f: File) {
+    if (f.size > 2_000_000) return errorToast(new Error("That file is over 2 MB."));
+    convertPreview = null;
+    convertError = "";
+    text = await f.text();
+    fileName = f.name;
+    try {
+      convertPreview = await post<ConvertPreview>("/api/lore-studio/convert-preview", { text, fileName });
+    } catch (e) {
+      convertError = (e as Error).message;
+      text = "";
+    }
   }
 
   let previewTimer: ReturnType<typeof setTimeout>;
@@ -89,13 +124,14 @@
     updatePreview();
   }
 
-  const ready = $derived(kind === "idea" || kind === "document" ? Boolean(text.trim()) : Boolean(refId));
+  const ready = $derived(kind === "idea" || kind === "document" ? Boolean(text.trim()) : kind === "convert" ? (convertFrom === "file" ? Boolean(convertPreview) : Boolean(refId)) : Boolean(refId));
 
   async function create() {
     if (!kind || !ready) return;
     creating = true;
     try {
-      const r = await post<{ draft: StudioDraft }>("/api/lore-studio", { kind, text: text || undefined, refId: refId || undefined, fileName: fileName || undefined });
+      const body = kind === "convert" ? (convertFrom === "file" ? { kind, text, fileName } : { kind, refId }) : { kind, text: text || undefined, refId: refId || undefined, fileName: fileName || undefined };
+      const r = await post<{ draft: StudioDraft }>("/api/lore-studio", body);
       navigate(`/lore-studio/${r.draft.id}`);
     } catch (e) {
       errorToast(e);
@@ -115,7 +151,7 @@
   }
 
   const STAGE: Record<string, string> = { start: "Starting", questions: "Questions", plan: "Planning", review: "Writing & review", done: "Saved" };
-  const KIND: Record<string, string> = { idea: "Idea", character: "Character", persona: "Persona", document: "Document", book: "Growing a book", version: "A version's lore" };
+  const KIND: Record<string, string> = { idea: "Idea", character: "Character", persona: "Persona", document: "Document", book: "Growing a book", convert: "Converting", version: "A version's lore" };
 </script>
 
 <div class="page">
@@ -180,6 +216,33 @@
           <select class="select" bind:value={refId}><option value="">Choose…</option>{#each books.filter((b) => !b.settings.chronicleFor) as b (b.id)}<option value={b.id}>{b.name} ({b.entryCount})</option>{/each}</select>
         </label>
         <label class="field"><span class="label">What's missing? <span class="faint">optional</span></span><textarea class="textarea" rows="3" bind:value={text} placeholder="More places outside the city, and the people who run the guilds."></textarea></label>
+      {:else if kind === "convert"}
+        <Segmented value={convertFrom} options={[{ value: "file", label: "A file from another app" }, { value: "book", label: "A lorebook in Mea" }]} onchange={(v) => { convertFrom = v as "file" | "book"; refId = ""; }} small />
+        {#if convertFrom === "file"}
+          <div class="row wrap">
+            <button class="btn" onclick={() => loreInput?.click()}><Upload size={15} /> Choose a lorebook file</button>
+            <span class="tiny muted">{fileName || "SillyTavern World Info, a character card (.json), NovelAI .lorebook, Agnai or RisuAI."}</span>
+            <input bind:this={loreInput} type="file" accept=".json,.lorebook,application/json" hidden onchange={(e) => e.currentTarget.files?.[0] && readLoreFile(e.currentTarget.files[0])} />
+          </div>
+          {#if convertError}<p class="notice small" role="alert">{convertError}</p>{/if}
+          {#if convertPreview}
+            <div class="preview stack tight">
+              <span class="small"><b>{convertPreview.name}</b> · {convertPreview.label} · {convertPreview.count} entr{convertPreview.count === 1 ? "y" : "ies"}{convertPreview.count > convertPreview.entries.length ? ` (the first ${convertPreview.entries.length} are converted)` : ""}</span>
+              <div class="row wrap">{#each kindCounts as k (k.label)}<span class="chip tiny">{k.label} {k.n}</span>{/each}</div>
+              <div class="sections">
+                {#each convertPreview.entries.slice(0, 60) as s, i (i)}
+                  <span class="tiny row"><span class="faint">{s.folder ? `${s.folder} › ` : ""}</span><b>{s.title}</b><span class="chip tiny">{KIND_LABEL.get(s.kind ?? "") ?? "No kind"}</span><span class="faint">{s.words} words · {s.keys} key{s.keys === 1 ? "" : "s"}</span></span>
+                {/each}
+                {#if convertPreview.entries.length > 60}<span class="tiny faint">…and {convertPreview.entries.length - 60} more</span>{/if}
+              </div>
+            </div>
+          {/if}
+        {:else}
+          <label class="field">
+            <span class="label">Lorebook <span class="faint">its entries are changed in place when you save</span></span>
+            <select class="select" bind:value={refId}><option value="">Choose…</option>{#each books.filter((b) => !b.settings.chronicleFor) as b (b.id)}<option value={b.id}>{b.name} ({b.entryCount})</option>{/each}</select>
+          </label>
+        {/if}
       {:else}
         <div class="row wrap">
           <button class="btn" onclick={() => fileInput?.click()}><Upload size={15} /> Choose a file</button>
@@ -200,7 +263,7 @@
         {/if}
       {/if}
       <div class="row between wrap">
-        <span class="tiny muted">{kind === "document" ? "Your text is kept word for word; you can polish entries with the model later." : "Next: Mea reads it back and plans the entries with you. Nothing is saved to a lorebook yet."}</span>
+        <span class="tiny muted">{kind === "document" ? "Your text is kept word for word; you can polish entries with the model later." : kind === "convert" ? "No model call: each entry's kind is guessed, and you check them before saving. Shaping them with the model is optional." : "Next: Mea reads it back and plans the entries with you. Nothing is saved to a lorebook yet."}</span>
         <button class="btn primary" onclick={create} disabled={!ready || creating}>{creating ? "Starting…" : "Start"}</button>
       </div>
     </section>

@@ -2011,7 +2011,7 @@ export interface SearchResult {
 
 export type LoreType = "character" | "location" | "item" | "faction" | "concept" | "event" | "rule";
 /** "version": a linked version's own lorebook (docs/14), translated from its original's. */
-export type StudioSourceKind = "idea" | "character" | "persona" | "document" | "book" | "version";
+export type StudioSourceKind = "idea" | "character" | "persona" | "document" | "book" | "version" | "convert";
 export type StudioStage = "start" | "questions" | "plan" | "review" | "done";
 
 export interface StudioOptions {
@@ -2029,6 +2029,17 @@ export interface StudioOptions {
   overview: boolean;
   /** The profile this studio uses (unset: Settings › Routing). */
   profileId?: string | null;
+  /** A converted book: each kind's place in the prompt (Mea's), or where the other app put it. */
+  placement?: "mea" | "original";
+}
+
+/** What a lorebook file would convert to, before a draft is made. */
+export interface ConvertPreview {
+  format: string;
+  label: string;
+  name: string;
+  count: number;
+  entries: { title: string; kind: string | null; keys: number; words: number; folder: string }[];
 }
 
 export type MixLevel = "few" | "each" | "all";
@@ -2185,6 +2196,8 @@ export interface StudioDraft {
   research: Research | null;
   /** A version's lore draft (docs/14): whose version, from whom, and the two books it saves into. */
   version?: { kind: "character" | "persona"; id: string; name: string; originId: string; originName: string; plan: VariantPlan; companionBookId: string | null; worldBookId: string | null } | null;
+  /** A converted lorebook: the format it came from. */
+  convert?: { format: string; label: string; description: string } | null;
   createdAt: number;
   updatedAt: number;
 }
