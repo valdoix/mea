@@ -1,6 +1,7 @@
 import { categoryOf } from "../lore/format";
 import type { CastProfile } from "../trackers/store";
 import { PlaceBook } from "../trackers/places";
+import { passingFace } from "../trackers/whois";
 import type { Place, WorldState } from "../trackers/types";
 import { type Basis, offStory, type Sheet, sheetKey, sheetStanding, type TieType } from "./sheet";
 import type { Actor, Standing } from "./types";
@@ -27,6 +28,8 @@ export interface RActor extends Actor {
   /** docs/21 Part 3: each tie's kind, whether they're in touch, and where that came from. */
   tieKind: Map<string, Tie>;
   text: string;
+  /** docs/30 3.1: a passing face: never acts off the page, never leads or is the subject of a subplot. */
+  passing?: boolean;
   want?: string;
   fear?: string;
   /** Fact keys → status (what they know, for the gate and news). */
@@ -330,6 +333,7 @@ export function buildRoster(inp: RosterInput): Roster {
       tieWhy: new Map(),
       tieKind: new Map(),
       text,
+      ...(passingFace(c, prof?.pinned) ? { passing: true } : {}),
       want: c.drives.want,
       fear: c.drives.fear,
       knows: new Map(),
@@ -646,7 +650,7 @@ export function awakeAt(a: RActor, minuteOfDay: number): boolean {
 }
 
 export function canAct(a: RActor): boolean {
-  return !a.isUser && !a.dead && a.standing !== "changed" && a.standing !== "companion" && a.flag !== "out";
+  return !a.isUser && !a.dead && !a.passing && a.standing !== "changed" && a.standing !== "companion" && a.flag !== "out";
 }
 
 /** The people simulated this tick (ALMANAC 09 §4.3): ranked; room kept for the unmet. */

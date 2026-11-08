@@ -4,6 +4,33 @@
  * the places visited).
  */
 
+/**
+ * docs/30 3.1: a name that's a description, not a name: "woman in brown cardigan", "the bartender",
+ * "Zapatos Dorothea worker". An article or a lower-case start, or a role noun at the end after no
+ * proper name ("Coach Martinez" and "Officer Dan" are names).
+ */
+const ROLE =
+  "worker|woman|women|man|men|guy|girl|boy|lady|kid|child|clerk|cashier|waiter|waitress|server|bartender|barista|guard|bouncer|officer|cop|nurse|doctor|driver|cabbie|stranger|customer|shopper|patron|teen|teenager|student|teacher|salesgirl|salesman|saleswoman|assistant|attendant|receptionist|manager|employee|staffer|vendor|janitor|security|paramedic|reporter|tourist|passerby|neighbou?r|mother|father|mom|dad|couple|figure|voice|someone|somebody|person|people|vampire|demon|thug|goon|henchman|minion|cook|chef|maid|butler|porter|mechanic|delivery guy|courier|pharmacist|librarian|priest";
+const ROLE_START = new RegExp(String.raw`^(?:${ROLE})s?$`, "i");
+const DESCRIPTION_END = new RegExp(String.raw`\b(?:${ROLE})s?$`, "i");
+export function passingName(name: string): boolean {
+  const n = name.replace(/[“”"]/g, "").replace(/\s+/g, " ").trim();
+  if (!n) return false;
+  if (/^(?:a|an|the|some|one|another|that|this|two|three|several)\s/i.test(n)) return true;
+  if (/^\p{Ll}/u.test(n)) return true;
+  // "Zapatos Dorothea worker": capitalised words, then a lower-case role noun. "Coach Martinez" ends in a name.
+  const words = n.split(" ");
+  // "Woman in brown cardigan", "Man with the umbrella": a role noun, then words about them ("Officer Dan" is a name).
+  if (words.length >= 2 && ROLE_START.test(words[0]!) && words.slice(1).some((w) => /^\p{Ll}/u.test(w))) return true;
+  return words.length >= 2 && /^\p{Ll}/u.test(words.at(-1)!) && DESCRIPTION_END.test(n);
+}
+
+/**
+ * docs/30 3.1: a passing face: a description for a name, in fewer than three scenes, not pinned. Kept
+ * apart from the cast (a line under People), with no pressure and no subplots off the page.
+ */
+export const passingFace = (c: { name: string; isUser: boolean; isMain: boolean; scenes?: number }, pinned?: boolean) => !c.isUser && !c.isMain && !pinned && (c.scenes ?? 0) < 3 && passingName(c.name);
+
 /** Field names written where a name goes ("cast: … · traits@spot"): never a person. */
 export const FIELD_WORD = /^(?:traits?|moods?|notes?|cast|looks?|body|drives?|knows?|items?|threads?|places?|scenes?|bonds?|none|n\/a|unknown|tbd|\?+)$/i;
 

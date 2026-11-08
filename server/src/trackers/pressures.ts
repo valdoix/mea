@@ -7,7 +7,8 @@ import { getCard } from "../services/characters";
 import { getMessageRow, mustChat, updateChat } from "../services/chats";
 import { storyDials } from "../services/layers";
 import { seeded } from "../sim/dice";
-import { currentFold, linesToOps, writeEvents } from "./store";
+import { castKey, castProfiles, currentFold, linesToOps, writeEvents } from "./store";
+import { passingFace } from "./whois";
 import { userEditAt } from "./service";
 import type { Character, Pressure, WorldState } from "./types";
 
@@ -99,7 +100,12 @@ export function drawPressure(chatId: string, st: WorldState, c: Character, draw 
 }
 
 /** Someone the story keeps coming back to: the main character, or present across several messages. */
-const important = (c: Character) => !c.isUser && !c.dead && (c.isMain || c.lastSeq - c.firstSeq >= 6);
+/** docs/30 3.1: a passing face ("woman in brown cardigan") draws none until it's promoted. */
+const important = (c: Character, pinned?: boolean) => !c.isUser && !c.dead && (c.isMain || c.lastSeq - c.firstSeq >= 6) && !passingFace(c, pinned);
+const pinnedIn = (chatId: string) => {
+  const profiles = castProfiles(chatId);
+  return (c: Character) => Boolean(profiles[castKey(c.name)]?.pinned);
+};
 const present = (c: Character) => c.tier === "spot" || c.tier === "peri";
 const line = (name: string, text: string, meta: string[], why: string) => `pressure ${name}: ${text}${meta.length ? ` | ${meta.join(" | ")}` : ""} — ${why}`;
 
@@ -120,8 +126,9 @@ export function pressuresAfterReply(chatId: string, messageId: string, swipeIdx?
     return;
   }
   const lines: string[] = [];
+  const pinned = pinnedIn(chatId);
   for (const c of Object.values(st.chars)) {
-    if (!important(c) || !present(c)) continue;
+    if (!important(c, pinned(c)) || !present(c)) continue;
     const p = c.pressure;
     if (!p) {
       const d = drawPressure(chatId, st, c);
@@ -177,8 +184,9 @@ export function pressuresView(chatId: string) {
   const st = currentFold(chatId).result.state;
   const user = Object.values(st.chars).find((c) => c.isUser);
   const knownToUser = Object.values(st.facts).filter((f) => !user || f.stances[user.id]?.status === "knows" || f.secret?.keepers.includes(user.id));
+  const pinned = pinnedIn(chatId);
   return Object.values(st.chars)
-    .filter((c) => !c.isUser && (c.pressure || important(c)))
+    .filter((c) => !c.isUser && (c.pressure || important(c, pinned(c))))
     .map((c) => ({
       id: c.id,
       name: c.name,

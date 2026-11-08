@@ -5,6 +5,7 @@ import { all, one, parseJson } from "../db/db";
 import { badRequest, body, must, notFound } from "../lib/http";
 import { belongingsOf, itemsAt } from "../trackers/belongings";
 import { currentNotes, PlaceBook } from "../trackers/places";
+import { passingFace } from "../trackers/whois";
 import { OFFER_AT, placeEntryDraft, placeLore, visitsWithin } from "../lore/placelore";
 import { getCharacterRow } from "../services/characters";
 import { type ChatSettings, getMessageRow, mustChat, trackerConfigSchema, updateChat } from "../services/chats";
@@ -418,6 +419,8 @@ trackers.get("/chats/:id/cast", (c) => {
         name: ch.name,
         aliases: ch.aliases,
         isMain: ch.isMain,
+        // docs/30 3.1: a description for a name, seen in fewer than three scenes, not pinned.
+        passing: passingFace(ch, names.map((k) => profiles[k]).find(Boolean)?.pinned),
         present: ch.tier === "spot" || ch.tier === "peri",
         dead: Boolean(ch.dead),
         mood: ch.mood?.name ?? null,
@@ -438,7 +441,7 @@ trackers.get("/chats/:id/cast", (c) => {
   const notPeople = Object.values(st.notPeople ?? {});
   const routed = new Set(notPeople.map((n) => castKey(n.name)));
   // People you added who haven't been on the page yet.
-  for (const [key, p] of Object.entries(profiles)) if (!seen.has(key) && !routed.has(key) && !Object.values(st.chars).some((ch) => ch.isUser && castKey(ch.name) === key)) people.push({ key, id: key, name: p.name, aliases: [], isMain: false, present: false, dead: p.standing === "dead", mood: null, place: p.where ?? null, activity: null, look: null, traits: [], wants: null, items: [], regard: null, lastSeq: 0, firstSeq: 0, profile: p, char: null as never });
+  for (const [key, p] of Object.entries(profiles)) if (!seen.has(key) && !routed.has(key) && !Object.values(st.chars).some((ch) => ch.isUser && castKey(ch.name) === key)) people.push({ key, id: key, name: p.name, aliases: [], isMain: false, passing: false, present: false, dead: p.standing === "dead", mood: null, place: p.where ?? null, activity: null, look: null, traits: [], wants: null, items: [], regard: null, lastSeq: 0, firstSeq: 0, profile: p, char: null as never });
   // The tidy notice: what's new since you last looked. Field names ("traits", "?") are noise, not news.
   const tidySeen = new Set((parseJson<ChatSettings>(mustChat(chatId).settings, {}).castTidy?.seen ?? []).map(castKey));
   // docs/30 1.2: a group that became a faction shows with the factions instead.
