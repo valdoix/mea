@@ -1,6 +1,7 @@
 import { categoryOf } from "../lore/format";
 import type { CastProfile } from "../trackers/store";
-import type { WorldState } from "../trackers/types";
+import { PlaceBook } from "../trackers/places";
+import type { Place, WorldState } from "../trackers/types";
 import { type Basis, offStory, type Sheet, sheetKey, sheetStanding, type TieType } from "./sheet";
 import type { Actor, Standing } from "./types";
 
@@ -157,6 +158,39 @@ function reachOf(where: string[] | undefined, scene: string[], standing: Standin
   return "town";
 }
 
+/**
+ * docs/30 2.7: how far someone is, by the place tree: the same place, the same building, the same
+ * district, the same town. However the paths were written ("Gabriel's House › kitchen" and "Sunnydale ›
+ * hills › Winters Residence › living room" are one house). Paths the tree doesn't know are compared as written.
+ */
+export function treeReach(st: WorldState): (where: string[] | undefined, standing: Standing) => Reach {
+  const book = new PlaceBook(st);
+  const here = book.here();
+  const cache = new Map<string, Place | null>();
+  const placeOf = (where: string[]) => {
+    const k = where.join(" › ");
+    if (!cache.has(k)) cache.set(k, book.resolve(where, { create: false })?.place ?? null);
+    return cache.get(k) ?? undefined;
+  };
+  return (where, standing) => {
+    if (standing === "dead") return "none";
+    const p = here && where?.length ? placeOf(where) : undefined;
+    if (!here || !p) return reachOf(where, st.place, standing);
+    if (p.id === here.id) return "here";
+    const b = book.buildingOf(here);
+    if (b && book.buildingOf(p)?.id === b.id) return "building";
+    const a = book.chainOf(p).map((x) => x.id);
+    const s = book.chainOf(here).map((x) => x.id);
+    if (a[0] !== s[0]) return FAR.test(where!.join(" ")) || standing === "away" ? "far" : "region";
+    // Below the town and above the buildings: the same district ("hills"), else the same town.
+    let common = 0;
+    while (common < a.length && common < s.length && a[common] === s[common]) common++;
+    const shared = book.get(a[common - 1]);
+    return common >= 2 && shared && !isTown(shared) ? "district" : "town";
+  };
+}
+const isTown = (p: Place) => !p.parent;
+
 const tieWords = (strength: number) => new RegExp(`\\b(${strength === 3 ? CLOSE : strength === 2 ? EXTENDED : WORK})\\b`, "i");
 
 /**
@@ -256,6 +290,7 @@ export function samePerson(a: string, b: string): boolean {
 export function buildRoster(inp: RosterInput): Roster {
   const st = inp.state;
   const scene = st.place;
+  const reachIn = treeReach(st);
   const actors = new Map<string, RActor>();
   const keyOf = (name: string) => name.trim().toLowerCase();
   const add = (a: RActor) => actors.set(a.id, a);
@@ -268,9 +303,11 @@ export function buildRoster(inp: RosterInput): Roster {
     const standing: Standing = c.dead ? "dead" : ((prof?.standing as Standing) ?? simActor?.standing ?? read.standing ?? "here");
     const standingBy: Basis = c.dead ? "story" : prof?.standing || simActor?.standing ? "you" : read.standing ? "guess" : "none";
     const onstage = c.tier === "spot" || c.tier === "peri";
-    const where = simActor?.where ?? (prof?.where ? prof.where.split(/\s*›\s*/) : c.place ? c.place.split(/\s*›\s*/) : undefined);
-    const whereBy: Basis = simActor?.where || prof?.where ? "you" : c.place ? "story" : "none";
-    const reach = onstage ? "here" : reachOf(where, scene, standing);
+    // docs/30 2.4/2.7: nowhere said, they're at home, when the story knows where they live.
+    const home = c.place || simActor?.where || prof?.where ? undefined : Object.values(st.places).find((p) => p.residents?.includes(c.id));
+    const where = simActor?.where ?? (prof?.where ? prof.where.split(/\s*›\s*/) : c.place ? c.place.split(/\s*›\s*/) : home ? home.path : undefined);
+    const whereBy: Basis = simActor?.where || prof?.where ? "you" : c.place || home ? "story" : "none";
+    const reach = onstage ? "here" : reachIn(where, standing);
     add({
       id: c.id,
       name: c.isUser ? inp.userName : c.name,
@@ -330,7 +367,7 @@ export function buildRoster(inp: RosterInput): Roster {
             twin.where = [read.where];
             twin.basis.where = "guess";
           }
-          twin.reach = reachOf(twin.where, scene, "away");
+          twin.reach = reachIn(twin.where, "away");
           twin.travel = TRAVEL[twin.reach];
         }
       }
@@ -341,7 +378,7 @@ export function buildRoster(inp: RosterInput): Roster {
     const read = readStanding(u.text, u.name);
     const standing: Standing = (u.prof?.standing as Standing) ?? simActor?.standing ?? read.standing ?? "here";
     const where = simActor?.where ?? (u.prof?.where ? u.prof.where.split(/\s*›\s*/) : read.where ? [read.where] : undefined);
-    const reach = reachOf(where, scene, standing);
+    const reach = reachIn(where, standing);
     const standingBy: Basis = u.prof?.standing || simActor?.standing ? "you" : read.standing ? "guess" : "none";
     const whereBy: Basis = simActor?.where || u.prof?.where ? "you" : read.where ? "guess" : "none";
     add({
@@ -407,7 +444,7 @@ export function buildRoster(inp: RosterInput): Roster {
       if (!moved) continue;
       if (sh.quote) a.basis.quote = sh.quote;
       // The sheet knows near from far even when the place's name doesn't match the scene's.
-      a.reach = a.dead ? "none" : sh.far || a.standing === "away" ? "far" : a.basis.where === "lore" ? "town" : reachOf(a.where, scene, a.standing);
+      a.reach = a.dead ? "none" : sh.far || a.standing === "away" ? "far" : a.basis.where === "lore" ? "town" : reachIn(a.where, a.standing);
       a.travel = TRAVEL[a.reach];
     }
   }
@@ -508,7 +545,7 @@ export function buildRoster(inp: RosterInput): Roster {
       const place = routinePlace(a, mod);
       if (!place) continue;
       a.where = place.split(/\s*›\s*/);
-      a.reach = reachOf(a.where, scene, a.standing);
+      a.reach = reachIn(a.where, a.standing);
       a.travel = TRAVEL[a.reach];
     }
   }

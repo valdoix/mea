@@ -1,3 +1,4 @@
+import { PlaceBook } from "../trackers/places";
 import type { WorldState } from "../trackers/types";
 import { pick } from "./dice";
 import { SPECS } from "./grammar";
@@ -87,8 +88,10 @@ export function routeFor(o: {
     case "ambient":
       return { ...base, place: [roster.town], text: `Heard around ${roster.town}: ${short}`, until: until(route) };
     case "trace": {
-      const place = arc.place ?? lead?.where ?? lead?.base;
-      if (!place?.length) return null;
+      const written = arc.place ?? lead?.where ?? lead?.base;
+      if (!written?.length) return null;
+      // docs/30 2.7: a real place in the tree, by its known path, when the tree knows it.
+      const place = new PlaceBook(o.state).resolve(written, { create: false })?.chain.map((x) => x.name) ?? written;
       return { ...base, place, text: `At ${place.at(-1)}, signs of what happened: ${short}`, until: until(route) };
     }
     case "entrance":
@@ -100,8 +103,15 @@ export function routeFor(o: {
   }
 }
 
-function placeMatch(arrival: string[] | undefined, scene: string[]) {
+function placeMatch(arrival: string[] | undefined, scene: string[], st?: WorldState) {
   if (!arrival?.length || !scene.length) return false;
+  // docs/30 2.7: by the tree, the scene is at the arrival's place when it's there or inside it.
+  if (st) {
+    const book = new PlaceBook(st);
+    const at = book.resolve(arrival, { create: false })?.place;
+    const here = book.here();
+    if (at && here) return book.isUnder(here, at);
+  }
   const deepest = arrival.at(-1)!.toLowerCase();
   return scene.some((s) => s.toLowerCase() === deepest) || (arrival.length === 1 && scene[0]!.toLowerCase() === deepest);
 }
@@ -129,11 +139,11 @@ export function elsewhereLane(o: { arrivals: Arrival[]; state: WorldState; roste
         if ((a.to === "user" && userHere) || (a.to && here.has(a.to.toLowerCase()))) line = a.text.replace("the user's character", o.userName);
         break;
       case "ambient":
-        if (o.roster.scene[0] && a.place?.[0] && placeMatch(a.place, o.roster.scene)) line = a.text;
+        if (o.roster.scene[0] && a.place?.[0] && placeMatch(a.place, o.roster.scene, o.state)) line = a.text;
         else if (a.place?.[0]?.toLowerCase() === o.roster.town.toLowerCase()) line = a.text;
         break;
       case "trace":
-        if (placeMatch(a.place, o.roster.scene)) line = a.text;
+        if (placeMatch(a.place, o.roster.scene, o.state)) line = a.text;
         break;
       case "omen":
         if (!charged) line = `${a.text} (an omen: show it, explain nothing)`;

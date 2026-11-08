@@ -4,7 +4,8 @@ import { z } from "zod";
 import { all, one, parseJson } from "../db/db";
 import { badRequest, body, must, notFound } from "../lib/http";
 import { belongingsOf, itemsAt } from "../trackers/belongings";
-import { currentNotes } from "../trackers/places";
+import { currentNotes, PlaceBook } from "../trackers/places";
+import { OFFER_AT, placeEntryDraft, placeLore, visitsWithin } from "../lore/placelore";
 import { getCharacterRow } from "../services/characters";
 import { type ChatSettings, getMessageRow, mustChat, trackerConfigSchema, updateChat } from "../services/chats";
 import { enqueue } from "../services/jobs";
@@ -320,6 +321,9 @@ trackers.get("/chats/:id/places", (c) => {
   mustChat(chatId);
   const st = currentFold(chatId).result.state;
   const profiles = placeProfiles(chatId);
+  // docs/30 2.7: each place's location entry, and an offer to write one for a place often visited.
+  const lore = placeLore(chatId, st);
+  const book = new PlaceBook(st);
   const places = Object.values(st.places).map((p) => ({
     id: p.id,
     name: p.name,
@@ -337,6 +341,8 @@ trackers.get("/chats/:id/places", (c) => {
     notes: currentNotes(p).map((n) => ({ text: n.text, seq: n.seq })),
     items: itemsAt(st, p).map((i) => i.name),
     here: st.placeId === p.id,
+    lore: lore.get(p.id) ?? null,
+    offerLore: !lore.has(p.id) && ["town", "district", "building", "home", "outdoors"].includes(p.kind ?? "") && visitsWithin(book, p) >= OFFER_AT,
     profile: profiles[p.id] ?? null,
   }));
   // docs/30 2.6: the phrases you said aren't places, so they can be taken back.
@@ -355,6 +361,15 @@ const placeEdit = z.object({
   notSame: z.array(z.string().trim().min(1).max(120)).max(40).optional(),
   parent: z.string().max(80).nullable().optional(),
   pinned: z.boolean().nullable().optional(),
+});
+
+/** docs/30 2.7: a Lore Studio draft with a location entry planned for this place (nothing is written until you write it there). */
+trackers.post("/chats/:id/places/:placeId/lore", (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const d = placeEntryDraft(chatId, currentFold(chatId).result.state, c.req.param("placeId"));
+  if (!d) throw notFound("No such place");
+  return c.json({ draftId: d.id }, 201);
 });
 
 /** docs/30 2.1: your edit to a place: kept through every refold (empty fields remove it). */
