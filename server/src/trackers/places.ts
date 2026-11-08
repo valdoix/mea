@@ -521,3 +521,58 @@ export function featureOf(text: string): string | undefined {
 
 /** The current notes of a place (not the ones a newer note replaced), newest first. */
 export const currentNotes = (p: Place) => (p.notes ?? []).filter((n) => !n.past).reverse();
+
+/**
+ * docs/30 2.5: the places around the scene, by the names the tree knows them by, for the tracker's
+ * prompt: the rooms of the building the scene is in, the town's usual places (most visited), and the
+ * places visited last (one for each building). Writing these names keeps one place one place before 2.2 has to clean up.
+ */
+export function knownPlaces(st: WorldState, o: { rooms?: number; usual?: number; recent?: number } = {}): { here?: string; rooms: string[]; town?: string; usual: string[]; recent: string[] } {
+  const book = new PlaceBook(st);
+  const here = book.here();
+  const building = book.buildingOf(here);
+  const town = book.townOf(here);
+  const rooms = building
+    ? book
+        .under(building, 1)
+                .sort((a, b) => b.visits - a.visits || b.lastSeq - a.lastSeq)
+        .slice(0, o.rooms ?? 12)
+        .map((p) => p.name)
+    : [];
+  // Visits to a place and everything in it: the mall is usual when the food court is.
+  const visits = new Map<string, number>();
+  const all = (p: Place) => visits.get(p.id) ?? visits.set(p.id, p.visits + book.under(p, 4).reduce((t, x) => t + x.visits, 0)).get(p.id)!;
+  const usual = town
+    ? book
+        .under(town, 2)
+        .filter((p) => p.id !== building?.id && ["building", "home", "street", "outdoors", "district"].includes(p.kind ?? "") && all(p) > 0)
+        // An area ("hills") only when nothing in it is a building of its own: the buildings say where it is.
+        .filter((p) => isBuilding(p.kind) || !book.under(p, 1).some((x) => isBuilding(x.kind)))
+        .sort((a, b) => all(b) - all(a) || b.lastSeq - a.lastSeq)
+        .slice(0, o.usual ?? 8)
+        .map((p) => book.path(p).slice(1).join(" › "))
+    : [];
+  const shown = new Set([...(building ? [building.id, ...book.under(building, 1).map((p) => p.id)] : [])]);
+  const recent = book
+    .all()
+    .filter((p) => p.visits > 0 && p.id !== here?.id && !shown.has(p.id))
+    .sort((a, b) => b.lastSeq - a.lastSeq)
+    // One for each building: the room last visited in it.
+    .filter((p, i, xs) => {
+      const b = book.buildingOf(p)?.id;
+      return !b || xs.findIndex((x) => book.buildingOf(x)?.id === b) === i;
+    })
+    .slice(0, o.recent ?? 5)
+    .map((p) => book.path(p).join(" › "));
+  return { ...(building ? { here: book.path(building).join(" › ") } : {}), rooms, ...(town ? { town: town.name } : {}), usual, recent };
+}
+
+/** The tracker's line for known places, or null when the story has none yet. */
+export function knownPlacesLine(st: WorldState): string | null {
+  const k = knownPlaces(st);
+  const bits: string[] = [];
+  if (k.here && k.rooms.length) bits.push(`${k.here}: ${k.rooms.join(", ")}`);
+  if (k.town && k.usual.length) bits.push(`in ${k.town}: ${k.usual.join(", ")}`);
+  if (k.recent.length) bits.push(`lately: ${k.recent.join("; ")}`);
+  return bits.length ? `known places (write places by these names; add a new part only for a new place): ${bits.join(" · ")}` : null;
+}
