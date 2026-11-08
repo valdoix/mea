@@ -161,7 +161,7 @@
           {#if card.aliases.length}<span class="tiny faint wraps">also {card.aliases.join(", ")}</span>{/if}
         </div>
         <div class="tiny">
-          <span class="muted">Visits</span> {card.visits}{#if total.get(card.id) !== card.visits}<span class="faint"> ({total.get(card.id)} with what's in it)</span>{/if}{#if card.lastSeq}{" · "}<a href="/chat/{chatId}?at={card.lastSeq}">last here at #{card.lastSeq}</a>{/if}
+          <span class="muted">Visits</span> {card.visits}{#if total.get(card.id) !== card.visits}{" "}<span class="faint">({total.get(card.id)} with what's in it)</span>{/if}{#if card.lastSeq}{" · "}<a href="/chat/{chatId}?at={card.lastSeq}">last here at #{card.lastSeq}</a>{/if}
           {#if card.address}<span> · <span class="muted">on</span> {card.address}</span>{/if}
         </div>
         {#if card.owner || card.residents.length}
@@ -318,14 +318,16 @@
   }
   .place {
     display: grid;
-    gap: 8px;
+    gap: 10px;
+    padding: 14px 16px;
+    min-width: 0;
   }
   .title {
     font-size: 17px;
   }
   .actions {
     border-top: 1px solid var(--border);
-    padding-top: 8px;
+    padding-top: 10px;
   }
   .wraps {
     overflow-wrap: anywhere;
