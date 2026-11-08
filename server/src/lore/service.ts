@@ -1,7 +1,8 @@
 import { all, newId, now, one, parseJson, run, tx } from "../db/db";
 import { publish } from "../lib/events";
 import type { ScanEntry, TimedState } from "./activate";
-import { exportStWorldInfo, importLorebook, toCardBook } from "./convert";
+import { exportStWorldInfo, toCardBook } from "./convert";
+import { readLorebook } from "./formats";
 import { defaultEntry, type LoreEntry, type LorebookSettings } from "./types";
 
 export type LinkType = "global" | "character" | "persona" | "chat";
@@ -163,7 +164,8 @@ export function linkedBooks(type: LinkType, targetId: string) {
 }
 
 export function importLorebookJson(json: unknown, fallbackName: string, links: LorebookLink[] = []): string {
-  const book = importLorebook(json, fallbackName);
+  // Any app's lorebook Mea can read (SillyTavern, cards, NovelAI, Agnai, RisuAI…).
+  const book = readLorebook(json, fallbackName);
   return createLorebook({ name: book.name, description: book.description, settings: book.settings, entries: book.entries, links });
 }
 

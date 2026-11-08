@@ -23,7 +23,8 @@ import { baseTitle, cleanTitle, type EntryType, entryFromSource, firstSentences,
 import { checkEntries, checkKinds, type EntryLength, STOCK_NAMES, STOCK_PHRASES } from "./quality";
 import { createEntry, createLorebook, getLorebook, type LinkType, linkLorebook, linkedBooks, updateEntry } from "./service";
 import { createFact } from "./facts";
-import { defaultEntry } from "./types";
+import { defaultEntry, type LoreEntry, type LorebookSettings } from "./types";
+import { FORMAT_LABEL, type LoreFormat, readLorebook } from "./formats";
 import { findLeaks, type VariantPlan, variantBlock } from "../creator/variantcore";
 
 /**
@@ -38,7 +39,7 @@ import { findLeaks, type VariantPlan, variantBlock } from "../creator/variantcor
  */
 
 /** "version": the lorebook of a linked version (docs/14), translated from its original's through the map. */
-export type SourceKind = "idea" | "character" | "persona" | "document" | "book" | "version";
+export type SourceKind = "idea" | "character" | "persona" | "document" | "book" | "version" | "convert";
 export type Stage = "start" | "questions" | "plan" | "review" | "done";
 export const ENTRY_TYPES = Object.keys(ENTRY_TEMPLATES) as EntryType[];
 
@@ -62,6 +63,8 @@ export interface StudioOptions {
   overview: boolean;
   /** The profile this studio's model calls use (unset: Settings › Routing's lore studio choice). */
   profileId?: string | null;
+  /** A converted book: each kind's place in the prompt (Mea's), or where the other app put it (original). */
+  placement: "mea" | "original";
 }
 
 export interface StudioEntry {
@@ -117,6 +120,8 @@ export interface StudioItem {
   cues?: string[];
   /** A version's entry (docs/14): the original entry it comes from, and whether it's kept, translated or new. */
   versionSource: VersionSource | null;
+  /** A converted entry as the other app (or the book) had it: its settings carry over on save. */
+  original?: LoreEntry | null;
 }
 
 export interface VersionSource {
@@ -214,8 +219,17 @@ export interface StudioDraft {
   /** I2: the plan's numbered versions (each plan and each accepted change makes one). */
   planVersions: PlanVersion[];
   version: VersionLore | null;
+  /** "convert": the file it came from, and the book's own settings to save with it. */
+  convert?: ConvertInfo | null;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface ConvertInfo {
+  format: LoreFormat | "mea";
+  label: string;
+  description: string;
+  settings: LorebookSettings;
 }
 
 export const defaultOptions = (kind: SourceKind = "idea"): StudioOptions => ({
@@ -229,7 +243,10 @@ export const defaultOptions = (kind: SourceKind = "idea"): StudioOptions => ({
   secrets: kind !== "document",
   faithful: kind === "document",
   overview: kind === "idea" || kind === "document",
+  placement: "mea",
   ...(kind === "version" ? { secrets: false } : {}),
+  // A conversion keeps what the book says: no invented details, no invented secrets.
+  ...(kind === "convert" ? { secrets: false, faithful: true } : {}),
 });
 
 const PLAN_SIZE = { small: 8, medium: 15, large: 26, complete: 26 } as const;
@@ -275,6 +292,7 @@ function hydrate(r: Row): StudioDraft {
     research: d.research ?? null,
     planVersions: d.planVersions ?? [],
     version: d.version ?? null,
+    convert: d.convert ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -306,6 +324,7 @@ function normItem(i: Partial<StudioItem>): StudioItem {
     versionSource: i.versionSource ?? null,
     about: Array.isArray(i.about) ? i.about.filter((x) => typeof x === "string") : [],
     ...(Array.isArray(i.cues) && i.cues.length ? { cues: i.cues.filter((x) => typeof x === "string") } : {}),
+    ...(i.original ? { original: i.original } : {}),
   };
 }
 
@@ -497,6 +516,71 @@ function existingTitles(d: StudioDraft) {
   return [...ids].flatMap((id) => getLorebook(id)?.entries.map((e) => e.comment || e.keys[0] || "").filter(Boolean) ?? []);
 }
 
+// ---------- convert ----------
+
+/** The most entries one conversion takes (a bigger book goes in parts). */
+export const MAX_CONVERT = 600;
+
+/**
+ * One converted entry as a drafted item: its kind (kept when the book already set one, else
+ * guessed), its keys and text as they are, and the whole original so its settings carry over.
+ * Saving now gives a Mea book; "Shape for Mea" rewrites each into its kind's shape.
+ */
+export function convertItem(e: LoreEntry, bookName: string, targetEntryId: string | null = null): StudioItem {
+  const x = e.extra as { category?: Category; type?: EntryType; aliases?: string[]; essentials?: string; secrets?: StudioEntry["secrets"]; folder?: string; parts?: Parts };
+  const kept = x.category && (CATEGORIES as readonly string[]).includes(x.category) ? x.category : null;
+  const category = kept ?? guessCategory(e, bookName).category;
+  const title = e.comment.trim() || e.keys[0] || firstSentences(e.content, 60) || "Untitled";
+  return normItem({
+    title,
+    type: x.type ?? (category ? (CATEGORY_INFO[category].type as EntryType | undefined) : undefined) ?? null,
+    category,
+    pitch: "",
+    folder: typeof x.folder === "string" ? x.folder : "",
+    source: e.content,
+    constant: e.constant,
+    entry: {
+      content: e.content,
+      keys: e.keys,
+      aliases: Array.isArray(x.aliases) ? x.aliases : [],
+      essentials: typeof x.essentials === "string" && x.essentials ? x.essentials : firstSentences(e.content),
+      secrets: Array.isArray(x.secrets) ? x.secrets : [],
+      ...(x.parts ? { parts: x.parts } : {}),
+    },
+    status: "drafted",
+    action: targetEntryId ? "change" : "write",
+    targetEntryId,
+    original: e,
+  });
+}
+
+function parseLoreFile(text: string, fileName: string) {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw badRequest("That file isn't JSON. Markdown and text go in “From a document”.");
+  }
+  try {
+    return readLorebook(json, fileName.replace(/\.(json|lorebook)$/i, "") || "Converted lorebook");
+  } catch (e) {
+    throw badRequest(`That file isn't a lorebook Mea can read: ${(e as Error).message}`);
+  }
+}
+
+/** What a file would convert to, before a draft is made: its format and its entries' guessed kinds. */
+export function previewConvert(text: string, fileName = "") {
+  const book = parseLoreFile(text, fileName);
+  const items = book.entries.slice(0, MAX_CONVERT).map((e) => convertItem(e, book.name));
+  return {
+    format: book.format,
+    label: FORMAT_LABEL[book.format],
+    name: book.name,
+    count: book.entries.length,
+    entries: items.map((i) => ({ title: i.title, kind: i.category, keys: i.entry!.keys.length, words: i.entry!.content.split(/\s+/).filter(Boolean).length, folder: i.folder })),
+  };
+}
+
 // ---------- create ----------
 
 export interface CreateInput {
@@ -568,6 +652,27 @@ export function createDraft(input: CreateInput): StudioDraft {
     d.source.text = [s.text, input.text?.trim() && `AUTHOR'S NOTES: ${input.text.trim()}`].filter(Boolean).join("\n\n");
     d.title ||= s.name;
     d.targetBookId = input.refId;
+  } else if (input.kind === "convert") {
+    // A book in Mea is converted in place; a file from another app becomes a new book.
+    if (input.refId) {
+      const book = getLorebook(input.refId);
+      if (!book) throw notFound("Lorebook not found");
+      d.source.refName = book.name;
+      d.title ||= book.name;
+      d.targetBookId = book.id;
+      d.convert = { format: "mea", label: "A lorebook in Mea", description: book.description, settings: book.settings };
+      d.items = book.entries.slice(0, MAX_CONVERT).map(({ id: eid, ...e }) => convertItem(e, book.name, eid));
+    } else {
+      if (!input.text?.trim()) throw badRequest("Choose a lorebook file");
+      const book = parseLoreFile(input.text, input.fileName ?? "");
+      d.title ||= book.name;
+      d.convert = { format: book.format, label: FORMAT_LABEL[book.format], description: book.description, settings: book.settings };
+      d.items = book.entries.slice(0, MAX_CONVERT).map((e) => convertItem(e, book.name));
+    }
+    if (!d.items.length) throw badRequest("That lorebook has no entries");
+    // The model reads the book as a list (the file itself isn't kept).
+    d.source.text = d.items.map((i) => `- ${i.title}${i.category ? ` (${i.category})` : ""}: ${i.entry!.essentials}`).join("\n");
+    d.stage = "review";
   } else if (input.kind === "document") {
     if (!input.text?.trim()) throw badRequest("The document is empty");
     const doc = parseDocument(input.text, input.fileName);
@@ -691,7 +796,7 @@ const dedupe = (xs: string[]) => [...new Map(xs.map((x) => x.trim()).filter(Bool
 
 const sourceBlock = (d: StudioDraft) => {
   const text = d.source.text.length > MAX_SOURCE_CHARS ? `${d.source.text.slice(0, MAX_SOURCE_CHARS)}\n[…the rest is cut for length]` : d.source.text;
-  const label = { idea: "THE AUTHOR'S IDEA", character: "THE CHARACTER CARD", persona: "THE PERSONA", document: "THE DOCUMENT", book: "THE EXISTING LOREBOOK", version: "THE VERSION (the card or persona this lore is for)" }[d.source.kind];
+  const label = { idea: "THE AUTHOR'S IDEA", character: "THE CHARACTER CARD", persona: "THE PERSONA", document: "THE DOCUMENT", book: "THE EXISTING LOREBOOK", convert: "THE LOREBOOK BEING CONVERTED (every entry, in brief)", version: "THE VERSION (the card or persona this lore is for)" }[d.source.kind];
   return [`${label}:\n${text || "(nothing yet)"}`, expansionBlock(d.expansion)].filter(Boolean).join("\n\n");
 };
 
@@ -710,10 +815,16 @@ const PURPOSE: Record<SourceKind, string> = {
   persona:
     "This is a lorebook for the user's own persona: the people, places, history and possessions around them, so stories can draw on their past. The persona is the person the human player plays ({{user}} in a chat), not a character the AI plays: don't make an entry for the persona themself, mention them by name, never as {{char}}, and never decide what they feel or do. Stay consistent with the persona.",
   document: "Turn the author's document into entries. Use only what the document says.",
+  convert:
+    "Convert a lorebook made in another app (or an older one) into Mea's format: each entry rewritten into its kind's shape, saying everything the original says and nothing it doesn't.",
   book: "Grow an existing lorebook: propose entries it lacks. Never repeat an entry it has.",
   version:
     "This is the lorebook of a VERSION (an alternate universe, another era, a time skip or a what-if): each entry is the original's entry translated into this version through THE MAP, or a new one the version needs. Keep what the map keeps, rename and rework what it changes, never mention what it dropped, and keep the role each thing plays in the story. Don't make an entry for the version themself: their card covers them.",
 };
+
+/** What a conversion asks of the writer, on top of the kind's brief and "use only the source". */
+const CONVERT_BRIEF =
+  "This entry is being CONVERTED from another app: the SOURCE NOTES are the original entry. Keep every fact, name, number, relationship and line of dialogue in it; drop nothing. Turn bracket and list formats (W++, P-lists, {{char}}'s traits: [a, b]) into plain sentences, keep {{char}} and {{user}} as written, and put anything the original marks hidden, secret or GM-only into \"secrets\" instead of the open text. About as long as the original needs; never pad it.";
 
 const AVOID = `Avoid names models overuse (${STOCK_NAMES.slice(0, 18).join(", ")}…) unless the author used them, and filler phrases (${STOCK_PHRASES.slice(0, 10).join(", ")}…).`;
 
@@ -1661,7 +1772,7 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
     schema: entrySchema,
     system: [
       `You write one lorebook entry for interactive fiction: "${it.title}"${it.type ? ` (${template!.label.toLowerCase()})` : ""}. The storyteller reads it only when the entry fires, so it must stand on its own.`,
-      `"content": ${wordsFor(WORDS[d.options.length], kind)} words, third person, present tense, plain declarative sentences a storyteller can use in a scene: concrete looks, behaviour, history, relationships and stakes.${template ? ` Cover what fits of: ${template.fields.join(", ")}.` : ""} No headings, no lists of adjectives, no meta commentary.`,
+      `"content": ${it.original ? `about ${Math.max(40, it.original.content.split(/\s+/).filter(Boolean).length)} words (the original's length; never drop a fact to shorten it)` : `${wordsFor(WORDS[d.options.length], kind)} words`}, third person, present tense, plain declarative sentences a storyteller can use in a scene: concrete looks, behaviour, history, relationships and stakes.${template ? ` Cover what fits of: ${template.fields.join(", ")}.` : ""} No headings, no lists of adjectives, no meta commentary.`,
       kind ? (KIND_BRIEF[kind] ?? "") : "",
       kind && shaped ? partsAsk(kind) : "",
       kind === "voice" && d.basedOn ? "They're from an existing work: keep their canon speech (accent, dialect, signature words and turns of phrase) from what's written of them and their wiki page." : "",
@@ -1671,6 +1782,7 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
       `"keys": 2–6 trigger words: the names, nicknames and short phrases a story uses when this matters. Never common words that would fire on every message. "aliases": other names it goes by (can be empty). "essentials": one sentence, the single most important fact.`,
       hidden ? `"secrets": the hidden truth (the same as its "truth" part), with "knownBy" naming who knows it.` : d.options.secrets && !faithful ? `"secrets": 0–2 hidden truths that would change scenes if revealed, each with "knownBy" (who knows it, by name). Only where it fits; most entries have none.` : `"secrets": [] unless the source states a secret, with "knownBy" naming who knows it.`,
       faithful ? "Use only what the source notes say; keep every name, number and fact exact; add nothing." : "Stay consistent with the overview, the source and the rest of the plan; invent only details that fit.",
+      d.source.kind === "convert" ? CONVERT_BRIEF : "",
       d.basedOn ? "" : AVOID,
       shaped
         ? 'Reply with JSON only: {"content": "…", "parts": {…}, "keys": ["…"], "aliases": ["…"], "essentials": "…", "secrets": [{"text": "…", "knownBy": ["…"]}]}'
@@ -1710,7 +1822,8 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
   const notOld = (k: string) => !oldName || k.trim().toLowerCase() !== oldName;
   // A kind keyed on its names takes its title as a key; a voice, a reaction or a term list doesn't ("Reaction: Mira, when…" isn't a word anyone says).
   const titleKey = !kind || CATEGORY_INFO[kind].fires === "names" || CATEGORY_INFO[kind].fires === "meaning";
-  const keys = dedupe([...(titleKey ? [name] : []), ...(it.cues ?? []), ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim()) && notOld(k)));
+  // A converted entry keeps every key it fired on before, ahead of the writer's.
+  const keys = dedupe([...(it.original?.keys ?? []), ...(titleKey ? [name] : []), ...(it.cues ?? []), ...r.data.keys].filter((k) => k.trim().length >= 2 && k.length <= 50 && !/[.!?]$/.test(k.trim()) && notOld(k)));
   const parts = cleanParts(kind, r.data.parts);
   const secrets = r.data.secrets.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), knownBy: dedupe(s.knownBy) })).slice(0, 3);
   // A hidden truth the writer left only in its parts is kept as a secret, by the people it's about.
@@ -1719,7 +1832,7 @@ export async function writeEntry(d: StudioDraft, item: StudioItem, job?: JobCont
   const content = joinParts(kind, r.data.content, parts);
   return {
     content,
-    keys: keys.slice(0, kind === "lexicon" ? 30 : 8),
+    keys: keys.slice(0, Math.max(kind === "lexicon" ? 30 : 8, it.original?.keys.length ?? 0)),
     aliases: dedupe(r.data.aliases).filter((a) => notOld(a) && !keys.some((k) => k.toLowerCase() === a.toLowerCase())).slice(0, 6),
     essentials: r.data.essentials.trim() || firstSentences(r.data.content),
     secrets: secrets.slice(0, 3),
@@ -2081,6 +2194,34 @@ export interface CommitInput {
   itemIds?: string[];
 }
 
+/**
+ * A converted item as a Mea entry: the original's settings (order, groups, timing, anything the
+ * other app kept) under Mea's fields, the kind's place in the prompt and its firing when the
+ * placement is Mea's, and its voice owner. Mea's own fields replace what the entry had for them.
+ */
+export function convertedEntry(d: StudioDraft, it: StudioItem, base: LoreEntry): LoreEntry {
+  const e = it.entry!;
+  const { aliases: _a, essentials: _e, secrets: _s, parts: _p, ...rest } = base.extra as Record<string, unknown>;
+  const extra: Record<string, unknown> = {
+    ...rest,
+    ...(it.type ? { type: it.type } : {}),
+    ...(e.aliases.length ? { aliases: e.aliases } : {}),
+    ...(e.essentials ? { essentials: e.essentials } : {}),
+    ...(e.secrets.length ? { secrets: e.secrets } : {}),
+    ...(e.parts && Object.keys(e.parts).length ? { parts: e.parts } : {}),
+    ...(it.folder ? { folder: it.folder } : {}),
+    converted: d.convert?.format ?? "mea",
+  };
+  let entry: LoreEntry = { ...base, comment: it.title, keys: e.keys.length ? e.keys : base.keys, content: e.content, constant: it.constant, extra };
+  if (!it.category) return entry;
+  const mea = d.options.placement !== "original";
+  // A kind that's always on stays on; any other keeps your always-on choice.
+  entry = { ...withCategory(entry, it.category, { defaults: mea }), ...(it.constant ? { constant: true } : {}) };
+  if (mea) entry = withFiring(entry, it.category, subjectsOf(d, it), e.parts ?? {});
+  if (it.category === "voice" && !entry.extra.entity) entry = { ...entry, extra: { ...entry.extra, entity: voiceOwner(it.title) } };
+  return entry;
+}
+
 /** Writes the kept, drafted entries into a book (parents resolved to entry ids). Saving twice never duplicates. */
 export function commitDraft(id: string, input: CommitInput = {}) {
   const d = mustDraft(id);
@@ -2097,7 +2238,10 @@ export function commitDraft(id: string, input: CommitInput = {}) {
     if (!bookId)
       bookId = createLorebook({
         name: input.name?.trim() || d.title,
-        description: input.description ?? (d.source.kind === "character" || d.source.kind === "persona" ? `Made in the Lore Studio from ${d.source.refName}.` : "Made in the Lore Studio."),
+        description:
+          input.description ??
+          (d.convert ? d.convert.description || `Converted in the Lore Studio from a ${d.convert.label}.` : d.source.kind === "character" || d.source.kind === "persona" ? `Made in the Lore Studio from ${d.source.refName}.` : "Made in the Lore Studio."),
+        ...(d.convert ? { settings: d.convert.settings } : {}),
       });
     for (const l of input.links ?? d.links) linkLorebook(bookId, l.type, l.id);
     if (wantOverview) createEntry(bookId, defaultEntry({ comment: `${d.title}: overview`, constant: true, content: d.overview.trim(), order: 150, extra: { type: "concept", essentials: firstSentences(d.overview) } }));
@@ -2105,6 +2249,15 @@ export function commitDraft(id: string, input: CommitInput = {}) {
     for (const it of items) {
       // I2: an entry already in the book is switched off, or changed in place.
       const existing = it.targetEntryId ? inBook.get(it.targetEntryId) : undefined;
+      // A converted entry, new or changed in place, is saved in Mea's format with its own settings.
+      if (d.source.kind === "convert" && it.action !== "off" && (it.action === "write" || existing)) {
+        const base = existing ? (({ id: _x, ...rest }) => rest)(existing) : (it.original ?? defaultEntry());
+        const entry = convertedEntry(d, it, base);
+        if (existing) updateEntry(existing.id, entry);
+        const eid = existing?.id ?? createEntry(bookId, entry).id;
+        saved.set(it.id, eid);
+        continue;
+      }
       if (it.action !== "write" && existing) {
         const { id: eid, ...data } = existing;
         if (it.action === "off") updateEntry(eid, { ...data, enabled: false });
@@ -2150,7 +2303,7 @@ export function commitDraft(id: string, input: CommitInput = {}) {
   // docs/17, 4.2: a voice's slots (pet names, catchphrases, greeting…) become canon facts, so the re-anchor and the drift alert use them from the first chat.
   for (const it of items) {
     const eid = saved.get(it.id);
-    if (it.action !== "write" || it.category !== "voice" || !eid || !it.entry?.parts) continue;
+    if ((it.action !== "write" && d.source.kind !== "convert") || it.category !== "voice" || !eid || !it.entry?.parts) continue;
     for (const v of voiceSlotValues(it.entry.parts)) createFact(eid, { value: v.value, slot: v.slot, kind: "voice", origin: "studio" });
   }
   if (embeddingsEnabled()) enqueue("lore.embed", {}, { dedupeKey: "lore.embed", delayMs: 4000 });

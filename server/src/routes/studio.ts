@@ -43,6 +43,7 @@ import {
   restorePrevious,
   reviewDraft,
   stopWrite,
+  previewConvert,
 } from "../lore/studio";
 
 /** The Lore Studio (Phase 4): plan, write and review a lorebook with the model, then save it. */
@@ -61,6 +62,7 @@ const optionsSchema = z.object({
   mix: z.partialRecord(z.enum(CATEGORIES), z.enum(MIX_LEVELS as [string, ...string[]])),
   recipe: z.string().max(40),
   profileId: z.string().nullable(),
+  placement: z.enum(["mea", "original"]),
 });
 const linkSchema = z.object({ type: z.enum(["global", "character", "persona", "chat"]), id: z.string().default("") });
 const entrySchema = z.object({
@@ -101,7 +103,7 @@ studio.post("/lore-studio", async (c) => {
   const input = await body(
     c,
     z.object({
-      kind: z.enum(["idea", "character", "persona", "document", "book"]),
+      kind: z.enum(["idea", "character", "persona", "document", "book", "convert"]),
       text: z.string().max(2_000_000).optional(),
       refId: z.string().nullable().optional(),
       fileName: z.string().max(300).optional(),
@@ -117,6 +119,12 @@ studio.post("/lore-studio/parse", async (c) => {
   const input = await body(c, z.object({ text: z.string().max(2_000_000), fileName: z.string().max(300).optional() }));
   const doc = parseDocument(input.text, input.fileName);
   return c.json({ title: doc.title, shape: doc.shape, overview: doc.overview.slice(0, 600), sections: doc.sections.map((s) => ({ title: s.title, type: s.type, folder: s.folder, words: s.source.split(/\s+/).filter(Boolean).length })) });
+});
+
+/** What a lorebook file would convert to (its format, its entries and their kinds), before a draft is made. */
+studio.post("/lore-studio/convert-preview", async (c) => {
+  const input = await body(c, z.object({ text: z.string().max(2_000_000), fileName: z.string().max(300).optional() }));
+  return c.json(previewConvert(input.text, input.fileName));
 });
 
 studio.get("/lore-studio/:id", (c) => c.json(d(mustDraft(c.req.param("id")))));
