@@ -770,6 +770,8 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
     if (declined.has(key) || waiting.has(c.lead) || busy(c.lead) || has(c.lead, c.kind)) return;
     const a = r.actors.get(c.lead);
     if (!c.lead.startsWith("faction:") && !canLead(a).ok) return;
+    // docs/30 3.1: a passing face is nobody's subplot, not even as its target.
+    if (c.target && r.actors.get(c.target)?.passing) return;
     const relevance = a ? Math.max(0, ...[...a.ties.entries()].filter(([id]) => id === user?.id || r.actors.get(id)?.ring === "onstage").map(([, s]) => s)) : 1;
     out.push({ ...c, key, score: c.score + (lean.has(c.kind) ? 1 : 0) + relevance * 0.5 + (awake.some((x) => x.id === c.lead) ? 0.5 : 0) });
   };

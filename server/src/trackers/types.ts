@@ -105,6 +105,9 @@ export interface Character {
   driftAt?: number | null;
   /** E1: what they carry and haven't told anyone. */
   pressure?: Pressure;
+  /** docs/30 3.1: in how many scenes they've been, and the last one (a passing face is promoted at three). */
+  scenes?: number;
+  lastScene?: number;
 }
 
 /** E1: a hidden pressure: drawn (from the deck or from what the story says), yours, or locked. */

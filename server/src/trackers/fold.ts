@@ -928,7 +928,18 @@ export class Folder {
     return Boolean(here && bare(dest.split(" › ").at(-1)!) === bare(here));
   }
 
+  /**
+   * docs/30 3.1: counts a scene someone is in, once per scene, when a line puts them in it (a cast line,
+   * an arrival). Being carried along by a move doesn't count: that's often someone the move left behind.
+   */
+  private inScene(c: Character) {
+    if (c.lastScene === this.state.sceneNo) return;
+    c.lastScene = this.state.sceneNo;
+    c.scenes = (c.scenes ?? 0) + 1;
+  }
+
   private comeIn(ctx: Ctx, c: Character, seq: number) {
+    this.inScene(c);
     c.tier = "spot";
     c.place = this.state.place.join(" › ") || c.place;
     c.activity = undefined;
@@ -1349,6 +1360,7 @@ export class Folder {
           if (leaving && dest) turn.heading.set(c.id, dest);
           const tier = leaving && !(dest && this.goesHere(dest)) ? "off" : /^peri/.test(it.tier) ? "peri" : "spot";
           c.tier = tier;
+          if (tier !== "off") this.inScene(c);
           c.activity = it.note ? clip(it.note.replace(/^(→|←)\s*/, "")) : tier === "off" ? undefined : c.activity;
           if (tier !== "off") {
             c.place = st.place.join(" › ") || c.place;

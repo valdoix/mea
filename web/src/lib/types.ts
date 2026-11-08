@@ -1835,6 +1835,8 @@ export interface CastPerson {
   id: string;
   name: string;
   aliases: string[];
+  /** docs/30 3.1: a passing face ("woman in brown cardigan"): a line under People, not a card. */
+  passing?: boolean;
   /** Everything the trackers hold about them (null for someone you added who hasn't appeared). */
   char: TrackerCharacter | null;
   isMain: boolean;
