@@ -3,6 +3,7 @@
   import DataEditor from "../components/trackers/DataEditor.svelte";
   import PressureCard, { type PressurePerson } from "../components/trackers/PressureCard.svelte";
   import Belongings from "../components/trackers/Belongings.svelte";
+  import PlacesSection from "../components/trackers/PlacesSection.svelte";
   import RelGraph from "../components/world/RelGraph.svelte";
   import TagInput from "../components/TagInput.svelte";
   import Avatar from "../components/Avatar.svelte";
@@ -547,6 +548,7 @@
     {:else}
       <p class="tiny muted">Houses, crews, guilds, sides: group the cast so the story knows who stands with whom. A faction with someone in the scene is named in the prompt.</p>
     {/if}
+    <PlacesSection chatId={id} />
     <h2 class="section">People</h2>
     <div class="row between">
       <p class="tiny muted">Everyone the story has met, plus anyone you add. Voice notes go into the prompt only when that person is in the scene; pinned people are always kept in mind.</p>

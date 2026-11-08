@@ -329,6 +329,9 @@ trackers.get("/chats/:id/places", (c) => {
     aliases: p.aliases ?? [],
     address: p.address ?? null,
     owner: p.owner ? (st.chars[p.owner]?.name ?? null) : null,
+    // docs/30 2.4: who lives here, and which of them are a guess from the story.
+    residents: (p.residents ?? []).filter((r) => st.chars[r] && !st.chars[r]!.dead).map((r) => ({ name: st.chars[r]!.isUser ? `${st.chars[r]!.name} (you)` : st.chars[r]!.name, guess: Boolean(p.guessed?.includes(r)) })),
+    pinned: Boolean(p.pinned),
     visits: p.visits,
     lastSeq: p.lastSeq,
     notes: currentNotes(p).map((n) => ({ text: n.text, seq: n.seq })),
@@ -336,7 +339,11 @@ trackers.get("/chats/:id/places", (c) => {
     here: st.placeId === p.id,
     profile: profiles[p.id] ?? null,
   }));
-  return c.json({ places });
+  // docs/30 2.6: the phrases you said aren't places, so they can be taken back.
+  const notPlaces = Object.entries(profiles)
+    .filter(([, p]) => p.notPlace)
+    .map(([id, p]) => ({ id, name: p.name ?? id.replace(/-/g, " ") }));
+  return c.json({ places, notPlaces });
 });
 
 const placeEdit = z.object({
@@ -346,6 +353,8 @@ const placeEdit = z.object({
   into: z.string().max(80).nullable().optional(),
   notPlace: z.boolean().optional(),
   notSame: z.array(z.string().trim().min(1).max(120)).max(40).optional(),
+  parent: z.string().max(80).nullable().optional(),
+  pinned: z.boolean().nullable().optional(),
 });
 
 /** docs/30 2.1: your edit to a place: kept through every refold (empty fields remove it). */
@@ -355,7 +364,13 @@ trackers.put("/chats/:id/places/:placeId", async (c) => {
   const input = await body(c, placeEdit);
   const placeId = c.req.param("placeId");
   if (input.into === placeId) throw badRequest("A place can't be merged into itself");
-  return c.json(savePlaceProfile(chatId, placeId, { ...input, into: input.into ?? undefined }));
+  if (input.parent === placeId) throw badRequest("A place can't be moved under itself");
+  // docs/30 2.6: never under something inside it.
+  if (input.parent) {
+    const st = currentFold(chatId).result.state;
+    for (let p = st.places[input.parent], i = 0; p && i < 12; p = p.parent ? st.places[p.parent] : undefined, i++) if (p.id === placeId) throw badRequest("That place is inside this one");
+  }
+  return c.json(savePlaceProfile(chatId, placeId, { ...input, into: input.into ?? undefined, parent: input.parent ?? undefined, pinned: input.pinned || undefined }));
 });
 
 trackers.get("/chats/:id/cast", (c) => {

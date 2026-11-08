@@ -8,6 +8,7 @@ import { enqueue } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { formatStoryTime, timeOfDay } from "../trackers/clock";
 import { exposureFor } from "../trackers/exposure";
+import { PlaceBook } from "../trackers/places";
 import { promisesFor } from "../trackers/promises";
 import { currentFold } from "../trackers/store";
 import { BIPOLAR_AXES, type WorldState } from "../trackers/types";
@@ -145,7 +146,7 @@ export function deskView(chatId: string) {
     suggestions: deskSuggestions(chatId),
     here: people.filter((c) => c.tier === "spot" || c.tier === "peri").map((c) => c.name),
     away: people.filter((c) => !(c.tier === "spot" || c.tier === "peri")).map((c) => ({ name: c.name, where: c.place ?? null })),
-    places: st ? Object.values(st.places).sort((a, b) => b.lastSeq - a.lastSeq).map((p) => ({ name: p.name, path: p.path.join(" › ") })).slice(0, 30) : [],
+    places: st ? placesByTree(st) : [],
     since: chapterStart(chatId),
   };
 }
@@ -202,4 +203,30 @@ export async function recapSince(chatId: string, since: number) {
     maxTokens: 600,
   });
   return { recap: res.data.recap.trim(), count: rows.length };
+}
+
+/**
+ * docs/30 2.6: the places for Cut to, by the tree: each room under its building, the rest under their
+ * town, so "the kitchen" is one kitchen per house. Spots (a table, a fridge door) are left out.
+ */
+function placesByTree(st: WorldState): { name: string; path: string; group: string }[] {
+  const book = new PlaceBook(st);
+  const out = book
+    .all()
+    .filter((p) => p.kind !== "spot" && p.kind !== "vehicle")
+    .sort((a, b) => b.lastSeq - a.lastSeq)
+    .slice(0, 40)
+    .map((p) => {
+      const b = book.buildingOf(p);
+      const group = b && b.id !== p.id ? b.name : (book.townOf(p)?.name ?? p.name);
+      // Inside the building: "Stairs › upstairs bedroom" tells two rooms of one name apart.
+      const inside = b && b.id !== p.id ? book.path(p).slice(book.path(b).length) : [p.name];
+      return { name: p.name, path: book.path(p).join(" › "), group, inside };
+    });
+  const dup = new Set(out.filter((x, i) => out.findIndex((y) => y.group === x.group && y.name.toLowerCase() === x.name.toLowerCase()) !== i).map((x) => `${x.group}|${x.name.toLowerCase()}`));
+  for (const x of out) if (dup.has(`${x.group}|${x.name.toLowerCase()}`)) x.name = x.inside.join(" › ");
+  // Each building's rooms together, the building visited last first.
+  const first = new Map<string, number>();
+  out.forEach((x, i) => first.has(x.group) || first.set(x.group, i));
+  return out.sort((a, b) => first.get(a.group)! - first.get(b.group)!).map(({ name, path, group }) => ({ name, path, group }));
 }

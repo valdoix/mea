@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Places on the Story page</title>
+<style>
+  /* docs/30 2.6: the Places section, between Factions and People. Mea's own tokens (web/src/styles/tokens.css). */
+  :root {
+    --bg: #fbf6f1; --surface: #fffdfb; --surface-2: #f6ede7; --border: #eaddd5; --border-strong: #dccbc1;
+    --text: #43363d; --muted: #76646d; --faint: #7d6d75; --accent: #e7a1b5; --accent-ink: #a3466a; --mint: #b5e0cf; --butter: #f5e3a6; --sky: #b7d3ee; --lavender: #c7b8ec;
+    --shadow: 0 1px 2px rgb(67 54 61 / 6%), 0 2px 10px rgb(67 54 61 / 6%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  .page { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 28px 0 8px; }
+  .note { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .ghost-section { opacity: .45; border: 1px dashed var(--border-strong); border-radius: 12px; padding: 14px; font-size: 13px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .between { justify-content: space-between; }
+  .tiny { font-size: 12px; } .muted { color: var(--muted); } .faint { color: var(--faint); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 8px; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+  .chip.mint { background: var(--mint); border-color: transparent; }
+  .chip.sky { background: var(--sky); border-color: transparent; }
+  .btn { font: inherit; font-size: 13px; border: 1px solid var(--border-strong); background: var(--surface); border-radius: 8px; padding: 4px 10px; color: var(--text); cursor: pointer; }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--surface-2); }
+  .btn.danger { color: #a83a54; }
+  input, select { font: inherit; font-size: 13px; border: 1px solid var(--border-strong); border-radius: 8px; padding: 4px 8px; background: var(--surface); color: var(--text); }
+  .places { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 720px) { .places { grid-template-columns: 1fr; } }
+  .tree { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 8px; }
+  .node { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 8px; cursor: pointer; }
+  .node:hover { background: var(--surface-2); }
+  .node.sel { background: #fdf0f3; outline: 1px solid var(--accent); }
+  .node .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .twisty { width: 14px; color: var(--faint); font-size: 11px; text-align: center; }
+  .kids { margin-left: 18px; border-left: 1px solid var(--border); padding-left: 4px; }
+  .count { font-size: 11px; color: var(--faint); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 10px; }
+  .card h3 { margin: 0; font-size: 18px; }
+  .crumbs { font-size: 12px; color: var(--faint); }
+  .label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
+  .notes div { padding: 2px 0; }
+  .notes .old { color: var(--faint); text-decoration: line-through; }
+  .actions { border-top: 1px solid var(--border); padding-top: 10px; }
+  .pin { font-size: 14px; }
+  .pin.on { color: var(--accent-ink); }
+  .callout { font-size: 12px; background: #fbf3e3; border-radius: 8px; padding: 6px 10px; }
+  .desk { margin-top: 32px; }
+  .desk select { min-width: 280px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Places · mockup</h1>
+  <p class="note">docs/30 2.6. The Story page's Cast tab: Factions, then <b>Places</b>, then People. Data from <i>Filed Under Forever</i>, after 2.1–2.4.</p>
+
+  <div class="ghost-section">Factions · Scoobies · Winters Family · Winters Residence household · Dawn's friends …</div>
+
+  <div class="row between"><h2>Places</h2><span class="tiny muted">125 places · 1 town</span></div>
+  <p class="note">Every place the story has been, one place however it was written. Buildings are folded; open one to see its rooms. Pinned places are always kept in mind.</p>
+
+  <div class="places">
+    <div class="tree" role="tree">
+      <div class="node"><span class="twisty">▾</span><span class="name"><b>Sunnydale</b></span><span class="chip tiny">town</span><span class="count">412</span></div>
+      <div class="kids">
+        <div class="node sel"><span class="twisty">▾</span><span class="name">Winters Residence</span><span class="chip mint tiny">here</span><span class="count">236</span><span class="pin on">📌</span></div>
+        <div class="kids">
+          <div class="node"><span class="twisty"></span><span class="name">Kitchen</span><span class="count">71</span></div>
+          <div class="node"><span class="twisty">▸</span><span class="name">Living room</span><span class="count">48</span></div>
+          <div class="node"><span class="twisty">▸</span><span class="name">Stairs</span><span class="count">12</span></div>
+          <div class="node"><span class="twisty"></span><span class="name">West Bedroom</span><span class="count">9</span></div>
+          <div class="node"><span class="twisty"></span><span class="name faint">+ 24 more rooms and spots</span></div>
+        </div>
+        <div class="node"><span class="twisty">▸</span><span class="name">Summers Residence</span><span class="count">58</span></div>
+        <div class="node"><span class="twisty">▸</span><span class="name">Sunnydale Mall</span><span class="count">31</span></div>
+        <div class="node"><span class="twisty">▸</span><span class="name">Restfield Cemetery</span><span class="count">14</span></div>
+        <div class="node"><span class="twisty"></span><span class="name">The Bronze</span><span class="count">6</span></div>
+        <div class="node"><span class="twisty">▸</span><span class="name">Dawn's School</span><span class="count">5</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <div>
+          <div class="crumbs">Sunnydale ›</div>
+          <h3>Winters Residence</h3>
+        </div>
+        <button class="btn ghost pin on" title="Always keep in mind">📌 Pinned</button>
+      </div>
+      <div class="row">
+        <span class="chip">home</span><span class="chip mint">here now</span>
+        <span class="tiny faint">also Gabriel's House, Winters House, Gabriel's warded house, Gabriel Winters' House</span>
+      </div>
+      <div class="row tiny">
+        <span class="muted">Visits</span> 236 · <a href="#">last here at #861</a>
+      </div>
+      <div class="row tiny">
+        <span class="muted">Owner</span> Gabriel Winters ·
+        <span class="muted">Lives here</span> Gabriel Winters, Dawn <span class="faint">(a guess)</span>
+      </div>
+      <div class="notes tiny">
+        <span class="label">What it looks like now</span>
+        <div>· Kitchen › fridge door: league standings in marker, BRONGEL 5 · THE FIELD 0, target drawn <span class="faint">#842</span></div>
+        <div>· Living room: permanent dart nick in the paint by the dartboard — Buffy keeps it <span class="faint">#803</span></div>
+      </div>
+      <div class="tiny"><span class="label">Things here</span>two photos on the fridge door · the wards ledger · Dawn's backpack</div>
+      <div class="tiny"><span class="label">Lore</span><a href="#">Location: The Winters Residence</a></div>
+      <div class="row actions">
+        <button class="btn">Rename</button>
+        <button class="btn">Merge into…</button>
+        <button class="btn">Move under…</button>
+        <button class="btn ghost danger">Not a place</button>
+      </div>
+      <div class="callout">Merge into… and Move under… open a picker of the tree, like the rest of the page: <select><option>Move under: Sunnydale › hills</option></select></div>
+    </div>
+  </div>
+
+  <div class="ghost-section" style="margin-top:24px">People · Buffy Summers · Dawn · Gabriel Winters …</div>
+
+  <div class="desk">
+    <h2>The Director's Desk picker, by the tree</h2>
+    <select>
+      <option>Someone or somewhere</option>
+      <optgroup label="Winters Residence"><option>Kitchen</option><option>Living room</option><option>West Bedroom</option></optgroup>
+      <optgroup label="Summers Residence"><option>Kitchen</option><option>Buffy's Bedroom</option></optgroup>
+      <optgroup label="Sunnydale"><option>The Bronze</option><option>Restfield Cemetery</option></optgroup>
+    </select>
+    <p class="note">"Move the scene to the kitchen" offers one kitchen per house.</p>
+  </div>
+</div>
+</body>
+</html>
