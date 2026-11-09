@@ -82,9 +82,10 @@
   let fileInput = $state<HTMLInputElement | null>(null);
   async function loadCast() {
     try {
-      const r = await get<{ people: CastPerson[]; tidied?: Tidied[]; userName: string }>(`/api/chats/${id}/cast`);
+      const r = await get<{ people: CastPerson[]; tidied?: Tidied[]; stillHere?: Quiet[]; userName: string }>(`/api/chats/${id}/cast`);
       people = r.people;
       tidied = r.tidied ?? [];
+      quiet = r.stillHere ?? [];
       userName = r.userName;
       void loadPressures();
       void loadFactions();
@@ -116,6 +117,20 @@
       }
     } catch (e) {
       errorToast(e);
+    }
+  }
+  // docs/31 3.2: present by the ledger, but the story hasn't named them in a while.
+  interface Quiet {
+    id: string;
+    name: string;
+    lastNamed: number | null;
+    replies: number;
+  }
+  let quiet = $state<Quiet[]>([]);
+  async function answerQuiet(q: Quiet, here: boolean) {
+    if (await trackerEdit(id, [`cast: ${q.name}@${here ? "spot" : "left"}`])) {
+      quiet = quiet.filter((x) => x !== q);
+      toast(here ? `${q.name} is still in the scene` : `${q.name} has left the scene`, { kind: "ok" });
     }
   }
   async function tidyAllSeen() {
@@ -476,6 +491,21 @@
             <span class="row">
               <button class="btn ghost small" onclick={() => answerTidy(t, "person")} title="Keep it in the cast as a person">It's a person</button>
               <button class="btn ghost small" onclick={() => answerTidy(t, "seen")}>OK</button>
+            </span>
+          </div>
+        {/each}
+      </div>
+    {/if}
+    {#if quiet.length}
+      <div class="notice tidy">
+        <b>Still in the scene?</b>
+        <p class="tiny muted">The ledger has them here, but the story hasn't named them in a while. Someone who left without anyone noticing keeps hearing what's said to "everyone".</p>
+        {#each quiet as q (q.id)}
+          <div class="row between tidy-row">
+            <span class="small"><b>{q.name}</b><span class="tiny faint">{" · "}not named in {q.replies} {q.replies === 1 ? "reply" : "replies"}{q.lastNamed ? `, last at #${q.lastNamed}` : ""}</span></span>
+            <span class="row">
+              <button class="btn ghost small" onclick={() => answerQuiet(q, true)}>Here</button>
+              <button class="btn ghost small" onclick={() => answerQuiet(q, false)}>Gone</button>
             </span>
           </div>
         {/each}

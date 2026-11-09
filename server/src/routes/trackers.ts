@@ -47,6 +47,7 @@ import {
   trackerConfig,
 } from "../trackers/store";
 import { personName } from "../trackers/fold";
+import { stillHere } from "../trackers/stillhere";
 import { factionBook, groupsSettings } from "../trackers/factions";
 import { groupKey } from "../trackers/groups";
 import type { Change, Moment } from "../trackers/types";
@@ -465,7 +466,8 @@ trackers.get("/chats/:id/cast", (c) => {
   const tidied = notPeople
     .filter((n) => n.as !== "field" && !tidySeen.has(castKey(n.name)) && !adopted.has(groupKey(n.name)))
     .map((n) => ({ name: n.name, as: n.as, members: n.members ?? [], lines: n.lines, lastSeq: n.lastSeq, profile: Boolean(profiles[castKey(n.name)]) }));
-  return c.json({ people, tidied, userName: foldConfigFor(chatId).userName });
+  // docs/31 3.2: anyone the scene still has whom the story hasn't named in a while.
+  return c.json({ people, tidied, stillHere: stillHere(chatId, st), userName: foldConfigFor(chatId).userName });
 });
 
 /**

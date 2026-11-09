@@ -809,7 +809,7 @@ export class Folder {
     return this.state.locks.some((l) => p === l || p.startsWith(`${l}.`));
   }
   /** docs/31 1.1: you said this person wasn't there for this line. */
-  private notThere(op: Op, name: string, key: "notThere" | "unsure" = "notThere") {
+  private notThere(op: Op, name: string, key: "notThere" | "unsure" | "away" = "notThere") {
     const list = op.args[key];
     if (!Array.isArray(list) || !list.length) return false;
     const id = this.findChar(name)?.id;
@@ -1696,7 +1696,7 @@ export class Folder {
       case "know": {
         // docs/31 1.1: whoever you said wasn't there doesn't learn it from this line.
         const all = this.people(op.subject, seq);
-        const holders = all.filter((c) => !this.notThere(op, c.name));
+        const holders = all.filter((c) => !this.notThere(op, c.name) && !this.notThere(op, c.name, "away"));
         if (all.length && !holders.length) return this.reject(ctx, `you said ${all.map((c) => c.name).join(", ")} wasn't there`);
         if (!holders.length || !a.fact) return this.reject(ctx, "write know Holder: fact | route · status · truth");
         if (!this.needCause(ctx, op) && !a.route) return;
@@ -2460,7 +2460,7 @@ function fromPatch(c: PatchChange): Omit<Change, "source"> {
  * group named in the messages ("Dawn's friends saw him at the mall") or its people listed in
  * brackets reach them all, as before.
  */
-export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: string): Op[] {
+export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: string, quiet: string[] = []): Op[] {
   if (!ops.some((op) => REACH_OPS.has(op.op) && op.subject)) return ops;
   const f = new Folder(cfg, structuredClone(state));
   const arriving = new Set(
@@ -2484,6 +2484,11 @@ export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: 
       // group word, so it's filed with a question rather than dropped.
       if (w.kind === "person") {
         if (op.op === "know" && !reached(part)) unsure.push(f.findChar(part)?.name ?? personName(part));
+        continue;
+      }
+      // docs/31 3.1: "everyone" is the scene, but not someone it hasn't named in a while (unless this reply does).
+      if (w.kind === "crowd") {
+        if (op.op === "know") away.push(...quiet.filter((n) => !mentions(text, n)));
         continue;
       }
       if (w.kind !== "many") continue;
