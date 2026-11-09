@@ -19,7 +19,7 @@ import { type RetellStats, retellStats } from "./retell";
  * Nothing new is stored; the weekly trend is worked out from the same records.
  */
 
-export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost" | "loops" | "notpeople" | "placenames";
+export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost" | "loops" | "notpeople" | "placenames" | "offscene";
 export interface HealthItem {
   part: HealthPart;
   label: string;
@@ -52,7 +52,7 @@ export interface Health {
 const WINDOW = 20;
 const LEAKS = new Set(["leak", "offpage", "canon", "puppet"]);
 const SLIPS = new Set(["trait", "dead", "time", "name", "place", "fact", "pov", "tense", "timeline", "nothere", "clockback", "past", "planning", "who", "ties", "retell", "undone", "known", "elsewhere"]);
-const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1, loops: 2, notpeople: 1, placenames: 1 };
+const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1, loops: 2, notpeople: 1, placenames: 1, offscene: 1 };
 
 const level = (s: number): Health["level"] => (s >= 80 ? "good" : s >= 60 ? "fair" : "poor");
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
@@ -86,6 +86,43 @@ function openIssues(quiet: Set<string>, replies: Reply[]) {
       .filter((i) => !i.dismissed && !quiet.has(flagKey(i)))
       .map((issue) => ({ issue, reply: r }));
   });
+}
+
+/**
+ * docs/31 5.2: on these replies, the people Mea kept off a tracker's know, mood or bond lines (who it
+ * didn't reach, who it asked about, who you said wasn't there), and by the model that wrote them.
+ */
+export function offScene(replies: Reply[]) {
+  if (!replies.length) return { total: 0, models: [] as { model: string; n: number; replies: number; per100: number }[], last: null as Reply | null };
+  const byId = new Map(replies.map((r) => [r.id, r]));
+  const rows = all<{ message_id: string; swipe_idx: number; source: string; op: string }>(
+    `SELECT message_id, swipe_idx, source, op FROM tracker_events WHERE message_id IN (${replies.map(() => "?").join(",")}) AND source IN ('model', 'inline')
+       AND (op LIKE '%"away"%' OR op LIKE '%"unsure"%' OR op LIKE '%"notThere"%')`,
+    ...replies.map((r) => r.id),
+  );
+  const modelOf = (messageId: string, task: string) => one<{ m: string | null }>("SELECT model_id AS m FROM generations WHERE message_id = ? AND task = ? ORDER BY started_at DESC LIMIT 1", messageId, task)?.m ?? "unknown";
+  const per = new Map<string, number>();
+  let total = 0;
+  let last: Reply | null = null;
+  for (const r of rows) {
+    const reply = byId.get(r.message_id);
+    if (!reply || (r.swipe_idx !== -1 && r.swipe_idx !== reply.idx)) continue;
+    const args = parseJson<{ args?: Record<string, unknown> }>(r.op, {}).args ?? {};
+    const k = (["away", "unsure", "notThere"] as const).reduce((a, key) => a + (Array.isArray(args[key]) ? (args[key] as unknown[]).length : 0), 0);
+    if (!k) continue;
+    total += k;
+    const model = modelOf(r.message_id, r.source === "inline" ? "story" : "tracker");
+    per.set(model, (per.get(model) ?? 0) + k);
+    if (!last || reply.seq > last.seq) last = reply;
+  }
+  // Replies each model read, for its rate.
+  const read = new Map<string, number>();
+  for (const r of replies) {
+    const m = one<{ m: string | null }>("SELECT model_id AS m FROM generations WHERE message_id = ? AND task = 'tracker' ORDER BY started_at DESC LIMIT 1", r.id)?.m;
+    if (m) read.set(m, (read.get(m) ?? 0) + 1);
+  }
+  const models = [...per].map(([model, k]) => ({ model, n: k, replies: read.get(model) ?? replies.length, per100: (k * 100) / Math.max(1, read.get(model) ?? replies.length) })).sort((a, b) => b.n - a.n);
+  return { total, models, last };
 }
 
 function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<string>): Omit<Health, "trend" | "flags"> {
@@ -131,6 +168,17 @@ function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<str
   }
   const missed = Math.max(0, n - tracked);
   parts.push({ part: "ledger", label: "Story records", score: clamp(n ? (tracked / n) * 100 : 100), detail: missed ? `${missed} repl${missed === 1 ? "y" : "ies"} the trackers didn't read` : "every reply read", open: { dock: "story" }, ...(missed ? { ask: `${missed} recent replies have no story-state records; check the clock, place and cast are right` } : {}) });
+  // docs/31 5.2: people a tracker line gave something they weren't there for, held back or taken off.
+  const off = offScene(replies);
+  parts.push({
+    part: "offscene",
+    label: "Off-scene knowledge",
+    score: clamp(100 - (off.total * 100) / Math.max(1, n) * 0.5),
+    detail: off.total
+      ? `${off.total} ${off.total === 1 ? "person" : "people"} kept from lines they weren't there for in ${n} replies${off.models.length ? ` · ${off.models.map((m) => `${m.model} ${m.per100.toFixed(0)} per 100 replies`).join(", ")}` : ""}`
+      : "nobody learned what they weren't there for",
+    ...(off.last ? { open: { messageId: off.last.id, seq: off.last.seq } } : {}),
+  });
   const broken = issues.filter((x) => x.issue.kind === "lesson");
   const strong = (() => {
     try {

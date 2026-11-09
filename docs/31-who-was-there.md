@@ -90,8 +90,8 @@ The new rule only applies to new replies. Older ones can carry the same leak.
 
 ## Part 5: keep it fixed
 
-- **5.1** A golden case in `scripts/golden.ts` built from this reply (no Scoobie at the table). Any tracker preset or model must give `away` (or no Scoobie holder) for it, so a prompt or model change that brings the leak back fails the golden run.
-- **5.2** A promptcheck-style counter, `knowledge.offscene`, in the accuracy stats, counting stances held back by reach per 100 replies for each tracker model. A model that keeps doing it shows up in the bake-off numbers instead of in the chips.
+- **5.1** Golden scenario `29-who-was-there` (this lunch, with no Scoobie at the table). Its `after` lines are now filed the way a reply's are (`reachForReply`, shared with inline ledgers), so the scenario checks the filing pipeline. The table learns the line, no Scoobie does, and a text reaches them all. With the reach check turned off it fails on exactly the four leaked stances. It runs free on the mock provider in `bun run golden` and CI. *Changed from the first draft:* golden scripts its tracker lines, so it tests Mea's filing, not a tracker model. How each model behaves is 5.2's job.
+- **5.2** Story health gets an **Off-scene knowledge** part (`offScene` in `accuracy/health.ts`). It counts the people kept off tracker lines over the health window (not reached, asked about, or taken off by you) and breaks them down per 100 replies by the model that wrote the lines (the tracker model, or the story model for inline ledgers). A tracker model that keeps doing it shows up there.
 
 ---
 
@@ -104,4 +104,4 @@ The new rule only applies to new replies. Older ones can carry the same leak.
 | 2 | medium | 0, 1 for the chip actions |
 | 3 | medium | (none) |
 | 4 | small script and one notice | 1 |
-| 5 | small | 0 (5.2 runs no paid models; the golden run in 5.1 does when it's run) |
+| 5 | small | 0 (free: golden runs on the mock provider) |
