@@ -30,6 +30,7 @@ import {
   hasBase,
   hasEvents,
   linesToOps,
+  notThereNames,
   onTrackerLedgerEdit,
   type ResolvedTrackerConfig,
   templatesFor,
@@ -113,6 +114,16 @@ function messagesFor(chatId: string, messageId: string, names: { user: string; c
     .join("\n\n");
 }
 
+/**
+ * docs/31 1.3: once you've said twice that someone wasn't there, the tracker hears about it. (A lesson
+ * would go to the story model, which didn't make the mistake.)
+ */
+export function notThereReminder(chatId: string): string | undefined {
+  const names = notThereNames(chatId);
+  if (names.length < 2) return undefined;
+  return `CORRECTIONS: in this story, know lines gave things to people who weren't there (${names.slice(0, 6).join(", ")}). Only the people in the scene hear what's said in it: name each of them, and someone elsewhere only with how it reached them (a call, a text).`;
+}
+
 export async function runTrackerUpdate(p: { chatId: string; messageId: string; swipeIdx: number }, job?: JobContext) {
   const msg = getMessageRow(p.messageId);
   if (!msg || msg.deleted_at || msg.active_swipe !== p.swipeIdx) return;
@@ -133,6 +144,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
     charName: fc.mainName,
     sealed: cfg.sealed,
     romance: cfg.romance,
+    extra: notThereReminder(p.chatId),
   });
   const res = await callText({
     task: "tracker",
@@ -420,7 +432,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     moment: momentsOf(chatId),
   });
   const inline =
-    cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar })) : null;
+    cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar }), notThereReminder(chatId)) : null;
   return { note: note.text ? note : null, inline, state, config: cfg };
 }
 

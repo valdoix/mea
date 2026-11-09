@@ -524,6 +524,8 @@ export interface Change {
   /** The world off the page: the event behind it (so you can undo it) and why the engine did it. */
   event?: string;
   why?: string[];
+  /** docs/31 1.1: the tracker's line behind a knowledge chip, so "wasn't there" can take one person off it. */
+  lineId?: string;
 }
 
 export interface Verdict {

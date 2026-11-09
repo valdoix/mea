@@ -10,6 +10,7 @@
 
 <script lang="ts">
   import Modal from "../Modal.svelte";
+  import NotThere from "./NotThere.svelte";
   import { ChevronDown, Info } from "../../lib/icons";
   import { storyColors, voiceColor } from "../../lib/voices";
   import { trk } from "../../lib/trackers.svelte";
@@ -122,6 +123,7 @@
                         <span class="verb">{b.verb}</span> <q class="know">{b.text}</q>
                         <!-- News that travelled off the page: they weren't in the scene, so say how it reached them. -->
                         {#if b.c.source === "engine" && b.c.reason}<span class="offpage">off the page · {b.c.reason}</span>{/if}
+                        <NotThere change={b.c} />
                       </div>
                     {:else if b.type === "vow"}
                       <div>

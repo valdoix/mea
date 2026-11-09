@@ -51,9 +51,9 @@ Neither the reply nor your message before it names any Scoobie or the Scoobies. 
 
 The fix for a wrong holder should be one click, and it shouldn't take back what everyone else learned.
 
-- **1.1** On a `knowledge` chip, Undo gets a third choice: **"{Name} wasn't there"**. It adds that name to the event's `args.away`, a new `world/undo/:event` mode `{ also: "away", who }`, and refolds. The other holders keep the fact.
-- **1.2** `away` applies to any list line, not only groups: `know Walter, Willow: …` with Willow away is `know Walter: …`.
-- **1.3** It's also a lesson: three "wasn't there" undos on one story add a Lessons rule ("Only people in the scene learn what's said in it"), through the swipe-lessons path (`steer/lessons.ts`).
+- **1.1** A tracker knowledge chip carries its line (`lineId`), and gets a quiet **"{Name} wasn't there"** link (`NotThere.svelte`, in both the cast roll and the Folio margin). It adds the name to the line's `args.notThere` (`POST /trackers/events/:eid/not-there`) and refolds. The other holders keep the fact.
+- **1.2** `notThere` applies to any `know` line: one person, a list, a group or `everyone`. With everyone off it, the line teaches nobody and says why. A group fact isn't recorded when someone was taken off.
+- **1.3** Once you've named two people in a story, the tracker's prompt (and the inline ledger instruction) gets a CORRECTIONS line naming them. *Changed from the first draft:* a Lessons rule would go to the story model, which didn't make the mistake.
 
 **Done when:** undoing Willow's chip leaves Buffy's, a refold keeps it, and the test covers both a group line and a list line.
 
