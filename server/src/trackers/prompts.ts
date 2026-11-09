@@ -58,7 +58,7 @@ Every bond, know, item and thread line needs a cause after " — ".`;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** The current state, with numbers, for the tracker model (it has to write correct deltas). */
-export function stateForModel(st: WorldState, o: { userName: string; templates: Template[]; sealed: boolean; calendar?: CalendarId }): string {
+export function stateForModel(st: WorldState, o: { userName: string; templates: Template[]; sealed: boolean; calendar?: CalendarId; /** docs/31 3.3: present but not named in a while. */ quiet?: string[] }): string {
   const L: string[] = [];
   const hint = calendarHint(o.calendar ?? "gregorian");
   if (hint) L.push(hint);
@@ -74,7 +74,9 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   if (st.occasion) L.push(`occasion: ${st.occasion.now}`);
   const here = Object.values(st.chars).filter((c) => c.tier === "spot" || c.tier === "peri");
   const away = Object.values(st.chars).filter((c) => !here.includes(c) && !c.isUser && !c.dead).slice(-8);
-  if (here.length) L.push(`cast: ${here.map((c) => `${nm(c.id)}@${c.tier}${c.activity ? `(${clip(c.activity, 40)})` : ""}`).join(" · ")}`);
+  const quiet = new Set((o.quiet ?? []).map((n) => n.toLowerCase()));
+  if (here.length) L.push(`cast: ${here.map((c) => `${nm(c.id)}@${c.tier}${c.activity ? `(${clip(c.activity, 40)})` : ""}${quiet.has(c.name.toLowerCase()) ? " (quiet)" : ""}`).join(" · ")}`);
+  if (quiet.size) L.push("(quiet: present by the ledger, but the messages haven't named them in a while. If they've left, write them @left; don't keep them in the scene by habit.)");
   if (away.length) L.push(`known, not here: ${away.map((c) => c.name).join(", ")}`);
   // docs/30 1.5: the story's groups by the names the tracker should use, with who's in each.
   const groups = groupsLine(Object.values(st.groups ?? {}).filter((g) => g.adopted));

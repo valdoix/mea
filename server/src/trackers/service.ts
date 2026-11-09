@@ -18,6 +18,7 @@ import { describeMinutes, parseDuration } from "./clock";
 import { parseLedger } from "./dsl";
 import { groupReach } from "./fold";
 import { closingOps } from "./loops";
+import { quietPeople } from "./stillhere";
 import { buildNote, type NoteResult } from "./note";
 import { initPrompt, inlineInstruction, stateForModel, updatePrompt } from "./prompts";
 import {
@@ -135,10 +136,12 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   const before = foldAt(p.chatId, { uptoSeq: msg.seq - 1 }).state;
   const messages = messagesFor(p.chatId, p.messageId, { user: fc.userName, char: fc.mainName });
   if (!messages) return;
+  // docs/31 Part 3: who the scene has but the story hasn't named in a while, before this reply.
+  const quiet = quietPeople(p.chatId, before, { uptoSeq: msg.seq - 1 }).map((q) => q.name);
 
   // No "nothing changed" gate: every reply gets its people's private thoughts, so every reply is read.
   const { system, user } = updatePrompt({
-    state: stateForModel(before, { userName: fc.userName, templates: fc.templates, sealed: cfg.sealed, calendar: cfg.calendar }),
+    state: stateForModel(before, { userName: fc.userName, templates: fc.templates, sealed: cfg.sealed, calendar: cfg.calendar, quiet }),
     messages,
     userName: fc.userName,
     charName: fc.mainName,
@@ -161,7 +164,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   // The message may have been swiped or edited while the model was writing.
   const now = getMessageRow(p.messageId);
   if (!now || now.deleted_at || now.active_swipe !== p.swipeIdx) return;
-  writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, groupReach(closingOps(parsed.ops, messages), before, fc, messages), "model", { replace: ["model"] });
+  writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, groupReach(closingOps(parsed.ops, messages), before, fc, messages, quiet), "model", { replace: ["model"] });
   afterUpdate(p.chatId, p.messageId, p.swipeIdx);
 }
 
@@ -272,7 +275,8 @@ export function fileInlineLedger(chatId: string, messageId: string, swipeIdx: nu
     const msg = getMessageRow(messageId);
     const cfg = trackerConfig(chatId);
     const text = msg ? messagesFor(chatId, messageId, { user: "", char: "" }) : null;
-    const ops = msg && text != null ? groupReach(parsed.ops, foldAt(chatId, { uptoSeq: msg.seq - 1 }).state, foldConfigFor(chatId, cfg), text) : parsed.ops;
+    const before = msg ? foldAt(chatId, { uptoSeq: msg.seq - 1 }).state : null;
+    const ops = msg && before && text != null ? groupReach(parsed.ops, before, foldConfigFor(chatId, cfg), text, quietPeople(chatId, before, { uptoSeq: msg.seq - 1 }).map((q) => q.name)) : parsed.ops;
     writeEvents(chatId, { messageId, swipeIdx }, ops, "inline", { replace: ["inline", "model"] });
     afterUpdate(chatId, messageId, swipeIdx);
   } else enqueue("tracker.update", { chatId, messageId, swipeIdx }, { dedupeKey: `tracker.update:${messageId}:${swipeIdx}`, priority: 5, chatId });
@@ -432,7 +436,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     moment: momentsOf(chatId),
   });
   const inline =
-    cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar }), notThereReminder(chatId)) : null;
+    cfg.mode === "inline" && (opts.kind === "story" || opts.kind === "continue") ? inlineInstruction(stateForModel(state, { userName: fc.userName, templates: templatesFor(cfg), sealed: cfg.sealed, calendar: cfg.calendar, quiet: quietPeople(chatId, state).map((q) => q.name) }), notThereReminder(chatId)) : null;
   return { note: note.text ? note : null, inline, state, config: cfg };
 }
 

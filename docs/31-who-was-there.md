@@ -71,9 +71,9 @@ The fix for a wrong holder should be one click, and it shouldn't take back what 
 
 `everyone` is only as good as presence. Someone who left without a cast line stays `@spot` and keeps learning things.
 
-- **3.1** Quiet presence: someone `@spot`/`@peri` who isn't named in the last 6 replies, and hasn't been in a cast line for them, is *quiet*. `everyone` doesn't reach a quiet person unless the current reply names them.
-- **3.2** The tidy notice asks **"Is Xander still here?"** (Here / Gone) for anyone quiet for 10 replies. "Gone" writes `cast: Xander@off` as a user line.
-- **3.3** The tracker's state block marks quiet people with `(quiet)`, so the model stops including them in cast lines by habit.
+- **3.1** Quiet presence (`trackers/stillhere.ts`): someone `@spot`/`@peri` whom the messages haven't named in the last 6 replies (the replies and the messages between them) is *quiet*, unless you said they're here since (a cast line of yours). This reads the text, not `lastSeq`, because the tracker keeps writing think lines for whoever the state says is here. `everyone` doesn't reach a quiet person unless the current reply names them (`groupReach` puts them in `away`).
+- **3.2** The Cast tab gets a **"Still in the scene?"** notice (Here / Gone) for anyone quiet for 10 replies, with how long it's been. Here writes `cast: Xander@spot` and Gone writes `cast: Xander@left`, as your lines.
+- **3.3** The tracker's state block (and the inline ledger's) marks quiet people with `(quiet)`, with a line asking it to write them `@left` if they've gone rather than keep them by habit.
 
 **Done when:** a fixture where Willow leaves without a cast line stops getting `everyone` facts after 6 replies, and the notice asks about her after 10.
 
