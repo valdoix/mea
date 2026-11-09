@@ -7,8 +7,11 @@ export default defineRoom({
   motto: "Insert coin to continue",
   day: "Attract Mode",
   night: "High Score",
-  bar: { day: "#f1e2bf", night: "#0b0704" },
-  swatch: { day: ["#f1e2bf", "#d9531e", "#e8a317", "#5f8a1f", "#3b2314"], night: ["#0b0704", "#ff6a2b", "#ffb000", "#7dff5a", "#ffd38a"] },
+  bar: { day: "#f6ecd7", night: "#0d0715" },
+  swatch: {
+    day: ["#f6ecd7", "#d42a40", "#f4bf2f", "#5d2a8a", "#21142e"],
+    night: ["#0d0715", "#ff4d63", "#ffd23f", "#b98cff", "#b6ff5c"],
+  },
   fonts: () => [
     import("@fontsource/silkscreen/400.css"),
     import("@fontsource/silkscreen/700.css"),
@@ -17,7 +20,7 @@ export default defineRoom({
     import("@fontsource/ibm-plex-mono/600.css"),
     import("@fontsource/press-start-2p/400.css"),
   ],
-  // The woodgrain by day and the scanlines by night are its texture.
+  // The walnut by day and the scanlines by night are its texture.
   grain: null,
   Ambience,
   styles: () => Promise.all([import("./palette.css"), import("./room.css")]),
