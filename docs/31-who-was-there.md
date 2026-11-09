@@ -62,7 +62,7 @@ The fix for a wrong holder should be one click, and it shouldn't take back what 
 `know Willow: … | he said it at the table` is the same mistake without a group. Naming someone is stronger evidence than a group word, so this part flags instead of dropping.
 
 - **2.1** `groupReach` → `reach`. It checks every holder of a model `know` line the same way. An unreached, explicitly named holder gets `args.unsure: [names]` instead of `away`.
-- **2.2** The fold files the stance, but the chip shows a muted **"not in the scene?"** tag with Keep / "wasn't there" (Part 1). Keep makes it `set` (yours), so a refold won't ask again.
+- **2.2** The fold files the stance, but the chip shows a muted **"not in the scene?"** tag with Keep / "wasn't there" (Part 1). Keep (`POST /trackers/events/:eid/heard`) takes them off the line's `unsure`, so a refold won't ask again. The stance isn't made `set`, so the tracker can still change it later.
 - **2.3** The same reach rule applies to the other scene-bound spread ops, `mood` and `bond`. "mood Scoobies: worried" when none of them is there is a mood for nobody. `owe`, `promise` and `lives` aren't about being there and stay as they are.
 
 **Done when:** a seeded reply with `know Xander: …` and Xander absent and unnamed shows the tag, and both answers stick through a refold.

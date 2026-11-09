@@ -35,6 +35,7 @@ import {
   invalidate,
   linesToOps,
   listTemplates,
+  markHeard,
   markNotThere,
   moveCastProfile,
   placeProfiles,
@@ -154,6 +155,13 @@ trackers.post("/chats/:id/trackers/edit", async (c) => {
 trackers.post("/chats/:id/trackers/events/:eid/not-there", async (c) => {
   const input = await body(c, z.object({ who: z.string().min(1).max(200) }));
   if (!markNotThere(c.req.param("id"), c.req.param("eid"), input.who.trim())) throw badRequest("That isn't a line about who knows something.");
+  return c.json({ ok: true });
+});
+
+/** docs/31 2.2: "Keep": someone the line wasn't sure about did hear it. */
+trackers.post("/chats/:id/trackers/events/:eid/heard", async (c) => {
+  const input = await body(c, z.object({ who: z.string().min(1).max(200) }));
+  if (!markHeard(c.req.param("id"), c.req.param("eid"), input.who.trim())) throw badRequest("That line isn't asking about anyone.");
   return c.json({ ok: true });
 });
 

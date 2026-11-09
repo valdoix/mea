@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
 import { parseLine } from "../src/trackers/dsl";
-import { type FoldConfig, foldEvents, type TrackerEvent } from "../src/trackers/fold";
+import { type FoldConfig, foldEvents, groupReach, type TrackerEvent, UNSURE_FLAG } from "../src/trackers/fold";
 import { STARTER_TEMPLATES } from "../src/trackers/schema";
 import { notThereReminder } from "../src/trackers/service";
-import { currentFold, markNotThere, notThereNames, writeEvents } from "../src/trackers/store";
+import { currentFold, markHeard, markNotThere, notThereNames, writeEvents } from "../src/trackers/store";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
 import { freshDb } from "./helpers";
@@ -85,5 +85,51 @@ describe("wasn't there, stored", () => {
     markNotThere(chatId, line!, "Spike");
     expect(notThereNames(chatId).sort()).toEqual(["Spike", "Willow"]);
     expect(notThereReminder(chatId)).toContain("weren't there (");
+  });
+});
+
+describe("named people who weren't there (docs/31 Part 2)", () => {
+  const lunch = ev("cast: Buffy Summers@spot · Walter@spot · Spike@spot · Willow@off", 1);
+  const reply = "Walter set down his taco. \"You two are Tom Paris and B'elanna Torres.\"";
+  const file = (lines: string[], text = reply) => {
+    const before = foldEvents([lunch], cfg());
+    const ops = groupReach(lines.map((l) => parseLine(l)!), before.state, cfg(), text);
+    return { ops, r: foldEvents([lunch, ...ops.map((op, i): TrackerEvent => ({ id: `p${i}`, messageId: "m2", seq: 2, source: "model", op }))], cfg()) };
+  };
+
+  test("someone named but not there is filed with a question, the rest plainly", () => {
+    const { ops, r } = file(["know Walter, Spike, Willow: Walter compares them to Tom Paris | he said it at the table · knows"]);
+    expect(ops[0]!.args.unsure).toEqual(["Willow"]);
+    expect(holders(r, "Tom Paris")).toEqual(["spike", "walter", "willow"]);
+    const chips = r.changes.m2!.filter((c) => c.kind === "knowledge");
+    expect(chips.find((c) => c.subject === "Willow")!.flag).toBe(UNSURE_FLAG);
+    expect(chips.find((c) => c.subject === "Walter")!.flag).toBeUndefined();
+  });
+
+  test("named in the messages, or told by a call, isn't asked about", () => {
+    expect(file(["know Willow: the Bronze is closed | Buffy told her · knows"], `${reply} Willow leaned in the doorway.`).ops[0]!.args.unsure).toBeUndefined();
+    expect(file(["know Willow: the Bronze is closed | Buffy called her · knows"]).ops[0]!.args.unsure).toBeUndefined();
+  });
+
+  test("a group's mood or bond reaches only the members the reply did", () => {
+    const { ops, r } = file(["mood @Scoobies: worried — Walter's list", "bond Scoobies>Walter: trust +1 — the list"]);
+    expect(ops[0]!.args.away).toEqual(["Willow", "Xander", "Anya", "Tara"]);
+    expect(ops[1]!.args.away).toEqual(["Willow", "Xander", "Anya", "Tara"]);
+    expect(r.changes.m2?.some((c) => c.kind === "mood" || c.kind === "bond") ?? false).toBe(false);
+  });
+});
+
+describe("Keep (docs/31 2.2)", () => {
+  test("they heard it after all: the line stops asking, through a refold", () => {
+    freshDb();
+    const { data } = normalizeCard({ spec: "chara_card_v2", data: { name: "Buffy Summers", description: "The Slayer.", first_mes: "Hey." } });
+    const chatId = createChat({ characterId: createCharacter(data) }).id;
+    const msg = addMessage(chatId, "assistant", "Walter set down his taco.", { name: "Buffy Summers" });
+    const op = parseLine("know Walter, Willow: Spike watches Passions | at lunch · knows")!;
+    const [, line] = writeEvents(chatId, { messageId: msg, swipeIdx: 0 }, [parseLine("cast: Walter@spot")!, { ...op, args: { ...op.args, unsure: ["Willow"] } }], "model");
+    const flagOf = () => currentFold(chatId).result.changes[msg]!.find((c) => c.subject === "Willow")!.flag;
+    expect(flagOf()).toBe(UNSURE_FLAG);
+    expect(markHeard(chatId, line!, "Willow")).toBe(true);
+    expect(flagOf()).toBeUndefined();
   });
 });
