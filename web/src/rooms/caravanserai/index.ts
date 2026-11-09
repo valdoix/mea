@@ -6,8 +6,11 @@ export default defineRoom({
   motto: "Tea first, then stories",
   day: "High Sun",
   night: "Star Camp",
-  bar: { day: "#fbe9c5", night: "#070d2a" },
-  swatch: { day: ["#fbe9c5", "#dd9b58", "#a84720", "#1c2d5c", "#d99a2b"], night: ["#070d2a", "#18204e", "#f1a65d", "#f0c04a", "#0d112c"] },
+  bar: { day: "#f7e8c9", night: "#0b1033" },
+  swatch: {
+    day: ["#f7e8c9", "#ad4c25", "#20357a", "#e1a43a", "#1f7a74"],
+    night: ["#0b1033", "#f39a64", "#97adf3", "#f3c14f", "#ef7a86"],
+  },
   fonts: () => import("./fonts"),
   grain: { day: 0.14, night: 0.08 },
   loadAmbience: () => import("./Ambience.svelte"),
