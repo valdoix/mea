@@ -171,11 +171,12 @@ Write nothing else.`;
 }
 
 /** Appended to the story prompt in inline mode: the story model writes the ledger itself (no extra request). */
-export function inlineInstruction(state: string) {
+export function inlineInstruction(state: string, extra?: string) {
   return `After your reply, add a <ledger> block listing what changed in the story world, one change per line, in this language:
 ${GRAMMAR}
 Current ledger state (for correct numbers):
-${state}
+${state}${extra ? `
+${extra}` : ""}
 Format: your reply, then
 <ledger>
 …lines…

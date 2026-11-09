@@ -1,5 +1,6 @@
 <script lang="ts">
   import ChangeChips from "../../trackers/ChangeChips.svelte";
+  import NotThere from "../../trackers/NotThere.svelte";
   import ContinuityNote from "../ContinuityNote.svelte";
   import FiledChips from "../FiledChips.svelte";
   import { filed } from "../../../lib/filings.svelte";
@@ -97,7 +98,7 @@
       {:else}
         {@const list = groups[k]}
         <!-- A line each, as a pencilled note; what the world did off the page keeps its Why and Undo. -->
-        {#each list.filter((c) => !c.event) as c, i (i)}<p class="line" class:up={c.tone === "up"} class:down={c.tone === "down"} title={c.reason}>{#if c.subject && !c.text.toLowerCase().includes(c.subject.toLowerCase())}<b>{c.subject}:</b> {/if}{c.text}</p>{/each}
+        {#each list.filter((c) => !c.event) as c, i (i)}<p class="line" class:up={c.tone === "up"} class:down={c.tone === "down"} title={c.reason}>{#if c.subject && !c.text.toLowerCase().includes(c.subject.toLowerCase())}<b>{c.subject}:</b> {/if}{c.text}<NotThere change={c} /></p>{/each}
         {#if list.some((c) => c.event)}<ChangeChips changes={list.filter((c) => c.event)} />{/if}
         {#if k === "memory"}<FiledChips messageId={message.id} />{/if}
         {@const who = list.map(entityOf).find(Boolean)}

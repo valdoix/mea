@@ -1668,6 +1668,8 @@ export interface TrackerChange {
   /** The world off the page: its event (for undo) and what the rules acted on. */
   event?: string;
   why?: string[];
+  /** docs/31 1.1: the tracker's line behind a knowledge chip ("wasn't there" takes one person off it). */
+  lineId?: string;
 }
 
 export interface TemplateField {

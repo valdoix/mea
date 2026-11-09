@@ -35,6 +35,7 @@ import {
   invalidate,
   linesToOps,
   listTemplates,
+  markNotThere,
   moveCastProfile,
   placeProfiles,
   saveCastFaction,
@@ -147,6 +148,13 @@ trackers.post("/chats/:id/trackers/edit", async (c) => {
   if (bad.length && !ops.length) throw badRequest(`Couldn't read: ${bad[0]}`);
   const fold = userEdit(chatId, ops);
   return c.json({ ok: true, bad, state: fold.state });
+});
+
+/** docs/31 1.1: "{Name} wasn't there": one person off a tracker's know line; the others keep it. */
+trackers.post("/chats/:id/trackers/events/:eid/not-there", async (c) => {
+  const input = await body(c, z.object({ who: z.string().min(1).max(200) }));
+  if (!markNotThere(c.req.param("id"), c.req.param("eid"), input.who.trim())) throw badRequest("That isn't a line about who knows something.");
+  return c.json({ ok: true });
 });
 
 trackers.delete("/chats/:id/trackers/events/:eid", (c) => {

@@ -352,6 +352,29 @@ export function writeEvents(chatId: string, anchor: { messageId: string | null; 
   return ids;
 }
 
+/**
+ * docs/31 1.1: "{Name} wasn't there": takes one person off a tracker line, keeping it for everyone else.
+ * Returns false for a line that isn't a know line in this chat.
+ */
+export function markNotThere(chatId: string, id: string, who: string): boolean {
+  const row = one<{ op: string }>("SELECT op FROM tracker_events WHERE chat_id = ? AND id = ?", chatId, id);
+  if (!row) return false;
+  const op = JSON.parse(row.op) as Op;
+  if (op.op !== "know") return false;
+  const list = Array.isArray(op.args.notThere) ? (op.args.notThere as string[]) : [];
+  if (!list.some((n) => n.toLowerCase() === who.toLowerCase())) op.args = { ...op.args, notThere: [...list, who] };
+  run("UPDATE tracker_events SET op = ? WHERE chat_id = ? AND id = ?", JSON.stringify(op), chatId, id);
+  invalidate(chatId);
+  publish({ type: "trackers.changed", chatId });
+  return true;
+}
+
+/** docs/31 1.3: everyone you've said wasn't there in this story, newest first. */
+export function notThereNames(chatId: string): string[] {
+  const rows = all<{ op: string }>("SELECT op FROM tracker_events WHERE chat_id = ? AND op LIKE '%\"notThere\"%' ORDER BY created_at DESC", chatId);
+  return [...new Set(rows.flatMap((r) => ((JSON.parse(r.op) as Op).args.notThere as string[] | undefined) ?? []))];
+}
+
 export function deleteEvent(chatId: string, id: string) {
   deleteEvents(chatId, [id]);
 }

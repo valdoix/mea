@@ -9,6 +9,7 @@ export interface TrackerChange {
   source?: string;
   event?: string;
   why?: string[];
+  lineId?: string;
 }
 
 /**

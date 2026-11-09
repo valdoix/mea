@@ -717,8 +717,9 @@ export class Folder {
         if (away.length) why.push(`${away.join(", ")} ${away.length === 1 ? "isn't" : "aren't"} in the scene or the messages: a ${w.group} line reaches only those it did, unless it says how it reached the rest (a call, a text)`);
         if (!names.length) continue;
       }
-      // docs/30 1.3: what the group as a whole was told, and who was in it then (not when only some heard it).
-      if (op.op === "know" && op.args.fact && names.length === w.names.length) {
+      // docs/30 1.3: what the group as a whole was told, and who was in it then (not when only some heard it,
+      // nor when you said one of them wasn't there).
+      if (op.op === "know" && op.args.fact && names.length === w.names.length && !names.some((n) => this.notThere(op, n))) {
         const g = this.findGroup(w.group);
         if (g && !g.facts.some((x) => overlap(x.text, String(op.args.fact)) >= 0.8)) g.facts.push({ text: String(op.args.fact), seq, members: [...names] });
       }
@@ -765,8 +766,9 @@ export class Folder {
     // docs/30 0.2: and a cast line that was really a trait ("cast Dawn: traits — …"); other cast lines keep what they stored.
     if (["know", "secret", "scene", "cast"].includes(ev.op.op) && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
       const op = parseLine(ev.op.raw);
-      // Who a group line missed (groupReach) isn't in the text: it stays.
-      if (op && (ev.op.op === "cast" ? op.op === "trait" : op.op === ev.op.op)) ev = { ...ev, op: ev.op.args.away ? { ...op, args: { ...op.args, away: ev.op.args.away } } : op };
+      // Who a line missed (groupReach) and who you said wasn't there aren't in the text: they stay.
+      const kept = Object.fromEntries((["away", "notThere"] as const).filter((k) => ev.op.args[k]).map((k) => [k, ev.op.args[k]]));
+      if (op && (ev.op.op === "cast" ? op.op === "trait" : op.op === ev.op.op)) ev = { ...ev, op: { ...op, args: { ...op.args, ...kept } } };
     }
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
     try {
@@ -799,11 +801,19 @@ export class Folder {
   }
   private push(ctx: Ctx, c: Omit<Change, "source">) {
     const engine = ctx.ev.source === "engine" ? { event: ctx.ev.id, ...(ctx.ev.op.why?.length ? { why: ctx.ev.op.why } : {}) } : {};
-    ctx.changes.push({ ...c, source: ctx.ev.source, ...engine });
+    const line = c.kind === "knowledge" && (ctx.ev.source === "model" || ctx.ev.source === "inline") ? { lineId: ctx.ev.id } : {};
+    ctx.changes.push({ ...c, source: ctx.ev.source, ...engine, ...line });
   }
   private isLocked(path: string) {
     const p = path.toLowerCase();
     return this.state.locks.some((l) => p === l || p.startsWith(`${l}.`));
+  }
+  /** docs/31 1.1: you said this person wasn't there for this line. */
+  private notThere(op: Op, name: string) {
+    const list = op.args.notThere;
+    if (!Array.isArray(list) || !list.length) return false;
+    const id = this.findChar(name)?.id;
+    return (list as string[]).some((n) => norm(n) === norm(name) || (id != null && this.findChar(n)?.id === id));
   }
   private ai(ctx: Ctx) {
     return ctx.ev.source !== "user";
@@ -1684,7 +1694,10 @@ export class Folder {
         return;
       }
       case "know": {
-        const holders = this.people(op.subject, seq);
+        // docs/31 1.1: whoever you said wasn't there doesn't learn it from this line.
+        const all = this.people(op.subject, seq);
+        const holders = all.filter((c) => !this.notThere(op, c.name));
+        if (all.length && !holders.length) return this.reject(ctx, `you said ${all.map((c) => c.name).join(", ")} wasn't there`);
         if (!holders.length || !a.fact) return this.reject(ctx, "write know Holder: fact | route · status · truth");
         if (!this.needCause(ctx, op) && !a.route) return;
         const f = this.fact(a.key, a.fact, seq, a.truth);
