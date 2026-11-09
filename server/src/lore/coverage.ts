@@ -35,6 +35,8 @@ export interface Finding {
   fixLabel: string;
   /** add-key: the names to add. */
   names?: string[];
+  /** thin: how often the story names them now. */
+  mentions?: number;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
@@ -42,6 +44,12 @@ const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 const QUIET_AFTER = 20;
 const BUDGET_STEP = 1024;
 const FIX_LABEL: Record<FixAction, string> = { "draft-facts": "Draft facts", "add-key": "Add key", "raise-budget": "Raise budget", merge: "Merge", confirm: "Confirm" };
+/** inbox_dismissed key prefix for "Draft facts was clicked": `${DRAFTED}${finding key}@${mentions}`. */
+const DRAFTED = "lore-health-drafted:";
+const splitDrafted = (key: string): [string, number] => {
+  const at = key.lastIndexOf("@");
+  return [key.slice(DRAFTED.length, at), Number(key.slice(at + 1)) || 0];
+};
 
 /**
  * The Codex sometimes keeps a note in a name ("Shauna (missing)"): that's not something the story
@@ -84,13 +92,22 @@ export function coverageFindings(chatId: string): Finding[] {
   for (const r of res?.rows ?? []) for (const n of res!.namesOf(r)) byName.set(norm(n), r);
   const entityOf = (e: ScanEntry) => namesOf(e).map((n) => byName.get(norm(n))).find(Boolean);
 
+  // Thin entries Draft facts was already asked for, with the mentions they had then.
+  const drafted = new Map<string, number>();
+  for (const r of all<{ key: string }>("SELECT key FROM inbox_dismissed WHERE key LIKE ?", `${DRAFTED}thin:${chatId}:%`)) {
+    const [k, m] = splitDrafted(r.key);
+    drafted.set(k, Math.max(drafted.get(k) ?? 0, m));
+  }
+
   for (const e of entries) {
     const ent = entityOf(e);
     if (!ent) continue;
     const factCount = facts.get(e.id)?.length ?? 0;
-    // Busy, but the entry is thin: little text and few facts.
-    if (ent.mentions >= 10 && words(e.content) < 40 && factCount < 3)
-      push({ key: `thin:${chatId}:${e.id}`, kind: "thin", entries: [ref(e)], message: `${ent.name} comes up a lot (${ent.mentions} mentions), but "${ref(e).title}" says little.`, fix: "draft-facts" });
+    // Busy, but the entry is thin: little text and few facts. Once facts were drafted, it stays away
+    // until the story has talked about them twice as much again (the draft waits in the Inbox meanwhile).
+    const askedAt = drafted.get(`thin:${chatId}:${e.id}`);
+    if (ent.mentions >= 10 && words(e.content) < 40 && factCount < 3 && !(askedAt != null && ent.mentions < askedAt * 2))
+      push({ key: `thin:${chatId}:${e.id}`, kind: "thin", entries: [ref(e)], message: `${ent.name} comes up a lot (${ent.mentions} mentions), but "${ref(e).title}" says little.`, fix: "draft-facts", mentions: ent.mentions });
     // Active lately, but the entry hasn't fired: its keys may miss how the story names them.
     // Only someone the story has had for a while: in a young chat nothing has had the chance to fire.
     const active = ent.last_seq != null && latest - ent.last_seq <= QUIET_AFTER && ent.first_seq != null && latest - ent.first_seq > QUIET_AFTER;
@@ -171,6 +188,9 @@ export function fixFinding(chatId: string, key: string): { undo: string | null; 
   }
   // Draft facts: read the story's memories about it again, from the start (the keep-up pass makes cards).
   run("UPDATE lore_keepup SET atoms_at = 0, updated_at = ? WHERE entry_id = ? AND chat_id = ?", now(), first.id, chatId);
+  // Asked: the card goes until the entry is much busier (whatever the draft finds waits as its own card).
+  run("INSERT OR IGNORE INTO inbox_dismissed (key, chat_id, created_at) VALUES (?, ?, ?)", `${DRAFTED}${f.key}@${f.mentions ?? 0}`, chatId, now());
+  publish({ type: "inbox.changed" });
   enqueue("lore.keepup", { chatId }, { dedupeKey: `lore.keepup:${chatId}`, priority: 2, chatId });
   return { undo: null, message: "Drafting facts from the story: they'll wait in the Inbox" };
 }
