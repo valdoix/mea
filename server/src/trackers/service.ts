@@ -16,6 +16,7 @@ import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona, personaPrompt } from "../services/personas";
 import { describeMinutes, parseDuration } from "./clock";
 import { parseLedger } from "./dsl";
+import { groupReach } from "./fold";
 import { closingOps } from "./loops";
 import { buildNote, type NoteResult } from "./note";
 import { initPrompt, inlineInstruction, stateForModel, updatePrompt } from "./prompts";
@@ -148,7 +149,7 @@ export async function runTrackerUpdate(p: { chatId: string; messageId: string; s
   // The message may have been swiped or edited while the model was writing.
   const now = getMessageRow(p.messageId);
   if (!now || now.deleted_at || now.active_swipe !== p.swipeIdx) return;
-  writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, closingOps(parsed.ops, messages), "model", { replace: ["model"] });
+  writeEvents(p.chatId, { messageId: p.messageId, swipeIdx: p.swipeIdx }, groupReach(closingOps(parsed.ops, messages), before, fc, messages), "model", { replace: ["model"] });
   afterUpdate(p.chatId, p.messageId, p.swipeIdx);
 }
 
@@ -255,7 +256,12 @@ export async function runTrackerInit(p: { chatId: string }, job?: JobContext) {
 export function fileInlineLedger(chatId: string, messageId: string, swipeIdx: number, ledger: string | null) {
   const parsed = ledger ? parseLedger(ledger) : null;
   if (parsed?.ops.length) {
-    writeEvents(chatId, { messageId, swipeIdx }, parsed.ops, "inline", { replace: ["inline", "model"] });
+    // Who its group lines reached: the reply and the message it answers.
+    const msg = getMessageRow(messageId);
+    const cfg = trackerConfig(chatId);
+    const text = msg ? messagesFor(chatId, messageId, { user: "", char: "" }) : null;
+    const ops = msg && text != null ? groupReach(parsed.ops, foldAt(chatId, { uptoSeq: msg.seq - 1 }).state, foldConfigFor(chatId, cfg), text) : parsed.ops;
+    writeEvents(chatId, { messageId, swipeIdx }, ops, "inline", { replace: ["inline", "model"] });
     afterUpdate(chatId, messageId, swipeIdx);
   } else enqueue("tracker.update", { chatId, messageId, swipeIdx }, { dedupeKey: `tracker.update:${messageId}:${swipeIdx}`, priority: 5, chatId });
 }

@@ -225,6 +225,10 @@ const PERSON_OPS = new Set<string>(["mood", "body", "look", "trait", "drive", "m
 /** docs/30 0.2: ops a group's name spreads over its people. A trait, a look or a room of the Scoobies isn't each member's. */
 const SPREAD_OPS = new Set<string>(["know", "mood", "bond", "owe", "promise", "lives"]);
 
+/** A route that reaches people who aren't in the scene: a call, a text, a letter, the files, word getting round. */
+const REMOTE_ROUTE =
+  /\b(?:phone\w*|call(?:s|ed|ing)?|text(?:s|ed|ing)?|messag\w*|voicemail|letters?|notes?|e-?mail\w*|radio\w*|news\w*|broadcast\w*|tv|video\w*|files?|reports?|papers?|diar(?:y|ies)|journals?|recording\w*|tapes?|online|internet|posted|rumou?rs?|gossip\w*|grapevine|word (?:got|gets|spread|travels|travelled)|passed (?:it )?on|relay\w*|later|afterwards|off-?screen)\b/i;
+
 /** What a name in a person's place stands for (docs/30 0.2). */
 type Who =
   | { kind: "person" }
@@ -704,12 +708,21 @@ export class Folder {
         continue;
       }
       const via = w.as === "faction" && op.op === "know" ? `via the ${w.group}` : undefined;
-      // docs/30 1.3: what the group as a whole was told, and who was in it then.
-      if (op.op === "know" && op.args.fact) {
-        const g = this.findGroup(w.group);
-        if (g && !g.facts.some((x) => overlap(x.text, String(op.args.fact)) >= 0.8)) g.facts.push({ text: String(op.args.fact), seq, members: [...w.names] });
+      // Members the reply never reached (groupReach, when the line was filed) don't learn it.
+      let names = w.names;
+      const unreached = op.op === "know" && Array.isArray(op.args.away) ? (op.args.away as string[]).map(norm) : [];
+      if (unreached.length) {
+        const away = names.filter((n) => unreached.includes(norm(n)));
+        names = names.filter((n) => !unreached.includes(norm(n)));
+        if (away.length) why.push(`${away.join(", ")} ${away.length === 1 ? "isn't" : "aren't"} in the scene or the messages: a ${w.group} line reaches only those it did, unless it says how it reached the rest (a call, a text)`);
+        if (!names.length) continue;
       }
-      for (const name of w.names) out.push({ ...op, subject: name, ...(via ? { args: { ...op.args, route: op.args.route ? `${op.args.route}, ${via}` : via } } : {}) });
+      // docs/30 1.3: what the group as a whole was told, and who was in it then (not when only some heard it).
+      if (op.op === "know" && op.args.fact && names.length === w.names.length) {
+        const g = this.findGroup(w.group);
+        if (g && !g.facts.some((x) => overlap(x.text, String(op.args.fact)) >= 0.8)) g.facts.push({ text: String(op.args.fact), seq, members: [...names] });
+      }
+      for (const name of names) out.push({ ...op, subject: name, ...(via ? { args: { ...op.args, route: op.args.route ? `${op.args.route}, ${via}` : via } } : {}) });
     }
     if (!out.length && why.length) this.reject(ctx, why.join("; "));
     else if (why.length) this.warn(ctx, why.join("; "));
@@ -752,7 +765,8 @@ export class Folder {
     // docs/30 0.2: and a cast line that was really a trait ("cast Dawn: traits — …"); other cast lines keep what they stored.
     if (["know", "secret", "scene", "cast"].includes(ev.op.op) && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
       const op = parseLine(ev.op.raw);
-      if (op && (ev.op.op === "cast" ? op.op === "trait" : op.op === ev.op.op)) ev = { ...ev, op };
+      // Who a group line missed (groupReach) isn't in the text: it stays.
+      if (op && (ev.op.op === "cast" ? op.op === "trait" : op.op === ev.op.op)) ev = { ...ev, op: ev.op.args.away ? { ...op, args: { ...op.args, away: ev.op.args.away } } : op };
     }
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
     try {
@@ -2425,6 +2439,42 @@ function fromPatch(c: PatchChange): Omit<Change, "source"> {
 }
 
 /** Folds events in order (TRK-04): the state as of the last event given. */
+/**
+ * Who a reply's group lines reached, worked out when they're filed (the fold never sees the text).
+ * "know @Scoobies: … | he said it at the table" when no Scoobie is in the scene, arrives in this
+ * reply or is named in the messages reached none of them: the line keeps `away`, the members it
+ * missed, and the fold tells only the rest. A route that travels (a call, a text, the files), a
+ * group named in the messages ("Dawn's friends saw him at the mall") or its people listed in
+ * brackets reach them all, as before.
+ */
+export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: string): Op[] {
+  if (!ops.some((op) => op.op === "know" && op.subject)) return ops;
+  const f = new Folder(cfg, structuredClone(state));
+  const arriving = new Set(
+    ops.filter((op) => op.op === "cast").flatMap((op) => ((op.args.list ?? []) as { name: string; tier: string }[]).filter((x) => !/^(left|leave|leaves|off|away|gone|exit\w*)$/.test(x.tier)).flatMap((x) => f.each(x.name).map((n) => norm(personName(n))))),
+  );
+  const reached = (name: string) => {
+    if (arriving.has(norm(personName(name)))) return true;
+    const c = f.findChar(name);
+    if (!c) return mentions(text, personName(name));
+    if (c.dead) return false;
+    return c.isUser || c.tier === "spot" || c.tier === "peri" || [c.name, ...c.aliases].some((n) => mentions(text, n));
+  };
+  return ops.map((op) => {
+    if (op.op !== "know" || !op.subject || REMOTE_ROUTE.test(`${op.args.route ?? ""} ${op.cause ?? ""}`)) return op;
+    const away: string[] = [];
+    for (const part of f.each(op.subject)) {
+      if (/\(/.test(part)) continue;
+      const w = f.whoIs(part);
+      if (w.kind !== "many") continue;
+      const group = w.group.replace(/^@/, "").replace(/^the\s+/i, "");
+      if (mentions(text, group) || text.toLowerCase().includes(group.toLowerCase())) continue;
+      away.push(...w.names.filter((n) => !reached(n)));
+    }
+    return away.length ? { ...op, args: { ...op.args, away: uniq(away) } } : op;
+  });
+}
+
 export function foldEvents(events: TrackerEvent[], cfg: FoldConfig): FoldResult {
   const f = new Folder(cfg);
   for (const ev of events) f.apply(ev);
