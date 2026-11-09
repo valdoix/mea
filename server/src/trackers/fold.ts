@@ -710,7 +710,7 @@ export class Folder {
       const via = w.as === "faction" && op.op === "know" ? `via the ${w.group}` : undefined;
       // Members the reply never reached (groupReach, when the line was filed) don't learn it.
       let names = w.names;
-      const unreached = op.op === "know" && Array.isArray(op.args.away) ? (op.args.away as string[]).map(norm) : [];
+      const unreached = REACH_OPS.has(op.op) && Array.isArray(op.args.away) ? (op.args.away as string[]).map(norm) : [];
       if (unreached.length) {
         const away = names.filter((n) => unreached.includes(norm(n)));
         names = names.filter((n) => !unreached.includes(norm(n)));
@@ -767,7 +767,7 @@ export class Folder {
     if (["know", "secret", "scene", "cast"].includes(ev.op.op) && (ev.source === "model" || ev.source === "inline" || ev.source === "init") && ev.op.raw) {
       const op = parseLine(ev.op.raw);
       // Who a line missed (groupReach) and who you said wasn't there aren't in the text: they stay.
-      const kept = Object.fromEntries((["away", "notThere"] as const).filter((k) => ev.op.args[k]).map((k) => [k, ev.op.args[k]]));
+      const kept = Object.fromEntries((["away", "notThere", "unsure"] as const).filter((k) => ev.op.args[k]).map((k) => [k, ev.op.args[k]]));
       if (op && (ev.op.op === "cast" ? op.op === "trait" : op.op === ev.op.op)) ev = { ...ev, op: { ...op, args: { ...op.args, ...kept } } };
     }
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
@@ -809,8 +809,8 @@ export class Folder {
     return this.state.locks.some((l) => p === l || p.startsWith(`${l}.`));
   }
   /** docs/31 1.1: you said this person wasn't there for this line. */
-  private notThere(op: Op, name: string) {
-    const list = op.args.notThere;
+  private notThere(op: Op, name: string, key: "notThere" | "unsure" = "notThere") {
+    const list = op.args[key];
     if (!Array.isArray(list) || !list.length) return false;
     const id = this.findChar(name)?.id;
     return (list as string[]).some((n) => norm(n) === norm(name) || (id != null && this.findChar(n)?.id === id));
@@ -1718,7 +1718,7 @@ export class Folder {
           }
           f.stances[holder.id] = { status, route: a.route ?? op.cause, seq, ...(ctx.ev.source === "user" ? { set: true } : {}) };
           if (f.secret?.from.includes(holder.id) && /knows|believes|suspects/.test(status)) f.secret.from = f.secret.from.filter((x) => x !== holder.id);
-          this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : status === "heard" ? "now has heard" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}` });
+          this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : status === "heard" ? "now has heard" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}`, ...(this.notThere(op, holder.name, "unsure") ? { flag: UNSURE_FLAG } : {}) });
         }
         return;
       }
@@ -2461,7 +2461,7 @@ function fromPatch(c: PatchChange): Omit<Change, "source"> {
  * brackets reach them all, as before.
  */
 export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: string): Op[] {
-  if (!ops.some((op) => op.op === "know" && op.subject)) return ops;
+  if (!ops.some((op) => REACH_OPS.has(op.op) && op.subject)) return ops;
   const f = new Folder(cfg, structuredClone(state));
   const arriving = new Set(
     ops.filter((op) => op.op === "cast").flatMap((op) => ((op.args.list ?? []) as { name: string; tier: string }[]).filter((x) => !/^(left|leave|leaves|off|away|gone|exit\w*)$/.test(x.tier)).flatMap((x) => f.each(x.name).map((n) => norm(personName(n))))),
@@ -2474,19 +2474,32 @@ export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: 
     return c.isUser || c.tier === "spot" || c.tier === "peri" || [c.name, ...c.aliases].some((n) => mentions(text, n));
   };
   return ops.map((op) => {
-    if (op.op !== "know" || !op.subject || REMOTE_ROUTE.test(`${op.args.route ?? ""} ${op.cause ?? ""}`)) return op;
+    if (!REACH_OPS.has(op.op) || !op.subject || REMOTE_ROUTE.test(`${op.args.route ?? ""} ${op.cause ?? ""}`)) return op;
     const away: string[] = [];
+    const unsure: string[] = [];
     for (const part of f.each(op.subject)) {
       if (/\(/.test(part)) continue;
       const w = f.whoIs(part);
+      // docs/31 2.1: someone named on a know line the reply never reached. Naming them is stronger than a
+      // group word, so it's filed with a question rather than dropped.
+      if (w.kind === "person") {
+        if (op.op === "know" && !reached(part)) unsure.push(f.findChar(part)?.name ?? personName(part));
+        continue;
+      }
       if (w.kind !== "many") continue;
       const group = w.group.replace(/^@/, "").replace(/^the\s+/i, "");
       if (mentions(text, group) || text.toLowerCase().includes(group.toLowerCase())) continue;
       away.push(...w.names.filter((n) => !reached(n)));
     }
-    return away.length ? { ...op, args: { ...op.args, away: uniq(away) } } : op;
+    if (!away.length && !unsure.length) return op;
+    return { ...op, args: { ...op.args, ...(away.length ? { away: uniq(away) } : {}), ...(unsure.length ? { unsure: uniq(unsure) } : {}) } };
   });
 }
+
+/** docs/31 2.3: the lines whose holder has to be there: knowing what was said, a mood from it, a bond moved by it. */
+const REACH_OPS = new Set(["know", "mood", "bond"]);
+/** The flag on a knowledge chip for someone named who wasn't in the scene or the messages. */
+export const UNSURE_FLAG = "not in the scene?";
 
 export function foldEvents(events: TrackerEvent[], cfg: FoldConfig): FoldResult {
   const f = new Folder(cfg);

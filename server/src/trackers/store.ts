@@ -369,6 +369,21 @@ export function markNotThere(chatId: string, id: string, who: string): boolean {
   return true;
 }
 
+/** docs/31 2.2: "Keep": they did hear it after all, so the line stops asking. */
+export function markHeard(chatId: string, id: string, who: string): boolean {
+  const row = one<{ op: string }>("SELECT op FROM tracker_events WHERE chat_id = ? AND id = ?", chatId, id);
+  if (!row) return false;
+  const op = JSON.parse(row.op) as Op;
+  if (op.op !== "know" || !Array.isArray(op.args.unsure)) return false;
+  const left = (op.args.unsure as string[]).filter((n) => n.toLowerCase() !== who.toLowerCase());
+  const { unsure: _, ...rest } = op.args;
+  op.args = left.length ? { ...rest, unsure: left } : rest;
+  run("UPDATE tracker_events SET op = ? WHERE chat_id = ? AND id = ?", JSON.stringify(op), chatId, id);
+  invalidate(chatId);
+  publish({ type: "trackers.changed", chatId });
+  return true;
+}
+
 /** docs/31 1.3: everyone you've said wasn't there in this story, newest first. */
 export function notThereNames(chatId: string): string[] {
   const rows = all<{ op: string }>("SELECT op FROM tracker_events WHERE chat_id = ? AND op LIKE '%\"notThere\"%' ORDER BY created_at DESC", chatId);
