@@ -65,6 +65,18 @@ describe("7.1 coverage findings", () => {
     expect(item.labels).toEqual({ accept: "Add key", reject: "Not now" });
   });
 
+  test("Draft facts takes the thin card away until the story names them twice as often", () => {
+    const thin = coverageFindings(chatId).find((f) => f.kind === "thin")!;
+    actOnInbox(`lore-health:${thin.key}`, "accept");
+    expect(coverageFindings(chatId).some((f) => f.key === thin.key)).toBe(false);
+    // Busier, but not twice as busy: still away. Twice: back.
+    run("UPDATE inbox_dismissed SET key = ? WHERE key LIKE 'lore-health-drafted:%'", `lore-health-drafted:${thin.key}@${thin.mentions! * 2 + 1}`);
+    expect(coverageFindings(chatId).some((f) => f.key === thin.key)).toBe(false);
+    run("UPDATE inbox_dismissed SET key = ? WHERE key LIKE 'lore-health-drafted:%'", `lore-health-drafted:${thin.key}@${Math.floor(thin.mentions! / 2)}`);
+    expect(coverageFindings(chatId).some((f) => f.key === thin.key)).toBe(true);
+    run("DELETE FROM inbox_dismissed WHERE key LIKE 'lore-health-drafted:%'");
+  });
+
   test("Add key and Confirm fix what they find, with Undo", () => {
     const quiet = coverageFindings(chatId).find((f) => f.kind === "quiet")!;
     const r = fixFinding(chatId, quiet.key);
