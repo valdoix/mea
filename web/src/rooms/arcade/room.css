@@ -132,7 +132,17 @@
     var(--shadow-2);
 }
 :root[data-theme="arcade"][data-shell] nav.rail .nav {
-  color: #fbecc8;
+  --text: #fff4d8;
+  --text-faint: #e9d3ac;
+}
+/* the rail's tooltips sit on a light card, so they keep the page's ink */
+:root[data-theme="arcade"][data-shell] nav.rail .tip {
+  --text: #21142e;
+  --text-faint: #685778;
+}
+:root[data-theme="arcade"][data-mode="night"] nav.rail .tip {
+  --text: #fbeccb;
+  --text-faint: #a690ba;
 }
 :root[data-theme="arcade"][data-mode="night"] nav.rail {
   color: var(--text-muted);
@@ -142,7 +152,8 @@
     0 0 28px -6px color-mix(in srgb, var(--p3) 45%, transparent);
 }
 :root[data-theme="arcade"][data-mode="night"] nav.rail .nav {
-  color: var(--text-muted);
+  --text: #fbeccb;
+  --text-faint: #d2bde3;
 }
 :root[data-theme="arcade"][data-shell] nav.rail .logo {
   width: 56px;
