@@ -86,6 +86,7 @@
       people = r.people;
       tidied = r.tidied ?? [];
       quiet = r.stillHere ?? [];
+      void loadSweep();
       userName = r.userName;
       void loadPressures();
       void loadFactions();
@@ -131,6 +132,53 @@
     if (await trackerEdit(id, [`cast: ${q.name}@${here ? "spot" : "left"}`])) {
       quiet = quiet.filter((x) => x !== q);
       toast(here ? `${q.name} is still in the scene` : `${q.name} has left the scene`, { kind: "ok" });
+    }
+  }
+  // docs/31 Part 4: older lines that reached people who weren't there (folds the whole story, so it loads after).
+  interface Finding {
+    eventId: string;
+    seq: number;
+    line: string;
+    away: string[];
+    unsure: string[];
+  }
+  let sweep = $state<Finding[]>([]);
+  let sweepAll = $state(false);
+  let sweeping = $state(false);
+  async function loadSweep() {
+    try {
+      sweep = (await get<{ findings: Finding[] }>(`/api/chats/${id}/reach-sweep`)).findings;
+    } catch {
+      sweep = [];
+    }
+  }
+  const sweepLine = (x: Finding) => x.line.replace(/\s*\|.*$/, "").replace(/^know\s+/, "");
+  async function answerSweep(action: "fix" | "leave", xs: Finding[]) {
+    if (sweeping) return;
+    sweeping = true;
+    const ids = xs.map((x) => x.eventId);
+    try {
+      const r = await post<{ changed: number; findings: Finding[] }>(`/api/chats/${id}/reach-sweep`, { action, ids });
+      sweep = r.findings;
+      // What a group was told lives on its faction card.
+      if (action === "fix") {
+        void loadFactions();
+        toast(`Fixed ${r.changed} ${r.changed === 1 ? "line" : "lines"}`, {
+          kind: "ok",
+          action: {
+            label: "Undo",
+            run: () =>
+              void post<{ findings: Finding[] }>(`/api/chats/${id}/reach-sweep`, { action: "undo", ids }).then((u) => {
+                sweep = u.findings;
+                void loadFactions();
+              }),
+          },
+        });
+      }
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      sweeping = false;
     }
   }
   async function tidyAllSeen() {
@@ -494,6 +542,25 @@
             </span>
           </div>
         {/each}
+      </div>
+    {/if}
+    {#if sweep.length}
+      <div class="notice tidy">
+        <div class="row between">
+          <b>{sweep.length} older {sweep.length === 1 ? "line" : "lines"} reached people who weren't there</b>
+          <button class="btn ghost small" disabled={sweeping} onclick={() => answerSweep("fix", sweep)}>Fix all</button>
+        </div>
+        <p class="tiny muted">Filed before Mea checked who a reply reached. Fixing takes the people who weren't in the scene or the messages off the line (someone named on it gets asked about instead), and Undo puts it back.</p>
+        {#each sweepAll ? sweep : sweep.slice(0, 6) as x (x.eventId)}
+          <div class="row between tidy-row">
+            <span class="small"><span class="tiny faint">#{x.seq}{" · "}</span>{sweepLine(x)}<br /><span class="tiny muted">{#if x.away.length}not reached: {x.away.join(", ")}{/if}{#if x.away.length && x.unsure.length}{" · "}{/if}{#if x.unsure.length}named but not there: {x.unsure.join(", ")}{/if}</span></span>
+            <span class="row">
+              <button class="btn ghost small" disabled={sweeping} onclick={() => answerSweep("fix", [x])}>Fix</button>
+              <button class="btn ghost small" disabled={sweeping} onclick={() => answerSweep("leave", [x])} title="It's right as written">Leave</button>
+            </span>
+          </div>
+        {/each}
+        {#if !sweepAll && sweep.length > 6}<button class="btn ghost small" onclick={() => (sweepAll = true)}>Show all {sweep.length}</button>{/if}
       </div>
     {/if}
     {#if quiet.length}

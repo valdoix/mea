@@ -81,10 +81,12 @@ The fix for a wrong holder should be one click, and it shouldn't take back what 
 
 The new rule only applies to new replies. Older ones can carry the same leak.
 
-- **4.1** `scripts/replay.ts --reach`: for every stored `model`/`inline` `know` line, it reruns the reach check against that message's text and the state before it, and reports each stance it would remove (story, seq, line, who). It's read-only, and it runs on a `VACUUM INTO` copy.
-- **4.2** In the app, the Story page's tidy notice lists the sweep's findings for that story ("4 people learned things at seq 916 without being there") with **Fix all** / review one by one. Fixing writes `away` onto the events (Part 1's mechanism), so it's reversible.
+- **4.1** `trackers/sweep.ts` folds the story once and checks each older `model`/`inline` know, mood and bond line the way a new one is checked. It uses the state just before the line, its reply's text and cast lines, and who was quiet then. `scripts/reach-sweep.ts [story] [--db …] [--all] [--json …]` runs it read-only on a `VACUUM INTO` copy with the connections taken out. It's its own script because `replay.ts` rebuilds one reply's prompts, which is a different job.
+- **4.2** The Cast tab lists the findings, loaded after the tab: **"N older lines reached people who weren't there"**, with **Fix all**, and **Fix** or **Leave** on each line. A fix writes `away`/`unsure` onto the line, marked `swept`, and the toast's Undo takes exactly that back. Leave marks the line `sweepOk`. The result is cached until an answer lands on a line. New lines are checked as they're filed, so a new reply can't add findings.
 
-**Done when:** the sweep on a copy of `data/mea.db` runs under a minute per story and its report matches a hand check of 10 samples.
+**Done (November 9, 2026):** on a copy of the production database, the sweep takes 2.0 s for *Clawed Out Into October* (1.8 s for a plain fold) and 0.3 s for *The Word in Her Throat*. Those are the only two stories with tracker lines. Every candidate it raised was checked by hand. That was 4 candidates, not the planned 10, because there weren't more to find:
+- **#742 (Clawed):** `know Spike: the daisy mug is his`. Spike isn't named in that reply or the one before, and Buffy is setting a place for "the guest", so asking "not in the scene?" is right.
+- **#79, #97, #107 (Word in Her Throat): false positives, now fixed.** In #97 and #107, the reply's own cast line put all 18 people in the cabin. In #79, Natalie is leaving in that reply (`@left`) and is called "Nat". So anyone named in a reply's own cast lines, at any tier, now counts as reached, for new lines too. The sweep now reports only #742.
 
 ## Part 5: keep it fixed
 

@@ -48,6 +48,7 @@ import {
 } from "../trackers/store";
 import { personName } from "../trackers/fold";
 import { stillHere } from "../trackers/stillhere";
+import { fixSweep, leaveSweep, reachSweep, undoSweep } from "../trackers/sweep";
 import { factionBook, groupsSettings } from "../trackers/factions";
 import { groupKey } from "../trackers/groups";
 import type { Change, Moment } from "../trackers/types";
@@ -164,6 +165,22 @@ trackers.post("/chats/:id/trackers/events/:eid/heard", async (c) => {
   const input = await body(c, z.object({ who: z.string().min(1).max(200) }));
   if (!markHeard(c.req.param("id"), c.req.param("eid"), input.who.trim())) throw badRequest("That line isn't asking about anyone.");
   return c.json({ ok: true });
+});
+
+/** docs/31 Part 4: older lines that reached people who weren't there (read on demand: it folds the whole story). */
+trackers.get("/chats/:id/reach-sweep", (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  return c.json({ findings: reachSweep(chatId) });
+});
+
+trackers.post("/chats/:id/reach-sweep", async (c) => {
+  const chatId = c.req.param("id");
+  mustChat(chatId);
+  const input = await body(c, z.object({ action: z.enum(["fix", "undo", "leave"]), ids: z.array(z.string().max(80)).max(2000).optional() }));
+  if (input.action !== "fix" && !input.ids?.length) throw badRequest("Which lines?");
+  const changed = input.action === "fix" ? fixSweep(chatId, input.ids) : input.action === "undo" ? undoSweep(chatId, input.ids!) : leaveSweep(chatId, input.ids!);
+  return c.json({ changed, findings: reachSweep(chatId) });
 });
 
 trackers.delete("/chats/:id/trackers/events/:eid", (c) => {

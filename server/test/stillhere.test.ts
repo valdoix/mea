@@ -81,4 +81,9 @@ describe("'everyone' skips them (3.1)", () => {
   test("unless this reply names them", () => {
     expect(file("Buffy says patrol is at nine. Xander groans.")).toEqual(["buffy-summers", "spike", "xander"]);
   });
+  test("or its own cast line puts them in the scene (a cabin everyone shares)", () => {
+    const before = foldEvents([opening], cfg).state;
+    const ops = groupReach([parseLine("cast: Buffy Summers@spot · Xander@spot · Spike@spot")!, parseLine("know everyone: the pot is empty | Buffy announced it · knows")!], before, cfg, "Buffy holds up the empty pot.", ["Xander"]);
+    expect(ops[1]!.args.away).toBeUndefined();
+  });
 });
