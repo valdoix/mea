@@ -6,8 +6,11 @@ export default defineRoom({
   motto: "The room keeps the story's weather",
   day: "Fair",
   night: "Foul",
-  bar: { day: "#a9d2ea", night: "#0c1a2e" },
-  swatch: { day: ["#a9d2ea", "#f0f2e2", "#2c4150", "#c49a4a", "#1f5e80"], night: ["#0c1a2e", "#22324b", "#10171f", "#d3a753", "#8fcbe8"] },
+  bar: { day: "#9fc6df", night: "#0b131e" },
+  swatch: {
+    day: ["#9fc6df", "#1c4f74", "#5a4f86", "#b5853a", "#ebe4d4"],
+    night: ["#0b131e", "#9fd0ea", "#c5b9ec", "#d9ad5c", "#161c24"],
+  },
   fonts: () => import("./fonts"),
   grain: null,
   loadAmbience: () => import("./Ambience.svelte"),

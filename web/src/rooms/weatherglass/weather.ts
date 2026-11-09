@@ -3,7 +3,10 @@ export type RoomWeather = "fair" | "cloudy" | "rain" | "fog" | "snow" | "storm";
 export type WeatherPin = "scene" | RoomWeather;
 
 /** A pinned sky wins; otherwise the scene's, and no scene (or a clear one) is fair. Wind reads as passing cloud. */
-export function resolveWeather(pin: WeatherPin | undefined, scene: string | null): RoomWeather {
+export function resolveWeather(
+  pin: WeatherPin | undefined,
+  scene: string | null,
+): RoomWeather {
   if (pin && pin !== "scene") return pin;
   switch (scene) {
     case "storm":
