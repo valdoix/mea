@@ -2462,12 +2462,17 @@ function fromPatch(c: PatchChange): Omit<Change, "source"> {
  */
 export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: string, quiet: string[] = []): Op[] {
   if (!ops.some((op) => REACH_OPS.has(op.op) && op.subject)) return ops;
-  const f = new Folder(cfg, structuredClone(state));
-  const arriving = new Set(
-    ops.filter((op) => op.op === "cast").flatMap((op) => ((op.args.list ?? []) as { name: string; tier: string }[]).filter((x) => !/^(left|leave|leaves|off|away|gone|exit\w*)$/.test(x.tier)).flatMap((x) => f.each(x.name).map((n) => norm(personName(n))))),
-  );
+  return reachOn(new Folder(cfg, structuredClone(state)), ops, text, quiet);
+}
+
+/** groupReach on a fold that's already at the moment before the reply (the sweep's own, read only). */
+export function reachOn(f: Folder, ops: Op[], text: string, quiet: string[] = []): Op[] {
+  // Anyone this reply's cast lines name, even someone leaving: they were in it for some of it.
+  const inCast = new Set(ops.filter((op) => op.op === "cast").flatMap((op) => ((op.args.list ?? []) as { name: string }[]).flatMap((x) => f.each(x.name).map((n) => norm(personName(n))))));
+  const castIds = new Set([...inCast].map((n) => f.findChar(n)?.id).filter(Boolean));
+  const castHas = (name: string) => inCast.has(norm(personName(name))) || castIds.has(f.findChar(name)?.id);
   const reached = (name: string) => {
-    if (arriving.has(norm(personName(name)))) return true;
+    if (castHas(name)) return true;
     const c = f.findChar(name);
     if (!c) return mentions(text, personName(name));
     if (c.dead) return false;
@@ -2488,7 +2493,7 @@ export function groupReach(ops: Op[], state: WorldState, cfg: FoldConfig, text: 
       }
       // docs/31 3.1: "everyone" is the scene, but not someone it hasn't named in a while (unless this reply does).
       if (w.kind === "crowd") {
-        if (op.op === "know") away.push(...quiet.filter((n) => !mentions(text, n)));
+        if (op.op === "know") away.push(...quiet.filter((n) => !mentions(text, n) && !castHas(n)));
         continue;
       }
       if (w.kind !== "many") continue;
