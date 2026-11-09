@@ -262,6 +262,19 @@ export async function runTrackerInit(p: { chatId: string }, job?: JobContext) {
   writeEvents(p.chatId, { messageId: null, swipeIdx: 0 }, parseLedger(res.text).ops, "init");
 }
 
+/**
+ * docs/31: who a reply's lines reached, the way they're filed: against the story just before it, the
+ * messages the tracker read with it, and who had gone quiet. The tracker update does this inline (it
+ * has the pieces already); inline ledgers and the golden scenarios file through here.
+ */
+export function reachForReply(chatId: string, messageId: string, ops: Op[]): Op[] {
+  const msg = getMessageRow(messageId);
+  const text = msg ? messagesFor(chatId, messageId, { user: "", char: "" }) : null;
+  if (!msg || text == null) return ops;
+  const before = foldAt(chatId, { uptoSeq: msg.seq - 1 }).state;
+  return groupReach(ops, before, foldConfigFor(chatId), text, quietPeople(chatId, before, { uptoSeq: msg.seq - 1 }).map((q) => q.name));
+}
+
 // ---------- inline ledgers ----------
 
 /**
@@ -271,13 +284,7 @@ export async function runTrackerInit(p: { chatId: string }, job?: JobContext) {
 export function fileInlineLedger(chatId: string, messageId: string, swipeIdx: number, ledger: string | null) {
   const parsed = ledger ? parseLedger(ledger) : null;
   if (parsed?.ops.length) {
-    // Who its group lines reached: the reply and the message it answers.
-    const msg = getMessageRow(messageId);
-    const cfg = trackerConfig(chatId);
-    const text = msg ? messagesFor(chatId, messageId, { user: "", char: "" }) : null;
-    const before = msg ? foldAt(chatId, { uptoSeq: msg.seq - 1 }).state : null;
-    const ops = msg && before && text != null ? groupReach(parsed.ops, before, foldConfigFor(chatId, cfg), text, quietPeople(chatId, before, { uptoSeq: msg.seq - 1 }).map((q) => q.name)) : parsed.ops;
-    writeEvents(chatId, { messageId, swipeIdx }, ops, "inline", { replace: ["inline", "model"] });
+    writeEvents(chatId, { messageId, swipeIdx }, reachForReply(chatId, messageId, parsed.ops), "inline", { replace: ["inline", "model"] });
     afterUpdate(chatId, messageId, swipeIdx);
   } else enqueue("tracker.update", { chatId, messageId, swipeIdx }, { dedupeKey: `tracker.update:${messageId}:${swipeIdx}`, priority: 5, chatId });
 }

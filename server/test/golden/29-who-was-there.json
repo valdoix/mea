@@ -1,0 +1,54 @@
+{
+  "name": "who-was-there",
+  "card": {
+    "name": "Buffy Summers",
+    "description": "The Slayer. Lives at the Winters house in the hills above Sunnydale.",
+    "first_mes": "Lunch is on Gabriel."
+  },
+  "user": "Gabriel Winters",
+  "about": "Knowledge reaches only the people a reply did: a line said at lunch, filed for the Scoobies when none of them was there, teaches none of them; the people at the table and a text to the group still count.",
+  "ledger": [
+    "clock: Day 1 12:30",
+    "at: Sunnydale › Winters Residence › kitchen",
+    "cast: Buffy Summers@spot · Walter@spot · Spike@spot",
+    "cast: the Scoobies (Willow, Xander, Anya, Tara)@off"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I plate the tacos."
+    }
+  ],
+  "reply": "Walter set down his taco. \"You two are Tom Paris and B'elanna Torres.\" Spike admitted he only watches Passions, and Buffy ruled that film Fridays were now mandatory.",
+  "after": {
+    "lines": [
+      "know @Scoobies: #paris Walter compares Gabriel and Buffy to Tom Paris and B'elanna Torres | he said it at the table · knows · true",
+      "know Walter, Spike, Buffy Summers: #paris Walter compares Gabriel and Buffy to Tom Paris and B'elanna Torres | he said it at the table · knows · true",
+      "know @Scoobies: #fridays film Fridays are mandatory | Buffy texted them · knows · true"
+    ],
+    "expect": [
+      {
+        "path": "facts.paris.stances.spike.status",
+        "equals": "knows"
+      },
+      {
+        "path": "facts.paris.stances.walter.status",
+        "equals": "knows"
+      },
+      {
+        "path": "facts.fridays.stances.willow.status",
+        "equals": "knows"
+      },
+      {
+        "path": "facts.fridays.stances.willow.route",
+        "equals": "Buffy texted them, via the Scoobies"
+      }
+    ],
+    "none": [
+      "facts.paris.stances.willow",
+      "facts.paris.stances.xander",
+      "facts.paris.stances.anya",
+      "facts.paris.stances.tara"
+    ]
+  }
+}

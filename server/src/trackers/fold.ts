@@ -707,7 +707,7 @@ export class Folder {
         why.push(`${w.group} is a group: write it for each of them`);
         continue;
       }
-      const via = w.as === "faction" && op.op === "know" ? `via the ${w.group}` : undefined;
+      const via = w.as === "faction" && op.op === "know" ? `via the ${w.group.replace(/^the\s+/i, "")}` : undefined;
       // Members the reply never reached (groupReach, when the line was filed) don't learn it.
       let names = w.names;
       const unreached = REACH_OPS.has(op.op) && Array.isArray(op.args.away) ? (op.args.away as string[]).map(norm) : [];

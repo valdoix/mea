@@ -17,6 +17,7 @@ import { addMessage, createChat, getMessageRow, historyForPrompt, softDeleteChat
 import { previewPrompt, startStory } from "../services/generation";
 import { createPersona } from "../services/personas";
 import { advisorExtra, advisorInput, runAdvisor, steerFor } from "../steer/advisor";
+import { reachForReply } from "../trackers/service";
 import { currentFold, dryRunOps, linesToOps, writeEvents } from "../trackers/store";
 import type { Op } from "../trackers/types";
 
@@ -217,7 +218,9 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
     }
 
     if (s.after) {
-      writeEvents(chatId, { messageId: replyId ?? addMessage(chatId, "assistant", "…", { name: s.card.name }), swipeIdx: 0 }, linesToOps(s.after.lines).ops, "model");
+      // Filed the way a tracker's lines for this reply are (docs/31: who the reply reached).
+      const at = replyId ?? addMessage(chatId, "assistant", "…", { name: s.card.name });
+      writeEvents(chatId, { messageId: at, swipeIdx: 0 }, reachForReply(chatId, at, linesToOps(s.after.lines).ops), "model");
       const st = currentFold(chatId).result.state;
       for (const e of s.after.expect) {
         const vs = pathValues(st, e.path);
