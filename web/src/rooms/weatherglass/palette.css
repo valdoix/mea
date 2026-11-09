@@ -1,24 +1,26 @@
 /* ---------- Weatherglass: the room keeps the story's weather ---------- */
+/* An instrument case of limed oak and brass by day (ebonized by night), a window onto the sky, and
+   frosted glass over it. Prussian blue for speech, storm violet for thought. */
 :root[data-theme="weatherglass"] {
   color-scheme: light;
-  --bg: #dfe8ea;
-  --surface: #f7f9f7;
+  --bg: #e3eaea;
+  --surface: #fafbf9;
   --surface-2: #eef2f0;
   --surface-3: #dfe6e4;
   --border: #c9d3d3;
   --border-strong: #7f9093;
-  --text: #172731;
-  --text-muted: #3e505c;
+  --text: #15232f;
+  --text-muted: #3d4f5c;
   --text-faint: #566874;
-  --dialogue: #1f5e80;
-  --thought: #56507a;
+  --dialogue: #1c4f74;
+  --thought: #5a4f86;
   --action: #33434e;
-  --accent: #1f5e80;
-  --accent-strong: #174c69;
-  --accent-ink: #1f5e80;
+  --accent: #1c4f74;
+  --accent-strong: #163f5d;
+  --accent-ink: #1c4f74;
   --on-accent: #ffffff;
-  --tint-char: #f7f9f7;
-  --tint-user: #e7f0f2;
+  --tint-char: #fafbf9;
+  --tint-user: #e2ecf3;
   --tint-note: #f4ecd2;
   --lavender: #d9cfe6;
   --mint: #cfe0d4;
@@ -31,25 +33,30 @@
   --ok-bg: #dcebe0;
   --warn: #6f520e;
   --warn-bg: #f5ead0;
-  --shadow-1: 0 1px 2px rgb(23 39 49 / 8%), 0 14px 30px -18px rgb(23 39 49 / 40%);
+  --shadow-1:
+    0 1px 2px rgb(23 39 49 / 8%), 0 14px 30px -18px rgb(23 39 49 / 40%);
   --shadow-2: 0 30px 60px -28px rgb(23 39 49 / 45%);
   --scrim: rgb(23 39 49 / 50%);
-  --focus: 0 0 0 3px rgb(31 94 128 / 45%);
-  --glass: rgb(247 249 247 / 82%);
-  --sig1: #1f5e80;
-  --sig2: #56507a;
-  --lamp: #174c69;
-  --rose: #1f5e80;
-  --sea: #56507a;
+  --focus: 0 0 0 3px rgb(28 79 116 / 45%);
+  --glass: rgb(250 251 249 / 76%);
+  --sig1: #1c4f74;
+  --sig2: #5a4f86;
+  --lamp: #b5853a;
+  --rose: #1c4f74;
+  --sea: #5a4f86;
   --hi: #172731;
   --lo: #2a2018;
   --pop: #f7f9f7;
   --well: rgb(223 230 228 / 70%);
   --knob: #fff;
   --knob-on: #ffffff;
-  --grad: linear-gradient(135deg, #174c69, #1f5e80);
-  --grad-warm: linear-gradient(135deg, #1f5e80, #174c69);
-  --pane: linear-gradient(160deg, rgb(247 249 247 / 62%), rgb(238 242 240 / 62%));
+  --grad: linear-gradient(135deg, #163f5d, #1c4f74);
+  --grad-warm: linear-gradient(135deg, #b5853a, #8a6224);
+  --pane: linear-gradient(
+    160deg,
+    rgb(250 251 249 / 66%),
+    rgb(238 242 240 / 66%)
+  );
   --edge: rgb(127 144 147 / 32%);
   --fill: rgb(23 39 49 / 5%);
   --fill-2: rgb(23 39 49 / 9%);
@@ -58,9 +65,15 @@
   --r-sm: 6px;
   --r: 12px;
   --r-lg: 18px;
-  --slate: #2c4150;
-  --brass: #c49a4a;
-  --brass-hi: #ecd08a;
+  --slate: #22384a;
+  --brass: #b5853a;
+  --brass-hi: #efd391;
+  --case: #ebe4d4;
+  --case-2: #ddd2bc;
+  --case-ink: #2a2f33;
+  --steel: #24426e;
+  --face: #f8f3e6;
+  --mull: rgb(255 255 255 / 38%);
 }
 /* The fonts at :where() strength: this palette loads late, and the font picks must still win. */
 :root:where([data-theme="weatherglass"]) {
@@ -71,7 +84,7 @@
 }
 :root[data-theme="weatherglass"][data-mode="night"] {
   color-scheme: dark;
-  --bg: #0f1723;
+  --bg: #0b131e;
   --surface: #16202c;
   --surface-2: #1d2935;
   --surface-3: #27343f;
@@ -80,12 +93,12 @@
   --text: #e7eff4;
   --text-muted: #b9c8d1;
   --text-faint: #91a3ad;
-  --dialogue: #8fcbe8;
-  --thought: #c1b7e0;
+  --dialogue: #9fd0ea;
+  --thought: #c5b9ec;
   --action: #cfdbe2;
-  --accent: #8fcbe8;
+  --accent: #9fd0ea;
   --accent-strong: #a9d9ef;
-  --accent-ink: #8fcbe8;
+  --accent-ink: #9fd0ea;
   --on-accent: #08131c;
   --tint-char: #15202b;
   --tint-user: #1b2a36;
@@ -105,12 +118,12 @@
   --shadow-2: 0 30px 60px -20px rgb(0 0 0 / 90%);
   --scrim: rgb(0 0 0 / 70%);
   --focus: 0 0 0 3px rgb(143 203 232 / 45%);
-  --glass: rgb(22 32 44 / 78%);
-  --sig1: #8fcbe8;
-  --sig2: #c1b7e0;
-  --lamp: #a9d9ef;
-  --rose: #8fcbe8;
-  --sea: #c1b7e0;
+  --glass: rgb(14 22 34 / 70%);
+  --sig1: #9fd0ea;
+  --sig2: #c5b9ec;
+  --lamp: #d9ad5c;
+  --rose: #9fd0ea;
+  --sea: #c5b9ec;
   --hi: #e7eff4;
   --lo: #000000;
   --pop: #16202c;
@@ -118,14 +131,20 @@
   --knob: #e7eff4;
   --knob-on: #08131c;
   --grad: linear-gradient(135deg, #a9d9ef, #8fcbe8);
-  --grad-warm: linear-gradient(135deg, #8fcbe8, #a9d9ef);
-  --pane: linear-gradient(160deg, rgb(22 32 44 / 62%), rgb(29 41 53 / 62%));
+  --grad-warm: linear-gradient(135deg, #f3d796, #d9ad5c);
+  --pane: linear-gradient(160deg, rgb(14 22 34 / 62%), rgb(28 40 54 / 62%));
   --edge: rgb(92 116 128 / 32%);
   --fill: rgb(231 239 244 / 5%);
   --fill-2: rgb(231 239 244 / 9%);
   --recap-ink: #b9c8d1;
   --on-warm: #08131c;
   --slate: #10171f;
-  --brass: #d3a753;
-  --brass-hi: #ecd08a;
+  --brass: #d9ad5c;
+  --brass-hi: #f3d796;
+  --case: #161c24;
+  --case-2: #0b0f14;
+  --case-ink: #dde5ea;
+  --steel: #6f9ccf;
+  --face: #efe6cd;
+  --mull: rgb(10 16 24 / 55%);
 }

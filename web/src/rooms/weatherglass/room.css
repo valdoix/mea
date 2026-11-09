@@ -1,25 +1,51 @@
 /* =====================================================================
    WEATHERGLASS — the room keeps the story's weather
    The window behind everything follows the scene: clear, cloud, rain, fog, snow or storm.
-   Slate and barometer brass; the rail's mark is a barometer whose needle moves with the sky.
+   The rail is an instrument case (limed oak by day, ebonized by night) whose mark is an aneroid
+   barometer: a blued-steel needle that reads the sky and a brass set hand left on the last
+   reading. A barograph trace runs under the header, the cards are frosted glass that beads with
+   rain and caps with snow, and chapters sit on isobars.
    ===================================================================== */
 :root[data-theme="weatherglass"][data-shell] {
-  --needle: 50deg;
+  --needle: 57deg;
+  --set: 57deg;
+  --trace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='14' preserveAspectRatio='none'%3E%3Cpath d='M0 12C40 11 80 9 120 7S200 3 240 2' fill='none' stroke='%235b4aa8' stroke-width='1.3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
 }
 :root[data-theme="weatherglass"][data-shell][data-wx="cloudy"] {
-  --needle: 12deg;
+  --needle: 4deg;
+  --trace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='14' preserveAspectRatio='none'%3E%3Cpath d='M0 7C40 6 80 8 120 7S200 6 240 8' fill='none' stroke='%235b4aa8' stroke-width='1.3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
 }
 :root[data-theme="weatherglass"][data-shell][data-wx="fog"] {
-  --needle: -6deg;
+  --needle: -18deg;
+  --trace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='14' preserveAspectRatio='none'%3E%3Cpath d='M0 7C40 7 80 8 120 8S200 7 240 8' fill='none' stroke='%235b4aa8' stroke-width='1.3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
 }
 :root[data-theme="weatherglass"][data-shell][data-wx="snow"] {
-  --needle: -18deg;
+  --needle: -42deg;
+  --trace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='14' preserveAspectRatio='none'%3E%3Cpath d='M0 3C40 5 80 8 120 10S200 11 240 11' fill='none' stroke='%235b4aa8' stroke-width='1.3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
 }
 :root[data-theme="weatherglass"][data-shell][data-wx="rain"] {
-  --needle: -32deg;
+  --needle: -60deg;
+  --trace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='14' preserveAspectRatio='none'%3E%3Cpath d='M0 2C40 3 80 5 120 8S200 11 240 12' fill='none' stroke='%235b4aa8' stroke-width='1.3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
 }
 :root[data-theme="weatherglass"][data-shell][data-wx="storm"] {
-  --needle: -68deg;
+  --needle: -108deg;
+  --trace: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='14' preserveAspectRatio='none'%3E%3Cpath d='M0 1C40 2 80 4 120 8S200 12 240 13' fill='none' stroke='%235b4aa8' stroke-width='1.3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+}
+/* the brass set hand stays where the needle was before the weather turned */
+:root[data-theme="weatherglass"][data-shell][data-wx-prev="cloudy"] {
+  --set: 4deg;
+}
+:root[data-theme="weatherglass"][data-shell][data-wx-prev="fog"] {
+  --set: -18deg;
+}
+:root[data-theme="weatherglass"][data-shell][data-wx-prev="snow"] {
+  --set: -42deg;
+}
+:root[data-theme="weatherglass"][data-shell][data-wx-prev="rain"] {
+  --set: -60deg;
+}
+:root[data-theme="weatherglass"][data-shell][data-wx-prev="storm"] {
+  --set: -108deg;
 }
 :root[data-theme="weatherglass"][data-shell] h1 {
   font-weight: 600;
@@ -51,27 +77,77 @@
 :root[data-theme="weatherglass"][data-shell] .switch input:checked {
   background: var(--brass);
 }
+/* the rail: an instrument case, limed oak by day and ebonized at night, with a brass edge */
 :root[data-theme="weatherglass"][data-shell] nav.rail {
+  --text-faint: color-mix(in srgb, var(--case-ink) 72%, transparent);
   border: 0;
-  color: #d7e2e7;
-  background: var(--slate);
-  box-shadow: var(--shadow-2);
+  color: var(--case-ink);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--case) 84%, transparent),
+      color-mix(in srgb, var(--case) 74%, transparent) 50%,
+      color-mix(in srgb, var(--case) 84%, transparent)
+    ),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='480'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.32 .011' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")
+      0 0 / 240px 480px,
+    linear-gradient(90deg, var(--case-2), var(--case) 20% 80%, var(--case-2));
+  box-shadow:
+    inset -3px 0 0 var(--brass),
+    inset -4px 0 0 rgb(0 0 0 / 18%),
+    var(--shadow-2);
+}
+:root[data-theme="weatherglass"][data-mode="night"] nav.rail {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(22 28 36 / 55%),
+      rgb(22 28 36 / 35%) 50%,
+      rgb(22 28 36 / 55%)
+    ),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='480'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.32 .011' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")
+      0 0 / 240px 480px,
+    linear-gradient(90deg, var(--case-2), var(--case) 20% 80%, var(--case-2));
 }
 :root[data-theme="weatherglass"][data-shell] nav.rail .nav {
-  color: #d7e2e7;
+  --text: var(--case-ink);
+}
+:root[data-theme="weatherglass"][data-shell] nav.rail .tip {
+  --text: #15232f;
+  --text-faint: #566874;
+}
+:root[data-theme="weatherglass"][data-mode="night"] nav.rail .tip {
+  --text: #e7eff4;
+  --text-faint: #91a3ad;
 }
 :root[data-theme="weatherglass"][data-shell] nav.rail .nav.on {
-  background: rgb(255 255 255 / 12%);
-  color: var(--brass-hi) !important;
+  background: color-mix(in srgb, var(--brass) 20%, transparent);
+  color: var(--case-ink) !important;
+  box-shadow: inset 3px 0 0 var(--brass);
 }
-/* the mark: a little barometer, needle reading the sky */
+/* the mark: an aneroid barometer — brass bezel, a ring of ticks, a blued-steel needle reading the
+   sky, and a brass set hand (a thin wedge from the centre) left on the last reading */
 :root[data-theme="weatherglass"][data-shell] nav.rail .logo {
   position: relative;
   border-radius: 50%;
-  background: #f4eedc;
+  background:
+    radial-gradient(circle, var(--brass) 0 3px, transparent 3.5px),
+    conic-gradient(
+        from calc(var(--set) - 2deg),
+        var(--brass) 0 4deg,
+        transparent 4deg
+      )
+      50% 50% / 76% 76% no-repeat,
+    radial-gradient(
+      circle at 50% 42%,
+      var(--face) 60%,
+      color-mix(in srgb, var(--face) 80%, #7a6a4a)
+    );
   box-shadow:
-    inset 0 0 0 3px var(--brass),
-    0 3px 10px rgb(0 0 0 / 40%);
+    inset 0 0 0 2px #5e4316,
+    inset 0 0 0 4px var(--brass-hi),
+    inset 0 0 0 5px var(--brass),
+    0 4px 12px rgb(0 0 0 / 40%);
   animation: none;
 }
 :root[data-theme="weatherglass"][data-shell] nav.rail .logo:hover {
@@ -80,24 +156,46 @@
 :root[data-theme="weatherglass"][data-shell] nav.rail .logo::before {
   content: "";
   position: absolute;
-  inset: 8px;
+  inset: 7px;
   border-radius: 50%;
-  background: repeating-conic-gradient(from -90deg, #2a2118 0 3deg, transparent 3deg 45deg);
-  -webkit-mask: radial-gradient(closest-side, transparent 78%, #000 80%);
-  mask: radial-gradient(closest-side, transparent 78%, #000 80%);
+  background: repeating-conic-gradient(
+    from -130deg,
+    #2a2118 0 1.5deg,
+    transparent 1.5deg 10deg
+  );
+  -webkit-mask:
+    conic-gradient(from -132deg, #000 0 264deg, transparent 0),
+    radial-gradient(closest-side, transparent 74%, #000 76%);
+  -webkit-mask-composite: source-in;
+  mask:
+    conic-gradient(from -132deg, #000 0 264deg, transparent 0),
+    radial-gradient(closest-side, transparent 74%, #000 76%);
+  mask-composite: intersect;
 }
 :root[data-theme="weatherglass"][data-shell] nav.rail .logo::after {
   content: "";
   position: absolute;
   left: calc(50% - 1.5px);
-  top: 9px;
+  top: 8px;
   bottom: 50%;
   width: 3px;
   border-radius: 2px 2px 0 0;
-  background: #8a1f28;
+  background: linear-gradient(var(--steel), #1b2f4f);
   transform: rotate(var(--needle));
   transform-origin: 50% 100%;
-  transition: transform 1.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+  transition: transform 1.6s cubic-bezier(0.3, 1.5, 0.55, 1);
+}
+/* your open stories: portholes with a brass rim; the open one catches the light */
+:root[data-theme="weatherglass"][data-shell] nav.rail .story .avatar {
+  box-shadow:
+    0 0 0 2px var(--brass),
+    0 3px 8px rgb(0 0 0 / 30%);
+}
+:root[data-theme="weatherglass"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 2px var(--brass-hi),
+    0 0 0 4px var(--brass),
+    0 0 16px color-mix(in srgb, var(--brass-hi) 60%, transparent);
 }
 :root[data-theme="weatherglass"][data-shell] .main-col,
 :root[data-theme="weatherglass"][data-shell] .dock {
@@ -105,9 +203,48 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
+/* a barograph trace along the foot of the header: rising, steady or falling with the sky */
+:root[data-theme="weatherglass"][data-shell] .bar:not(.compact) {
+  position: relative;
+  padding-bottom: calc(0.55rem + 16px);
+}
+:root[data-theme="weatherglass"][data-shell] .bar:not(.compact)::after {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 6px;
+  height: 14px;
+  border-radius: 3px;
+  pointer-events: none;
+  background:
+    var(--trace) 0 0 / 100% 100% no-repeat,
+    linear-gradient(90deg, rgb(91 74 168 / 16%) 1px, transparent 1px) 0 0 / 24px
+      100%,
+    linear-gradient(0deg, rgb(91 74 168 / 12%) 1px, transparent 1px) 0 0 / 100%
+      5px,
+    rgb(251 248 239 / 55%);
+  box-shadow: inset 0 0 0 1px rgb(91 74 168 / 22%);
+}
+:root[data-theme="weatherglass"][data-mode="night"] .bar:not(.compact)::after {
+  background:
+    var(--trace) 0 0 / 100% 100% no-repeat,
+    linear-gradient(90deg, rgb(170 160 230 / 14%) 1px, transparent 1px) 0 0 /
+      24px 100%,
+    linear-gradient(0deg, rgb(170 160 230 / 10%) 1px, transparent 1px) 0 0 /
+      100% 5px,
+    rgb(240 236 225 / 8%);
+  filter: brightness(1.8) saturate(0.8);
+}
 :root[data-theme="weatherglass"][data-shell] .bar .cname {
-  font: 600 1.7rem/1.1 var(--font-display);
+  font: italic 500 1.75rem/1.1 var(--font-display);
   color: var(--text);
+}
+:root[data-theme="weatherglass"][data-shell] .bar .pic .avatar {
+  border-radius: 50% !important;
+  box-shadow:
+    0 0 0 2px var(--brass),
+    0 0 0 4px var(--surface);
 }
 :root[data-theme="weatherglass"][data-shell] .bar .cname .ctitle {
   font: italic 400 0.98rem var(--font-story-theme);
@@ -128,10 +265,66 @@
 :root[data-theme="weatherglass"][data-shell] .style-cards .msg .bubble::before {
   display: none;
 }
+/* rain beads on the glass; fog makes it more solid; snow settles along the top */
+:root[data-theme="weatherglass"][data-shell][data-wx="rain"]
+  .style-cards
+  .msg
+  .bubble::after,
+:root[data-theme="weatherglass"][data-shell][data-wx="storm"]
+  .style-cards
+  .msg
+  .bubble::after {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  left: 0;
+  top: 0;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120'%3E%3Cg fill='%23fff' fill-opacity='.35' stroke='%235a7890' stroke-opacity='.25' stroke-width='.6'%3E%3Ccircle cx='18' cy='20' r='2.6'/%3E%3Ccircle cx='120' cy='14' r='1.8'/%3E%3Cellipse cx='70' cy='60' rx='2' ry='3'/%3E%3Ccircle cx='146' cy='88' r='2.4'/%3E%3Ccircle cx='34' cy='100' r='1.6'/%3E%3C/g%3E%3C/svg%3E")
+    0 0 / 160px 120px;
+  opacity: 0.6;
+}
+:root[data-theme="weatherglass"][data-mode="night"]
+  .style-cards
+  .msg
+  .bubble::after {
+  opacity: 0.22;
+}
+:root[data-theme="weatherglass"][data-shell][data-wx="fog"]
+  .style-cards
+  .msg
+  .bubble {
+  background: color-mix(in srgb, var(--tint-char) 94%, transparent);
+}
+:root[data-theme="weatherglass"][data-shell][data-wx="snow"]
+  .style-cards
+  .msg
+  .bubble::before,
+:root[data-theme="weatherglass"][data-shell][data-wx="snow"] .composer::before {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: -7px;
+  width: auto;
+  height: 11px;
+  border-radius: 8px 8px 3px 3px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 100%, #fff 0 6px, transparent 6.5px) 0 0 /
+      15px 11px repeat-x,
+    linear-gradient(#fff, #fff) 0 100% / 100% 5px no-repeat;
+  filter: drop-shadow(0 1px 1px rgb(60 80 100 / 25%));
+  z-index: 2;
+}
 :root[data-theme="weatherglass"][data-shell] .msg .name {
-  font: 600 0.74rem/1.2 var(--font-deco);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font: italic 500 1.05rem/1.2 var(--font-display);
+  letter-spacing: 0;
   color: var(--accent-ink) !important;
 }
 :root[data-theme="weatherglass"][data-shell] .msg .portrait {
@@ -146,23 +339,62 @@
 :root[data-theme="weatherglass"][data-shell] .msg .prose em {
   color: var(--text-muted);
 }
+/* chapters sit on isobars */
+:root[data-theme="weatherglass"][data-shell] .chapter-h::before {
+  top: 50%;
+  width: min(44rem, 96%);
+  height: 70px;
+  transform: translate(-50%, -50%);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 70' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%2315232f' stroke-opacity='.3' stroke-width='1.1' vector-effect='non-scaling-stroke'%3E%3Cpath d='M0 12C120 4 200 34 300 26S480 6 600 16'/%3E%3Cpath d='M0 36C120 28 200 56 300 48S480 30 600 38'/%3E%3Cpath d='M0 60C120 54 200 70 300 66S480 54 600 60'/%3E%3C/g%3E%3C/svg%3E")
+    0 0 / 100% 100% no-repeat;
+}
+:root[data-theme="weatherglass"][data-mode="night"] .chapter-h::before {
+  filter: invert(1);
+}
+:root[data-theme="weatherglass"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
 :root[data-theme="weatherglass"][data-shell] .ch-title {
-  font: 600 1.6rem/1.15 var(--font-display);
+  padding: 0.25rem 1.2rem 0.35rem;
+  border-radius: 999px;
+  font: italic 500 1.6rem/1.15 var(--font-display);
+  background: var(--glass);
+  border: 1px solid var(--edge);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 :root[data-theme="weatherglass"][data-shell] .ch-num {
   font: 600 0.72rem var(--font-deco);
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
+:root[data-theme="weatherglass"][data-shell] .ch-num b {
+  color: var(--brass);
+}
 :root[data-theme="weatherglass"][data-shell] .composer {
+  position: relative;
+  border-radius: 18px;
   border: 1px solid var(--edge);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
+/* send: a knurled brass knob */
 :root[data-theme="weatherglass"][data-shell] .send.primary {
-  background: var(--slate);
-  color: var(--brass-hi);
-  box-shadow: inset 0 0 0 1.5px var(--brass);
+  border-radius: 50%;
+  border: 0;
+  color: #2a2010;
+  background:
+    radial-gradient(
+      circle at 36% 30%,
+      #fff3cc 0 6%,
+      var(--brass-hi) 24%,
+      var(--brass) 56%,
+      transparent 57%
+    ),
+    repeating-conic-gradient(var(--brass) 0 6deg, #7a5520 6deg 12deg);
+  box-shadow:
+    0 6px 12px -5px rgb(0 0 0 / 55%),
+    0 0 0 1px rgb(0 0 0 / 30%);
 }
 :root[data-theme="weatherglass"][data-shell] .continue {
   border: 1px solid var(--edge);
@@ -225,13 +457,19 @@
 }
 .a-weatherglass .sun {
   opacity: 0;
-  background: radial-gradient(38vmin 38vmin at 84% 8%, #fff6cf, rgb(255 226 138 / 33%) 45%, transparent 72%);
+  background: radial-gradient(
+    38vmin 38vmin at 84% 8%,
+    #fff6cf,
+    rgb(255 226 138 / 33%) 45%,
+    transparent 72%
+  );
 }
 .a-weatherglass.night .sun {
   background:
     radial-gradient(5vmin 5vmin at 84% 12%, #f4efdc 0 58%, transparent 60%),
     radial-gradient(circle, #fff 1px, transparent 1.5px) 0 0 / 93px 71px,
-    radial-gradient(circle, #cfe2ff 1px, transparent 1.5px) 40px 30px / 127px 113px;
+    radial-gradient(circle, #cfe2ff 1px, transparent 1.5px) 40px 30px / 127px
+      113px;
 }
 .a-weatherglass.w-fair .sun {
   opacity: 1;
@@ -294,8 +532,18 @@
   inset: -130px 0 0;
   opacity: 0;
   background:
-    repeating-linear-gradient(101deg, transparent 0 13px, rgb(210 232 245 / 42%) 13px 14px, transparent 14px 31px),
-    repeating-linear-gradient(97deg, transparent 0 23px, rgb(210 232 245 / 26%) 23px 24px, transparent 24px 57px);
+    repeating-linear-gradient(
+      101deg,
+      transparent 0 13px,
+      rgb(210 232 245 / 42%) 13px 14px,
+      transparent 14px 31px
+    ),
+    repeating-linear-gradient(
+      97deg,
+      transparent 0 23px,
+      rgb(210 232 245 / 26%) 23px 24px,
+      transparent 24px 57px
+    );
   will-change: transform;
   animation: wg-rain 0.55s linear infinite;
 }
@@ -330,7 +578,8 @@
   background:
     radial-gradient(circle, #fff 2.2px, transparent 2.8px) 0 0 / 80px 80px,
     radial-gradient(circle, #fff 1.4px, transparent 2px) 30px 20px / 53px 53px,
-    radial-gradient(circle, rgb(255 255 255 / 75%) 1px, transparent 1.6px) 12px 44px / 40px 40px;
+    radial-gradient(circle, rgb(255 255 255 / 75%) 1px, transparent 1.6px) 12px
+      44px / 40px 40px;
   will-change: transform;
   animation: wg-snow 16s linear infinite;
 }
@@ -341,6 +590,78 @@
   to {
     transform: translate(40px, 320px);
   }
+}
+/* the window itself: a sash bar and frame, a little mist at the sill, and a fork of lightning in a gale */
+.a-weatherglass .mull {
+  inset: 0;
+  transition: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent calc(58% - 4px),
+      var(--mull) calc(58% - 4px) calc(58% + 4px),
+      transparent 0
+    ),
+    linear-gradient(
+      180deg,
+      transparent calc(40% - 4px),
+      var(--mull) calc(40% - 4px) calc(40% + 4px),
+      transparent 0
+    );
+  box-shadow: inset 0 0 0 14px var(--mull);
+}
+.a-weatherglass .mist {
+  inset: 0;
+  opacity: 0.3;
+  background:
+    radial-gradient(
+      120% 45% at 50% 112%,
+      rgb(255 255 255 / 60%),
+      transparent 60%
+    ),
+    radial-gradient(40% 40% at 0 0, rgb(255 255 255 / 35%), transparent);
+}
+.a-weatherglass.night .mist {
+  background: radial-gradient(
+    120% 45% at 50% 112%,
+    rgb(170 190 210 / 22%),
+    transparent 60%
+  );
+}
+.a-weatherglass.w-rain .mist,
+.a-weatherglass.w-storm .mist {
+  opacity: 0.65;
+}
+.a-weatherglass.w-fog .mist {
+  opacity: 1;
+}
+.a-weatherglass .bolt {
+  display: none;
+  left: auto;
+  right: 18%;
+  top: 0;
+  width: 70px;
+  height: 260px;
+  inset-inline-start: auto;
+  background: #eef2ff;
+  clip-path: polygon(
+    56% 0,
+    30% 36%,
+    53% 36%,
+    17% 68%,
+    37% 68%,
+    3% 100%,
+    70% 56%,
+    47% 56%,
+    77% 30%,
+    53% 30%
+  );
+  filter: drop-shadow(0 0 8px #c8d4ff);
+  transition: none;
+}
+.a-weatherglass.w-storm .bolt {
+  display: block;
+  animation: wg-flash 11s infinite;
 }
 .a-weatherglass .flash {
   display: none;
@@ -378,7 +699,15 @@
 .a-weatherglass.still *::after {
   animation: none !important;
 }
+@media (max-width: 760px) {
+  .a-weatherglass .mull {
+    display: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  :root[data-theme="weatherglass"][data-shell] nav.rail .logo::after {
+    transition: none;
+  }
   .a-weatherglass *,
   .a-weatherglass *::before,
   .a-weatherglass *::after {
