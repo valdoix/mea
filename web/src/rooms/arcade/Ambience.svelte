@@ -3,8 +3,9 @@
   import { route } from "../../lib/router.svelte";
   import { app } from "../../lib/state.svelte";
 
-  // Arcade Afterhours: by day the cabinet's sunburst and racing stripes, by night a vector grid
-  // rolling toward you under green mountains, scanlines on the glass, and pixel invaders drifting by.
+  // Arcade Afterhours: by day the cabinet's printed art (a sunburst, halftone dots, racing stripes),
+  // by night a striped sun setting behind a grape grid that rolls toward you, scanlines on the
+  // glass, and pixel invaders drifting by.
   const SPRITE = ["..X.....X..", "...X...X...", "..XXXXXXX..", ".XX.XXX.XX.", "XXXXXXXXXXX", "X.XXXXXXX.X", "X.X.....X.X", "...XX.XX..."];
   const INVADER = SPRITE.flatMap((row, y) => [...row].map((c, x) => (c === "X" ? `M${x} ${y}h1v1h-1z` : ""))).join("");
   const SHIPS = [
@@ -17,12 +18,14 @@
 {#if app.night}
   <i class="haze"></i>
   <i class="stars"></i>
-  <svg class="peaks" viewBox="0 0 1200 160" preserveAspectRatio="none"><polyline points="0,160 80,90 150,120 240,40 330,110 400,70 470,130 560,30 650,100 720,60 800,120 880,50 960,110 1040,70 1120,120 1200,80" /></svg>
+  <i class="sun"></i>
   <div class="floor"><i class="grid"></i></div>
   {#if device.grain}<i class="scan"></i>{/if}
   <i class="vignette"></i>
 {:else}
   <i class="burst"></i>
+  <i class="dots"></i>
+  <i class="sun day"></i>
   <i class="stripes"></i>
   {#if device.grain}<i class="wood l"></i><i class="wood r"></i>{/if}
 {/if}
@@ -47,21 +50,50 @@
     mask: radial-gradient(closest-side, #000 30%, transparent);
     animation: turn 160s linear infinite;
   }
+  .dots {
+    inset: 0;
+    background: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--p3) 16%, transparent) 1px, transparent 1.6px) 0 0 / 9px 9px;
+    -webkit-mask: radial-gradient(90% 80% at 50% 100%, #000, transparent 75%);
+    mask: radial-gradient(90% 80% at 50% 100%, #000, transparent 75%);
+  }
   .stripes {
     left: -10vw;
     right: -10vw;
     bottom: 16vh;
     height: 64px;
     rotate: -8deg;
-    background: linear-gradient(var(--p1) 0 25%, var(--p2) 25% 50%, var(--p3) 50% 75%, var(--p4) 75%);
+    background: linear-gradient(var(--p1) 0 25%, var(--orange) 25% 50%, var(--p2) 50% 75%, var(--p3) 75%);
     opacity: 0.22;
+  }
+  /* a striped sun: printed art by day, setting over the grid at night */
+  .sun {
+    left: 50%;
+    bottom: 38vh;
+    width: min(46vh, 420px);
+    aspect-ratio: 2;
+    translate: -50% 0;
+    border-radius: 999px 999px 0 0;
+    background: linear-gradient(180deg, var(--p2), var(--orange) 55%, var(--p1));
+    -webkit-mask: linear-gradient(180deg, #000 0 46%, transparent 46% 52%, #000 52% 64%, transparent 64% 70%, #000 70% 80%, transparent 80% 86%, #000 86%);
+    mask: linear-gradient(180deg, #000 0 46%, transparent 46% 52%, #000 52% 64%, transparent 64% 70%, #000 70% 80%, transparent 80% 86%, #000 86%);
+    filter: drop-shadow(0 0 26px rgb(255 110 80 / 70%));
+    opacity: 0.85;
+  }
+  .sun.day {
+    left: auto;
+    right: 6vw;
+    bottom: 22vh;
+    width: min(30vh, 260px);
+    translate: none;
+    filter: none;
+    opacity: 0.4;
   }
   .wood {
     top: 0;
     bottom: 0;
     width: 22px;
-    background: repeating-linear-gradient(180deg, #7a4a26 0 9px, #6b3f1f 9px 11px, #82512b 11px 19px, #5f381c 19px 20px);
-    box-shadow: inset 0 0 0 2px #3b2314;
+    background: repeating-linear-gradient(180deg, #7a3624 0 9px, #682c1c 9px 11px, #85402b 11px 19px, #5a2316 19px 20px);
+    box-shadow: inset 0 0 0 2px #21142e;
     opacity: 0.85;
   }
   .wood.l {
@@ -79,16 +111,18 @@
   .haze {
     inset: 0;
     background:
-      radial-gradient(60% 40% at 50% 62%, rgb(255 106 43 / 22%), transparent 70%),
-      radial-gradient(50% 40% at 80% 0%, rgb(255 176 0 / 10%), transparent 70%);
+      radial-gradient(60% 40% at 50% 62%, rgb(255 77 99 / 22%), transparent 70%),
+      radial-gradient(70% 50% at 50% 100%, rgb(93 42 138 / 45%), transparent 70%),
+      radial-gradient(50% 40% at 80% 0%, rgb(255 210 63 / 8%), transparent 70%),
+      linear-gradient(180deg, #0b0613, #170a28);
   }
   .stars {
     inset: 0 0 45vh;
     background-image:
-      radial-gradient(1px 1px at 30px 40px, #ffd38a 98%, transparent),
+      radial-gradient(1px 1px at 30px 40px, #ffd23f 98%, transparent),
       radial-gradient(1.5px 1.5px at 140px 90px, #fff 98%, transparent),
-      radial-gradient(1px 1px at 230px 20px, #7dff5a 98%, transparent),
-      radial-gradient(1px 1px at 80px 160px, #ffd38a 98%, transparent);
+      radial-gradient(1px 1px at 230px 20px, #b98cff 98%, transparent),
+      radial-gradient(1px 1px at 80px 160px, #ff9aa5 98%, transparent);
     background-size: 260px 200px;
     animation: twinkle 3.6s ease-in-out infinite alternate;
   }
@@ -99,19 +133,6 @@
     to {
       opacity: 0.85;
     }
-  }
-  .peaks {
-    position: absolute;
-    left: 0;
-    width: 100%;
-    bottom: 38vh;
-    height: 15vh;
-    fill: none;
-    stroke: #7dff5a;
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
-    opacity: 0.5;
-    filter: drop-shadow(0 0 6px #7dff5a);
   }
   .floor {
     left: -50vw;
@@ -132,8 +153,9 @@
     height: 220%;
     transform-origin: 50% 0;
     background:
-      repeating-linear-gradient(90deg, rgb(255 176 0 / 55%) 0 1.5px, transparent 1.5px 60px),
-      repeating-linear-gradient(0deg, rgb(255 176 0 / 55%) 0 1.5px, transparent 1.5px 60px);
+      repeating-linear-gradient(90deg, rgb(185 140 255 / 70%) 0 1.5px, transparent 1.5px 60px),
+      repeating-linear-gradient(0deg, rgb(185 140 255 / 70%) 0 1.5px, transparent 1.5px 60px);
+    filter: drop-shadow(0 0 4px rgb(185 140 255 / 80%));
     transform: rotateX(62deg) translate3d(0, 0, 0);
     animation: roll 2.4s linear infinite;
   }
@@ -223,7 +245,8 @@
   @media (max-width: 760px) {
     .coin,
     .score,
-    .wood {
+    .wood,
+    .sun.day {
       display: none;
     }
   }
