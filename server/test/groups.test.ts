@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseLine } from "../src/trackers/dsl";
-import { type FoldConfig, foldEvents, type TrackerEvent } from "../src/trackers/fold";
+import { type FoldConfig, foldEvents, groupReach, type TrackerEvent } from "../src/trackers/fold";
 import { currentMembers, groupKey, groupsInText, groupsLine, kindOfGroup, possessiveAnchor } from "../src/trackers/groups";
 import { stateForModel } from "../src/trackers/prompts";
 import { STARTER_TEMPLATES } from "../src/trackers/schema";
@@ -119,6 +119,42 @@ describe("member lines and @Group (docs/30 1.5)", () => {
     expect(knows(r, "Anya", "look like the dead")).toBeUndefined();
     expect(g.facts.map((x) => x.members.length)).toEqual([4, 4]);
     expect(r.changes.m3!.map((c) => c.text)).toEqual(["Dawn joined Scoobies (junior)", "Anya left Scoobies"]);
+  });
+
+  describe("a group line reaches the members the reply did (groupReach)", () => {
+    // Clawed Out Into October, seq 916: no Scoobie was at lunch or named in it, yet all four "learned" it.
+    const lunch = [...opening, "cast: Walter@spot", "at: Sunnydale › hills › Winters Residence › kitchen"];
+    const reply = "Walter set down his taco. \"You two are Tom Paris and B'elanna Torres.\" Spike admitted he only watches Passions.";
+    /** Files message 2 the way the tracker does: its lines get `away` from the state before it and the reply. */
+    const file = (lines: string[], text = reply) => {
+      const before = foldEvents(events([lunch]), cfg());
+      const ops = groupReach(lines.map((l) => parseLine(l)!), before.state, cfg(), text);
+      return foldEvents([...events([lunch]), ...ops.map((op, i) => ({ id: `r${i}`, messageId: "m2", seq: 2, source: "model" as const, op }))], cfg());
+    };
+
+    test("none of them there or named: nobody learns it, and the line says why", () => {
+      const r = file(["know @Scoobies: Walter compares Gabriel and Buffy to Tom Paris and B'elanna Torres | he said it at the table · knows · true"]);
+      for (const who of ["Willow", "Xander", "Anya", "Tara"]) expect(knows(r, who, "Tom Paris")).toBeUndefined();
+      expect(Object.values(r.verdicts).find((v) => !v.ok && /in the scene or the messages/.test(v.reason ?? ""))).toBeTruthy();
+    });
+
+    test("one of them walks in: only she hears it, and the group as a whole wasn't told", () => {
+      const r = file(["cast: Willow@spot", "know Scoobies: Spike watches Passions | he said so at lunch · knows · true"]);
+      expect(knows(r, "Willow", "Passions")?.status).toBe("knows");
+      for (const who of ["Xander", "Anya", "Tara"]) expect(knows(r, who, "Passions")).toBeUndefined();
+      expect(r.state.groups!.scoobies!.facts.some((x) => x.text.includes("Passions"))).toBe(false);
+    });
+
+    test("a route that travels, or a reply that names them, reaches them all", () => {
+      const texted = file(["know @Scoobies: Buffy rules film Fridays | Willow texted them · knows · true"]);
+      const named = file(["know @Scoobies: Buffy rules film Fridays | at the Magic Box · knows · true"], `${reply} Across town, Xander, Anya, Willow and Tara heard about it at the Magic Box.`);
+      for (const r of [texted, named]) for (const who of ["Willow", "Xander", "Anya", "Tara"]) expect(knows(r, who, "film Fridays")?.status).toBe("knows");
+    });
+
+    test("people at the table named one by one are untouched", () => {
+      const lines = ["know Walter, Buffy Summers, Spike: Walter compares Gabriel and Buffy to Tom Paris | he said it at the table · knows · true"];
+      expect(groupReach(lines.map((l) => parseLine(l)!), foldEvents(events([lunch]), cfg()).state, cfg(), reply)[0]!.args.away).toBeUndefined();
+    });
   });
 
   test("@Group is never a person, even unknown", () => {
