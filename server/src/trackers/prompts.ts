@@ -5,6 +5,7 @@ import { groupsLine } from "./groups";
 import { openLoops } from "./loops";
 import { placeNotesHere } from "./belongings";
 import { knownPlacesLine } from "./places";
+import { passingName } from "./whois";
 import { AXES, LADDER, type WorldState } from "./types";
 
 /** The ledger grammar, compact enough to send with every tracker call. */
@@ -57,6 +58,26 @@ Every bond, know, item and thread line needs a cause after " — ".`;
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/**
+ * docs/32 2.1: the living cast by their exact names, most recently seen first, within about 90 tokens.
+ * Passing faces ("the bartender") are left out: they have no name to get wrong.
+ */
+export function namesLine(st: WorldState, userName: string): string {
+  const people = Object.values(st.chars)
+    .filter((c) => !c.dead && !passingName(c.name))
+    .sort((a, b) => Number(b.isUser) - Number(a.isUser) || Number(b.isMain) - Number(a.isMain) || b.lastSeq - a.lastSeq);
+  if (people.length < 2) return "";
+  const out: string[] = [];
+  let used = 0;
+  for (const c of people) {
+    const n = c.isUser ? userName : c.name;
+    if (used + n.length > 360) break;
+    out.push(n);
+    used += n.length + 2;
+  }
+  return `names (write each person exactly as here): ${out.join(", ")}`;
+}
+
 /** The current state, with numbers, for the tracker model (it has to write correct deltas). */
 export function stateForModel(st: WorldState, o: { userName: string; templates: Template[]; sealed: boolean; calendar?: CalendarId; /** docs/31 3.3: present but not named in a while. */ quiet?: string[] }): string {
   const L: string[] = [];
@@ -78,6 +99,9 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   if (here.length) L.push(`cast: ${here.map((c) => `${nm(c.id)}@${c.tier}${c.activity ? `(${clip(c.activity, 40)})` : ""}${quiet.has(c.name.toLowerCase()) ? " (quiet)" : ""}`).join(" · ")}`);
   if (quiet.size) L.push("(quiet: present by the ledger, but the messages haven't named them in a while. If they've left, write them @left; don't keep them in the scene by habit.)");
   if (away.length) L.push(`known, not here: ${away.map((c) => c.name).join(", ")}`);
+  // docs/32 2.1: everyone's name as the ledger has it, so the model copies a name instead of recalling it.
+  const names = namesLine(st, o.userName);
+  if (names) L.push(names);
   // docs/30 1.5: the story's groups by the names the tracker should use, with who's in each.
   const groups = groupsLine(Object.values(st.groups ?? {}).filter((g) => g.adopted));
   if (groups) L.push(groups);
