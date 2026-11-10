@@ -11,7 +11,7 @@ import { embeddingsEnabled } from "./embed";
 import { syncTrackerMemories } from "../trackers/service";
 import { currentFold } from "../trackers/store";
 import { autoTitle } from "../services/stories";
-import { reconcileScene } from "./reconcile";
+import { reconcileScene, relabelTimesOnce } from "./reconcile";
 import { detectBoundary, type BoundarySignal } from "./segment";
 import {
   childrenOf,
@@ -214,6 +214,7 @@ function afterScene(chatId: string, summaryId: string) {
   const cfg = memoryConfig();
   try {
     reconcileScene(summaryId);
+    relabelTimesOnce(chatId);
   } catch (e) {
     console.error("[mea] reconcile failed:", e);
   }

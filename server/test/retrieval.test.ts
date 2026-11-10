@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { normalizeCard } from "../src/cards/card";
-import { all, one } from "../src/db/db";
+import { all, one, run } from "../src/db/db";
 import { defaultMemoryConfig, memoryConfig, setSetting } from "../src/lib/settings";
 import { atomOut, getAtom, insertAtom } from "../src/memory/atoms";
 import { buildSummary, storyNeedsRebuild } from "../src/memory/build";
@@ -13,11 +13,12 @@ import { cachedVerdict, contextText, resetLibrarian, runLibrarian } from "../src
 import { markPromise, promises, revealSecret, secrets } from "../src/memory/ledgers";
 import { applyMemoryProfile, matchingProfile, normalizeMemoryConfig } from "../src/memory/profiles";
 import { buildQueries, moodMatches, povAllows, recall, type RecallInput, reinforcement } from "../src/memory/recall";
-import { claimedElapsed, reconcileScene } from "../src/memory/reconcile";
+import { claimedElapsed, clockSpan, reconcileScene, relabelTimes } from "../src/memory/reconcile";
 import { referenced, reinforce } from "../src/memory/reinforce";
 import { correctMemory, rememberSelection } from "../src/memory/remember";
 import { queueBuilds, segmentChat } from "../src/memory/scheduler";
-import { levelRows, setMemState, storyRow } from "../src/memory/store";
+import { getSummary, levelRows, setMemState, storyRow } from "../src/memory/store";
+import { parseStoryTime, spanLabel } from "../src/trackers/clock";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
 import { createConnection, createProfile, syncModels } from "../src/services/connections";
@@ -370,6 +371,30 @@ describe("the memory pipeline, Phase 3 (journals, deep search, reconcile, sleep)
     expect(excerpt("One. Two three silver locket here. Four.".repeat(20), new Set(["silver", "locket"]), 60)).toContain("silver locket");
   });
 
+  test("a record's time label is the clock's, not the summarizer's guess (docs/33 Part 4)", () => {
+    const scenes = levelRows(chatId, "scene").filter((r) => r.state === "ready");
+    const first = scenes[0]!;
+    expect(first.story_time).toBe(clockSpan(chatId, first.start_seq, first.end_seq)!.label);
+    expect(first.story_time).toMatch(/^Day 1 08:00 → Day 3 /);
+    // A guessed label is put right, a chapter gets one from the same clock, your own edit is kept.
+    run("UPDATE summaries SET story_time = 'Day 7, late October night' WHERE id = ?", first.id);
+    const chapter = levelRows(chatId, "chapter").find((r) => r.state === "ready")!;
+    run("UPDATE summaries SET story_time = 'a Wednesday in late October' WHERE id = ?", chapter.id);
+    const mine = scenes[1]!;
+    run("UPDATE summaries SET story_time = 'my own label', user_edited = 1 WHERE id = ?", mine.id);
+    expect(relabelTimes(chatId)).toBeGreaterThanOrEqual(2);
+    expect(getSummary(first.id)!.story_time).toMatch(/^Day 1 08:00 → Day 3 /);
+    expect(getSummary(chapter.id)!.story_time).toMatch(/^Day 1 08:00 → Day \d+ \d\d:\d\d$/);
+    expect(getSummary(mine.id)!.story_time).toBe("my own label");
+    run("UPDATE summaries SET user_edited = 0 WHERE id = ?", mine.id);
+    relabelTimes(chatId);
+  });
+  test("a span reads as one day or two, with the weekday when there's a date", () => {
+    const t = (s: string) => parseStoryTime(s)!;
+    expect(spanLabel(t("2001-10-10 08:04"), t("2001-10-10 09:25"))).toBe("Wed 2001-10-10 08:04 → 09:25");
+    expect(spanLabel(t("2001-10-09 21:54"), t("2001-10-10 00:12"))).toBe("Tue 2001-10-09 21:54 → Wed 2001-10-10 00:12");
+    expect(spanLabel(t("Day 3 08:00"), t("Day 3 08:00"))).toBe("Day 3 08:00");
+  });
   test("records agree with the story clock (SUM-22)", () => {
     expect(claimedElapsed("Three days later, they met again")?.[0]).toBeGreaterThan(2000);
     expect(claimedElapsed("They talked for a while")).toBeNull();

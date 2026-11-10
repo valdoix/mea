@@ -70,6 +70,21 @@ export function formatStoryTime(t: StoryTime): string {
   return `${String(d.getUTCFullYear()).padStart(4, "0")}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * A span of story time as a record's label (docs/33 Part 4): "Wed 2001-10-10 08:04 → 09:25", or
+ * with both days when it crosses midnight. The clock writes it, so one day has one name.
+ */
+export function spanLabel(a: StoryTime, b: StoryTime): string {
+  const one = (t: StoryTime) => (t.form === "date" ? `${WEEKDAYS[new Date(YEAR1 + t.minutes * 60_000).getUTCDay()]} ${formatStoryTime(t)}` : formatStoryTime(t));
+  const from = one(a);
+  if (b.minutes <= a.minutes) return from;
+  const to = one(b);
+  const sameDay = a.form === b.form && Math.floor(a.minutes / DAY) === Math.floor(b.minutes / DAY);
+  return sameDay ? `${from} → ${to.slice(-5)}` : `${from} → ${to}`;
+}
+
 /** "Thu 23:10" or "Day 3 · 23:10", for chips, the HUD and timestamps. */
 export function shortStoryTime(s: unknown): string {
   const t = parseStoryTime(s);
