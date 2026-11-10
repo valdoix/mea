@@ -1,4 +1,5 @@
 import { all, one, parseJson } from "../db/db";
+import { longThreads } from "../trackers/longthreads";
 import { textBasis } from "../lore/facts";
 import { publish } from "../lib/events";
 import { customOf } from "../trackers/customcal";
@@ -307,7 +308,28 @@ export function runTick(chatId: string, messageId: string | null, forced: boolea
   return res;
 }
 
-function tickInput(chatId: string, st: WorldState, roster: Roster, forced: boolean): TickInput {
+/** How far back a thread counts as live when the story has no chapters yet (messages). */
+const LIVE_MESSAGES = 150;
+
+/** docs/33 12.2: the message the last two chapters start at (or 150 messages back). */
+export function liveFrom(chatId: string): number {
+  const chapters = all<{ start_seq: number }>("SELECT start_seq FROM summaries WHERE chat_id = ? AND level = 'chapter' ORDER BY start_seq DESC LIMIT 2", chatId);
+  const last = one<{ s: number | null }>("SELECT MAX(seq) AS s FROM messages WHERE chat_id = ? AND deleted_at IS NULL", chatId)?.s ?? 0;
+  return chapters.length ? Math.min(chapters.at(-1)!.start_seq, Math.max(0, last - 40)) : Math.max(0, last - LIVE_MESSAGES);
+}
+
+/** docs/33 12.3: the long threads still open, as seeds: conflicts, promises with a day, secrets still kept. */
+function longOpen(chatId: string, st: WorldState) {
+  try {
+    return longThreads(chatId, st)
+      .filter((t) => t.kind !== "pinned" && t.when !== "passed")
+      .map((t) => ({ id: t.id, kind: t.kind, text: t.text }));
+  } catch {
+    return [];
+  }
+}
+
+export function tickInput(chatId: string, st: WorldState, roster: Roster, forced: boolean): TickInput {
   const cfg = worldConfig(chatId);
   const sky = skyInput(chatId, st, cfg);
   const weather = sky ? skyNowLine(sky, st).weather.text : undefined;
@@ -329,6 +351,8 @@ function tickInput(chatId: string, st: WorldState, roster: Roster, forced: boole
     weather,
     namedDay: null,
     situations: loreSituations(chatId),
+    liveFrom: liveFrom(chatId),
+    long: longOpen(chatId, st),
   };
 }
 

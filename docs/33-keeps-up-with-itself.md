@@ -200,16 +200,18 @@ The tracker's own cast was already tidy after docs/30 and docs/32 (27 people, no
 
 **Done when:** this story (on a copy) folds to under 120 places and no person entry is a street, a school or a company. *(Holds; `casttidy.test.ts`, 15 tests.)*
 
-## Part 12: subplots and the world  [29–32]
+## Part 12: subplots and the world  [29–32]  (built)
 
-- **12.1** `sim/roster.ts`: leads are people the story has named who could act; never a place, a shop, or a pet unless you add them.
-- **12.2** `sim/storyteller.ts`: the fixed sentence goes. A proposal needs a live thread (touched in the last two chapters), a concrete want, and what would change on the page; one that can't say so isn't offered.
-- **12.3** Seeds from what the story set up: an unanswered person (Giles), a promised arrival (the parents), a wronged party (Willow), a pending result (the audit).
-- **12.4** A kind you decline several times running stops being offered for a while.
-- **12.5** `trackers/pressures.ts`: no deck draws for pets or for people with no profile; a drawn pressure must not contradict what's recorded about them.
-- **12.6** Incidents come from the setting and year, and each has a route onto the page (the radio, the drive, someone mentions it).
+- **12.1** A pet leads no subplot (`sim/storyteller.ts`, by `isAnimal`). Streets, shops and companies stopped being people in Part 11, so they can't lead one either.
+- **12.2** The fixed sentence ("X has their own stake in …") is gone. A thread seeds a subplot only when it was touched in the last two chapters (`liveFrom`, or 150 messages back before there are chapters) and its lead has a want on record or the thread's words say what kind of subplot it is. The premise is the thread's own latest line and what the lead wants; the reason shown says when the thread was last touched.
+- **12.3** What the story set up and left open is a seed (`long`, from Part 9's long threads): an open conflict, a promise with a day, a secret still kept. Its lead is the first person it names who is off the page ("Willow must return and apologize" is Willow's move), and it outranks the other seeds.
+- **12.4** A kind of subplot turned down three times among your last six answers rests until newer answers push those out.
+- **12.5** `trackers/pressures.ts`: a pet draws no pressure, and one drawn before this is never played. The deck is only for people the story has said something about (a trait, a want, a page). Someone settled with a partner doesn't draw a romance card. Redraw says so when there is nothing to draw from.
+- **12.6** Incidents are made from the story's own places (a street, a mall, a school, a hospital, a cemetery it has actually named), each with a way onto the page ("it was on the car radio", "someone mentions it in passing"; other words for other eras). The general pool lost its harbour, high street and market prices, and is used only for storms, fog and named days, or before the story has places.
 
-**Done when:** proposals generated for this story on a copy have no non-person leads and none built on a thread older than two chapters.
+**Seen on a copy of the real data:** the candidates now are Eleanor's shopping trip next week (Eleanor), Willow's apology (Willow), the audit of Joyce's accounts (Eleanor), and four people the lore gives a story of their own (Drusilla, Quentin Travers, Cordelia, Rack the warlock). Nothing is led by a place, a shop or the cat, and nothing is built on "first day back". *Not changed:* the wording helper that turns a premise into prose (it wrote Walter's "family expecting reports"); it now starts from a truer premise.
+
+**Done when:** proposals generated for this story on a copy have no non-person leads and none built on a thread older than two chapters. *(Holds; `subplots.test.ts`, 7 tests.)*
 
 ## Part 13: weather  [33–36]  (built)
 
