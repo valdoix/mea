@@ -10,6 +10,7 @@ import { type ChatSettings, mustChat, type TrackerConfig } from "../services/cha
 import { storyDials } from "../services/layers";
 import { getDefaultPersona, getPersona } from "../services/personas";
 import { loreFactions } from "../lore/factionnames";
+import { scanEntriesFor } from "../lore/service";
 import { detectStamina } from "./drift";
 import { parseLine } from "./dsl";
 import type { PlaceProfile } from "./places";
@@ -459,6 +460,36 @@ export function eventsOf(chatId: string, messageId: string) {
 
 // ---------- folding ----------
 
+/**
+ * docs/32 Part 1: whether the fold asks the story before adding a person. On, except under the test
+ * runner: most fixtures file ledger lines about people their few messages never name.
+ */
+let storyNames = process.env.MEA_STORY_NAMES ? process.env.MEA_STORY_NAMES === "on" : process.env.NODE_ENV !== "test";
+export const setStoryNames = (on: boolean) => {
+  storyNames = on;
+  globalVersion++;
+};
+
+/** docs/32 Part 1: whether a message up to this one has these words together (any swipe of it). */
+function storySays(chatId: string, phrase: string, seq: number): boolean {
+  const q = phrase.replace(/["*^:(){}[\]]/g, " ").trim();
+  if (!q) return true;
+  try {
+    return Boolean(
+      one(
+        `SELECT 1 FROM swipes_fts f JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id
+         WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq <= ? AND m.deleted_at IS NULL LIMIT 1`,
+        `"${q}"`,
+        chatId,
+        seq,
+      ),
+    );
+  } catch {
+    // A search that can't run decides nothing.
+    return true;
+  }
+}
+
 export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): FoldConfig {
   const chat = mustChat(chatId);
   const card = chat.character_id ? getCard(chat.character_id) : undefined;
@@ -491,7 +522,14 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
   const tidy = settings.castTidy;
   const groups = settings.groups;
   const places = placeProfiles(chatId);
+  // docs/32 Part 1: what the story can name someone from besides its messages: the card, the persona, the lore.
+  let side: string | undefined;
+  const sideText = () =>
+    (side ??= [JSON.stringify(card ?? ""), persona?.name ?? "", JSON.stringify(persona?.data ?? ""), ...scanEntriesFor({ characterId: chat.character_id, personaId: chat.persona_id, chatId }).flatMap((e) => [e.comment, ...e.keys, e.content])]
+      .join("\n")
+      .toLowerCase());
   return {
+    ...(storyNames ? { inStory: (phrase: string, seq: number) => storySays(chatId, phrase, seq) || sideText().includes(phrase.toLowerCase()) } : {}),
     userName: persona?.name ?? "You",
     mainName: card?.name ?? "",
     sealedPersona: cfg.sealed,

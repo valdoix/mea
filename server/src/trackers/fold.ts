@@ -8,7 +8,7 @@ import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNo
 import { castLabel, parseLine } from "./dsl";
 import { PlaceBook, placeKey, type PlaceProfile } from "./places";
 import { currentMembers, groupKey, kindOfGroup, possessiveAnchor } from "./groups";
-import { bracketGroup, FIELD_WORD, familySurname, isGroupShape, looksLikePlace, sentenceNotPath } from "./whois";
+import { bracketGroup, FIELD_WORD, familySurname, isGroupShape, looksLikePlace, passingName, sentenceNotPath } from "./whois";
 import { mentions } from "./mentions";
 import { applyPatch, type Change as PatchChange } from "./patch";
 import type { Template } from "./schema";
@@ -90,6 +90,11 @@ export interface FoldConfig {
   people?: string[];
   /** docs/30 2.1: your edits to places (place_profiles), by place id. */
   placeProfiles?: Record<string, PlaceProfile>;
+  /**
+   * docs/32 Part 1: whether the story has these words by this message (its text, the card, the persona,
+   * the lore). A name the tracker writes that the story never has makes nobody. Without it, any name does.
+   */
+  inStory?: (phrase: string, seq: number) => boolean;
 }
 
 export interface FoldResult {
@@ -248,6 +253,10 @@ export class Folder {
   state: WorldState;
   changes: Record<string, Change[]> = {};
   verdicts: Record<string, Verdict> = {};
+  /** The line being applied, for what's said about it from deep in a name's lookup. */
+  private cur?: Ctx;
+  /** docs/32 Part 1: what the line being applied named that the story never has. */
+  private unsaid: string[] = [];
 
   constructor(
     public cfg: FoldConfig,
@@ -692,7 +701,47 @@ export class Folder {
       this.routed(w, seq);
       return undefined;
     }
-    return this.findChar(name) ?? this.ensureChar(name, seq);
+    const known = this.findChar(name);
+    if (known) return known;
+    // docs/32 Part 1: a name only the ledger has is someone it misnamed, or nobody.
+    if (!yours && this.unnamed(name, seq)) {
+      const c = this.nearest(name);
+      const note = `the story never says ${personName(name)}: ${c ? `read as ${c.name}` : "nobody was added"}`;
+      if (!this.unsaid.includes(note)) this.unsaid.push(note);
+      return c;
+    }
+    return this.ensureChar(name, seq);
+  }
+
+  /**
+   * docs/32 Part 1: a name the tracker wrote that the story doesn't have by this message: not whole, and
+   * not by any word of it that's nobody else's ("Hank" of Hank Summers). Descriptions ("the bartender")
+   * are the tracker's own words and pass; so do your lines, the opening's and the engine's.
+   */
+  private unnamed(name: string, seq: number): boolean {
+    const has = this.cfg.inStory;
+    const src = this.cur?.ev.source;
+    if (!has || (src !== "model" && src !== "inline")) return false;
+    const clean = personName(name).replace(/#\d+.*$/, "").replace(/[“”"]/g, "").trim();
+    if (!clean || passingName(clean) || has(clean, seq)) return false;
+    const owned = new Set(Object.values(this.state.chars).flatMap((c) => [c.name, ...c.aliases]).flatMap((n) => norm(n).split(" ")));
+    const words = clean.split(/\s+/);
+    if (words.length < 2) return true;
+    return !words.some((w) => /^\p{Lu}[\p{L}'’-]{2,}$/u.test(w) && !TITLE_WORD.test(w) && !owned.has(norm(w)) && has(w, seq));
+  }
+
+  /** Who an unnamed name most likely is: the one person whose first name it starts with. */
+  private nearest(name: string): Character | undefined {
+    const n = norm(personName(name));
+    const first = n.split(" ")[0] ?? "";
+    if (first.length < 3) return undefined;
+    const chars = Object.values(this.state.chars);
+    const owners = chars.filter((c) => norm(c.name).split(" ")[0] === first);
+    if (owners.length === 1) return owners[0];
+    // A misspelling the story never has ("Guth" for Ruth): looser than findChar's, since nobody else can be meant.
+    const max = n.length >= 8 ? 2 : 1;
+    const typo = n.length >= 4 ? chars.filter((c) => [c.name, ...c.aliases].some((x) => lev(norm(x), n, max) <= max)) : [];
+    return typo.length === 1 ? typo[0] : undefined;
   }
 
   /** The people a name stands for: "the group", "everyone", "the circle" mean whoever is in the scene; a faction, its members. */
@@ -797,6 +846,8 @@ export class Folder {
       if (op && (ev.op.op === "cast" ? op.op === "trait" : op.op === ev.op.op)) ev = { ...ev, op: { ...op, args: { ...op.args, ...kept } } };
     }
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
+    this.cur = ctx;
+    this.unsaid = [];
     try {
       // docs/32 Part 0: a blended name is read as the person whose first name it is, and the line says so.
       if (ev.source !== "user")
@@ -818,6 +869,11 @@ export class Folder {
       }
     } catch (e) {
       ctx.verdict = { raw: ev.op.raw, ok: false, reason: `couldn't apply: ${(e as Error).message}` };
+    }
+    // docs/32 Part 1: a line about nobody says why, whatever else stopped it.
+    if (this.unsaid.length) {
+      if (ctx.verdict.ok) this.warn(ctx, this.unsaid.join("; "));
+      else ctx.verdict.reason = this.unsaid.join("; ");
     }
     this.logPresence(ev.seq);
     this.verdicts[ev.id] = ctx.verdict;
@@ -2474,6 +2530,8 @@ export function editPath(root: object, path: string[], value: unknown): string |
   } else node[last] = value;
   return null;
 }
+/** Words before a name that the story may have without having the person ("Coach", "Aunt"). */
+const TITLE_WORD = /^(?:mr|mrs|ms|miss|mister|dr|doctor|sir|lady|lord|coach|officer|captain|professor|principal|aunt|uncle|father|mother|sister|brother|the)$/i;
 const looksLikePerson = (s: string) => /^[A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){0,2}$/.test(s.trim()) && !/\b(table|floor|bag|box|drawer|shelf|room|house|car|desk|chest|pocket|safe|trunk|bed)\b/i.test(s);
 
 function fromPatch(c: PatchChange): Omit<Change, "source"> {

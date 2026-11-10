@@ -145,7 +145,7 @@ export async function runScenario(s: Scenario, opts: { model?: boolean } = {}): 
   updateChat(chatId, { title: `[story check] ${s.name}`, settings: s.settings as never });
   try {
     const first = one<{ id: string }>("SELECT id FROM messages WHERE chat_id = ? ORDER BY seq LIMIT 1", chatId)?.id ?? null;
-    if (s.ledger.length) writeEvents(chatId, { messageId: first, swipeIdx: -1 }, linesToOps(s.ledger).ops, "model");
+    if (s.ledger.length) writeEvents(chatId, { messageId: first, swipeIdx: -1 }, linesToOps(s.ledger).ops, "init");
     for (const o of s.offpage) createOffpage(chatId, o);
     if (s.lore.length) book = createLorebook({ name: `[story check] ${s.name}`, entries: s.lore.map((e) => defaultEntry({ keys: e.keys, comment: e.keys[0], content: e.content, extra: { secrets: e.secrets } })), links: [{ target_type: "chat", target_id: chatId }] });
     if (s.canon) setCanon(chatId, { ...s.canon, later: s.canon.later.map((l, i) => ({ ...l, id: `g${i}` })), wont: [] });
