@@ -70,7 +70,7 @@ import { applyGuards } from "../accuracy/guards";
 import { fileNoteFacts, lessonsToFacts } from "../steer/notefacts";
 import { checkPlan, notHereThings, notNews, pendingDone, planCorrection, type PlanFinding, planRecords, planRecordText } from "../steer/plancheck";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
-import { scheduleEditor } from "../steer/editor";
+import { scheduleEditor, scheduleTenseFix } from "../steer/editor";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
 import { extractSpeakers, quotedLines, rosterLine, type RosterVoice, speakerRule, type SpokenLine, voiceRoster, withoutSpeakerMarks, withSpeakerMarks } from "../lib/speakers";
 import { scheduleSpeakerMarks } from "./speakermarks";
@@ -1560,7 +1560,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
       // A reply that came back with dialogue and no marks: the helper names the speakers.
       if (status === "done" && p.speakerMarks && !speakers.length && quotedLines(text).length) scheduleSpeakerMarks(gen.chatId, gen.messageId, gen.swipeIdx, first.voices);
       // STEER-03: the post-pass editor, when it's on (not for a reply about to be written again).
-      if (status === "done" && !guarded?.retry) scheduleEditor(gen.chatId, gen.messageId, gen.swipeIdx);
+      // docs/33 Part 3: a reply in the wrong tense is put right first; the editor follows it.
+      if (status === "done" && !guarded?.retry && !scheduleTenseFix(gen.chatId, gen.messageId, gen.swipeIdx, text, getMessageRow(gen.messageId)?.seq ?? 0)) scheduleEditor(gen.chatId, gen.messageId, gen.swipeIdx);
       if (chat.character_id) touchCharacter(chat.character_id);
     }
     if (usage?.promptTokens) recordCalibration(p.resolved.connection.id, p.resolved.modelId, p.assembled.estPromptTokens, usage.promptTokens, p.assembled.messages.reduce((n, m) => n + m.content.length, 0));

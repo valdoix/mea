@@ -299,7 +299,7 @@ export function tenseGuard(g: GuardInput): GuardIssue[] {
         by: "rules",
       },
     ];
-  if (!t.tense && t.past >= 5 && t.present >= 5 && Math.min(t.past, t.present) / Math.max(t.past, t.present) >= 0.6)
+  if (g.cfg.tense && !t.tense && t.past >= 5 && t.present >= 5 && Math.min(t.past, t.present) / Math.max(t.past, t.present) >= 0.6)
     return [
       {
         kind: "tense",
@@ -312,6 +312,18 @@ export function tenseGuard(g: GuardInput): GuardIssue[] {
       },
     ];
   return [];
+}
+
+/**
+ * docs/33 Part 3: the story's settings name a tense and this reply is plainly told in the other
+ * one. (A story that never chose a tense is only checked when the tense guard is on.)
+ */
+export function tenseSlip(chatId: string, text: string, seq: number): { from: "past" | "present"; to: "past" | "present" } | null {
+  const g = guardInput(chatId, text, { seq });
+  const exp = g.exp();
+  if (!exp.fromSettings.tense || !exp.tense) return null;
+  const t = tenseOf(text, g.charNames);
+  return t.tense && t.tense !== exp.tense ? { from: t.tense, to: exp.tense } : null;
 }
 
 /** CON-05: the name registry's slips, as the guards report them. */
@@ -330,7 +342,7 @@ export function nameGuard(g: GuardInput): GuardIssue[] {
 /** The guard issues for one reply (CON-04, CON-05). */
 export function guardIssues(chatId: string, text: string, o: { seq: number; messageId?: string; cfg?: GuardsConfig }): GuardIssue[] {
   const g = guardInput(chatId, text, o);
-  return [...(g.cfg.puppet ? puppetGuard(g) : []), ...(g.cfg.pov ? povGuard(g) : []), ...(g.cfg.tense ? tenseGuard(g) : []), ...(g.cfg.names !== "off" ? nameGuard(g) : [])];
+  return [...(g.cfg.puppet ? puppetGuard(g) : []), ...(g.cfg.pov ? povGuard(g) : []), ...(g.cfg.tense || g.exp().fromSettings.tense ? tenseGuard(g) : []), ...(g.cfg.names !== "off" ? nameGuard(g) : [])];
 }
 
 export interface GuardResult {
