@@ -374,6 +374,13 @@ export function createChat(input: { characterId: string; personaId?: string | nu
   return getChat(id)!;
 }
 
+type TruthsHook = (chatId: string, before: string[], after: string[]) => void;
+const truthsHooks: TruthsHook[] = [];
+/** docs/33 Part 2: memory checks a story truth you add against what it holds. */
+export function onTruthsChanged(fn: TruthsHook) {
+  truthsHooks.push(fn);
+}
+
 export function updateChat(id: string, patch: { title?: string; personaId?: string | null; mode?: ChatMode; settings?: ChatSettings; archived?: boolean }) {
   const cur = mustChat(id);
   run(
@@ -388,6 +395,16 @@ export function updateChat(id: string, patch: { title?: string; personaId?: stri
   );
   // LIB-04: a title you set yourself is never replaced by an automatic one.
   if (patch.title !== undefined && patch.title !== cur.title) run("UPDATE chats SET title_locked = 1 WHERE id = ?", id);
+  if (patch.settings && "truths" in patch.settings) {
+    const before = parseJson<ChatSettings>(cur.settings, {}).truths ?? [];
+    const after = patch.settings.truths ?? [];
+    for (const fn of truthsHooks)
+      try {
+        fn(id, before, after);
+      } catch (e) {
+        console.error("[mea] truths hook failed:", e);
+      }
+  }
   chatChanged(id);
   return getChat(id)!;
 }

@@ -40,6 +40,10 @@ function helperJson(name: string, user: string, system = ""): unknown {
   if (name.endsWith("_gate")) return mockGate(system, user);
   const lines = ledgerLines(user);
   switch (name) {
+    case "truth_check": {
+      // A memory contradicts the truth when it says MOCK_CONTRADICTS.
+      return { contradicted: [...user.matchAll(/^\[([^\]]+)\] .*MOCK_CONTRADICTS/gm)].map((m) => ({ id: m[1], why: "says otherwise" })) };
+    }
     case "scene_memory": {
       const first = lines[0]?.seq ?? 0;
       const last = lines.at(-1)?.seq ?? 0;
