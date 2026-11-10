@@ -129,6 +129,8 @@ export function traitRule(r: RuleInput): Found[] {
         if (!m) continue;
         const got = colorOf(m[0]);
         if (!got || got === want || want.includes(got) || got.includes(want)) continue;
+        // docs/33 Part 7: someone else in the story has exactly these ("ocean-blue eyes" are Gabriel's, not Dawn's).
+        if (Object.values(st.chars).some((x) => x !== c && x.traits.some((t) => t.kind === trait.kind && colorOf(t.text) === got))) continue;
         out.push({
           kind: "trait",
           severity: "major",
@@ -179,8 +181,10 @@ export function timeRule(r: RuleInput): Found[] {
   const jumps = /\b(later|hours? (?:pass|passed|later)|next (?:morning|day|evening)|the following|by (?:dawn|morning|nightfall|evening)|at dawn|overnight|as the sun (?:rose|set)|wakes?|woke)\b/i.test(reply);
   const night = hour >= 22 || hour < 5;
   const day = hour >= 9 && hour < 16;
-  const saysMorning = sents.find((s) => /\b(good morning|morning sun|morning light|the sun (?:is )?rising|sunrise|breakfast)\b/i.test(s));
-  const saysNight = sents.find((s) => /\b(good night|moonlight|moonlit|the night sky|starlight|stars (?:are )?out|midnight)\b/i.test(s));
+  // docs/33 Part 7: "the floorboard Joyce stepped over at midnight" is a memory, not the hour.
+  const memory = (s: string) => /\b(?:used to|remember(?:s|ed)?|recall(?:s|ed)?|every (?:night|morning)|always|when (?:she|he|they|Joyce|Mom|Dad) (?:checked|was|came|would)|like the)\b/i.test(s);
+  const saysMorning = sents.find((s) => !memory(s) && /\b(good morning|morning sun|morning light|the sun (?:is )?rising|sunrise|breakfast)\b/i.test(s));
+  const saysNight = sents.find((s) => !memory(s) && /\b(good night|moonlight|moonlit|the night sky|starlight|stars (?:are )?out|midnight)\b/i.test(s));
   const clock = `${String(hour).padStart(2, "0")}:${String(st.time.minutes % 60).padStart(2, "0")}`;
   if (!jumps && night && saysMorning)
     out.push({ kind: "time", severity: "minor", claim: saysMorning.trim().slice(0, 240), conflict: `The story clock says it's night (${clock}).`, citations: [{ ref: "T", type: "tracker", label: `story time ${clock}` }], fix: `It's night (${clock}), not morning.`, by: "rules" });
@@ -215,6 +219,8 @@ export function leakRule(r: RuleInput): Found[] {
   if (!st) return out;
   const known = resolver(chatId).rows.filter((e) => e.kind === "person");
   const knownNames = new Set(known.flatMap((e) => [e.name, ...parseJson<string[]>(e.aliases, [])]).map(norm));
+  // docs/33 Part 7: every word of a name too ("gabriel", "winters"), so "Gabriel Winters is with Buffy Summers" has no secret words left.
+  for (const n of [...knownNames, ...Object.values(st.chars).flatMap((c) => [c.name, ...c.aliases].map(norm))]) for (const w of n.split(" ")) knownNames.add(w);
   for (const f of Object.values(st.facts)) {
     if (!f.secret && !Object.values(f.stances).some((s) => s.status === "unaware")) continue;
     const knowers = new Set([...(f.secret?.keepers ?? []), ...Object.entries(f.stances).filter(([, s]) => s.status !== "unaware" && s.status !== "wrong").map(([id]) => id), ...f.revealed.flatMap((x) => x.to)]);
@@ -226,7 +232,9 @@ export function leakRule(r: RuleInput): Found[] {
       const isSpeaker = norm(c.name) === norm(speaker);
       for (const s of sents) {
         // The speaker's own dialogue, or a sentence about this person saying or thinking something.
-        const theirs = (isSpeaker && /["“]/.test(s)) || (nameRe.test(s) && /\b(says?|said|knows?|knew|tells?|told|whispers?|asks?|mentions?|thinks?|realizes?|remembers?)\b/i.test(s));
+        // docs/33 Part 7: the verb is this person's ("Ruth knows", "Dawn tells her"), not any verb in a sentence that names them.
+        const says = new RegExp(`\\b(?:${[c.name, ...c.aliases].map(esc).join("|")})\\b(?:\\s+\\w+){0,5}\\s+(?:says?|said|knows?|knew|tells?|told|whispers?|asks?|mentions?|thinks?|realizes?|remembers?)\\b`, "i");
+        const theirs = (isSpeaker && /["“]/.test(s)) || says.test(s);
         if (!theirs) continue;
         const sw = contentWords(s, 4);
         const hits = secretWords.filter((w) => sw.has(w));

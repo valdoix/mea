@@ -116,15 +116,23 @@ Split in two. **5a**, the people lines, is built; **5b** is the rest of the stat
 
 ## Part 7: the checker says less and catches more  [8–12]
 
-- **7.1** `clockBackRule`: skip a sentence when the time sits in a simile, a memory, reported speech or a habit ("at two a.m. after bad patrols"). Fix `statedTimes` for spoken times with minutes ("seven forty-two", "eleven-oh-eight").
-- **7.2** Leak: a secret is only matched when the sentence is about what the secret is about, and its holder is not the one speaking.
-- **7.3** Not-here: anyone named in the latest user message is present. Trait: checked against the sentence's subject.
-- **7.4** "No record of X": search the transcript (full-text) before raising it.
-- **7.5** New rules, no model calls: a vampire outdoors in daylight (from cast kind, the clock and the sky's sun times); weekday against date; a period list for the story's year; one value per person for facts like blood type, profession and kinship.
-- **7.6** Open flags: a count on the story, one-click fix per flag, and "fix all open" (including an "apply all" for edits left as proposed).
-- **Golden:** the checker run over this story's replies on a copy, comparing flag counts before and after. Needs a yes.
+Split in two. **7a**, the rule checks' false alarms, is built; **7b** is not.
 
-**Done when:** on the copy, the clock, name, leak, trait and not-here families fall by at least four in five, and the audit's open true catches are still caught.
+### 7a: fewer false alarms (built)
+
+- **7.1** `accuracy/moreslips.ts` clock check: a time counts only when the reply states it as now ("It's seven", "the clock reads 6:40 a.m.", "Eleven-oh-eight a.m., Sunnydale Mall."), not when it mentions one ("the sofa where she slept at seven a.m."); habits ("after bad patrols", "every night at two") are skipped; just past midnight is later, not earlier; spoken times are read whole ("seven forty-two a.m." is 7:42, not "two a.m.").
+- **7.2** `accuracy/rules.ts`: a leak needs the verb to be the person's ("Joss leans in and says…", not any verb in a sentence that names Ruth), and the words of people's names are never a secret's words. An eye or hair colour that someone else in the story has is theirs ("ocean-blue eyes" are Gabriel's, not Dawn's). The time-of-day check skips memories ("the floorboard Joyce stepped over at midnight").
+- **7.3** Not here: anyone the player's own turn names is in the scene.
+
+**Seen on a copy of the real data:** replaying the rule checks over all 429 replies, findings fell from 63 to 17: clock 34 → 5, not here 17 → 9, wrong-person colours 4 → 0, leaks 3 → 0, memories read as the time of day 3 → 1. Nothing new was flagged. (The model's own checks, "fact" and "past", weren't replayed: they call a model.)
+
+**Done when:** the clock, leak, colour and not-here families fall by most of their false alarms on the replay, and the existing golden scenarios (a real leak, a real clock slip) are still caught. *(Both hold; `checkerquiet.test.ts`, `checks.test.ts`, the golden suite.)*
+
+### 7b: not built
+
+- **7.4** "No record of X": search the transcript before raising it (this is the model checker's "past" family).
+- **7.5** New rules: a vampire outdoors in daylight; weekday against date; a period list for the story's year; one value per person for facts like blood type.
+- **7.6** Open flags: a count on the story, one-click fix per flag, "fix all open" (with "apply all" for edits left as proposed), and the panel for Part 1's brief.
 
 ## Part 8: plan once, and send less  [7, 14, 37–39]
 
