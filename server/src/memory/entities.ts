@@ -688,6 +688,7 @@ export function syncEntities(chatId: string, force = false) {
 
   const t = now();
   let changed = false;
+  const made = new Set<string>();
   tx(() => {
     for (const { row, s } of groups.values()) {
       if (!s.strong && s.mentions < 2 && !row) continue;
@@ -710,6 +711,7 @@ export function syncEntities(chatId: string, force = false) {
           t,
           t,
         );
+        made.add(id);
         changed = true;
         continue;
       }
@@ -773,7 +775,7 @@ export function syncEntities(chatId: string, force = false) {
       const byName = new Map(live.flatMap((r) => [r.name, ...parseJson<string[]>(r.aliases, [])].map((n) => [norm(n), r] as const)).reverse());
       for (const row of live) {
         const k = norm(row.name);
-        if (matched.has(row.id) || row.user_edited) continue;
+        if (matched.has(row.id) || made.has(row.id) || row.user_edited) continue;
         const data = parseJson<EntityData>(row.data, {});
         if (data.isUser || data.isMain || data.locked?.length) continue;
         // 11.2: a place nothing names any more (an old scene record's wording, a tracker path since tidied):
@@ -781,14 +783,15 @@ export function syncEntities(chatId: string, force = false) {
         if (!moved.has(k)) {
           if (row.kind !== "place" || !book || (data.sources ?? []).some((x) => x !== "tracker" && x !== "scenes" && x !== "memories")) continue;
           const as = placeAs(book, tracker.state, row.name);
-          const p = as && "place" in as ? as.place : undefined;
+          let p = as && "place" in as ? as.place : undefined;
+          while (p && p.kind === "spot" && !p.pinned && p.parent && book.get(p.parent)) p = book.get(p.parent)!;
           moved.set(k, p ? placeName(p.path.length ? p.path : [p.name]).name : as && "name" in as && norm(as.name) !== k ? as.name : null);
         }
         const to = moved.get(k);
         const target = to ? byName.get(norm(to)) : undefined;
         const aliases = JSON.stringify(tidyAliases(row.name, parseJson<string[]>(row.aliases, [])));
         if (target && target.id !== row.id) run("UPDATE entities SET merged_into = ?, aliases = ?, data = ?, updated_at = ? WHERE id = ?", target.id, aliases, JSON.stringify({ ...data, retired: "merged" }), t, row.id);
-        else if (to == null) run("UPDATE entities SET deleted_at = ?, data = ?, updated_at = ? WHERE id = ?", t, JSON.stringify({ ...data, retired: "hidden" }), t, row.id);
+        else if (!target) run("UPDATE entities SET deleted_at = ?, data = ?, updated_at = ? WHERE id = ?", t, JSON.stringify({ ...data, retired: "hidden" }), t, row.id);
         else continue;
         changed = true;
       }

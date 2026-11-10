@@ -47,7 +47,7 @@ const MEDIA = /\b(?:movies?|films?|cartoons?|disney|dvds?|vhs|shortlist|poems?|p
 
 /**
  * Someone the story only talks about as part of a film, a book or a poem (Mulan, Tennyson): at
- * least half the live memories that name them are about one, or name someone already found to be
+ * least half the few live memories that name them are about one (one of up to three), or name someone already found to be
  * (`also`: Li Shang, who is only ever mentioned with Mulan). A reference, not a person who could
  * walk in. Never said of someone the trackers have had in a scene.
  */
@@ -60,8 +60,12 @@ export function mediaOnly(chatId: string, name: string, also: string[] = []): bo
   );
   const others = also.filter((n) => n !== name).map((n) => new RegExp(`(?<![\\p{L}])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}])`, "iu"));
   const about = rows.filter((r) => MEDIA.test(r.content) || others.some((re) => re.test(r.content))).length;
-  return rows.length > 0 && about * 2 >= rows.length;
+  // Only someone the story barely mentions: Joyce's album doesn't make Joyce a song.
+  return rows.length > 0 && rows.length <= MEDIA_MAX && about > 0 && (about * 2 >= rows.length || rows.length <= 3);
 }
+
+/** More memories than this, and they are somebody. */
+const MEDIA_MAX = 6;
 
 const KIN: Record<string, string[]> = {
   mother: ["mother", "mom", "mum", "mama", "mommy"],
@@ -116,7 +120,7 @@ const FLOOR_WORD = /\b(?:upstairs|downstairs|up the stairs)\b/gi;
  */
 export function placeAs(book: PlaceBook, st: WorldState, written: string): PlaceAs {
   const bare = written.replace(/[“”"]/g, "").replace(/\s*\([^)]*\)?/g, " ").replace(/\s+/g, " ").trim();
-  if (!bare || /^(?:moving|driving|heading|walking|beside|near|toward|towards|on the way|en route)\b/i.test(bare) || /\b(?:en route|drive to|on the way) /i.test(bare)) return null;
+  if (!bare || /→|->|=>/.test(bare) || /^(?:moving|driving|heading|walking|beside|near|toward|towards|on the way|en route)\b/i.test(bare) || /\b(?:en route|drive to|on the way) /i.test(bare)) return null;
   const tries: string[][] = [];
   const add = (...parts: string[]) => {
     const p = parts.map((x) => x.replace(FLOOR_WORD, " ").replace(/\s+/g, " ").trim()).filter(Boolean);

@@ -15,7 +15,7 @@
 
   // Phase 3 fields live in `extra`, so SillyTavern imports and exports carry them (LORE-09, LORE-10).
   type Secret = { text: string; knownBy: string[] };
-  const x = $derived((entry?.extra ?? {}) as { type?: string; aliases?: string[]; secrets?: Secret[]; parent?: string; folder?: string; essentials?: string; semantic?: boolean; entity?: string });
+  const x = $derived((entry?.extra ?? {}) as { type?: string; aliases?: string[]; secrets?: Secret[]; knownBy?: string[]; parent?: string; folder?: string; essentials?: string; semantic?: boolean; entity?: string });
   function setX(key: string, value: unknown) {
     if (!entry) return;
     const next = { ...(entry.extra ?? {}) } as Record<string, unknown>;
@@ -148,6 +148,10 @@
   <label class="field">
     <span class="label">Essentials <span class="faint">one sentence; used when the budget is tight, or when a child entry fires</span></span>
     <input class="input" value={x.essentials ?? ""} onchange={(e) => setX("essentials", e.currentTarget.value.trim() || undefined)} placeholder="Port Ellis is a cold fishing town on the northern coast." />
+  </label>
+  <label class="field">
+    <span class="label">Who knows this <span class="faint">names, separated by commas; leave empty when everyone does</span></span>
+    <input class="input" value={(x.knownBy ?? []).join(", ")} onchange={(e) => setX("knownBy", e.currentTarget.value.split(",").map((n) => n.trim()).filter(Boolean).length ? e.currentTarget.value.split(",").map((n) => n.trim()).filter(Boolean) : undefined)} placeholder="Giles, Willow" />
   </label>
   {#if entry.id}<FactsList entryId={entry.id} type={x.type ?? null} />{/if}
 

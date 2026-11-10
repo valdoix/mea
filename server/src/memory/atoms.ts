@@ -3,6 +3,7 @@ import { badRequest, notFound } from "../lib/http";
 import { countTokens } from "../lib/tokens";
 import { type AtomType, normalizeType } from "./prompts";
 import { touchMemory } from "./store";
+import { contentWords, overlap } from "./text";
 
 export type AtomStatus = "active" | "superseded" | "resolved" | "disputed";
 /** M31: who made a memory. "tracker": from a tracker change of one message (and swipe); it follows that message. */
@@ -130,7 +131,8 @@ export function insertAtom(chatId: string, sceneId: string | null, a: NewAtom, s
     normalizeType(a.type),
     a.content.trim(),
     JSON.stringify((a.entities ?? []).map((e) => e.trim()).filter(Boolean).slice(0, 12)),
-    Math.max(1, Math.min(10, Math.round(a.importance ?? 5))),
+    // docs/33 11.4: a toothbrush rolling to a stop is not what the story turns on, whatever a model rated it.
+    Math.max(1, Math.min(!a.pinned && !a.userEdited && smallBeat(a.content) ? SMALL_BEAT : 10, Math.round(a.importance ?? 5))),
     JSON.stringify((a.emotions ?? []).slice(0, 6)),
     a.storyTime ?? null,
     JSON.stringify(a.knownBy ?? []),
@@ -169,11 +171,46 @@ export function supersede(oldId: string, newId: string) {
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
+/** Word overlap at which two memories are one. */
+const NEAR = 0.85;
+
+/** What a small physical beat is rated at most: low enough to fade unless a reply uses it. */
+export const SMALL_BEAT = 3;
+const THING_MOVES = /\b(?:rolls?|rolled|spins?|spun|spinning|rattles?|rattled|ticks?|ticked|hums?|hummed|crinkles?|crinkled|drips?|dripped|settles?|settled|creaks?|creaked|clicks?|clicked|sways?|swayed|flickers?|flickered|wobbles?|wobbled|slides?|slid|clatters?|clattered|scratches|scratched|buzz(?:es|ed)?)\b/i;
+const MATTERS = /["“”]|\b(?:said|says|told|tells|asked|asks|promis\w+|decid\w+|admit\w+|confess\w+|kiss\w+|learn\w+|reali[sz]\w+|knows?|knew|loves?|loved|died|dies|killed|agreed|refus\w+|because|means|meant|first time|never|always|secret|plan\w*|wants?|wanted|fears?|afraid|remember\w*|gave|gives|bought|paid|owes?)\b/i;
+const PERSON_DOES = /^[\p{Lu}][\p{L}'’-]+(?:\s+[\p{Lu}][\p{L}'’-]+)?\s+(?!['’]s\b)\p{Ll}/u;
+
+/**
+ * A small physical beat: a thing moves or makes a sound ("The toothbrush rolls to a stop against the
+ * tile", "the price tag spins on its thread"), and nothing is said, decided, learned or felt in it.
+ * One sentence, its subject a thing, not a person.
+ */
+export function smallBeat(content: string): boolean {
+  const t = content.trim();
+  if (t.length > 160 || /[.!?]\s+\S/.test(t) || MATTERS.test(t) || !THING_MOVES.test(t)) return false;
+  return /^(?:the|a|an|its|his|her|their)\s/i.test(t) || !PERSON_DOES.test(t);
+}
 
 /** True if an active atom with practically the same text already exists in the chat. */
 export function isDuplicate(chatId: string, content: string, ignoreSceneId?: string | null) {
   const n = norm(content);
   if (!n) return true;
+  // docs/33 11.4: the same thing said in nearly the same words is the same memory.
+  const words = contentWords(content);
+  const near = (other: string) => {
+    if (words.size < 5) return false;
+    const o = contentWords(other);
+    return Math.abs(o.size - words.size) <= Math.max(1, Math.round(words.size * 0.2)) && overlap(words, o) >= NEAR;
+  };
+  const rare = [...words].sort((a, b) => b.length - a.length).slice(0, 3);
+  if (rare.length === 3) {
+    const cands = all<{ content: string; scene_id: string | null }>(
+      "SELECT m.content, m.scene_id FROM memories_fts f JOIN memories m ON m.id = f.id WHERE memories_fts MATCH ? AND f.chat_id = ? AND m.deleted_at IS NULL AND m.status = 'active' LIMIT 20",
+      rare.map((w) => `"${w.replaceAll('"', "")}"`).join(" AND "),
+      chatId,
+    );
+    if (cands.some((r) => r.scene_id !== ignoreSceneId && near(r.content))) return true;
+  }
   const rows = all<{ content: string; scene_id: string | null }>(
     "SELECT m.content, m.scene_id FROM memories_fts f JOIN memories m ON m.id = f.id WHERE memories_fts MATCH ? AND f.chat_id = ? AND m.deleted_at IS NULL AND m.status = 'active' LIMIT 20",
     `"${n.split(" ").slice(0, 8).join(" ").replaceAll('"', "")}"`,
