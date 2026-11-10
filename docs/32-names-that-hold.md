@@ -46,12 +46,16 @@ So the root cause has two halves. The model slips now and then, and it will agai
 
 Part 0 handles one shape of slip. The general rule is that a person exists because the story named them, and a ledger line alone isn't enough.
 
-- **1.1** `nameReach(ops, state, cfg, text)` runs where `groupReach` does (`runTrackerUpdate`, `fileInlineLedger`), with the same text: the messages the tracker read. For each name that `findChar` doesn't know, it asks whether the text has it (the whole name, or its first name next to nothing that belongs to someone else). If not, the line gets `args.unnamed: ["Gabriel Summers"]`.
-- **1.2** The fold resolves an `unnamed` name the best it can (blend, first name, typo at distance 2). If that gives one person, the line goes to them with a warning. If it gives nobody, the line is rejected with "the messages don't name X", and no person is made.
-- **1.3** A name the text does have still becomes a person at once, as today. Descriptions ("the bartender") keep their docs/30 3.1 path.
-- **1.4** Old events have no `unnamed` flag. A one-time sweep (like docs/31 Part 4) reads each stored model line against its message's text and flags them.
+*Changed from the first draft:* the fold asks the story itself, instead of a flag put on each line when it's filed. Old lines are covered with no sweep and no stored change, and a refold gives the same answer every time.
 
-**Done when:** a ledger line naming someone the messages never mention makes no cast member, in a test and in this story's refold; a walk-on the reply names still appears on the first line.
+- **1.1** `FoldConfig.inStory(phrase, seq)` (`trackers/store.ts`): whether the story has these words by that message. It looks in the messages up to it (every swipe, full-text search), the card, the persona and the story's lore.
+- **1.2** `Folder.person` (`trackers/fold.ts`), before it makes anyone: a name the tracker wrote counts as named when the story has it whole, or has a word of it that's nobody else's and isn't a title ("Hank" of Hank Summers, but not "Coach" of Coach Ramirez). A name that isn't named is read as the one person whose first name it starts with, or the one person it's a letter or two from ("Guth" for Ruth); failing that, nobody is added. The line says which: `the story never says Shannon: nobody was added`.
+- **1.3** Not asked of: descriptions ("the bartender", "Woman in brown cardigan"), your own lines, the opening's lines, the engine's, and names you said are people.
+- **1.4** Under the test runner the check is off unless a test turns it on (`setStoryNames`), because most fixtures file lines about people their few messages never name. The golden scenarios run with it on; their opening ledger is now filed as the opening's (`init`).
+
+**Seen on a copy of the real data:** besides "Gabriel Summers", the cast loses "Shannon", a clerk the tracker named in four lines at #169–#171 whom no message names. Lines for "Guth", "Gupert Giles" and "Guffy audit" (the model's misspellings; none had made a person) now say why they went nowhere. Folding the long story takes 1.9 s, as before.
+
+**Done when:** a ledger line naming someone the story never mentions makes no cast member, in a test and in this story's refold; a walk-on the reply names still appears on the first line. *(Both hold.)*
 
 ## Part 2: the tracker sees the names it must use
 
