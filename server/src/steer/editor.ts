@@ -1,7 +1,7 @@
 import { one, parseJson } from "../db/db";
 import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
-import { guardIssues } from "../accuracy/guards";
+import { guardIssues, tenseOf, tenseSlip } from "../accuracy/guards";
 import { chatNames } from "../memory/build";
 import { hashText } from "../memory/text";
 import { editMessage, getMessageRow, mustChat, updateSwipe } from "../services/chats";
@@ -127,4 +127,75 @@ export function decideEdit(messageId: string, action: "apply" | "dismiss" | "und
     updateSwipe(messageId, m.active_swipe, { meta: { edit: { ...edit, status: "dismissed" } } });
   } else updateSwipe(messageId, m.active_swipe, { meta: { edit: { ...edit, status: "dismissed" } } });
   publish({ type: "message.changed", chatId: m.chat_id, messageId });
+}
+
+// ---------- The tense pass (docs/33 Part 3) ----------
+
+const spoken = (t: string) => [...t.matchAll(/[“"]([^”"\n]{2,})[”"]/g)].map((m) => m[1]!.trim());
+const tags = (t: string) => (t.match(/<\/?[a-zA-Z][^>]*>/g) ?? []).join("");
+
+/**
+ * A reply told in the wrong tense is put right, whatever the editor setting: the story's settings
+ * name the tense, the model drifted, and a flag you have to act on every turn isn't a fix. One
+ * try; anything but a clean tense change is thrown away and the flag stands. The editor, when
+ * it's on, runs after.
+ */
+export function scheduleTenseFix(chatId: string, messageId: string, swipeIdx: number, text: string, seq: number): boolean {
+  let slip: ReturnType<typeof tenseSlip> = null;
+  try {
+    slip = tenseSlip(chatId, text, seq);
+  } catch {
+    return false;
+  }
+  if (!slip) return false;
+  enqueue("steer.tense", { chatId, messageId, swipeIdx }, { delayMs: 300, chatId, dedupeKey: `steer.tense:${messageId}:${swipeIdx}`, priority: 3, maxAttempts: 1 });
+  return true;
+}
+
+/** Whether a rewrite only changed the tense: same speech, same markup, about the same length, and now in the tense asked for. */
+export function onlyTenseChanged(before: string, after: string, to: "past" | "present", charNames: string[]): boolean {
+  if (!after.trim() || after.length < before.length * 0.85 || after.length > before.length * 1.15) return false;
+  const a = spoken(before);
+  const b = spoken(after);
+  if (a.length !== b.length || a.some((line, i) => line !== b[i])) return false;
+  if (tags(before) !== tags(after)) return false;
+  const t = tenseOf(after, charNames);
+  return t.tense === to || (to === "present" ? t.present > t.past * 2 : t.past > t.present * 2);
+}
+
+export async function runTenseJob(p: { chatId: string; messageId: string; swipeIdx: number }, job?: JobContext) {
+  const done = () => scheduleEditor(p.chatId, p.messageId, p.swipeIdx);
+  const m = getMessageRow(p.messageId);
+  if (!m || m.deleted_at || m.active_swipe !== p.swipeIdx) return;
+  const sw = one<{ content: string; meta: string }>("SELECT content, meta FROM swipes WHERE message_id = ? AND idx = ?", p.messageId, p.swipeIdx);
+  if (!sw?.content.trim()) return;
+  const slip = tenseSlip(p.chatId, sw.content, m.seq);
+  if (!slip) return done();
+  const names = chatNames(p.chatId);
+  let text = "";
+  try {
+    const r = await callText({
+      task: "helper",
+      kind: "tense",
+      chatId: p.chatId,
+      jobId: job?.id,
+      system: `You change the tense of a story's narration and nothing else. The text below is told in the ${slip.from} tense; the story is told in the ${slip.to} tense. Rewrite the narration's verbs into the ${slip.to} tense. Everything inside quotation marks stays exactly as it is, word for word. Keep every tag, mark and symbol (<…>, [...], *…*, ~), every paragraph break, every event and every other word. A sentence that looks back at an earlier time keeps the tense that says so. Reply with the full text only: no notes, no comment.`,
+      user: sw.content,
+      maxTokens: Math.min(8000, Math.ceil(sw.content.length / 2.5) + 400),
+    });
+    job?.note({ inputTokens: r.inputTokens });
+    text = r.text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  } catch (e) {
+    console.error("[mea] tense pass failed:", e);
+    return done();
+  }
+  if (!onlyTenseChanged(sw.content, text, slip.to, [names.char])) return done();
+  const now_ = one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", p.messageId, p.swipeIdx);
+  const cur = getMessageRow(p.messageId);
+  if (!now_ || hashText(now_.content) !== hashText(sw.content) || !cur || cur.deleted_at || cur.active_swipe !== p.swipeIdx) return;
+  const edit: EditProposal = { status: "applied", text, notes: [`narration put back in the ${slip.to} tense`], original: sw.content, at: Date.now() };
+  editMessage(p.messageId, text);
+  updateSwipe(p.messageId, p.swipeIdx, { meta: { edit } });
+  publish({ type: "message.changed", chatId: p.chatId, messageId: p.messageId });
+  done();
 }

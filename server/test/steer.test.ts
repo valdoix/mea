@@ -3,7 +3,8 @@ import type { MeaEvent } from "../src/lib/events";
 import { subscribe } from "../src/lib/events";
 import { normalizeCard } from "../src/cards/card";
 import { all, newId, one, run } from "../src/db/db";
-import { defaultMemoryConfig, defaultSteer, setSetting } from "../src/lib/settings";
+import { guardIssues, tenseSlip } from "../src/accuracy/guards";
+import { defaultGuards, defaultMemoryConfig, defaultSteer, setSetting } from "../src/lib/settings";
 import { buildSummary, carryMoments, storyNeedsRebuild } from "../src/memory/build";
 import { voiceRule, rollupSystem, sceneSystem } from "../src/memory/prompts";
 import { autoRecap, rebuildEstimate, rebuildProgress, recapFor } from "../src/memory/recap";
@@ -18,7 +19,7 @@ import { prefetch, previewPrompt, startStory } from "../src/services/generation"
 import { registerJob } from "../src/services/jobs";
 import { createPersona } from "../src/services/personas";
 import { excerpt, planFor, recentPlans, runAdvisor, turnKey } from "../src/steer/advisor";
-import { decideEdit, runEditorJob } from "../src/steer/editor";
+import { decideEdit, onlyTenseChanged, runEditorJob, runTenseJob, scheduleTenseFix } from "../src/steer/editor";
 import { normalizeQuotes, styleFor, styleText } from "../src/steer/style";
 import { freshDb } from "./helpers";
 
@@ -40,7 +41,7 @@ function waitFor(pred: (e: MeaEvent) => boolean, timeout = 8000) {
 
 beforeAll(async () => {
   freshDb();
-  for (const kind of ["memory.segment", "memory.build", "memory.embed", "memory.journal", "memory.consolidate", "lore.chronicle", "accuracy.check", "accuracy.drift", "steer.edit", "quota.refresh", "cache.probe"]) registerJob(kind, async () => {});
+  for (const kind of ["memory.segment", "memory.build", "memory.embed", "memory.journal", "memory.consolidate", "lore.chronicle", "accuracy.check", "accuracy.drift", "steer.edit", "steer.tense", "quota.refresh", "cache.probe"]) registerJob(kind, async () => {});
   const connId = createConnection({ name: "Mock", kind: "mock", billing: "subscription" });
   await syncModels(connId);
   createProfile({ name: "Story", connectionId: connId, modelId: "mock/storyteller", params: { context_target: 6000, max_tokens: 400 } });
@@ -191,6 +192,51 @@ describe("the post-pass editor (STEER-03)", () => {
     expect(getMessage(m)?.content).toBe("Mira laughs and pours the tea for the two of them.");
     expect((getMessage(m)?.meta.edit as { original: string }).original).toBe(original);
     setSetting("steer.config", defaultSteer);
+  });
+});
+
+describe("the tense pass (docs/33 Part 3)", () => {
+  const past = 'She set the lamp down and she looked at the storm. "It was never going to hold," she said. She walked to the glass and she waited. She turned back and she laughed. <mind of mood="calm">quiet</mind> She stood there and she studied the sea.';
+  const present = 'She sets the lamp down and she looks at the storm. "It was never going to hold," she says. She walks to the glass and she waits. She turns back and she laughs. <mind of mood="calm">quiet</mind> She stands there and she studies the sea.';
+  let tchat = "";
+  beforeAll(() => {
+    tchat = createChat({ characterId: charId, personaId: createPersona({ name: "Ash" }) }).id;
+    updateChat(tchat, { settings: { story: { tense: "Present" } } });
+  });
+  test("a story that names its tense is checked even with the tense guard off", () => {
+    setSetting("guards.config", { ...defaultGuards, tense: false });
+    expect(tenseSlip(tchat, past, 99)).toEqual({ from: "past", to: "present" });
+    expect(tenseSlip(tchat, present, 99)).toBeNull();
+    expect(guardIssues(tchat, past, { seq: 99 }).filter((i) => i.kind === "tense")).toHaveLength(1);
+    // A story with no stated tense still follows the switch.
+    expect(tenseSlip(chatId, past, 99)).toBeNull();
+    setSetting("guards.config", defaultGuards);
+  });
+  test("a past-tense reply is put back in the present, speech untouched, original kept", async () => {
+    const m = addMessage(tchat, "assistant", past, { name: "Mira" });
+    expect(scheduleTenseFix(tchat, m, 0, past, 1)).toBe(true);
+    await runTenseJob({ chatId: tchat, messageId: m, swipeIdx: 0 });
+    expect(getMessage(m)?.content).toBe(present);
+    const edit = getMessage(m)?.meta.edit as { status: string; original: string; notes: string[] };
+    expect(edit.status).toBe("applied");
+    expect(edit.original).toBe(past);
+    expect(edit.notes[0]).toContain("present tense");
+    decideEdit(m, "undo");
+    expect(getMessage(m)?.content).toBe(past);
+  });
+  test("a rewrite that touches what someone said is thrown away", async () => {
+    const careless = `${past} [careless]`;
+    const m = addMessage(tchat, "assistant", careless, { name: "Mira" });
+    await runTenseJob({ chatId: tchat, messageId: m, swipeIdx: 0 });
+    expect(getMessage(m)?.content).toBe(careless);
+    expect(getMessage(m)?.meta.edit).toBeUndefined();
+    expect(onlyTenseChanged(past, present, "present", ["Mira"])).toBe(true);
+    expect(onlyTenseChanged(past, present.replace("<mind", "<fx"), "present", ["Mira"])).toBe(false);
+    expect(onlyTenseChanged(past, present.slice(0, 120), "present", ["Mira"])).toBe(false);
+    expect(onlyTenseChanged(past, past, "present", ["Mira"])).toBe(false);
+  });
+  test("a reply already in the right tense isn't queued", () => {
+    expect(scheduleTenseFix(tchat, "x", 0, present, 1)).toBe(false);
   });
 });
 

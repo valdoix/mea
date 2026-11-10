@@ -49,14 +49,14 @@
 
 **Done when:** on a copy of the real data the five wrong memories named in the audit are superseded with a cited reason.
 
-## Part 3: tense and point of view hold  [3, 11]
+## Part 3: tense holds  [3, 11]
 
-- **3.1** `accuracy/guards.ts` `tenseGuard`: when the story's settings name a tense, the check runs whatever the guard switch says (the switch then only governs stories with no stated tense). One finding per reply, and it is the thing that moves the lesson's `last_broken_seq`; the separate "lesson" flag for the same fact goes.
-- **3.2** On a miss, one automatic rewrite by the editor before the reply is shown (`steer/editor.ts`), tense only, nothing else touched. If that fails the reply is shown with the flag. This runs even when the editor is otherwise off.
-- **3.3** "Write for me" and "continue" (`services/generation.ts` kinds `expand`, `continue`) get the same tense and person line as the story.
-- **3.4** The 25 fixes left as "proposed" in this story show as a single "apply all" in the story's health.
+- **3.1** `accuracy/guards.ts`: when the story's settings name a tense, the tense check runs whatever the guard switch says. The switch now only governs stories with no stated tense, and the "switches between tenses" note.
+- **3.2** `steer/editor.ts` `runTenseJob` (job `steer.tense`): a reply plainly in the other tense gets one rewrite of its narration's verbs, before the editor and whatever the editor setting. The rewrite is kept only if every quoted line is word for word the same, every tag is the same, the length is within 15%, and the result reads in the right tense; otherwise it is thrown away and the flag stands. It is applied with the original kept, so Undo works as for the editor.
+- **3.3** `steer/lessons.ts`: a broken tense lesson still grows stronger, but no longer raises a second flag beside the tense flag on the same reply.
+- *Dropped:* "write for me" already writes present tense on purpose, and "expand" already follows the story's tense; neither needed a change. *Moved to Part 7:* "apply all" for the 25 old proposed edits in this story (with the other open-flag tools).
 
-**Done when:** a past-tense mock reply in a present-tense story arrives in present tense, and the same reply with the rewrite failing arrives flagged.
+**Done when:** a past-tense mock reply in a present-tense story arrives in present tense with its speech untouched, and a rewrite that changes a spoken line is discarded. *(Both in `steer.test.ts`.)*
 
 ## Part 4: records take their time from the clock  [4, 16]
 
@@ -103,7 +103,7 @@
 - **7.3** Not-here: anyone named in the latest user message is present. Trait: checked against the sentence's subject.
 - **7.4** "No record of X": search the transcript (full-text) before raising it.
 - **7.5** New rules, no model calls: a vampire outdoors in daylight (from cast kind, the clock and the sky's sun times); weekday against date; a period list for the story's year; one value per person for facts like blood type, profession and kinship.
-- **7.6** Open flags: a count on the story, one-click fix per flag, and "fix all open".
+- **7.6** Open flags: a count on the story, one-click fix per flag, and "fix all open" (including an "apply all" for edits left as proposed).
 - **Golden:** the checker run over this story's replies on a copy, comparing flag counts before and after. Needs a yes.
 
 **Done when:** on the copy, the clock, name, leak, trait and not-here families fall by at least four in five, and the audit's open true catches are still caught.
@@ -184,7 +184,7 @@
 |---|---|---|
 | 1 brief ages | large | — |
 | 2 facts retire | large | — |
-| 3 tense | small | — |
+| 3 tense holds | small | — |
 | 4 clock labels | small | — |
 | 5 state expires | large | 2 |
 | 6 word-fixer | small | — |

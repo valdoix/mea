@@ -441,7 +441,9 @@ export function brokenLessons(chatId: string, messageId: string | undefined, seq
     const slip = l.data.slip!;
     const hit = issuesOf(slip.kind).find((i) => slipKey({ kind: i.kind, subject: subjectOf(i) }) === slipKey(slip));
     if (!hit) continue;
-    out.push({
+    // docs/33 Part 3: a tense slip is one finding. The tense check reports it (and the tense pass
+    // fixes it); the lesson still grows stronger, without a second flag on the same reply.
+    if (!(slip.kind === "tense" && found.includes(hit))) out.push({
       kind: "lesson",
       severity: l.strength >= STRONG ? "major" : "minor",
       claim: hit.claim,

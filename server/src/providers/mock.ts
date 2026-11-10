@@ -709,6 +709,15 @@ function mockPlainText(system: string, user: string): string | null {
     const kept = reply.split(/(?<=[.!?]["”]?)\s+/).filter((s) => !/\b(?:Ash|Alex|You)\s+(?:says|said|nods|takes|follows)\b/.test(s.replace(/"[^"]*"/g, "")));
     return `${kept.join(" ")}\n---NOTES---\n- cut a line written for the player`;
   }
+  if (/^You change the tense of a story's narration/.test(system)) {
+    // A test can ask for a careless pass: one that also rewords what someone said.
+    if (/\[careless\]/.test(user)) return user.replace(/[“"]([^”"\n]+)[”"]/, '"Something else entirely."');
+    const toPresent: Record<string, string> = { was: "is", were: "are", had: "has", set: "sets", looked: "looks", said: "says", walked: "walks", turned: "turns", poured: "pours", laughed: "laughs", studied: "studies", stood: "stands", waited: "waits", crossed: "crosses" };
+    return user
+      .split(/([“"][^”"\n]*[”"])/)
+      .map((part, i) => (i % 2 ? part : part.replace(/\b[a-z]+\b/g, (w) => toPresent[w] ?? w)))
+      .join("");
+  }
   const field = system.match(/^Field: (.+)$/m)?.[1];
   // Card tools' field actions echo the field with the action, so a test can see what was asked.
   const editing = user.match(/THE FIELD TO EDIT \([^)]*\):\n([\s\S]*)$/)?.[1];
