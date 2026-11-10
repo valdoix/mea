@@ -4,7 +4,9 @@ import { badRequest, notFound } from "../lib/http";
 import { publish } from "../lib/events";
 import { type AtomRow, sourcesLive } from "./atoms";
 import { scanEntriesFor } from "../lore/service";
-import { castProfiles, currentFold } from "../trackers/store";
+import { Folder } from "../trackers/fold";
+import { castProfiles, currentFold, foldConfigFor } from "../trackers/store";
+import { isGroupShape } from "../trackers/whois";
 import { memState } from "./store";
 
 /**
@@ -55,6 +57,12 @@ export interface EntityData {
   sources?: string[];
   /** Fields you edited (description, kind, status, name). */
   locked?: string[];
+  /**
+   * docs/32 Part 3: the sync put this page away because the cast no longer has the person: "merged"
+   * into the page of whoever the name is now read as (Unmerge brings it back), or "hidden" when it's
+   * read as nobody (it returns by itself if the story comes to name them).
+   */
+  retired?: "merged" | "hidden";
 }
 
 export const norm = (s: string) =>
@@ -378,6 +386,19 @@ function castOf(chatId: string) {
   return Object.fromEntries(Object.values(castProfiles(chatId)).map((p) => [p.name, p as { description?: string }]));
 }
 
+/**
+ * docs/32 3.2: the people a scene record lists, as names. "Dawn Summers (on phone)" is Dawn Summers;
+ * "Buffy Summers & Gabriel Winters" is two people; "Dawn's friends: Melissa, Kara, Jamie" is three.
+ */
+export function sceneNames(list: string[]): string[] {
+  return list.flatMap((raw) => {
+    const bare = raw.replace(/\s*\([^)]*\)?\s*$/, "").replace(/\s+/g, " ").trim();
+    const parts = bare.split(/\s*(?:,|&|\/|\||;|:|·|\band\b)\s*/i).map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 2) return bare ? [bare] : [];
+    return parts.filter((p) => !isGroupShape(p));
+  });
+}
+
 /** Brings the entity table up to date with trackers, atoms and scene records. Cheap when nothing changed. */
 export function syncEntities(chatId: string, force = false) {
   const tracker = trackerStateOf(chatId);
@@ -452,7 +473,7 @@ export function syncEntities(chatId: string, force = false) {
 
   for (const s of all<{ data: string; start_seq: number; end_seq: number | null }>("SELECT data, start_seq, end_seq FROM summaries WHERE chat_id = ? AND level = 'scene' AND state = 'ready'", chatId)) {
     const d = parseJson<{ participants?: string[]; locations?: string[] }>(s.data, {});
-    for (const n of d.participants ?? []) add(n, "person", { first: s.start_seq, last: s.end_seq ?? s.start_seq, source: "scenes", strong: true });
+    for (const n of sceneNames(d.participants ?? [])) add(n, "person", { first: s.start_seq, last: s.end_seq ?? s.start_seq, source: "scenes", strong: true });
     for (const n of d.locations ?? []) add(n, "place", { first: s.start_seq, last: s.end_seq ?? s.start_seq, source: "scenes", strong: true });
   }
 
@@ -565,6 +586,12 @@ export function syncEntities(chatId: string, force = false) {
         continue;
       }
       const data = parseJson<EntityData>(row.data, {});
+      // docs/32 3.1: a page the sync hid comes back when the story has the person after all.
+      if (row.deleted_at && data.retired === "hidden") {
+        delete data.retired;
+        run("UPDATE entities SET deleted_at = NULL WHERE id = ?", row.id);
+        changed = true;
+      }
       const locked = new Set(data.locked ?? []);
       const removed = new Set((data.removed ?? []).map(norm));
       const aliases = parseJson<string[]>(row.aliases, []);
@@ -606,6 +633,33 @@ export function syncEntities(chatId: string, force = false) {
           t,
           row.id,
         );
+        changed = true;
+      }
+    }
+    // docs/32 3.1: pages the cast and the scene records no longer stand behind.
+    if (tracker) {
+      const matched = new Set([...groups.values()].flatMap((g) => (g.row ? [g.row.id] : [])));
+      let folder: Folder | null | undefined;
+      const readAs = (name: string) => {
+        try {
+          folder ??= new Folder(foldConfigFor(chatId), tracker.state);
+        } catch {
+          folder = null;
+        }
+        return folder?.findChar(name)?.name;
+      };
+      for (const row of rows) {
+        if (row.merged_into || row.deleted_at || row.user_edited || row.kind !== "person" || matched.has(row.id)) continue;
+        const data = parseJson<EntityData>(row.data, {});
+        const sources = data.sources ?? [];
+        if (!sources.length || sources.some((x) => x !== "tracker" && x !== "scenes") || data.isUser || data.isMain || data.locked?.length) continue;
+        const parts = sceneNames([row.name]);
+        const one = parts.length === 1 ? parts[0]! : undefined;
+        // A scene's plain name that's merely not there right now (its scene is being rewritten) stays.
+        if (!sources.includes("tracker") && one && norm(one) === norm(row.name)) continue;
+        const target = one ? (res.findExact(readAs(one) ?? one) ?? res.findExact(one)) : undefined;
+        if (target && target.id !== row.id && !target.deleted_at) run("UPDATE entities SET merged_into = ?, data = ?, updated_at = ? WHERE id = ?", target.id, JSON.stringify({ ...data, retired: "merged" }), t, row.id);
+        else run("UPDATE entities SET deleted_at = ?, data = ?, updated_at = ? WHERE id = ?", t, JSON.stringify({ ...data, retired: "hidden" }), t, row.id);
         changed = true;
       }
     }

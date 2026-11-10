@@ -69,11 +69,14 @@ Part 0 handles one shape of slip. The general rule is that a person exists becau
 
 Today a Codex page made from the cast outlives the cast member. This story has 92 live person pages; 14 carry a note in brackets ("Dawn Summers (on phone)"), 10 are lists ("Buffy Summers & Gabriel Winters").
 
-- **3.1** `syncEntities`: a page whose only source is `tracker`, that you haven't edited, and that the fold no longer has, is merged into the page of whoever the fold now reads that name as (`merged_into`), or hidden if it reads as nobody. Reversible from the Codex.
-- **3.2** Names from scene summaries go through `personName` and `Folder.each` before a page is made, so a bracketed note or a list never becomes a person.
-- **3.3** One cleanup pass applies 3.1 and 3.2 to existing pages, with a count per story shown before it runs.
+- **3.1** `syncEntities` (`memory/entities.ts`): a person's page that nothing stands behind any more is put away. That means a page known only from the cast or the scene records, never edited by you, and absent from both now. It's merged into the page of whoever the fold reads its name as (Unmerge in the Codex brings it back), or hidden when it's read as nobody. A hidden page returns by itself if the story comes to have the person. The wrong name doesn't become an alias of the right person.
+- **3.2** `sceneNames`: a scene record's people go in as names. A note in brackets is dropped ("Dawn Summers (on phone)"), a list is its people ("Buffy Summers & Gabriel Winters"), and a group's label before a list isn't one of them ("Dawn's friends: Melissa, Kara, Jamie").
+- **3.3** *Changed from the first draft:* there's no separate cleanup pass. The first sync after the update does it, and every step can be undone.
+- **Left alone:** pages you edited, pages a memory names, your character's and the main character's, places and things, and a scene's plain name that's missing only because its scene is being rewritten.
 
-**Done when:** this story has no "Gabriel Summers" page and no person page with brackets or a list in its name, and pages you edited are untouched.
+**Seen on a copy of the real data:** *Clawed Out Into October* goes from 92 person pages to 58: 16 merged (the ten "(on phone)"-style pages, "Gabriel Summers" into Gabriel Winters) and 22 hidden (lists, "traits", "household", "cash only", and four canon people the cast doesn't have: Halfrek, Jenny Calendar, Kendra Young, Oz). *The Word in Her Throat* goes from 30 to 26.
+
+**Done when:** this story has no "Gabriel Summers" page and no cast-made person page with brackets or a list in its name, and pages you edited are untouched. *(Holds on the copy; one bracketed page a memory names stays, by the rule above.)*
 
 ## Part 4: one click when Mea read a name wrong
 
