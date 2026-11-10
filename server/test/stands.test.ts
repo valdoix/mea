@@ -63,7 +63,9 @@ describe("where things stand", () => {
     const later = reply(id, "A day on.");
     lines(id, later, "clock: Day 2 12:00", "plan Lunch: Day 2 12:40");
     const { stands } = standing(id, state(id));
-    expect(stands).toContain("pick Dawn up tonight (Day 1)");
+    // docs/33 5.5: a day on, "tonight" has gone by: it's no longer shown as open.
+    expect(stands).toMatch(/^Their day went by.*pick Dawn up tonight \(Day 1\)/m);
+    expect(stands.match(/^Open: .*$/m)![0]).not.toContain("pick Dawn up");
     expect(stands).toContain("the bank call (due after the funeral)");
     expect(stands).toContain("Lunch (in 40 min)");
     expect(stands).toContain("Dinner (was due Day 1 13:00)");

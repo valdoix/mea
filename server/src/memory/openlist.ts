@@ -159,6 +159,9 @@ export function dated(text: string, seq: number, lens: Lens) {
   });
 }
 
+/** Words for a state that waits on something being done. */
+const PENDING = /\b(?:still|not yet|hasn['’]t|haven['’]t|has not|have not|needs? (?:to be )?(?:fix|repair|replac|clean|writ|bought|buy)\w*|broken|unfixed|leak(?:s|ing|y)?|drip(?:s|ping)?|missing|unpaid|unfinished|waiting (?:for|on))\b/i;
+
 const OPEN_LINE = /^(Left open|Still open): (.*)$/m;
 const WHOLE_OPEN_LINE = /\n?^(?:Left open|Still open): .*$/m;
 
@@ -190,8 +193,14 @@ export function summaryText(r: Pick<SummaryRow, "content" | "level" | "start_seq
 
 /** A memory as a model reads it: a plan or a promise says which day it meant, and if it's been done since. */
 export function memoryText(a: Pick<AtomRow, "content" | "type" | "max_seq">, lens: Lens) {
-  if (a.type !== "plan" && a.type !== "promise") return a.content;
   const seq = a.max_seq ?? 0;
+  if (a.type !== "plan" && a.type !== "promise") {
+    // docs/33 Part 5: a memory that something is still broken, missing or not yet done, once a closed
+    // loop finished it ("the faucet still drips" after "fix the faucet" closed). Only a closed loop counts.
+    if (!PENDING.test(a.content)) return a.content;
+    const fixed = lens.match(a.content, seq);
+    return fixed?.strict ? `${a.content} (as of #${seq}; since then: ${fixed.text}, #${fixed.seq})` : a.content;
+  }
   const d = lens.match(a.content, seq);
   return `${dated(a.content, seq, lens)}${d ? ` (done since: ${d.text}, #${d.seq})` : ""}`;
 }

@@ -1,4 +1,5 @@
 import { sameThing } from "./things";
+import { COMMUNAL } from "./belongings";
 import { wxKind } from "./weather";
 import { applySim } from "../sim/fold";
 import { itemsAt } from "./belongings";
@@ -2029,6 +2030,8 @@ export class Folder {
         // A kind is a word ("home", "shop"); "asleep-bound, door knob turned…" isn't one.
         const said = clip(a.kind).toLowerCase();
         const kind = /^(?:room|bedroom|home|house|flat|apartment|shop|store|office|studio|workshop|study|den|suite|quarters|cabin|crypt|lair|camp|tent|bunk|cell|stall)$/.test(said) && !(said === "room" && (p.kind === "home" || p.kind === "building")) ? said : (p.kind ?? "room");
+        // docs/33 5.9: the kitchen is the household's; a model can't make it one person's room.
+        if (kind === "room" && COMMUNAL.test(p.name) && this.ai(ctx)) return this.reject(ctx, "a shared room isn't one person's: use room for their own room, home for the house");
         if (p.owner === who.id && p.kind === kind) return;
         if (this.isLocked(`places.${p.id}`) && this.ai(ctx)) return this.reject(ctx, "locked");
         p.owner = who.id;

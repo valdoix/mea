@@ -98,3 +98,18 @@ export function sentenceNotPath(parts: string[]): boolean {
   const words = parts[0]!.replace(/\([^)]*\)/g, " ").trim().split(/\s+/).filter(Boolean);
   return words.length > 5;
 }
+
+const ANIMALS = "cat|kitten|tabby|tomcat|dog|puppy|hound|horse|pony|mare|stallion|parrot|owl|raven|ferret|rabbit|hamster";
+const ANIMAL = new RegExp(String.raw`\b(?:${ANIMALS})\b`, "i");
+const NAMED_ANIMAL = new RegExp(String.raw`(?:\bthe\s+|\()(?:\w+\s+)?(?:${ANIMALS})\b`, "i");
+
+/**
+ * docs/33 Parts 5 and 12: a pet. The trackers know one by its traits ("cat, automatic-feeder loyal")
+ * or by what it's also called ("Ruth the cat", "Ruth (cat)"). A person described as catlike isn't one:
+ * only the first trait, or a name, counts.
+ */
+export function isAnimal(c: { name: string; aliases?: string[]; traits?: { text: string }[] } | undefined): boolean {
+  if (!c) return false;
+  const first = c.traits?.[0]?.text.split(/[,;]/)[0] ?? "";
+  return ANIMAL.test(first) || [c.name, ...(c.aliases ?? [])].some((n) => NAMED_ANIMAL.test(n));
+}

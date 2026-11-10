@@ -20,6 +20,21 @@ const DAY = 1440;
 /** How far back "today" reaches when the day has only just begun: last night still counts. */
 const LOOKBACK = 18 * 60;
 export const TODAY_TOKENS = 600;
+/** Fewer beats than this today, and last night is still shown. */
+const EARLY = 3;
+/** A folded beat keeps this many words of its first clause, cut at a comma when it's longer. */
+const FOLD_WORDS = 14;
+const TIGHT_WORDS = 8;
+
+/** The first clause of a beat, whole; a long one ends at its last comma, and says it was cut. */
+export function firstClause(text: string, max = FOLD_WORDS) {
+  const clause = text.split(/;\s*/)[0]!.trim();
+  const words = clause.split(/\s+/);
+  if (words.length <= max) return clause;
+  const head = words.slice(0, max).join(" ");
+  const comma = head.lastIndexOf(",");
+  return `${(comma > 20 ? head.slice(0, comma) : head).replace(/[\s,—–-]+$/, "")}…`;
+}
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (m: number) => `${pad(Math.floor((((m % DAY) + DAY) % DAY) / 60))}:${pad(m % 60)}`;
@@ -31,9 +46,12 @@ export function todaysBeats(st: WorldState): Beat[] {
   const beats = st.beats ?? [];
   const now = st.time?.minutes;
   if (now == null) return beats.slice(-20);
-  const from = Math.min(Math.floor(now / DAY) * DAY, now - LOOKBACK);
   // A beat before the clock was set, or on the other clock form, can't be placed in the day.
-  return beats.filter((b) => b.minutes != null && b.form === st.time!.form && b.minutes >= from && b.minutes <= now);
+  const placed = beats.filter((b) => b.minutes != null && b.form === st.time!.form && b.minutes <= now);
+  const dayStart = Math.floor(now / DAY) * DAY;
+  const today = placed.filter((b) => b.minutes! >= dayStart);
+  // docs/33 5.4: the day starts at its first message. Last night counts only while today has barely begun.
+  return today.length >= EARLY ? today : placed.filter((b) => b.minutes! >= Math.min(dayStart, now - LOOKBACK));
 }
 
 export interface TodayLine {
@@ -59,25 +77,39 @@ export function todayLines(st: WorldState, nameOf: (id: string) => string, budge
     const who = moved && b.who.length ? `, with ${b.who.map(nameOf).join(", ")}` : "";
     return [when(b), moved && place ? `${place}${who}` : ""].filter(Boolean).join(" · ");
   };
-  type Group = { beats: Beat[]; folded: boolean };
+  type Group = { beats: Beat[]; folded: boolean; tight?: boolean };
   const groups: Group[] = beats.map((b) => ({ beats: [b], folded: false }));
   const render = (g: Group, prev?: Beat) => {
     const first = g.beats[0]!;
     const last = g.beats.at(-1)!;
     const span = first.seq === last.seq ? `#${first.seq}` : `#${first.seq}–${last.seq}`;
-    const text = g.folded ? g.beats.map((b) => b.text.split(/;\s*/)[0]!.split(/\s+/).slice(0, 10).join(" ")).join("; ") : first.text;
+    const text = g.folded ? g.beats.map((b) => firstClause(b.text, g.tight ? TIGHT_WORDS : FOLD_WORDS)).join("; ") : first.text;
     return `${head(first, prev)} (${span}): ${text}`;
   };
   const lines = () => groups.map((g, i) => render(g, groups[i - 1]?.beats.at(-1)));
   const cost = () => countTokens(lines().join("\n"));
   // Fold the oldest hour that isn't folded yet, then drop the oldest line.
   while (groups.length > 1 && cost() > budget) {
-    const i = groups.findIndex((g, k) => !g.folded && groups.slice(k + 1).some((h) => sameHour(h.beats[0]!, g.beats[0]!)));
-    if (i >= 0) {
-      const hour = groups.filter((g) => sameHour(g.beats[0]!, groups[i]!.beats[0]!));
-      const merged: Group = { beats: hour.flatMap((g) => g.beats), folded: true };
-      groups.splice(groups.indexOf(hour[0]!), hour.length, merged);
-    } else groups.shift();
+    // docs/33 5.4: a folded line is one hour in one place; a move starts a new line, so the hillside
+    // is never filed under the parking lot.
+    const together = (a: Group, b: Group) => sameHour(a.beats[0]!, b.beats[0]!) && placeName(a.beats.at(-1)!.place) === placeName(b.beats[0]!.place);
+    const samePlace = (a: Group, b: Group) => placeName(a.beats.at(-1)!.place) === placeName(b.beats[0]!.place);
+    const pair = (ok: (a: Group, b: Group) => boolean) => groups.findIndex((g, k) => k + 1 < groups.length && ok(g, groups[k + 1]!));
+    const merge = (i: number) => groups.splice(i, 2, { beats: [...groups[i]!.beats, ...groups[i + 1]!.beats], folded: true });
+    // Oldest first: an hour in one place into a line; then a long beat down to its first clause; then
+    // a stay in one place into a line, whatever the hour. Only then does the morning start to go.
+    const hour = pair(together);
+    const long = groups.findIndex((g) => !g.folded && g !== groups.at(-1) && g.beats[0]!.text.includes(";"));
+    const stay = pair(samePlace);
+    if (hour >= 0) merge(hour);
+    else if (long >= 0) groups[long]!.folded = true;
+    else if (stay >= 0) merge(stay);
+    else {
+      // Before the morning goes, the oldest long line says each beat in fewer words.
+      const wordy = groups.find((g) => g.folded && !g.tight && g.beats.length > 1);
+      if (wordy) wordy.tight = true;
+      else groups.shift();
+    }
   }
   return lines().map((text, i) => ({ ref: `B${i + 1}`, seq: groups[i]!.beats[0]!.seq, text }));
 }

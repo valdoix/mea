@@ -102,7 +102,9 @@ const normName = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ")
 /** The few words of an entry that matter most: its essentials, else its first two sentences. */
 export function essentialsOf(e: ScanEntry | LoreEntryLike) {
   const x = extraOf(e).essentials?.trim();
-  if (x) return x;
+  // docs/33 5.8: essentials that are only the entry's name say nothing ("Winters Residence kitchen").
+  const names = [extraOf(e).entity, (e as { comment?: string }).comment].filter((n): n is string => Boolean(n?.trim())).map(normName);
+  if (x && !names.includes(normName(x))) return x;
   const sents = e.content.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+/);
   return sents.slice(0, 2).join(" ").slice(0, 320);
 }
@@ -289,7 +291,8 @@ export function activateLore(input: ActivationInput): ActivationResult {
       setTrace(e, "inactive", "disabled");
       continue;
     }
-    if (!e.content.trim()) {
+    // docs/33 5.8: an entry whose text is only its own name says nothing, and would be sent as a bare title.
+    if (!e.content.trim() || [e.comment, extraOf(e).entity].some((n) => n?.trim() && normName(n) === normName(e.content))) {
       setTrace(e, "inactive", "empty content");
       continue;
     }

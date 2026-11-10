@@ -23,7 +23,14 @@ export function placeNow(st: WorldState): Place | undefined {
   if (!st.place.length) return undefined;
   const full = low(st.place.join(" › "));
   const all = Object.values(st.places);
-  return all.find((p) => low(p.path.join(" › ")) === full) ?? all.find((p) => p.owner && low(p.name) === low(st.place.at(-1)!));
+  // docs/33 5.9: by its last part only inside the same house: "kitchen" isn't Dawn's kitchen across town.
+  const within = (p: Place) => {
+    const a = p.path.map(low);
+    const b = st.place.map(low);
+    const n = Math.min(a.length, b.length);
+    return n >= 2 ? a.slice(-n).join(" › ") === b.slice(-n).join(" › ") : a.length === 1 || b.length === 1;
+  };
+  return all.find((p) => low(p.path.join(" › ")) === full) ?? all.find((p) => p.owner && low(p.name) === low(st.place.at(-1)!) && within(p));
 }
 
 /** "Since you were last here": what came and went, against what was here when you left. */
@@ -34,12 +41,16 @@ export function changedSince(st: WorldState, p: Place): { came: Item[]; went: It
   return { came: now.filter((i) => !seen.has(i.id)), went: p.seen.map((id) => st.items[id]).filter((i): i is Item => Boolean(i) && !now.includes(i!)) };
 }
 
+/** Rooms a household shares: never one person's "room" (a home or a shop can still be someone's). */
+export const COMMUNAL = /^(?:the\s+)?(?:kitchen|living room|dining room|lounge|den|hall(?:way)?|landing|stairs|staircase|foyer|entry(?:way)?|porch|garage|driveway|yard|garden|backyard|pool|basement|attic|laundry(?: room)?|pantry|lobby|corridor)$/i;
+
 /** The note's line for the room the scene is in, when it's someone's. */
 export function roomLine(st: WorldState, nameOf: (id: string) => string): string | null {
   const p = placeNow(st);
   if (!p?.owner) return null;
   const owner = st.chars[p.owner];
-  if (!owner) return null;
+  // docs/33 5.9: the kitchen is the house's, whoever a ledger line once gave it to.
+  if (!owner || (COMMUNAL.test(p.name) && (p.kind ?? "room") === "room")) return null;
   const here = itemsAt(st, p);
   const mine = here.filter((i) => i.owner === p.owner).map((i) => i.name);
   const { came, went } = changedSince(st, p);

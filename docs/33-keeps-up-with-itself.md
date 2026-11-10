@@ -82,7 +82,7 @@ Built in two halves; the rest moves to later parts.
 
 ## Part 5: state that expires  [5, 19, 21, 23]
 
-Split in two. **5a**, the people lines, is built; **5b** is the rest of the state block.
+Built in two halves: **5a**, the people lines, and **5b**, the rest of the state block.
 
 ### 5a: what someone wears, feels and carries (built)
 
@@ -94,16 +94,21 @@ Split in two. **5a**, the people lines, is built; **5b** is the rest of the stat
 
 **Done when:** a later scene doesn't show an earlier scene's clothes, body state, eaten food or set-down things, and a broken bracket or a run-in line never reaches the prompt. *(In `expires.test.ts`.)*
 
-### 5b: the rest of the state block (not built)
+### 5b: the rest of the state block (built)
 
-- **5.4** `trackers/today.ts`: starts at the day's first message, never clips mid-clause, and breaks a block when the place changes.
-- **5.5** `memory/openlist.ts`: open items ranked by weight (promises with a date, conflicts, secrets first); solved errands closed.
-- **5.6** `memory/named.ts`: facts in play chosen by the scene's people and place, not by any name match.
-- **5.7** `accuracy/corrections.ts`: a correction only from a real supersession, with the pair shown.
-- **5.8** `lore/activate.ts`: an entry with no text is not sent.
-- **5.9** `trackers/places.ts`: a room cannot be filed under another room; the current room follows the cast.
-- **5.10** A test that every reader of the state ignores ledger lines of takes that aren't the active one.
-- Moved here from Part 2: an item bought, fixed or lost, or a promise kept, retiring the memories it overturns.
+- **5.4** `trackers/today.ts`: TODAY SO FAR starts at the day's first message (last night shows only while today has fewer than three beats). A folded line is one stretch in one place, so a move starts a new line. A folded beat keeps its first clause whole, cut at a comma and marked "…" only when it runs past 14 words; before the morning is dropped, the oldest long lines tighten to eight words a beat.
+- **5.5** `trackers/stands.ts`: with nothing due and nothing being talked about, open items rank by weight (a vital promise, a promise, a plan or question, an errand), then newest. A loop whose day has gone by (its due time by 12 hours, or the day its words name, "today", "tonight", "Saturday night", by six hours into the next) leaves `Open:` for a short `Their day went by` line that says it is never still to come.
+- **5.6** Facts in play: a fact older than 40 messages needs two words in common with the turn and a stronger match, unless it names the room the scene is in (`trackers/note.ts` `inPlay`). A name the page has said in more than a dozen messages ("Spike-o") is a regular, not news (`memory/named.ts`).
+- **5.7** `accuracy/promptcheck.ts`: a "they know now" correction needs the fact to be what the sentence is about: two of the sentence's own words (names and words of telling aside) and a fifth of it, or a third of it. Sharing one word no longer answers a sentence.
+- **5.8** `lore/activate.ts`: an entry whose text is only its own name isn't sent, and "essentials" that are only the name fall back to the entry's first two sentences. *(The "empty" entries were these: an entry trimmed to essentials that were just its title.)*
+- **5.9** A shared room (kitchen, living room, hall, garage, pool…) is the household's: a model's `room` line can't make it one person's, and the `ROOM:` line skips one that was already filed so. A room is found by its last part only inside the same house.
+- **5.10** `stateblock.test.ts`: a take that wasn't kept leaves its ledger lines in the table and none in the state, the note, where things stand, today, or the long threads.
+- Also in the note: a pet has no "doesn't know" line and is never "closest" to a secret (`trackers/whois.ts` `isAnimal`); a secret that already came out to everyone near it isn't "close to coming out"; a deadline 12 story hours past is history; what's under someone's clothes prints in an intimate scene only.
+- From Part 2: a memory that something is still broken, missing or not yet done says what a closed loop did since ("the faucet still drips … since then: Promise kept: fix the faucet"), where a model reads it (`memory/openlist.ts` `memoryText`). An item bought or lost needed nothing new: 5a's inventory rules cover it.
+
+**Seen on a copy of the real data (the prompt for the next reply):** today runs 06:50 to now in twelve lines, each in its own place; "writing the house constitution today" and the Saturday suit are under `Their day went by`; facts in play are the eyelashes, the darts league and the fridge scoreboard; the two non-sequitur corrections are gone and the true ones remain; the lore block no longer opens on a bare title; `ROOM: Dawn's room` is gone from the kitchen; "Ruth doesn't know" and the three passed deadlines are gone.
+
+**Done when:** the state block for message 926 (on a copy) shows what people are wearing and holding in that scene, starts today at today, and files nothing under the wrong place. *(Holds; `stateblock.test.ts`, 14 tests.)*
 
 ## Part 6: the word-fixer only suggests  [6]
 
