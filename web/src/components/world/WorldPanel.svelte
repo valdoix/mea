@@ -97,7 +97,7 @@
           </div>
           <p class="st-caption cap"><span><i class="key-v"></i>tension</span><span><i class="key-t"></i>where {w.personalities[w.config.director]?.label ?? "the director"} wants it</span></p>
         {/if}
-        {#if w.sky}<p class="sky"><Moon size={13} /> {w.sky.line.replace(/^SKY: /, "")}{w.sky.moon ? ` · ${w.sky.moon}` : ""}</p>{/if}
+        {#if w.sky}<p class="sky"><Moon size={13} /> {w.sky.line.replace(/^SKY: /, "")}{w.sky.moon ? ` · ${w.sky.moon}` : ""}</p>{#if w.sky.doubt}<p class="st-caption">{w.sky.doubt}</p>{/if}{/if}
       </Module>
     {/if}
 

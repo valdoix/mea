@@ -1,4 +1,5 @@
 import { sameThing } from "./things";
+import { wxKind } from "./weather";
 import { applySim } from "../sim/fold";
 import { itemsAt } from "./belongings";
 import type { SimOp } from "../sim/types";
@@ -1378,9 +1379,19 @@ export class Folder {
       }
       case "wx": {
         if (!a.to) return this.reject(ctx, "no weather given");
+        // docs/33 Part 13: light and mood aren't weather, and a room's air isn't the sky's.
+        const kind = wxKind(a.to);
+        if (kind === "light") {
+          st.light = { text: clip(a.to), seq };
+          return;
+        }
+        if (kind === "indoor") {
+          st.indoor = { text: clip(a.to), seq, place: st.place.join(" › ") };
+          return;
+        }
         const prev = st.weather?.now;
         if (prev && norm(prev) === norm(a.to)) return;
-        st.weather = { now: clip(a.to), prev, seq };
+        st.weather = { now: clip(a.to), prev, seq, ...(st.time ? { at: st.time.minutes } : {}) };
         this.push(ctx, { kind: "weather", text: prev ? `${prev} → ${a.to}` : a.to, path: "weather", from: prev, to: a.to });
         return;
       }

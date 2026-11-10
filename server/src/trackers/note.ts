@@ -350,7 +350,9 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     const named = st.time && o.calendar && o.calendar !== "gregorian" ? noteTime(st.time, o.calendar, o.season) : "";
     if (named) now.push(named);
     else if (st.time) now.push(`${shortStoryTime(formatStoryTime(st.time))}${timeOfDay(formatStoryTime(st.time)) ? ` (${timeOfDay(formatStoryTime(st.time))})` : ""}`);
-    if (st.weather) now.push(st.weather.now);
+    // docs/33 Part 13: the SKY line carries the weather when there is one; light holds for its scene.
+    if (st.weather && !/^SKY: /m.test(o.elsewhere ?? "")) now.push(st.weather.now);
+    if (st.light && st.light.seq >= (st.sceneStartSeq ?? 0)) now.push(st.light.text);
     if (st.place.length) now.push(st.place.join(" › "));
     if (st.sceneTitle) now.push(`scene: ${st.sceneTitle}`);
     if (st.mode) now.push(`mode: ${st.mode}${st.talk ? ` (${st.talk})` : ""}`);

@@ -2012,7 +2012,7 @@ export interface WorldViewData {
   modes: string[];
   kinds: Record<string, { label: string; clock: number; hostile: boolean }>;
   time: string | null;
-  sky: { line: string; weather: { text: string; tempC: number; level: number }; season: string; sunrise: string | null; sunset: string | null; moon: string; forecast: { minutes: number; text: string; tempC: number }[] } | null;
+  sky: { line: string; doubt?: string | null; weather: { text: string; tempC: number; level: number }; season: string; sunrise: string | null; sunset: string | null; moon: string; forecast: { minutes: number; text: string; tempC: number }[] } | null;
   arcs: (Arc & ArcTies)[];
   arrivals: Arrival[];
   proposals: SimProposal[];

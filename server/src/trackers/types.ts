@@ -469,7 +469,12 @@ export interface WorldState {
   time: Moment | null;
   /** When the clock was first set: the story's opening, the "tonight" a card's scenario speaks of. */
   start?: Moment;
-  weather: { now: string; prev?: string; seq: number } | null;
+  /** `at` (docs/33 Part 13): the story minute it was written at, so the sky moves on from it. */
+  weather: { now: string; prev?: string; seq: number; at?: number } | null;
+  /** docs/33 Part 13: a `wx` line that was light or mood, not weather; it holds for its scene. */
+  light?: { text: string; seq: number };
+  /** docs/33 Part 13: the air of a room ("cold off the ice", "sixty-two degrees inside"), true while the scene stays in that place. */
+  indoor?: { text: string; seq: number; place: string };
   /** docs/25 §4.2: an event under way, in the model's words ("a royal wedding feast"), and where and when it began, so it ends by itself. */
   occasion?: { now: string; seq: number; at: number | null; root: string } | null;
   place: string[];
