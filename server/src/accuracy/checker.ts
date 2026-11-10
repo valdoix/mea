@@ -144,6 +144,39 @@ function storyPassages(chatId: string, beforeSeq: number, about: string): Passag
   return [...seen.values()].sort((a, b) => a.seq - b.seq);
 }
 
+/** How much of a claim's own words one earlier message must hold for it to be "on the page". */
+const ON_PAGE = 0.6;
+
+/**
+ * docs/33 7.4: "no record of X" when X is on the page. Before an invented-past flag goes anywhere,
+ * the transcript is searched: one earlier message holding most of the claim's own words (three at
+ * least, the cast's names aside) is the record. No model: the M card of #35 and Gabriel's promise of
+ * #58 were both a search away.
+ */
+export function onThePage(chatId: string, beforeSeq: number, claim: string, names: string[] = []): number | null {
+  const skip = new Set(names.flatMap((n) => [...contentWords(n)]));
+  const words = [...contentWords(claim)].filter((w) => !skip.has(w));
+  if (words.length < 3) return null;
+  let rows: { seq: number; content: string }[] = [];
+  try {
+    rows = all<{ seq: number; content: string }>(
+      `SELECT m.seq, s.content FROM swipes_fts f JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
+       WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq < ? AND m.deleted_at IS NULL ORDER BY bm25(swipes_fts) LIMIT 8`,
+      words.slice(0, 16).map((w) => `"${w.replaceAll('"', "")}"`).join(" OR "),
+      chatId,
+      beforeSeq,
+    );
+  } catch {
+    return null;
+  }
+  for (const r of rows) {
+    const have = contentWords(r.content);
+    const hit = words.filter((w) => have.has(w)).length;
+    if (hit >= 3 && hit / words.length >= ON_PAGE) return r.seq;
+  }
+  return null;
+}
+
 /**
  * The trackers and memories are summaries and miss things (a line said in your first message, a
  * jacket handed back). Before a helper's flag is shown, the story itself is searched for it, and
@@ -380,6 +413,11 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
           const citations = i.cites.map((c) => sheet.cites.get(c.replace(/[[\]\s]/g, ""))).filter((c): c is Citation => Boolean(c));
           // An issue without a source is a guess, except an invented past (its point is that nothing holds it).
           if (!citations.length && i.kind !== "past" && i.kind !== "who" && i.kind !== "convenience") continue;
+          // docs/33 7.4: an "invented" past the page itself holds isn't invented.
+          if (i.kind === "past" && onThePage(chatId, m.seq, i.claim, [names.user, names.char, ...Object.values(st?.chars ?? {}).map((c) => c.name)]) != null) {
+            opts.job?.note({ onThePage: i.claim.slice(0, 80) });
+            continue;
+          }
           issues.push({
             kind: (["trait", "dead", "name", "time", "place", "fact", "leak", "pov", "tense", "timeline", "lesson", "past", "who", "convenience"].includes(i.kind) ? i.kind : "fact") as Issue["kind"],
             // A convenience is a matter of craft, never a contradiction: always minor.

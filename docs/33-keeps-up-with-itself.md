@@ -121,7 +121,7 @@ Built in two halves: **5a**, the people lines, and **5b**, the rest of the state
 
 ## Part 7: the checker says less and catches more  [8–12]
 
-Split in two. **7a**, the rule checks' false alarms, is built; **7b** is not.
+Built in parts: **7a**, the false alarms; **7b**, the page search and the new checks; **7c**, the open-flag tools.
 
 ### 7a: fewer false alarms (built)
 
@@ -133,10 +133,22 @@ Split in two. **7a**, the rule checks' false alarms, is built; **7b** is not.
 
 **Done when:** the clock, leak, colour and not-here families fall by most of their false alarms on the replay, and the existing golden scenarios (a real leak, a real clock slip) are still caught. *(Both hold; `checkerquiet.test.ts`, `checks.test.ts`, the golden suite.)*
 
-### 7b: not built
+### 7b: the page is searched, and four new checks (built)
 
-- **7.4** "No record of X": search the transcript before raising it (this is the model checker's "past" family).
-- **7.5** New rules: a vampire outdoors in daylight; weekday against date; a period list for the story's year; one value per person for facts like blood type.
+- **7.4** `accuracy/checker.ts` `onThePage`: before an invented-past flag ("no record of X") is kept, the transcript is searched. One earlier message holding most of the claim's own words (three at least, 60% of them, the cast's names aside) is the record, and the flag is dropped. No model. *(The helper's own re-reading of the story, `settledByStory`, was already there for what this doesn't settle.)*
+- **7.5** `accuracy/worldslips.ts`, four checks in the catalog, none calling a model:
+  - **Daylight**: a vampire (by trait or Codex page) walking out of doors while the story clock is between sunrise and sunset, with nothing covering them. A truth of yours that they can be out by day turns it off.
+  - **The date**: a weekday said as today that the date contradicts ("a Thursday morning" on Wednesday 10 October), and a part of the month that doesn't fit ("late October" on the 12th). A day used as a figure of speech ("a Tuesday problem"), a habit or a plan is left alone.
+  - **The year**: things the story's year didn't have yet (emoji in 2001), from a list of about thirty with the year each could first turn up. Only for a dated clock, and never for something your own turns brought in.
+  - **One value per person**: a blood type, a surgeon's specialty or a place in the family tree said differently from your truths, or from every memory that gives that person one. Records that disagree with each other settle nothing until a truth does.
+- Part 13's weather check learned what isn't weather: a frost-crusted freezer, snow on a screen, parmesan "in a snowfall".
+
+**Seen on a copy of the real data** (the rule checks replayed over all 429 replies, no model): nine findings from the new checks, all real and none false: "a Thursday morning" on Wednesday (#63), "the wrong end of October" on the 10th (#55), "late October" on the 12th (#619), a Saturday on Friday (#657), the emoji (#784, #786), frost in a mediterranean October (#874, #878), and Spike walking out at midday (#926). Spike's blood type isn't flagged: the memories hold both O positive and O negative, so it needs the truth that Part 14 sets.
+
+**Done when:** the audit's true catches of these kinds are found on the replay with no false alarm beside them. *(Holds; `worldslips.test.ts`, 13 tests.)*
+
+### 7c: the open-flag tools (not built)
+
 - **7.6** Open flags: a count on the story, one-click fix per flag, "fix all open" (with "apply all" for edits left as proposed), and the panel for Part 1's brief.
 
 ## Part 8: plan once, and send less  [7, 14, 37–39]
