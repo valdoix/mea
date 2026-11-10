@@ -6,6 +6,23 @@ import { type PersonaMode, storyDials } from "../services/layers";
 import { driftState, spokenPart, voiceSamples } from "./drift";
 import { guardsFor } from "./guards";
 import { voiceFacts, voiceLines } from "../lore/voice";
+import { factsNow } from "../lore/facts";
+import { sinceCardEntry } from "../lore/sincecard";
+
+/** The newest "temperament" and "wants" lines of the story's Since the card note (at most two). */
+function sinceNow(chatId: string): string[] {
+  try {
+    const entry = sinceCardEntry(chatId, "character", false);
+    if (!entry) return [];
+    const facts = factsNow(entry, chatId);
+    return ["temperament", "wants"]
+      .map((slot) => facts.filter((f) => f.slot === slot).at(-1)?.value)
+      .filter((v): v is string => Boolean(v))
+      .map((v) => v.replace(/^(?:temperament|wants?)\s*:\s*/i, ""));
+  } catch {
+    return [];
+  }
+}
 
 /**
  * The re-anchor block (CON-03): a short, constant reminder of who the character is, placed near
@@ -35,7 +52,7 @@ function personaLine(name: string, user: string, persona: PersonaMode | null | u
   return `Write ${name} and the world, never ${user}'s words, actions or thoughts.`;
 }
 
-export function buildAnchor(o: { card: CardData; userName: string; characterId: string | null; strong?: boolean; reasons?: string[]; persona?: PersonaMode | null; /** docs/15, 3.5: the voice slots from their lore. */ voice?: string[] }) {
+export function buildAnchor(o: { card: CardData; userName: string; characterId: string | null; strong?: boolean; reasons?: string[]; persona?: PersonaMode | null; /** docs/33 Part 1: who the story has made them (Since the card), which wins where the card disagrees. */ now?: string[]; /** docs/15, 3.5: the voice slots from their lore. */ voice?: string[] }) {
   const own = characterSettings(o.characterId).anchor?.trim();
   const samples = voiceSamples(o.characterId)
     .lines.map((l) => spokenPart(l))
@@ -44,6 +61,7 @@ export function buildAnchor(o: { card: CardData; userName: string; characterId: 
   const lines = [
     `[Who ${o.card.name} is: keep to this]`,
     own || essence(o.card),
+    o.now?.length ? `Who ${o.card.name} is now, in this story (true where the card disagrees): ${o.now.join(" · ")}` : "",
     ...(o.voice ?? []),
     pick.length ? `How ${o.card.name} talks: ${pick.map((l) => `"${l.replace(/^["“]|["”]$/g, "")}"`).join(" · ")}` : "",
     o.strong && o.reasons?.length ? `Lately the replies have drifted from this voice: ${o.reasons.join("; ")}. Bring ${o.card.name}'s own voice back.` : "",
@@ -62,7 +80,7 @@ export function anchorExtra(chatId: string, card: CardData, userName: string, ch
   return {
     id: "anchor",
     name: drifting ? "Re-anchor (stronger: voice drifting)" : "Re-anchor",
-    content: buildAnchor({ card, userName, characterId, strong: drifting, reasons: drift?.reasons, persona: storyDials(mustChat(chatId)).persona, voice: voiceLines(voiceFacts(chatId, card.name), userName) }),
+    content: buildAnchor({ card, userName, characterId, strong: drifting, reasons: drift?.reasons, persona: storyDials(mustChat(chatId)).persona, voice: voiceLines(voiceFacts(chatId, card.name), userName), now: sinceNow(chatId) }),
     depth: cfg.anchorDepth,
   };
 }

@@ -25,6 +25,7 @@ import { asidesAfterReply } from "./accuracy/asides";
 import { explicitSoon, explicitStep, lyricsStep, musicAfterReply, sheetsStep } from "./music/director";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
+import { runBriefJob } from "./lore/brief";
 import { retireUnaware, runTruthsJob, truthsChanged } from "./memory/overturn";
 import { runEditorJob, runTenseJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
@@ -182,6 +183,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("speakers.mark", async (p, job) => runSpeakerMarksJob(p as Parameters<typeof runSpeakerMarksJob>[0], job));
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
+  registerJob("lore.brief", async (p, job) => runBriefJob(p as { chatId: string }, job));
   registerJob("steer.tense", async (p, job) => runTenseJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   // A1: lessons from the takes you kept and the replies you edited.
   registerJob("lessons.learn", async (p, job) => runLessonsJob(p as { chatId: string; messageId: string }, job));

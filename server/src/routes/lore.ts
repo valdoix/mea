@@ -36,10 +36,11 @@ import "../lore/keepupinbox";
 import { slotsFor } from "../lore/slots";
 import { decideDetails, draftDetails } from "../lore/details";
 import { bondPage, markMilestone } from "../lore/bond";
+import { briefOf, pinBriefLine } from "../lore/brief";
 import { addSinceLine, SINCE_WHO, sinceCardPage } from "../lore/sincecard";
 import { canonEntryFor, coverageFindings, fixFinding, mergeEntries } from "../lore/coverage";
 import { compactEntry, decideCompaction } from "../lore/compact";
-import { updateChat } from "../services/chats";
+import { mustChat, updateChat } from "../services/chats";
 import { embedLore } from "../lore/semantic";
 import { embeddingsEnabled } from "../memory/embed";
 import { enqueue } from "../services/jobs";
@@ -373,6 +374,21 @@ lore.post("/chats/:id/bond/settings", async (c) => {
 });
 // ---------- since the card ----------
 
+// docs/33 Part 1: the card's brief as it stands in this story.
+lore.get("/chats/:id/brief", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ brief: briefOf(c.req.param("id")) });
+});
+lore.post("/chats/:id/brief/pin", async (c) => {
+  const input = await body(c, z.object({ line: z.string().min(1), pinned: z.boolean() }));
+  return c.json({ brief: pinBriefLine(c.req.param("id"), input.line, input.pinned) });
+});
+lore.post("/chats/:id/brief/read", (c) => {
+  const id = c.req.param("id");
+  mustChat(id);
+  enqueue("lore.brief", { chatId: id }, { dedupeKey: `lore.brief:${id}`, priority: 2, chatId: id, maxAttempts: 2 });
+  return c.json({ ok: true });
+});
 lore.get("/chats/:id/since-card", (c) => c.json(sinceCardPage(c.req.param("id"))));
 lore.post("/chats/:id/since-card", async (c) => {
   const b = await body(c, z.object({ who: z.enum(SINCE_WHO as [string, ...string[]]), value: z.string().min(1).max(300), slot: z.string().max(40).nullable().optional() }));

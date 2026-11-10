@@ -44,6 +44,18 @@ function helperJson(name: string, user: string, system = ""): unknown {
       // A memory contradicts the truth when it says MOCK_CONTRADICTS.
       return { contradicted: [...user.matchAll(/^\[([^\]]+)\] .*MOCK_CONTRADICTS/gm)].map((m) => ({ id: m[1], why: "says otherwise" })) };
     }
+    case "brief_reading": {
+      // Lines about tells or cracks are the opening's; lines about deflecting get softer; the rest stand.
+      const block = user.split("CARD INSTRUCTIONS (numbered):\n")[1]?.split("\n\n")[0] ?? "";
+      const lines = [...block.matchAll(/^(\d+)\. (.+)$/gm)].map((m) => {
+        const i = Number(m[1]);
+        if (/tells|crack/i.test(m[2]!)) return { i, status: "retired", now: "", why: "only the opening" };
+        if (/deflect/i.test(m[2]!)) return { i, status: "revised", now: "When she deflects now, it's teasing.", why: "she's warmer" };
+        return { i, status: "kept", now: "", why: "" };
+      });
+      const looks = user.match(/^looks: (.*)$/m)?.[1] ?? "";
+      return { lines, want: "to keep this life", fear: "", tell: "hums when she's happy", traitsGone: looks.split(/;\s*/).filter((t) => /pale|hoarse/.test(t)) };
+    }
     case "scene_memory": {
       const first = lines[0]?.seq ?? 0;
       const last = lines.at(-1)?.seq ?? 0;
