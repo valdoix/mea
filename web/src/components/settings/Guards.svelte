@@ -72,13 +72,12 @@
 
     <section class="panel stack">
       <h2>Names</h2>
-      <p class="tiny muted">Canonical spellings come from the card, your persona, the people and places the story knows, and your lorebooks. A name one letter off ("Mria") is a slip; a name the chat has used before is left alone.</p>
+      <p class="tiny muted">Canonical spellings come from the card, your persona, the people and places the story knows, and your lorebooks. A name one letter off ("Mria") is a slip; a name the chat has used before is left alone. Slips are noted, never changed in the reply.</p>
       <Segmented
-        value={g.names}
+        value={g.names === "fix" ? "flag" : g.names}
         small
         options={[
           { value: "flag", label: "Note it" },
-          { value: "fix", label: "Correct it" },
           { value: "off", label: "Off" },
         ]}
         onchange={(v) => set({ names: v })}
