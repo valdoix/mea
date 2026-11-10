@@ -736,6 +736,8 @@ export class Folder {
   /** docs/32 Part 4: keeps a name that was read as someone else (or nobody), for the tidy notice and Story health. */
   private rereadAs(name: string, c: Character | undefined, seq: number) {
     const clean = personName(name).replace(/\s+/g, " ").trim();
+    // Several names run together ("Dawn/Gabriel Winters/Buffy Summers") is a line's shape gone wrong, not a name.
+    if (/[\/,&;|]/.test(clean)) return;
     const map = (this.state.reread ??= {});
     const cur = map[clean.toLowerCase()];
     if (cur) {
