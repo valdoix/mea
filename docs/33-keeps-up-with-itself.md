@@ -155,13 +155,15 @@ The watch already made a plan-skipping model plan in its own step (two calls a r
 - **8.5** Librarian, lore keep-up, continuity and journal once per closed scene, not per reply.
 - *Dropped:* **8.6**, retrying failed embedding jobs. The embedding job embeds whatever lacks a vector each time it runs, so the 14 failed runs caught up: one active memory in the story has no vector.
 
-## Part 9: long threads stay in view  [20, 22]
+## Part 9: long threads stay in view  [20, 22]  (built)
 
-- **9.1** A "long threads" list beside the errands: promises with a date ("rings this week", "parents next week"), open conflicts, secrets, and anything you pin. Kept from `promise`, `plan`, `secret` and `thread` lines, closed by Part 2.
-- **9.2** `steer/advisor.ts` and the planner get the list every turn and are told to surface one when its date arrives or the scene gives room. The state block shows the top few.
-- **9.3** `steer/swipes.ts`: a new take is told why the last was passed over when Mea knows (your note, a failed check, a fact it got wrong).
+- **9.1** `trackers/longthreads.ts`: a "Long threads" list, in the Story panel just above Open loops. It holds promises and plans with a day, open conflicts, secrets still kept from someone, and what you pin (with an optional "when"). Days are read from the loop's own due time, or else from its words, counted from the story time when it was said: tonight, tomorrow, a weekday ("Saturday night", "Monday after school", "next Thursday"), this week, next week, this or next weekend, "in three days". A routine ("every Friday") gets no day. A week comes due on its last day, not all week. Once its day is over, a thread stays two more days as "its day passed and nothing on the page closed it", then drops off. One thing said three ways on one day is one thread, and so are two lines about one conflict. No one kind fills the list (three conflicts, two secrets, two passed at most), a secret kept from more people ranks higher, and there are ten lines at most. A thread leaves when its loop closes or its secret comes out.
+- **9.2** The planner and advisor get the whole list every turn (`LONG THREADS`), and may name any of its ids in a plan's threads (`ledgerThreads` takes the `S…` and `P…` ids too). On its day, a dated thread goes into the plan's threads whether the planner picked it or not. The state block shows the top three (the planner reads the whole list once, not again in the state block). A separate planner's threads now reach the writer in `<director-plan>`.
+- **9.3** `steer/swipes.ts`: each earlier take in the swipe digest says why it was passed over when Mea knows: the note you gave with the next take, the angle you picked, a check it failed (the guard's retry), or what an open continuity flag found. `startStory` stores that on the new take as `passedOver`.
 
-**Done when:** in a fixture, a promise dated "this week" appears in the plan's threads on the last day of that week.
+**Seen on a copy of the real data** (story time Mon 2001-10-15 14:06): the list is today's 3 o'clock pickup and the Monday cooking lesson (due today), the suit on Saturday night (passed), Eleanor's shopping trip "next week" (coming up), Willow's apology, the audit and the Council (conflicts), the grave and heaven secrets (kept from Willow, Xander, Tara, Anya, Dawn…), and Friday's film. "The rings this week" never became a loop, so it needs a pin. In the browser, pinning and unpinning work.
+
+**Done when:** in a fixture, a promise dated "this week" appears in the plan's threads on the last day of that week. *(It does, and not on the Thursday before; `longthreads.test.ts`.)*
 
 ## Part 10: prose habits cool on their own  [24–27]
 

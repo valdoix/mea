@@ -72,6 +72,9 @@ export function formatStoryTime(t: StoryTime): string {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/** The day of the week of a calendar-clock minute: 0 Sunday … 6 Saturday. */
+export const weekdayOf = (minutes: number) => new Date(YEAR1 + minutes * 60_000).getUTCDay();
+
 /**
  * A span of story time as a record's label (docs/33 Part 4): "Wed 2001-10-10 08:04 → 09:25", or
  * with both days when it crosses midnight. The clock writes it, so one day has one name.

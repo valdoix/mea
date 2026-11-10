@@ -35,6 +35,8 @@ export interface NoteOptions {
   factions?: { name: string; description?: string; members: { name: string; role?: string }[]; facts?: string[] }[];
   /** What reaches the scene from off the page (sim/crossings). */
   elsewhere?: string;
+  /** docs/33 Part 9: the top of the long-threads list (trackers/longthreads.ts), as lines. */
+  long?: string[];
   nudges?: boolean;
   /** How the date reads (calendars.ts); Gregorian keeps the short weekday form. */
   calendar?: CalendarId;
@@ -491,6 +493,9 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
 
   if (o.elsewhere) lanes.push({ name: "elsewhere", lines: [o.elsewhere], priority: 2 });
 
+  // docs/33 Part 9: what the story still owes beyond this scene, so a day that comes isn't missed.
+  if (o.long?.length) lanes.push({ name: "long", lines: ["LONG THREADS (still open beyond this scene; bring one in only on its day or when it fits):", ...o.long.map((l) => `- ${l}`)], priority: 3 });
+
   // Fit the budget: drop the lowest-priority lanes first, then trim the longest.
   const header = "[Story state: verified. Keep the story consistent with it; never recite it or mention it.]";
   const cost = () => tok([header, ...lanes.flatMap((l) => l.lines)].join("\n"));
@@ -513,7 +518,7 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
   };
 }
 
-const ORDER = ["now", "inplay", "present", "voices", "stakes", "knowledge", "custom", "elsewhere", "hooks"];
+const ORDER = ["now", "inplay", "present", "voices", "stakes", "long", "knowledge", "custom", "elsewhere", "hooks"];
 
 /** A one-line HUD (TRK-27): "Thu 23:10 · Lighthouse · Mira: wistful". */
 export function hudLine(st: WorldState, templates: Template[] = [], calendar: CalendarId = "gregorian"): string {

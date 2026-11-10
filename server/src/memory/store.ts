@@ -53,6 +53,8 @@ export interface ChatMemoryState {
   /** docs/22 1.4: what a chat's old records say is open or done, waiting for your word in the Inbox. */
   /** docs/33 Part 1: the card's brief as it stands in this story (lore/brief.ts). */
   brief?: import("../lore/brief").Brief;
+  /** docs/33 Part 9: threads you pinned to the long-threads list (trackers/longthreads.ts). */
+  longPins?: import("../trackers/longthreads").LongPin[];
   /** docs/33 Part 4: this story's older records have had their time labels rewritten from the clock. */
   clockLabels?: boolean;
   loopBackfill?: { state: "review" | "done" | "declined"; at: number; closed: LoopCandidate[]; open: LoopCandidate[]; over?: LoopCandidate[] };
