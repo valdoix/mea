@@ -58,6 +58,8 @@ export const sentencesOf = (text: string) =>
 /** "Jacqueline Taylor, Misty Quigley, Natalie Scatorccio and 11 others" */
 const list = (names: string[]) => (names.length > 4 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} others` : names.join(", "));
 /** Content words, lightly stemmed so "love" and "loves" (or "keeps", "kept"…) meet. */
+/** Words of not knowing and of telling: in every such sentence, so they don't say what one is about. */
+const SAYING = new Set("know knows known knew told tell tells secret secretly idea suspect suspects nobody anyone someone never still".split(" "));
 const stems = (text: string) => new Set([...contentWords(text)].map((w) => (w.length >= 4 ? w.replace(/(?:ing|ed|es|s|e)$/, "") : w)));
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -155,6 +157,9 @@ export function findOutdated(st: WorldState | null | undefined, pieces: { where:
       // Knowledge: "X doesn't know …" about a fact X (or anyone) has since learned.
       if (HIDDEN.test(s) && learned.length) {
         const T = stems(s);
+        // What the sentence itself says, its label ("Thread: Secret they keep:") and people's names aside.
+        const told = (w: string) => !nameWords.has(w) && !SAYING.has(w);
+        const said = new Set([...stems(s.replace(/^[-\s]*(?:(?:Thread|Milestone|Fact|Secret they keep)\s*:\s*)+/i, ""))].filter(told));
         let best: { x: (typeof learned)[number]; score: number } | null = null;
         for (const x of learned) {
           const hit = [...x.words].filter((w) => T.has(w));
@@ -162,7 +167,12 @@ export function findOutdated(st: WorldState | null | undefined, pieces: { where:
           // Names alone match only a secret that came out, by two of its own keepers ("about Jeff and Shauna").
           const byNames = hit.every((w) => nameWords.has(w)) && (!x.f.revealed.length || (x.f.secret?.keepers ?? []).filter((id) => nameRe.get(id)?.test(s)).length < 2);
           const allNamed = x.people.every((id) => nameRe.get(id)!.test(s));
-          if (hit.length >= 2 && score >= 0.5 && !byNames && allNamed && score > (best?.score ?? 0)) best = { x, score };
+          // docs/33 5.7: the fact has to be what the sentence is about, not a word of it. "Maria died… late
+          // from ballet practice" isn't answered by "Buffy knows Gabriel did ballet".
+          const own = hit.filter(told);
+          const share = own.length / Math.max(1, said.size);
+          const about = (own.length >= 2 && share >= 0.2) || share >= 0.3 || hit.every((w) => nameWords.has(w));
+          if (hit.length >= 2 && score >= 0.5 && !byNames && allNamed && about && score > (best?.score ?? 0)) best = { x, score };
         }
         if (best) {
           const { f, knowers } = best.x;

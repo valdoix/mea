@@ -1,4 +1,5 @@
 import { thingPlace } from "./things";
+import { isAnimal } from "./whois";
 import type { NamedFact } from "../memory/named";
 import { countTokens } from "../lib/tokens";
 import { contentWords, overlap } from "../memory/text";
@@ -123,6 +124,8 @@ const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believ
 export const HEARSAY_FADES = 80;
 /** A fact last touched this many messages ago may describe how things were, not are ("the fridge has three eggs"). */
 export const FACT_DATES = 40;
+/** How much stronger than "enough" an old fact's match must be to count as in play. */
+const OLD_FACT = 1.5;
 
 /**
  * FACTS IN PLAY (docs/19 1.2): the facts and things the player's message touches, each with every
@@ -145,6 +148,7 @@ export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: s
   const scorer = topicScorer(st, raw.map((d) => d.text));
   const docs = raw.map((d, i) => ({ ...d, words: scorer.words[i]! }));
   const enough = scorer.enough;
+  const place = st.place.at(-1)?.toLowerCase();
   const hits: { line: string; text: string; score: number; seq: number; item: boolean }[] = [];
   for (const d of docs) {
     const score = scorer.score(want, d.words);
@@ -156,6 +160,10 @@ export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: s
         .map(([id, s]) => `${nameOf(id)} ${STANCE_WORDS[s.status] ?? s.status}${s.route || s.seq ? ` (${[s.route, s.seq ? moment(s.seq) : ""].filter(Boolean).join(", ")})` : ""}`);
       if (!who.length) continue;
       const age = now != null ? now - d.fact.lastSeq : 0;
+      // docs/33 5.6: an old fact needs more than a passing word, unless it's about where the scene is.
+      // One rare word in common ("closest", "retreated") brought the cemetery of #7 into a darts scene.
+      const shared = [...d.words].filter((w) => want.has(w)).length;
+      if (age > FACT_DATES && (shared < 2 || score < enough * OLD_FACT) && !(place && d.fact.statement.toLowerCase().includes(place))) continue;
       const then = age > FACT_DATES ? ` · recorded ${age} messages ago: how things stood then, which may have changed since` : "";
       hits.push({ line: `${d.fact.statement}: ${who.join("; ")}${then}`, text: d.text, score, seq: d.fact.lastSeq, item: false });
     } else if (d.item) {
@@ -240,7 +248,8 @@ function personLine(st: WorldState, c: Character, o: NoteOptions, here: Characte
   // docs/33 Part 5: clothes written in an earlier scene aren't what they wear now.
   if (c.look && (c.lookSeq == null || c.lookSeq >= scene)) tail.push(`wearing: ${cleanBit(c.look)}`);
   // Voice traits go to VOICES (docs/23), where the way someone talks is read.
-  const fixed = c.traits.filter((t) => t.kind !== "voice");
+  // docs/33 Part 5: what's under someone's clothes is for an intimate scene, not for darts.
+  const fixed = c.traits.filter((t) => t.kind !== "voice" && (st.mode === "intimacy" || !INTIMATE.test(t.text)));
   if (fixed.length) tail.push(`always: ${fixed.map((t) => t.text).join("; ")}`);
   if (on(o, "items")) {
     const items = carried(st, c.id);
@@ -423,7 +432,7 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     for (const d of Object.values(st.deadlines)) {
       if (d.done) continue;
       const left = d.at != null && now != null ? d.at - now : null;
-      if (left == null || left <= 2 * 1440) lines.push(`Deadline: ${d.title}${left != null ? (left < 0 ? " (passed)" : ` (in ${left < 120 ? `${left} min` : `${Math.round(left / 60)} h`})`) : d.text ? ` (${d.text})` : ""}`);
+      if (left == null || (left <= 2 * 1440 && left >= -PASSED_SHOWN)) lines.push(`Deadline: ${d.title}${left != null ? (left < 0 ? " (passed)" : ` (in ${left < 120 ? `${left} min` : `${Math.round(left / 60)} h`})`) : d.text ? ` (${d.text})` : ""}`);
     }
     for (const g of Object.values(st.gauges)) if (g.cur >= g.max - 1) lines.push(`${g.name} ${g.cur}/${g.max}${g.cur >= g.max ? " — full" : ""}`);
     for (const c of Object.values(st.clocks)) if (c.cur >= c.max - 1) lines.push(`${c.faction}: ${c.name} ${c.cur}/${c.max}`);
@@ -436,7 +445,8 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     const lines: string[] = [];
     for (const f of Object.values(st.facts)) {
       for (const [id, s] of Object.entries(f.stances)) {
-        if (!here.has(id) || st.chars[id]?.isUser) continue;
+        // docs/33 Part 5: an animal keeps no secrets and learns none ("Ruth doesn't know: …").
+        if (!here.has(id) || st.chars[id]?.isUser || isAnimal(st.chars[id])) continue;
         const who = st.chars[id]?.name ?? id;
         if (s.status === "unaware") lines.push(`${who} doesn't know: ${f.statement}${f.secret?.keepers.length ? ` (kept by ${f.secret.keepers.map((k) => (st.chars[k]?.isUser ? o.userName : st.chars[k]?.name ?? k)).join(", ")})` : ""}`);
         else if (s.status === "wrong") lines.push(`${who} has it wrong: ${f.statement}`);
@@ -455,7 +465,11 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     for (const [key, e] of Object.entries(st.exposure ?? {})) {
       const f = st.facts[key];
       if (!f || e.cur < 4 || e.cur >= e.max) continue;
-      const near = Object.entries(e.near).filter(([id]) => !st.chars[id]?.isUser).sort((a, b) => b[1].score - a[1].score)[0];
+      // docs/33 Part 5: whoever it already came out to isn't "closest" to finding out.
+      const told = new Set(f.revealed.flatMap((r) => r.to));
+      const still = Object.entries(e.near).filter(([id]) => !st.chars[id]?.isUser && !told.has(id) && !isAnimal(st.chars[id]));
+      if (told.size && !still.length) continue;
+      const near = still.sort((a, b) => b[1].score - a[1].score)[0];
       lines.unshift(`Close to coming out (${e.cur}/${e.max}): ${f.statement}${near ? `; ${st.chars[near[0]]?.name ?? near[0]} is closest` : ""}. Let it surface only through what people can see and infer.`);
     }
     if (lines.length) lanes.push({ name: "knowledge", lines: ["KNOWLEDGE (act only on what each person knows):", ...lines.slice(0, 8).map((l) => `- ${l}`)], priority: 3 });
@@ -519,6 +533,10 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     lanes: [...ordered.map((l) => ({ name: l.name, tokens: tok(l.lines.join("\n")) })), ...dropped.map((name) => ({ name, tokens: 0, dropped: true }))],
   };
 }
+
+/** A deadline that passed stays in STAKES this long (story minutes), then it's history. */
+const PASSED_SHOWN = 12 * 60;
+const INTIMATE = /\b(?:inches (?:soft|hard|erect|long|thick)|cock|penis|genitals?|nipples?|pubic|circumcised|cup size|labia|clit\w*)\b/i;
 
 const ORDER = ["now", "inplay", "present", "voices", "stakes", "long", "knowledge", "custom", "elsewhere", "hooks"];
 

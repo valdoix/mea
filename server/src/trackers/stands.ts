@@ -1,5 +1,7 @@
 import { countTokens } from "../lib/tokens";
+import { TimeIndex } from "../memory/format";
 import { dated, type Lens, lensOf, sceneRecords } from "../memory/openlist";
+import { dateWindow } from "./longthreads";
 import { contentWords, overlap } from "../memory/text";
 import { lane, registerLane } from "../prompt/lanes";
 import { formatStoryTime, shortStoryTime } from "./clock";
@@ -27,6 +29,11 @@ const HAPPENED_ITEM = 72;
 const SOON = 1440;
 /** Hour by hour under this many minutes, like the note's reminders. */
 const HOURS = 180;
+/** A timed loop this far past its time (story minutes) is no longer shown as open. */
+const PASSED = 720;
+/** A loop for a named day stays open until six hours into the next: "tonight" runs late. */
+const PASSED_DAY = 360;
+const PASSED_TOKENS = 60;
 /** A loop's words the newest messages share, for it to count as being talked about. */
 const TALKED = 2;
 /** Two lines this alike are one thing said twice. */
@@ -88,13 +95,35 @@ function distinct<T>(items: T[], text: (x: T) => string) {
 /** Whether the newest messages are about it, so a thing just brought up is the one that shows. */
 const talkedAbout = (st: WorldState, about: Set<string>) => (l: Loop) => [...topicWords(st, l.what)].filter((w) => about.has(w)).length >= TALKED;
 
-/** Open loops, what's due first, then what's being talked about, then the newest. */
-function rankedOpen(st: WorldState, about: Set<string>) {
+/** What a loop weighs when nothing else ranks it: a vital promise over a promise, over a plan or a question, over an errand. */
+function weight(st: WorldState, l: Loop) {
+  const importance = l.obligation ? (st.obligations[l.obligation]?.importance ?? 1) : 0;
+  return (l.kind === "promise" ? 3 : l.kind === "errand" ? 0 : 2) + importance + (l.yours ? 1 : 0) + (l.due ? 1 : 0);
+}
+
+/**
+ * docs/33 5.5: the day an open loop was for has gone by with nothing closing it. Its own due time,
+ * or the day its words name, counted from when it was said ("writing the constitution today (Sun)",
+ * read on Monday). It isn't open any more in any way a reply should act on; it was done off the page
+ * or dropped. One that repeats comes round again.
+ */
+export function dayPassed(st: WorldState, l: Loop, saidAt: (seq: number) => number | null): boolean {
+  const now = st.time?.minutes;
+  if (now == null || l.repeats) return false;
+  if (l.due?.minutes != null) return now - l.due.minutes > PASSED;
+  const at = saidAt(l.opened);
+  // "today" is a day like "tonight" is.
+  const w = at == null ? null : dateWindow(`${l.what} ${l.due?.text ?? ""}`.replace(/\btoday\b/gi, "tonight"), at, st.time!.form);
+  return w != null && now - w.to > PASSED_DAY;
+}
+
+/** Open loops, what's due first, then what's being talked about, then by weight, then the newest. */
+function rankedOpen(st: WorldState, about: Set<string>, loops = openLoops(st)) {
   const now = st.time?.minutes;
   const soon = (l: Loop) => l.due?.minutes != null && now != null && l.due.minutes >= now && l.due.minutes - now <= SOON;
   const talked = talkedAbout(st, about);
   const rank = (l: Loop) => (soon(l) ? 0 : talked(l) ? 1 : 2);
-  return [...openLoops(st)].sort((a, b) => rank(a) - rank(b) || (soon(a) ? a.due!.minutes! - b.due!.minutes! : b.opened - a.opened));
+  return [...loops].sort((a, b) => rank(a) - rank(b) || (soon(a) ? a.due!.minutes! - b.due!.minutes! : weight(st, b) - weight(st, a) || b.opened - a.opened));
 }
 
 /** Done loops, what's being talked about first, then the newest. */
@@ -152,11 +181,22 @@ export function standing(chatId: string, st: WorldState | null | undefined, focu
   if (!st || trackerConfig(chatId).mode === "off") return { stands: "", happened: "" };
   const lens = lensOf(chatId, st);
   const about = topicWords(st, focus);
-  const open = distinct(rankedOpen(st, about), (l) => l.what).map((l) => openItem(st, l, lens, ids));
+  const times = new TimeIndex(chatId);
+  const saidAt = (seq: number) => times.at(seq);
+  const all = openLoops(st);
+  const gone = all.filter((l) => dayPassed(st, l, saidAt));
+  const live = all.filter((l) => !gone.includes(l));
+  const open = distinct(rankedOpen(st, about, live), (l) => l.what).map((l) => openItem(st, l, lens, ids));
   const shown = fit(open, OPEN_TOKENS);
   const quiet = open.length - shown.length;
+  // (A loop of two words, "open [tonight]", says nothing worth a line.)
+  const passed = fit(distinct(gone.filter((l) => l.due?.minutes != null || contentWords(l.what).size >= 3).sort((a, b) => b.opened - a.opened), (l) => l.what).map((l) => `${dated(clip(l.what, ITEM), l.opened, lens)}${l.due?.minutes != null ? dueText(st, l, lens) : ""}`), PASSED_TOKENS);
   const done = fit(distinct(rankedDone(st, about), (l) => l.what).map((l) => `${dated(clip(l.what, ITEM), l.opened, lens)} (#${l.closed})`), DONE_TOKENS);
-  const lines = [shown.length ? `Open: ${[...shown, ...(quiet ? [`and ${quiet} quieter`] : [])].join(" · ")}` : "", done.length ? `Done lately: ${done.join(" · ")}` : ""].filter(Boolean);
+  const lines = [
+    shown.length ? `Open: ${[...shown, ...(quiet ? [`and ${quiet} quieter`] : [])].join(" · ")}` : "",
+    done.length ? `Done lately: ${done.join(" · ")}` : "",
+    passed.length ? `Their day went by (done off the page or let go; never still to come): ${passed.join(" · ")}` : "",
+  ].filter(Boolean);
   const happened = alreadyHappened(chatId, st).map((h) => `${h.text} (#${h.seq})`);
   return {
     stands: lines.length ? `This is what's open now, from the record. Summaries and memories say what was open then, and lose to this.\n${lines.join("\n")}` : "",

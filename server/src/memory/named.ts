@@ -4,6 +4,7 @@ import type { HeardFilter } from "./deep";
 import { norm } from "./entities";
 import { namedTerms } from "./text";
 import type { WorldState } from "../trackers/types";
+import { isAnimal } from "../trackers/whois";
 
 /**
  * What the memories say about a name just used, and who they have down as knowing it (docs/26 2.1).
@@ -66,6 +67,18 @@ export function heardBy(chatId: string, st: WorldState, term: string, beforeSeq:
   return out;
 }
 
+function saidOften(chatId: string, term: string, beforeSeq: number) {
+  const n = all<{ seq: number }>(
+    `SELECT m.seq FROM swipes_fts f JOIN swipes s ON s.rowid = f.rowid JOIN messages m ON m.id = s.message_id AND s.idx = m.active_swipe
+     WHERE swipes_fts MATCH ? AND m.chat_id = ? AND m.seq < ? AND m.deleted_at IS NULL AND m.hidden = 0 LIMIT ?`,
+    `"${term.replaceAll('"', "")}"`,
+    chatId,
+    beforeSeq,
+    HEARD_MESSAGES + 1,
+  ).length;
+  return n > HEARD_MESSAGES;
+}
+
 export interface NamedFact {
   term: string;
   /** The latest fact that holds the name. */
@@ -93,6 +106,8 @@ export function namedFacts(chatId: string, text: string | undefined, beforeSeq: 
     // This line is read as true over any guess, so only a word written as a name, and only that very word
     // ("Innocence" would otherwise find "innocent", and a quoted "Sorry" anything).
     if (!proper || skip.has(norm(term))) continue;
+    // docs/33 5.6: a name said in a dozen messages is a regular of the page ("Spike-o"), whatever the memories hold.
+    if (saidOften(chatId, term, beforeSeq)) continue;
     const rows = all<Row>(
       `SELECT m.type, m.content, m.known_by, m.max_seq FROM memories_fts f JOIN memories m ON m.id = f.id
        WHERE memories_fts MATCH ? AND f.chat_id = ? AND m.deleted_at IS NULL AND m.status IN ('active', 'disputed') AND ${sourcesLive("m")}
@@ -120,7 +135,7 @@ export function namedFacts(chatId: string, text: string | undefined, beforeSeq: 
       const heard = heardBy(chatId, st, term, beforeSeq);
       const names = new Set(fact.knownBy.flatMap((n) => [n, ...n.split(/\s+/)]).map(norm));
       fact.notHeard = Object.values(st.chars)
-        .filter((c) => !c.isUser && !c.dead && (c.tier === "spot" || c.tier === "peri") && !heard.has(c.id) && ![c.name, ...c.name.split(/\s+/), ...c.aliases].some((n) => names.has(norm(n))))
+        .filter((c) => !c.isUser && !c.dead && !isAnimal(c) && (c.tier === "spot" || c.tier === "peri") && !heard.has(c.id) && ![c.name, ...c.name.split(/\s+/), ...c.aliases].some((n) => names.has(norm(n))))
         .map((c) => c.name);
     }
     out.push(fact);
