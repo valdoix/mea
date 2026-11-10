@@ -128,14 +128,24 @@ Split in two. **5a**, the people lines, is built; **5b** is the rest of the stat
 
 ## Part 8: plan once, and send less  [7, 14, 37–39]
 
-- **8.1** `services/generation.ts`: once a model has skipped its plan twice in a story, that story plans in its own step from then on (stored on the chat), so a reply is two sends. The first whole try is not sent at all in that mode.
-- **8.2** The plan step is sent a reduced prompt: state, today, the last few messages and the long threads, without the full canon and transcript.
-- **8.3** `memory/canon.ts`: canon splits into a short core (always) and passages recalled by the scene's people and topics. Target: under a quarter of today's 84k characters on an ordinary turn.
-- **8.4** A ceiling on the story prompt with a logged reason when hit; find why messages 461–685 reached 150k–510k tokens and add a test for it.
-- **8.5** Librarian, lore keep-up, continuity and journal run once per closed scene (or every few replies), not per reply.
-- **8.6** `memory/embed.ts`: failed embedding jobs are retried with backoff; the story's health shows how many memories can't be searched.
+Split in two. **8a**, the plan watch, is built; **8b**, sending less, is not.
 
-**Done when:** a mock story of 30 replies with a plan-skipping model averages no more than two story sends per reply, and total calls per reply fall below 15.
+### 8a: the plan watch stops flip-flopping (built)
+
+The watch already made a plan-skipping model plan in its own step (two calls a reply). But after six replies planned that way it let the model try its own pass again, and when the model skipped again that reply cost a wasted try or a planner rescue (three calls). In one story that happened about every eighth reply: 109 "asked again", 90 rescues, 102 planned first in 429 replies.
+
+- **8.1** `services/generation.ts` `skipsPlans`: the model tries its own pass again only after 30 replies in a row planned first (`PROBE_AFTER`), not six.
+- **8.1b** In a story where this model skipped its plan twice in its last ten replies, it never tries again: it plans first there for good, whatever its record elsewhere.
+
+**Done when:** a long run of planned-first replies earns a probe only at 30, and a story with two recent skips never probes. *(In `review.test.ts`.)*
+
+### 8b: send less (not built)
+
+- **8.2** The plan step is sent a reduced prompt: state, today, the last few messages and the long threads, without the full canon and transcript.
+- **8.3** `memory/canon.ts`: canon splits into a short core and passages recalled by the scene. Target: under a quarter of today's 84k characters.
+- **8.4** A ceiling on the story prompt with a logged reason; find why messages 461–685 reached 150k–510k tokens.
+- **8.5** Librarian, lore keep-up, continuity and journal once per closed scene, not per reply.
+- *Dropped:* **8.6**, retrying failed embedding jobs. The embedding job embeds whatever lacks a vector each time it runs, so the 14 failed runs caught up: one active memory in the story has no vector.
 
 ## Part 9: long threads stay in view  [20, 22]
 
