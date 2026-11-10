@@ -179,27 +179,64 @@ export function inPlay(st: WorldState, focus: string | undefined, nameOf: (id: s
   return kept.slice(0, max).map((h) => h.line);
 }
 
-function carried(st: WorldState, id: string) {
-  return Object.values(st.items).filter((i) => i.holder === id && !i.gone);
+const FOOD = /\b(?:soup|toast|waffles?|pancakes?|eggs?|tacos?|steak|risotto|carbonara|mac and cheese|sandwich|bocadillos?|cereal|coffee|tea|cocoa|latte|lollipop|apple|bento|fries|pizza|burger|cake|cookies?|ice cream)\b/i;
+/** Where an item is that says it isn't on them: still in the cart, on someone's plate, left on the sofa arm. */
+const ELSEWHERE = /\b(?:cart|not yet (?:purchased|paid)|on (?:\w+['’]s )?plate|by the door|on the (?:sofa|counter|table|shelf|floor|bed|nightstand)|sofa arm|left at|in the car|at the store)\b/i;
+const FOOTWEAR = /\b(?:shoes?|boots?|slippers?|sneakers?|trainers?|low-tops?|high-tops?|heels|flats|sandals?|loafers?)\b/i;
+const ON_FEET = /\b(?:on (?:her|his|their|\w+['’]s) feet|feet)\b/i;
+/** At most this many things print under "has:", the latest first. */
+const MAX_CARRIED = 8;
+
+/**
+ * docs/33 Part 5: what someone has, as it stands. Food from an earlier scene was eaten; a thing set
+ * down somewhere (the cart, a plate, the sofa arm) in an earlier scene isn't on them; one pair of
+ * shoes is on their feet (the latest); and the list is the eight things touched most lately.
+ */
+export function carried(st: WorldState, id: string) {
+  const scene = st.sceneStartSeq ?? 0;
+  const held = Object.values(st.items).filter((i) => i.holder === id && !i.gone);
+  const live = held.filter((i) => i.lastSeq >= scene || (!FOOD.test(i.name) && !ELSEWHERE.test(i.where ?? "")));
+  const feet = live.filter((i) => ON_FEET.test(i.where ?? "") || (FOOTWEAR.test(i.name) && /\b(?:worn|wearing|on)\b/i.test(i.where ?? ""))).sort((a, b) => b.lastSeq - a.lastSeq);
+  const shod = new Set(feet.slice(1));
+  return live
+    .filter((i) => !shod.has(i))
+    .sort((a, b) => b.lastSeq - a.lastSeq)
+    .slice(0, MAX_CARRIED);
+}
+
+/**
+ * docs/33 Part 5: a state line is checked before a prompt reads it. A bracket a model never closed
+ * ("both earlobes (pierced wound; back (minor scratch") loses its brackets; a bit that is another
+ * ledger line run in ("body Buffy Summers: arousal 5") is dropped.
+ */
+export function cleanBit(text: string): string {
+  if (/\b(?:body|mood|look|cast|know|bond|think|drive|mask)\s+[A-Z][^:;]{0,40}:/.test(text)) return "";
+  const open = (text.match(/\(/g) ?? []).length;
+  const shut = (text.match(/\)/g) ?? []).length;
+  return (open === shut ? text : text.replace(/[()]/g, "")).replace(/\s{2,}/g, " ").trim();
 }
 
 function personLine(st: WorldState, c: Character, o: NoteOptions, here: Character[]): string {
+  const scene = st.sceneStartSeq ?? 0;
   const bits: string[] = [];
   if (!c.isUser || !o.sections || on(o, "persona")) {
     if (c.mood && !(c.isUser && false)) bits.push(c.mood.name);
     if (on(o, "body")) {
-      const words = meterWords(c);
+      // docs/33 Part 5: hunger, arousal, "asleep" and the like belong to the scene they were written in.
+      const bodyNow = c.bodySeq == null || c.bodySeq >= scene;
+      const words = bodyNow ? meterWords(c) : [];
       if (words.length) bits.push(words.join(", "));
-      for (const i of c.injuries) bits.push(`${i.where} ${SEVERITY[i.severity]}${i.treated ? " (treated)" : ""}`);
-      for (const k of c.conditions) bits.push(k.text);
-      if (c.flags.length) bits.push(c.flags.slice(-4).join(", "));
+      for (const i of c.injuries) bits.push(cleanBit(`${i.where} ${SEVERITY[i.severity]}${i.treated ? " (treated)" : ""}`));
+      for (const k of c.conditions) bits.push(cleanBit(k.text));
+      if (bodyNow && c.flags.length) bits.push(cleanBit(c.flags.slice(-4).join(", ")));
       const st = STAMINA[c.stamina];
       if (st?.note) bits.push(st.note);
     }
   }
   const tail: string[] = [];
   if (c.activity) tail.push(c.activity);
-  if (c.look) tail.push(`wearing: ${c.look}`);
+  // docs/33 Part 5: clothes written in an earlier scene aren't what they wear now.
+  if (c.look && (c.lookSeq == null || c.lookSeq >= scene)) tail.push(`wearing: ${cleanBit(c.look)}`);
   // Voice traits go to VOICES (docs/23), where the way someone talks is read.
   const fixed = c.traits.filter((t) => t.kind !== "voice");
   if (fixed.length) tail.push(`always: ${fixed.map((t) => t.text).join("; ")}`);
@@ -222,6 +259,7 @@ function personLine(st: WorldState, c: Character, o: NoteOptions, here: Characte
     }
   }
   const name = c.isUser ? `${o.userName} (${userLabel(o)})` : c.name;
+  for (let i = bits.length - 1; i >= 0; i--) if (!bits[i]) bits.splice(i, 1);
   return `- ${name}${bits.length ? `: ${bits.join("; ")}` : ""}${tail.length ? ` · ${tail.join(" · ")}` : ""}`;
 }
 

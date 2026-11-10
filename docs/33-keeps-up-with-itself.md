@@ -82,18 +82,28 @@ Built in two halves; the rest moves to later parts.
 
 ## Part 5: state that expires  [5, 19, 21, 23]
 
-- **5.1** `trackers/note.ts` / `condition.ts`: `look` and transient `body` lines carry the scene they were written in. In a later scene they print only if restated, or as "last seen wearing" when nothing newer exists. Arousal, aches and "asleep" end with the scene.
-- **5.2** `trackers/belongings.ts`: food and drink end when eaten or when the scene ends; "on her feet" holds one pair; things marked "cart", "not yet purchased", "on X's plate" close when the place is left. At most about eight items print, by recency and use.
-- **5.3** A validator on every state line before it enters a prompt: balanced brackets, one person per line, no contradicting needs ("hungry; belly full"). A line that fails is rebuilt from the fold, and the failure is logged.
+Split in two. **5a**, the people lines, is built; **5b** is the rest of the state block.
+
+### 5a: what someone wears, feels and carries (built)
+
+- **5.1** `trackers/fold.ts`: a look and the body meters now carry the message they were written at (`lookSeq`, `bodySeq`). `trackers/note.ts`: clothes, and meters and flags like arousal, hunger or "asleep", print only within the scene they were written in; a later scene shows them again only when restated. Injuries and conditions keep their own endings.
+- **5.2** `carried`: food from an earlier scene is gone; a thing set down elsewhere in an earlier scene (the cart, a plate, the sofa arm, by the door, not yet paid for) isn't listed; one pair of footwear is on someone's feet, the latest; at most eight things print, latest first.
+- **5.3** `cleanBit`: a bracket a model never closed loses its brackets, and a bit that is another ledger line run in ("body Buffy Summers: arousal 5") is dropped.
+
+**Seen on a copy of the real data:** at message 926 Buffy's line no longer has the car scene's "jeans unbuttoned", the morning's arousal, the cream soup, the wrapped toothbrush or the cart; she has one pair of boots on, and eight things. "Pale" and the day-zero wants stay until Part 1's reading runs at the next chapter.
+
+**Done when:** a later scene doesn't show an earlier scene's clothes, body state, eaten food or set-down things, and a broken bracket or a run-in line never reaches the prompt. *(In `expires.test.ts`.)*
+
+### 5b: the rest of the state block (not built)
+
 - **5.4** `trackers/today.ts`: starts at the day's first message, never clips mid-clause, and breaks a block when the place changes.
-- **5.5** `memory/openlist.ts`: open items ranked by weight (promises with a date, conflicts, secrets first), with solved errands closed by the Part 2 rules.
+- **5.5** `memory/openlist.ts`: open items ranked by weight (promises with a date, conflicts, secrets first); solved errands closed.
 - **5.6** `memory/named.ts`: facts in play chosen by the scene's people and place, not by any name match.
-- **5.7** `accuracy/corrections.ts`: a correction is only written from a real supersession (Part 2), with the pair shown.
+- **5.7** `accuracy/corrections.ts`: a correction only from a real supersession, with the pair shown.
 - **5.8** `lore/activate.ts`: an entry with no text is not sent.
 - **5.9** `trackers/places.ts`: a room cannot be filed under another room; the current room follows the cast.
-- **5.10** A test that the fold ignores ledger lines of takes that aren't the active one, for every reader of the state.
-
-**Done when:** the state block for message 926 (on a copy) shows what people are wearing and holding in that scene, and passes the validator.
+- **5.10** A test that every reader of the state ignores ledger lines of takes that aren't the active one.
+- Moved here from Part 2: an item bought, fixed or lost, or a promise kept, retiring the memories it overturns.
 
 ## Part 6: the word-fixer only suggests  [6]
 

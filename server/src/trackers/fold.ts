@@ -1528,6 +1528,7 @@ export class Folder {
         if (!c) return this.reject(ctx, "whose body?");
         if (this.isLocked(`chars.${c.id}.body`) && this.ai(ctx)) return this.reject(ctx, "locked");
         const now = this.now();
+        c.bodySeq = seq;
         for (const m of a.meters as { meter: string; delta?: number; set?: number }[]) {
           const k = METER_ALIASES[m.meter];
           if (!k || !(METERS as readonly string[]).includes(k)) {
@@ -1592,6 +1593,7 @@ export class Folder {
         if (this.isLocked(`chars.${c.id}.look`) && this.ai(ctx)) return this.reject(ctx, "locked");
         if (c.look && norm(c.look) === norm(a.to)) return;
         c.look = clip(a.to);
+        c.lookSeq = seq;
         this.push(ctx, { kind: "look", text: `${c.name}: ${clip(a.to)}`, subject: c.name, path: `chars.${c.id}.look` });
         return;
       }
