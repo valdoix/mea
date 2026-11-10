@@ -6,7 +6,7 @@ import { type ChatSettings, mustChat } from "../services/chats";
 import { layered, type PersonaMode, storyDials, writesUser } from "../services/layers";
 import { currentFold } from "../trackers/store";
 import type { Issue } from "./checker";
-import { fixNames, nameSlips } from "./names";
+import { nameSlips } from "./names";
 
 /**
  * Point of view, tense and puppeting (CON-04), plus the name registry's slips (CON-05).
@@ -341,18 +341,12 @@ export interface GuardResult {
   retry: string | null;
 }
 
-/** Runs when a reply is saved: corrects names and cuts puppeting, when you chose those actions. */
+/** Runs when a reply is saved: cuts puppeting, when you chose that action. */
 export function applyGuards(chatId: string, text: string, o: { seq: number; messageId: string }): GuardResult {
   const cfg = guardsFor(chatId);
   const res: GuardResult = { text, meta: {}, notes: [], retry: null };
-  if (cfg.names === "fix") {
-    const f = fixNames(res.text, nameSlips(chatId, res.text, { messageId: o.messageId }));
-    if (f.fixed.length) {
-      res.text = f.text;
-      res.meta.fixed = f.fixed;
-      res.notes.push(`corrected ${f.fixed.map((x) => `${x.from} → ${x.to}`).join(", ")}`);
-    }
-  }
+  // Names are never corrected in the stored reply (docs/33 Part 6): a setting of "fix" from before
+  // is read as "flag", and the slip shows as a note you can accept.
   if (cfg.puppet && cfg.puppetAction !== "flag") {
     const { n, userNames } = names(chatId);
     const exp = expected(chatId, o.seq, [n.char], userNames);

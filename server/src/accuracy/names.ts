@@ -10,7 +10,8 @@ import { currentFold } from "../trackers/store";
 /**
  * The name registry (CON-05): canonical spellings from the card, the persona, the entity graph,
  * the trackers and the lorebooks. Names in a reply that look like a typo of one of them are
- * flagged, and (optionally) corrected in the stored reply. The same list feeds @-mentions in the
+ * noted, never rewritten (docs/33 Part 6: the fixer turned Gruyère into "(grey" and Mario into
+ * Maria). The same list feeds @-mentions in the
  * composer (QOL-03) and the spell checker's dictionary (QOL-04).
  */
 
@@ -65,6 +66,18 @@ export function nameRegistry(chatId: string): NameEntry[] {
   return [...out.values()];
 }
 
+/** Common capitalised words (sentence starts) that are one letter away from many names. */
+const COMMON = new Set(
+  "then than they them there their these those this that what when where which while with without would could should shall will have here hers more most much must just once only over very well were what whom whose your yours from into onto upon about after again also back been being both came come does done down each even ever every find give gone good have hold home just keep kind know last left like line look made make many mine near need next once open part past pull push rain read real rest ride rise road rock role rose said same seen self send sent side sign some soon sure take tell than that them then they thin this time told took town tree true turn upon used wait wake walk wall want warm wave ways wear went were west what when wide wife wild will wind wine wise wish word wore work yard year yeah yell your able ache aged also anna away bare bark bear beat bell belt bend best bird bite blue body bold bone book born boss bowl burn busy call calm cape card care cart case cast cave cold come cook cool cord core cost crew cure dare dark dart dawn dead deal dear debt deep deer desk dial dirt dock does door dose dove draw drew drop drum dull dusk dust duty earn ease east easy edge else even evil face fact fade fail fair fall fame fare farm fast fate fear feed feel feet fell felt file fill film find fine fire firm fish fist flag flat fled flew flow foam fold folk fond food fool foot form fort four free from fuel full fury gate gave gaze gear gift girl glad glow gold golf gone grab gray grew grey grim grin grip hair half hall halt hand hang hard harm hate head heal heap hear heat held hell help herb hero hide high hill hint hire hold hole holy hood hook hope horn host hour huge hung hunt hurt idea iron item jade jail jest join joke jump just kept kick kill king kiss knee knew knit knot lace lack lady laid lake lamb lamp land lane lash late lawn lead leaf lean leap less lied life lift lily limb lime link lion lips list live load loan lock long loom loop lord lose loss lost loud love luck lung lure maid mail main male mark mask mass mate maze meal mean meat meet melt mild mile milk mill mind mint miss mist moan mode mold monk mood moon moss moth move myth nail name navy neck nest news nice nine node none noon norm nose note numb oath odds once pace pack page paid pain pair pale palm park pass path peak pear peel peer pile pine pink pipe plan play plea plot plum poem poet pole pond pool poor pore port pose post pour pray prey pure quit race rage raid rail rang rank rare rate rear rely rent ribs rice rich ride ring riot ripe risk roam roar robe roof room root rope ruby rude ruin rule rush rust sack safe sage sail salt sand sang sank save scar seal seat seed seek seem sell shed ship shoe shop shot show shut sick sigh silk sing sink site size skin slip slow snow soak soap sock soft soil sold sole song sort soul soup sour span spin spot star stay stem step stir stop such suit swan swim tail tale talk tall tame tank tape task team tear tend tent term test text thaw tide tidy tile till tilt tiny tire toad toll tomb tone tool tore torn tour toys trap tray trim trip tuck tune twin type ugly unit vain vale vast veil vein verb vest view vine void vote wade wage wail waist wand ward wary wash weak weep weld wept whip wick wing wink wipe wire wolf womb wood wool worm worn wrap yawn zone today tonight tomorrow maybe never always sorry please thank thanks hello oh okay right still something nothing everything someone anyone everyone perhaps though although because before behind beneath beside between beyond inside outside under until where whether while within morning evening night afternoon".split(
+    " ",
+  ),
+);
+
+/** What a misspelling can be a misspelling of: someone or somewhere, never a thing or an idea. */
+const nameable = (e: NameEntry) => !/^(?:object|item|thing|concept|idea|event|rule)$/i.test(e.kind) || e.source === "card" || e.source === "persona";
+/** A word of a name: letters only, so "grey tee (faded" never offers "(faded". */
+const plainWord = (w: string) => /^[\p{L}'’-]+$/u.test(w);
+
 /** Words the registry vouches for: whole names and each word of a longer name. */
 function knownWords(reg: NameEntry[]) {
   const known = new Set<string>();
@@ -73,20 +86,15 @@ function knownWords(reg: NameEntry[]) {
     known.add(norm(e.name));
     for (const w of norm(e.name).split(" ")) {
       known.add(w);
-      if (w.length >= 4) tokens.push({ word: w, entry: e });
+      // A target is a word of a person's or a place's name that isn't an ordinary word itself
+      // ("High" of Sunnydale High, "Home" of a place called Home).
+      if (w.length >= 4 && nameable(e) && plainWord(w) && !COMMON.has(w)) tokens.push({ word: w, entry: e });
     }
     const c = core(e.name);
     if (c) known.add(c);
   }
   return { known, tokens };
 }
-
-/** Common capitalised words (sentence starts) that are one letter away from many names. */
-const COMMON = new Set(
-  "then than they them there their these those this that what when where which while with without would could should shall will have here hers more most much must just once only over very well were what whom whose your yours from into onto upon about after again also back been being both came come does done down each even ever every find give gone good have hold home just keep kind know last left like line look made make many mine near need next once open part past pull push rain read real rest ride rise road rock role rose said same seen self send sent side sign some soon sure take tell than that them then they thin this time told took town tree true turn upon used wait wake walk wall want warm wave ways wear went were west what when wide wife wild will wind wine wise wish word wore work yard year yeah yell your able ache aged also anna away bare bark bear beat bell belt bend best bird bite blue body bold bone book born boss bowl burn busy call calm cape card care cart case cast cave cold come cook cool cord core cost crew cure dare dark dart dawn dead deal dear debt deep deer desk dial dirt dock does door dose dove draw drew drop drum dull dusk dust duty earn ease east easy edge else even evil face fact fade fail fair fall fame fare farm fast fate fear feed feel feet fell felt file fill film find fine fire firm fish fist flag flat fled flew flow foam fold folk fond food fool foot form fort four free from fuel full fury gate gave gaze gear gift girl glad glow gold golf gone grab gray grew grey grim grin grip hair half hall halt hand hang hard harm hate head heal heap hear heat held hell help herb hero hide high hill hint hire hold hole holy hood hook hope horn host hour huge hung hunt hurt idea iron item jade jail jest join joke jump just kept kick kill king kiss knee knew knit knot lace lack lady laid lake lamb lamp land lane lash late lawn lead leaf lean leap less lied life lift lily limb lime link lion lips list live load loan lock long loom loop lord lose loss lost loud love luck lung lure maid mail main male mark mask mass mate maze meal mean meat meet melt mild mile milk mill mind mint miss mist moan mode mold monk mood moon moss moth move myth nail name navy neck nest news nice nine node none noon norm nose note numb oath odds once pace pack page paid pain pair pale palm park pass path peak pear peel peer pile pine pink pipe plan play plea plot plum poem poet pole pond pool poor pore port pose post pour pray prey pure quit race rage raid rail rang rank rare rate rear rely rent ribs rice rich ride ring riot ripe risk roam roar robe roof room root rope ruby rude ruin rule rush rust sack safe sage sail salt sand sang sank save scar seal seat seed seek seem sell shed ship shoe shop shot show shut sick sigh silk sing sink site size skin slip slow snow soak soap sock soft soil sold sole song sort soul soup sour span spin spot star stay stem step stir stop such suit swan swim tail tale talk tall tame tank tape task team tear tend tent term test text thaw tide tidy tile till tilt tiny tire toad toll tomb tone tool tore torn tour toys trap tray trim trip tuck tune twin type ugly unit vain vale vast veil vein verb vest view vine void vote wade wage wail waist wand ward wary wash weak weep weld wept whip wick wing wink wipe wire wolf womb wood wool worm worn wrap yawn zone today tonight tomorrow maybe never always sorry please thank thanks hello oh okay right still something nothing everything someone anyone everyone perhaps though although because before behind beneath beside between beyond inside outside under until where whether while within morning evening night afternoon".split(
-    " ",
-  ),
-);
 
 /** Edit distance with adjacent swaps counted as one typo (optimal string alignment). */
 export function typoDistance(a: string, b: string) {
@@ -122,7 +130,7 @@ export interface NameSlip {
   canonical: string;
   entry: NameEntry;
   distance: number;
-  /** Safe to correct automatically: one letter off and never used anywhere else in the chat. */
+  /** One letter off and never used anywhere else in the chat: the likeliest kind of slip. */
   fixable: boolean;
 }
 
@@ -130,15 +138,21 @@ export interface NameSlip {
 export function nameSlips(chatId: string, text: string, opts: { messageId?: string; registry?: NameEntry[] } = {}): NameSlip[] {
   const reg = opts.registry ?? nameRegistry(chatId);
   const { known, tokens } = knownWords(reg);
-  const words = new Set((cleanText(text).match(/\b[A-Z][a-z]{3,}\b/g) ?? []).filter((w) => !known.has(norm(w)) && !COMMON.has(w.toLowerCase())));
+  // Whole words in any script ("Gruyère" is one word, not "Gruy"), and nothing the reply set in
+  // italics: a word said on purpose, a title, a mispronunciation ("*Rovello*, not Revello").
+  const italic = new Set<string>();
+  for (const m of text.matchAll(/(?<![*\w])\*(?!\s)([^*\n]{1,80}?)\*(?!\*)|<(em|i)>([^<]{1,80})<\/\2>/g)) for (const w of (m[1] ?? m[3] ?? "").match(/\p{L}+/gu) ?? []) italic.add(w);
+  const words = new Set((cleanText(text).match(/(?<![\p{L}\p{M}'’-])\p{Lu}\p{Ll}{3,}(?![\p{L}\p{M}])/gu) ?? []).filter((w) => !italic.has(w) && !known.has(norm(w)) && !COMMON.has(w.toLowerCase())));
   const out: NameSlip[] = [];
   for (const w of words) {
-    const lw = w.toLowerCase();
+    const lw = norm(w);
     let best: { t: (typeof tokens)[number]; d: number } | null = null;
     for (const t of tokens) {
       if (Math.abs(t.word.length - lw.length) > 2) continue;
       const max = t.word.length >= 8 ? 2 : 1;
-      if (max === 2 && t.word[0] !== lw[0]) continue;
+      // A slip keeps the name's first letter ("Mria", "Harow"); a different one is another word or
+      // another name ("Billy" beside Willy, "Kara" beside Tara).
+      if (t.word[0] !== lw[0]) continue;
       const d = typoDistance(t.word, lw);
       if (d <= max && (!best || d < best.d)) best = { t, d };
     }
@@ -149,19 +163,4 @@ export function nameSlips(chatId: string, text: string, opts: { messageId?: stri
     out.push({ word: w, canonical, entry: best.t.entry, distance: best.d, fixable: best.d === 1 });
   }
   return out;
-}
-
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** Applies the fixable corrections to a reply. */
-export function fixNames(text: string, slips: NameSlip[]) {
-  let out = text;
-  const fixed: { from: string; to: string }[] = [];
-  for (const s of slips.filter((x) => x.fixable)) {
-    const re = new RegExp(`\\b${esc(s.word)}\\b`, "g");
-    if (!re.test(out)) continue;
-    out = out.replace(re, s.canonical);
-    fixed.push({ from: s.word, to: s.canonical });
-  }
-  return { text: out, fixed };
 }

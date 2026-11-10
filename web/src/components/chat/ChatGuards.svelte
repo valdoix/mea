@@ -190,11 +190,10 @@
       <span class="st-k">Names</span>
       <Seg
         label="Misspelled names"
-        value={own.names ?? ""}
+        value={own.names === "fix" ? "flag" : (own.names ?? "")}
         options={[
-          { value: "", label: "Default", title: `Default: ${view.config.names === "fix" ? "correct them" : view.config.names === "flag" ? "note them" : "off"}` },
+          { value: "", label: "Default", title: `Default: ${view.config.names === "off" ? "off" : "note them"}` },
           { value: "flag", label: "Note", title: "Note them" },
-          { value: "fix", label: "Fix", title: "Correct them" },
           { value: "off", label: "Off" },
         ]}
         onchange={(v) => setOwn("names", v as GuardsConfig["names"] | "")}

@@ -4,7 +4,7 @@ import { checkReply, flagsFor, recordTimeline } from "../src/accuracy/checker";
 import { checkDrift, driftState, spokenPart, styleDistance, styleStats, voiceSamples } from "../src/accuracy/drift";
 import { applyGuards, guardIssues, puppetHits, tenseOf, trimPuppeting, voiceOf } from "../src/accuracy/guards";
 import { actOnInbox, inboxItems } from "../src/accuracy/inbox";
-import { fixNames, nameRegistry, nameSlips } from "../src/accuracy/names";
+import { nameRegistry, nameSlips } from "../src/accuracy/names";
 import { timelineIssues } from "../src/accuracy/timeline";
 import { normalizeCard } from "../src/cards/card";
 import { all, newId, now, one, run } from "../src/db/db";
@@ -12,6 +12,7 @@ import { defaultGuards, defaultMemoryConfig, setSetting } from "../src/lib/setti
 import { createLorebook } from "../src/lore/service";
 import { defaultEntry } from "../src/lore/types";
 import { insertAtom } from "../src/memory/atoms";
+import { createEntity } from "../src/memory/entities";
 import { createCharacter } from "../src/services/characters";
 import { patchCharacterSettings } from "../src/services/charsettings";
 import { addMessage, createChat, getMessage, updateChat } from "../src/services/chats";
@@ -179,20 +180,41 @@ describe("the name registry (CON-05)", () => {
     expect(names).toContain("Captain Harrow");
     expect(names).not.toContain("the harbor");
   });
-  test("slips are found and fixed; common words and names the chat already uses are not", () => {
+  test("slips are found; common words and names the chat already uses are not", () => {
     const slips = nameSlips(chatId, "Mria laughs. Then Harow waves from the dock. Thomas waves too.");
     expect(slips.map((s) => s.word).sort()).toEqual(["Harow", "Mria"]);
     expect(slips.find((s) => s.word === "Harow")?.canonical).toBe("Harrow");
-    expect(fixNames("Mria laughs at Mria.", slips).text).toBe("Mira laughs at Mira.");
     addMessage(chatId, "user", "Have you met Mara, my sister?", { name: "Alex" });
     expect(nameSlips(chatId, "Mara waves.").length).toBe(0);
   });
-  test("fix mode corrects the stored reply", () => {
+  test("a reply is never rewritten, whatever the setting says (docs/33 Part 6)", () => {
     setSetting("guards.config", { ...defaultGuards, names: "fix" });
     const r = applyGuards(chatId, "Mria pours the tea.", { seq: 999, messageId: "x" });
-    expect(r.text).toBe("Mira pours the tea.");
-    expect(r.meta.fixed).toEqual([{ from: "Mria", to: "Mira" }]);
+    expect(r.text).toBe("Mria pours the tea.");
+    expect(r.meta.fixed).toBeUndefined();
+    expect(guardIssues(chatId, "Mria pours the tea.", { seq: 999 }).some((i) => i.kind === "name")).toBe(true);
     setSetting("guards.config", defaultGuards);
+  });
+  test("ordinary words, other names, accents and italics are not slips", () => {
+    // The fixer's real mistakes in one story: Gruyère → "(grey", Slower → shower, Mario → Maria,
+    // Billy → Willy, Hugh → High, Homer → "home)", Flour → four, and Spike's *Rovello*.
+    const c = createChat({ characterId: createCharacter(normalizeCard({ spec: "chara_card_v2", data: { name: "Buffy", description: "A slayer.", first_mes: "Hi." } }).data) }).id;
+    addMessage(c, "user", "Maria was my nanny. Willy runs the bar on Revello Drive, near Sunnydale High.", { name: "Gabriel" });
+    createEntity(c, { kind: "person", name: "Maria" });
+    createEntity(c, { kind: "person", name: "Willy" });
+    createEntity(c, { kind: "place", name: "Revello Drive" });
+    createEntity(c, { kind: "place", name: "Sunnydale High" });
+    createEntity(c, { kind: "place", name: "Home" });
+    createEntity(c, { kind: "object", name: "grey tee (faded, soft)" });
+    createEntity(c, { kind: "object", name: "shower" });
+    createEntity(c, { kind: "concept", name: "four" });
+    const quiet = (t: string) => expect(nameSlips(c, t).map((s) => `${s.word}→${s.canonical}`)).toEqual([]);
+    quiet("The Gruyère is warm. Gruyère from Fribourg.");
+    quiet("Slower. Looser now. Flour on the counter. Homer would know. Hugh Grant again.");
+    quiet("Billy Idol stole the look. Kara waved from the lot.");
+    quiet("He said *Rovello*, not Revello. The wrong vowel.");
+    expect(nameSlips(c, "They drove to Rovello Drive.").map((s) => s.canonical)).toEqual(["Revello"]);
+    expect(nameSlips(c, "Mraia made soup.").map((s) => s.canonical)).toEqual(["Maria"]);
   });
 });
 
