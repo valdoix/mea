@@ -101,7 +101,7 @@ Rules:
 - "loopsClosed": each of the OPEN LOOPS this scene finished: it happened on the page, not just got talked about or planned. Give its "id", the [#number] it happened at as "seq", and as "quote" the words that show it, copied exactly from that message.
 - "loopsOpened": what the story now expects to happen that isn't among the OPEN LOOPS: a promise, a plan, an errand, or a question someone owes an answer to, as "what" (one plain line), "kind" (promise, plan, errand, question) and "seq". Not moods, mysteries or running jokes.
 - "quotes": up to 4 lines worth remembering, copied word for word, each with the [#number] it comes from as "seq".
-- "storyTime": the in-story time span if the scene shows it (e.g. "Day 3, evening → night"), else "".
+- "storyTime": "" unless the text itself states a date or a clock time; never count days or guess the month. The story clock labels the record.
 - "memories": atomic, self-contained notes, ${SCENE_MEMORIES[level]}; one idea each, written so they make sense alone (use names).${cfg.moments ? `
 - "moments": the scene's dramatic moments, if any (most scenes have none): ${MOMENT_TAGS.join(", ")}. Each has a "tag" from that list, one line of what happened (quote the key words exactly), and the [#number] as "seq".` : ""} Types: ${["event", "fact", "trait", "preference", "promise", "secret", "quote", "plan", "relationship"].join(", ")}. Each cites the [#numbers] it comes from in "sources". "importance" 1–10 (10 = life-changing, 1 = trivia); skip small talk. "knownBy": who knows it (important for secrets). "entities": the people, places, and things involved.
 - If a new memory updates or contradicts one of the EXISTING MEMORIES you're shown, put that memory's id (like "A3") in its "supersedes" list.
@@ -141,7 +141,7 @@ Rules:
 - "title": a short, evocative ${level === "story" ? "title for the story" : `${level} title`} (2–6 words).
 - "keyQuotes": up to 3 lines that define this part, word for word from the records.
 - "openThreads": unresolved threads, promises, and mysteries still alive at the end.
-- "storyTime": the in-story time span covered, if known.
+- "storyTime": the span from the first record's Time to the last one's, copied, not reworded; "" when they have none.
 - "importance": 1–10.
 Reply with one JSON object only: {"title":"…","summary":"…","keyQuotes":[{"speaker":"…","text":"…"}],"openThreads":[],"storyTime":"","importance":5}`;
 }

@@ -48,6 +48,7 @@ import { revealsOf } from "../trackers/reveals";
 import { currentFold } from "../trackers/store";
 import { sentences } from "../accuracy/rules";
 import { tieCheck } from "../accuracy/ties";
+import { clockSpan } from "./reconcile";
 
 /**
  * Reliable state 2.4: secrets that had come out by a message, said to the summarizer so a record
@@ -371,7 +372,7 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
   const body = parts
     .map((p, i) => {
       const d = parseJson<Record<string, unknown>>(p.data, {});
-      const extra = [d.storyTime ? `Time: ${d.storyTime}` : "", Array.isArray(d.threadsClosed) && d.threadsClosed.length ? `Resolved: ${(d.threadsClosed as string[]).join("; ")}` : ""].filter(Boolean).join(" · ");
+      const extra = [p.story_time || d.storyTime ? `Time: ${p.story_time || d.storyTime}` : "", Array.isArray(d.threadsClosed) && d.threadsClosed.length ? `Resolved: ${(d.threadsClosed as string[]).join("; ")}` : ""].filter(Boolean).join(" · ");
       const moments = memoryConfig().moments && Array.isArray(d.moments) && d.moments.length ? `\nMOMENTS: ${(d.moments as Moment[]).map((m) => `[${m.tag}] ${m.text}`).join(" · ")}` : "";
       return `${label(p)} ${i + 1}: ${p.title} (messages #${p.start_seq}–#${p.end_seq ?? "…"})${extra ? `\n${extra}` : ""}\n${p.content}${moments}`;
     })
@@ -402,7 +403,7 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
       countTokens(content),
       parts.reduce((n, p) => n + p.source_tokens, 0),
       hash,
-      r.data.storyTime || null,
+      clockSpan(row.chat_id, parts[0]!.start_seq, endSeq ?? parts.at(-1)?.end_seq ?? null)?.label ?? (r.data.storyTime || null),
       now(),
       now(),
       ...(level === "story" ? [endSeq, row.id] : [row.id]),

@@ -1,9 +1,9 @@
 import { all, now, parseJson, run } from "../db/db";
 import { countTokens } from "../lib/tokens";
-import { describeMinutes, formatStoryTime } from "../trackers/clock";
+import { describeMinutes, spanLabel, type StoryTime } from "../trackers/clock";
 import { currentFold } from "../trackers/store";
 import { norm } from "./entities";
-import { getSummary, type SummaryRow, touchMemory } from "./store";
+import { getSummary, memState, setMemState, type SummaryRow, touchMemory } from "./store";
 
 /**
  * Reconcile scene records with the trackers (SUM-22). The story clock and the scene tracker are
@@ -49,6 +49,65 @@ export function claimedElapsed(text: string): [number, number] | null {
 
 const TIME_WORDS = /\b(minute|hour|day|night|week|month|year|morning|evening|afternoon|dawn|dusk|midnight|noon|later|overnight|tomorrow|yesterday)s?\b/i;
 
+/**
+ * The story clock over a stretch of messages (docs/33 Part 4): the time just before the first of
+ * them (or at it) and the time at the last. Null when the trackers kept no clock there.
+ */
+export function clockSpan(chatId: string, startSeq: number, endSeq: number | null, fold?: ReturnType<typeof currentFold>): { start: StoryTime; end: StoryTime; label: string } | null {
+  let f = fold;
+  if (!f) {
+    try {
+      f = currentFold(chatId);
+    } catch {
+      return null;
+    }
+  }
+  const msgs = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL AND seq <= ? ORDER BY seq", chatId, endSeq ?? Number.MAX_SAFE_INTEGER);
+  const at = (pred: (seq: number) => boolean) => {
+    let v: StoryTime | null = null;
+    for (const m of msgs) {
+      if (!pred(m.seq)) continue;
+      const t = f!.times[m.id];
+      if (t) v = { minutes: Number(t.split(":")[0]), form: t.split(":")[1] as "date" | "day" };
+    }
+    return v;
+  };
+  const start = at((s) => s < startSeq) ?? at((s) => s === startSeq);
+  const end = at(() => true);
+  if (!start || !end) return null;
+  return { start, end, label: spanLabel(start, end) };
+}
+
+/**
+ * Every record's time label, from the clock (scenes, chapters, arcs, the story). The summarizer
+ * used to guess it, and called one Wednesday "Day 1", "Day 2" and "Day 3". Your own edits are
+ * left alone. Returns how many labels changed.
+ */
+export function relabelTimes(chatId: string): number {
+  let fold: ReturnType<typeof currentFold>;
+  try {
+    fold = currentFold(chatId);
+  } catch {
+    return 0;
+  }
+  let n = 0;
+  for (const r of all<SummaryRow>("SELECT * FROM summaries WHERE chat_id = ? AND state = 'ready' AND user_edited = 0", chatId)) {
+    const label = clockSpan(chatId, r.start_seq, r.end_seq, fold)?.label;
+    if (!label || label === r.story_time) continue;
+    run("UPDATE summaries SET story_time = ?, updated_at = ? WHERE id = ?", label, now(), r.id);
+    n++;
+  }
+  if (n) touchMemory(chatId);
+  return n;
+}
+
+/** Once per story: the labels written before the clock owned them. */
+export function relabelTimesOnce(chatId: string) {
+  if (memState(chatId).clockLabels) return;
+  relabelTimes(chatId);
+  setMemState(chatId, { clockLabels: true });
+}
+
 export function reconcileScene(summaryId: string) {
   const row = getSummary(summaryId);
   if (!row || row.level !== "scene" || row.state !== "ready") return [] as ReconcileIssue[];
@@ -58,20 +117,10 @@ export function reconcileScene(summaryId: string) {
   } catch {
     return [];
   }
+  const span = clockSpan(row.chat_id, row.start_seq, row.end_seq, fold);
+  if (!span) return [];
+  const { start, end } = span;
   const msgs = all<{ id: string; seq: number }>("SELECT id, seq FROM messages WHERE chat_id = ? AND deleted_at IS NULL AND seq <= ? ORDER BY seq", row.chat_id, row.end_seq ?? Number.MAX_SAFE_INTEGER);
-  const minutesAt = (pred: (seq: number) => boolean) => {
-    let v: { minutes: number; form: "date" | "day" } | null = null;
-    for (const m of msgs) {
-      if (!pred(m.seq)) continue;
-      const t = fold.times[m.id];
-      if (t) v = { minutes: Number(t.split(":")[0]), form: t.split(":")[1] as "date" | "day" };
-    }
-    return v;
-  };
-  // Story time just before the scene, and at its last message.
-  const start = minutesAt((s) => s < row.start_seq) ?? minutesAt((s) => s === row.start_seq);
-  const end = minutesAt((s) => s <= (row.end_seq ?? s));
-  if (!start || !end) return [];
   const elapsed = Math.max(0, end.minutes - start.minutes);
   const data = parseJson<{ storyTime?: string; locations?: string[] }>(row.data, {});
   const text = `${row.content}\n${data.storyTime ?? ""}`;
@@ -97,7 +146,8 @@ export function reconcileScene(summaryId: string) {
   let content = row.content;
   let storyTime = row.story_time;
   if (!row.user_edited) {
-    if (!storyTime) storyTime = `${formatStoryTime(start)} → ${formatStoryTime(end)}`;
+    // The clock's label wins over the summarizer's guess (docs/33 Part 4).
+    storyTime = span.label;
     if (elapsed >= 1440 && !TIME_WORDS.test(row.content) && !/^Time passing:/m.test(row.content)) content = `${row.content}\nTime passing: about ${describeMinutes(elapsed)} (story clock).`;
   }
   const verification = { ...parseJson<Record<string, unknown>>(row.verification ?? "{}", {}), reconcile: { issues, elapsed, at: now() } };

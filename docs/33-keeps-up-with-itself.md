@@ -17,7 +17,7 @@
 | Wrist-rubbing and a grieving Buffy at message 926 | The card's own after-history instructions ("show her tells…", "don't rush her recovery") and the day-zero `drive` / `mask` / fixed traits are sent unchanged forever. `lore/sincecard.ts` only corrects the card's *opening scene*, not its standing orders |
 | "Dawn doesn't know Buffy is alive" drives a reply | Memories are superseded only when a later memory restates the same thing (`memory/reconcile.ts`); an event that overturns one doesn't touch it |
 | 300 replies in past tense, no flags | The tense check (`accuracy/guards.ts` `tenseGuard`) is a setting, and it is off (`guards.config.tense: false`); the flags stop at message 400. When it was on it only flagged, and most flags were dismissed. The lesson's `last_broken_seq` (`steer/lessons.ts`) is only moved by that check |
-| Summaries call one Wednesday Day 1, 2 and 3 | `messages.story_time` has a column and no writer. `memory/build.ts` asks the summarizer to guess the time |
+| Summaries call one Wednesday Day 1, 2 and 3 | A record's time label is the summarizer's guess; the clock (`memory/reconcile.ts`) only fills it when the guess is empty |
 | Stale clothes, bodies and inventories | `trackers/note.ts` prints `look`, `body` and belongings as last written, with no scene boundary and no validation |
 | Gruyère → "(grey" | `accuracy/names.ts` / `guards.ts` `applyGuards` rewrites any capitalised word within a letter or two of a known name or item, in `services/generation.ts` after every reply |
 | Checker noise | `accuracy/moreslips.ts` `clockBackRule` reads any stated time as "now"; `statedTimes` drops the minutes of spoken times; name, leak, trait and not-here rules match without a subject |
@@ -58,14 +58,19 @@
 
 **Done when:** a past-tense mock reply in a present-tense story arrives in present tense, and the same reply with the rewrite failing arrives flagged.
 
-## Part 4: every message carries its story time  [4, 16]
+## Part 4: records take their time from the clock  [4, 16]
 
-- **4.1** `trackers/service.ts`: after a reply's ledger is folded, write the clock to `messages.story_time` for that message and the user message before it. A backfill sets it for old messages from the fold.
-- **4.2** `memory/build.ts` and `memory/prompts.ts`: summaries are given their start and end time and day number; the summarizer no longer writes a time label. Day one is the opening date, everywhere.
-- **4.3** `memory/recap.ts`: the recap is rebuilt whenever a chapter closes, not only after hours away.
-- **4.4** A rebuild of this story's time labels from the clock (no model calls).
+*Changed from the first draft.* The tracker already keeps a story time for every message (the page shows it under each one); the `messages.story_time` column is simply unused, and stamping it would only duplicate that. The fault was narrower: a record's time label was the summarizer's guess, and the clock only filled it in when the guess was empty.
 
-**Done when:** no summary of this story says "Day 3" for 10 October or "late October", and the recap is from the latest closed chapter.
+- **4.1** `trackers/clock.ts` `spanLabel`: "Wed 2001-10-10 08:04 → 09:25", or both days when a span crosses midnight.
+- **4.2** `memory/reconcile.ts` `clockSpan` and `reconcileScene`: the clock's label replaces the guess on every scene record. Chapters, arcs and the story take theirs from the same clock when they are built (`memory/build.ts`), and a roll-up is shown its parts' clock labels, not their guesses.
+- **4.3** `relabelTimes`, run once per story after its next scene record: every older label is rewritten from the clock. No model calls. Your own edited records are left alone.
+- **4.4** The summarizer is told not to count days or guess the month (`memory/prompts.ts`).
+- *Dropped:* refreshing the recap each chapter. The recap is written when you ask for it or come back after a break, from the story as it stands then; the stored copy is only a cache.
+
+**Seen on a copy of the real data:** 185 labels changed in 2.2 s. The six arcs now read Tue 9 Oct 21:54 through Mon 15 Oct, and nothing says "Day 3", "late October" or "night" for a morning.
+
+**Done when:** no summary of this story says "Day 3" for 10 October or "late October". *(Holds on the copy; in `retrieval.test.ts`.)*
 
 ## Part 5: state that expires  [5, 19, 21, 23]
 
@@ -180,7 +185,7 @@
 | 1 brief ages | large | — |
 | 2 facts retire | large | — |
 | 3 tense | small | — |
-| 4 story time | small | — |
+| 4 clock labels | small | — |
 | 5 state expires | large | 2 |
 | 6 word-fixer | small | — |
 | 7 checker | medium | 4 |
