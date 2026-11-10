@@ -39,9 +39,12 @@ function arrival(sents: string[], c: { name: string; aliases: string[] }) {
  * A known person speaking ("…," Joss says / Joss says, "…") or acting in the room ("Joss sits",
  * "Joss's hand moves") while the trackers have them somewhere else, unless the reply brings them in first.
  */
-export function notHereRule(text: string, st: WorldState): Found[] {
+export function notHereRule(text: string, st: WorldState, player = ""): Found[] {
   const out: Found[] = [];
-  const away = Object.values(st.chars).filter((c) => !c.isUser && !c.dead && c.tier === "off");
+  // docs/33 Part 7: someone the player's own turn names was brought in by the player (a clerk, a
+  // friend at the door); the trackers catch up after the reply.
+  const named = (c: { name: string; aliases: string[] }) => Boolean(player) && new RegExp(`\\b(?:${namesRe(c)})\\b`, "i").test(player);
+  const away = Object.values(st.chars).filter((c) => !c.isUser && !c.dead && c.tier === "off" && !named(c));
   if (!away.length) return out;
   const sents = sentences(cleanText(text));
   for (const c of away) {
@@ -63,6 +66,18 @@ export function notHereRule(text: string, st: WorldState): Found[] {
     });
   }
   return out;
+}
+
+/** The player's message just before this reply (empty when there's none). */
+function playerTurn(chatId: string, seq: number): string {
+  return (
+    one<{ content: string }>(
+      `SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+       WHERE m.chat_id = ? AND m.seq < ? AND m.role = 'user' AND m.deleted_at IS NULL ORDER BY m.seq DESC LIMIT 1`,
+      chatId,
+      seq,
+    )?.content ?? ""
+  );
 }
 
 /** Someone the trackers already have in the scene arriving again ("Shauna comes in" when Shauna's been by the fire all along). */
@@ -98,9 +113,36 @@ const FLASHBACK = /\b(remember(?:s|ed)?|recall(?:s|ed)?|years ago|back then|flas
 const FORWARD = /\b(later|next (?:morning|day|evening|night)|the following|tomorrow|overnight|hours? (?:later|pass(?:ed)?)|by (?:dawn|morning|nightfall|evening|noon))\b/i;
 const WORDNUM: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, noon: 12, midnight: 0 };
 
+const MINUTE_WORDS: Record<string, number> = { "oh-five": 5, "oh five": 5, ten: 10, fifteen: 15, twenty: 20, "twenty-five": 25, thirty: 30, "thirty-five": 35, forty: 40, "forty-five": 45, fifty: 50, "fifty-five": 55 };
+const TENS: Record<string, number> = { twenty: 20, thirty: 30, forty: 40, fifty: 50 };
+const ONES: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
+/** "forty-two", "oh-eight", "fifteen": the minutes of a spoken time. */
+function spokenMinutes(w: string): number | null {
+  const t = w.toLowerCase().replace(/\s+/g, "-");
+  if (MINUTE_WORDS[t] != null) return MINUTE_WORDS[t]!;
+  const oh = t.match(/^oh-(\w+)$/);
+  if (oh && ONES[oh[1]!]) return ONES[oh[1]!]!;
+  const two = t.match(/^(twenty|thirty|forty|fifty)-(\w+)$/);
+  if (two && ONES[two[2]!]) return TENS[two[1]!]! + ONES[two[2]!]!;
+  const teen: Record<string, number> = { eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 };
+  return teen[t] ?? null;
+}
+const HOUR_WORD = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
+const SPOKEN = new RegExp(`\\b(${HOUR_WORD})[- ]((?:oh[- ])?(?:twenty|thirty|forty|fifty)?[- ]?(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)?|twenty|thirty|forty|fifty|fifteen)\\s*(a\\.m\\.|p\\.m\\.|am|pm)?(?![a-z])`, "gi");
+
 /** The clock times a sentence states, as minutes of the day: every reading ("three" is 3:00 or 15:00). */
-export function statedTimes(s: string): number[][] {
+export function statedTimes(s0: string): number[][] {
   const out: number[][] = [];
+  // docs/33 Part 7: "seven forty-two a.m." is 7:42, not "two a.m."; read spoken times whole first.
+  let s = s0;
+  for (const m of s0.matchAll(SPOKEN)) {
+    const h = WORDNUM[m[1]!.toLowerCase()]!;
+    const min = spokenMinutes(m[2]!.replace(/^[- ]|[- ]$/g, ""));
+    if (min == null || min > 59) continue;
+    const ap = m[3]?.toLowerCase()[0];
+    out.push(ap ? [((h % 12) + (ap === "p" ? 12 : 0)) * 60 + min] : [(h % 12) * 60 + min, ((h % 12) + 12) * 60 + min]);
+    s = s.replace(m[0], " ");
+  }
   for (const m of s.matchAll(/\b(\d{1,2}):(\d{2})\s*(am|pm|a\.m\.|p\.m\.)?/gi)) {
     const h = Number(m[1]);
     const min = Number(m[2]);
@@ -120,14 +162,28 @@ export function statedTimes(s: string): number[][] {
 }
 
 /** A reply that says it's earlier in the day than the story clock, with nothing marking a flashback. */
+/**
+ * docs/33 Part 7: a time the reply says it is now ("It's seven.", "The clock reads 6:40",
+ * "Eleven-oh-eight a.m., Sunnydale Mall."), not a time it mentions: "the sofa where she slept at
+ * seven a.m.", "a graveyard at midnight", "the mug at two a.m. after bad patrols" are the past or a
+ * habit, and 34 of the first 39 clock flags in one story were those.
+ */
+const TIME_WORD = "\\d{1,2}(?::\\d{2})?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight|half past|quarter (?:past|to)";
+const SAYS_NOW = new RegExp(`\\b(?:(?:it['’]s|it is|it was|now)\\s+(?:(?:almost|nearly|just|past|after|exactly|already)\\s+)?(?:${TIME_WORD})\\b|(?:the )?clock(?:s)? (?:reads|read|says|said|shows|showed|strikes|struck|chimes|chimed)|the time is|the hour is)`, "i");
+const stated = (s: string) => SAYS_NOW.test(s) || /^\W*(?:\d{1,2}(?::\d{2})?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight)\b/i.test(s.trim());
+/** A habit or a reference, not the hour: "every night at two", "used to", "after bad patrols". */
+const HABIT = /\b(?:every|each|always|whenever|usually|used to|would (?:come|leave|sit|make)|after (?:bad )?patrols?)\b/i;
+
 export function clockBackRule(text: string, minutes: number | null): Found[] {
   if (minutes == null) return [];
   const reply = cleanText(text);
   if (FORWARD.test(reply)) return [];
   const now = ((minutes % 1440) + 1440) % 1440;
   for (const s of sentences(reply)) {
-    if (FLASHBACK.test(s)) continue;
+    if (FLASHBACK.test(s) || HABIT.test(s) || !stated(s)) continue;
     for (const readings of statedTimes(s)) {
+      // Just past midnight is later, not earlier ("twelve minutes past midnight" at 23:56).
+      if (readings.some((t) => (t - now + 1440) % 1440 <= 180)) continue;
       // Earlier by more than an hour under every reading, and not just after midnight.
       if (readings.every((t) => t < now - 60) && now >= 120) {
         const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
@@ -176,7 +232,7 @@ SLIPS.push(
     description: "Someone speaking or acting while the trackers have them elsewhere, or arriving when they're already here.",
     phase: "reply",
     on: (c) => c.role === "assistant" && Boolean(c.state),
-    run: (text, st) => (st ? [...notHereRule(text, st), ...arrivesAgainRule(text, st)] : []),
+    run: (text, st, ctx) => (st ? [...notHereRule(text, st, playerTurn(ctx.chatId, ctx.seq)), ...arrivesAgainRule(text, st)] : []),
   },
   {
     id: "clockback",
