@@ -199,15 +199,17 @@ The watch already made a plan-skipping model plan in its own step (two calls a r
 
 **Done when:** proposals generated for this story on a copy have no non-person leads and none built on a thread older than two chapters.
 
-## Part 13: weather  [33–36]
+## Part 13: weather  [33–36]  (built)
 
-- **13.1** Split light from weather. `wx` accepts only sky, temperature, wind and precipitation words; light and mood lines go to the scene. The sun's position comes from `sim/sky.ts`.
-- **13.2** `trackers/fold.ts` `case "wx"`: a written weather line becomes the anchor only if it is weather and within the climate's range for the season; otherwise the forecast stands and the line is flagged ("frost" at a 14°C low).
-- **13.3** The state block always carries one plain line: sky, temperature, wind, and "indoors" with any standing indoor note (a cold house, a rink).
-- **13.4** Season is filled from the date when blank. Fronts actually pass, so a week isn't one sky.
-- **13.5** A checker rule: weather stated in a reply against the state's weather.
+- **13.1** `trackers/weather.ts` `wxKind`: a `wx` line is weather (sky, rain, wind, a temperature outdoors), the air of a room ("cold clean air off the ice", "sixty-two degrees in the house"), or light and mood ("first thin gold on the kitchen tile", "kitchen half-dark, fridge hum"). Only weather becomes the story's weather. Light is kept for its scene and shown in `NOW`; a room's air is kept as `indoors:` while the scene stays in that room. The tracker is told the same in its grammar.
+- **13.2** `sim/sky.ts` `outOfClimate`: a weather line the climate can't have at that time of year (frost where the coldest autumn night is 14°C, a stated temperature far outside the season's range) is not taken as the sky's anchor; the forecast stands, and the World panel says which line was turned down and why. The fold stays free of the climate, so the check sits where the sky is put together (`sim/service.ts` `storyWeather`).
+- **13.3** One plain `SKY:` line in every state block: the weather, the temperature, sunrise or sunset, the season, and `indoors:` when there is one. The story's own words stand for three story hours after they were written, then the sky's take over. *The fault behind "cold clean air off the ice" all day was here too:* the anchor was always "half an hour ago", so a weather line never aged. It is now anchored to the story minute it was written at (`weather.at`), and fronts move on from it.
+- **13.4** The season already came from the date when the setting is blank (the `SKY:` line and the clock both work it out); nothing needed changing.
+- **13.5** `accuracy/worldslips.ts` `weatherRule` (check "Weather"): a reply that writes frost, snow or a heatwave the climate can't have at this date is flagged, skipping memories, wishes and comparisons. A reply making ordinary weather (rain arriving) is the story's right and is not flagged.
 
-**Done when:** a mock reply writing "kitchen half-dark, fridge hum" as weather leaves the forecast in place, and the 926 state line on a copy reads as an October afternoon in Sunnydale.
+**Seen on a copy of the real data:** the story's weather at 926 was "silver-and-cold October morning, frost on the car"; it is turned down (a mediterranean autumn night is about 14°C at its coldest). The line now reads `SKY: overcast, 25°C · sunset 17:38 · autumn`. "Cold clean air off the ice" is held as the rink's air and isn't shown at the house.
+
+**Done when:** a mock reply writing "kitchen half-dark, fridge hum" as weather leaves the forecast in place, and the 926 state line on a copy reads as an October afternoon in Sunnydale. *(Both hold; `weather.test.ts`.)*
 
 ## Part 14: repairs for this story  (needs a go-ahead; touches real data)
 

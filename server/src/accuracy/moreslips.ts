@@ -9,6 +9,7 @@ import { thingsElsewhere } from "../trackers/things";
 import { flagKey, quietKeys } from "./quiet";
 import { esc, sentences } from "./rules";
 import { type Found, SLIPS } from "./slips";
+import "./worldslips";
 import type { WorldState } from "../trackers/types";
 
 /**

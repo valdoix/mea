@@ -20,7 +20,8 @@ import { type Personality, PERSONALITIES } from "./director";
 import { kindFromText, SPECS } from "./grammar";
 import { buildRoster, lorePersonName, type Roster, type RosterInput, samePerson, TIE_STRENGTH } from "./roster";
 import { checkRead, saveSheet, sheetKey, sheetPrompt, sheetSchema, sheetsFor } from "./sheet";
-import { climateFrom, forecast, latitudeFrom, placeClimate, skyLine, type SkyInput } from "./sky";
+import { climateFrom, dayOfYear, forecast, latitudeFrom, outOfClimate, placeClimate, skyLine, type SkyInput } from "./sky";
+import { wxKind } from "../trackers/weather";
 import { type BeatCard, canStep, consequences, forcedStep, MODES, newArc, pastCard, type SimMode, type Situation, tick, type TickInput } from "./storyteller";
 import { retellPrompt, softProblem, tellingPrompt, tellingSchema, validateTelling } from "./telling";
 import { softWording, tidyWording, validateWording, wordingAbout, type WordingCard, wordingPrompt, wordingSchema } from "./wording";
@@ -216,9 +217,33 @@ export async function readSheets(p: { chatId: string }, job?: JobContext) {
 
 function skyInput(chatId: string, state: WorldState, cfg: ResolvedWorldConfig): SkyInput | null {
   if (!state.time) return null;
-  const anchorSeq = state.weather?.seq;
   const custom = customOf(trackerConfig(chatId).calendar);
-  return { seed: chatId, minutes: state.time.minutes, form: state.time.form, climate: cfg.climate, latitude: cfg.latitude, anchor: state.weather && anchorSeq != null ? { minutes: state.time.minutes - 30, text: state.weather.now } : null, ...(custom?.moons.length ? { moons: custom.moons } : {}) };
+  // docs/33 Part 13: the story's weather is where the sky walks on from only when it is weather
+  // this climate can have, and from when it was written (it used to be "half an hour ago" forever).
+  const wx = storyWeather(state, cfg);
+  return { seed: chatId, minutes: state.time.minutes, form: state.time.form, climate: cfg.climate, latitude: cfg.latitude, anchor: wx.ok && state.weather ? { minutes: Math.min(state.weather.at ?? state.time.minutes - 30, state.time.minutes), text: state.weather.now } : null, ...(custom?.moons.length ? { moons: custom.moons } : {}) };
+}
+
+/** The story's own weather line: whether the sky takes it, and why not when it doesn't. */
+export function storyWeather(state: WorldState, cfg: { climate: string; latitude: number }): { ok: boolean; text: string | null; doubt: string | null } {
+  const text = state.weather?.now ?? null;
+  if (!text || !state.time) return { ok: false, text, doubt: null };
+  if (wxKind(text) !== "weather") return { ok: false, text, doubt: "not weather" };
+  const doubt = outOfClimate(text, cfg.climate, dayOfYear(state.time.minutes, state.time.form), cfg.latitude);
+  return { ok: !doubt, text, doubt };
+}
+
+/** The air of the room the scene is in, while it is still in that room. */
+const indoorNow = (st: WorldState) => (st.indoor && st.indoor.place === st.place.join(" › ") ? st.indoor.text : null);
+
+/** For the World panel: the story's weather line the sky didn't take, and why. */
+function skyDoubt(st: WorldState, cfg: { climate: string; latitude: number }): string | null {
+  const wx = storyWeather(st, cfg);
+  return wx.text && wx.doubt && wx.doubt !== "not weather" ? `The story wrote “${wx.text}”, but ${wx.doubt}; the forecast stands.` : null;
+}
+
+function skyNowLine(sky: SkyInput, st: WorldState) {
+  return skyLine(sky, sky.anchor ? sky.anchor.text : null, { indoor: indoorNow(st) });
 }
 
 function recentNames(chatId: string): Set<string> {
@@ -285,7 +310,7 @@ export function runTick(chatId: string, messageId: string | null, forced: boolea
 function tickInput(chatId: string, st: WorldState, roster: Roster, forced: boolean): TickInput {
   const cfg = worldConfig(chatId);
   const sky = skyInput(chatId, st, cfg);
-  const weather = sky ? skyLine(sky, st.weather?.now ?? null).weather.text : undefined;
+  const weather = sky ? skyNowLine(sky, st).weather.text : undefined;
   return {
     chatId,
     state: st,
@@ -314,7 +339,7 @@ export function worldLane(chatId: string): string | undefined {
   if (!st.time) return undefined;
   const parts: string[] = [];
   const sky = skyInput(chatId, st, cfg);
-  if (sky) parts.push(skyLine(sky, st.weather?.now ?? null).line);
+  if (sky) parts.push(skyNowLine(sky, st).line);
   if (cfg.mode !== "off") {
     const fc = foldConfigFor(chatId);
     const lane = elsewhereLane({ arrivals: Object.values(st.sim.arrivals), state: st, roster: rosterFor(chatId, st), now: st.time.minutes, userName: fc.userName, arcs: Object.values(st.sim.arcs) });
@@ -792,7 +817,7 @@ export function worldView(chatId: string) {
   const st = currentFold(chatId).result.state;
   const roster = rosterFor(chatId, st);
   const sky = skyInput(chatId, st, cfg);
-  const skyNow = sky ? skyLine(sky, st.weather?.now ?? null) : null;
+  const skyNow = sky ? skyNowLine(sky, st) : null;
   const profiles = castProfiles(chatId);
   const people = [...roster.actors.values()]
     .filter((a) => !a.isUser)
@@ -838,7 +863,7 @@ export function worldView(chatId: string) {
     modes: Object.keys(MODES),
     kinds: Object.fromEntries(Object.entries(SPECS).map(([k, v]) => [k, { label: v.label, clock: v.clock, hostile: Boolean(v.hostile) }])),
     time: st.time ? formatStoryTime(st.time) : null,
-    sky: skyNow ? { line: skyNow.line, weather: skyNow.weather, season: skyNow.season, sunrise: skyNow.sunrise, sunset: skyNow.sunset, moon: skyNow.moon, forecast: forecast(sky!, 12) } : null,
+    sky: skyNow ? { line: skyNow.line, doubt: skyDoubt(st, cfg), weather: skyNow.weather, season: skyNow.season, sunrise: skyNow.sunrise, sunset: skyNow.sunset, moon: skyNow.moon, forecast: forecast(sky!, 12) } : null,
     arcs,
     arrivals: Object.values(st.sim.arrivals).sort((a, b) => b.at - a.at),
     proposals: Object.values(st.sim.proposals),

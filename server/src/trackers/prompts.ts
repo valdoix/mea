@@ -12,6 +12,7 @@ import { AXES, LADDER, type WorldState } from "./types";
 export const GRAMMAR = `Write one change per line, only what changed in the NEW MESSAGES. Omission never means removal.
 clock: +45m | +2h | Day 3 21:40 | 2026-03-14 21:40   (time passed; never backwards unless "flashback")
 wx: rain → heavy rain                        at: City › District › Building › Room   (a known place by its known name and path)
+   (wx is the weather outside only: sky, temperature, wind, rain or snow, and only when the messages state it or it changes. The light in a room, a mood or a sound is never wx.)
 scene: <title of a new scene>
 occasion: a royal wedding feast | off   (only when the messages show an event under way: a birthday party, a wedding, a funeral, a feast, in your own words; off when it ends; never for a plan or a memory of one)
 mode: social|intimacy|conflict|investigation|travel|stealth|downtime|aftermath|crisis   (its own line; with every new scene, or when the scene turns into another; aftermath: just after a death, an injury, violence or a loss, inside the consequences; a social scene may name its talk: social (confrontation|apology|confession|breakup|request|interrogation))

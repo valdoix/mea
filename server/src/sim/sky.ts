@@ -137,6 +137,32 @@ export function levelOf(condition: string): Level {
   return 1;
 }
 
+/** A stated temperature in °C ("62°F", "14 degrees"), or null. A bare number over 45 is Fahrenheit. */
+function statedTemp(text: string): number | null {
+  const m = /(-?\d{1,3})\s*(?:°\s*([cf])?|degrees(?:\s+(celsius|fahrenheit|c|f)\b)?)/i.exec(text);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const unit = (m[2] ?? m[3] ?? "").toLowerCase();
+  const f = unit.startsWith("f") || (!unit && n > 45);
+  return f ? Math.round(((n - 32) * 5) / 9) : n;
+}
+
+/**
+ * docs/33 Part 13: why a weather line can't be this place at this time of year ("frost" where the
+ * coldest autumn night is 14°C), or null when it fits.
+ */
+export function outOfClimate(text: string, climate: string, doy: number, latitude: number): string | null {
+  const cl = CLIMATES[climate] ?? CLIMATES.maritime!;
+  const name = seasonAt(doy, latitude);
+  const s = cl.seasons[name];
+  const where = `${cl.label} ${name}`;
+  if (/\b(?:frost\w*|snow\w*|sleet|blizzard|icy|ice|freezing|below zero)\b/i.test(text) && s.tmin > 6) return `a ${where} night is about ${s.tmin}°C at its coldest`;
+  if (/\b(?:sweltering|scorching|blistering|heat ?wave)\b/i.test(text) && s.tmax < 22) return `a ${where} day is about ${s.tmax}°C at its warmest`;
+  const t = statedTemp(text);
+  if (t != null && (t < s.tmin - 8 || t > s.tmax + 8)) return `a ${where} runs about ${s.tmin}–${s.tmax}°C`;
+  return null;
+}
+
 export interface SkyInput {
   seed: string;
   minutes: number;
@@ -201,8 +227,15 @@ export function forecast(inp: SkyInput, hours = 12): SkyHour[] {
 
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
 
-/** One line for the story-state note: the sky the scene sits under. */
-export function skyLine(inp: SkyInput, storyWeather: string | null): { line: string; weather: SkyHour; season: string; sunrise: string | null; sunset: string | null; moon: string } {
+/** How long the story's own words for the weather stand before the sky's take over (story minutes). */
+const STORY_WORDS_FOR = 180;
+
+/**
+ * One line for the story-state note: the sky the scene sits under. docs/33 Part 13: always the
+ * weather in plain words (the story's own while they're fresh, the sky's after), the temperature,
+ * and the air indoors when the scene has one.
+ */
+export function skyLine(inp: SkyInput, storyWeather: string | null, opts: { indoor?: string | null } = {}): { line: string; weather: SkyHour; season: string; sunrise: string | null; sunset: string | null; moon: string } {
   const doy = dayOfYear(inp.minutes, inp.form);
   const w = weatherAt(inp);
   const s = sun(doy, inp.latitude);
@@ -214,8 +247,10 @@ export function skyLine(inp: SkyInput, storyWeather: string | null): { line: str
   });
   const mod = (((inp.minutes % 1440) + 1440) % 1440);
   const bits: string[] = [];
-  if (!storyWeather) bits.push(`${w.text}, ${w.tempC}°C`);
-  else bits.push(`${w.tempC}°C`);
+  const fresh = storyWeather && inp.anchor && inp.minutes - inp.anchor.minutes <= STORY_WORDS_FOR;
+  if (!fresh) bits.push(`${w.text}, ${w.tempC}°C`);
+  else bits.push(statedTemp(storyWeather) != null ? storyWeather : `${storyWeather}, ${w.tempC}°C`);
+  if (opts.indoor) bits.push(`indoors: ${opts.indoor}`);
   if (s.rise != null && s.set != null) {
     if (mod < s.rise) bits.push(`sunrise ${hhmm(s.rise)}`);
     else if (mod < s.set) bits.push(s.set - mod <= 90 ? `sunset in ${s.set - mod} min` : `sunset ${hhmm(s.set)}`);
