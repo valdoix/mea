@@ -93,6 +93,10 @@ export interface Character {
   injuries: Injury[];
   conditions: Condition[];
   look?: string;
+  /** docs/33 Part 5: the message the look was written at, so a later scene doesn't inherit it. */
+  lookSeq?: number;
+  /** docs/33 Part 5: the message the body meters were last written at. */
+  bodySeq?: number;
   traits: Trait[];
   drives: { want?: string; fear?: string; need?: string; tactic?: string };
   mask?: { shown?: string; felt?: string; tell?: string };
