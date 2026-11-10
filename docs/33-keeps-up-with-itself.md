@@ -41,13 +41,17 @@
 
 ## Part 2: facts retire when the story overturns them  [2, 17]
 
-- **2.1** `memory/reconcile.ts`: on these tracker events, look for active memories and lore facts they overturn and supersede them, citing the event: `know` (someone learns it), `reveal`, a `cast` arrival of someone recorded as absent or unaware, an `item` bought, fixed, given or lost, a `promise` or `loop` closed.
-- **2.2** "X doesn't know Y" is stored with its holder and ends the moment a `know X: Y` lands. The same for "not yet", "still", "hasn't".
-- **2.3** A truth you add (`settings.truths`) searches memories, facts and inventory for the opposite and retires what it finds, listing them for you.
-- **2.4** A sweep job for existing stories: walks the event log once and applies 2.1–2.2 to old memories. No model calls for the rule-matched cases; a model pass only for the remainder, behind a yes.
-- **Tests:** "Dawn does not know Buffy is alive" is superseded at the reunion; "boots bought with a debit card" is retired by the truth; an unrelated memory about Dawn is left alone.
+Built in two halves; the rest moves to later parts.
 
-**Done when:** on a copy of the real data the five wrong memories named in the audit are superseded with a cited reason.
+- **2.1** `memory/overturn.ts` `retireUnaware`, after every tracker update: a memory that says someone doesn't know something ("Dawn … does not know Buffy is alive", "Buffy has not told her family she is alive") is superseded once the trackers record that person knowing it, later on the story's branch. One "Dawn Summers knows now: Buffy is alive (#265)" memory replaces however many it retires. It needs most of the memory's words in the fact, never counts a fact that is itself someone not knowing, and for "hasn't told her family" never counts the teller. No model calls.
+- **2.2** `restoreUnaware`: when that knowing leaves the branch (a swipe, a delete), the replacement goes and the old memories are active again.
+- **2.3** A story truth you add (`settings.truths`, from the panel or an aside) is checked against the 25 memories with the most words in common; a helper names the ones it contradicts, and they are superseded by the truth, kept as a pinned memory of yours (job `memory.truths`). Removing a truth does nothing.
+- *Moved:* events other than knowing (an item bought, fixed or lost; a promise kept) to Part 5, where the inventory rules live. Truths retiring inventory lines too. Checking the truths a story already had (one helper call per truth) goes to Part 14, since it calls a model on existing stories.
+- Memories you edited or pinned are never touched.
+
+**Seen on a copy of the real data:** 2 memories retired in 66 ms, both by Dawn learning Buffy is alive at #265. The other wrong memories in the audit (the debit-card boots, Buffy's "concussions", "since February") aren't overturned by an event; the boots go when the existing truth is checked (Part 14), the rest are plain mistakes for Part 11's memory tidy.
+
+**Done when:** "Dawn does not know Buffy is alive" is superseded at the reunion and comes back if that take is swiped away; a truth retires the memory it contradicts and leaves the others. *(In `overturn.test.ts`; the first holds on the copy.)*
 
 ## Part 3: tense holds  [3, 11]
 
@@ -171,7 +175,7 @@
 
 ## Part 14: repairs for this story  (needs a go-ahead; touches real data)
 
-- Run the Part 2 sweep, Part 4 backfill, Part 6 repair list and Part 11 merges on the real story, after a backup.
+- Run the truth check (Part 2.3) over the truths the story already has, the Part 6 repair list and the Part 11 merges on the real story, after a backup. (The Part 2 retirement and the Part 4 relabel run by themselves on the next reply.)
 - Settle by hand, as truths: Spike's blood type, Dawn's supplier, whether Spike can be out by day here.
 - Fix "Clara (William's son)" in the Winters Family group.
 - Apply the open true flags: 443, 593, 736, 742, 279.

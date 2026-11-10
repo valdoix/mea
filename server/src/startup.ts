@@ -11,7 +11,7 @@ import { ensureDefaultPreset } from "./services/presets";
 import { vapidKeys } from "./services/push";
 import { purgeTrash } from "./services/trash";
 import { pruneGenerations } from "./services/usage";
-import { onLedgerEdit } from "./services/chats";
+import { onLedgerEdit, onTruthsChanged } from "./services/chats";
 import { embedChat } from "./memory/embed";
 import { consolidate } from "./memory/consolidate";
 import { recordTimeline, runCheckJob } from "./accuracy/checker";
@@ -25,6 +25,7 @@ import { asidesAfterReply } from "./accuracy/asides";
 import { explicitSoon, explicitStep, lyricsStep, musicAfterReply, sheetsStep } from "./music/director";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
+import { retireUnaware, runTruthsJob, truthsChanged } from "./memory/overturn";
 import { runEditorJob, runTenseJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
 import { runChronicle } from "./lore/chronicle";
@@ -166,6 +167,16 @@ function afterOpen(opts: { jobs?: boolean }) {
   onTrackerUpdate(asidesAfterReply);
   // J3: the soundtrack changes on story beats (YouTube Music, only when you've turned it on).
   onTrackerUpdate(musicAfterReply);
+  // docs/33 Part 2: what the story overturned retires from memory.
+  onTrackerUpdate((chatId) => {
+    try {
+      retireUnaware(chatId);
+    } catch (e) {
+      console.error("[mea] retiring overturned memories failed:", e);
+    }
+  });
+  onTruthsChanged(truthsChanged);
+  registerJob("memory.truths", async (p, job) => runTruthsJob(p as { chatId: string; truths: string[] }, job));
   registerJob("accuracy.drift", async (p, job) => runDriftJob(String(p.chatId), job));
   // Speaker marks a reply left out, named by the helper.
   registerJob("speakers.mark", async (p, job) => runSpeakerMarksJob(p as Parameters<typeof runSpeakerMarksJob>[0], job));
