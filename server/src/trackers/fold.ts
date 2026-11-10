@@ -1652,6 +1652,7 @@ export class Folder {
         if (!c || !a.to) return this.reject(ctx, "rename whom?");
         c.aliases = uniq([...c.aliases, c.name]);
         c.name = clip(a.to);
+        this.leadNames(c);
         return;
       }
       case "merge": {
@@ -2377,6 +2378,11 @@ export class Folder {
       .map((c) => c.id);
   }
 
+  /** docs/32 2.3: a subplot is told under its lead's name as it is now, not as it was when the subplot began. */
+  private leadNames(c: Character) {
+    for (const x of [...Object.values(this.state.sim?.arcs ?? {}), ...Object.values(this.state.sim?.proposals ?? {})]) if (x.lead === c.id) x.leadName = c.name;
+  }
+
   /** Folds one person into another (the same person written two ways): every bond, item, secret and promise follows. */
   mergeChars(from: Character, into: Character) {
     const st = this.state;
@@ -2387,6 +2393,13 @@ export class Folder {
     into.lastSeq = Math.max(into.lastSeq, from.lastSeq);
     into.isMain ||= from.isMain;
     into.dead ||= from.dead;
+    // docs/32 2.3: their subplots off the page follow, under the name that's kept.
+    for (const x of [...Object.values(st.sim?.arcs ?? {}), ...Object.values(st.sim?.proposals ?? {})]) {
+      if (x.lead === from.id) x.lead = into.id;
+      x.cast = uniq(x.cast.map((id) => swap(id)!)).filter((id) => id !== x.lead);
+      if ("target" in x && x.target === from.id) x.target = into.id;
+    }
+    this.leadNames(into);
     // What changes scene to scene comes from whoever was seen last; the rest fills gaps.
     for (const k of ["tier", "activity", "place", "mood", "look", "thoughts"] as const) {
       if (from[k] != null && (newer || into[k] == null)) (into as unknown as Record<string, unknown>)[k] = from[k];

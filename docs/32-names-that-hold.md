@@ -59,11 +59,11 @@ Part 0 handles one shape of slip. The general rule is that a person exists becau
 
 ## Part 2: the tracker sees the names it must use
 
-- **2.1** `stateForModel` lists who is here and the last eight away. Add one NAMES line with every living person's exact name (capped by tokens, most recent first), so the model copies instead of recalling.
-- **2.2** The same line goes to the helpers that write names into records: `world:wording`, `world:heed`, `speakers`, the continuity check, the inline ledger instruction.
-- **2.3** `world:wording` wrote "sits between Gabriel Summers and Buffy's quiet question" because the proposal's `leadName` said so. The sim takes `leadName` from the cast at read time (by `lead` id), not from the stored proposal, so a later merge or rename shows the right name.
+- **2.1** `namesLine` (`trackers/prompts.ts`), part of `stateForModel`: "names (write each person exactly as here): Gabriel Winters, Buffy Summers, Dawn, …". Everyone living, your character and the main one first, then the most recently seen, within about 90 tokens. Passing faces are left out. The tracker and the inline ledger instruction both get it; before, anyone past the last eight people away wasn't listed at all.
+- **2.2** *Dropped from the first draft:* the same line for `world:wording`, `world:heed`, `speakers` and the continuity check. Those never invented the name. They were handed it from the cast, and with the cast right (Parts 0 and 1) they're handed the right one.
+- **2.3** `Folder.mergeChars` and `rename`: a person's subplots and proposals follow them (lead, cast, target) and are told under the name that's kept. Before, a merge left the subplot pointing at an id nobody had, under the old name.
 
-**Done when:** the prompt of a tracker call in this story lists "Gabriel Winters" under NAMES, and a merged person's open subplot reads with the kept name.
+**Done when:** the state a tracker call is shown lists "Gabriel Winters" under names, and a merged person's open subplot reads with the kept name. *(Both in `exactnames.test.ts`.)*
 
 ## Part 3: the Codex follows the cast
 
