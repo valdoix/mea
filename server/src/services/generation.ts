@@ -60,6 +60,8 @@ import type { PromptExtra } from "../prompt/assemble";
 import { gatherLanes } from "../prompt/lanes";
 import { offpageFilter } from "../accuracy/offpage";
 import { craftOn, craftReport } from "../steer/craft";
+import "../steer/cooling";
+import { tidyReply } from "../steer/tidy";
 import { ANGLES, angleNote, type Angle, digestNote, keptPrefix, rejectedDigest, takeShape as rejectedShape } from "../steer/swipes";
 import { finishRequest, getRequest, startRequest } from "./requests";
 import { anchorExtra } from "../accuracy/anchor";
@@ -1445,6 +1447,8 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
   const cutoff = getSetting("chat.cutoff");
   const cutOff = status === "done" && finishReason === "length";
   let banned: ReturnType<typeof applyBanned> = { text, hits: [], replaced: 0 };
+  /** docs/33 10.5: what the tidy pass fixed. */
+  let tidied: string[] = [];
   let guarded: ReturnType<typeof applyGuards> | null = null;
   let original = text;
   try {
@@ -1477,6 +1481,12 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     // The model naming "the player" in the prose steps out of the story; that sentence comes out.
     if (status !== "error") text = cutFourthWall(text).text;
     if (status !== "error" && style.quotes && style.quotes !== "any") text = normalizeQuotes(text, style.quotes);
+    // docs/33 10.5: a closer the page can't read, a sentence said twice, a stray word in another script.
+    if (status !== "error") {
+      const t = tidyReply(text);
+      text = t.text;
+      tidied = t.fixes;
+    }
     // CON-04 / CON-05: names corrected and puppeting cut, when you chose those actions.
     original = text;
     guarded = status !== "error" && text.trim() && chatAlive() ? applyGuards(gen.chatId, text, { seq: getMessageRow(gen.messageId)?.seq ?? 0, messageId: gen.messageId }) : null;
@@ -1528,6 +1538,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
           cacheHit: usage?.promptTokens ? Math.round(((usage.cachedTokens ?? 0) / usage.promptTokens) * 1000) / 1000 : null,
         },
         finishReason: finishReason ?? null,
+        ...(tidied.length ? { tidied } : {}),
         ...(finishReason === INCOMPLETE ? { incomplete: true } : {}),
         ...(notes.length ? { notes } : {}),
         ...(feedback ? { feedback } : {}),

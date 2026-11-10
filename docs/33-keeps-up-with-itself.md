@@ -165,15 +165,17 @@ The watch already made a plan-skipping model plan in its own step (two calls a r
 
 **Done when:** in a fixture, a promise dated "this week" appears in the plan's threads on the last day of that week. *(It does, and not on the Thursday before; `longthreads.test.ts`.)*
 
-## Part 10: prose habits cool on their own  [24–27]
+## Part 10: prose habits cool on their own  [24–27]  (built)
 
-- **10.1** `steer/craft.ts`: a rolling window over the last 20 replies. A phrase, opening shape or word *family* over a set share goes on a cooling list by itself and comes off when it fades. Families are lists (filing: file, filed, drawer, docket; court: ruling, overruled, counselor, gavel, exhibit…), and new ones are found by counting, not hand-written.
-- **10.2** A running bit belongs to its owner: the cooling line names who may still use it, so Buffy's courtroom doesn't become Dawn's and Spike's.
-- **10.3** `memory/journals.ts`: each journal is written from that character's own lines and only scenes they were in; quoting another character's speech at length is out.
-- **10.4** Length follows the turn, and a reply ends on something the player can answer (a line, a look, a question) more often than on atmosphere.
-- **10.5** A no-model tidy pass on every reply: curly quotes, balanced tags, stray speaker marks, a sentence repeated back to back, stray characters from another script.
+- **10.1** `steer/cooling.ts`: the cooling list, by counting over the last 20 replies (eight at least), with no model. What goes on it: a word family in 35% of them (filing: filed, file, drawer, folder…; courtroom: ruling, docket, counselor, overruled, for the record…); a sentence shape in 35% ("Not X. Not Y.", "the kind of…", "a whole thing", lines built of false starts, opening on the house's own noise); a coined, hyphenated word in 30% that was rare before and spans three scenes ("load-bearing", "anchor-grip"); and, while the coach is paused or off, a 3–5 word phrase in 30% ("her hand finds", "filed under ours"). It comes off by itself when it fades. It runs whether or not the coach is paused, with its own switch in the Craft panel ("Cooling on/off"), and "It's fine" takes one off for good. *Plain words were tried and dropped: on the real story they were the scene's props (toast, the table, Saturday).*
+- **10.2** A family, word or shape that one person says (60% of the hits in the lines Mea knows the speaker of) is theirs: the line says only they may use it, in their own lines, at most once, and nobody else, nor the narration. Otherwise it rests for everyone.
+- **10.3** `memory/journals.ts`: each journal gets that person's own lines from the scenes it covers (`ownLines`) as the voice to write in, and is told not to borrow anyone else's running bits and to quote others only in passing.
+- **10.4** A `THIS REPLY` lane: after a turn of 40 words or fewer, "answer in kind, about 150/250 words at most, unless something turns" (your length setting wins); when 70% or more of the last ten replies ended on the room, "end this one on something {user} can answer: a line, a look, a question".
+- **10.5** `steer/tidy.ts`, on every reply after the quote style: a toolkit closer written with its attributes becomes a closer; a sentence said twice back to back (20+ characters) is said once; a stray word from another script in an otherwise Latin reply goes (never inside a toolkit tag or brackets, so kaomoji stay). `mendMarks` now reads `[//spk]` and `[c/spk]` as closers. Curly quotes were already the style's job. What it fixed is kept on the take as `tidied`.
 
-**Done when:** in a mock run where every reply uses "ruling" and "docket", the family is cooling by reply 12 and absent from the instructions' allowed list for everyone but its owner.
+**Seen on a copy of the real data:** before #365 the list is filing words (Buffy's), "the raw ring", "Not X. Not Y.", "the filing system", "anchor-grip"; before #589 filing words, "her hand finds", "filed under ours"; before #795 and now, courtroom words (Buffy's) lead. The ending line fires through most of the story (8–10 of every 10 replies ended on the room). The tidy pass, run over all 429 replies, mends the stray marks at 115, 117, 123 and 756 and the broken closer at 547. The repeat at 111 and the stray "祈祷" at 876 aren't in the current takes (the audit's numbering, or an edit since), so they're covered by tests only. In the browser, the Craft panel shows the list with the coach paused.
+
+**Done when:** in a mock run where every reply uses "ruling" and "docket", the family is cooling by reply 12 and absent from the instructions' allowed list for everyone but its owner. *(Cooling from reply 8, with Buffy as the only one allowed; `cooling.test.ts`.)*
 
 ## Part 11: cast, places and memory tidy  [13, 15, 18]
 

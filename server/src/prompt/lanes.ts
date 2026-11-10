@@ -12,6 +12,8 @@ export const LANES = {
   canon: { tag: "CANON", label: "Canon cutoff" },
   offpage: { tag: "OFFPAGE", label: "Kept off the page" },
   craft: { tag: "CRAFT", label: "Craft coach" },
+  cooling: { tag: "COOLING", label: "Habits cooling" },
+  turn: { tag: "THIS REPLY", label: "Length and ending" },
   pressures: { tag: "PRESSURES", label: "Hidden pressures" },
   promises: { tag: "PROMISES", label: "Promises on the clock" },
   slips: { tag: "LAST SLIPS", label: "Last reply's slips" },

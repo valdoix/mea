@@ -16,12 +16,24 @@
     detail: string;
     phrase?: string;
   }
+  /** docs/33 Part 10: a habit cooling by itself (a word family, a sudden word, a sentence shape). */
+  interface Cooling {
+    key: string;
+    kind: string;
+    label: string;
+    used: string[];
+    n: number;
+    of: number;
+    owner?: string;
+  }
   interface Report {
     habits: Habit[];
     meter: { replies: number };
     on: boolean;
     paused: boolean;
     ignored: string[];
+    cooling: Cooling[];
+    coolingOn: boolean;
   }
   let { chatId }: { chatId: string } = $props();
   let r = $state<Report | null>(null);
@@ -75,7 +87,7 @@
   }
 </script>
 
-{#if r && (r.on || r.paused)}
+{#if r && (r.on || r.paused || r.coolingOn)}
   <div bind:this={el} data-section="craft">
     <Module title="Craft" fold bind:open led={r.paused ? null : r.habits.length ? "warm" : "ok"} peek={r.paused ? "Paused" : r.meter.replies < 2 ? "After a few replies" : `${r.habits.length} habit${r.habits.length === 1 ? "" : "s"} watched`}>
       {#if r.paused}
@@ -97,8 +109,22 @@
           {/each}
         </ul>
       {/if}
+      {#if r.coolingOn && r.cooling.length}
+        <p class="st-hint">Cooling by itself: in too many of the last {r.cooling[0]!.of} replies, so the model rests it until it fades.</p>
+        <ul class="habits">
+          {#each r.cooling as c (c.key)}
+            <li class="sent">
+              <span class="txt"><b>{c.kind === "family" ? `${c.label}: ${c.used.join(", ")}` : c.label}</b><small>in {c.n} of the last {c.of} replies{c.owner ? ` · ${c.owner}'s running bit: only ${c.owner} may still use it` : ""}</small></span>
+              <span class="st-keys"><button class="st-key" type="button" onclick={() => act({ ignore: c.key }, "Fine: it isn't cooled here")}>It's fine</button></span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
       {#if r.ignored.length}<p class="st-hint">You said {r.ignored.length} habit{r.ignored.length === 1 ? " is" : "s are"} fine here. <button class="st-link" type="button" onclick={() => Promise.all(r!.ignored.map((k) => post(`/api/chats/${chatId}/craft`, { unignore: k }))).then(load)}>Watch them again</button></p>{/if}
-      <div class="st-keys"><button class="st-key" type="button" aria-pressed={r.paused} onclick={() => act({ paused: !r!.paused })}><span class="st-led" class:on={!r.paused}></span>{r.paused ? "Resume coach" : "Pause coach"}</button></div>
+      <div class="st-keys">
+        <button class="st-key" type="button" aria-pressed={r.paused} onclick={() => act({ paused: !r!.paused })}><span class="st-led" class:on={!r.paused}></span>{r.paused ? "Resume coach" : "Pause coach"}</button>
+        <button class="st-key" type="button" aria-pressed={r.coolingOn} onclick={() => act({ cooling: !r!.coolingOn })} title="Habits in too many of the last replies rest by themselves"><span class="st-led" class:on={r.coolingOn}></span>{r.coolingOn ? "Cooling on" : "Cooling off"}</button>
+      </div>
     </Module>
   </div>
 {/if}

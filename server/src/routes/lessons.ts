@@ -4,6 +4,7 @@ import { body, must } from "../lib/http";
 import { type ChatSettings, getMessageRow, mustChat } from "../services/chats";
 import { parseJson } from "../db/db";
 import { banPhrase, craftOn, craftReport, setCraft } from "../steer/craft";
+import { coolingLine, coolingList, coolingOn } from "../steer/cooling";
 import { showKindAgain } from "../accuracy/checker";
 import { healthDot, storyHealth } from "../accuracy/health";
 
@@ -49,12 +50,14 @@ lessons.get("/chats/:id/craft", (c) => {
   const id = c.req.param("id");
   mustChat(id);
   const r = craftReport(id);
-  return c.json({ ...r, on: craftOn(id), paused: Boolean(getChatSettings(id).craft?.paused), ignored: getChatSettings(id).craft?.ignored ?? [] });
+  // docs/33 Part 10: what's cooling, whether or not the coach is paused.
+  const cooling = coolingOn(id) ? coolingList(id).map((x) => ({ ...x, line: coolingLine(x) })) : [];
+  return c.json({ ...r, on: craftOn(id), paused: Boolean(getChatSettings(id).craft?.paused), ignored: getChatSettings(id).craft?.ignored ?? [], cooling, coolingOn: coolingOn(id) });
 });
 
 /** Pause coach, "It's fine" (ignore a habit here), or take that back. */
 lessons.post("/chats/:id/craft", async (c) => {
-  const b = await body(c, z.object({ paused: z.boolean().optional(), ignore: z.string().max(120).optional(), unignore: z.string().max(120).optional() }));
+  const b = await body(c, z.object({ paused: z.boolean().optional(), ignore: z.string().max(120).optional(), unignore: z.string().max(120).optional(), cooling: z.boolean().optional() }));
   setCraft(c.req.param("id"), b);
   return c.json({ ok: true });
 });
