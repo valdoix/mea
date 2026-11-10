@@ -427,20 +427,41 @@ export function planFrom(text: string, reasoning: string): string | null {
  * plan step (or, before it, was asked again for skipping). Those plan first, in their own step, so
  * no try is spent and stopped. The skipping is the model's habit, not the chat's, so every story
  * learns it from one (the review of 2026-10-12: 10 of 68 tries were stopped for it).
- * After six replies in a row planned that way, one tries its own pass again, so a model (or a
- * prompt) that learns to plan gets the single request back.
+ *
+ * docs/33 Part 8: once is a habit. After PROBE_AFTER replies in a row planned first, one tries its
+ * own pass again, so a model that learns to plan gets the single request back. The probe used to
+ * come after six, and in one story it cost a whole wasted try (or three calls) about every eighth
+ * reply: 109 "asked again" and 90 planner rescues in 429 replies. And a story where this model has
+ * skipped twice in its last ten replies never probes: it plans first for good.
  */
-export function skipsPlans(modelId: string, excludeMessageId?: string): boolean {
+export const PROBE_AFTER = 30;
+export function skipsPlans(modelId: string, excludeMessageId?: string, chatId?: string): boolean {
   const recent = all<{ meta: string }>(
     `SELECT s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
      WHERE m.role = 'assistant' AND m.deleted_at IS NULL AND m.id != ? AND json_extract(s.meta, '$.model') = ?
-     ORDER BY s.updated_at DESC LIMIT 6`,
+     ORDER BY s.updated_at DESC LIMIT ?`,
     excludeMessageId ?? "",
     modelId,
+    PROBE_AFTER,
   ).map((r) => parseJson<{ model?: string; plan?: string; notes?: string[] }>(r.meta, {}));
-  if (recent.length === 6 && recent.every((m) => m.plan === "first")) return false;
-  const skipped = (m: (typeof recent)[number]) => m.plan === "step" || m.plan === "first" || m.plan === "rescue" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n));
-  return recent.slice(0, 3).some(skipped);
+  const skipped = (m: (typeof recent)[number]) => m.plan === "step" || m.plan === "rescue" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n));
+  if (chatId && storySkips(modelId, chatId, excludeMessageId) >= 2) return true;
+  if (recent.length === PROBE_AFTER && recent.every((m) => m.plan === "first")) return false;
+  return recent.slice(0, 3).some((m) => m.plan === "first" || skipped(m));
+}
+
+/** How many of this model's last ten replies in this story skipped their plan (needed a second step). */
+function storySkips(modelId: string, chatId: string, excludeMessageId?: string): number {
+  return all<{ meta: string }>(
+    `SELECT s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+     WHERE m.chat_id = ? AND m.role = 'assistant' AND m.deleted_at IS NULL AND m.id != ? AND json_extract(s.meta, '$.model') = ?
+     ORDER BY m.seq DESC LIMIT 10`,
+    chatId,
+    excludeMessageId ?? "",
+    modelId,
+  )
+    .map((r) => parseJson<{ plan?: string; notes?: string[] }>(r.meta, {}))
+    .filter((m) => m.plan === "step" || m.plan === "rescue" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n))).length;
 }
 
 interface ActiveGeneration {
@@ -1107,7 +1128,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     // docs/29 §13: a family whose adapter says so (DeepSeek) plans that way from the first reply,
     // unless its route reasons natively (then the reasoning is the plan).
     const adapterFirst = !p.resolved.reasoning && plansFirst(resolveFamily(p.resolved.modelFamily, p.resolved.modelId));
-    if (planAsked && !p.plannedPass && (adapterFirst || skipsPlans(p.resolved.modelId, gen.messageId))) {
+    if (planAsked && !p.plannedPass && (adapterFirst || skipsPlans(p.resolved.modelId, gen.messageId, gen.chatId))) {
       const plan = await planStep();
       if (plan) {
         finishRequest(requestId, { status: "replaced", error: "replaced: planned first, in its own step" });

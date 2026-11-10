@@ -12,7 +12,7 @@ import { classifyError, ProviderError } from "../src/providers/types";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat, updateSwipe } from "../src/services/chats";
 import { createConnection, createProfile, syncModels, updateConnection } from "../src/services/connections";
-import { skipsPlans } from "../src/services/generation";
+import { PROBE_AFTER, skipsPlans } from "../src/services/generation";
 import { enqueue, registerJob, runningJobCount, waitForChatJobs } from "../src/services/jobs";
 import { statusTiles } from "../src/services/status";
 import { freshDb } from "./helpers";
@@ -142,6 +142,27 @@ describe("fix 3: the plan watch learns a model's habit across stories", () => {
     updateSwipe(m2, 0, { meta: { model: "mock/habit", plan: "step", notes: ["planned in its own step: the first try skipped its plan"] } });
     expect(skipsPlans("mock/habit")).toBe(true);
     expect(skipsPlans("mock/other")).toBe(false);
+  });
+  test("docs/33 Part 8: a model planning first tries its own pass again only after a long run", () => {
+    const c = chatWith("Cora");
+    for (let i = 0; i < PROBE_AFTER - 1; i++) updateSwipe(addMessage(c, "assistant", `First ${i}.`), 0, { meta: { model: "mock/probe", plan: "first" } });
+    expect(skipsPlans("mock/probe")).toBe(true);
+    updateSwipe(addMessage(c, "assistant", "One more."), 0, { meta: { model: "mock/probe", plan: "first" } });
+    expect(skipsPlans("mock/probe")).toBe(false);
+  });
+  test("docs/33 Part 8: a story where it skipped twice lately plans first for good", () => {
+    const h = chatWith("Hana");
+    const old = [addMessage(h, "assistant", "Skipped."), addMessage(h, "assistant", "Skipped again.")];
+    updateSwipe(old[0]!, 0, { meta: { model: "mock/sticky", plan: "rescue" } });
+    updateSwipe(old[1]!, 0, { meta: { model: "mock/sticky", plan: "step" } });
+    for (const id of old) run("UPDATE swipes SET updated_at = 1 WHERE message_id = ?", id);
+    const g = chatWith("Gina");
+    for (let i = 0; i < PROBE_AFTER; i++) updateSwipe(addMessage(g, "assistant", `First ${i}.`), 0, { meta: { model: "mock/sticky", plan: "first" } });
+    // Everywhere else the long run of planned-first replies earns a probe…
+    expect(skipsPlans("mock/sticky")).toBe(false);
+    expect(skipsPlans("mock/sticky", undefined, g)).toBe(false);
+    // …but not in the story where it skipped twice in its last ten replies.
+    expect(skipsPlans("mock/sticky", undefined, h)).toBe(true);
   });
 });
 

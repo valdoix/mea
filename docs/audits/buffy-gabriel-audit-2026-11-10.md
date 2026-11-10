@@ -75,7 +75,7 @@ The chat: 857 live messages (69 deleted), story time Tuesday 9 October 2001 21:5
 ### Memory (2,195 entries)
 - Wrong and still active: #197 Dawn doesn't know; #391/#419 debit card; #583 Buffy's concussions; #149 "since February"; the false note marked *confirmed*: "Gabriel never fed Buffy soup on day one" (he did, at 38).
 - Trivia stored at full confidence: a toothbrush rolling to a stop, a price tag spinning.
-- 14 embedding jobs failed with a provider 503 and were never retried, so those memories cannot be found by meaning.
+- 14 embedding jobs failed with a provider 503. (Harmless, it turned out: the next run embeds whatever lacks a vector, and only one active memory has none.)
 - The stored recap is from message 569. It is only a cache: a recap is written fresh when you ask or come back after a break, so this is harmless.
 
 ### Cast and places (883 entries)
