@@ -11,6 +11,7 @@ import { embeddingsEnabled } from "./embed";
 import { syncTrackerMemories } from "../trackers/service";
 import { currentFold } from "../trackers/store";
 import { autoTitle } from "../services/stories";
+import { briefAfterChapter } from "../lore/brief";
 import { reconcileScene, relabelTimesOnce } from "./reconcile";
 import { detectBoundary, type BoundarySignal } from "./segment";
 import {
@@ -201,6 +202,8 @@ export async function runBuildJob(payload: { chatId: string; summaryId: string; 
   if (built?.level === "scene" && built.state === "ready") afterScene(payload.chatId, built.id);
   // LIB-04: a new chapter or Story So Far may name the chat.
   if ((built?.level === "chapter" || built?.level === "story") && built.state === "ready") autoTitle(payload.chatId);
+  // docs/33 Part 1: a closed chapter is when the card's brief is read again.
+  if (built?.level === "chapter" && built.state === "ready") briefAfterChapter(payload.chatId);
   // Cascade: a finished scene may complete a chapter, a chapter an arc, and so on.
   queueBuilds(payload.chatId);
   if (embeddingsEnabled()) enqueue("memory.embed", { chatId: payload.chatId }, { dedupeKey: `memory.embed:${payload.chatId}`, delayMs: 3000, chatId: payload.chatId });

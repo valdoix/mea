@@ -30,14 +30,18 @@
 
 ## Part 1: the brief ages with the story  [1, 28]
 
-- **1.1** `lore/sincecard.ts`: besides the opening, read the card's standing instructions (after-history text, "tells", "never says", pacing orders) and the starting `drive`, `mask` and fixed traits. For each, ask once per chapter whether the story has moved past it, with the passages that show it.
-- **1.2** A new record, the *brief as it stands*: for each superseded instruction, what replaces it and since which message. `prompt/assemble.ts` sends the current brief in place of the card's after-history block; the card itself is never edited.
-- **1.3** `trackers/note.ts`: a fixed trait that was a condition of the opening ("pale", "hoarse from disuse", "pupils dilated") is moved out of `always:` when 1.1 retires it. `drive` and `mask` are replaced the same way, as tracker lines from the engine, so a refold keeps them.
-- **1.4** `accuracy/anchor.ts`: the "who she is" essence and the voice samples come from the current brief, and `accuracy/drift.ts` compares against recent kept replies as well as card lines.
-- **1.5** Room: a "Since the card" panel on the character's page for this story, each change with before, after and the reason; you can refuse one (it goes back) or pin a card line as permanent.
-- **Tests:** a fixture where the card says "one crack per exchange" and the story reaches "Established" then drops it from the prompt; a pinned line survives; a refused change stays refused.
+*Changed from the first draft.* The story already keeps a "Since the card" note (an always-on Chronicle entry of who the character has become, kept up from memories). What it never touched were the card's standing orders: its post-history instructions ("Show her tells…", "no more than one crack per exchange") and the starting want, fear, tell and looks on the trackers. Those are what this part ages.
 
-**Done when:** the prompt for a late message of this story (on a copy) no longer contains "show her tells" or "ash and exhaustion", and does contain what replaced them.
+- **1.1** `lore/brief.ts` `runBriefJob` (job `lore.brief`), when a chapter closes and at least 40 messages have passed (or the card's instructions changed): a helper reads each line of the card's instructions against the story so far, the latest chapters and the Since the card note, and marks it kept, revised (with new words) or retired, with why. It never adds instructions.
+- **1.2** `briefCard`: generation sends the card with its instructions as they stand in this story. Retired lines are left out, revised ones replaced. The card itself is never edited, and a card whose instructions changed since the reading is sent as written until it is read again.
+- **1.3** The same reading gives a new want, fear or tell where the story has moved past the card's, written to the trackers after the last message, and names the card's looks that were only the opening's ("pale", "voice hoarse from disuse"), which the trackers drop (`trait X: -pale`; a look you gave is never dropped).
+- **1.4** `accuracy/anchor.ts`: the "Who she is: keep to this" anchor adds the story's own newest temperament and wants lines from Since the card, "true where the card disagrees".
+- **1.5** A line can be pinned so it stays as the card wrote it, through later readings too. Routes: `GET /api/chats/:id/brief`, `POST …/brief/pin`, `POST …/brief/read`. *The panel that shows them is not built yet;* it goes with Part 7's open-flags work.
+- *Dropped:* drift comparing against recent kept replies (Part 10's rolling window covers the voice).
+
+**Not yet seen on real data:** the reading calls a model, so it wasn't run on the copy. It runs by itself at this story's next closed chapter.
+
+**Done when:** a card line about the opening's tells is left out of the story's prompt after a reading, a revised one is in its new words, the card is unchanged, and the starting want and the opening's pallor are gone from the trackers. *(In `brief.test.ts`, through the real prompt preview.)*
 
 ## Part 2: facts retire when the story overturns them  [2, 17]
 

@@ -1599,6 +1599,16 @@ export class Folder {
         const c = this.person(op.subject, seq);
         if (!c) return this.reject(ctx, "whose traits?");
         for (const text of a.list as string[]) {
+          // docs/33 Part 1: "-pale" drops a look that was only the opening's (never one you gave).
+          if (text.startsWith("-")) {
+            const drop = norm(text.slice(1));
+            const gone = c.traits.find((t) => norm(t.text) === drop && t.by !== "user");
+            if (gone) {
+              c.traits = c.traits.filter((t) => t !== gone);
+              this.push(ctx, { kind: "trait", text: `${c.name}: no longer ${gone.text}`, subject: c.name, path: `chars.${c.id}.traits.${gone.kind}`, from: gone.text, to: "" });
+            }
+            continue;
+          }
           const kind = traitKind(text);
           const cur = kind !== "other" ? c.traits.find((t) => t.kind === kind) : c.traits.find((t) => norm(t.text) === norm(text));
           const by: Trait["by"] = ctx.ev.source === "user" ? "user" : ctx.ev.source === "init" ? "card" : "model";

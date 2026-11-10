@@ -71,6 +71,7 @@ import { fileNoteFacts, lessonsToFacts } from "../steer/notefacts";
 import { checkPlan, notHereThings, notNews, pendingDone, planCorrection, type PlanFinding, planRecords, planRecordText } from "../steer/plancheck";
 import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
 import { scheduleEditor, scheduleTenseFix } from "../steer/editor";
+import { briefCard } from "../lore/brief";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
 import { extractSpeakers, quotedLines, rosterLine, type RosterVoice, speakerRule, type SpokenLine, voiceRoster, withoutSpeakerMarks, withSpeakerMarks } from "../lib/speakers";
 import { scheduleSpeakerMarks } from "./speakermarks";
@@ -587,7 +588,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const settings = parseJson<ChatSettings>(chat.settings, {});
   // CHAR-06 / PER-05: the chat's variants overlay the card and the persona.
   const baseCard = getCard(chat.character_id);
-  const card = baseCard && applyCardVariant(baseCard, getVariant(settings.variantId), chat.character_id);
+  // docs/33 Part 1: the card's instructions as they stand in this story.
+  const card = baseCard && briefCard(chatId, applyCardVariant(baseCard, getVariant(settings.variantId), chat.character_id));
   if (!charRow || !card) throw notFound("Character not found");
   const persona = applyPersonaVariant(getPersona(chat.persona_id) ?? getDefaultPersona(), getVariant(settings.personaVariantId));
   const userName = persona?.name ?? "You";
