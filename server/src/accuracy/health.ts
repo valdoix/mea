@@ -1,10 +1,10 @@
 import { all, one, parseJson } from "../db/db";
-import { mustChat } from "../services/chats";
+import { type ChatSettings, mustChat } from "../services/chats";
 import { registerStatusTile } from "../services/status";
 import { craftReport } from "../steer/craft";
 import { lessonsFor } from "../steer/lessons";
 import { foldConfigFor, trackerConfig } from "../trackers/store";
-import { notPeopleNow, placesWithSeveralNames } from "./casthealth";
+import { notPeopleNow, placesWithSeveralNames, rereadNow } from "./casthealth";
 import type { Issue } from "./checker";
 import { currentFold } from "../trackers/store";
 import { loopsPart } from "./loophealth";
@@ -19,7 +19,7 @@ import { type RetellStats, retellStats } from "./retell";
  * Nothing new is stored; the weekly trend is worked out from the same records.
  */
 
-export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost" | "loops" | "notpeople" | "placenames" | "offscene";
+export type HealthPart = "continuity" | "leaks" | "repetition" | "ledger" | "lessons" | "cost" | "loops" | "notpeople" | "reread" | "placenames" | "offscene";
 export interface HealthItem {
   part: HealthPart;
   label: string;
@@ -52,7 +52,7 @@ export interface Health {
 const WINDOW = 20;
 const LEAKS = new Set(["leak", "offpage", "canon", "puppet"]);
 const SLIPS = new Set(["trait", "dead", "time", "name", "place", "fact", "pov", "tense", "timeline", "nothere", "clockback", "past", "planning", "who", "ties", "retell", "undone", "known", "elsewhere"]);
-const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1, loops: 2, notpeople: 1, placenames: 1, offscene: 1 };
+const WEIGHTS: Record<HealthPart, number> = { continuity: 3, leaks: 3, repetition: 2, ledger: 1, lessons: 2, cost: 1, loops: 2, notpeople: 1, reread: 1, placenames: 1, offscene: 1 };
 
 const level = (s: number): Health["level"] => (s >= 80 ? "good" : s >= 60 ? "fair" : "poor");
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
@@ -221,6 +221,7 @@ function castParts(chatId: string): HealthItem[] {
   const fc = foldConfigFor(chatId);
   const notPeople = notPeopleNow(st, { factions: (fc.factions ?? []).flatMap((f) => [f.name, ...(f.aliases ?? [])]), people: fc.people });
   const AS = { group: "a group", faction: "a faction", place: "a place", field: "a field name" } as const;
+  const reread = rereadNow(st, parseJson<ChatSettings>(mustChat(chatId).settings, {}).castTidy?.seen);
   const drift = placesWithSeveralNames(st);
   const twice = drift.reduce((n, d) => n + d.names.length, 0);
   return [
@@ -231,6 +232,14 @@ function castParts(chatId: string): HealthItem[] {
       detail: notPeople.length ? `${notPeople.length} in the cast that ${notPeople.length === 1 ? "isn't a person" : "aren't people"}: ${notPeople.slice(0, 3).map((x) => x.name).join(", ")}` : "everyone in the cast is a person",
       open: { href: `/chat/${chatId}/story?tab=cast` },
       ...(notPeople.length ? { ask: `the cast has entries that aren't people (${notPeople.slice(0, 4).map((x) => `${x.name}: ${AS[x.as]}`).join("; ")}); sort out the cast`, notes: notPeople.map((x) => `${x.name}: ${AS[x.as]}`) } : {}),
+    },
+    {
+      part: "reread",
+      label: "Names read as someone else",
+      score: clamp(100 - reread.length * 10),
+      detail: reread.length ? `${reread.length} name${reread.length === 1 ? "" : "s"} the tracker wrote that nobody has: ${reread.slice(0, 3).map((x) => `${x.name} (${x.as ? `read as ${x.as}` : "nobody"})`).join(", ")}` : "every name the tracker wrote is someone's",
+      open: { href: `/chat/${chatId}/story?tab=cast` },
+      ...(reread.length ? { notes: reread.map((x) => `${x.name}: ${x.as ? `read as ${x.as}` : "nobody was added"}`) } : {}),
     },
     {
       part: "placenames",

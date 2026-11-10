@@ -707,7 +707,10 @@ export class Folder {
     if (!yours && this.unnamed(name, seq)) {
       const c = this.nearest(name);
       const note = `the story never says ${personName(name)}: ${c ? `read as ${c.name}` : "nobody was added"}`;
-      if (!this.unsaid.includes(note)) this.unsaid.push(note);
+      if (!this.unsaid.includes(note)) {
+        this.unsaid.push(note);
+        this.rereadAs(name, c, seq);
+      }
       return c;
     }
     return this.ensureChar(name, seq);
@@ -728,6 +731,18 @@ export class Folder {
     const words = clean.split(/\s+/);
     if (words.length < 2) return true;
     return !words.some((w) => /^\p{Lu}[\p{L}'’-]{2,}$/u.test(w) && !TITLE_WORD.test(w) && !owned.has(norm(w)) && has(w, seq));
+  }
+
+  /** docs/32 Part 4: keeps a name that was read as someone else (or nobody), for the tidy notice and Story health. */
+  private rereadAs(name: string, c: Character | undefined, seq: number) {
+    const clean = personName(name).replace(/\s+/g, " ").trim();
+    const map = (this.state.reread ??= {});
+    const cur = map[clean.toLowerCase()];
+    if (cur) {
+      cur.lastSeq = Math.max(cur.lastSeq, seq);
+      cur.lines++;
+      cur.as = c?.name ?? cur.as;
+    } else map[clean.toLowerCase()] = { name: clean, as: c?.name ?? null, firstSeq: seq, lastSeq: seq, lines: 1 };
   }
 
   /** Who an unnamed name most likely is: the one person whose first name it starts with. */
@@ -853,7 +868,9 @@ export class Folder {
       if (ev.source !== "user")
         for (const part of this.namedIn(ev.op)) {
           const c = this.blendOf(part);
-          if (c) this.warn(ctx, `nobody is called ${personName(part)}: read as ${c.name}`);
+          if (!c) continue;
+          this.warn(ctx, `nobody is called ${personName(part)}: read as ${c.name}`);
+          this.rereadAs(part, c, ev.seq);
         }
       const asPlace = this.roomAsPlace(ev.op, ev.seq);
       if (asPlace) this.applyOp(asPlace, ctx);

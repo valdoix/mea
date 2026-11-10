@@ -82,9 +82,10 @@
   let fileInput = $state<HTMLInputElement | null>(null);
   async function loadCast() {
     try {
-      const r = await get<{ people: CastPerson[]; tidied?: Tidied[]; stillHere?: Quiet[]; userName: string }>(`/api/chats/${id}/cast`);
+      const r = await get<{ people: CastPerson[]; tidied?: Tidied[]; reread?: Reread[]; stillHere?: Quiet[]; userName: string }>(`/api/chats/${id}/cast`);
       people = r.people;
       tidied = r.tidied ?? [];
+      reread = r.reread ?? [];
       quiet = r.stillHere ?? [];
       void loadSweep();
       userName = r.userName;
@@ -104,6 +105,28 @@
     profile: boolean;
   }
   let tidied = $state<Tidied[]>([]);
+  /** docs/32 4.1: a name the tracker wrote that Mea read as someone else, or as nobody. */
+  interface Reread {
+    name: string;
+    as: string | null;
+    lines: number;
+    lastSeq: number;
+  }
+  let reread = $state<Reread[]>([]);
+  async function answerReread(t: Reread, action: "person" | "seen") {
+    try {
+      await post(`/api/chats/${id}/cast/tidy`, { name: t.name, action });
+      reread = reread.filter((x) => x !== t);
+      if (action === "person") {
+        toast(`${t.name} is a person of their own now`, {
+          action: { label: "Undo", run: () => void post(`/api/chats/${id}/cast/tidy`, { name: t.name, action: "undo" }).then(loadCast) },
+        });
+        await loadCast();
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't save that", { kind: "error" });
+    }
+  }
   const tidyLabel = (t: Tidied) =>
     t.as === "place" ? "is a place" : t.members.length ? `is a ${t.as === "faction" ? "faction" : "group"}: ${t.members.join(", ")}` : t.as === "faction" ? "is a faction (no members yet)" : "is a group (no one named)";
   async function answerTidy(t: Tidied, action: "person" | "seen") {
@@ -539,6 +562,24 @@
             <span class="row">
               <button class="btn ghost small" onclick={() => answerTidy(t, "person")} title="Keep it in the cast as a person">It's a person</button>
               <button class="btn ghost small" onclick={() => answerTidy(t, "seen")}>OK</button>
+            </span>
+          </div>
+        {/each}
+      </div>
+    {/if}
+    {#if reread.length}
+      <div class="notice tidy">
+        <div class="row between">
+          <b>Names Mea read as someone else</b>
+          <button class="btn ghost small" onclick={async () => { for (const t of [...reread]) await answerReread(t, "seen"); }}>Looks right</button>
+        </div>
+        <p class="tiny muted">The tracker wrote these names, and the story never uses them. Their lines went to the person they most likely meant, or nowhere.</p>
+        {#each reread as t (t.name)}
+          <div class="row between tidy-row">
+            <span class="small"><b>{t.name}</b> {t.as ? `was read as ${t.as}` : "isn't anyone the story names, so nobody was added"}<span class="tiny faint">{" · "}{t.lines} {t.lines === 1 ? "line" : "lines"}, last at #{t.lastSeq}</span></span>
+            <span class="row">
+              <button class="btn ghost small" onclick={() => answerReread(t, "person")} title="Add them to the cast under this name">No, a new person</button>
+              <button class="btn ghost small" onclick={() => answerReread(t, "seen")}>Right</button>
             </span>
           </div>
         {/each}

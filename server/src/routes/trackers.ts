@@ -484,7 +484,11 @@ trackers.get("/chats/:id/cast", (c) => {
     .filter((n) => n.as !== "field" && !tidySeen.has(castKey(n.name)) && !adopted.has(groupKey(n.name)))
     .map((n) => ({ name: n.name, as: n.as, members: n.members ?? [], lines: n.lines, lastSeq: n.lastSeq, profile: Boolean(profiles[castKey(n.name)]) }));
   // docs/31 3.2: anyone the scene still has whom the story hasn't named in a while.
-  return c.json({ people, tidied, stillHere: stillHere(chatId, st), userName: foldConfigFor(chatId).userName });
+  // docs/32 4.1: names read as someone else (or nobody), until you say they're right or a person after all.
+  const reread = Object.values(st.reread ?? {})
+    .filter((n) => !tidySeen.has(castKey(n.name)))
+    .map((n) => ({ name: n.name, as: n.as, lines: n.lines, lastSeq: n.lastSeq }));
+  return c.json({ people, tidied, reread, stillHere: stillHere(chatId, st), userName: foldConfigFor(chatId).userName });
 });
 
 /**
