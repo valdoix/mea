@@ -298,12 +298,12 @@ export function craftOn(chatId: string) {
   return getSetting("steer.config").craft !== false && !parseJson<ChatSettings>(mustChat(chatId).settings, {}).craft?.paused;
 }
 
-export function setCraft(chatId: string, patch: { paused?: boolean; ignore?: string; unignore?: string }) {
+export function setCraft(chatId: string, patch: { paused?: boolean; ignore?: string; unignore?: string; cooling?: boolean }) {
   const cur = parseJson<ChatSettings>(mustChat(chatId).settings, {}).craft ?? {};
   const ignored = new Set(cur.ignored ?? []);
   if (patch.ignore) ignored.add(patch.ignore);
   if (patch.unignore) ignored.delete(patch.unignore);
-  updateChat(chatId, { settings: { craft: { ...cur, ...(patch.paused != null ? { paused: patch.paused } : {}), ignored: [...ignored].slice(-60) } } });
+  updateChat(chatId, { settings: { craft: { ...cur, ...(patch.paused != null ? { paused: patch.paused } : {}), ...(patch.cooling != null ? { cooling: patch.cooling } : {}), ignored: [...ignored].slice(-60) } } });
 }
 
 /** "Ban it": the phrase joins your banned phrases (Settings › Writing). */

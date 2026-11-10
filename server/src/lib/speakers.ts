@@ -110,11 +110,11 @@ export function resolveSpeaker(name: string, slot: number | undefined, roster: R
 const OPEN = /\[spk=([^\]\n]{0,80})\]/gi;
 
 /**
- * Closers a model misspells ([/sp], [/spak], [/spc], or a bare [spk] after a quote) read as [/spk],
+ * Closers a model misspells ([/sp], [/spak], [/spc], [//spk], [c/spk], or a bare [spk] after a quote) read as [/spk],
  * so they close their line instead of showing on the page.
  */
 export function mendMarks(text: string): string {
-  return /\[\/?s/i.test(text) ? text.replace(/\[\/s(?:p[a-z]{0,2})?\]|\[spk\]/gi, "[/spk]") : text;
+  return /\[[a-z]?\/{0,2}s/i.test(text) ? text.replace(/\[[a-z]?\/{1,2}s(?:p[a-z]{0,2})?\]|\[spk\]/gi, "[/spk]") : text;
 }
 
 function readMark(raw: string, roster: RosterVoice[]): { name: string | null; tone?: Tone } {

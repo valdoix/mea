@@ -159,7 +159,7 @@ export const chatSettingsSchema = z.object({
   /** H1: what this chat never cuts when the prompt is over its ceiling ("Keep this next time"). */
   promptKeep: z.array(z.string().max(40)).max(30).optional(),
   /** D2: the craft coach in this chat: paused, and the habits you said are fine. */
-  craft: z.object({ paused: z.boolean(), ignored: z.array(z.string().max(120)).max(60) }).partial().optional(),
+  craft: z.object({ paused: z.boolean(), ignored: z.array(z.string().max(120)).max(60), /** docs/33 Part 10: the cooling list (steer/cooling.ts), on unless turned off. */ cooling: z.boolean() }).partial().optional(),
   /** docs/23: episodic continuity: the status quo each new episode returns to (the fold at this message), and the episode number. */
   episodes: z.object({ baselineSeq: z.number().int(), n: z.number().int().min(1) }).optional(),
   /** C1: where the story stands in its source, and what hasn't happened yet. */

@@ -94,6 +94,38 @@ function trackerView(chatId: string, name: string) {
   }
 }
 
+/**
+ * docs/33 10.3: what this person said in these scenes, in their own words (the lines Mea knows the
+ * speaker of), so the journal is written in their voice. Ruth's journal quoted Buffy's lines and
+ * every journal ended on "Gavel": Buffy's running bit, in everyone's diary.
+ */
+export function ownLines(chatId: string, names: Set<string>, ranges: { from: number; to: number }[], max = 12): string[] {
+  if (!ranges.length) return [];
+  const lo = Math.min(...ranges.map((r) => r.from));
+  const hi = Math.max(...ranges.map((r) => r.to));
+  const rows = all<{ seq: number; meta: string }>(
+    `SELECT m.seq, s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
+     WHERE m.chat_id = ? AND m.role = 'assistant' AND m.deleted_at IS NULL AND m.seq BETWEEN ? AND ? ORDER BY m.seq DESC`,
+    chatId,
+    lo,
+    hi,
+  );
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (!ranges.some((x) => r.seq >= x.from && r.seq <= x.to)) continue;
+    for (const l of parseJson<{ speakers?: { text: string; name: string | null }[] }>(r.meta, {}).speakers ?? []) {
+      const text = l.text.replace(/\s+/g, " ").trim();
+      const n = text.split(" ").length;
+      if (!l.name || !names.has(norm(l.name)) || n < 3 || n > 40 || seen.has(text)) continue;
+      seen.add(text);
+      out.push(text);
+      if (out.length >= max) return out.reverse();
+    }
+  }
+  return out.reverse();
+}
+
 /** Brings one journal up to date with the scenes since it was last written. */
 export async function updateJournal(chatId: string, name: string, opts: { job?: JobContext; fromScratch?: boolean; signal?: AbortSignal } = {}) {
   const row = rowFor(chatId, name);
@@ -119,11 +151,17 @@ export async function updateJournal(chatId: string, name: string, opts: { job?: 
   const more = mine.length > batch.length;
   const endSeq = (more ? batch.at(-1)!.end_seq : scenes.at(-1)!.end_seq) ?? batch.at(-1)!.end_seq ?? 0;
   // Progress back at 0 (a rewind) means it's written again from the scenes left.
+  const voice = ownLines(
+    chatId,
+    myNames,
+    batch.map((s) => ({ from: s.start_seq, to: s.end_seq ?? s.start_seq })),
+  );
   const prev = opts.fromScratch || through === 0 ? "" : (row?.proposal ? parseJson<{ content: string }>(row.proposal, { content: "" }).content : row?.content) || "";
   const user = [
     `PERSON: ${name}${isMain ? " (the main character)" : ""}. The player's character is ${names.user}.`,
     prev ? `${name.toUpperCase()}'S JOURNAL SO FAR:\n${prev}` : `${name} has no journal yet.`,
     trackerView(chatId, name),
+    voice.length ? `${name.toUpperCase()}'S OWN WORDS IN THESE SCENES (this is how ${name} talks; the journal is in this voice):\n${voice.map((l) => `- ${l}`).join("\n")}` : "",
     `NEW SCENES, oldest first:\n${batch.map((s) => `- ${s.title} (#${s.start_seq}–#${s.end_seq}): ${s.content}`).join("\n")}`,
   ]
     .filter(Boolean)
@@ -142,6 +180,8 @@ Rules:
 - Keep word for word: names, numbers, dates, places, promises, secrets, and lines that mattered to ${name}.
 - Condense: fold the new scenes into the journal so far, keeping the through-line and the feelings; drop small talk. At most 320 words.
 - Subjective is fine (${name}'s opinions, fears, hopes), invented events are not.
+- ${name}'s own voice: the words, rhythm and jokes ${name} uses, never someone else's running bits, catchphrases or pet metaphors.
+- Other people's words only in passing: a few words at most, never their lines whole.
 Reply with JSON only: {"journal": "…"}`,
     user,
     maxTokens: 1200,

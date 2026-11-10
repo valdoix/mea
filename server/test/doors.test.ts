@@ -32,6 +32,7 @@ const REASONS: Record<string, string> = {
   "services/stories.ts": "titles",
   "services/trash.ts": "cleanup",
   "services/versionchat.ts": "a retelling takes a summary as history, into a new chat",
+  "steer/cooling.ts": "where each scene starts and ends, so a word must cross scenes; no summary's text",
   "steer/desk.ts": "where the chapter starts",
 };
 
