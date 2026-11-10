@@ -10,7 +10,7 @@ import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNo
 import { castLabel, parseLine } from "./dsl";
 import { PlaceBook, placeKey, type PlaceProfile } from "./places";
 import { currentMembers, groupKey, kindOfGroup, possessiveAnchor } from "./groups";
-import { bracketGroup, FIELD_WORD, familySurname, isGroupShape, looksLikePlace, passingName, sentenceNotPath } from "./whois";
+import { bracketGroup, FIELD_WORD, familySurname, isCrowdShape, isGroupShape, looksLikePlace, NOT_A_NAME, orgKind, passingName, sentenceNotPath, tidyAliases } from "./whois";
 import { mentions } from "./mentions";
 import { applyPatch, type Change as PatchChange } from "./patch";
 import type { Template } from "./schema";
@@ -647,7 +647,14 @@ export class Folder {
     const several = /\([^)]*(?:,|&|;|·|\band\b)[^)]*\)\s*$/.test(raw);
     const br = bracketGroup(raw, (head) => isGroupShape(head) || Boolean(this.faction(head)) || (several && !this.findChar(head) && !looksLikePlace(head)));
     if (br) return { kind: "many", names: br.names, as: this.faction(br.group) ? "faction" : "group", group: br.group };
-    if (FIELD_WORD.test(n)) return { kind: "not", as: "field", name, reason: `"${name}" is a field name, not a person` };
+    if (FIELD_WORD.test(n) || NOT_A_NAME.test(n)) return { kind: "not", as: "field", name, reason: `"${name}" is a field name, not a person` };
+    // docs/33 11.1: a company, a school or a hospital is not a person, nor are several people under one description.
+    const yours = (this.cfg.people ?? []).some((p) => norm(p) === norm(personName(name)));
+    if (!yours && !this.findChar(name)) {
+      const org = orgKind(name);
+      if (org === "place") return { kind: "not", as: "place", name, reason: `${name} is a place, not a person` };
+      if (org === "group" || isCrowdShape(name)) return { kind: "not", as: "group", name, reason: `${name} is a group: name its people` };
+    }
     const f = this.faction(name);
     if (f) return f.members.length ? { kind: "many", names: f.members, as: "faction", group: f.name } : { kind: "not", as: "faction", name: f.name, reason: `${f.name} is a faction with no members known yet` };
     const surnames = familySurname(name);
@@ -1695,6 +1702,7 @@ export class Folder {
         if (!c || !a.to) return this.reject(ctx, "rename whom?");
         c.aliases = uniq([...c.aliases, c.name]);
         c.name = clip(a.to);
+        c.aliases = tidyAliases(c.name, c.aliases);
         this.leadNames(c);
         return;
       }
@@ -2433,7 +2441,8 @@ export class Folder {
     const st = this.state;
     const swap = (id: string | undefined) => (id === from.id ? into.id : id);
     const newer = from.lastSeq > into.lastSeq;
-    into.aliases = uniq([...into.aliases, ...from.aliases, from.name]).filter((x) => norm(x) !== norm(into.name));
+    // docs/33 11.1: a name with a stage direction in it ("Spike (offscreen)") is not another name.
+    into.aliases = tidyAliases(into.name, uniq([...into.aliases, ...from.aliases, from.name]).filter((x) => norm(x) !== norm(into.name)));
     into.firstSeq = Math.min(into.firstSeq, from.firstSeq);
     into.lastSeq = Math.max(into.lastSeq, from.lastSeq);
     into.isMain ||= from.isMain;

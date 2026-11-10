@@ -8,7 +8,7 @@ import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { type AtomRow, getAtom, insertAtom, mergeAtoms, supersede } from "./atoms";
 import { chatVectors, cosine, embeddingsEnabled } from "./embed";
-import { type EntityData, entityFacts, genericPlace, getEntityRow, mergeEntities, duplicateSuggestions, norm, resolver } from "./entities";
+import { type EntityData, type EntityRow, entityFacts, genericPlace, getEntityRow, mergeEntities, duplicateSuggestions, norm, resolver } from "./entities";
 import { queueBuilds } from "./scheduler";
 import { memState, touchMemory } from "./store";
 import { contentWords, ftsQuery, overlap } from "./text";
@@ -67,6 +67,10 @@ export function findDuplicates(chatId: string, limit = 400) {
   }
   return pairs;
 }
+
+/** Mentioned this often, someone should have a profile. */
+export const PROFILE_AT = 20;
+export const needsProfile = (e: Pick<EntityRow, "kind" | "mentions" | "data" | "description">) => e.kind === "person" && e.mentions >= PROFILE_AT && parseJson<EntityData>(e.data, {}).descSource !== "consolidation";
 
 const digestSchema = z.object({ digest: z.string().min(1) });
 const profileSchema = z.object({ description: z.string().min(1) });
@@ -144,8 +148,10 @@ export async function consolidate(chatId: string, job?: JobContext) {
         const d = parseJson<EntityData & { refreshedAt?: number; refreshedMentions?: number }>(e.data, {});
         return !(d.locked ?? []).includes("description") && !d.isUser && e.mentions >= 3 && e.mentions !== d.refreshedMentions;
       })
-      .sort((a, b) => b.mentions - a.mentions)
-      .slice(0, 6);
+      // docs/33 11.3: a person past PROFILE_AT mentions with nothing written about them yet comes first
+      // (Spike at 316 had none, behind places refreshed every night).
+      .sort((a, b) => Number(needsProfile(b)) - Number(needsProfile(a)) || b.mentions - a.mentions)
+      .slice(0, 8);
     for (const e of stale) {
       const facts = entityFacts(chatId, e, 10);
       if (facts.length < 2) continue;

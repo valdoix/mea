@@ -88,6 +88,8 @@ export interface EntryExtra {
   type?: "character" | "location" | "item" | "faction" | "concept" | "event" | "rule";
   aliases?: string[];
   secrets?: { text: string; knownBy: string[] }[];
+  /** docs/33 11.5: who knows what this entry says. Empty: everyone. */
+  knownBy?: string[];
   parent?: string;
   folder?: string;
   essentials?: string;
@@ -119,6 +121,16 @@ function withSecrets(e: ScanEntry, content: string, input: Pick<ActivationInput,
     s.text?.trim() ? [secretLine(s, input.secretReveal ? input.secretReveal(e.id, i) : revealFor(s.text, input.reveals))] : [],
   );
   return lines.length ? `${content}\n${lines.join("\n")}` : content;
+}
+
+/**
+ * docs/33 11.5: an entry only some people know says so, so narration in someone else's head doesn't
+ * use it (Buffy "remembering" Giles at the airport, months after she died).
+ */
+export function withKnown(e: { extra: Record<string, unknown> }, content: string, sub: (s: string) => string = (s) => s) {
+  const who = (extraOf(e).knownBy ?? []).map((n) => sub(n).trim()).filter(Boolean);
+  if (!who.length) return content;
+  return `${content}\n[Known only to ${who.join(", ")}. Nobody else saw it or was told: it stays out of anyone else's thoughts, words and narration until the story shows them learning it.]`;
 }
 
 function secretLine(s: { text: string; knownBy?: string[] }, r?: Reveal) {
@@ -481,13 +493,13 @@ ${e.content.trim()}`;
     return `${content}\n${block}`;
   };
   for (const a of sorted) {
-    let content = withNow(a.entry, withSecrets(a.entry, sub(a.content), input));
+    let content = withNow(a.entry, withKnown(a.entry, withSecrets(a.entry, sub(a.content), input), sub));
     let tokens = input.countTokens(content);
     let reason = a.reason;
     const p = Math.round(priority(a));
     const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine(nowFact(f), sub(a.entry.comment || a.entry.keys[0] || "") || undefined));
     if (defaults.tokenBudget > 0 && used + tokens > defaults.tokenBudget) {
-      const short = withNow(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry)), input));
+      const short = withNow(a.entry, withKnown(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry)), input), sub));
       const st = input.countTokens(short);
       if (a.kind !== "parent" && short.length < content.length && used + st <= defaults.tokenBudget) {
         content = short;

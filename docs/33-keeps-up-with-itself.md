@@ -182,16 +182,23 @@ The watch already made a plan-skipping model plan in its own step (two calls a r
 
 **Done when:** in a mock run where every reply uses "ruling" and "docket", the family is cooling by reply 12 and absent from the instructions' allowed list for everyone but its owner. *(Cooling from reply 8, with Buffy as the only one allowed; `cooling.test.ts`.)*
 
-## Part 11: cast, places and memory tidy  [13, 15, 18]
+## Part 11: cast, places and memory tidy  [13, 15, 18]  (built)
 
-- **11.1** `memory/entities.ts`: bracketed stage notes are stripped from names before matching; organisations, streets, schools and film characters are not people; role names ("Gabriel's mom") attach to the named person once known.
-- **11.2** Places merge by address and by "X's kitchen" = "kitchen at X". A one-time merge proposal for existing stories.
-- **11.3** A profile is built for anyone past about 20 mentions (`memory/profiles.ts`).
-- **11.4** Memory importance: small physical beats decay unless recalled; near-duplicates merge on write.
-- **11.5** Lore entries can say who knows them; narration in someone's head only uses what they know (`lore/activate.ts`, checked by `accuracy/checker.ts`).
-- Builds on docs/32 Part 3; nothing there is redone.
+The tracker's own cast was already tidy after docs/30 and docs/32 (27 people, no stage notes). What was left came from memories and scene records, which name whatever a sentence mentions, and from pages older syncs had made.
 
-**Done when:** this story (on a copy) folds to under 120 places and no person entry is a street, a school or a company.
+- **11.1** Names that aren't people (`trackers/whois.ts`, `memory/casttidy.ts`, used by the fold and by the cast sync):
+  - a ledger word ("unchanged", "Co."), a company ("Winters Holdings" is a group), a school or hospital ("Sunnydale High", "Sunnydale General" are places), several people under one description ("board members", "two delivery men in grey shirts"), a group the story already has ("Hellions"), and the first word of a street the story has ("Powell" is Powell Street);
+  - someone the story only mentions as part of a film or a poem (Mulan, and Li Shang, who is only ever mentioned with her) is a reference, kept as a concept. Only for names with six memories or fewer that were never in a scene;
+  - other names lose stage directions ("Spike (offscreen, approaching)"), sentences ("Frank charges $12-14"), slips one letter off a name already kept ("Gupert Giles"), and the possessor of a role ("Gabriel" was another name for "Gabriel's father", and took 149 of Gabriel's mentions);
+  - a role name is the person a group's roster gives that role to: "Gabriel's mom" and "Gabriel's mother" are Eleanor Winters, "Gabriel's father" is Jonathan.
+- **11.2** Places are read against the tracker's own tree (`placeAs`): "Gabriel's kitchen (darkening)", "The hills house kitchen" and "Kitchen of the hills house" are the Winters Residence kitchen; "1630 Revello Drive kitchen" and "Summers kitchen, 1630 Revello Drive" are the Summers Residence kitchen. A seat, a counter, a bare "hallway" with no house and a trip ("driving to Revello Drive", anything with an arrow) are not places of their own. A page whose name moved is merged into the page it became; one nothing names any more is put away, and comes back if the story names it again. Pages you edited or locked are never touched. *Changed from the plan:* this runs with every sync instead of as a one-time proposal, since both steps can be undone from the page.
+- **11.3** `memory/consolidate.ts`: a person past 20 mentions with no written profile is first in line at the next consolidation (eight a run, up from six). The profile itself is the helper call that was already there.
+- **11.4** `memory/atoms.ts`: a small physical beat (one sentence, a thing moves or makes a sound, nothing said, decided or learned) is stored at importance 3 at most, so it fades and folds into a digest unless a reply uses it. The same thing in nearly the same words (85% of its words) is a duplicate on write.
+- **11.5** A lore entry can say who knows it ("Who knows this" in the entry editor). It is sent with a line saying nobody else saw it or was told, so it stays out of other people's heads. *Not built:* the checker reading that line; the leak check already covers secrets, and Part 7 adds the transcript search.
+
+**Seen on a copy of the real data:** people 133 → 43, none of them a street, a school or a company; places 455 → 117; Spike's and Ruth's other names are clean; Eleanor carries "Gabriel's mom" and "Gabriel's mother", Jonathan "Gabriel's father". A second sync changes nothing. Left as it is: "Joyce's kitchen" beside the Summers kitchen (nothing says Joyce lived there), and "Gabriel's bedroom" beside the "upstairs bedroom".
+
+**Done when:** this story (on a copy) folds to under 120 places and no person entry is a street, a school or a company. *(Holds; `casttidy.test.ts`, 15 tests.)*
 
 ## Part 12: subplots and the world  [29–32]
 

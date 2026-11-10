@@ -113,3 +113,66 @@ export function isAnimal(c: { name: string; aliases?: string[]; traits?: { text:
   const first = c.traits?.[0]?.text.split(/[,;]/)[0] ?? "";
   return ANIMAL.test(first) || [c.name, ...(c.aliases ?? [])].some((n) => NAMED_ANIMAL.test(n));
 }
+
+// ---------- docs/33 Part 11: names that aren't people, and names that aren't names ----------
+
+const COMPANY = /(?:\b(?:holdings|inc|incorporated|corp|corporation|llc|ltd|limited|industries|enterprises|associates|partners|foundation|group|company|co|bank|firm|agency|aquafarms|farms|records|studios|airlines|motors|pharmaceuticals)\.?|&\s*(?:sons|co\.?))$/i;
+const INSTITUTION = /\b(?:high|high school|elementary|middle school|school|academy|university|college|general|hospital|clinic|medical center|memorial|library|museum|cemetery|mall|station|airport)$/i;
+
+/**
+ * A capitalised name that is an organisation or an institution, not a person: "Winters Holdings" is a
+ * group, "Sunnydale High" and "Sunnydale General" are places. Two words at least: "General" alone,
+ * or a surname like "Bank", says nothing.
+ */
+export function orgKind(name: string): "group" | "place" | null {
+  const n = tidy(name).replace(/^the\s+/i, "");
+  if (n.split(" ").length < 2) return null;
+  if (COMPANY.test(n)) return "group";
+  return INSTITUTION.test(n) ? "place" : null;
+}
+
+const NUMBER_LEAD = /^(?:two|three|four|five|six|seven|eight|nine|ten|a dozen|several|some|many|a few|a couple of|both|all|the other|other)\s/i;
+const PLURAL_ROLE = new RegExp(String.raw`\b(?:${ROLE}|member|mover|delivery m[ae]n|director|worker)s\b|\b(?:men|women|people|children)\b`, "i");
+
+/** Several people under one description: "board members", "Salesgirls at Verano", "two delivery men in grey shirts". */
+export const isCrowdShape = (name: string) => {
+  const n = tidy(name);
+  return NUMBER_LEAD.test(n) || (PLURAL_ROLE.test(n) && !/^\p{Lu}[\p{L}'.-]*\s+\p{Lu}/u.test(n.replace(PLURAL_ROLE, "X")));
+};
+
+/** A ledger word written where a name goes, and never a name: "cast: unchanged". */
+export const NOT_A_NAME = /^(?:unchanged|same|same as before|as before|no change|nobody|no one|everyone|everybody|all|both|others?|someone|anyone|co\.?|etc\.?|tbd|n\/a)$/i;
+
+function lev1ish(a: string, b: string) {
+  if (a === b || Math.abs(a.length - b.length) > 1) return a === b;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  return a.slice(i + 1) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i) || a.slice(i) === b.slice(i + 1);
+}
+
+/**
+ * The other names someone goes by, without the stage directions models write into them.
+ * "Spike (offscreen, approaching)" is Spike; "Frank charges $12-14" is a sentence; "Gabriel" is not
+ * another name for "Gabriel's father"; "Gupert Giles" beside "Rupert Giles" is a slip of the pen.
+ */
+export function tidyAliases(name: string, aliases: string[]): string[] {
+  const key = (s: string) => tidy(s).toLowerCase();
+  const out: string[] = [];
+  const first = key(name).split(" ")[0] ?? "";
+  for (const raw of aliases) {
+    // A bracketed aside goes, closed or not.
+    const a = tidy(raw.replace(/\s*\([^)]*\)?/g, " "));
+    const k = key(a);
+    if (!k || k === key(name) || out.some((o) => key(o) === k)) continue;
+    if (/[$€£]|\d{2,}/.test(a) && !/^\d+\s/.test(a)) continue;
+    // "<name> <verb…>": a sentence about them. "Ruth the cat" and "Spike the vampire" are names.
+    const rest = k.startsWith(`${key(name)} `) ? a.slice(name.length).trim() : k.startsWith(`${first} `) && first.length >= 3 && !/\s/.test(tidy(name)) ? a.slice(first.length).trim() : "";
+    if (rest && /^\p{Ll}/u.test(rest) && !/^(?:the|of|from|de|van|von|la|le|el|al|bin|ibn|jr|sr)\b/i.test(rest)) continue;
+    // The possessor in "Gabriel's father" is somebody else.
+    if (key(name).startsWith(`${k}'s `) || key(name).startsWith(`${k}s' `)) continue;
+    // One letter off a name already kept, same length or nearly, five letters or more.
+    if (k.length >= 5 && [name, ...out].some((o) => key(o) !== k && key(o).length >= 5 && lev1ish(key(o), k))) continue;
+    out.push(a);
+  }
+  return out;
+}
