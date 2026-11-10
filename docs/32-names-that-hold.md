@@ -88,14 +88,16 @@ Today a Codex page made from the cast outlives the cast member. This story has 9
 
 ## Part 5: measure it
 
-- **5.1** A golden scenario with blended, misspelt and never-named people in the mock tracker's lines; the cast must come out exact.
-- **5.2** A script over every story listing people made in the last 30 days whose name the story's text never has. It should print nothing.
+- **5.1** Golden scenario `names-hold` (`server/test/golden/30-names-hold.json`): a reply's ledger with a blended name, a misspelt one, a name the story never uses and a walk-on the reply names. The first two land on the right people, the third makes nobody, the walk-on is in the cast, and the re-reads are recorded.
+- **5.2** `bun scripts/unnamed-people.ts` (on a copy of the database; nothing is written or sent): per story, anyone in the cast whose name the story, card, persona and lore never have, and every name that was re-read. It exits 1 if a story has someone unnamed whom you didn't add. *Changed from the first draft:* it looks at the whole cast, not the last 30 days.
+
+**Seen on the real data:** both stories report "everyone in the cast is named by the story". The long one lists five re-read names: Gabriel Summers (read as Gabriel Winters, 3 lines), and Shannon, Guth, Gupert Giles and "Guffy audit", which made nobody.
 
 ---
 
 ## Order
 
-0 (done) → 1 → 3 → 2 → 4 → 5. Part 1 closes the class; Part 3 removes what's already there; 2 lowers how often the slip happens; 4 and 5 are for when the first three miss.
+0 → 1 → 3 → 2 → 4 → 5, all built (PRs 308–313). Part 1 closes the class; Part 3 removes what's already there; 2 lowers how often the slip happens; 4 and 5 are for when the first three miss.
 
 ## Not doing
 

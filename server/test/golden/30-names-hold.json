@@ -1,0 +1,63 @@
+{
+  "name": "names-hold",
+  "card": {
+    "name": "Buffy Summers",
+    "description": "The Slayer. Twenty, lives in Sunnydale with her sister Dawn.",
+    "first_mes": "The shoe store smells like new leather."
+  },
+  "user": "Gabriel Winters",
+  "about": "Nobody joins the cast by a slip: a name blended from two people's is the person whose first name it is, a misspelling is the person it's a letter from, a name the story never uses makes nobody, and a walk-on the reply names is there at once.",
+  "ledger": [
+    "clock: Day 1 15:00",
+    "at: Sunnydale › Mall › shoe store",
+    "cast: Buffy Summers@spot · Gabriel Winters@spot"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "I hold up the green boots."
+    }
+  ],
+  "reply": "\"Seven,\" Buffy told the clerk, whose tag said Chloe. Chloe went to look in the back. \"The sign says they close at six,\" Buffy added, trying the stuck back door on the way past.",
+  "after": {
+    "lines": [
+      "cast: Chloe@peri · Shannon@peri",
+      "know Gabriel Summers: #six the shop closes at six | Buffy read him the sign · knows · true",
+      "know Guffy Summers: #door the back door sticks | she tried it · knows · true",
+      "know Chloe: #seven Buffy takes a seven | Buffy told her · knows · true",
+      "know Shannon: #boots Gabriel picked the green boots | watching · knows · true"
+    ],
+    "expect": [
+      {
+        "path": "facts.six.stances.user.status",
+        "equals": "knows"
+      },
+      {
+        "path": "facts.door.stances.buffy-summers.status",
+        "equals": "knows"
+      },
+      {
+        "path": "facts.seven.stances.chloe.status",
+        "equals": "knows"
+      },
+      {
+        "path": "chars.chloe.name",
+        "equals": "Chloe"
+      },
+      {
+        "path": "reread.gabriel summers.as",
+        "equals": "Gabriel Winters"
+      },
+      {
+        "path": "reread.shannon.as",
+        "equals": null
+      }
+    ],
+    "none": [
+      "chars.gabriel-summers",
+      "chars.guffy-summers",
+      "chars.shannon",
+      "facts.boots.stances.shannon"
+    ]
+  }
+}

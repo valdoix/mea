@@ -26,7 +26,7 @@ afterAll(() => {
 describe("golden scenarios (K1)", () => {
   const scenarios = loadScenarios();
   test("there's one for each thing Mea promises to keep", () => {
-    expect(scenarios.map((s) => s.name)).toEqual(["agency", "knowledge-leak", "clock", "weather", "people-present", "promise-kept", "offpage-secret", "canon-cutoff", "safety-floor", "ledger-shape", "planning-leak", "separate-planner", "planner-fallback", "revealed-secret", "retold-past", "promise-day-count", "told-wrong-stays", "deliberate-retelling", "already-said", "already-bought", "held-plan", "repeats", "still-moving", "rewound-past", "deliberate-lie", "old-news", "truly-new", "things-stay", "who-was-there"]);
+    expect(scenarios.map((s) => s.name)).toEqual(["agency", "knowledge-leak", "clock", "weather", "people-present", "promise-kept", "offpage-secret", "canon-cutoff", "safety-floor", "ledger-shape", "planning-leak", "separate-planner", "planner-fallback", "revealed-secret", "retold-past", "promise-day-count", "told-wrong-stays", "deliberate-retelling", "already-said", "already-bought", "held-plan", "repeats", "still-moving", "rewound-past", "deliberate-lie", "old-news", "truly-new", "things-stay", "who-was-there", "names-hold"]);
   });
   for (const s of scenarios) {
     test(s.name, async () => {
