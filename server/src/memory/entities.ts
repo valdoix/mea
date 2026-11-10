@@ -6,7 +6,10 @@ import { type AtomRow, sourcesLive } from "./atoms";
 import { scanEntriesFor } from "../lore/service";
 import { Folder } from "../trackers/fold";
 import { castProfiles, currentFold, foldConfigFor } from "../trackers/store";
-import { isGroupShape } from "../trackers/whois";
+import { kindOf, PlaceBook } from "../trackers/places";
+import { isAnimal, isGroupShape, passingName, tidyAliases } from "../trackers/whois";
+import { mediaOnly, notPersonName, placeAs, roleKeys } from "./casttidy";
+import { noteFactions } from "../trackers/factions";
 import { memState } from "./store";
 
 /**
@@ -199,6 +202,8 @@ interface Seen {
   sources: Set<string>;
   /** Strong sources (tracker, scene cast) create an entity on sight; atoms need two mentions. */
   strong: boolean;
+  /** docs/33 11.1: the kind was worked out again (a "person" that is a school), so it replaces a stored guess. */
+  rekind?: boolean;
 }
 
 /** Words a room's name can be made of without saying whose room it is ("upstairs guest room", "walk-in closet"). */
@@ -440,6 +445,33 @@ export function syncEntities(chatId: string, force = false) {
     Object.assign(s.data, o.data ?? {});
   };
 
+  // docs/33 Part 11: names that moved (to another name, or nowhere), so their old pages follow.
+  const moved = new Map<string, string | null>();
+  const book = tracker
+    ? new PlaceBook(tracker.state, {
+        findChar: (n) => Object.values(tracker.state.chars).find((c) => [c.name, c.name.split(/\s+/)[0]!, ...c.aliases].some((x) => norm(x) === norm(n))),
+      })
+    : null;
+  /** A place as a scene record or a memory wrote it: the tracker's place when it has one, else its cleaned name; a seat or a trip is dropped. */
+  const place = (written: string, o: Parameters<typeof add>[2]) => {
+    const as = book && tracker ? placeAs(book, tracker.state, written) : ({ name: written } as const);
+    if (!as) {
+      moved.set(norm(written), null);
+      return;
+    }
+    if ("place" in as) {
+      // A seat or a shelf the tracker knows is counted as the room it's in.
+      let p = as.place;
+      while (p.kind === "spot" && !p.owner && !p.pinned && p.parent && book!.get(p.parent)) p = book!.get(p.parent)!;
+      const named = placeName(p.path.length ? p.path : [p.name]);
+      add(named.name, "place", { ...o, aliases: named.aliases, strong: true, data: { path: p.path } });
+      if (norm(written) !== norm(named.name) && !named.aliases.some((a) => norm(a) === norm(written))) moved.set(norm(written), named.name);
+      return;
+    }
+    add(as.name, "place", o);
+    if (norm(as.name) !== norm(written)) moved.set(norm(written), as.name);
+  };
+
   if (tracker) {
     const st = tracker.state;
     for (const c of Object.values(st.chars)) {
@@ -457,7 +489,10 @@ export function syncEntities(chatId: string, force = false) {
       });
     }
     for (const p of Object.values(st.places)) {
+      // docs/33 11.2: a seat or a counter is somewhere inside a place, not a page of its own.
+      // (Nor is a path written as a trip, a bare "hallway" with no house, or a one-word "road".)
       const named = placeName(p.path.length ? p.path : [p.name]);
+      if (!p.pinned && (kindOf(p.name) === "spot" || p.kind === "spot" || /→|->|\(/.test(p.name) || (named.name === p.name && (genericPlace(p.name) || /^\p{Ll}+$/u.test(p.name.trim()))) || /(?:seats?|backseat|cabin)$/i.test(p.name))) continue;
       add(named.name, "place", { aliases: named.aliases, last: p.lastSeq, mentions: p.visits, source: "tracker", strong: true, data: { path: p.path } });
     }
     for (const it of Object.values(st.items)) {
@@ -474,13 +509,20 @@ export function syncEntities(chatId: string, force = false) {
   for (const s of all<{ data: string; start_seq: number; end_seq: number | null }>("SELECT data, start_seq, end_seq FROM summaries WHERE chat_id = ? AND level = 'scene' AND state = 'ready'", chatId)) {
     const d = parseJson<{ participants?: string[]; locations?: string[] }>(s.data, {});
     for (const n of sceneNames(d.participants ?? [])) add(n, "person", { first: s.start_seq, last: s.end_seq ?? s.start_seq, source: "scenes", strong: true });
-    for (const n of d.locations ?? []) add(n, "place", { first: s.start_seq, last: s.end_seq ?? s.start_seq, source: "scenes", strong: true });
+    for (const n of d.locations ?? []) place(n, { first: s.start_seq, last: s.end_seq ?? s.start_seq, source: "scenes", strong: true });
   }
 
   // M20: what every live memory names, summed per name (kept up to date from the memories that changed).
   // The same as adding each name of each memory in turn: a name new here takes its first spelling and guessed kind.
   for (const [key, g] of memoryNames(chatId)) {
     let s = seen.get(key);
+    // docs/33 11.2: a place only a memory names is read against the tracker's places too.
+    // (And a name guessed to be a thing that is one of the tracker's places: "1630 Revello Drive".)
+    const known = !s && g.kind !== "person" && book && tracker ? placeAs(book, tracker.state, g.clean) : null;
+    if (!s && (g.kind === "place" || (known && "place" in known))) {
+      place(g.clean, { first: g.first ?? undefined, last: g.last ?? undefined, mentions: g.count, source: "memories" });
+      continue;
+    }
     if (!s) {
       s = { name: g.clean, kind: g.kind, aliases: new Set(), first: null, last: null, mentions: 0, data: {}, sources: new Set(), strong: false };
       seen.set(key, s);
@@ -489,6 +531,92 @@ export function syncEntities(chatId: string, force = false) {
     if (g.last != null) s.last = s.last == null ? g.last : Math.max(s.last, g.last);
     s.mentions += g.count;
     s.sources.add("memories");
+  }
+
+  // docs/33 11.1: a name the memories or a scene record gave as a person that isn't one.
+  if (tracker) {
+    const st = tracker.state;
+    const cast = new Set(Object.values(st.chars).flatMap((c) => [c.name, ...c.aliases]).map(norm));
+    const known = { places: Object.values(st.places).map((p) => p.name), groups: Object.values(st.groups ?? {}).flatMap((g) => [g.name, ...(g.aliases ?? [])]) };
+    // Names found to be a film's or a poem's, and those to look at again once they're known.
+    const media: string[] = [];
+    const later: string[] = [];
+    for (const [key, s] of [...seen]) {
+      if (s.kind !== "person" || cast.has(key) || s.data.isUser || s.data.isMain || s.sources.has("cast")) continue;
+      const maybeMedia = !s.sources.has("tracker") && !s.sources.has("scenes") && !passingName(s.name);
+      const as = notPersonName(s.name, known) ?? (maybeMedia && mediaOnly(chatId, s.name) ? ("concept" as const) : null);
+      if (as === "concept") media.push(s.name);
+      if (!as && maybeMedia) later.push(key);
+      if (!as) continue;
+      if (as === "drop") {
+        seen.delete(key);
+        moved.set(key, null);
+        continue;
+      }
+      // A group the story already has under a fuller name ("Hellions" for "The Hellions") is that group.
+      const fuller = as === "group" ? [...seen.values()].find((x) => x !== s && x.kind === "group" && norm(x.name).replace(/^the /, "") === key.replace(/^the /, "")) : undefined;
+      if (fuller) {
+        fuller.aliases.add(s.name);
+        fuller.mentions += s.mentions;
+        seen.delete(key);
+        moved.set(key, fuller.name);
+        continue;
+      }
+      // "Powell", when the story has Powell Street: that street.
+      const street = as === "place" ? [...seen.values()].find((x) => x !== s && x.kind === "place" && norm(x.name).startsWith(`${key} `)) : undefined;
+      if (street) {
+        street.mentions += s.mentions;
+        seen.delete(key);
+        moved.set(key, street.name);
+        continue;
+      }
+      s.kind = as;
+      s.rekind = true;
+    }
+    // Someone only ever mentioned with a film's character is one too (Li Shang, with Mulan).
+    if (media.length) {
+      for (const key of later) {
+        const s = seen.get(key);
+        if (!s || !mediaOnly(chatId, s.name, media)) continue;
+        s.kind = "concept";
+        s.rekind = true;
+      }
+    }
+    // "Ruth the dog", when Ruth is known: the same one, and not another name worth keeping.
+    for (const [key, s] of [...seen]) {
+      const m = s.sources.has("tracker") ? null : s.name.match(/^(.+?)\s+the\s+\p{Ll}+$/u);
+      const base = m && seen.get(norm(m[1]!));
+      if (!base || base === s || base.kind !== "person") continue;
+      base.mentions += s.mentions;
+      seen.delete(key);
+      moved.set(key, base.name);
+    }
+    // Role names ("Gabriel's mom") are the person a group's roster gives that role to.
+    try {
+      for (const f of noteFactions(chatId, st)) {
+        for (const m of f.members) {
+          if (!m.role) continue;
+          const who = seen.get(norm(m.name));
+          if (!who) continue;
+          for (const rk of roleKeys(m.role)) {
+            const role = seen.get(rk);
+            if (!role || role === who || role.sources.has("tracker")) continue;
+            who.aliases.add(role.name);
+            who.mentions += role.mentions;
+            if (role.first != null) who.first = who.first == null ? role.first : Math.min(who.first, role.first);
+            if (role.last != null) who.last = who.last == null ? role.last : Math.max(who.last, role.last);
+            seen.delete(rk);
+            moved.set(rk, who.name);
+          }
+        }
+      }
+    } catch {
+      // groups are optional
+    }
+    for (const s of seen.values()) {
+      const kept = tidyAliases(s.name, [...s.aliases]);
+      s.aliases = new Set(kept);
+    }
   }
 
   // Lore that names an entity describes it (its essentials, or its first sentence).
@@ -597,9 +725,11 @@ export function syncEntities(chatId: string, force = false) {
       const aliases = parseJson<string[]>(row.aliases, []);
       const names = new Set([row.name, ...aliases].map(norm));
       for (const a of [s.name, ...s.aliases]) if (!names.has(norm(a)) && !removed.has(norm(a))) (aliases.push(a), names.add(norm(a)));
+      // docs/33 11.1: stage directions and sentences kept as "other names" go (unless you locked the names).
+      if (!locked.has("aliases")) aliases.splice(0, aliases.length, ...tidyAliases(row.name, aliases));
       const desc = locked.has("description") || data.descSource === "consolidation" ? row.description : (s.description ?? row.description);
       const status = locked.has("status") ? row.status : (s.status ?? ((row.status === "dead" || (row.status === "gone" && s.kind === "person")) && !s.status && data.sources?.includes("tracker") ? "active" : row.status));
-      const kind = locked.has("kind") ? row.kind : s.strong ? s.kind : row.kind;
+      const kind = locked.has("kind") || row.user_edited ? row.kind : s.strong || s.rekind ? s.kind : row.kind;
       const next = {
         aliases: JSON.stringify(aliases),
         description: desc,
@@ -633,6 +763,33 @@ export function syncEntities(chatId: string, force = false) {
           t,
           row.id,
         );
+        changed = true;
+      }
+    }
+    // docs/33 Part 11: a page whose name moved follows it (merged into the page it became, or hidden). Both can be undone.
+    if (tracker) {
+      const matched = new Set([...groups.values()].flatMap((g) => (g.row ? [g.row.id] : [])));
+      const live = all<EntityRow>("SELECT * FROM entities WHERE chat_id = ? AND deleted_at IS NULL AND merged_into IS NULL", chatId);
+      const byName = new Map(live.flatMap((r) => [r.name, ...parseJson<string[]>(r.aliases, [])].map((n) => [norm(n), r] as const)).reverse());
+      for (const row of live) {
+        const k = norm(row.name);
+        if (matched.has(row.id) || row.user_edited) continue;
+        const data = parseJson<EntityData>(row.data, {});
+        if (data.isUser || data.isMain || data.locked?.length) continue;
+        // 11.2: a place nothing names any more (an old scene record's wording, a tracker path since tidied):
+        // the tracker's place when it reads as one, else it's put away. It comes back if the story names it again.
+        if (!moved.has(k)) {
+          if (row.kind !== "place" || !book || (data.sources ?? []).some((x) => x !== "tracker" && x !== "scenes" && x !== "memories")) continue;
+          const as = placeAs(book, tracker.state, row.name);
+          const p = as && "place" in as ? as.place : undefined;
+          moved.set(k, p ? placeName(p.path.length ? p.path : [p.name]).name : as && "name" in as && norm(as.name) !== k ? as.name : null);
+        }
+        const to = moved.get(k);
+        const target = to ? byName.get(norm(to)) : undefined;
+        const aliases = JSON.stringify(tidyAliases(row.name, parseJson<string[]>(row.aliases, [])));
+        if (target && target.id !== row.id) run("UPDATE entities SET merged_into = ?, aliases = ?, data = ?, updated_at = ? WHERE id = ?", target.id, aliases, JSON.stringify({ ...data, retired: "merged" }), t, row.id);
+        else if (to == null) run("UPDATE entities SET deleted_at = ?, data = ?, updated_at = ? WHERE id = ?", t, JSON.stringify({ ...data, retired: "hidden" }), t, row.id);
+        else continue;
         changed = true;
       }
     }
