@@ -32,6 +32,14 @@ export function notPeopleNow(st: WorldState, o: { factions?: string[]; people?: 
   return out;
 }
 
+/** docs/32 4.3: names Mea read as someone else (or nobody) that you haven't looked at yet. */
+export function rereadNow(st: WorldState, seen: string[] = []): { name: string; as: string | null }[] {
+  const ok = new Set(seen.map((n) => n.trim().toLowerCase()));
+  return Object.values(st.reread ?? {})
+    .filter((n) => !ok.has(n.name.toLowerCase()))
+    .map((n) => ({ name: n.name, as: n.as }));
+}
+
 export interface DriftRow {
   building: string;
   /** A name written for two places or more in it, and how many. */

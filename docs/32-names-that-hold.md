@@ -80,11 +80,11 @@ Today a Codex page made from the cast outlives the cast member. This story has 9
 
 ## Part 4: one click when Mea read a name wrong
 
-- **4.1** The tidy notice (docs/30 0.6) gains a row per re-read name: "Gabriel Summers · read as Gabriel Winters · 3 lines", with **Right** and **No, a new person** (adds the name to `castTidy.people`, which Part 0 already respects).
-- **4.2** The row's **Right** also merges any Codex page under the wrong name (the cast's own merge in Story and World already exists).
-- **4.3** Story health: a row "Names read as someone else" (count of re-read names not yet confirmed) beside "Not people".
+- **4.1** The fold keeps each re-read name (`state.reread`: the name, whom it was read as or nobody, how many lines, where last). The cast tab shows them under **Names Mea read as someone else**: "Gabriel Summers was read as Gabriel Winters · 3 lines, last at #918", with **Right** and **No, a new person**. "No" adds the name to `castTidy.people`, which Parts 0 and 1 both respect, so the person exists from the next fold. It has an Undo.
+- **4.2** *Dropped from the first draft:* "Right" merging the Codex page. Part 3 already does that at the next sync, with no click.
+- **4.3** Story health: a row "Names read as someone else", 10 points off for each one you haven't looked at.
 
-**Done when:** confirming and overturning a re-read both survive a refold.
+**Done when:** confirming and overturning a re-read both survive a refold. *(In `rereadnames.test.ts`, for a blended name and for one the story never has.)*
 
 ## Part 5: measure it
 

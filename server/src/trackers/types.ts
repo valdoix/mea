@@ -409,6 +409,19 @@ export interface NotPerson {
   lines: number;
 }
 
+/**
+ * docs/32 Part 4: a name the tracker wrote that Mea read as someone else (a blend of two names, a
+ * misspelling, a name the story never has), or as nobody.
+ */
+export interface Reread {
+  name: string;
+  /** Whose lines they became; null when nobody was added. */
+  as: string | null;
+  firstSeq: number;
+  lastSeq: number;
+  lines: number;
+}
+
 /** docs/30 1.4: what sort of group it is. */
 export type GroupKind = "family" | "household" | "circle" | "organisation" | "side";
 
@@ -491,6 +504,8 @@ export interface WorldState {
   places: Record<string, Place>;
   /** docs/30 0.2: names kept off the cast, by lower-case name. */
   notPeople?: Record<string, NotPerson>;
+  /** docs/32 Part 4: names read as someone else, by lower-case name. */
+  reread?: Record<string, Reread>;
   /** docs/30 Part 1: the story's groups, by key (lower case, without "the"). */
   groups?: Record<string, Group>;
   /** Custom template values (TRK-01): { templateKey: { field: value } }. */

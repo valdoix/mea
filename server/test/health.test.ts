@@ -34,7 +34,7 @@ afterAll(() => pauseJobs(false));
 describe("story health (D3)", () => {
   test("a clean stretch of story is healthy, with every part", () => {
     const h = storyHealth(chatId);
-    expect(h.parts.map((p) => p.part)).toEqual(["continuity", "leaks", "repetition", "ledger", "offscene", "lessons", "cost", "notpeople", "placenames"]);
+    expect(h.parts.map((p) => p.part)).toEqual(["continuity", "leaks", "repetition", "ledger", "offscene", "lessons", "cost", "notpeople", "reread", "placenames"]);
     // docs/30 4.2: a clean cast and clean places.
     expect(h.parts.filter((p) => p.part === "notpeople" || p.part === "placenames").map((p) => p.score)).toEqual([100, 100]);
     expect(h.parts.find((p) => p.part === "continuity")!.score).toBe(100);
