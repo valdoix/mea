@@ -406,7 +406,33 @@ export class Folder {
       const typo = chars.filter((c) => lev(norm(c.name), n, 1) <= 1);
       if (typo.length === 1) return typo[0];
     }
-    return undefined;
+    return this.blendOf(name);
+  }
+
+  /**
+   * docs/32 Part 0: a name made of one person's first name and another's surname ("Gabriel Summers"
+   * beside Gabriel Winters and Buffy Summers) is the first of them, misnamed: a model's slip, or a
+   * married name. Never when the name is already someone's, or you said it's a person.
+   */
+  blendOf(name: string): Character | undefined {
+    const n = norm(personName(name));
+    const nw = n.split(" ");
+    if (nw.length !== 2) return undefined;
+    if ((this.cfg.people ?? []).some((p) => norm(p) === n)) return undefined;
+    const full = Object.values(this.state.chars)
+      .map((c) => ({ c, w: norm(c.name).split(" ") }))
+      .filter((x) => x.w.length >= 2);
+    if (full.some((x) => x.w.join(" ") === n || x.c.aliases.some((a) => norm(a) === n))) return undefined;
+    const owners = full.filter((x) => x.w[0] === nw[0]);
+    if (owners.length !== 1 || owners[0]!.w.at(-1) === nw[1]) return undefined;
+    const owner = owners[0]!.c;
+    return full.some((x) => x.c.id !== owner.id && x.w.at(-1) === nw[1]) ? owner : undefined;
+  }
+
+  /** The names an op is written about: its subject (each of a list), its object, a cast line's people. */
+  private namedIn(op: Op): string[] {
+    const cast = op.op === "cast" && Array.isArray(op.args.list) ? (op.args.list as { name: string }[]).map((x) => x.name) : [];
+    return [...(op.subject ? this.each(op.subject) : []), ...(op.object ? [op.object] : []), ...cast.flatMap((n) => this.each(n))];
   }
 
   ensureChar(name: string, seq: number, opts: { isUser?: boolean; isMain?: boolean } = {}): Character {
@@ -772,6 +798,12 @@ export class Folder {
     }
     const ctx: Ctx = { cfg: this.cfg, changes: [], verdict: { raw: ev.op.raw, ok: true }, ev, notes: [] };
     try {
+      // docs/32 Part 0: a blended name is read as the person whose first name it is, and the line says so.
+      if (ev.source !== "user")
+        for (const part of this.namedIn(ev.op)) {
+          const c = this.blendOf(part);
+          if (c) this.warn(ctx, `nobody is called ${personName(part)}: read as ${c.name}`);
+        }
       const asPlace = this.roomAsPlace(ev.op, ev.seq);
       if (asPlace) this.applyOp(asPlace, ctx);
       // "mood Mari, Gen & Robin: tense" is said of each of them, not of one person by that name;

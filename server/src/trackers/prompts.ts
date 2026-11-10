@@ -148,7 +148,7 @@ Rules:
 - Open loops: the state lists what the story is waiting for. Did the NEW MESSAGES finish any of them? It happened on the page, not just got talked about or planned: write a loop line for it, and keep any promise's own line out of it.
 - Firsts: the first time something happens between people (a first kiss, the first "I love you", the first night together, meeting the family) gets a milestone line, so it's never staged as new again.
 - Time: estimate time passed from the action (a short exchange: +2m to +10m; a meal: +45m) unless the text states a time.
-- People: use the names the story uses. New named people get a cast line when they appear.
+- People: use the names the story uses. New named people get a cast line when they appear. Someone the state already lists keeps that exact name: never pair one person's first name with another's surname.
 - Relationships change only when the aftermath differs from before; intensity is not progress. Not everyone warms up.${o.sealed ? `\n- ${o.userName}'s inner life is the user's: never write mood, think, drive, mask, journal or bond lines from ${o.userName}'s side.` : ""}
 - Romance pace: ${o.romance}.
 Reply with ledger lines only, in this format:
