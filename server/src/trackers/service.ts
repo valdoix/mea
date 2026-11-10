@@ -1,4 +1,5 @@
 import { all, one, parseJson, run } from "../db/db";
+import { longLine, longThreads } from "./longthreads";
 import { publish } from "../lib/events";
 import { badRequest } from "../lib/http";
 import { dropAtoms, insertAtom, isDuplicate } from "../memory/atoms";
@@ -406,7 +407,18 @@ export interface TrackerPromptParts {
   config: ResolvedTrackerConfig;
 }
 
-export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string; kind: string; elsewhere?: string; focus?: string }): TrackerPromptParts {
+/** docs/33 Part 9: the long threads' top three, for the state block. Never fails the note. */
+function longNote(chatId: string, state: WorldState) {
+  try {
+    return longThreads(chatId, state)
+      .slice(0, 3)
+      .map((t) => longLine(t, state.time?.form));
+  } catch {
+    return [];
+  }
+}
+
+export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string; kind: string; elsewhere?: string; focus?: string; /** docs/33 Part 9: false where the whole list is given apart (the planner). */ long?: boolean }): TrackerPromptParts {
   const cfg = trackerConfig(chatId);
   const fold = opts.excludeMessageId ? foldAt(chatId, { excludeMessageId: opts.excludeMessageId }) : currentFold(chatId).result;
   const state = fold.state;
@@ -435,6 +447,7 @@ export function trackerPrompt(chatId: string, opts: { excludeMessageId?: string;
     factions: noteFactions(chatId, state),
     nudges: cfg.nudges,
     elsewhere: opts.elsewhere,
+    long: opts.long === false ? [] : longNote(chatId, state),
     calendar: cfg.calendar,
     season: cfg.season,
     persona: storyDials(mustChat(chatId)).persona,

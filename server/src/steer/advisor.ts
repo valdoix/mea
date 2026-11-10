@@ -25,6 +25,7 @@ import { revealsOf } from "../trackers/reveals";
 import { beatNames, todayText } from "../trackers/today";
 import { momentsOf } from "../trackers/moments";
 import type { WorldState } from "../trackers/types";
+import { dueToday, longIds, longLine, longThreads } from "../trackers/longthreads";
 
 /**
  * The advisor ("council-lite", STEER-01): before a reply, a helper model writes a short private
@@ -190,7 +191,7 @@ const ADVISOR_SYSTEM =(char: string, user: string, persona: PersonaMode | null) 
 Plan the NEXT reply only:
 - "direction": one or two sentences: where this reply should take the scene, in response to what ${user} just did or said.
 - "beats": 2–4 concrete beats to hit, in order. Small and specific; leave room for ${user} to act.
-- "threads": up to 2 open threads, promises or secrets worth touching now (only if it fits naturally): an open thread's title, or the id of something under WHERE THINGS STAND ("L1a2b3"). Anything else is dropped.
+- "threads": up to 2 open threads, promises or secrets worth touching now (only if it fits naturally): an open thread's title, or the id of something under WHERE THINGS STAND or LONG THREADS ("L1a2b3"). Anything else is dropped. A long thread marked "due today" is one of them unless the scene truly can't hold it.
 - "reminders": continuity facts the reply must respect (time, place, injuries, who knows what).
 - "avoid": up to 3 things to avoid (repeating earlier beats, rushing, an echo of the last reply).
 ${PLAYED_RULE}; ${userRule(user, persona)}.
@@ -228,7 +229,7 @@ You plan; you never write. The writer chooses every word, image and line of dial
 - no self-talk, no "Wait", no checking your own work: the pass is the labelled lines and nothing else.
 
 ${PLAYED_RULE}; ${userRule(user, persona)}.
-Reply with JSON only: {"pass":"the whole pass as labelled lines, NOW — … through VOICE — … (never a one-word tag)","direction":"one sentence","beats":["2–4 short fragments, in order"],"threads":["an open thread's title, or an id from WHERE THINGS STAND like L1a2b3; anything else is dropped"],"reminders":["…"],"avoid":["…"]}`;
+Reply with JSON only: {"pass":"the whole pass as labelled lines, NOW — … through VOICE — … (never a one-word tag)","direction":"one sentence","beats":["2–4 short fragments, in order"],"threads":["an open thread's title, or an id from WHERE THINGS STAND or LONG THREADS like L1a2b3; anything else is dropped; a long thread due today goes here unless the scene truly can't hold it"],"reminders":["…"],"avoid":["…"]}`;
 
 /** Planner beats longer than this are cut at a clause boundary (GLM writes paragraphs whatever it's told). */
 const BEAT_MAX_WORDS = 20;
@@ -331,7 +332,7 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
   const storyPart = (text: string) => `STORY SO FAR (its latest chapters, through #${story!.end_seq}${story!.story_time ? `, ${story!.story_time}` : ""}):\n${newestChapters(text, STORY_TOKENS)}`;
   try {
     const focus = [draft?.trim() || history.findLast((m) => m.role === "user")?.content, note].filter(Boolean).join("\n");
-    const tp = trackerPrompt(chatId, { kind: "story", excludeMessageId, focus });
+    const tp = trackerPrompt(chatId, { kind: "story", excludeMessageId, focus, long: false });
     const st = tp.state;
     const lens = lensOf(chatId, st);
     // docs/22 3.1: a line of a record that looks ahead at something done is answered right under it.
@@ -355,6 +356,9 @@ export async function advisorInput(chatId: string, history: HistoryMessage[], dr
       .map((t) => `${t.title}${t.status === "stalled" ? " (stalled)" : ""}${t.latest ? `: ${t.latest}` : ""} (${moment(t.lastSeq)})`)
       .slice(0, 8);
     if (open.length) parts.push(`OPEN THREADS:\n${open.map((t) => `- ${t}`).join("\n")}`);
+    // docs/33 Part 9: the few things the story owes beyond this scene, whatever the errands say.
+    const long = longThreads(chatId, st);
+    if (long.length) parts.push(`LONG THREADS (promises and plans with a day, open conflicts, secrets still kept, what the player pinned; let one surface when its day comes or the scene gives room, never several at once; a secret comes out only through what people can see and infer):\n${long.map((t) => `- ${longLine(t, st.time?.form)}`).join("\n")}`);
     const origins = promiseOrigins(st, history, names, history.at(-8)?.seq ?? Infinity, [...history.slice(-2).map((m) => m.content), focus].join("\n"));
     if (origins.length) parts.push(`WHERE THE OPEN PROMISES WERE MADE (what was said then; the past, as it happened):\n${origins.join("\n\n")}`);
     // docs/20 1.2: the day in order, so a plan that retells today places it where it happened.
@@ -430,8 +434,13 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
 
 /** A plan's threads as the ledger has them. With the trackers off there's no ledger to ask. */
 function fromLedger(chatId: string, plan: Plan, excludeMessageId?: string): Plan {
-  if (!plan.threads.length || trackerConfig(chatId).mode === "off") return plan;
-  return { ...plan, threads: ledgerThreads(foldAt(chatId, { excludeMessageId }).state, plan.threads) };
+  if (trackerConfig(chatId).mode === "off") return plan;
+  const st = foldAt(chatId, { excludeMessageId }).state;
+  const long = longThreads(chatId, st);
+  const threads = ledgerThreads(st, plan.threads, longIds(long));
+  // docs/33 Part 9: on its day, a dated thread is in the plan whether the planner picked it or not.
+  const due = dueToday(long).map((t) => t.text).filter((t) => !threads.includes(t));
+  return { ...plan, threads: [...threads, ...due.slice(0, 1)] };
 }
 
 /**
@@ -477,7 +486,7 @@ export async function rescuePlan(chatId: string, history: HistoryMessage[], sign
 
 /** H3: the separate planner's plan, as the writer gets it: the pass is done, so it writes only the prose. */
 export function directorPlanText(p: Plan) {
-  const body = [p.pass.trim(), p.direction ? `Direction: ${p.direction}` : "", p.beats.length ? `Beats:\n${p.beats.map((b) => `- ${b}`).join("\n")}` : "", p.reminders.length ? `Keep straight: ${p.reminders.join("; ")}` : "", p.avoid.length ? `Avoid: ${p.avoid.join("; ")}` : ""].filter(Boolean).join("\n");
+  const body = [p.pass.trim(), p.direction ? `Direction: ${p.direction}` : "", p.beats.length ? `Beats:\n${p.beats.map((b) => `- ${b}`).join("\n")}` : "", p.threads.length ? `Threads worth touching: ${p.threads.join("; ")}` : "", p.reminders.length ? `Keep straight: ${p.reminders.join("; ")}` : "", p.avoid.length ? `Avoid: ${p.avoid.join("; ")}` : ""].filter(Boolean).join("\n");
   return `<director-plan>\n${body}\n</director-plan>\nThe planning pass for this reply is done, above. Don't plan again and don't open with <think>: write only the reply, following the plan; never mention it. The plan says what happens: every word, image and line of dialogue is yours. Where the plan and the story so far disagree about what already happened, the story is right.`;
 }
 

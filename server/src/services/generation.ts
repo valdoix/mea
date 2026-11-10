@@ -60,7 +60,7 @@ import type { PromptExtra } from "../prompt/assemble";
 import { gatherLanes } from "../prompt/lanes";
 import { offpageFilter } from "../accuracy/offpage";
 import { craftOn, craftReport } from "../steer/craft";
-import { angleNote, type Angle, digestNote, keptPrefix, rejectedDigest, takeShape as rejectedShape } from "../steer/swipes";
+import { ANGLES, angleNote, type Angle, digestNote, keptPrefix, rejectedDigest, takeShape as rejectedShape } from "../steer/swipes";
 import { finishRequest, getRequest, startRequest } from "./requests";
 import { anchorExtra } from "../accuracy/anchor";
 import { canonOf } from "../accuracy/canoncut";
@@ -959,6 +959,9 @@ export async function startStory(chatId: string, action: StoryAction, opts: { me
   } else if (action === "swipe") {
     messageId = last!.id;
     swipeIdx = addSwipe(last!.id);
+    // docs/33 9.3: why the take before was passed over, so a later take can be told.
+    const passedOver = { ...(note ? { note: note.slice(0, 600) } : {}), ...(opts.angle ? { angle: ANGLES[opts.angle].label } : {}), ...(opts.auto ? { auto: opts.auto } : {}) };
+    if (Object.keys(passedOver).length) updateSwipe(messageId, swipeIdx, { meta: { passedOver } });
   } else {
     // continue, or redo (whose new take already holds the kept part)
     messageId = last!.id;

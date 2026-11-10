@@ -150,11 +150,12 @@ export function notHereThings(st: WorldState | null | undefined, plan: string | 
 }
 
 /** docs/22 3.2: a plan can't carry a thread the ledger doesn't have. An open loop's id reads as the loop, an open thread's title stays, and the rest goes. */
-export function ledgerThreads(st: WorldState, threads: string[]) {
-  const loops = new Map(openLoops(st).map((l) => [l.id, l.what]));
+export function ledgerThreads(st: WorldState, threads: string[], long: Map<string, string> = new Map()) {
+  // docs/33 Part 9: a long thread's id (a secret's "S…", a pin's "P…") reads as its words too.
+  const loops = new Map([...long, ...openLoops(st).map((l) => [l.id, l.what] as const)]);
   const titles = new Set(Object.values(st.threads).filter((t) => t.status !== "resolved").map((t) => t.title.toLowerCase()));
   return threads.flatMap((t) => {
-    const what = loops.get(t.match(/\bL[0-9a-z]{5}\b/)?.[0] ?? "");
+    const what = loops.get(t.match(/\b[LSP][0-9a-z]{5}\b/)?.[0] ?? "");
     return what ? [what] : titles.has(t.trim().toLowerCase()) ? [t.trim()] : [];
   });
 }

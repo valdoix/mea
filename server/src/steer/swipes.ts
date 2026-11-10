@@ -1,3 +1,4 @@
+import { all, parseJson } from "../db/db";
 import { cleanText } from "../memory/text";
 import { getMessageRow, getSwipes } from "../services/chats";
 
@@ -43,25 +44,73 @@ export function takeShape(text: string): { opening: string; beat: string } {
   return { opening, beat: clip(best, 150) };
 }
 
+/** docs/33 9.3: why the take before this one was passed over, as it was asked for (startStory). */
+export interface PassedOver {
+  /** Your note with the new take, as you wrote it. */
+  note?: string;
+  /** The angle you picked ("Quieter"). */
+  angle?: string;
+  /** Mea asked for it itself ("guard": a check the take failed). */
+  auto?: string;
+}
+
+export interface Take {
+  opening: string;
+  beat: string;
+  /** docs/33 9.3: why it was passed over, when Mea knows. */
+  why?: string[];
+}
+
+/** What the checks found wrong with each take of a reply and nobody dismissed, by take. */
+function checksOf(messageId: string): Map<number, string[]> {
+  const out = new Map<number, string[]>();
+  for (const r of all<{ swipe_idx: number; issues: string }>("SELECT swipe_idx, issues FROM continuity_flags WHERE message_id = ? AND status = 'open'", messageId)) {
+    const found = parseJson<{ claim?: string; conflict?: string; dismissed?: boolean }[]>(r.issues, [])
+      .filter((i) => !i.dismissed && i.claim?.trim())
+      .slice(0, 2)
+      .map((i) => `the check found «${clip(i.claim!.trim(), 120)}»${i.conflict?.trim() ? ` against the record: ${clip(i.conflict.trim(), 140)}` : ""}`);
+    if (found.length) out.set(r.swipe_idx, found);
+  }
+  return out;
+}
+
 /**
  * Every earlier take of a reply being swiped, oldest first (A2's `rejectedDigest`): what each
- * opened with and its main beat. Empty when there's nothing to compare with.
+ * opened with and its main beat, and (docs/33 9.3) why it was passed over when Mea knows: the note
+ * you asked for the next take with, or what a check found wrong with it. Empty when there's
+ * nothing to compare with.
  */
-export function rejectedDigest(messageId: string): { opening: string; beat: string }[] {
+export function rejectedDigest(messageId: string): Take[] {
   const m = getMessageRow(messageId);
   if (!m) return [];
-  return getSwipes(messageId)
+  const swipes = getSwipes(messageId);
+  const checks = checksOf(messageId);
+  return swipes
     .filter((s) => s.status !== "streaming" && s.content.trim())
     .slice(-6)
-    .map((s) => takeShape(s.content))
+    .map((s) => {
+      const t: Take = takeShape(s.content);
+      // The take that came next says why this one was passed over; one still being written is this
+      // very request, whose note the prompt carries already.
+      const next = swipes.find((x) => x.idx > s.idx && x.status !== "streaming");
+      const p = next ? parseJson<{ passedOver?: PassedOver }>(next.meta, {}).passedOver : undefined;
+      const why = [
+        p?.note && p.auto !== "guard" ? `the player said «${clip(p.note, 200)}»` : "",
+        p?.auto === "guard" && p.note ? `it failed a check: ${clip(p.note, 200)}` : "",
+        p?.angle ? `the player asked for ${p.angle.toLowerCase()}` : "",
+        ...(checks.get(s.idx) ?? []),
+      ].filter(Boolean);
+      return why.length ? { ...t, why } : t;
+    })
     .filter((t) => t.opening);
 }
 
-/** The note a swipe carries: what the earlier takes did, and "do something else". */
-export function digestNote(takes: { opening: string; beat: string }[]): string {
+/** The note a swipe carries: what the earlier takes did, why they were passed over when known, and "do something else". */
+export function digestNote(takes: Take[]): string {
   if (!takes.length) return "";
-  const lines = takes.map((t, i) => `${takes.length > 1 ? `${i + 1}. ` : ""}Opened «${t.opening}»${t.beat ? `; main beat: «${t.beat}»` : ""}`);
-  return `[A new take of this reply. The player passed over ${takes.length === 1 ? "an earlier take" : `${takes.length} earlier takes`}:\n${lines.join("\n")}\nDo something else: a different opening and a different main beat${takes.length > 1 ? ", and don't drift back to any of them" : ""}.]`;
+  const lines = takes.map((t, i) => `${takes.length > 1 ? `${i + 1}. ` : ""}Opened «${t.opening}»${t.beat ? `; main beat: «${t.beat}»` : ""}${t.why?.length ? `\n   Passed over because ${t.why.join("; ")}.` : ""}`);
+  const why = takes.some((t) => t.why?.length) ? " Whatever made a take wrong stays out of this one." : "";
+  return `[A new take of this reply. The player passed over ${takes.length === 1 ? "an earlier take" : `${takes.length} earlier takes`}:\n${lines.join("\n")}\nDo something else: a different opening and a different main beat${takes.length > 1 ? ", and don't drift back to any of them" : ""}.${why}]`;
 }
 
 /**

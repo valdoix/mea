@@ -10,6 +10,7 @@ import { parseStoryTime } from "../trackers/clock";
 import { exposureFor, nudgeExposure } from "../trackers/exposure";
 import { pressureAction, pressuresView } from "../trackers/pressures";
 import { loopsFor, promisesFor, setLoop, setPromise } from "../trackers/promises";
+import { longThreadsFor, pinLong, unpinLong } from "../trackers/longthreads";
 import { canonOf, laterItem, moveCutoff, queueSuggest, setCanon } from "../accuracy/canoncut";
 import { canonSchema, mustChat } from "../services/chats";
 
@@ -166,3 +167,15 @@ offpage.post("/chats/:id/loops/:lid", async (c) => {
   const b = await body(c, z.object({ action: z.enum(["done", "dropped", "open"]) }));
   return c.json(setLoop(c.req.param("id"), c.req.param("lid"), b.action));
 });
+
+// ---------- docs/33 Part 9: long threads ----------
+
+offpage.get("/chats/:id/long-threads", (c) => c.json({ threads: longThreadsFor(c.req.param("id")) }));
+
+/** A thread of your own, kept on the list until you take it off; "due" dates it ("this week"). */
+offpage.post("/chats/:id/long-threads/pin", async (c) => {
+  const b = await body(c, z.object({ text: z.string().min(1).max(300), due: z.string().max(60).optional() }));
+  return c.json({ threads: pinLong(c.req.param("id"), b.text, b.due) });
+});
+
+offpage.delete("/chats/:id/long-threads/pin/:pid", (c) => c.json({ threads: unpinLong(c.req.param("id"), c.req.param("pid")) }));
