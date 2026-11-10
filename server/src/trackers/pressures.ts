@@ -8,7 +8,7 @@ import { getMessageRow, mustChat, updateChat } from "../services/chats";
 import { storyDials } from "../services/layers";
 import { seeded } from "../sim/dice";
 import { castKey, castProfiles, currentFold, linesToOps, writeEvents } from "./store";
-import { passingFace } from "./whois";
+import { isAnimal, passingFace } from "./whois";
 import { userEditAt } from "./service";
 import type { Character, Pressure, WorldState } from "./types";
 
@@ -78,8 +78,12 @@ const GROUNDS: [RegExp, string][] = [
   [/\b(lonely|alone|solitary|recluse)\b/i, "is lonelier than they will ever admit"],
 ];
 
+const ROMANCE_CARD = /\b(?:in love with|engaged|decided to leave town|deserve to be loved)\b/i;
+
 /** The draw for one person: grounded if the story gives a reason, else the genre's deck. Seeded. */
-export function drawPressure(chatId: string, st: WorldState, c: Character, draw = 1, avoid?: string): { text: string; by: Pressure["by"] } {
+export function drawPressure(chatId: string, st: WorldState, c: Character, draw = 1, avoid?: string): { text: string; by: Pressure["by"] } | null {
+  // docs/33 12.5: a pet carries no hidden pressure ("Ruth is being blackmailed").
+  if (isAnimal(c)) return null;
   const r = seeded(chatId, c.firstSeq, `pressure:${c.id}:${draw}`);
   // Grounded: a fear the trackers already know, then the card (main character) or their Codex page.
   if (draw === 1 && c.drives.fear) return { text: `carries a fear they hide: ${c.drives.fear.replace(/\.$/, "")}`, by: "grounded" };
@@ -89,8 +93,13 @@ export function drawPressure(chatId: string, st: WorldState, c: Character, draw 
   const about = [card?.description, card?.personality, page?.description, ...(page ? JSON.parse(page.facts || "[]") : [])].filter(Boolean).join(" ");
   const grounds = GROUNDS.filter(([re]) => re.test(about)).map(([, t]) => t);
   if (grounds.length && draw <= grounds.length) return { text: grounds[Math.floor(r() * grounds.length)]!, by: "grounded" };
+  // docs/33 12.5: the deck is for people the story has said something about. With nothing on record,
+  // a card is a coin toss that the story then has to live with.
+  if (!about.trim() && !c.isMain && !c.drives.want && !c.traits.length) return null;
   const genre = storyDials(chat).genre ?? "";
-  const deck = [...(DECKS[genre] ?? []), ...(DECKS[genre] ?? []), ...COMMON];
+  // And never a card the records contradict: someone settled with a partner isn't "engaged, and nobody here knows".
+  const settled = Object.values(st.ladders).some((l) => (l.from === c.id || l.to === c.id) && l.tier >= 5);
+  const deck = [...(DECKS[genre] ?? []), ...(DECKS[genre] ?? []), ...COMMON].filter((t) => !(settled && ROMANCE_CARD.test(t)));
   // Not someone else's, and (on a redraw) not the one they had.
   const taken = new Set([...Object.values(st.chars).filter((x) => x.id !== c.id).map((x) => x.pressure?.text), avoid].filter(Boolean));
   const free = deck.filter((t) => !taken.has(t));
@@ -101,7 +110,7 @@ export function drawPressure(chatId: string, st: WorldState, c: Character, draw 
 
 /** Someone the story keeps coming back to: the main character, or present across several messages. */
 /** docs/30 3.1: a passing face ("woman in brown cardigan") draws none until it's promoted. */
-const important = (c: Character, pinned?: boolean) => !c.isUser && !c.dead && (c.isMain || c.lastSeq - c.firstSeq >= 6) && !passingFace(c, pinned);
+const important = (c: Character, pinned?: boolean) => !c.isUser && !c.dead && !isAnimal(c) && (c.isMain || c.lastSeq - c.firstSeq >= 6) && !passingFace(c, pinned);
 const pinnedIn = (chatId: string) => {
   const profiles = castProfiles(chatId);
   return (c: Character) => Boolean(profiles[castKey(c.name)]?.pinned);
@@ -132,7 +141,7 @@ export function pressuresAfterReply(chatId: string, messageId: string, swipeIdx?
     const p = c.pressure;
     if (!p) {
       const d = drawPressure(chatId, st, c);
-      lines.push(line(c.name, d.text, ["stage: hidden", `by: ${d.by}`, "draw: 1"], "drawn"));
+      if (d) lines.push(line(c.name, d.text, ["stage: hidden", `by: ${d.by}`, "draw: 1"], "drawn"));
       continue;
     }
     if (p.locked || p.stage === "resolved" || p.stage === "head") continue;
@@ -156,6 +165,7 @@ export function pressureAction(chatId: string, charId: string, action: PressureA
   if (action === "redraw") {
     const draws = (p?.draws ?? 0) + 1;
     const d = drawPressure(chatId, st, c, draws, p?.text);
+    if (!d) throw badRequest(`Nothing is on record about ${c.name} to draw from yet. Write one instead.`);
     lines.push(line(c.name, d.text, ["stage: hidden", `by: ${d.by}`, `draw: ${draws}`, "unlock"], "you redrew it"));
   } else if (action === "write") {
     if (!text?.trim()) throw badRequest("Write the pressure first");
@@ -210,7 +220,8 @@ registerLane("pressures", (ctx) => {
   if (ctx.kind !== "story" && ctx.kind !== "continue") return null;
   const st = ctx.state;
   if (!st) return null;
-  const here = Object.values(st.chars).filter((c) => !c.isUser && present(c) && c.pressure && c.pressure.stage !== "resolved");
+  // (A pressure drawn for a pet before docs/33 stays in the log; it is never played.)
+  const here = Object.values(st.chars).filter((c) => !c.isUser && present(c) && c.pressure && c.pressure.stage !== "resolved" && !(isAnimal(c) && c.pressure.by !== "you"));
   if (!here.length) return null;
   return lane("pressures", null, `What these people carry and haven't said (play it through behaviour; never announce it, and nobody else knows):\n${here.map((c) => `- ${c.name} ${c.pressure!.text}. ${STAGE[c.pressure!.stage]}.`).join("\n")}`, { depth: 1 });
 });

@@ -1,4 +1,5 @@
 import type { Op, WorldState } from "../trackers/types";
+import { isAnimal } from "../trackers/whois";
 import { chanceIn, d6, pick, rng, weighted } from "./dice";
 import { type DirectorLean, escalationTarget, lean, measureTension, type Personality, targetTension } from "./director";
 import { routeFor } from "./crossings";
@@ -66,6 +67,10 @@ export interface TickInput {
   namedDay?: string | null;
   /** How things stand right now, from the lorebooks' CURRENT entries. */
   situations?: Situation[];
+  /** docs/33 12.2: the message the last two chapters start at. A thread not touched since isn't live. */
+  liveFrom?: number;
+  /** docs/33 12.3: what the story set up and left open (the long threads): a wronged party, a promised arrival, a pending result. */
+  long?: { id: string; kind: string; text: string }[];
 }
 
 /** A CURRENT lore entry ("CURRENT - Hellions Raid Sunnydale"): something already under way. */
@@ -765,10 +770,16 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
   const waiting = new Set(Object.values(st.sim.proposals).map((p) => p.lead));
   const lean = new Set(inp.genres.flatMap((g) => GENRE_LEAN[g.toLowerCase()] ?? []));
   const user = [...r.actors.values()].find((a) => a.isUser);
+  // docs/33 12.4: a kind turned down three times in the last six answers rests until other answers push those out.
+  const resting = new Set<string>();
+  const lately = st.sim.declined.filter((k) => !k.startsWith("news:")).slice(-6).map((k) => k.split("|")[1] ?? "");
+  for (const k of lately) if (k && lately.filter((x) => x === k).length >= 3) resting.add(k);
   const push = (c: Omit<Cand, "key" | "score"> & { score: number }) => {
     const key = `${c.lead}|${c.kind}|${[...c.grounds].sort().join(",")}`;
-    if (declined.has(key) || waiting.has(c.lead) || busy(c.lead) || has(c.lead, c.kind)) return;
+    if (declined.has(key) || waiting.has(c.lead) || busy(c.lead) || has(c.lead, c.kind) || resting.has(c.kind)) return;
     const a = r.actors.get(c.lead);
+    // docs/33 12.1: a pet leads no subplot (and isn't "being blackmailed").
+    if (isAnimal(st.chars[c.lead] ?? (a ? { name: a.name } : undefined))) return;
     if (!c.lead.startsWith("faction:") && !canLead(a).ok) return;
     // docs/30 3.1: a passing face is nobody's subplot, not even as its target.
     if (c.target && r.actors.get(c.target)?.passing) return;
@@ -780,11 +791,29 @@ export function seedCandidates(inp: TickInput, awake: RActor[]): Cand[] {
   // Open threads that involve someone off the page.
   for (const t of Object.values(st.threads)) {
     if (t.status === "resolved") continue;
+    // docs/33 12.2: a live thread only (touched in the last two chapters): a day-one waffle isn't a subplot at #926.
+    if (inp.liveFrom != null && t.lastSeq < inp.liveFrom) continue;
     const text = `${t.title} ${t.latest ?? ""}`;
     for (const a of r.actors.values()) {
       if (a.ring === "onstage" || a.isUser || !threadNames(text, a.name)) continue;
-      const kind = kindFromText(text) ?? "pursuit";
-      push({ kind, lead: a.id, leadName: a.name, cast: [], premise: `${a.name} has their own stake in "${t.title}": ${t.latest ?? t.title}.`, grounds: [`thread:${t.id}`], score: 3, why: `the thread "${t.title}"` });
+      // And a want of their own: with nothing recorded that they want, "has their own stake" was filler.
+      const want = a.want?.trim();
+      const kind = kindFromText(text);
+      if (!want && !kind) continue;
+      const wants = want ? ` ${a.name} wants ${want.replace(/^to\s+/i, "to ").replace(/\.$/, "")}.` : "";
+      push({ kind: kind ?? "pursuit", lead: a.id, leadName: a.name, cast: [], premise: `${(t.latest ?? t.title).replace(/\.$/, "")}.${wants}`, ...(want ? { want: want.startsWith("to ") ? want : `to ${want}` } : {}), grounds: [`thread:${t.id}`], score: 3, why: `the thread "${t.title}", last touched at #${t.lastSeq}` });
+    }
+  }
+  // docs/33 12.3: what the story set up and left open: whoever it names off the page has a move to make.
+  for (const l of inp.long ?? []) {
+    // Whoever it names first: "Eleanor's shopping trip with Buffy and Dawn" is Eleanor's move, not Dawn's.
+    const named = [...r.actors.values()]
+      .filter((a) => a.ring !== "onstage" && !a.isUser && threadNames(l.text, a.name))
+      .sort((a, b) => l.text.indexOf(a.name.split(/\s+/)[0]!) - l.text.indexOf(b.name.split(/\s+/)[0]!))
+      .slice(0, 1);
+    for (const a of named) {
+      const kind = kindFromText(l.text) ?? (l.kind === "conflict" ? "rift" : l.kind === "secret" ? "secret" : "pursuit");
+      push({ kind, lead: a.id, leadName: a.name, cast: [], premise: `${l.text.replace(/\.$/, "")}. ${a.name} hasn't made their move yet.`, ...(a.want ? { want: a.want.startsWith("to ") ? a.want : `to ${a.want}` } : {}), grounds: [`long:${l.id}`], score: 4, why: l.kind === "conflict" ? "something the story left unsettled" : l.kind === "secret" ? "a secret still kept" : "something the story promised" });
     }
   }
   // Debts and promises with someone off the page.
@@ -978,15 +1007,50 @@ function cardFor(arc: Arc, beat: Beat, inp: TickInput, ending: boolean, end?: En
   };
 }
 
+/**
+ * docs/33 12.6: an incident made of the story's own places, with how word of it could reach the scene.
+ * The old pool was one town for every story ("a delivery truck blocked the high street"), and nothing
+ * in it said how anyone would hear of it, so none reached the page.
+ */
+const ROUTES: Record<string, string[]> = {
+  modern: ["it was on the car radio", "someone mentions it in passing", "seen on the drive past", "the local paper has it"],
+  future: ["it was on the public feed", "someone mentions it in passing", "seen on the way past"],
+  historic: ["the talk of the market", "a neighbour brings word", "seen from the road"],
+  fantasy: ["the talk of the market", "a carter brings word", "seen from the road"],
+};
+export function ownIncident(inp: TickInput, r: () => number): string | null {
+  const places = Object.values(inp.state.places).filter((p) => /^\p{Lu}/u.test(p.name) && !/'s\b|→|\(/.test(p.name));
+  const of = (re: RegExp) => places.filter((p) => re.test(p.name)).map((p) => p.name);
+  const night = Math.floor((inp.now % 1440) / 60) < 6 || Math.floor((inp.now % 1440) / 60) >= 22;
+  const modern = inp.tech === "modern" || inp.tech === "future";
+  const out: string[] = [];
+  for (const s of of(/\b(?:street|drive|road|avenue|lane|boulevard|way)$/i)) out.push(modern ? `A water main broke on ${s}; one lane was closed for hours` : `A cart lost a wheel on ${s} and blocked it for hours`, night ? `Sirens went down ${s} in the small hours, then nothing` : `Roadworks started on ${s} without warning`);
+  for (const s of of(/\b(?:mall|market|plaza|arcade|bazaar)\b/i)) out.push(night ? `An alarm rang at ${s} for half the night` : `${s} was busier than anyone expected; the lot was full by ten`);
+  for (const s of of(/\b(?:high|school|academy|college|university)\b/i)) if (!night) out.push(`${s} let out early over a burst pipe`);
+  for (const s of of(/\b(?:hospital|general|clinic)\b/i)) out.push(`${s} had a long night: ambulances in and out until morning`);
+  for (const s of of(/\b(?:cemetery|graveyard|churchyard)\b/i)) out.push(night ? `Someone left a gate open at ${s}; the groundskeeper found it at dawn` : `A funeral at ${s} tied up the road beside it`);
+  for (const s of of(/\b(?:harbou?r|docks?|pier|beach|marina)\b/i)) out.push(`${s} was closed for the day`);
+  if (!out.length) return null;
+  const recent = inp.state.sim.incidents.slice(-5).map((i) => i.text);
+  const fresh = out.filter((t) => !recent.some((x) => x.startsWith(t)));
+  if (!fresh.length) return null;
+  const routes = ROUTES[inp.tech] ?? ROUTES.modern!;
+  return `${pick(r, fresh)} (${pick(r, routes)}).`;
+}
+
 const INCIDENTS = {
-  storm: ["The power went out across half of {town} for an hour.", "A tree came down across the main road in the wind.", "The harbour closed until the weather turned."],
-  fog: ["Fog shut the roads out of {town} until noon.", "A ship sounded its horn all night somewhere in the fog."],
+  storm: ["The power went out across half of {town} for an hour.", "A tree came down across the main road in the wind."],
+  fog: ["Fog shut the roads out of {town} until noon."],
   night: ["Sirens went past in the small hours, then nothing.", "Someone's dog howled for an hour after midnight.", "A fight broke out outside a bar and spilled into the street."],
-  day: ["The market was busier than usual; everyone was talking about prices.", "A delivery truck blocked the high street for most of the morning.", "Roadworks started on the main street without warning.", "A busker drew a crowd in the square."],
+  day: ["A delivery truck blocked the main road for most of the morning.", "Roadworks started on the main road without warning."],
   holiday: ["{day} brought crowds into the centre of {town}.", "Bunting went up all over {town} for {day}."],
 };
 
 function incident(inp: TickInput, r: () => number): string | null {
+  // The story's own places first; the general pool only for weather and named days, or where no place is known yet.
+  const own = !inp.namedDay && !(inp.weather && /storm|heavy|gale|fog/.test(inp.weather)) ? ownIncident(inp, r) : null;
+  if (own) return own;
+  if (!inp.namedDay && !(inp.weather && /storm|heavy|gale|windy|fog/.test(inp.weather)) && Object.keys(inp.state.places).length >= 6) return null;
   const town = inp.roster.town;
   const h = Math.floor((inp.now % 1440) / 60);
   const pool = inp.namedDay ? INCIDENTS.holiday : inp.weather && /storm|heavy|gale|windy/.test(inp.weather) ? INCIDENTS.storm : inp.weather && /fog/.test(inp.weather) ? INCIDENTS.fog : h < 6 || h >= 22 ? INCIDENTS.night : INCIDENTS.day;

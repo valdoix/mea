@@ -44,10 +44,13 @@ describe("hidden pressures (E1)", () => {
   test("a passing stranger doesn't draw one; someone who stays does, from the deck", () => {
     reply("Joss comes up the stairs.", ["cast: Joss@spot"]);
     expect(joss().pressure).toBeUndefined();
+    // docs/33 12.5: and only once the story has said something about them.
     for (let i = 0; i < 6; i++) reply(`Joss and Mira talk (${i}).`, ["cast: Joss@spot"]);
+    expect(joss().pressure).toBeUndefined();
+    reply("Joss, salt in his beard, sits.", ["cast: Joss@spot", "trait Joss: grey beard; a fisherman's hands"]);
     expect(joss().pressure).toMatchObject({ by: "deck", stage: "hidden" });
     // Seeded: drawing again for the same draw gives the same card.
-    expect(drawPressure(chatId, state(), joss(), 1).text).toBe(drawPressure(chatId, state(), joss(), 1).text);
+    expect(drawPressure(chatId, state(), joss(), 1)!.text).toBe(drawPressure(chatId, state(), joss(), 1)!.text);
   });
 
   test("the model can't write one", () => {
@@ -82,7 +85,7 @@ describe("hidden pressures (E1)", () => {
     reply("Wind.");
     expect(mira().pressure?.stage).toBe("hidden");
     const before = joss().pressure!.text;
-    const expected = drawPressure(chatId, state(), joss(), 2, before).text;
+    const expected = drawPressure(chatId, state(), joss(), 2, before)!.text;
     pressureAction(chatId, joss().id, "redraw");
     expect(joss().pressure).toMatchObject({ draws: 2, text: expected });
     expect(expected).not.toBe(before);
