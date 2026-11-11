@@ -181,7 +181,10 @@ describe("only the entry a change is about", () => {
     // A memory about what the entry covers still reaches it.
     createAtom(chatId, { type: "fact", content: "Wren goes by Ferrywoman since the river took her brother", entities: ["Wren"], importance: 6, messageIds: [msgs[9]!] });
     createAtom(chatId, { type: "fact", content: "Wren goes by Pierkid around Joss", entities: ["Wren", "Joss"], importance: 6, messageIds: [msgs[9]!] });
+    // docs/33 8.5: one new memory waits for more; asked now, it's read.
     await runKeepup(chatId);
+    expect(on(belief)).toHaveLength(0);
+    await runKeepup(chatId, undefined, { now: true });
     expect(on(belief).flatMap((c) => c.diff.ops.map((o) => o.value))).toEqual(["Ferrywoman"]);
     expect(on(pair).flatMap((c) => c.diff.ops.map((o) => o.value))).toEqual(["Pierkid"]);
   });

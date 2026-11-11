@@ -171,6 +171,16 @@ export function thinkRouter() {
 const PLAN_MIN_WORDS = 15;
 
 /**
+ * docs/33 8.2: the plan step's share of the story prompt where the provider keeps no prompt cache.
+ * The plan needs the state, today, the long threads and the last stretch of the scene, not the whole
+ * window again: at 0.6 one story's plan went from 77k tokens to 43k, keeping the last 29 messages
+ * and half the recalled memory. With a cache the same prompt is sent, since its prefix is then read
+ * back cheaply for the reply.
+ */
+export const PLAN_SCALE = 0.6;
+export const planScale = (cached: boolean) => (cached ? 1 : PLAN_SCALE);
+
+/**
  * A step header, with the block tags the pass names after it ("NOW <world> <records> —") or a note in
  * brackets. The label can stand bare before a capital ("NOW Sun ~16:30", "SEAL SAID: …"); a shout in
  * the story ("NOW you listen") runs on in lower case.
@@ -1051,7 +1061,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
    * Returns the plan, or null when none came back.
    */
   const planStep = async (): Promise<string | null> => {
-    const pp = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, planOnly: true });
+    const pp = await prepare(gen.chatId, "story", { excludeMessageId: action === "swipe" ? gen.messageId : undefined, feedback, profileId: p.resolved.profile.id, planOnly: true, targetScale: planScale(Boolean(p.cache)) });
     const rid = requestFor(pp, { chatId: gen.chatId, messageId: gen.messageId, kind: "plan" });
     const ctl = new AbortController();
     const onUserAbort = () => ctl.abort();

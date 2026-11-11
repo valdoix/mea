@@ -129,7 +129,7 @@ function afterOpen(opts: { jobs?: boolean }) {
     await runDetailsJob(p as { bookId: string; characterId?: string; entryId?: string; extra?: string }, job);
   });
   registerJob("lore.keepup", async (p, job) => {
-    await runKeepup(String(p.chatId), job);
+    await runKeepup(String(p.chatId), job, { now: Boolean(p.now) });
   });
   registerJob("music.lyrics", async () => lyricsStep());
   registerJob("music.sheets", async () => sheetsStep());

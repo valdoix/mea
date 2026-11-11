@@ -480,6 +480,14 @@ async function proposeCore(chatId: string, e: ScanEntry, ops: FactOp[], job?: Jo
 
 // ---------- the job ----------
 
+/**
+ * docs/33 8.5: keep-up reads an entry once it has this many new memories about it… One story's
+ * keep-up made 1,838 calls over 277 scenes, most of them one entry with one new memory.
+ */
+export const KEEPUP_BATCH = 3;
+/** …or once this many messages have passed since it was last read, whatever it has. */
+export const KEEPUP_WAIT = 30;
+
 function cursor(entryId: string, chatId: string) {
   return one<{ seq: number; atoms_at: number }>("SELECT seq, atoms_at FROM lore_keepup WHERE entry_id = ? AND chat_id = ?", entryId, chatId) ?? { seq: 0, atoms_at: 0 };
 }
@@ -505,7 +513,7 @@ export interface KeepupResult {
  * what the trackers and the new memories changed since the last check, as cards or (by the book's
  * trust level) applied with a chip.
  */
-export async function runKeepup(chatId: string, job?: JobContext, opts: { memories?: boolean } = {}): Promise<KeepupResult> {
+export async function runKeepup(chatId: string, job?: JobContext, opts: { memories?: boolean; now?: boolean } = {}): Promise<KeepupResult> {
   const res: KeepupResult = { proposed: [], applied: [], core: [] };
   const cfg = memoryConfig();
   const chat = getChatRow(chatId);
@@ -546,6 +554,9 @@ export async function runKeepup(chatId: string, job?: JobContext, opts: { memori
       if (read.at !== cur.atoms_at) setCursor(e.id, chatId, latest, read.at);
       continue;
     }
+    // docs/33 8.5: an entry with a memory or two waits for more (one call reads them together),
+    // unless it hasn't been read in a while. A tracker change is never kept waiting.
+    if (!opts.now && !wants && atoms.length < KEEPUP_BATCH && cur.seq > 0 && latest - cur.seq < KEEPUP_WAIT) continue;
     const facts = factsNow(e.id, chatId);
     let ops: FactOp[] = wants ? trackerOps(e.id, chatId, wants, facts, { changes, onPath }) : [];
     const taken = new Set(ops.map((o) => o.factId ?? `slot:${o.slot}`));

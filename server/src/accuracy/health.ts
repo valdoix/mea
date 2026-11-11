@@ -189,8 +189,8 @@ function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<str
   })();
   parts.push({ part: "lessons", label: "Lessons", score: clamp(100 - (broken.length / Math.max(1, n)) * 80 - strong * 5), detail: `${broken.length} broken${strong ? ` · ${strong} keep${strong === 1 ? "s" : ""} slipping` : ""}`, open: { dock: "story", section: "lessons" }, ...(broken[0] ? { ask: `#${broken.at(-1)!.reply.seq} broke a kept lesson: ${broken.at(-1)!.issue.fix}` } : {}) });
   // Cost: how full the prompts run, and what replies cost when they're paid.
-  const gens = all<{ prompt_tokens: number | null; est: number | null; cost: number | null; trace: string | null }>(
-    `SELECT prompt_tokens, est_prompt_tokens AS est, cost, json_extract(trace, '$.budget.contextTarget') AS trace FROM generations WHERE chat_id = ? AND task = 'story' AND status = 'done' ORDER BY started_at DESC LIMIT ?`,
+  const gens = all<{ prompt_tokens: number | null; est: number | null; cost: number | null; trace: string | null; model: string | null; chars: number | null }>(
+    `SELECT prompt_tokens, est_prompt_tokens AS est, cost, json_extract(trace, '$.budget.contextTarget') AS trace, model_id AS model, length(request) AS chars FROM generations WHERE chat_id = ? AND task = 'story' AND status = 'done' ORDER BY started_at DESC LIMIT ?`,
     chatId,
     WINDOW,
   );
@@ -198,7 +198,15 @@ function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<str
   const avgFull = full.length ? full.reduce((a, b) => a + b, 0) / full.length : 0;
   const paid = gens.filter((g) => g.cost != null && g.cost > 0);
   const avgCost = paid.length ? paid.reduce((a, g) => a + g.cost!, 0) / paid.length : 0;
-  parts.push({ part: "cost", label: "Cost", score: clamp(100 - Math.max(0, avgFull - 0.75) * 300), detail: `prompts ${Math.round(avgFull * 100)}% full${avgCost ? ` · $${avgCost.toFixed(3)} a reply` : ""}`, open: { href: "/settings/usage" } });
+  const over = overBilled(gens);
+  parts.push({
+    part: "cost",
+    label: "Cost",
+    score: clamp(100 - Math.max(0, avgFull - 0.75) * 300 - (over ? 25 : 0)),
+    detail: `prompts ${Math.round(avgFull * 100)}% full${avgCost ? ` · $${avgCost.toFixed(3)} a reply` : ""}${over ? ` · ${over.model} counts about ${over.times}× what Mea sends` : ""}`,
+    open: { href: "/settings/usage" },
+    ...(over ? { notes: [`${over.n} of the last ${gens.length} story calls were counted at more tokens than the prompt could hold (${over.model}, about ${over.times}× Mea's estimate). The route adds its own prompt or retries; another route to the same model costs less.`] } : {}),
+  });
 
   const loops = live ? loopsPart(chatId, replies) : null;
   if (loops) parts.push(loops);
@@ -208,6 +216,35 @@ function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<str
   const weight = parts.reduce((a, p) => a + WEIGHTS[p.part], 0);
   const score = clamp(parts.reduce((a, p) => a + p.score * WEIGHTS[p.part], 0) / Math.max(1, weight));
   return { score, level: level(score), replies: n, parts };
+}
+
+/** No tokenizer packs prose tighter than this (as in recordCalibration): a report under it counts something besides the prompt. */
+const MIN_CHARS_PER_TOKEN = 1.8;
+/** The densest tokenizer seen counts about 1.6× Mea's estimate (Claude 5.5); past this it's the route, not the tokenizer. */
+const OVER_ESTIMATE = 2.2;
+
+/**
+ * docs/33 8.4: a route that counts far more prompt than was sent. In one story a relay's "[SP]"
+ * models reported 150k–510k prompt tokens for requests of 100k–135k (2–3× Mea's estimate, and 14×
+ * on small calls), while the same models by name on the same relay reported 1.1×. Named when most
+ * of a model's recent story calls are like that.
+ */
+export function overBilled(gens: { prompt_tokens: number | null; est: number | null; model: string | null; chars: number | null }[]) {
+  const by = new Map<string, { n: number; of: number; ratio: number[] }>();
+  for (const g of gens) {
+    if (!g.model || !g.prompt_tokens || !g.chars || !g.est) continue;
+    const m = by.get(g.model) ?? { n: 0, of: 0, ratio: [] };
+    m.of++;
+    if (g.chars / g.prompt_tokens < MIN_CHARS_PER_TOKEN || g.prompt_tokens / g.est >= OVER_ESTIMATE) {
+      m.n++;
+      m.ratio.push(g.prompt_tokens / g.est);
+    }
+    by.set(g.model, m);
+  }
+  const worst = [...by.entries()].filter(([, m]) => m.of >= 3 && m.n / m.of > 0.5).sort((a, b) => b[1].n - a[1].n)[0];
+  if (!worst) return null;
+  const r = worst[1].ratio.sort((a, b) => a - b)[Math.floor(worst[1].ratio.length / 2)]!;
+  return { model: worst[0], n: worst[1].n, times: Math.round(r * 10) / 10 };
 }
 
 /** docs/30 4.2: "Not people" (should stay at 0) and "Places with several names". */
