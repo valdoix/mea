@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { askArchivist, deleteArchive, listArchive, pushArchive } from "../accuracy/archivist";
 import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor, leakGuardOn, replaceIssue } from "../accuracy/checker";
+import { applyAllEdits, FIX_ALL_MAX, fixable, openNotes } from "../accuracy/opennotes";
 import { slipCatalog } from "../accuracy/slips";
+import { enqueue } from "../services/jobs";
 import { memoryConfig } from "../lib/settings";
 import { codex, codexEntry } from "../accuracy/codex";
 import { quizRuns, runQuiz } from "../accuracy/quiz";
@@ -61,6 +63,29 @@ accuracy.post("/continuity/:id/regenerate", async (c) => {
   const f = fixNotes(c.req.param("id"));
   await startStory(f.chatId, "swipe", { messageId: f.messageId, feedback: f.feedback });
   return c.json({ ok: true, feedback: f.feedback });
+});
+
+// ---------- docs/33 7.6: what's waiting, and the buttons that clear it ----------
+
+accuracy.get("/chats/:id/open-notes", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json(openNotes(c.req.param("id")));
+});
+
+/** Every open note with a fix, its sentence rewritten (a helper call each, in the background). */
+accuracy.post("/chats/:id/open-notes/fix-all", (c) => {
+  const id = c.req.param("id");
+  mustChat(id);
+  const n = Math.min(fixable(id).length, FIX_ALL_MAX);
+  if (n) enqueue("accuracy.fixall", { chatId: id }, { dedupeKey: `accuracy.fixall:${id}`, priority: 3, chatId: id, maxAttempts: 1 });
+  return c.json({ queued: n });
+});
+
+/** Every editor suggestion still waiting, applied. No model. */
+accuracy.post("/chats/:id/open-notes/apply-edits", (c) => {
+  const id = c.req.param("id");
+  mustChat(id);
+  return c.json({ ...applyAllEdits(id), notes: openNotes(id) });
 });
 
 // ---------- guards (CON-03…05, CON-10, CON-12) ----------

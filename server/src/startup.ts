@@ -26,6 +26,7 @@ import { explicitSoon, explicitStep, lyricsStep, musicAfterReply, sheetsStep } f
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runBriefJob } from "./lore/brief";
+import { fixAllOpen } from "./accuracy/opennotes";
 import { retireUnaware, runTruthsJob, truthsChanged } from "./memory/overturn";
 import { runEditorJob, runTenseJob } from "./steer/editor";
 import { runMemoryImport } from "./memory/transfer";
@@ -184,6 +185,10 @@ function afterOpen(opts: { jobs?: boolean }) {
   // STEER-03: the post-pass editor, after a reply.
   registerJob("steer.edit", async (p, job) => runEditorJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   registerJob("lore.brief", async (p, job) => runBriefJob(p as { chatId: string }, job));
+  // docs/33 7.6: "Fix all" on a story's open notes.
+  registerJob("accuracy.fixall", async (p, job) => {
+    await fixAllOpen(String(p.chatId), job);
+  });
   registerJob("steer.tense", async (p, job) => runTenseJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
   // A1: lessons from the takes you kept and the replies you edited.
   registerJob("lessons.learn", async (p, job) => runLessonsJob(p as { chatId: string; messageId: string }, job));

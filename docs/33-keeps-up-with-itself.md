@@ -147,9 +147,16 @@ Built in parts: **7a**, the false alarms; **7b**, the page search and the new ch
 
 **Done when:** the audit's true catches of these kinds are found on the replay with no false alarm beside them. *(Holds; `worldslips.test.ts`, 13 tests.)*
 
-### 7c: the open-flag tools (not built)
+### 7c: the open-flag tools (built)
 
-- **7.6** Open flags: a count on the story, one-click fix per flag, "fix all open" (with "apply all" for edits left as proposed), and the panel for Part 1's brief.
+- **7.6** `accuracy/opennotes.ts`, shown at the top of the story's health panel (`OpenNotes.svelte`):
+  - **A count**: open notes on the replies that are showing (waved-off and quiet ones aside), and editor suggestions left as "proposed".
+  - **Fix all**: every open note that carries a fix has its sentence rewritten in its reply, oldest first, one helper call a note, at most 20 a press (`FIX_ALL_MAX`), in the background (`accuracy.fixall` job). It asks first with the count. Each change keeps the reply's own Undo. A note whose sentence is gone is left.
+  - **Apply all**: every editor suggestion still waiting is applied, no model. One whose reply changed since is left and counted.
+  - The one-click fix on a single note was already there; it is the same call.
+- **Part 1's brief panel** (`BriefPanel.svelte`, on the trackers): each of the card's standing instructions as it stands in this story (kept, reworded with the new words, or retired), the reason for each change, the want/fear/tell and traits the read moved, and how far it has read. "Keep as written" pins a line so the story doesn't reword it again; "Read again now" runs the read (one helper call) without waiting for a chapter to close.
+
+**Done when:** a story's open notes and waiting suggestions are one number on its health panel, and one press clears each. *(Holds; `opennotes.test.ts`.)*
 
 ## Part 8: plan once, and send less  [7, 14, 37–39]
 
