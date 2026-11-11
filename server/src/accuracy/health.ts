@@ -3,6 +3,7 @@ import { type ChatSettings, mustChat } from "../services/chats";
 import { registerStatusTile } from "../services/status";
 import { craftReport } from "../steer/craft";
 import { lessonsFor } from "../steer/lessons";
+import { unsearchable } from "../memory/embed";
 import { foldConfigFor, trackerConfig } from "../trackers/store";
 import { notPeopleNow, placesWithSeveralNames, rereadNow } from "./casthealth";
 import type { Issue } from "./checker";
@@ -167,7 +168,19 @@ function compute(chatId: string, replies: Reply[], live: boolean, quiet: Set<str
     tracked = n;
   }
   const missed = Math.max(0, n - tracked);
-  parts.push({ part: "ledger", label: "Story records", score: clamp(n ? (tracked / n) * 100 : 100), detail: missed ? `${missed} repl${missed === 1 ? "y" : "ies"} the trackers didn't read` : "every reply read", open: { dock: "story" }, ...(missed ? { ask: `${missed} recent replies have no story-state records; check the clock, place and cast are right` } : {}) });
+  // Audit fix 14: memories search can't find by meaning (they're found by their words still).
+  const blind = (() => {
+    try {
+      return unsearchable(chatId) ?? 0;
+    } catch {
+      return 0;
+    }
+  })();
+  const blindNote = blind ? ` · ${blind} memor${blind === 1 ? "y" : "ies"} not searchable by meaning yet` : "";
+  // The audit: scene records the checker skipped to save quota stay unchecked; rebuilding one checks it.
+  const unchecked = one<{ n: number }>("SELECT COUNT(*) AS n FROM summaries WHERE chat_id = ? AND level = 'scene' AND state = 'ready' AND json_extract(verification, '$.skipped') = 'quota'", chatId)?.n ?? 0;
+  const uncheckedNote = unchecked ? ` · ${unchecked} scene record${unchecked === 1 ? "" : "s"} not checked (skipped for quota; rebuilding one checks it)` : "";
+  parts.push({ part: "ledger", label: "Story records", score: clamp((n ? (tracked / n) * 100 : 100) - Math.min(20, blind)), detail: `${missed ? `${missed} repl${missed === 1 ? "y" : "ies"} the trackers didn't read` : "every reply read"}${blindNote}${uncheckedNote}`, open: { dock: "story" }, ...(missed ? { ask: `${missed} recent replies have no story-state records; check the clock, place and cast are right` } : {}) });
   // docs/31 5.2: people a tracker line gave something they weren't there for, held back or taken off.
   const off = offScene(replies);
   parts.push({

@@ -258,10 +258,92 @@ The tracker's own cast was already tidy after docs/30 and docs/32 (27 people, no
 
 ## Part 14: repairs for this story  (needs a go-ahead; touches real data)
 
-- Run the truth check (Part 2.3) over the truths the story already has, the Part 6 repair list and the Part 11 merges on the real story, after a backup. (The Part 2 retirement and the Part 4 relabel run by themselves on the next reply.)
-- Settle by hand, as truths: Spike's blood type, Dawn's supplier, whether Spike can be out by day here.
-- Fix "Clara (William's son)" in the Winters Family group.
-- Apply the open true flags: 443, 593, 736, 742, 279.
+After a backup of the real database. Checked on a copy: what's still wrong there now, and what fixes itself.
+
+**Fixes itself on the next reply** (no go-ahead needed): the Part 2 retirement retires "Dawn is fifteen… does not know Buffy is alive" (#197) and "Buffy has not told her family she is alive" (run on a copy: 2 retired). The Part 4 relabel puts the clock's labels on the summaries.
+
+**Needs a go-ahead:**
+
+- **Truths and the sweep.** Run the truth check (Part 2.3) over the truths the story already has. Then retire what it doesn't reach, still active on the copy: the boots "bought with a dead woman's debit card" (#391, #419); Gabriel's horse, lacrosse and skiing injuries stored as Buffy's (#583); "for the first time since February" (#149); and the note "Gabriel never fed Buffy soup on day one".
+- **Settle by hand, as truths:**
+  - Spike's blood type: the memories hold both O negative and O positive.
+  - Dawn's supplier: the butcher on Third, or a dealer on Powell.
+  - Whether Spike can be out by day here. Part 7b's daylight check flags #926 until this is set.
+- **Part 6's word-fixer repairs:** 135 "Rack on three walls", 151 "loose.", 269 "greyère".
+- **Part 11's merges still left:** "Joyce's kitchen" and "Gabriel's bedroom" duplicates.
+- **"Clara (William's son)"** in the Winters Family group.
+- **The open true flags:** 443 (heart surgeon), 593 (faucet), 736 and 742 (album and mug in the wrong house), 279 (Ruth at Revello). Part 7c's "Fix all" does these, a helper call each.
+- **#287's take** still opens with its plan ("• NOW: ~21:53, same scene…"). The plan comes off; the story after it stays.
+- **The second chapter called "The Whole Word, No Takebacks"** (#533) gets a title of its own: a rebuild, now told the titles taken.
+
+Cost: no writer calls. A helper call for each flag fixed (five), one for the truth check, one for the chapter rebuild. About ten small calls in all.
+
+## The audit, checked (2026-11-11)
+
+Every finding in the audit, against what was built, checked on a copy of the real data. "Repair" means Part 14.
+
+| Audit finding | Where it stands |
+|---|---|
+| **1.1** Day-zero brief at 926 | Part 1; the panel is 7c |
+| **1.2** Facts never retired | Part 2; #197 retires on the next reply (seen on a copy); the rest is a repair |
+| **1.3** Tense; 25 editor fixes left "proposed" | Part 3; "Apply all" in 7c |
+| **1.4** No story time on messages; guessed labels | Part 4 |
+| **1.5** Stale, garbled state | Parts 5a and 5b. At 926 on a copy: no car-scene clothes, no "hungry, thirsty; belly full", brackets balanced |
+| **1.6** Word-fixer | Part 6; 135, 151 and 269 are a repair |
+| **1.7** Checker noise; true catches left open | Parts 7a and 7b; "Fix all" in 7c; the five flags are a repair |
+| **1.8** 44 calls a reply; 150k–510k tokens | Parts 8a and 8b. The 510k was a relay's count of a 128k request, now named on the Cost line |
+| **1.9** Weather | Part 13 |
+| **1.10** Subplot filler | Part 12 |
+| **2** Dates: wrong weekday, "late October" | 7b date check |
+| **2** "Since February" | A repair (#149) |
+| **2** "Known for six hours", "seven in the morning" after "almost nine", wet hair at 7 a.m. | The clock check (7a) catches a time going backwards. *A wrong length of time since an event has no check.* |
+| **2** Toothbrush, slippers, henley, the grey tee, three pairs of shoes | 5a: clothes and belongings expire, one pair on a pair of feet |
+| **2** Album, mug, faucet, Ruth at Revello | Repair (flags 736, 742, 593, 279) |
+| **2** Foot Locker in a strip mall described without one | *No check: a place's contents aren't recorded.* |
+| **2** Place names fork | Part 11 |
+| **2** The cat's name and Giles at the airport known too early | 11.5 "who knows this" on lore; the leak rule (7a) |
+| **2** The soup "his dead nanny's recipe" a message early | The leak rule and the people block. *No check for a guess that turns out right.* |
+| **2** Two Merrick stories, "fired from a coffee shop" | *No check: two tellings of one past event aren't compared.* |
+| **2** Heart surgeon, great-grandfather, Dawn as a sister | 7b one-value check (a surgeon's specialty, a place in the family tree) |
+| **2** Gabriel's injuries stored as Buffy's | A repair (#583) |
+| **2** Boots and the debit card | A repair (#391, #419) |
+| **2** Blood: supplier, pints, type | Type: 7b, once the truth is set (repair). Supplier: a repair. *"Two pints" against "21 pints" has no check.* |
+| **2** "Tara told me about the Powell guy" | 7b: the page is searched before "no record of X" |
+| **2** Spike in daylight | 7b daylight check; the truth is a repair |
+| **2** Dawn "the small child" | *No check: an age said against a description.* |
+| **2** Period slips | 7b year check |
+| **3** Memories wrong and still active | Part 2, then a repair |
+| **3** Trivia at full confidence | 11: small beats stay small |
+| **3** Failed embedding runs | They caught up (8.6). Memories that can't be found by meaning are counted on Story records |
+| **3** Recap never refreshed | Written when asked for or after a break; the stored copy is a cache (Part 4) |
+| **3** Places duplicated, non-people, polluted aliases, unlinked parents | Part 11; two duplicates left are a repair |
+| **3** "Clara (William's son)" | A repair |
+| **3** Four cast profiles | 11: profiles once someone has 20 memories |
+| **3** Two chapters with one title | Chapters and arcs are told the titles taken; the second is a repair |
+| **3** Verifier "major" with nothing done | Already rewritten: all 29 "major" scenes were rewritten on the spot |
+| **3** Scenes skipped for quota | Counted on Story records; rebuilding one checks it. *The verifier's own mistakes have no check.* |
+| **3** State block at 926 | 5b: facts in play, open items, today, corrections, pets, traits, empty entries; 12: pressures |
+| **3** Events from rejected takes | The fold reads the takes showing only (`trackers/store.ts`), so they're ignored |
+| **3** The checker's families | 7a |
+| **4** Plan skipping, the flip-flop | 8a |
+| **4** Plan leaked into 287, `</think>` into 501 | New replies: the plan router catches both shapes. #287's take is a repair; #501 is clean now |
+| **4** Plans carry wrong facts | Part 2 (the plan reads the same records) |
+| **4** Advisor's 2,165 calls | 8b: typing plans only on 6 new words, three a turn |
+| **4** Long arcs missing from plans | Part 9 |
+| **4** A new take isn't told why | Already built: each passed-over take says why (your note, a failed check, the angle asked) |
+| **5** Tics replaced, courtroom voice spreading, journals | Part 10 |
+| **5** Long replies to short turns, ending on the room | 10.4 |
+| **5** Stutter-built lines, "for the record", echoing | 10.1 cooling; echoing had already faded (3 of 172) |
+| **5** Props | 10.1 cooling, and 5a expiring belongings |
+| **5** Repeated sentence, a stray script, straight quotes, tags, speaker marks | 10.5 tidy; curly quotes are the style's job |
+| **5** Late dialogue with no speaker | *Not built: nothing asks for a speaker when a line has none.* |
+| **5** Your turns in the model's voice, past tense | Part 3: "write for me" already writes present tense, and the tense check now holds for the whole chat |
+| **5** Voice drift read against day-zero lines | Part 1 (the brief) and 10's rolling window |
+| **6** Subplots, non-people, dead threads, British incidents | Part 12 |
+| **6** Opening arcs on dice | *Not changed:* the openings were before Part 12's grounding; new ones need a live thread and a want |
+| **7** Weather, frost, the season | Part 13 |
+
+**Not covered** (in italics above): a wrong length of time since an event, a place's contents, two tellings of one past event, a quantity said two ways, an age against a description, the verifier's own mistakes, and a speaker for unattributed lines. None of them is in the audit's 39 fixes. Most need a record Mea doesn't keep yet (how long since an event, what a place holds, the details of a past event), and the speaker one needs a rule for when a line may go unattributed. They're for a later plan.
 
 ---
 

@@ -10,6 +10,7 @@ import { join, relative } from "node:path";
 const REASONS: Record<string, string> = {
   "sim/service.ts": "only where the last two chapters start, for which threads are live: no summary's text",
   "accuracy/loophealth.ts": "only where the rollups end, for Story health: no summary's text",
+  "accuracy/health.ts": "only counts scene records the checker skipped, for Story health: no summary's text",
   "accuracy/canoncut.ts": "looks for canon terms by rule; no model reads the text",
   "accuracy/codex.ts": "the Codex page: you read it, and it says what it's through",
   "accuracy/inbox.ts": "review cards for proposed summaries",
