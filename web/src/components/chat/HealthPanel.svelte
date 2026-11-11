@@ -1,4 +1,5 @@
 <script lang="ts">
+  import OpenNotes from "./OpenNotes.svelte";
   import Module from "../desk/Module.svelte";
   import { get, post } from "../../lib/api";
   import { dockRequest, openDock } from "../../lib/dock.svelte";
@@ -123,6 +124,7 @@
         <span class="tiny muted">the last {h.replies} replies</span>
         {#if spark}<svg class="spark" viewBox="-2 -2 124 30" role="img" aria-label="Week by week: {h.trend.map((p) => p.score).join(', ')}"><path d={spark} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" /></svg>{/if}
       </div>
+      <OpenNotes {chatId} />
       <ul class="parts">
         {#each h.parts as p (p.part)}
           <li>
