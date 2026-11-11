@@ -256,27 +256,17 @@ The tracker's own cast was already tidy after docs/30 and docs/32 (27 people, no
 
 **Done when:** a mock reply writing "kitchen half-dark, fridge hum" as weather leaves the forecast in place, and the 926 state line on a copy reads as an October afternoon in Sunnydale. *(Both hold; `weather.test.ts`.)*
 
-## Part 14: repairs for this story  (needs a go-ahead; touches real data)
+## Part 14: repairs for this story  (done 2026-11-11, on the real data)
 
-After a backup of the real database. Checked on a copy: what's still wrong there now, and what fixes itself.
+Run after a backup (`data/backups/mea-before-part14-2026-11-11.db`), with production stopped while it ran. Rehearsed first on a copy, the mock model answering. Nine helper calls on GLM 5.3: about 18k tokens in, 2.5k out.
 
-**Fixes itself on the next reply** (no go-ahead needed): the Part 2 retirement retires "Dawn is fifteen… does not know Buffy is alive" (#197) and "Buffy has not told her family she is alive" (run on a copy: 2 retired). The Part 4 relabel puts the clock's labels on the summaries.
-
-**Needs a go-ahead:**
-
-- **Truths and the sweep.** Run the truth check (Part 2.3) over the truths the story already has. Then retire what it doesn't reach, still active on the copy: the boots "bought with a dead woman's debit card" (#391, #419); Gabriel's horse, lacrosse and skiing injuries stored as Buffy's (#583); "for the first time since February" (#149); and the note "Gabriel never fed Buffy soup on day one".
-- **Settle by hand, as truths:**
-  - Spike's blood type: the memories hold both O negative and O positive.
-  - Dawn's supplier: the butcher on Third, or a dealer on Powell.
-  - Whether Spike can be out by day here. Part 7b's daylight check flags #926 until this is set.
-- **Part 6's word-fixer repairs:** 135 "Rack on three walls", 151 "loose.", 269 "greyère".
-- **Part 11's merges still left:** "Joyce's kitchen" and "Gabriel's bedroom" duplicates.
-- **"Clara (William's son)"** in the Winters Family group.
-- **The open true flags:** 443 (heart surgeon), 593 (faucet), 736 and 742 (album and mug in the wrong house), 279 (Ruth at Revello). Part 7c's "Fix all" does these, a helper call each.
-- **#287's take** still opens with its plan ("• NOW: ~21:53, same scene…"). The plan comes off; the story after it stays.
-- **The second chapter called "The Whole Word, No Takebacks"** (#533) gets a title of its own: a rebuild, now told the titles taken.
-
-Cost: no writer calls. A helper call for each flag fixed (five), one for the truth check, one for the chapter rebuild. About ten small calls in all.
+- **Text, kept for Undo on each reply:** 135 "Racks on three walls", 151 "Looser.", 269 "Gruyère" (twice). The plan and the model's thinking came off the top of #287, which now opens "The mug is Joyce's." The BALLET! album (#736) and the daisy mug (#742) left the Winters kitchen, a helper call each, and their notes are marked fixed. These edits don't mark the scenes' records stale. With rebuilding on edit set to auto, they would have rebuilt every scene, chapter and arc above them (about 40 calls) and rewritten their memories.
+- **Not repaired, because they aren't in the story:** #279 (Ruth at Revello) and #593 (the faucet) are replies deleted in October. Their notes sit on deleted messages. The heart surgeon at #443 is in a take that isn't showing.
+- **Memories superseded** (Undo from the memory inspector): the debit-card boots (two), Gabriel's injuries stored as Buffy's, "since February", and "Gabriel never fed Buffy soup". Part 2's retirement took "Dawn… does not know Buffy is alive" and "Buffy has not told her family". Part 4's relabel put the clock's labels on the summaries.
+- **Truths:** "Spike likes O positive (O+) blood best", from your turn at #716. Then all six truths were checked against the memories. The helper superseded six; three were wrong and are active again (the car "I lo—", Eleanor asking after Dawn, the blue tee), as is the one about Dawn's neglect, whose O-negative is what Dawn bought. The two that stand are both stale: "neither has said the word love aloud yet", and "'Gabe' carries the weight of 'I love you'…".
+- **Cast:** Part 11's sync (people 44, places 121), then four places merged: Gabriel's kitchen (both names) into the Winters Residence kitchen, Joyce's kitchen into the Summers kitchen, "Gabriel Winters' bedroom" into Gabriel's bedroom, Buffy's childhood bedroom into Buffy's Bedroom. Clara is "William's daughter" in the Winters Family group.
+- **The second chapter** called "The Whole Word, No Takebacks" (#533) is now "Wifey, Filed Under Forever".
+- **Your two decisions, the same day:** Spike can't be out by day, and Dawn buys his blood from a dealer on Powell Street, not the butcher on Third. Both are story truths now (after a second backup, `data/backups/mea-before-truths-2026-11-11.db`). The truth check, two helper calls, retired one memory: "Dawn bought two pints of O negative from the butcher on Third every Tuesday". Nothing in the memories had Spike out in daylight.
 
 ## The audit, checked (2026-11-11)
 
