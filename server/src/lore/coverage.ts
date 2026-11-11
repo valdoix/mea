@@ -191,7 +191,7 @@ export function fixFinding(chatId: string, key: string): { undo: string | null; 
   // Asked: the card goes until the entry is much busier (whatever the draft finds waits as its own card).
   run("INSERT OR IGNORE INTO inbox_dismissed (key, chat_id, created_at) VALUES (?, ?, ?)", `${DRAFTED}${f.key}@${f.mentions ?? 0}`, chatId, now());
   publish({ type: "inbox.changed" });
-  enqueue("lore.keepup", { chatId }, { dedupeKey: `lore.keepup:${chatId}`, priority: 2, chatId });
+  enqueue("lore.keepup", { chatId, now: true }, { dedupeKey: `lore.keepup.now:${chatId}`, priority: 2, chatId });
   return { undo: null, message: "Drafting facts from the story: they'll wait in the Inbox" };
 }
 

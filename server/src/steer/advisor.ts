@@ -4,7 +4,7 @@ import { all, newId, now, one, parseJson, run } from "../db/db";
 import { defaultSteer, getSetting, memoryConfig, type SteerConfig } from "../lib/settings";
 import { chatNames } from "../memory/build";
 import { memState, storyRow } from "../memory/store";
-import { cleanText, hashText } from "../memory/text";
+import { cleanText, contentWords, hashText } from "../memory/text";
 import type { HistoryMessage, PromptExtra } from "../prompt/assemble";
 import { type ChatSettings, historyForPrompt, mustChat } from "../services/chats";
 import { activeGuidance } from "../services/chattools";
@@ -111,6 +111,25 @@ const running = new Map<string, Promise<Plan | null>>();
 /** L10: while you type, one plan at a time per chat, and a pause between plans for the same turn (not one per typing pause). */
 const draftStarted = new Map<string, number>();
 const DRAFT_GAP_MS = 15_000;
+/**
+ * docs/33 8.5: a plan made while you type is used only if you send the very words it was made for,
+ * so the ones made mid-sentence were thrown away: about five planner calls a reply in one story (19
+ * million tokens over 429 replies). Typing plans again only once the draft has this many new words…
+ */
+export const DRAFT_NEW_WORDS = 6;
+/** …and at most this many times a turn. The plan at Send is made either way. */
+export const DRAFT_PLANS = 3;
+const draftPlanned = new Map<string, { draft: string; n: number }>();
+
+/** Whether a typing pause earns a plan: enough new words since the last one this turn, and not too many. */
+export function draftWorthPlanning(last: { draft: string; n: number } | undefined, draft: string) {
+  if (!last) return true;
+  if (last.n >= DRAFT_PLANS) return false;
+  const before = contentWords(last.draft);
+  let added = 0;
+  for (const w of contentWords(draft)) if (!before.has(w) && ++added >= DRAFT_NEW_WORDS) return true;
+  return false;
+}
 
 /** What the plan may say about the player's character: the Persona control's rule (sealed when unset). */
 const userRule = (user: string, persona: PersonaMode | null) =>
@@ -407,8 +426,12 @@ export async function runAdvisor(chatId: string, opts: { history?: HistoryMessag
     const turn = `${chatId}:${key.split("|")[0]}`;
     const busy = [...running.keys()].some((k) => k.startsWith(`${chatId}:`));
     if (busy || Date.now() - (draftStarted.get(turn) ?? 0) < DRAFT_GAP_MS) return null;
+    const last = draftPlanned.get(turn);
+    if (!draftWorthPlanning(last, opts.draft)) return null;
     if (draftStarted.size > 500) draftStarted.clear();
+    if (draftPlanned.size > 500) draftPlanned.clear();
     draftStarted.set(turn, Date.now());
+    draftPlanned.set(turn, { draft: opts.draft, n: (last?.n ?? 0) + 1 });
   }
   const p = (async () => {
     try {

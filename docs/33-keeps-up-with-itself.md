@@ -36,7 +36,7 @@
 - **1.2** `briefCard`: generation sends the card with its instructions as they stand in this story. Retired lines are left out, revised ones replaced. The card itself is never edited, and a card whose instructions changed since the reading is sent as written until it is read again.
 - **1.3** The same reading gives a new want, fear or tell where the story has moved past the card's, written to the trackers after the last message, and names the card's looks that were only the opening's ("pale", "voice hoarse from disuse"), which the trackers drop (`trait X: -pale`; a look you gave is never dropped).
 - **1.4** `accuracy/anchor.ts`: the "Who she is: keep to this" anchor adds the story's own newest temperament and wants lines from Since the card, "true where the card disagrees".
-- **1.5** A line can be pinned so it stays as the card wrote it, through later readings too. Routes: `GET /api/chats/:id/brief`, `POST …/brief/pin`, `POST …/brief/read`. *The panel that shows them is not built yet;* it goes with Part 7's open-flags work.
+- **1.5** A line can be pinned so it stays as the card wrote it, through later readings too. Routes: `GET /api/chats/:id/brief`, `POST …/brief/pin`, `POST …/brief/read`. The panel that shows them is on the trackers (Part 7c, `BriefPanel.svelte`).
 - *Dropped:* drift comparing against recent kept replies (Part 10's rolling window covers the voice).
 
 **Not yet seen on real data:** the reading calls a model, so it wasn't run on the copy. It runs by itself at this story's next closed chapter.
@@ -160,7 +160,7 @@ Built in parts: **7a**, the false alarms; **7b**, the page search and the new ch
 
 ## Part 8: plan once, and send less  [7, 14, 37–39]
 
-Split in two. **8a**, the plan watch, is built; **8b**, sending less, is not.
+Split in two, both built: **8a**, the plan watch, and **8b**, sending less.
 
 ### 8a: the plan watch stops flip-flopping (built)
 
@@ -171,13 +171,25 @@ The watch already made a plan-skipping model plan in its own step (two calls a r
 
 **Done when:** a long run of planned-first replies earns a probe only at 30, and a story with two recent skips never probes. *(In `review.test.ts`.)*
 
-### 8b: send less (not built)
+### 8b: send less (built)
 
-- **8.2** The plan step is sent a reduced prompt: state, today, the last few messages and the long threads, without the full canon and transcript.
-- **8.3** `memory/canon.ts`: canon splits into a short core and passages recalled by the scene. Target: under a quarter of today's 84k characters.
-- **8.4** A ceiling on the story prompt with a logged reason; find why messages 461–685 reached 150k–510k tokens.
-- **8.5** Librarian, lore keep-up, continuity and journal once per closed scene, not per reply.
+What was measured first, on a copy of the real data (no model calls):
+
+- The next reply's prompt is 77k tokens, and its system part 111k characters. The largest single piece was the Bond entry, 17.5k characters: all 78 milestones you had kept from keep-up's cards, sent on every call. The arc, chapter and scene summaries are another 45k characters (11k tokens, the story's memory from #1).
+- **Why #461–685 reached 150k–510k tokens** (8.4): two things on top of each other. The Claude profile's context target was 200k for #383–796 (100k before and after), so Mea sent 100k–135k tokens a call, history alone averaging 67k. And that stretch ran on a relay's "[SP]" models, which counted 2–3× what was sent (14–22× on small calls). The same models by name on the same relay counted 1.1× (Opus 4.6) and 1.6× (the 5.5 tokenizer). Mea keeps the provider's last usage figure; it doesn't add them up. So the 510k was the relay's count of a 128k request.
+
+Built:
+
+- **8.3** `lore/facts.ts` `forScene`: a list that only grows (milestones, running bits, what someone knows; facts of kind event or bond) rides with its newest 8 (`NOW_SHOWN`) and up to 3 older ones the scene is about (`NOW_RECALLED`): two of their own words in the last four messages or yours, leaving aside words a third of the list shares (the leads' names). Standing facts are never cut. The Bond went from 17.5k characters to 4.9k, and the system part from 111k to 99k.
+- **8.2** `services/generation.ts` `planScale`: where the provider keeps no prompt cache, the plan step is sent the story prompt at 0.6 of the target (77k → 43k tokens, the last 29 messages, half the recalled memory). With a cache it gets the same prompt as the reply, since the shared prefix is then read back cheaply.
+- **8.4** `accuracy/health.ts` `overBilled`: the health panel's Cost line names a model when most of its last 20 story calls were counted at more than the prompt could hold (under 1.8 characters a token) or at 2.2× Mea's estimate or more: "[SP]claude-opus-5-5 counts about 3.2× what Mea sends". Replayed over the story it names the "[SP]" stretches (#485–661, #780–796) and nothing else. *The context target is the ceiling on what Mea sends; it's yours to set, and it isn't overridden.*
+- **8.5** The helpers:
+  - `steer/advisor.ts`: a plan made while you type is used only if you send the very words it was made for. Typing plans again only once the draft has 6 new words (`DRAFT_NEW_WORDS`), at most 3 times a turn (`DRAFT_PLANS`). Before, it planned every 15 seconds of typing: about five planner calls a reply, 2,179 calls and 19 million tokens over 429 replies.
+  - `lore/keepup.ts`: an entry with fewer than 3 new memories waits for more (`KEEPUP_BATCH`), unless 30 messages have passed since it was read (`KEEPUP_WAIT`) or a tracker change is waiting. "Draft facts" on an entry reads it at once. Keep-up made 1,838 calls over 277 scenes, most of them one entry with one memory.
+  - Journal and keep-up already ran once per closed scene. The continuity check stays per reply, since its notes are about the reply you're reading. The librarian was cut to once per new note in docs/27 6.3.
 - *Dropped:* **8.6**, retrying failed embedding jobs. The embedding job embeds whatever lacks a vector each time it runs, so the 14 failed runs caught up: one active memory in the story has no vector.
+
+**Done when:** a long list no longer rides whole on every call, the plan step is smaller where nothing is cached, a route that over-counts is named on the story, and typing and keep-up make fewer calls. *(`sendless.test.ts`, 8 tests; `keepup.test.ts`.)*
 
 ## Part 9: long threads stay in view  [20, 22]  (built)
 

@@ -3,6 +3,7 @@ import { publish } from "../lib/events";
 import { badRequest, notFound } from "../lib/http";
 import { shortHash } from "../creator/smarts";
 import { stashRestore } from "../services/undo";
+import { contentWords } from "../memory/text";
 import { durationIn, isSingleSlot, slotDef } from "./slots";
 
 /**
@@ -500,6 +501,41 @@ export function factLine(f: FactText, name?: string) {
 }
 
 /** The `Now:` block an entry carries after its core. */
+/** docs/33 8.3: how many of a list (milestones, running bits, what someone knows) always ride along… */
+export const NOW_SHOWN = 8;
+/** …and how many older ones the scene can bring back by naming what they're about. */
+export const NOW_RECALLED = 3;
+const LISTS = new Set(["event", "bond"]);
+
+/**
+ * docs/33 8.3: a list that only grows (78 milestones on one story's Bond, sent on every call) keeps
+ * its newest NOW_SHOWN, plus the few older ones the scene is about: two of their own words in the
+ * last messages, leaving aside words most of the list shares (the two leads' names). Standing facts
+ * (eyes, a job, a rule) are never cut.
+ */
+export function forScene<T extends { slot: string | null; kind: string; value: string }>(facts: T[], scene: string): T[] {
+  const lists = new Map<string, T[]>();
+  for (const f of facts) if (LISTS.has(f.kind)) lists.set(`${f.kind}|${f.slot ?? ""}`, [...(lists.get(`${f.kind}|${f.slot ?? ""}`) ?? []), f]);
+  const drop = new Set<T>();
+  const said = contentWords(scene);
+  for (const xs of lists.values()) {
+    if (xs.length <= NOW_SHOWN) continue;
+    const words = xs.map((f) => contentWords(f.value));
+    const seen = new Map<string, number>();
+    for (const w of words) for (const x of w) seen.set(x, (seen.get(x) ?? 0) + 1);
+    const common = (x: string) => (seen.get(x) ?? 0) > xs.length / 3;
+    const older = xs.length - NOW_SHOWN;
+    const hits = xs
+      .slice(0, older)
+      .map((f, i) => ({ f, n: [...words[i]!].filter((x) => !common(x) && said.has(x)).length }))
+      .filter((h) => h.n >= 2)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, NOW_RECALLED);
+    for (const f of xs.slice(0, older)) if (!hits.some((h) => h.f === f)) drop.add(f);
+  }
+  return drop.size ? facts.filter((f) => !drop.has(f)) : facts;
+}
+
 export function nowBlock(facts: FactText[], name?: string) {
   return facts.length ? `Now:\n${facts.map((f) => `- ${factLine(f, name)}`).join("\n")}` : "";
 }

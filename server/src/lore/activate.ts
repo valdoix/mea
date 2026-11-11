@@ -1,5 +1,5 @@
 import type { LoreEntry, LorebookSettings, LorePosition, Role } from "./types";
-import { factLine, nowBlock } from "./facts";
+import { factLine, forScene, nowBlock } from "./facts";
 import { currentTitle, isCurrent } from "./format";
 import { type Reveal, revealFor } from "../trackers/reveals";
 
@@ -483,8 +483,14 @@ ${e.content.trim()}`;
     return { ...f, value: sub(f.value), ...(r ? { revealedTo: r.to, out: r.out } : {}) };
   };
   // docs/15: what's true now rides after the core (and after the essentials, when trimmed).
+  // docs/33 8.3: the scene a long list is read against: the last few messages and yours.
+  const scene = [...input.history.slice(-4), input.tiers?.focusText ?? ""].join("\n");
+  const nowOf = (e: ScanEntry) => {
+    const xs = input.facts?.get(e.id);
+    return xs?.length ? forScene(xs, scene) : xs;
+  };
   const withNow = (e: ScanEntry, content: string) => {
-    const facts = input.facts?.get(e.id);
+    const facts = nowOf(e);
     // 5.1: today's date line rides with it, whatever made it fire.
     const day = input.dated?.get(e.id);
     if (day) content = `${content}\n${day}.`;
@@ -497,7 +503,7 @@ ${e.content.trim()}`;
     let tokens = input.countTokens(content);
     let reason = a.reason;
     const p = Math.round(priority(a));
-    const sentFacts = input.facts?.get(a.entry.id)?.map((f) => factLine(nowFact(f), sub(a.entry.comment || a.entry.keys[0] || "") || undefined));
+    const sentFacts = nowOf(a.entry)?.map((f) => factLine(nowFact(f), sub(a.entry.comment || a.entry.keys[0] || "") || undefined));
     if (defaults.tokenBudget > 0 && used + tokens > defaults.tokenBudget) {
       const short = withNow(a.entry, withKnown(a.entry, withSecrets(a.entry, sub(essentialsOf(a.entry)), input), sub));
       const st = input.countTokens(short);
