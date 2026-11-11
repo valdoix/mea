@@ -266,7 +266,7 @@ Run after a backup (`data/backups/mea-before-part14-2026-11-11.db`), with produc
 - **Truths:** "Spike likes O positive (O+) blood best", from your turn at #716. Then all six truths were checked against the memories. The helper superseded six; three were wrong and are active again (the car "I lo—", Eleanor asking after Dawn, the blue tee), as is the one about Dawn's neglect, whose O-negative is what Dawn bought. The two that stand are both stale: "neither has said the word love aloud yet", and "'Gabe' carries the weight of 'I love you'…".
 - **Cast:** Part 11's sync (people 44, places 121), then four places merged: Gabriel's kitchen (both names) into the Winters Residence kitchen, Joyce's kitchen into the Summers kitchen, "Gabriel Winters' bedroom" into Gabriel's bedroom, Buffy's childhood bedroom into Buffy's Bedroom. Clara is "William's daughter" in the Winters Family group.
 - **The second chapter** called "The Whole Word, No Takebacks" (#533) is now "Wifey, Filed Under Forever".
-- **Left for you:** whether Spike can be out by day here, and where Dawn's blood comes from (a dealer on Powell Street, or the butcher on Third). Your turns only say "the blood dealer". Add each as a story truth when you decide; the truth check then runs by itself.
+- **Your two decisions, the same day:** Spike can't be out by day, and Dawn buys his blood from a dealer on Powell Street, not the butcher on Third. Both are story truths now (after a second backup, `data/backups/mea-before-truths-2026-11-11.db`). The truth check, two helper calls, retired one memory: "Dawn bought two pints of O negative from the butcher on Third every Tuesday". Nothing in the memories had Spike out in daylight.
 
 ## The audit, checked (2026-11-11)
 
