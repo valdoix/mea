@@ -66,6 +66,23 @@ export function clearEmbeddingBlock() {
 
 export const embeddingsEnabled = () => embeddingTarget() !== null;
 
+/**
+ * Audit fix 14: active memories that can't be found by meaning, because they have no vector for the
+ * model in use (a failed run, or a model changed since). Null when embeddings are off.
+ */
+export function unsearchable(chatId: string): number | null {
+  const t = embeddingTarget({ ignoreBlock: true });
+  if (!t) return null;
+  return (
+    one<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM memories m WHERE m.chat_id = ? AND m.deleted_at IS NULL AND m.status = 'active'
+       AND NOT EXISTS (SELECT 1 FROM embeddings e WHERE e.owner_type = 'memory' AND e.owner_id = m.id AND e.model = ?)`,
+      chatId,
+      t.model,
+    )?.n ?? 0
+  );
+}
+
 const toBlob = (v: Float32Array) => new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
 const fromBlob = (b: Uint8Array) => new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
 

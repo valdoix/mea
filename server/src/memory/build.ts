@@ -360,6 +360,13 @@ function rollupInputs(row: SummaryRow): { parts: SummaryRow[]; endSeq: number | 
   return { parts: childrenOf(row, ROLLUP_CHILD[row.level as "chapter" | "arc"]).filter(hasContent), endSeq: row.end_seq };
 }
 
+/** The titles the chat's other summaries of this level have, newest last (at most 30). */
+export function takenTitles(row: Pick<SummaryRow, "id" | "chat_id" | "level">) {
+  return all<{ title: string }>("SELECT title FROM summaries WHERE chat_id = ? AND level = ? AND id != ? AND TRIM(title) != '' ORDER BY start_seq", row.chat_id, row.level, row.id)
+    .map((r) => r.title.trim())
+    .slice(-30);
+}
+
 async function buildRollup(row: SummaryRow, opts: BuildOptions) {
   const level = row.level as "chapter" | "arc" | "story";
   const { parts, endSeq } = rollupInputs(row);
@@ -378,7 +385,9 @@ async function buildRollup(row: SummaryRow, opts: BuildOptions) {
     })
     .join("\n\n");
   const out = revealedBy(row.chat_id, endSeq ?? parts.at(-1)?.end_seq ?? 0);
-  const user = `${opts.instruction ? `Extra instruction from the author: ${opts.instruction}\n\n` : ""}${out ? `${out}\n\n` : ""}RECORDS, oldest first:\n\n${body}`;
+  // The audit: two chapters came out "The Whole Word, No Takebacks". The titles taken are named.
+  const taken = takenTitles(row);
+  const user = `${opts.instruction ? `Extra instruction from the author: ${opts.instruction}\n\n` : ""}${out ? `${out}\n\n` : ""}${taken.length ? `TITLES OTHER ${level.toUpperCase()}S ALREADY HAVE (give this one its own): ${taken.join(" · ")}\n\n` : ""}RECORDS, oldest first:\n\n${body}`;
   opts.job?.note({ inputTokens: countTokens(user), level });
   const r = await callJson({ task: "summarizer", kind: level, chatId: row.chat_id, jobId: opts.job?.id, name: "summary_rollup", schema: rollupSchema, system: rollupSystem(level, names), user, maxTokens: memoryConfig().compression[level] === "detailed" ? 4000 : 3000, signal: opts.signal });
   r.data.moments = memoryConfig().moments ? carryMoments(parts) : [];
