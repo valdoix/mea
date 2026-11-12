@@ -2,13 +2,15 @@ import { type Context, Hono } from "hono";
 import { storyBookDraft, storyBookJson } from "../lore/fromstory";
 import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
+import { BENCH_MARKS, type BenchMark, benchView, setChecked, setMark } from "../music/bench";
+import { playHistory } from "../music/plays";
 import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, nowSinging, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
 import { deleteCustomCalendar, listCustomCalendars, saveCustomCalendar } from "../trackers/customcal";
 import { bondsReport, deskCue, deskView, recapSince, secretsReport, storyAudit, threadsReport } from "../steer/desk";
-import { body } from "../lib/http";
+import { body, notFound } from "../lib/http";
 import { applySetup, previewOpening, saveUsual, setupSchema, setupView, skipSetup, usual } from "../services/setup";
 import { historyForPrompt, mustChat } from "../services/chats";
 import { one } from "../db/db";
@@ -177,9 +179,24 @@ desk.post("/music/library/remove", async (c) => c.json(removeTracks((await body(
 desk.get("/music/lyrics/:videoId", (c) => c.json(songWords(c.req.param("videoId"))));
 desk.put("/music/lyrics/:videoId", async (c) => c.json(setSongWords(c.req.param("videoId"), (await body(c, z.object({ text: z.string().max(20_000) }))).text)));
 desk.post("/music/lyrics/:videoId/find", async (c) => c.json(await findSongWords(c.req.param("videoId"))));
+// docs/34 1.4: the marked set, for checking Claude's marks.
+desk.get("/music/bench", (c) => c.json(benchView()));
+desk.put("/music/bench/:sceneId", async (c) => {
+  const b = await body(c, z.object({ videoId: z.string().max(20), mark: z.enum(BENCH_MARKS as [BenchMark, ...BenchMark[]]).nullable() }));
+  if (!setMark(c.req.param("sceneId"), b.videoId, b.mark)) throw notFound("No such scene in the marked set");
+  return c.json(benchView());
+});
+desk.put("/music/bench/:sceneId/checked", async (c) => {
+  if (!setChecked(c.req.param("sceneId"), (await body(c, z.object({ checked: z.boolean() }))).checked)) throw notFound("No such scene in the marked set");
+  return c.json(benchView());
+});
 desk.get("/chats/:id/music", (c) => {
   mustChat(c.req.param("id"));
   return c.json(chatMusicView(c.req.param("id")));
+});
+desk.get("/chats/:id/music/plays", (c) => {
+  mustChat(c.req.param("id"));
+  return c.json({ plays: playHistory(c.req.param("id"), 20) });
 });
 desk.get("/chats/:id/music/line", async (c) => {
   mustChat(c.req.param("id"));

@@ -1577,6 +1577,36 @@ CREATE TABLE IF NOT EXISTS place_profiles (
 );
 `,
   },
+  {
+    id: 42,
+    name: "song plays",
+    sql: /* sql */ `
+-- docs/34 1.1: every song the soundtrack started (why, the cue and the scene it read, the score and
+-- the runners-up) and how it ended (played out, skipped, Not for this scene, 👎, cut, off).
+CREATE TABLE IF NOT EXISTS song_plays (
+  id         TEXT PRIMARY KEY,
+  chat_id    TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  message_id TEXT,
+  video_id   TEXT NOT NULL,
+  title      TEXT NOT NULL DEFAULT '',
+  artist     TEXT NOT NULL DEFAULT '',
+  started_at INTEGER NOT NULL,
+  how        TEXT NOT NULL,
+  why        TEXT NOT NULL DEFAULT '',
+  cue        TEXT NOT NULL DEFAULT 'null',
+  moment     TEXT,
+  score      REAL,
+  parts      TEXT,
+  runners    TEXT NOT NULL DEFAULT '[]',
+  landed     REAL,
+  ended_at   INTEGER,
+  ending     TEXT,
+  heard      REAL,
+  marks      TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS song_plays_chat ON song_plays(chat_id, started_at);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

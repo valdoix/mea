@@ -3,6 +3,7 @@
   import { ChevronDown, Plus, X } from "../../lib/icons";
   import { confirm } from "../../lib/dialogs.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
+  import MusicBench from "./MusicBench.svelte";
 
   /**
    * J3: the soundtrack, on YouTube Music. Mea talks only to a YouTube Music app on this PC: the
@@ -439,6 +440,8 @@
       </div>
       <label class="switch"><input type="checkbox" checked={cfg.taste.instrumentalInDialogue} onchange={(e) => save({ taste: { ...cfg!.taste, instrumentalInDialogue: e.currentTarget.checked } })} /> Instrumental only during dialogue</label>
     </section>
+
+    <MusicBench />
   </div>
 {/if}
 
