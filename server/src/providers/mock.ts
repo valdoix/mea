@@ -712,8 +712,24 @@ function mockSheet(block: string) {
   }
   const seen = (t: string) => groups.filter((g) => g.text === t).length;
   const passages = groups.map((g) => ({ from: g.from, to: g.to, kind: seen(g.text) > 1 ? "chorus" : "verse", gist: `about ${mockSituations(g.text)[0] ?? "something"}`, situations: mockSituations(g.text), peak: false }));
-  const all = mockSituations(rows.map((r) => r.text).join("\n"));
-  return { id, situations: all, themes: [], voice: /\byou(?:rs?)?\b/i.test(block) ? "to-you" : "self", passages, mood: all.includes("grief") ? "melancholy" : null };
+  const text = rows.map((r) => r.text).join("\n");
+  const all = mockSituations(text);
+  // docs/34 Part 2: the card, by the same word cues. A song about a body in bed is sexual; one about a grave mourns.
+  const sexual = /\b(bed|skin|undress|naked)\b/i.test(text);
+  const card = {
+    about: all.length ? `A song about ${all[0]}` : "A song about something",
+    bond: /\b(mother|father|sister|brother|mama|daddy)\b/i.test(text) ? "family" : /\b(love|kiss|baby|darling|yours)\b/i.test(text) || sexual ? "romantic" : "anyone",
+    stance: all.includes("grief") ? "mourning" : all.includes("leaving") ? "losing" : "wanting",
+    heat: sexual ? "sexual" : "none",
+    dark: all.includes("grief") ? ["death"] : [],
+    main: all.slice(0, 2),
+    passing: all.slice(2),
+    opening: mockSituations(groups[0]?.text ?? ""),
+    energy: all.includes("the fight") ? 5 : all.includes("grief") ? 1 : 3,
+    pace: all.includes("grief") ? "slow" : "mid",
+    moods: all.includes("grief") ? ["melancholy"] : ["tender"],
+  };
+  return { id, situations: all, themes: [], voice: /\byou(?:rs?)?\b/i.test(block) ? "to-you" : "self", passages, mood: all.includes("grief") ? "melancholy" : null, card };
 }
 
 /** Plain-text creative helpers (fields, deeper sections, extended answers), keyed by their prompt's wording. */
@@ -975,6 +991,9 @@ function guessSchema(system: string) {
   if (system.includes('"questions"')) return "quiz_questions";
   if (system.includes('"digest"')) return "memory_digest";
   if (system.includes('"description"')) return "entity_profile";
+  // docs/18 and 34: the soundtrack's song sheets (and cards), and the story's moment.
+  if (system.includes('"passages"')) return "lyric_sheet";
+  if (system.startsWith("You choose music for a story")) return "story_moment";
   return undefined;
 }
 

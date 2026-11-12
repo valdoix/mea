@@ -14,7 +14,8 @@ import { findLyrics, forgetLyrics, type LyricLine, lyricsFor, lyricsIndex, lyric
 import type { Situation } from "./situations";
 import { closePlay, markPlay, openPlay, type PlayCue, type PlayEnding, type PlayHow, type PlayParts, type Runner } from "./plays";
 import { bareTitle, blockedVersion, firstArtist, sameCut, songKey, type Version, VERSIONS } from "./versions";
-import { clashes, embedPassages, songThemes, landingPoint, passageTimes, forgetPassageVectors, movePassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
+import { allCards, cardLine, cardOf, cardPatch, cardText, dropOldMoods, editCard, saveReadCard, type SongCard, SOUND_FIELDS, type StoredCard } from "./cards";
+import { clashes, embedCards, embedPassages, songThemes, landingPoint, passageTimes, forgetPassageVectors, movePassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
 import { command, detectApp, seekTo, trimQueue, playerState, playlistIdOf, queueNext, playlistSongs, publicSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp, type YtmSong } from "./ytmusic";
 
 /**
@@ -38,6 +39,8 @@ export const trackSchema = z.object({
   instrumental: z.boolean().default(false),
   /** True: this is the explicit version. False: Mea looked, and there's none to play instead. Unset: not looked yet. */
   explicit: z.boolean().optional(),
+  /** docs/34 2.2: you set these moods yourself, so a song card's guess never replaces them. */
+  moodsByHand: z.boolean().optional(),
 });
 export type Track = z.infer<typeof trackSchema>;
 
@@ -822,7 +825,7 @@ async function addPlaylist(listId: string, input: { moods?: Mood[]; instrumental
   if (!songs.length) throw badRequest("That playlist is empty, private, or not one YouTube Music can show without signing in");
   const cfg = musicConfig();
   const have = new Set(cfg.library.map((t) => t.videoId));
-  let fresh = songs.filter((s) => !have.has(s.videoId)).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), moods: input.moods ?? [], instrumental: input.instrumental || /instrumental/i.test(s.title), explicit: s.explicit }));
+  let fresh = songs.filter((s) => !have.has(s.videoId)).map((s) => trackSchema.parse({ videoId: s.videoId, title: s.title.slice(0, 200) || s.videoId, artist: s.artist.slice(0, 120), moods: input.moods ?? [], ...(input.moods?.length ? { moodsByHand: true } : {}), instrumental: input.instrumental || /instrumental/i.test(s.title), explicit: s.explicit }));
   const room = 500 - cfg.library.length;
   if (room <= 0) throw badRequest("The library is full (500 songs)");
   fresh = fresh.slice(0, room);
@@ -856,7 +859,7 @@ export async function addTrack(input: { link?: string; moods?: Mood[]; instrumen
     title ||= s.title ?? "";
     artist ||= s.author ?? "";
   }
-  const track = trackSchema.parse({ videoId, title: title || videoId, artist, moods: input.moods ?? [], instrumental: input.instrumental ?? false });
+  const track = trackSchema.parse({ videoId, title: title || videoId, artist, moods: input.moods ?? [], ...(input.moods?.length ? { moodsByHand: true } : {}), instrumental: input.instrumental ?? false });
   // Re-read: the library may have changed while YouTube Music answered.
   const now = musicConfig();
   setSetting("music.config", { ...now, library: [...now.library.filter((t) => t.videoId !== videoId), track] } as never);
@@ -873,7 +876,8 @@ export async function addTrack(input: { link?: string; moods?: Mood[]; instrumen
 export function retagTrack(videoId: string, patch: { moods?: Mood[]; instrumental?: boolean }) {
   const cfg = musicConfig();
   if (!cfg.library.some((t) => t.videoId === videoId)) throw badRequest("That song isn't in the library");
-  setSetting("music.config", { ...cfg, library: cfg.library.map((t) => (t.videoId === videoId ? { ...t, ...patch } : t)) } as never);
+  const hand = patch.moods ? { moodsByHand: true } : {};
+  setSetting("music.config", { ...cfg, library: cfg.library.map((t) => (t.videoId === videoId ? { ...t, ...patch, ...hand } : t)) } as never);
   return musicView();
 }
 
@@ -982,7 +986,20 @@ function wordsView(library: Track[]) {
   const states = Object.values(words);
   const count = (s: WordsState) => states.filter((x) => x === s).length;
   const have = count("timed") + count("plain");
-  return { words, wordsCount: { have, timed: count("timed"), pending: count("pending"), of: library.filter((t) => !t.instrumental).length, read: have - library.filter((t) => unread.has(t.videoId) && !t.instrumental).length } };
+  // docs/34 2.5: each song's card in short, for the library's filter and line.
+  const stored = allCards();
+  const cards: Record<string, { bond: string; stance: string; heat: string; energy: number; line: string }> = {};
+  for (const t of library) {
+    const c = stored.get(songKey(t))?.card;
+    if (c) cards[t.videoId] = { bond: c.bond, stance: c.stance, heat: c.heat, energy: c.energy, line: cardLine(c) };
+  }
+  const due = cardsDue(library, true).length;
+  return {
+    words,
+    wordsCount: { have, timed: count("timed"), pending: count("pending"), of: library.filter((t) => !t.instrumental).length, read: have - library.filter((t) => unread.has(t.videoId) && !t.instrumental).length },
+    cards,
+    cardsCount: { have: Object.keys(cards).length, due, calls: Math.ceil(due / SHEET_BATCH), reading: due > 0 && cardsAllowed() },
+  };
 }
 
 /** The next song to look up: one never looked for, then a miss from long enough ago. Not instrumentals, not words you pasted. */
@@ -1043,17 +1060,17 @@ const inLibrary = (videoId: string) => {
 
 /** A song's words as Mea has them (null: not looked up yet), and its lyric sheet once it's been read. */
 export function songWords(videoId: string) {
-  inLibrary(videoId);
-  return { words: lyricsFor(videoId), sheet: sheetFor(videoId) };
+  const t = inLibrary(videoId);
+  return { words: lyricsFor(videoId), sheet: sheetFor(videoId), card: cardView(t) };
 }
 
 /** Words you paste for a song (plain or LRC); empty text forgets them, and they're looked up again. */
 export function setSongWords(videoId: string, text: string) {
-  inLibrary(videoId);
+  const t = inLibrary(videoId);
   pasteLyrics(videoId, text);
   if (!text.trim()) lyricsSoon();
   else sheetsSoon();
-  return { words: lyricsFor(videoId), sheet: sheetFor(videoId), view: musicView() };
+  return { words: lyricsFor(videoId), sheet: sheetFor(videoId), card: cardView(t), view: musicView() };
 }
 
 /** Find again: forgets what Mea has (pasted words too) and looks the song up now. */
@@ -1063,15 +1080,72 @@ export async function findSongWords(videoId: string) {
   const found = await findLyrics(t);
   if (found.instrumental) markInstrumental(videoId);
   else if (found.lines.length) sheetsSoon();
-  return { words: lyricsFor(videoId), sheet: sheetFor(videoId), view: musicView() };
+  return { words: lyricsFor(videoId), sheet: sheetFor(videoId), card: cardView(t), view: musicView() };
 }
 
 // ---------- reading the songs (docs/18, 2.1-2.2) ----------
 
-/** Reads songs with words and no sheet in the background, a few per helper call. */
+/**
+ * docs/34 2.1: songs read before song cards existed have a sheet and no card. Re-reading them costs
+ * a helper call per few songs, so it only happens once you've said yes (Settings › Music). A song
+ * read for its sheet gets its card in the same call, without asking.
+ */
+const cardsAllowed = () => getSetting("music.cardsAllowed") === true;
+
+/** Songs whose words have a sheet but whose song has no card, one copy per song. `any`: whether or not you've said yes. */
+function cardsDue(library: Track[], any = false): { videoId: string; lines: LyricLine[] }[] {
+  if (!any && !cardsAllowed()) return [];
+  const have = allCards();
+  const songs = library.filter((t) => !t.instrumental && !have.has(songKey(t)));
+  const unread = new Set(songsToRead(songs.map((t) => t.videoId)).map((s) => s.videoId));
+  const lines = lyricsLines(songs.map((t) => t.videoId).filter((id) => !unread.has(id)));
+  const seen = new Set<string>();
+  const out: { videoId: string; lines: LyricLine[] }[] = [];
+  for (const t of songs) {
+    const l = lines.get(t.videoId);
+    const k = songKey(t);
+    if (!l?.some((x) => x.text) || seen.has(k)) continue;
+    seen.add(k);
+    out.push({ videoId: t.videoId, lines: l });
+  }
+  return out;
+}
+
+/** What the sheets job has to read: words with no sheet, then (once you've said yes) songs with no card. */
+function toRead(cfg: MusicConfig) {
+  const songs = cfg.library.filter((t) => !t.instrumental);
+  const sheets = songsToRead(songs.map((t) => t.videoId));
+  const ids = new Set(sheets.map((s) => s.videoId));
+  return [...sheets, ...cardsDue(songs).filter((s) => !ids.has(s.videoId))];
+}
+
+/** Reads songs with words and no sheet (or no card) in the background, a few per helper call. */
 export function sheetsSoon() {
-  if (!songsToRead(musicConfig().library.filter((t) => !t.instrumental).map((t) => t.videoId)).length) return;
+  if (!toRead(musicConfig()).length) return;
   enqueue("music.sheets", {}, { dedupeKey: "music.sheets", priority: -1 });
+}
+
+/** Your yes to reading cards for the songs already read (Settings › Music): about one helper call per four songs, once. */
+export function readCards() {
+  setSetting("music.cardsAllowed", true);
+  sheetsSoon();
+  return musicView();
+}
+
+/**
+ * A card read for one copy of a song: saved for the song, and its guessed moods become the moods of
+ * every copy whose moods you didn't set yourself (the old ones are kept, to put back).
+ */
+function applyCard(videoId: string, card: SongCard) {
+  const cfg = musicConfig();
+  const t = cfg.library.find((x) => x.videoId === videoId);
+  if (!t) return;
+  const key = songKey(t);
+  const guessable = cfg.library.filter((x) => songKey(x) === key && !x.moodsByHand);
+  const moods = card.moods.filter((m): m is Mood => (MOODS as readonly string[]).includes(m));
+  const changes = moods.length > 0 && guessable.some((x) => x.moods.join() !== moods.join());
+  saveReadCard(key, card, changes ? (guessable.find((x) => x.moods.length)?.moods ?? null) : null);
+  if (changes) setSetting("music.config", { ...cfg, library: cfg.library.map((x) => (songKey(x) === key && !x.moodsByHand ? { ...x, moods } : x)) } as never);
 }
 
 /**
@@ -1081,7 +1155,7 @@ export function sheetsSoon() {
  */
 export async function sheetsStep() {
   const cfg = musicConfig();
-  const todo = songsToRead(cfg.library.filter((t) => !t.instrumental).map((t) => t.videoId)).slice(0, SHEET_BATCH);
+  const todo = toRead(cfg).slice(0, SHEET_BATCH);
   if (todo.length) {
     const byId = new Map(cfg.library.map((t) => [t.videoId, t]));
     const read = await readSongs(
@@ -1091,9 +1165,11 @@ export async function sheetsStep() {
     for (const s of todo) {
       const r = read.get(s.videoId);
       if (r) saveSheet(s.videoId, r.sheet, linesHash(s.lines));
+      if (r?.card) applyCard(s.videoId, r.card);
     }
+    // A song the reply gave no card: the one mood its words carry joins its tags, as before cards.
     const fresh = musicConfig();
-    const extra = new Map([...read].filter(([id, r]) => r.mood && !fresh.library.find((t) => t.videoId === id)?.moods.includes(r.mood as Mood)).map(([id, r]) => [id, r.mood as Mood]));
+    const extra = new Map([...read].filter(([id, r]) => !r.card && r.mood && !fresh.library.find((t) => t.videoId === id)?.moods.includes(r.mood as Mood)).map(([id, r]) => [id, r.mood as Mood]));
     if (extra.size) setSetting("music.config", { ...fresh, library: fresh.library.map((t) => (extra.has(t.videoId) && t.moods.length < 9 ? { ...t, moods: [...t.moods, extra.get(t.videoId)!] } : t)) } as never);
   }
   try {
@@ -1101,7 +1177,42 @@ export async function sheetsStep() {
   } catch (e) {
     console.error("[mea] soundtrack: couldn't embed passages:", (e as Error).message);
   }
-  if (songsToRead(musicConfig().library.filter((t) => !t.instrumental).map((t) => t.videoId)).length) throw new Deferred("Reading the next songs' lyrics", 1_000);
+  try {
+    await embedCards([...allCards().values()].map((c) => ({ key: c.key, text: cardText(c.card) })));
+  } catch (e) {
+    console.error("[mea] soundtrack: couldn't embed song cards:", (e as Error).message);
+  }
+  if (toRead(musicConfig()).length) throw new Deferred("Reading the next songs' lyrics", 1_000);
+}
+
+// ---------- song cards (docs/34, Part 2) ----------
+
+/** A song's card as Settings shows it: which fields are still a guess, and the moods it replaced. */
+function cardView(t: Track, stored: StoredCard | null = cardOf(t)) {
+  if (!stored) return null;
+  return { ...stored.card, edited: stored.edited, guessed: [...SOUND_FIELDS.filter((f) => !stored.edited.includes(f)), ...(t.moodsByHand ? [] : ["moods"])], oldMoods: stored.oldMoods };
+}
+
+/** Your edit to a song's card (every copy of the song shares it). */
+export function editSongCard(videoId: string, patch: unknown) {
+  const t = inLibrary(videoId);
+  const ok = cardPatch.safeParse(patch);
+  if (!ok.success) throw badRequest("Invalid card", z.treeifyError(ok.error));
+  const stored = editCard(songKey(t), ok.data);
+  return { card: cardView(t, stored), view: musicView() };
+}
+
+/** The moods a card's guess replaced, back on every copy of the song, as yours. */
+export function restoreOldMoods(videoId: string) {
+  const t = inLibrary(videoId);
+  const key = songKey(t);
+  const old = cardOf(t)?.oldMoods;
+  if (!old) throw badRequest("There are no earlier moods to put back");
+  const cfg = musicConfig();
+  const moods = old.filter((m): m is Mood => (MOODS as readonly string[]).includes(m));
+  setSetting("music.config", { ...cfg, library: cfg.library.map((x) => (songKey(x) === key ? { ...x, moods, moodsByHand: true } : x)) } as never);
+  dropOldMoods(key);
+  return { card: cardView(inLibrary(videoId)), view: musicView() };
 }
 
 /** Any song in the library has a sheet: only then is the moment worth a helper call. */

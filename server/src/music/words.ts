@@ -5,6 +5,7 @@ import { hashText } from "../memory/text";
 import { callJson } from "../services/llm";
 import { finishRequest, startRequest } from "../services/requests";
 import type { Change, WorldState } from "../trackers/types";
+import { CARD_PROMPT, cardReply, cleanCard, type SongCard } from "./cards";
 import type { LyricLine } from "./lyrics";
 import { type Situation, SITUATIONS, situationsOf } from "./situations";
 
@@ -54,6 +55,7 @@ const sheetReply = z.object({
       voice: z.string().default("to-you"),
       passages: z.array(z.object({ from: z.number(), to: z.number(), kind: z.string().default("verse"), gist: z.string().default(""), situations: z.array(z.string()).default([]), peak: z.boolean().default(false) })).default([]),
       mood: z.string().nullish(),
+      card: cardReply,
     }),
   ),
 });
@@ -101,7 +103,7 @@ export interface SheetSong {
  * Sheets for a few songs in one helper call. A song the reply leaves out gets an empty sheet (kept,
  * so it isn't asked about again until its words change). Returns a mood the words suggest, if any.
  */
-export async function readSongs(songs: SheetSong[], moods: readonly string[]): Promise<Map<string, { sheet: LyricSheet; mood: string | null }>> {
+export async function readSongs(songs: SheetSong[], moods: readonly string[]): Promise<Map<string, { sheet: LyricSheet; mood: string | null; card: SongCard | null }>> {
   const r = await callJson({
     task: "helper",
     kind: "soundtrack",
@@ -113,16 +115,17 @@ export async function readSongs(songs: SheetSong[], moods: readonly string[]): P
 - voice: who sings to whom: "to-you" (to someone), "about-them" (about someone not there), "we" (about us), "self" (inward).
 - passages: split the numbered lines into its verses, choruses, bridge, intro and outro (blank lines and repeats show where; the chorus is the block that repeats). Each: from and to (line numbers, inclusive), kind, a one-line gist in your own plain words (never quote the lyrics), 1-3 situations from the same list, and peak: true for the one passage the song builds to.
 - mood: the one mood the words carry most, from: ${moods.join(", ")} (or null).
-Reply with JSON only: {"songs": [{"id": "…", "situations": [], "themes": [], "voice": "to-you", "passages": [{"from": 0, "to": 3, "kind": "verse", "gist": "…", "situations": [], "peak": false}], "mood": null}]}`,
+${CARD_PROMPT(moods)}
+Reply with JSON only: {"songs": [{"id": "…", "situations": [], "themes": [], "voice": "to-you", "passages": [{"from": 0, "to": 3, "kind": "verse", "gist": "…", "situations": [], "peak": false}], "mood": null, "card": {"about": "…", "bond": "romantic", "stance": "wanting", "heat": "none", "dark": [], "main": [], "passing": [], "opening": [], "energy": 3, "pace": "mid", "moods": []}}]}`,
     user: songs.map((s) => `### ${s.videoId}: "${s.title}" by ${s.artist || "?"}\n${numbered(s.lines)}`).join("\n\n"),
-    maxTokens: 900 * songs.length + 200,
+    maxTokens: 1150 * songs.length + 200,
   });
   const by = new Map(r.data.songs.map((x) => [x.id, x]));
-  const out = new Map<string, { sheet: LyricSheet; mood: string | null }>();
+  const out = new Map<string, { sheet: LyricSheet; mood: string | null; card: SongCard | null }>();
   for (const s of songs) {
     const raw = by.get(s.videoId);
     const lineCount = Math.min(s.lines.length, MAX_LINES);
-    out.set(s.videoId, raw ? { sheet: cleanSheet(raw, lineCount), mood: raw.mood && moods.includes(raw.mood) ? raw.mood : null } : { sheet: { situations: [], themes: [], voice: "to-you", passages: [] }, mood: null });
+    out.set(s.videoId, raw ? { sheet: cleanSheet(raw, lineCount), mood: raw.mood && moods.includes(raw.mood) ? raw.mood : null, card: raw.card ? cleanCard(raw.card, moods) : null } : { sheet: { situations: [], themes: [], voice: "to-you", passages: [] }, mood: null, card: null });
   }
   return out;
 }
@@ -170,14 +173,13 @@ const fromBlob = (b: Uint8Array) => new Float32Array(b.buffer.slice(b.byteOffset
 export const passageText = (p: Passage, sheet: LyricSheet) => `${p.gist} (${[...new Set([...p.situations, ...sheet.situations])].join(", ")})`;
 
 /**
- * Embeds passages that have no vector for this model yet (owner "song", id "videoId#index"), with
- * the same rules as lore: nothing when embeddings are off, identical text never twice.
+ * Embeds texts that have no vector for this model yet (`ownerType`, by id), with the same rules as
+ * lore: nothing when embeddings are off, identical text never twice.
  */
-export async function embedPassages(sheets: { videoId: string; sheet: LyricSheet }[]) {
+async function embedOwned(ownerType: "song" | "song_card", want: { id: string; text: string }[]) {
   const t = embeddingTarget();
   if (!t) return 0;
-  const want = sheets.flatMap(({ videoId, sheet }) => sheet.passages.map((p, i) => ({ id: `${videoId}#${i}`, text: passageText(p, sheet) })));
-  const have = new Map(all<{ owner_id: string; hash: string; model: string; dims: number }>("SELECT owner_id, hash, model, dims FROM embeddings WHERE owner_type = 'song'").map((r) => [r.owner_id, r]));
+  const have = new Map(all<{ owner_id: string; hash: string; model: string; dims: number }>("SELECT owner_id, hash, model, dims FROM embeddings WHERE owner_type = ?", ownerType).map((r) => [r.owner_id, r]));
   const todo = want.filter((w) => {
     const h = have.get(w.id);
     return !h || h.hash !== hashText(w.text) || h.model !== t.model || h.dims !== t.dims;
@@ -199,8 +201,9 @@ export async function embedPassages(sheets: { videoId: string; sheet: LyricSheet
           n = Math.sqrt(n) || 1;
           for (let k = 0; k < v.length; k++) v[k]! /= n;
           run(
-            `INSERT INTO embeddings (owner_type, owner_id, chat_id, model, dims, hash, vector, created_at) VALUES ('song', ?, '', ?, ?, ?, ?, ?)
+            `INSERT INTO embeddings (owner_type, owner_id, chat_id, model, dims, hash, vector, created_at) VALUES (?, ?, '', ?, ?, ?, ?, ?)
              ON CONFLICT(owner_type, owner_id) DO UPDATE SET model = excluded.model, dims = excluded.dims, hash = excluded.hash, vector = excluded.vector, created_at = excluded.created_at`,
+            ownerType,
             b.id,
             t.model,
             t.dims,
@@ -218,6 +221,20 @@ export async function embedPassages(sheets: { videoId: string; sheet: LyricSheet
     }
   }
   return todo.length;
+}
+
+/** Each passage's vector (owner "song", id "videoId#index"). */
+export const embedPassages = (sheets: { videoId: string; sheet: LyricSheet }[]) => embedOwned("song", sheets.flatMap(({ videoId, sheet }) => sheet.passages.map((p, i) => ({ id: `${videoId}#${i}`, text: passageText(p, sheet) }))));
+
+/** docs/34 2.4: a vector for the whole song (owner "song_card", id its song key), from its card. */
+export const embedCards = (cards: { key: string; text: string }[]) => embedOwned("song_card", cards.map((c) => ({ id: c.key, text: c.text })));
+
+/** A song's whole-song vector for the current model, if it has one. */
+export function cardVector(key: string): Float32Array | null {
+  const t = embeddingTarget();
+  if (!t) return null;
+  const r = one<{ vector: Uint8Array }>("SELECT vector FROM embeddings WHERE owner_type = 'song_card' AND owner_id = ? AND model = ? AND dims = ?", key, t.model, t.dims);
+  return r ? fromBlob(r.vector) : null;
 }
 
 /** A song's passage vectors for the current model, by passage index. */

@@ -4,6 +4,7 @@
   import { confirm } from "../../lib/dialogs.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import MusicBench from "./MusicBench.svelte";
+  import SongCard, { BONDS, type Card, HEATS } from "./SongCard.svelte";
 
   /**
    * J3: the soundtrack, on YouTube Music. Mea talks only to a YouTube Music app on this PC: the
@@ -25,6 +26,8 @@
     instrumental: boolean;
     /** True: this is the explicit version. */
     explicit?: boolean;
+    /** You set its moods yourself: a song card's guess leaves them. */
+    moodsByHand?: boolean;
   }
   interface Config {
     enabled: boolean;
@@ -50,6 +53,10 @@
     words: Record<string, WordsState>;
     /** read: songs whose words have been read for what they're about (their lyric sheet). */
     wordsCount: { have: number; timed: number; pending: number; of: number; read: number };
+    /** docs/34 Part 2: each song's card in short. */
+    cards: Record<string, { bond: string; stance: string; heat: string; energy: number; line: string }>;
+    /** due: songs read before cards, with none yet; calls: helper calls to read them; reading: you said yes and it's under way. */
+    cardsCount: { have: number; due: number; calls: number; reading: boolean };
   }
   type WordsState = "timed" | "plain" | "none" | "instrumental" | "pending";
   /** docs/18, 2.1: what the helper read out of a song's words. */
@@ -88,6 +95,10 @@
   // Search the library: every word must match a title, an artist or a mood; and one artist, if picked.
   let query = $state("");
   let artistPick = $state("");
+  // docs/34 2.5: and by what the song's card says.
+  let bondPick = $state("");
+  let heatPick = $state("");
+  let energyPick = $state("");
   // Each artist on their own: "Camila Cabello & Ed Sheeran" counts for both, so picking one shows their duets too.
   const artistsOf = (artist: string) => artist.split(/\s*(?:&|,|\bfeat\.?|\bft\.?|\bwith\b)\s*/i).map((a) => a.trim()).filter(Boolean);
   const byArtist = (t: Track, a: string) => artistsOf(t.artist).some((x) => x.toLowerCase() === a.toLowerCase());
@@ -104,7 +115,10 @@
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     return (cfg?.library ?? []).filter((t) => {
       if (artistPick && !byArtist(t, artistPick)) return false;
-      const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""}${t.explicit ? " explicit" : ""} ${WORDS_LABEL[cfg?.words[t.videoId] ?? "pending"]}`.toLowerCase();
+      const c = cfg?.cards[t.videoId];
+      if ((bondPick || heatPick || energyPick) && !c) return false;
+      if (c && ((bondPick && c.bond !== bondPick) || (heatPick && c.heat !== heatPick) || (energyPick && String(c.energy) !== energyPick))) return false;
+      const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""}${t.explicit ? " explicit" : ""} ${WORDS_LABEL[cfg?.words[t.videoId] ?? "pending"]} ${c?.line ?? ""}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
   });
@@ -112,7 +126,7 @@
   $effect(() => {
     if (artistPick && !artists.some(([a]) => a === artistPick)) artistPick = "";
   });
-  const filtering = $derived(Boolean(query.trim() || artistPick));
+  const filtering = $derived(Boolean(query.trim() || artistPick || bondPick || heatPick || energyPick));
   // Quick remove: tick songs (or every song shown), then remove them in one go.
   let picked = $state<string[]>([]);
   const pickedSet = $derived(new Set(picked));
@@ -193,6 +207,7 @@
   /** undefined while it loads; null: Mea has none. */
   let words = $state<Words | null | undefined>(undefined);
   let sheet = $state<Sheet | null>(null);
+  let card = $state<Card | null>(null);
   let wordsText = $state("");
   let wordsBusy = $state(false);
   async function openWords(videoId: string) {
@@ -200,21 +215,24 @@
     wordsOf = videoId;
     words = undefined;
     sheet = null;
+    card = null;
     wordsText = "";
     try {
-      const r = await get<{ words: Words | null; sheet: Sheet | null }>(`/api/music/lyrics/${videoId}`);
+      const r = await get<{ words: Words | null; sheet: Sheet | null; card: Card | null }>(`/api/music/lyrics/${videoId}`);
       words = r.words;
       sheet = r.sheet;
+      card = r.card;
     } catch (e) {
       errorToast(e);
     }
   }
-  async function wordsDo(req: () => Promise<{ words: Words | null; sheet: Sheet | null; view: Config }>, done: string) {
+  async function wordsDo(req: () => Promise<{ words: Words | null; sheet: Sheet | null; card: Card | null; view: Config }>, done: string) {
     wordsBusy = true;
     try {
       const r = await req();
       words = r.words;
       sheet = r.sheet;
+      card = r.card;
       cfg = r.view;
       wordsText = "";
       toast(done, { kind: "ok" });
@@ -224,6 +242,22 @@
       wordsBusy = false;
     }
   }
+  // docs/34 2.1: the songs read before cards are read again only on your yes (about one helper call per four songs).
+  async function readCards() {
+    const n = cfg!.cardsCount;
+    if (!(await confirm({ title: `Read ${n.due} song${n.due === 1 ? "" : "s"} for their cards?`, message: `Your helper model reads their words again, four songs a call: about ${n.calls} call${n.calls === 1 ? "" : "s"}, once, in the background. Songs added later are read with their cards anyway.`, confirmLabel: "Read them" }))) return;
+    try {
+      cfg = await post<Config>("/api/music/cards/read", {});
+    } catch (e) {
+      errorToast(e);
+    }
+  }
+  // Cards being read: the count moves as they're done.
+  $effect(() => {
+    if (!cfg?.cardsCount.reading) return;
+    const t = setTimeout(() => void load(), 5000);
+    return () => clearTimeout(t);
+  });
   const stamp = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
   async function save(patch: Partial<Config>) {
     try {
@@ -350,12 +384,22 @@
       {#if cfg.wordsCount.of}
         <p class="tiny muted">Words for {cfg.wordsCount.have} of {cfg.wordsCount.of} songs ({cfg.wordsCount.timed} timed{#if cfg.wordsCount.read < cfg.wordsCount.have}, {cfg.wordsCount.read} read so far{/if}){#if cfg.lyricsOnline && cfg.wordsCount.pending} · looking up {cfg.wordsCount.pending}…{/if}</p>
       {/if}
+      {#if cfg.cardsCount.due}
+        <p class="tiny muted">
+          {#if cfg.cardsCount.reading}Reading songs for their cards: {cfg.cardsCount.due} to go…{:else}{cfg.cardsCount.due} song{cfg.cardsCount.due === 1 ? " was" : "s were"} read before song cards (what a song is as a whole: who it's about, how sexual, how loud).{" "}<button type="button" class="btn ghost small" onclick={readCards}>Read them</button>{/if}
+        </p>
+      {/if}
       {#if libraryOpen || !cfg.library.length}
       <div class="stack" id="music-library">
       {#if cfg.library.length > 1}
         <div class="row wrap">
           <input class="input grow" type="search" bind:value={query} placeholder="Search by title, artist or mood" aria-label="Search the library" />
           {#if artists.length > 1}<select class="select" bind:value={artistPick} aria-label="Only this artist"><option value="">All artists</option>{#each artists as [a, n] (a)}<option value={a}>{a} ({n})</option>{/each}</select>{/if}
+          {#if cfg.cardsCount.have}
+            <select class="select" bind:value={bondPick} aria-label="Only this bond"><option value="">Any bond</option>{#each BONDS as b (b)}<option value={b}>{b}</option>{/each}</select>
+            <select class="select" bind:value={heatPick} aria-label="Only this heat"><option value="">Any heat</option>{#each HEATS as h (h)}<option value={h}>{h === "none" ? "no heat" : h}</option>{/each}</select>
+            <select class="select" bind:value={energyPick} aria-label="Only this energy"><option value="">Any energy</option>{#each [1, 2, 3, 4, 5] as e (e)}<option value={String(e)}>energy {e}</option>{/each}</select>
+          {/if}
           {#if filtering}<span class="tiny muted">{shown.length} of {cfg.library.length}</span>{/if}
           {#if artistPick}<button class="btn small danger" onclick={() => removeArtist(artistPick)}><X size={13} /> Remove all by {artistPick}</button>{/if}
         </div>
@@ -371,7 +415,7 @@
       {#each shown as t (t.videoId)}
         <div class="track">
           <div class="row between"><label class="pick small"><input type="checkbox" checked={pickedSet.has(t.videoId)} onchange={() => (picked = toggle(picked, t.videoId))} aria-label="Select {t.title}" /><span><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}</span></label><span class="row tight"><button type="button" class="chip tiny words {cfg.words[t.videoId] ?? 'pending'}" class:on={wordsOf === t.videoId} onclick={() => openWords(t.videoId)} aria-expanded={wordsOf === t.videoId} title="The song's words">{WORDS_LABEL[cfg.words[t.videoId] ?? "pending"]}</button><button class="btn ghost icon small" onclick={() => song(del<Config>(`/api/music/library/${t.videoId}`))} aria-label="Remove {t.title}"><X size={13} /></button></span></div>
-          <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => song(patch<Config>(`/api/music/library/${t.videoId}`, { moods: toggle(t.moods, m) }))}>{m}</button>{/each}</div>
+          <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => song(patch<Config>(`/api/music/library/${t.videoId}`, { moods: toggle(t.moods, m) }))}>{m}</button>{/each}{#if cfg.cards[t.videoId]}<span class="tiny muted">{cfg.cards[t.videoId]!.line}</span>{/if}</div>
           {#if wordsOf === t.videoId}
             <div class="stack words-card">
               {#if words?.lines.length}
@@ -385,6 +429,9 @@
                   </div>
                 {:else}
                   <p class="tiny muted">Not read for what it's about yet.</p>
+                {/if}
+                {#if card}
+                  <SongCard videoId={t.videoId} {card} moodsGuessed={!t.moodsByHand} onsaved={(r) => ((card = r.card), (cfg = r.view as Config))} />
                 {/if}
                 <div class="lyrics">{#each words.lines as l, i (i)}<div class:gap={!l.text}>{#if words.timed && l.t != null}<span class="faint at">{stamp(l.t)}</span>{/if}{l.text}</div>{/each}</div>
               {:else if words === undefined}
