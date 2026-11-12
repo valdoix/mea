@@ -3,6 +3,7 @@ import { normalizeCard } from "../src/cards/card";
 import { setSetting } from "../src/lib/settings";
 import { one } from "../src/db/db";
 import { addTrack, chatMusicView, connectFinish, connectStart, type Cue, cueFrom, type Mood, musicAction, musicAfterReply, musicTick, musicConfig, musicView, pickTrack, saveMusicConfig } from "../src/music/director";
+import { playHistory } from "../src/music/plays";
 import { videoIdOf } from "../src/music/ytmusic";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
@@ -188,5 +189,26 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     await musicTick();
     expect(sent.filter((x) => x.path === "/command")).toEqual([]);
     await musicAction(chatId, "off");
+  });
+
+  test("the play log (docs/34, 1.1): each song, how it came to play and how it ended", () => {
+    const plays = playHistory(chatId).reverse();
+    expect(plays.map((p) => [p.how, p.ending])).toEqual([
+      ["start", "cut"],
+      ["big", "notFor"],
+      ["notFor", "played"],
+      ["next", "played"],
+      ["next", "off"],
+    ]);
+    // The first song: the theme of the people here, with what made its score and what came close.
+    expect(plays[0]).toMatchObject({ title: "Now Playing Song", why: "Mira & Spike's theme", parts: { motif: 6 }, cue: { present: ["Mira", "Spike"] } });
+    expect(plays[0]!.messageId).toBeTruthy();
+    expect(plays[0]!.runners.map((r) => r.title)).toContain("Rain Song");
+    // The death's song kept your 👍 and the scene it was cut for.
+    expect(plays[1]).toMatchObject({ title: "Fight Song", marks: ["up"] });
+    expect(plays[1]!.moment?.situations).toContain("grief");
+    // Every song that ended says how much of it was heard.
+    for (const p of plays) expect(p.heard).toBeGreaterThanOrEqual(0);
+    expect(chatMusicView(chatId).now).not.toBeNull();
   });
 });

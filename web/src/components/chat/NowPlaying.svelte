@@ -90,6 +90,38 @@
       clearInterval(t);
     };
   });
+  // docs/34 1.2: what played in this story, and how each song ended.
+  interface Play {
+    id: string;
+    title: string;
+    artist: string;
+    how: string;
+    why: string;
+    ending: string | null;
+    heard: number | null;
+    marks: string[];
+  }
+  let showPlays = $state(false);
+  let plays = $state<Play[] | null>(null);
+  async function loadPlays() {
+    try {
+      plays = (await get<{ plays: Play[] }>(`/api/chats/${chatId}/music/plays`)).plays;
+    } catch {
+      plays = [];
+    }
+  }
+  $effect(() => {
+    void v?.now?.videoId;
+    if (open && showPlays) void loadPlays();
+  });
+  const HOW: Record<string, string> = { start: "first song", big: "big moment", next: "next song", skip: "after a skip", notFor: "after Not for this scene", down: "after a 👎" };
+  const mins = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  function ended(p: Play) {
+    if (!p.ending) return "playing";
+    const at = p.heard != null ? ` at ${mins(p.heard)}` : "";
+    return { played: "played out", skipped: `skipped${at}`, notFor: `not for the scene${at}`, down: `👎${at}`, cut: `cut${at}`, off: `turned off${at}`, replaced: `replaced${at}` }[p.ending] ?? p.ending;
+  }
+
   async function act(action: string) {
     try {
       v = await post<View>(`/api/chats/${chatId}/music`, { action });
@@ -116,10 +148,23 @@
           <button class="btn ghost icon small" class:on={v.vote < 0} onclick={() => act("down")} aria-label="Less like this" disabled={!v.now}><ThumbsDown size={14} /></button>
           <button class="btn ghost small" onclick={() => act("notForScene")} disabled={!v.now}>Not for this scene</button>
           {#if v.now?.words}<button class="btn ghost small" onclick={() => act("wrongWords")} title="Keep the song, but these words don't fit what's happening">Wrong words</button><button class="btn ghost small" class:on={showWords} onclick={toggleWords} aria-pressed={showWords} title="Show the line being sung">Words</button>{/if}
+          <button class="btn ghost small" class:on={showPlays} onclick={() => (showPlays = !showPlays)} aria-pressed={showPlays} title="What played in this story">Played</button>
           <button class="btn ghost icon small" onclick={() => ((open = false), act("off"))} aria-label="Turn the soundtrack off" title="Off for this chat"><X size={14} /></button>
           </span>
           {#if line?.current}
             <span class="strip" aria-live="polite"><span class="cur">{line.current}</span>{#if line.next}<span class="nxt">{line.next}</span>{/if}</span>
+          {/if}
+          {#if showPlays}
+            <span class="plays" role="list" aria-label="Played in this story">
+              {#if plays && !plays.length}<span class="muted">Nothing logged yet. Songs are logged from now on.</span>{/if}
+              {#each plays ?? [] as p (p.id)}
+                <span class="play" role="listitem">
+                  <span class="pt">{p.title}{#if p.artist}<span class="muted">{` · ${p.artist}`}</span>{/if}</span>
+                  <span class="muted">{[HOW[p.how] ?? p.how, ended(p), ...(p.marks.includes("up") ? ["👍"] : []), ...(p.marks.includes("wrongWords") ? ["wrong words"] : [])].join(" · ")}</span>
+                  {#if p.why}<span class="pw">{p.why}</span>{/if}
+                </span>
+              {/each}
+            </span>
           {/if}
         </span>
       {/if}
@@ -173,6 +218,28 @@
     min-width: 100%;
     font-size: 0.85em;
     line-height: 1.35;
+  }
+  .plays {
+    display: grid;
+    gap: 0.45rem;
+    /* Wraps inside the buttons' width, and scrolls instead of running off the screen. */
+    width: 0;
+    min-width: 100%;
+    max-height: 18rem;
+    overflow-y: auto;
+    padding: 0.2rem 0.45rem 0.3rem;
+    font-size: 0.85em;
+    line-height: 1.35;
+  }
+  .play {
+    display: grid;
+    gap: 0.05rem;
+  }
+  .pt {
+    font-weight: 600;
+  }
+  .pw {
+    opacity: 0.8;
   }
   .strip .nxt {
     opacity: 0.55;
