@@ -20,6 +20,8 @@ export interface PlayParts {
   motif: number;
   votes: number;
   preferred: number;
+  /** docs/34 3.1: a sexual song with a child in the scene, far down the list. */
+  heat?: number;
 }
 export interface Runner {
   videoId: string;

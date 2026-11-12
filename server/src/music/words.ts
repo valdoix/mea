@@ -5,7 +5,7 @@ import { hashText } from "../memory/text";
 import { callJson } from "../services/llm";
 import { finishRequest, startRequest } from "../services/requests";
 import type { Change, WorldState } from "../trackers/types";
-import { CARD_PROMPT, cardReply, cleanCard, type SongCard } from "./cards";
+import { type Bond, CARD_PROMPT, cardReply, cleanCard, type Heat, type SongCard, type Stance } from "./cards";
 import type { LyricLine } from "./lyrics";
 import { type Situation, SITUATIONS, situationsOf } from "./situations";
 
@@ -259,6 +259,7 @@ export function movePassageVectors(from: string, to: string) {
 // ---------- the moment ----------
 
 export interface Moment {
+  /** What's happening, strongly enough for a song's words to count (none: a quiet scene). */
   situations: Situation[];
   /** One plain line of what's happening (from the helper; empty when the records said enough). */
   gist: string;
@@ -267,6 +268,20 @@ export interface Moment {
   /** Where the situations came from. */
   from: "records" | "reply" | "both";
   at: number;
+  // docs/34 Part 3: the scene brief, read the same way a song's card is.
+  /** Situations only slightly there: they don't make the words count. */
+  slight?: Situation[];
+  bond?: Bond | null;
+  stance?: Stance | null;
+  heat?: Heat | null;
+  energy?: number | null;
+  /** Kinds of song that would grate here ("breakup songs"). */
+  avoid?: string[];
+  /** A child is in the scene: the heat leans hard to none. */
+  child?: boolean;
+  /** The scene it was made in, and the reply (seq) the helper last read it at: it holds for the next two replies. */
+  scene?: number;
+  readSeq?: number;
 }
 
 const GRIEF_MOOD = /\b(grief|griev|mourn|bereft|heartbroken)/i;
@@ -312,23 +327,6 @@ export function recordsSay(changes: Change[], st: WorldState, prev?: Moment | nu
 export function situationsFromRecords(changes: Change[], st: WorldState, prev?: Moment | null): Situation[] {
   const { firm, hints } = recordsSay(changes, st, prev);
   return [...firm, ...hints].slice(0, 4);
-}
-
-const momentReply = z.object({ gist: z.string().default(""), situations: z.array(z.string()).default([]) });
-
-/** What's happening, read from the end of the reply (2.3, layer 2): one helper call, on a cut only. */
-export async function readMoment(text: string, cue: { moods: string[]; place: string; present: string[] }, chatId: string) {
-  const r = await callJson({
-    task: "helper",
-    kind: "soundtrack",
-    name: "story_moment",
-    chatId,
-    schema: momentReply,
-    system: `You choose music for a story. Say what is happening in this scene right now, so a song about the same thing can play. Reply with JSON only: {"gist": "one plain line, no names", "situations": ["…"]}, with 1-3 situations only from: ${SITUATIONS.join(", ")}.`,
-    user: `Place: ${cue.place || "?"}\nHere: ${cue.present.join(", ") || "?"}\nMood: ${cue.moods.join(", ")}\n\n${text.slice(-1200)}`,
-    maxTokens: 200,
-  });
-  return { gist: r.data.gist.trim().slice(0, 160), situations: situationsOf(r.data.situations, 3) };
 }
 
 // ---------- how well a song fits ----------

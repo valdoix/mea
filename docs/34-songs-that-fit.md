@@ -121,6 +121,15 @@ There is no record of which songs actually played or were skipped, so the replay
 
 **Done when:** the school pickup scene reads as family with no heat; a scene of two people making tea reads with no situations; tests feed fixed records and replies.
 
+**Built** (`music/brief.ts`, the brief fields on the moment, `momentAt`):
+
+- The records give the bond and spot a child. Couples come from the romance ladder at Charged or above, and family from a family group or a kin word in a bond's label. A child is spotted from how someone is described: their look, a trait, what they're called, or a child's role in a group ("daughter" alone doesn't count). Mea keeps no ages, so the helper can also say a child is here.
+- One person alone on the cast reads as "self", but the reply's reading outranks that, because the tracker often misses someone, such as a child in the back seat.
+- The helper now reads the ends of the last three replies and is told the ties. It may answer with no situations. Only strong situations make the words count; slight ones are kept but don't.
+- The reading holds for the scene until three more replies, a new scene, or something new in the records, such as a death.
+- The child lean is on now (Settings › Music, **Keep it clean around children**, on by default). With a child here, a song whose card reads sexual loses more than its mood can make up, and a flirting one loses a little. Part 4 adds the gates.
+- The chip's card shows "The scene: family · happy in it · no heat · energy 2 — …".
+
 ## Part 4 · Picking: gates, fit, then a judge
 
 **What you get:** the song is chosen from a handful that all suit the room, and the chip's reason is a sentence, not a list of tags.

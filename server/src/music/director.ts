@@ -14,8 +14,9 @@ import { findLyrics, forgetLyrics, type LyricLine, lyricsFor, lyricsIndex, lyric
 import type { Situation } from "./situations";
 import { closePlay, markPlay, openPlay, type PlayCue, type PlayEnding, type PlayHow, type PlayParts, type Runner } from "./plays";
 import { bareTitle, blockedVersion, firstArtist, sameCut, songKey, type Version, VERSIONS } from "./versions";
-import { allCards, cardLine, cardOf, cardPatch, cardText, dropOldMoods, editCard, saveReadCard, type SongCard, SOUND_FIELDS, type StoredCard } from "./cards";
-import { clashes, embedCards, embedPassages, songThemes, landingPoint, passageTimes, forgetPassageVectors, movePassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readMoment, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
+import { briefLine, readBrief, recordsBrief } from "./brief";
+import { allCards, type Bond, cardLine, cardOf, cardPatch, cardText, dropOldMoods, editCard, saveReadCard, type SongCard, SOUND_FIELDS, type StoredCard } from "./cards";
+import { clashes, embedCards, embedPassages, songThemes, landingPoint, passageTimes, forgetPassageVectors, movePassageVectors, linesHash, type LyricSheet, type Moment, passageVectors, readSongs, saveSheet, SHEET_BATCH, recordsSay, sheetFor, songsToRead, wordsFit } from "./words";
 import { command, detectApp, seekTo, trimQueue, playerState, playlistIdOf, queueNext, playlistSongs, publicSongs, requestCode, requestPearToken, requestToken, searchSongs, videoIdOf, YtmError, type YtmApp, type YtmSong } from "./ytmusic";
 
 /**
@@ -67,6 +68,8 @@ export const musicConfigSchema = z.object({
   landLine: z.enum(["auto", "on", "off"]).default("auto"),
   /** Library songs with an explicit version play that one, not the censored copy. */
   preferExplicit: z.boolean().default(true),
+  /** docs/34 3.1: with a child in the scene, sexual songs drop far down the list. */
+  childLean: z.boolean().default(true),
 });
 export type MusicConfig = z.infer<typeof musicConfigSchema> & { token?: string | null; app?: YtmApp | null };
 
@@ -321,7 +324,11 @@ export interface WordsCtx {
 const WEIGHT = { off: 0, little: 0.5, lean: 1 } as const;
 
 /** The moment is this scene's (a moment from an earlier scene says nothing about this one). */
-const momentHere = (m: Moment | null | undefined, cue: Cue) => (m?.situations.length && m.key.split("|")[1] === cue.key.split("|")[0] ? m : null);
+const briefHere = (m: Moment | null | undefined, cue: Cue) => (m && m.key.split("|")[1] === cue.key.split("|")[0] ? m : null);
+/** This scene's moment, when something is happening a song's words could be about. */
+const momentHere = (m: Moment | null | undefined, cue: Cue) => (briefHere(m, cue)?.situations.length ? m! : null);
+/** How far a sexual song sinks with a child in the scene: more than the mood can make up. */
+const CHILD_HEAT = 4.5;
 
 /**
  * The words at this beat, or null when they can't help: the dial is off, nothing is happening that
@@ -421,11 +428,19 @@ export function rankTracks(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: P
   const out = new Set(recent.filter((k) => poolKeys.has(k)).slice(0, Math.max(Math.min(1, poolKeys.size - 1), poolKeys.size - FRESH_POOL)));
   const moodScore = (t: Track) => t.moods.filter((m) => cue.moods.includes(m)).length * 2 + (t.moods[0] && t.moods[0] === cue.moods[0] ? 1 : 0) - (off(t) ? OFF_THEME : 0);
   const fresh = allowed.filter((t) => !out.has(key(t.videoId)));
+  // docs/34 3.1: a child is here, so a sexual song sinks far down the list (not out: Part 4 decides), a flirting one a little.
+  const brief = briefHere(music.moment, cue);
+  const cards = cfg.childLean && brief?.child ? allCards() : null;
+  const heatCost = (t: Track) => {
+    const heat = cards?.get(key(t.videoId))?.card.heat;
+    return heat === "sexual" ? -CHILD_HEAT : heat === "flirting" ? -CHILD_HEAT / 3 : 0;
+  };
   // The words lift a song only if its sound is close: they never drag in one in the wrong mood.
   const bestMood = Math.max(0, ...fresh.map(moodScore));
   const scored = fresh.map((t): Scored => {
     const overlap = t.moods.filter((m) => cue.moods.includes(m));
-    const parts: PlayParts = { mood: moodScore(t), words: 0, motif: 0, votes: music.votes?.[t.videoId] ?? 0, preferred: byAny(preferred, t.artist) ? 1 : 0 };
+    const heat = heatCost(t);
+    const parts: PlayParts = { mood: moodScore(t), words: 0, motif: 0, votes: music.votes?.[t.videoId] ?? 0, preferred: byAny(preferred, t.artist) ? 1 : 0, ...(heat ? { heat } : {}) };
     let why = overlap.length ? `fits: ${overlap.join(", ")}` : "nothing closer";
     const w = parts.mood >= bestMood - 2 ? wordsScore(opts.words ?? null, t.videoId) : null;
     if (w) {
@@ -436,7 +451,7 @@ export function rankTracks(cfg: MusicConfig, cue: Cue, music: ChatMusic, opts: P
       parts.motif = 6;
       why = `${motif.who}'s theme`;
     }
-    const score = parts.mood + parts.words + parts.motif + parts.votes + parts.preferred;
+    const score = parts.mood + parts.words + parts.motif + parts.votes + parts.preferred + (parts.heat ?? 0);
     return { track: t, score, why, ...(w ? { words: w.words } : {}), lead: isLead(t), parts };
   });
   if (!scored.length) return null;
@@ -791,7 +806,7 @@ export function chatMusicView(chatId: string) {
   }
   // The chat is open with its music on: keep it going (also after Mea restarts).
   if (cfg.enabled && cfg.token && m.on && m.now) watch(chatId);
-  return { available: cfg.enabled && Boolean(cfg.token), on: Boolean(m.on), now: m.now ?? null, cue, vote: m.now ? (m.votes?.[m.now.videoId] ?? 0) : 0, moment: m.moment ?? null };
+  return { available: cfg.enabled && Boolean(cfg.token), on: Boolean(m.on), now: m.now ?? null, cue, vote: m.now ? (m.votes?.[m.now.videoId] ?? 0) : 0, moment: m.moment ?? null, scene: m.moment ? sceneLine(m.moment) : "" };
 }
 
 // ---------- connecting, and the library ----------
@@ -1218,30 +1233,75 @@ export function restoreOldMoods(videoId: string) {
 /** Any song in the library has a sheet: only then is the moment worth a helper call. */
 const anySheets = (cfg: MusicConfig) => cfg.library.some((t) => sheetFor(t.videoId));
 
-// ---------- the moment (docs/18, 2.3) ----------
+// ---------- the scene brief (docs/18, 2.3; docs/34, Part 3) ----------
+
+/** A brief read by the helper holds for this many replies in the same scene. */
+const REREAD_AFTER = 3;
+
+const seqOf = (messageId: string) => one<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", messageId)?.seq ?? null;
+/** Replies the story has had after `from`, up to and with `to`. */
+const repliesBetween = (chatId: string, from: number, to: number) =>
+  one<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant' AND deleted_at IS NULL AND hidden = 0 AND seq > ? AND seq <= ?", chatId, from, to)?.n ?? 0;
+/** The replies before this one (their shown swipe), oldest first. */
+const repliesBefore = (chatId: string, seq: number, n: number) =>
+  all<{ content: string }>(
+    "SELECT s.content FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe WHERE m.chat_id = ? AND m.role = 'assistant' AND m.deleted_at IS NULL AND m.hidden = 0 AND m.seq < ? ORDER BY m.seq DESC LIMIT ?",
+    chatId,
+    seq,
+    n,
+  )
+    .map((r) => r.content)
+    .reverse();
 
 /**
- * What's happening at a beat: the records first (free); unless they firmly say two things, one helper
- * call reads the end of the reply, and the reply outranks the records' hints (someone walking off,
- * a sad mood). A swipe of the same beat reuses the moment. Without any song read for its words,
- * only the records are looked at. Never throws.
+ * The records' bond outranks the reply's, except "self": one person on the cast often means the
+ * tracker missed someone (a child in the back seat), so then the reply says who the scene is about.
+ * Never "self" with a child here.
+ */
+function bondOf(records: Bond | null, reply: Bond | null, child: boolean): Bond | null {
+  const b = records === "self" ? (reply ?? "self") : (records ?? reply);
+  return child && b === "self" ? "family" : b;
+}
+
+const joinSits = (a: Situation[], b: Situation[]) => [...a, ...b.filter((x) => !a.includes(x))].slice(0, 4);
+
+/** The chip's line: "family · happy in it · no heat · energy 2 — dinner chores, then the pool". */
+export function sceneLine(m: Moment) {
+  const line = briefLine(m);
+  const what = m.gist || m.situations.join(", ");
+  return [line, what].filter(Boolean).join(" — ");
+}
+
+/**
+ * The scene at a beat, read once and kept. The records come first, free: what's happening (a death,
+ * a secret out) and who the people here are to each other (bond, a child). One helper call reads the
+ * last three replies for the rest (gist, stance, heat, energy, zero to three situations, what would
+ * grate); the reply outranks the records' hints (someone walking off, a sad mood). That reading holds
+ * for the scene until three more replies have come, or the records say something new happened, so most
+ * song changes cost no new call. A swipe of the same beat reuses the moment. Without any song read
+ * for its words, only the records are looked at. Never throws.
  */
 export async function momentAt(chatId: string, messageId: string, st: WorldState, cue: Cue, text: string, prev: Moment | null) {
   try {
-    if (prev?.key === `${messageId}|${cue.key}`) return prev;
+    const key = `${messageId}|${cue.key}`;
+    if (prev?.key === key) return prev;
     const changes = currentFold(chatId).result.changes[messageId] ?? [];
-    const { firm, hints } = recordsSay(changes, st, prev);
-    const records = [...firm, ...hints].slice(0, 4);
-    let moment: Moment = { situations: records, gist: "", key: `${messageId}|${cue.key}`, from: "records", at: Date.now() };
-    if (firm.length < 2 && text.trim() && anySheets(musicConfig())) {
+    const say = recordsSay(changes, st, prev);
+    const rec = recordsBrief(st, cue.present);
+    const seq = seqOf(messageId);
+    let moment: Moment = { situations: [...say.firm, ...say.hints].slice(0, 4), gist: "", key, from: "records", at: Date.now(), bond: rec.bond, child: rec.child, heat: rec.child ? "none" : null, scene: st.sceneNo };
+    const held = prev?.readSeq != null && prev.scene === st.sceneNo && seq != null && repliesBetween(chatId, prev.readSeq, seq) < REREAD_AFTER && say.firm.every((s) => prev.situations.includes(s));
+    if (held) {
+      const child = rec.child || Boolean(prev.child);
+      moment = { ...prev, key, at: Date.now(), situations: joinSits(say.firm, prev.situations), bond: bondOf(rec.bond, prev.bond ?? null, child), heat: child ? "none" : (prev.heat ?? null) };
+    } else if (text.trim() && anySheets(musicConfig())) {
       try {
-        const r = await readMoment(text, cue, chatId);
-        if (r.situations.length) {
-          const both = [...firm, ...r.situations.filter((x) => !firm.includes(x))].slice(0, 4);
-          moment = { ...moment, situations: both, gist: r.gist, from: firm.length ? "both" : "reply" };
-        }
+        const replies = [...(seq == null ? [] : repliesBefore(chatId, seq, REREAD_AFTER - 1)), text];
+        const r = await readBrief({ replies, moods: cue.moods, place: cue.place, present: cue.present, records: rec, recordsSay: say }, chatId);
+        const child = rec.child || r.child;
+        moment = { ...moment, situations: joinSits(say.firm, r.strong), slight: r.slight, gist: r.gist, from: say.firm.length ? "both" : "reply", bond: bondOf(rec.bond, r.bond, child), stance: r.stance, heat: child ? "none" : r.heat, energy: r.energy, avoid: r.avoid, child, ...(seq != null ? { readSeq: seq } : {}) };
       } catch (e) {
-        console.error("[mea] soundtrack: couldn't read the moment:", (e as Error).message);
+        console.error("[mea] soundtrack: couldn't read the scene:", (e as Error).message);
       }
     }
     setChatMusic(chatId, { moment });
