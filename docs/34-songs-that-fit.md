@@ -102,6 +102,14 @@ There is no record of which songs actually played or were skipped, so the replay
 
 **Done when:** on a copy of your library, *Rush* reads as romantic and sexual, *Glue Song* as romantic, *I Wanna Get Better* as mourning in its main situations; a hand edit survives a re-read.
 
+**Built** (`music/cards.ts`, migration 43, `SongCard.svelte`):
+
+- The card comes back in the lyric sheet's own call, so a song read for its words gets its card at no extra cost. Songs read before cards wait: Settings › Music says how many and about how many helper calls they take, and nothing is re-read until you press **Read them**.
+- When a card is read, its guessed moods replace the library's moods on every copy of the song, unless you set those moods yourself. Moods you tapped, or picked when adding a song or playlist, count as yours from now on. The moods a guess replaced are kept on the card, and **Put them back** restores them.
+- Energy and pace show as a guess until you change them or press **Sound is right**. A field you edit is kept through a re-read.
+- With embeddings on, each card gets a whole-song vector (owner `song_card`, by song key).
+- Not yet checked against your real library: that needs the paid re-read. On the dev copy the mock reads cards from word cues, and copies of a song (the live and Unplugged cuts) share one card.
+
 ## Part 3 · The scene brief: read the scene the same way
 
 **What you get:** the chip's "The scene:" line reads like "*family · happy · no heat · energy 2* — dinner chores, then out to the pool" and stays empty-handed when nothing is going on.

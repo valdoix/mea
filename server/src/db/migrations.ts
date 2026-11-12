@@ -1607,6 +1607,21 @@ CREATE TABLE IF NOT EXISTS song_plays (
 CREATE INDEX IF NOT EXISTS song_plays_chat ON song_plays(chat_id, started_at);
 `,
   },
+  {
+    id: 43,
+    name: "song cards",
+    sql: /* sql */ `
+-- docs/34 Part 2: one card per song (every copy shares it, by song key): what the whole song is
+-- about, its bond, stance, heat and a guess at its sound. Fields you edit are listed in edited.
+CREATE TABLE IF NOT EXISTS song_cards (
+  song_key  TEXT PRIMARY KEY,
+  card      TEXT NOT NULL,
+  edited    TEXT NOT NULL DEFAULT '[]',
+  old_moods TEXT,
+  read_at   INTEGER NOT NULL
+);
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

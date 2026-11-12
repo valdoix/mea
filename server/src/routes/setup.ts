@@ -4,7 +4,7 @@ import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
 import { BENCH_MARKS, type BenchMark, benchView, setChecked, setMark } from "../music/bench";
 import { playHistory } from "../music/plays";
-import { addTrack, chatMusicView, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, nowSinging, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
+import { addTrack, chatMusicView, editSongCard, readCards, restoreOldMoods, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, nowSinging, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -179,6 +179,10 @@ desk.post("/music/library/remove", async (c) => c.json(removeTracks((await body(
 desk.get("/music/lyrics/:videoId", (c) => c.json(songWords(c.req.param("videoId"))));
 desk.put("/music/lyrics/:videoId", async (c) => c.json(setSongWords(c.req.param("videoId"), (await body(c, z.object({ text: z.string().max(20_000) }))).text)));
 desk.post("/music/lyrics/:videoId/find", async (c) => c.json(await findSongWords(c.req.param("videoId"))));
+// docs/34 Part 2: a song's card. Edits are checked by the card's own schema; reading the songs read before cards needs your yes.
+desk.put("/music/cards/:videoId", async (c) => c.json(editSongCard(c.req.param("videoId"), await body(c, z.record(z.string(), z.unknown())))));
+desk.post("/music/cards/:videoId/old-moods", (c) => c.json(restoreOldMoods(c.req.param("videoId"))));
+desk.post("/music/cards/read", (c) => c.json(readCards()));
 // docs/34 1.4: the marked set, for checking Claude's marks.
 desk.get("/music/bench", (c) => c.json(benchView()));
 desk.put("/music/bench/:sceneId", async (c) => {

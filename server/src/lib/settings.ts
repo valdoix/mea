@@ -36,6 +36,8 @@ export interface Settings {
   "music.taste": Record<string, unknown> | null;
   /** J3: songs you removed from the library yourself (a lookup never adds them back). */
   "music.removed": string[] | null;
+  /** docs/34 2.1: you said yes to reading cards for the songs read before cards existed. */
+  "music.cardsAllowed": boolean | null;
   /** J2: your own colours for each room, by day and by night (CSS token → colour). */
   "appearance.colors": Record<string, { day?: Record<string, string>; night?: Record<string, string> }>;
   /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
@@ -400,6 +402,7 @@ export const defaults: Settings = {
   "music.config": null,
   "music.taste": null,
   "music.removed": null,
+  "music.cardsAllowed": null,
   "appearance.themeMode": "system",
   "appearance.chatStyle": "cards",
   "appearance.layout": "classic",
