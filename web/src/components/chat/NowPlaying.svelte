@@ -18,6 +18,8 @@
     vote: number;
     /** docs/18, 2.3: what was happening at the last beat. */
     moment: { situations: string[]; gist: string } | null;
+    /** docs/34 Part 3: the scene brief in one line ("family · happy in it · no heat · energy 2 — dinner chores"). */
+    scene: string;
   }
   let { chatId }: { chatId: string } = $props();
   let v = $state<View | null>(null);
@@ -136,7 +138,7 @@
     <button class="btn ghost icon" onclick={() => act("on")} aria-label="Turn the soundtrack on" title="Soundtrack (YouTube Music): off"><Music size={17} /></button>
   {:else}
     <span class="np">
-      <button class="chip np-chip" onclick={() => (open = !open)} aria-expanded={open} title={`${v.now ? `${v.now.title}${v.now.artist ? ` · ${v.now.artist}` : ""} — ${v.now.why}` : "Waiting for the next beat"}${v.moment?.situations.length ? `\nThe scene: ${v.moment.situations.join(", ")}${v.moment.gist ? ` (${v.moment.gist})` : ""}` : ""}`}>
+      <button class="chip np-chip" onclick={() => (open = !open)} aria-expanded={open} title={`${v.now ? `${v.now.title}${v.now.artist ? ` · ${v.now.artist}` : ""} — ${v.now.why}` : "Waiting for the next beat"}${v.scene ? `\nThe scene: ${v.scene}` : ""}`}>
         <Music size={13} /><span class="t">{v.now?.title ?? "Soundtrack on"}</span>
       </button>
       {#if open}
@@ -151,6 +153,7 @@
           <button class="btn ghost small" class:on={showPlays} onclick={() => (showPlays = !showPlays)} aria-pressed={showPlays} title="What played in this story">Played</button>
           <button class="btn ghost icon small" onclick={() => ((open = false), act("off"))} aria-label="Turn the soundtrack off" title="Off for this chat"><X size={14} /></button>
           </span>
+          {#if v.scene}<span class="strip"><span class="nxt">The scene: {v.scene}</span></span>{/if}
           {#if line?.current}
             <span class="strip" aria-live="polite"><span class="cur">{line.current}</span>{#if line.next}<span class="nxt">{line.next}</span>{/if}</span>
           {/if}

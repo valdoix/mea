@@ -634,8 +634,21 @@ function helperJson(name: string, user: string, system = ""): unknown {
     case "lyric_sheet":
       return { songs: user.split(/^### /m).filter(Boolean).map(mockSheet) };
     case "story_moment": {
-      const found = mockSituations(user);
-      return { gist: found.length ? `Someone is ${found[0]}` : "A quiet moment", situations: found };
+      // docs/34 Part 3: the brief, from the last reply only (earlier ones are context), by plain word cues.
+      const last = user.split(/^--- The last reply \(its end\):\n/m).at(-1) ?? user;
+      const found = mockSituations(last);
+      const child = /\b(kid|kids|child|children|toddler|school pickup|car seat)\b/i.test(last);
+      const sexual = /\b(bed|undress|naked)\b/i.test(last);
+      return {
+        gist: found.length ? `Someone is ${found[0]}` : "A quiet moment",
+        bond: child || /\b(mom|mum|dad|sister|brother)\b/i.test(last) ? "family" : /\b(kiss|lover|darling)\b/i.test(last) || sexual ? "romantic" : "anyone",
+        stance: found.includes("grief") ? "mourning" : found.includes("leaving") ? "losing" : "happy in it",
+        heat: sexual ? "sexual" : "none",
+        energy: found.includes("the fight") ? 5 : 2,
+        situations: found.map((s) => ({ s, strength: "strong" })),
+        avoid: child ? ["anything sexual"] : [],
+        child,
+      };
     }
     // docs/28 Part 2: the portrait writer. Buffy is the known character (her canon age is 16).
     case "portrait_idea": {

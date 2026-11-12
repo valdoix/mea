@@ -83,7 +83,7 @@ export function sceneFromReading(row: { id: string; chat_id: string | null; star
     if (!/^You choose music for a story/.test(sys)) return null;
     const user = req.messages?.find((m) => m.role === "user")?.content ?? "";
     const line = (k: string) => new RegExp(`^${k}: (.*)$`, "m").exec(user)?.[1]?.trim() ?? "";
-    const res = JSON.parse(/\{[\s\S]*\}/.exec(row.response ?? "")?.[0] ?? "null") as { gist?: string; situations?: string[] } | null;
+    const res = JSON.parse(/\{[\s\S]*\}/.exec(row.response ?? "")?.[0] ?? "null") as { gist?: string; situations?: (string | { s?: string; strength?: string })[] } | null;
     if (!res) return null;
     const moods = asMoods(line("Mood").split(","));
     if (!moods.length) return null;
@@ -95,9 +95,10 @@ export function sceneFromReading(row: { id: string; chat_id: string | null; star
       moods,
       present: here && here !== "?" ? here.split(",").map((s) => s.trim()).filter(Boolean) : [],
       place: line("Place") === "?" ? "" : line("Place"),
-      situations: situationsOf(res.situations ?? [], 4),
+      situations: situationsOf((res.situations ?? []).map((x) => (typeof x === "string" ? x : /slight/i.test(x.strength ?? "") ? "" : (x.s ?? ""))), 4),
       gist: String(res.gist ?? "").trim(),
-      excerpt: user.split("\n\n").slice(1).join("\n\n").trim(),
+      // The replies it read (since docs/34 Part 3, the last three, each under a "---" heading).
+      excerpt: user.split("\n\n").slice(1).join("\n\n").replace(/^--- .*\n/gm, "").trim(),
       from: "reading",
     };
   } catch {

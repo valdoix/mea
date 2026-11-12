@@ -42,6 +42,8 @@
     tasteFound: Record<string, number | null>;
     /** Songs with an explicit version play that one, not the censored copy. */
     preferExplicit: boolean;
+    /** docs/34 3.1: with a child in the scene, sexual songs drop far down the list. */
+    childLean: boolean;
     /** Library songs not looked into for an explicit version yet. */
     explicitPending: number;
     /** docs/18: look for the library's lyrics on LRCLIB and YouTube Music. */
@@ -364,6 +366,10 @@
       <div class="row wrap">
         <label class="switch small"><input type="checkbox" checked={cfg.preferExplicit} onchange={(e) => save({ preferExplicit: e.currentTarget.checked })} /> Play explicit versions</label>
         <span class="tiny muted">Asks YouTube Music whether each song has an explicit version, by title and artist only, and plays that instead of the censored one. Songs already swapped stay swapped if you turn this off.{#if cfg.preferExplicit && cfg.explicitPending} Checking {cfg.explicitPending} more…{/if}</span>
+      </div>
+      <div class="row wrap">
+        <label class="switch small"><input type="checkbox" checked={cfg.childLean} onchange={(e) => save({ childLean: e.currentTarget.checked })} /> Keep it clean around children</label>
+        <span class="tiny muted">When a child is in the scene, songs Mea has read as sexual drop far down the list (they can still play if nothing else suits).</span>
       </div>
       <label class="field words-dial"><span class="label">Words</span>
         <select class="select" value={cfg.wordsDial} onchange={(e) => save({ wordsDial: e.currentTarget.value as Config["wordsDial"] })}>
