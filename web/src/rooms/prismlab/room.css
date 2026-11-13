@@ -221,6 +221,190 @@
   border-radius: 22px !important;
 }
 
+/* the mark splits its own light, red one way and blue the other */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="prismlab"][data-shell] nav.rail .logo {
+    animation: pl-split 5s ease-in-out infinite;
+  }
+}
+@keyframes pl-split {
+  0%,
+  100% {
+    text-shadow:
+      -2px 0 rgb(255 42 109 / 70%),
+      2px 0 rgb(31 139 255 / 70%);
+  }
+  50% {
+    text-shadow:
+      2px 0 rgb(255 42 109 / 70%),
+      -2px 0 rgb(31 139 255 / 70%);
+  }
+}
+/* your open stories: test tubes on the rack, each a colour of the spectrum; the open one fizzes */
+:root[data-theme="prismlab"][data-shell] nav.rail .story {
+  position: relative;
+  --t: #ff2a6d;
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story:nth-child(5n + 2) {
+  --t: #1f8bff;
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story:nth-child(5n + 3) {
+  --t: #ffb400;
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story:nth-child(5n + 4) {
+  --t: #00d27a;
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story:nth-child(5n + 5) {
+  --t: #9b30ff;
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story .avatar {
+  border-radius: 4px 4px 20px 20px !important;
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px color-mix(in srgb, var(--t) 70%, transparent),
+    inset 0 -10px 0 color-mix(in srgb, var(--t) 45%, transparent);
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--t),
+    0 0 18px -2px var(--t);
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story.on::before,
+:root[data-theme="prismlab"][data-shell] nav.rail .story.on::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 4px;
+  height: 4px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 4px var(--t);
+  opacity: 0;
+  pointer-events: none;
+}
+:root[data-theme="prismlab"][data-shell] nav.rail .story.on::after {
+  margin-left: 3px;
+  width: 3px;
+  height: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="prismlab"][data-shell] nav.rail .story.on::before {
+    animation: pl-fizz 1.8s ease-in infinite;
+  }
+  :root[data-theme="prismlab"][data-shell] nav.rail .story.on::after {
+    animation: pl-fizz 1.8s ease-in -0.9s infinite;
+  }
+}
+@keyframes pl-fizz {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+}
+/* the header reads the story's spectral signature: dark lines across a band of spectrum */
+:root[data-theme="prismlab"][data-shell] .bar:not(.compact) {
+  position: relative;
+  padding-bottom: calc(0.55rem + 12px);
+}
+:root[data-theme="prismlab"][data-shell] .bar:not(.compact)::after {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 6px;
+  height: 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 40%, rgb(255 255 255 / 70%) 50%, transparent 60%) 0 0 / 30% 100% no-repeat,
+    var(--pl-sig, linear-gradient(transparent, transparent)),
+    linear-gradient(90deg, #9b30ff, #1f8bff, #00d27a, #ffe45c, #ffb400, #ff2a6d);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 10%);
+  opacity: 0.9;
+}
+/* the character's cards lean toward the pointer (Ambience.svelte sets the angles) */
+:root[data-theme="prismlab"][data-shell] .style-cards .msg:not(.user) .bubble {
+  transform: perspective(900px) rotateX(var(--pl-rx, 0deg)) rotateY(var(--pl-ry, 0deg));
+  transition: transform 0.25s var(--ease);
+}
+/* yours: clear acrylic with a rainbow along its foot */
+:root[data-theme="prismlab"][data-shell] .style-cards .msg.user .bubble {
+  background:
+    var(--rainbow) left 16px bottom 0 / calc(100% - 32px) 3px no-repeat,
+    color-mix(in srgb, var(--tint-user) 86%, transparent);
+}
+/* chapters: a white beam meets a prism and fans out behind the title */
+:root[data-theme="prismlab"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="prismlab"][data-shell] .chapter-h::before {
+  top: 2.6rem;
+  width: min(34rem, 100%);
+  height: 3.6rem;
+  background:
+    linear-gradient(var(--border-strong), var(--border-strong)) 0 50% / 42% 2px no-repeat,
+    conic-gradient(from 60deg at 0 50%, #9b30ff, #1f8bff, #00d27a, #ffe45c, #ff2a6d 60deg, transparent 0) 58% 0 / 42% 100% no-repeat;
+  opacity: 0.45;
+}
+:root[data-theme="prismlab"][data-shell] .ch-num {
+  position: relative;
+  padding: 0.4rem 0.9rem;
+  border-radius: 99px;
+  background: var(--glass);
+  box-shadow: 0 0 0 1px var(--edge);
+  font: 800 0.66rem var(--font-display);
+  letter-spacing: 0.3em;
+}
+/* typing: three small prisms hopping and turning through the spectrum */
+:root[data-theme="prismlab"][data-shell] .typing span {
+  width: 10px;
+  height: 10px;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: #ff2a6d;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="prismlab"][data-shell] .typing span {
+    animation:
+      pl-hop 1.2s ease-in-out infinite,
+      pl-hue 2.4s linear infinite;
+  }
+  :root[data-theme="prismlab"][data-shell] .typing span:nth-child(2) {
+    animation-delay: 0.15s, -0.8s;
+  }
+  :root[data-theme="prismlab"][data-shell] .typing span:nth-child(3) {
+    animation-delay: 0.3s, -1.6s;
+  }
+}
+@keyframes pl-hop {
+  30% {
+    transform: translateY(-6px);
+  }
+  60% {
+    transform: translateY(0);
+  }
+}
+@keyframes pl-hue {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+/* the send button: a little prism with the beam going in */
+:root[data-theme="prismlab"][data-shell] .send.primary {
+  position: relative;
+  overflow: visible;
+}
+
 /* ---------- the backdrop ---------- */
 .a-prismlab {
   background:
@@ -274,7 +458,14 @@
 }
 .a-prismlab .pr {
   transform-origin: 390px 200px;
-  animation: pl-tilt 12s ease-in-out infinite alternate;
+  transform: rotate(var(--pl-tilt, 0deg));
+  transition: transform 0.6s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+/* no pointer to tip it with: it sways on its own */
+@media (hover: none) {
+  .a-prismlab .pr {
+    animation: pl-tilt 12s ease-in-out infinite alternate;
+  }
 }
 @keyframes pl-tilt {
   from {
@@ -298,6 +489,119 @@
   50% {
     transform: scale(1) rotate(45deg);
     opacity: 1;
+  }
+}
+
+/* soap bubbles: thin-film colour in a ring, rising and swaying */
+@property --pl-hue {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.a-prismlab .soap {
+  bottom: -90px;
+  border-radius: 50%;
+  background: conic-gradient(from var(--pl-hue), #ffb4d8, #ffd9a0, #fff6a8, #b8f5c8, #a8e2ff, #c8b8ff, #ffb4d8);
+  -webkit-mask: radial-gradient(circle, rgb(0 0 0 / 8%) 50%, #000 69%, transparent 71%);
+  mask: radial-gradient(circle, rgb(0 0 0 / 8%) 50%, #000 69%, transparent 71%);
+  opacity: 0.75;
+  will-change: transform;
+  animation:
+    pl-rise 24s linear infinite,
+    pl-film 6s linear infinite;
+}
+.a-prismlab .soap::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  top: 18%;
+  width: 22%;
+  height: 14%;
+  border-radius: 50%;
+  background: #fff;
+  transform: rotate(-30deg);
+}
+.a-prismlab.night .soap {
+  background: conic-gradient(from var(--pl-hue), #ff2a6d, #ff8a00, #ffe600, #00e07a, #00b7ff, #4d5bff, #c22bff, #ff2a6d);
+  opacity: 0.5;
+}
+@keyframes pl-rise {
+  25% {
+    transform: translate(var(--w), -28vh);
+  }
+  50% {
+    transform: translate(0, -56vh);
+  }
+  75% {
+    transform: translate(calc(var(--w) * -1), -84vh);
+  }
+  100% {
+    transform: translate(0, calc(-100vh - 120px));
+  }
+}
+@keyframes pl-film {
+  to {
+    --pl-hue: 360deg;
+  }
+}
+/* by night, laser lines bouncing off the walls */
+.a-prismlab .lasers {
+  opacity: 0;
+  transition: opacity 0.8s var(--ease);
+}
+.a-prismlab.night .lasers {
+  opacity: 1;
+}
+.a-prismlab .lasers polyline {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1.6;
+  stroke-dasharray: 90 1600;
+  filter: drop-shadow(0 0 4px var(--c));
+  animation: pl-laser 6s linear infinite;
+}
+.a-prismlab .lasers polyline:nth-child(2) {
+  animation-duration: 8s;
+  animation-delay: -3s;
+}
+.a-prismlab .lasers polyline:nth-child(3) {
+  animation-duration: 7s;
+  animation-delay: -5s;
+}
+@keyframes pl-laser {
+  to {
+    stroke-dashoffset: -1690;
+  }
+}
+/* sending throws a burst of light from the button (Ambience.svelte adds it over everything) */
+.pl-burst {
+  position: fixed;
+  z-index: 400;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.pl-burst i {
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 46px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+  transform-origin: 0 50%;
+  rotate: var(--a);
+  animation: pl-ray 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes pl-ray {
+  from {
+    transform: translateX(0) scaleX(0.2);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(64px) scaleX(1);
+    opacity: 0;
   }
 }
 
