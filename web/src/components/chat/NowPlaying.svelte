@@ -14,20 +14,25 @@
     available: boolean;
     on: boolean;
     /** words: the song was picked for its words (docs/18, Part 3). */
-    now: { videoId: string; title: string; artist: string; why: string; words?: { passage: number; situations: string[] } } | null;
+    now: { videoId: string; title: string; artist: string; why: string; words?: { passage: number; situations: string[] }; runners?: { title: string; artist: string }[] } | null;
     vote: number;
     /** docs/18, 2.3: what was happening at the last beat. */
     moment: { situations: string[]; gist: string } | null;
     /** docs/34 Part 3: the scene brief in one line ("family · happy in it · no heat · energy 2 — dinner chores"). */
     scene: string;
+    /** docs/34 5.3: the kind of scene a 👍 counts for ("family · happy in it · quiet"). */
+    kind?: string;
   }
   let { chatId }: { chatId: string } = $props();
   let v = $state<View | null>(null);
   let open = $state(false);
   // The card hangs left from the chip; on a narrow screen it's moved back right to stay on screen.
   let card = $state<HTMLElement | null>(null);
+  // docs/34 5.2: "Not for this scene" asks why, in one tap.
+  let asking = $state(false);
   $effect(() => {
     void v;
+    void asking;
     if (!open || !card) return;
     const el = card;
     el.style.translate = "";
@@ -124,9 +129,16 @@
     return { played: "played out", skipped: `skipped${at}`, notFor: `not for the scene${at}`, down: `👎${at}`, cut: `cut${at}`, off: `turned off${at}`, replaced: `replaced${at}` }[p.ending] ?? p.ending;
   }
 
-  async function act(action: string) {
+  const WHYS: [string, string, string][] = [
+    ["words", "Wrong words", "The words don't fit what's happening"],
+    ["sound", "Wrong sound", "It sounds wrong here (too loud, too quiet, the wrong feel)"],
+    ["much", "Too much", "Too heated or too intense for this"],
+    ["now", "Just not now", "Nothing wrong with it, just not here"],
+  ];
+  async function act(action: string, why?: string) {
+    asking = false;
     try {
-      v = await post<View>(`/api/chats/${chatId}/music`, { action });
+      v = await post<View>(`/api/chats/${chatId}/music`, why ? { action, why } : { action });
     } catch (e) {
       errorToast(e);
     }
@@ -146,13 +158,17 @@
           <span class="btns">
           <button class="btn ghost icon small" onclick={() => act("playPause")} aria-label="Play or pause"><Pause size={14} /></button>
           <button class="btn ghost icon small" onclick={() => act("skip")} aria-label="Skip"><SkipForward size={14} /></button>
-          <button class="btn ghost icon small" class:on={v.vote > 0} onclick={() => act("up")} aria-label="More like this" disabled={!v.now}><ThumbsUp size={14} /></button>
-          <button class="btn ghost icon small" class:on={v.vote < 0} onclick={() => act("down")} aria-label="Less like this" disabled={!v.now}><ThumbsDown size={14} /></button>
-          <button class="btn ghost small" onclick={() => act("notForScene")} disabled={!v.now}>Not for this scene</button>
+          <button class="btn ghost icon small" class:on={v.vote > 0} onclick={() => act("up")} aria-label="More like this" title={v.kind ? `More like this in ${v.kind} scenes` : "More like this"} disabled={!v.now}><ThumbsUp size={14} /></button>
+          <button class="btn ghost icon small" class:on={v.vote < 0} onclick={() => act("down")} aria-label="Less like this" title="Less like this (twice: never again in this story)" disabled={!v.now}><ThumbsDown size={14} /></button>
+          <button class="btn ghost small" class:on={asking} onclick={() => (asking = !asking)} aria-expanded={asking} disabled={!v.now}>Not for this scene</button>
           {#if v.now?.words}<button class="btn ghost small" onclick={() => act("wrongWords")} title="Keep the song, but these words don't fit what's happening">Wrong words</button><button class="btn ghost small" class:on={showWords} onclick={toggleWords} aria-pressed={showWords} title="Show the line being sung">Words</button>{/if}
           <button class="btn ghost small" class:on={showPlays} onclick={() => (showPlays = !showPlays)} aria-pressed={showPlays} title="What played in this story">Played</button>
           <button class="btn ghost icon small" onclick={() => ((open = false), act("off"))} aria-label="Turn the soundtrack off" title="Off for this chat"><X size={14} /></button>
           </span>
+          {#if asking}
+            <span class="whys" role="group" aria-label="Why not for this scene?"><span class="muted small-why">Why?</span>{#each WHYS as [why, label, hint] (why)}<button class="btn ghost small" onclick={() => act("notForScene", why)} title={hint}>{label}</button>{/each}</span>
+          {/if}
+          {#if v.now}<span class="strip"><span>{v.now.why}</span>{#if v.now.runners?.length}<span class="nxt">Also close: {v.now.runners.map((r) => r.title).join(" · ")}</span>{/if}</span>{/if}
           {#if v.scene}<span class="strip"><span class="nxt">The scene: {v.scene}</span></span>{/if}
           {#if line?.current}
             <span class="strip" aria-live="polite"><span class="cur">{line.current}</span>{#if line.next}<span class="nxt">{line.next}</span>{/if}</span>
@@ -163,7 +179,7 @@
               {#each plays ?? [] as p (p.id)}
                 <span class="play" role="listitem">
                   <span class="pt">{p.title}{#if p.artist}<span class="muted">{` · ${p.artist}`}</span>{/if}</span>
-                  <span class="muted">{[HOW[p.how] ?? p.how, ended(p), ...(p.marks.includes("up") ? ["👍"] : []), ...(p.marks.includes("wrongWords") ? ["wrong words"] : [])].join(" · ")}</span>
+                  <span class="muted">{[HOW[p.how] ?? p.how, ended(p), ...(p.marks.includes("up") ? ["👍"] : []), ...(p.marks.includes("wrongWords") ? ["wrong words"] : []), ...(p.marks.includes("wrongSound") ? ["wrong sound"] : []), ...(p.marks.includes("tooMuch") ? ["too much"] : []), ...(p.marks.includes("notNow") ? ["not now"] : [])].join(" · ")}</span>
                   {#if p.why}<span class="pw">{p.why}</span>{/if}
                 </span>
               {/each}
@@ -243,6 +259,19 @@
   }
   .pw {
     opacity: 0.8;
+  }
+  /* The answers wrap inside the buttons' width instead of widening the card. */
+  .whys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem;
+    width: 0;
+    min-width: 100%;
+  }
+  .small-why {
+    font-size: 0.85em;
+    padding-inline: 0.3rem;
   }
   .strip .nxt {
     opacity: 0.55;

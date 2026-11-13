@@ -11,7 +11,8 @@ import type { Moment } from "./words";
 export type PlayHow = "start" | "big" | "next" | "skip" | "notFor" | "down";
 /** How it ended: played out, skipped, Not for this scene, 👎, cut by a big moment, soundtrack off, or replaced some other way. */
 export type PlayEnding = "played" | "skipped" | "notFor" | "down" | "cut" | "off" | "replaced";
-export type PlayMark = "up" | "down" | "wrongWords";
+/** 👍, 👎, and the answers to "Not for this scene" (docs/34, 5.2): wrong words, wrong sound, too much, just not now. */
+export type PlayMark = "up" | "down" | "wrongWords" | "wrongSound" | "tooMuch" | "notNow";
 
 /** What a pick's score was made of. */
 export interface PlayParts {
