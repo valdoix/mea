@@ -1,0 +1,745 @@
+/* =====================================================================
+   ORCHARD — something's always ripening
+   Printed like an old cider label. The rail is crate slats and your stories are crate-end labels;
+   the header is an oval label; their messages are kraft tags with an apple stamp, yours are lined
+   recipe cards; chapters are a ribbon; you write on a label and send with an apple. Behind it all,
+   an orchard: a bough, falling leaves in the story's season, and life in the trees.
+   ===================================================================== */
+:root[data-theme="orchard"][data-shell] {
+  --woodgrain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.011 .32' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --stamp: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 46'%3E%3Cg fill='none' stroke='%23a4462a'%3E%3Ccircle cx='23' cy='23' r='21' stroke-width='2'/%3E%3Ccircle cx='23' cy='23' r='17' stroke-width='.8'/%3E%3Cpath d='M23 17c-3-3-12-3-12 7 0 8 6 14 9 14 1.5 0 2-1 3-1s1.5 1 3 1c3 0 9-6 9-14 0-10-9-10-12-7zM23 17c0-3 1-5 2-7M25 13c3-3 7-2 8-1-2 2.5-6 3-8 1z' stroke-width='1.6'/%3E%3C/g%3E%3C/svg%3E");
+}
+:root[data-theme="orchard"][data-shell] h1 {
+  color: var(--accent-ink);
+}
+:root[data-theme="orchard"][data-shell] h2,
+:root[data-theme="orchard"][data-shell] .panel > h2:first-child {
+  font: 400 1.3rem/1.2 var(--font-display);
+}
+:root[data-theme="orchard"][data-shell] .btn.primary {
+  border: 2px solid var(--text);
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 3px 3px 0 var(--text);
+}
+:root[data-theme="orchard"][data-shell] .card,
+:root[data-theme="orchard"][data-shell] .panel {
+  border: 1.5px solid var(--edge);
+  border-radius: 4px;
+}
+:root[data-theme="orchard"][data-shell] .chip {
+  border-radius: 3px;
+}
+:root[data-theme="orchard"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="orchard"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+
+/* the rail: crate slats */
+:root[data-theme="orchard"][data-shell] nav.rail {
+  --text-faint: #f6ecd6;
+  border: 0;
+  border-radius: 4px;
+  color: #fff4dc;
+  background:
+    var(--woodgrain) 0 0 / 480px 240px,
+    repeating-linear-gradient(180deg, var(--crate) 0 58px, var(--crate-2) 58px 62px);
+  box-shadow:
+    inset -4px 0 0 var(--crate-2),
+    var(--shadow-2);
+}
+:root[data-theme="orchard"][data-shell] nav.rail .nav {
+  --text: #fff4dc;
+}
+:root[data-theme="orchard"][data-shell] nav.rail .tip {
+  --text: #3a2418;
+  --text-faint: #7d5c46;
+}
+:root[data-theme="orchard"][data-mode="night"] nav.rail .tip {
+  --text: #f3e4cc;
+  --text-faint: #ad9378;
+}
+/* the mark: a red apple */
+:root[data-theme="orchard"][data-shell] nav.rail .logo {
+  border-radius: 46% 46% 50% 50% / 40% 40% 60% 60%;
+  background: radial-gradient(circle at 34% 30%, #ff9a7a 0 12%, transparent 30%), linear-gradient(160deg, #d8432f, #9a2618);
+  box-shadow:
+    0 0 0 2px #3a2418,
+    0 4px 0 #3a2418;
+  color: #fff4dc !important;
+  font: 400 1.15rem/1 var(--font-display);
+  animation: none;
+}
+:root[data-theme="orchard"][data-shell] nav.rail .logo:hover {
+  transform: rotate(-8deg) translateY(-2px);
+}
+:root[data-theme="orchard"][data-shell] nav.rail .nav.on {
+  border-radius: 3px;
+  background: #fff4dc;
+  color: #a4462a !important;
+  box-shadow: 2px 2px 0 #3a2418;
+}
+:root[data-theme="orchard"][data-shell] nav.rail .story .avatar {
+  border-radius: 3px !important;
+  box-shadow:
+    0 0 0 2px #fff4dc,
+    0 0 0 3.5px #3a2418;
+}
+:root[data-theme="orchard"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 2px #fff4dc,
+    0 0 0 3.5px #3a2418,
+    3px 4px 0 3px var(--russet);
+}
+
+:root[data-theme="orchard"][data-shell] .main-col,
+:root[data-theme="orchard"][data-shell] .dock {
+  border: 1.5px solid var(--edge);
+  border-radius: 5px;
+}
+
+/* the header: an oval cider label */
+:root[data-theme="orchard"][data-shell] .bar .cname {
+  font: 400 1.8rem/1.05 var(--font-display);
+  color: var(--text);
+}
+:root[data-theme="orchard"][data-shell] .bar .cname .ctitle {
+  font: 600 0.72rem var(--font-ui);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--russet);
+}
+:root[data-theme="orchard"][data-shell] .bar .pic .avatar {
+  border-radius: 50% !important;
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--russet),
+    0 0 0 6px var(--surface),
+    0 0 0 7px var(--text);
+}
+
+/* their messages: kraft tags with a dashed border and an apple stamp */
+:root[data-theme="orchard"][data-shell] .style-cards .msg .bubble {
+  overflow: visible;
+  border: 0;
+  border-radius: 4px;
+  background: var(--kraft);
+  box-shadow: 0 12px 22px -16px rgb(60 30 10 / 70%);
+}
+:root[data-theme="orchard"][data-mode="night"] .style-cards .msg .bubble {
+  background: #3e2a1c;
+}
+:root[data-theme="orchard"][data-shell] .style-cards .msg .bubble::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  padding: 0;
+  border: 1.5px dashed color-mix(in srgb, var(--text) 40%, transparent);
+  border-radius: 2px;
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+  pointer-events: none;
+}
+:root[data-theme="orchard"][data-shell] .style-cards .msg .bubble::after {
+  content: "";
+  position: absolute;
+  left: auto;
+  right: 14px;
+  top: -18px;
+  width: 44px;
+  height: 44px;
+  background: var(--stamp) center / contain no-repeat;
+  rotate: 14deg;
+  opacity: 0.85;
+  pointer-events: none;
+}
+/* yours: a lined recipe card with a red top rule */
+:root[data-theme="orchard"][data-shell] .style-cards .msg.user .bubble {
+  background:
+    linear-gradient(var(--russet), var(--russet)) 0 14px / 100% 2px no-repeat,
+    repeating-linear-gradient(180deg, transparent 0 25px, rgb(70 110 170 / 22%) 25px 26px) 0 18px / 100% calc(100% - 18px) no-repeat,
+    var(--index);
+}
+:root[data-theme="orchard"][data-shell] .style-cards .msg.user .bubble::before,
+:root[data-theme="orchard"][data-shell] .style-cards .msg.user .bubble::after {
+  display: none;
+}
+:root[data-theme="orchard"][data-shell] .msg .name {
+  font: 400 1.02rem/1.2 var(--font-display);
+  color: var(--russet) !important;
+}
+:root[data-theme="orchard"][data-shell] .msg.user .name {
+  color: var(--leaf) !important;
+}
+:root[data-theme="orchard"][data-shell] .msg .portrait {
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--russet);
+}
+:root[data-theme="orchard"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% !important;
+}
+
+/* chapters: a ribbon banner */
+:root[data-theme="orchard"][data-shell] .chapter-h {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0.55rem 2.6rem 0.6rem;
+  background: var(--russet);
+  clip-path: polygon(0 0, 100% 0, 95% 50%, 100% 100%, 0 100%, 5% 50%);
+}
+:root[data-theme="orchard"][data-shell] .chapter-h::before,
+:root[data-theme="orchard"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="orchard"][data-shell] .ch-num {
+  margin-top: 0;
+  font: 600 0.66rem var(--font-ui);
+  letter-spacing: 0.3em;
+  color: #fff4dc;
+  opacity: 0.85;
+}
+:root[data-theme="orchard"][data-shell] .ch-title {
+  font: 400 1.45rem/1.15 var(--font-display);
+  background: none;
+  color: #fff4dc;
+  -webkit-text-fill-color: currentcolor;
+}
+
+/* the composer: a printed label, and an apple to send */
+:root[data-theme="orchard"][data-shell] .composer {
+  border: 2px solid var(--text);
+  border-radius: 4px;
+  background: var(--index);
+  box-shadow: 3px 3px 0 var(--text);
+}
+:root[data-theme="orchard"][data-mode="night"] .composer {
+  border-color: #6d5040;
+  box-shadow: 3px 3px 0 #000;
+}
+:root[data-theme="orchard"][data-shell] .send.primary {
+  border: 2px solid #3a2418;
+  border-radius: 46% 46% 50% 50% / 40% 40% 60% 60%;
+  background: radial-gradient(circle at 34% 30%, #ff9a7a 0 12%, transparent 30%), linear-gradient(160deg, #d8432f, #9a2618);
+  color: #fff4dc;
+  box-shadow: 0 3px 0 #3a2418;
+}
+:root[data-theme="orchard"][data-shell] .send.primary:not(:disabled):hover {
+  transform: translateY(-2px) rotate(6deg);
+}
+:root[data-theme="orchard"][data-shell] .continue,
+:root[data-theme="orchard"][data-shell] .char {
+  border-radius: 4px;
+}
+
+/* ---------- the backdrop: the orchard ---------- */
+.a-orchard {
+  --l1: #c8541f;
+  --l2: #e09a2a;
+  --l3: #9a2f22;
+  background:
+    radial-gradient(ellipse 45% 40% at 88% 0%, rgb(255 214 140 / 65%), transparent 70%),
+    linear-gradient(180deg, var(--cream), var(--cream-2));
+}
+.a-orchard.night {
+  background:
+    radial-gradient(ellipse 50% 40% at 50% 0%, rgb(243 170 69 / 16%), transparent 70%),
+    linear-gradient(180deg, #2a1912, #130b08);
+}
+.a-orchard.s-blossom {
+  --l1: #f6b8c8;
+  --l2: #fbe0e8;
+  --l3: #e98fa8;
+}
+.a-orchard.s-summer {
+  --l1: #6f8a2c;
+  --l2: #8fa83a;
+  --l3: #4f6a24;
+}
+.a-orchard.s-early {
+  --l1: #9aa63a;
+  --l2: #d8b33a;
+  --l3: #6f8a2c;
+}
+.a-orchard.s-late {
+  --l1: #8a5a34;
+  --l2: #a97445;
+  --l3: #5e3a22;
+}
+.a-orchard > svg {
+  position: absolute;
+}
+.a-orchard .haze {
+  inset: 0;
+}
+.a-orchard .rows {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 180px;
+  color: var(--leaf);
+  opacity: 0.2;
+}
+.a-orchard.night .rows {
+  color: #000;
+  opacity: 0.35;
+}
+.a-orchard .moon {
+  right: 9vw;
+  top: 12vh;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 38%, #ffe3a8, #f0a84a);
+  box-shadow: 0 0 70px 14px rgb(243 170 69 / 35%);
+  opacity: var(--glow);
+  transition: opacity 0.8s var(--ease);
+}
+.a-orchard .lights {
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  height: 130px;
+  opacity: var(--glow);
+  transition: opacity 0.8s var(--ease);
+}
+.a-orchard .lights .bulb {
+  filter: drop-shadow(0 0 6px #ffb35a);
+}
+/* the bough, hanging into the top right, with a robin and three apples */
+.a-orchard .boughbox {
+  right: 0;
+  top: 0;
+  width: 360px;
+  height: 130px;
+  color: #3a2418;
+}
+.a-orchard.night .boughbox {
+  color: #120a06;
+}
+.a-orchard .bough {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.a-orchard .bough .bl {
+  fill: var(--l1);
+}
+.a-orchard.s-peak .bough .bl,
+.a-orchard.s-early .bough .bl {
+  fill: #6b7f2e;
+}
+.a-orchard.s-blossom .bough .bl {
+  fill: #f6c3d0;
+}
+.a-orchard.night .bough .bl {
+  fill: #2a2012;
+}
+.a-orchard .apple {
+  position: absolute;
+  width: 28px;
+  height: 34px;
+  margin: -6px 0 0 -14px;
+  transform-origin: 50% 0;
+}
+.a-orchard.s-blossom .apple,
+.a-orchard.s-late .apple {
+  display: none;
+}
+.a-orchard .apple svg {
+  width: 100%;
+  height: 100%;
+}
+.a-orchard .robin {
+  position: absolute;
+  left: 196px;
+  top: 14px;
+  width: 40px;
+  height: 30px;
+}
+.a-orchard.night .robin {
+  display: none;
+}
+.a-orchard .robin svg {
+  width: 100%;
+  height: 100%;
+  transform-origin: 70% 90%;
+}
+/* a basket of windfalls in the corner, with bees */
+.a-orchard .basket {
+  left: 3vw;
+  bottom: 14px;
+  width: 120px;
+  height: 80px;
+  opacity: 0.9;
+}
+.a-orchard.night .basket {
+  filter: brightness(0.35);
+}
+.a-orchard .bee {
+  left: calc(3vw + 50px);
+  bottom: 110px;
+  width: 20px;
+  height: 14px;
+}
+.a-orchard.night .bee,
+.a-orchard.s-late .bee {
+  display: none;
+}
+.a-orchard .bee svg {
+  width: 100%;
+  height: 100%;
+}
+/* bats across the moon, a hedgehog in the grass */
+.a-orchard .bat {
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 16px;
+  color: #120a06;
+  opacity: 0;
+}
+.a-orchard:not(.night) .bat,
+.a-orchard:not(.night) .hog {
+  display: none;
+}
+.a-orchard .bat svg {
+  width: 100%;
+  height: 100%;
+  fill: currentcolor;
+}
+.a-orchard .bat .wl,
+.a-orchard .bat .wr {
+  transform-box: view-box;
+  transform-origin: 20px 8px;
+}
+.a-orchard .hog {
+  left: 0;
+  bottom: 8px;
+  width: 64px;
+  height: 36px;
+}
+.a-orchard .hog svg {
+  width: 100%;
+  height: 100%;
+}
+/* falling leaves (petals in spring) */
+.a-orchard .leaf {
+  top: -40px;
+}
+.a-orchard .leaf svg {
+  width: 100%;
+  height: 100%;
+}
+.a-orchard.s-blossom .leaf .lf {
+  d: path("M12 4c5 2 8 7 6 12-2 4-6 6-6 6s-4-2-6-6c-2-5 1-10 6-12z");
+}
+.a-orchard.s-blossom .leaf .vein {
+  display: none;
+}
+.a-orchard.s-late .leaf:nth-of-type(3n),
+.a-orchard.s-summer .leaf:nth-of-type(2n) {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .a-orchard .lights .bulb {
+    animation: or-twinkle 1.6s ease-in-out infinite alternate;
+  }
+  .a-orchard .bough {
+    animation: or-bough 9s ease-in-out infinite alternate;
+  }
+  .a-orchard .apple {
+    animation: or-drop 26s infinite;
+  }
+  .a-orchard .apple.b {
+    animation-duration: 33s;
+    animation-delay: -12s;
+  }
+  .a-orchard .apple.c {
+    animation-duration: 41s;
+    animation-delay: -27s;
+  }
+  .a-orchard .robin {
+    animation: or-hop 22s ease-in-out infinite;
+  }
+  .a-orchard .robin svg {
+    animation: or-peck 22s ease-in-out infinite;
+  }
+  .a-orchard .bee {
+    animation: or-buzz 6s ease-in-out infinite;
+  }
+  .a-orchard .bee.b1 {
+    animation-duration: 8s;
+    animation-delay: -3s;
+    animation-direction: reverse;
+  }
+  .a-orchard .bee .wing {
+    animation: or-wing 0.08s linear infinite alternate;
+  }
+  .a-orchard .bat {
+    animation: or-bat 19s linear infinite;
+  }
+  .a-orchard .bat.t1 {
+    animation-duration: 27s;
+    animation-delay: -11s;
+  }
+  .a-orchard .bat .wl,
+  .a-orchard .bat .wr {
+    animation: or-batwing 0.18s ease-in-out infinite alternate;
+  }
+  .a-orchard .hog {
+    animation: or-trundle 48s linear infinite;
+  }
+  .a-orchard .hog .feet {
+    animation: or-feet 0.3s steps(2) infinite;
+  }
+  .a-orchard .leaf {
+    animation: or-fall linear infinite;
+  }
+  .a-orchard .leaf svg {
+    animation: or-sway 3.2s ease-in-out infinite alternate;
+  }
+}
+@keyframes or-twinkle {
+  to {
+    opacity: 0.5;
+  }
+}
+@keyframes or-bough {
+  from {
+    rotate: -0.6deg;
+  }
+  to {
+    rotate: 0.8deg;
+  }
+}
+/* an apple hangs, trembles, lets go, bounces twice and rolls away */
+@keyframes or-drop {
+  0%,
+  70% {
+    transform: none;
+    opacity: 1;
+  }
+  72% {
+    transform: rotate(8deg);
+  }
+  74% {
+    transform: rotate(-8deg);
+  }
+  76% {
+    transform: rotate(0);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  83% {
+    transform: translate(0, calc(100vh - 160px)) rotate(90deg);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  86% {
+    transform: translate(-30px, calc(100vh - 230px)) rotate(150deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  89% {
+    transform: translate(-60px, calc(100vh - 160px)) rotate(220deg);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  91% {
+    transform: translate(-80px, calc(100vh - 185px)) rotate(260deg);
+  }
+  93% {
+    transform: translate(-100px, calc(100vh - 160px)) rotate(300deg);
+    opacity: 1;
+  }
+  98% {
+    transform: translate(-220px, calc(100vh - 160px)) rotate(540deg);
+    opacity: 0;
+  }
+  99% {
+    transform: none;
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* the robin hops along the bough, stops to peck, flies off and comes back */
+@keyframes or-hop {
+  0%,
+  8% {
+    transform: translate(0, 0);
+  }
+  10% {
+    transform: translate(-22px, -10px);
+  }
+  12%,
+  26% {
+    transform: translate(-44px, 4px);
+  }
+  28% {
+    transform: translate(-70px, -8px);
+  }
+  30%,
+  44% {
+    transform: translate(-96px, 8px);
+  }
+  46% {
+    transform: translate(-60px, -6px);
+  }
+  48%,
+  56% {
+    transform: translate(-22px, 0);
+  }
+  62% {
+    transform: translate(-260px, -120px) scale(0.8);
+    opacity: 1;
+  }
+  63%,
+  84% {
+    transform: translate(-260px, -120px) scale(0.8);
+    opacity: 0;
+  }
+  85% {
+    transform: translate(120px, -100px) scale(0.8);
+    opacity: 0;
+  }
+  86% {
+    opacity: 1;
+  }
+  92%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+@keyframes or-peck {
+  0%,
+  14%,
+  17%,
+  20%,
+  34%,
+  37%,
+  100% {
+    rotate: 0deg;
+  }
+  15.5%,
+  18.5%,
+  35.5% {
+    rotate: 28deg;
+  }
+}
+@keyframes or-buzz {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(46px, -26px) rotate(14deg);
+  }
+  50% {
+    transform: translate(0, -48px) rotate(-4deg);
+  }
+  75% {
+    transform: translate(-46px, -26px) rotate(-14deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
+@keyframes or-wing {
+  to {
+    transform: scaleY(0.4);
+  }
+}
+@keyframes or-bat {
+  0% {
+    transform: translate(105vw, 30vh);
+    opacity: 0;
+  }
+  4% {
+    opacity: 0.9;
+  }
+  12% {
+    transform: translate(86vw, 16vh);
+  }
+  20% {
+    transform: translate(78vw, 24vh);
+  }
+  30% {
+    transform: translate(62vw, 10vh);
+  }
+  40% {
+    transform: translate(46vw, 20vh);
+    opacity: 0.9;
+  }
+  46%,
+  100% {
+    transform: translate(30vw, 6vh);
+    opacity: 0;
+  }
+}
+@keyframes or-batwing {
+  to {
+    transform: scaleY(-0.6);
+  }
+}
+@keyframes or-trundle {
+  0% {
+    transform: translateX(-80px);
+  }
+  30%,
+  36% {
+    transform: translateX(32vw);
+  }
+  100% {
+    transform: translateX(105vw);
+  }
+}
+@keyframes or-feet {
+  to {
+    transform: translateX(2px);
+  }
+}
+@keyframes or-fall {
+  to {
+    transform: translate(var(--w), 112vh) rotate(260deg);
+  }
+}
+@keyframes or-sway {
+  from {
+    transform: rotate(-40deg) translateX(-14px);
+  }
+  to {
+    transform: rotate(50deg) translateX(14px);
+  }
+}
+@media (max-width: 900px) {
+  .a-orchard .boughbox,
+  .a-orchard .basket,
+  .a-orchard .bee,
+  .a-orchard .hog {
+    display: none;
+  }
+}
+
+.a-orchard.still *,
+.a-orchard.still *::before,
+.a-orchard.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-orchard *,
+  .a-orchard *::before,
+  .a-orchard *::after {
+    animation: none !important;
+  }
+}

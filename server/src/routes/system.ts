@@ -51,7 +51,7 @@ const SETTING_SCHEMAS: Record<string, z.ZodType> = {
     dyslexic: z.boolean(),
   }),
   "appearance.storyFont": z.enum(STORY_FONTS),
-  "appearance.theme": z.enum(["lantern", "wildflower", "overprint", "citadel", "marquee", "sugarrush", "arcade", "noir", "rosewater", "meringue", "menagerie", "weatherglass", "deepend", "floatingworld", "vesper", "caravanserai", "aphelion", "hearthwool", "prismlab", "disco", "herbarium"]),
+  "appearance.theme": z.enum(["lantern", "wildflower", "overprint", "citadel", "marquee", "sugarrush", "arcade", "noir", "rosewater", "meringue", "menagerie", "weatherglass", "deepend", "floatingworld", "vesper", "caravanserai", "aphelion", "hearthwool", "prismlab", "disco", "herbarium", "orchard"]),
   "appearance.themeMode": z.enum(["system", "day", "night"]),
   "appearance.colors": z.record(z.string().max(20), z.object({ day: z.partialRecord(z.enum(["bg", "text", "text-muted", "border", "accent", "ok", "warn", "danger"]), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional(), night: z.partialRecord(z.enum(["bg", "text", "text-muted", "border", "accent", "ok", "warn", "danger"]), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional() })),
   "appearance.living": z.object({ voices: z.enum(["blocks", "balloons", "quest", "texts", "sticky", "seal", "stage", "patch", "holo", "off"]), artifacts: z.boolean(), freeform: z.boolean().optional(), window: z.boolean(), thoughts: z.enum(["never", "drawer", "always"]), plan: z.enum(["drawer", "always"]).optional() }),

@@ -1,0 +1,154 @@
+/* ---------- Orchard: something's always ripening ---------- */
+/* An old cider label: cream and russet, ochre, leaf green and plum, crate wood and kraft paper.
+   By night, the orchard under string lights and a harvest moon. */
+:root[data-theme="orchard"] {
+  color-scheme: light;
+  --bg: #f6ecd6;
+  --surface: #fffaf0;
+  --surface-2: #faf0dc;
+  --surface-3: #efdcb8;
+  --border: #e2c79a;
+  --border-strong: #6b7f2e;
+  --text: #3a2418;
+  --text-muted: #6a4a36;
+  --text-faint: #7d5c46;
+  --dialogue: #9a3420;
+  --thought: #5a6d24;
+  --action: #4a3020;
+  --accent: #a4462a;
+  --accent-strong: #8a3a20;
+  --accent-ink: #8a3a20;
+  --on-accent: #fffaf0;
+  --tint-char: #fffaf0;
+  --tint-user: #fffdf6;
+  --tint-note: #f3e0b2;
+  --lavender: #ddd3e3;
+  --mint: #d6e3cc;
+  --peach: #efd8c4;
+  --butter: #f1e1a8;
+  --sky: #d3dde3;
+  --danger: #9b2c1c;
+  --danger-bg: #f5ddd5;
+  --ok: #3f6a3a;
+  --ok-bg: #dfeadb;
+  --warn: #6f520e;
+  --warn-bg: #f5ead0;
+  --shadow-1:
+    0 1px 0 rgb(58 42 28 / 12%), 0 14px 24px -18px rgb(60 40 10 / 55%);
+  --shadow-2: 0 30px 60px -28px rgb(58 42 28 / 45%);
+  --scrim: rgb(40 28 16 / 50%);
+  --focus: 0 0 0 3px rgb(164 70 42 / 40%);
+  --glass: rgb(252 248 238 / 88%);
+  --sig1: #5a6d24;
+  --sig2: #a4462a;
+  --lamp: #d39a2b;
+  --rose: #a4462a;
+  --sea: #4f7a74;
+  --hi: #3a2418;
+  --lo: #2a1d10;
+  --pop: #fffaf0;
+  --well: rgb(235 224 196 / 70%);
+  --knob: #fff;
+  --knob-on: #fffaf0;
+  --grad: linear-gradient(135deg, #8a3a20, #a4462a);
+  --grad-warm: linear-gradient(135deg, #d39a2b, #a4462a);
+  --pane: linear-gradient(
+    160deg,
+    rgb(252 248 238 / 88%),
+    rgb(246 239 220 / 88%)
+  );
+  --edge: rgb(58 42 28 / 22%);
+  --fill: rgb(58 42 28 / 5%);
+  --fill-2: rgb(58 42 28 / 9%);
+  --recap-ink: #6a4a36;
+  --on-warm: #fffaf0;
+  --r-sm: 2px;
+  --r: 3px;
+  --r-lg: 4px;
+  --cream: #f6ecd6;
+  --cream-2: #ead6af;
+  --index: #fffdf6;
+  --leaf: #6b7f2e;
+  --plum: #5c2a3c;
+  --russet: #a4462a;
+  --kraft: #dcc092;
+  --crate: #c99a5e;
+  --crate-2: #a87a42;
+  --ochre: #d39a2b;
+  --glow: 0;
+}
+/* The fonts at :where() strength: this palette loads late, and the font picks must still win. */
+:root:where([data-theme="orchard"]) {
+  --font-ui: "Josefin Sans Variable", system-ui, sans-serif;
+  --font-display: "Young Serif", Georgia, serif;
+  --font-deco: "Young Serif", Georgia, serif;
+  --font-story-theme: "Lora Variable", Georgia, serif;
+}
+:root[data-theme="orchard"][data-mode="night"] {
+  color-scheme: dark;
+  --bg: #1f1410;
+  --surface: #2b1d17;
+  --surface-2: #33231b;
+  --surface-3: #3d2a20;
+  --border: #4a3326;
+  --border-strong: #f3aa45;
+  --text: #f3e4cc;
+  --text-muted: #d4bc9c;
+  --text-faint: #ad9378;
+  --dialogue: #f09a78;
+  --thought: #a9ba60;
+  --action: #e8d6bc;
+  --accent: #f3aa45;
+  --accent-strong: #f6bd6a;
+  --accent-ink: #f3b058;
+  --on-accent: #2a1408;
+  --tint-char: #2b1d17;
+  --tint-user: #2e211a;
+  --tint-note: #33251a;
+  --lavender: #a79cb0;
+  --mint: #95b48a;
+  --peach: #c9a088;
+  --butter: #d9c584;
+  --sky: #8fa6b4;
+  --danger: #ef8a7a;
+  --danger-bg: #3a1a14;
+  --ok: #a9ba60;
+  --ok-bg: #18261a;
+  --warn: #e6cf8a;
+  --warn-bg: #2a2410;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 50%), 0 14px 30px -16px rgb(0 0 0 / 85%);
+  --shadow-2: 0 30px 60px -20px rgb(0 0 0 / 90%);
+  --scrim: rgb(0 0 0 / 70%);
+  --focus: 0 0 0 3px rgb(243 170 69 / 45%);
+  --glass: rgb(36 24 19 / 88%);
+  --sig1: #a9ba60;
+  --sig2: #e8805a;
+  --lamp: #f3aa45;
+  --rose: #e8805a;
+  --sea: #8fc0b6;
+  --hi: #f3e4cc;
+  --lo: #000000;
+  --pop: #2b1d17;
+  --well: rgb(0 0 0 / 35%);
+  --knob: #f3e4cc;
+  --knob-on: #2a1408;
+  --grad: linear-gradient(135deg, #f6bd6a, #f3aa45);
+  --grad-warm: linear-gradient(135deg, #f3aa45, #e8805a);
+  --pane: linear-gradient(160deg, rgb(43 29 23 / 82%), rgb(51 35 27 / 82%));
+  --edge: rgb(243 170 69 / 26%);
+  --fill: rgb(243 228 204 / 5%);
+  --fill-2: rgb(243 228 204 / 9%);
+  --recap-ink: #d4bc9c;
+  --on-warm: #2a1408;
+  --cream: #1f1410;
+  --cream-2: #140c09;
+  --index: #2b1d17;
+  --leaf: #a9ba60;
+  --plum: #d088a2;
+  --russet: #e8805a;
+  --kraft: #4d3523;
+  --crate: #5d3e25;
+  --crate-2: #3f2817;
+  --ochre: #f3aa45;
+  --glow: 1;
+}
