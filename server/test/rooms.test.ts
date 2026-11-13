@@ -116,3 +116,20 @@ describe("Mea Cozy is retired", () => {
     }
   });
 });
+
+describe("Night Train and Form are retired", () => {
+  test("a saved Night Train or Form moves to Lantern; other rooms stay", () => {
+    const db = new Database(":memory:");
+    db.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    const m = migrations.find((x) => x.name === "night train and form retired")!;
+    for (const [value, after] of [
+      ['"nighttrain"', '"lantern"'],
+      ['"form"', '"lantern"'],
+      ['"caravanserai"', '"caravanserai"'],
+    ] as const) {
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('appearance.theme', ?)", [value]);
+      db.exec(m.sql!);
+      expect(db.query<{ value: string }, []>("SELECT value FROM settings WHERE key = 'appearance.theme'").get()!.value).toBe(after);
+    }
+  });
+});
