@@ -1,0 +1,503 @@
+/* =====================================================================
+   HOLLOW — mind the roots
+   A fairy-tale forest floor. The rail is the inside of a hollow log with a toadstool for the mark;
+   the header hangs like a wooden sign; their messages are mossy stones with toadstools on top,
+   yours are birch bark; chapters sit in a fairy ring; you send with an acorn. By night the
+   mushrooms glow and fireflies wander.
+   ===================================================================== */
+:root[data-theme="hollow"][data-shell] {
+  --barkgrain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='480'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.32 .011' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --mossband:
+    radial-gradient(circle at 8px 10px, var(--moss-2) 0 7px, transparent 8px) 0 0 / 18px 18px repeat-x,
+    radial-gradient(circle at 9px 12px, var(--moss) 0 8px, transparent 9px) 9px 2px / 18px 18px repeat-x;
+  --toad: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 44'%3E%3Cg transform='translate(18 44) scale(.85)'%3E%3Cpath d='M-5 0c0-10 2-16 1-22h8c-1 6 1 12 1 22z' fill='%23efe6cf'/%3E%3Cpath d='M-16 -20c0-12 8-18 16-18s16 6 16 18c-6 3-26 3-32 0z' fill='%23c2412d'/%3E%3Ccircle cx='-7' cy='-28' r='2.4' fill='%23fff8e8'/%3E%3Ccircle cx='3' cy='-32' r='2' fill='%23fff8e8'/%3E%3Ccircle cx='9' cy='-24' r='1.8' fill='%23fff8e8'/%3E%3C/g%3E%3Cg transform='translate(40 44) scale(.6)'%3E%3Cpath d='M-5 0c0-10 2-16 1-22h8c-1 6 1 12 1 22z' fill='%23efe6cf'/%3E%3Cpath d='M-16 -20c0-12 8-18 16-18s16 6 16 18c-6 3-26 3-32 0z' fill='%23d9a441'/%3E%3C/g%3E%3C/svg%3E");
+  --toad-glow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 44'%3E%3Cg transform='translate(18 44) scale(.85)'%3E%3Cpath d='M-5 0c0-10 2-16 1-22h8c-1 6 1 12 1 22z' fill='%23cfe8de'/%3E%3Cpath d='M-16 -20c0-12 8-18 16-18s16 6 16 18c-6 3-26 3-32 0z' fill='%234ff0cf'/%3E%3Ccircle cx='-7' cy='-28' r='2.4' fill='%23e8fff8'/%3E%3Ccircle cx='3' cy='-32' r='2' fill='%23e8fff8'/%3E%3C/g%3E%3Cg transform='translate(40 44) scale(.6)'%3E%3Cpath d='M-5 0c0-10 2-16 1-22h8c-1 6 1 12 1 22z' fill='%23cfe8de'/%3E%3Cpath d='M-16 -20c0-12 8-18 16-18s16 6 16 18c-6 3-26 3-32 0z' fill='%23c9f56c'/%3E%3C/g%3E%3C/svg%3E");
+}
+:root[data-theme="hollow"][data-shell] h1 {
+  font-style: italic;
+  color: var(--accent-ink);
+}
+:root[data-theme="hollow"][data-shell] h2,
+:root[data-theme="hollow"][data-shell] .panel > h2:first-child {
+  font: 600 1.3rem/1.2 var(--font-display);
+}
+:root[data-theme="hollow"][data-shell] .btn.primary {
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="hollow"][data-shell] .card,
+:root[data-theme="hollow"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-radius: 22px;
+}
+:root[data-theme="hollow"][data-shell] .chip {
+  border-radius: 999px;
+}
+:root[data-theme="hollow"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="hollow"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+
+/* the rail: the inside of a hollow log */
+:root[data-theme="hollow"][data-shell] nav.rail {
+  --text-faint: #e9dfc4;
+  border: 0;
+  border-radius: 26px;
+  color: #f4ead3;
+  background:
+    var(--barkgrain) 0 0 / 240px 480px,
+    repeating-linear-gradient(90deg, var(--bark) 0 7px, color-mix(in srgb, var(--bark) 80%, #000) 7px 9px, var(--bark) 9px 15px, color-mix(in srgb, var(--bark) 88%, #fff) 15px 17px),
+    var(--bark);
+  box-shadow:
+    inset -14px 0 24px -12px rgb(0 0 0 / 60%),
+    inset 0 0 0 3px var(--bark-2),
+    var(--shadow-2);
+}
+:root[data-theme="hollow"][data-shell] nav.rail::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  height: 22px;
+  border-radius: 14px 14px 20px 20px;
+  pointer-events: none;
+  background: var(--mossband);
+}
+:root[data-theme="hollow"][data-shell] nav.rail .nav {
+  --text: #fbf3dc;
+}
+:root[data-theme="hollow"][data-shell] nav.rail .tip {
+  --text: #2b2a1d;
+  --text-faint: #6a654a;
+}
+:root[data-theme="hollow"][data-mode="night"] nav.rail .tip {
+  --text: #e3eedb;
+  --text-faint: #8fa992;
+}
+/* the mark: a toadstool (glowing after dark) */
+:root[data-theme="hollow"][data-shell] nav.rail .logo {
+  border-radius: 50%;
+  background: var(--toad) center 60% / 120% no-repeat;
+  box-shadow: none;
+  color: transparent !important;
+  animation: none;
+}
+:root[data-theme="hollow"][data-mode="night"] nav.rail .logo {
+  background-image: var(--toad-glow);
+  filter: drop-shadow(0 0 8px rgb(79 240 207 / 70%));
+}
+:root[data-theme="hollow"][data-shell] nav.rail .logo:hover {
+  transform: rotate(-10deg) scale(1.08);
+}
+:root[data-theme="hollow"][data-shell] nav.rail .nav.on {
+  border-radius: 14px;
+  background: rgb(244 234 211 / 16%);
+  color: #fff6d8 !important;
+  box-shadow: inset 0 0 0 1px rgb(244 234 211 / 30%);
+}
+:root[data-theme="hollow"][data-mode="night"] nav.rail .nav.on {
+  background: rgb(79 240 207 / 12%);
+  color: #6ff2d6 !important;
+  box-shadow:
+    inset 0 0 0 1px rgb(79 240 207 / 40%),
+    0 0 16px -4px rgb(79 240 207 / 60%);
+}
+:root[data-theme="hollow"][data-shell] nav.rail .story .avatar {
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 2px #f4ead3;
+}
+:root[data-theme="hollow"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 2px #f4ead3,
+    0 0 0 4px var(--cap),
+    0 0 14px var(--cap);
+}
+
+:root[data-theme="hollow"][data-shell] .main-col,
+:root[data-theme="hollow"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: 26px;
+}
+
+/* the header: a sign hanging on twine */
+:root[data-theme="hollow"][data-shell] .bar .cname {
+  font: 600 1.8rem/1.05 var(--font-display);
+  color: var(--text);
+}
+:root[data-theme="hollow"][data-shell] .bar .cname .ctitle {
+  font: 500 0.82rem var(--font-deco);
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+:root[data-theme="hollow"][data-shell] .bar .pic .avatar {
+  border-radius: 50% !important;
+  box-shadow:
+    0 0 0 3px var(--cream),
+    0 0 0 6px var(--wood);
+}
+
+/* their messages: mossy stones with toadstools on top */
+:root[data-theme="hollow"][data-shell] .style-cards .msg .bubble {
+  overflow: visible;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 26px 26px 26px 8px;
+  background: var(--tint-char);
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="hollow"][data-mode="night"] .style-cards .msg .bubble {
+  box-shadow:
+    0 0 0 1px rgb(79 240 207 / 18%),
+    0 14px 26px -18px #000;
+}
+:root[data-theme="hollow"][data-shell] .style-cards .msg .bubble::before {
+  content: "";
+  position: absolute;
+  inset: auto;
+  left: 16px;
+  right: 40%;
+  top: -9px;
+  height: 18px;
+  padding: 0;
+  border-radius: 12px;
+  background: var(--mossband);
+  -webkit-mask: none;
+  mask: none;
+  pointer-events: none;
+}
+:root[data-theme="hollow"][data-shell] .style-cards .msg .bubble::after {
+  content: "";
+  position: absolute;
+  left: auto;
+  right: -6px;
+  top: -26px;
+  width: 56px;
+  height: 44px;
+  background: var(--toad) center / contain no-repeat;
+  pointer-events: none;
+}
+:root[data-theme="hollow"][data-mode="night"] .style-cards .msg .bubble::after {
+  background-image: var(--toad-glow);
+  filter: drop-shadow(0 0 6px rgb(79 240 207 / 80%));
+}
+/* yours: birch bark */
+:root[data-theme="hollow"][data-shell] .style-cards .msg.user .bubble {
+  border-radius: 26px 26px 8px 26px;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 12px, rgb(43 42 29 / 55%) 12px 14px, transparent 14px 31px, rgb(43 42 29 / 40%) 31px 32px, transparent 32px 44px) right / 14px 100% no-repeat,
+    var(--tint-user);
+}
+:root[data-theme="hollow"][data-mode="night"] .style-cards .msg.user .bubble {
+  background:
+    repeating-linear-gradient(180deg, transparent 0 12px, rgb(201 245 108 / 35%) 12px 14px, transparent 14px 31px, rgb(201 245 108 / 25%) 31px 32px, transparent 32px 44px) right / 14px 100% no-repeat,
+    var(--tint-user);
+}
+:root[data-theme="hollow"][data-shell] .style-cards .msg.user .bubble::before,
+:root[data-theme="hollow"][data-shell] .style-cards .msg.user .bubble::after {
+  display: none;
+}
+:root[data-theme="hollow"][data-shell] .msg .name {
+  font: 600 1.02rem/1.2 var(--font-display);
+  color: var(--cap) !important;
+}
+:root[data-theme="hollow"][data-mode="night"] .msg .name {
+  text-shadow: 0 0 10px rgb(79 240 207 / 60%);
+}
+:root[data-theme="hollow"][data-shell] .msg.user .name {
+  color: var(--moss) !important;
+}
+:root[data-theme="hollow"][data-mode="night"] .msg.user .name {
+  color: var(--cream) !important;
+}
+:root[data-theme="hollow"][data-shell] .msg .portrait {
+  border-radius: 50%;
+  padding: 3px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--edge);
+}
+:root[data-theme="hollow"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% !important;
+}
+
+/* chapters: inside a fairy ring of toadstools */
+:root[data-theme="hollow"][data-shell] .chapter-h {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0.6rem 4.6rem 0.65rem;
+  background:
+    var(--toad) 0 50% / 40px 32px no-repeat,
+    var(--toad) 100% 50% / 40px 32px no-repeat;
+}
+:root[data-theme="hollow"][data-mode="night"] .chapter-h {
+  background:
+    var(--toad-glow) 0 50% / 40px 32px no-repeat,
+    var(--toad-glow) 100% 50% / 40px 32px no-repeat;
+}
+:root[data-theme="hollow"][data-shell] .chapter-h::before,
+:root[data-theme="hollow"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="hollow"][data-shell] .ch-num {
+  margin-top: 0;
+  font: 500 0.72rem var(--font-deco);
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+}
+:root[data-theme="hollow"][data-shell] .ch-title {
+  font: italic 600 1.55rem/1.15 var(--font-display);
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+/* the composer: a smooth river stone, and an acorn to send */
+:root[data-theme="hollow"][data-shell] .composer {
+  border: 0;
+  border-radius: 30px 26px 32px 24px / 26px 30px 24px 32px;
+  background: var(--tint-char);
+  box-shadow:
+    inset 0 2px 6px rgb(40 30 0 / 15%),
+    0 0 0 1px var(--edge);
+}
+:root[data-theme="hollow"][data-shell] .send.primary {
+  border: 0;
+  border-radius: 46% 46% 50% 50% / 38% 38% 62% 62%;
+  background:
+    linear-gradient(180deg, #6b4a2f 0 38%, transparent 38%),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 15%) 0 2px, transparent 2px 5px) 0 0 / 100% 38% no-repeat,
+    linear-gradient(180deg, #c58a4a, #8a5a2b);
+  color: #fff6e0;
+  box-shadow: 0 4px 8px -4px rgb(40 20 0 / 70%);
+}
+:root[data-theme="hollow"][data-shell] .send.primary:not(:disabled):hover {
+  transform: rotate(-8deg) scale(1.05);
+}
+:root[data-theme="hollow"][data-shell] .continue,
+:root[data-theme="hollow"][data-shell] .char {
+  border-radius: 22px;
+}
+:root[data-theme="hollow"][data-shell] .hero-pic,
+:root[data-theme="hollow"][data-shell] .hero-pic .avatar {
+  border-radius: 50% !important;
+}
+
+/* ---------- the backdrop: the forest floor ---------- */
+.a-hollow {
+  background:
+    radial-gradient(ellipse 40% 30% at 70% 10%, rgb(255 248 200 / 70%), transparent 70%),
+    linear-gradient(180deg, var(--bg), #c3d29e);
+}
+.a-hollow.night {
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgb(79 240 207 / 12%), transparent 70%),
+    linear-gradient(180deg, #0c1d18, #040a08);
+}
+.a-hollow > svg {
+  position: absolute;
+}
+.a-hollow .trunk {
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgb(80 60 30 / 18%), rgb(80 60 30 / 8%));
+}
+.a-hollow.night .trunk {
+  background: linear-gradient(90deg, rgb(0 0 0 / 50%), rgb(10 30 24 / 30%));
+}
+.a-hollow .trunk.t1 {
+  left: 62%;
+  width: 90px;
+  filter: blur(6px);
+}
+.a-hollow .trunk.t2 {
+  left: 84%;
+  width: 50px;
+  filter: blur(10px);
+}
+.a-hollow .trunk.t3 {
+  left: 38%;
+  width: 30px;
+  filter: blur(14px);
+}
+.a-hollow .dapple {
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 250 210 / 55%), transparent);
+  opacity: calc(1 - var(--glow));
+  transition: opacity 0.8s var(--ease);
+}
+.a-hollow .floor {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 210px;
+}
+.a-hollow .floor .hill1 {
+  fill: #7f9a4a;
+}
+.a-hollow .floor .hill2 {
+  fill: var(--moss);
+}
+.a-hollow.night .floor .hill1 {
+  fill: #10291f;
+}
+.a-hollow.night .floor .hill2 {
+  fill: #0a1d16;
+}
+.a-hollow .floor .root {
+  fill: none;
+  stroke: var(--bark);
+  stroke-width: 14;
+  stroke-linecap: round;
+}
+.a-hollow.night .floor .root {
+  stroke: #1d1710;
+}
+.a-hollow .floor .fern {
+  fill: none;
+  stroke: var(--moss-2);
+  stroke-width: 3;
+}
+.a-hollow.night .floor .fern {
+  stroke: #1f5a3e;
+}
+.a-hollow .floor .stem {
+  fill: #efe6cf;
+}
+.a-hollow .floor .dot {
+  fill: #fff8e8;
+}
+.a-hollow .floor .c1 .cap {
+  fill: var(--cap);
+}
+.a-hollow .floor .c2 .cap {
+  fill: var(--cap-2);
+}
+.a-hollow .floor .c3 .cap {
+  fill: var(--cap-3);
+}
+.a-hollow.night .floor .stem {
+  fill: #cfe8de;
+}
+.a-hollow.night .floor .shroom {
+  filter: drop-shadow(0 0 6px var(--cap)) drop-shadow(0 0 18px var(--cap));
+}
+.a-hollow.night .floor .shroom.c2 {
+  filter: drop-shadow(0 0 6px var(--cap-2)) drop-shadow(0 0 18px var(--cap-2));
+}
+.a-hollow .spore {
+  bottom: 120px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(255 248 220 / 80%);
+  opacity: 0;
+}
+.a-hollow.night .spore {
+  background: #9ff8e4;
+  box-shadow: 0 0 6px #4ff0cf;
+}
+.a-hollow .fly {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--glowfly);
+  box-shadow:
+    0 0 8px 2px var(--glowfly),
+    0 0 20px 4px rgb(255 230 128 / 40%);
+  opacity: 0;
+}
+.a-hollow.night .fly {
+  opacity: 0.7;
+}
+.a-hollow:not(.night) .fly {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .a-hollow .dapple {
+    animation: ho-dapple 9s ease-in-out infinite alternate;
+  }
+  .a-hollow .floor .fern {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: ho-fern 6s ease-in-out infinite alternate;
+  }
+  .a-hollow.night .floor .shroom {
+    animation: ho-pulse 4s ease-in-out infinite alternate;
+  }
+  .a-hollow .spore {
+    animation: ho-spore linear infinite;
+  }
+  .a-hollow .fly {
+    animation: ho-fly ease-in-out infinite;
+  }
+}
+@keyframes ho-dapple {
+  to {
+    translate: 30px 10px;
+    scale: 1.2;
+  }
+}
+@keyframes ho-fern {
+  from {
+    rotate: -2deg;
+  }
+  to {
+    rotate: 2.5deg;
+  }
+}
+@keyframes ho-pulse {
+  to {
+    opacity: 0.75;
+  }
+}
+@keyframes ho-spore {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(30px, -60vh);
+    opacity: 0;
+  }
+}
+@keyframes ho-fly {
+  0%,
+  100% {
+    translate: 0 0;
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 1;
+  }
+  50% {
+    translate: var(--dx) var(--dy);
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0.3;
+  }
+}
+
+.a-hollow.still *,
+.a-hollow.still *::before,
+.a-hollow.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-hollow *,
+  .a-hollow *::before,
+  .a-hollow *::after {
+    animation: none !important;
+  }
+}
