@@ -12,7 +12,7 @@
   import { BLOOM } from "../lib/ornaments";
 
   /** The newer rooms' marks; Weatherglass draws a barometer instead (room.css). */
-  const ROOM_MARK: Record<string, string> = { weatherglass: "", deepend: "mea", floatingworld: "物", vesper: "M", caravanserai: "M", aphelion: "M", hearthwool: "mea", prismlab: "M", disco: "", herbarium: "M", orchard: "M" };
+  const ROOM_MARK: Record<string, string> = { weatherglass: "", deepend: "mea", floatingworld: "物", vesper: "M", caravanserai: "M", aphelion: "M", hearthwool: "mea", prismlab: "M", disco: "", herbarium: "M", orchard: "M", y2k: "mea" };
 
   // Lantern: the slim navigation rail. Recent stories sit in it as portraits.
   let chats = $state<ChatListItem[]>([]);

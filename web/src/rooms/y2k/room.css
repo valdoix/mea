@@ -1,0 +1,551 @@
+/* =====================================================================
+   Y2K DREAM — your call is important to us
+   Translucent jelly plastic and chrome. The rail is a bondi-blue jelly case, the chat and the
+   side panel are frosted windows with a glossy title bar and three jelly buttons; their messages
+   are grape gel, yours tangerine; send is a lime gel pill. Behind it, a bright sky with soap
+   bubbles by day, and a screensaver by night.
+   ===================================================================== */
+:root[data-theme="y2k"][data-shell] {
+  --gloss: linear-gradient(180deg, rgb(255 255 255 / 75%), rgb(255 255 255 / 0%));
+  --jelly-dots:
+    radial-gradient(circle at 35% 30%, #fff 0 18%, transparent 40%) 0 0 / 13px 13px no-repeat,
+    radial-gradient(circle, #ff5f57 0 6px, transparent 6.5px) 0 0 / 13px 13px no-repeat,
+    radial-gradient(circle at 35% 30%, #fff 0 18%, transparent 40%) 19px 0 / 13px 13px no-repeat,
+    radial-gradient(circle, #ffbd2e 0 6px, transparent 6.5px) 19px 0 / 13px 13px no-repeat,
+    radial-gradient(circle at 35% 30%, #fff 0 18%, transparent 40%) 38px 0 / 13px 13px no-repeat,
+    radial-gradient(circle, #28c840 0 6px, transparent 6.5px) 38px 0 / 13px 13px no-repeat;
+}
+:root[data-theme="y2k"][data-shell] h1 {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--accent-ink);
+}
+:root[data-theme="y2k"][data-shell] h2,
+:root[data-theme="y2k"][data-shell] .panel > h2:first-child {
+  font: 400 1.05rem/1.3 var(--font-display);
+  letter-spacing: 0.04em;
+}
+:root[data-theme="y2k"][data-shell] .btn.primary,
+:root[data-theme="y2k"][data-shell] .send.primary {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent) 60%, color-mix(in srgb, var(--accent) 80%, #000));
+  color: #fff;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 25%);
+  box-shadow:
+    inset 0 -3px 6px rgb(0 0 0 / 15%),
+    0 6px 14px -6px var(--accent);
+}
+:root[data-theme="y2k"][data-shell] .btn.primary::after,
+:root[data-theme="y2k"][data-shell] .send.primary::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 2px;
+  height: 45%;
+  border-radius: 999px;
+  background: var(--gloss);
+  pointer-events: none;
+}
+:root[data-theme="y2k"][data-shell] .card,
+:root[data-theme="y2k"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--pane);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="y2k"][data-shell] .chip {
+  border-radius: 999px;
+}
+:root[data-theme="y2k"][data-shell] .seg button.on {
+  background: linear-gradient(180deg, #5cc6ff, #1e8fd6);
+  color: #fff;
+}
+:root[data-theme="y2k"][data-mode="night"] .seg button.on {
+  background: linear-gradient(180deg, #7a5cff, #3d2cb8);
+}
+:root[data-theme="y2k"][data-shell] .switch input:checked {
+  background: var(--lime);
+}
+
+/* the rail: a bondi-blue jelly case */
+:root[data-theme="y2k"][data-shell] nav.rail {
+  --text-faint: #eaf8ff;
+  border: 1px solid rgb(255 255 255 / 85%);
+  border-radius: 20px;
+  color: #fff;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 45%), rgb(255 255 255 / 0%) 40%),
+    linear-gradient(180deg, rgb(0 150 184 / 72%), rgb(0 110 160 / 78%));
+  backdrop-filter: blur(10px) saturate(1.5);
+  -webkit-backdrop-filter: blur(10px) saturate(1.5);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 25%),
+    inset 0 -10px 20px rgb(0 40 90 / 20%),
+    var(--shadow-2);
+}
+:root[data-theme="y2k"][data-mode="night"] nav.rail {
+  border-color: rgb(63 214 255 / 40%);
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 0%) 40%),
+    linear-gradient(180deg, rgb(30 20 110 / 72%), rgb(10 10 60 / 80%));
+  box-shadow:
+    0 0 24px -4px rgb(122 92 255 / 60%),
+    var(--shadow-2);
+}
+:root[data-theme="y2k"][data-shell] nav.rail .nav {
+  --text: #fff;
+}
+:root[data-theme="y2k"][data-shell] nav.rail .tip {
+  --text: #0d2a3d;
+  --text-faint: #557287;
+}
+:root[data-theme="y2k"][data-mode="night"] nav.rail .tip {
+  --text: #e3f2ff;
+  --text-faint: #8aa5c4;
+}
+/* the mark: a chrome gel bubble */
+:root[data-theme="y2k"][data-shell] nav.rail .logo {
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 26%, #fff 0 14%, rgb(255 255 255 / 30%) 24%, transparent 46%),
+    radial-gradient(circle at 60% 72%, rgb(255 138 31 / 45%), transparent 60%),
+    radial-gradient(circle, #c6f0ff 30%, #8a5cf6 100%);
+  box-shadow:
+    inset 0 0 10px rgb(255 255 255 / 70%),
+    0 4px 12px -4px rgb(0 40 90 / 60%);
+  color: #fff !important;
+  font: 400 0.8rem/1 var(--font-display);
+  text-shadow: 0 1px 2px rgb(0 40 90 / 60%);
+  animation: none;
+}
+:root[data-theme="y2k"][data-shell] nav.rail .logo:hover {
+  transform: scale(1.08);
+}
+:root[data-theme="y2k"][data-shell] nav.rail .nav.on {
+  border-radius: 12px;
+  background: linear-gradient(180deg, #5cc6ff, #1e8fd6);
+  color: #fff !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%);
+}
+:root[data-theme="y2k"][data-mode="night"] nav.rail .nav.on {
+  background: linear-gradient(180deg, #7a5cff, #3d2cb8);
+}
+:root[data-theme="y2k"][data-shell] nav.rail .story .avatar {
+  border-radius: 12px !important;
+  box-shadow: 0 0 0 2px #fff;
+}
+:root[data-theme="y2k"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px var(--lime),
+    0 0 12px var(--lime);
+}
+
+/* the chat and the side panel: frosted windows with a title bar and three jelly buttons */
+:root[data-theme="y2k"][data-shell] .main-col,
+:root[data-theme="y2k"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  background: var(--pane);
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    var(--shadow-2);
+}
+:root[data-theme="y2k"][data-mode="night"] .main-col,
+:root[data-theme="y2k"][data-mode="night"] .dock {
+  backdrop-filter: blur(4px) saturate(1.3);
+  -webkit-backdrop-filter: blur(4px) saturate(1.3);
+  box-shadow:
+    0 0 0 1px rgb(63 214 255 / 15%),
+    0 0 40px -10px rgb(122 92 255 / 60%);
+}
+:root[data-theme="y2k"][data-shell] .bar {
+  position: relative;
+  padding-left: 76px !important;
+  border-radius: 18px 18px 0 0;
+  background:
+    var(--jelly-dots),
+    linear-gradient(180deg, var(--bar-1), var(--bar-2));
+  background-position:
+    14px 50%,
+    14px 50%,
+    33px 50%,
+    33px 50%,
+    52px 50%,
+    52px 50%,
+    0 0;
+  border-bottom: 1px solid rgb(0 60 110 / 18%);
+}
+:root[data-theme="y2k"][data-shell] .bar::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 2px;
+  height: 45%;
+  border-radius: 14px;
+  background: var(--gloss);
+  opacity: calc(1 - var(--glow) * 0.8);
+  pointer-events: none;
+}
+:root[data-theme="y2k"][data-shell] .bar .cname {
+  font: 400 1.25rem/1.2 var(--font-display);
+  color: var(--berry);
+}
+:root[data-theme="y2k"][data-mode="night"] .bar .cname {
+  text-shadow: 0 0 10px rgb(255 106 168 / 60%);
+}
+:root[data-theme="y2k"][data-shell] .bar .cname .ctitle {
+  font: italic 400 0.92rem var(--font-ui);
+  color: var(--text-muted);
+}
+:root[data-theme="y2k"][data-shell] .bar .pic .avatar {
+  border-radius: 12px !important;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 4px 10px rgb(0 40 90 / 30%);
+}
+
+/* their messages: grape gel with a shine; yours: tangerine */
+:root[data-theme="y2k"][data-shell] .style-cards .msg .bubble {
+  border: 1px solid color-mix(in srgb, var(--grape) 55%, #fff);
+  border-radius: 22px 22px 22px 8px;
+  background:
+    var(--gloss) 0 0 / 100% 38px no-repeat,
+    linear-gradient(180deg, var(--gel-1), var(--gel-2));
+  box-shadow:
+    inset 0 -3px 8px rgb(0 0 0 / 6%),
+    0 10px 20px -12px var(--grape);
+}
+:root[data-theme="y2k"][data-mode="night"] .style-cards .msg .bubble {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 0%)) 0 0 / 100% 38px no-repeat,
+    linear-gradient(180deg, var(--gel-1), var(--gel-2));
+  box-shadow:
+    0 0 0 1px rgb(180 140 255 / 30%),
+    0 0 22px -6px rgb(180 140 255 / 70%);
+}
+:root[data-theme="y2k"][data-shell] .style-cards .msg .bubble::before,
+:root[data-theme="y2k"][data-shell] .style-cards .msg .bubble::after {
+  display: none;
+}
+:root[data-theme="y2k"][data-shell] .style-cards .msg.user .bubble {
+  border-color: color-mix(in srgb, var(--tang) 55%, #fff);
+  border-radius: 22px 22px 8px 22px;
+  background:
+    var(--gloss) 0 0 / 100% 38px no-repeat,
+    linear-gradient(180deg, var(--gel-u1), var(--gel-u2));
+  box-shadow:
+    inset 0 -3px 8px rgb(0 0 0 / 6%),
+    0 10px 20px -12px var(--tang);
+}
+:root[data-theme="y2k"][data-mode="night"] .style-cards .msg.user .bubble {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 0%)) 0 0 / 100% 38px no-repeat,
+    linear-gradient(180deg, var(--gel-u1), var(--gel-u2));
+  box-shadow:
+    0 0 0 1px rgb(255 162 74 / 30%),
+    0 0 22px -6px rgb(255 162 74 / 60%);
+}
+:root[data-theme="y2k"][data-shell] .msg .name {
+  font: 800 0.95rem/1.2 var(--font-ui);
+  color: var(--berry) !important;
+}
+:root[data-theme="y2k"][data-shell] .msg.user .name {
+  color: var(--bondi) !important;
+}
+:root[data-theme="y2k"][data-shell] .msg .portrait {
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 4px 10px rgb(0 40 90 / 25%);
+}
+:root[data-theme="y2k"][data-shell] .msg .portrait .avatar {
+  border-radius: 10px !important;
+}
+
+/* chapters: a dashed "you've got a nudge" pill */
+:root[data-theme="y2k"][data-shell] .chapter-h {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0.55rem 1.8rem 0.6rem;
+  border: 1.5px dashed var(--berry);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 55%);
+}
+:root[data-theme="y2k"][data-mode="night"] .chapter-h {
+  background: rgb(255 106 168 / 10%);
+}
+:root[data-theme="y2k"][data-shell] .chapter-h::before,
+:root[data-theme="y2k"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="y2k"][data-shell] .ch-num {
+  margin-top: 0;
+  font: 400 1rem var(--font-deco);
+  letter-spacing: 0.12em;
+  color: var(--berry);
+}
+:root[data-theme="y2k"][data-shell] .ch-num::before {
+  content: "\26A1  ";
+}
+:root[data-theme="y2k"][data-shell] .ch-title {
+  font: 400 1.05rem/1.3 var(--font-display);
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+/* the composer: an inset text box, and a lime gel pill to send */
+:root[data-theme="y2k"][data-shell] .composer {
+  border: 1px solid rgb(0 60 110 / 25%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 88%);
+  box-shadow:
+    inset 0 2px 4px rgb(0 40 90 / 12%),
+    0 8px 18px -12px rgb(0 40 90 / 50%);
+}
+:root[data-theme="y2k"][data-mode="night"] .composer {
+  border-color: rgb(130 200 255 / 30%);
+  background: rgb(5 10 40 / 75%);
+}
+:root[data-theme="y2k"][data-shell] .send.primary {
+  --accent: var(--lime);
+  color: #12320a;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 45%);
+}
+:root[data-theme="y2k"][data-shell] .continue,
+:root[data-theme="y2k"][data-shell] .char {
+  border-radius: 16px;
+}
+:root[data-theme="y2k"][data-shell] .hero-pic,
+:root[data-theme="y2k"][data-shell] .hero-pic .avatar {
+  border-radius: 16px !important;
+}
+
+/* ---------- the backdrop: a bright sky and soap bubbles; a screensaver by night ---------- */
+.a-y2k {
+  background:
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgb(255 255 255 / 70%), transparent 70%),
+    linear-gradient(180deg, #7cc8ff 0%, #b7e3ff 45%, #eaf7ff 100%);
+}
+.a-y2k.night {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 50%, #101a52, transparent 70%),
+    #03051a;
+}
+.a-y2k .cloud {
+  width: 260px;
+  height: 80px;
+  left: 0;
+  border-radius: 50%;
+  background: #fff;
+  filter: blur(16px);
+  opacity: calc(0.85 * (1 - var(--glow)));
+}
+.a-y2k .cloud.c1 {
+  top: 8vh;
+}
+.a-y2k .cloud.c2 {
+  top: 26vh;
+  width: 340px;
+  opacity: calc(0.7 * (1 - var(--glow)));
+}
+.a-y2k .cloud.c3 {
+  top: 56vh;
+  width: 200px;
+  opacity: calc(0.6 * (1 - var(--glow)));
+}
+.a-y2k .cloud.c4 {
+  top: 74vh;
+  width: 300px;
+  opacity: calc(0.55 * (1 - var(--glow)));
+}
+.a-y2k .bub {
+  bottom: -90px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0 12%, rgb(255 255 255 / 40%) 22%, transparent 46%),
+    radial-gradient(circle at 60% 70%, rgb(255 138 31 / 35%), transparent 60%),
+    radial-gradient(circle, rgb(0 150 184 / 12%) 60%, rgb(138 92 246 / 45%) 100%);
+  box-shadow: inset 0 0 12px rgb(255 255 255 / 70%);
+  opacity: calc(1 - var(--glow));
+}
+.a-y2k .flare {
+  right: 14vw;
+  top: 8vh;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #fff 0 6%, rgb(255 255 255 / 60%) 12%, transparent 40%),
+    conic-gradient(from 0deg, transparent 0 20deg, rgb(255 255 255 / 50%) 22deg 24deg, transparent 26deg 110deg, rgb(255 255 255 / 40%) 112deg 114deg, transparent 116deg 200deg, rgb(255 255 255 / 50%) 202deg 204deg, transparent 206deg 290deg, rgb(255 255 255 / 40%) 292deg 294deg, transparent 296deg);
+  -webkit-mask: radial-gradient(circle, #000 20%, transparent 70%);
+  mask: radial-gradient(circle, #000 20%, transparent 70%);
+  opacity: calc(0.9 * (1 - var(--glow)));
+}
+/* the screensaver: stars rushing out of the middle */
+.a-y2k .warp {
+  inset: 0;
+  opacity: var(--glow);
+  transition: opacity 0.8s var(--ease);
+}
+.a-y2k .warp i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 4px #9fe8ff;
+  opacity: 0;
+}
+.a-y2k:not(.night) .warp,
+.a-y2k:not(.night) .dvd {
+  display: none;
+}
+/* …and a chrome "mea" bouncing off the edges, changing colour when it hits one */
+.a-y2k .dvd {
+  left: 0;
+  top: 0;
+  width: 160px;
+  height: 64px;
+}
+.a-y2k .dvd span {
+  display: block;
+}
+.a-y2k .dvd b {
+  display: block;
+  font: 400 48px/64px "Michroma", sans-serif;
+  letter-spacing: 0.04em;
+  color: #3fd6ff;
+  text-shadow:
+    0 0 18px currentcolor,
+    0 2px 0 rgb(255 255 255 / 60%);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .a-y2k .cloud {
+    animation: y2k-drift 70s linear infinite;
+  }
+  .a-y2k .cloud.c2 {
+    animation-duration: 95s;
+    animation-delay: -40s;
+  }
+  .a-y2k .cloud.c3 {
+    animation-duration: 80s;
+    animation-delay: -60s;
+  }
+  .a-y2k .cloud.c4 {
+    animation-duration: 110s;
+    animation-delay: -20s;
+  }
+  .a-y2k .bub {
+    animation: y2k-rise linear infinite;
+  }
+  .a-y2k .flare {
+    animation: y2k-wink 9s ease-in-out infinite;
+  }
+  .a-y2k .warp i {
+    animation: y2k-warp linear infinite;
+  }
+  .a-y2k .dvd {
+    animation: y2k-x 13s linear infinite alternate;
+  }
+  .a-y2k .dvd span {
+    animation: y2k-y 9s linear infinite alternate;
+  }
+  .a-y2k .dvd b {
+    animation: y2k-hue 52s steps(1) infinite;
+  }
+}
+@keyframes y2k-drift {
+  from {
+    transform: translateX(-30vw);
+  }
+  to {
+    transform: translateX(110vw);
+  }
+}
+@keyframes y2k-rise {
+  to {
+    transform: translate(var(--w), -110vh);
+  }
+}
+@keyframes y2k-wink {
+  0%,
+  100% {
+    transform: scale(0.8) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.15) rotate(40deg);
+  }
+}
+@keyframes y2k-warp {
+  0% {
+    transform: translate(0, 0) scale(0.2);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(1.8);
+    opacity: 1;
+  }
+}
+@keyframes y2k-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100vw - 160px));
+  }
+}
+@keyframes y2k-y {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(100vh - 64px));
+  }
+}
+/* one change of colour each time it reaches the left or right edge (every 13s) */
+@keyframes y2k-hue {
+  0% {
+    filter: none;
+  }
+  25% {
+    filter: hue-rotate(110deg);
+  }
+  50% {
+    filter: hue-rotate(200deg);
+  }
+  75% {
+    filter: hue-rotate(290deg);
+  }
+}
+
+.a-y2k.still *,
+.a-y2k.still *::before,
+.a-y2k.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-y2k *,
+  .a-y2k *::before,
+  .a-y2k *::after {
+    animation: none !important;
+  }
+}
