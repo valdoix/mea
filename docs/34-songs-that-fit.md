@@ -158,6 +158,17 @@ There is no record of which songs actually played or were skipped, so the replay
 
 **Done when:** on the marked set, songs marked *wrong* fall out of the top three in at least 9 scenes of 10, and none of the six in 0.2 can be picked for its scene; a failed judge call still plays a song.
 
+**Built** (`music/fit.ts`, `chooseTrack` in `director.ts`):
+
+- Each gate reads only what the brief knows. A brief from the records alone (a bond, a child) gates on that and nothing else, and a song with no card passes every gate.
+- Beyond the list above, a song mainly about betrayal, jealousy, temptation, revenge, heartbreak, grief, guilt or fear is out of a happy scene unless that's what's happening, and "afraid" joined the stances a happy scene can't hold. Without these, the proposal and tender-daytime cases from 0.2 got through.
+- `avoid` is matched with plain rules ("breakup songs" catches heartbreak or losing, "party songs" a loud celebration, "anything sexual" the heat). A phrase it doesn't know matches the card's situations by name.
+- When nothing passes the gates, the songs safe under anything play: sung to anyone (not a love song, not a family one), no heat, an easy stance, nothing dark, energy within one of the scene's. If there are none, every song is back in, so something always plays, and the chip says nothing fits either way.
+- A song's words count half when it has a card and will play from the top. Without a card they count as before.
+- The judge runs only when the brief was read by the helper and at least two of the top eight have cards. Until your songs have cards (the **Read them** re-read from Part 2), no judge calls are made. It is shown the brief and each song's card line and "about", never lyrics. The first of its top three plays most often (6 : 2 : 1) and carries its line of reason as the chip's "why".
+- The verdict is kept under the reply and scene that asked for it, so a swipe reuses it with no new call.
+- The bench now reads the rest of the brief from each logged reading or play, so the gates count on the marked set. The 9-in-10 check on your marked set waits for your songs' cards.
+
 ## Part 5 · Learning from you
 
 **What you get:** a skip teaches Mea something, and one tap says what was wrong.

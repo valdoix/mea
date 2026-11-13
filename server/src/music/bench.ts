@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 import { config } from "../config";
 import { type ChatMusic, type Cue, type InRoll, type Mood, MOODS, type MusicConfig, rankTracks, themesFor, wordsContext } from "./director";
 import type { PlayRow } from "./plays";
+import { BONDS, HEATS, STANCES } from "./cards";
+import type { Brief } from "./fit";
 import { situationsOf } from "./situations";
 import type { Moment } from "./words";
 
@@ -30,6 +32,8 @@ export interface BenchScene {
   /** The end of the reply the scene was read from (not kept for plays). */
   excerpt: string;
   from: "reading" | "play";
+  /** docs/34 Part 3: the rest of the brief, when the reading had one (the gates read it). */
+  brief?: Omit<Brief, "situations" | "gist">;
 }
 
 export interface MarkedSong {
@@ -83,7 +87,16 @@ export function sceneFromReading(row: { id: string; chat_id: string | null; star
     if (!/^You choose music for a story/.test(sys)) return null;
     const user = req.messages?.find((m) => m.role === "user")?.content ?? "";
     const line = (k: string) => new RegExp(`^${k}: (.*)$`, "m").exec(user)?.[1]?.trim() ?? "";
-    const res = JSON.parse(/\{[\s\S]*\}/.exec(row.response ?? "")?.[0] ?? "null") as { gist?: string; situations?: (string | { s?: string; strength?: string })[] } | null;
+    const res = JSON.parse(/\{[\s\S]*\}/.exec(row.response ?? "")?.[0] ?? "null") as {
+      gist?: string;
+      situations?: (string | { s?: string; strength?: string })[];
+      bond?: string;
+      stance?: string;
+      heat?: string;
+      energy?: number;
+      avoid?: string[];
+      child?: boolean;
+    } | null;
     if (!res) return null;
     const moods = asMoods(line("Mood").split(","));
     if (!moods.length) return null;
@@ -100,24 +113,42 @@ export function sceneFromReading(row: { id: string; chat_id: string | null; star
       // The replies it read (since docs/34 Part 3, the last three, each under a "---" heading).
       excerpt: user.split("\n\n").slice(1).join("\n\n").replace(/^--- .*\n/gm, "").trim(),
       from: "reading",
+      ...(res.bond || res.stance || res.heat ? { brief: briefOf(res) } : {}),
     };
   } catch {
     return null;
   }
 }
 
+const pick = <T extends string>(xs: readonly T[], v: unknown): T | null => ((xs as readonly string[]).includes(String(v ?? "")) ? (v as T) : null);
+/** The brief's other fields from a reading's answer or a play's moment, known values only. */
+function briefOf(r: { bond?: unknown; stance?: unknown; heat?: unknown; energy?: unknown; avoid?: unknown; child?: unknown; slight?: unknown }): NonNullable<BenchScene["brief"]> {
+  const energy = Number(r.energy);
+  const child = r.child === true;
+  return {
+    bond: pick(BONDS, r.bond),
+    stance: pick(STANCES, r.stance),
+    heat: child ? "none" : pick(HEATS, r.heat),
+    energy: Number.isFinite(energy) && energy >= 1 ? Math.min(5, Math.round(energy)) : null,
+    avoid: Array.isArray(r.avoid) ? r.avoid.map(String).slice(0, 4) : [],
+    child,
+    ...(Array.isArray(r.slight) ? { slight: situationsOf(r.slight, 3) } : {}),
+  };
+}
+
 /** A scene from a logged play: the cue and the moment the picker had. */
 export function sceneFromPlay(p: PlayRow): BenchScene | null {
   const moods = asMoods(p.cue?.moods ?? []);
   if (!p.cue || !moods.length) return null;
-  return { id: p.id, chatId: p.chatId, at: p.startedAt, moods, present: p.cue.present, place: p.cue.place, situations: p.moment?.situations ?? [], gist: p.moment?.gist ?? "", excerpt: "", from: "play" };
+  const m = p.moment;
+  return { id: p.id, chatId: p.chatId, at: p.startedAt, moods, present: p.cue.present, place: p.cue.place, situations: m?.situations ?? [], gist: m?.gist ?? "", excerpt: "", from: "play", ...(m && (m.bond || m.stance || m.heat) ? { brief: briefOf(m) } : {}) };
 }
 
 /** The picker's cue and this chat's music for a scene, keyed so its moment counts as this scene's. */
 export function sceneInputs(s: BenchScene): { cue: Cue; music: ChatMusic } {
   const key = `bench|${s.moods[0]}|day`;
   const cue: Cue = { moods: s.moods, intensity: 0, hour: null, weather: "", place: s.place, genre: null, present: s.present, key };
-  const moment: Moment | null = s.situations.length ? { situations: s.situations as Moment["situations"], gist: s.gist, key: `${s.id}|${key}`, from: "reply", at: s.at } : null;
+  const moment: Moment | null = s.situations.length || s.brief ? { situations: s.situations as Moment["situations"], gist: s.gist, key: `${s.id}|${key}`, from: "reply", at: s.at, ...(s.brief ?? {}) } : null;
   return { cue, music: { on: true, moment } };
 }
 

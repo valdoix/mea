@@ -22,6 +22,10 @@ export interface PlayParts {
   preferred: number;
   /** docs/34 3.1: a sexual song with a child in the scene, far down the list. */
   heat?: number;
+  /** docs/34 4.2: the whole song's card against the scene brief. */
+  fit?: number;
+  /** docs/34 4.3: where the judge put it (1-3), or 0 when it said nothing fits. */
+  judge?: number;
 }
 export interface Runner {
   videoId: string;
