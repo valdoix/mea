@@ -650,6 +650,15 @@ function helperJson(name: string, user: string, system = ""): unknown {
         child,
       };
     }
+    // docs/34 4.3: the judge keeps the order it was given, leaving out songs whose notes say sexual in a
+    // scene with a child; MOCK_NOTHING_FITS in the scene says none fit.
+    case "song_judge": {
+      if (/MOCK_NOTHING_FITS/.test(user)) return { none: true, ranking: [], reason: "" };
+      const child = /^A child is here\.$/m.test(user);
+      // Each song is two lines: "N. Title — Artist", then its notes.
+      const songs = [...user.matchAll(/^(\d+)\. (.+)\r?\n {3}(.*)$/gm)].filter((m) => !(child && /\bsexual\b/.test(m[3]!)));
+      return { none: !songs.length, ranking: songs.map((m) => Number(m[1])), reason: songs[0] ? `${songs[0][2]!.split(" — ")[0]} suits the scene.` : "" };
+    }
     // docs/28 Part 2: the portrait writer. Buffy is the known character (her canon age is 16).
     case "portrait_idea": {
       const idea = (user.split("THE IDEA: ")[1] ?? "").trim();
@@ -1007,6 +1016,7 @@ function guessSchema(system: string) {
   // docs/18 and 34: the soundtrack's song sheets (and cards), and the story's moment.
   if (system.includes('"passages"')) return "lyric_sheet";
   if (system.startsWith("You choose music for a story")) return "story_moment";
+  if (system.startsWith("You judge songs for a story")) return "song_judge";
   return undefined;
 }
 
