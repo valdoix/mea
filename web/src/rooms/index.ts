@@ -17,6 +17,7 @@ import sugarrush from "./sugarrush";
 import vesper from "./vesper";
 import weatherglass from "./weatherglass";
 import wildflower from "./wildflower";
+import hollow from "./hollow";
 import y2k from "./y2k";
 import orchard from "./orchard";
 import herbarium from "./herbarium";
@@ -25,7 +26,7 @@ import herbarium from "./herbarium";
  * Every room, in picker order. The first four's stylesheets are listed in palettes.css and
  * rooms.css; the rest load theirs the first time they're shown (Room.styles).
  */
-export const ROOMS = [wildflower, overprint, citadel, marquee, sugarrush, arcade, noir, rosewater, meringue, menagerie, weatherglass, deepend, floatingworld, vesper, caravanserai, aphelion, hearthwool, prismlab, disco, herbarium, orchard, y2k] as const;
+export const ROOMS = [wildflower, overprint, citadel, marquee, sugarrush, arcade, noir, rosewater, meringue, menagerie, weatherglass, deepend, floatingworld, vesper, caravanserai, aphelion, hearthwool, prismlab, disco, herbarium, orchard, y2k, hollow] as const;
 
 export type RoomId = (typeof ROOMS)[number]["id"];
 
