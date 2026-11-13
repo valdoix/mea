@@ -1,0 +1,397 @@
+/* =====================================================================
+   HOARFROST — speak low, the snow is listening
+   An inn on a mountain pass. The rail is pine panelling with a brass plate for the mark and your
+   stories hang like room keys; the chat is frosted glass; their messages are frosted panes with a
+   snowflake in the corner, yours are wool by candlelight; chapters are a hush between two lines of
+   ice. Frost feathers in from the corners while you're quiet and thaws as you type.
+   ===================================================================== */
+@property --frost {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+:root[data-theme="hoarfrost"][data-shell] {
+  --pinewood: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.011 .32' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --flake: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237fa9c8' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9.5 3.5L12 5l2.5-1.5M9.5 20.5L12 19l2.5 1.5'/%3E%3C/svg%3E");
+}
+:root[data-theme="hoarfrost"][data-shell] h1 {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--accent-ink);
+}
+:root[data-theme="hoarfrost"][data-shell] h2,
+:root[data-theme="hoarfrost"][data-shell] .panel > h2:first-child {
+  font: 400 1.3rem/1.2 var(--font-display);
+  letter-spacing: 0.03em;
+}
+:root[data-theme="hoarfrost"][data-shell] .btn.primary {
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="hoarfrost"][data-shell] .card,
+:root[data-theme="hoarfrost"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--pane);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:root[data-theme="hoarfrost"][data-shell] .chip {
+  border-radius: 999px;
+}
+:root[data-theme="hoarfrost"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="hoarfrost"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+
+/* the rail: pine panelling */
+:root[data-theme="hoarfrost"][data-shell] nav.rail {
+  --text-faint: #f2e6d4;
+  border: 0;
+  border-radius: 10px;
+  color: #f6ecdc;
+  background:
+    var(--pinewood) 0 0 / 480px 240px,
+    linear-gradient(180deg, #6d4a30, #4d3220);
+  box-shadow:
+    inset -10px 0 20px -12px rgb(0 0 0 / 60%),
+    var(--shadow-2);
+}
+:root[data-theme="hoarfrost"][data-mode="night"] nav.rail {
+  background:
+    var(--pinewood) 0 0 / 480px 240px,
+    linear-gradient(180deg, #3a281a, #21160d);
+}
+:root[data-theme="hoarfrost"][data-shell] nav.rail .nav {
+  --text: #fbf2e2;
+}
+:root[data-theme="hoarfrost"][data-shell] nav.rail .tip {
+  --text: #1d2a38;
+  --text-faint: #5d6d80;
+}
+:root[data-theme="hoarfrost"][data-mode="night"] nav.rail .tip {
+  --text: #e7eef6;
+  --text-faint: #94a6ba;
+}
+/* the mark: the inn's brass plate */
+:root[data-theme="hoarfrost"][data-shell] nav.rail .logo {
+  border-radius: 6px;
+  background: linear-gradient(180deg, #e9cf8f, #b8913f);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    0 3px 0 #2a1a0c;
+  color: #3b2810 !important;
+  font: 400 1.2rem/1 var(--font-display);
+  animation: none;
+}
+:root[data-theme="hoarfrost"][data-shell] nav.rail .nav.on {
+  border-radius: 8px;
+  background: rgb(243 192 107 / 18%);
+  color: #f6cf86 !important;
+  box-shadow: inset 0 -2px 0 #d9b66a;
+}
+/* your open stories: room keys on a red tag; the one you're in is out of the board */
+:root[data-theme="hoarfrost"][data-shell] nav.rail .story .avatar {
+  border-radius: 6px 6px 14px 14px !important;
+  box-shadow:
+    0 0 0 2px #2a1a0c,
+    0 0 0 4px #d9b66a;
+}
+:root[data-theme="hoarfrost"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 2px #2a1a0c,
+    0 0 0 4px #b23a48,
+    0 0 14px rgb(243 192 107 / 60%);
+}
+
+/* the chat and the side panel: frosted glass */
+:root[data-theme="hoarfrost"][data-shell] .main-col,
+:root[data-theme="hoarfrost"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  background: var(--pane);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+}
+:root[data-theme="hoarfrost"][data-shell] .bar .cname {
+  font: 400 1.85rem/1.05 var(--font-display);
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+:root[data-theme="hoarfrost"][data-shell] .bar .cname .ctitle {
+  font: 500 0.72rem var(--font-ui);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+:root[data-theme="hoarfrost"][data-shell] .bar .pic .avatar {
+  border-radius: 50% 50% 8px 8px !important;
+  box-shadow: 0 0 0 3px var(--edge);
+}
+
+/* their messages: frosted panes with a snowflake; yours: wool by candlelight */
+:root[data-theme="hoarfrost"][data-shell] .style-cards .msg .bubble {
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  background:
+    var(--flake) right 12px top 10px / 22px no-repeat,
+    var(--glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 18px 30px -22px rgb(30 60 100 / 60%),
+    inset 0 1px 0 rgb(255 255 255 / 80%);
+}
+:root[data-theme="hoarfrost"][data-mode="night"] .style-cards .msg .bubble {
+  box-shadow:
+    0 18px 30px -22px #000,
+    inset 0 1px 0 rgb(255 255 255 / 12%);
+}
+:root[data-theme="hoarfrost"][data-shell] .style-cards .msg .bubble::before,
+:root[data-theme="hoarfrost"][data-shell] .style-cards .msg .bubble::after {
+  display: none;
+}
+:root[data-theme="hoarfrost"][data-shell] .style-cards .msg.user .bubble {
+  border-color: rgb(211 154 66 / 40%);
+  background:
+    radial-gradient(ellipse 80% 60% at 100% 0, rgb(243 192 107 / 28%), transparent 70%),
+    var(--wool);
+  backdrop-filter: none;
+}
+:root[data-theme="hoarfrost"][data-shell] .msg .name {
+  font: 400 1.05rem/1.2 var(--font-display);
+  letter-spacing: 0.06em;
+  color: var(--pine) !important;
+}
+:root[data-theme="hoarfrost"][data-shell] .msg.user .name {
+  color: var(--berry) !important;
+}
+:root[data-theme="hoarfrost"][data-shell] .msg .portrait {
+  border-radius: 50% 50% 8px 8px;
+  box-shadow: 0 0 0 2px var(--edge);
+}
+:root[data-theme="hoarfrost"][data-shell] .msg .portrait .avatar {
+  border-radius: 50% 50% 6px 6px !important;
+}
+
+/* chapters: a hush between two lines of ice */
+:root[data-theme="hoarfrost"][data-shell] .chapter-h::before {
+  top: 50%;
+  width: min(36rem, 90vw);
+  height: 1px;
+  z-index: -1;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(90deg, transparent, var(--ice) 20% 38%, transparent 38% 62%, var(--ice) 62% 80%, transparent);
+}
+:root[data-theme="hoarfrost"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="hoarfrost"][data-shell] .ch-num {
+  margin-top: 0;
+  font: 500 0.66rem var(--font-ui);
+  letter-spacing: 0.3em;
+  color: var(--text-muted);
+}
+:root[data-theme="hoarfrost"][data-shell] .ch-title {
+  font: 400 1.5rem/1.15 var(--font-display);
+  letter-spacing: 0.04em;
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+/* the composer: frosted glass, and your breath fogging it as you type */
+:root[data-theme="hoarfrost"][data-shell] .composer {
+  position: relative;
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+:root[data-theme="hoarfrost"][data-shell] .composer:focus-within {
+  box-shadow: 0 0 0 2px var(--ice);
+}
+:root[data-theme="hoarfrost"][data-shell] .composer::after {
+  content: "";
+  position: absolute;
+  left: 30px;
+  top: -24px;
+  width: 140px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 95%), rgb(255 255 255 / 0%));
+  filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+}
+:root[data-theme="hoarfrost"][data-mode="night"] .composer::after {
+  background: radial-gradient(closest-side, rgb(214 236 255 / 60%), transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="hoarfrost"][data-breath] .composer::after {
+    animation: hf-breath 1.4s ease-out;
+  }
+}
+@keyframes hf-breath {
+  0% {
+    opacity: 0;
+    transform: translate(0, 10px) scale(0.4);
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(70px, -34px) scale(1.5);
+  }
+}
+:root[data-theme="hoarfrost"][data-shell] .send.primary {
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 8px 16px -8px rgb(20 50 40 / 80%);
+}
+:root[data-theme="hoarfrost"][data-shell] .continue,
+:root[data-theme="hoarfrost"][data-shell] .char {
+  border-radius: 16px;
+}
+
+/* ---------- the backdrop: the pass, the snow, and the frost on the glass ---------- */
+.a-hoarfrost {
+  background: linear-gradient(180deg, var(--sky-1), var(--sky-2) 60%);
+}
+.a-hoarfrost > svg {
+  position: absolute;
+}
+.a-hoarfrost .stars {
+  inset: 0;
+  background:
+    radial-gradient(1.4px 1.4px at 14% 12%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 32% 6%, #fff, transparent),
+    radial-gradient(1.6px 1.6px at 58% 16%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 76% 8%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 90% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 46% 26%, #fff, transparent),
+    radial-gradient(1px 1px at 8% 30%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 66% 30%, #fff, transparent);
+  opacity: var(--glow);
+}
+.a-hoarfrost .moon {
+  right: 14vw;
+  top: 9vh;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #fbfdff, #cfe0ef);
+  box-shadow: 0 0 50px 12px rgb(200 225 255 / 35%);
+  opacity: var(--glow);
+  transition: opacity 0.8s var(--ease);
+}
+.a-hoarfrost .peaks {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 420px;
+}
+.a-hoarfrost .peaks .r1 {
+  fill: var(--ridge-1);
+  opacity: 0.6;
+}
+.a-hoarfrost .peaks .caps {
+  fill: #fff;
+  opacity: calc(0.8 - var(--glow) * 0.5);
+}
+.a-hoarfrost .peaks .r2 {
+  fill: var(--ridge-2);
+  opacity: 0.65;
+}
+.a-hoarfrost .peaks .r3 {
+  fill: var(--ridge-3);
+}
+.a-hoarfrost .peaks .pines {
+  fill: var(--pinefill);
+  opacity: 0.75;
+}
+.a-hoarfrost .peaks .cabin {
+  fill: #f3c06b;
+  opacity: var(--glow);
+  filter: drop-shadow(0 0 12px rgb(243 192 107 / 90%));
+}
+.a-hoarfrost .flake {
+  top: -10px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgb(120 150 180 / 50%);
+}
+.a-hoarfrost.night .flake {
+  box-shadow: 0 0 3px rgb(255 255 255 / 80%);
+}
+/* the frost on the glass: over the whole window like the grain, feathers grown in from the corners
+   as far as --frost says (Ambience.svelte raises it while you're quiet and drops it as you type) */
+:root[data-theme="hoarfrost"][data-shell] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 290;
+  pointer-events: none;
+  background:
+    var(--frost-img, none) 0 0 / 100% 100% no-repeat,
+    radial-gradient(circle at 0 0, rgb(255 255 255 / 55%), transparent 30%),
+    radial-gradient(circle at 100% 100%, rgb(255 255 255 / 50%), transparent 32%),
+    radial-gradient(circle at 100% 0, rgb(255 255 255 / 40%), transparent 26%),
+    radial-gradient(circle at 0 100%, rgb(255 255 255 / 40%), transparent 26%);
+  -webkit-mask:
+    radial-gradient(circle at 0 0, #000 calc(var(--frost) * 24%), transparent calc(var(--frost) * 24% + 10%)),
+    radial-gradient(circle at 100% 0, #000 calc(var(--frost) * 20%), transparent calc(var(--frost) * 20% + 10%)),
+    radial-gradient(circle at 0 100%, #000 calc(var(--frost) * 20%), transparent calc(var(--frost) * 20% + 10%)),
+    radial-gradient(circle at 100% 100%, #000 calc(var(--frost) * 24%), transparent calc(var(--frost) * 24% + 10%));
+  mask:
+    radial-gradient(circle at 0 0, #000 calc(var(--frost) * 24%), transparent calc(var(--frost) * 24% + 10%)),
+    radial-gradient(circle at 100% 0, #000 calc(var(--frost) * 20%), transparent calc(var(--frost) * 20% + 10%)),
+    radial-gradient(circle at 0 100%, #000 calc(var(--frost) * 20%), transparent calc(var(--frost) * 20% + 10%)),
+    radial-gradient(circle at 100% 100%, #000 calc(var(--frost) * 24%), transparent calc(var(--frost) * 24% + 10%));
+  opacity: 0.9;
+  transition: --frost 0.4s linear;
+}
+:root[data-theme="hoarfrost"][data-mode="night"] body::after {
+  background:
+    var(--frost-img, none) 0 0 / 100% 100% no-repeat,
+    radial-gradient(circle at 0 0, rgb(214 236 255 / 14%), transparent 30%),
+    radial-gradient(circle at 100% 100%, rgb(214 236 255 / 12%), transparent 32%);
+  opacity: 0.75;
+}
+:root[data-theme="hoarfrost"][data-thaw] body::after {
+  transition: --frost 1.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .a-hoarfrost .flake {
+    animation: hf-snow linear infinite;
+  }
+}
+@keyframes hf-snow {
+  to {
+    transform: translate(var(--w), 108vh);
+  }
+}
+
+.a-hoarfrost.still *,
+.a-hoarfrost.still *::before,
+.a-hoarfrost.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-hoarfrost *,
+  .a-hoarfrost *::before,
+  .a-hoarfrost *::after {
+    animation: none !important;
+  }
+}
