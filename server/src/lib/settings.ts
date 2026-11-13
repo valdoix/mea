@@ -29,7 +29,7 @@ export interface LivingPage {
 export interface Settings {
   /** Profile used for story generation (CONN-03). */
   "routing.story": string | null;
-  "appearance.theme": "lantern" | "wildflower" | "overprint" | "citadel" | "marquee" | "sugarrush" | "arcade" | "noir" | "rosewater" | "meringue" | "menagerie" | "weatherglass" | "deepend" | "floatingworld" | "vesper" | "caravanserai" | "aphelion" | "hearthwool" | "prismlab" | "disco";
+  "appearance.theme": "lantern" | "wildflower" | "overprint" | "citadel" | "marquee" | "sugarrush" | "arcade" | "noir" | "rosewater" | "meringue" | "menagerie" | "weatherglass" | "deepend" | "floatingworld" | "vesper" | "caravanserai" | "aphelion" | "hearthwool" | "prismlab" | "disco" | "herbarium";
   /** J3: the soundtrack on YouTube Music (the token never goes to the browser). */
   "music.config": Record<string, unknown> | null;
   /** J3: songs found for your preferred artists, mood-tagged, by artist. */

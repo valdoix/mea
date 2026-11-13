@@ -1,0 +1,732 @@
+/* =====================================================================
+   HERBARIUM — pressed between the pages
+   A botanist's folio. The rail is a manila folder (a walnut specimen drawer by night) and your
+   stories are specimen tags on string; the open one has a red thread. The header is a herbarium
+   sheet label; their messages are mounted specimen sheets held down with linen tape, yours are
+   field-notebook pages; chapters are a ruler; you write on a label and send with a nib.
+   ===================================================================== */
+:root[data-theme="herbarium"][data-shell] {
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' seed='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .3 0 0 0 0 .15 0 0 0 .5 -.18'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E");
+  --woodgrain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.011 .32' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+:root[data-theme="herbarium"][data-shell] h1 {
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+:root[data-theme="herbarium"][data-shell] h2,
+:root[data-theme="herbarium"][data-shell] .panel > h2:first-child {
+  font: 600 1.4rem/1.15 var(--font-display);
+}
+:root[data-theme="herbarium"][data-shell] .btn.primary {
+  border: 0;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="herbarium"][data-shell] .card,
+:root[data-theme="herbarium"][data-shell] .panel {
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  box-shadow: var(--shadow-1);
+}
+:root[data-theme="herbarium"][data-shell] .chip {
+  border-radius: 3px;
+  font-family: var(--font-deco);
+}
+:root[data-theme="herbarium"][data-shell] .seg button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:root[data-theme="herbarium"][data-shell] .switch input:checked {
+  background: var(--accent);
+}
+
+/* the rail: a manila folder by day, a walnut specimen drawer by night */
+:root[data-theme="herbarium"][data-shell] nav.rail {
+  --text-faint: #6e5a44;
+  border: 0;
+  border-radius: 3px;
+  color: #3a2a1c;
+  background:
+    var(--noise) 0 0 / 300px 300px,
+    linear-gradient(90deg, transparent calc(100% - 3px), rgb(58 42 28 / 25%) 0),
+    linear-gradient(180deg, var(--manila), var(--manila-2));
+  box-shadow:
+    inset -10px 0 18px -14px rgb(60 40 10 / 50%),
+    var(--shadow-2);
+}
+:root[data-theme="herbarium"][data-mode="night"] nav.rail {
+  --text-faint: #d8c49a;
+  color: #f1e3c4;
+  background:
+    var(--woodgrain) 0 0 / 480px 240px,
+    linear-gradient(180deg, var(--wood), var(--wood-2));
+}
+:root[data-theme="herbarium"][data-shell] nav.rail .nav {
+  --text: #3a2a1c;
+}
+:root[data-theme="herbarium"][data-mode="night"] nav.rail .nav {
+  --text: #f6e9c9;
+}
+:root[data-theme="herbarium"][data-shell] nav.rail .tip {
+  --text: #3a2a1c;
+  --text-faint: #7b6650;
+}
+:root[data-theme="herbarium"][data-mode="night"] nav.rail .tip {
+  --text: #efe3c6;
+  --text-faint: #a89a7d;
+}
+/* the mark: a round herbarium stamp in madder */
+:root[data-theme="herbarium"][data-shell] nav.rail .logo {
+  border-radius: 50%;
+  background: transparent;
+  box-shadow:
+    inset 0 0 0 2px var(--madder),
+    inset 0 0 0 4px transparent,
+    inset 0 0 0 5px var(--madder);
+  color: var(--madder) !important;
+  font: 400 1.3rem/1 var(--font-deco);
+  rotate: -12deg;
+  animation: none;
+}
+:root[data-theme="herbarium"][data-shell] nav.rail .logo:hover {
+  transform: rotate(14deg) scale(1.05);
+}
+:root[data-theme="herbarium"][data-shell] nav.rail .nav.on {
+  border-radius: 3px;
+  background: rgb(252 248 238 / 60%);
+  color: var(--madder) !important;
+  box-shadow: inset 2px 0 0 var(--madder);
+}
+:root[data-theme="herbarium"][data-mode="night"] nav.rail .nav.on {
+  background: rgb(216 184 109 / 16%);
+  color: #f2c97a !important;
+  box-shadow: inset 2px 0 0 #d8b86d;
+}
+/* your open stories: specimen tags; the one you're in hangs on a red thread */
+:root[data-theme="herbarium"][data-shell] nav.rail .story .avatar {
+  border-radius: 3px !important;
+  box-shadow:
+    0 0 0 2px var(--sheet),
+    0 0 0 3px rgb(58 42 28 / 30%),
+    2px 3px 0 rgb(58 42 28 / 15%);
+}
+:root[data-theme="herbarium"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 2px var(--sheet),
+    0 0 0 4px var(--madder),
+    2px 4px 0 rgb(58 42 28 / 25%);
+}
+
+:root[data-theme="herbarium"][data-shell] .main-col,
+:root[data-theme="herbarium"][data-shell] .dock {
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+}
+
+/* the header: a herbarium sheet's label */
+:root[data-theme="herbarium"][data-shell] .bar {
+  position: relative;
+  border-bottom: 1px solid var(--edge);
+}
+:root[data-theme="herbarium"][data-shell] .bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  height: 3px;
+  pointer-events: none;
+  border-bottom: 1px solid var(--edge);
+}
+:root[data-theme="herbarium"][data-shell] .bar .cname {
+  font: 600 1.9rem/1.05 var(--font-display);
+  color: var(--text);
+}
+:root[data-theme="herbarium"][data-shell] .bar .cname .ctitle {
+  font: italic 400 1.02rem var(--font-deco);
+  color: var(--sage);
+}
+:root[data-theme="herbarium"][data-shell] .bar .pic .avatar {
+  border-radius: 2px !important;
+  box-shadow:
+    0 0 0 4px var(--sheet),
+    0 0 0 5px rgb(58 42 28 / 35%),
+    2px 3px 0 5px rgb(58 42 28 / 12%);
+  rotate: -2deg;
+}
+
+/* their messages: mounted specimen sheets held down with linen tape */
+:root[data-theme="herbarium"][data-shell] .style-cards .msg .bubble {
+  overflow: visible;
+  border: 0;
+  border-radius: 2px;
+  background: var(--sheet);
+  box-shadow:
+    0 1px 0 rgb(58 42 28 / 12%),
+    0 14px 24px -18px rgb(60 40 10 / 60%);
+}
+:root[data-theme="herbarium"][data-shell] .style-cards .msg .bubble::before,
+:root[data-theme="herbarium"][data-shell] .style-cards .msg .bubble::after {
+  content: "";
+  position: absolute;
+  inset: auto;
+  width: 58px;
+  height: 17px;
+  padding: 0;
+  border-radius: 0;
+  -webkit-mask: none;
+  mask: none;
+  background: var(--tape);
+  box-shadow: 0 1px 1px rgb(60 40 10 / 12%);
+  pointer-events: none;
+}
+:root[data-theme="herbarium"][data-shell] .style-cards .msg .bubble::before {
+  left: -16px;
+  top: 8px;
+  rotate: -38deg;
+}
+:root[data-theme="herbarium"][data-shell] .style-cards .msg .bubble::after {
+  right: -16px;
+  bottom: 10px;
+  rotate: -38deg;
+}
+/* yours: a page from the field notebook, graph paper and a red margin */
+:root[data-theme="herbarium"][data-shell] .style-cards .msg.user .bubble {
+  background:
+    linear-gradient(90deg, transparent 28px, rgb(168 67 47 / 45%) 28px 29px, transparent 29px),
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 16px 16px,
+    var(--note);
+}
+:root[data-theme="herbarium"][data-shell] .style-cards .msg.user .bubble::before {
+  display: none;
+}
+:root[data-theme="herbarium"][data-shell] .style-cards .msg.user .bubble::after {
+  right: 22px;
+  top: -8px;
+  bottom: auto;
+  width: 42px;
+  rotate: 4deg;
+}
+:root[data-theme="herbarium"][data-shell] .msg .name {
+  font: 600 1.05rem/1.2 var(--font-display);
+  letter-spacing: 0.04em;
+  font-variant: small-caps;
+  color: var(--text) !important;
+}
+:root[data-theme="herbarium"][data-shell] .msg:not(.user) .name::after {
+  content: " \2766";
+  font-variant: normal;
+  color: var(--sage);
+}
+:root[data-theme="herbarium"][data-shell] .msg.user .name {
+  color: var(--text-muted) !important;
+}
+:root[data-theme="herbarium"][data-shell] .msg .portrait {
+  padding: 4px;
+  border-radius: 2px;
+  background: var(--sheet);
+  box-shadow:
+    0 0 0 1px rgb(58 42 28 / 30%),
+    2px 3px 0 rgb(58 42 28 / 10%);
+}
+:root[data-theme="herbarium"][data-shell] .msg .portrait .avatar {
+  border-radius: 1px !important;
+}
+:root[data-theme="herbarium"][data-shell] .msg .prose em {
+  color: var(--text-muted);
+}
+
+/* chapters: a hand ruler with the section mark */
+:root[data-theme="herbarium"][data-shell] .chapter-h::before {
+  top: 50%;
+  width: min(40rem, 92vw);
+  height: 14px;
+  z-index: -1;
+  transform: translate(-50%, -50%);
+  background:
+    repeating-linear-gradient(90deg, var(--text-faint) 0 1px, transparent 1px 10px) 0 50% / 100% 6px no-repeat,
+    repeating-linear-gradient(90deg, var(--text-faint) 0 1px, transparent 1px 50px) 0 50% / 100% 14px no-repeat,
+    linear-gradient(var(--text-faint), var(--text-faint)) 0 50% / 100% 1px no-repeat;
+  opacity: 0.6;
+}
+:root[data-theme="herbarium"][data-shell] .chapter-h {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0.6rem 1.8rem 0.65rem;
+  background: var(--bg);
+}
+:root[data-theme="herbarium"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="herbarium"][data-shell] .ch-num {
+  margin-top: 0;
+  font: 400 0.8rem var(--font-deco);
+  letter-spacing: 0.2em;
+  color: var(--madder);
+}
+:root[data-theme="herbarium"][data-shell] .ch-num::before {
+  content: "\00A7  ";
+}
+:root[data-theme="herbarium"][data-shell] .ch-title {
+  font: italic 500 1.7rem/1.15 var(--font-display);
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentcolor;
+}
+
+/* the composer: a label to write on, and a nib to send */
+:root[data-theme="herbarium"][data-shell] .composer {
+  border: 1px solid rgb(58 42 28 / 35%);
+  border-radius: 2px;
+  background: var(--sheet);
+  box-shadow:
+    inset 0 0 0 3px var(--sheet),
+    inset 0 0 0 3.5px rgb(58 42 28 / 25%),
+    0 10px 20px -14px rgb(0 0 0 / 50%);
+}
+:root[data-theme="herbarium"][data-shell] .send.primary {
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 6px 12px -6px rgb(30 50 20 / 80%);
+}
+:root[data-theme="herbarium"][data-shell]
+  .send.primary:not(:disabled):hover {
+  transform: rotate(-14deg);
+}
+:root[data-theme="herbarium"][data-shell] .continue,
+:root[data-theme="herbarium"][data-shell] .char {
+  border-radius: 3px;
+}
+:root[data-theme="herbarium"][data-shell] .hero-pic,
+:root[data-theme="herbarium"][data-shell] .hero-pic .avatar {
+  border-radius: 2px !important;
+}
+
+/* ---------- the backdrop: foxed paper, a pressed fern, seeds, a butterfly; a lamp by night ---------- */
+.a-herbarium {
+  background:
+    radial-gradient(70px 46px at 18% 30%, rgb(150 100 40 / 11%), transparent 70%),
+    radial-gradient(110px 70px at 64% 76%, rgb(150 100 40 / 9%), transparent 70%),
+    radial-gradient(46px 34px at 52% 14%, rgb(150 100 40 / 10%), transparent 70%),
+    radial-gradient(30px 24px at 36% 88%, rgb(150 100 40 / 12%), transparent 70%),
+    linear-gradient(180deg, var(--paper), var(--paper-2));
+}
+.a-herbarium.night {
+  background:
+    radial-gradient(ellipse 60% 60% at 30% 0%, rgb(242 184 96 / 24%), transparent 70%),
+    radial-gradient(ellipse 30% 28% at 30% 0%, rgb(255 214 140 / 16%), transparent 70%),
+    linear-gradient(180deg, #1b1e14, #0f110a);
+}
+.a-herbarium > svg {
+  position: absolute;
+}
+.a-herbarium .foxing {
+  inset: 0;
+  background: radial-gradient(circle at 80% 22%, rgb(150 100 40 / 8%) 0 26px, transparent 60px);
+  opacity: calc(1 - var(--glow));
+}
+/* the lamp: a green banker's shade at the top, its pool of light breathing a little */
+.a-herbarium .lamp {
+  left: calc(30% - 90px);
+  top: -54px;
+  width: 180px;
+  height: 84px;
+  border-radius: 0 0 90px 90px / 0 0 70px 70px;
+  background: linear-gradient(180deg, #2c4a35, #18291d);
+  box-shadow:
+    inset 0 -6px 0 #c9a861,
+    0 30px 70px 20px rgb(255 200 120 / 28%);
+  opacity: var(--glow);
+  transition: opacity 0.8s var(--ease);
+}
+/* the fern, pressed flat on the right, swaying as if someone opened a window */
+.a-herbarium .fernbox {
+  right: -40px;
+  bottom: -30px;
+  width: 380px;
+  height: 690px;
+  transform-origin: 50% 100%;
+  rotate: 7deg;
+}
+.a-herbarium .fern {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--moss);
+  opacity: 0.16;
+  transform-origin: 50% 100%;
+}
+.a-herbarium.night .fern {
+  opacity: 0.08;
+}
+/* a ladybird climbing the stem, stopping to look about now and then */
+.a-herbarium .bug {
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 22px;
+  offset-path: path("M190 676C182 560 200 430 188 300S196 120 190 24");
+  offset-rotate: auto 90deg;
+  opacity: calc(1 - var(--glow));
+}
+.a-herbarium .bug svg {
+  width: 100%;
+  height: 100%;
+}
+.a-herbarium .sprig {
+  left: 22%;
+  bottom: -30px;
+  width: 170px;
+  height: 255px;
+  color: var(--madder);
+  opacity: 0.13;
+  rotate: -14deg;
+}
+.a-herbarium.night .sprig {
+  opacity: 0.06;
+}
+/* a specimen tag on its string, swinging */
+.a-herbarium .tag {
+  right: 33%;
+  top: 0;
+  display: grid;
+  gap: 2px;
+  padding: 72px 14px 10px 26px;
+  transform-origin: 50% 0;
+  font: 400 12px/1.25 var(--font-deco);
+  color: #4a3826;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 0.5px), rgb(58 42 28 / 55%) calc(50% - 0.5px) calc(50% + 0.5px), transparent 0) 0 0 / 100% 62px no-repeat,
+    radial-gradient(circle at 14px calc(62px + 50%), transparent 0 4px, rgb(58 42 28 / 40%) 4px 5px, transparent 5.5px) 0 0 / 100% 100% no-repeat;
+  opacity: 0.85;
+}
+.a-herbarium .tag::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  right: 0;
+  top: 62px;
+  bottom: 0;
+  background: var(--manila);
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
+  filter: drop-shadow(1px 2px 0 rgb(60 40 10 / 18%));
+}
+.a-herbarium.night .tag {
+  opacity: 0.35;
+}
+.a-herbarium .tag i {
+  color: #6f8a5b;
+}
+/* dandelion seeds drifting across */
+.a-herbarium .seed {
+  left: 0;
+  width: 28px;
+  height: 46px;
+  color: rgb(90 70 45 / 55%);
+  opacity: calc(1 - var(--glow));
+}
+.a-herbarium .seed svg {
+  width: 100%;
+  height: 100%;
+}
+/* a cabbage-white passing through, wings beating */
+.a-herbarium .fly {
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 30px;
+  opacity: 0;
+}
+.a-herbarium.night .fly {
+  display: none;
+}
+.a-herbarium .fly .w {
+  fill: #fbf8ef;
+  stroke: #8a7a5a;
+  stroke-width: 0.8;
+  transform-box: view-box;
+  transform-origin: 20px 15px;
+}
+.a-herbarium .fly .spot {
+  fill: #3a2a1c;
+  stroke: none;
+}
+/* moths circling the lamp, and dust turning in its beam */
+.a-herbarium .moths {
+  left: 30%;
+  top: 60px;
+  width: 0;
+  height: 0;
+  opacity: var(--glow);
+}
+.a-herbarium .orbit {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.a-herbarium .moth {
+  position: absolute;
+  left: 70px;
+  top: 0;
+  width: 22px;
+  height: 16px;
+  color: #e9dcc0;
+}
+.a-herbarium .orbit.o1 .moth {
+  left: 110px;
+  scale: 0.8;
+}
+.a-herbarium .orbit.o2 .moth {
+  left: 46px;
+  scale: 0.65;
+}
+.a-herbarium .moth svg {
+  width: 100%;
+  height: 100%;
+  fill: currentcolor;
+}
+.a-herbarium .mote {
+  top: 70%;
+  border-radius: 50%;
+  background: #ffe2a8;
+  box-shadow: 0 0 4px rgb(255 226 168 / 80%);
+  opacity: 0;
+}
+.a-herbarium:not(.night) .mote {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .a-herbarium .fern {
+    animation: hb-sway 11s ease-in-out infinite alternate;
+  }
+  .a-herbarium .bug {
+    animation: hb-climb 70s linear infinite;
+  }
+  .a-herbarium .bug .legs {
+    animation: hb-legs 0.25s steps(2) infinite;
+  }
+  .a-herbarium .tag {
+    animation: hb-swing 6s ease-in-out infinite alternate;
+  }
+  .a-herbarium .seed {
+    animation: hb-drift 40s linear infinite;
+  }
+  .a-herbarium .seed svg {
+    animation: hb-bob 5s ease-in-out infinite alternate;
+  }
+  .a-herbarium .fly {
+    animation: hb-fly 34s linear infinite;
+    animation-delay: -6s;
+  }
+  .a-herbarium .fly .w.l {
+    animation: hb-flap-l 0.22s ease-in-out infinite alternate;
+  }
+  .a-herbarium .fly .w.r {
+    animation: hb-flap-r 0.22s ease-in-out infinite alternate;
+  }
+  .a-herbarium .lamp {
+    animation: hb-flicker 7s ease-in-out infinite;
+  }
+  .a-herbarium .orbit {
+    animation: hb-orbit 7s linear infinite;
+  }
+  .a-herbarium .orbit.o1 {
+    animation-duration: 11s;
+    animation-direction: reverse;
+    animation-delay: -3s;
+  }
+  .a-herbarium .orbit.o2 {
+    animation-duration: 5s;
+    animation-delay: -2s;
+  }
+  .a-herbarium .moth svg {
+    animation: hb-flap-m 0.16s ease-in-out infinite alternate;
+  }
+  .a-herbarium .mote {
+    animation: hb-mote 12s ease-in-out infinite;
+  }
+}
+@keyframes hb-sway {
+  from {
+    rotate: -1.2deg;
+  }
+  to {
+    rotate: 1.4deg;
+  }
+}
+@keyframes hb-climb {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  3% {
+    opacity: calc(1 - var(--glow));
+  }
+  22% {
+    offset-distance: 26%;
+  }
+  30% {
+    offset-distance: 26%;
+  }
+  52% {
+    offset-distance: 55%;
+  }
+  60% {
+    offset-distance: 55%;
+  }
+  88% {
+    offset-distance: 94%;
+  }
+  96% {
+    offset-distance: 100%;
+    opacity: calc(1 - var(--glow));
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+@keyframes hb-legs {
+  to {
+    transform: translateY(1px);
+  }
+}
+@keyframes hb-swing {
+  from {
+    rotate: -4deg;
+  }
+  to {
+    rotate: 4deg;
+  }
+}
+@keyframes hb-drift {
+  from {
+    transform: translate(-8vw, 0) rotate(-10deg);
+  }
+  to {
+    transform: translate(108vw, -18vh) rotate(25deg);
+  }
+}
+@keyframes hb-bob {
+  from {
+    translate: 0 -22px;
+  }
+  to {
+    translate: 0 26px;
+  }
+}
+@keyframes hb-fly {
+  0% {
+    transform: translate(-6vw, 70vh) rotate(8deg);
+    opacity: 0;
+  }
+  3% {
+    opacity: 1;
+  }
+  12% {
+    transform: translate(14vw, 52vh) rotate(-6deg);
+  }
+  22% {
+    transform: translate(30vw, 62vh) rotate(10deg);
+  }
+  32% {
+    transform: translate(48vw, 34vh) rotate(-8deg);
+  }
+  40% {
+    transform: translate(60vw, 40vh) rotate(4deg);
+  }
+  50% {
+    transform: translate(78vw, 18vh) rotate(-10deg);
+  }
+  58% {
+    transform: translate(106vw, 8vh) rotate(6deg);
+    opacity: 1;
+  }
+  59%,
+  100% {
+    transform: translate(106vw, 8vh);
+    opacity: 0;
+  }
+}
+@keyframes hb-flap-l {
+  to {
+    transform: scaleX(0.35);
+  }
+}
+@keyframes hb-flap-r {
+  to {
+    transform: scaleX(0.35);
+  }
+}
+@keyframes hb-flicker {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  46% {
+    filter: brightness(1.08);
+  }
+  50% {
+    filter: brightness(0.9);
+  }
+  53% {
+    filter: brightness(1.05);
+  }
+}
+@keyframes hb-orbit {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes hb-flap-m {
+  to {
+    transform: scaleX(0.5);
+  }
+}
+@keyframes hb-mote {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  60% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(40px, -55vh);
+    opacity: 0;
+  }
+}
+@media (max-width: 900px) {
+  .a-herbarium .fernbox,
+  .a-herbarium .tag,
+  .a-herbarium .sprig {
+    display: none;
+  }
+}
+
+.a-herbarium.still *,
+.a-herbarium.still *::before,
+.a-herbarium.still *::after {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-herbarium *,
+  .a-herbarium *::before,
+  .a-herbarium *::after {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,160 @@
+/* ---------- Herbarium: pressed between the pages ---------- */
+/* A botanist's folio: foxed paper, iron-gall ink, sage and moss, madder red for the stamps and
+   manila for the tags. By night, the same desk under a green banker's lamp. */
+:root[data-theme="herbarium"] {
+  color-scheme: light;
+  --bg: #f3ecda;
+  --surface: #fcf8ee;
+  --surface-2: #f6efdc;
+  --surface-3: #ebe0c4;
+  --border: #dccba3;
+  --border-strong: #6f8a5b;
+  --text: #3a2a1c;
+  --text-muted: #65513c;
+  --text-faint: #7b6650;
+  --dialogue: #8e3a28;
+  --thought: #4f6a3f;
+  --action: #4a3826;
+  --accent: #4f6a3f;
+  --accent-strong: #3f5a35;
+  --accent-ink: #3f5a35;
+  --on-accent: #fcf8ee;
+  --tint-char: #fcf8ee;
+  --tint-user: #f8f4e6;
+  --tint-note: #f0e3b8;
+  --lavender: #ddd3e3;
+  --mint: #d6e3cc;
+  --peach: #efd8c4;
+  --butter: #f1e1a8;
+  --sky: #d3dde3;
+  --danger: #9b2c1c;
+  --danger-bg: #f5ddd5;
+  --ok: #3f6a3a;
+  --ok-bg: #dfeadb;
+  --warn: #6f520e;
+  --warn-bg: #f5ead0;
+  --shadow-1:
+    0 1px 0 rgb(58 42 28 / 12%), 0 14px 24px -18px rgb(60 40 10 / 55%);
+  --shadow-2: 0 30px 60px -28px rgb(58 42 28 / 45%);
+  --scrim: rgb(40 28 16 / 50%);
+  --focus: 0 0 0 3px rgb(79 106 63 / 40%);
+  --glass: rgb(252 248 238 / 88%);
+  --sig1: #4f6a3f;
+  --sig2: #a8432f;
+  --lamp: #c99a3a;
+  --rose: #a8432f;
+  --sea: #4f7a74;
+  --hi: #3a2a1c;
+  --lo: #2a1d10;
+  --pop: #fcf8ee;
+  --well: rgb(235 224 196 / 70%);
+  --knob: #fff;
+  --knob-on: #fcf8ee;
+  --grad: linear-gradient(135deg, #3f5a35, #6f8a5b);
+  --grad-warm: linear-gradient(135deg, #c99a3a, #a8432f);
+  --pane: linear-gradient(
+    160deg,
+    rgb(252 248 238 / 88%),
+    rgb(246 239 220 / 88%)
+  );
+  --edge: rgb(58 42 28 / 22%);
+  --fill: rgb(58 42 28 / 5%);
+  --fill-2: rgb(58 42 28 / 9%);
+  --recap-ink: #65513c;
+  --on-warm: #fcf8ee;
+  --r-sm: 2px;
+  --r: 3px;
+  --r-lg: 4px;
+  --paper: #f3ecda;
+  --paper-2: #e6d9bb;
+  --sheet: #fcf8ee;
+  --note: #f8f4e6;
+  --sage: #6f8a5b;
+  --moss: #3f5a35;
+  --madder: #a8432f;
+  --manila: #e6d19d;
+  --manila-2: #d8bf83;
+  --tape: rgb(240 230 205 / 88%);
+  --grid: rgb(70 110 150 / 16%);
+  --wood: #3a2818;
+  --wood-2: #24180d;
+  --glow: 0;
+}
+/* The fonts at :where() strength: this palette loads late, and the font picks must still win. */
+:root:where([data-theme="herbarium"]) {
+  --font-ui: "Crimson Pro Variable", Georgia, serif;
+  --font-display: "Cormorant Garamond Variable", Georgia, serif;
+  --font-deco: "IM Fell English", Georgia, serif;
+  --font-story-theme: "Crimson Pro Variable", Georgia, serif;
+}
+:root[data-theme="herbarium"][data-mode="night"] {
+  color-scheme: dark;
+  --bg: #181b12;
+  --surface: #24271b;
+  --surface-2: #2b2e21;
+  --surface-3: #343828;
+  --border: #3d4230;
+  --border-strong: #d8b86d;
+  --text: #efe3c6;
+  --text-muted: #cdbf9f;
+  --text-faint: #a89a7d;
+  --dialogue: #ef9a7c;
+  --thought: #a5c38b;
+  --action: #e3d6b8;
+  --accent: #d8b86d;
+  --accent-strong: #e8c983;
+  --accent-ink: #e3c47c;
+  --on-accent: #2a1d0d;
+  --tint-char: #2a281d;
+  --tint-user: #25241b;
+  --tint-note: #2e2a1c;
+  --lavender: #a79cb0;
+  --mint: #95b48a;
+  --peach: #c9a088;
+  --butter: #d9c584;
+  --sky: #8fa6b4;
+  --danger: #ef8a7a;
+  --danger-bg: #3a1a14;
+  --ok: #a5c38b;
+  --ok-bg: #18261a;
+  --warn: #e6cf8a;
+  --warn-bg: #2a2410;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 50%), 0 14px 30px -16px rgb(0 0 0 / 85%);
+  --shadow-2: 0 30px 60px -20px rgb(0 0 0 / 90%);
+  --scrim: rgb(0 0 0 / 70%);
+  --focus: 0 0 0 3px rgb(216 184 109 / 45%);
+  --glass: rgb(30 33 22 / 88%);
+  --sig1: #a5c38b;
+  --sig2: #ea8a6c;
+  --lamp: #f2b860;
+  --rose: #ea8a6c;
+  --sea: #8fc0b6;
+  --hi: #efe3c6;
+  --lo: #000000;
+  --pop: #24271b;
+  --well: rgb(0 0 0 / 35%);
+  --knob: #efe3c6;
+  --knob-on: #2a1d0d;
+  --grad: linear-gradient(135deg, #e8c983, #d8b86d);
+  --grad-warm: linear-gradient(135deg, #f2b860, #ea8a6c);
+  --pane: linear-gradient(160deg, rgb(36 39 27 / 82%), rgb(43 46 33 / 82%));
+  --edge: rgb(216 184 109 / 26%);
+  --fill: rgb(239 227 198 / 5%);
+  --fill-2: rgb(239 227 198 / 9%);
+  --recap-ink: #cdbf9f;
+  --on-warm: #2a1d0d;
+  --paper: #181b12;
+  --paper-2: #0f110a;
+  --sheet: #2b291e;
+  --note: #24231a;
+  --sage: #a5c38b;
+  --moss: #c3d9a8;
+  --madder: #ea8a6c;
+  --manila: #4e4027;
+  --manila-2: #3c311d;
+  --tape: rgb(214 196 150 / 22%);
+  --grid: rgb(190 210 230 / 7%);
+  --wood: #3a2818;
+  --wood-2: #1a1007;
+  --glow: 1;
+}
