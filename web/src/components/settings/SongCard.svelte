@@ -24,6 +24,8 @@
     guessed: string[];
     /** The library's moods before this card's guess replaced them. */
     oldMoods: string[] | null;
+    /** docs/34 5.2: a change your answers to "Not for this scene" suggest. */
+    suggest?: { field: "energy" | "heat"; value: number | string; why: string } | null;
   }
 </script>
 
@@ -63,6 +65,9 @@
 </script>
 
 <div class="stack song-card">
+  {#if card.suggest}
+    <p class="small suggest">Mea suggests {card.suggest.field === "heat" ? `heat: ${card.suggest.value}` : `energy ${card.suggest.value}`} ({card.suggest.why}). <button type="button" class="btn small" disabled={busy} onclick={() => send(post(`/api/music/cards/${videoId}/suggestion`, { take: true }), "Card changed")}>Change it</button> <button type="button" class="btn ghost small" disabled={busy} onclick={() => send(post(`/api/music/cards/${videoId}/suggestion`, { take: false }))}>Keep it</button></p>
+  {/if}
   <p class="small"><b>{card.bond} · {card.stance} · {card.heat === "none" ? "no heat" : card.heat} · energy {card.energy}</b>{#if card.about}{` · ${card.about}`}{/if}</p>
   <div class="row wrap fields">
     <label class="tiny">Bond <select class="select small" value={card.bond} disabled={busy} onchange={(e) => save({ bond: e.currentTarget.value })}>{#each BONDS as b (b)}<option value={b}>{b}</option>{/each}</select></label>
@@ -91,6 +96,11 @@
 <style>
   .song-card {
     gap: 0.35rem;
+  }
+  .suggest {
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--radius-sm, 6px);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
   .fields {
     gap: 0.4rem 0.6rem;

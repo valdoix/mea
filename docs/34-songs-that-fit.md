@@ -180,6 +180,28 @@ There is no record of which songs actually played or were skipped, so the replay
 
 **Done when:** a song skipped early three times in family scenes stops being picked for them and still plays in others; tests cover each button.
 
+**Built** (`music/learn.ts`, the actions in `director.ts`, `NowPlaying.svelte`, `SongCard.svelte`):
+
+- A kind of scene is the brief's bond, stance and how loud it is (quiet 1–2, middling 3, loud 4–5), such as "family · happy in it · quiet". With no bond and no stance in the brief, a skip or a 👍 teaches nothing about a kind.
+- **Early skips:**
+  - In the same story, each early skip costs 1 in that kind of scene. In other stories it costs 0.3.
+  - Three across all stories and the song sits that kind of scene out, unless it's the theme of the people there.
+  - The counts across stories are kept in the setting `music.learned`.
+- **"Not for this scene"** is kept by the scene's number, so a change of mood or time of day no longer brings the song back.
+  - Each answer is marked on the play: wrong words, wrong sound, too much, not now. A plain "Not for this scene" with no answer counts as Just not now.
+  - Wrong words also stops the song's passage counting, as the old Wrong words button did.
+  - Just not now teaches nothing.
+- **Suggested card changes.** Two of the same answer suggest one change, shown in Settings › Music as a "suggests …" chip on the song, a **Suggested changes** filter, and the card itself with **Change it** / **Keep it**. Either button uses up the answers behind it.
+  - Too much twice: heat up a step. If it's already sexual, energy up a step.
+  - Wrong sound twice: energy one step away from the scenes it was played in. Mea guessed the loudness wrong, and probably in that direction.
+  - A sound you confirmed yourself isn't second-guessed.
+  - A song's card now shows even when its words are gone, so a suggestion can always be reached.
+- **Thumbs:**
+  - 👍 adds 1.5 for that kind of scene, up to twice. With no kind to go on, it counts across the story as before.
+  - 👎 costs 1. Twice and the song is out of that story, even if it's the theme of the people there.
+  - Thumbs from before Part 5 keep counting as they did, and a vote of −2 from then counts as two 👎.
+- **The soundtrack card** shows the song's reason (the judge's line, or "fits: …"), then up to three songs that came close. 👍 says which kind of scene it counts for.
+
 ## Part 6 · What the library is missing
 
 **What you get:** Settings › Music shows what your stories ask for next to what you have: "*Home, family, quiet company: asked for in 165 scenes, 25 songs fit.*"

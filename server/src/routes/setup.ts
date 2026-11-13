@@ -4,7 +4,7 @@ import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
 import { BENCH_MARKS, type BenchMark, benchView, setChecked, setMark } from "../music/bench";
 import { playHistory } from "../music/plays";
-import { addTrack, chatMusicView, editSongCard, readCards, restoreOldMoods, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, nowSinging, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
+import { addTrack, answerSuggestion, chatMusicView, editSongCard, readCards, restoreOldMoods, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, nowSinging, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
 import { chatCostToday, cheaperForBackground, cheaperProfile, replyCost } from "../services/chatcost";
@@ -183,6 +183,7 @@ desk.post("/music/lyrics/:videoId/find", async (c) => c.json(await findSongWords
 desk.put("/music/cards/:videoId", async (c) => c.json(editSongCard(c.req.param("videoId"), await body(c, z.record(z.string(), z.unknown())))));
 desk.post("/music/cards/:videoId/old-moods", (c) => c.json(restoreOldMoods(c.req.param("videoId"))));
 desk.post("/music/cards/read", (c) => c.json(readCards()));
+desk.post("/music/cards/:videoId/suggestion", async (c) => c.json(answerSuggestion(c.req.param("videoId"), (await body(c, z.object({ take: z.boolean() }))).take)));
 // docs/34 1.4: the marked set, for checking Claude's marks.
 desk.get("/music/bench", (c) => c.json(benchView()));
 desk.put("/music/bench/:sceneId", async (c) => {
@@ -207,8 +208,8 @@ desk.get("/chats/:id/music/line", async (c) => {
   return c.json({ line: await nowSinging(c.req.param("id")).catch(() => null) });
 });
 desk.post("/chats/:id/music", async (c) => {
-  const b = await body(c, z.object({ action: z.enum(["on", "off", "playPause", "skip", "up", "down", "notForScene", "wrongWords"]) }));
-  return c.json(await musicAction(c.req.param("id"), b.action));
+  const b = await body(c, z.object({ action: z.enum(["on", "off", "playPause", "skip", "up", "down", "notForScene", "wrongWords"]), why: z.enum(["words", "sound", "much", "now"]).optional() }));
+  return c.json(await musicAction(c.req.param("id"), b.action, b.why));
 });
 
 // ---------- K1: golden scenarios ----------

@@ -56,7 +56,7 @@
     /** read: songs whose words have been read for what they're about (their lyric sheet). */
     wordsCount: { have: number; timed: number; pending: number; of: number; read: number };
     /** docs/34 Part 2: each song's card in short. */
-    cards: Record<string, { bond: string; stance: string; heat: string; energy: number; line: string }>;
+    cards: Record<string, { bond: string; stance: string; heat: string; energy: number; line: string; suggest?: string }>;
     /** due: songs read before cards, with none yet; calls: helper calls to read them; reading: you said yes and it's under way. */
     cardsCount: { have: number; due: number; calls: number; reading: boolean };
   }
@@ -101,6 +101,7 @@
   let bondPick = $state("");
   let heatPick = $state("");
   let energyPick = $state("");
+  let suggestPick = $state(false);
   // Each artist on their own: "Camila Cabello & Ed Sheeran" counts for both, so picking one shows their duets too.
   const artistsOf = (artist: string) => artist.split(/\s*(?:&|,|\bfeat\.?|\bft\.?|\bwith\b)\s*/i).map((a) => a.trim()).filter(Boolean);
   const byArtist = (t: Track, a: string) => artistsOf(t.artist).some((x) => x.toLowerCase() === a.toLowerCase());
@@ -118,7 +119,8 @@
     return (cfg?.library ?? []).filter((t) => {
       if (artistPick && !byArtist(t, artistPick)) return false;
       const c = cfg?.cards[t.videoId];
-      if ((bondPick || heatPick || energyPick) && !c) return false;
+      if ((bondPick || heatPick || energyPick || suggestPick) && !c) return false;
+      if (suggestPick && !c?.suggest) return false;
       if (c && ((bondPick && c.bond !== bondPick) || (heatPick && c.heat !== heatPick) || (energyPick && String(c.energy) !== energyPick))) return false;
       const hay = `${t.title} ${t.artist} ${t.moods.join(" ")}${t.instrumental ? " instrumental" : ""}${t.explicit ? " explicit" : ""} ${WORDS_LABEL[cfg?.words[t.videoId] ?? "pending"]} ${c?.line ?? ""}`.toLowerCase();
       return words.every((w) => hay.includes(w));
@@ -128,7 +130,13 @@
   $effect(() => {
     if (artistPick && !artists.some(([a]) => a === artistPick)) artistPick = "";
   });
-  const filtering = $derived(Boolean(query.trim() || artistPick || bondPick || heatPick || energyPick));
+  const filtering = $derived(Boolean(query.trim() || artistPick || bondPick || heatPick || energyPick || suggestPick));
+  // docs/34 5.2: songs whose cards your answers suggest changing.
+  const suggested = $derived(Object.values(cfg?.cards ?? {}).filter((c) => c.suggest).length);
+  // The last suggestion was taken or turned down: show every song again.
+  $effect(() => {
+    if (suggestPick && !suggested) suggestPick = false;
+  });
   // Quick remove: tick songs (or every song shown), then remove them in one go.
   let picked = $state<string[]>([]);
   const pickedSet = $derived(new Set(picked));
@@ -405,6 +413,7 @@
             <select class="select" bind:value={bondPick} aria-label="Only this bond"><option value="">Any bond</option>{#each BONDS as b (b)}<option value={b}>{b}</option>{/each}</select>
             <select class="select" bind:value={heatPick} aria-label="Only this heat"><option value="">Any heat</option>{#each HEATS as h (h)}<option value={h}>{h === "none" ? "no heat" : h}</option>{/each}</select>
             <select class="select" bind:value={energyPick} aria-label="Only this energy"><option value="">Any energy</option>{#each [1, 2, 3, 4, 5] as e (e)}<option value={String(e)}>energy {e}</option>{/each}</select>
+            {#if suggested}<label class="switch small"><input type="checkbox" bind:checked={suggestPick} /> Suggested changes ({suggested})</label>{/if}
           {/if}
           {#if filtering}<span class="tiny muted">{shown.length} of {cfg.library.length}</span>{/if}
           {#if artistPick}<button class="btn small danger" onclick={() => removeArtist(artistPick)}><X size={13} /> Remove all by {artistPick}</button>{/if}
@@ -421,7 +430,7 @@
       {#each shown as t (t.videoId)}
         <div class="track">
           <div class="row between"><label class="pick small"><input type="checkbox" checked={pickedSet.has(t.videoId)} onchange={() => (picked = toggle(picked, t.videoId))} aria-label="Select {t.title}" /><span><b>{t.title}</b>{#if t.artist} <span class="muted">· {t.artist}</span>{/if}</span></label><span class="row tight"><button type="button" class="chip tiny words {cfg.words[t.videoId] ?? 'pending'}" class:on={wordsOf === t.videoId} onclick={() => openWords(t.videoId)} aria-expanded={wordsOf === t.videoId} title="The song's words">{WORDS_LABEL[cfg.words[t.videoId] ?? "pending"]}</button><button class="btn ghost icon small" onclick={() => song(del<Config>(`/api/music/library/${t.videoId}`))} aria-label="Remove {t.title}"><X size={13} /></button></span></div>
-          <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => song(patch<Config>(`/api/music/library/${t.videoId}`, { moods: toggle(t.moods, m) }))}>{m}</button>{/each}{#if cfg.cards[t.videoId]}<span class="tiny muted">{cfg.cards[t.videoId]!.line}</span>{/if}</div>
+          <div class="row wrap moods">{#each MOODS as m (m)}<button type="button" class="chip tiny" class:on={t.moods.includes(m)} onclick={() => song(patch<Config>(`/api/music/library/${t.videoId}`, { moods: toggle(t.moods, m) }))}>{m}</button>{/each}{#if cfg.cards[t.videoId]}<span class="tiny muted">{cfg.cards[t.videoId]!.line}</span>{#if cfg.cards[t.videoId]!.suggest}<button type="button" class="chip tiny on" onclick={() => openWords(t.videoId)} title="Your answers to Not for this scene suggest a change to this song's card">suggests {cfg.cards[t.videoId]!.suggest}</button>{/if}{/if}</div>
           {#if wordsOf === t.videoId}
             <div class="stack words-card">
               {#if words?.lines.length}
@@ -446,6 +455,10 @@
                 <p class="tiny muted">No words found for this song.</p>
               {:else}
                 <p class="tiny muted">{cfg.lyricsOnline ? "Not looked up yet." : "No words yet. Paste them, or turn on Find lyrics online."}</p>
+              {/if}
+              <!-- A card outlives its words (they can be forgotten or found again): it's still yours to change. -->
+              {#if card && !words?.lines.length}
+                <SongCard videoId={t.videoId} {card} moodsGuessed={!t.moodsByHand} onsaved={(r) => ((card = r.card), (cfg = r.view as Config))} />
               {/if}
               <textarea class="input" rows="4" bind:value={wordsText} placeholder="Paste the words: plain, or LRC with times ([01:23.45] a line)" aria-label="Paste words for {t.title}"></textarea>
               <div class="row wrap">

@@ -204,8 +204,8 @@ describe("the soundtrack, on YouTube Music (J3)", () => {
     expect(plays[0]).toMatchObject({ title: "Now Playing Song", why: "Mira & Spike's theme", parts: { motif: 6 }, cue: { present: ["Mira", "Spike"] } });
     expect(plays[0]!.messageId).toBeTruthy();
     expect(plays[0]!.runners.map((r) => r.title)).toContain("Rain Song");
-    // The death's song kept your 👍 and the scene it was cut for.
-    expect(plays[1]).toMatchObject({ title: "Fight Song", marks: ["up"] });
+    // The death's song kept your 👍, your "Not for this scene" (no reason given: just not now), and the scene it was cut for.
+    expect(plays[1]).toMatchObject({ title: "Fight Song", marks: ["up", "notNow"] });
     expect(plays[1]!.moment?.situations).toContain("grief");
     // Every song that ended says how much of it was heard.
     for (const p of plays) expect(p.heard).toBeGreaterThanOrEqual(0);
