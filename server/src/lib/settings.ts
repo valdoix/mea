@@ -40,6 +40,8 @@ export interface Settings {
   "music.cardsAllowed": boolean | null;
   /** docs/34 Part 5: early skips by kind of scene, and your answers to "Not for this scene", by song. */
   "music.learned": Record<string, unknown> | null;
+  /** docs/34 6.2: songs suggested for the library's gaps, the one being looked for, and the ones you turned down. */
+  "music.suggestions": Record<string, unknown> | null;
   /** J2: your own colours for each room, by day and by night (CSS token → colour). */
   "appearance.colors": Record<string, { day?: Record<string, string>; night?: Record<string, string> }>;
   /** Day or night for the themes that have both (Wildflower, Overprint, Citadel, Marquee). */
@@ -406,6 +408,7 @@ export const defaults: Settings = {
   "music.removed": null,
   "music.cardsAllowed": null,
   "music.learned": null,
+  "music.suggestions": null,
   "appearance.themeMode": "system",
   "appearance.chatStyle": "cards",
   "appearance.layout": "classic",

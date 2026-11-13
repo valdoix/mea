@@ -4,6 +4,7 @@ import { scenePlates } from "../trackers/plates";
 import { runGolden } from "../golden/run";
 import { BENCH_MARKS, type BenchMark, benchView, setChecked, setMark } from "../music/bench";
 import { playHistory } from "../music/plays";
+import { addSuggestion, askSuggestions, backgroundSongs, declineSuggestion, gapList, suggestionsView } from "../music/gaps";
 import { addTrack, answerSuggestion, chatMusicView, editSongCard, readCards, restoreOldMoods, connectFinish, connectStart, disconnect, findSongWords, lyricsSoon, nowSinging, sheetsSoon, MOODS, musicAction, musicView, refreshTaste, removeTrack, removeTracks, retagTrack, saveMusicConfig, setSongWords, songWords } from "../music/director";
 import { z } from "zod";
 import { asideHints, fileAside } from "../accuracy/asides";
@@ -183,6 +184,13 @@ desk.post("/music/lyrics/:videoId/find", async (c) => c.json(await findSongWords
 desk.put("/music/cards/:videoId", async (c) => c.json(editSongCard(c.req.param("videoId"), await body(c, z.record(z.string(), z.unknown())))));
 desk.post("/music/cards/:videoId/old-moods", (c) => c.json(restoreOldMoods(c.req.param("videoId"))));
 desk.post("/music/cards/read", (c) => c.json(readCards()));
+// docs/34 Part 6: what the library is missing, and songs for it (only when you ask).
+desk.get("/music/gaps", (c) => c.json({ gaps: gapList(), background: backgroundSongs(), suggestions: suggestionsView() }));
+desk.post("/music/gaps/look", async (c) => c.json(askSuggestions((await body(c, z.object({ kind: z.string().min(1).max(80) }))).kind)));
+desk.post("/music/gaps/answer", async (c) => {
+  const b = await body(c, z.object({ kind: z.string().min(1).max(80), videoId: z.string().min(1).max(20), add: z.boolean() }));
+  return c.json(b.add ? await addSuggestion(b.kind, b.videoId) : declineSuggestion(b.kind, b.videoId));
+});
 desk.post("/music/cards/:videoId/suggestion", async (c) => c.json(answerSuggestion(c.req.param("videoId"), (await body(c, z.object({ take: z.boolean() }))).take)));
 // docs/34 1.4: the marked set, for checking Claude's marks.
 desk.get("/music/bench", (c) => c.json(benchView()));

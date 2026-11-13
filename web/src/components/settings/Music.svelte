@@ -4,6 +4,7 @@
   import { confirm } from "../../lib/dialogs.svelte";
   import { errorToast, toast } from "../../lib/state.svelte";
   import MusicBench from "./MusicBench.svelte";
+  import MusicGaps from "./MusicGaps.svelte";
   import SongCard, { BONDS, type Card, HEATS } from "./SongCard.svelte";
 
   /**
@@ -507,6 +508,7 @@
       <label class="switch"><input type="checkbox" checked={cfg.taste.instrumentalInDialogue} onchange={(e) => save({ taste: { ...cfg!.taste, instrumentalInDialogue: e.currentTarget.checked } })} /> Instrumental only during dialogue</label>
     </section>
 
+    <MusicGaps onadded={() => void load()} />
     <MusicBench />
   </div>
 {/if}
