@@ -75,6 +75,7 @@
         "@fontsource/libre-baskerville": "^5.3.0",
         "@fontsource/libre-caslon-text": "^5.3.0",
         "@fontsource/limelight": "^5.3.0",
+        "@fontsource/michroma": "^5.3.0",
         "@fontsource/monoton": "^5.3.0",
         "@fontsource/neonderthaw": "^5.3.0",
         "@fontsource/pacifico": "^5.3.0",
@@ -284,6 +285,8 @@
     "@fontsource/libre-caslon-text": ["@fontsource/libre-caslon-text@5.3.0", "", {}, "sha512-zuGBMEtekNBbeH4YIbL2sUu8BZKFGr1o6b41v/QPnWaEAOgZHSf4ZFdr90YmRbE3uB5G1oAEIIACgwnFRk/F7w=="],
 
     "@fontsource/limelight": ["@fontsource/limelight@5.3.0", "", {}, "sha512-jiuuCdbk9/u0TA/bIZfp35cvJrfz1CJFSEFh4lk5Ma8Nh42897GbF0ny85emdYiJ6WJQjnD/BK/X0D5Oe6bxbg=="],
+
+    "@fontsource/michroma": ["@fontsource/michroma@5.3.0", "", {}, "sha512-9sbGD7ek1hGvq0TmgNPFbuI3k7qwXVdZ+zCDsTHDGRIQqfYrpYWwEYcwH2fzOtvn8uiGqzAoJ72vuFE3v/hDdg=="],
 
     "@fontsource/monoton": ["@fontsource/monoton@5.3.0", "", {}, "sha512-pXZyTe7Gr6Ow5NhDbmCSMWfpp+qwoQB/615gNSdlU5jEQ9CTUKxbkEjm2CY0dEGbW4gFA204MxdiPKEBQ61tOA=="],
 

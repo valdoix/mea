@@ -6,7 +6,7 @@
   try {
     var t = localStorage.getItem("mea.theme") || "lantern";
     var m = localStorage.getItem("mea.themeMode") || "system";
-    var rooms = ["wildflower", "overprint", "citadel", "marquee", "sugarrush", "arcade", "noir", "rosewater", "meringue", "menagerie", "weatherglass", "deepend", "floatingworld", "vesper", "caravanserai", "aphelion", "hearthwool", "prismlab", "disco", "herbarium", "orchard"];
+    var rooms = ["wildflower", "overprint", "citadel", "marquee", "sugarrush", "arcade", "noir", "rosewater", "meringue", "menagerie", "weatherglass", "deepend", "floatingworld", "vesper", "caravanserai", "aphelion", "hearthwool", "prismlab", "disco", "herbarium", "orchard", "y2k"];
     var room = rooms.indexOf(t) >= 0;
     d.dataset.theme = room ? t : "lantern";
     if (room) d.dataset.mode = m === "night" || (m !== "day" && matchMedia("(prefers-color-scheme: dark)").matches) ? "night" : "day";
