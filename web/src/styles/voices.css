@@ -9,36 +9,6 @@
   --voice-mix: 88%;
 }
 
-.prose[data-voices="ink"] .dl[data-v] {
-  color: color-mix(in oklab, var(--vc) var(--voice-mix), var(--text));
-  transition: color 0.4s ease, opacity 0.3s ease;
-}
-.prose[data-voices="halo"] .dl[data-v] {
-  background: linear-gradient(180deg, transparent 60%, color-mix(in oklab, var(--vc) 32%, transparent) 60%, color-mix(in oklab, var(--vc) 32%, transparent) 92%, transparent 92%);
-  text-shadow: 0 0 18px color-mix(in oklab, var(--vc) 45%, transparent);
-  border-radius: 3px;
-}
-.prose[data-voices="ribbon"] p[data-lead],
-.prose[data-voices="ribbon"] li[data-lead] {
-  position: relative;
-  padding-left: 1.1rem;
-  border-left: 3px solid color-mix(in oklab, var(--lc) var(--voice-mix), var(--text));
-}
-.prose[data-voices="ribbon"] p[data-lead]::before {
-  content: attr(data-initial);
-  position: absolute;
-  left: -0.85rem;
-  top: 0.25em;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--lc);
-  color: #0e0a18;
-  font: 400 0.85rem/1.5rem "Instrument Serif", Georgia, serif;
-  text-align: center;
-  box-shadow: 0 0 0 3px var(--surface, var(--bg));
-}
-
 /* How it was said. */
 .prose .dl.v-whisper {
   font-size: 0.93em;
@@ -49,10 +19,10 @@
   letter-spacing: 0.03em;
 }
 
-/* ── ALMANAC's dialogue styles (03-visual-system §3) ──
-   Blocks: a paragraph that opens on a line is its speaker's voice card (lib/voices.ts adds
-   .v-say, the medallion and the nameplate); a line in the middle of narration is a chip.
-   Chips: every line an inline pill. Tint: coloured and underlined. Script: a screenplay column. */
+/* ── Blocks (ALMANAC's dialogue style, 03-visual-system §3) ──
+   A paragraph that opens on a line is its speaker's voice card (lib/voices.ts adds .v-say, the
+   medallion and the nameplate); a line in the middle of narration is a chip. The other styles
+   (Balloons, Quest, Texts…) live in styles/voices/ and load the first time they're picked. */
 
 :root {
   --on-voice: #160f1c;
@@ -63,8 +33,7 @@
   --card-lift: 0 14px 26px -18px rgba(0, 0, 0, 0.8);
 }
 
-/* Chips (and Blocks' inline lines, and someone else's line inside a card) */
-.prose[data-voices="chips"] .dl[data-v],
+/* Blocks' inline lines, and someone else's line inside a card: chips */
 .prose[data-voices="blocks"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
 .prose[data-voices="blocks"] .v-say .dl.v-other[data-v] {
   padding: 2px 9px 3px 3px;
@@ -76,7 +45,6 @@
   color: var(--text);
   font-style: normal;
 }
-.prose[data-voices="chips"] .dl[data-v]::before,
 .prose[data-voices="blocks"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v]::before,
 .prose[data-voices="blocks"] .v-say .dl.v-other[data-v]::before {
   content: attr(data-initial);
@@ -91,17 +59,6 @@
   color: var(--on-voice);
   font: 700 11px/1 var(--font-display);
   font-style: normal;
-}
-
-/* Tint */
-.prose[data-voices="tint"] .dl[data-v],
-.prose[data-voices="script"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
-.prose[data-voices="script"] .v-say .dl.v-other[data-v] {
-  color: color-mix(in oklab, var(--vc) var(--voice-mix), var(--text));
-  text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, var(--vc) 38%, transparent);
-  text-underline-offset: 4px;
-  text-decoration-thickness: 2px;
 }
 
 /* Blocks: voice cards */
@@ -369,59 +326,6 @@
   }
 }
 
-/* Script: a screenplay column, the name beside its line */
-.prose[data-voices="script"] .v-say {
-  --c: var(--vc, var(--text-muted));
-  position: relative;
-  min-height: 1.9em;
-  margin: 0.8em 0;
-  padding-left: 8.4em;
-  color: var(--text-muted);
-  font-style: italic;
-}
-.prose[data-voices="script"] .v-say .dl {
-  color: var(--text);
-  font-style: normal;
-}
-.prose[data-voices="script"] .v-medal {
-  display: none;
-}
-.prose[data-voices="script"] .v-plate {
-  position: absolute;
-  left: 0;
-  top: 0.25em;
-  width: 7.4em;
-  box-sizing: border-box;
-  padding-right: 0.7em;
-  text-align: right;
-  border-right: 2px solid color-mix(in oklab, var(--c) 40%, transparent);
-  font: 500 11px/1.9 var(--font-mono);
-  font-style: normal;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  overflow-wrap: anywhere;
-  color: color-mix(in oklab, var(--c) var(--voice-mix), var(--text));
-}
-.prose[data-voices="script"] .v-plate em {
-  display: block;
-  font: italic 12px/1.4 var(--font-story);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text-muted);
-}
-.prose[data-voices="script"] .v-plate em::before {
-  content: "(";
-}
-.prose[data-voices="script"] .v-plate em::after {
-  content: ")";
-}
-.prose[data-voices="script"] .v-say.v-follow .v-plate {
-  visibility: hidden;
-}
-.prose[data-voices="script"] .v-say.v-unknown .v-plate {
-  color: var(--text-faint);
-}
-
 @media (max-width: 560px) {
   .prose[data-voices="blocks"] .v-say {
     margin-left: 46px;
@@ -438,20 +342,5 @@
   }
   .prose[data-voices="blocks"] .v-say.v-user .v-medal {
     right: -46px;
-  }
-  .prose[data-voices="script"] .v-say {
-    padding-left: 0;
-  }
-  .prose[data-voices="script"] .v-plate {
-    position: static;
-    display: block;
-    width: auto;
-    text-align: left;
-    border-right: 0;
-    padding: 0;
-  }
-  .prose[data-voices="script"] .v-plate em {
-    display: inline;
-    margin-left: 0.5em;
   }
 }

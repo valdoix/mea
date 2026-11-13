@@ -1630,6 +1630,16 @@ CREATE TABLE IF NOT EXISTS song_cards (
 UPDATE settings SET value = '"lantern"' WHERE key = 'appearance.theme' AND value IN ('"nighttrain"', '"form"');
 `,
   },
+  {
+    id: 45,
+    name: "speaker styles after blocks",
+    sql: /* sql */ `
+-- Ink, Halo, Ribbon, Chips, Tint and Script were retired for Blocks and eight new styles; whoever
+-- had one of them moves to Blocks. Off stays off.
+UPDATE settings SET value = json_set(value, '$.voices', 'blocks')
+WHERE key = 'appearance.living' AND json_valid(value) AND json_extract(value, '$.voices') IN ('ink', 'halo', 'ribbon', 'chips', 'tint', 'script');
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);

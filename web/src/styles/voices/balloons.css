@@ -1,0 +1,279 @@
+/* Balloons: a comic page. Each speaker's paragraph is a panel with an ink border, a drop shadow
+   in their colour and a halftone corner; their lines are white speech balloons with a tail back
+   to the speaker's halftone dot; the name is a skewed caption. A shout bursts, a whisper is a
+   dashed balloon, a cold line grows icicles, a song has a double outline. (mockups/13, I.) */
+
+.prose[data-voices="balloons"] {
+  --bk: #16121c;
+  --burst: polygon(0% 50%, 7% 32%, 2% 12%, 20% 16%, 28% 0%, 40% 13%, 52% 2%, 60% 15%, 74% 3%, 78% 18%, 96% 10%, 90% 30%, 100% 46%, 91% 60%, 99% 82%, 80% 80%, 74% 100%, 60% 86%, 48% 98%, 38% 85%, 24% 97%, 20% 80%, 3% 88%, 9% 66%);
+}
+
+/* lines in the middle of narration, and someone else's line inside a panel */
+.prose[data-voices="balloons"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
+.prose[data-voices="balloons"] .v-say .dl.v-other[data-v] {
+  padding: 1px 9px 2px;
+  border: 2px solid var(--bk);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--bk);
+  box-shadow: 2px 2px 0 var(--vc);
+  font: 700 0.95em/1.5 "Comic Neue", sans-serif;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.prose[data-voices="balloons"] .v-say {
+  --c: var(--vc, var(--text-muted));
+  position: relative;
+  isolation: isolate;
+  margin: 1.9em 0 1.4em 78px;
+  padding: 16px 18px 12px;
+  background: var(--surface);
+  border: 3px solid color-mix(in oklab, var(--text) 88%, transparent);
+  box-shadow: 6px 6px 0 var(--c);
+  color: var(--text-muted);
+  font: italic 400 0.92em/1.5 "Comic Neue", sans-serif;
+}
+.prose[data-voices="balloons"] .v-say::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in oklab, var(--c) 50%, transparent) 1.6px, transparent 2.1px) 0 0 / 7px 7px;
+  -webkit-mask: linear-gradient(250deg, #000, transparent 70%);
+  mask: linear-gradient(250deg, #000, transparent 70%);
+}
+.prose[data-voices="balloons"] .v-say .dl:not(.v-other) {
+  position: relative;
+  z-index: 0;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 6px 0;
+  padding: 10px 18px 11px;
+  background: #fff;
+  color: var(--bk);
+  border: 2.5px solid var(--bk);
+  border-radius: 24px;
+  font: 700 1.12em/1.4 "Comic Neue", sans-serif;
+  font-style: normal;
+  font-variant: normal;
+}
+.prose[data-voices="balloons"] .v-say .dl:not(.v-other)::after {
+  content: "";
+  position: absolute;
+  left: -17px;
+  top: 12px;
+  width: 21px;
+  height: 16px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 21 16'%3E%3Cpath d='M21 1L1 8l20 7z' fill='%23fff'/%3E%3Cpath d='M21 1L1 8l20 7' fill='none' stroke='%2316121c' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat;
+}
+.prose[data-voices="balloons"] .v-medal {
+  position: absolute;
+  left: -82px;
+  top: -8px;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 40%) 1.4px, transparent 1.9px) 0 0 / 6px 6px,
+    var(--c);
+  border: 3px solid var(--bk);
+  box-shadow: 3px 3px 0 var(--bk);
+  font: 400 32px/1 "Bangers", sans-serif;
+  font-style: normal;
+  color: #fff;
+  -webkit-text-stroke: 1.5px var(--bk);
+  paint-order: stroke fill;
+}
+.prose[data-voices="balloons"] .v-plate {
+  position: absolute;
+  top: -17px;
+  left: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 10px 2px;
+  background: var(--c);
+  border: 2.5px solid var(--bk);
+  transform: skew(-10deg);
+  font: 400 17px/1.1 "Bangers", sans-serif;
+  font-style: normal;
+  letter-spacing: 0.07em;
+  color: #fff;
+  -webkit-text-stroke: 0.7px var(--bk);
+  paint-order: stroke fill;
+  white-space: nowrap;
+}
+.prose[data-voices="balloons"] .v-plate em {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--bk);
+  font: italic 700 11px/1 "Comic Neue", sans-serif;
+  letter-spacing: 0;
+  -webkit-text-stroke: 0;
+}
+
+/* your own lines sit on the right, mirrored */
+.prose[data-voices="balloons"] .v-say.v-user {
+  width: fit-content;
+  max-width: 82%;
+  margin: 1.9em 78px 1.4em auto;
+  text-align: right;
+}
+.prose[data-voices="balloons"] .v-say.v-user .dl:not(.v-other) {
+  margin-left: auto;
+  text-align: left;
+}
+.prose[data-voices="balloons"] .v-say.v-user .dl:not(.v-other)::after {
+  left: auto;
+  right: -17px;
+  transform: scaleX(-1);
+}
+.prose[data-voices="balloons"] .v-say.v-user .v-medal {
+  left: auto;
+  right: -82px;
+}
+.prose[data-voices="balloons"] .v-say.v-user .v-plate {
+  left: auto;
+  right: 14px;
+}
+.prose[data-voices="balloons"] .v-say.v-follow {
+  margin-top: -0.5em;
+  border-top-style: dashed;
+}
+.prose[data-voices="balloons"] .v-say.v-follow .v-ui {
+  display: none;
+}
+.prose[data-voices="balloons"] .v-say.v-unknown .v-plate {
+  display: none;
+}
+
+/* tones */
+.prose[data-voices="balloons"] .v-say[data-tone="shout"] .dl:not(.v-other) {
+  background: none;
+  border: 0;
+  margin: 18px 0 16px 16px;
+  padding: 20px 34px;
+  font: 400 1.75em/1.05 "Bangers", sans-serif;
+  letter-spacing: 0.05em;
+}
+.prose[data-voices="balloons"] .v-say[data-tone="shout"] .dl:not(.v-other)::before {
+  content: "";
+  position: absolute;
+  inset: -8px -16px;
+  z-index: -1;
+  background: var(--bk);
+  clip-path: var(--burst);
+}
+.prose[data-voices="balloons"] .v-say[data-tone="shout"] .dl:not(.v-other)::after {
+  inset: -3px -10px;
+  width: auto;
+  height: auto;
+  z-index: -1;
+  background: #ffe14d;
+  clip-path: var(--burst);
+}
+.prose[data-voices="balloons"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
+  border-style: dashed;
+  border-width: 2px;
+  font-weight: 400;
+  font-size: 1em;
+  color: #5a5262;
+}
+.prose[data-voices="balloons"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .dl:not(.v-other) {
+  padding-right: 38px;
+  border-radius: 30px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21C5 15 2 11.5 2 8a5 5 0 019-3 5 5 0 019 3c0 3.5-3 7-10 13z' fill='%23ff6f91' stroke='%2316121c' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px top 50% / 18px,
+    #fff2f6;
+}
+.prose[data-voices="balloons"] .v-say[data-tone="cold"] .dl:not(.v-other) {
+  background: #eef8ff;
+}
+.prose[data-voices="balloons"] .v-say[data-tone="cold"] .dl:not(.v-other)::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  width: 58%;
+  bottom: -12px;
+  height: 11px;
+  background: #bfe2ff;
+  clip-path: polygon(0 0, 100% 0, 96% 60%, 92% 0, 86% 100%, 80% 0, 72% 70%, 64% 0, 56% 95%, 48% 0, 40% 60%, 32% 0, 24% 100%, 16% 0, 8% 70%, 4% 0);
+}
+.prose[data-voices="balloons"] .v-say[data-tone="sing"] .dl:not(.v-other) {
+  border-style: double;
+  border-width: 6px;
+  border-radius: 32px;
+}
+.prose[data-voices="balloons"] .v-say[data-tone="sing"] .dl:not(.v-other)::before {
+  content: "\266A \266B";
+  position: absolute;
+  right: -4px;
+  top: -24px;
+  font: 700 19px/1 sans-serif;
+  color: var(--c);
+  -webkit-text-stroke: 0.6px var(--bk);
+}
+.prose[data-voices="balloons"] .v-say[data-tone="sly"] .dl:not(.v-other) {
+  transform: rotate(1.2deg);
+}
+.prose[data-voices="balloons"] .v-say[data-tone="sly"] .dl:not(.v-other)::before {
+  content: "\2726";
+  position: absolute;
+  right: -10px;
+  top: -14px;
+  font-size: 22px;
+  color: var(--c);
+  -webkit-text-stroke: 1px var(--bk);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prose[data-voices="balloons"] .v-say[data-tone="shout"] {
+    animation: vb-jolt 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  }
+  .prose[data-voices="balloons"] .v-say[data-tone="sing"] .dl:not(.v-other)::before {
+    animation: vb-bob 1.8s ease-in-out infinite;
+  }
+}
+@keyframes vb-jolt {
+  0% {
+    transform: scale(0.94) rotate(1.5deg);
+  }
+  60% {
+    transform: scale(1.02) rotate(-1.2deg);
+  }
+  100% {
+    transform: rotate(-0.8deg);
+  }
+}
+@keyframes vb-bob {
+  50% {
+    translate: 0 -5px;
+  }
+}
+
+@media (max-width: 560px) {
+  .prose[data-voices="balloons"] .v-say {
+    margin-left: 52px;
+  }
+  .prose[data-voices="balloons"] .v-medal {
+    left: -54px;
+    width: 42px;
+    height: 42px;
+    font-size: 22px;
+  }
+  .prose[data-voices="balloons"] .v-say.v-user {
+    margin-right: 52px;
+  }
+  .prose[data-voices="balloons"] .v-say.v-user .v-medal {
+    right: -54px;
+  }
+}

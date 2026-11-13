@@ -133,3 +133,34 @@ describe("Night Train and Form are retired", () => {
     }
   });
 });
+
+describe("speaker styles after Blocks", () => {
+  test("a retired style moves to Blocks; Off and the new styles stay", () => {
+    const db = new Database(":memory:");
+    db.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    const m = migrations.find((x) => x.name === "speaker styles after blocks")!;
+    for (const [voices, after] of [
+      ["ink", "blocks"],
+      ["script", "blocks"],
+      ["halo", "blocks"],
+      ["off", "off"],
+      ["balloons", "balloons"],
+    ] as const) {
+      db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('appearance.living', ?)", [JSON.stringify({ voices, artifacts: true, window: true, thoughts: "drawer" })]);
+      db.exec(m.sql!);
+      const saved = JSON.parse(db.query<{ value: string }, []>("SELECT value FROM settings WHERE key = 'appearance.living'").get()!.value);
+      expect(saved.voices).toBe(after);
+      expect(saved.thoughts).toBe("drawer");
+    }
+  });
+
+  test("each style has its stylesheet, a loader and a place in the picker", () => {
+    const voices = read(join(WEB, "src/lib/voices.ts"));
+    const picker = read(join(WEB, "src/components/settings/Appearance.svelte"));
+    for (const id of ["balloons", "quest", "texts", "sticky", "seal", "stage", "patch", "holo"]) {
+      expect(statSync(join(WEB, `src/styles/voices/${id}.css`)).isFile()).toBe(true);
+      expect(voices).toContain(`import("../styles/voices/${id}.css")`);
+      expect(picker).toContain(`<option value="${id}">`);
+    }
+  });
+});

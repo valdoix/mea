@@ -1,0 +1,241 @@
+/* Quest: a role-playing game's dialogue box. Each speaker's paragraph is a pixel box ringed in
+   their colour, with a framed portrait, a name tab and a blinking arrow; an emote bubble pops over
+   the portrait for how it was said (!!, …, ♥, ♪, ❄, ✧). (mockups/13, II.) */
+
+.prose[data-voices="quest"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
+.prose[data-voices="quest"] .v-say .dl.v-other[data-v] {
+  color: color-mix(in oklab, var(--vc) var(--voice-mix), var(--text));
+  font: 600 1em/1.5 "Pixelify Sans", monospace;
+}
+.prose[data-voices="quest"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v]::before {
+  content: "\25B6\FE0E ";
+  font-size: 0.7em;
+  vertical-align: 0.12em;
+}
+
+.prose[data-voices="quest"] .v-say {
+  --c: var(--vc, var(--text-muted));
+  position: relative;
+  margin: 2.4em 8px 1.6em;
+  padding: 20px 24px 26px 112px;
+  min-height: 112px;
+  background: color-mix(in oklab, var(--c) 7%, var(--surface));
+  color: var(--text-muted);
+  border: 4px solid var(--text);
+  box-shadow:
+    0 0 0 4px var(--surface),
+    0 0 0 8px var(--c),
+    10px 14px 0 4px rgb(0 0 0 / 16%);
+  font: 400 0.95em/1.55 "Pixelify Sans", monospace;
+}
+.prose[data-voices="quest"] .v-say .dl:not(.v-other) {
+  color: var(--text);
+  font: 500 1.1em/1.5 "Pixelify Sans", monospace;
+  font-style: normal;
+  font-variant: normal;
+}
+.prose[data-voices="quest"] .v-say::after {
+  content: "\25BC";
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  color: var(--c);
+  font: 400 11px/1 "Press Start 2P", monospace;
+}
+.prose[data-voices="quest"] .v-medal {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--c) 60%, #fff) 0 22%, var(--c) 22% 72%, color-mix(in oklab, var(--c) 62%, #000) 72%);
+  border: 4px solid var(--text);
+  font: 400 24px/1 "Press Start 2P", monospace;
+  font-style: normal;
+  color: #fff;
+  text-shadow:
+    3px 3px 0 color-mix(in oklab, var(--c) 45%, #000),
+    -1px -1px 0 color-mix(in oklab, var(--c) 45%, #000);
+}
+.prose[data-voices="quest"] .v-medal::before {
+  position: absolute;
+  top: -24px;
+  left: -18px;
+  padding: 5px 6px 4px;
+  background: #fff;
+  color: #2b2340;
+  border: 3px solid #2b2340;
+  font: 400 11px/1 "Press Start 2P", monospace;
+  text-shadow: none;
+}
+.prose[data-voices="quest"] .v-plate {
+  position: absolute;
+  left: 108px;
+  top: -22px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px 6px;
+  background: var(--c);
+  color: var(--on-voice);
+  border: 4px solid var(--text);
+  font: 400 10px/1 "Press Start 2P", monospace;
+  font-style: normal;
+  white-space: nowrap;
+}
+.prose[data-voices="quest"] .v-plate em {
+  font: 400 11px/1 "Silkscreen", monospace;
+  font-style: normal;
+  text-transform: uppercase;
+}
+.prose[data-voices="quest"] .v-plate em::before {
+  content: "[";
+}
+.prose[data-voices="quest"] .v-plate em::after {
+  content: "]";
+}
+
+.prose[data-voices="quest"] .v-say.v-user {
+  padding: 20px 112px 26px 24px;
+  text-align: right;
+}
+.prose[data-voices="quest"] .v-say.v-user .v-medal {
+  left: auto;
+  right: 18px;
+}
+.prose[data-voices="quest"] .v-say.v-user .v-medal::before {
+  left: auto;
+  right: -18px;
+}
+.prose[data-voices="quest"] .v-say.v-user .v-plate {
+  left: auto;
+  right: 108px;
+}
+.prose[data-voices="quest"] .v-say.v-follow {
+  margin-top: -0.2em;
+  min-height: 0;
+  padding-top: 16px;
+}
+.prose[data-voices="quest"] .v-say.v-follow .v-ui {
+  display: none;
+}
+.prose[data-voices="quest"] .v-say.v-unknown .v-plate {
+  display: none;
+}
+
+/* tones: an emote over the portrait, and the box changes with them */
+.prose[data-voices="quest"] .v-say[data-tone="shout"] {
+  box-shadow:
+    0 0 0 4px var(--surface),
+    0 0 0 12px var(--c),
+    10px 14px 0 8px rgb(0 0 0 / 16%);
+}
+.prose[data-voices="quest"] .v-say[data-tone="shout"] .dl:not(.v-other) {
+  font: 400 0.9em/1.8 "Press Start 2P", monospace;
+  text-shadow: 3px 3px 0 color-mix(in oklab, var(--c) 55%, transparent);
+}
+.prose[data-voices="quest"] .v-say[data-tone="shout"] .v-medal::before {
+  content: "!!";
+  background: #ff4757;
+  color: #fff;
+}
+.prose[data-voices="quest"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) {
+  border-style: dashed;
+  box-shadow:
+    0 0 0 4px var(--surface),
+    0 0 0 6px color-mix(in oklab, var(--c) 55%, transparent);
+}
+.prose[data-voices="quest"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
+  font-size: 0.95em;
+  color: var(--text-muted);
+}
+.prose[data-voices="quest"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .v-medal::before {
+  content: "...";
+}
+.prose[data-voices="quest"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .v-medal::before {
+  content: "\2665\FE0E";
+  color: #ff4f86;
+}
+.prose[data-voices="quest"] .v-say[data-tone="cold"] {
+  box-shadow:
+    0 0 0 4px var(--surface),
+    0 0 0 8px #8fd3ff,
+    10px 14px 0 4px rgb(0 0 0 / 16%);
+}
+.prose[data-voices="quest"] .v-say[data-tone="cold"] .dl:not(.v-other) {
+  letter-spacing: 0.05em;
+}
+.prose[data-voices="quest"] .v-say[data-tone="cold"] .v-medal::before {
+  content: "\2744\FE0E";
+  color: #3a8fd6;
+}
+.prose[data-voices="quest"] .v-say[data-tone="sing"] .v-medal::before {
+  content: "\266A";
+  color: #7a4ad6;
+}
+.prose[data-voices="quest"] .v-say[data-tone="sly"] .v-medal::before {
+  content: "\2727";
+  color: #c08a00;
+}
+.prose[data-voices="quest"] .v-say[data-tone="sly"] .v-plate {
+  transform: rotate(-3deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prose[data-voices="quest"] .v-say::after {
+    animation: vq-arrow 1s steps(1) infinite;
+  }
+  .prose[data-voices="quest"] .v-medal::before {
+    animation: vq-bob 1.2s steps(2) infinite;
+  }
+  .prose[data-voices="quest"] .v-say[data-tone="shout"] {
+    animation: vq-shake 0.45s steps(3) 2;
+  }
+}
+@keyframes vq-arrow {
+  50% {
+    translate: 0 3px;
+  }
+}
+@keyframes vq-bob {
+  50% {
+    translate: 0 -4px;
+  }
+}
+@keyframes vq-shake {
+  25% {
+    translate: -6px 2px;
+  }
+  50% {
+    translate: 5px -3px;
+  }
+  75% {
+    translate: -3px 1px;
+  }
+}
+
+@media (max-width: 560px) {
+  .prose[data-voices="quest"] .v-say {
+    padding-left: 84px;
+  }
+  .prose[data-voices="quest"] .v-medal {
+    left: 12px;
+    width: 54px;
+    height: 54px;
+    font-size: 18px;
+  }
+  .prose[data-voices="quest"] .v-plate {
+    left: 80px;
+  }
+  .prose[data-voices="quest"] .v-say.v-user {
+    padding: 20px 84px 26px 20px;
+  }
+  .prose[data-voices="quest"] .v-say.v-user .v-medal {
+    right: 12px;
+  }
+  .prose[data-voices="quest"] .v-say.v-user .v-plate {
+    right: 80px;
+  }
+}

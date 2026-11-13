@@ -12,7 +12,7 @@ export type StoryFont = (typeof STORY_FONTS)[number];
 
 export interface LivingPage {
   /** How dialogue shows who is speaking. */
-  voices: "ink" | "blocks" | "chips" | "tint" | "script" | "ribbon" | "halo" | "off";
+  voices: "blocks" | "balloons" | "quest" | "texts" | "sticky" | "seal" | "stage" | "patch" | "holo" | "off";
   /** Letters, texts and clippings drawn as objects. */
   artifacts: boolean;
   /** The visuals a model designs itself (<vtk>) drawn too; off shows their words. */
@@ -416,7 +416,7 @@ export const defaults: Settings = {
   "appearance.storyFont": "newsreader",
   "appearance.glossary": true,
   "appearance.typography": defaultTypography,
-  "appearance.living": { voices: "ink", artifacts: true, freeform: true, window: true, thoughts: "drawer" },
+  "appearance.living": { voices: "blocks", artifacts: true, freeform: true, window: true, thoughts: "drawer" },
   "chat.enterToSend": false,
   "chat.defaultPresetId": null,
   "presets.meaVersion": 0,
