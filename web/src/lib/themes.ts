@@ -1,7 +1,7 @@
 /**
  * Mea's themes. Lantern and the rooms (Wildflower, Overprint, Citadel, Marquee, Sugar Rush, Arcade
- * Afterhours, Noir Salon, Rosewater Vanity, Meringue, Menagerie, Night Train, Weatherglass, The Deep
- * End, Floating World, Vesper, Caravanserai, Aphelion, Form, Hearthwool, Prism Lab,
+ * Afterhours, Noir Salon, Rosewater Vanity, Meringue, Menagerie, Weatherglass, The Deep
+ * End, Floating World, Vesper, Caravanserai, Aphelion, Hearthwool, Prism Lab,
  * Disco Inferno) share the Lantern
  * shell: a slim rail, a living backdrop, glass panels. Each room lives in its own folder under
  * src/rooms and has a day and a night; Cozy is the older, plainer look with its own light and dark.

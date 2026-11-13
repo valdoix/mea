@@ -17,10 +17,10 @@
   // The picker shows each room in its own type, and a room you pick is dressed the moment you pick it.
   onMount(() => THEMES.forEach((t) => isRoom(t.id) && (loadThemeFonts(t.id), void loadThemeStyles(t.id))));
   const drifting = $derived(
-    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light", meringue: app.night ? "Fairy lights twinkling and soft lights floating up" : "Clouds drifting and soft lights floating up", menagerie: app.night ? "Candles flickering and gold dust in the lamplight" : "Gold dust turning in the lamplight", nighttrain: "The country sliding past the window", weatherglass: "Rain, snow, fog and storm moving across the sky", deepend: app.night ? "Plankton drifting and scattering from your cursor" : "Sunlight rippling and bubbles rising", floatingworld: "Rain, waves and a crane crossing the print", vesper: "Coloured light breathing across the stone", caravanserai: app.night ? "The stars turning and a tent glowing" : "Heat shimmering over the dunes", aphelion: "A planet drifting and stars twinkling", form: "Shapes changing places", hearthwool: app.night ? "Firelight flickering and yarn unravelling" : "Yarn unravelling and hearts drifting", prismlab: "Light splitting through a prism and rainbows drifting", disco: app.night ? "Spotlights sweeping, the floor lighting up and a mirror ball turning" : "A mirror ball turning and the rink floor lighting up" } as Record<string, string>)[app.theme] ?? "Drifting lights",
+    ({ lantern: "Fireflies drifting in the night sky", wildflower: "Petals falling and a butterfly passing through", overprint: "Ink circles drifting slowly out of register", citadel: app.night ? "Snow falling past the window, and rising embers" : "Candlelight flickering on the vellum", marquee: "Searchlights sweeping and signs flickering", sugarrush: "Sprinkles falling and gumdrops bobbing", arcade: app.night ? "A vector grid rolling in, and pixel invaders" : "Pixel sprites drifting past the cabinet", noir: app.night ? "Smoke drifting and champagne rising" : "A gilt sunburst turning, and champagne rising", rosewater: "Folds of silk drifting through soft light", meringue: app.night ? "Fairy lights twinkling and soft lights floating up" : "Clouds drifting and soft lights floating up", menagerie: app.night ? "Candles flickering and gold dust in the lamplight" : "Gold dust turning in the lamplight", weatherglass: "Rain, snow, fog and storm moving across the sky", deepend: app.night ? "Plankton drifting and scattering from your cursor" : "Sunlight rippling and bubbles rising", floatingworld: "Rain, waves and a crane crossing the print", vesper: "Coloured light breathing across the stone", caravanserai: app.night ? "The stars turning and a tent glowing" : "Heat shimmering over the dunes", aphelion: "A planet drifting and stars twinkling", hearthwool: app.night ? "Firelight flickering and yarn unravelling" : "Yarn unravelling and hearts drifting", prismlab: "Light splitting through a prism and rainbows drifting", disco: app.night ? "Spotlights sweeping, the floor lighting up and a mirror ball turning" : "A mirror ball turning and the rink floor lighting up" } as Record<string, string>)[app.theme] ?? "Drifting lights",
   );
   const texture = $derived(
-    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks", meringue: "A faint gingham at the edges", menagerie: "Chintz on the walls", nighttrain: "A little paper grain on the walls", floatingworld: "Washi paper fibres", vesper: "Grain in the stone", caravanserai: "A little sand in the air" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
+    ({ lantern: "A whisper of film grain", wildflower: "A little watercolour paper", overprint: "Print grain and halftone dots", citadel: "Mottled vellum", marquee: "A brick wall behind the signs", sugarrush: "A candy-striped awning and sugar dust", arcade: app.night ? "Scanlines on the glass" : "Woodgrain cabinet sides", noir: "Gold pinstripes and Deco fans", rosewater: "Gold-leaf flecks", meringue: "A faint gingham at the edges", menagerie: "Chintz on the walls", floatingworld: "Washi paper fibres", vesper: "Grain in the stone", caravanserai: "A little sand in the air" } as Record<string, string>)[app.theme] ?? "A whisper of film grain",
   );
   const LAYOUT_NOTES = {
     classic: "A slim rail, a floating chat and a side panel for memory, story and world.",
@@ -617,16 +617,6 @@
     border-radius: 2px;
     box-shadow: 0 0 0 2px #d9531e, 4px 4px 0 2px #5f8a1f;
   }
-  .t-nighttrain .tname {
-    font: 700 0.95rem/1.1 "B612 Mono", monospace;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #f7e6bc;
-    text-shadow: none;
-    background: #1c1714;
-    border-radius: 3px;
-    box-shadow: 0 0 0 2px #b98a35;
-  }
   .t-weatherglass .tname {
     font: 600 1.25rem/1.1 "Newsreader Variable", serif;
     color: #ecd08a;
@@ -676,15 +666,6 @@
     background: #02050a;
     border-radius: 0;
     box-shadow: inset 2px 0 0 #5fe6ff;
-  }
-  .t-form .tname {
-    font: 900 1.5rem/1 "Jost Variable", sans-serif;
-    letter-spacing: -0.04em;
-    text-transform: lowercase;
-    color: #fff;
-    text-shadow: none;
-    background: #d2271c;
-    border-radius: 0;
   }
   .t-hearthwool .tname {
     font: 700 1.5rem/1 "Caveat", cursive;

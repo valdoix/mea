@@ -1622,6 +1622,14 @@ CREATE TABLE IF NOT EXISTS song_cards (
 );
 `,
   },
+  {
+    id: 44,
+    name: "night train and form retired",
+    sql: /* sql */ `
+-- Night Train and Form were retired; whoever had one of them on moves to Lantern.
+UPDATE settings SET value = '"lantern"' WHERE key = 'appearance.theme' AND value IN ('"nighttrain"', '"form"');
+`,
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
