@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { migrations } from "../src/db/migrations";
 import { resolveWeather } from "../../web/src/rooms/weatherglass/weather";
+import { orchardSeason } from "../../web/src/rooms/orchard/season";
 
 /** The rooms (web/src/rooms): each one a folder, listed everywhere it has to be. */
 const WEB = join(import.meta.dir, "../../web");
@@ -162,5 +163,18 @@ describe("speaker styles after Blocks", () => {
       expect(voices).toContain(`import("../styles/voices/${id}.css")`);
       expect(picker).toContain(`<option value="${id}">`);
     }
+  });
+});
+
+describe("Orchard", () => {
+  test("the leaves follow the story's season", () => {
+    expect(orchardSeason("spring", 4)).toBe("blossom");
+    expect(orchardSeason("summer", 7)).toBe("summer");
+    expect(orchardSeason("autumn", 9)).toBe("early");
+    expect(orchardSeason("autumn", 10)).toBe("peak");
+    expect(orchardSeason("autumn", 11)).toBe("late");
+    expect(orchardSeason("Late autumn", null)).toBe("late");
+    expect(orchardSeason("winter", 1)).toBe("late");
+    expect(orchardSeason(null, null)).toBe("peak");
   });
 });
