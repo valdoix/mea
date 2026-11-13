@@ -1,0 +1,239 @@
+/* Wax Seals: each speaker's paragraph is a short letter signed in script, with a wax seal in their
+   colour pressed beside it and embossed with their initial; their lines are written in ink mixed
+   with their colour; a second paragraph from them is a P.S. A shout cracks the seal and spatters
+   ink, tender is a heart-shaped seal, a whisper a small folded note, cold a faded seal. (mockups/13, V.) */
+
+.prose[data-voices="seal"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
+.prose[data-voices="seal"] .v-say .dl.v-other[data-v] {
+  color: color-mix(in oklab, var(--vc) var(--voice-mix), var(--text));
+  font-style: italic;
+}
+.prose[data-voices="seal"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v]::before {
+  content: "";
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  margin: 0 0.3em 0 0.1em;
+  border-radius: 50%;
+  background: var(--vc);
+  box-shadow: inset -1px -1px 0 rgb(0 0 0 / 30%);
+}
+
+.prose[data-voices="seal"] .v-say {
+  --c: var(--vc, var(--text-muted));
+  position: relative;
+  margin: 1.8em 0 1.5em 74px;
+  padding: 20px 30px 18px;
+  background: color-mix(in oklab, var(--c) 5%, var(--surface));
+  color: var(--text-muted);
+  box-shadow:
+    0 1px 0 rgb(0 0 0 / 8%),
+    0 18px 26px -18px rgb(40 20 0 / 75%);
+  font-size: 0.95em;
+}
+.prose[data-voices="seal"] .v-say::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid color-mix(in oklab, var(--c) 40%, transparent);
+  pointer-events: none;
+}
+.prose[data-voices="seal"] .v-say .dl:not(.v-other) {
+  color: color-mix(in oklab, var(--c) 50%, var(--text));
+  font: italic 500 1.24em/1.45 "EB Garamond Variable", Georgia, serif;
+  font-variant: normal;
+}
+.prose[data-voices="seal"] .v-medal {
+  position: absolute;
+  left: -70px;
+  top: 2px;
+  width: 56px;
+  height: 56px;
+  padding-top: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 47% 53% 50% 50% / 52% 48% 52% 48%;
+  background:
+    radial-gradient(circle at 34% 28%, color-mix(in oklab, var(--c) 45%, #fff) 0 9%, transparent 30%),
+    radial-gradient(circle, var(--c) 45%, color-mix(in oklab, var(--c) 58%, #000) 100%);
+  box-shadow:
+    0 4px 7px rgb(0 0 0 / 35%),
+    inset 0 0 0 3px color-mix(in oklab, var(--c) 72%, #000);
+  font: 400 31px/1 "Pinyon Script", cursive;
+  font-style: normal;
+  color: color-mix(in oklab, var(--c) 45%, #000);
+  text-shadow:
+    1px 1px 0 rgb(255 255 255 / 40%),
+    -1px -1px 0 rgb(0 0 0 / 30%);
+}
+.prose[data-voices="seal"] .v-medal::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  border: 1.5px dashed rgb(0 0 0 / 22%);
+}
+.prose[data-voices="seal"] .v-medal::before {
+  content: "";
+  position: absolute;
+  right: -4px;
+  bottom: 2px;
+  width: 14px;
+  height: 10px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--c) 78%, #000);
+}
+.prose[data-voices="seal"] .v-plate {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+  font: 400 26px/1.1 "Pinyon Script", cursive;
+  font-style: normal;
+  color: color-mix(in oklab, var(--c) 60%, var(--text));
+}
+.prose[data-voices="seal"] .v-plate::before {
+  content: "from";
+  margin-right: -4px;
+  font: italic 13px/1 "EB Garamond Variable", Georgia, serif;
+  color: var(--text-faint);
+}
+.prose[data-voices="seal"] .v-plate em {
+  font: italic 13px/1 "EB Garamond Variable", Georgia, serif;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.prose[data-voices="seal"] .v-plate em::before {
+  content: "\2014  ";
+}
+
+.prose[data-voices="seal"] .v-say.v-user {
+  margin: 1.8em 74px 1.5em 12%;
+  text-align: right;
+}
+.prose[data-voices="seal"] .v-say.v-user .v-plate {
+  justify-content: flex-end;
+}
+.prose[data-voices="seal"] .v-say.v-user .v-medal {
+  left: auto;
+  right: -70px;
+}
+.prose[data-voices="seal"] .v-say.v-follow {
+  margin-top: -0.9em;
+  border-top: 1px dashed color-mix(in oklab, var(--text-faint) 50%, transparent);
+}
+.prose[data-voices="seal"] .v-say.v-follow::before {
+  content: "P.S.";
+  position: static;
+  inset: auto;
+  border: 0;
+  margin-right: 8px;
+  font: 400 24px/1 "Pinyon Script", cursive;
+  color: color-mix(in oklab, var(--c) 60%, var(--text));
+}
+.prose[data-voices="seal"] .v-say.v-follow .v-ui {
+  display: none;
+}
+.prose[data-voices="seal"] .v-say.v-unknown .v-plate {
+  display: none;
+}
+
+/* tones */
+.prose[data-voices="seal"] .v-say[data-tone="shout"] {
+  background:
+    radial-gradient(circle at 92% 18%, color-mix(in oklab, var(--c) 70%, transparent) 0 5px, transparent 6px),
+    radial-gradient(circle at 88% 26%, color-mix(in oklab, var(--c) 70%, transparent) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 96% 30%, color-mix(in oklab, var(--c) 70%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 84% 12%, color-mix(in oklab, var(--c) 70%, transparent) 0 1.5px, transparent 2.5px),
+    color-mix(in oklab, var(--c) 5%, var(--surface));
+}
+.prose[data-voices="seal"] .v-say[data-tone="shout"] .dl:not(.v-other) {
+  font: 700 1.28em/1.35 "EB Garamond Variable", Georgia, serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.prose[data-voices="seal"] .v-say[data-tone="shout"] .v-medal::after {
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(62deg, transparent 47%, rgb(0 0 0 / 50%) 48% 50.5%, transparent 51.5%),
+    linear-gradient(-28deg, transparent 30%, rgb(0 0 0 / 40%) 31% 32.5%, transparent 33.5%);
+}
+.prose[data-voices="seal"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) {
+  max-width: 460px;
+  background: linear-gradient(225deg, transparent 20px, color-mix(in oklab, var(--c) 5%, var(--surface)) 20px);
+}
+.prose[data-voices="seal"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"])::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(225deg, transparent 50%, color-mix(in oklab, var(--surface) 85%, #000) 50%);
+  box-shadow: -2px 2px 3px rgb(0 0 0 / 12%);
+}
+.prose[data-voices="seal"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
+  font-size: 1.08em;
+  opacity: 0.85;
+}
+.prose[data-voices="seal"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .v-medal {
+  transform: scale(0.72);
+  transform-origin: right top;
+}
+.prose[data-voices="seal"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .v-medal {
+  border-radius: 0;
+  clip-path: path("M28 52C10 40 3 30 3 19 3 10 10 3 18 3c5 0 8 3 10 6 2-3 5-6 10-6 8 0 15 7 15 16 0 11-7 21-25 33z");
+}
+.prose[data-voices="seal"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .v-medal::before {
+  display: none;
+}
+.prose[data-voices="seal"] .v-say[data-tone="cold"] {
+  background:
+    linear-gradient(135deg, rgb(170 215 245 / 35%), transparent 40%),
+    color-mix(in oklab, var(--c) 5%, var(--surface));
+}
+.prose[data-voices="seal"] .v-say[data-tone="cold"] .v-medal {
+  filter: saturate(0.25) brightness(1.15) hue-rotate(160deg);
+}
+.prose[data-voices="seal"] .v-say[data-tone="sing"] .dl:not(.v-other) {
+  padding-bottom: 6px;
+  background: repeating-linear-gradient(180deg, transparent 0 4px, color-mix(in oklab, var(--c) 30%, transparent) 4px 5px) 0 100% / 100% 25px no-repeat;
+}
+.prose[data-voices="seal"] .v-say[data-tone="sing"]::after {
+  content: "\266A";
+  position: absolute;
+  right: 20px;
+  top: 14px;
+  font-size: 26px;
+  color: var(--c);
+  opacity: 0.7;
+}
+.prose[data-voices="seal"] .v-say[data-tone="sly"] {
+  rotate: 0.6deg;
+}
+.prose[data-voices="seal"] .v-say[data-tone="sly"] .v-medal {
+  top: 14px;
+  left: -62px;
+  rotate: -22deg;
+}
+
+@media (max-width: 560px) {
+  .prose[data-voices="seal"] .v-say {
+    margin-left: 50px;
+    padding-inline: 22px;
+  }
+  .prose[data-voices="seal"] .v-medal {
+    left: -52px;
+    width: 42px;
+    height: 42px;
+    font-size: 24px;
+  }
+  .prose[data-voices="seal"] .v-say.v-user {
+    margin-right: 50px;
+  }
+  .prose[data-voices="seal"] .v-say.v-user .v-medal {
+    right: -52px;
+  }
+}

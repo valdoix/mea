@@ -30,12 +30,14 @@
   const page = $derived(living(s));
   const VOICE_HINTS: Record<LivingPage["voices"], string> = {
     blocks: "A paragraph that opens on someone's line becomes their voice card: a medallion, a nameplate and a bubble that shows how it was said. A line mid-narration is a chip.",
-    chips: "Each line is a pill with its speaker's initial; the prose flows on untouched.",
-    tint: "Dialogue is coloured and underlined in the speaker's colour.",
-    script: "A screenplay: the speaker's name beside the line, and how it was said under it.",
-    ink: "Dialogue is written in the speaker's ink.",
-    ribbon: "A coloured ribbon marks who leads each paragraph.",
-    halo: "Dialogue is underlined in the speaker's light.",
+    balloons: "A comic page: each speaker gets a panel and speech balloons. A shout bursts, a whisper is a dashed balloon, a cold line grows icicles.",
+    quest: "A game's dialogue box with a pixel portrait and a name tab. An emote pops over the portrait for how each line was said.",
+    texts: "A phone thread: message bubbles in each speaker's colour, with a reaction for how it was said. Whispers are in invisible ink until you hover or tap them.",
+    sticky: "Sticky notes on a board, pinned in each speaker's colour, their name on washi tape and their lines in highlighter.",
+    seal: "Letters signed in script, each with a wax seal in the speaker's colour. A shout cracks the seal; tender is a heart.",
+    stage: "A small stage for each speaker, standing in a spotlight of their colour with their name on a marquee card.",
+    patch: "Embroidered patches stitched in each speaker's colour, with a little patch sewn on the corner for how it was said.",
+    holo: "Collectible cards with a gold-foil edge and a holographic shine. A shout gets a CRITICAL! sticker; sly is a secret rare.",
     off: "One dialogue colour for everyone, and replies aren't asked to mark speakers.",
   };
   function setPage(patch: Partial<LivingPage>) {
@@ -266,15 +268,17 @@
         <span class="label">Speaker colours <span class="faint">each character's lines in their own colour</span></span>
         <select class="select" value={page.voices} onchange={(e) => setPage({ voices: e.currentTarget.value as LivingPage["voices"] })}>
           <option value="blocks">Blocks: voice cards</option>
-          <option value="chips">Chips</option>
-          <option value="tint">Tint</option>
-          <option value="script">Script</option>
-          <option value="ink">Ink</option>
-          <option value="ribbon">Ribbon</option>
-          <option value="halo">Halo</option>
+          <option value="balloons">Balloons: a comic page</option>
+          <option value="quest">Quest: a game's dialogue box</option>
+          <option value="texts">Texts: a phone thread</option>
+          <option value="sticky">Sticky notes: a corkboard</option>
+          <option value="seal">Wax seals: letters</option>
+          <option value="stage">Spotlight: a stage</option>
+          <option value="patch">Patches: embroidery</option>
+          <option value="holo">Holo: collectible cards</option>
           <option value="off">Off</option>
         </select>
-        <span class="hint">{VOICE_HINTS[page.voices]} Change someone's colour in the story's Cast.</span>
+        <span class="hint">{VOICE_HINTS[page.voices] ?? VOICE_HINTS.blocks} Change someone's colour in the story's Cast.</span>
       </label>
       <label class="field narrow">
         <span class="label">The visual toolkit <span class="faint">letters, screens, minds, spells…</span></span>

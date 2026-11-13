@@ -1,0 +1,211 @@
+/* Texts: a phone thread. Every line is a message bubble in its speaker's colour with a small
+   avatar; the narration around it turns small and grey; how it was said is a reaction badge on the
+   bubble's corner. A shout slams in, a whisper is in invisible ink until you hover or tap it, a
+   cold line frosts over, a song shimmers. (mockups/13, III.) */
+
+.prose[data-voices="texts"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
+.prose[data-voices="texts"] .v-say .dl.v-other[data-v] {
+  padding: 1px 9px 2px;
+  border-radius: 999px;
+  background: var(--vc);
+  color: var(--on-voice);
+  font-style: normal;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.prose[data-voices="texts"] .v-say {
+  --c: var(--vc, var(--text-muted));
+  position: relative;
+  margin: 1.5em 0 0.4em 46px;
+  padding-top: 18px;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  font-style: italic;
+  line-height: 1.45;
+}
+.prose[data-voices="texts"] .v-say .dl:not(.v-other) {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 86%;
+  margin: 4px 0;
+  padding: 9px 15px 10px;
+  border-radius: 20px 20px 20px 6px;
+  background: linear-gradient(180deg, var(--c), color-mix(in oklab, var(--c) 86%, #000));
+  color: var(--on-voice);
+  font: 500 1.22em/1.4 "DM Sans Variable", system-ui, sans-serif;
+  font-style: normal;
+  font-variant: normal;
+  box-shadow: 0 8px 16px -12px color-mix(in oklab, var(--c) 80%, #000);
+  transform-origin: 0 100%;
+}
+.prose[data-voices="texts"] .v-say .dl:not(.v-other)::after {
+  position: absolute;
+  bottom: -9px;
+  right: -11px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: color-mix(in oklab, var(--c) 55%, var(--text));
+  box-shadow:
+    0 0 0 2.5px var(--bg),
+    0 3px 8px rgb(0 0 0 / 18%);
+  font: 700 13px/1 system-ui, sans-serif;
+  font-style: normal;
+}
+.prose[data-voices="texts"] .v-medal {
+  position: absolute;
+  left: -46px;
+  bottom: 4px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--c);
+  color: var(--on-voice);
+  box-shadow: 0 0 0 2px var(--bg);
+  font: 700 14px/1 "DM Sans Variable", system-ui, sans-serif;
+  font-style: normal;
+}
+.prose[data-voices="texts"] .v-plate {
+  position: absolute;
+  left: 14px;
+  top: 0;
+  display: flex;
+  gap: 6px;
+  font: 600 11.5px/1 "DM Sans Variable", system-ui, sans-serif;
+  font-style: normal;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.prose[data-voices="texts"] .v-plate em {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+.prose[data-voices="texts"] .v-say.v-user {
+  margin: 1.5em 46px 0.4em 0;
+  text-align: right;
+}
+.prose[data-voices="texts"] .v-say.v-user .dl:not(.v-other) {
+  margin-left: auto;
+  text-align: left;
+  border-radius: 20px 20px 6px 20px;
+  transform-origin: 100% 100%;
+}
+.prose[data-voices="texts"] .v-say.v-user .dl:not(.v-other)::after {
+  right: auto;
+  left: -11px;
+}
+.prose[data-voices="texts"] .v-say.v-user .v-medal {
+  left: auto;
+  right: -46px;
+}
+.prose[data-voices="texts"] .v-say.v-user .v-plate {
+  left: auto;
+  right: 14px;
+}
+.prose[data-voices="texts"] .v-say.v-follow {
+  margin-top: -2px;
+  padding-top: 0;
+}
+.prose[data-voices="texts"] .v-say.v-follow .dl:not(.v-other) {
+  border-top-left-radius: 6px;
+}
+.prose[data-voices="texts"] .v-say.v-user.v-follow .dl:not(.v-other) {
+  border-top-left-radius: 20px;
+  border-top-right-radius: 6px;
+}
+.prose[data-voices="texts"] .v-say.v-follow .v-ui {
+  display: none;
+}
+.prose[data-voices="texts"] .v-say.v-unknown .v-plate {
+  display: none;
+}
+
+/* tones: a reaction badge, and the bubble changes with them */
+.prose[data-voices="texts"] .v-say[data-tone="shout"] .dl:not(.v-other) {
+  padding: 12px 18px;
+  font: 800 1.75em/1.12 "DM Sans Variable", system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+.prose[data-voices="texts"] .v-say[data-tone="shout"] .dl:not(.v-other)::after {
+  content: "\203C";
+  background: #ff3b30;
+  color: #fff;
+}
+.prose[data-voices="texts"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
+  cursor: pointer;
+  color: transparent;
+  text-shadow: 0 0 7px color-mix(in oklab, var(--on-voice) 80%, transparent);
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 75%) 0.8px, transparent 1.4px) 0 0 / 9px 7px,
+    radial-gradient(circle, rgb(255 255 255 / 55%) 0.8px, transparent 1.4px) 4px 3px / 11px 9px,
+    linear-gradient(180deg, var(--c), color-mix(in oklab, var(--c) 86%, #000));
+  transition:
+    color 0.4s,
+    text-shadow 0.4s;
+}
+.prose[data-voices="texts"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other):is(:hover, :focus, :active) {
+  color: var(--on-voice);
+  text-shadow: none;
+}
+.prose[data-voices="texts"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other)::after {
+  content: "\2026";
+}
+.prose[data-voices="texts"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .dl:not(.v-other) {
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--c) 25%, transparent),
+    0 10px 22px -10px var(--c);
+}
+.prose[data-voices="texts"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .dl:not(.v-other)::after {
+  content: "\2665\FE0E";
+  color: #ff2d55;
+}
+.prose[data-voices="texts"] .v-say[data-tone="cold"] .dl:not(.v-other) {
+  background: linear-gradient(180deg, #eaf6ff, #bcdcf3);
+  color: #1d3a52;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 80%),
+    0 8px 16px -12px #4a8ab8;
+}
+.prose[data-voices="texts"] .v-say[data-tone="cold"] .dl:not(.v-other)::after {
+  content: "\2744\FE0E";
+  color: #3a8fd6;
+}
+.prose[data-voices="texts"] .v-say[data-tone="sing"] .dl:not(.v-other) {
+  background: linear-gradient(110deg, var(--c), color-mix(in oklab, var(--c) 50%, #ffb3e0), var(--c));
+}
+.prose[data-voices="texts"] .v-say[data-tone="sing"] .dl:not(.v-other)::after {
+  content: "\266A";
+}
+.prose[data-voices="texts"] .v-say[data-tone="sly"] .dl:not(.v-other) {
+  transform: rotate(-1.2deg);
+}
+.prose[data-voices="texts"] .v-say[data-tone="sly"] .dl:not(.v-other)::after {
+  content: "\2726";
+  color: #c08a00;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prose[data-voices="texts"] .v-say[data-tone="shout"] .dl:not(.v-other) {
+    animation: vt-slam 0.6s cubic-bezier(0.3, 1.7, 0.5, 1) both;
+  }
+}
+@keyframes vt-slam {
+  0% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}

@@ -1,0 +1,245 @@
+/* Holo: each speaker's paragraph is a collectible card with a gold-foil edge mixed with their
+   colour, art made from their initial and a sunburst, and a slow holographic sheen; how it was said
+   is the card's type badge. Hover tilts it. A shout gets a CRITICAL! sticker, a whisper is a plain
+   card with no foil, cold is ice foil, sly a five-star secret rare. (mockups/13, VIII.) */
+
+.prose[data-voices="holo"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
+.prose[data-voices="holo"] .v-say .dl.v-other[data-v] {
+  padding: 1px 8px;
+  border: 1.5px solid var(--vc);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--vc) 12%, transparent);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.prose[data-voices="holo"] .v-say {
+  --c: var(--vc, var(--text-muted));
+  position: relative;
+  margin: 1.6em 0 1.4em;
+  padding: 16px 22px 16px 122px;
+  min-height: 120px;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(160deg, color-mix(in oklab, var(--c) 18%, var(--surface)), var(--surface) 65%) padding-box,
+    linear-gradient(135deg, #f3d27a, var(--c) 30%, #fff3c4 50%, var(--c) 70%, #c9962f) border-box;
+  color: var(--text-muted);
+  box-shadow: 0 18px 28px -20px color-mix(in oklab, var(--c) 60%, #000);
+  font-size: 0.9em;
+  font-style: italic;
+  transition: transform 0.3s;
+}
+.prose[data-voices="holo"] .v-say:hover {
+  transform: perspective(800px) rotateX(3deg) rotateY(-4deg) translateY(-2px);
+}
+.prose[data-voices="holo"] .v-say::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 28%, rgb(255 120 220 / 32%) 38%, rgb(120 230 255 / 32%) 46%, rgb(255 245 140 / 32%) 54%, transparent 64%);
+  mix-blend-mode: overlay;
+  -webkit-mask: linear-gradient(90deg, transparent 0 30%, #000 40% 60%, transparent 70%) 0 0 / 300% 100%;
+  mask: linear-gradient(90deg, transparent 0 30%, #000 40% 60%, transparent 70%) 0 0 / 300% 100%;
+}
+.prose[data-voices="holo"] .v-say .dl:not(.v-other) {
+  color: var(--text);
+  font: 500 1.15em/1.5 "DM Sans Variable", system-ui, sans-serif;
+  font-style: normal;
+  font-variant: normal;
+}
+.prose[data-voices="holo"] .v-medal {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 90px;
+  height: 90px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 115%, color-mix(in oklab, var(--c) 50%, #fff), transparent 62%),
+    repeating-conic-gradient(from 0deg at 50% 112%, color-mix(in oklab, var(--c) 72%, #000) 0 7deg, var(--c) 7deg 14deg);
+  border: 2px solid #f3d27a;
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 25%);
+  font: 700 38px/1 "Chakra Petch", system-ui, sans-serif;
+  font-style: normal;
+  color: #fff;
+  text-shadow:
+    0 2px 0 rgb(0 0 0 / 40%),
+    0 0 14px var(--c);
+}
+.prose[data-voices="holo"] .v-plate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font: 700 14px/1 "Chakra Petch", system-ui, sans-serif;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.prose[data-voices="holo"] .v-plate::after {
+  content: "\2605\2605\2605";
+  margin-left: auto;
+  color: #d9a82e;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+}
+.prose[data-voices="holo"] .v-plate em {
+  padding: 4px 9px 4px 7px;
+  border-radius: 999px;
+  background: var(--c);
+  color: var(--on-voice);
+  font: 700 10px/1 "Chakra Petch", system-ui, sans-serif;
+  font-style: normal;
+  letter-spacing: 0.12em;
+}
+.prose[data-voices="holo"] .v-plate em::before {
+  margin-right: 4px;
+}
+
+.prose[data-voices="holo"] .v-say.v-user {
+  padding: 16px 122px 16px 22px;
+  text-align: right;
+}
+.prose[data-voices="holo"] .v-say.v-user .v-plate {
+  flex-direction: row-reverse;
+}
+.prose[data-voices="holo"] .v-say.v-user .v-plate::after {
+  margin-left: 0;
+  margin-right: auto;
+}
+.prose[data-voices="holo"] .v-say.v-user .v-medal {
+  left: auto;
+  right: 14px;
+}
+.prose[data-voices="holo"] .v-say.v-follow {
+  min-height: 0;
+  margin-top: -0.8em;
+}
+.prose[data-voices="holo"] .v-say.v-follow .v-ui {
+  display: none;
+}
+.prose[data-voices="holo"] .v-say.v-unknown .v-plate {
+  display: none;
+}
+
+/* tones: the type badge, and the foil */
+.prose[data-voices="holo"] .v-say[data-tone="shout"]::before {
+  content: "CRITICAL!";
+  position: absolute;
+  z-index: 2;
+  top: -14px;
+  right: -10px;
+  padding: 6px 14px;
+  background: #ff3b5c;
+  color: #fff;
+  font: 700 13px/1 "Chakra Petch", system-ui, sans-serif;
+  font-style: normal;
+  letter-spacing: 0.16em;
+  rotate: 7deg;
+  box-shadow: 0 4px 0 #9e1430;
+  clip-path: polygon(4% 0, 100% 0, 96% 100%, 0 100%);
+}
+.prose[data-voices="holo"] .v-say[data-tone="shout"] .dl:not(.v-other) {
+  font-size: 1.4em;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+.prose[data-voices="holo"] .v-say[data-tone="shout"] .v-plate em::before {
+  content: "\203C";
+}
+.prose[data-voices="holo"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) {
+  opacity: 0.85;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(135deg, var(--border), color-mix(in oklab, var(--c) 45%, var(--border))) border-box;
+}
+.prose[data-voices="holo"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"])::after {
+  display: none;
+}
+.prose[data-voices="holo"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
+  font-size: 1em;
+  color: var(--text-muted);
+}
+.prose[data-voices="holo"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .v-plate em::before {
+  content: "\2026";
+}
+.prose[data-voices="holo"] .v-say:is([data-tone="tender"], [data-tone="sob"])::after {
+  background: linear-gradient(115deg, transparent 28%, rgb(255 120 170 / 42%) 40%, rgb(255 200 220 / 42%) 50%, transparent 62%);
+}
+.prose[data-voices="holo"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .v-plate em::before {
+  content: "\2665\FE0E";
+}
+.prose[data-voices="holo"] .v-say[data-tone="cold"] {
+  background:
+    linear-gradient(160deg, color-mix(in oklab, #8fc8ff 16%, var(--surface)), var(--surface) 65%) padding-box,
+    linear-gradient(135deg, #dff3ff, #8fc8ff 35%, #fff 50%, #8fc8ff 70%, #5a9bd0) border-box;
+}
+.prose[data-voices="holo"] .v-say[data-tone="cold"] .v-plate em::before {
+  content: "\2744\FE0E";
+}
+.prose[data-voices="holo"] .v-say[data-tone="sing"] .v-plate em::before {
+  content: "\266A";
+}
+.prose[data-voices="holo"] .v-say[data-tone="sly"]::after {
+  background: linear-gradient(115deg, transparent 10%, rgb(255 80 80 / 38%) 22%, rgb(255 200 60 / 38%) 32%, rgb(90 230 120 / 38%) 42%, rgb(80 170 255 / 38%) 52%, rgb(190 90 255 / 38%) 62%, transparent 74%);
+}
+.prose[data-voices="holo"] .v-say[data-tone="sly"] .v-plate::after {
+  content: "\2605\2605\2605\2605\2605";
+}
+.prose[data-voices="holo"] .v-say[data-tone="sly"] .v-plate em::before {
+  content: "\2726";
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prose[data-voices="holo"] .v-say::after {
+    animation: vh-sheen 7s linear infinite;
+  }
+  .prose[data-voices="holo"] .v-say[data-tone="sly"]::after {
+    animation-duration: 3.5s;
+  }
+  .prose[data-voices="holo"] .v-say[data-tone="shout"] {
+    animation: vh-jolt 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  }
+}
+@keyframes vh-sheen {
+  from {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+  to {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+}
+@keyframes vh-jolt {
+  0% {
+    transform: scale(0.94) rotate(1.5deg);
+  }
+  60% {
+    transform: scale(1.02) rotate(-1.2deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .prose[data-voices="holo"] .v-say {
+    padding-left: 88px;
+  }
+  .prose[data-voices="holo"] .v-medal {
+    width: 62px;
+    height: 62px;
+    font-size: 28px;
+  }
+  .prose[data-voices="holo"] .v-say.v-user {
+    padding: 16px 88px 16px 18px;
+  }
+}

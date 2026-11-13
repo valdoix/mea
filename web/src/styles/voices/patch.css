@@ -1,0 +1,209 @@
+/* Patches: each speaker's paragraph is a canvas patch stitched in their colour, with a round
+   embroidered badge for their initial and a woven label with their name; their lines are
+   underlined in running stitch. Each tone sews a little round patch onto the corner: a bolt, an
+   ellipsis, a heart, a snowflake, a note, a star. (mockups/13, VII.) */
+
+.prose[data-voices="patch"] :is(p, li, blockquote, td):not(.v-say) .dl[data-v],
+.prose[data-voices="patch"] .v-say .dl.v-other[data-v] {
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--vc) 14%, var(--surface));
+  outline: 1.5px dashed var(--vc);
+  outline-offset: -4px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.prose[data-voices="patch"] .v-say {
+  --c: var(--vc, var(--text-muted));
+  position: relative;
+  margin: 2.2em 0 1.5em 78px;
+  padding: 22px 24px 18px;
+  border-radius: 16px;
+  background:
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 3%) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 3%) 0 1px, transparent 1px 3px),
+    color-mix(in oklab, var(--c) 7%, var(--surface));
+  color: var(--text-muted);
+  outline: 2.5px dashed var(--c);
+  outline-offset: -8px;
+  box-shadow:
+    0 3px 0 rgb(0 0 0 / 18%),
+    0 16px 22px -14px rgb(0 0 0 / 60%);
+  font-size: 0.95em;
+}
+.prose[data-voices="patch"] .v-say .dl:not(.v-other) {
+  padding-bottom: 3px;
+  color: var(--text);
+  background: linear-gradient(90deg, var(--c) 55%, transparent 55%) 0 100% / 9px 2px repeat-x;
+  font: 500 1.12em/1.5 "Rubik Variable", system-ui, sans-serif;
+  font-style: normal;
+  font-variant: normal;
+}
+.prose[data-voices="patch"] .v-medal {
+  position: absolute;
+  left: -76px;
+  top: -2px;
+  width: 60px;
+  height: 60px;
+  padding-bottom: 6px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: repeating-linear-gradient(60deg, var(--c) 0 2px, color-mix(in oklab, var(--c) 85%, #000) 2px 3px);
+  border: 4px solid color-mix(in oklab, var(--c) 55%, #000);
+  outline: 2px dashed color-mix(in oklab, var(--c) 40%, #fff);
+  outline-offset: -10px;
+  box-shadow:
+    0 3px 0 rgb(0 0 0 / 25%),
+    0 10px 14px -6px rgb(0 0 0 / 50%);
+  font: 400 26px/1 "Pacifico", cursive;
+  font-style: normal;
+  color: #fff;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 35%);
+}
+.prose[data-voices="patch"] .v-plate {
+  position: absolute;
+  top: -14px;
+  left: 22px;
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  padding: 4px 20px 6px;
+  background: repeating-linear-gradient(90deg, #fff 0 2px, #f1eee6 2px 3px);
+  color: color-mix(in oklab, var(--c) 55%, #000);
+  font: 400 16px/1.1 "Pacifico", cursive;
+  font-style: normal;
+  white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%);
+}
+.prose[data-voices="patch"] .v-plate em {
+  font: 600 9.5px/1 "Rubik Variable", system-ui, sans-serif;
+  font-style: normal;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #7a7270;
+}
+.prose[data-voices="patch"] .v-say[data-tone]::after {
+  position: absolute;
+  top: -18px;
+  right: -14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--patch, #e9a23b);
+  color: #fff;
+  border: 3px solid rgb(0 0 0 / 25%);
+  outline: 1.5px dashed rgb(255 255 255 / 75%);
+  outline-offset: -8px;
+  rotate: 12deg;
+  box-shadow: 0 3px 6px rgb(0 0 0 / 35%);
+  font: 700 19px/1 system-ui, sans-serif;
+}
+
+.prose[data-voices="patch"] .v-say.v-user {
+  margin: 2.2em 78px 1.5em 12%;
+  text-align: right;
+}
+.prose[data-voices="patch"] .v-say.v-user .v-medal {
+  left: auto;
+  right: -76px;
+}
+.prose[data-voices="patch"] .v-say.v-user .v-plate {
+  left: auto;
+  right: 22px;
+}
+.prose[data-voices="patch"] .v-say.v-follow {
+  margin-top: -1em;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+.prose[data-voices="patch"] .v-say.v-follow::after,
+.prose[data-voices="patch"] .v-say.v-follow .v-ui {
+  display: none;
+}
+.prose[data-voices="patch"] .v-say.v-unknown .v-plate {
+  display: none;
+}
+
+/* tones */
+.prose[data-voices="patch"] .v-say[data-tone="shout"] {
+  rotate: -1deg;
+  outline-style: solid;
+  outline-width: 3px;
+}
+.prose[data-voices="patch"] .v-say[data-tone="shout"] .dl:not(.v-other) {
+  font: 700 1.38em/1.3 "Rubik Variable", system-ui, sans-serif;
+  text-transform: uppercase;
+}
+.prose[data-voices="patch"] .v-say[data-tone="shout"]::after {
+  content: "\26A1\FE0E";
+  --patch: #f2c12e;
+  color: #2d2620;
+}
+.prose[data-voices="patch"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) {
+  outline: 1.5px dotted color-mix(in oklab, var(--c) 75%, transparent);
+}
+.prose[data-voices="patch"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
+  font-size: 1em;
+  font-weight: 400;
+  font-style: italic;
+}
+.prose[data-voices="patch"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"])::after {
+  content: "\2026";
+  --patch: #9a8fb0;
+}
+.prose[data-voices="patch"] .v-say:is([data-tone="tender"], [data-tone="sob"])::after {
+  content: "\2665\FE0E";
+  --patch: #ef5b84;
+}
+.prose[data-voices="patch"] .v-say[data-tone="cold"] {
+  background:
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 3%) 0 1px, transparent 1px 3px),
+    color-mix(in oklab, #8fc8ff 14%, var(--surface));
+}
+.prose[data-voices="patch"] .v-say[data-tone="cold"]::after {
+  content: "\2744\FE0E";
+  --patch: #4b9ad6;
+}
+.prose[data-voices="patch"] .v-say[data-tone="sing"] .dl:not(.v-other) {
+  background: none;
+  text-decoration: underline wavy var(--c);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 6px;
+}
+.prose[data-voices="patch"] .v-say[data-tone="sing"]::after {
+  content: "\266A";
+  --patch: #8b5cf6;
+}
+.prose[data-voices="patch"] .v-say[data-tone="sly"]::after {
+  content: "\2726";
+  --patch: #2fb59a;
+  rotate: -24deg;
+}
+.prose[data-voices="patch"] .v-say[data-tone="sly"] .v-plate {
+  rotate: -3deg;
+}
+.prose[data-voices="patch"] .v-say[data-tone="flat"]::after {
+  content: none;
+}
+
+@media (max-width: 560px) {
+  .prose[data-voices="patch"] .v-say {
+    margin-left: 52px;
+  }
+  .prose[data-voices="patch"] .v-medal {
+    left: -54px;
+    width: 44px;
+    height: 44px;
+    font-size: 19px;
+  }
+  .prose[data-voices="patch"] .v-say.v-user {
+    margin-right: 52px;
+  }
+  .prose[data-voices="patch"] .v-say.v-user .v-medal {
+    right: -54px;
+  }
+}

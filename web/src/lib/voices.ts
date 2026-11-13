@@ -8,14 +8,36 @@ import type { TrackerCharacter, TrackersResponse } from "./types";
  * read from the prose the way a reader would: the tag beside a line ("Wren said"), the action beat
  * before it, a pronoun's last-named person, or the back-and-forth of a two-person exchange. Each
  * line is tinted in that person's colour, with a texture for how it was said (whispered, shouted).
- * Blocks and Script (from ALMANAC) also turn a paragraph that opens on someone's line into their
- * voice card or screenplay line.
+ * Every style (Blocks, from ALMANAC, and the eight after it) also turns a paragraph that opens on
+ * someone's line into their card: a balloon panel, a dialogue box, a sticky note, a letter…
  */
 
-export type VoiceStyle = "ink" | "blocks" | "chips" | "tint" | "script" | "ribbon" | "halo" | "off";
+export type VoiceStyle = "blocks" | "balloons" | "quest" | "texts" | "sticky" | "seal" | "stage" | "patch" | "holo" | "off";
 
-/** Styles that dress a whole paragraph after the person whose line opens it. */
-const CARDS = new Set<VoiceStyle>(["blocks", "script"]);
+/** Every style but Off dresses a whole paragraph after the person whose line opens it. */
+const CARDS = new Set<VoiceStyle>(["blocks", "balloons", "quest", "texts", "sticky", "seal", "stage", "patch", "holo"]);
+
+/**
+ * Blocks ships with Mea (styles/voices.css); the others bring their own stylesheet and faces the
+ * first time they're picked, so a style nobody uses costs nothing.
+ */
+const STYLE_LOAD: Partial<Record<VoiceStyle, () => Promise<unknown>>> = {
+  balloons: () => Promise.all([import("../styles/voices/balloons.css"), import("@fontsource/bangers/400.css"), import("@fontsource/comic-neue/400.css"), import("@fontsource/comic-neue/400-italic.css"), import("@fontsource/comic-neue/700.css")]),
+  quest: () => Promise.all([import("../styles/voices/quest.css"), import("@fontsource/pixelify-sans/400.css"), import("@fontsource/pixelify-sans/500.css"), import("@fontsource/pixelify-sans/600.css"), import("@fontsource/press-start-2p/400.css"), import("@fontsource/silkscreen/400.css")]),
+  texts: () => Promise.all([import("../styles/voices/texts.css"), import("@fontsource-variable/dm-sans")]),
+  sticky: () => Promise.all([import("../styles/voices/sticky.css"), import("@fontsource/permanent-marker/400.css")]),
+  seal: () => Promise.all([import("../styles/voices/seal.css"), import("@fontsource-variable/eb-garamond"), import("@fontsource-variable/eb-garamond/wght-italic.css")]),
+  stage: () => Promise.all([import("../styles/voices/stage.css"), import("@fontsource-variable/playfair-display"), import("@fontsource-variable/playfair-display/wght-italic.css"), import("@fontsource/bebas-neue/400.css")]),
+  patch: () => Promise.all([import("../styles/voices/patch.css"), import("@fontsource/pacifico/400.css"), import("@fontsource-variable/rubik")]),
+  holo: () => Promise.all([import("../styles/voices/holo.css"), import("@fontsource/chakra-petch/700.css"), import("@fontsource-variable/dm-sans")]),
+};
+const loaded = new Set<VoiceStyle>();
+function loadStyle(style: VoiceStyle) {
+  const load = STYLE_LOAD[style];
+  if (!load || loaded.has(style)) return;
+  loaded.add(style);
+  void load().catch(() => loaded.delete(style));
+}
 const TONE_TEXTURE: Record<string, "whisper" | "loud"> = { whisper: "whisper", murmur: "whisper", breathless: "whisper", shout: "loud" };
 
 export interface Voice {
@@ -247,6 +269,9 @@ function strangersIn(narration: { text: string; open: boolean }[], known: Set<st
  * stay untinted rather than borrow a cast member's colour.
  */
 export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle, author?: string) {
+  // A style retired since the setting was saved reads as Blocks.
+  if (style !== "off" && !CARDS.has(style)) style = "blocks";
+  loadStyle(style);
   root.dataset.voices = style;
   // What an earlier pass dressed (a style change re-reads the same html).
   for (const el of root.querySelectorAll(".v-ui")) el.remove();
@@ -503,7 +528,7 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
     span.classList.toggle("v-whisper", tex === "whisper");
     span.classList.toggle("v-loud", tex === "loud");
   };
-  /** A voice card (Blocks) or screenplay line (Script): a medallion and a nameplate, painted by voices.css. */
+  /** A voice card: a medallion and a nameplate, painted by voices.css (Blocks) or styles/voices/<style>.css. */
   const dress = (el: HTMLElement, who: Voice, tone?: string) => {
     const known = who !== STRANGER;
     el.classList.add("v-say");
@@ -539,7 +564,7 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
     const segs = segsOf.get(block)!;
     let blockSpeaker: Voice | undefined;
     let leads: Voice | undefined;
-    /** The first line in the paragraph with a speaker (Blocks and Script dress the paragraph after it). */
+    /** The first line in the paragraph with a speaker (the card styles dress the paragraph after it). */
     let opener: { who: Voice; tone?: string; at: number } | undefined;
     /** Whether this paragraph has named who it's about: then "she" means them, not whoever was spoken to. */
     let named = false;
@@ -629,7 +654,7 @@ export function attribute(root: HTMLElement, voices: Voice[], style: VoiceStyle,
       lastSpeaker = blockSpeaker;
     }
     const el = block as HTMLElement;
-    // Blocks / Script: a paragraph that opens on a line becomes that person's card; a line in the
+    // Every style but Off: a paragraph that opens on a line becomes that person's card; a line in the
     // middle of narration stays inline (a chip), so sentences never break mid-flow.
     if (CARDS.has(style) && opener && !segs.slice(0, opener.at).some((x) => x.text.trim()) && (opener.who !== STRANGER || marked)) dress(el, opener.who, opener.tone);
     if (leads) {
