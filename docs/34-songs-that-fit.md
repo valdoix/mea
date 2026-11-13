@@ -212,6 +212,22 @@ There is no record of which songs actually played or were skipped, so the replay
 
 **Done when:** the page names your real gaps on a copy of the data; a suggestion you decline never comes back.
 
+**Built** (`music/gaps.ts`, `MusicGaps.svelte`, the `music.suggest` job):
+
+- **Gaps.** Each logged scene reading is one scene asking for music.
+  - A scene whose brief says who and how counts under its kind (Part 5).
+  - A scene read before briefs did counts under what was mainly happening ("about homecoming"), so the list works on your stories as they are now.
+  - Misses come from the play log: plays that ended with nothing fitting, a skip, Not for this scene or a 👎.
+  - A song counts as fitting if it passes the gates and its card fits well enough to be picked for that kind of scene. A song with no card counts for "about …" gaps if its words are mainly about that.
+- **On a copy of your data (November 13):** homecoming was asked for in 49 scenes with 8 songs that suit it, peace in 11 scenes with 2, and confession in 11 with 7. Devotion (60 scenes, 49 songs) and first love (19, 42) are well covered. No misses yet: the play log started with Part 1, and production hadn't restarted since.
+- **Finding songs** needs Find lyrics online, because Mea reads a song's words to know whether it fits. A confirm dialog gives the total first.
+  - The search uses your preferred artists, then the artists with the most songs that suit the gap: three artists, three songs each, up to eight songs.
+  - It reads their words in at most two helper calls and keeps only those whose cards fit.
+  - It sends YouTube Music's public search an artist's name, nothing else.
+  - Words of songs not kept are forgotten.
+- **Adding and declining.** **Add** puts the song in the library with its card, sheet and moods, so it isn't read twice. **No thanks** is remembered by the song itself, so another copy of it doesn't come back either.
+- **Background songs.** The page counts the songs safe under anything and the instrumentals. **Find instrumentals** does four plain searches (piano, ambient, guitar, strings) with no helper calls; each suggestion comes with moods.
+
 ---
 
 ## What this costs

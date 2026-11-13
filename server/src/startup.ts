@@ -23,6 +23,7 @@ import { backfillBeats, beatsAfterUpdate } from "./trackers/today";
 import { promisesAfterReply } from "./trackers/promises";
 import { asidesAfterReply } from "./accuracy/asides";
 import { explicitSoon, explicitStep, lyricsStep, musicAfterReply, sheetsStep } from "./music/director";
+import { suggestStep } from "./music/gaps";
 import { suggestCanon } from "./accuracy/canoncut";
 import { runDriftJob } from "./accuracy/drift";
 import { runBriefJob } from "./lore/brief";
@@ -134,6 +135,7 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("music.lyrics", async () => lyricsStep());
   registerJob("music.sheets", async () => sheetsStep());
   registerJob("music.explicit", async () => explicitStep());
+  registerJob("music.suggest", async (p) => suggestStep(String(p.kind)));
   registerJob("lore.embed", async () => {
     await embedLore();
   });
