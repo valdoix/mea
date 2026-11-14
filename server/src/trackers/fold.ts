@@ -8,7 +8,7 @@ import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortS
 import { loopId, repeats } from "./loops";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
 import { castLabel, parseLine, revealNames } from "./dsl";
-import { secretMatch } from "./secretwords";
+import { secretMatch, secretShape, subjectName } from "./secretwords";
 import { PlaceBook, placeKey, type PlaceProfile } from "./places";
 import { currentMembers, groupKey, kindOfGroup, possessiveAnchor } from "./groups";
 import { bracketGroup, FIELD_WORD, familySurname, isCrowdShape, isGroupShape, looksLikePlace, NOT_A_NAME, orgKind, passingName, sentenceNotPath, tidyAliases } from "./whois";
@@ -1890,6 +1890,15 @@ export class Folder {
           this.push(ctx, { kind: "secret", text: `Note on #${known.key}: ${String(a.fact).slice(0, 80)}`, path: `facts.${known.key}`, reason: op.cause });
           return;
         }
+        // docs/35 1.2: "Buffy asks Gabriel not to tell Walter she is alive" is the secret "Buffy is alive", kept by both, from Walter.
+        const shaped = !a.shaped && typeof a.fact === "string" ? secretShape(a.fact) : null;
+        if (shaped) {
+          const as = (xs: unknown) => (xs ?? []) as string[];
+          const keepers = uniq([...as(a.keepers), ...shaped.keepers]);
+          const from = uniq([...as(a.from), ...shaped.from]);
+          this.warn(ctx, `read as: ${shaped.statement} | kept by ${keepers.join(", ")} · from ${from.join(", ")}`);
+          return this.applyOp({ ...op, args: { ...a, fact: shaped.statement, keepers, from, shaped: true }, cause: op.cause ?? shaped.said }, ctx);
+        }
         const ids = (xs: unknown) => uniq(((xs ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
         const named = ((a.from ?? []) as string[]).filter((n) => n.trim());
         const all = named.some((n) => EVERYONE_WORD(norm(personName(n))));
@@ -1920,6 +1929,10 @@ export class Folder {
         f.secret = { keepers, from, ...(everyone ? { everyone: true } : {}), ...(groups.length ? { groups } : {}), ...stillOut, ...carry };
         if (back.length) ctx.verdict.reason = `${back.map((x) => this.nameOf(x)).join(", ")} already found out, and still knows`;
         for (const k of keepers) f.stances[k] ??= { status: "knows", route: "keeps it", seq };
+        // docs/35 1.3: whoever the secret is said of is in on it ("Buffy is alive"), unless it's kept from them.
+        const subj = subjectName(f.statement, Object.values(st.chars).flatMap((c) => [c.name, ...c.aliases, ...(c.isUser && this.cfg.userName ? [this.cfg.userName] : [])]));
+        const sc = subj ? (this.findChar(subj) ?? Object.values(st.chars).find((c) => c.isUser && norm(subj) === norm(this.cfg.userName))) : undefined;
+        if (sc && !from.includes(sc.id) && !f.stances[sc.id]) f.stances[sc.id] = { status: "knows", route: "it's about them", seq };
         for (const k of from) if (!f.stances[k] || f.stances[k]!.status === "unaware") f.stances[k] = { status: "unaware", route: "kept from them", seq };
         this.push(ctx, { kind: "secret", text: `Secret: ${clip(f.statement)}`, path: `facts.${f.key}`, reason: op.cause });
         return;
