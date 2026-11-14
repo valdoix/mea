@@ -38,6 +38,7 @@ know Holder: fact | how they learned it · knows|believes|suspects|doubts|wrong|
    (someone telling their own past or a detail about themselves — a nickname, an old job, a family story — is a know line for each person listening, and a trait if it lasts: know Mira: Tam's crew called him Skipper | he told her · knows · true. It's worth filing however small it seems. A nickname or in-joke that sticks is also a motif line, so it's kept by its name: motif "Skipper, his old crew's name for him" — Tam.)
    (a letter, note, text or email — a <letter>, <note>, <texts> or <email> in the messages too — is known to whoever wrote it; to anyone else only once the messages show them reading it. Sent, handed over or left on the table isn't read: know Mira: what Tam's letter says | it's in her bag, unopened · unaware)
 secret #key: fact | kept by A · from B        reveal #key: to B — how
+   (when someone finds out a secret, it's reveal #key: to them — how, not a know line in other words and not secret #key again. A secret line is only for a new secret; how a secret stands — at risk, still kept — isn't a line.)
 item Thing: A → B — how (the same name each time; put down: item Thing: at counter; taken to another house: item Thing: → Town › Place › shelf — packed. Worn or carried stays with whoever has it: item Thing: A) (the thing first, never its owner) | item Name: +A (pocket) | item Name: → gone — burned | item Name: owner A | item Name: A → B (gift from A) — why
 room A: Town › Place | room|home|shop (whose place it is; A is a person)     keeps A: item @ place (theirs, kept there)
 lives A: Town › Home   (where someone lives now: moving in, moving out with lives A: - Home; "household" in a line then means whoever lives there)
@@ -136,7 +137,9 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   for (const l of openLoops(st).slice(-12)) L.push(`loop ${l.id}: ${clip(l.what, 90)}${l.repeats ? " (repeats)" : ""}`);
   for (const m of st.milestones.slice(-10)) L.push(`milestone ${clip(m.text, 80)}`);
   for (const d of Object.values(st.deadlines).filter((x) => !x.done)) L.push(`deadline ${d.title}: ${d.text}`);
-  for (const f of Object.values(st.facts).filter((x) => x.secret)) L.push(`secret #${f.key}: ${clip(f.statement, 80)}`);
+  for (const f of Object.values(st.facts).filter((x) => x.secret && !x.secret.out)) L.push(`secret #${f.key}: ${clip(f.statement, 80)}`);
+  // docs/35 7.1: one line for a secret that came out, so it isn't written as a secret again.
+  for (const f of Object.values(st.facts).filter((x) => x.secret?.out).slice(-6)) L.push(`secret #${f.key}: ${clip(f.statement, 60)} | out at #${f.secret!.out!.seq}, nobody left to keep it from`);
   for (const g of Object.values(st.gauges)) L.push(`gauge ${g.name}: ${g.cur}/${g.max}`);
   for (const c of Object.values(st.clocks)) L.push(`clockf ${c.faction}: ${c.name} ${c.cur}/${c.max}`);
   const loose = Object.values(st.items).filter((i) => !i.gone && i.holder?.startsWith("place:")).slice(-6);

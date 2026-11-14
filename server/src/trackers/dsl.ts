@@ -203,6 +203,19 @@ const SECRET_META: [RegExp, "keepers" | "from" | "knownTo" | "suspectedBy"][] = 
   [new RegExp(String.raw`^(${NAMES})\s+suspects?(?: it)?$`, "u"), "suspectedBy"],
 ];
 /**
+ * docs/35 7.5: the people a reveal names. A note in brackets is about the name before it ("Gabriel's
+ * mom (name only, nothing else)"), never more names.
+ */
+export function revealNames(text: string): string[] {
+  return text
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s*\[[^\]]*\]/g, "")
+    .split(/\s*(?:,|&|\band\b)\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
  * "kept by A, B · from C; known to D, suspected by E". In a cause (`strict`) every bit must be one of
  * these, or none is taken; after a "|" the ones that aren't are skipped.
  */
@@ -214,7 +227,7 @@ function secretMeta(a: Record<string, unknown>, text: string, strict = true) {
     .filter(Boolean);
   const hits = bits.map((b) => SECRET_META.map(([re, k]) => [b.match(re), k] as const).find(([m]) => m));
   if (!bits.length || (strict && hits.some((h) => !h))) return false;
-  for (const [m, k] of hits.filter(Boolean) as [RegExpMatchArray, string][]) a[k] = [...((a[k] as string[] | undefined) ?? []), ...names(m[1]!)];
+  for (const [m, k] of hits.filter(Boolean) as [RegExpMatchArray, string][]) a[k] = [...((a[k] as string[] | undefined) ?? []), ...names(m[1]!.replace(/\s*\([^)]*\)/g, ""))];
   return true;
 }
 
@@ -455,7 +468,7 @@ export function parseLine(raw: string): Op | null {
     case "reveal": {
       a.key = subject?.replace(/^#/, "");
       const m = body.match(/^(?:to\s+)?(.+)$/i);
-      a.to = (m?.[1] ?? "").split(/\s*(?:,|&|\band\b)\s*/).map((s) => s.trim()).filter(Boolean);
+      a.to = revealNames(m?.[1] ?? "");
       break;
     }
     case "item": {

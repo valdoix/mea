@@ -179,7 +179,21 @@ export interface Fact {
   statement: string;
   truth: Truth;
   /** `everyone`: kept from all but the keepers, so whoever turns up later goes into `from` too. `groups` (docs/30 1.3): kept from a group, so whoever joins it later is kept from it too. */
-  secret?: { keepers: string[]; from: string[]; everyone?: boolean; groups?: string[] };
+  secret?: {
+    keepers: string[];
+    from: string[];
+    everyone?: boolean;
+    groups?: string[];
+    /** docs/35 7.1: everyone it was kept from found out. It came out at this message; nothing more is checked or clocked. */
+    out?: { seq: number; how?: string };
+    /**
+     * docs/35 7.2: how long each person it's kept from has been around the people it's about:
+     * messages in the same scene, and scenes shared. Being there is how "she's alive" gets out.
+     */
+    together?: Record<string, { msgs: number; lastSeq: number; scenes: number; lastScene: number }>;
+    /** docs/35 7.3: a line said this person learned something like it, in other words. Asked, not assumed. */
+    maybe?: Record<string, { seq: number; said: string }>;
+  };
   stances: Record<string, { status: KnowStatus; route?: string; seq: number; set?: boolean }>;
   revealed: { to: string[]; seq: number; how?: string }[];
   /** docs/21 4.3: who it's about (character ids), read once with the cast in hand. */

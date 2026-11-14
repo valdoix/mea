@@ -195,7 +195,9 @@ Because the fold replays, `#alive` closes at 904 on the next re-fold with no mig
 
 **7.5 Brackets aren't names.** In a list of people, text in brackets is a note on the name before it, and a part with no capital letter and no known name ("nothing else") is dropped. The two invented people in this story are removed by the re-fold, since they only exist because of that one line.
 
-**Done when:** replaying this story's events gives `#alive` closed at 904, Walter knowing `#grave`, and no "nothing-else" in the cast; a secret kept from two people stays open when only one is told.
+**Done when:** replaying this story's events gives `#alive` closed at 902 (the model's own note "revealed to Walter — Buffy shouted it" now counts as the reveal), an Inbox question about Walter and `#grave`, and no "nothing-else" in the cast; a secret kept from two people stays open when only one is told.
+
+**Built:** the matching in 7.3 is a first version (shared stems, the secret's subject in both, "some" = two words or one of six letters or more). Part 3 replaces it with weighted matching. 7.2 asks about one person per secret at a time, so a secret kept from everyone doesn't fill the Inbox.
 
 ---
 

@@ -54,7 +54,7 @@ export function exposureFor(chatId: string): ExposureView[] {
   const st = stateOf(chatId);
   if (!st) return [];
   return Object.values(st.facts)
-    .filter((f) => f.secret)
+    .filter((f) => f.secret && !f.secret.out)
     .map((f) => view(st, f));
 }
 
@@ -87,7 +87,7 @@ export function exposureAfterReply(chatId: string, messageId: string, swipeIdx?:
   run("DELETE FROM tracker_events WHERE message_id = ? AND swipe_idx = ? AND source = 'engine' AND op LIKE '%\"op\":\"expose\"%'", messageId, anchor.swipeIdx);
   const st = stateOf(chatId);
   if (!st) return;
-  const secrets = Object.values(st.facts).filter((f) => f.secret && f.secret.from.length);
+  const secrets = Object.values(st.facts).filter((f) => f.secret && !f.secret.out && f.secret.from.length);
   if (!secrets.length) return;
   const present = new Set(Object.values(st.chars).filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead).map((c) => c.id));
   const name = (id: string) => (st.chars[id]?.isUser ? null : (st.chars[id]?.name ?? null));
@@ -199,7 +199,7 @@ registerInboxProvider({
 /** A secret revealed to everyone it was kept from has nothing left to come out. */
 function nothingLeft(chatId: string, key: string) {
   const f = stateOf(chatId)?.facts[key];
-  return !f?.secret?.from.length;
+  return !f?.secret?.from.length || Boolean(f.secret.out);
 }
 
 registerStatusTile((chatId) => {

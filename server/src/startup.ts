@@ -18,6 +18,8 @@ import { recordTimeline, runCheckJob } from "./accuracy/checker";
 import { runLessonsJob } from "./steer/lessons";
 import { runRewordJob } from "./accuracy/offpage";
 import { exposureAfterReply } from "./trackers/exposure";
+// docs/35 7.2: "Does Walter still not know this?" in the Inbox.
+import "./trackers/secretasks";
 import { pressuresAfterReply } from "./trackers/pressures";
 import { backfillBeats, beatsAfterUpdate } from "./trackers/today";
 import { promisesAfterReply } from "./trackers/promises";

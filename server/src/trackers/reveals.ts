@@ -35,7 +35,7 @@ export function revealOf(st: WorldState, key: string): Reveal | undefined {
     statement: f.statement,
     keepers: (f.secret?.keepers ?? []).map(nm),
     to: [...new Set(f.revealed.flatMap((r) => r.to))].map(nm),
-    out: !f.secret?.from.length,
+    out: Boolean(f.secret?.out) || !f.secret?.from.length,
     how: f.revealed.at(-1)?.how,
     seq: f.revealed.at(-1)!.seq,
   };

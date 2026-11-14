@@ -1633,7 +1633,7 @@ export interface TrackerState {
   chars: Record<string, TrackerCharacter>;
   bonds: Record<string, TrackerBond>;
   ladders: Record<string, { from: string; to: string; tier: number; evidence?: string; seq: number; history: { tier: number; evidence?: string; seq: number }[] }>;
-  facts: Record<string, { key: string; statement: string; truth: string; secret?: { keepers: string[]; from: string[] }; stances: Record<string, { status: string; route?: string; seq: number; set?: boolean }>; firstSeq: number; lastSeq: number }>;
+  facts: Record<string, { key: string; statement: string; truth: string; secret?: { keepers: string[]; from: string[]; out?: { seq: number; how?: string } }; stances: Record<string, { status: string; route?: string; seq: number; set?: boolean }>; firstSeq: number; lastSeq: number }>;
   items: Record<string, { id: string; name: string; holder?: string; owner?: string; where?: string; condition?: string; gone?: boolean; gift?: string; custody: { from?: string; to?: string; how?: string; seq: number }[]; lastSeq: number }>;
   threads: Record<string, { id: string; title: string; kind?: string; status: "open" | "stalled" | "resolved"; latest?: string; blocker?: string; openedSeq: number; lastSeq: number; history: { op: string; detail?: string; seq: number }[] }>;
   obligations: Record<string, { id: string; kind: "owe" | "promise"; who: string; whom?: string; what: string; status: string; due?: { minutes: number | null; text: string }; seq: number }>;

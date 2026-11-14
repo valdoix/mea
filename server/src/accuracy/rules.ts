@@ -5,6 +5,7 @@ import { norm, resolver } from "../memory/entities";
 import { cleanText, contentWords } from "../memory/text";
 import { mustChat } from "../services/chats";
 import { secretRevealer } from "../lore/secretlinks";
+import { TELLING } from "../trackers/secretwords";
 import type { WorldState } from "../trackers/types";
 import type { Issue } from "./checker";
 import { nameSlips } from "./names";
@@ -212,9 +213,6 @@ export function nameRule(r: RuleInput): Found[] {
   return out;
 }
 
-/** Words about telling and knowing: every secret has them and so does ordinary talk, so they don't mark a secret's content ("asks", "tell"). */
-const TELLING = /^(?:asks?|asked|asking|tells?|told|telling|says?|said|saying|knows?|knew|known|knowing|keeps?|kept|keeping|hides?|hid|hidden|hiding|secret\w*|promis\w*|swears?|swore|sworn|learn\w*|finds?|found|thinks?|thought|believ\w*|mention\w*|whisper\w*|reveal\w*|admit\w*|confess\w*|wants?|wanted)$/;
-
 /** Knowledge leaks (CON-06): a secret's words in a sentence that belongs to someone it's kept from. */
 export function leakRule(r: RuleInput): Found[] {
   const out: Found[] = [];
@@ -233,7 +231,7 @@ export function leakRule(r: RuleInput): Found[] {
     // a secret kept from Walter says nothing about Dawn, and nothing about the person who asked for it.
     const dark = new Set([...(f.secret?.from ?? []), ...Object.entries(f.stances).filter(([, s]) => s.status === "unaware" || s.status === "wrong").map(([id]) => id)]);
     // Everyone it was kept from has since been told: it isn't a secret from anyone any more.
-    if (!dark.size && !f.secret?.everyone && !f.secret?.groups?.length && f.revealed.length) continue;
+    if (f.secret?.out || (!dark.size && !f.secret?.everyone && !f.secret?.groups?.length && f.revealed.length)) continue;
     const open = !dark.size || Boolean(f.secret?.everyone); // kept from no one by name, or from everyone
     for (const c of Object.values(st.chars)) {
       if (c.isUser || knowers.has(c.id) || c.dead) continue;

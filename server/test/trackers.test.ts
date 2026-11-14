@@ -302,7 +302,7 @@ describe("fold rules", () => {
       ]),
       cfg(),
     );
-    expect(r.state.facts.js!.secret).toEqual({ keepers: ["jeff", "shauna"], from: ["jackie"] });
+    expect(r.state.facts.js!.secret).toMatchObject({ keepers: ["jeff", "shauna"], from: ["jackie"] }); // docs/35 7.2 adds who has been around them
     const love = r.state.facts.love!;
     expect(love.secret!.everyone).toBe(true);
     expect(love.secret!.from).toEqual(expect.arrayContaining(["jeff", "misty"]));
