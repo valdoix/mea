@@ -1,7 +1,10 @@
 /* =====================================================================
    VESPER — light through coloured glass
-   Ruby, cobalt and amber light falling across pale stone, moving with your clock. Cards are edged
-   in lead with a glass pane for the name; portraits sit in rose-window frames.
+   A great rose window turns slowly over the nave; its light falls in shafts with dust drifting
+   through them and lies in coloured pools on the stone, moving with your clock. The rail is a tall
+   lancet with a gilt bell for the mark that rings when you send. Their cards are vellum with a glass
+   pane for the name and an illuminated initial; yours are a pane of leaded glass with a jewelled
+   border. Chapters sit under a pointed arch; the typing dots are candle flames.
    ===================================================================== */
 :root[data-theme="vesper"][data-shell] h1 {
   font-weight: 700;
@@ -46,13 +49,39 @@
 :root[data-theme="vesper"][data-shell] nav.rail .nav {
   color: #f7eeda;
 }
+/* the mark: a gilt bell that swings when you send or a chapter opens */
 :root[data-theme="vesper"][data-shell] nav.rail .logo {
-  border-radius: 50%;
-  background: repeating-conic-gradient(#17120e 0 2deg, #a51c30 2deg 30deg, #17120e 30deg 32deg, #1c3f94 32deg 60deg, #17120e 60deg 62deg, #c27f12 62deg 90deg);
-  box-shadow: 0 0 0 2.5px #17120e;
-  color: #fff8e6 !important;
-  font: 700 1.3rem/1 var(--font-display);
-  text-shadow: 0 1px 3px #000, 0 0 8px #000;
+  border-radius: 46% 46% 10px 10px / 60% 60% 10px 10px;
+  background:
+    radial-gradient(circle at 50% 104%, #7a4e08 0 5px, transparent 5.5px),
+    radial-gradient(ellipse 30% 60% at 32% 30%, rgb(255 248 220 / 55%), transparent 70%),
+    linear-gradient(180deg, #f2c45e, #c27f12 60%, #8a5a0a);
+  box-shadow:
+    0 0 0 2px #17120e,
+    0 0 18px rgb(242 196 94 / 35%);
+  color: #3a2408 !important;
+  font: 700 1.2rem/1 var(--font-display);
+  transform-origin: 50% -6px;
+}
+:root[data-theme="vesper"][data-vs-ring] nav.rail .logo {
+  animation: vs-swing 1.6s cubic-bezier(0.3, 0.6, 0.4, 1);
+}
+@keyframes vs-swing {
+  15% {
+    transform: rotate(22deg);
+  }
+  35% {
+    transform: rotate(-16deg);
+  }
+  55% {
+    transform: rotate(10deg);
+  }
+  72% {
+    transform: rotate(-5deg);
+  }
+  88% {
+    transform: rotate(2deg);
+  }
 }
 :root[data-theme="vesper"][data-shell] nav.rail .nav.on {
   border-radius: 10px 10px 2px 2px;
@@ -64,6 +93,29 @@
 :root[data-theme="vesper"][data-shell] .dock {
   border: 3px solid var(--lead);
   border-radius: 16px 16px 4px 4px;
+}
+/* the nave: the window's light comes through the chat a little */
+:root[data-theme="vesper"][data-shell] .main-col {
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+/* the header: a banner ruled in red and gold */
+:root[data-theme="vesper"][data-shell] .bar:not(.compact) {
+  position: relative;
+  padding-bottom: calc(0.55rem + 8px);
+}
+:root[data-theme="vesper"][data-shell] .bar:not(.compact)::after {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 4px;
+  height: 7px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--ruby), var(--ruby)) 0 0 / 100% 1.5px no-repeat,
+    linear-gradient(var(--amber), var(--amber)) 0 100% / 100% 1.5px no-repeat;
 }
 :root[data-theme="vesper"][data-shell] .bar .cname {
   font: 700 1.85rem/1.05 var(--font-display);
@@ -79,8 +131,47 @@
   background: var(--tint-char);
   box-shadow: var(--shadow-1);
 }
+:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user) .bubble {
+  background:
+    linear-gradient(180deg, transparent 70%, rgb(150 110 40 / 6%)),
+    var(--tint-char);
+}
+/* an illuminated initial: the first letter of each of their messages in a gilded square,
+   sapphire and ruby by turns */
+:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user) .prose > p:first-of-type::first-letter {
+  float: left;
+  margin: 0.2rem 0.55rem 0 0;
+  padding: 0.12em 0.16em 0.04em;
+  border: 2px solid var(--amber);
+  border-radius: 2px;
+  background: var(--cobalt);
+  color: #fff8e6;
+  font: 700 2.6em/0.9 var(--font-display);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 35%);
+}
+:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user):nth-child(odd) .prose > p:first-of-type::first-letter {
+  background: var(--ruby);
+}
+/* yours: a pane of leaded glass with a jewelled border */
 :root[data-theme="vesper"][data-shell] .style-cards .msg.user .bubble {
-  background: var(--tint-user);
+  border: 11px solid transparent;
+  border-radius: 38px 38px 4px 4px;
+  background:
+    linear-gradient(var(--tint-user), var(--tint-user)) padding-box,
+    conic-gradient(from 45deg at 50% 50%, var(--ruby) 0 25%, var(--cobalt) 0 50%, var(--amber) 0 75%, var(--emerald) 0) 0 0 / 22px 22px border-box;
+  box-shadow:
+    0 0 0 3px var(--lead),
+    inset 0 0 0 3px var(--lead),
+    var(--shadow-1);
+}
+:root[data-theme="vesper"][data-mode="night"] .style-cards .msg.user .bubble {
+  box-shadow:
+    0 0 0 3px var(--lead),
+    inset 0 0 0 3px var(--lead),
+    0 0 30px -8px rgb(240 170 80 / 45%);
+}
+:root[data-theme="vesper"][data-shell] .style-cards .msg.user .bubble > .head {
+  border-radius: 26px 26px 0 0;
 }
 :root[data-theme="vesper"][data-shell] .style-cards .msg .bubble::before {
   display: none;
@@ -121,8 +212,65 @@
 :root[data-theme="vesper"][data-shell] .msg .prose em {
   color: var(--text-muted);
 }
+/* chapters: under a pointed arch, ruled in gold */
+:root[data-theme="vesper"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="vesper"][data-shell] .chapter-h::before {
+  top: 0.6rem;
+  width: min(24rem, 92%);
+  height: calc(100% - 0.4rem);
+  border: 1.5px solid var(--amber);
+  border-bottom: 0;
+  border-radius: 50% 50% 0 0 / 70% 70% 0 0;
+  background: color-mix(in srgb, var(--tint-char) 85%, transparent);
+  box-shadow:
+    inset 0 0 0 4px color-mix(in srgb, var(--tint-char) 85%, transparent),
+    inset 0 0 0 5px color-mix(in srgb, var(--amber) 45%, transparent);
+  z-index: -1;
+}
 :root[data-theme="vesper"][data-shell] .chapter-h {
-  border-block: 3px solid var(--lead);
+  isolation: isolate;
+  border-bottom: 1.5px solid var(--amber);
+}
+:root[data-theme="vesper"][data-shell] .ch-num {
+  color: var(--ruby);
+  font: 700 0.78rem var(--font-display);
+  letter-spacing: 0.3em;
+}
+:root[data-theme="vesper"][data-shell] .ch-num b {
+  color: var(--amber);
+}
+/* the typing dots are candle flames */
+:root[data-theme="vesper"][data-shell] .typing span {
+  width: 7px;
+  height: 12px;
+  border-radius: 50% 50% 50% 50% / 65% 65% 35% 35%;
+  background: radial-gradient(circle at 50% 70%, #fff8d8, #ffcc52 40%, #ff7a1a 80%);
+  box-shadow: 0 0 10px rgb(255 170 50 / 60%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="vesper"][data-shell] .typing span {
+    transform-origin: 50% 100%;
+    animation: vs-flicker 0.9s ease-in-out infinite alternate;
+  }
+  :root[data-theme="vesper"][data-shell] .typing span:nth-child(2) {
+    animation-delay: -0.3s;
+  }
+  :root[data-theme="vesper"][data-shell] .typing span:nth-child(3) {
+    animation-delay: -0.6s;
+  }
+}
+@keyframes vs-flicker {
+  30% {
+    transform: scale(0.92, 1.06) rotate(-3deg);
+  }
+  60% {
+    transform: scale(1.04, 0.95) rotate(2deg);
+  }
+  100% {
+    transform: scale(0.97, 1.04) rotate(-1deg);
+  }
 }
 :root[data-theme="vesper"][data-shell] .ch-title {
   font: 700 1.75rem/1.15 var(--font-display);
@@ -130,13 +278,25 @@
 :root[data-theme="vesper"][data-shell] .composer {
   border: 3px solid var(--lead);
   border-radius: 4px;
+  box-shadow: inset 0 -9px 0 -8px var(--ruby);
 }
+/* send: a gilt quatrefoil with a ruby heart */
 :root[data-theme="vesper"][data-shell] .send.primary {
-  border: 2.5px solid var(--lead);
+  border: 0;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--on-accent);
+  background:
+    radial-gradient(circle at 50% 50%, var(--ruby) 0 42%, transparent 44%),
+    radial-gradient(circle at 50% 22%, #e0a127 0 22%, transparent 23%),
+    radial-gradient(circle at 78% 50%, #e0a127 0 22%, transparent 23%),
+    radial-gradient(circle at 50% 78%, #e0a127 0 22%, transparent 23%),
+    radial-gradient(circle at 22% 50%, #e0a127 0 22%, transparent 23%);
+  color: #fde9b5;
   box-shadow: none;
+  filter: drop-shadow(0 3px 4px rgb(60 30 0 / 35%));
+  transition: transform 0.6s var(--ease);
+}
+:root[data-theme="vesper"][data-shell] .send.primary:hover {
+  transform: rotate(45deg);
 }
 :root[data-theme="vesper"][data-shell] .continue,
 :root[data-theme="vesper"][data-shell] .char {
@@ -188,6 +348,113 @@
     opacity: 0.65;
   }
 }
+.a-vesper > svg {
+  position: absolute;
+}
+/* the rose window, turning very slowly; it flares when the bell rings */
+.a-vesper .rose {
+  left: 58%;
+  top: -230px;
+  width: 520px;
+  height: 520px;
+  margin-left: -260px;
+  opacity: 0.5;
+  filter: saturate(0.85);
+  animation: vs-turn 400s linear infinite;
+}
+.a-vesper.night .rose {
+  opacity: 0.6;
+  filter: drop-shadow(0 0 40px rgb(240 170 80 / 45%));
+}
+.a-vesper .rose .glow {
+  mix-blend-mode: screen;
+}
+:root[data-vs-ring] .a-vesper .rose {
+  animation:
+    vs-turn 400s linear infinite,
+    vs-flare 1.6s ease-out;
+}
+@keyframes vs-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes vs-flare {
+  20% {
+    opacity: 0.95;
+  }
+}
+/* shafts of its light, and dust drifting through them */
+.a-vesper .shaft {
+  left: 58%;
+  top: 30px;
+  width: 150px;
+  height: 120vh;
+  transform-origin: 50% 0;
+  transform: rotate(30deg);
+  background: linear-gradient(180deg, rgb(255 240 200 / 55%), transparent 80%);
+  filter: blur(12px);
+  mix-blend-mode: soft-light;
+}
+.a-vesper .shaft.s2 {
+  width: 90px;
+  margin-left: 60px;
+  transform: rotate(18deg);
+  opacity: 0.7;
+}
+.a-vesper .shaft.s3 {
+  width: 70px;
+  margin-left: -60px;
+  transform: rotate(44deg);
+  opacity: 0.55;
+}
+.a-vesper.night .shaft {
+  background: linear-gradient(180deg, rgb(170 190 255 / 22%), transparent 75%);
+  mix-blend-mode: screen;
+}
+.a-vesper .pools {
+  inset: 0 -20vw;
+  transition: transform 3s var(--ease);
+}
+.a-vesper .pools i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(28px);
+  opacity: 0.22;
+  animation: vs-pool 24s ease-in-out infinite alternate;
+}
+.a-vesper.night .pools i {
+  opacity: 0.16;
+  mix-blend-mode: screen;
+}
+@keyframes vs-pool {
+  to {
+    transform: translate(-90px, -30px);
+  }
+}
+.a-vesper .mote {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #fff6dc;
+  box-shadow: 0 0 4px #fff2c6;
+  opacity: 0;
+  animation: vs-mote 12s linear infinite;
+}
+@keyframes vs-mote {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  15%,
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), -160px);
+  }
+}
 .a-vesper .candle {
   display: none;
   left: 50%;
@@ -219,6 +486,9 @@
   animation: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
+  :root[data-theme="vesper"][data-vs-ring] nav.rail .logo {
+    animation: none;
+  }
   .a-vesper *,
   .a-vesper *::before,
   .a-vesper *::after {
