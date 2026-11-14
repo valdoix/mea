@@ -70,6 +70,10 @@
   --tape-b: #a9dcc4;
   --stitch: rgb(184 80 122 / 30%);
   --mint-ink: #367f63;
+  --gingham: rgb(196 185 244 / 32%);
+  --cookie: #f1c98d;
+  --cookie-edge: #d9a865;
+  --scoop: #c9ecd9;
   --flag: 1;
 }
 /* The fonts at :where() strength: this palette loads late, and the font picks must still win. */
@@ -145,5 +149,9 @@
   --tape-b: #5f9c88;
   --stitch: rgb(245 168 197 / 28%);
   --mint-ink: #a6e0c6;
+  --gingham: rgb(0 0 0 / 16%);
+  --cookie: #a27a52;
+  --cookie-edge: #7c5a38;
+  --scoop: #3f6f64;
   --flag: 0;
 }

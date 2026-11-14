@@ -62,17 +62,52 @@
   background: linear-gradient(transparent 58%, color-mix(in srgb, var(--rose) 35%, transparent) 58% 94%, transparent 94%);
 }
 
-/* the shell: a patchwork-quilt rail with tufted buttons, and soft paper panes */
+/* the shell: a lavender gingham rail piped like a cake, and soft paper panes */
 :root[data-theme="meringue"][data-shell] nav.rail {
   border: 0;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 0 0, var(--tuft) 2px, transparent 2.5px) 0 0 / 24px 24px,
-    radial-gradient(55% 55% at 40% 35%, var(--puff), transparent 75%) 0 0 / 24px 24px,
-    conic-gradient(var(--q1) 0 25%, var(--q2) 0 50%, var(--q3) 0 75%, var(--q4) 0) 0 0 / 48px 48px;
+    linear-gradient(90deg, var(--gingham) 50%, transparent 0) 0 0 / 22px 22px,
+    linear-gradient(var(--gingham) 50%, transparent 0) 0 0 / 22px 22px,
+    var(--paper);
   box-shadow:
     inset 0 0 0 1px var(--border),
     var(--shadow-2);
+  outline: 2px dotted var(--tuft);
+  outline-offset: -7px;
+}
+/* your open stories: a macaron ring in each flavour */
+:root[data-theme="meringue"][data-shell] nav.rail .story {
+  --m: #f29bb8;
+}
+:root[data-theme="meringue"][data-shell] nav.rail .story:nth-child(5n + 2) {
+  --m: #b5df9f;
+}
+:root[data-theme="meringue"][data-shell] nav.rail .story:nth-child(5n + 3) {
+  --m: #a9adf6;
+}
+:root[data-theme="meringue"][data-shell] nav.rail .story:nth-child(5n + 4) {
+  --m: #ecb877;
+}
+:root[data-theme="meringue"][data-shell] nav.rail .story:nth-child(5n + 5) {
+  --m: #f6dd78;
+}
+:root[data-theme="meringue"][data-shell] nav.rail .story .avatar {
+  box-shadow:
+    0 0 0 3px var(--paper),
+    0 0 0 6px var(--m);
+  transition: transform 0.3s var(--spring);
+}
+:root[data-theme="meringue"][data-shell] nav.rail .story:hover .avatar,
+:root[data-theme="meringue"][data-shell] nav.rail .story.on .avatar {
+  transform: rotate(-10deg) scale(1.06);
+}
+:root[data-theme="meringue"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 3px var(--paper),
+    0 0 0 6px var(--m),
+    0 0 0 8px var(--paper),
+    0 8px 14px -6px var(--lo);
 }
 :root[data-theme="meringue"][data-shell] nav.rail .logo {
   width: 52px;
@@ -120,24 +155,49 @@
   color: var(--text-muted);
 }
 
-/* messages: paper cards with a strip of washi tape, a mint wash for you */
+/* messages: their cards are iced cookies with piped dots and sprinkles; yours are a scoop of
+   mint with a cherry and a drip */
 :root[data-theme="meringue"][data-shell] .style-cards .msg .bubble {
   position: relative;
   /* the tape overhangs the top edge, so the card clips a little way outside itself */
   overflow: clip;
   overflow-clip-margin: 14px;
   border: 0;
-  border-radius: 22px;
+  border-radius: 24px;
   background: var(--tint-char);
   box-shadow:
-    inset 0 0 0 1px var(--border),
-    0 14px 28px -20px color-mix(in srgb, var(--lo) 90%, transparent);
+    0 0 0 5px var(--cookie),
+    0 0 0 7px var(--cookie-edge),
+    0 16px 26px -16px color-mix(in srgb, var(--lo) 90%, transparent);
+  outline: 2.5px dotted var(--accent);
+  outline-offset: -10px;
 }
 :root[data-theme="meringue"][data-shell] .style-cards .msg.user .bubble {
-  background: var(--tint-user);
+  border-radius: 26px 26px 16px 16px;
+  background: var(--scoop);
+  outline: 0;
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--mint) 70%, var(--border)),
-    0 14px 28px -20px color-mix(in srgb, var(--lo) 90%, transparent);
+    inset 0 6px 0 rgb(255 255 255 / 35%),
+    0 16px 22px -16px color-mix(in srgb, var(--lo) 90%, transparent);
+  overflow-clip-margin: 20px;
+}
+/* the drip along the foot of your scoop */
+:root[data-theme="meringue"][data-shell] .style-cards .msg.user:not(.bookmarked) .bubble::after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% - 1px);
+  width: auto;
+  height: 16px;
+  background: var(--scoop);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 16'%3E%3Cpath d='M0 0H60V3c-4 0-4 11-9 11s-4-11-8-11-3 6-6 6-3-6-6-6-3 9-7 9-4-9-7-9-3 4-5 4-3-4-6-4z'/%3E%3C/svg%3E") 0 0 / 60px 16px repeat-x;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 16'%3E%3Cpath d='M0 0H60V3c-4 0-4 11-9 11s-4-11-8-11-3 6-6 6-3-6-6-6-3 9-7 9-4-9-7-9-3 4-5 4-3-4-6-4z'/%3E%3C/svg%3E") 0 0 / 60px 16px repeat-x;
+  pointer-events: none;
+}
+:root[data-theme="meringue"][data-shell] .style-cards .msg.user {
+  padding-bottom: 14px;
 }
 :root[data-theme="meringue"][data-shell] .style-cards .msg .bubble::before {
   content: "";
@@ -150,23 +210,31 @@
   right: auto;
   bottom: auto;
   padding: 0;
-  rotate: -4deg;
-  opacity: 0.88;
+  rotate: 0deg;
+  opacity: 1;
   pointer-events: none;
-  /* the shell draws its hairline with a mask on this layer; the tape is a solid strip */
+  /* the shell draws its hairline with a mask on this layer; here it's a scatter of sprinkles */
   -webkit-mask: none;
   mask: none;
-  background:
-    repeating-linear-gradient(90deg, rgb(255 255 255 / 45%) 0 5px, transparent 5px 10px),
-    var(--tape-a);
+  left: auto;
+  right: 18px;
+  top: -12px;
+  width: 62px;
+  height: 26px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 62 26'%3E%3Cg stroke-linecap='round' stroke-width='3.4'%3E%3Cpath d='M4 16l6-4' stroke='%23f6a9c0'/%3E%3Cpath d='M16 6l2 7' stroke='%238a8ff0'/%3E%3Cpath d='M24 18l7-2' stroke='%23f3d27a'/%3E%3Cpath d='M36 6l5 5' stroke='%239ccf8a'/%3E%3Cpath d='M46 18l2-7' stroke='%23d4587f'/%3E%3Cpath d='M54 8l5 3' stroke='%23bfa8ff'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
 }
+/* a cherry on top of your scoop */
 :root[data-theme="meringue"][data-shell] .style-cards .msg.user .bubble::before {
   left: auto;
-  right: 26px;
-  rotate: 5deg;
+  right: 28px;
+  top: -13px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   background:
-    repeating-linear-gradient(90deg, rgb(255 255 255 / 45%) 0 5px, transparent 5px 10px),
-    var(--tape-b);
+    radial-gradient(circle at 35% 32%, rgb(255 255 255 / 80%) 0 2.5px, transparent 3px),
+    radial-gradient(circle at 35% 35%, #ff8aa6, #d4234f 70%);
+  box-shadow: 0 2px 2px rgb(0 0 0 / 15%);
 }
 :root[data-theme="meringue"][data-shell] .style-cards .msg.system .bubble::before {
   display: none;
@@ -314,7 +382,7 @@
   border-top: 1.5px dashed var(--stitch);
 }
 
-/* composer: a paper pill with piping, and a strawberry-pink button to send */
+/* composer: a paper pill with piping, and a cherry to send (it throws sprinkles) */
 :root[data-theme="meringue"][data-shell] .composer {
   border-radius: 28px;
   background: var(--surface);
@@ -325,18 +393,30 @@
   outline-offset: -6px;
 }
 :root[data-theme="meringue"][data-shell] .send.primary {
+  position: relative;
+  overflow: visible;
   border-radius: 50%;
-  color: var(--on-accent);
-  background: var(--accent-strong);
-  box-shadow:
-    inset 0 -3px 0 rgb(0 0 0 / 10%),
-    0 8px 16px -8px var(--accent-strong);
+  color: #fff;
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 70%) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 35% 30%, #ff7d9b, #d4234f 60%, #9e1238);
+  box-shadow: 0 8px 14px -8px #9e1238;
+}
+:root[data-theme="meringue"][data-shell] .send.primary::after {
+  content: "";
+  position: absolute;
+  left: 52%;
+  top: -12px;
+  width: 14px;
+  height: 14px;
+  border: 2.5px solid #3a6a3a;
+  border-color: #3a6a3a transparent transparent transparent;
+  border-radius: 50%;
+  transform: rotate(40deg);
+  pointer-events: none;
 }
 :root[data-theme="meringue"][data-mode="night"] .send.primary {
-  background: var(--accent);
-  box-shadow:
-    inset 0 -3px 0 rgb(0 0 0 / 10%),
-    0 0 16px -4px var(--accent);
+  box-shadow: 0 0 16px -4px #ff7d9b;
 }
 :root[data-theme="meringue"][data-shell] .send.primary:not(:disabled):hover {
   transform: scale(1.06) rotate(-4deg);
@@ -379,6 +459,37 @@
   color: var(--accent-ink);
 }
 
+/* the sprinkles a send throws (Ambience.svelte adds them over everything) */
+.mg-burst {
+  position: fixed;
+  z-index: 400;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.mg-burst i {
+  position: absolute;
+  left: -2px;
+  top: -6px;
+  width: 5px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--c);
+  animation: mg-bit 1s cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+@keyframes mg-bit {
+  from {
+    transform: translate(0, 0) rotate(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--dx), var(--dy)) rotate(var(--r));
+    opacity: 0;
+  }
+}
 @keyframes mg-in {
   from {
     opacity: 0;

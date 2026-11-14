@@ -2,66 +2,100 @@
   import { device } from "../../lib/device.svelte";
   import { route } from "../../lib/router.svelte";
 
-  // Meringue: a tearoom on a rainy morning. A sugared-almond sky with clouds drifting through it,
-  // bunting along the top, a teapot and a tulip on the sill and a few soft lights floating by. By
-  // night it's lavender dusk: stars, a crescent moon, and the bunting turns into fairy lights.
-  const HANG = [
-    [45, 11.2],
-    [135, 21],
-    [225, 24.5],
-    [315, 21.8],
-    [405, 12.8],
-    [495, 12.8],
-    [585, 21.8],
-    [675, 24.5],
-    [765, 21],
-    [855, 11.2],
-  ] as const;
-  const FLAGS = ["#f2a7c0", "#f3d27a", "#9fd6bd", "#bfb3ee"];
-  const BULBS = ["#ffd6e6", "#fff0b8", "#c9f5e2", "#ddd5ff"];
-  const CLOUDS = [
-    { x: "62vw", y: "16vh", s: 1, d: 60, delay: 0 },
-    { x: "18vw", y: "9vh", s: 0.7, d: 75, delay: -30 },
-    { x: "80vw", y: "48vh", s: 0.55, d: 68, delay: -12 },
-    { x: "6vw", y: "62vh", s: 0.8, d: 82, delay: -50 },
-  ];
-  const PUFFS = Array.from({ length: 9 }, (_, i) => ({
-    x: `${(i * 37 + 9) % 100}vw`,
-    y: `${(i * 53 + 20) % 90}vh`,
-    s: 40 + ((i * 17) % 50),
-    d: 22 + ((i * 7) % 14),
-    delay: -((i * 3.1) % 20),
-    c: FLAGS[i % 4],
+  // Meringue: a patisserie window. A striped awning scallops along the top, sprinkles fall like slow
+  // snow and meringue-kiss clouds drift past a cake stand of macarons. A cup of tea on the sill takes
+  // a sugar cube every time you send. By night it's lavender dusk: fairy lights on the awning, stars,
+  // and a chocolate-chip cookie moon with a bite out of it. Sending throws sprinkles from the button.
+  const SPRINKLES = ["#f6a9c0", "#8a8ff0", "#f3d27a", "#9ccf8a", "#d4587f", "#bfa8ff", "#7fd3e6"];
+  const FALL = Array.from({ length: 34 }, (_, i) => ({
+    x: (i * 37 + 5) % 100,
+    c: SPRINKLES[i % SPRINKLES.length],
+    d: 14 + ((i * 7) % 14),
+    dl: -((i * 2.3) % 28),
+    r: (i * 47) % 180,
+    w: ((i * 29) % 120) - 60,
   }));
+  const KISSES = [
+    { x: "62vw", y: "16vh", s: 1, d: 70, delay: 0 },
+    { x: "18vw", y: "11vh", s: 0.7, d: 85, delay: -30 },
+    { x: "80vw", y: "48vh", s: 0.6, d: 78, delay: -12 },
+    { x: "6vw", y: "62vh", s: 0.8, d: 92, delay: -50 },
+  ];
+  const STAND = [
+    [42, 72, "#f29bb8"],
+    [64, 70, "#b5df9f"],
+    [86, 72, "#a9adf6"],
+    [108, 70, "#f6dd78"],
+    [128, 72, "#ecb877"],
+    [70, 28, "#f29bb8"],
+    [92, 28, "#bfa8ff"],
+    [110, 28, "#b5df9f"],
+  ] as const;
+
+  // a sugar cube for the cup each time you send, and sprinkles from the button
+  let sugars = $state(0);
+  let drop = $state(0);
+  $effect(() => {
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const click = (e: MouseEvent) => {
+      const btn = (e.target as Element | null)?.closest?.(".send");
+      if (!btn) return;
+      sugars = Math.min(sugars + 1, 9);
+      drop++;
+      if (still) return;
+      const b = btn.getBoundingClientRect();
+      const burst = document.createElement("div");
+      burst.className = "mg-burst";
+      burst.style.left = `${b.left + b.width / 2}px`;
+      burst.style.top = `${b.top + b.height / 2}px`;
+      for (let i = 0; i < 22; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const d = 40 + Math.random() * 50;
+        const bit = document.createElement("i");
+        bit.style.setProperty("--c", SPRINKLES[i % SPRINKLES.length]!);
+        bit.style.setProperty("--dx", `${(Math.cos(a) * d).toFixed(0)}px`);
+        bit.style.setProperty("--dy", `${(Math.sin(a) * d - 30).toFixed(0)}px`);
+        bit.style.setProperty("--r", `${(Math.random() * 720 - 360).toFixed(0)}deg`);
+        burst.appendChild(bit);
+      }
+      document.body.appendChild(burst);
+      setTimeout(() => burst.remove(), 1100);
+    };
+    addEventListener("click", click, true);
+    return () => removeEventListener("click", click, true);
+  });
 </script>
 
 <i class="wash"></i>
 <i class="glow"></i>
 <i class="stars"></i>
 <i class="moon"></i>
-{#each CLOUDS as c, i (i)}<i class="cloud" style:left={c.x} style:top={c.y} style:scale={c.s} style:animation-duration="{c.d}s" style:animation-delay="{c.delay}s"></i>{/each}
-<svg class="garland" viewBox="0 0 900 70" preserveAspectRatio="none" aria-hidden="true">
-  <path d="M0 4Q225 44 450 6Q675 44 900 4" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45" />
-  <g class="flags">{#each HANG as [x, y], i (i)}<path d="M{x - 15} {y}h30l-15 26z" fill={FLAGS[i % 4]} />{/each}</g>
-  <g class="bulbs">{#each HANG as [x, y], i (i)}<circle cx={x} cy={y + 8} r="5" fill={BULBS[i % 4]} style:color={BULBS[i % 4]} style:animation-delay="{-(i % 3) * 0.8}s" />{/each}</g>
-</svg>
-{#if device.grain}<i class="gingham"></i>{/if}
-<svg class="sill" viewBox="0 0 150 110" aria-hidden="true">
-  <rect x="2" y="100" width="146" height="9" rx="3" class="q3" />
-  <path d="M22 76q-16 2-10 16q4 6 9 4" fill="none" />
-  <path d="M78 86q14-2 18-18l5 2q-4 22-21 25" class="q1" />
-  <path d="M18 100q-6-34 32-34q38 0 32 34z" class="q1" />
-  <ellipse cx="50" cy="66" rx="17" ry="4.5" class="q4" />
-  <circle cx="50" cy="59" r="4.5" class="q4" />
-  <g class="dots"><circle cx="36" cy="80" r="3" /><circle cx="52" cy="88" r="3" /><circle cx="66" cy="78" r="3" /><circle cx="44" cy="94" r="2.5" /><circle cx="62" cy="94" r="2.5" /></g>
-  <path d="M106 100l-4-22h30l-4 22z" class="q2" />
-  <path d="M117 78V48" fill="none" class="stem" />
-  <path d="M117 70q-15-5-15-20q13 4 15 18z" class="q2" />
-  <path d="M107 40q0-14 10-17q10 3 10 17q-5 7-10 7t-10-7z" class="bloom" />
-</svg>
+{#each KISSES as c, i (i)}<i class="kiss" style:left={c.x} style:top={c.y} style:scale={c.s} style:animation-duration="{c.d}s" style:animation-delay="{c.delay}s"></i>{/each}
 {#if device.fireflies}
-  {#each PUFFS as p, i (i)}<i class="puff" style:left={p.x} style:top={p.y} style:width="{p.s}px" style:height="{p.s}px" style:--c={p.c} style:animation-duration="{p.d}s" style:animation-delay="{p.delay}s"></i>{/each}
+  {#each FALL as f, i (i)}<i class="spr" style:left="{f.x}%" style:background={f.c} style:animation-duration="{f.d}s" style:animation-delay="{f.dl}s" style:--r="{f.r}deg" style:--w="{f.w}px"></i>{/each}
 {/if}
+<i class="awning"></i>
+<i class="bulbs"></i>
+{#if device.grain}<i class="gingham"></i>{/if}
+<svg class="stand" viewBox="0 0 170 150" aria-hidden="true">
+  <path d="M85 146V80M50 146h70" stroke="#c9a2b8" stroke-width="5" stroke-linecap="round" />
+  <ellipse cx="85" cy="80" rx="74" ry="9" class="plate" />
+  <path d="M85 80V36" stroke="#c9a2b8" stroke-width="4" />
+  <ellipse cx="85" cy="36" rx="46" ry="7" class="plate" />
+  <circle cx="85" cy="16" r="7" fill="#e7c3d3" />
+  {#each STAND as [x, y, c], i (i)}<g transform="translate({x} {y})"><path d="M-10 -4q10-9 20 0z" fill={c} /><rect x="-9" y="-4" width="18" height="3.5" rx="1.6" fill="#fff6e8" /><path d="M-10 -.5q10 7 20 0z" fill={c} /></g>{/each}
+</svg>
+<div class="cup" title="{sugars} sugar{sugars === 1 ? '' : 's'}">
+  {#key drop}{#if drop}<i class="cube"></i><i class="splash"></i>{/if}{/key}
+  <svg viewBox="0 0 86 70" aria-hidden="true">
+    <g class="steam"><path d="M32 22c-6-6 6-10 0-18" /><path d="M48 22c-6-6 6-10 0-18" /></g>
+    <path d="M64 34c12-2 14 12 2 16" fill="none" stroke="#e7a8bd" stroke-width="4" />
+    <path d="M14 26h56c0 22-10 34-28 34S14 48 14 26z" fill="#fff" stroke="#e7a8bd" stroke-width="2" />
+    <ellipse cx="42" cy="27" rx="27" ry="5" fill="#c98a5a" />
+    <path d="M22 40q10 4 20 0t20 0" stroke="#f29bb8" stroke-width="2.4" fill="none" stroke-dasharray="1 5" stroke-linecap="round" />
+    <ellipse cx="42" cy="64" rx="34" ry="5" fill="#fff" stroke="#e7a8bd" stroke-width="2" />
+  </svg>
+</div>
 {#if route.name !== "chat"}<span class="sign">A cup of something warm</span>{/if}
 
 <style>
@@ -70,6 +104,7 @@
     background:
       radial-gradient(55% 45% at 92% 0%, rgb(255 206 184 / 75%), transparent 70%),
       radial-gradient(50% 50% at 0% 100%, rgb(211 235 222 / 80%), transparent 70%),
+      repeating-linear-gradient(90deg, rgb(255 180 200 / 12%) 0 34px, transparent 34px 68px),
       linear-gradient(180deg, #fde4ec, #fdf0e0 45%, #e4f1ea);
   }
   :global(.amb.night) .wash {
@@ -100,49 +135,47 @@
     mask: linear-gradient(#000, transparent);
     opacity: 0.8;
   }
+  /* the moon: a chocolate-chip cookie with a bite out of it */
   :global(.amb.night) .moon {
     display: block;
     right: 7vw;
-    top: 12vh;
-    width: 64px;
-    height: 64px;
+    top: 13vh;
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
-    box-shadow: inset -15px 8px 0 0 #fff1cc;
-    filter: drop-shadow(0 0 18px rgb(255 236 190 / 55%));
+    background:
+      radial-gradient(circle at 30% 35%, #6b3f2f 0 4px, transparent 5px),
+      radial-gradient(circle at 62% 28%, #6b3f2f 0 3px, transparent 4px),
+      radial-gradient(circle at 48% 62%, #6b3f2f 0 5px, transparent 6px),
+      radial-gradient(circle at 26% 70%, #6b3f2f 0 3px, transparent 4px),
+      radial-gradient(circle at 40% 40%, #f6d9a4, #e2b071);
+    -webkit-mask:
+      radial-gradient(circle 18px at 92% 22%, transparent 98%, #000),
+      radial-gradient(circle 14px at 98% 46%, transparent 98%, #000);
+    -webkit-mask-composite: source-in;
+    mask:
+      radial-gradient(circle 18px at 92% 22%, transparent 98%, #000),
+      radial-gradient(circle 14px at 98% 46%, transparent 98%, #000);
+    mask-composite: intersect;
+    filter: drop-shadow(0 0 18px rgb(255 220 160 / 50%));
   }
-  /* clouds: three soft lobes on a pill, drifting across very slowly */
-  .cloud {
+  /* clouds are meringue kisses: three soft swirls with a peak */
+  .kiss {
     width: 150px;
-    height: 44px;
-    border-radius: 999px;
-    background: #fff;
-    opacity: 0.75;
-    animation: drift 60s linear infinite alternate;
+    height: 92px;
+    background:
+      radial-gradient(50% 60% at 30% 72%, #fff 60%, transparent 62%),
+      radial-gradient(40% 80% at 55% 48%, #fff 60%, transparent 62%),
+      radial-gradient(35% 60% at 78% 72%, #fff 60%, transparent 62%),
+      radial-gradient(12% 30% at 58% 14%, #fff 60%, transparent 62%);
+    filter: drop-shadow(0 6px 6px rgb(200 120 150 / 18%));
+    opacity: 0.9;
+    animation: drift 70s linear infinite alternate;
   }
-  .cloud::before,
-  .cloud::after {
-    content: "";
-    position: absolute;
-    border-radius: 50%;
-    background: inherit;
+  :global(.amb.night) .kiss {
+    opacity: 0;
   }
-  .cloud::before {
-    left: 24px;
-    top: -28px;
-    width: 64px;
-    height: 64px;
-  }
-  .cloud::after {
-    left: 70px;
-    top: -18px;
-    width: 50px;
-    height: 50px;
-  }
-  :global(.amb.night) .cloud {
-    background: #4a4270;
-    opacity: 0.45;
-  }
-  :global(.amb.still) .cloud {
+  :global(.amb.still) .kiss {
     animation: none;
   }
   @keyframes drift {
@@ -150,34 +183,57 @@
       transform: translate3d(-14vw, 1vh, 0);
     }
   }
-  .garland {
-    position: absolute;
+  /* sprinkles falling like slow snow */
+  .spr {
+    top: -20px;
+    width: 4px;
+    height: 11px;
+    border-radius: 2px;
+    opacity: 0.85;
+    animation: fall linear infinite;
+  }
+  @keyframes fall {
+    from {
+      transform: translate(0, 0) rotate(var(--r));
+    }
+    to {
+      transform: translate(var(--w), 108vh) rotate(calc(var(--r) + 540deg));
+    }
+  }
+  /* the awning: candy stripes with a scalloped edge; by night lavender, with fairy lights */
+  .awning {
     left: 0;
+    right: 0;
     top: 0;
-    width: 100%;
-    height: 8vh;
-    min-height: 54px;
-    color: #8a7584;
+    height: 46px;
+    background: repeating-linear-gradient(90deg, #f6a9c0 0 32px, #fff7f0 32px 64px);
+    -webkit-mask:
+      radial-gradient(16px 12px at 16px 34px, #000 98%, transparent) 0 0 / 32px 46px repeat-x,
+      linear-gradient(#000 0 34px, transparent 0);
+    mask:
+      radial-gradient(16px 12px at 16px 34px, #000 98%, transparent) 0 0 / 32px 46px repeat-x,
+      linear-gradient(#000 0 34px, transparent 0);
+    filter: drop-shadow(0 4px 4px rgb(120 40 70 / 18%));
+  }
+  :global(.amb.night) .awning {
+    background: repeating-linear-gradient(90deg, #8a6fc4 0 32px, #4a4380 32px 64px);
   }
   .bulbs {
     display: none;
   }
-  :global(.amb.night) .garland {
-    color: #b6a6c8;
-  }
-  :global(.amb.night) .flags {
-    display: none;
-  }
   :global(.amb.night) .bulbs {
-    display: inline;
-  }
-  .bulbs circle {
-    filter: drop-shadow(0 0 5px currentColor);
+    display: block;
+    left: 0;
+    right: 0;
+    top: 40px;
+    height: 22px;
+    background: radial-gradient(circle at 16px 10px, #ffe9a8 0 4px, transparent 5px) 0 0 / 32px 22px repeat-x;
+    filter: drop-shadow(0 0 6px #ffe39a);
     animation: twinkle 2.4s ease-in-out infinite alternate;
   }
   @keyframes twinkle {
     to {
-      opacity: 0.55;
+      opacity: 0.6;
     }
   }
   /* a faint gingham over everything */
@@ -195,74 +251,117 @@
       repeating-linear-gradient(0deg, rgb(196 185 244 / 8%) 0 14px, transparent 14px 28px),
       repeating-linear-gradient(90deg, rgb(196 185 244 / 8%) 0 14px, transparent 14px 28px);
   }
-  .sill {
+  .stand {
     position: absolute;
     right: 3vw;
     bottom: 2vh;
-    width: clamp(110px, 11vw, 170px);
+    width: clamp(120px, 12vw, 180px);
     height: auto;
-    stroke: #86717f;
-    stroke-width: 1.5;
-    stroke-linejoin: round;
-    opacity: 0.85;
+    filter: drop-shadow(0 8px 8px rgb(120 60 80 / 18%));
   }
-  .sill .q1 {
-    fill: #f8d3df;
-  }
-  .sill .q2 {
-    fill: #d3ebde;
-  }
-  .sill .q3 {
-    fill: #fae6b4;
-  }
-  .sill .q4 {
-    fill: #dcd5f2;
-  }
-  .sill .dots {
+  .stand .plate {
     fill: #fff;
-    stroke: none;
-    opacity: 0.8;
+    stroke: #e7c3d3;
+    stroke-width: 2;
   }
-  .sill .stem {
-    stroke: #3a8a6b;
+  :global(.amb.night) .stand {
+    opacity: 0.75;
   }
-  .sill .bloom {
-    fill: #f2a7c0;
+  :global(.amb.night) .stand .plate {
+    fill: #4a4370;
+    stroke: #7c6fa8;
   }
-  :global(.amb.night) .sill {
-    stroke: #c6b6d2;
-    opacity: 0.7;
+  /* your cup: a sugar cube drops in every time you send */
+  .cup {
+    left: 3vw;
+    bottom: 3vh;
+    width: 86px;
+    height: 70px;
   }
-  :global(.amb.night) .sill .q1 {
-    fill: #6a5080;
+  .cup svg {
+    width: 86px;
+    height: 70px;
+    overflow: visible;
   }
-  :global(.amb.night) .sill .q2 {
-    fill: #3f6068;
+  .steam path {
+    fill: none;
+    stroke: #b49aa8;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 30 30;
+    animation: steam 2.6s linear infinite;
   }
-  :global(.amb.night) .sill .q3 {
-    fill: #5d5249;
+  .steam path:nth-child(2) {
+    animation-delay: -1.3s;
   }
-  :global(.amb.night) .sill .q4 {
-    fill: #534e85;
-  }
-  /* soft pastel lights floating up */
-  .puff {
-    border-radius: 50%;
-    background: radial-gradient(circle, color-mix(in srgb, var(--c) 70%, transparent), transparent 68%);
-    opacity: 0.5;
-    animation: float 26s ease-in-out infinite alternate;
-  }
-  :global(.amb.night) .puff {
-    opacity: 0.28;
-  }
-  @keyframes float {
-    to {
-      transform: translate3d(30px, -60px, 0) scale(1.2);
+  @keyframes steam {
+    from {
+      stroke-dashoffset: 60;
+      opacity: 0;
     }
+    40% {
+      opacity: 0.6;
+    }
+    to {
+      stroke-dashoffset: 0;
+      opacity: 0;
+    }
+  }
+  .cube {
+    position: absolute;
+    left: 34px;
+    top: -40px;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: #fff;
+    box-shadow:
+      inset -2px -2px 0 #e9e2f2,
+      0 0 0 1px rgb(0 0 0 / 8%);
+    opacity: 0;
+    animation: plop 0.7s cubic-bezier(0.5, 0, 1, 0.6);
+  }
+  @keyframes plop {
+    0% {
+      transform: translate(0, 0) rotate(0);
+      opacity: 1;
+    }
+    85% {
+      transform: translate(6px, 64px) rotate(200deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(6px, 68px) rotate(220deg);
+      opacity: 0;
+    }
+  }
+  .splash {
+    position: absolute;
+    left: 28px;
+    top: 20px;
+    width: 30px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    opacity: 0;
+    animation: splash 0.5s ease-out 0.6s;
+  }
+  @keyframes splash {
+    0% {
+      opacity: 0.9;
+      transform: scale(0.3);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.4, 1.6);
+    }
+  }
+  :global(.amb.night) .cup {
+    opacity: 0.8;
   }
   .sign {
     left: 5vw;
-    bottom: 7vh;
+    bottom: 14vh;
     font: 400 clamp(1.6rem, 3vw, 2.6rem) / 1 "Young Serif", Georgia, serif;
     color: #d2789a;
     opacity: 0.45;
@@ -272,16 +371,23 @@
     opacity: 0.35;
   }
   @media (max-width: 760px) {
-    .sill,
+    .stand,
+    .cup,
     .sign {
       display: none;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .cloud,
-    .puff,
-    .bulbs circle {
+    .kiss,
+    .spr,
+    .bulbs,
+    .steam path,
+    .cube,
+    .splash {
       animation: none;
+    }
+    .spr {
+      display: none;
     }
   }
 </style>
