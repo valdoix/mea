@@ -136,6 +136,62 @@
   background: var(--n2);
   box-shadow: 0 0 10px var(--n2);
 }
+/* your open stories: admit-one tickets with notched sides, each in its own colour */
+:root[data-theme="marquee"][data-shell] nav.rail .story {
+  --tk: var(--n2);
+}
+:root[data-theme="marquee"][data-shell] nav.rail .story:nth-child(4n + 2) {
+  --tk: var(--n1);
+}
+:root[data-theme="marquee"][data-shell] nav.rail .story:nth-child(4n + 3) {
+  --tk: #f2a900;
+}
+:root[data-theme="marquee"][data-shell] nav.rail .story:nth-child(4n + 4) {
+  --tk: var(--n3);
+}
+:root[data-theme="marquee"][data-shell] nav.rail .story .avatar {
+  border-radius: 6px !important;
+  border: 3px solid var(--tk);
+  -webkit-mask: radial-gradient(circle 5px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat, radial-gradient(circle 5px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle 5px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat, radial-gradient(circle 5px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+  transition: transform 0.25s var(--ease);
+}
+:root[data-theme="marquee"][data-shell] nav.rail .story:hover .avatar {
+  transform: rotate(-4deg);
+}
+:root[data-theme="marquee"][data-shell] nav.rail .story.on .avatar {
+  transform: rotate(-6deg) translateX(2px);
+  filter: drop-shadow(0 0 calc(8px * var(--gl)) var(--tk));
+}
+/* the header is the marquee: a frame of bulbs chasing round it */
+:root[data-theme="marquee"][data-shell] .bar:not(.compact) {
+  position: relative;
+}
+:root[data-theme="marquee"][data-shell] .bar:not(.compact)::after {
+  content: "";
+  position: absolute;
+  inset: 4px 6px;
+  border-radius: 10px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, #fff3c4 2.4px, transparent 3px) 0 0 / 16px 8px repeat-x,
+    radial-gradient(circle, #fff3c4 2.4px, transparent 3px) 0 100% / 16px 8px repeat-x;
+  filter: drop-shadow(0 0 calc(2px + 4px * var(--gl)) rgb(255 210 110 / 80%));
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 32px, rgb(0 0 0 / 25%) 32px 48px) 0 0 / 48px 100%;
+  mask: repeating-linear-gradient(90deg, #000 0 32px, rgb(0 0 0 / 25%) 32px 48px) 0 0 / 48px 100%;
+  opacity: 0.85;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="marquee"][data-shell] .bar:not(.compact)::after {
+    animation: mq-frame 0.9s steps(3) infinite;
+  }
+}
+@keyframes mq-frame {
+  to {
+    -webkit-mask-position: 48px 0;
+    mask-position: 48px 0;
+  }
+}
 :root[data-theme="marquee"][data-shell] .bar .cname {
   --ng: var(--n2);
   font: 400 2.3rem/0.9 var(--font-script);
@@ -167,6 +223,26 @@
 :root[data-theme="marquee"][data-shell] .style-cards .msg.user .bubble {
   --tube: var(--n1);
   --hairline: linear-gradient(160deg, color-mix(in srgb, var(--n1) 80%, #fff), color-mix(in srgb, var(--n1) 30%, transparent) 45%, color-mix(in srgb, var(--n1) 50%, transparent));
+}
+/* yours run on a strip of film: sprocket holes along the top and bottom */
+:root[data-theme="marquee"][data-shell] .style-cards .msg.user .bubble {
+  border-block: 13px solid transparent;
+  border-radius: 4px;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    radial-gradient(circle at 50% 50%, #f3ecd8 0 2.6px, transparent 3.2px) 0 0 / 14px 13px repeat-x border-box,
+    radial-gradient(circle at 50% 50%, #f3ecd8 0 2.6px, transparent 3.2px) 0 100% / 14px 13px repeat-x border-box,
+    #17121f border-box;
+}
+:root[data-theme="marquee"][data-mode="day"] .style-cards .msg.user .bubble {
+  background:
+    linear-gradient(rgb(255 255 255 / 94%), rgb(253 252 255 / 86%)) padding-box,
+    radial-gradient(circle at 50% 50%, #f3ecd8 0 2.6px, transparent 3.2px) 0 0 / 14px 13px repeat-x border-box,
+    radial-gradient(circle at 50% 50%, #f3ecd8 0 2.6px, transparent 3.2px) 0 100% / 14px 13px repeat-x border-box,
+    #17121f border-box;
+}
+:root[data-theme="marquee"][data-shell] .style-cards .msg.user .bubble::before {
+  display: none;
 }
 :root[data-theme="marquee"][data-shell] .style-cards .msg.bookmarked .bubble {
   box-shadow:
@@ -316,6 +392,69 @@
   box-shadow: 0 0 calc(12px * var(--gl)) color-mix(in srgb, var(--n3) 30%, transparent);
 }
 
+/* the typing dots are popcorn, popping */
+:root[data-theme="marquee"][data-shell] .typing span {
+  width: 12px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff 0 40%, #fff3c4 60%, #f2c46a);
+  box-shadow: 3px -2px 0 -1px #fffaf0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="marquee"][data-shell] .typing span {
+    animation: mq-pop 1s ease-in-out infinite;
+  }
+  :root[data-theme="marquee"][data-shell] .typing span:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+  :root[data-theme="marquee"][data-shell] .typing span:nth-child(3) {
+    animation-delay: 0.36s;
+  }
+}
+@keyframes mq-pop {
+  20% {
+    transform: translateY(-10px) rotate(90deg);
+  }
+  40% {
+    transform: translateY(0) rotate(180deg);
+  }
+}
+/* the popcorn a send pops out of the button (Ambience.svelte adds it over everything) */
+.mq-pop {
+  position: fixed;
+  z-index: 400;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.mq-pop i {
+  position: absolute;
+  left: -7px;
+  top: -6px;
+  width: 14px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff 0 40%, #fff3c4 60%, #f2c46a);
+  box-shadow:
+    4px -2px 0 -1px #fffaf0,
+    -3px -3px 0 -1px #fff;
+  opacity: 0;
+  animation: mq-kernel 1s cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+}
+@keyframes mq-kernel {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  45% {
+    transform: translate(calc(var(--dx) * 0.6), var(--up));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), 50px) rotate(var(--r));
+    opacity: 0;
+  }
+}
 /* composer: a cyan tube and a pulsing send light */
 :root[data-theme="marquee"][data-shell] .composer {
   border: 1.5px solid var(--n1);
