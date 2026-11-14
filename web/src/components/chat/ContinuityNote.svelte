@@ -76,8 +76,15 @@
             <div class="row wrap">
               {#if i.replace}<button class="btn small" onclick={() => act("replace", { issueId: i.id }, `Now “${i.replace!.to}”`)} title="Swap the name in this reply; every other word stays"><Check size={13} /> Use “{i.replace.to}”</button>{/if}
               {#if !WHOLE.has(i.kind)}<button class="btn ghost small" onclick={() => fixSentence(i.id)} disabled={fixing === i.id} title="Rewrite only this sentence; every other word stays"><Pencil size={13} /> {fixing === i.id ? "Fixing…" : i.kind === "offpage" || i.kind === "canon" ? "Reword this sentence" : "Fix this sentence"}</button>{/if}
-              {#if i.canon}<button class="btn ghost small" onclick={() => act("accept", { issueId: i.id }, "Canon updated: the reply's version is now confirmed")} title="The reply is right: update memory (and the trackers) to match"><Check size={13} /> Accept & update canon</button>{/if}
-              <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id })}><X size={13} /> Dismiss</button>
+              {#if i.kind === "leak" && i.about}
+                <!-- docs/35 5.1: say why, so the next flag knows. -->
+                <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id, why: "know" }, "Noted: they know it")} title="They know this now: the trackers say so, and they won't be flagged for it again"><Check size={13} /> They do know</button>
+                <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id, why: "notAbout" }, "Noted: that sentence isn't about it")} title="The sentence isn't about this secret: these words won't count as it again"><X size={13} /> It isn't about that</button>
+                <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id })}>Just dismiss</button>
+              {:else}
+                {#if i.canon}<button class="btn ghost small" onclick={() => act("accept", { issueId: i.id }, "Canon updated: the reply's version is now confirmed")} title="The reply is right: update memory (and the trackers) to match"><Check size={13} /> Accept & update canon</button>{/if}
+                <button class="btn ghost small" onclick={() => act("dismiss", { issueId: i.id })}><X size={13} /> Dismiss</button>
+              {/if}
               {#if i.kind !== "lesson"}<button class="btn ghost small" onclick={() => makeLesson(i.id)} title="Keep this as a rule for the story; replies are checked against it"><GraduationCap size={13} /> Make it a lesson</button>{/if}
             </div>
           </div>

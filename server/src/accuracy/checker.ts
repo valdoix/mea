@@ -76,6 +76,8 @@ export interface Issue {
   about?: { id: string; fact: string };
   /** docs/35 4.4: a certain leak (the records say they're kept from it) holds back what the tracker records them learning. */
   holds?: { who: string; text: string };
+  /** docs/35 5.1: what you said when you dismissed a leak: they do know it, or the sentence isn't about it. */
+  taught?: "know" | "notAbout";
 }
 
 export interface FlagRow {
@@ -520,10 +522,19 @@ function save(r: FlagRow, issues: Issue[], status?: string) {
 }
 
 /** "Dismiss all" means the notes you can see. `settled` says you acted on it, rather than waved it off. */
-export function dismissIssue(flagId: string, issueId: string | null, settled?: Issue["settled"]) {
+export function dismissIssue(flagId: string, issueId: string | null, settled?: Issue["settled"], why?: "know" | "notAbout") {
   const r = mustFlag(flagId);
   const quiet = quietKeys(r.chat_id);
-  const issues = parseJson<Issue[]>(r.issues, []).map((i) => ((issueId == null ? !quiet.has(flagKey(i)) : i.id === issueId) ? { ...i, dismissed: true, ...(settled ? { settled } : {}) } : i));
+  const before = parseJson<Issue[]>(r.issues, []);
+  // docs/35 5.1: "They do know" is written down, so no path flags them for it again.
+  const leak = issueId != null ? before.find((i) => i.id === issueId && i.kind === "leak" && i.about) : undefined;
+  if (leak && why === "know") {
+    const st = currentFold(r.chat_id).result.state;
+    const f = st.facts[leak.about!.fact];
+    const c = st.chars[leak.about!.id];
+    if (f && c) userEdit(r.chat_id, linesToOps([`know ${c.name}: #${f.key} ${f.statement} | you said so · knows`]).ops);
+  }
+  const issues = before.map((i) => ((issueId == null ? !quiet.has(flagKey(i)) : i.id === issueId) ? { ...i, dismissed: true, ...(settled ? { settled } : {}), ...(why && i.kind === "leak" ? { taught: why } : {}) } : i));
   return save(r, issues);
 }
 

@@ -1349,6 +1349,8 @@ export interface ContinuityIssue {
   quiet?: boolean;
   /** docs/14, part 6: a one-tap fix, the version's name for the original's. */
   replace?: { from: string; to: string };
+  /** docs/35: a tracker leak's person and secret (fact key), so dismissing it can teach. */
+  about?: { id: string; fact: string };
 }
 export interface ContinuityFlag {
   id: string;

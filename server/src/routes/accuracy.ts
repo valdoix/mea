@@ -3,6 +3,7 @@ import { z } from "zod";
 import { askArchivist, deleteArchive, listArchive, pushArchive } from "../accuracy/archivist";
 import { acceptIssue, checkReply, dismissIssue, fixNotes, flagsFor, leakGuardOn, replaceIssue } from "../accuracy/checker";
 import { applyAllEdits, FIX_ALL_MAX, fixable, openNotes } from "../accuracy/opennotes";
+import { leakCheckOn, leakChecksOff } from "../accuracy/leakteach";
 import { slipCatalog } from "../accuracy/slips";
 import { enqueue } from "../services/jobs";
 import { memoryConfig } from "../lib/settings";
@@ -43,8 +44,15 @@ accuracy.post("/messages/:id/check", async (c) => {
 });
 
 accuracy.post("/continuity/:id/dismiss", async (c) => {
-  const input = await body(c, z.object({ issueId: z.string().nullable().default(null) }));
-  return c.json(dismissIssue(c.req.param("id"), input.issueId));
+  const input = await body(c, z.object({ issueId: z.string().nullable().default(null), why: z.enum(["know", "notAbout"]).optional() }));
+  return c.json(dismissIssue(c.req.param("id"), input.issueId, undefined, input.why));
+});
+
+// docs/35 5.2: secrets whose leak check is off after two strikes, and the switch that turns one back on.
+accuracy.get("/chats/:id/leak-checks", (c) => c.json(leakChecksOff(c.req.param("id"))));
+accuracy.post("/chats/:id/leak-checks/:key/on", (c) => {
+  leakCheckOn(c.req.param("id"), c.req.param("key"));
+  return c.json(leakChecksOff(c.req.param("id")));
 });
 
 accuracy.post("/continuity/:id/accept", async (c) => {

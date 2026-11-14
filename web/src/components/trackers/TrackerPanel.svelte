@@ -16,7 +16,7 @@
   import { living } from "../../lib/living";
   import { readClock } from "../../lib/storytime";
   import { app } from "../../lib/state.svelte";
-  import { post } from "../../lib/api";
+  import { get, post } from "../../lib/api";
   import { Bandage, Calendar, Check, Eye, ExternalLink, Heart, Landmark, Lock, LockOpen, RefreshCw, Repeat, Settings, ShieldAlert, Sprout, Star, Trash } from "../../lib/icons";
   import { errorToast, toast } from "../../lib/state.svelte";
   import { lockLine, removeLadder, setHouseStyle, setKeepStyle, setPlaceKind, trackerEdit, trk } from "../../lib/trackers.svelte";
@@ -31,6 +31,22 @@
 
   const d = $derived(trk.data);
   const st = $derived(d?.state);
+  // docs/35 5.2: secrets whose leak check went off after two strikes, read again whenever the trackers change.
+  let leakOff = $state<Record<string, string>>({});
+  $effect(() => {
+    void st;
+    get<Record<string, string>>(`/api/chats/${chatId}/leak-checks`)
+      .then((r) => (leakOff = r))
+      .catch(() => (leakOff = {}));
+  });
+  async function leakOn(key: string) {
+    try {
+      leakOff = await post<Record<string, string>>(`/api/chats/${chatId}/leak-checks/${encodeURIComponent(key)}/on`, {});
+      toast("Leak check back on for this secret", { kind: "ok" });
+    } catch (e) {
+      errorToast(e);
+    }
+  }
   const sec = $derived(d?.config.sections);
   const chars = $derived(st ? Object.values(st.chars) : []);
   const here = $derived(chars.filter((c) => (c.tier === "spot" || c.tier === "peri") && !c.dead).sort((a, b) => Number(a.isUser) - Number(b.isUser)));
@@ -386,6 +402,7 @@
               {#if f.secret && !f.secret.out}<ShieldAlert size={12} class="secret" />{/if}
               {#if op}<span class="lock" title="Kept off the page">🔒</span>{/if}
               {f.statement}{f.truth !== "true" ? ` (${f.truth})` : ""}
+              {#if leakOff[f.key] && !f.secret?.out}<span class="came-out" title={`Leak check off: ${leakOff[f.key]}`}>leak check off</span><button class="st-link" type="button" onclick={() => leakOn(f.key)}>Turn it back on</button>{/if}
               {#if f.secret?.out}<span class="came-out" title={f.secret.out.how ?? "Everyone it was kept from knows"}>came out · #{f.secret.out.seq}</span>{:else if f.secret}<button class="st-link" type="button" onclick={() => (op ? editOffpage(op) : editOffpage(null, { label: f.statement, ref: `tracker:${f.key}` }))}>{op ? "Edit · reveal" : "Keep off the page"}</button>{/if}
             </div>
             <small>{Object.entries(f.stances).map(([id, s]) => `${nm(id)} ${s.status}`).join(" · ")}</small>
