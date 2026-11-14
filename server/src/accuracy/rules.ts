@@ -6,7 +6,8 @@ import { cleanText, contentWords } from "../memory/text";
 import { mustChat } from "../services/chats";
 import { secretRevealer } from "../lore/secretlinks";
 import { knowledgeOf } from "../trackers/knowledge";
-import { secretShape, TELLING } from "../trackers/secretwords";
+import { carryingWords, secretShape } from "../trackers/secretwords";
+import { leakMatch, notStating, saysShort, shortSecret, weigher } from "./leakmatch";
 import type { WorldState } from "../trackers/types";
 import type { Issue } from "./checker";
 import { nameSlips } from "./names";
@@ -223,12 +224,18 @@ export function leakRule(r: RuleInput): Found[] {
   const knownNames = new Set(known.flatMap((e) => [e.name, ...parseJson<string[]>(e.aliases, [])]).map(norm));
   // docs/33 Part 7: every word of a name too ("gabriel", "winters"), so "Gabriel Winters is with Buffy Summers" has no secret words left.
   for (const n of [...knownNames, ...Object.values(st.chars).flatMap((c) => [c.name, ...c.aliases].map(norm))]) for (const w of n.split(" ")) knownNames.add(w);
+  // docs/35 3.1: how rare each word is in this story.
+  const weight = weigher(chatId);
   for (const f of Object.values(st.facts)) {
     if (!f.secret && !Object.values(f.stances).some((s) => s.status === "unaware")) continue;
     // Everyone it was kept from has since been told: it isn't a secret from anyone any more.
     if (f.secret?.out) continue;
-    const secretWords = [...contentWords(f.statement, 4)].filter((w) => !knownNames.has(w) && !TELLING.test(w));
-    if (secretWords.length < 2) continue;
+    // docs/35 Part 3: the words that make it this secret, by weight; a one-word secret ("Buffy is alive") by its person and its word.
+    const carrying = carryingWords(f.statement, knownNames);
+    const short = carrying.size < 2 ? shortSecret(f.statement) : null;
+    if (carrying.size < 2 && !short) continue;
+    const shortNames = short ? (Object.values(st.chars).find((x) => [x.name, x.name.split(/\s+/)[0]!, ...x.aliases].some((n) => norm(n) === norm(short.who))) ?? null) : null;
+    if (short && !shortNames) continue;
     // docs/35 Part 2: who is in the dark, as the records say it. "Nothing recorded" isn't "doesn't know":
     // a secret kept from Walter says nothing about Dawn, and nothing about the person who asked for it.
     const dark = new Set(Object.values(st.chars).filter((c) => !c.isUser && !c.dead && knowledgeOf(f, c.id).status === "unaware").map((c) => c.id));
@@ -249,10 +256,9 @@ export function leakRule(r: RuleInput): Found[] {
         // docs/33 Part 7: the verb is this person's ("Ruth knows", "Dawn tells her"), not any verb in a sentence that names them.
         const says = new RegExp(`\\b(?:${[c.name, ...c.aliases].map(esc).join("|")})\\b(?:\\s+\\w+){0,5}\\s+(?:says?|said|knows?|knew|tells?|told|whispers?|asks?|mentions?|thinks?|realizes?|remembers?)\\b`, "i");
         const theirs = (isSpeaker && /["“]/.test(s)) || says.test(s);
-        if (!theirs) continue;
-        const sw = contentWords(s, 4);
-        const hits = secretWords.filter((w) => sw.has(w));
-        if (hits.length >= 2 && hits.length >= Math.ceil(secretWords.length * 0.4)) {
+        if (!theirs || notStating(s)) continue;
+        const said = short ? saysShort(s, short, [shortNames!.name, shortNames!.name.split(/\s+/)[0]!, ...shortNames!.aliases]) : leakMatch(f.statement, s, { names: knownNames, weight }).leak;
+        if (said) {
           out.push({
             kind: "leak",
             severity: unsure ? "minor" : "major",
@@ -284,9 +290,8 @@ export function leakRule(r: RuleInput): Found[] {
       const r = revealed(e.id, i);
       const kb = new Set([...(sec.knownBy ?? []), ...(r?.keepers ?? []), ...(r?.to ?? [])].map(norm));
       if (!sec.text?.trim() || kb.has(norm(speaker)) || kb.has("everyone") || r?.out) continue;
-      const secretWords = [...contentWords(sec.text, 4)].filter((w) => !knownNames.has(w));
-      if (secretWords.length < 2) continue;
-      const hit = sents.find((s) => /["“]/.test(s) && secretWords.filter((w) => contentWords(s, 4).has(w)).length >= Math.max(2, Math.ceil(secretWords.length * 0.5)));
+      if (carryingWords(sec.text, knownNames).size < 2) continue;
+      const hit = sents.find((s) => /["“]/.test(s) && !notStating(s) && leakMatch(sec.text, s, { names: knownNames, weight, min: 0.5 }).leak);
       if (hit && !out.some((i) => i.kind === "leak" && i.claim === hit.trim().slice(0, 240)))
         out.push({
           kind: "leak",
@@ -302,10 +307,9 @@ export function leakRule(r: RuleInput): Found[] {
   // Secret memories with a known-by list (narrator mode: each NPC only knows their own).
   for (const a of all<AtomRow>("SELECT * FROM memories WHERE chat_id = ? AND type = 'secret' AND deleted_at IS NULL AND status = 'active' AND known_by != '[]'", chatId)) {
     const kb = new Set(parseJson<string[]>(a.known_by, []).map(norm));
-    const secretWords = [...contentWords(a.content, 4)].filter((w) => !knownNames.has(w));
-    if (secretWords.length < 2 || kb.has(norm(speaker))) continue;
+    if (carryingWords(a.content, knownNames).size < 2 || kb.has(norm(speaker))) continue;
     if (kb.has("everyone")) continue;
-    const hit = sents.find((s) => /["“]/.test(s) && secretWords.filter((w) => contentWords(s, 4).has(w)).length >= Math.max(2, Math.ceil(secretWords.length * 0.5)));
+    const hit = sents.find((s) => /["“]/.test(s) && !notStating(s) && leakMatch(a.content, s, { names: knownNames, weight, min: 0.5 }).leak);
     if (hit && !out.some((i) => i.kind === "leak" && i.claim === hit.trim().slice(0, 240)))
       out.push({
         kind: "leak",

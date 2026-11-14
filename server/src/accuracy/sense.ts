@@ -1,7 +1,7 @@
 import { norm } from "../memory/entities";
 import { cleanText } from "../memory/text";
 import { knowledgeOf } from "../trackers/knowledge";
-import { secretMatch, subjectName } from "../trackers/secretwords";
+import { carrying, secretMatch, subjectName } from "../trackers/secretwords";
 import type { WorldState } from "../trackers/types";
 import type { Issue } from "./checker";
 
@@ -41,7 +41,8 @@ export function senseOf(i: Found, o: { st: WorldState | null; reply: string }): 
       if (k.status === "knows" || k.status === "suspects") return `the records say ${c.name} ${k.status === "knows" ? "knows" : "suspects"} it (${k.why})`;
       if (i.severity === "major" && k.status !== "unaware") return `nothing says ${c.name} doesn't know it`;
       const names = new Set(Object.values(st.chars).flatMap((x) => [x.name, ...x.aliases]).flatMap((n) => norm(n).split(" ")));
-      if (secretMatch(f.statement, i.claim, names).hits.length < 2) return "the sentence and the secret share too little";
+      // A one-word secret ("Buffy is alive") is matched by its person and its word, not by two words (docs/35 3.4).
+      if (carrying(f.statement, names).size >= 2 && secretMatch(f.statement, i.claim, names).hits.length < 2) return "the sentence and the secret share too little";
     }
   }
   return null;

@@ -208,8 +208,7 @@
         "secret #alive: Buffy is alive | kept by Buffy Summers, Gabriel Winters · from Walter"
       ],
       "sentence": "“Buffy Summers is alive,” Walter says.",
-      "leak": true,
-      "todo": "docs/35 Part 3.4: a secret with one content word"
+      "leak": true
     }
   ]
 }
