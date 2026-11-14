@@ -14,7 +14,7 @@ import { pruneGenerations } from "./services/usage";
 import { onLedgerEdit, onTruthsChanged } from "./services/chats";
 import { embedChat } from "./memory/embed";
 import { consolidate } from "./memory/consolidate";
-import { recordTimeline, runCheckJob } from "./accuracy/checker";
+import { recordTimeline, runCheckJob, withdrawStale } from "./accuracy/checker";
 import { runLessonsJob } from "./steer/lessons";
 import { runRewordJob } from "./accuracy/offpage";
 import { exposureAfterReply } from "./trackers/exposure";
@@ -146,6 +146,9 @@ function afterOpen(opts: { jobs?: boolean }) {
   registerJob("creator.write", async (p, job) => runCreatorJob(String(p.draftId), job));
   registerJob("lore.enrich", async (p, job) => runEnrichJob(String(p.bookId), job));
   registerJob("accuracy.check", async (p, job) => runCheckJob(p as { chatId: string; messageId: string; swipeIdx: number }, job));
+  // docs/35 4.3: open flags an older rule raised are read again with today's rules, once, after start.
+  registerJob("accuracy.withdraw", async (_p, job) => job.note(withdrawStale()));
+  enqueue("accuracy.withdraw", {}, { dedupeKey: "accuracy.withdraw", delayMs: 15000, priority: 0 });
   registerJob("memory.consolidate", async (p, job) => {
     await consolidate(String(p.chatId), job);
   });
