@@ -378,23 +378,88 @@
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
-/* send: a knurled brass knob */
+/* send: a pinwheel that turns with the wind (fast in a storm, faster when you reach for it) */
 :root[data-theme="weatherglass"][data-shell] .send.primary {
+  position: relative;
   border-radius: 50%;
   border: 0;
-  color: #2a2010;
+  color: transparent;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+:root[data-theme="weatherglass"][data-shell] .send.primary svg {
+  opacity: 0;
+}
+:root[data-theme="weatherglass"][data-shell] .send.primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
   background:
-    radial-gradient(
-      circle at 36% 30%,
-      #fff3cc 0 6%,
-      var(--brass-hi) 24%,
-      var(--brass) 56%,
-      transparent 57%
-    ),
-    repeating-conic-gradient(var(--brass) 0 6deg, #7a5520 6deg 12deg);
-  box-shadow:
-    0 6px 12px -5px rgb(0 0 0 / 55%),
-    0 0 0 1px rgb(0 0 0 / 30%);
+    radial-gradient(circle, #f0d394 0 3px, #7a5418 3.5px 4.5px, transparent 5px),
+    conic-gradient(from 0deg, #c4553f 0 90deg, #ffd65a 0 180deg, #2f6fb0 0 270deg, #5aa86a 0);
+  -webkit-mask: conic-gradient(from 0deg, #000 0 70deg, transparent 0 90deg, #000 0 160deg, transparent 0 180deg, #000 0 250deg, transparent 0 270deg, #000 0 340deg, transparent 0);
+  mask: conic-gradient(from 0deg, #000 0 70deg, transparent 0 90deg, #000 0 160deg, transparent 0 180deg, #000 0 250deg, transparent 0 270deg, #000 0 340deg, transparent 0);
+  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 35%));
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="weatherglass"][data-shell] .send.primary::before {
+    animation: wg-pin 6s linear infinite;
+  }
+  :root[data-theme="weatherglass"][data-wx="storm"] .send.primary::before {
+    animation-duration: 0.7s;
+  }
+  :root[data-theme="weatherglass"][data-wx="rain"] .send.primary::before {
+    animation-duration: 2.5s;
+  }
+  :root[data-theme="weatherglass"][data-shell] .send.primary:not(:disabled):hover::before {
+    animation-duration: 0.5s;
+  }
+}
+@keyframes wg-pin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* the weather house hangs under the barometer (Ambience.svelte puts it in the rail) */
+@media (min-height: 760px) {
+  :root[data-theme="weatherglass"][data-shell] nav.rail:has(.wg-house) .logo {
+    margin-bottom: 62px;
+  }
+}
+@media (max-height: 759.98px) {
+  .wg-house {
+    display: none;
+  }
+}
+.wg-house {
+  position: absolute;
+  left: 50%;
+  width: 66px;
+  height: 56px;
+  margin-left: -33px;
+  pointer-events: none;
+}
+.wg-house svg {
+  width: 66px;
+  height: 56px;
+  overflow: visible;
+}
+.wg-house .fig {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition:
+    transform 0.9s cubic-bezier(0.3, 1.5, 0.5, 1),
+    opacity 0.9s;
+}
+.wg-house[data-out="man"] .lady,
+.wg-house[data-out="lady"] .man {
+  transform: translateY(-6px) scale(0.62);
+  opacity: 0.3;
+}
+.wg-house[data-out="both"] .fig {
+  transform: translateY(-3px) scale(0.82);
 }
 :root[data-theme="weatherglass"][data-shell] .continue {
   border: 1px solid var(--edge);
@@ -590,6 +655,137 @@
   to {
     transform: translate(40px, 320px);
   }
+}
+.a-weatherglass > svg {
+  position: absolute;
+}
+/* rooftops across the way: chimney smoke leaning with the wind, a vane that turns, lit windows by night */
+.a-weatherglass .roofs {
+  inset: auto 0 0 0;
+  width: 100%;
+  height: 16vh;
+  min-height: 90px;
+}
+.a-weatherglass .roofs .town {
+  fill: #2a3644;
+  opacity: 0.85;
+}
+.a-weatherglass.night .roofs .town {
+  fill: #06090f;
+  opacity: 1;
+}
+.a-weatherglass .roofs .win {
+  fill: #ffd88a;
+  opacity: 0.25;
+}
+.a-weatherglass.night .roofs .win {
+  opacity: 1;
+}
+.a-weatherglass .roofs .post {
+  stroke: #2a3644;
+  stroke-width: 2;
+  fill: none;
+}
+.a-weatherglass.night .roofs .post {
+  stroke: #06090f;
+}
+.a-weatherglass .roofs .vane {
+  fill: #2a3644;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: wg-vane 6s ease-in-out infinite alternate;
+}
+.a-weatherglass.night .roofs .vane {
+  fill: #06090f;
+}
+.a-weatherglass.w-rain .roofs .vane {
+  animation-duration: 2s;
+}
+.a-weatherglass.w-storm .roofs .vane {
+  animation-duration: 0.4s;
+}
+@keyframes wg-vane {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(-1);
+  }
+}
+.a-weatherglass .roofs .smoke circle {
+  fill: #c9d1d9;
+  opacity: 0;
+  --lean: 30px;
+  animation: wg-smoke 5s ease-out infinite;
+}
+.a-weatherglass .roofs .smoke circle:nth-child(2) {
+  animation-delay: -1.6s;
+}
+.a-weatherglass .roofs .smoke circle:nth-child(3) {
+  animation-delay: -3.2s;
+}
+.a-weatherglass:is(.w-rain, .w-storm) .roofs .smoke circle {
+  --lean: 90px;
+}
+@keyframes wg-smoke {
+  0% {
+    opacity: 0.5;
+    transform: translate(0, 0) scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--lean), -60px) scale(2);
+  }
+}
+/* a kite on fair and breezy days */
+.a-weatherglass .kite {
+  inset: auto;
+  left: 52%;
+  top: 12vh;
+  width: 70px;
+  height: 150px;
+  opacity: 0;
+  transform-origin: 50% 100%;
+  animation: wg-kite 4s ease-in-out infinite alternate;
+}
+.a-weatherglass:is(.w-fair, .w-cloudy):not(.night) .kite {
+  opacity: 1;
+}
+.a-weatherglass .kite .tail {
+  animation: wg-tail 0.7s ease-in-out infinite alternate;
+}
+@keyframes wg-kite {
+  from {
+    transform: rotate(-6deg) translate(0, 0);
+  }
+  to {
+    transform: rotate(8deg) translate(30px, -14px);
+  }
+}
+@keyframes wg-tail {
+  to {
+    transform: translateX(3px);
+  }
+}
+/* a rainbow when the sky clears after rain */
+.a-weatherglass .bow {
+  inset: auto;
+  left: 30%;
+  top: 18vh;
+  width: 90vmin;
+  height: 90vmin;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, transparent 54%, rgb(150 80 220 / 45%) 55%, rgb(60 110 240 / 45%) 57%, rgb(60 200 120 / 45%) 59%, rgb(250 230 60 / 50%) 61%, rgb(255 150 40 / 45%) 63%, rgb(240 60 60 / 45%) 65%, transparent 66.5%);
+  -webkit-mask: linear-gradient(#000 45%, transparent 60%);
+  mask: linear-gradient(#000 45%, transparent 60%);
+  filter: blur(1px);
+}
+:root[data-wx="fair"]:is([data-wx-prev="rain"], [data-wx-prev="storm"]) .a-weatherglass .bow {
+  opacity: 0.85;
+}
+:root[data-wx="fair"]:is([data-wx-prev="rain"], [data-wx-prev="storm"]) .a-weatherglass.night .bow {
+  opacity: 0.25;
 }
 /* the window itself: a sash bar and frame, a little mist at the sill, and a fork of lightning in a gale */
 .a-weatherglass .mull {
