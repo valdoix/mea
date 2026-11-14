@@ -457,9 +457,12 @@ export function skipsPlans(modelId: string, excludeMessageId?: string, chatId?: 
     PROBE_AFTER,
   ).map((r) => parseJson<{ model?: string; plan?: string; notes?: string[] }>(r.meta, {}));
   const skipped = (m: (typeof recent)[number]) => m.plan === "step" || m.plan === "rescue" || m.plan === "none" || (m.notes ?? []).some((n) => /skipped its plan/.test(n));
+  // A reply its family's adapter planned first says nothing about the model's habit: the adapter's
+  // rule no longer applying (reasoning shown again) shouldn't leave the model stuck planning first.
+  const byAdapter = (m: (typeof recent)[number]) => (m.notes ?? []).some((n) => /adapter plans that way/.test(n));
   if (chatId && storySkips(modelId, chatId, excludeMessageId) >= 2) return true;
   if (recent.length === PROBE_AFTER && recent.every((m) => m.plan === "first")) return false;
-  return recent.slice(0, 3).some((m) => m.plan === "first" || skipped(m));
+  return recent.slice(0, 3).some((m) => (m.plan === "first" && !byAdapter(m)) || skipped(m));
 }
 
 /** How many of this model's last ten replies in this story skipped their plan (needed a second step). */
@@ -1142,7 +1145,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     // spending a try that would be stopped anyway.
     // docs/29 §13: a family whose adapter says so (DeepSeek) plans that way from the first reply,
     // unless its route reasons natively (then the reasoning is the plan).
-    const adapterFirst = !p.resolved.reasoning && plansFirst(resolveFamily(p.resolved.modelFamily, p.resolved.modelId));
+    const adapterFirst = !p.resolved.reasoning && plansFirst(resolveFamily(p.resolved.modelFamily, p.resolved.modelId), { hidesReasoning: Boolean(p.resolved.params.hide_reasoning) });
     if (planAsked && !p.plannedPass && (adapterFirst || skipsPlans(p.resolved.modelId, gen.messageId, gen.chatId))) {
       const plan = await planStep();
       if (plan) {

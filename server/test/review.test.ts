@@ -143,6 +143,16 @@ describe("fix 3: the plan watch learns a model's habit across stories", () => {
     expect(skipsPlans("mock/habit")).toBe(true);
     expect(skipsPlans("mock/other")).toBe(false);
   });
+
+  test("a reply its adapter planned first isn't a habit; one the model's skips planned first is", () => {
+    const a = chatWith("Cora");
+    // Two, so the habit reply below is among the last three whatever order equal timestamps sort in.
+    for (let i = 0; i < 2; i++)
+      updateSwipe(addMessage(a, "assistant", `Adapter ${i}.`), 0, { meta: { model: "mock/adapter", plan: "first", notes: ["planned first, in its own step: this model's adapter plans that way"] } });
+    expect(skipsPlans("mock/adapter")).toBe(false);
+    updateSwipe(addMessage(a, "assistant", "Habit."), 0, { meta: { model: "mock/adapter", plan: "first", notes: ["planned first, in its own step: this model has been skipping its plan"] } });
+    expect(skipsPlans("mock/adapter")).toBe(true);
+  });
   test("docs/33 Part 8: a model planning first tries its own pass again only after a long run", () => {
     const c = chatWith("Cora");
     for (let i = 0; i < PROBE_AFTER - 1; i++) updateSwipe(addMessage(c, "assistant", `First ${i}.`), 0, { meta: { model: "mock/probe", plan: "first" } });
