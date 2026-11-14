@@ -1,0 +1,215 @@
+{
+  "about": "docs/35 Part 6.1: the leak flags the rule really raised in your stories (leak: false unless it was one), and made-up true leaks. Add every wrongly raised flag here before fixing the rule.",
+  "cases": [
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 69,
+      "speaker": "Buffy Summers",
+      "who": "Buffy Summers",
+      "secret": "Buffy asks Gabriel not to tell Walter she is alive, not yet",
+      "lines": [
+        "cast: Buffy Summers@spot · Gabriel Winters@off · Walter@off",
+        "secret #alive: Buffy asks Gabriel not to tell Walter she is alive, not yet | kept by Gabriel Winters · from Walter"
+      ],
+      "sentence": "“Don’t tell him about the soup either,” Buffy says to the cat, toothpaste foaming at the corner of her mouth.",
+      "leak": false,
+      "dismissed": true
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 97,
+      "speaker": "Buffy Summers",
+      "who": "Ruth",
+      "secret": "Buffy clawed out of her own grave with bare hands",
+      "lines": [
+        "cast: Ruth@spot · Buffy Summers@spot · Gabriel Winters@off · Willow@off · Xander@off · Tara@off · Anya@off · Dawn@off · Walter@off · Merrick@off · Giles@off",
+        "secret #grave: Buffy clawed out of her own grave with bare hands | kept by Buffy Summers · from everyone"
+      ],
+      "sentence": "Ruth is a warm weight against her ankle, pressing in, and the ward hums its low note through the floor, and outside a car starts in the driveway next door — an engine turning over, someone leaving for work on a Wednesday, the ordinary machinery of a town that doesn’t know she’s alive — and she stands in his kitchen with her shoulder bare and her hands scraped open and the word *same* sitting in the room like a thing she set down on the counter and can’t pick up.",
+      "leak": false,
+      "dismissed": true
+    },
+    {
+      "story": "dev test",
+      "seq": 3,
+      "speaker": "Mira",
+      "who": "Joss",
+      "secret": "Mira hid the harbour ledger",
+      "lines": [
+        "cast: Joss@spot · Mira@off",
+        "secret #ledger: Mira hid the harbour ledger | kept by Mira · from Joss"
+      ],
+      "sentence": "Joss leans in and says he knows Mira hid the harbour ledger.",
+      "leak": true,
+      "dismissed": false
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 197,
+      "speaker": "Buffy Summers",
+      "who": "Dawn",
+      "secret": "Buffy asks Gabriel not to tell Walter she is alive, not yet",
+      "lines": [
+        "cast: Dawn@spot · Buffy Summers@spot · Gabriel Winters@off · Walter@off · Chloe@off",
+        "secret #alive: Buffy asks Gabriel not to tell Walter she is alive, not yet | kept by Gabriel Winters · from Walter",
+        "know Chloe: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows"
+      ],
+      "sentence": "The blue eyes — lighter than Buffy’s, grey at the edges, the colour of the sky over the backyard pool in July when Dawn was eight and Buffy was sixteen and Joyce was alive and the water was chlorine-blue and Dawn’s eyes matched the sky and Buffy said *you look like the pool* and Dawn said *that doesn’t even make sense* and Buffy said *it doesn’t have to* and Joyce laughed from the kitchen window.",
+      "leak": false,
+      "dismissed": true
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 267,
+      "speaker": "Buffy Summers",
+      "who": "Dawn",
+      "secret": "she was in heaven, not hell",
+      "lines": [
+        "cast: Dawn@spot · Buffy Summers@spot · Willow@off · Xander@off · Tara@off · Anya@off",
+        "secret #heaven: she was in heaven, not hell | kept by Buffy Summers · from Willow, Xander, Tara, Anya, Dawn"
+      ],
+      "sentence": "The stall where the word after *wasn’t* is *hell* and the word after *hell* is *heaven* and the word *heaven* doesn’t come out because the word *heaven* never comes out and the silence after *wasn’t* fills with the thing she doesn’t say and the not-saying is heavier than saying and the line is open and Dawn is breathing and the word sits behind her teeth.",
+      "leak": false,
+      "dismissed": false
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 285,
+      "speaker": "Buffy Summers",
+      "who": "Spike",
+      "secret": "Buffy asks Gabriel not to tell Walter she is alive, not yet",
+      "lines": [
+        "cast: Spike@spot · Buffy Summers@spot · Gabriel Winters@off · Walter@off · Chloe@off · Dawn@off",
+        "secret #alive: Buffy asks Gabriel not to tell Walter she is alive, not yet | kept by Gabriel Winters · from Walter",
+        "know Chloe: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows",
+        "know Dawn: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows",
+        "know Spike: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows"
+      ],
+      "sentence": "Gabriel asking about Spike’s blood the way Buffy asks Dawn about her homework the way Joyce asked Buffy about her *day* — the question that says *I see you* because saying *I see me* is the thing that can’t happen yet.",
+      "leak": false,
+      "dismissed": true
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 549,
+      "speaker": "Buffy Summers",
+      "who": "Buffy Summers",
+      "secret": "Gabriel Winters is with Buffy Summers",
+      "lines": [
+        "cast: Buffy Summers@spot · Zapatos Dorothea worker@off · Chloe@off · Dawn@off",
+        "know Zapatos Dorothea worker: #gabriel-winters-is-with-buffy-summers Gabriel Winters is with Buffy Summers | told · knows",
+        "know Chloe: #gabriel-winters-is-with-buffy-summers Gabriel Winters is with Buffy Summers | told · knows",
+        "know Dawn: #gabriel-winters-is-with-buffy-summers Gabriel Winters is with Buffy Summers | told · unaware"
+      ],
+      "sentence": "[Gabriel Winters#1]“Morning.”",
+      "leak": false,
+      "dismissed": true
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 605,
+      "speaker": "Buffy Summers",
+      "who": "Buffy Summers",
+      "secret": "Buffy asks Gabriel not to tell Walter she is alive, not yet",
+      "lines": [
+        "cast: Buffy Summers@spot · Gabriel Winters@off · Walter@off · Xander@off · Willow@off · Tara@off · Anya@off · Chloe@off · Dawn@off · Spike@off",
+        "secret #alive: Buffy asks Gabriel not to tell Walter she is alive, not yet | kept by Gabriel Winters · from Walter, Xander, Willow, Tara, Anya",
+        "reveal #alive: to Xander, Willow, Tara, Anya — told",
+        "know Chloe: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows",
+        "know Dawn: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows",
+        "know Spike: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows"
+      ],
+      "sentence": "“Gabriel loves you—I can tell.",
+      "leak": false,
+      "dismissed": true
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 902,
+      "speaker": "Buffy Summers",
+      "who": "Buffy Summers",
+      "secret": "Gabriel Winters is with Buffy Summers",
+      "lines": [
+        "cast: Buffy Summers@spot · Zapatos Dorothea worker@off · Chloe@off · Dawn@off",
+        "know Zapatos Dorothea worker: #gabriel-winters-is-with-buffy-summers Gabriel Winters is with Buffy Summers | told · knows",
+        "know Chloe: #gabriel-winters-is-with-buffy-summers Gabriel Winters is with Buffy Summers | told · knows",
+        "know Dawn: #gabriel-winters-is-with-buffy-summers Gabriel Winters is with Buffy Summers | told · unaware"
+      ],
+      "sentence": "You have a — she’s — BUFFY SUMMERS is — “ Walter’s hand came up, pointed at her, dropped, pointed at Gabriel instead, dropped again.",
+      "leak": false,
+      "dismissed": true
+    },
+    {
+      "story": "Buffy × Gabriel",
+      "seq": 956,
+      "speaker": "Buffy Summers",
+      "who": "Buffy Summers",
+      "secret": "Buffy asks Gabriel not to tell Walter she is alive, not yet",
+      "lines": [
+        "cast: Buffy Summers@spot · Gabriel Winters@off · Xander@off · Willow@off · Tara@off · Anya@off · Walter@off · Chloe@off · Dawn@off · Spike@off",
+        "secret #alive: Buffy asks Gabriel not to tell Walter she is alive, not yet | kept by Gabriel Winters · from Xander, Willow, Tara, Anya, Walter",
+        "reveal #alive: to Xander, Willow, Tara, Anya — told",
+        "reveal #alive: to Walter — told",
+        "know Chloe: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows",
+        "know Dawn: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows",
+        "know Spike: #alive Buffy asks Gabriel not to tell Walter she is alive, not yet | told · knows"
+      ],
+      "sentence": "“And if she asks why you want it, tell her Dawn’s running a background check!”",
+      "leak": false,
+      "dismissed": false
+    },
+    {
+      "story": "made up",
+      "note": "kept from Mira, and Mira says it",
+      "speaker": "Mira",
+      "who": "Mira",
+      "secret": "Joss stole the harbor ledger from the customs office",
+      "lines": [
+        "cast: Mira@spot · Joss@peri",
+        "secret #ledger: Joss stole the harbor ledger from the customs office | kept by Joss · from Mira"
+      ],
+      "sentence": "“I know you stole the harbor ledger from the customs office,” Mira says.",
+      "leak": true
+    },
+    {
+      "story": "made up",
+      "note": "kept from everyone, a bystander knows it",
+      "speaker": "Mira",
+      "who": "Dawn",
+      "secret": "Mira sank the midnight cargo off the northern reef",
+      "lines": [
+        "cast: Mira@spot · Dawn@spot · Joss@peri",
+        "secret #cargo: Mira sank the midnight cargo off the northern reef | kept by Mira · from everyone"
+      ],
+      "sentence": "Dawn knows the midnight cargo went down off the northern reef.",
+      "leak": true
+    },
+    {
+      "story": "made up",
+      "note": "kept from Walter, before he was told",
+      "speaker": "Walter",
+      "who": "Walter",
+      "secret": "the silver vault key hangs behind the lighthouse clock",
+      "lines": [
+        "cast: Walter@spot · Joss@peri",
+        "secret #vault: the silver vault key hangs behind the lighthouse clock | kept by Joss · from Walter"
+      ],
+      "sentence": "“The silver vault key hangs behind the lighthouse clock,” Walter says.",
+      "leak": true
+    },
+    {
+      "story": "made up",
+      "note": "a short secret: Walter says it before anyone told him",
+      "speaker": "Walter",
+      "who": "Walter",
+      "secret": "Buffy is alive",
+      "lines": [
+        "cast: Walter@spot · Gabriel Winters@peri · Buffy Summers@off",
+        "secret #alive: Buffy is alive | kept by Buffy Summers, Gabriel Winters · from Walter"
+      ],
+      "sentence": "“Buffy Summers is alive,” Walter says.",
+      "leak": true,
+      "todo": "docs/35 Part 3.4: a secret with one content word"
+    }
+  ]
+}

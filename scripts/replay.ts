@@ -7,6 +7,7 @@
  * `--accept-backfill` says yes to every loop the rules find, for how the prompts read once a chat's card is approved.
  *
  *   bun scripts/replay.ts <chat id or part of its title> --seq 629 [--find "still unsaid"] [--out dir] [--db path/to/mea.db] [--accept-backfill]
+ *   bun scripts/replay.ts --flags [--kind leak] [--show] [--db path/to/mea.db]   (docs/35 6.2, in replay-flags.ts)
  */
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,6 +15,11 @@ import { join, resolve } from "node:path";
 import { Database } from "bun:sqlite";
 
 const args = process.argv.slice(2);
+// docs/35 6.2: today's rules over every stored flag, instead of one reply's prompts.
+if (args.includes("--flags")) {
+  await (await import("./replay-flags")).replayFlags(args);
+  process.exit(0);
+}
 const opt = (f: string) => (args.includes(f) ? args[args.indexOf(f) + 1] : undefined);
 const OPTIONS = new Set(["--seq", "--find", "--out", "--db"]);
 const which = args.find((a, i) => !a.startsWith("--") && !OPTIONS.has(args[i - 1] ?? ""));
