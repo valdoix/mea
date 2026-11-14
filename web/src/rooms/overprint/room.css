@@ -130,9 +130,33 @@
 }
 :root[data-theme="overprint"][data-shell] nav.rail .logo span {
   text-shadow:
-    2px 1.5px 0 color-mix(in srgb, var(--accent) 80%, transparent),
+    calc(var(--op-mis, 3px) * 0.7) calc(var(--op-mis, 3px) * 0.5) 0 color-mix(in srgb, var(--accent) 80%, transparent),
     -1px -1px 0 color-mix(in srgb, #3a5bd9 70%, transparent);
   animation: op-wobble 5s ease-in-out infinite;
+  transition: text-shadow 0.4s;
+}
+/* your open stories: die-cut stickers, each stuck on a little crooked */
+:root[data-theme="overprint"][data-shell] nav.rail .story .avatar {
+  border-radius: 12px !important;
+  box-shadow:
+    0 0 0 3px #fff,
+    var(--op-mis, 3px) var(--op-mis, 3px) 0 3px var(--sig2);
+  transform: rotate(-3deg);
+  transition:
+    transform 0.3s var(--spring),
+    box-shadow 0.4s;
+}
+:root[data-theme="overprint"][data-shell] nav.rail .story:nth-child(2n) .avatar {
+  transform: rotate(2.5deg);
+}
+:root[data-theme="overprint"][data-shell] nav.rail .story:hover .avatar {
+  transform: rotate(0) translate(-1px, -1px);
+}
+:root[data-theme="overprint"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    0 0 0 3px #fff,
+    var(--op-mis, 3px) var(--op-mis, 3px) 0 3px var(--accent),
+    0 0 0 6px var(--sig1);
 }
 :root[data-theme="overprint"][data-shell] nav.rail .logo:hover {
   transform: rotate(-8deg) scale(1.06);
@@ -279,7 +303,8 @@
   letter-spacing: -0.06em;
   color: transparent;
   -webkit-text-stroke: 2px var(--sig2);
-  text-shadow: 6px 5px 0 color-mix(in srgb, var(--accent) 50%, transparent);
+  text-shadow: calc(var(--op-mis, 3px) * 2) calc(var(--op-mis, 3px) * 1.6) 0 color-mix(in srgb, var(--accent) 50%, transparent);
+  transition: text-shadow 0.4s;
   animation: op-stamp 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
 }
 :root[data-theme="overprint"][data-shell] .chapter-h::before {
@@ -330,6 +355,51 @@
   letter-spacing: 0.01em;
 }
 
+/* the typing dots are drops of the two inks, a little out of register */
+:root[data-theme="overprint"][data-shell] .typing span {
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 2px -2px 0 -0.5px color-mix(in srgb, var(--sig2) 80%, transparent);
+}
+:root[data-theme="overprint"][data-shell] .typing span:nth-child(2) {
+  background: var(--sig2);
+  box-shadow: 2px -2px 0 -0.5px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+/* the stamp a send leaves across the page (Ambience.svelte adds it over everything) */
+.op-stamp {
+  position: fixed;
+  z-index: 400;
+  padding: 6px 14px;
+  border: 3px solid #ff4fb3;
+  border-radius: 6px;
+  font: 800 1.7rem/1 "Bricolage Grotesque Variable", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  color: #ff4fb3;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  rotate: -8deg;
+  animation: op-thunk 1.6s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+}
+:root[data-mode="night"] .op-stamp {
+  mix-blend-mode: screen;
+  text-shadow: 0 0 8px #ff4fb3;
+}
+@keyframes op-thunk {
+  0% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
 /* composer: the starburst send button */
 :root[data-theme="overprint"][data-shell] .composer {
   background: var(--surface);
