@@ -136,10 +136,17 @@ describe("adapters filled from the census (docs/29 Part 5)", () => {
     expect(prompt({ modelId: "deepseek-ai/DeepSeek-V3.2" }).pass).toContain("a line each, 70 words at most");
   });
 
-  test("DeepSeek and Gemini plan in their own step from the start; no other family does", () => {
-    expect(plansFirst("deepseek")).toBe(true);
-    expect(plansFirst("gemini")).toBe(true);
-    for (const f of ["claude", "glm", "kimi", "gpt", "open", "", "none"]) expect(plansFirst(f), f).toBe(false);
+  test("DeepSeek plans in its own step from the start, Gemini only with its reasoning hidden; no other family does", () => {
+    const hidden = { hidesReasoning: true };
+    const shown = { hidesReasoning: false };
+    expect(plansFirst("deepseek", hidden)).toBe(true);
+    expect(plansFirst("deepseek", shown)).toBe(true);
+    expect(plansFirst("gemini", hidden)).toBe(true);
+    expect(plansFirst("gemini", shown)).toBe(false);
+    for (const f of ["claude", "glm", "kimi", "gpt", "open", "", "none"]) {
+      expect(plansFirst(f, hidden), f).toBe(false);
+      expect(plansFirst(f, shown), f).toBe(false);
+    }
   });
 
   test("sampler suggestions come from each maker's guidance, and only where there is some", () => {

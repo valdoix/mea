@@ -34,8 +34,10 @@ export interface ModelAdapter {
   /**
    * Plan in its own step from the first reply: the fallback Mea already uses for a model that keeps
    * skipping its plan, started at once for a family the golden runs found skipping and drafting.
+   * "hidden": only while the profile asks the provider not to return reasoning, for a family whose
+   * skips came from the gateway dropping the <think> block along with the reasoning.
    */
-  planFirst?: boolean;
+  planFirst?: boolean | "hidden";
 }
 
 export type Bans = "quote" | "describe";
@@ -96,8 +98,11 @@ export const ADAPTERS: ModelAdapter[] = [
     bans: "quote",
     samplers: () => ({ temperature: 1, why: "Google's guidance for Gemini 3 and later: a lower temperature can make it loop" }),
     // docs/29 §17, the bake-off: Gemini 4 Argon skipped its plan until Mea's fallback caught it, and
-    // 12 of its 16 replies were planned in their own step. It now starts there, as DeepSeek does.
-    planFirst: true,
+    // 12 of its 16 replies were planned in their own step. A replay on LinkAPI (2026-11-14) found why:
+    // with reasoning shown, it opened both replies with a full <think> pass (341 and 396 words, no
+    // thinking tokens); its skips came on calls that asked for the reasoning to be hidden. So it
+    // starts in its own step only then, and otherwise plans in the reply, one call instead of two.
+    planFirst: "hidden",
   },
   {
     family: "glm",
@@ -192,8 +197,10 @@ export function planCeilings(scale = 1): PlanCeilings {
 }
 
 /** Whether this family plans in its own step from the first reply. */
-export function plansFirst(family: string): boolean {
-  return family !== "none" && Boolean(adapterFor(family).planFirst);
+export function plansFirst(family: string, route: { hidesReasoning: boolean }): boolean {
+  if (family === "none") return false;
+  const first = adapterFor(family).planFirst;
+  return first === "hidden" ? route.hidesReasoning : Boolean(first);
 }
 
 /** What Settings shows for a profile's model: the family it's treated as, and the samplers its maker suggests. */
