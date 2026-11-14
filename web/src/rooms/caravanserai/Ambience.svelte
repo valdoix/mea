@@ -2,7 +2,11 @@
   // Caravanserai: a plastered courtyard wall with a tiled dado, a horseshoe doorway framed in
   // zellige onto the dunes (a caravan crossing the far ridge by day; stars, a crescent and a campfire
   // at night), and pierced brass lanterns that swing and, after dark, scatter points of light on the
-  // wall. Styled in room.css.
+  // wall. A flying carpet bobs across the sky in the doorway, and at night the constellations draw
+  // themselves. The lanterns swing when the pointer sweeps past them and settle again. On the dado
+  // stand the three glasses of welcome: each message you send pours one, and after the third they
+  // start again. Styled in room.css.
+  import { device } from "../../lib/device.svelte";
   const STARS = (() => {
     let seed = 7;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -10,6 +14,57 @@
   })();
   const CAMEL = "M4 14C6 8 10 7 12 9C14 4 20 3 22 8C24 5 28 6 29 10H31C33 6 36 5 37 7L38 9L36 10L34 12L33 16L32 27H30L30 17L27 18L26 27H24L24 18H14L13 27H11L11 18L9 17L8 27H6L6 17C4 17 3 16 4 14Z";
   const ARCH = "M28 400V160C6 96 50 14 120 14S234 96 212 160V400";
+  const CONS = [
+    [[30, 70], [52, 58], [74, 66], [96, 50], [118, 62], [108, 92], [80, 98]],
+    [[150, 150], [168, 172], [190, 160], [210, 184], [200, 210]],
+  ];
+
+  // the three glasses of welcome
+  let poured = $state(0);
+  // lanterns on springs: the pointer sweeping past pushes them, and they swing back and settle
+  let lanterns = $state<SVGSVGElement[]>([]);
+  $effect(() => {
+    const click = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest?.(".send")) poured = poured >= 3 ? 1 : poured + 1;
+    };
+    addEventListener("click", click, true);
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const state = lanterns.map(() => ({ a: 0, v: 0 }));
+    let last: number | null = null;
+    let raf = 0;
+    let t0 = 0;
+    const tick = (t: number) => {
+      const dt = Math.min(0.05, (t - (t0 || t)) / 1000);
+      t0 = t;
+      let moving = false;
+      state.forEach((s, i) => {
+        s.v += (-s.a * 30 - s.v * 2.2) * dt;
+        s.a = Math.max(-22, Math.min(22, s.a + s.v * dt * 6));
+        if (Math.abs(s.a) > 0.05 || Math.abs(s.v) > 0.05) moving = true;
+        lanterns[i]?.style.setProperty("--push", `${s.a.toFixed(2)}deg`);
+      });
+      raf = moving ? requestAnimationFrame(tick) : 0;
+      if (!moving) t0 = 0;
+    };
+    const move = (e: PointerEvent) => {
+      if (still || !device.fireflies) return;
+      if (last !== null) {
+        const dx = e.clientX - last;
+        lanterns.forEach((el, i) => {
+          const b = el.getBoundingClientRect();
+          if (Math.abs(e.clientX - (b.left + b.width / 2)) < 120 && e.clientY < b.bottom + 60) state[i]!.v += dx * 0.25;
+        });
+        if (!raf) raf = requestAnimationFrame(tick);
+      }
+      last = e.clientX;
+    };
+    addEventListener("pointermove", move, { passive: true });
+    return () => {
+      removeEventListener("click", click, true);
+      removeEventListener("pointermove", move);
+      cancelAnimationFrame(raf);
+    };
+  });
 </script>
 
 <i class="warm"></i>
@@ -30,7 +85,9 @@
       <ellipse cx="110" cy="120" rx="140" ry="22" fill="#c8c8ff" opacity=".18" transform="rotate(-28 110 120)" filter="url(#ca-blur)" />
       {#each STARS as s, i (i)}<circle cx={s.x} cy={s.y} r={s.r} fill="#fff" opacity={s.o} />{/each}
     </g>
+    <g class="cons">{#each CONS as c, i (i)}<polyline points={c.map((p) => p.join(",")).join(" ")} style:animation-delay="{-i * 4}s" />{#each c as [x, y], j (j)}<circle cx={x} cy={y} r="1.8" />{/each}{/each}</g>
     <g class="sun"><circle cx="150" cy="110" r="46" fill="url(#ca-sun)" /><circle cx="150" cy="110" r="16" fill="#fffbe8" /></g>
+    <g class="carpet"><g class="bob"><path d="M0 10C10 14 18 6 28 10S44 14 52 10L52 18C44 22 36 14 28 18S10 22 0 18Z" fill="#ad4c25" stroke="#e1a43a" stroke-width="1.5" /><path d="M14 13l3 1.5-3 1.5-3-1.5zM26 12l4 2.5-4 2.5-4-2.5zM38 13l3 1.5-3 1.5-3-1.5z" fill="#1f7a74" /><path d="M0 11l-3-1M0 14h-3M0 17l-3 1M52 11l3-1M52 14h3M52 17l3 1" stroke="#e1a43a" /></g></g>
     <g class="moon"><circle cx="160" cy="92" r="17" fill="#f6ecd0" mask="url(#ca-cres)" /></g>
     <path class="d1 shim" d="M0 268C40 250 80 244 120 252S200 240 240 250V400H0Z" />
     <g class="sil caravan">
@@ -57,8 +114,8 @@
   <path d="M19 400V160C-4 92 44 4 120 4S244 92 221 160V400" fill="none" stroke="#e1a43a" stroke-width="1.6" />
   <path d="M37 400V160C17 100 56 24 120 24S223 100 203 160V400" fill="none" stroke="#e1a43a" stroke-width="1.6" />
 </svg>
-{#each ["a", "b", "c"] as k (k)}
-  <svg class="lan {k}" viewBox="0 0 30 150" aria-hidden="true">
+{#each ["a", "b", "c"] as k, i (k)}
+  <svg class="lan {k}" viewBox="0 0 30 150" aria-hidden="true" bind:this={lanterns[i]}>
     <line x1="15" y1="0" x2="15" y2="92" stroke="#8a6a3a" stroke-width="1.2" stroke-dasharray="3 2" />
     <g transform="translate(0 90)">
       <circle class="halo" cx="15" cy="30" r="30" fill="url(#ca-halo-{k})" />
@@ -73,3 +130,14 @@
   </svg>
 {/each}
 <i class="dado"></i>
+<svg class="tea" viewBox="0 0 110 50" aria-hidden="true">
+  <rect x="2" y="44" width="106" height="5" rx="2.5" class="tray" />
+  {#each [0, 1, 2] as n (n)}
+    <g transform="translate({8 + n * 34} 6)">
+      <rect class="fill" class:on={poured > n} x="3" y="12" width="16" height="24" />
+      <rect class="foam" class:on={poured > n} x="3" y="10" width="16" height="4" />
+      <path d="M0 2h22l-3 36H3z" class="glass" />
+      <path d="M1 10h20" class="band" />
+    </g>
+  {/each}
+</svg>
