@@ -20,7 +20,8 @@ import { userEdit } from "../trackers/service";
 import { flagAllowed, guardsFor, puppetScope, type PuppetScope } from "./guards";
 import { citesClosed, flagKey, flagKinds, quietKeys, wavedThrough } from "./quiet";
 import { deadRule, leakRule, nameRule, ruleInput, seqMessage, timeRule, traitRule } from "./rules";
-import { runSlips, slipAllowed, slipContext } from "./slips";
+import { RULES_VERSION, senseCheck } from "./sense";
+import { runSlips, SLIPS, slipAllowed, slipContext } from "./slips";
 import { retellIssues } from "./retell";
 import { thingCore, thingPlace } from "../trackers/things";
 import { tieIssues } from "./ties";
@@ -64,11 +65,17 @@ export interface Issue {
   by: "rules" | "model";
   dismissed?: boolean;
   /** docs/22 4.2: it went away because you acted on it: its sentence rewritten, or its version made canon. Not waved off. */
-  settled?: "fixed" | "accepted";
+  settled?: "fixed" | "accepted" | "withdrawn";
   /** docs/22 4.2: its kind has gone quiet, so it isn't showing on the reply. Worked out as it's read, never stored. */
   quiet?: boolean;
   /** docs/14, part 6: a one-tap fix that swaps a word in the reply (a name from the original's world). */
   replace?: { from: string; to: string };
+  /** docs/35 4.3: the rule version that raised it; older open flags are read again when the server starts. */
+  rv?: number;
+  /** docs/35 4.1: who and what a leak is about (character id, fact key), for the sense check. */
+  about?: { id: string; fact: string };
+  /** docs/35 4.4: a certain leak (the records say they're kept from it) holds back what the tracker records them learning. */
+  holds?: { who: string; text: string };
 }
 
 export interface FlagRow {
@@ -95,7 +102,9 @@ export function leakGuardOn(chatId: string) {
 /** The rules pass (trait, dead, time, names, leaks). Pure apart from reading the story state; returns issues without ids. */
 export function ruleCheck(chatId: string, text: string, st: WorldState | null, o: { speaker: string; leaks: boolean; names?: boolean; messageId?: string }): Omit<Issue, "id">[] {
   const r = ruleInput(chatId, text, st, o);
-  return [...traitRule(r), ...deadRule(r), ...timeRule(r), ...(o.names !== false ? nameRule(r) : []), ...(o.leaks ? leakRule(r) : [])];
+  const found = [...traitRule(r), ...deadRule(r), ...timeRule(r), ...(o.names !== false ? nameRule(r) : []), ...(o.leaks ? leakRule(r) : [])];
+  // docs/35 4.1: only flags that hold up when read.
+  return senseCheck(found, { st, reply: text }).kept;
 }
 
 const modelSchema = z.object({
@@ -374,6 +383,15 @@ export async function checkReply(chatId: string, messageId: string, swipeIdx: nu
   // P1: every check in the slip registry that's on for this chat (slips.ts).
   const ctx = slipContext({ chatId, text: sw.content, seq: m.seq, messageId, role: m.role, speaker: m.name ?? names.char, state: st, guards: g, continuity: cfg.continuity, leaks: leakGuardOn(chatId) });
   let issues: Omit<Issue, "id">[] = runSlips(ctx, "reply", (id, e) => opts.job?.note({ [`${id}Error`]: e.message.slice(0, 200) }));
+  // docs/35 4.1: a rule's flag that doesn't survive being read is dropped (and counted), and the rest carry the rule version (4.3).
+  {
+    const { kept, dropped } = senseCheck(issues, { st, reply: sw.content });
+    if (dropped.length) {
+      opts.job?.note({ senseDropped: dropped.map((d) => `${d.issue.kind}: ${d.why}`).slice(0, 8) });
+      console.log(`  [continuity] dropped ${dropped.length} rule flag${dropped.length > 1 ? "s" : ""} that didn't hold up: ${dropped.map((d) => `${d.issue.kind} (${d.why})`).join("; ")}`);
+    }
+    issues = kept.map((i) => (i.by === "rules" ? { ...i, rv: RULES_VERSION } : i));
+  }
   // CON-12: the timeline check runs once the trackers have read the reply; keep what it found.
   const earlier = one<FlagRow>("SELECT * FROM continuity_flags WHERE message_id = ? AND swipe_idx = ?", messageId, swipeIdx);
   issues.push(...parseJson<Issue[]>(earlier?.issues, []).filter((i) => i.kind === "timeline").map(({ id: _id, ...rest }) => rest));
@@ -550,7 +568,8 @@ export function acceptIssue(flagId: string, issueId: string) {
 export function fixNotes(flagId: string) {
   const r = mustFlag(flagId);
   const quiet = quietKeys(r.chat_id);
-  const open = parseJson<Issue[]>(r.issues, []).filter((i) => !i.dismissed && !quiet.has(flagKey(i)));
+  // docs/35 4.4: an unsure leak ("Does Dawn know this?") is shown, never handed to a rewrite as a rule.
+  const open = parseJson<Issue[]>(r.issues, []).filter((i) => !i.dismissed && !quiet.has(flagKey(i)) && !(i.kind === "leak" && i.severity === "minor"));
   return { chatId: r.chat_id, messageId: r.message_id, feedback: `Keep continuity: ${open.map((i) => i.fix).join(" ")}` };
 }
 
@@ -630,4 +649,42 @@ export function recordTimeline(chatId: string, messageId: string) {
 function flagsChanged(chatId: string, messageId: string) {
   invalidate(chatId, { messageId });
   publish({ type: "continuity.changed", chatId, messageId });
+}
+
+/**
+ * docs/35 4.3: open rule flags raised under an older rule version, read again with today's rules. One
+ * today's rules no longer raise is closed as "withdrawn" (not dismissed: it says the rule was wrong,
+ * not that you waved it off). One still raised takes today's wording. Runs once when the server starts.
+ */
+export function withdrawStale(): { read: number; withdrawn: number } {
+  let read = 0;
+  let withdrawn = 0;
+  const cfg = memoryConfig();
+  for (const r of all<FlagRow>("SELECT * FROM continuity_flags WHERE status = 'open'")) {
+    const issues = parseJson<Issue[]>(r.issues, []);
+    if (!issues.some((i) => i.by === "rules" && !i.dismissed && (i.rv ?? 0) < RULES_VERSION)) continue;
+    const m = getMessageRow(r.message_id);
+    const sw = one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", r.message_id, r.swipe_idx);
+    if (!m || m.deleted_at || !sw) continue;
+    read++;
+    let st: WorldState | null = null;
+    try {
+      st = canonFor(r.chat_id, m.seq);
+    } catch {
+      st = null;
+    }
+    const ctx = slipContext({ chatId: r.chat_id, text: sw.content, seq: m.seq, messageId: r.message_id, role: m.role, speaker: m.name ?? chatNames(r.chat_id).char, state: st, guards: guardsFor(r.chat_id), continuity: cfg.continuity, leaks: leakGuardOn(r.chat_id) });
+    // Only kinds a reply check raises and that are on now: a check you turned off, or one that runs at another step, is left alone.
+    const ran = new Set(SLIPS.filter((s) => s.phase === "reply" && s.on(ctx)).map((s) => s.id));
+    const today = senseCheck(runSlips(ctx, "reply"), { st, reply: sw.content }).kept;
+    const next = issues.map((i): Issue => {
+      if (i.by !== "rules" || i.dismissed || (i.rv ?? 0) >= RULES_VERSION || !ran.has(i.kind)) return i;
+      const again = today.find((n) => n.kind === i.kind && n.claim === i.claim);
+      if (again) return { ...i, ...again, id: i.id, rv: RULES_VERSION };
+      withdrawn++;
+      return { ...i, dismissed: true, settled: "withdrawn", rv: RULES_VERSION };
+    });
+    save(r, next);
+  }
+  return { read, withdrawn };
 }

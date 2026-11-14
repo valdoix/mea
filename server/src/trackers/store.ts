@@ -556,6 +556,12 @@ export function foldConfigFor(chatId: string, cfg = trackerConfig(chatId)): Fold
 export function heldLeaks(chatId: string): NonNullable<FoldConfig["held"]> {
   const out: NonNullable<FoldConfig["held"]> = [];
   for (const { messageId, issue: i } of openIssues(chatId, "leak")) {
+    // docs/35 4.4: only a certain leak holds anything; "Does Dawn know this?" holds nothing.
+    if (i.holds) {
+      out.push({ messageId, ...i.holds });
+      continue;
+    }
+    if (i.severity !== "major") continue;
     const m = i.fix?.match(/^(.+?) doesn['’]t know: ([\s\S]+)$/);
     if (m) out.push({ messageId, who: m[1]!.trim(), text: m[2]!.trim() });
   }

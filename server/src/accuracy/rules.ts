@@ -6,7 +6,7 @@ import { cleanText, contentWords } from "../memory/text";
 import { mustChat } from "../services/chats";
 import { secretRevealer } from "../lore/secretlinks";
 import { knowledgeOf } from "../trackers/knowledge";
-import { TELLING } from "../trackers/secretwords";
+import { secretShape, TELLING } from "../trackers/secretwords";
 import type { WorldState } from "../trackers/types";
 import type { Issue } from "./checker";
 import { nameSlips } from "./names";
@@ -261,8 +261,12 @@ export function leakRule(r: RuleInput): Found[] {
               ? `Does ${c.name} know this? "${f.statement}"${f.secret?.keepers.length ? ` (kept by ${f.secret.keepers.map((x) => st.chars[x]?.name ?? x).join(", ")})` : ""}; nothing says they were told.`
               : `${c.name} doesn't know this: "${f.statement}" (${k.why}${f.secret?.keepers.length ? `; kept by ${f.secret.keepers.map((x) => st.chars[x]?.name ?? x).join(", ")}` : ""}).`,
             citations: [{ ref: "T", type: "tracker", label: `secret: ${f.statement}`, seq: f.firstSeq, messageId: msg.get(f.firstSeq) ?? null }],
-            fix: `${c.name} doesn't know that ${f.statement.replace(/\.$/, "")}; they must not reference it.`,
-            canon: { memory: `${c.name} learned that ${f.statement.replace(/\.$/, "")}.`, trackerLine: `know ${c.name}: ${f.statement} | from the story · knows` },
+            fix: unsure ? `Check whether ${c.name} knows that ${f.statement.replace(/\.$/, "")}; nothing in the story says they were told.` : `${c.name} doesn't know that ${f.statement.replace(/\.$/, "")}; they must not reference it.`,
+            // docs/35 4.2: "make it canon" only when it says something sensible (never a secret still written as a request).
+            ...(secretShape(f.statement) ? {} : { canon: { memory: `${c.name} learned that ${f.statement.replace(/\.$/, "")}.`, trackerLine: `know ${c.name}: #${f.key} ${f.statement} | from the story · knows` } }),
+            about: { id: c.id, fact: f.key },
+            // 4.4: only a certain leak holds back what the tracker records them learning.
+            ...(unsure ? {} : { holds: { who: c.name, text: f.statement } }),
             by: "rules",
           });
           break;
