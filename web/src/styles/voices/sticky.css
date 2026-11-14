@@ -26,7 +26,7 @@
   box-shadow:
     0 1px 1px rgb(0 0 0 / 15%),
     0 20px 20px -16px rgb(0 0 0 / 60%);
-  font: 500 1.18em/1.3 "Caveat", "Segoe Print", cursive;
+  font: 500 calc(1.18em / var(--dl-box))/1.3 "Caveat", "Segoe Print", cursive;
   rotate: -1.2deg;
 }
 .prose[data-voices="sticky"] .v-say:nth-of-type(odd) {
@@ -125,7 +125,7 @@
 .prose[data-voices="sticky"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) {
   --paper: #f3f0e8;
   max-width: min(420px, 88%);
-  font-size: 1.05em;
+  font-size: calc(1.05em / var(--dl-box));
   background: linear-gradient(225deg, transparent 20px, var(--paper) 20px);
 }
 .prose[data-voices="sticky"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"])::before {

@@ -29,7 +29,7 @@
   box-shadow:
     0 1px 0 rgb(0 0 0 / 8%),
     0 18px 26px -18px rgb(40 20 0 / 75%);
-  font-size: 0.95em;
+  font-size: calc(1em / var(--dl-box));
 }
 .prose[data-voices="seal"] .v-say::before {
   content: "";
@@ -40,7 +40,7 @@
 }
 .prose[data-voices="seal"] .v-say .dl:not(.v-other) {
   color: color-mix(in oklab, var(--c) 50%, var(--text));
-  font: italic 500 1.24em/1.45 "EB Garamond Variable", Georgia, serif;
+  font: italic 500 1.178em/1.45 "EB Garamond Variable", Georgia, serif;
   font-variant: normal;
 }
 .prose[data-voices="seal"] .v-medal {
@@ -148,7 +148,7 @@
     color-mix(in oklab, var(--c) 5%, var(--surface));
 }
 .prose[data-voices="seal"] .v-say[data-tone="shout"] .dl:not(.v-other) {
-  font: 700 1.28em/1.35 "EB Garamond Variable", Georgia, serif;
+  font: 700 1.216em/1.35 "EB Garamond Variable", Georgia, serif;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -175,7 +175,7 @@
   box-shadow: -2px 2px 3px rgb(0 0 0 / 12%);
 }
 .prose[data-voices="seal"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
-  font-size: 1.08em;
+  font-size: 1.026em;
   opacity: 0.85;
 }
 .prose[data-voices="seal"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .v-medal {

@@ -26,11 +26,11 @@
     0 0 0 4px var(--surface),
     0 0 0 8px var(--c),
     10px 14px 0 4px rgb(0 0 0 / 16%);
-  font: 400 0.95em/1.55 "Pixelify Sans", monospace;
+  font: 400 calc(1em / var(--dl-box))/1.55 "Pixelify Sans", monospace;
 }
 .prose[data-voices="quest"] .v-say .dl:not(.v-other) {
   color: var(--text);
-  font: 500 1.1em/1.5 "Pixelify Sans", monospace;
+  font: 500 1.045em/1.5 "Pixelify Sans", monospace;
   font-style: normal;
   font-variant: normal;
 }
@@ -133,7 +133,7 @@
     10px 14px 0 8px rgb(0 0 0 / 16%);
 }
 .prose[data-voices="quest"] .v-say[data-tone="shout"] .dl:not(.v-other) {
-  font: 400 0.9em/1.8 "Press Start 2P", monospace;
+  font: 400 0.855em/1.8 "Press Start 2P", monospace;
   text-shadow: 3px 3px 0 color-mix(in oklab, var(--c) 55%, transparent);
 }
 .prose[data-voices="quest"] .v-say[data-tone="shout"] .v-medal::before {
@@ -148,7 +148,7 @@
     0 0 0 6px color-mix(in oklab, var(--c) 55%, transparent);
 }
 .prose[data-voices="quest"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
-  font-size: 0.95em;
+  font-size: 0.9em;
   color: var(--text-muted);
 }
 .prose[data-voices="quest"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .v-medal::before {
