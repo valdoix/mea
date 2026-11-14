@@ -98,7 +98,9 @@
   const obligations = $derived(st ? Object.values(st.obligations).filter((o) => o.kind !== "promise" && (o.status === "open" || o.status === "due")) : []);
   const deadlines = $derived(st ? Object.values(st.deadlines).filter((x) => !x.done) : []);
   const plants = $derived(st ? Object.values(st.plants).filter((p) => p.paidSeq == null) : []);
-  const facts = $derived(st ? Object.values(st.facts).sort((a, b) => Number(Boolean(b.secret)) - Number(Boolean(a.secret)) || b.lastSeq - a.lastSeq) : []);
+  // docs/35 7.1: live secrets first; one that came out sits with the facts.
+  const live = (f: { secret?: { out?: unknown } }) => Number(Boolean(f.secret && !f.secret.out));
+  const facts = $derived(st ? Object.values(st.facts).sort((a, b) => live(b) - live(a) || b.lastSeq - a.lastSeq) : []);
   const items = $derived(st ? Object.values(st.items).filter((i) => !i.gone) : []);
 
   function fmt(f: TemplateField, v: unknown): string {
@@ -381,10 +383,10 @@
           {@const op = offpageFor(`tracker:${f.key}`)}
           <div class="fact">
             <div>
-              {#if f.secret}<ShieldAlert size={12} class="secret" />{/if}
+              {#if f.secret && !f.secret.out}<ShieldAlert size={12} class="secret" />{/if}
               {#if op}<span class="lock" title="Kept off the page">🔒</span>{/if}
               {f.statement}{f.truth !== "true" ? ` (${f.truth})` : ""}
-              {#if f.secret}<button class="st-link" type="button" onclick={() => (op ? editOffpage(op) : editOffpage(null, { label: f.statement, ref: `tracker:${f.key}` }))}>{op ? "Edit · reveal" : "Keep off the page"}</button>{/if}
+              {#if f.secret?.out}<span class="came-out" title={f.secret.out.how ?? "Everyone it was kept from knows"}>came out · #{f.secret.out.seq}</span>{:else if f.secret}<button class="st-link" type="button" onclick={() => (op ? editOffpage(op) : editOffpage(null, { label: f.statement, ref: `tracker:${f.key}` }))}>{op ? "Edit · reveal" : "Keep off the page"}</button>{/if}
             </div>
             <small>{Object.entries(f.stances).map(([id, s]) => `${nm(id)} ${s.status}`).join(" · ")}</small>
           </div>
@@ -996,6 +998,11 @@
   .listrow:last-child,
   .thread:last-child {
     border-bottom: 0;
+  }
+  .came-out {
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
   }
   .fact :global(.secret) {
     color: var(--accent-ink);

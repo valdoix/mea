@@ -7,7 +7,8 @@ import type { SimOp } from "../sim/types";
 import { formatStoryTime, leadingDuration, parseDuration, parseStoryTime, shortStoryTime } from "./clock";
 import { loopId, repeats } from "./loops";
 import { addCondition, conditionsIn, detectStamina, driftCharacter, type DriftNote, endsCondition, SEVERITY, severityOf } from "./drift";
-import { castLabel, parseLine } from "./dsl";
+import { castLabel, parseLine, revealNames } from "./dsl";
+import { secretMatch } from "./secretwords";
 import { PlaceBook, placeKey, type PlaceProfile } from "./places";
 import { currentMembers, groupKey, kindOfGroup, possessiveAnchor } from "./groups";
 import { bracketGroup, FIELD_WORD, familySurname, isCrowdShape, isGroupShape, looksLikePlace, NOT_A_NAME, orgKind, passingName, sentenceNotPath, tidyAliases } from "./whois";
@@ -24,6 +25,7 @@ import {
   type Character,
   emptyWorld,
   type EventSource,
+  type Fact,
   type Group,
   type GroupKind,
   type KnowStatus,
@@ -222,6 +224,11 @@ const GROUP_WORD = /^(?:the |all the |whole )*(?:group|whole group|everyone|ever
 /** Words for people at large ("the general public", "nobody"): no one in particular, so never a person. */
 const PUBLIC_WORD = /^(?:the )?(?:general )?public$|^(?:the )?(?:whole )?(?:world|town|school|city|village)$|^(?:other )?people$|^everyone else$|^anyone(?: else)?$|^outsiders$|^(?:nobody|no one|noone|none)(?: else)?$/;
 /** "from everyone": the crowd words, and people at large (but not "nobody"). */
+/** docs/35 7.4: how a status note on a secret starts ("secret #alive: risk — …"), as opposed to a secret. */
+const STATUS_NOTE = /^(?:open|risk|at risk|revealed|safe|still|exposed|closed|out|update|status|holding|held|blown)\b/i;
+/** docs/35 7.2: secrets that being in the room gives away: someone is alive, back, here. Group 1 is who. */
+const PRESENCE = /^((?:\S+\s+){0,3}?\S+)\s+(?:is|was|'s|’s)\s+(?:still\s+|really\s+)?(?:alive|back|here|home|in town|not dead|living|back from the dead|awake|out of (?:the )?(?:grave|coma|hospital|prison|jail))\b/i;
+
 const EVERYONE_WORD = (n: string) => GROUP_WORD.test(n) || (PUBLIC_WORD.test(n) && !/^(?:nobody|no one|noone|none)/.test(n));
 const isCrowd = (name: string) => {
   const n = norm(personName(name));
@@ -890,6 +897,7 @@ export class Folder {
       else if (PERSON_OPS.has(ev.op.op) && ev.op.op !== "rep" && ev.op.subject) for (const op of this.spread(ev.op, ctx)) this.applyOp(op, ctx);
       else this.applyOp(ev.op, ctx);
       if (ev.op.op === "cast" || ev.op.op === "at" || ev.op.op === "clock") this.promiseChecks(ctx);
+      if (ev.op.op === "cast" && ctx.verdict.ok) this.together(ctx);
       // A beat is stamped with where and when its reply ends, whichever order the lines came in.
       if (ev.op.op === "cast" || ev.op.op === "at" || ev.op.op === "clock") {
         const b = this.state.beats?.at(-1);
@@ -1843,13 +1851,20 @@ export class Folder {
         const f = this.fact(a.key, a.fact, seq, a.truth);
         const status = (a.status ?? "knows") as KnowStatus;
         const one = holders.length === 1;
+        const wasKept = Boolean(f.secret?.from.length);
+        // docs/35 7.3: the same thing in other words reaches the secret it's about.
+        if (!f.secret && /knows|believes/.test(status)) for (const h of holders.filter((x) => !x.isUser)) this.learnedInOtherWords(h, f.statement, seq, ctx);
         for (const holder of holders) {
           const cur = f.stances[holder.id];
           if (cur?.set && this.ai(ctx)) {
             if (one) return this.reject(ctx, "you set what they know about this");
             continue;
           }
-          if (cur && cur.status === status) continue;
+          if (cur && cur.status === status) {
+            // docs/35 7.2: you saying "still doesn't know" is an answer, even when nothing changes.
+            if (ctx.ev.source === "user") cur.set = true;
+            continue;
+          }
           // 2.3: what a flagged leak let out doesn't count as learned while the flag is open.
           const held = /knows|believes|suspects/.test(status) && this.ai(ctx) && ctx.ev.messageId ? this.cfg.held?.find((h) => h.messageId === ctx.ev.messageId && norm(h.who) === norm(holder.name) && overlap(h.text, f.statement) >= 0.4) : undefined;
           if (held) {
@@ -1860,10 +1875,21 @@ export class Folder {
           if (f.secret?.from.includes(holder.id) && /knows|believes|suspects/.test(status)) f.secret.from = f.secret.from.filter((x) => x !== holder.id);
           this.push(ctx, { kind: "knowledge", text: `${holder.name} ${status === "knows" ? "learned" : status === "heard" ? "now has heard" : `now ${status}`}: ${clip(f.statement)}`, subject: holder.name, reason: a.route ?? op.cause, path: `facts.${f.key}.${holder.id}`, ...(this.notThere(op, holder.name, "unsure") ? { flag: UNSURE_FLAG } : {}) });
         }
+        if (wasKept) this.closeIfOut(f, seq, a.route ?? op.cause, ctx);
         return;
       }
       case "secret": {
         if (!a.fact && !a.key) return this.reject(ctx, "write secret #key: fact | kept by A · from B");
+        // docs/35 7.4: "secret #alive: risk — …", "secret #alive: revealed to Walter": a note on a secret there is, not a new one.
+        const known = a.key ? st.facts[slug(a.key)] : undefined;
+        const bare = !(a.keepers as string[] | undefined)?.length && !(a.from as string[] | undefined)?.length && !(a.knownTo as string[] | undefined)?.length && !(a.suspectedBy as string[] | undefined)?.length;
+        if (known?.secret && bare && STATUS_NOTE.test(String(a.fact ?? ""))) {
+          const to = /^revealed\s+to\s+(.+)$/i.exec(String(a.fact).trim());
+          if (to) return this.applyOp({ op: "reveal", subject: `#${known.key}`, args: { key: known.key, to: revealNames(to[1]!) }, cause: op.cause, raw: op.raw }, ctx);
+          this.warn(ctx, `a note on #${known.key}, not a new secret: kept as it was`);
+          this.push(ctx, { kind: "secret", text: `Note on #${known.key}: ${String(a.fact).slice(0, 80)}`, path: `facts.${known.key}`, reason: op.cause });
+          return;
+        }
         const ids = (xs: unknown) => uniq(((xs ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
         const named = ((a.from ?? []) as string[]).filter((n) => n.trim());
         const all = named.some((n) => EVERYONE_WORD(norm(personName(n))));
@@ -1888,7 +1914,10 @@ export class Folder {
         const back = ctx.ev.source === "user" ? [] : wanted.filter(told);
         const from = uniq([...(f.secret?.from ?? []), ...wanted.filter((id) => !back.includes(id))]).filter((id) => !keepers.includes(id));
         const groups = uniq([...(f.secret?.groups ?? []), ...fromGroups]);
-        f.secret = { keepers, from, ...(everyone ? { everyone: true } : {}), ...(groups.length ? { groups } : {}) };
+        // Written again with someone to keep it from, a secret that came out is a secret again (7.1); otherwise it stays out.
+        const stillOut = f.secret?.out && !from.length && !everyone && !groups.length ? { out: f.secret.out } : {};
+        const carry = { ...(f.secret?.together ? { together: f.secret.together } : {}), ...(f.secret?.maybe ? { maybe: f.secret.maybe } : {}) };
+        f.secret = { keepers, from, ...(everyone ? { everyone: true } : {}), ...(groups.length ? { groups } : {}), ...stillOut, ...carry };
         if (back.length) ctx.verdict.reason = `${back.map((x) => this.nameOf(x)).join(", ")} already found out, and still knows`;
         for (const k of keepers) f.stances[k] ??= { status: "knows", route: "keeps it", seq };
         for (const k of from) if (!f.stances[k] || f.stances[k]!.status === "unaware") f.stances[k] = { status: "unaware", route: "kept from them", seq };
@@ -1898,11 +1927,24 @@ export class Folder {
       case "reveal": {
         const f = a.key ? st.facts[slug(a.key)] ?? Object.values(st.facts).find((x) => overlap(x.statement, a.key) > 0.6) : undefined;
         if (!f) return this.reject(ctx, "no such secret or fact");
-        const to = uniq(((a.to ?? []) as string[]).flatMap((n) => this.people(n, seq).map((c) => c.id)));
+        // Joined and read again: older events split "Gabriel's mom (name only, nothing else)" at its comma.
+        const names = revealNames(((a.to ?? []) as string[]).join(", "));
+        // docs/35 7.1: "to everyone" ends it for all, whoever comes along later too.
+        const toAll = names.some((n) => EVERYONE_WORD(norm(personName(n))));
+        // 7.5: a part that's no name and nobody known ("nothing else") is a note, not a person.
+        const real = names.filter((n) => !EVERYONE_WORD(norm(personName(n))) && (/\p{Lu}/u.test(n) || this.findChar(n)));
+        const wasKept = Boolean(f.secret?.from.length || f.secret?.everyone || f.secret?.groups?.length);
+        const to = uniq([...real.flatMap((n) => this.people(n, seq).map((c) => c.id)), ...(toAll ? (f.secret?.from ?? []) : [])]);
         for (const id of to) f.stances[id] = { status: "knows", route: op.cause ?? "revealed", seq };
         if (f.secret) f.secret.from = f.secret.from.filter((x) => !to.includes(x));
+        if (f.secret && toAll) {
+          f.secret.from = [];
+          delete f.secret.everyone;
+          delete f.secret.groups;
+        }
         f.revealed.push({ to, seq, how: op.cause });
-        this.push(ctx, { kind: "secret", text: `Revealed to ${to.map((x) => this.nameOf(x)).join(", ") || "someone"}: ${clip(f.statement)}`, path: `facts.${f.key}`, reason: op.cause, tone: "warn", memory: true });
+        this.push(ctx, { kind: "secret", text: `Revealed to ${toAll ? "everyone" : to.map((x) => this.nameOf(x)).join(", ") || "someone"}: ${clip(f.statement)}`, path: `facts.${f.key}`, reason: op.cause, tone: "warn", memory: true });
+        if (wasKept) this.closeIfOut(f, seq, op.cause, ctx);
         return;
       }
       case "pressure": {
@@ -2429,6 +2471,73 @@ export class Folder {
     return Object.values(this.state.chars)
       .filter((c) => [c.name, ...c.aliases, ...(c.isUser && this.cfg.userName ? [this.cfg.userName] : [])].some((n) => mentions(statement, n)))
       .map((c) => c.id);
+  }
+
+  /** docs/35 7.1: a secret everyone it was kept from has found out is over, at this message. */
+  private closeIfOut(f: Fact, seq: number, how: string | undefined, ctx: Ctx) {
+    const s = f.secret;
+    if (!s || s.out || s.from.length || s.everyone || s.groups?.length) return;
+    s.out = { seq, ...(how ? { how } : {}) };
+    this.push(ctx, { kind: "secret", text: `Came out: ${clip(f.statement)}`, path: `facts.${f.key}`, reason: how ?? "nobody is left to keep it from", tone: "warn" });
+  }
+
+  /** docs/35 7.3: someone learned something in other words; if it's an open secret kept from them, it reaches it (or asks). */
+  private learnedInOtherWords(holder: Character, said: string, seq: number, ctx: Ctx) {
+    const saidAbout = this.aboutOf(said);
+    const names = new Set(Object.values(this.state.chars).flatMap((c) => [c.name, ...c.aliases]).flatMap((n) => norm(n).split(" ")));
+    for (const f of Object.values(this.state.facts)) {
+      const s = f.secret;
+      if (!s || s.out || !s.from.includes(holder.id) || f.stances[holder.id]?.set) continue;
+      // It has to be about the same person: "clawed" alone is about anybody.
+      if (!(f.about ?? []).some((id) => id !== holder.id && saidAbout.includes(id))) continue;
+      const m = secretMatch(f.statement, said, names);
+      if (m.strong) {
+        f.stances[holder.id] = { status: "knows", route: `learned it as: ${said.slice(0, 60)}`, seq };
+        s.from = s.from.filter((x) => x !== holder.id);
+        if (s.maybe) delete s.maybe[holder.id];
+        this.push(ctx, { kind: "knowledge", text: `${holder.name} learned: ${clip(f.statement)}`, subject: holder.name, reason: `the tracker wrote it as "${said.slice(0, 60)}"`, path: `facts.${f.key}.${holder.id}` });
+        this.closeIfOut(f, seq, `${holder.name} learned it`, ctx);
+      } else if (m.some) (s.maybe ??= {})[holder.id] = { seq, said: said.slice(0, 200) };
+    }
+  }
+
+  /**
+   * docs/35 7.2: after each cast line, who is in the room with the people an open secret is about.
+   * "She's alive" is out to anyone who spends two messages in the room with her; for other secrets the
+   * shared scenes are only counted, and the Inbox asks once there are three.
+   */
+  private together(ctx: Ctx) {
+    const st = this.state;
+    const seq = ctx.ev.seq;
+    const here = (id: string) => {
+      const c = st.chars[id];
+      return Boolean(c && !c.dead && !c.isUser && (c.tier === "spot" || c.tier === "peri"));
+    };
+    for (const f of Object.values(st.facts)) {
+      const s = f.secret;
+      if (!s || s.out || !s.from.length) continue;
+      const m = PRESENCE.exec(f.statement);
+      const who = m ? this.findChar(m[1]!) : undefined;
+      const about = who ? [who.id] : (f.about ?? []);
+      for (const id of [...s.from]) {
+        if (about.includes(id) || !here(id) || !about.some((x) => st.chars[x] && !st.chars[x]!.dead && (st.chars[x]!.tier === "spot" || st.chars[x]!.tier === "peri"))) continue;
+        const t = ((s.together ??= {})[id] ??= { msgs: 0, lastSeq: -1, scenes: 0, lastScene: -1 });
+        if (t.lastSeq !== seq) {
+          t.msgs++;
+          t.lastSeq = seq;
+        }
+        if (t.lastScene !== st.sceneNo) {
+          t.scenes++;
+          t.lastScene = st.sceneNo;
+        }
+        if (who && t.msgs >= 2 && !f.stances[id]?.set) {
+          f.stances[id] = { status: "knows", route: `saw ${who.name}`, seq };
+          s.from = s.from.filter((x) => x !== id);
+          this.push(ctx, { kind: "knowledge", text: `${this.nameOf(id)} learned: ${clip(f.statement)}`, subject: this.nameOf(id), reason: `in the room with ${who.name}`, path: `facts.${f.key}.${id}` });
+          this.closeIfOut(f, seq, `${this.nameOf(id)} saw ${who.name}`, ctx);
+        }
+      }
+    }
   }
 
   /** docs/32 2.3: a subplot is told under its lead's name as it is now, not as it was when the subplot began. */

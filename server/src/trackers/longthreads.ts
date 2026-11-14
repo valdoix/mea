@@ -273,7 +273,7 @@ export function longThreads(chatId: string, st: WorldState): LongThread[] {
     }
   }
   for (const [key, f] of Object.entries(st.facts)) {
-    if (!f.secret) continue;
+    if (!f.secret || f.secret.out) continue;
     const told = new Set(f.revealed.flatMap((r) => r.to));
     const from = [...new Set(f.secret.from)].filter((id) => {
       const c = st.chars[id];
