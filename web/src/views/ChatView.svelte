@@ -1793,7 +1793,7 @@
   }
   .composer-area {
     padding: 0.4rem 1rem calc(0.8rem + var(--safe-bottom));
-    max-width: calc(var(--chat-w, var(--measure)) + 2rem);
+    max-width: calc(var(--composer-w, var(--chat-w, var(--measure))) + 2rem);
     width: 100%;
     margin: 0 auto;
     display: grid;
