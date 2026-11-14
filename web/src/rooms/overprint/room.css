@@ -532,3 +532,20 @@
   }
 }
 
+/* ---------- Book style: a printed page ---------- */
+/* theirs: a pink bar printed a little off a blue one; yours: in blue ink with a pink offset; between
+   turns, a dashed cut line */
+:root[data-theme="overprint"][data-shell] .style-book .msg {
+  border-bottom: 2px dashed color-mix(in srgb, var(--ink) 35%, transparent);
+}
+:root[data-theme="overprint"][data-shell] .style-book .msg:not(.user) .bubble {
+  padding-left: 1.1rem;
+  background:
+    linear-gradient(var(--accent), var(--accent)) var(--op-mis, 3px) calc(0.4rem + var(--op-mis, 3px)) / 4px calc(100% - 0.8rem) no-repeat,
+    linear-gradient(var(--sig2), var(--sig2)) 0 0.4rem / 4px calc(100% - 0.8rem) no-repeat;
+}
+:root[data-theme="overprint"][data-shell] .style-book .msg.user .prose {
+  padding-left: 1rem;
+  border-left: 4px solid var(--sig2);
+  box-shadow: calc(var(--op-mis, 3px) * -1) var(--op-mis, 3px) 0 -1px var(--accent);
+}

@@ -602,3 +602,23 @@
     font-size: 1.7rem;
   }
 }
+
+/* ---------- Book style: the programme ---------- */
+/* theirs: a neon tube down the side; yours: a strip of film; between turns, a row of bulbs */
+:root[data-theme="marquee"][data-shell] .style-book .msg {
+  border-bottom: 0;
+  background: radial-gradient(circle, #f2c46a 2px, transparent 2.6px) 0 100% / 14px 6px repeat-x;
+  padding-bottom: 1rem;
+}
+:root[data-theme="marquee"][data-shell] .style-book .msg:not(.user) .bubble {
+  padding-left: 1rem;
+  border-left: 2px solid color-mix(in srgb, var(--n2) 60%, #fff);
+  box-shadow: -4px 0 calc(6px + 8px * var(--gl)) -4px var(--n2);
+}
+:root[data-theme="marquee"][data-shell] .style-book .msg.user .prose {
+  padding-left: 1.5rem;
+  border-left: 0;
+  background:
+    radial-gradient(circle at 50% 50%, #f3ecd8 0 2.4px, transparent 3px) 0 0 / 14px 12px repeat-y,
+    linear-gradient(#17121f, #17121f) 0 0 / 14px 100% no-repeat;
+}

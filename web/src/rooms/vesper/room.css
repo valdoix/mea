@@ -94,8 +94,8 @@
   border: 3px solid var(--lead);
   border-radius: 16px 16px 4px 4px;
 }
-/* the nave: the window's light comes through the chat a little */
-:root[data-theme="vesper"][data-shell] .main-col {
+/* the nave: the window's light comes through the chat a little (Folio is see-through already) */
+:root[data-theme="vesper"][data-shell] .chat:not(.l-folio) .main-col {
   background: color-mix(in srgb, var(--bg) 80%, transparent);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -138,7 +138,8 @@
 }
 /* an illuminated initial: the first letter of each of their messages in a gilded square,
    sapphire and ruby by turns */
-:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user) .prose > p:first-of-type::first-letter {
+:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user) .prose > p:first-of-type::first-letter,
+:root[data-theme="vesper"][data-shell] .style-book .msg:not(.user) .prose > p:first-of-type::first-letter {
   float: left;
   margin: 0.2rem 0.55rem 0 0;
   padding: 0.12em 0.16em 0.04em;
@@ -149,7 +150,8 @@
   font: 700 2.6em/0.9 var(--font-display);
   text-shadow: 0 1px 0 rgb(0 0 0 / 35%);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user):nth-child(odd) .prose > p:first-of-type::first-letter {
+:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user):nth-child(odd) .prose > p:first-of-type::first-letter,
+:root[data-theme="vesper"][data-shell] .style-book .msg:not(.user):nth-child(odd) .prose > p:first-of-type::first-letter {
   background: var(--ruby);
 }
 /* yours: a pane of leaded glass with a jewelled border */
@@ -494,4 +496,30 @@
   .a-vesper *::after {
     animation: none !important;
   }
+}
+
+/* ---------- Book style: a manuscript page ---------- */
+/* theirs open with an illuminated initial (above); yours are ruled with a jewelled edge, and the
+   turns are divided by a fine gilt rule with a fleuron in the middle */
+:root[data-theme="vesper"][data-shell] .style-book .msg {
+  border-bottom: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--amber) 55%, transparent) 30% 46%, transparent 46% 54%, color-mix(in srgb, var(--amber) 55%, transparent) 54% 70%, transparent) 0 100% / 100% 1px no-repeat;
+}
+:root[data-theme="vesper"][data-shell] .style-book .msg::after {
+  content: "\2766";
+  display: block;
+  margin: 0.2rem auto -0.95rem;
+  font: 1rem/1 var(--font-display);
+  color: var(--amber);
+  text-align: center;
+}
+:root[data-theme="vesper"][data-shell] .style-book .msg.user .prose {
+  padding-left: 1.2em;
+  border-left: 5px solid transparent;
+  border-image: repeating-linear-gradient(180deg, var(--ruby) 0 9px, var(--lead) 9px 10px, var(--cobalt) 10px 19px, var(--lead) 19px 20px, var(--amber) 20px 29px, var(--lead) 29px 30px, var(--emerald) 30px 39px, var(--lead) 39px 40px) 1;
+}
+:root[data-theme="vesper"][data-shell] .style-book .msg .name {
+  font: 700 0.95rem/1.2 var(--font-display);
+  letter-spacing: 0.08em;
+  color: var(--ruby);
 }

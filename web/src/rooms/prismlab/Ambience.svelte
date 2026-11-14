@@ -51,7 +51,7 @@
       if (!device.fireflies || still) return;
       root.style.setProperty("--pl-tilt", `${(((e.clientX / innerWidth) - 0.5) * 30).toFixed(1)}deg`);
       // the character's foil cards lean toward the pointer
-      const b = (e.target as Element | null)?.closest?.(".style-cards .msg:not(.user) .bubble") as HTMLElement | null;
+      const b = (e.target as Element | null)?.closest?.(":is(.style-cards, .style-book) .msg:not(.user) .bubble") as HTMLElement | null;
       if (b !== lean) {
         lean?.style.removeProperty("--pl-rx");
         lean?.style.removeProperty("--pl-ry");

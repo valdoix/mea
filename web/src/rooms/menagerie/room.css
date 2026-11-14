@@ -491,3 +491,23 @@
     animation: none;
   }
 }
+
+/* ---------- Book style: a page of the catalogue ---------- */
+/* theirs: a double gilt rule down the side; yours: Regency stripe behind a gilt rule; between turns,
+   a gilt rule with a diamond */
+:root[data-theme="menagerie"][data-shell] .style-book .msg {
+  border-bottom: 0;
+  background:
+    linear-gradient(45deg, transparent 45%, var(--g2) 46% 54%, transparent 55%) 50% 100% / 9px 9px no-repeat,
+    linear-gradient(90deg, transparent, var(--g2) 25% 47%, transparent 47% 53%, var(--g2) 53% 75%, transparent) 0 calc(100% - 4px) / 100% 1px no-repeat;
+  padding-bottom: 1.2rem;
+}
+:root[data-theme="menagerie"][data-shell] .style-book .msg:not(.user) .bubble {
+  padding-left: 1rem;
+  border-left: 3px double var(--g2);
+}
+:root[data-theme="menagerie"][data-shell] .style-book .msg.user .prose {
+  padding: 0.4rem 0.9rem;
+  border-left: 2px solid var(--g2);
+  background: repeating-linear-gradient(90deg, transparent 0 14px, var(--stripe) 14px 18px, transparent 18px 30px);
+}
