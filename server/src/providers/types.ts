@@ -57,6 +57,8 @@ export interface Usage {
   cachedTokens?: number;
   /** Input tokens written to the cache (Anthropic-style). */
   cacheWriteTokens?: number;
+  /** Of the completion tokens, how many the model spent thinking (shown or not), where the route reports it. */
+  reasoningTokens?: number;
 }
 
 export interface EmbedResult {

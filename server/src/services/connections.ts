@@ -271,6 +271,7 @@ export interface ModelRow {
   learned_context: number | null;
   calibration: number | null;
   cache_probe: string | null;
+  learned_reasoning: number | null;
 }
 
 export function listModels(connectionId?: string) {
@@ -299,6 +300,7 @@ function modelOut(r: ModelRow) {
     learnedContext: r.learned_context,
     calibration: r.calibration,
     cacheProbe: parseJson<CacheProbe | null>(r.cache_probe, null),
+    learnedReasoning: r.learned_reasoning ?? null,
   };
 }
 
@@ -311,6 +313,26 @@ export interface CacheProbe {
   hitRate: number;
   at: number;
   error?: string;
+}
+
+/** Thinking under this many tokens a reply isn't worth room of its own (and lets a learned figure lapse). */
+export const THINKS_MIN = 64;
+/** Each reply keeps this share of the learned figure when it thought less, so it follows a model that settles down. */
+const THINKING_DECAY = 0.9;
+
+/**
+ * Remembers how much a model thinks per reply, from the reasoning tokens its route reported (or,
+ * for a reply cut off at the cap, twice what it got through, since the real figure is past it).
+ * The figure is the most seen lately: a bigger reply raises it at once, smaller ones wear it down.
+ */
+export function learnReasoning(connectionId: string, modelId: string, observed: number) {
+  const cur = one<{ learned_reasoning: number | null }>("SELECT learned_reasoning FROM models WHERE connection_id = ? AND model_id = ?", connectionId, modelId);
+  if (!cur) return;
+  const prev = cur.learned_reasoning ?? 0;
+  const next = Math.max(Math.round(observed), Math.floor(prev * THINKING_DECAY));
+  const stored = next >= THINKS_MIN ? next : null;
+  if (stored === cur.learned_reasoning) return;
+  run("UPDATE models SET learned_reasoning = ? WHERE connection_id = ? AND model_id = ?", stored, connectionId, modelId);
 }
 
 /** Remembers a model's real context limit from an overflow error (CTX-03). */
@@ -513,6 +535,8 @@ export function resolveProfile(profileId?: string | null, override?: { connectio
     tokenRatio: model?.calibration ?? 1,
     /** M15: this route reasons (asked to, or the model does by itself), so thinking shares max_tokens. */
     reasoning,
+    /** Tokens this model was seen to think per reply (learnReasoning), whatever its catalog says; null when it wasn't. */
+    learnedReasoning: model?.learnedReasoning ?? null,
     cacheMode: cacheModeFor(conn, profile.modelId, profile.params.cache),
     structured: Boolean(model?.capabilities?.structured_output),
     pricing: model?.pricing ?? {},

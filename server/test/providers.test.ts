@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { NanoGPTProvider } from "../src/providers/nanogpt";
-import { OpenAIProvider } from "../src/providers/openai";
+import { OpenAIProvider, usageOf } from "../src/providers/openai";
 import { ProviderError } from "../src/providers/types";
 import { createConnection, getConnectionRow, listModels, syncModels } from "../src/services/connections";
 import { freshDb } from "./helpers";
@@ -45,6 +45,14 @@ beforeAll(() => {
 });
 
 afterAll(() => server.stop(true));
+
+describe("OpenAI-compatible usage", () => {
+  test("reads reasoning tokens where the route reports them, in either shape", () => {
+    expect(usageOf({ prompt_tokens: 5767, completion_tokens: 5458, completion_tokens_details: { reasoning_tokens: 5016 } })?.reasoningTokens).toBe(5016);
+    expect(usageOf({ prompt_tokens: 44552, completion_tokens: 1038, reasoning_tokens: 212 })?.reasoningTokens).toBe(212);
+    expect(usageOf({ prompt_tokens: 10, completion_tokens: 2 })?.reasoningTokens).toBeUndefined();
+  });
+});
 
 describe("OpenAI-compatible streaming", () => {
   test("streams text and reasoning, reports usage incl. cached tokens", async () => {

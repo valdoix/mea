@@ -18,10 +18,10 @@ import { emptyCard } from "../src/cards/card";
 import { tellingPrompt } from "../src/sim/telling";
 import { createCharacter } from "../src/services/characters";
 import { addMessage, createChat } from "../src/services/chats";
-import { applyReasoning, createConnection, createProfile, listModels, resolveTaskChain, syncModels } from "../src/services/connections";
+import { applyReasoning, createConnection, createProfile, learnReasoning, listModels, resolveTaskChain, syncModels } from "../src/services/connections";
 import { splitThink, thinkRouter } from "../src/services/generation";
 import { registerJob } from "../src/services/jobs";
-import { callJson, callText } from "../src/services/llm";
+import { callJson, callText, thinkingRoom } from "../src/services/llm";
 import { purgeTrash } from "../src/services/trash";
 import { initPrompt, updatePrompt } from "../src/trackers/prompts";
 import { freshDb } from "./helpers";
@@ -48,6 +48,7 @@ beforeAll(() => {
             { id: "truncated", context_length: 64000 },
             { id: "thinker", context_length: 64000 },
             { id: "clipped", context_length: 64000 },
+            { id: "deepthinker", context_length: 64000 },
             { id: "claude-opus-4-7", max_input_tokens: 1000000, max_tokens: 128000 },
           ],
         });
@@ -133,6 +134,12 @@ data: [DONE]
       // A model that reasons and can't stop: the first try thinks through its whole budget and writes nothing.
       if (body.model === "thinker") return Response.json({ choices: [{ message: { content: n === 1 ? "" : "clock: +5m" }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
       // Thinking ate most of the budget: the first try stops after one line that still parses.
+      if (body.model === "deepthinker") {
+        // Thinks ~4,800 tokens before any ledger, says so in usage, and never was flagged as reasoning.
+        const room = body.max_tokens ?? 0;
+        if (room < 5000) return Response.json({ choices: [{ message: { content: "clock" }, finish_reason: "length" }], usage: { prompt_tokens: 10, completion_tokens: room, completion_tokens_details: { reasoning_tokens: room - 2 } } });
+        return Response.json({ choices: [{ message: { content: 'clock: +5m\nthink Mira: "Not now."' }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 4820, completion_tokens_details: { reasoning_tokens: 4800 } } });
+      }
       if (body.model === "clipped") return Response.json({ choices: [{ message: { content: n === 1 ? "clock" : 'clock: +5m\nthink Mira: "Not now."' }, finish_reason: n === 1 ? "length" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
       if (body.model === "truncated") {
         const content = n === 1 ? '{"items":["a","b",' : '{"items":["a"]}';
@@ -392,6 +399,48 @@ describe("helper prompts and calls (M14, M15, M16, M17, M18, M33, L3)", () => {
     const calls = seen.filter((s) => s.model === "clipped");
     expect(calls.map((c) => c.max_tokens)).toEqual([900, 1800]);
     setSetting("routing.tasks", { summarizer: null, helper: null, tracker: null, world: null });
+  });
+
+  test("a model that thinks unannounced is learned from its usage and gets room on the next call", async () => {
+    const conn = createConnection({ name: "Local 5", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    const helper = createProfile({ name: "Deep", connectionId: conn, modelId: "deepthinker", params: {} });
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: helper, world: null });
+    expect(resolveTaskChain("tracker")[0]).toMatchObject({ reasoning: false, learnedReasoning: null });
+    const ledger = { task: "tracker" as const, kind: "tracker", system: "Write ledger lines.", user: "go", maxTokens: 900, validate: (t: string) => (t.trim() ? null : "That had no ledger lines.") };
+    seen.length = 0;
+    // The first call knows nothing: cut off twice while thinking, as before.
+    expect((await callText(ledger)).text).toBe("clock");
+    // Each cut-off counts double what it got through: 898 × 2, then 1,798 × 2.
+    expect(resolveTaskChain("tracker")[0]!.learnedReasoning).toBe(3596);
+    // The next call has a quarter more than that on top of its budget, and the whole ledger comes back.
+    expect((await callText(ledger)).text).toContain("think Mira");
+    expect(seen.filter((s) => s.model === "deepthinker").map((c) => c.max_tokens)).toEqual([900, 1800, 900 + Math.ceil(3596 * 1.25)]);
+    expect(resolveTaskChain("tracker")[0]!.learnedReasoning).toBe(4800);
+    setSetting("routing.tasks", { summarizer: null, helper: null, tracker: null, world: null });
+  });
+
+  test("the learned figure follows the biggest recent thinking and lapses once the model stops", async () => {
+    const conn = createConnection({ name: "Local 6", kind: "openai", baseUrl: base, billing: "paygo" });
+    await syncModels(conn);
+    const learned = () => one<{ v: number | null }>("SELECT learned_reasoning AS v FROM models WHERE connection_id = ? AND model_id = 'thinker'", conn)!.v;
+    learnReasoning(conn, "thinker", 40);
+    expect(learned()).toBeNull();
+    learnReasoning(conn, "thinker", 5000);
+    expect(learned()).toBe(5000);
+    learnReasoning(conn, "thinker", 100);
+    expect(learned()).toBe(4500);
+    learnReasoning(conn, "thinker", 6000);
+    expect(learned()).toBe(6000);
+    run("UPDATE models SET learned_reasoning = 70 WHERE connection_id = ? AND model_id = 'thinker'", conn);
+    learnReasoning(conn, "thinker", 0);
+    expect(learned()).toBeNull();
+    // Unknown models are left alone.
+    learnReasoning(conn, "no-such-model", 5000);
+    expect(thinkingRoom({ reasoning: false, learnedReasoning: null })).toBe(0);
+    expect(thinkingRoom({ reasoning: false, learnedReasoning: 4000 })).toBe(5000);
+    expect(thinkingRoom({ reasoning: true, learnedReasoning: 1000 })).toBe(3000);
+    expect(thinkingRoom({ reasoning: true, learnedReasoning: 40_000 })).toBe(32_000);
   });
 
   test("an empty model list keeps the saved catalog (L3)", async () => {
