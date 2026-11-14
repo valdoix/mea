@@ -8,6 +8,7 @@ import type { JobContext } from "../services/jobs";
 import { callJson } from "../services/llm";
 import { shouldShed } from "../services/quota";
 import { currentFold } from "../trackers/store";
+import { knowledgeOf } from "../trackers/knowledge";
 import { chatNames } from "./build";
 import { norm, resolver } from "./entities";
 import type { SummaryRow } from "./store";
@@ -81,8 +82,9 @@ function trackerView(chatId: string, name: string) {
     if (!me) return "";
     const lines: string[] = [];
     for (const f of Object.values(st.facts)) {
-      const stance = f.stances[me.id];
-      if (stance && stance.status !== "unaware") lines.push(`- ${stance.status}: ${f.statement}${f.secret?.keepers.includes(me.id) ? " (a secret ${name} keeps)" : ""}`);
+      // docs/35 Part 2: what they know or have wrong; nothing recorded isn't listed.
+      const k = knowledgeOf(f, me.id);
+      if (k.status === "knows" || k.status === "suspects" || k.detail === "wrong") lines.push(`- ${k.detail ?? k.status}: ${f.statement}${k.keeper ? " (a secret ${name} keeps)" : ""}`);
     }
     for (const j of me.journal.slice(-4)) lines.push(`- turning point: "${j.text}"`);
     if (me.mood) lines.push(`- mood now: ${me.mood.name}`);
