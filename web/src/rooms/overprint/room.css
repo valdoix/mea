@@ -174,7 +174,7 @@
 }
 
 /* messages: printed cards with a flat ink shadow */
-:root[data-theme="overprint"][data-shell] .style-cards .msg .bubble {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg .bubble {
   background: var(--tint-char);
   border: 2px solid var(--ink);
   box-shadow: 5px 5px 0 var(--accent);
@@ -183,33 +183,33 @@
     box-shadow 0.25s var(--ease),
     transform 0.25s var(--ease);
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg .bubble:hover {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg .bubble:hover {
   box-shadow: 7px 7px 0 var(--accent);
   transform: translate(-1px, -1px);
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg.user .bubble {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble {
   background: var(--tint-user);
   box-shadow: -5px 5px 0 var(--sig2);
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg.user .bubble:hover {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble:hover {
   box-shadow: -7px 7px 0 var(--sig2);
   transform: translate(1px, -1px);
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg.system .bubble {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg.system .bubble {
   background: var(--tint-note);
   border-style: dashed;
   box-shadow: none;
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg .bubble::before {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg .bubble::before {
   display: none;
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg.streaming .bubble {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg.streaming .bubble {
   animation: op-press 0.9s steps(2) infinite;
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg.bookmarked .bubble {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg.bookmarked .bubble {
   box-shadow: 5px 5px 0 var(--sig1);
 }
-:root[data-theme="overprint"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+:root[data-theme="overprint"][data-shell] :is(.style-cards, .style-book) .msg.bookmarked .bubble::after {
   display: block;
   content: "★ keep";
   left: auto;
@@ -530,22 +530,4 @@
   50% {
     box-shadow: 3px 3px 0 var(--accent);
   }
-}
-
-/* ---------- Book style: a printed page ---------- */
-/* theirs: a pink bar printed a little off a blue one; yours: in blue ink with a pink offset; between
-   turns, a dashed cut line */
-:root[data-theme="overprint"][data-shell] .style-book .msg {
-  border-bottom: 2px dashed color-mix(in srgb, var(--ink) 35%, transparent);
-}
-:root[data-theme="overprint"][data-shell] .style-book .msg:not(.user) .bubble {
-  padding-left: 1.1rem;
-  background:
-    linear-gradient(var(--accent), var(--accent)) var(--op-mis, 3px) calc(0.4rem + var(--op-mis, 3px)) / 4px calc(100% - 0.8rem) no-repeat,
-    linear-gradient(var(--sig2), var(--sig2)) 0 0.4rem / 4px calc(100% - 0.8rem) no-repeat;
-}
-:root[data-theme="overprint"][data-shell] .style-book .msg.user .prose {
-  padding-left: 1rem;
-  border-left: 4px solid var(--sig2);
-  box-shadow: calc(var(--op-mis, 3px) * -1) var(--op-mis, 3px) 0 -1px var(--accent);
 }

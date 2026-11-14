@@ -125,21 +125,20 @@
   font: italic 400 1rem var(--font-story-theme);
   color: var(--text-muted);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg .bubble {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg .bubble {
   border: 3px solid var(--lead);
   border-radius: 18px 18px 3px 3px;
   background: var(--tint-char);
   box-shadow: var(--shadow-1);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user) .bubble {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg:not(.user) .bubble {
   background:
     linear-gradient(180deg, transparent 70%, rgb(150 110 40 / 6%)),
     var(--tint-char);
 }
 /* an illuminated initial: the first letter of each of their messages in a gilded square,
    sapphire and ruby by turns */
-:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user) .prose > p:first-of-type::first-letter,
-:root[data-theme="vesper"][data-shell] .style-book .msg:not(.user) .prose > p:first-of-type::first-letter {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg:not(.user) .prose > p:first-of-type::first-letter {
   float: left;
   margin: 0.2rem 0.55rem 0 0;
   padding: 0.12em 0.16em 0.04em;
@@ -150,12 +149,11 @@
   font: 700 2.6em/0.9 var(--font-display);
   text-shadow: 0 1px 0 rgb(0 0 0 / 35%);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg:not(.user):nth-child(odd) .prose > p:first-of-type::first-letter,
-:root[data-theme="vesper"][data-shell] .style-book .msg:not(.user):nth-child(odd) .prose > p:first-of-type::first-letter {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg:not(.user):nth-child(odd) .prose > p:first-of-type::first-letter {
   background: var(--ruby);
 }
 /* yours: a pane of leaded glass with a jewelled border */
-:root[data-theme="vesper"][data-shell] .style-cards .msg.user .bubble {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble {
   border: 11px solid transparent;
   border-radius: 38px 38px 4px 4px;
   background:
@@ -166,35 +164,35 @@
     inset 0 0 0 3px var(--lead),
     var(--shadow-1);
 }
-:root[data-theme="vesper"][data-mode="night"] .style-cards .msg.user .bubble {
+:root[data-theme="vesper"][data-mode="night"] :is(.style-cards, .style-book) .msg.user .bubble {
   box-shadow:
     0 0 0 3px var(--lead),
     inset 0 0 0 3px var(--lead),
     0 0 30px -8px rgb(240 170 80 / 45%);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg.user .bubble > .head {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble > .head {
   border-radius: 26px 26px 0 0;
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg .bubble::before {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg .bubble::before {
   display: none;
 }
 /* the pane above the words */
-:root[data-theme="vesper"][data-shell] .style-cards .msg .bubble > .head {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg .bubble > .head {
   margin: calc(-1 * var(--pad-y, 0.8rem)) calc(-1 * var(--pad-x, 1.05rem)) 0.6rem;
   padding: 0.4rem var(--pad-x, 1.05rem);
   border-radius: 14px 14px 0 0;
   background: var(--glass-char);
   border-bottom: 3px solid var(--lead);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg.user .bubble > .head {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble > .head {
   background: var(--glass-user);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg .name {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg .name {
   color: #fff8e6 !important;
   text-shadow: 0 1px 1px rgb(0 0 0 / 60%);
 }
-:root[data-theme="vesper"][data-shell] .style-cards .msg .bubble > .head .time,
-:root[data-theme="vesper"][data-shell] .style-cards .msg .bubble > .head .more {
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg .bubble > .head .time,
+:root[data-theme="vesper"][data-shell] :is(.style-cards, .style-book) .msg .bubble > .head .more {
   color: #fff8e6;
 }
 :root[data-theme="vesper"][data-shell] .msg .name {
@@ -496,30 +494,4 @@
   .a-vesper *::after {
     animation: none !important;
   }
-}
-
-/* ---------- Book style: a manuscript page ---------- */
-/* theirs open with an illuminated initial (above); yours are ruled with a jewelled edge, and the
-   turns are divided by a fine gilt rule with a fleuron in the middle */
-:root[data-theme="vesper"][data-shell] .style-book .msg {
-  border-bottom: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--amber) 55%, transparent) 30% 46%, transparent 46% 54%, color-mix(in srgb, var(--amber) 55%, transparent) 54% 70%, transparent) 0 100% / 100% 1px no-repeat;
-}
-:root[data-theme="vesper"][data-shell] .style-book .msg::after {
-  content: "\2766";
-  display: block;
-  margin: 0.2rem auto -0.95rem;
-  font: 1rem/1 var(--font-display);
-  color: var(--amber);
-  text-align: center;
-}
-:root[data-theme="vesper"][data-shell] .style-book .msg.user .prose {
-  padding-left: 1.2em;
-  border-left: 5px solid transparent;
-  border-image: repeating-linear-gradient(180deg, var(--ruby) 0 9px, var(--lead) 9px 10px, var(--cobalt) 10px 19px, var(--lead) 19px 20px, var(--amber) 20px 29px, var(--lead) 29px 30px, var(--emerald) 30px 39px, var(--lead) 39px 40px) 1;
-}
-:root[data-theme="vesper"][data-shell] .style-book .msg .name {
-  font: 700 0.95rem/1.2 var(--font-display);
-  letter-spacing: 0.08em;
-  color: var(--ruby);
 }
