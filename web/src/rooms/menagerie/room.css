@@ -68,14 +68,13 @@
   color: inherit;
 }
 
-/* the shell: a damask velvet rail behind gilded moulding, ivory panes in a fine gilt frame */
+/* the shell: a walnut specimen cabinet for the rail with a gilt edge, ivory panes in a fine gilt frame */
 :root[data-theme="menagerie"][data-shell] nav.rail {
   border: 0;
   border-radius: 4px;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='84'%3E%3Cpath d='M28 6c6 10 18 16 18 30s-10 20-18 28c-8-8-18-14-18-28S22 16 28 6z' fill='%23000' fill-opacity='.2'/%3E%3Cpath d='M28 22c3 6 8 9 8 15s-5 10-8 13c-3-3-8-7-8-13s5-9 8-15z' fill='%23f7e6ad' fill-opacity='.08'/%3E%3Cg fill='%23000' fill-opacity='.2'%3E%3Ccircle r='4'/%3E%3Ccircle cx='56' r='4'/%3E%3Ccircle cy='84' r='4'/%3E%3Ccircle cx='56' cy='84' r='4'/%3E%3C/g%3E%3C/svg%3E") 50% 0 / 56px 84px,
-    linear-gradient(90deg, rgb(0 0 0 / 28%), transparent 30% 70%, rgb(0 0 0 / 28%)),
-    var(--velvet);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.011 .32' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E") 0 0 / 480px 240px,
+    linear-gradient(90deg, #5a3220, #3a1f12);
   color: #f0dcc0;
   box-shadow:
     inset 0 0 0 2px var(--g2),
@@ -216,25 +215,44 @@
 }
 
 /* messages: every card a different material */
-/* theirs: ivory inside a Greek-key border and a gilt rule */
-:root[data-theme="menagerie"][data-shell] .style-cards .msg .bubble {
+/* theirs: a specimen label in a fine double gilt frame, with the collection's crest pinned on */
+:root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg .bubble {
   position: relative;
-  border: 10px solid transparent;
+  overflow: visible;
+  border: 0;
   border-radius: 0;
-  background:
-    linear-gradient(var(--tint-char), var(--tint-char)) padding-box,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%231f5a45'/%3E%3Cpath d='M0 8.8h8.8V1.2H2.9v5h2.9' fill='none' stroke='%23e9c977' stroke-width='1.2'/%3E%3C/svg%3E") 0 0 / 10px 10px border-box;
+  background: var(--tint-char);
   box-shadow:
     inset 0 0 0 1px var(--g2),
-    0 16px 26px -16px rgb(40 15 10 / 55%);
+    inset 0 0 0 5px var(--tint-char),
+    inset 0 0 0 6px color-mix(in srgb, var(--g2) 60%, transparent),
+    0 14px 24px -16px rgb(40 10 0 / 60%);
 }
-:root[data-theme="menagerie"][data-mode="night"] .style-cards .msg .bubble {
+:root[data-theme="menagerie"][data-mode="night"] :is(.style-cards, .style-book) .msg .bubble {
   box-shadow:
     inset 0 0 0 1px var(--g2),
+    inset 0 0 0 5px var(--tint-char),
+    inset 0 0 0 6px color-mix(in srgb, var(--g2) 60%, transparent),
     0 16px 26px -14px rgb(0 0 0 / 70%);
 }
+:root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg:not(.user, .system) .bubble > .head::after {
+  content: "";
+  position: absolute;
+  right: calc(-1 * var(--pad-x, 1.05rem) - 12px);
+  top: calc(-1 * var(--pad-y, 0.8rem) - 10px);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 3l6 5h6l6-5-1 9-8 9-8-9z' fill='%23f0d48a'/%3E%3Cpath d='M8 13l2 1M16 13l-2 1' stroke='%234a1016' stroke-width='1.6' stroke-linecap='round'/%3E%3Cpath d='M12 18l-1.4-1.6h2.8z' fill='%234a1016'/%3E%3C/svg%3E") center / 22px no-repeat,
+    radial-gradient(circle at 40% 30%, #8a2a32, #4a1016);
+  box-shadow:
+    0 0 0 2px var(--g2),
+    0 4px 6px rgb(0 0 0 / 30%);
+  pointer-events: none;
+}
 /* yours: a Regency stripe framed by a double gilt rule */
-:root[data-theme="menagerie"][data-shell] .style-cards .msg.user .bubble {
+:root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble {
   border: 0;
   border-radius: 3px;
   background:
@@ -247,14 +265,14 @@
     0 16px 26px -16px rgb(40 15 10 / 50%);
 }
 /* notes and the narrator: plain ivory with a single rule */
-:root[data-theme="menagerie"][data-shell] .style-cards .msg.system .bubble {
+:root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg.system .bubble {
   border: 0;
   border-radius: 3px;
   background: var(--tint-note);
   box-shadow: inset 0 0 0 1px var(--g2);
 }
 /* what's kept is upholstered in emerald velvet, with a gold tassel hanging from it */
-:root[data-theme="menagerie"][data-shell] .style-cards .msg.bookmarked .bubble {
+:root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg.bookmarked .bubble {
   --text: #f6ead2;
   --text-muted: #d9c8a4;
   --text-faint: #c3b18e;
@@ -272,7 +290,7 @@
     inset 0 0 0 6px var(--g2),
     0 16px 26px -14px rgb(0 0 0 / 60%);
 }
-:root[data-theme="menagerie"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+:root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg.bookmarked .bubble::after {
   display: block;
   content: "";
   left: auto;
@@ -286,7 +304,7 @@
   transform-origin: 50% 0;
   animation: mn-swing 3.4s ease-in-out infinite alternate;
 }
-:root[data-theme="menagerie"][data-shell] .style-cards .msg.highlighted .bubble {
+:root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg.highlighted .bubble {
   outline: 2px solid var(--g2);
   outline-offset: 3px;
 }
@@ -487,27 +505,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root[data-theme="menagerie"][data-shell] .style-cards .msg.bookmarked .bubble::after {
+  :root[data-theme="menagerie"][data-shell] :is(.style-cards, .style-book) .msg.bookmarked .bubble::after {
     animation: none;
   }
-}
-
-/* ---------- Book style: a page of the catalogue ---------- */
-/* theirs: a double gilt rule down the side; yours: Regency stripe behind a gilt rule; between turns,
-   a gilt rule with a diamond */
-:root[data-theme="menagerie"][data-shell] .style-book .msg {
-  border-bottom: 0;
-  background:
-    linear-gradient(45deg, transparent 45%, var(--g2) 46% 54%, transparent 55%) 50% 100% / 9px 9px no-repeat,
-    linear-gradient(90deg, transparent, var(--g2) 25% 47%, transparent 47% 53%, var(--g2) 53% 75%, transparent) 0 calc(100% - 4px) / 100% 1px no-repeat;
-  padding-bottom: 1.2rem;
-}
-:root[data-theme="menagerie"][data-shell] .style-book .msg:not(.user) .bubble {
-  padding-left: 1rem;
-  border-left: 3px double var(--g2);
-}
-:root[data-theme="menagerie"][data-shell] .style-book .msg.user .prose {
-  padding: 0.4rem 0.9rem;
-  border-left: 2px solid var(--g2);
-  background: repeating-linear-gradient(90deg, transparent 0 14px, var(--stripe) 14px 18px, transparent 18px 30px);
 }

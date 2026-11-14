@@ -210,22 +210,22 @@
 }
 
 /* messages: neon outlines and names in tube script */
-:root[data-theme="marquee"][data-shell] .style-cards .msg .bubble {
+:root[data-theme="marquee"][data-shell] :is(.style-cards, .style-book) .msg .bubble {
   --tube: var(--n2);
   --hairline: linear-gradient(160deg, color-mix(in srgb, var(--n2) 80%, #fff), color-mix(in srgb, var(--n2) 30%, transparent) 40%, color-mix(in srgb, var(--n3) 50%, transparent));
   box-shadow:
     0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--tube) 22%, transparent),
     inset 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--tube) 8%, transparent);
 }
-:root[data-theme="marquee"][data-mode="day"] .style-cards .msg .bubble {
+:root[data-theme="marquee"][data-mode="day"] :is(.style-cards, .style-book) .msg .bubble {
   background: linear-gradient(170deg, rgb(255 255 255 / 92%), rgb(253 252 255 / 76%));
 }
-:root[data-theme="marquee"][data-shell] .style-cards .msg.user .bubble {
+:root[data-theme="marquee"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble {
   --tube: var(--n1);
   --hairline: linear-gradient(160deg, color-mix(in srgb, var(--n1) 80%, #fff), color-mix(in srgb, var(--n1) 30%, transparent) 45%, color-mix(in srgb, var(--n1) 50%, transparent));
 }
 /* yours run on a strip of film: sprocket holes along the top and bottom */
-:root[data-theme="marquee"][data-shell] .style-cards .msg.user .bubble {
+:root[data-theme="marquee"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble {
   border-block: 13px solid transparent;
   border-radius: 4px;
   background:
@@ -234,17 +234,17 @@
     radial-gradient(circle at 50% 50%, #f3ecd8 0 2.6px, transparent 3.2px) 0 100% / 14px 13px repeat-x border-box,
     #17121f border-box;
 }
-:root[data-theme="marquee"][data-mode="day"] .style-cards .msg.user .bubble {
+:root[data-theme="marquee"][data-mode="day"] :is(.style-cards, .style-book) .msg.user .bubble {
   background:
     linear-gradient(rgb(255 255 255 / 94%), rgb(253 252 255 / 86%)) padding-box,
     radial-gradient(circle at 50% 50%, #f3ecd8 0 2.6px, transparent 3.2px) 0 0 / 14px 13px repeat-x border-box,
     radial-gradient(circle at 50% 50%, #f3ecd8 0 2.6px, transparent 3.2px) 0 100% / 14px 13px repeat-x border-box,
     #17121f border-box;
 }
-:root[data-theme="marquee"][data-shell] .style-cards .msg.user .bubble::before {
+:root[data-theme="marquee"][data-shell] :is(.style-cards, .style-book) .msg.user .bubble::before {
   display: none;
 }
-:root[data-theme="marquee"][data-shell] .style-cards .msg.bookmarked .bubble {
+:root[data-theme="marquee"][data-shell] :is(.style-cards, .style-book) .msg.bookmarked .bubble {
   box-shadow:
     0 0 calc(26px * var(--gl)) color-mix(in srgb, var(--n2) 45%, transparent),
     inset 0 0 calc(18px * var(--gl)) color-mix(in srgb, var(--n2) 16%, transparent);
@@ -601,24 +601,4 @@
   :root[data-theme="marquee"][data-shell] .msg .name {
     font-size: 1.7rem;
   }
-}
-
-/* ---------- Book style: the programme ---------- */
-/* theirs: a neon tube down the side; yours: a strip of film; between turns, a row of bulbs */
-:root[data-theme="marquee"][data-shell] .style-book .msg {
-  border-bottom: 0;
-  background: radial-gradient(circle, #f2c46a 2px, transparent 2.6px) 0 100% / 14px 6px repeat-x;
-  padding-bottom: 1rem;
-}
-:root[data-theme="marquee"][data-shell] .style-book .msg:not(.user) .bubble {
-  padding-left: 1rem;
-  border-left: 2px solid color-mix(in srgb, var(--n2) 60%, #fff);
-  box-shadow: -4px 0 calc(6px + 8px * var(--gl)) -4px var(--n2);
-}
-:root[data-theme="marquee"][data-shell] .style-book .msg.user .prose {
-  padding-left: 1.5rem;
-  border-left: 0;
-  background:
-    radial-gradient(circle at 50% 50%, #f3ecd8 0 2.4px, transparent 3px) 0 0 / 14px 12px repeat-y,
-    linear-gradient(#17121f, #17121f) 0 0 / 14px 100% no-repeat;
 }
