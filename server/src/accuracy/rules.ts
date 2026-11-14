@@ -212,7 +212,10 @@ export function nameRule(r: RuleInput): Found[] {
   return out;
 }
 
-/** Knowledge leaks (CON-06): a secret's words in a sentence that belongs to someone who doesn't know it. */
+/** Words about telling and knowing: every secret has them and so does ordinary talk, so they don't mark a secret's content ("asks", "tell"). */
+const TELLING = /^(?:asks?|asked|asking|tells?|told|telling|says?|said|saying|knows?|knew|known|knowing|keeps?|kept|keeping|hides?|hid|hidden|hiding|secret\w*|promis\w*|swears?|swore|sworn|learn\w*|finds?|found|thinks?|thought|believ\w*|mention\w*|whisper\w*|reveal\w*|admit\w*|confess\w*|wants?|wanted)$/;
+
+/** Knowledge leaks (CON-06): a secret's words in a sentence that belongs to someone it's kept from. */
 export function leakRule(r: RuleInput): Found[] {
   const out: Found[] = [];
   const { chatId, st, sents, msg, speaker } = r;
@@ -224,10 +227,19 @@ export function leakRule(r: RuleInput): Found[] {
   for (const f of Object.values(st.facts)) {
     if (!f.secret && !Object.values(f.stances).some((s) => s.status === "unaware")) continue;
     const knowers = new Set([...(f.secret?.keepers ?? []), ...Object.entries(f.stances).filter(([, s]) => s.status !== "unaware" && s.status !== "wrong").map(([id]) => id), ...f.revealed.flatMap((x) => x.to)]);
-    const secretWords = [...contentWords(f.statement, 4)].filter((w) => !knownNames.has(w));
+    const secretWords = [...contentWords(f.statement, 4)].filter((w) => !knownNames.has(w) && !TELLING.test(w));
     if (secretWords.length < 2) continue;
+    // Who it's kept from, as the tracker says it. "Not written down as knowing" isn't "doesn't know":
+    // a secret kept from Walter says nothing about Dawn, and nothing about the person who asked for it.
+    const dark = new Set([...(f.secret?.from ?? []), ...Object.entries(f.stances).filter(([, s]) => s.status === "unaware" || s.status === "wrong").map(([id]) => id)]);
+    // Everyone it was kept from has since been told: it isn't a secret from anyone any more.
+    if (!dark.size && !f.secret?.everyone && !f.secret?.groups?.length && f.revealed.length) continue;
+    const open = !dark.size || Boolean(f.secret?.everyone); // kept from no one by name, or from everyone
     for (const c of Object.values(st.chars)) {
       if (c.isUser || knowers.has(c.id) || c.dead) continue;
+      if (!open && !dark.has(c.id)) continue;
+      // Not said to be in the dark, and the secret is about them: they're in on it.
+      if (!dark.has(c.id) && new RegExp(`\\b(${[c.name, ...c.aliases].flatMap((n) => [n, ...n.split(/\s+/)]).filter((n) => n.length > 2).map(esc).join("|")})\\b`, "i").test(f.statement)) continue;
       const nameRe = new RegExp(`\\b(${[c.name, ...c.aliases].map(esc).join("|")})\\b`, "i");
       const isSpeaker = norm(c.name) === norm(speaker);
       for (const s of sents) {

@@ -72,6 +72,23 @@ describe("continuity rules (CON-02)", () => {
     const leak = ruleCheck(chatId, '"I know you stole the harbor ledger from the customs office," Mira says.', st(), { speaker: "Mira", leaks: true });
     expect(leak.some((i) => i.kind === "leak" && i.conflict.includes("Mira doesn't know"))).toBe(true);
     expect(ruleCheck(chatId, '"I know you stole the harbor ledger from the customs office," Mira says.', st(), { speaker: "Mira", leaks: false }).some((i) => i.kind === "leak")).toBe(false);
+    // Only who it's kept from: a secret kept from Walter isn't a leak in the mouth of the one who asked for it, or of a bystander.
+    writeEvents(chatId, { messageId: ids[3]!, swipeIdx: -1 }, linesToOps(["cast: Mira@spot · Joss@peri · Walter@off · Dawn@off", "secret #alive: Mira asks Joss not to tell Walter she is alive, not yet | kept by Joss · from Walter", "secret #cargo: Mira sank the midnight cargo off the northern reef | kept by Joss"]).ops, "model");
+    const mine = (text: string, speaker = "Mira") => ruleCheck(chatId, text, st(), { speaker, leaks: true }).filter((i) => i.kind === "leak" && /alive|cargo/.test(i.conflict));
+    expect(mine('"And if she asks why you want it, tell her Dawn\'s running a background check!"')).toEqual([]);
+    expect(mine('"Joss loves you. I can tell," Mira says, alive to every sound, and asks nothing.')).toEqual([]);
+    expect(mine("Dawn asks whether she was alive back then, and nobody will tell her.")).toEqual([]);
+    // Kept from no one by name: the person it's about isn't flagged, a bystander still is.
+    expect(mine('"I sank the midnight cargo off the northern reef," Mira says.')).toEqual([]);
+    expect(mine("Dawn knows the midnight cargo went down off the northern reef.").length).toBe(1);
+    // Once everyone it was kept from has been told, it's over: nobody is flagged for it, bystanders included.
+    writeEvents(chatId, { messageId: ids[3]!, swipeIdx: -1 }, linesToOps(["secret #vault: the silver vault key hangs behind the lighthouse clock | kept by Joss · from Walter"]).ops, "model");
+    const vault = (text: string) => ruleCheck(chatId, text, st(), { speaker: "Mira", leaks: true }).filter((i) => i.kind === "leak" && i.conflict.includes("vault"));
+    expect(vault("Walter knows the silver vault key hangs behind the lighthouse clock.").length).toBe(1);
+    expect(vault("Dawn knows the silver vault key hangs behind the lighthouse clock.")).toEqual([]);
+    writeEvents(chatId, { messageId: ids[3]!, swipeIdx: -1 }, linesToOps(["reveal #vault: to Walter — Joss showed him"]).ops, "model");
+    expect(vault("Walter knows the silver vault key hangs behind the lighthouse clock.")).toEqual([]);
+    expect(vault("Dawn knows the silver vault key hangs behind the lighthouse clock.")).toEqual([]);
     // Lorebook secrets with a known-by list (LORE-09).
     createLorebook({ name: "Town", entries: [defaultEntry({ comment: "Gull Inn", keys: ["Gull Inn"], content: "An inn.", extra: { secrets: [{ text: "The cellar hides smuggled brandy barrels.", knownBy: ["Joss"] }] } })], links: [{ target_type: "chat", target_id: chatId }] });
     const lore = ruleCheck(chatId, '"Everyone knows the cellar hides smuggled brandy barrels," she says.', st(), { speaker: "Mira", leaks: true });
