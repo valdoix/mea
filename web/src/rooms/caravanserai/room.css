@@ -726,3 +726,24 @@
     animation: none !important;
   }
 }
+
+/* ---------- Book style: a storyteller's page ---------- */
+/* theirs: a strip of kilim down the side; yours: a brass rule and a warm wash; between turns, a thin
+   tile band */
+:root[data-theme="caravanserai"][data-shell] .style-book .msg {
+  border-bottom: 0;
+  background: conic-gradient(from 45deg at 50% 50%, var(--accent) 0 25%, var(--saffron) 0 50%, var(--accent) 0 75%, var(--saffron) 0) 0 100% / 8px 4px repeat-x;
+  padding-bottom: 1rem;
+}
+:root[data-theme="caravanserai"][data-shell] .style-book .msg:not(.user) .bubble {
+  padding-left: 1.1rem;
+  background:
+    conic-gradient(from 135deg at 50% 100%, var(--accent) 90deg, transparent 0) 0 0 / 8px 8px repeat-y,
+    conic-gradient(from -45deg at 50% 0, #1f7a74 90deg, transparent 0) 0 4px / 8px 8px repeat-y;
+  background-size: 8px 8px;
+}
+:root[data-theme="caravanserai"][data-shell] .style-book .msg.user .prose {
+  padding: 0.4rem 0.9rem;
+  border-left: 3px solid var(--saffron);
+  background: linear-gradient(90deg, rgb(225 164 58 / 16%), transparent 80%);
+}

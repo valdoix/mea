@@ -659,3 +659,22 @@
     animation: none !important;
   }
 }
+
+/* ---------- Book style: the log of transmissions ---------- */
+/* theirs: a reticle bracket and a signal edge; yours: an outbound edge in the accent; between turns,
+   a dashed telemetry line */
+:root[data-theme="aphelion"][data-shell] .style-book .msg {
+  border-bottom: 1px dashed color-mix(in srgb, var(--border-strong) 70%, transparent);
+}
+:root[data-theme="aphelion"][data-shell] .style-book .msg:not(.user) .bubble {
+  padding-left: 1rem;
+  background:
+    linear-gradient(var(--accent), var(--accent)) 0 0.3rem / 10px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 0 0.3rem / 2px 10px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 0 calc(100% - 0.3rem) / 10px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) 0 calc(100% - 10px - 0.3rem) / 2px 10px no-repeat;
+}
+:root[data-theme="aphelion"][data-shell] .style-book .msg.user .prose {
+  border-left: 3px solid var(--accent);
+  box-shadow: -6px 0 12px -8px var(--accent);
+}
