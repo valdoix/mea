@@ -5,7 +5,7 @@ import { getSetting } from "../lib/settings";
 import { countTokens } from "../lib/tokens";
 import type { ChatMessage } from "../prompt/assemble";
 import { INCOMPLETE, ProviderError, type Usage } from "../providers/types";
-import { type ResolvedProfile, resolveTaskChain } from "./connections";
+import { type ResolvedProfile, THINKS_MIN, learnReasoning, resolveTaskChain } from "./connections";
 import { Deferred } from "./jobs";
 import { QuotaExhausted, assertQuota } from "./quota";
 import { finishRequest, startRequest } from "./requests";
@@ -115,6 +115,31 @@ const REASONING_FLOOR = 1024;
 const REASONING_ROOM = 3000;
 /** M14: the most a truncated helper reply is retried with. */
 const MAX_RETRY_TOKENS = 32_000;
+
+/**
+ * Room for thinking on top of the answer's budget: 3,000 on a route known to reason, or a quarter
+ * more than the model was seen to think (learnReasoning) where that's more, including on a route
+ * whose catalog never said it reasons (ZenLLM's GLM 5.3 thought ~5,000 tokens before 440 of ledger).
+ */
+export function thinkingRoom(r: Pick<ResolvedProfile, "reasoning" | "learnedReasoning">): number {
+  const learned = r.learnedReasoning ?? 0;
+  const seen = learned >= THINKS_MIN ? Math.min(MAX_RETRY_TOKENS, Math.ceil(learned * 1.25)) : 0;
+  return r.reasoning ? Math.max(REASONING_ROOM, seen) : seen;
+}
+
+/** What a finished reply says about how much the model thinks, for the next call's room. */
+function noteThinking(r: ResolvedProfile, res: { usage?: Usage; finishReason?: string }, text: string) {
+  const cut = cutOff(res);
+  let thought = res.usage?.reasoningTokens;
+  // Not reported: a reply cut off with next to nothing to show spent the rest thinking.
+  if (thought == null && cut && res.usage?.completionTokens) thought = Math.max(0, res.usage.completionTokens - Math.ceil(text.length / 3));
+  if (thought == null) return;
+  try {
+    learnReasoning(r.connection.id, r.modelId, cut ? thought * 2 : thought);
+  } catch {
+    // learning is a convenience; never fail a reply over it
+  }
+}
 /** Once a reply is flowing, only a stall this long stops it: a slow provider still finishes. */
 const HELPER_IDLE_MS = 90_000;
 /** A flowing reply still ends at this many times the task's timeout. */
@@ -140,8 +165,9 @@ async function once(r: ResolvedProfile, call: JsonCall<z.ZodType>, messages: Cha
     }
   }, 1000);
   const signal = call.signal ? AbortSignal.any([call.signal, timer.signal]) : timer.signal;
-  const budget = maxTokens ?? (call.maxTokens ?? 4000) + (r.reasoning ? REASONING_ROOM : 0);
-  const params = { ...r.params, max_tokens: r.reasoning ? Math.max(budget, REASONING_FLOOR) : budget, temperature: call.temperature ?? 0.3 };
+  const room = thinkingRoom(r);
+  const budget = maxTokens ?? (call.maxTokens ?? 4000) + room;
+  const params = { ...r.params, max_tokens: room ? Math.max(budget, REASONING_FLOOR) : budget, temperature: call.temperature ?? 0.3 };
   const responseFormat = structured ? { type: "json_schema", json_schema: { name: call.name, strict: false, schema: jsonSchemaOf(call.name, call.schema) } } : undefined;
   const est = messages.reduce((n, m) => n + countTokens(m.content) + 4, 0);
   const id = startRequest({
@@ -164,6 +190,7 @@ async function once(r: ResolvedProfile, call: JsonCall<z.ZodType>, messages: Cha
       }
     });
     finishRequest(id, { status: "done", usage: res.usage, firstTokenAt, sentBody: res.sentBody, response: text, pricing: r.pricing, billing: r.billing });
+    noteThinking(r, res, text);
     return { id, text, usage: res.usage, est, finishReason: res.finishReason, maxTokens: params.max_tokens };
   } catch (e) {
     const err = timedOut && !call.signal?.aborted ? new ProviderError(timedOut) : e;

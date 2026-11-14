@@ -183,6 +183,7 @@ export function usageOf(u: Record<string, any> | undefined): StreamResult["usage
     completionTokens: u.completion_tokens ?? u.output_tokens,
     cachedTokens: u.prompt_tokens_details?.cached_tokens ?? u.cache_read_input_tokens ?? u.prompt_cache_hit_tokens ?? undefined,
     cacheWriteTokens: u.cache_creation_input_tokens ?? u.prompt_tokens_details?.cache_write_tokens ?? undefined,
+    reasoningTokens: u.completion_tokens_details?.reasoning_tokens ?? u.reasoning_tokens ?? undefined,
   };
 }
 

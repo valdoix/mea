@@ -1640,6 +1640,15 @@ UPDATE settings SET value = json_set(value, '$.voices', 'blocks')
 WHERE key = 'appearance.living' AND json_valid(value) AND json_extract(value, '$.voices') IN ('ink', 'halo', 'ribbon', 'chips', 'tint', 'script');
 `,
   },
+  {
+    id: 46,
+    name: "learned thinking",
+    up: (db) => {
+      // How many tokens a model was seen to think per reply, from the usage its route reports, so a
+      // route nobody told Mea reasons still gets room to think (ZenLLM's GLM 5.3: ~5,000 before a ledger).
+      if (!hasColumn(db, "models", "learned_reasoning")) db.exec("ALTER TABLE models ADD COLUMN learned_reasoning INTEGER");
+    },
+  },
 ];
 
 const hasColumn = (db: Database, table: string, column: string) => db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
