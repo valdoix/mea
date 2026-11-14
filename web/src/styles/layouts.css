@@ -892,7 +892,7 @@
   max-width: var(--stage-w);
 }
 :root[data-layout="stage"] .composer-area {
-  max-width: calc(var(--stage-w) + 2rem);
+  max-width: calc(var(--composer-w, var(--stage-w)) + 2rem);
 }
 .chat.stage-sheet .composer-area,
 .chat.stage-sheet .river-wrap,

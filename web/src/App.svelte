@@ -25,7 +25,7 @@
   import AppLock from "./components/AppLock.svelte";
   import CommandPalette from "./components/CommandPalette.svelte";
   import { lock, watchLock } from "./lib/applock.svelte";
-  import { device, meteredConnection, onConnectionChange, portraitWidth } from "./lib/device.svelte";
+  import { device, dialogueSize, meteredConnection, onConnectionChange, portraitWidth } from "./lib/device.svelte";
   import Welcome from "./views/Welcome.svelte";
 
   // PERF-09: Home and the chat are in the first load; every other screen loads on first visit.
@@ -174,13 +174,19 @@
   $effect(() => {
     if (route.name !== "chat") setFocus(false);
   });
-  // Lantern display choices for this device: chat box width, portraits, room inside each box.
+  // Lantern display choices for this device: message and typing-box widths, dialogue sizes, portraits, room inside each box.
   $effect(() => {
     const root = document.documentElement.style;
     const w = device.chatWidth;
     if (w >= 100) root.setProperty("--chat-w", "100%");
     else if (w > 0) root.setProperty("--chat-w", `${w}rem`);
     else root.removeProperty("--chat-w");
+    const cw = device.composerWidth;
+    if (cw >= 100) root.setProperty("--composer-w", "100%");
+    else if (cw > 0) root.setProperty("--composer-w", `${cw}rem`);
+    else root.removeProperty("--composer-w");
+    root.setProperty("--dl-text", String(dialogueSize(device.dialogueText)));
+    root.setProperty("--dl-box", String(dialogueSize(device.dialogueBox)));
     root.setProperty("--portrait-w", `${portraitWidth()}px`);
     const frame = document.documentElement.dataset;
     if (device.portraitFrame && device.portraitFrame !== "room") frame.frame = device.portraitFrame;

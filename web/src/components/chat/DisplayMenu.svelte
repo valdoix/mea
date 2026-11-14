@@ -1,21 +1,15 @@
 <script lang="ts">
   import Segmented from "../Segmented.svelte";
+  import ChatSizes from "./ChatSizes.svelte";
   import { device, setDevice } from "../../lib/device.svelte";
   import { LAYOUTS, type LayoutId } from "../../lib/layouts";
   import { app, saveSetting, setLayout } from "../../lib/state.svelte";
   import type { Settings } from "../../lib/types";
 
-  // Lantern: how the chat looks on this device: box width, text size, portraits, room inside boxes.
+  // Lantern: how the chat looks on this device: message and typing-box widths, dialogue size, text size, portraits, room inside boxes.
   let open = $state(false);
   let root = $state<HTMLDivElement | null>(null);
 
-  const widths = [
-    { value: "38", label: "Narrow" },
-    { value: "0", label: "Comfortable" },
-    { value: "60", label: "Wide" },
-    { value: "100", label: "Full" },
-  ];
-  const width = $derived(String(device.chatWidth ?? 0));
   const scale = $derived(app.settings?.["appearance.fontScale"] ?? 1);
   const style = $derived(app.settings?.["appearance.chatStyle"] ?? "cards");
 
@@ -47,10 +41,7 @@
           onchange={(v) => saveSetting("appearance.chatStyle", v as Settings["appearance.chatStyle"])}
         />
       </div>
-      <div class="field">
-        <span class="label">Chat box width</span>
-        <Segmented value={width} options={widths} onchange={(v) => setDevice("chatWidth", Number(v))} />
-      </div>
+      <ChatSizes />
       <label class="field">
         <span class="label">Text size <span class="faint">{Math.round(scale * 100)}%</span></span>
         <input type="range" min="0.85" max="1.3" step="0.05" value={scale} onchange={(e) => saveSetting("appearance.fontScale", Number(e.currentTarget.value))} />
@@ -109,6 +100,9 @@
     background: var(--surface);
     border: 1px solid var(--border);
     box-shadow: var(--shadow-2);
+    max-height: calc(100dvh - 90px - var(--safe-top, 0px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
     animation: pop 0.3s var(--spring);
   }
   :global([data-shell="lantern"]) .pop {

@@ -24,6 +24,11 @@ export interface DevicePrefs {
   readTheme: "app" | "paper" | "night";
   /** Lantern: how wide the chat boxes are, in rem (0 = the reading width from Appearance, 100 = the whole window). */
   chatWidth: number;
+  /** How wide the box you type in is, in rem (0 = as wide as the messages, 100 = the whole window). */
+  composerWidth: number;
+  /** How big the spoken words are, and how big the speaker cards around them are (1 = as drawn). */
+  dialogueText: number;
+  dialogueBox: number;
   /** Lantern: portrait size beside each message, a preset or "custom" (then portraitPx). */
   portrait: PortraitSize;
   /** The portrait's width in px when portrait is "custom". */
@@ -53,8 +58,14 @@ export type PortraitSize = "small" | "large" | "grand" | "towering" | "custom";
 export const PORTRAIT_PRESETS = { small: 56, large: 76, grand: 104, towering: 150 } as const;
 export const PORTRAIT_RANGE = { min: 48, max: 260 } as const;
 
+/** The width sliders' range in rem; the stop past the top is the whole window (stored as 100). */
+export const WIDTH_RANGE = { min: 26, max: 90 } as const;
+export const FULL_WIDTH = 100;
+/** The dialogue sliders' range, as a share of the size each speaker style draws. */
+export const DIALOGUE_RANGE = { min: 0.7, max: 1.6 } as const;
+
 const KEY = "mea.prefs";
-const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true, sceneStrip: "strip", bandSlim: false, riverHidden: false, roomWeather: "scene" };
+const defaults: DevicePrefs = { offline: true, dataLight: "auto", spellcheck: false, discreet: false, haptics: true, delights: true, lockAfter: 5, readSize: 1.15, readWidth: 38, readTheme: "app", chatWidth: 0, composerWidth: 0, dialogueText: 1, dialogueBox: 1, portrait: "large", portraitPx: 140, portraitFrame: "room", boxPadding: "cozy", fireflies: true, grain: true, plates: true, sceneStrip: "strip", bandSlim: false, riverHidden: false, roomWeather: "scene" };
 
 function read(): DevicePrefs {
   try {
@@ -110,4 +121,21 @@ export const appSetupUrl = "https://localhost/?setup";
 export function portraitWidth(p: Pick<DevicePrefs, "portrait" | "portraitPx"> = device) {
   if (p.portrait === "custom") return Math.round(Math.min(PORTRAIT_RANGE.max, Math.max(PORTRAIT_RANGE.min, Number(p.portraitPx) || 140)));
   return PORTRAIT_PRESETS[p.portrait] ?? PORTRAIT_PRESETS.large;
+}
+
+/** A width pref (rem, 0 = follow something else, 100 = the whole window) as the slider's stop. */
+export function widthStop(w: number, fallback: number) {
+  if (w >= FULL_WIDTH) return WIDTH_RANGE.max + 1;
+  const rem = w > 0 ? w : fallback;
+  return Math.min(WIDTH_RANGE.max, Math.max(WIDTH_RANGE.min, Math.round(rem)));
+}
+/** The slider's stop back as a width pref: the stop past the top is the whole window. */
+export function stopWidth(stop: number) {
+  return stop > WIDTH_RANGE.max ? FULL_WIDTH : Math.min(WIDTH_RANGE.max, Math.max(WIDTH_RANGE.min, Math.round(stop)));
+}
+/** A dialogue size kept inside the sliders' range (an old or hand-edited value can't blow it up). */
+export function dialogueSize(v: unknown) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(DIALOGUE_RANGE.max, Math.max(DIALOGUE_RANGE.min, n));
 }

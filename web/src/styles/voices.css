@@ -9,6 +9,23 @@
   --voice-mix: 88%;
 }
 
+/* Dialogue sizes (Display menu, Settings → Appearance): --dl-text sizes the spoken words wherever
+   they are; --dl-box sizes each speaker's card whole (padding, medallion, nameplate, tail), so every
+   style keeps its proportions, and the words inside are sized back by --dl-text alone. */
+:root {
+  --dl-text: 1;
+  --dl-box: 1;
+}
+.prose .dl {
+  zoom: var(--dl-text);
+}
+.prose .v-say {
+  zoom: var(--dl-box);
+}
+.prose .v-say .dl {
+  zoom: calc(var(--dl-text) / var(--dl-box));
+}
+
 /* How it was said. */
 .prose .dl.v-whisper {
   font-size: 0.93em;

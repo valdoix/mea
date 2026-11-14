@@ -1,6 +1,7 @@
 <script lang="ts">
   import RoomColors from "./RoomColors.svelte";
   import Segmented from "../Segmented.svelte";
+  import ChatSizes from "../chat/ChatSizes.svelte";
   import { biometricsAvailable, lock, removeLock, setPin, setupBiometrics } from "../../lib/applock.svelte";
   import { confirm } from "../../lib/dialogs.svelte";
   import { PORTRAIT_RANGE, device, portraitWidth, setDevice } from "../../lib/device.svelte";
@@ -150,20 +151,8 @@
         onchange={(v) => saveSetting("appearance.chatStyle", v)}
       />
       <p class="tiny muted">Cards: glowing boxes with a portrait beside each. Book: flowing prose without boxes. Bubbles: a messenger look.</p>
-      <div class="field">
-        <span class="label">Chat box width <span class="faint">on this device</span></span>
-        <Segmented
-          value={String(device.chatWidth)}
-          options={[
-            { value: "38", label: "Narrow" },
-            { value: "0", label: "Comfortable" },
-            { value: "60", label: "Wide" },
-            { value: "100", label: "Full" },
-          ]}
-          onchange={(v) => setDevice("chatWidth", Number(v))}
-        />
-        <span class="hint">Comfortable follows the text width below.</span>
-      </div>
+      <p class="tiny muted">Widths and dialogue sizes are kept on this device.</p>
+      <ChatSizes full />
       <div class="field">
         <span class="label">Portraits <span class="faint">{portraitWidth()} px wide, on this device</span></span>
         <Segmented
