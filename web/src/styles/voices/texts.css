@@ -20,7 +20,7 @@
   margin: 1.5em 0 0.4em 46px;
   padding-top: 18px;
   color: var(--text-muted);
-  font-size: 0.85em;
+  font-size: calc(1em / var(--dl-box));
   font-style: italic;
   line-height: 1.45;
 }
@@ -34,7 +34,7 @@
   border-radius: 20px 20px 20px 6px;
   background: linear-gradient(180deg, var(--c), color-mix(in oklab, var(--c) 86%, #000));
   color: var(--on-voice);
-  font: 500 1.22em/1.4 "DM Sans Variable", system-ui, sans-serif;
+  font: 500 1.037em/1.4 "DM Sans Variable", system-ui, sans-serif;
   font-style: normal;
   font-variant: normal;
   box-shadow: 0 8px 16px -12px color-mix(in oklab, var(--c) 80%, #000);
@@ -132,7 +132,7 @@
 /* tones: a reaction badge, and the bubble changes with them */
 .prose[data-voices="texts"] .v-say[data-tone="shout"] .dl:not(.v-other) {
   padding: 12px 18px;
-  font: 800 1.75em/1.12 "DM Sans Variable", system-ui, sans-serif;
+  font: 800 1.49em/1.12 "DM Sans Variable", system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing: -0.01em;
 }

@@ -32,7 +32,7 @@
   border: 3px solid color-mix(in oklab, var(--text) 88%, transparent);
   box-shadow: 6px 6px 0 var(--c);
   color: var(--text-muted);
-  font: italic 400 0.92em/1.5 "Comic Neue", sans-serif;
+  font: italic 400 calc(1em / var(--dl-box))/1.5 "Comic Neue", sans-serif;
 }
 .prose[data-voices="balloons"] .v-say::after {
   content: "";
@@ -59,7 +59,7 @@
   color: var(--bk);
   border: 2.5px solid var(--bk);
   border-radius: 24px;
-  font: 700 1.12em/1.4 "Comic Neue", sans-serif;
+  font: 700 1.03em/1.4 "Comic Neue", sans-serif;
   font-style: normal;
   font-variant: normal;
 }
@@ -162,7 +162,7 @@
   border: 0;
   margin: 18px 0 16px 16px;
   padding: 20px 34px;
-  font: 400 1.75em/1.05 "Bangers", sans-serif;
+  font: 400 1.61em/1.05 "Bangers", sans-serif;
   letter-spacing: 0.05em;
 }
 .prose[data-voices="balloons"] .v-say[data-tone="shout"] .dl:not(.v-other)::before {
@@ -185,7 +185,7 @@
   border-style: dashed;
   border-width: 2px;
   font-weight: 400;
-  font-size: 1em;
+  font-size: 0.92em;
   color: #5a5262;
 }
 .prose[data-voices="balloons"] .v-say:is([data-tone="tender"], [data-tone="sob"]) .dl:not(.v-other) {

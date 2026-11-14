@@ -26,7 +26,7 @@
     linear-gradient(135deg, #f3d27a, var(--c) 30%, #fff3c4 50%, var(--c) 70%, #c9962f) border-box;
   color: var(--text-muted);
   box-shadow: 0 18px 28px -20px color-mix(in oklab, var(--c) 60%, #000);
-  font-size: 0.9em;
+  font-size: calc(1em / var(--dl-box));
   font-style: italic;
   transition: transform 0.3s;
 }
@@ -46,7 +46,7 @@
 }
 .prose[data-voices="holo"] .v-say .dl:not(.v-other) {
   color: var(--text);
-  font: 500 1.15em/1.5 "DM Sans Variable", system-ui, sans-serif;
+  font: 500 1.035em/1.5 "DM Sans Variable", system-ui, sans-serif;
   font-style: normal;
   font-variant: normal;
 }
@@ -146,7 +146,7 @@
   clip-path: polygon(4% 0, 100% 0, 96% 100%, 0 100%);
 }
 .prose[data-voices="holo"] .v-say[data-tone="shout"] .dl:not(.v-other) {
-  font-size: 1.4em;
+  font-size: 1.26em;
   font-weight: 800;
   letter-spacing: -0.01em;
   text-transform: uppercase;
@@ -164,7 +164,7 @@
   display: none;
 }
 .prose[data-voices="holo"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .dl:not(.v-other) {
-  font-size: 1em;
+  font-size: 0.9em;
   color: var(--text-muted);
 }
 .prose[data-voices="holo"] .v-say:is([data-tone="whisper"], [data-tone="murmur"], [data-tone="breathless"]) .v-plate em::before {

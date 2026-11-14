@@ -11,7 +11,9 @@
 
 /* Dialogue sizes (Display menu, Settings → Appearance): --dl-text sizes the spoken words wherever
    they are; --dl-box sizes each speaker's card whole (padding, medallion, nameplate, tail), so every
-   style keeps its proportions, and the words inside are sized back by --dl-text alone. */
+   style keeps its proportions. Each style sets its card's font-size to 1em / --dl-box, so the
+   narration inside a card reads at the story's own size whatever the box, and the words inside are
+   sized by --dl-text alone. */
 :root {
   --dl-text: 1;
   --dl-box: 1;
@@ -21,9 +23,6 @@
 }
 .prose .v-say {
   zoom: var(--dl-box);
-}
-.prose .v-say .dl {
-  zoom: calc(var(--dl-text) / var(--dl-box));
 }
 
 /* How it was said. */
@@ -83,7 +82,7 @@
   --c: var(--vc, var(--text-muted));
   position: relative;
   margin: 1.6em 0 1.1em 58px;
-  padding: 1.1em 1.1em 0.8em;
+  padding: calc(1.1em * var(--dl-box)) calc(1.1em * var(--dl-box)) calc(0.8em * var(--dl-box));
   border-radius: 6px 18px 18px 18px;
   background: linear-gradient(135deg, color-mix(in oklab, var(--c) 15%, var(--surface)), color-mix(in oklab, var(--c) 4%, var(--surface)) 70%);
   border: 1px solid color-mix(in oklab, var(--c) 32%, var(--border));
@@ -91,12 +90,12 @@
   /* The narration beat inside a card reads quieter than the line. */
   color: var(--text-muted);
   font-style: italic;
-  font-size: 0.95em;
+  font-size: calc(1em / var(--dl-box));
 }
 .prose[data-voices="blocks"] .v-say .dl {
   color: var(--text);
   font-style: normal;
-  font-size: 1.1em;
+  font-size: 1.045em;
 }
 .prose[data-voices="blocks"] .v-say::before {
   content: "";
@@ -246,7 +245,7 @@
 }
 .prose[data-voices="blocks"] .v-say[data-tone="shout"] .dl {
   font-weight: 650;
-  font-size: 1.2em;
+  font-size: 1.14em;
 }
 .prose[data-voices="blocks"] .v-say[data-tone="shout"] .v-medal::before {
   content: "";
