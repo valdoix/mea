@@ -1,7 +1,10 @@
 /* =====================================================================
    APHELION — farthest from anything
-   Ship's instruments. A white hull with a big porthole by day; at night the walls go and there's
-   only space and one barely moving planet. Cards are cut-corner transmissions.
+   Far out, but cosy. A bolted porthole onto a turning blue planet by day and a ringed giant by
+   night, an astronaut drifting past, shooting stars. The mark is an embroidered mission patch with
+   the mission clock under it; open stories are planets with a moon in orbit. The header carries a
+   live waveform, cards are cut-corner transmissions, chapters ride a trajectory arc, and send is a
+   red launch button that launches.
    ===================================================================== */
 :root[data-theme="aphelion"][data-shell] {
   --cut: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
@@ -67,17 +70,81 @@
 :root[data-theme="aphelion"][data-shell] nav.rail .nav {
   color: var(--text-muted);
 }
+/* the mark: an embroidered mission patch, with the mission clock stitched underneath */
 :root[data-theme="aphelion"][data-shell] nav.rail .logo {
-  border-radius: 0;
+  position: relative;
+  border-radius: 50%;
   background:
-    linear-gradient(var(--accent), var(--accent)) 0 0 / 12px 2px no-repeat,
-    linear-gradient(var(--accent), var(--accent)) 0 0 / 2px 12px no-repeat,
-    linear-gradient(var(--accent), var(--accent)) 100% 100% / 12px 2px no-repeat,
-    linear-gradient(var(--accent), var(--accent)) 100% 100% / 2px 12px no-repeat;
-  box-shadow: none;
-  color: var(--text) !important;
-  font: 700 1.6rem/1 var(--font-display);
+    radial-gradient(circle, #f2b51a 0 5px, transparent 5.5px),
+    radial-gradient(ellipse 46% 16% at 50% 50%, transparent 86%, #5fe6ff 88% 96%, transparent 98%),
+    radial-gradient(circle, #0a1328 0 58%, #e2560f 59% 62%, #14213d 63%);
+  box-shadow:
+    0 0 0 2px #14213d,
+    0 0 0 3px #f2b51a,
+    0 3px 6px rgb(0 0 0 / 35%);
+  outline: 1.5px dashed #f2b51a;
+  outline-offset: -5px;
+  color: transparent !important;
+  font-size: 0;
   animation: none;
+  margin-bottom: 14px;
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .logo::after {
+  content: var(--ap-clock, "T+00:00:00");
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  font: 600 9px/1 var(--font-deco);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--accent-ink);
+}
+/* your open stories: planets, each with a little moon in orbit */
+:root[data-theme="aphelion"][data-shell] nav.rail .story {
+  position: relative;
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .story .avatar {
+  border-radius: 50% !important;
+  box-shadow:
+    inset -6px -6px 10px rgb(0 0 0 / 35%),
+    0 0 0 3px var(--surface),
+    0 0 0 4px color-mix(in srgb, var(--border-strong) 70%, transparent);
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .story.on .avatar {
+  box-shadow:
+    inset -6px -6px 10px rgb(0 0 0 / 35%),
+    0 0 0 3px var(--surface),
+    0 0 0 5px var(--accent),
+    0 0 16px var(--accent);
+}
+:root[data-theme="aphelion"][data-shell] nav.rail .story::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
+  transform: rotate(0deg) translateX(27px);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="aphelion"][data-shell] nav.rail .story::after {
+    animation: ap-orbit 9s linear infinite;
+  }
+  :root[data-theme="aphelion"][data-shell] nav.rail .story:nth-child(2n)::after {
+    animation-duration: 14s;
+    animation-direction: reverse;
+  }
+}
+@keyframes ap-orbit {
+  to {
+    transform: rotate(360deg) translateX(27px);
+  }
 }
 :root[data-theme="aphelion"][data-shell] nav.rail .logo:hover {
   transform: none;
@@ -94,6 +161,35 @@
   border-radius: 0;
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
+}
+/* the header carries a live waveform, scrolling along its foot */
+:root[data-theme="aphelion"][data-shell] .bar:not(.compact) {
+  position: relative;
+  padding-bottom: calc(0.55rem + 14px);
+}
+:root[data-theme="aphelion"][data-shell] .bar:not(.compact)::after {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 4px;
+  height: 14px;
+  pointer-events: none;
+  background: var(--accent);
+  opacity: 0.7;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 14'%3E%3Cpath d='M0 7 6 7 9 2 12 12 15 4 18 9 21 7 30 7 33 5 36 9 39 7 60 7 63 1 66 13 69 3 72 11 75 7 90 7 93 6 96 8 99 7 120 7' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3C/svg%3E") 0 0 / 120px 14px repeat-x;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 14'%3E%3Cpath d='M0 7 6 7 9 2 12 12 15 4 18 9 21 7 30 7 33 5 36 9 39 7 60 7 63 1 66 13 69 3 72 11 75 7 90 7 93 6 96 8 99 7 120 7' fill='none' stroke='%23000' stroke-width='1.4'/%3E%3C/svg%3E") 0 0 / 120px 14px repeat-x;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="aphelion"][data-shell] .bar:not(.compact)::after {
+    animation: ap-wave 2.4s linear infinite;
+  }
+}
+@keyframes ap-wave {
+  to {
+    -webkit-mask-position: -120px 0;
+    mask-position: -120px 0;
+  }
 }
 :root[data-theme="aphelion"][data-shell] .bar .cname {
   font: 700 1.8rem/1 var(--font-display);
@@ -161,8 +257,68 @@
 :root[data-theme="aphelion"][data-shell] .msg .prose em {
   color: var(--text-muted);
 }
-:root[data-theme="aphelion"][data-shell] .chapter-h {
-  border-block: 1px solid var(--border-strong);
+/* chapters ride a trajectory arc, with the ship at the top of it */
+:root[data-theme="aphelion"][data-shell] .chapter-h .orn-line {
+  display: none;
+}
+:root[data-theme="aphelion"][data-shell] .chapter-h::before {
+  top: 0.2rem;
+  width: min(34rem, 100%);
+  height: 3.2rem;
+  color: var(--text-faint);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 560 52' preserveAspectRatio='none'%3E%3Cpath d='M10 46Q280-20 550 46' fill='none' stroke='%237a8a9a' stroke-dasharray='4 5'/%3E%3Ccircle cx='10' cy='46' r='4' fill='%237a8a9a'/%3E%3Ccircle cx='550' cy='46' r='4' fill='none' stroke='%237a8a9a' stroke-width='1.5'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+:root[data-theme="aphelion"][data-shell] .chapter-h::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0.95rem;
+  width: 16px;
+  height: 8px;
+  margin-left: -8px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 50%, 0 100%, 25% 50%);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="aphelion"][data-shell] .chapter-h::after {
+    animation: ap-coast 4s ease-in-out infinite alternate;
+  }
+}
+@keyframes ap-coast {
+  from {
+    transform: translateX(-14px) rotate(-6deg);
+  }
+  to {
+    transform: translateX(14px) rotate(6deg);
+  }
+}
+/* the typing dots are a signal meter */
+:root[data-theme="aphelion"][data-shell] .typing span {
+  width: 5px;
+  height: 14px;
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: 50% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme="aphelion"][data-shell] .typing span {
+    animation: ap-meter 0.9s ease-in-out infinite alternate;
+  }
+  :root[data-theme="aphelion"][data-shell] .typing span:nth-child(2) {
+    animation-delay: -0.3s;
+  }
+  :root[data-theme="aphelion"][data-shell] .typing span:nth-child(3) {
+    animation-delay: -0.6s;
+  }
+}
+@keyframes ap-meter {
+  from {
+    transform: scaleY(0.3);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 :root[data-theme="aphelion"][data-shell] .ch-title {
   font: 700 1.6rem/1.1 var(--font-display);
@@ -176,14 +332,56 @@
   border: 1px solid var(--border-strong);
   border-radius: 0;
   box-shadow: none;
+  background-image: repeating-linear-gradient(-45deg, #f2b51a 0 8px, #141820 8px 16px);
+  background-size: 100% 4px;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
+/* send: a red launch button inside a hazard ring */
 :root[data-theme="aphelion"][data-shell] .send.primary {
-  border-radius: 0;
-  background: var(--accent);
-  color: var(--on-accent);
-  box-shadow: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff9a7a, #e2230f 60%, #8a1206);
+  color: #fff;
+  box-shadow:
+    0 3px 0 #6a0e05,
+    0 0 0 3px #1b2330,
+    0 0 0 6px #f2b51a,
+    0 0 14px rgb(255 60 30 / 45%);
+  transition: transform 0.1s;
+}
+:root[data-theme="aphelion"][data-shell] .send.primary:not(:disabled):active {
+  transform: translateY(2px);
+}
+/* the rocket a send launches (Ambience.svelte adds it over everything) */
+.ap-rocket {
+  position: fixed;
+  z-index: 400;
+  width: 28px;
+  height: 52px;
+  pointer-events: none;
+  animation: ap-launch 1.8s cubic-bezier(0.5, 0, 0.8, 0.4) forwards;
+}
+.ap-rocket .fl {
+  transform-origin: 14px 40px;
+  animation: ap-flame 0.08s linear infinite alternate;
+}
+@keyframes ap-flame {
+  to {
+    transform: scaleY(1.4);
+  }
+}
+@keyframes ap-launch {
+  0% {
+    transform: translate(0, 0);
+  }
+  15% {
+    transform: translate(0, -10px);
+  }
+  100% {
+    transform: translate(-160px, -100vh) rotate(-12deg);
+  }
 }
 :root[data-theme="aphelion"][data-shell] .continue,
 :root[data-theme="aphelion"][data-shell] .char {
@@ -227,46 +425,206 @@
     opacity: 0.62;
   }
 }
+/* the porthole: a bolted ring onto a turning blue planet by day, a ringed giant by night */
 .a-aphelion .port {
-  right: -8vmin;
-  bottom: -10vmin;
-  width: 88vmin;
-  height: 88vmin;
+  right: -10vmin;
+  bottom: -12vmin;
+  width: 80vmin;
+  height: 80vmin;
   border-radius: 50%;
-  overflow: hidden;
-  background:
-    radial-gradient(circle, #fff 1px, transparent 1.6px) 0 0 / 71px 67px,
-    radial-gradient(circle, #cfe2ff 1px, transparent 1.5px) 30px 24px / 113px 97px,
-    #04070d;
+  padding: 2.6vmin;
+  background: conic-gradient(from 0deg, #aab4be, #eef2f5, #9aa5b0, #e6eaee, #aab4be);
   box-shadow:
-    0 0 0 14px #b8c1c9,
-    0 0 0 16px #828e98;
+    0 20px 40px -20px rgb(0 0 0 / 50%),
+    inset 0 0 0 2px rgb(0 0 0 / 20%);
 }
 .a-aphelion.night .port {
-  background: none;
-  box-shadow: none;
-  overflow: visible;
+  background: conic-gradient(from 0deg, #1c2a36, #3a4c5c, #16222c, #34454f, #1c2a36);
+  box-shadow:
+    0 0 60px -10px rgb(95 230 255 / 35%),
+    inset 0 0 0 2px rgb(95 230 255 / 30%);
 }
-.a-aphelion .planet {
+.a-aphelion .port .bolt {
   position: absolute;
-  left: 24%;
-  top: 24%;
-  width: 82%;
-  height: 82%;
+  left: 50%;
+  top: 50%;
+  width: 1.1vmin;
+  height: 1.1vmin;
+  margin: -0.55vmin;
   border-radius: 50%;
-  background: radial-gradient(circle at 26% 24%, #d98a4b, #6c2e12 62%, #000 86%);
-  box-shadow: -5px -5px 44px -6px #d98a4b;
-  will-change: transform;
-  animation: ap-drift 300s linear infinite alternate;
+  background: radial-gradient(circle at 35% 35%, #fff, #6b7783);
+  transform: rotate(var(--a)) translateY(-38.7vmin);
 }
-.a-aphelion.night .planet {
-  background: radial-gradient(circle at 26% 24%, #3f9db8, #07202e 62%, #000 86%);
-  box-shadow: -5px -5px 44px -6px #3f9db8;
+.a-aphelion .space {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 30% 30%, #0a1a3a, #02040c 70%);
+  box-shadow:
+    inset 0 0 40px rgb(0 0 0 / 90%),
+    inset 0 0 0 4px #1a2330;
 }
-@keyframes ap-drift {
+.a-aphelion .space .sf {
+  position: absolute;
+  inset: -50%;
+  background:
+    radial-gradient(circle, #fff 0 1px, transparent 1.5px) 0 0 / 37px 41px,
+    radial-gradient(circle, rgb(255 255 255 / 70%) 0 0.8px, transparent 1.2px) 11px 17px / 23px 29px;
+  animation: ap-stars 80s linear infinite;
+}
+@keyframes ap-stars {
   to {
-    transform: translate(-40px, -22px);
+    transform: translate(-37px, 41px);
   }
+}
+.a-aphelion .earth {
+  position: absolute;
+  left: -20%;
+  bottom: -62%;
+  width: 140%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 40% 20%, #7fd0ff, #2a78c8 40%, #123a78 70%);
+  box-shadow: 0 0 40px 10px rgb(120 200 255 / 45%);
+  transition: opacity 0.8s var(--ease);
+}
+.a-aphelion .earth i {
+  position: absolute;
+  inset: 0;
+  width: 200%;
+  background:
+    radial-gradient(30% 10% at 15% 12%, #4f9a5a 60%, transparent 62%),
+    radial-gradient(20% 8% at 35% 18%, #5aa865 60%, transparent 62%),
+    radial-gradient(40% 6% at 10% 9%, rgb(255 255 255 / 85%) 50%, transparent 60%),
+    radial-gradient(30% 5% at 38% 8%, rgb(255 255 255 / 80%) 50%, transparent 60%),
+    radial-gradient(30% 10% at 65% 12%, #4f9a5a 60%, transparent 62%),
+    radial-gradient(20% 8% at 85% 18%, #5aa865 60%, transparent 62%),
+    radial-gradient(40% 6% at 60% 9%, rgb(255 255 255 / 85%) 50%, transparent 60%),
+    radial-gradient(30% 5% at 88% 8%, rgb(255 255 255 / 80%) 50%, transparent 60%);
+  animation: ap-spin 60s linear infinite;
+}
+@keyframes ap-spin {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.a-aphelion .giant {
+  position: absolute;
+  left: 18%;
+  top: 20%;
+  width: 60%;
+  aspect-ratio: 1;
+  opacity: 0;
+  transition: opacity 0.8s var(--ease);
+}
+.a-aphelion .giant > b {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: repeating-linear-gradient(8deg, #e8a86a 0 9px, #c9784a 9px 15px, #f3d1a0 15px 22px, #b8643c 22px 26px);
+  box-shadow:
+    inset -18px -14px 30px rgb(0 0 0 / 65%),
+    0 0 24px rgb(255 180 120 / 35%);
+}
+.a-aphelion .giant svg {
+  position: absolute;
+  inset: -40% -60%;
+  width: 220%;
+  height: 180%;
+}
+.a-aphelion.night .earth {
+  opacity: 0;
+}
+.a-aphelion.night .giant {
+  opacity: 1;
+}
+/* an astronaut drifting past, waving now and then */
+.a-aphelion .naut {
+  left: 38%;
+  top: 14vh;
+  width: 64px;
+  height: 76px;
+  animation: ap-float 30s ease-in-out infinite alternate;
+}
+.a-aphelion .naut svg {
+  width: 64px;
+  height: 76px;
+  animation: ap-roll 26s linear infinite;
+}
+.a-aphelion .naut .arm {
+  transform-origin: 44px 34px;
+  animation: ap-hello 5s ease-in-out infinite;
+}
+@keyframes ap-float {
+  0% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(18vw, 6vh);
+  }
+  100% {
+    transform: translate(34vw, -2vh);
+  }
+}
+@keyframes ap-roll {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ap-hello {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0);
+  }
+  78%,
+  94% {
+    transform: rotate(-40deg);
+  }
+  86% {
+    transform: rotate(-10deg);
+  }
+}
+/* shooting stars at night */
+.a-aphelion .shoot {
+  width: 120px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #fff);
+  transform: rotate(24deg);
+  opacity: 0;
+}
+.a-aphelion.night .shoot {
+  animation: ap-shoot 7s ease-in infinite;
+}
+@keyframes ap-shoot {
+  0%,
+  88% {
+    opacity: 0;
+    transform: rotate(24deg) translateX(0);
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(24deg) translateX(360px);
+  }
+}
+/* hazard stripes along the foot of the hull, by day */
+.a-aphelion .hazard {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  background: repeating-linear-gradient(-45deg, #f2b51a 0 12px, #141820 12px 24px);
+  opacity: 0.85;
+}
+.a-aphelion.night .hazard {
+  opacity: 0.2;
 }
 .a-aphelion .telem {
   left: 96px;
