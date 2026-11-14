@@ -1,4 +1,5 @@
 import type { Fact } from "../trackers/types";
+import { knowledgeOf } from "../trackers/knowledge";
 import { canAct, CARRIES_NEWS, type RActor, type Tie, TIE_STRENGTH, TIE_WORDS } from "./roster";
 
 /**
@@ -86,8 +87,9 @@ export function reach(from: RActor | undefined, to: RActor | undefined, how: How
     if (!tie.inTouch) return no(`${tieLine(tie)}`);
     const f = o.fact;
     if (f) {
-      if (f.secret?.keepers.includes(from.id)) return no(`${from.name} keeps it secret`);
-      if (f.secret?.from.includes(to.id)) return no(`it's kept from ${to.name}`);
+      // docs/35 Part 2.
+      if (knowledgeOf(f, from.id).keeper) return no(`${from.name} keeps it secret`);
+      if (knowledgeOf(f, to.id).kept) return no(`it's kept from ${to.name}`);
       const about = o.about ?? [];
       if (about.some((a) => a.isUser || a.isMain)) return no("it's about the leads: the story tells who finds out");
       if (about.some((a) => a.id === from.id || a.id === to.id)) return no("it's about one of them");

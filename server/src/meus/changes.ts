@@ -10,6 +10,7 @@ import { getSummary } from "../memory/store";
 import { getSetting } from "../lib/settings";
 import { createEntry, deleteEntry, scanEntriesFor, updateEntry } from "../lore/service";
 import type { LoreEntry } from "../lore/types";
+import { knowledgeOf } from "../trackers/knowledge";
 import { addFact, createFact, factLine, factsNow, retireFact, supersedeFact, updateFact } from "../lore/facts";
 import { cardText, decideUpdate, updateProposals } from "../lore/keepup";
 import { decideDetails } from "../lore/details";
@@ -159,7 +160,7 @@ function reportText(chatId: string, which: string, name: string): string | null 
     const st = currentFold(chatId).result.state;
     const facts = Object.values(st.facts);
     const knows = facts.filter((f) => ["knows", "believes", "suspects"].includes(f.stances[who.id]?.status ?? "")).map((f) => `${f.stances[who.id]!.status}: ${f.statement}`);
-    const not = facts.filter((f) => f.stances[who.id]?.status === "unaware" || f.secret?.from.includes(who.id)).map((f) => `doesn't know: ${f.statement}`);
+    const not = facts.filter((f) => knowledgeOf(f, who.id).status === "unaware" && f.stances[who.id]?.status !== "wrong").map((f) => `doesn't know: ${f.statement}`);
     return [...knows, ...not].join("\n") || `Nothing recorded about what ${who.name} knows yet.`;
   }
   return null;

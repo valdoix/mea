@@ -2,6 +2,7 @@ import { aboutWords, doneMatcher } from "../memory/openlist";
 import { contentWords } from "../memory/text";
 import { doneLoops, openLoops } from "../trackers/loops";
 import type { Fact, Loop, WorldState } from "../trackers/types";
+import { knowledgeOf } from "../trackers/knowledge";
 
 /**
  * Reliable state 3.1 (docs/16): text in the prompt that says something the trackers say is no
@@ -128,12 +129,16 @@ export function findOutdated(st: WorldState | null | undefined, pieces: { where:
   const namesOf = (c: (typeof everyone)[number]) => [...new Set([c.name, c.name.split(/\s+/)[0]!, ...c.aliases].filter((n) => n.length >= 3))];
   // (Someone with no name of three letters or more can't be told apart in a sentence: never matches.)
   const nameRe = new Map(everyone.map((c) => [c.id, namesOf(c).length ? new RegExp(`(?<![\\p{L}])(?:${namesOf(c).map(esc).join("|")})(?![\\p{L}])`, "iu") : /(?!)/]));
-  const knows = (f: Fact, id: string) => /knows|believes/.test(f.stances[id]?.status ?? "") && f.stances[id]?.route !== "keeps it";
+  // docs/35 Part 2: knows it, and not as one of its keepers.
+  const knows = (f: Fact, id: string) => {
+    const k = knowledgeOf(f, id);
+    return k.status === "knows" && !k.keeper && k.why !== "keeps it";
+  };
   // Facts someone has learned: revealed, or known by someone besides the keepers.
   // Words that are only someone's name don't say what a sentence is about.
   const nameWords = new Set(everyone.flatMap((c) => namesOf(c).flatMap((n) => [...stems(n)])));
   const learned = Object.values(st.facts)
-    .map((f) => ({ f, knowers: Object.keys(f.stances).filter((id) => knows(f, id) && !f.secret?.keepers.includes(id) && !st.chars[id]?.isUser), words: stems(f.statement) }))
+    .map((f) => ({ f, knowers: Object.keys(f.stances).filter((id) => knows(f, id) && !st.chars[id]?.isUser), words: stems(f.statement) }))
     .filter((x) => x.knowers.length && x.words.size >= 2)
     // Who the fact is about: a sentence about it names them all ("Jackie loves James" isn't "Shauna loves Jackie").
     .map((x) => ({ ...x, people: everyone.filter((c) => nameRe.get(c.id)!.test(x.f.statement)).map((c) => c.id) }));
