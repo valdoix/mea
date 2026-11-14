@@ -11,6 +11,7 @@ import { METER_WORDS, meterWords, SEVERITY, STAMINA } from "./drift";
 import type { Field, Template } from "./schema";
 import type { PersonaMode } from "../services/layers";
 import { AXIS_WORDS, BIPOLAR_AXES, type Bond, type Character, LADDER, type Plant, type WorldState } from "./types";
+import { knowledgeOf } from "./knowledge";
 
 /**
  * The story-state note (TRK-06, after ALMANAC's <ledger-note>): verified state placed shallow
@@ -444,10 +445,13 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
     const here = new Set(present(st).map((c) => c.id));
     const lines: string[] = [];
     for (const f of Object.values(st.facts)) {
-      for (const [id, s] of Object.entries(f.stances)) {
+      // docs/35 Part 2: what the records say each of them knows; nothing recorded is never "doesn't know".
+      for (const id of [...new Set([...Object.keys(f.stances), ...(f.secret?.from ?? [])])]) {
         // docs/33 Part 5: an animal keeps no secrets and learns none ("Ruth doesn't know: …").
         if (!here.has(id) || st.chars[id]?.isUser || isAnimal(st.chars[id])) continue;
         const who = st.chars[id]?.name ?? id;
+        const k = knowledgeOf(f, id);
+        const s = { status: k.status === "unaware" ? (k.detail === "wrong" ? "wrong" : "unaware") : k.status === "suspects" ? (k.detail ?? "suspects") : k.status, seq: k.seq ?? o.seq, route: f.stances[id]?.route };
         if (s.status === "unaware") lines.push(`${who} doesn't know: ${f.statement}${f.secret?.keepers.length ? ` (kept by ${f.secret.keepers.map((k) => (st.chars[k]?.isUser ? o.userName : st.chars[k]?.name ?? k)).join(", ")})` : ""}`);
         else if (s.status === "wrong") lines.push(`${who} has it wrong: ${f.statement}`);
         else if (s.status === "suspects" || s.status === "doubts") lines.push(`${who} ${s.status}: ${f.statement}`);

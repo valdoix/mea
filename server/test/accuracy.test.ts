@@ -81,6 +81,8 @@ describe("continuity rules (CON-02)", () => {
     // Kept from no one by name: the person it's about isn't flagged, a bystander still is.
     expect(mine('"I sank the midnight cargo off the northern reef," Mira says.')).toEqual([]);
     expect(mine("Dawn knows the midnight cargo went down off the northern reef.").length).toBe(1);
+    // docs/35 2.3: kept from nobody by name, so a bystander is a question, not a major slip.
+    expect(mine("Dawn knows the midnight cargo went down off the northern reef.")[0]).toMatchObject({ severity: "minor", conflict: expect.stringMatching(/^Does Dawn know this?/) });
     // Once everyone it was kept from has been told, it's over: nobody is flagged for it, bystanders included.
     writeEvents(chatId, { messageId: ids[3]!, swipeIdx: -1 }, linesToOps(["secret #vault: the silver vault key hangs behind the lighthouse clock | kept by Joss · from Walter"]).ops, "model");
     const vault = (text: string) => ruleCheck(chatId, text, st(), { speaker: "Mira", leaks: true }).filter((i) => i.kind === "leak" && i.conflict.includes("vault"));

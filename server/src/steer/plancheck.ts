@@ -5,6 +5,7 @@ import { contentWords } from "../memory/text";
 import { openLoops } from "../trackers/loops";
 import { topicCounts, topicScorer } from "../trackers/topics";
 import type { Character, Fact, WorldState } from "../trackers/types";
+import { knowledgeOf } from "../trackers/knowledge";
 import { mentionText, newsClaims } from "../accuracy/notnews";
 import { thingsElsewhere } from "../trackers/things";
 import { BACK, clear, hhmm, retellSources, type Source, whenConflict } from "../accuracy/retell";
@@ -94,9 +95,9 @@ export function checkPlan(st: WorldState | null | undefined, plan: string | null
 
 /** Whether the records say otherwise about this person: they know it, or it's kept from them. */
 function clash(f: Fact, id: string, says: "unaware" | "knows") {
-  const s = f.stances[id]?.status;
-  if (says === "unaware") return KNOWING.has(s ?? "") && f.stances[id]?.route !== "keeps it" ? true : Boolean(f.secret?.keepers.includes(id));
-  return s === "unaware" || s === "wrong" || Boolean(f.secret?.from.includes(id) && !KNOWING.has(s ?? ""));
+  // docs/35 Part 2: "nothing recorded" clashes with neither.
+  const k = knowledgeOf(f, id).status;
+  return says === "unaware" ? k === "knows" : k === "unaware";
 }
 
 /**

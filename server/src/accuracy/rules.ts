@@ -5,6 +5,7 @@ import { norm, resolver } from "../memory/entities";
 import { cleanText, contentWords } from "../memory/text";
 import { mustChat } from "../services/chats";
 import { secretRevealer } from "../lore/secretlinks";
+import { knowledgeOf } from "../trackers/knowledge";
 import { TELLING } from "../trackers/secretwords";
 import type { WorldState } from "../trackers/types";
 import type { Issue } from "./checker";
@@ -224,20 +225,23 @@ export function leakRule(r: RuleInput): Found[] {
   for (const n of [...knownNames, ...Object.values(st.chars).flatMap((c) => [c.name, ...c.aliases].map(norm))]) for (const w of n.split(" ")) knownNames.add(w);
   for (const f of Object.values(st.facts)) {
     if (!f.secret && !Object.values(f.stances).some((s) => s.status === "unaware")) continue;
-    const knowers = new Set([...(f.secret?.keepers ?? []), ...Object.entries(f.stances).filter(([, s]) => s.status !== "unaware" && s.status !== "wrong").map(([id]) => id), ...f.revealed.flatMap((x) => x.to)]);
+    // Everyone it was kept from has since been told: it isn't a secret from anyone any more.
+    if (f.secret?.out) continue;
     const secretWords = [...contentWords(f.statement, 4)].filter((w) => !knownNames.has(w) && !TELLING.test(w));
     if (secretWords.length < 2) continue;
-    // Who it's kept from, as the tracker says it. "Not written down as knowing" isn't "doesn't know":
+    // docs/35 Part 2: who is in the dark, as the records say it. "Nothing recorded" isn't "doesn't know":
     // a secret kept from Walter says nothing about Dawn, and nothing about the person who asked for it.
-    const dark = new Set([...(f.secret?.from ?? []), ...Object.entries(f.stances).filter(([, s]) => s.status === "unaware" || s.status === "wrong").map(([id]) => id)]);
-    // Everyone it was kept from has since been told: it isn't a secret from anyone any more.
-    if (f.secret?.out || (!dark.size && !f.secret?.everyone && !f.secret?.groups?.length && f.revealed.length)) continue;
-    const open = !dark.size || Boolean(f.secret?.everyone); // kept from no one by name, or from everyone
+    const dark = new Set(Object.values(st.chars).filter((c) => !c.isUser && !c.dead && knowledgeOf(f, c.id).status === "unaware").map((c) => c.id));
+    if (!dark.size && f.revealed.length) continue;
+    // Kept from nobody by name: a bystander may not know it (2.3). Asked as a question, never a major slip.
+    const unsure = !dark.size;
     for (const c of Object.values(st.chars)) {
-      if (c.isUser || knowers.has(c.id) || c.dead) continue;
-      if (!open && !dark.has(c.id)) continue;
+      if (c.isUser || c.dead) continue;
+      const k = knowledgeOf(f, c.id);
+      if (k.status === "knows" || k.status === "suspects") continue;
+      if (!unsure && k.status !== "unaware") continue;
       // Not said to be in the dark, and the secret is about them: they're in on it.
-      if (!dark.has(c.id) && new RegExp(`\\b(${[c.name, ...c.aliases].flatMap((n) => [n, ...n.split(/\s+/)]).filter((n) => n.length > 2).map(esc).join("|")})\\b`, "i").test(f.statement)) continue;
+      if (k.status !== "unaware" && new RegExp(`\\b(${[c.name, ...c.aliases].flatMap((n) => [n, ...n.split(/\s+/)]).filter((n) => n.length > 2).map(esc).join("|")})\\b`, "i").test(f.statement)) continue;
       const nameRe = new RegExp(`\\b(${[c.name, ...c.aliases].map(esc).join("|")})\\b`, "i");
       const isSpeaker = norm(c.name) === norm(speaker);
       for (const s of sents) {
@@ -251,9 +255,11 @@ export function leakRule(r: RuleInput): Found[] {
         if (hits.length >= 2 && hits.length >= Math.ceil(secretWords.length * 0.4)) {
           out.push({
             kind: "leak",
-            severity: "major",
+            severity: unsure ? "minor" : "major",
             claim: s.trim().slice(0, 240),
-            conflict: `${c.name} doesn't know this: "${f.statement}"${f.secret ? ` (kept by ${f.secret.keepers.map((k) => st.chars[k]?.name ?? k).join(", ")})` : ""}.`,
+            conflict: unsure
+              ? `Does ${c.name} know this? "${f.statement}"${f.secret?.keepers.length ? ` (kept by ${f.secret.keepers.map((x) => st.chars[x]?.name ?? x).join(", ")})` : ""}; nothing says they were told.`
+              : `${c.name} doesn't know this: "${f.statement}" (${k.why}${f.secret?.keepers.length ? `; kept by ${f.secret.keepers.map((x) => st.chars[x]?.name ?? x).join(", ")}` : ""}).`,
             citations: [{ ref: "T", type: "tracker", label: `secret: ${f.statement}`, seq: f.firstSeq, messageId: msg.get(f.firstSeq) ?? null }],
             fix: `${c.name} doesn't know that ${f.statement.replace(/\.$/, "")}; they must not reference it.`,
             canon: { memory: `${c.name} learned that ${f.statement.replace(/\.$/, "")}.`, trackerLine: `know ${c.name}: ${f.statement} | from the story · knows` },

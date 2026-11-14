@@ -11,6 +11,7 @@ import { castKey, castProfiles, currentFold, linesToOps, writeEvents } from "./s
 import { isAnimal, passingFace } from "./whois";
 import { userEditAt } from "./service";
 import type { Character, Pressure, WorldState } from "./types";
+import { knowledgeOf } from "./knowledge";
 
 /**
  * Hidden pressures (Almanac plan E1). Each new important character privately draws a pressure
@@ -193,7 +194,7 @@ export function pressureAction(chatId: string, charId: string, action: PressureA
 export function pressuresView(chatId: string) {
   const st = currentFold(chatId).result.state;
   const user = Object.values(st.chars).find((c) => c.isUser);
-  const knownToUser = Object.values(st.facts).filter((f) => !user || f.stances[user.id]?.status === "knows" || f.secret?.keepers.includes(user.id));
+  const knownToUser = Object.values(st.facts).filter((f) => !user || knowledgeOf(f, user.id).status === "knows");
   const pinned = pinnedIn(chatId);
   return Object.values(st.chars)
     .filter((c) => !c.isUser && (c.pressure || important(c, pinned(c))))
@@ -202,7 +203,7 @@ export function pressuresView(chatId: string) {
       name: c.name,
       present: present(c),
       pressure: c.pressure ?? null,
-      youKnow: knownToUser.filter((f) => f.stances[c.id]?.status === "unaware" || f.secret?.from.includes(c.id)).map((f) => f.statement).slice(0, 6),
+      youKnow: knownToUser.filter((f) => knowledgeOf(f, c.id).status === "unaware").map((f) => f.statement).slice(0, 6),
     }));
 }
 
