@@ -96,8 +96,13 @@ export function smartQuotes(text: string, skip?: Uint8Array) {
   return out;
 }
 
-/** Code, tags (artifact attributes like from="Wren") and CSS in a visual's <style> keep their straight marks. */
-const SKIP = /```[\s\S]*?(?:```|$)|`[^`\n]*`|<style\b[\s\S]*?(?:<\/style\s*>|$)|<\/?[a-zA-Z][^<>]*>/gi;
+/**
+ * Code, tags (artifact attributes like from="Wren") and CSS in a visual's <style> keep their straight marks.
+ * Speaker marks ([spk=Dawn#3] … [/spk]) are still in the reply when its quotes are set, and are
+ * read past like tags: otherwise `—"[/spk] She` has "[" after it and the closing mark turns into
+ * an opening one, and every quote after it in the line comes out the wrong way round.
+ */
+const SKIP = /```[\s\S]*?(?:```|$)|`[^`\n]*`|<style\b[\s\S]*?(?:<\/style\s*>|$)|<\/?[a-zA-Z][^<>]*>|\[\/?spk\b[^\]\n]*\]/gi;
 
 function skipMask(text: string) {
   const mask = new Uint8Array(text.length);
