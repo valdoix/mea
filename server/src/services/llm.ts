@@ -28,6 +28,22 @@ export interface JsonCall<T extends z.ZodType> {
   signal?: AbortSignal;
   /** H3: a profile to try first (a chat's own planner model), ahead of the task's routing. */
   profileId?: string | null;
+  /** Set on the one try again after a rate limit (rateWait), so it isn't tried a third time. */
+  rateRetried?: boolean;
+}
+
+/**
+ * A helper call outside a job (the librarian and its query, the advisor, all while a reply is being
+ * prepared) that every route rate-limited: wait a moment and try once more, rather than writing the
+ * reply without it. 77 such calls failed on HTTP 429 in one story's last 28 replies, with no other
+ * route to try (a subscription never falls back to a paid one). A job doesn't wait here: the job
+ * queue already tries it again later.
+ */
+export const RATE_WAIT_MS = 3000;
+export const RATE_WAIT_MAX_MS = 8000;
+export function rateWait(call: { jobId?: string | null; signal?: AbortSignal; rateRetried?: boolean }, err: unknown): number | null {
+  if (!(err instanceof ProviderError) || err.kind !== "rate" || call.jobId || call.rateRetried || call.signal?.aborted) return null;
+  return Math.min(RATE_WAIT_MAX_MS, Math.max(RATE_WAIT_MS, err.retryAfterMs ?? 0));
 }
 
 export interface JsonResult<T> {
@@ -269,6 +285,11 @@ export async function callJson<T extends z.ZodType>(call: JsonCall<T>): Promise<
     }
     if (salvaged) return salvaged;
   }
+  const wait = rateWait(call, lastError);
+  if (wait != null) {
+    await Bun.sleep(wait);
+    return callJson({ ...call, rateRetried: true });
+  }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
@@ -286,6 +307,7 @@ export interface TextCall {
   validate?: (text: string) => string | null;
   /** A profile to try first, ahead of the task's routing (a Lore Studio's own pick). */
   profileId?: string | null;
+  rateRetried?: boolean;
 }
 
 /** A plain-text helper call (tracker ledgers): the task's chain, quota deferral, one corrective retry. */
@@ -332,6 +354,11 @@ export async function callText(call: TextCall): Promise<{ text: string; generati
       if (!res.text.trim()) continue;
       messages.splice(2, messages.length, { role: "assistant", content: res.text.slice(0, 4000) }, { role: "user", content: `${problem}\nReply again with only the corrected lines.` });
     }
+  }
+  const wait = rateWait(call, lastError);
+  if (wait != null) {
+    await Bun.sleep(wait);
+    return callText({ ...call, rateRetried: true });
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }

@@ -818,6 +818,9 @@ export function mockVector(text: string, dims = 64) {
 }
 
 /** Development-only provider (MEA_DEV=1): streams a canned reply so the app can be exercised without API keys. */
+/** Calls a test asked to be rate-limited once (MOCK_RATE_ONCE…), and already were. */
+const rateLimited = new Set<string>();
+
 export class MockProvider implements Provider, ImageProvider {
   constructor(private delayMs = 18) {}
 
@@ -825,6 +828,14 @@ export class MockProvider implements Provider, ImageProvider {
     const schemaName = (req.responseFormat?.json_schema as { name?: string } | undefined)?.name;
     const system = req.messages.find((m) => m.role === "system")?.content ?? "";
     const userText = req.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
+    // A test can have a call rate-limited: MOCK_RATE_ONCE the first time it's seen, MOCK_RATE_ALWAYS every time.
+    const rateKey = userText.match(/MOCK_RATE_(?:ONCE|ALWAYS)\S*/)?.[0];
+    if (rateKey && (rateKey.startsWith("MOCK_RATE_ALWAYS") || !rateLimited.has(rateKey))) {
+      rateLimited.add(rateKey);
+      const e = new ProviderError("HTTP 429 · rate limited · Rate limit or quota reached.", 429);
+      e.retryAfterMs = 10;
+      throw e;
+    }
     // Tracker ledgers (plain lines) for the tracker helper calls.
     if (/LEDGER TRACKER: write the ledger lines now|STARTING STATE: write the ledger lines now/.test(userText)) {
       const text = /STARTING STATE/.test(userText) ? mockInit(userText) : mockLedger(`${system}\n${userText}`);
