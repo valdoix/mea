@@ -245,8 +245,7 @@ describe("the tense pass (docs/33 Part 3)", () => {
     expect(onlyTenseChanged(before, after, "present", ["Buffy"])).toBe(true);
     // The detector reads it right too: before, it counted the narration between the marks as speech
     // and found too few past verbs to call the tense, so no fix was even queued.
-    const longer = `${before} She waited. She turned to the door.`;
-    expect(tenseOf(longer, ["Buffy"]).tense).toBe("past");
+    expect(tenseOf(before, ["Buffy"])).toMatchObject({ tense: "past", past: 5 });
     // And a real change inside a line is still caught.
     expect(onlyTenseChanged(before, after.replace("Tuesday’s clear", "Tuesday was clear"), "present", ["Buffy"])).toBe(false);
   });
