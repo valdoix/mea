@@ -15,6 +15,14 @@ describe("the clock check says less (docs/33 Part 7)", () => {
     expect(clockBackRule("He ended up in a graveyard at midnight digging out a girl in a dead dress.", at(8, 16))).toEqual([]);
     expect(clockBackRule("It's the kitchen light at four a.m., the mug at two a.m. after bad patrols.", at(17, 55))).toEqual([]);
   });
+  test("a word starting with am or pm is not a time, and a sentence opening on a number isn't the clock", () => {
+    // Flagged as 01:00 and 00:00 in a real story (messages 938 and 948).
+    expect(statedTimes("One amendment, house rules")).toEqual([]);
+    expect(statedTimes("at 6:40 amazingly")).toEqual([[6 * 60 + 40, 18 * 60 + 40]]);
+    expect(clockBackRule("“One amendment, house rules: we don’t open with the wallet.", at(15, 34))).toEqual([]);
+    expect(clockBackRule("Nine months of stars at midnight and you’ve never heard the voice.", at(16, 19))).toEqual([]);
+    expect(clockBackRule("Seven and oh, and the field’s got a new zero.", at(14, 0))).toEqual([]);
+  });
   test("just past midnight is later, not earlier", () => {
     expect(clockBackRule("The clock on the mantel reads twelve minutes past midnight.", at(23, 56))).toEqual([]);
   });
