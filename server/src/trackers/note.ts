@@ -123,6 +123,8 @@ function present(st: WorldState) {
 const STANCE_WORDS: Record<string, string> = { knows: "knows", believes: "believes", suspects: "suspects", doubts: "doubts", wrong: "has it wrong", unaware: "doesn't know", heard: "has probably heard, off the page" };
 /** docs/21 5.2: hearsay the page never confirmed stops counting after this many messages. */
 export const HEARSAY_FADES = 80;
+/** A "doesn't know" that no one keeps and nobody has said again in this many messages stops being shown. */
+export const UNAWARE_FADES = 150;
 /** A fact last touched this many messages ago may describe how things were, not are ("the fridge has three eggs"). */
 export const FACT_DATES = 40;
 /** How much stronger than "enough" an old fact's match must be to count as in play. */
@@ -452,6 +454,10 @@ export function buildNote(st: WorldState, o: NoteOptions): NoteResult {
         const who = st.chars[id]?.name ?? id;
         const k = knowledgeOf(f, id);
         const s = { status: k.status === "unaware" ? (k.detail === "wrong" ? "wrong" : "unaware") : k.status === "suspects" ? (k.detail ?? "suspects") : k.status, seq: k.seq ?? o.seq, route: f.stances[id]?.route };
+        // A "doesn't know" nobody is keeping from them, guessed long ago and never said again, has run
+        // out: Dawn "didn't know" Buffy and Gabriel were together 700 messages after moving in with
+        // them, from one line at #265. A secret someone keeps, or one you set, holds until it comes out.
+        if (s.status === "unaware" && !f.secret?.keepers.length && s.route !== "you said so" && o.seq - s.seq > UNAWARE_FADES) continue;
         if (s.status === "unaware") lines.push(`${who} doesn't know: ${f.statement}${f.secret?.keepers.length ? ` (kept by ${f.secret.keepers.map((k) => (st.chars[k]?.isUser ? o.userName : st.chars[k]?.name ?? k)).join(", ")})` : ""}`);
         else if (s.status === "wrong") lines.push(`${who} has it wrong: ${f.statement}`);
         else if (s.status === "suspects" || s.status === "doubts") lines.push(`${who} ${s.status}: ${f.statement}`);

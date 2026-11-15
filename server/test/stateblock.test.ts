@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { clashesOnWho } from "../src/accuracy/corrections";
 import { findOutdated } from "../src/accuracy/promptcheck";
 import { normalizeCard } from "../src/cards/card";
 import { type ActivationInput, activateLore, essentialsOf, type ScanEntry } from "../src/lore/activate";
@@ -76,6 +77,18 @@ describe("rooms, knowledge and stakes in the note", () => {
     expect(roomLine(st, (id) => id)).toBeNull();
     expect(Object.values(st.places).find((p) => p.name === "Dawn's room")?.owner).toBeTruthy();
   });
+  test("a 'doesn't know' nobody keeps runs out; a kept secret, or one you set, doesn't", () => {
+    // As at #265 in Buffy × Gabriel: one guessed line, never said again, still shown 700 messages on.
+    const st = fold([
+      ["clock: Day 1 12:00", "cast: Buffy@spot · Dawn@spot", "know Dawn: Buffy is at Gabriel's house | not told · unaware", "secret #heaven: Buffy was in heaven | kept by Buffy · from Dawn"],
+    ]);
+    expect(note(st, 100)).toContain("Dawn doesn't know: Buffy is at Gabriel's house");
+    const later = note(st, 400);
+    expect(later).not.toContain("Buffy is at Gabriel's house");
+    expect(later).toContain("Dawn doesn't know: Buffy was in heaven");
+    const yours = fold([["clock: Day 1 12:00", "cast: Buffy@spot · Dawn@spot", "know Dawn: the ring is in the drawer | you said so · unaware"]]);
+    expect(note(yours, 400)).toContain("Dawn doesn't know: the ring is in the drawer");
+  });
   test("a pet neither knows nor fails to know", () => {
     const st = fold([
       ["clock: Day 1 12:00", "cast: Buffy@spot · Ruth@spot · Walter@spot", "trait Ruth: cat, orange, automatic-feeder loyal", "secret #grave: Buffy clawed out of her own grave | kept by Buffy · from Ruth, Walter"],
@@ -99,6 +112,16 @@ describe("rooms, knowledge and stakes in the note", () => {
     expect(note(fold([[...lines, "mode: social"]]))).not.toContain("twelve inches");
     expect(note(fold([[...lines, "mode: social"]]))).toContain("brown eyes");
     expect(note(fold([[...lines, "mode: intimacy"]]))).toContain("twelve inches");
+  });
+});
+
+describe("corrections: on who someone is, the lore wins", () => {
+  test("the tracker hearing 'Maria, Gabriel's mother' doesn't correct the lore's 'Gabriel's nanny Maria'", () => {
+    const base = { kind: "knowledge" as const, where: "lore", seq: 93, ref: "maria" };
+    const sentence = "Secret they keep: Gabriel's nanny Maria died of a heart attack while he was thirty minutes late coming home from ballet practice.";
+    expect(clashesOnWho({ ...base, sentence, now: "Buffy Summers knows now: Maria, Gabriel's mother, died of a heart attack while he was at practice" })).toBe(true);
+    expect(clashesOnWho({ ...base, sentence, now: "Buffy Summers knows now: Gabriel's nanny Maria died while he was at practice" })).toBe(false);
+    expect(clashesOnWho({ ...base, sentence: "She does not yet know about Jeff.", now: "Buffy knows now: Jeff, Dawn's boyfriend, is back" })).toBe(false);
   });
 });
 
