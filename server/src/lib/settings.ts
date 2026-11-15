@@ -474,7 +474,8 @@ export const defaults: Settings = {
   "guards.config": defaultGuards,
   "steer.config": defaultSteer,
   "setup.usual": null,
-  "privacy.requestLog": { bodiesDays: 30, rowsDays: 0, fileLog: true, fileDays: 14 },
+  // A week of full request text: a story reply's is about 360 KB, so 30 days was a gigabyte.
+  "privacy.requestLog": { bodiesDays: 7, rowsDays: 0, fileLog: true, fileDays: 14 },
   "creator.tuning": { writeTemp: null, judgeTemp: null, deepenCap: null, peopleCount: null, namedTarget: null },
   "images.config": { connectionId: null, defaults: { portrait: null, edit: null, anime: null, plate: null }, nsfw: false },
 };

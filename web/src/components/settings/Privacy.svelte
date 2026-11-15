@@ -213,7 +213,7 @@
       <h2>Request log</h2>
       <p class="tiny muted">A local record of what was sent to models, for debugging. API keys and passwords are always blanked out before anything is written.</p>
       <div class="grid">
-        <label class="field"><span class="label">Keep full text <span class="faint">days</span></span><input class="input" type="number" min="1" max="3650" value={rl.bodiesDays} onchange={(e) => setLog("bodiesDays", Math.max(1, Number(e.currentTarget.value) || 30))} /></label>
+        <label class="field"><span class="label">Keep full text <span class="faint">days</span></span><input class="input" type="number" min="1" max="3650" value={rl.bodiesDays} onchange={(e) => setLog("bodiesDays", Math.max(1, Number(e.currentTarget.value) || 7))} /></label>
         <label class="field"><span class="label">Keep the rows <span class="faint">days, 0 = always</span></span><input class="input" type="number" min="0" value={rl.rowsDays} onchange={(e) => setLog("rowsDays", Math.max(0, Number(e.currentTarget.value) || 0))} /><span class="hint">Costs and usage come from these.</span></label>
       </div>
       <label class="switch"><input type="checkbox" checked={rl.fileLog} onchange={(e) => setLog("fileLog", e.currentTarget.checked)} /> Also write a daily log file</label>

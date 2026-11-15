@@ -40,7 +40,25 @@ export function createBackup(kind: BackupKind) {
   }
   const file = freshName(kind, ".db");
   db().exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
+  if (kind === "hourly" || kind === "daily") withoutCallText(file);
   return { file: basename(file), bytes: statSync(file).size };
+}
+
+/**
+ * The scheduled snapshots leave out the full text of model calls (the counts and costs stay): it
+ * was most of every 1.2 GB copy, and 39 copies of it. Manual, pre-restore and pre-migration
+ * snapshots stay whole. A failure here leaves the snapshot as it was, which is still a good one.
+ */
+export function withoutCallText(file: string) {
+  const copy = new Database(file);
+  try {
+    copy.exec("UPDATE generations SET request = NULL, response = NULL, trace = NULL WHERE request IS NOT NULL OR response IS NOT NULL OR trace IS NOT NULL");
+    copy.exec("VACUUM");
+  } catch (e) {
+    console.error("[mea] couldn't trim the snapshot's call log:", (e as Error).message);
+  } finally {
+    copy.close();
+  }
 }
 
 export function listBackups() {

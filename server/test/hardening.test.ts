@@ -172,6 +172,19 @@ describe("H11: restoring a bad backup", () => {
     run("INSERT INTO settings (key, value) VALUES ('test.h11', '\"live\"') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
   });
 
+  test("scheduled snapshots leave out the call text; a manual one keeps it", () => {
+    run("INSERT INTO generations (id, kind, started_at, request, response) VALUES ('h11-call', 'new', 1, 'the whole prompt', 'the reply')");
+    const callIn = (file: string) => {
+      const copy = new Database(join(paths.backups, file), { readonly: true });
+      const row = copy.query<{ request: string | null; kind: string }, []>("SELECT request, kind FROM generations WHERE id = 'h11-call'").get();
+      copy.close();
+      return row;
+    };
+    expect(callIn(createBackup("hourly").file)).toEqual({ request: null, kind: "new" });
+    expect(callIn(createBackup("manual").file)?.request).toBe("the whole prompt");
+    run("DELETE FROM generations WHERE id = 'h11-call'");
+  });
+
   test("garbage, a truncated snapshot and a non-Mea database are refused before anything changes", () => {
     const before = preRestores();
     writeFileSync(join(paths.backups, "mea-manual-garbage.db"), "this is not sqlite".repeat(100));
