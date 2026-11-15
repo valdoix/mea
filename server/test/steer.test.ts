@@ -3,7 +3,7 @@ import type { MeaEvent } from "../src/lib/events";
 import { subscribe } from "../src/lib/events";
 import { normalizeCard } from "../src/cards/card";
 import { all, newId, one, run } from "../src/db/db";
-import { guardIssues, tenseSlip } from "../src/accuracy/guards";
+import { guardIssues, tenseOf, tenseSlip } from "../src/accuracy/guards";
 import { defaultGuards, defaultMemoryConfig, defaultSteer, setSetting } from "../src/lib/settings";
 import { buildSummary, carryMoments, storyNeedsRebuild } from "../src/memory/build";
 import { voiceRule, rollupSystem, sceneSystem } from "../src/memory/prompts";
@@ -19,7 +19,7 @@ import { prefetch, previewPrompt, startStory } from "../src/services/generation"
 import { registerJob } from "../src/services/jobs";
 import { createPersona } from "../src/services/personas";
 import { excerpt, planFor, recentPlans, runAdvisor, turnKey } from "../src/steer/advisor";
-import { decideEdit, onlyTenseChanged, runEditorJob, runTenseJob, scheduleTenseFix } from "../src/steer/editor";
+import { decideEdit, onlyTenseChanged, runEditorJob, runTenseJob, scheduleTenseFix, spoken } from "../src/steer/editor";
 import { normalizeQuotes, styleFor, styleText } from "../src/steer/style";
 import { freshDb } from "./helpers";
 
@@ -242,6 +242,20 @@ describe("the tense pass (docs/33 Part 3)", () => {
     expect(onlyTenseChanged(past, present.replace("<mind", "<fx"), "present", ["Mira"])).toBe(false);
     expect(onlyTenseChanged(past, present.slice(0, 120), "present", ["Mira"])).toBe(false);
     expect(onlyTenseChanged(past, past, "present", ["Mira"])).toBe(false);
+  });
+  test("quote marks curled the wrong way don't make narration look like speech", () => {
+    // As reply 982 came out: a line cut off with a dash closes with “ and the next opens with ”.
+    const before =
+      "Dawn’s fork clattered onto her plate. She turned to him. “I need to be back by five for — hold on —“ She pulled the Nokia out of her pocket and scrolled through something with her thumb. ”— yeah, Tuesday’s clear.“ She set the phone down. She looked at Buffy. She smiled at the table.";
+    const after =
+      "Dawn’s fork clatters onto her plate. She turns to him. “I need to be back by five for — hold on —“ She pulls the Nokia out of her pocket and scrolls through something with her thumb. ”— yeah, Tuesday’s clear.“ She sets the phone down. She looks at Buffy. She smiles at the table.";
+    expect(spoken(before)).toEqual(["I need to be back by five for — hold on —", "— yeah, Tuesday’s clear."]);
+    expect(onlyTenseChanged(before, after, "present", ["Buffy"])).toBe(true);
+    // The detector reads it right too: before, it counted the narration between the marks as speech
+    // and found too few past verbs to call the tense, so no fix was even queued.
+    expect(tenseOf(before, ["Buffy"])).toMatchObject({ tense: "past", past: 5 });
+    // And a real change inside a line is still caught.
+    expect(onlyTenseChanged(before, after.replace("Tuesday’s clear", "Tuesday was clear"), "present", ["Buffy"])).toBe(false);
   });
   test("a reply already in the right tense isn't queued", () => {
     expect(scheduleTenseFix(tchat, "x", 0, present, 1)).toBe(false);

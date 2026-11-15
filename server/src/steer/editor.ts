@@ -131,7 +131,24 @@ export function decideEdit(messageId: string, action: "apply" | "dismiss" | "und
 
 // ---------- The tense pass (docs/33 Part 3) ----------
 
-const spoken = (t: string) => [...t.matchAll(/[“"]([^”"\n]{2,})[”"]/g)].map((m) => m[1]!.trim());
+/**
+ * What people say, as the quote marks enclose it: in each paragraph the first and second marks are
+ * one line, the third and fourth the next, whichever way each mark is curled. Models (and older
+ * replies) write `—“` to close and `”—` to open; pairing by direction then reads the narration
+ * between two lines as speech, and a tense rewrite of that narration looked like changed dialogue.
+ * A mark left open runs to the paragraph's end, as a speech carried on into the next one does.
+ */
+export function spoken(t: string): string[] {
+  const out: string[] = [];
+  for (const para of t.split("\n")) {
+    const at = [...para.matchAll(/[“”"]/g)].map((m) => m.index!);
+    for (let i = 0; i < at.length; i += 2) {
+      const line = para.slice(at[i]! + 1, at[i + 1] ?? para.length).trim();
+      if (line.length >= 2) out.push(line);
+    }
+  }
+  return out;
+}
 const tags = (t: string) => (t.match(/<\/?[a-zA-Z][^>]*>/g) ?? []).join("");
 
 /**
@@ -154,13 +171,21 @@ export function scheduleTenseFix(chatId: string, messageId: string, swipeIdx: nu
 
 /** Whether a rewrite only changed the tense: same speech, same markup, about the same length, and now in the tense asked for. */
 export function onlyTenseChanged(before: string, after: string, to: "past" | "present", charNames: string[]): boolean {
-  if (!after.trim() || after.length < before.length * 0.85 || after.length > before.length * 1.15) return false;
+  return tenseRejection(before, after, to, charNames) === null;
+}
+
+/** Why a tense rewrite isn't taken, or null when it's only the tense that changed. */
+export function tenseRejection(before: string, after: string, to: "past" | "present", charNames: string[]): string | null {
+  if (!after.trim()) return "empty";
+  if (after.length < before.length * 0.85 || after.length > before.length * 1.15) return `length ${before.length} → ${after.length}`;
   const a = spoken(before);
   const b = spoken(after);
-  if (a.length !== b.length || a.some((line, i) => line !== b[i])) return false;
-  if (tags(before) !== tags(after)) return false;
+  if (a.length !== b.length) return `${a.length} spoken lines → ${b.length}`;
+  const i = a.findIndex((line, n) => line !== b[n]);
+  if (i >= 0) return `spoken line ${i + 1} changed: "${a[i]!.slice(0, 60)}"`;
+  if (tags(before) !== tags(after)) return "tags changed";
   const t = tenseOf(after, charNames);
-  return t.tense === to || (to === "present" ? t.present > t.past * 2 : t.past > t.present * 2);
+  return t.tense === to || (to === "present" ? t.present > t.past * 2 : t.past > t.present * 2) ? null : `still not ${to} (${t.past} past, ${t.present} present)`;
 }
 
 export async function runTenseJob(p: { chatId: string; messageId: string; swipeIdx: number }, job?: JobContext) {
@@ -189,7 +214,11 @@ export async function runTenseJob(p: { chatId: string; messageId: string; swipeI
     console.error("[mea] tense pass failed:", e);
     return done();
   }
-  if (!onlyTenseChanged(sw.content, text, slip.to, [names.char])) return done();
+  if (!onlyTenseChanged(sw.content, text, slip.to, [names.char])) {
+    // Said out loud, so a rewrite that's paid for and thrown away can be seen (it went unseen for weeks).
+    console.warn(`[mea] tense pass: rewrite of message ${p.messageId} kept back (${tenseRejection(sw.content, text, slip.to, [names.char])})`);
+    return done();
+  }
   const now_ = one<{ content: string }>("SELECT content FROM swipes WHERE message_id = ? AND idx = ?", p.messageId, p.swipeIdx);
   const cur = getMessageRow(p.messageId);
   if (!now_ || hashText(now_.content) !== hashText(sw.content) || !cur || cur.deleted_at || cur.active_swipe !== p.swipeIdx) return;
