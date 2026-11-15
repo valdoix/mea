@@ -200,6 +200,15 @@ describe("scenes close loops by id", () => {
     expect(st.loops[loopId("buy the groceries")]).toBeUndefined();
   });
 
+  test("a rebuild leaves other jobs' events alone (the brief's want and tell)", () => {
+    const last = rows().at(-1)!;
+    writeEvents(id, { messageId: last.id, swipeIdx: 0 }, linesToOps(["drive Buffy: want: to build a life here", "mask Buffy: tell: the whole-body laugh"]).ops, "memory");
+    applySceneLoops(id, 1, 99, { loopsClosed: [], loopsOpened: [] }, rows());
+    const buffy = Object.values(currentFold(id).result.state.chars).find((c) => c.name === "Buffy")!;
+    expect(buffy.drives.want).toBe("to build a life here");
+    expect(buffy.mask?.tell).toBe("the whole-body laugh");
+  });
+
   test("a closure with no such line, or for a loop that isn't open, is left out", () => {
     applySceneLoops(id, 1, 99, { loopsClosed: [{ id: loopId(WORD), seq: 2, quote: "she never said this" }, { id: "Lfffff", seq: 2, quote: "They eat" }], loopsOpened: [] }, rows());
     expect(currentFold(id).result.state.loops[loopId(WORD)]!.status).toBe("open");

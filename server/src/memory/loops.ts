@@ -33,8 +33,10 @@ export function loopBlock(chatId: string, startSeq: number, endSeq: number) {
 /** A scene's loop events, written again with each build of it: one that's rebuilt says all of it again. */
 export function applySceneLoops(chatId: string, startSeq: number, endSeq: number, o: Pick<SceneOutput, "loopsClosed" | "loopsOpened">, rows: LedgerRow[]) {
   if (trackersOff(chatId)) return;
+  // Only the loop events a scene build wrote: other jobs write under "memory" too (the brief's
+  // want, fear, tell and looks, lore/brief.ts), and a rebuild must not take those with it.
   const old = all<{ id: string }>(
-    "SELECT e.id FROM tracker_events e JOIN messages m ON m.id = e.message_id WHERE e.chat_id = ? AND e.source = 'memory' AND m.seq BETWEEN ? AND ?",
+    "SELECT e.id FROM tracker_events e JOIN messages m ON m.id = e.message_id WHERE e.chat_id = ? AND e.source = 'memory' AND json_extract(e.op, '$.op') = 'loop' AND m.seq BETWEEN ? AND ?",
     chatId,
     startSeq,
     endSeq,
