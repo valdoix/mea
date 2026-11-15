@@ -155,6 +155,11 @@ export interface SteerConfig {
   advisorMemory: number;
   /** At most this many seconds of waiting for a plan that isn't ready when you send (0 = never wait). */
   advisorWait: number;
+  /**
+   * Also plan while you type, so a plan is ready at Send. Off by default: plans made mid-sentence are
+   * mostly thrown away (three or four planner calls a reply in one story); at Send there is one.
+   */
+  advisorTyping?: boolean;
   /** STEER-03: the post-pass editor. "flagged" runs only when the guards found something. */
   editor: "off" | "flagged" | "every";
   /** Show the editor's fixes as a diff to accept, or apply them (with undo). */
@@ -171,6 +176,7 @@ export const steerSchema = z.object({
   advisor: z.boolean(),
   advisorMemory: z.number().int().min(0).max(10),
   advisorWait: z.number().min(0).max(60),
+  advisorTyping: z.boolean().optional(),
   editor: z.enum(["off", "flagged", "every"]),
   editorApply: z.enum(["suggest", "auto"]),
   recapAfterHours: z.number().min(0).max(24 * 60),

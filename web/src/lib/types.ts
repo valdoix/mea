@@ -799,6 +799,7 @@ export interface SteerConfig {
   advisor: boolean;
   advisorMemory: number;
   advisorWait: number;
+  advisorTyping?: boolean;
   editor: "off" | "flagged" | "every";
   editorApply: "suggest" | "auto";
   recapAfterHours: number;
