@@ -144,14 +144,15 @@ export function statedTimes(s0: string): number[][] {
     out.push(ap ? [((h % 12) + (ap === "p" ? 12 : 0)) * 60 + min] : [(h % 12) * 60 + min, ((h % 12) + 12) * 60 + min]);
     s = s.replace(m[0], " ");
   }
-  for (const m of s.matchAll(/\b(\d{1,2}):(\d{2})\s*(am|pm|a\.m\.|p\.m\.)?/gi)) {
+  for (const m of s.matchAll(/\b(\d{1,2}):(\d{2})\s*((?:am|pm)(?![a-z])|a\.m\.|p\.m\.)?/gi)) {
     const h = Number(m[1]);
     const min = Number(m[2]);
     if (h > 23 || min > 59) continue;
     const ap = m[3]?.toLowerCase()[0];
     out.push(ap ? [((h % 12) + (ap === "p" ? 12 : 0)) * 60 + min] : h > 12 ? [h * 60 + min] : [h * 60 + min, ((h + 12) % 24) * 60 + min]);
   }
-  for (const m of s.matchAll(/\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(o'clock|o’clock|am|pm|a\.m\.|p\.m\.)/gi)) {
+  // "One amendment" is not one a.m.: am and pm only as whole words.
+  for (const m of s.matchAll(/\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(o'clock|o’clock|(?:am|pm)(?![a-z])|a\.m\.|p\.m\.)/gi)) {
     const h = WORDNUM[m[1]!.toLowerCase()] ?? Number(m[1]);
     if (!h || h > 12) continue;
     const ap = m[2]!.toLowerCase()[0];
@@ -171,7 +172,16 @@ export function statedTimes(s0: string): number[][] {
  */
 const TIME_WORD = "\\d{1,2}(?::\\d{2})?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight|half past|quarter (?:past|to)";
 const SAYS_NOW = new RegExp(`\\b(?:(?:it['’]s|it is|it was|now)\\s+(?:(?:almost|nearly|just|past|after|exactly|already)\\s+)?(?:${TIME_WORD})\\b|(?:the )?clock(?:s)? (?:reads|read|says|said|shows|showed|strikes|struck|chimes|chimed)|the time is|the hour is)`, "i");
-const stated = (s: string) => SAYS_NOW.test(s) || /^\W*(?:\d{1,2}(?::\d{2})?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight)\b/i.test(s.trim());
+/**
+ * A sentence that opens on the time itself: "Eleven-oh-eight a.m., Sunnydale Mall.", "6:40.",
+ * "Seven." A number that opens on something else is not the clock: "One amendment, house rules",
+ * "Nine months of stars at midnight", "Seven and oh".
+ */
+const LEADS_WITH_TIME = new RegExp(
+  `^\\W*(?:\\d{1,2}:\\d{2}|\\d{1,2}\\s*(?:a\\.m\\.|p\\.m\\.|(?:am|pm|o['’]clock)(?![a-z]))|(?:${HOUR_WORD})(?:[- ](?:oh[- ][a-z]+|twenty|thirty|forty|fifty|fifteen)\\b|\\s*(?:a\\.m\\.|p\\.m\\.|(?:am|pm|o['’]clock)(?![a-z]))|\\s*[.!]?\\s*$)|(?:noon|midnight)\\b)`,
+  "i",
+);
+const stated = (s: string) => SAYS_NOW.test(s) || LEADS_WITH_TIME.test(s.trim());
 /** A habit or a reference, not the hour: "every night at two", "used to", "after bad patrols". */
 const HABIT = /\b(?:every|each|always|whenever|usually|used to|would (?:come|leave|sit|make)|after (?:bad )?patrols?)\b/i;
 
