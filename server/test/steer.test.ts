@@ -75,6 +75,14 @@ describe("the style profile (STEER-04)", () => {
     expect(normalizeQuotes('<letter from="Wren">"Come home."</letter>', "curly")).toBe('<letter from="Wren">“Come home.”</letter>');
     expect(normalizeQuotes('"<i>Never</i>," she said. `a "b"`', "curly")).toBe('“<i>Never</i>,” she said. `a "b"`');
     expect(normalizeQuotes("'Maybe,' she thought.", "curly")).toBe("‘Maybe,’ she thought.");
+    // Speaker marks are read past: a line cut off with a dash still closes, the next one still opens.
+    expect(normalizeQuotes('[spk=Dawn#3]"Back by five for — hold on —"[/spk] She pulled the Nokia out. [spk=Dawn#3]"— yeah, Tuesday\'s clear."[/spk]', "curly")).toBe(
+      "[spk=Dawn#3]“Back by five for — hold on —”[/spk] She pulled the Nokia out. [spk=Dawn#3]“— yeah, Tuesday’s clear.”[/spk]",
+    );
+    expect(normalizeQuotes('[spk=Dawn#3]"Like right here —"[/spk] she touched her collarbone, [spk=Dawn#3|sly]"— and stays put."[/spk]', "curly")).toBe(
+      "[spk=Dawn#3]“Like right here —”[/spk] she touched her collarbone, [spk=Dawn#3|sly]“— and stays put.”[/spk]",
+    );
+    expect(normalizeQuotes('[spk=?]"...okay."[/spk]', "curly")).toBe("[spk=?]“...okay.”[/spk]");
   });
   test("the story's banned words are flagged with yours", () => {
     expect(applyBanned("Her orbs gleamed.", ["orbs"]).hits).toContain("orbs");
