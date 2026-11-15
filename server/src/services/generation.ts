@@ -1,3 +1,4 @@
+import { isStub, pastCurrent } from "../lore/current";
 import { plansFirst, resolveFamily } from "../prompt/models";
 import type { CardData } from "../cards/card";
 import { applyRegex } from "../lib/regex";
@@ -671,7 +672,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     const when = (e.extra as { trackerWhen?: string } | undefined)?.trackerWhen?.trim();
     if (!when) return [e];
     return tp && evalCondition(tp.state, when) ? [{ ...e, constant: true }] : [];
-  });
+  }).filter((e) => !isStub(e));
   // Recall inputs (Phase 3): queries, vectors (usually warm from prefetch), point of view, the
   // people in the scene, the librarian's verdict. Nothing here waits long (MEM-21).
   const memInputs = cfg.enabled
@@ -708,6 +709,8 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
     // 6.1: the focus is who's named in your message, who's speaking, and the place you're in.
     tiers: cfg.loreTiers ? { focus: [card.name, ...(tp?.state?.place.length ? [tp.state.place.at(-1)!] : [])], focusText: yours } : undefined,
     recalled,
+    // Opening-day "Current" lore stops once the story is past it and nothing keeps it up to date.
+    pastCurrent: pastCurrent(chatId, entries, messageCountOf(chatId)),
     // 6.3: how long since each entry last fired here, for the budget.
     firedAgo: loreFiredAgo(chatId),
     // 5.1: anniversaries and birthdays that come round today on the story's calendar.
