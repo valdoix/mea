@@ -128,6 +128,26 @@ export function ownLines(chatId: string, names: Set<string>, ranges: { from: num
   return out.reverse();
 }
 
+/** "Ruth the orange cat" and "Walter (in living room)" are Ruth and Walter. */
+function wasThere(participant: string, myNames: Set<string>): boolean {
+  const p = norm(participant.replace(/\s*\(.*?\)\s*/g, " ").trim());
+  return myNames.has(p) || [...myNames].some((n) => n.length >= 3 && p.startsWith(`${n} `));
+}
+
+/**
+ * Sexual detail never reaches a journal: the sentences that carry it are taken out of a scene
+ * before the journal writer sees it, so no prompt line has to hold it back. Ruth's journal told a
+ * kitchen scene act by act, and the same job writes a fifteen-year-old's.
+ */
+const EXPLICIT =
+  /\b(?:cock|cocks|dick|penis|cunt|pussy|clit\w*|nipples?|breasts?|orgasm\w*|cum|cumming|climax\w*|blowjob|oral|swallow(?:s|ed|ing)? (?:around|him|her|it)|thrust\w*|naked|undress\w*|erection|aroused|arousal|sex|sexual\w*|fuck\w*|ejaculat\w*|semen|inch by inch|between (?:her|his) (?:legs|thighs)|(?:on|to) (?:her|his) knees|into (?:her|his) mouth|(?:shorts|pants|jeans|briefs|underwear) down|eat out|explicit|balls|testicles|hollow(?:ed)? cheeks|swallow\w* (?:everything|every drop)|(?:he|she|they) came|came (?:so hard|beautifully|apart|undone|for (?:him|her|me|you))|inside (?:her|him|me)|made love|making love|went down on|oral|lick\w* (?:him|her) )\b/i;
+export function privateParts(text: string): string {
+  const parts = text.split(/(?<=[.!?…]["”’)]*)\s+/);
+  const kept = parts.filter((s) => !EXPLICIT.test(s));
+  if (kept.length === parts.length) return text;
+  return `${kept.join(" ")} (Part of this scene was intimate and private: the journal says no more than that.)`.trim();
+}
+
 /** Brings one journal up to date with the scenes since it was last written. */
 export async function updateJournal(chatId: string, name: string, opts: { job?: JobContext; fromScratch?: boolean; signal?: AbortSignal } = {}) {
   const row = rowFor(chatId, name);
@@ -142,7 +162,10 @@ export async function updateJournal(chatId: string, name: string, opts: { job?: 
   const mine = scenes.filter((s) => {
     if (isMain) return true;
     const d = parseJson<{ participants?: string[] }>(s.data, {});
-    return (d.participants ?? []).some((p) => myNames.has(norm(p))) || [...myNames].some((n) => n.length >= 3 && norm(s.content).includes(n));
+    // Who was there, when the scene says; being talked about isn't being there. Dawn's journal told a
+    // cemetery scene she wasn't at because its summary said Buffy had "promised Dawn dinner".
+    if (d.participants?.length) return d.participants.some((p) => wasThere(p, myNames));
+    return [...myNames].some((n) => n.length >= 3 && norm(s.content).includes(n));
   });
   if (!mine.length) {
     if (row && scenes.length) run("UPDATE journals SET through_seq = ?, updated_at = ? WHERE id = ?", scenes.at(-1)!.end_seq ?? through, now(), row.id);
@@ -164,7 +187,7 @@ export async function updateJournal(chatId: string, name: string, opts: { job?: 
     prev ? `${name.toUpperCase()}'S JOURNAL SO FAR:\n${prev}` : `${name} has no journal yet.`,
     trackerView(chatId, name),
     voice.length ? `${name.toUpperCase()}'S OWN WORDS IN THESE SCENES (this is how ${name} talks; the journal is in this voice):\n${voice.map((l) => `- ${l}`).join("\n")}` : "",
-    `NEW SCENES, oldest first:\n${batch.map((s) => `- ${s.title} (#${s.start_seq}–#${s.end_seq}): ${s.content}`).join("\n")}`,
+    `NEW SCENES, oldest first:\n${batch.map((s) => `- ${s.title} (#${s.start_seq}–#${s.end_seq}): ${privateParts(s.content)}`).join("\n")}`,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -184,6 +207,7 @@ Rules:
 - Subjective is fine (${name}'s opinions, fears, hopes), invented events are not.
 - ${name}'s own voice: the words, rhythm and jokes ${name} uses, never someone else's running bits, catchphrases or pet metaphors.
 - Other people's words only in passing: a few words at most, never their lines whole.
+- Nothing sexual, ever: at most that two people were intimate, in a few plain words. Never describe a body, an act or what anyone said in bed.
 Reply with JSON only: {"journal": "…"}`,
     user,
     maxTokens: 1200,
