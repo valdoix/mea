@@ -1,8 +1,8 @@
 # Mea for Android
 
 A native app (Capacitor) that opens your Mea full screen. Mea itself keeps running on your PC, so the
-phone and the computer always show the same stories. The app reaches the PC through its ngrok
-address, from home Wi-Fi or mobile data alike.
+phone and the computer always show the same stories. The app reaches the PC through its tunnel
+address (Pangolin with your own domain, or ngrok), from home Wi-Fi or mobile data alike.
 
 ## What the app does
 
@@ -14,7 +14,7 @@ address, from home Wi-Fi or mobile data alike.
 - **Change address:** **Settings → Devices → This app → Change address**.
 - **Other sites:** the app stays on the address you set up (any tunnel or domain works); links to other
   sites open in the phone's browser.
-- It sends a custom user agent (`MeaApp/…`), which skips ngrok's free-plan warning page and lets
+- It sends a custom user agent (`MeaApp/…`), which skips ngrok's free-plan warning page (if you use ngrok) and lets
   Mea know it's in the app.
 
 Not in the app yet: push notifications (web push doesn't exist in an Android WebView; it would need

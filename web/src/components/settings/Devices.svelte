@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { del, get, post } from "../../lib/api";
+  import { del, get, post, put } from "../../lib/api";
   import { confirm } from "../../lib/dialogs.svelte";
   import { timeAgo } from "../../lib/format";
   import { Copy, Laptop, QrCode, Smartphone, Trash } from "../../lib/icons";
@@ -17,10 +17,17 @@
   }
   interface Tunnel {
     port: number;
+    provider: "pangolin" | "ngrok" | null;
+    url: string | null;
+    address: string | null;
+    reachable: boolean | null;
+    problem: "unreachable" | "login" | "not-mea" | null;
+    wrongPort: string | null;
     installed: boolean;
     running: boolean;
-    url: string | null;
-    wrongPort: string | null;
+    newt: { installed: boolean; running: boolean };
+    ngrok: { installed: boolean; running: boolean };
+    pangolinCommand: string;
     setupCommands: string[];
   }
   let tunnel = $state<Tunnel | null>(null);
@@ -29,6 +36,10 @@
   let local = $state(false);
   let pairing = $state<{ code: string; url: string; expiresAt: number; qrSvg: string } | null>(null);
   let now = $state(Date.now());
+  let editing = $state(false);
+  let addressInput = $state("");
+  let savingAddress = $state(false);
+  const providerName = $derived(tunnel?.provider === "ngrok" ? "ngrok" : "Pangolin");
 
   async function load() {
     try {
@@ -66,6 +77,23 @@
     await load();
   }
 
+  function editAddress() {
+    addressInput = tunnel?.address ?? "";
+    editing = true;
+  }
+
+  async function saveAddress(address: string | null) {
+    savingAddress = true;
+    try {
+      tunnel = (await put<{ tunnel: Tunnel }>("/api/devices/tunnel-address", { address })).tunnel;
+      editing = false;
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      savingAddress = false;
+    }
+  }
+
   function copy(text: string) {
     navigator.clipboard?.writeText(text);
     toast("Copied", { kind: "ok" });
@@ -88,22 +116,42 @@
     <h2>Reaching Mea from your phone</h2>
     {#if !tunnel}
       <p class="muted small">Checking the tunnel…</p>
-    {:else if tunnel.url}
-      <div class="row wrap"><span class="chip mint">Tunnel open</span><span class="chip mint">Works from anywhere</span></div>
+    {:else if tunnel.wrongPort}
+      <p class="small"><span class="chip butter">Wrong port</span> {providerName} reaches Mea's main port at <b>{tunnel.wrongPort}</b>. That port trusts everything as this computer. Point the tunnel at <b>127.0.0.1:{tunnel.port}</b> instead.</p>
+    {:else if tunnel.url && tunnel.reachable}
+      <div class="row wrap"><span class="chip mint">Tunnel open</span><span class="chip mint">Works from anywhere</span><span class="chip sky">{providerName}</span></div>
       <p class="small">Your address: <b>{tunnel.url}</b></p>
       <p class="tiny muted">Put it in the Mea app on your phone once. Everything that comes through it needs a paired device.</p>
-    {:else}
-      {#if tunnel.wrongPort}
-        <p class="small"><span class="chip butter">Wrong port</span> ngrok is forwarding to Mea's main port ({tunnel.wrongPort}). That port trusts everything as this computer. Point it at <b>{tunnel.port}</b> instead.</p>
-      {:else if !tunnel.installed}
-        <p class="small">Install <b>ngrok</b> on this computer and make a free account at ngrok.com. It gives Mea a permanent https address your phone can reach from anywhere.</p>
+    {:else if tunnel.address}
+      <div class="row wrap"><span class="chip butter">Not answering</span><span class="chip sky">{providerName}</span></div>
+      <p class="small">Your address: <b>{tunnel.address}</b></p>
+      {#if tunnel.problem === "login"}
+        <p class="small">The tunnel shows its own login page in front of Mea. In Pangolin, open the resource and turn its login (Platform SSO) off. Mea's pairing keeps it private.</p>
+      {:else if tunnel.problem === "not-mea"}
+        <p class="small">Something answered, but not Mea. Check that the tunnel's target is <b>127.0.0.1:{tunnel.port}</b>.</p>
+      {:else if tunnel.provider === "pangolin" && !tunnel.newt.running}
+        <p class="small">Newt (Pangolin's connector) doesn't seem to be running on this computer. To start it at every boot, run this in PowerShell as administrator:</p>
+        <div class="cmd"><code>{tunnel.pangolinCommand}</code><button class="btn ghost icon small" onclick={() => copy(tunnel!.pangolinCommand)} aria-label="Copy command"><Copy size={15} /></button></div>
       {:else}
-        <p class="small">ngrok isn't running. Open a terminal on this computer and run (the first line only once):</p>
+        <p class="small">Nothing answered there. Check that the site shows Online in Pangolin and that the tunnel's target is <b>127.0.0.1:{tunnel.port}</b>.</p>
       {/if}
-      {#each tunnel.setupCommands as cmd}
-        <div class="cmd"><code>{cmd}</code><button class="btn ghost icon small" onclick={() => copy(cmd)} aria-label="Copy command"><Copy size={15} /></button></div>
-      {/each}
-      <p class="tiny muted">Your free domain is under Universal Gateway → Domains on the ngrok dashboard. To keep it running at every boot, see “Anywhere access” in the README.</p>
+    {:else}
+      <p class="small"><b>Pangolin</b> with your own domain gives Mea a permanent https address your phone can reach from anywhere. Make a free account at app.pangolin.net, add your domain, a Newt site, and an HTTP resource pointing at <b>127.0.0.1:{tunnel.port}</b> with Pangolin's login off. Then enter the address below.</p>
+      <p class="tiny muted">The README's “Anywhere access” has every step, and the script that starts Newt at every boot. ngrok still works too: run <code>ngrok http {tunnel.port} --url &lt;your-name&gt;.ngrok-free.dev</code> and Mea finds it by itself.</p>
+    {/if}
+    {#if tunnel && local}
+      {#if editing}
+        <form class="row wrap" onsubmit={(e) => { e.preventDefault(); void saveAddress(addressInput); }}>
+          <input class="input grow" bind:value={addressInput} inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="mea.your-domain.com" aria-label="Tunnel address" />
+          <button class="btn primary" type="submit" disabled={savingAddress}>Save</button>
+          <button class="btn ghost" type="button" onclick={() => (editing = false)}>Cancel</button>
+        </form>
+      {:else}
+        <div class="row wrap">
+          <button class="btn small" onclick={editAddress}>{tunnel.address ? "Change address" : "Enter your address"}</button>
+          {#if tunnel.address}<button class="btn ghost small" disabled={savingAddress} onclick={() => saveAddress(null)}>Forget it</button>{/if}
+        </div>
+      {/if}
     {/if}
     {#if ts?.running && ts.serveUrl}
       <p class="tiny muted">Tailscale also works: {ts.serveUrl}{ts.serving ? "" : ` (run ${ts.enableCommand})`}</p>

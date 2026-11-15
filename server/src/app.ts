@@ -34,7 +34,7 @@ import "./services/chatcost";
 import { data } from "./routes/data";
 import { vault } from "./routes/vault";
 import { isLocked } from "./lib/vault";
-import { DEVICE_COOKIE, deviceForToken, isTrustedLocal, noteDeviceSeen } from "./services/auth";
+import { DEVICE_COOKIE, deviceForToken, isPublicRequest, isTrustedLocal, noteDeviceSeen } from "./services/auth";
 import { importFile } from "./services/importer";
 
 type Env = { Variables: { deviceId: string | null } };
@@ -85,7 +85,8 @@ export function createApp() {
     return next();
   });
 
-  app.get("/api/ping", (c) => c.json({ ok: true, app: "mea" }));
+  // `door` lets Mea check its own tunnel: a tunnel must arrive on the tunnel port, never the trusted main one.
+  app.get("/api/ping", (c) => c.json({ ok: true, app: "mea", door: isPublicRequest(c.req.raw) ? "tunnel" : "main" }));
   app.route("/api", library);
   app.route("/api", lore);
   app.route("/api", lorecraft);

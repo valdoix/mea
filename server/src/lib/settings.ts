@@ -36,6 +36,8 @@ export interface Settings {
   "music.taste": Record<string, unknown> | null;
   /** J3: songs you removed from the library yourself (a lookup never adds them back). */
   "music.removed": string[] | null;
+  /** The tunnel address you entered (Pangolin or any other tunnel), like "https://mea.example.com". Host computer only. */
+  "tunnel.address": string | null;
   /** docs/34 2.1: you said yes to reading cards for the songs read before cards existed. */
   "music.cardsAllowed": boolean | null;
   /** docs/34 Part 5: early skips by kind of scene, and your answers to "Not for this scene", by song. */
@@ -406,6 +408,7 @@ export const defaults: Settings = {
   "music.config": null,
   "music.taste": null,
   "music.removed": null,
+  "tunnel.address": null,
   "music.cardsAllowed": null,
   "music.learned": null,
   "music.suggestions": null,
