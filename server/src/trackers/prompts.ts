@@ -3,6 +3,7 @@ import { formatStoryTime } from "./clock";
 import type { Field, Template } from "./schema";
 import { groupsLine } from "./groups";
 import { openLoops } from "./loops";
+import { firstsOnRecord } from "./firsts";
 import { placeNotesHere } from "./belongings";
 import { knownPlacesLine } from "./places";
 import { passingName } from "./whois";
@@ -136,6 +137,9 @@ export function stateForModel(st: WorldState, o: { userName: string; templates: 
   for (const t of threads) L.push(`thread ${t.title}: ${t.status}${t.latest ? ` — ${clip(t.latest, 80)}` : ""}`);
   for (const ob of Object.values(st.obligations).filter((x) => x.status === "open" || x.status === "due").slice(-8)) L.push(`${ob.kind} ${nm(ob.who)} → ${ob.whom ? nm(ob.whom) : "?"}: ${ob.what} | ${ob.status}`);
   for (const l of openLoops(st).slice(-12)) L.push(`loop ${l.id}: ${clip(l.what, 90)}${l.repeats ? " (repeats)" : ""}`);
+  // The older firsts too: a first the helper can't see gets written again.
+  const firsts = firstsOnRecord(st.milestones, 10);
+  if (firsts.length) L.push(`firsts already had: ${firsts.map((m) => clip(m.text, 60)).join("; ")}`);
   for (const m of st.milestones.slice(-10)) L.push(`milestone ${clip(m.text, 80)}`);
   for (const d of Object.values(st.deadlines).filter((x) => !x.done)) L.push(`deadline ${d.title}: ${d.text}`);
   for (const f of Object.values(st.facts).filter((x) => x.secret && !x.secret.out)) L.push(`secret #${f.key}: ${clip(f.statement, 80)}`);
@@ -175,7 +179,7 @@ Rules:
 - Only changes the messages show or clearly imply. Never invent events. Small talk changes little; write nothing for what stayed the same.
 - Thoughts are the exception: every reply gets a think line for each person at the spot${o.sealed ? ` except ${o.userName}` : ""}, their reaction to this moment.
 - Open loops: the state lists what the story is waiting for. Did the NEW MESSAGES finish any of them? It happened on the page, not just got talked about or planned: write a loop line for it, and keep any promise's own line out of it.
-- Firsts: the first time something happens between people (a first kiss, the first "I love you", the first night together, meeting the family) gets a milestone line, so it's never staged as new again.
+- Firsts: the first time something happens between people (a first kiss, the first "I love you", the first night together, meeting the family) gets a milestone line, so it's never staged as new again. Only the real first: one the state already lists (a milestone or "firsts already had"), in any words, isn't a first again, so it gets no milestone line.
 - Time: estimate time passed from the action (a short exchange: +2m to +10m; a meal: +45m) unless the text states a time.
 - People: use the names the story uses. New named people get a cast line when they appear. Someone the state already lists keeps that exact name: never pair one person's first name with another's surname.
 - Relationships change only when the aftermath differs from before; intensity is not progress. Not everyone warms up.${o.sealed ? `\n- ${o.userName}'s inner life is the user's: never write mood, think, drive, mask, journal or bond lines from ${o.userName}'s side.` : ""}
