@@ -601,8 +601,11 @@ export function parseLine(raw: string): Op | null {
     case "motif":
     case "milestone": {
       const [text, who] = (subject ? `${subject} — ${body}` : body).split(/\s*(?:—|–|--)\s*/);
-      a.text = (text ?? "").replace(/^["“]|["”]$/g, "").trim();
-      a.who = who?.trim();
+      // Quotes around the whole line go; a closing quote of quoted words ("I love you") stays.
+      const t = (text ?? "").trim();
+      a.text = /^["“][^"“”]*["”]$/.test(t) ? t.slice(1, -1).trim() : t.replace(/^["“](?=[^"“”]*$)/, "").trim();
+      // A milestone's "— who" is split off as the line's cause.
+      a.who = (who ?? (op === "milestone" ? cause : undefined))?.trim();
       break;
     }
     case "set":

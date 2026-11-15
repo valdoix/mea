@@ -10,7 +10,8 @@ import { activateLore } from "../src/lore/activate";
 import { evalCondition } from "../src/trackers/condition";
 import { defaultEntry } from "../src/lore/types";
 import { STARTER_TEMPLATES, templateSchemaZ } from "../src/trackers/schema";
-import { inlineInstruction, updatePrompt } from "../src/trackers/prompts";
+import { inlineInstruction, stateForModel, updatePrompt } from "../src/trackers/prompts";
+import { firstsOnRecord } from "../src/trackers/firsts";
 
 const cfg = (over: Partial<FoldConfig> = {}): FoldConfig => ({
   userName: "Alex",
@@ -482,5 +483,60 @@ describe("private thoughts", () => {
     const open = updatePrompt({ state: "", messages: "", userName: "Alex", charName: "Mira", sealed: false, romance: "slow" }).system;
     expect(open).toContain("for each person at the spot, their reaction");
     expect(inlineInstruction("")).toContain("think: every reply, one line for each person @spot");
+  });
+});
+
+describe("firsts stay first", () => {
+  const texts = (r: ReturnType<typeof foldEvents>) => r.state.milestones.map((m) => m.text);
+
+  test("a first already on record isn't recorded again in other words", () => {
+    const r = foldEvents(
+      events([
+        ["cast: Mira@spot · Dawn@spot"],
+        ['milestone the first "I love you" said aloud mid-movement, hers then his'],
+        ["milestone their first full night in one bed"],
+        ['milestone first spoken "I love you" between Alex and Mira — who'],
+        ["milestone the first night sharing a bed"],
+        ["milestone Buffy's first 'love you' answered in bed"],
+      ]),
+      cfg(),
+    );
+    expect(texts(r)).toEqual(['the first "I love you" said aloud mid-movement, hers then his', "their first full night in one bed"]);
+  });
+
+  test("someone else's first, or a different first, still counts", () => {
+    const r = foldEvents(
+      events([
+        ["cast: Mira@spot · Dawn@spot"],
+        ['milestone the first "I love you", hers then his'],
+        ["milestone Dawn's first cooking lesson"],
+        ['milestone Dawn says "I love you" to Alex for the first time'],
+        ["milestone Mira's first cooking lesson, taught by Dawn"],
+        ["milestone Dawn's first cooking exam passed"],
+        ['milestone Mira says "I love you" again at breakfast'],
+      ]),
+      cfg(),
+    );
+    expect(texts(r)).toHaveLength(6);
+  });
+
+  test("the who part keeps names; prose after a dash stays in the text", () => {
+    const r = foldEvents(
+      events([["cast: Mira@spot"], ['milestone Mira answers "I love you" — first time she says it back, three times'], ["milestone the worm pact — Mira, Alex"], ["milestone the first spin — who"]]),
+      cfg(),
+    );
+    expect(r.state.milestones.map((m) => [m.text, m.who.length])).toEqual([
+      ['Mira answers "I love you" — first time she says it back, three times', 0],
+      ["the worm pact", 2],
+      ["the first spin", 0],
+    ]);
+  });
+
+  test("the helper sees the older firsts, not just the last ten milestones", () => {
+    const lines = [['milestone the first "I love you"'], ...Array.from({ length: 12 }, (_, i) => [`milestone small win number ${["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][i]}`])];
+    const r = foldEvents(events([["cast: Mira@spot"], ...lines]), cfg());
+    expect(r.state.milestones).toHaveLength(13);
+    expect(firstsOnRecord(r.state.milestones, 10).map((m) => m.text)).toEqual(['the first "I love you"']);
+    expect(stateForModel(r.state, { userName: "Alex", templates: [], sealed: false })).toContain(`firsts already had: the first "I love you"`);
   });
 });

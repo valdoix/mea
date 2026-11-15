@@ -1,4 +1,5 @@
 import { sameThing } from "./things";
+import { repeatsFirst } from "./firsts";
 import { COMMUNAL } from "./belongings";
 import { wxKind } from "./weather";
 import { applySim } from "../sim/fold";
@@ -2423,10 +2424,16 @@ export class Folder {
       }
       case "milestone": {
         if (!a.text) return this.reject(ctx, "what milestone?");
-        if (st.milestones.some((m) => overlap(m.text, a.text) > 0.8)) return;
-        const who = (a.who ? String(a.who).split(/\s*(?:&|,|\band\b)\s*/) : []).map((n: string) => this.findChar(n)?.id ?? n);
-        st.milestones.push({ text: clip(a.text), who, seq, at: st.time ? formatStoryTime(st.time) : null });
-        this.push(ctx, { kind: "milestone", text: `Milestone: ${clip(a.text)}`, path: `milestones.${slug(a.text)}`, memory: true, tone: "up" });
+        // The who part: names, or (a dash inside the line) more of what happened. "who" itself is the format's word.
+        const parts = (a.who ? String(a.who).split(/\s*(?:&|,|\band\b)\s*/) : []).map((n: string) => n.trim()).filter((n: string) => n && n.toLowerCase() !== "who");
+        const named = parts.some((n: string) => this.findChar(n) || /^\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,2}$/u.test(n));
+        const text = parts.length && !named ? `${a.text} — ${String(a.who).trim()}` : String(a.text);
+        const who: string[] = named ? parts.map((n: string) => this.findChar(n)?.id ?? n) : [];
+        if (st.milestones.some((m) => overlap(m.text, text) > 0.8)) return;
+        // A first already on record isn't a first again, however it's worded.
+        if (repeatsFirst(text, who, st.milestones, Object.values(st.chars))) return;
+        st.milestones.push({ text: clip(text), who, seq, at: st.time ? formatStoryTime(st.time) : null });
+        this.push(ctx, { kind: "milestone", text: `Milestone: ${clip(text)}`, path: `milestones.${slug(text)}`, memory: true, tone: "up" });
         return;
       }
       case "lock": {
