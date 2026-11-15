@@ -17,8 +17,6 @@ const MARKED = [
   '[spk=Old Tam|shout]"Mira! The light!"[/spk] a voice calls from the stairs.',
 ];
 
-const rateLimited = new Set<string>();
-
 /** "[#12] Mira: text" lines from a helper prompt. */
 function ledgerLines(text: string) {
   return [...text.matchAll(/^\[#(\d+)\] ([^:\n]+): (.*)$/gm)].map((m) => ({ seq: Number(m[1]), who: m[2]!.trim(), text: m[3]!.trim() }));
@@ -820,6 +818,9 @@ export function mockVector(text: string, dims = 64) {
 }
 
 /** Development-only provider (MEA_DEV=1): streams a canned reply so the app can be exercised without API keys. */
+/** Calls a test asked to be rate-limited once (MOCK_RATE_ONCE…), and already were. */
+const rateLimited = new Set<string>();
+
 export class MockProvider implements Provider, ImageProvider {
   constructor(private delayMs = 18) {}
 
