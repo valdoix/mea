@@ -27,7 +27,18 @@ type GuardIssue = Omit<Issue, "id">;
 const sentences = (t: string) => t.split(/(?<=[.!?…]["”')\]*]*)\s+|\n+/).filter((s) => s.trim());
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** The narration of a text: quoted speech replaced by a placeholder. */
-export const narration = (t: string) => t.replace(/"[^"\n]*"|“[^”\n]*”/g, " ‹…› ");
+/**
+ * The text with what people say taken out. Marks pair in order within a line (1st with 2nd, 3rd
+ * with 4th), whichever way each is curled: models close a line cut off with a dash with “ and open
+ * the next with ”, and pairing by direction read the narration between them as speech, so the
+ * tense check counted too few of its verbs to call the tense at all. A mark left open runs to the
+ * end of its line, as speech carried into the next paragraph does.
+ */
+export const narration = (t: string) =>
+  t
+    .split("\n")
+    .map((line) => line.split(/[“”"]/).map((part, i) => (i % 2 ? " ‹…› " : part)).join(""))
+    .join("\n");
 
 const SPEECH = "say|says|said|reply|replies|replied|ask|asks|asked|whisper|whispers|whispered|murmur|murmurs|murmured|shout|shouts|shouted|answer|answers|answered|mutter|mutters|muttered|tell|tells|told|admit|admits|admitted|confess|confesses|confessed|promise|promises|promised";
 const ACT =

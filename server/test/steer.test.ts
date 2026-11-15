@@ -3,7 +3,7 @@ import type { MeaEvent } from "../src/lib/events";
 import { subscribe } from "../src/lib/events";
 import { normalizeCard } from "../src/cards/card";
 import { all, newId, one, run } from "../src/db/db";
-import { guardIssues, tenseSlip } from "../src/accuracy/guards";
+import { guardIssues, tenseOf, tenseSlip } from "../src/accuracy/guards";
 import { defaultGuards, defaultMemoryConfig, defaultSteer, setSetting } from "../src/lib/settings";
 import { buildSummary, carryMoments, storyNeedsRebuild } from "../src/memory/build";
 import { voiceRule, rollupSystem, sceneSystem } from "../src/memory/prompts";
@@ -243,6 +243,10 @@ describe("the tense pass (docs/33 Part 3)", () => {
       "Dawn’s fork clatters onto her plate. She turns to him. “I need to be back by five for — hold on —“ She pulls the Nokia out of her pocket and scrolls through something with her thumb. ”— yeah, Tuesday’s clear.“ She sets the phone down. She looks at Buffy. She smiles at the table.";
     expect(spoken(before)).toEqual(["I need to be back by five for — hold on —", "— yeah, Tuesday’s clear."]);
     expect(onlyTenseChanged(before, after, "present", ["Buffy"])).toBe(true);
+    // The detector reads it right too: before, it counted the narration between the marks as speech
+    // and found too few past verbs to call the tense, so no fix was even queued.
+    const longer = `${before} She waited. She turned to the door.`;
+    expect(tenseOf(longer, ["Buffy"]).tense).toBe("past");
     // And a real change inside a line is still caught.
     expect(onlyTenseChanged(before, after.replace("Tuesday’s clear", "Tuesday was clear"), "present", ["Buffy"])).toBe(false);
   });
