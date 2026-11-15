@@ -17,6 +17,16 @@ const MARKED = [
   '[spk=Old Tam|shout]"Mira! The light!"[/spk] a voice calls from the stairs.',
 ];
 
+/**
+ * A reply the way GLM writes them (a story asks with MOCK_DASHES): speaker marks, lines cut off with
+ * a dash and picked up after narration, straight quotes, and the past tense in a present-tense story.
+ */
+const DASHES = [
+  "Mira's cup clattered onto the saucer. She turned to the window, and she stood there while the rain crossed the glass. She waited.",
+  `[spk=Mira]"I need to be back by five for — hold on —"[/spk] She pulled the logbook out and scrolled down the page with her thumb. [spk=Mira]"— yes, Tuesday's clear."[/spk]`,
+  'She looked at the lamp and laughed. [spk=Mira|sly]"One, then. Only one."[/spk] She poured the tea, and she walked to the stove.',
+].join("\n\n");
+
 /** "[#12] Mira: text" lines from a helper prompt. */
 function ledgerLines(text: string) {
   return [...text.matchAll(/^\[#(\d+)\] ([^:\n]+): (.*)$/gm)].map((m) => ({ seq: Number(m[1]), who: m[2]!.trim(), text: m[3]!.trim() }));
@@ -766,11 +776,12 @@ function mockPlainText(system: string, user: string): string | null {
   if (/^You change the tense of a story's narration/.test(system)) {
     // A test can ask for a careless pass: one that also rewords what someone said.
     if (/\[careless\]/.test(user)) return user.replace(/[“"]([^”"\n]+)[”"]/, '"Something else entirely."');
-    const toPresent: Record<string, string> = { was: "is", were: "are", had: "has", set: "sets", looked: "looks", said: "says", walked: "walks", turned: "turns", poured: "pours", laughed: "laughs", studied: "studies", stood: "stands", waited: "waits", crossed: "crosses" };
+    const toPresent: Record<string, string> = { clattered: "clatters", pulled: "pulls", scrolled: "scrolls", was: "is", were: "are", had: "has", set: "sets", looked: "looks", said: "says", walked: "walks", turned: "turns", poured: "pours", laughed: "laughs", studied: "studies", stood: "stands", waited: "waits", crossed: "crosses" };
+    // Speech is between the 1st and 2nd mark of a paragraph, the 3rd and 4th…, whichever way they curl.
     return user
-      .split(/([“"][^”"\n]*[”"])/)
-      .map((part, i) => (i % 2 ? part : part.replace(/\b[a-z]+\b/g, (w) => toPresent[w] ?? w)))
-      .join("");
+      .split("\n")
+      .map((para) => para.split(/[“”"]/).reduce((out, part, i, parts) => out + (i % 2 ? part : part.replace(/\b[a-z]+\b/g, (w) => toPresent[w] ?? w)) + (i < parts.length - 1 ? [...para.matchAll(/[“”"]/g)][i]![0] : ""), ""))
+      .join("\n");
   }
   const field = system.match(/^Field: (.+)$/m)?.[1];
   // Card tools' field actions echo the field with the action, so a test can see what was asked.
@@ -854,7 +865,9 @@ export class MockProvider implements Provider, ImageProvider {
         ? "I step closer, brushing the rain from my coat. \"I told you I would. I keep my promises.\""
         : /rough draft/i.test(tail)
           ? 'I set my bag down by the door and let out a long breath. "It\'s good to see you again," I say, and I mean it.'
-          : /single word OK/.test(tail)
+          : /MOCK_DASHES/.test(last)
+            ? DASHES
+            : /single word OK/.test(tail)
             ? "OK"
             : /^\[PLAN ONLY/.test(tail)
               ? `<think>\nNOW — evening, the lamp room; Mira and the guest present; same scene.\nSEAL — the player arrived and spoke; the reply stops on Mira's question.\nMINDS — Mira: wants him to stay · fears he'll leave again · tactic: tea.\nMOVE — the obvious welcome; Mira's sideways warmth; Old Tam's call. Choose Tam's call.\nVOICE — medium, a third talk, open on the lamp.\n</think>\n\nThe lamp flickers and the story would begin here.`
