@@ -71,8 +71,9 @@
 
     <section class="panel stack">
       <h2>The advisor</h2>
-      <p class="tiny muted">Before each reply, a helper model writes a short private plan: the direction, a few beats, threads worth touching, continuity to keep straight. It runs while you type, so sending rarely waits; it sees its own last few plans so longer plotting holds together. Uses the helper route (Settings → Models).</p>
+      <p class="tiny muted">Before each reply, a helper model writes a short private plan: the direction, a few beats, threads worth touching, continuity to keep straight. It runs when you send; it sees its own last few plans so longer plotting holds together. When the story model plans in its own step, that plan is used and the advisor is skipped. Uses the helper route (Settings → Models).</p>
       <label class="switch"><input type="checkbox" checked={s["steer.config"].advisor} onchange={(e) => setSteer({ advisor: e.currentTarget.checked })} /> On for chats that don't choose (each chat can switch it in its panel)</label>
+      <label class="switch"><input type="checkbox" checked={Boolean(s["steer.config"].advisorTyping)} onchange={(e) => setSteer({ advisorTyping: e.currentTarget.checked })} /> Also plan while I type (faster sends, but up to three extra planner calls a reply)</label>
       <div class="grid">
         <label class="field">
           <span class="label">Earlier plans it sees</span>

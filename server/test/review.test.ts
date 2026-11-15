@@ -10,9 +10,9 @@ import { type LedgerRow, setMemState } from "../src/memory/store";
 import { MockProvider } from "../src/providers/mock";
 import { classifyError, ProviderError } from "../src/providers/types";
 import { createCharacter } from "../src/services/characters";
-import { addMessage, createChat, updateSwipe } from "../src/services/chats";
+import { addMessage, createChat, updateChat, updateSwipe } from "../src/services/chats";
 import { createConnection, createProfile, syncModels, updateConnection } from "../src/services/connections";
-import { PROBE_AFTER, skipsPlans } from "../src/services/generation";
+import { PROBE_AFTER, skipsPlans, writerPlansFirst } from "../src/services/generation";
 import { enqueue, registerJob, runningJobCount, waitForChatJobs } from "../src/services/jobs";
 import { statusTiles } from "../src/services/status";
 import { freshDb } from "./helpers";
@@ -142,6 +142,13 @@ describe("fix 3: the plan watch learns a model's habit across stories", () => {
     updateSwipe(m2, 0, { meta: { model: "mock/habit", plan: "step", notes: ["planned in its own step: the first try skipped its plan"] } });
     expect(skipsPlans("mock/habit")).toBe(true);
     expect(skipsPlans("mock/other")).toBe(false);
+    // A writer that plans in its own step needs no advisor plan first: one planner a reply.
+    const r = { modelId: "mock/habit", params: {} };
+    expect(writerPlansFirst(a, r)).toBe(true);
+    expect(writerPlansFirst(a, { modelId: "mock/other", params: {} })).toBe(false);
+    // With a separate planner set for the chat, that planner is the one.
+    updateChat(a, { settings: { planning: "planner" } });
+    expect(writerPlansFirst(a, r)).toBe(false);
   });
 
   test("a reply its adapter planned first isn't a habit; one the model's skips planned first is", () => {

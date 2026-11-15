@@ -110,6 +110,11 @@ describe("the advisor (STEER-01, STEER-02)", () => {
     // Off by default: no plan.
     expect(await runAdvisor(achat, { draft: "Hello" })).toBeNull();
     updateChat(achat, { settings: { advisor: true } });
+    // Typing plans are opt-in now: without the switch, typing plans nothing.
+    await prefetch(achat, "I set the lantern down.");
+    await Bun.sleep(100);
+    expect(planFor(achat, turnKey(historyForPrompt(achat), "I set the lantern down."))).toBeNull();
+    setSetting("steer.config", { ...defaultSteer, advisorTyping: true });
     const draft = "I set the lantern down and ask about the storm.";
     await prefetch(achat, draft);
     // prefetch starts the advisor in the background; it is cached by the turn it was planned for.
@@ -126,6 +131,7 @@ describe("the advisor (STEER-01, STEER-02)", () => {
     await runAdvisor(achat, { draft: "And then?" });
     const req = one<{ request: string }>("SELECT request FROM generations WHERE chat_id = ? AND kind = 'advisor' ORDER BY started_at DESC LIMIT 1", achat);
     expect(req?.request).toContain("YOUR EARLIER PLANS");
+    setSetting("steer.config", defaultSteer);
   });
   test("a send waits briefly for a plan that isn't ready (never for previews)", async () => {
     const bchat = createChat({ characterId: charId }).id;

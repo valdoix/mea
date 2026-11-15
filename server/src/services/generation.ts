@@ -71,7 +71,7 @@ import { scheduleDrift } from "../accuracy/drift";
 import { applyGuards } from "../accuracy/guards";
 import { fileNoteFacts, lessonsToFacts } from "../steer/notefacts";
 import { checkPlan, notHereThings, notNews, pendingDone, planCorrection, type PlanFinding, planRecords, planRecordText } from "../steer/plancheck";
-import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, turnKey } from "../steer/advisor";
+import { advisorExtra, directorPlanText, markPlanUsed, planSchema, rescuePlan, runAdvisor, steerFor, turnKey } from "../steer/advisor";
 import { scheduleEditor, scheduleTenseFix } from "../steer/editor";
 import { briefCard } from "../lore/brief";
 import { normalizeQuotes, styleExtra, styleFor } from "../steer/style";
@@ -447,6 +447,22 @@ export function planFrom(text: string, reasoning: string): string | null {
  * skipped twice in its last ten replies never probes: it plans first for good.
  */
 export const PROBE_AFTER = 30;
+/** docs/29 §13: a family whose adapter plans in its own step, unless its route reasons natively. */
+function adapterPlansFirst(r: { reasoning?: unknown; modelFamily?: string | null; modelId: string; params: { hide_reasoning?: unknown } }) {
+  return !r.reasoning && plansFirst(resolveFamily(r.modelFamily ?? undefined, r.modelId), { hidesReasoning: Boolean(r.params.hide_reasoning) });
+}
+
+/**
+ * The writer will plan this reply in its own step (its adapter says so, or it has been skipping its
+ * plan), and no separate planner is set: then the helper advisor's plan is a plan for a plan. In one
+ * story that was two planners a reply (the advisor, then the writer's own step) and, while typing,
+ * three more: 1.1 and 1.2 million tokens over 28 replies. The writer's own step is the one it follows.
+ */
+export function writerPlansFirst(chatId: string, resolved: { reasoning?: unknown; modelFamily?: string | null; modelId: string; params: { hide_reasoning?: unknown } }, excludeMessageId?: string) {
+  if (steerFor(chatId).planner) return false;
+  return adapterPlansFirst(resolved) || skipsPlans(resolved.modelId, excludeMessageId, chatId);
+}
+
 export function skipsPlans(modelId: string, excludeMessageId?: string, chatId?: string): boolean {
   const recent = all<{ meta: string }>(
     `SELECT s.meta FROM messages m JOIN swipes s ON s.message_id = m.id AND s.idx = m.active_swipe
@@ -756,7 +772,7 @@ export async function prepare(chatId: string, kind: AssembleKind, opts: PrepareO
   const planned =
     kind === "story" && opts.writtenPlan
       ? { id: "advisor", name: "Its own plan", content: directorPlanText(planSchema.parse({ pass: opts.writtenPlan })), depth: 0, planner: true, pass: opts.writtenPlan }
-      : kind === "story"
+      : kind === "story" && !(opts.advise && writerPlansFirst(chatId, resolved, opts.excludeMessageId))
         ? await advisorExtra(chatId, history, { wait: Boolean(opts.advise), note: opts.feedback, excludeMessageId: opts.excludeMessageId, state: tp?.state })
         : null;
   // docs/19 2.1–2.2: a plan that says someone doesn't know what the records have them told (or the
@@ -1145,7 +1161,7 @@ async function runStory(gen: ActiveGeneration, first: Prepared, action: StoryAct
     // spending a try that would be stopped anyway.
     // docs/29 §13: a family whose adapter says so (DeepSeek) plans that way from the first reply,
     // unless its route reasons natively (then the reasoning is the plan).
-    const adapterFirst = !p.resolved.reasoning && plansFirst(resolveFamily(p.resolved.modelFamily, p.resolved.modelId), { hidesReasoning: Boolean(p.resolved.params.hide_reasoning) });
+    const adapterFirst = adapterPlansFirst(p.resolved);
     if (planAsked && !p.plannedPass && (adapterFirst || skipsPlans(p.resolved.modelId, gen.messageId, gen.chatId))) {
       const plan = await planStep();
       if (plan) {
@@ -1722,8 +1738,8 @@ export async function previewPrompt(chatId: string) {
 
 /** Warms retrieval while you type (CTX-10, MEM-20): query vectors, the rewritten query and the librarian's pick. */
 export async function prefetch(chatId: string, draft: string) {
-  // STEER-01: the advisor plans the next reply while you type.
-  void runAdvisor(chatId, { draft });
+  // STEER-01: the advisor plans the next reply while you type, only if you asked for that.
+  if (steerFor(chatId).advisorTyping) void runAdvisor(chatId, { draft });
   return warmMemory(chatId, draft);
 }
 
