@@ -19,7 +19,7 @@ const server = Bun.serve({
   maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
 });
 
-// The tunnel's door (ngrok forwards here). Same app, but no request on it counts as the host computer.
+// The tunnel's door (Pangolin or ngrok forwards here). Same app, but no request on it counts as the host computer.
 let publicServer: ReturnType<typeof Bun.serve> | null = null;
 if (config.publicPort) {
   try {

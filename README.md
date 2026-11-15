@@ -25,7 +25,7 @@ A personal AI roleplay frontend for Windows and Android, served from an always-o
 
 ## Running Mea
 
-Requirements: [Bun](https://bun.sh) 1.4+. For the phone: a free [ngrok](https://ngrok.com) account (or Tailscale).
+Requirements: [Bun](https://bun.sh) 1.4+. For the phone: a free [Pangolin](https://pangolin.net) account and a domain of your own (or ngrok, or Tailscale).
 
 ```bash
 bun install
@@ -63,12 +63,17 @@ Mea runs on the PC (the service above). The apps are windows onto it, so every d
 
 **Android:** see [mobile/README.md](mobile/README.md). `bun run app:android` builds the APK to install on the phone.
 
-**Anywhere access (ngrok):**
-1. Make a free account at ngrok.com. In a terminal run `ngrok config add-authtoken <your token>`, and note your free domain (Universal Gateway → Domains).
-2. In PowerShell as administrator: `powershell -ExecutionPolicy Bypass -File scripts\install-tunnel.ps1 -Domain your-name.ngrok-free.dev`. ngrok then starts at boot, next to Mea.
-3. In Mea on the PC, open **Settings → Devices → New pairing code**. In the phone app, paste the link (or type the address and the code).
+**Anywhere access (Pangolin):** your own address, like `https://mea.your-domain.com`, with no monthly data cap or warning page.
+1. Make a free account at [app.pangolin.net](https://app.pangolin.net). The free plan needs a domain of your own (any cheap one works).
+2. **Domains → Add domain:** choose *Single Domain (CNAME)* with a subdomain like `mea.your-domain.com`, and add the two CNAME records it shows at your registrar. Wait until it says verified.
+3. **Sites → Add site:** choose Newt and keep the ID and secret. Download `newt_windows_amd64.exe` from [Newt's releases](https://github.com/fosrl/newt/releases).
+4. **Resources → Add resource:** public HTTP at your address, target the site, `http` `127.0.0.1` port `7770`. Then turn Pangolin's own login (Platform SSO) off for it: Mea's pairing is the lock, and Pangolin's login page would stop the phone app.
+5. In PowerShell as administrator: `powershell -ExecutionPolicy Bypass -File scripts\install-pangolin.ps1 -Id <site id> -Address mea.your-domain.com`. It asks for the secret, starts Newt at every boot, and tells Mea the address.
+6. **Settings → Devices** should say *Tunnel open*. Make a pairing code there. In the phone app, paste the link (or type the address and the code).
 
-The tunnel goes to Mea's second port (7770, `MEA_PUBLIC_PORT`), where nothing is treated as the host computer: every request needs a paired device. Never point ngrok at 7766.
+**Or with ngrok:** make a free account at ngrok.com, run `ngrok config add-authtoken <your token>`, and note your free domain (Universal Gateway → Domains). Then in PowerShell as administrator: `powershell -ExecutionPolicy Bypass -File scripts\install-tunnel.ps1 -Domain your-name.ngrok-free.dev`. Mea finds ngrok by itself. Its free plan allows 1 GB of data and 20,000 requests a month.
+
+Either tunnel goes to Mea's second port (7770, `MEA_PUBLIC_PORT`), where nothing is treated as the host computer: every request needs a paired device. Never point a tunnel at 7766. Settings → Devices warns you if one does.
 
 Tailscale still works as before (`tailscale serve --bg 7766`, then pair from Chrome on the phone).
 

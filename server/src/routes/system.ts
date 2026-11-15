@@ -25,7 +25,7 @@ import { dropPresence, reportPresence } from "../services/presence";
 import { createPreset, deletePreset, getPreset, listPresets, restoreMeaPreset, updatePreset } from "../services/presets";
 import { publicVapidKey, removeSubscription, saveSubscription, sendPush, subscriptionCount } from "../services/push";
 import { tailscaleStatus } from "../services/tailscale";
-import { tunnelStatus } from "../services/tunnel";
+import { normalizeTunnelAddress, pairingTunnelUrl, saveTunnelAddress, tunnelStatus } from "../services/tunnel";
 import { listTrash, purgeTrash } from "../services/trash";
 import { getSetting } from "../lib/settings";
 
@@ -208,11 +208,22 @@ system.get("/devices", async (c) => {
 system.post("/devices/pairing", async (c) => {
   if (!isTrustedLocal(c)) throw badRequest("New devices can only be paired from the host computer");
   const { code, expiresAt } = createPairingCode();
-  const [ts, tunnel] = await Promise.all([tailscaleStatus(), tunnelStatus()]);
-  const base = tunnel.url ?? ts.serveUrl ?? new URL(c.req.url).origin;
+  // A tunnel through a far-away server can take seconds to answer a check; the code shouldn't wait on it.
+  const [ts, tunnelUrl] = await Promise.all([tailscaleStatus(), pairingTunnelUrl()]);
+  const base = tunnelUrl ?? ts.serveUrl ?? new URL(c.req.url).origin;
   const url = `${base}/pair?code=${code}`;
   const qrSvg = await QRCode.toString(url, { type: "svg", margin: 1, color: { dark: "#43363D", light: "#FFFDFB" } });
-  return c.json({ code, url, expiresAt, qrSvg, tailscale: ts, tunnel });
+  return c.json({ code, url, expiresAt, qrSvg, tailscale: ts });
+});
+
+/** The tunnel address you use (Pangolin or another tunnel). Set on the host computer only; null clears it. */
+system.put("/devices/tunnel-address", async (c) => {
+  if (!isTrustedLocal(c)) throw new HttpError(403, "The tunnel address can only be changed on the computer Mea runs on.");
+  const input = await body(c, z.object({ address: z.string().max(300).nullable() }));
+  const address = input.address?.trim() ? normalizeTunnelAddress(input.address) : null;
+  if (input.address?.trim() && !address) throw badRequest("That doesn't look like an https address, like mea.your-domain.com.");
+  saveTunnelAddress(address);
+  return c.json({ tunnel: await tunnelStatus() });
 });
 
 system.delete("/devices/:id", (c) => {

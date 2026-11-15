@@ -17,7 +17,7 @@ export const config = {
   dataDir,
   port: Number(process.env.MEA_PORT ?? 7766),
   /**
-   * A second localhost listener for the ngrok tunnel: nothing that arrives on it is treated as the host computer,
+   * A second localhost listener for the tunnel (Pangolin or ngrok): nothing that arrives on it is treated as the host computer,
    * so every request needs a paired device. 0 turns it off.
    */
   publicPort: Number(process.env.MEA_PUBLIC_PORT ?? Number(process.env.MEA_PORT ?? 7766) + 4),

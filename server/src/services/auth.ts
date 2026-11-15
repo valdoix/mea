@@ -5,7 +5,7 @@ import { randomToken, sha256 } from "../lib/crypto";
 
 /**
  * Device auth (ARCH-08, SEC-02). The host machine (direct localhost requests) is trusted.
- * Everything else, including requests through Tailscale Serve or the ngrok tunnel, needs a paired device cookie.
+ * Everything else, including requests through Tailscale Serve or a tunnel (Pangolin, ngrok), needs a paired device cookie.
  */
 export const DEVICE_COOKIE = "mea_device";
 const PAIR_TTL_MS = 10 * 60_000;
@@ -22,10 +22,14 @@ export function hostName(host: string | undefined): string {
   return h.replace(/:\d+$/, "");
 }
 
-/** Requests that came in on the public listener (the ngrok tunnel's port). Never trusted, whatever their address. */
+/** Requests that came in on the public listener (the tunnel's port). Never trusted, whatever their address. */
 const viaPublic = new WeakSet<Request>();
 export function markPublic(req: Request) {
   viaPublic.add(req);
+}
+/** True when the request came in on the tunnel's port rather than Mea's main one. */
+export function isPublicRequest(req: Request): boolean {
+  return viaPublic.has(req);
 }
 
 export function isTrustedLocal(c: Context): boolean {

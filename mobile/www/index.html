@@ -30,7 +30,7 @@
 
   <section id="down" hidden>
     <p class="center err" id="downMsg">Can't reach Mea right now.</p>
-    <p class="center" style="margin-top:0.4rem">Is the computer on, with Mea and ngrok running?</p>
+    <p class="center" style="margin-top:0.4rem">Is the computer on, with Mea and its tunnel running?</p>
     <div style="display:grid;gap:0.6rem;margin-top:1rem">
       <button id="retry">Try again</button>
       <button class="ghost" id="change">Change address</button>
@@ -40,7 +40,7 @@
   <form id="setup" hidden>
     <p>On the computer, open <b>Settings → Devices</b> in Mea, make a pairing code, and paste its link here. Or type the address and the code.</p>
     <label>Mea's address or pairing link
-      <input id="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://your-name.ngrok-free.dev" required />
+      <input id="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://mea.your-domain.com" required />
     </label>
     <label>Pairing code <span>(only the first time)</span>
       <input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD2345" />
@@ -62,7 +62,7 @@
     if (saved) $("url").value = saved;
   }
 
-  /** Accepts "name.ngrok-free.dev", a full address, or a whole pairing link (address + ?code=). */
+  /** Accepts "mea.your-domain.com", a full address, or a whole pairing link (address + ?code=). */
   function parse(raw) {
     let text = raw.trim();
     if (!/^https?:\/\//i.test(text)) text = "https://" + text;
@@ -104,7 +104,7 @@
     $("go").disabled = false;
     $("go").textContent = "Connect";
     if (!ok) {
-      err.textContent = "Mea didn't answer at that address. Check it, and that ngrok is running on the computer.";
+      err.textContent = "Mea didn't answer at that address. Check it, and that the tunnel (Pangolin or ngrok) is running on the computer.";
       err.hidden = false;
       return;
     }
