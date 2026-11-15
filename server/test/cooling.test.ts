@@ -13,6 +13,7 @@ import {
 } from "../src/services/chats";
 import { pauseJobs, registerJob } from "../src/services/jobs";
 import {
+  coolingBreaches,
   coolingLine,
   coolingList,
   coolingOn,
@@ -93,6 +94,16 @@ describe("the cooling list (the done-when fixture)", () => {
     expect(line).toContain("only Buffy may use it");
     expect(line).toContain("nobody else");
     expect(line).not.toContain("Dawn");
+  });
+
+  test("a reply that leans on a resting family three times is flagged; once or twice is not", () => {
+    const id = createChat({ characterId: charId }).id;
+    const says = (i: number) => `"The ruling stands, item ${i}," Buffy says.`;
+    for (let i = 1; i <= 11; i++) reply(id, `${says(i)} Dawn rolls her eyes.`, [{ name: "Buffy", text: says(i) }]);
+    // As reply 982: the family was resting, and everyone ruled in other words.
+    const leaning = `"Counter-offer. That's non-negotiable," Dawn says, in the voice for a binding household decree. "Final verdict."`;
+    expect(coolingBreaches(id, leaning, 99)).toMatchObject([{ item: { key: "cool:court" }, hits: 4 }]);
+    expect(coolingBreaches(id, `"That's the ruling," Buffy says.`, 99)).toEqual([]);
   });
 
   test("said by everyone, a family has no owner and rests for everybody; it comes off when it fades", () => {

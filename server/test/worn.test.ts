@@ -17,6 +17,20 @@ describe("worn phrases", () => {
     expect(worn.filter((w) => w.includes("raw") || w.includes("wrist"))).toHaveLength(1);
   });
 
+  test("the room and its fixtures are the scene, not a habit; a body tic still is", () => {
+    // As in a kitchen scene: who's against the counter and what's at the kitchen window changes; the scraped palm doesn't.
+    const who = ["Walter leans", "the cat sleeps", "a mop rests", "Dawn sits", "the broom stands", "her bag slumps", "the radio hums", "Spike lounges"];
+    const sight = ["rain", "a dog", "the oak", "a car", "dusk", "the moon", "a kid", "frost"];
+    const replies = Array.from({ length: 8 }, (_, i) => `${filler[i % filler.length]} ${who[i]} against the counter. Outside the kitchen window, ${sight[i]}. Her scraped palm stays flat on the wood.`);
+    const worn = wornPhrases(replies);
+    expect(worn.some((w) => w.includes("scraped palm"))).toBe(true);
+    expect(worn.filter((w) => /counter|kitchen window/.test(w) && !/palm/.test(w))).toEqual([]);
+    // A prop the story state names is the scene's too.
+    const props = Array.from({ length: 8 }, (_, i) => `${filler[i % filler.length]} The geometry notebook sits open.`);
+    expect(wornPhrases(props)).toEqual(["the geometry notebook sits open"]);
+    expect(wornPhrases(props, { scene: ["geometry", "notebook", "sits", "open"] })).toEqual([]);
+  });
+
   test("filler, names and the player's own words are never worn", () => {
     const replies = Array.from({ length: 8 }, (_, i) => `${filler[i % filler.length]} And then she is there with him. Buffy Summers and Gabriel Winters, again. The orange chicken steams on the tray.`);
     const worn = wornPhrases(replies, { names: ["Buffy Summers", "Gabriel Winters"], player: ["Look, the orange chicken steams on the tray, ha."] });
