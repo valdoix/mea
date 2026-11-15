@@ -1,3 +1,4 @@
+import { stateSceneWords } from "../steer/scenewords";
 import type { CardData } from "../cards/card";
 import { countTokens, MESSAGE_OVERHEAD } from "../lib/tokens";
 import type { ActivationResult, TraceItem } from "../lore/activate";
@@ -254,7 +255,8 @@ export function toolkitRhythm(pace: string | undefined, history: { role: string;
 function worn(input: AssembleInput): string {
   const replies = input.history.filter((m) => m.role === "assistant").map((m) => m.content);
   const player = input.history.filter((m) => m.role === "user").slice(-6).map((m) => m.content);
-  return wornLine(replies, { player, names: [input.card.name, input.userName] });
+  const scene = stateSceneWords(input.extras?.find((e) => e.id === "trackers")?.content);
+  return wornLine(replies, { player, names: [input.card.name, input.userName], scene });
 }
 
 function storySetting(input: AssembleInput, label: string): string {

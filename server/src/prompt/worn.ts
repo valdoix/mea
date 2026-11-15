@@ -5,6 +5,8 @@
  * that keep coming back across them, and the turn frame names them so the next reply finds new words.
  */
 
+import { onlyScene } from "../steer/scenewords";
+
 const STOP = new Set(
   (
     "a an the and or but if so of to in on at by for with from into onto over under up down out off as is are was were be been being am " +
@@ -32,6 +34,8 @@ export interface WornOptions {
   player?: string[];
   /** Names in the story: a phrase that is only names and filler isn't a habit. */
   names?: string[];
+  /** This scene's own words (its place and props, from the story state): a phrase of only those is the set. */
+  scene?: string[];
 }
 
 /** The reply as plain prose: no visual tags, speaker marks or markdown emphasis. */
@@ -102,6 +106,7 @@ export function wornPhrases(replies: string[], opts: WornOptions = {}): string[]
       const w = g.split(" ");
       const meaning = w.map((x) => x.replace(/'s$/, "")).filter((x) => !STOP.has(x) && !names.has(x) && x.length > 1 && !/^\d+$/.test(x));
       if (meaning.length < 2) return false;
+      if (onlyScene(g, opts.scene)) return false;
       return !theirs(g) && lasting(g);
     })
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length);

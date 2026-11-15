@@ -6,6 +6,7 @@ import { lane, registerLane } from "../prompt/lanes";
 import { type ChatSettings, mustChat } from "../services/chats";
 import { currentFold } from "../trackers/store";
 import { craftOn, craftStats } from "./craft";
+import { onlyScene } from "./scenewords";
 
 /**
  * Prose habits cool on their own (docs/33 Part 10). In Buffy × Gabriel the tics were replaced, not
@@ -89,6 +90,13 @@ export const FAMILIES: { key: string; label: string; words: string[] }[] = [
       "plaintiff",
       "sentencing",
       "ruled",
+      // Reply 982, with the family resting: everyone ruled in other words.
+      "decree",
+      "non-negotiable",
+      "counter-offer",
+      "jurisdiction",
+      "the bench",
+      "no appeals",
     ],
   },
 ];
@@ -354,8 +362,12 @@ export function coolingList(
       for (const g of craftStats(r.text).grams)
         count.set(g, (count.get(g) ?? 0) + 1);
     const kept: [string, number][] = [];
+    // A place or a prop is the scene ("the living room" in a story set in a house), not a habit.
+    const places = all<{ name: string; aliases: string }>("SELECT name, aliases FROM entities WHERE chat_id = ? AND kind IN ('place', 'object') AND deleted_at IS NULL", chatId).flatMap((r) =>
+      [r.name, ...parseJson<string[]>(r.aliases, [])].flatMap((n) => n.toLowerCase().match(/[a-z]{3,}/g) ?? []),
+    );
     for (const [g, n] of [...count]
-      .filter(([, n]) => n / of >= PHRASE_SHARE)
+      .filter(([g, n]) => n / of >= PHRASE_SHARE && !onlyScene(g, places))
       .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length))
       if (
         !kept.some(
@@ -382,6 +394,28 @@ export function coolingList(
     .filter((c) => !ignored.has(c.key))
     .sort((a, b) => b.n - a.n)
     .slice(0, MAX_ITEMS);
+}
+
+/** How often a cooled item turns up in one reply. */
+export function coolingHits(c: Cooling, text: string): number {
+  const t = cleanText(text);
+  if (c.kind === "family") {
+    const f = FAMILY_RES.find((x) => `cool:${x.key}` === c.key);
+    return f ? f.res.reduce((n, [, re]) => n + (t.match(re)?.length ?? 0), 0) : 0;
+  }
+  if (c.kind === "word" || c.kind === "phrase") return c.used.reduce((n, w) => n + (t.match(wordRe(w))?.length ?? 0), 0);
+  return 0;
+}
+
+/**
+ * What a new reply used of what was resting when it was written, three times or more: the list
+ * asks for none (or once, from its owner), and reply 982 still had six courtroom words. Read by
+ * the "cooled" check (accuracy/moreslips.ts); counting only, no model.
+ */
+export function coolingBreaches(chatId: string, text: string, seq: number): { item: Cooling; hits: number }[] {
+  return coolingList(chatId, { beforeSeq: seq })
+    .map((item) => ({ item, hits: coolingHits(item, text) }))
+    .filter((b) => b.hits >= 3);
 }
 
 /** One line of the lane. A running bit with an owner stays theirs; anything else rests for a reply. */

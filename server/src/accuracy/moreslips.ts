@@ -3,6 +3,7 @@ import { notFound } from "../lib/http";
 import { cleanText } from "../memory/text";
 import { lane, registerLane } from "../prompt/lanes";
 import { addLesson } from "../steer/lessons";
+import { coolingBreaches, coolingOn } from "../steer/cooling";
 import type { FlagRow, Issue } from "./checker";
 import { alreadyToldRule } from "./notnews";
 import { thingsElsewhere } from "../trackers/things";
@@ -252,6 +253,26 @@ SLIPS.push(
     phase: "reply",
     on: (c) => c.role === "assistant" && Boolean(c.state?.time),
     run: (text, st) => clockBackRule(text, st?.time?.minutes ?? null),
+  },
+  {
+    id: "cooled",
+    label: "Resting words",
+    description: "A reply that leans on words the cooling list asked it to rest (three times or more).",
+    phase: "reply",
+    on: (c) => c.role === "assistant" && coolingOn(c.chatId),
+    run: (text, _s, c) =>
+      coolingBreaches(c.chatId, text, c.seq).map(({ item, hits }) => {
+        const first = item.used.find((w) => text.toLowerCase().includes(w.toLowerCase()));
+        return {
+          kind: "cooled",
+          severity: "minor" as const,
+          claim: (first && sentences(cleanText(text)).find((s) => s.toLowerCase().includes(first.toLowerCase()))?.slice(0, 240)) || item.label,
+          conflict: `${item.label} were resting (in ${item.n} of the last ${item.of} replies); this reply uses them ${hits} times.`,
+          citations: [{ ref: "C", type: "card" as const, label: "Cooling" }],
+          fix: item.owner ? `Only ${item.owner} may use ${item.label}, once, in their own line; say the rest plainly.` : `Say it without ${item.label}.`,
+          by: "rules" as const,
+        };
+      }),
   },
   {
     id: "planning",
