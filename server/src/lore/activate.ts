@@ -62,6 +62,11 @@ export interface ActivationInput {
   tiers?: { focus: string[]; focusText: string };
   /** 6.2: entries a "remember when…" reached back for, with what they matched. */
   recalled?: Map<string, string>;
+  /**
+   * "Current" entries the story has moved past (lore/current.ts), with when they were last true. They
+   * describe the opening; once it's well behind and nothing has kept them up to date, they stop.
+   */
+  pastCurrent?: Map<string, string>;
   /** 6.3: messages since each entry last fired in this chat (missing: not yet). */
   firedAgo?: Map<string, number>;
   /** docs/15, 5.1: entries whose date comes round today, with the line to say ("a year since the wedding"). */
@@ -261,7 +266,10 @@ export function activateLore(input: ActivationInput): ActivationResult {
   const match = (e: ScanEntry, text: string, level: number): MatchResult & { kind?: ActivatedEntry["kind"] } => {
     if (e.constant) return { ok: true, reason: "constant", score: 0, kind: "constant" };
     // How things stand right now is in the scene from the first message, named or not.
-    if (isCurrent(e)) return { ok: true, reason: "current", score: 0, kind: "constant" };
+    if (isCurrent(e)) {
+      const past = input.pastCurrent?.get(e.id);
+      return past ? { ok: false, reason: `current, but the story has moved past it (${past})`, score: 0 } : { ok: true, reason: "current", score: 0, kind: "constant" };
+    }
     const x = extraOf(e);
     const keys = [...e.keys, ...(x.aliases ?? [])].filter((k) => k.trim());
     const cs = e.caseSensitive ?? e.book.caseSensitive ?? defaults.caseSensitive;
