@@ -1,3 +1,4 @@
+import type { ChatMessage } from "../prompt/assemble";
 import { type EmbedResult, HTTP_HINTS, httpError, INCOMPLETE, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
 
 export interface OpenAIOptions {
@@ -6,6 +7,59 @@ export interface OpenAIOptions {
   headers?: Record<string, string>;
   /** Extra body fields merged into every request. */
   extraBody?: Record<string, unknown>;
+  /** Longest system message the route keeps; longer ones are sent as several. Defaults by host (systemLimitFor). */
+  maxSystemChars?: number;
+}
+
+/**
+ * Relays that quietly throw away a long system message. CosmosIn swaps any single system message
+ * of 2,000 characters or more for a short one of its own (measured 2026-11-21 on every model it
+ * serves), so the preset, card and lore never reached the model and the trackers never saw their
+ * line format (no thoughts). Several shorter system messages all get through.
+ */
+const SYSTEM_LIMITS: Record<string, number> = { "cosmosin.io": 1800 };
+
+export function systemLimitFor(baseUrl: string): number | undefined {
+  let host: string;
+  try {
+    host = new URL(baseUrl).hostname;
+  } catch {
+    return undefined;
+  }
+  for (const [domain, limit] of Object.entries(SYSTEM_LIMITS)) if (host === domain || host.endsWith(`.${domain}`)) return limit;
+  return undefined;
+}
+
+/**
+ * Sends each system message longer than `max` as several back to back, cut at a paragraph, line or
+ * word break. The pieces join back to the exact text, and the cuts land in the same places every
+ * time, so cached prefixes still match.
+ */
+export function splitLongSystem(messages: ChatMessage[], max: number): ChatMessage[] {
+  if (!messages.some((m) => m.role === "system" && m.content.length > max)) return messages;
+  const out: ChatMessage[] = [];
+  for (const m of messages) {
+    if (m.role !== "system" || m.content.length <= max) {
+      out.push(m);
+      continue;
+    }
+    let rest = m.content;
+    while (rest.length > max) {
+      let cut = -1;
+      for (const sep of ["\n\n", "\n", " "]) {
+        const at = rest.lastIndexOf(sep, max - sep.length);
+        if (at >= max / 2) {
+          cut = at + sep.length;
+          break;
+        }
+      }
+      if (cut < 0) cut = max;
+      out.push({ role: "system", content: rest.slice(0, cut) });
+      rest = rest.slice(cut);
+    }
+    if (rest) out.push({ role: "system", content: rest });
+  }
+  return out;
 }
 
 /** Reads a server-sent-events stream and yields each `data:` payload. */
@@ -76,6 +130,8 @@ export class OpenAIProvider implements Provider {
   }
 
   async stream(req: StreamRequest, onDelta: (d: StreamDelta) => void): Promise<StreamResult> {
+    const limit = this.opts.maxSystemChars ?? systemLimitFor(this.opts.baseUrl);
+    if (limit) req = { ...req, messages: splitLongSystem(req.messages, limit) };
     const body = buildBody(req, this.opts.extraBody);
     let res: Response;
     try {
@@ -170,10 +226,20 @@ export class OpenAIProvider implements Provider {
       name: m.name ?? m.id,
       contextLength: m.context_length ?? m.context_window ?? undefined,
       maxOutput: m.max_output_tokens ?? undefined,
-      capabilities: m.capabilities ?? {},
+      capabilities: capabilityMap(m.capabilities),
       pricing: m.pricing ?? {},
     }));
   }
+}
+
+/**
+ * A model's capabilities as flags. Some catalogs list them as names (CosmosIn sends
+ * ["text", "tools", "reasoning", ...]); read as an object those flags were all missing, so a model
+ * that thinks looked like one that doesn't.
+ */
+export function capabilityMap(caps: unknown): Record<string, unknown> {
+  if (Array.isArray(caps)) return Object.fromEntries(caps.filter((c) => typeof c === "string" && c).map((c) => [c, true]));
+  return caps && typeof caps === "object" ? (caps as Record<string, unknown>) : {};
 }
 
 export function usageOf(u: Record<string, any> | undefined): StreamResult["usage"] {

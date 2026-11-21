@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { NanoGPTProvider } from "../src/providers/nanogpt";
-import { OpenAIProvider, usageOf } from "../src/providers/openai";
+import { capabilityMap, OpenAIProvider, splitLongSystem, systemLimitFor, usageOf } from "../src/providers/openai";
 import { ProviderError } from "../src/providers/types";
 import { createConnection, getConnectionRow, listModels, syncModels } from "../src/services/connections";
 import { freshDb } from "./helpers";
@@ -89,6 +89,54 @@ describe("OpenAI-compatible streaming", () => {
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.message).toContain("HTTP 404");
     expect(err.message).toContain("Model not found");
+  });
+});
+
+describe("relays that drop long system messages", () => {
+  const prompt = Array.from({ length: 120 }, (_, i) => `Rule ${i}: the keeper writes down the tide, the wind and the colour of the sky.${i % 7 === 6 ? "\n" : ""}`).join("\n");
+
+  test("CosmosIn gets a limit by host; other hosts get none", () => {
+    expect(systemLimitFor("https://api.cosmosin.io/v1")).toBe(1800);
+    expect(systemLimitFor("https://cosmosin.io/v1")).toBe(1800);
+    expect(systemLimitFor("https://api.zenllm.org/v1")).toBeUndefined();
+    expect(systemLimitFor("https://notcosmosin.io/v1")).toBeUndefined();
+    expect(systemLimitFor("not a url")).toBeUndefined();
+  });
+
+  test("a long system message goes as several that join back to the exact text, cut at breaks", () => {
+    const out = splitLongSystem([{ role: "system", content: prompt }, { role: "user", content: "hi" }, { role: "system", content: "short" }], 1800);
+    const pieces = out.filter((m) => m.role === "system");
+    expect(pieces.length).toBeGreaterThan(3);
+    expect(pieces.every((m) => m.content.length <= 1800)).toBe(true);
+    expect(pieces.slice(0, -1).map((m) => m.content).join("")).toBe(prompt);
+    expect(pieces.slice(0, -2).every((m) => m.content.endsWith("\n"))).toBe(true);
+    expect(out.map((m): string => m.role)).toEqual([...pieces.slice(0, -1).map(() => "system"), "user", "system"]);
+    // The same text always cuts the same way, so a cached prefix still matches.
+    expect(splitLongSystem([{ role: "system", content: prompt }], 1800)).toEqual(splitLongSystem([{ role: "system", content: prompt }], 1800));
+  });
+
+  test("text with no breaks is still cut to size, and short prompts are left alone", () => {
+    const out = splitLongSystem([{ role: "system", content: "x".repeat(4000) }], 1800);
+    expect(out.map((m) => m.content.length)).toEqual([1800, 1800, 400]);
+    const short = [{ role: "system" as const, content: "short" }];
+    expect(splitLongSystem(short, 1800)).toBe(short);
+  });
+
+  test("the provider sends the pieces", async () => {
+    const p = new OpenAIProvider({ baseUrl: base, maxSystemChars: 1800 });
+    await p.stream({ model: "glm", messages: [{ role: "system", content: prompt }, { role: "user", content: "hi" }], params: {}, signal: new AbortController().signal }, () => {});
+    const sys = lastBody.messages.filter((m: any) => m.role === "system");
+    expect(sys.length).toBeGreaterThan(3);
+    expect(sys.map((m: any) => m.content).join("")).toBe(prompt);
+    expect(lastBody.messages.at(-1)).toEqual({ role: "user", content: "hi" });
+  });
+});
+
+describe("model capabilities", () => {
+  test("a catalog that lists capabilities by name reads as flags", () => {
+    expect(capabilityMap(["text", "tools", "reasoning", "structured_output"])).toEqual({ text: true, tools: true, reasoning: true, structured_output: true });
+    expect(capabilityMap({ reasoning: true })).toEqual({ reasoning: true });
+    expect(capabilityMap(null)).toEqual({});
   });
 });
 
