@@ -1,3 +1,4 @@
+import type { ChatMessage } from "../prompt/assemble";
 import { type EmbedResult, HTTP_HINTS, httpError, INCOMPLETE, type ModelInfo, type Provider, ProviderError, type StreamDelta, type StreamRequest, type StreamResult } from "./types";
 
 export interface OpenAIOptions {
@@ -6,6 +7,39 @@ export interface OpenAIOptions {
   headers?: Record<string, string>;
   /** Extra body fields merged into every request. */
   extraBody?: Record<string, unknown>;
+  /** Longest system message the route keeps; longer ones go as user messages. Defaults by host (systemLimitFor). */
+  maxSystemChars?: number;
+}
+
+/**
+ * Relays that quietly throw away a long system message. CosmosIn swaps any single system message
+ * of 2,000 characters or more for a short one of its own (measured 2026-11-21 on every model it
+ * serves), so the preset, card and lore never reached the model and the trackers never saw their
+ * line format (no thoughts). User messages of any length get through.
+ */
+const SYSTEM_LIMITS: Record<string, number> = { "cosmosin.io": 1800 };
+
+export function systemLimitFor(baseUrl: string): number | undefined {
+  let host: string;
+  try {
+    host = new URL(baseUrl).hostname;
+  } catch {
+    return undefined;
+  }
+  for (const [domain, limit] of Object.entries(SYSTEM_LIMITS)) if (host === domain || host.endsWith(`.${domain}`)) return limit;
+  return undefined;
+}
+
+/**
+ * Sends each system message longer than `max` as a user message instead, unchanged and in place.
+ * Cutting it into many short system messages also got through, but glm-5.3 then lost hold of the
+ * formatting rules (dialogue outside speaker tags in 4 of 9 replies on CosmosIn, 3 of 8 on NanoGPT
+ * given the same pieces); sent as user messages it kept them (8 of 8). Same text in the same order,
+ * so cached prefixes still match.
+ */
+export function liftLongSystem(messages: ChatMessage[], max: number): ChatMessage[] {
+  if (!messages.some((m) => m.role === "system" && m.content.length > max)) return messages;
+  return messages.map((m) => (m.role === "system" && m.content.length > max ? { role: "user", content: m.content } : m));
 }
 
 /** Reads a server-sent-events stream and yields each `data:` payload. */
@@ -76,6 +110,8 @@ export class OpenAIProvider implements Provider {
   }
 
   async stream(req: StreamRequest, onDelta: (d: StreamDelta) => void): Promise<StreamResult> {
+    const limit = this.opts.maxSystemChars ?? systemLimitFor(this.opts.baseUrl);
+    if (limit) req = { ...req, messages: liftLongSystem(req.messages, limit) };
     const body = buildBody(req, this.opts.extraBody);
     let res: Response;
     try {
@@ -170,10 +206,20 @@ export class OpenAIProvider implements Provider {
       name: m.name ?? m.id,
       contextLength: m.context_length ?? m.context_window ?? undefined,
       maxOutput: m.max_output_tokens ?? undefined,
-      capabilities: m.capabilities ?? {},
+      capabilities: capabilityMap(m.capabilities),
       pricing: m.pricing ?? {},
     }));
   }
+}
+
+/**
+ * A model's capabilities as flags. Some catalogs list them as names (CosmosIn sends
+ * ["text", "tools", "reasoning", ...]); read as an object those flags were all missing, so a model
+ * that thinks looked like one that doesn't.
+ */
+export function capabilityMap(caps: unknown): Record<string, unknown> {
+  if (Array.isArray(caps)) return Object.fromEntries(caps.filter((c) => typeof c === "string" && c).map((c) => [c, true]));
+  return caps && typeof caps === "object" ? (caps as Record<string, unknown>) : {};
 }
 
 export function usageOf(u: Record<string, any> | undefined): StreamResult["usage"] {

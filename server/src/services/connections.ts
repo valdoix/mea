@@ -10,7 +10,7 @@ import { MockProvider } from "../providers/mock";
 import { NANOGPT_BASE, NanoGPTProvider, type Quota } from "../providers/nanogpt";
 import { AnthropicProvider } from "../providers/anthropic";
 import { isLinkApi, LinkApiBilling, type LinkApiBalance } from "../providers/linkapi";
-import { OpenAIProvider } from "../providers/openai";
+import { capabilityMap, OpenAIProvider } from "../providers/openai";
 import type { CacheHint, GenerationParams, ModelInfo, Provider } from "../providers/types";
 import { resolveFamily } from "../prompt/models";
 import { recordQuotaSample } from "./quota";
@@ -293,7 +293,7 @@ function modelOut(r: ModelRow) {
     name: r.name ?? r.model_id,
     contextLength: r.context_length,
     maxOutput: r.max_output,
-    capabilities: parseJson<Record<string, unknown>>(r.capabilities, {}),
+    capabilities: capabilityMap(parseJson<unknown>(r.capabilities, {})),
     pricing: parseJson<Record<string, unknown>>(r.pricing, {}),
     subscription: Boolean(r.subscription),
     starred: Boolean(r.starred),
