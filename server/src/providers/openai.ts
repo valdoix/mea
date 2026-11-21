@@ -7,7 +7,7 @@ export interface OpenAIOptions {
   headers?: Record<string, string>;
   /** Extra body fields merged into every request. */
   extraBody?: Record<string, unknown>;
-  /** Longest system message the route keeps; longer ones are sent as several. Defaults by host (systemLimitFor). */
+  /** Longest system message the route keeps; longer ones go as user messages. Defaults by host (systemLimitFor). */
   maxSystemChars?: number;
 }
 
@@ -15,7 +15,7 @@ export interface OpenAIOptions {
  * Relays that quietly throw away a long system message. CosmosIn swaps any single system message
  * of 2,000 characters or more for a short one of its own (measured 2026-11-21 on every model it
  * serves), so the preset, card and lore never reached the model and the trackers never saw their
- * line format (no thoughts). Several shorter system messages all get through.
+ * line format (no thoughts). User messages of any length get through.
  */
 const SYSTEM_LIMITS: Record<string, number> = { "cosmosin.io": 1800 };
 
@@ -31,35 +31,15 @@ export function systemLimitFor(baseUrl: string): number | undefined {
 }
 
 /**
- * Sends each system message longer than `max` as several back to back, cut at a paragraph, line or
- * word break. The pieces join back to the exact text, and the cuts land in the same places every
- * time, so cached prefixes still match.
+ * Sends each system message longer than `max` as a user message instead, unchanged and in place.
+ * Cutting it into many short system messages also got through, but glm-5.3 then lost hold of the
+ * formatting rules (dialogue outside speaker tags in 4 of 9 replies on CosmosIn, 3 of 8 on NanoGPT
+ * given the same pieces); sent as user messages it kept them (8 of 8). Same text in the same order,
+ * so cached prefixes still match.
  */
-export function splitLongSystem(messages: ChatMessage[], max: number): ChatMessage[] {
+export function liftLongSystem(messages: ChatMessage[], max: number): ChatMessage[] {
   if (!messages.some((m) => m.role === "system" && m.content.length > max)) return messages;
-  const out: ChatMessage[] = [];
-  for (const m of messages) {
-    if (m.role !== "system" || m.content.length <= max) {
-      out.push(m);
-      continue;
-    }
-    let rest = m.content;
-    while (rest.length > max) {
-      let cut = -1;
-      for (const sep of ["\n\n", "\n", " "]) {
-        const at = rest.lastIndexOf(sep, max - sep.length);
-        if (at >= max / 2) {
-          cut = at + sep.length;
-          break;
-        }
-      }
-      if (cut < 0) cut = max;
-      out.push({ role: "system", content: rest.slice(0, cut) });
-      rest = rest.slice(cut);
-    }
-    if (rest) out.push({ role: "system", content: rest });
-  }
-  return out;
+  return messages.map((m) => (m.role === "system" && m.content.length > max ? { role: "user", content: m.content } : m));
 }
 
 /** Reads a server-sent-events stream and yields each `data:` payload. */
@@ -131,7 +111,7 @@ export class OpenAIProvider implements Provider {
 
   async stream(req: StreamRequest, onDelta: (d: StreamDelta) => void): Promise<StreamResult> {
     const limit = this.opts.maxSystemChars ?? systemLimitFor(this.opts.baseUrl);
-    if (limit) req = { ...req, messages: splitLongSystem(req.messages, limit) };
+    if (limit) req = { ...req, messages: liftLongSystem(req.messages, limit) };
     const body = buildBody(req, this.opts.extraBody);
     let res: Response;
     try {
