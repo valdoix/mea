@@ -168,6 +168,8 @@ export const chatSettingsSchema = z.object({
   secretLinks: z.record(z.string().max(120), z.string().max(120)).optional(),
   /** docs/22 4.2: when you asked to see a quiet kind of flag again (its key → then); its count starts from there. */
   flagsBack: z.record(z.string().max(60), z.number()).optional(),
+  /** docs/35 5.2: when you turned a secret's leak check back on (its fact key → then); its strikes start from there. */
+  leakBack: z.record(z.string().max(120), z.number()).optional(),
   /** STEER-04: the style profile, over the character's. */
   style: z
     .object({
