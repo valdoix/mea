@@ -203,16 +203,24 @@ Because the fold replays, `#alive` closes at 904 on the next re-fold with no mig
 
 ## Order and size
 
-| Part | What | Size | Needs |
-|---|---|---|---|
-| 0.4 | Leak rule checks only who it's kept from; telling words don't count; finished secrets skipped | done | |
-| 6 | Fixtures and replay report | small | |
-| 7 | Secrets end; who knows keeps up | medium, has UI | |
-| 1 | Secrets written as hidden truths | medium | |
-| 2 | One "does this person know?" | medium | 1 |
-| 4 | Sense check, wording, withdrawal | medium | 2 |
-| 3 | Weighted matching | medium | 6 |
-| 5 | Dismissing teaches | medium, has UI | 2 |
+| Part | What | Size | Needs | Built |
+|---|---|---|---|---|
+| 0.4 | Leak rule checks only who it's kept from; telling words don't count; finished secrets skipped | done | | PR 361 |
+| 6 | Fixtures and replay report | small | | PR 362 |
+| 7 | Secrets end; who knows keeps up | medium, has UI | | PR 363 |
+| 1 | Secrets written as hidden truths | medium | | PR 364 |
+| 2 | One "does this person know?" | medium | 1 | PR 367 (365 closed when its base went) |
+| 4 | Sense check, wording, withdrawal | medium | 2 | PR 366 |
+| 3 | Weighted matching | medium | 6 | PR 368 |
+| 5 | Dismissing teaches | medium, has UI | 2 | PR 369 |
+
+**As built, where it differs from the plan above:**
+
+- 2.2: the display-only readers (Codex lookups, ledgers, the cast panel) still show keepers and stances as recorded; everything that *decides* who knows reads `knowledgeOf`.
+- 3.2: the stemmer takes endings off (*clawed/claws*, *asks/asked*); it doesn't know irregular forms (*steal/stole*).
+- 3.1 applies to the leak rule. The fold's "same thing in other words" (7.3) keeps the plain match, so a re-fold doesn't change with the story's word counts.
+- 5.3 was already there: Story health lists each kind of flag with how often you waved it off. Withdrawn flags don't count as waved off.
+- 4.3: on a copy of the real data, 47 open flags, 13 read again, 4 withdrawn (the screenshot's flag among them). It runs once, 15 seconds after the server starts.
 
 Part 6 goes first so that every later part is measured against the real mistakes. Nothing here calls a paid model.
 

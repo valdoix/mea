@@ -8,6 +8,7 @@ import { secretRevealer } from "../lore/secretlinks";
 import { knowledgeOf } from "../trackers/knowledge";
 import { carryingWords, secretShape } from "../trackers/secretwords";
 import { leakMatch, notStating, saysShort, shortSecret, weigher } from "./leakmatch";
+import { leakTaught } from "./leakteach";
 import type { WorldState } from "../trackers/types";
 import type { Issue } from "./checker";
 import { nameSlips } from "./names";
@@ -226,10 +227,18 @@ export function leakRule(r: RuleInput): Found[] {
   for (const n of [...knownNames, ...Object.values(st.chars).flatMap((c) => [c.name, ...c.aliases].map(norm))]) for (const w of n.split(" ")) knownNames.add(w);
   // docs/35 3.1: how rare each word is in this story.
   const weight = weigher(chatId);
+  // docs/35 Part 5: what your dismissals taught: secrets whose check is off, and sentences that aren't about them.
+  const taught = leakTaught(chatId);
   for (const f of Object.values(st.facts)) {
     if (!f.secret && !Object.values(f.stances).some((s) => s.status === "unaware")) continue;
     // Everyone it was kept from has since been told: it isn't a secret from anyone any more.
-    if (f.secret?.out) continue;
+    if (f.secret?.out || taught.off.has(f.key)) continue;
+    // "It isn't about that": the same words don't match this secret again (a sentence with more of it still does).
+    const notAbout = (taught.notAbout.get(f.key) ?? []).map((claim) => new Set(leakMatch(f.statement, claim, { names: knownNames, weight: () => 1 }).hits));
+    const taughtAway = (s: string) => {
+      const hits = leakMatch(f.statement, s, { names: knownNames, weight: () => 1 }).hits;
+      return hits.length > 0 && notAbout.some((was) => was.size === hits.length && hits.every((h) => was.has(h)));
+    };
     // docs/35 Part 3: the words that make it this secret, by weight; a one-word secret ("Buffy is alive") by its person and its word.
     const carrying = carryingWords(f.statement, knownNames);
     const short = carrying.size < 2 ? shortSecret(f.statement) : null;
@@ -256,7 +265,7 @@ export function leakRule(r: RuleInput): Found[] {
         // docs/33 Part 7: the verb is this person's ("Ruth knows", "Dawn tells her"), not any verb in a sentence that names them.
         const says = new RegExp(`\\b(?:${[c.name, ...c.aliases].map(esc).join("|")})\\b(?:\\s+\\w+){0,5}\\s+(?:says?|said|knows?|knew|tells?|told|whispers?|asks?|mentions?|thinks?|realizes?|remembers?)\\b`, "i");
         const theirs = (isSpeaker && /["“]/.test(s)) || says.test(s);
-        if (!theirs || notStating(s)) continue;
+        if (!theirs || notStating(s) || taughtAway(s)) continue;
         const said = short ? saysShort(s, short, [shortNames!.name, shortNames!.name.split(/\s+/)[0]!, ...shortNames!.aliases]) : leakMatch(f.statement, s, { names: knownNames, weight }).leak;
         if (said) {
           out.push({
